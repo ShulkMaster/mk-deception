@@ -55,7 +55,7 @@ typedef struct MkVtableMkprocLocal {
     int (*sleep)(void);
     int (*system_stack)(void);
     int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry);
+    MkProcJumpSleepFn jump_sleep;
 } MkVtableMkprocLocal;
 
 /* Roster cell -- stride 0x28 in pselect_char_tbl / pselect_pz_char_tbl. */
@@ -257,10 +257,10 @@ int p1_selbox_start_pos;
 int p2_selbox_start_pos;
 int p1_selbox_pos;
 int p2_selbox_pos;
-int p1_alternate;
-int p2_alternate;
-int p1_alternate_alpha;
-int p2_alternate_alpha;
+RwTexture* p1_alternate;
+RwTexture* p2_alternate;
+RwTexture* p1_alternate_alpha;
+RwTexture* p2_alternate_alpha;
 int name_sound_state;
 extern int force_bgnd_num;
 int background_selbox_pos;
@@ -1257,7 +1257,8 @@ int get_num_selectable_bgnds(void) {
     }
 }
 
-void get_pz_special_move_list(PselectTexOut* out, int use_difficulty) {
+/* TODO: [near miss] 98.8%; by-value pair recovered; loop scheduling remains. */
+void get_pz_special_move_list(PselectTexOut out, int use_difficulty) {
     char* name;
     int i;
 
@@ -1269,12 +1270,12 @@ void get_pz_special_move_list(PselectTexOut* out, int use_difficulty) {
         }
 
         if (name != 0) {
-            out->color[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, name);
-            out->alpha[i] =
+            out.colors[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, name);
+            out.alphas[i] =
                 load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT, name);
         } else {
-            out->color[i] = 0;
-            out->alpha[i] = 0;
+            out.colors[i] = 0;
+            out.alphas[i] = 0;
         }
     }
 }
@@ -1305,16 +1306,16 @@ void get_background_select_textures(PselectTexOut out) {
 
     dst = 0;
     for (i = 0; i < n; i++) {
-        out.color[dst] =
+        out.colors[dst] =
             load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].tex_name);
-        out.alpha[dst] = load_named_alpha_texture_from_slot(
+        out.alphas[dst] = load_named_alpha_texture_from_slot(
             PSELECT_SEC_SLOT, tbl[i].tex_name);
         dst += 1;
     }
 }
 
-/* Soft ceiling: get_pselect_body_textures -- alternate latch / stmw. */
-void get_pselect_body_textures(PselectTexOut* out) {
+/* TODO: [breakthrough] 73.82692%; by-value pair fixes caller ABI; alternate latch and register allocation remain. */
+void get_pselect_body_textures(PselectTexOut out) {
     PselectCharEntry* tbl;
     int n;
     int i;
@@ -1328,32 +1329,32 @@ void get_pselect_body_textures(PselectTexOut* out) {
         tbl = pselect_char_tbl;
     }
 
-    memset(out->color, 0, (unsigned long)(n * 4));
-    memset(out->alpha, 0, (unsigned long)(n * 4));
+    memset(out.colors, 0, (unsigned long)(n * sizeof(*out.colors)));
+    memset(out.alphas, 0, (unsigned long)(n * sizeof(*out.alphas)));
 
     for (i = 0; i < n; i++) {
         name = tbl[i].body_name;
         if (name != 0) {
-            out->color[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, name);
-            out->alpha[i] =
+            out.colors[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, name);
+            out.alphas[i] =
                 load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT, name);
         }
     }
 
     if (pselect_mode == 0) {
         if (p1_alternate == 0) {
-            out->color[n] = out->color[p1_selbox_pos];
-            out->alpha[n] = out->alpha[p1_selbox_pos];
+            out.colors[n] = out.colors[p1_selbox_pos];
+            out.alphas[n] = out.alphas[p1_selbox_pos];
         } else {
-            out->color[n] = (RwTexture*)p1_alternate;
-            out->alpha[n] = (RwTexture*)p1_alternate_alpha;
+            out.colors[n] = p1_alternate;
+            out.alphas[n] = p1_alternate_alpha;
         }
         if (p2_alternate == 0) {
-            out->color[n + 1] = out->color[p2_selbox_pos];
-            out->alpha[n + 1] = out->alpha[p2_selbox_pos];
+            out.colors[n + 1] = out.colors[p2_selbox_pos];
+            out.alphas[n + 1] = out.alphas[p2_selbox_pos];
         } else {
-            out->color[n + 1] = (RwTexture*)p2_alternate;
-            out->alpha[n + 1] = (RwTexture*)p2_alternate_alpha;
+            out.colors[n + 1] = p2_alternate;
+            out.alphas[n + 1] = p2_alternate_alpha;
         }
     }
 }
@@ -1369,11 +1370,8 @@ int get_num_pselect_body_textures(void) {
     }
 }
 
-/*
- * Soft ceiling: get_bg_pselect_team_textures -- dual table scans /
- * share_pdata overlays. Soft OK.
- */
-void get_bg_pselect_team_textures(PselectTexOut* out, int team) {
+/* TODO: [breakthrough] 74.92%; by-value pair recovered; dual table scans and shared-pdata lowering remain. */
+void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     BgPselectPdata* pdata;
     BgPselectTeamView* teamv;
     int i;
@@ -1390,19 +1388,19 @@ void get_bg_pselect_team_textures(PselectTexOut* out, int team) {
     }
 
     teamv = bg_team_view(pdata, team);
-    teamv->colors = out->color;
-    teamv->alphas = out->alpha;
+    teamv->colors = out.colors;
+    teamv->alphas = out.alphas;
 
     for (i = 0; i < 5; i++) {
         if (i > teamv->count - 2) {
-            out->color[i] = 0;
-            out->alpha[i] = 0;
+            out.colors[i] = 0;
+            out.alphas[i] = 0;
             continue;
         }
         char_id = teamv->chars[i];
         if (char_id == 0x2C) {
-            out->color[i] = 0;
-            out->alpha[i] = 0;
+            out.colors[i] = 0;
+            out.alphas[i] = 0;
             continue;
         }
 
@@ -1414,7 +1412,7 @@ void get_bg_pselect_team_textures(PselectTexOut* out, int team) {
                 break;
             }
         }
-        out->color[i] = tex;
+        out.colors[i] = tex;
 
         tex = 0;
         for (slot = 0; slot < 0x1B; slot++) {
@@ -1425,7 +1423,7 @@ void get_bg_pselect_team_textures(PselectTexOut* out, int team) {
                 break;
             }
         }
-        out->alpha[i] = tex;
+        out.alphas[i] = tex;
     }
 
     if (pselect_mode != 1) {
@@ -1466,18 +1464,18 @@ void get_pselect_head_textures(PselectTexOut out) {
 
     for (i = 0; i < n; i++) {
         if (is_char_locked(pselect_char_id_at(i), 0)) {
-            out.color[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
-            out.alpha[i] =
+            out.colors[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
+            out.alphas[i] =
                 load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
         } else {
             if (tbl[i].head_name != 0) {
-                out.color[i] = load_named_tga_from_slot(
+                out.colors[i] = load_named_tga_from_slot(
                     PSELECT_SEC_SLOT, tbl[i].head_name);
-                out.alpha[i] = load_named_alpha_texture_from_slot(
+                out.alphas[i] = load_named_alpha_texture_from_slot(
                     PSELECT_SEC_SLOT, tbl[i].head_name);
             } else {
-                out.color[i] = 0;
-                out.alpha[i] = 0;
+                out.colors[i] = 0;
+                out.alphas[i] = 0;
             }
         }
     }
@@ -1852,10 +1850,8 @@ void pselect_player_selected(PlyrInfo* plyr) {
  * Wave D: load alternate body SEC into per-player slot, stash BODY_ALT
  * TGA into p1/p2_alternate (+ alpha). Spawned from pselect_player_selected
  * when confirm holds switch 0xB and alt unlocked.
- *
- * Soft ceiling: p_load_alternate_body ~93% -- lis/mulli NV color on
- * char_tbl vs slot (0x17xxxx); stringBase0 reloc label. Soft OK.
  */
+/* TODO: [near miss] 93.03278%; typed texture globals recovered; table/slot register allocation remains. */
 static float p_load_alternate_body(void) {
     AltBodyPdata* pdata;
     int slot;
@@ -1869,15 +1865,15 @@ static float p_load_alternate_body(void) {
     pdata = (AltBodyPdata*)apdata;
     if (pdata->player == 0) {
         sel_pos = p1_selbox_pos;
-        color_out = (RwTexture**)&p1_alternate;
+        color_out = &p1_alternate;
         slot = PSELECT_ALT_SLOT_P1;
-        alpha_out = (RwTexture**)&p1_alternate_alpha;
+        alpha_out = &p1_alternate_alpha;
         sec_name = pselect_char_tbl[sel_pos].alt_sec;
     } else {
         sel_pos = p2_selbox_pos;
-        color_out = (RwTexture**)&p2_alternate;
+        color_out = &p2_alternate;
         slot = PSELECT_ALT_SLOT_P2;
-        alpha_out = (RwTexture**)&p2_alternate_alpha;
+        alpha_out = &p2_alternate_alpha;
         sec_name = pselect_char_tbl[sel_pos].alt_sec;
     }
 
@@ -1897,11 +1893,10 @@ static float p_load_alternate_body(void) {
     return sleep_ticks_neg_one;
 }
 
-/* Soft ceiling: p_play_name_sound ~99.5% -- sdata2 float pool labels. Soft OK. */
 static float p_play_name_sound(void) {
     NameSoundPdata* pdata;
     MkVtableMkprocLocal* vtbl;
-    float (*jump_sleep)(float ticks, MkProcEntryFn entry);
+    MkProcJumpSleepFn jump_sleep;
 
     pdata = (NameSoundPdata*)apdata;
     if (pdata == 0) {
@@ -1919,8 +1914,8 @@ static float p_play_name_sound(void) {
     name_sound_active = 1;
     snd_req_delay(pdata->sound_id, 0x14);
     vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
-    jump_sleep = (float (*)(float, MkProcEntryFn))vtbl->jump_sleep;
-    jump_sleep(sleep_ticks_name, p_name_sound_die);
+    jump_sleep = vtbl->jump_sleep;
+    jump_sleep(p_name_sound_die, sleep_ticks_name);
     return sleep_ticks_name;
 }
 

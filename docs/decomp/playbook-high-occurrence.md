@@ -35,6 +35,13 @@ scores, attempts, and campaign history in the
 If m2c rejects directives in a generated context, preprocess a scratch copy
 with the project's include paths and defines, then pass that copy to
 `--context`. Do not strip directives blindly or rewrite generated inputs.
+If m2c cannot resolve a branch to the current function's entry, confirm the
+branch address equals the entry and give that address a local label in a scratch
+assembly copy. Retarget only the intra-function branch; preserve calls and every
+instruction. DTK's `.fn` directive may not supply m2c with a branch-target label.
+Puzzle piece generation confirms this self-entry retry case; do not replace it
+with recursion or hand-edit generated assembly.
+
 Host preprocessing is only parser preparation: union-member and data-base
 inferences still require retail offsets and relocations ([AI context check](../../.agent-work/decomp/ai-matching/README.md#ninety-seventh-round-typed-context-recovery)).
 
@@ -88,7 +95,12 @@ Apply these refinements only with the parent rule's evidence:
   Both produce the same `int` result, but MWCC can allocate their intermediates
   differently. Do not add aliases or mutate the original value. This closes
   [scripted attack](../../.agent-work/decomp/ai-matching/README.md#round-209-logical-negation-closes-scripted-attack),
-  where prior staged-inverse and scope controls did not. Check the actual source
+  where prior staged-inverse and scope controls did not. A final integer return
+  can also differ: Puzzle piece generation needs `!blocked` for the retail
+  normalization-then-copy sequence on its u16 result. First recover the real
+  spawn-row/center-cell operation as an inline helper with an initially-zero
+  result and early blocked return; Boolean spelling alone does not establish
+  that missing control-flow boundary. Check the actual source
   forms tested; a random search with no improvement does not prove this rewrite
   was covered. Do not generalize the argument-value result to direct branch
   conditions: the attack-dispatcher entry-gate control was neutral (round 210).
@@ -141,6 +153,70 @@ Apply these refinements only with the parent rule's evidence:
 - H04: For mask-then-shift extraction, assign the complete expression to the
   decoded value instead of reusing that local for the unshifted mask. Confirm
   all uses: `_rwGCNDisplayListGetStride` retains the same operations this way.
+- H11: Before calling a compound-condition mismatch equivalent, trace each
+  branch destination and the scope of every negation. Puzzle round-start events
+  require `!(A && B && C) && D`, not `!((A && B && C) && D)`: the latter can send
+  an event when the score-applied guard forbids it. Check mixed true/false cases
+  and lazy reads against retail, even when the current function scores above 97%.
+- H05: A low score with missing loads may come from an explicitly cached
+  subobject pointer rather than register allocation. Puzzle object motion closes
+  after replacing its ScreenObj snapshot with motion->object at each observed
+  update/read. REQUIRE the retail owner reloads and preserve their store/call
+  boundaries; do not simulate the loads with volatile or dead reads. Repeated
+  typed owner access lets the compiler recover the sequence naturally.
+- H01: Registers live immediately before a call are not automatically its
+  arguments. REQUIRE callee reads before clobber and every caller's preceding
+  consumers. Puzzle random-fatality checking overwrites incoming r3/r4; both
+  callers use those registers for state stores. Removing unsupported engine/force
+  parameters improves both callers and leaves the callee unchanged. Check all
+  declarations/call sites together; never preserve unused inferred parameters
+  solely because they made an earlier fuzzy score look plausible.
+- H01: A pointer-result cast can conceal an undeclared function's implicit int
+  return. REQUIRE the canonical API declaration before tuning call-result
+  lifetimes; include its header and convert all consumers to its actual input
+  type. Puzzle rain initialization exposed this at pfx_get_emitter. Replace
+  duplicate partial emitter/transform layouts with existing shared types when
+  offsets agree, then compare every consumer affected by the new declaration.
+- H03: A cast at a helper call is converted again to the helper parameter type.
+  If only one selector must be unsigned while later comparisons stay signed,
+  REQUIRE evidence at both boundaries; TRY the explicit local selector rather
+  than changing the shared helper or whole local's type. Puzzle center-distance
+  lookup closes this way: unsigned cast passed to an int helper was ineffective,
+  while unsigned typing of the whole local changed later signed comparisons.
+- H03: IF equality against a positive constant above signed-16 range differs
+  by `addis ..., 0` before `cmplwi`, REQUIRE the variable's signed uses and
+  constant type; TRY removing an unsupported unsigned cast. Puzzle counter-drop
+  type comparison against 0xF000 matches this way. The preceding signed >=4 gate
+  and signed subtract support int; do not manufacture a no-op addition to emit
+  the instruction or change signedness solely from this one opcode.
+- H02: With shared-BSS base relocations, resolve the symbol's base offset and
+  then its member offset separately. Do not dismiss every immediate difference
+  as placement: normal Puzzle fill's start message used +0x10 where retail
+  polls and writes +0x0C. That is a field error even above99% similarity, unlike
+  differences caused solely by the object's position within the BSS section.
+- H02/H09: For a fixed board scan expressed through a byte-offset accumulator,
+  require the cell stride, row count and array extent; try typed row indexing
+  with the same comparisons and exits. Both Puzzle horizontal match scans
+  improved after replacing byte casts with `board + row * 8`. Compare generated
+  size as well as score: an inline boundary predicate kept one score unchanged
+  while adding instructions. Typed indexing did not resolve the shared-exit CFG;
+  diagnose that separately before permutation.
+  When nested scans share an index, preserve each loop's own pretest and
+  increment, including increments after an inner loop exhausts the index.
+  Express the actual typed index rather than maintaining decompiler-derived
+  stride accumulators by hand. Puzzle hole compaction closes with three nested
+  row loops; MWCC derives the distinct row*8 accumulators itself. A premature
+  outer break hid the retail join. After recovering the CFG, one ordinary
+  row/column declaration-order control resolved the remaining register swap.
+  Color clearing independently confirms this sequence: eliminate the manually
+  maintained row offset first, then test ordinary declarations for its real
+  breaker-color, cell, row and column locals. The cell pointer remains assigned
+  and consumed only in the loop; do not add initialization or fake cross-loop uses.
+  For early exits after a row, distinguish checks before the row increment
+  from a combined do/while condition evaluated afterward. Counter drops needs
+  delay/count breaks before advancing the row. Its byte-stride traversal also
+  maps directly to the established board_rows[row][column] type; preserve the
+  pre-call cached spawn-row pointer separately from live board-owner reloads.
 - H05: NPC command waits decrement through a saved NPC pointer, then check and
   clamp through `g_active_npc`. Preserve that observed owner reload after the
   store; audit every inlined consumer rather than introducing volatile.
@@ -212,6 +288,36 @@ Apply these refinements only with the parent rule's evidence:
   consumer-specific loads/checks and weapon-null guards at their observed
   boundaries. Preserve failure cleanup and shared publication (`ReadSram`).
   A wrapper returning an inline helper result can merge otherwise distinct pointer/null return paths; test the direct structured traversal in that wrapper while leaving other consumers intact ([NPC lookup](../../.agent-work/decomp/gameplay-200/README.md#round-21-background-npc-lookup-return-boundary)).
+  For a boundary scan followed by neighbor updates, put both operations in the
+  inline helper: return on the boundary and otherwise perform the original
+  calls/stores. A scan-only predicate can retain the unwanted post-scan test.
+  In recursive consumers, test scoped auto_inline off while retaining explicit
+  inline helpers, resetting afterward. Puzzle horizontal matching closes with
+  this boundary and its visual-copy order; the AI sibling recovers the complete
+  CFG but retains pointer/type coloring. Removing the barrier expanded recursive
+  bodies, so verify emitted calls, function size and all siblings.
+  The same ownership test applies to exceptional cleanup: if an inline update
+  returns a Boolean solely to gate its cleanup, move that cleanup into the
+  operation. Preserve failure paths that bypass later updates; structured
+  break-to-cleanup and early normal returns can express them without goto.
+  Puzzle new-piece invisibility removes the materialized result this way;
+  process-creation failure still skips fade advancement. This recovers the CFG,
+  not necessarily final register allocation.
+  If the caller needs the scan's stopping index afterward, return that actual
+  index from the complete operation rather than adding a Boolean plus a repeated
+  outer guard. Rain placement uses the stopped row to position its effect;
+  exhaustion must return the loop limit. This removes a duplicated guard but
+  does not alone guarantee the retail exit branch or a complete match.
+  For sentinel validation with callback failure exits, let the complete
+  validation helper return immediately after those callbacks. Keep successful
+  sentinel publication after its loop and remove a now-redundant post-loop
+  sentinel test. Puzzle network initialization closes this way; the earlier
+  shared post-loop test kept values live across failure calls, while moving
+  successful publication into the loop changed retail block order.
+  Reusing this validation in normal round fill also requires the retail
+  message-pointer reload, rather than a retained local sequence snapshot.
+  Measure both consumers: network initialization stays exact while fill retains
+  unrelated field-address and BSS-layout differences.
   Remove redundant Boolean normalization and caller snapshots that the helper
   makes unnecessary. Check `dont_inline` and caller-before-callee order against
   actual expansion; remeasure every consumer rather than assuming a shared win. A local `dont_inline` barrier can preserve a required ordinary call while also blocking a desired validation helper. Verify emitted calls before removing it; moving the pragma inside the body around one call did not limit its effect in the Konquest bleeding callback. Restore the verified boundary when removal expands the counter body.

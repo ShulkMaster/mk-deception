@@ -30,6 +30,8 @@ typedef struct PuzzleParticleEffect PuzzleParticleEffect;
 typedef struct PuzzleFighterRenderObject PuzzleFighterRenderObject;
 typedef struct PuzzleObjectVtable PuzzleObjectVtable;
 typedef struct RpMaterial RpMaterial;
+typedef struct RpGeometry RpGeometry;
+typedef struct MkFlippedBoneMap MkFlippedBoneMap;
 typedef struct RwTexture RwTexture;
 typedef struct AniTextureControl AniTextureControl;
 typedef struct PuzzleObjectFlags {
@@ -52,7 +54,7 @@ typedef struct PuzzleObjectSecondaryFlags {
 
 typedef struct PuzzleSobjMaterialData {
     char pad00[0x18];
-    void* geometry; /* +0x18 */
+    RpGeometry* geometry; /* +0x18 */
 } PuzzleSobjMaterialData;
 
 typedef struct PuzzleProcessVtable {
@@ -174,9 +176,14 @@ struct PuzzleFighterRenderObject {
         };
     };
     char padAC[4];
-    float external_force_x; /* +0xB0 */
-    float external_force_y; /* +0xB4 */
-    float external_force_z; /* +0xB8 */
+    union {
+        Vec external_force; /* +0xB0 */
+        struct {
+            float external_force_x;
+            float external_force_y;
+            float external_force_z;
+        };
+    };
     char padBC[0x18];
     float facing_angle; /* +0xD4 */
     char padD8[8];
@@ -341,7 +348,7 @@ typedef struct PuzzleFaceBleedProcess {
 
 typedef struct PuzzleEffectBankContext {
     int art_handle;
-    void* owner;
+    PuzzleFighterRenderObject* owner;
     void* context;
 } PuzzleEffectBankContext;
 
@@ -362,10 +369,15 @@ struct PuzzleParticleEffect {
 };
 
 typedef struct PuzzleFatalityDefinition {
-    int flags;
     float (*load_and_place)(void);
     int threshold;
-} PuzzleFatalityDefinition;
+    unsigned int field_0x08;
+} PuzzleFatalityDefinition; /* 0x0C */
+
+typedef struct PuzzleFatalityDefinitions {
+    unsigned int field_0x00; /* Retail header is 3; its use is unresolved. */
+    PuzzleFatalityDefinition entries[15];
+} PuzzleFatalityDefinitions; /* 0xB8 */
 
 typedef struct PuzzleAmbientLightDefinition {
     int type;
@@ -482,7 +494,7 @@ void unhide_obj(PuzzleFighterRenderObject* object);
 void hide_sobj(PuzzleFatalityHazardObject* object);
 RpMaterial* sobj_find_material_with_texture(
     PuzzleFatalityHazardObject* object, const char* texture);
-void RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
+RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
 
 float sfrand(float range);
 float frand(float range);
@@ -571,11 +583,11 @@ void fx_set_param_v3(
 void fx_set_render_priority(void* effect, int priority);
 MKMATRIX* force_calc_bone_world_mat(
     PuzzleFighterRenderObject* object, int bone);
-void* RpGeometryForAllMaterials(
-    void* geometry, RpMaterial* (*callback)(RpMaterial*, RwTexture*),
-    RwTexture* texture);
+RpGeometry* RpGeometryForAllMaterials(
+    RpGeometry* geometry, RpMaterial* (*callback)(RpMaterial*, void*),
+    void* texture);
 static RpMaterial* material_set_texture(
-    RpMaterial* material, RwTexture* texture);
+    RpMaterial* material, void* texture);
 static int pz_fighter_always_continue(void);
 static float p_ft_bounce_path(void);
 static void ft_fleshchunk_postsleep(void);
@@ -608,8 +620,9 @@ void obj_change_to_skinned_obj_light_list(
 void obj_add_to_skinned_obj_light_list_with_ambient(
     PuzzleFighterRenderObject* object, void* ambient_definition);
 PuzzleAnimPdata* animate_obj(
-    PuzzleFighterRenderObject* object, AniScript* animation, float speed,
-    void* light_data, int loop_start, int loop_end, int active);
+    PuzzleFighterRenderObject* object, AniScript* animation,
+    const int* bone_tags, MkFlippedBoneMap* flipped_bones,
+    void* ground_collisions, int active, float playback_rate);
 PuzzleFatalityHazardObject* obj_first_sobj(
     PuzzleFighterRenderObject* object);
 void sobj_set_priority(PuzzleFatalityHazardObject* object, int priority);
@@ -706,14 +719,16 @@ PuzzleAmbientLightDefinition skinned_obj_ambient_light_def = {
 
 int pz_snake_bones[9] = {1, 2, 3, 4, 5, 6, 7, 8, 0};
 
-PuzzleFatalityDefinition g_fatalityTable[15] = {
-    {3, pz_fighter_load_and_place_initial_grinders, 20},
-    {0, pz_fighter_load_and_place_initial_chompers, 40},
-    {0, pz_fighter_load_and_place_initial_chompers2, 60},
-    {0, pz_fighter_load_and_place_initial_objects_falling, 80},
-    {0, pz_fighter_load_and_place_initial_lightning, 90},
-    {0, pz_fighter_load_and_place_initial_snake, 95},
-    {0, pz_fighter_load_and_place_initial_burn, 100},
+PuzzleFatalityDefinitions g_fatalityTable = {
+    3, {
+        {pz_fighter_load_and_place_initial_grinders, 20, 0},
+        {pz_fighter_load_and_place_initial_chompers, 40, 0},
+        {pz_fighter_load_and_place_initial_chompers2, 60, 0},
+        {pz_fighter_load_and_place_initial_objects_falling, 80, 0},
+        {pz_fighter_load_and_place_initial_lightning, 90, 0},
+        {pz_fighter_load_and_place_initial_snake, 95, 0},
+        {pz_fighter_load_and_place_initial_burn, 100, 0},
+    }
 };
 
 /*
@@ -721,8 +736,7 @@ PuzzleFatalityDefinition g_fatalityTable[15] = {
  * branch; clean C emits one inverse branch to the same zero result. Callers
  * pass the engine and mode even though retail reads the canonical global.
  */
-int pz_fighter_check_fatality_random_event(
-    PuzzleFightersEngine* caller_engine, int force) {
+int pz_fighter_check_fatality_random_event(void) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
 
@@ -765,12 +779,8 @@ int pz_fighter_fatality_during_round_stuff_over(void) {
     return 1;
 }
 
-/*
- * Dispatch-wrapper family: automatic initialized tables recover retail's
- * exact 0x68-byte bodies. Six wrappers are 99.04% with GPR allocation residue;
- * preround is 96.92% with the same residue plus an equivalent table-base
- * adjustment. Function order, signatures, calls, and table contents agree.
- */
+/* TODO: [near miss] 97.69%; instructions and dispatch entries agree;
+ * inferred R_PPC_NONE on the table-copy predecrement remains. */
 void pz_fighters_fatality_preround_event(void) {
     PuzzleFatalityPreroundTable functions = {
         pz_fighters_grinder_fatality_preround,
@@ -819,7 +829,7 @@ void pz_fighters_fatality_in_progress(void) {
 void pz_fighter_load_place_fatality_elements(int fatality) {
     g_pz_fighter_fatality_engine.primary_object = 0;
     g_pz_fighter_fatality_engine.secondary_object = 0;
-    g_fatalityTable[fatality].load_and_place();
+    g_fatalityTable.entries[fatality].load_and_place();
 }
 
 void pz_fighters_fatality_round_over(void) {
@@ -909,11 +919,8 @@ static float pz_fighter_burn_round_over(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail selects a different pooled-string base, saving one
- * address adjustment; the remaining body differences are register allocation,
- * float scheduling, and relocation labels.
- */
+/* TODO: [near miss] 92.54601%; typed allocation and effect context preserve retail code;
+ * pooled-string base and float/register scheduling remain. */
 static float pz_fighter_load_and_place_initial_burn(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* burners[2];
@@ -952,7 +959,8 @@ static float pz_fighter_load_and_place_initial_burn(void) {
 
     controller = 0;
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_burn_controller, 0x80, &controller) != 0 &&
+            0xC001, 0x1F, p_burn_controller,
+            sizeof(PuzzleFatalityController), &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
         controller->state = 0;
@@ -1292,13 +1300,8 @@ static float pz_fighter_snake_round_over(void) {
         }                                                                   \
     } while (0)
 
-/*
- * Near match (92.02%, retail 0x670/current 0x654): complete loader and effect
- * setup. The animation and ambient-light arguments now use the typed globals
- * located at retail's +0x44 and +0x28 data offsets instead of incorrectly
- * scaled struct-pointer arithmetic. Remaining differences are relocation-base
- * ownership, string/register allocation, and emitter flag-update scheduling.
- */
+/* TODO: [near miss] 92.02427%; canonical animation arguments preserve retail code;
+ * pooled-string ownership, register allocation and emitter scheduling remain. */
 static float pz_fighter_load_and_place_initial_snake(void) {
     PuzzleDirectLightDefinition* light_def = &skinned_obj_light_def;
     PuzzleEffectBankContext effect_context;
@@ -1338,8 +1341,8 @@ static float pz_fighter_load_and_place_initial_snake(void) {
         snakes[i]->scale.z = 0.48f;
         insert_fgnd_mkobj(snakes[i]);
         snake_pdata[i] = animate_obj(
-            snakes[i], pz_shared_ani.snake_idle, 1.0f,
-            pz_snake_bones, 0, 0, 1);
+            snakes[i], pz_shared_ani.snake_idle, pz_snake_bones,
+            0, 0, 1, 1.0f);
     }
 
     obj_add_to_skinned_obj_light_list_with_ambient(
@@ -1353,7 +1356,8 @@ static float pz_fighter_load_and_place_initial_snake(void) {
 
     controller = 0;
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_snake_controller, 0x80, &controller) != 0 &&
+            0xC001, 0x1F, p_snake_controller,
+            sizeof(PuzzleFatalityController), &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
         controller->state = 0;
@@ -1863,7 +1867,7 @@ static float pz_fighter_lightning_round_over(void) {
     return 0.0f;
 }
 
-/* Exact match: load the lightning effects and initialize their controller. */
+/* Load the lightning effects and initialize their controller. */
 static float pz_fighter_load_and_place_initial_lightning(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFatalityController* controller;
@@ -1876,7 +1880,7 @@ static float pz_fighter_load_and_place_initial_lightning(void) {
     g_pz_fighters_engine.fatality_index = 4;
 
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_lightning_controller, 0x80,
+            0xC001, 0x1F, p_lightning_controller, sizeof(PuzzleFatalityController),
             &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
@@ -2369,7 +2373,6 @@ static float pz_fighter_objects_falling_round_over(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: exact code; objdiff only relabels pooled string/float data. */
 static float pz_fighter_load_and_place_initial_objects_falling(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* objects[2];
@@ -2393,7 +2396,7 @@ static float pz_fighter_load_and_place_initial_objects_falling(void) {
     pz_fighter_set_objects_falling_obj(objects[0], objects[1]);
 
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_objects_falling_controller2, 0x80,
+            0xC001, 0x1F, p_objects_falling_controller2, sizeof(PuzzleFatalityController),
             &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
@@ -2643,14 +2646,12 @@ static float pz_fighter_objects_falling_victim_crushed(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: exact-size eye launch; residue is aggregate/float relocation
- * labeling, global-base allocation, and one equivalent bit-test opcode.
- */
+/* TODO: [near miss] 99.09%; eye offsets, scales and bit extraction match;
+ * aggregate-base register allocation remains. */
 static void pz_fighter_fatality_launch_eyes(void) {
     Vec launch_offset = {0.0f, 0.1f, 0.02f};
-    Vec left_offset = {-0.05f, 0.0f, 0.05f};
-    Vec right_offset = {0.05f, 0.0f, 0.05f};
+    Vec left_offset = {-0.05f, 0.0f, 0.1f};
+    Vec right_offset = {0.05f, 0.0f, 0.1f};
     PuzzleFighterRenderObject* left_eye;
     PuzzleFighterRenderObject* right_eye;
     PuzzleFighterPhysics* fighter;
@@ -2669,7 +2670,7 @@ static void pz_fighter_fatality_launch_eyes(void) {
         fighter = (PuzzleFighterPhysics*)g_game_info.player2_physics;
     }
 
-    if ((fighter->flags_0A & 0x40) != 0) {
+    if (((fighter->flags_0A >> 6) & 1) != 0) {
         angle_offset = 1.5707964f;
     } else {
         angle_offset = -1.5707964f;
@@ -2703,14 +2704,14 @@ static void pz_fighter_fatality_launch_eyes(void) {
     left_eye->flags_bits.gravity_enabled = 1;
     get_camera_position(&camera_position);
     v3_sub_v3(
-        &camera_direction, &camera_position, (Vec*)&left_eye->x);
+        &camera_direction, &camera_position, &left_eye->position);
     scale_v3(
-        (Vec*)&left_eye->external_force_x, &camera_direction, 0.02f);
+        &left_eye->external_force, &camera_direction, 0.02f);
     left_eye->external_force_y -= 0.0008f;
 
     right_eye->flags_bits.gravity_enabled = 1;
     scale_v3(
-        (Vec*)&right_eye->external_force_x, &camera_direction, 0.02f);
+        &right_eye->external_force, &camera_direction, 0.03f);
     right_eye->external_force_y += 0.0013f;
 
     _mkproc_sleep_ticks = 2.0f;
@@ -2988,13 +2989,13 @@ static void pz_fighter_set_objects_falling_obj(
     }
 }
 
-/*
- * Soft ceiling: the fixed-bound loop and all controller/hazard stores match;
- * residue is phase-zero register reuse and strength-reduced index scheduling.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 95.63%; indexed clear order recovered; phase-zero reuse
+ * and array-base register remain. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     int i;
+    float (*motion)[2];
 
     i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
@@ -3008,9 +3009,11 @@ static void pz_fighter_chomper2_entering_fatality(
     for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
-        g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
+        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+        motion[i][0] = 0.0f;
     }
 }
+#pragma opt_propagation reset
 
 static float pz_fighter_chomper2_unload(void) {
     g_pz_fighter_fatality_engine.controller->unload_requested = 1;
@@ -3018,15 +3021,12 @@ static float pz_fighter_chomper2_unload(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail and source perform the same state/phase stores and
- * two hazard/motion-row clears. The fixed-bound loop restores mtctr/bdnz;
- * MWCC still reuses the phase-zero register and schedules the two strength-
- * reduced index updates differently. Two typed index variants did not improve
- * emission and were removed.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 93.13%; indexed clear order recovered; phase-zero reuse
+ * and array-base register remain. */
 static float pz_fighter_chomper2_round_over(void) {
     int i;
+    float (*motion)[2];
 
     i = 0;
     g_pz_fighter_fatality_engine.controller->state = 1;
@@ -3034,15 +3034,15 @@ static float pz_fighter_chomper2_round_over(void) {
     for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
-        g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
+        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+        motion[i][0] = 0.0f;
     }
     return 0.0f;
 }
+#pragma opt_propagation reset
 
-/*
- * Soft ceiling: the complete retail loader/state setup is present; residue is
- * nested address induction/register scheduling and relocation labels.
- */
+/* TODO: [near miss] 94.03209%; typed controller size preserves retail layout;
+ * nested array induction, register scheduling and pooled relocations remain. */
 static float pz_fighter_load_and_place_initial_chompers2(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
@@ -3090,7 +3090,7 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
         obj_find_sobj_by_id(columns[1], 1);
 
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_chomper2_controller, 0x80,
+            0xC001, 0x1F, p_chomper2_controller, sizeof(PuzzleFatalityController),
             &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
@@ -3418,15 +3418,12 @@ static float pz_fighters_chomper2_fatality_prep(void) {
   return 0.0f;
 }
 
-/*
- * Soft ceiling: the 88-byte source and retail bodies contain the same phase
- * store, two-iteration loop, hazard-object motion store, and controller-row
- * store. MWCC schedules the two induction increments earlier and forms the
- * indexed controller address in the opposite order; the zero constant also
- * carries a different TU-local relocation label.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 99.32%; typed motion-array owner restores loop ordering;
+ * only array-base register and indexed-store operand order remain. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
+    float (*motion)[2];
 
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
@@ -3434,12 +3431,13 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
             g_pz_fighter_fatality_engine.hazard_groups[group]
                 .objects[0]
                 ->motion = 0.0f;
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_motion[group][0] = 0.0f;
+            motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+            motion[group][0] = 0.0f;
         }
     }
     return 0.0f;
 }
+#pragma opt_propagation reset
 
 /*
  * Soft ceiling: 96.15151% in the full-TU report. The automatic Vec restores
@@ -3827,10 +3825,8 @@ static float pz_fighter_chomper_round_over(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the complete retail loader/state setup is present; residue is
- * loop induction/register scheduling plus pooled constant relocation labels.
- */
+/* TODO: [near miss] 98.611115%; typed controller size preserves retail layout;
+ * loop induction/register scheduling and pooled relocations remain. */
 static float pz_fighter_load_and_place_initial_chompers(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
@@ -3885,7 +3881,7 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
         load_tga(0x70036, 0x081F0002);
 
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_chomper_controller, 0x80,
+            0xC001, 0x1F, p_chomper_controller, sizeof(PuzzleFatalityController),
             &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
@@ -3923,14 +3919,8 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 92.50%, retail 0x830/current 0x808. Automatic branch-local
- * vectors, direct fatality-piece loads, preserved pre-process globals, typed
- * flag assignments and the retail material null guard recover 292 bytes and
- * the complete m2c algorithm. Case 4 now preserves retail's player-object call
- * before indexed hazard lookup. The remaining 40 bytes are repeated hazard-base
- * formation, register allocation and equivalent switch-tail scheduling.
- */
+/* TODO: [breakthrough] 92.99%; flesh-path velocity now matches retail;
+ * controller address formation and switch-tail scheduling remain. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -4145,7 +4135,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
             g_pz_fighters_engine.fatality_piece->external_force_y = 0.0f;
             if (g_pz_fighters_engine.fatality_motion == 1.0f &&
                 flesh_path_timer <= 0.0f) {
-                Vec flesh_velocity = {0.0f, 0.1f, 0.0f};
+                Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
                 Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
                 ft_create_flesh_path(
                     g_pz_fighters_engine.fatality_piece,
@@ -4596,10 +4586,8 @@ static float pz_fighter_grinder_round_over(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: exact-size retail algorithm; only register allocation and
- * pooled string/float relocation labels remain.
- */
+/* TODO: [near miss] 99.45513%; typed controller size preserves retail layout;
+ * register allocation and pooled relocations remain. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* grinders[2];
@@ -4641,7 +4629,8 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
     controller = 0;
 
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_grinder_controller, 0x80, &controller) != 0 &&
+            0xC001, 0x1F, p_grinder_controller,
+            sizeof(PuzzleFatalityController), &controller) != 0 &&
         controller != 0) {
         controller->unload_requested = 0;
         controller->state = 0;
@@ -4694,7 +4683,7 @@ static float pz_fighters_grinder_fatality_preround(void) {
     direction = (unsigned int)(direction_random - 50) >> 31;
     meat_controller = 0;
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_grinder_meat_throw_controller, 0x18,
+            0xC001, 0x1F, p_grinder_meat_throw_controller, sizeof(PuzzleGrinderMeatController),
             &meat_controller) != 0 &&
         meat_controller != 0) {
         meat_controller->direction = direction;
@@ -4828,17 +4817,8 @@ static inline void pz_grinder_launch_piece(
         -0.004f, 0.5f, 0.1f);
 }
 
-/*
- * Emission-only near miss (88.77%, retail 0x874/current 0x870). Each launch
- * uses the same typed inline vector-scale helper that retail expands into a
- * nine-instruction RwMatrix.at-to-velocity sequence before the piece-specific
- * overrides. This recovers all four 0x28 islands and retail's r28 matrix
- * lifetime without forcing registers or volatility. The 11-argument
- * ft_create_flesh_path ABI and every transform, launch, material, timing, and
- * process operation agree. The sole size residue is one redundant retail
- * plyr_pdata->side reload; remaining differences are its localized register
- * allocation and instruction scheduling.
- */
+/* TODO: [breakthrough needed] 88.76525%; typed private sizes preserve code;
+ * inspect remaining aggregate materialization and register scheduling. */
 float r_pz_fighter_grinding(void) {
     PuzzleGrinderNoisePdata* noise;
     PuzzleGrinderMeatController* meat;
@@ -4876,7 +4856,7 @@ float r_pz_fighter_grinding(void) {
     snd_req_vol(0x1AB8, 1.0f);
 
     if (_create_mkproc_generic_bigstack(
-            0x2001, 0x1F, p_grinder_noise, 0x10,
+            0x2001, 0x1F, p_grinder_noise, sizeof(PuzzleGrinderNoisePdata),
             (PuzzleFaceBleedPdata**)&noise) != 0 &&
         noise != 0) {
         noise->duration = 150;
@@ -4973,7 +4953,7 @@ float r_pz_fighter_grinding(void) {
     obj_set_bone_collapse_flag(plyr_obj, 21);
     meat = 0;
     if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_grinder_meat_throw_controller, 0x18,
+            0xC001, 0x1F, p_grinder_meat_throw_controller, sizeof(PuzzleGrinderMeatController),
             &meat) != 0 &&
         meat != 0) {
         meat->direction = his_pdata->side;
@@ -5419,7 +5399,7 @@ static float p_face_bleeding(void) {
 }
 
 static RpMaterial* material_set_texture(
-    RpMaterial* material, RwTexture* texture) {
+    RpMaterial* material, void* texture) {
     RpMaterialSetTexture(material, texture);
     return material;
 }

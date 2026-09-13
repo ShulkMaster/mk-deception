@@ -7,6 +7,7 @@
 #include "runtime/asset.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_obj.h"
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
@@ -89,10 +90,10 @@ int get_shared_art_section_for_plyr_pdata(PlyrPdata* pdata) {
 }
 
 int get_shared_art_section_for_player(SharedArtPlayer* player) {
-    if (player->type == 0x1001) {
+    if ((int)player->oid == 0x1001) {
         return 0x3000B;
     }
-    if (player->type == 0x1002) {
+    if ((int)player->oid == 0x1002) {
         return 0x4000B;
     }
     return -1;

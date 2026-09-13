@@ -670,8 +670,8 @@ void npc_make_visible(KonquestNpc* npc);
 void npc_make_invisible(KonquestNpc* npc);
 void random_snd_req_delay(int group, int delay);
 KonquestBoneMatcher* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone,
-    MkObj* child, int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 
 void npc_force_state_for_npc(KonquestNpc* npc, int event_index);
 void npc_signal_event(KonquestNpc* npc, int event_index);
@@ -3069,6 +3069,7 @@ void npc_stop_goro_bone_match(void) {
  * size. Typed bitfields now reproduce both retail flag updates; residue is
  * latch/save/register emission and float relocations.
  */
+/* TODO: [near miss] 96.07527%; matcher argument interleaving improves scheduling; remaining register/frame residue. */
 void npc_start_goro_bone_match(KonquestNpcData* data) {
     KonquestObjectScriptPdata* pdata =
         (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
@@ -3078,7 +3079,11 @@ void npc_start_goro_bone_match(KonquestNpcData* data) {
     pdata->object->flags_09_bits.bit6 = 0;
     npc = npc_find_by_data_inline(data);
     matcher = start_bone_matcher(
-        0.0f, npc->animation->object, 10, pdata->object, 0);
+        npc->animation->object,
+        10,
+        pdata->object,
+        0,
+        0.0f);
     matcher->parent_offset.x = -0.04f;
     matcher->parent_offset.y = 0.1f;
     matcher->parent_offset.z = -0.15f;

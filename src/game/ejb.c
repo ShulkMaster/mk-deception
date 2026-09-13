@@ -1,3 +1,4 @@
+#include "game/ground_fx.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "game/controller.h"
@@ -390,7 +391,6 @@ extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
 void unfreeze_player(void);
 
-extern void (*small_ground_fx)(void);
 
 int g_no_throw_f;
 int debug_int_2;
@@ -1220,8 +1220,10 @@ static inline float ejb_sqrt_table(float value) {
         return 0.0f;
     }
     bits.f = value;
+    /* Retail 0x800C4AF0..F8 forms a byte offset for lhzx; convert to
+     * halfword indexing before accessing the 0x2000-entry table. */
     estimate_bits =
-        (unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8;
     estimate_bits |=
         (((bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
         0x7F800000U;
@@ -1231,6 +1233,8 @@ static inline float ejb_sqrt_table(float value) {
         (3.0f - (estimate * estimate) / value);
 }
 
+/* TODO: [breakthrough needed] 87.419044%; sqrt byte-offset scaling corrected;
+ * remaining animation advancement/arithmetic lowering needs matching work. */
 void launch_n_land_ani(
     AniData* animation, int landing_animation, float launch_frame,
     float launch_step, float landing_frame, float velocity_y,

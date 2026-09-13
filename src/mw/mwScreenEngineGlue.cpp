@@ -1,3 +1,4 @@
+#include "game/pselect_textures.h"
 /* Game-specific ScreenEngine controls, resource ownership, menu actions,
  * and particle/font composition. Retail source: mwScreenEngineGlue.cpp.
  */
@@ -1994,14 +1995,9 @@ void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
 void create_inventory_image_list(GVTexturePair out, int count);
 int get_number_items_in_inventory(void);
 int get_num_pselect_body_textures(void);
-void get_pselect_body_textures(GVTexturePair out);
-void get_pselect_head_textures(GVTexturePair out);
-void get_bg_pselect_team_textures(GVTexturePair out, int team);
 int get_num_selectable_bgnds(void);
-void get_background_select_textures(GVTexturePair out);
 int controller_get_num_adjustable_buttons(void);
 void cconfig_get_button_textures(GVTexturePair out);
-void get_pz_special_move_list(GVTexturePair out, int player);
 void create_left_mc_icon_list(McIconListArg* out);
 void create_right_mc_icon_list(McIconListArg* out);
 int get_number_kontent_items(void);
@@ -2863,11 +2859,11 @@ int mkGameVariables::GetInt(int id) {
     case 0x1fa5:
         return pause_player;
     case 0x1fa6:
-        return menu_player;
+        return g_game_info.pad_overlay.pselect.field_1d4;
     case 0x1fa9:
         return profile_code_state[0];
     case 0x1fac:
-        return current_render_state;
+        return profile_code_state[1];
     case 0x1fae:
         return popup_type;
     case 0x1faf:

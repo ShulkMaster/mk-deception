@@ -1,3 +1,4 @@
+#include "game/ground_fx.h"
 #include "runtime/asset.h"
 #include "game/game_info.h"
 #include "game/moveset.h"
@@ -159,24 +160,6 @@ typedef struct FxPfxDefinition {
     PfxInitCb initialize;
 } FxPfxDefinition;
 
-typedef struct FxPfxVmView {
-    char pad00[0x50];
-    int field_50;
-    char pad54[0xFC];
-    union {
-        unsigned char flags_150;
-        struct {
-            unsigned char enabled : 1; /* bit7 */
-            unsigned char sized : 1; /* bit6 */
-            unsigned char pad_flags_150 : 6;
-        } flag_bits;
-    };
-    char pad151[0x31];
-    short texture_enabled;
-    char pad184[0x30];
-    PfxColor color;
-    float particle_size;
-} FxPfxVmView;
 
 
 extern CameraObj* camera_obj;
@@ -188,8 +171,8 @@ PlyrMirrorObjLatch p1_freeze_light_item;
 PlyrMirrorObjLatch p2_freeze_light_item;
 FxHdrLatch p1_freeze_proc_item;
 FxHdrLatch p2_freeze_proc_item;
-int small_ground_fx;
-int large_ground_fx;
+GroundFxCallback small_ground_fx;
+GroundFxCallback large_ground_fx;
 static FxScreenObjLatch p1_skewer_item;
 static FxScreenObjLatch p1_skewer_tip_item;
 static FxScreenObjLatch p2_skewer_item;
@@ -1429,12 +1412,13 @@ int can_i_do_fatality_now(int player) {
     return 0;
 }
 
+/* TODO: [breakthrough] 93.31276%; canonical VM and emitter birth-rate fields recovered; remaining constructor register/call ordering. */
 MkPfx* create_pfx(
     int bind_source, int process_id, MkProcEntryFn entry,
     MkPfx** effect_out, const FxPfxDefinition* definition,
     const char* name) {
     PfxBuildInfo build;
-    FxPfxVmView* vm;
+    PfxVm* vm;
     PfxEmitter* emitter;
     void* behavior;
     MkPfx* effect;
@@ -1472,53 +1456,53 @@ MkPfx* create_pfx(
         return 0;
     }
 
-    vm = (FxPfxVmView*)&(*effect_out)->matrix;
-    origin = (Vec*)pfx_get_field((PfxVm*)vm, 0, 0x200);
+    vm = (PfxVm*)(*effect_out)->matrix;
+    origin = (Vec*)pfx_get_field(vm, 0, 0x200);
     origin->x = definition->origin.x;
     origin->y = definition->origin.y;
     origin->z = definition->origin.z;
     if ((definition->field_04 & 0x20) == 0) {
-        vm->flag_bits.sized = 1;
-        vm->particle_size = definition->particle_size;
+        vm->flag150_40 = 1;
+        vm->billboard_size = definition->particle_size;
     } else {
-        vm->flag_bits.sized = 0;
+        vm->flag150_40 = 0;
     }
-    vm->flag_bits.enabled = 1;
+    vm->flag150_80 = 1;
     pfx_native_set_rgba(
-        &vm->color, definition->red, definition->green,
+        &vm->color1B4, definition->red, definition->green,
         definition->blue, definition->alpha);
 
-    emitter = pfx_get_emitter((PfxVm*)vm, 0);
-    emitter->lifetime = (float)definition->emitter_lifetime;
-    vm->field_50 = definition->field_90;
-    emitter = pfx_get_emitter((PfxVm*)vm, 0);
+    emitter = pfx_get_emitter(vm, 0);
+    emitter->birth_rate = (float)definition->emitter_lifetime;
+    vm->particle_capacity = definition->field_90;
+    emitter = pfx_get_emitter(vm, 0);
     emitter->field_40 = definition->emitter_field_40;
 
     if ((definition->flags & 4) == 0) {
         if (definition->texture != 0) {
-            set_pfx_texture((PfxVm*)vm, (void*)0x10005,
+            set_pfx_texture(vm, (void*)0x10005,
                             definition->texture);
         }
         if (definition->animate_texture != 0) {
             pfx_texture_animate(
-                (PfxVm*)vm, definition->texture_width,
+                vm, definition->texture_width,
                 definition->texture_height,
                 definition->texture_frame_width,
                 definition->texture_speed);
-            vm->texture_enabled = definition->texture_enabled;
+            vm->texture_mode = definition->texture_enabled;
         }
     }
 
     if (definition->kill_plane_x != 0) {
-        behavior = pfx_behavior((PfxVm*)vm, 0);
+        behavior = pfx_behavior(vm, 0);
         pfxvm_kill_on_intersect_plane_x(behavior, definition->plane_x);
     }
     if (definition->kill_plane_y != 0) {
-        behavior = pfx_behavior((PfxVm*)vm, 0);
+        behavior = pfx_behavior(vm, 0);
         pfxvm_kill_on_intersect_plane_y(behavior, definition->plane_y);
     }
     if (definition->kill_plane_z != 0) {
-        behavior = pfx_behavior((PfxVm*)vm, 0);
+        behavior = pfx_behavior(vm, 0);
         pfxvm_kill_on_intersect_plane_z(behavior, definition->plane_z);
     }
 
@@ -1529,15 +1513,15 @@ MkPfx* create_pfx(
         } else {
             lifetime = definition->lifetime_mode;
         }
-        emitter = pfx_get_emitter((PfxVm*)vm, 0);
+        emitter = pfx_get_emitter(vm, 0);
         pfxvm_spawn_line_1f(
             emitter, 0x301, (float)definition->lifetime_minimum,
             (float)definition->lifetime_maximum);
-        behavior = pfx_behavior((PfxVm*)vm, 0);
+        behavior = pfx_behavior(vm, 0);
         pfxvm_kill_on_greater(behavior, 0x301, lifetime);
     }
     if ((definition->flags & 2) != 0) {
-        pfxvm_compile((PfxVm*)vm);
+        pfxvm_compile(vm);
     }
     (*effect_out)->flags |= 0x10;
     return effect;

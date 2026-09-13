@@ -1,3 +1,5 @@
+#include "game/ground_fx.h"
+#include "runtime/anim_pdata.h"
 /*
  * Port readiness:
  *   Structs: PARTIAL
@@ -8,6 +10,9 @@
  */
 
 #include "runtime/plyr_pdata.h"
+#include "runtime/mk_cmdscript.h"
+#include "runtime/mk_vtbl.h"
+#include "runtime/mk_pdata.h"
 #include "game/game_info.h"
 #include "game/pz_fatality.h"
 #include "math/mk_math.h"
@@ -15,28 +20,10 @@
 #include "rw/rwcore_types.h"
 
 typedef float (*PuzzleMoveEntry)(void);
-typedef float (*PuzzleProcessTransfer)(PuzzleMoveEntry entry, float delay);
-typedef float (*PuzzleProcessSleep)(void);
 typedef float (*PuzzleFighterFunction)(void);
-typedef struct ScriptSlot ScriptSlot;
 typedef struct MkPfx MkPfx;
-
-typedef struct PuzzleCmdScript {
-    char pad00[0x28];
-    int function; /* +0x28 */
-} PuzzleCmdScript;
-
-typedef struct PuzzleProcessVtable {
-    char pad00[0x18];
-    PuzzleProcessSleep sleep; /* +0x18 */
-    char pad1C[8];
-    PuzzleProcessTransfer transfer; /* +0x24 */
-} PuzzleProcessVtable;
-
-typedef struct PuzzleProcess {
-    PuzzleProcessVtable* vtbl;
-    unsigned int instance;
-} PuzzleProcess;
+typedef MkProc PuzzleProcess;
+typedef CmdScript PuzzleCmdScript;
 
 typedef struct PuzzlePresentState {
     char pad00[8];
@@ -100,7 +87,8 @@ typedef struct PuzzleReactionTransferData {
 typedef struct PuzzleReactionTransferEntry {
     int call_type;
     PuzzleMoveEntry entry;
-    char pad08[8];
+    unsigned int field_0x08; /* Retail table contains 0, 3, or 5; use unresolved. */
+    unsigned int field_0x0C;
     unsigned int movement_flags;
 } PuzzleReactionTransferEntry;
 
@@ -176,20 +164,7 @@ typedef struct PuzzleFighterObject {
 } PuzzleFighterObject;
 
 typedef AniData PuzzleAnimation;
-typedef struct PuzzleAnimPdata {
-    char pad00[0x30];
-    unsigned int flags; /* +0x30 */
-    char pad34[4];
-    float current_frame; /* +0x38 */
-    char pad3C[4];
-    float end_frame; /* +0x40 */
-    float step; /* +0x44 */
-    char pad48[0x1C];
-    float field_64;
-    float field_68;
-    char pad6C[0x3C];
-    float blend_weight; /* +0xA8 */
-} PuzzleAnimPdata;
+typedef AnimPdata PuzzleAnimPdata;
 
 typedef struct PuzzleSharedCombatAnimations {
     char pad000[0x20];
@@ -340,7 +315,6 @@ typedef union PuzzleAttackCopy {
 } PuzzleAttackCopy;
 
 extern PuzzleFightersEngine g_pz_fighters_engine;
-extern PuzzleProcess* aproc;
 extern PuzzleProcess* plyr_anim_proc;
 PuzzleProjectile* g_global_projectile;
 extern PuzzleFighterObject* plyr_obj;
@@ -350,8 +324,6 @@ extern PlyrPdata* his_pdata;
 extern PuzzleSharedAnimations pz_shared_ani;
 extern PuzzleSharedCombatAnimations shared_ani;
 extern ScriptSlot* pz_shared_cmo;
-extern PuzzleCmdScript* active_cmdscript;
-extern void* apdata;
 extern float _mkproc_sleep_ticks;
 int g_pz_cam_already_shaking;
 extern int exec_tick_ctr;
@@ -388,7 +360,7 @@ static float r_call_other_pz_player_char_script_function(void);
 float pz_fighter_one_arm_victory(void);
 float pz_fighter_one_arm_victory2(void);
 static float pz_fighter_double_arm_victory(void);
-void p_anim_idle(void);
+float p_anim_idle(void);
 void set_my_state(int state);
 float p_plyr_pz_fighter_entry(void);
 float pz_fighter_exit(void);
@@ -408,10 +380,11 @@ void release_other_player(void);
 void pz_fighter_reaction_xfer_him(int reaction);
 static float p_force_reaction(void);
 static float p_pz_shake_camera(void);
-void* _create_mkproc_generic_tinystack(
-    int pid, int priority, float (*entry)(void), int pdata_size,
-    void* pdata_out);
-void xfer_proc();
+
+int init_3d_move_no_aniproc(void);
+void update_mkobj(void* obj);
+void hide_obj(void* obj);
+void unhide_obj(void* obj);
 void set_ani_weight(float weight);
 void blend_to_ani(PuzzleAnimation* animation, int flags, float blend);
 void set_ani_speed(float speed);
@@ -437,8 +410,6 @@ void transition_to_anim_script(
     PuzzleAnimPdata* animation, PuzzleAnimation* script, int flags,
     float blend);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
-void advance_anim(PuzzleAnimPdata* animation);
-void pose_anim(PuzzleAnimPdata* animation, int update_object);
 void shake_hit_voice(float strength, int flags, int voice, int group);
 void pan_snd_req(int sound, float pan);
 void snd_req_delay(int sound, int delay);
@@ -456,9 +427,6 @@ PuzzleProcess* start_scorpion_spear(int field_34);
 void ani_x_more_frames(float frames);
 void play_sound_1(int sound);
 void blend_to_fstance(float blend);
-void hide_obj(PuzzleFighterObject* object);
-void unhide_obj(PuzzleFighterObject* object);
-void update_mkobj(PuzzleFighterObject* object);
 unsigned int fx_by_owner(const char* name, int owner);
 MkPfx* pfx_from_handle(unsigned int effect);
 void pfx_bind_render_to_obj(PuzzleFighterObject* object, int bone);
@@ -468,7 +436,6 @@ void snd_stop(MslSoundHandle sound);
 void unfreeze_player(void);
 void run_reaction_cleanup_function(PlyrPdata* pdata);
 void xfer_player_proc(PuzzleProcess* proc, PuzzleMoveEntry entry);
-extern void (*large_ground_fx)(void);
 void init_ground_move_no_aniproc(void);
 void init_ground_move(void);
 void init_air_move(void);
@@ -486,7 +453,7 @@ void random_hit(int sound);
 void random_voice(int sound);
 void snd_req(int sound);
 void glitch_to_ani(PuzzleAnimation* animation, int frame);
-void p_animate(void);
+float p_animate(void);
 float pz_fighter_ani_attack(
     int attack, unsigned int reaction, float active_frame, float hit_frame,
     float damage);
@@ -551,63 +518,63 @@ float r_pz_fighter_grinding(void);
 float r_pz_fighter_rx_get_to_point(void);
 
 static const PuzzleReactionTransferEntry tbl_xfer_addresses[] = {
-    { 4, (PuzzleMoveEntry)0x39, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3A, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3C, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3F, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3E, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_block_hi, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_block_lo, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x44, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x45, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x46, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x48, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x49, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4A, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x4C, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4D, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4E, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x4B, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x50, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x51, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x52, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x4F, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_grinding, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x54, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x55, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x58, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x57, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_feet3_swept_out, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x59, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x5A, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x47, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_dizzyfall3_with_holdface, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x43, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x56, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_almost_in_grinder, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_spear_hit, { 0, 0 }, 0x12 },
-    { 1, r_pz_fighter_spear_tug, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x53, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3B, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x42, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0xB, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x9, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0xA, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0xC, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x41, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x40, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x38, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3D, { 0, 0 }, 0x1 },
-    { 1, r_pz_ermac_slam, { 0, 0 }, 0x32 },
-    { 3, (PuzzleMoveEntry)0x12, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x11, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x18, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0xE, { 0, 0 }, 0x42 },
-    { 3, (PuzzleMoveEntry)0x14, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x19, { 0, 0 }, 0x12 },
-    { 1, pz_fighter_r_null, { 0, 0 }, 0x1 },
-    { 3, (PuzzleMoveEntry)0x15, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_rx_get_to_point, { 0, 0 }, 0x1 },
+    { 4, (PuzzleMoveEntry)0x39, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3A, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3C, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3F, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3E, 0, 0, 0x1 },
+    { 1, r_pz_fighter_block_hi, 0, 0, 0x1 },
+    { 1, r_pz_fighter_block_lo, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x44, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x45, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x46, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x48, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x49, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4A, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x4C, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4D, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4E, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x4B, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x50, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x51, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x52, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x4F, 0, 0, 0x1 },
+    { 1, r_pz_fighter_grinding, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x54, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x55, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x58, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x57, 0, 0, 0x1 },
+    { 1, r_pz_fighter_feet3_swept_out, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x59, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x5A, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x47, 0, 0, 0x1 },
+    { 1, r_pz_fighter_dizzyfall3_with_holdface, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x43, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x56, 0, 0, 0x1 },
+    { 1, r_pz_fighter_almost_in_grinder, 0, 0, 0x1 },
+    { 1, r_pz_fighter_spear_hit, 0, 0, 0x12 },
+    { 1, r_pz_fighter_spear_tug, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x53, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3B, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x42, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0xB, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x9, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0xA, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0xC, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x41, 3, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x40, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x38, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3D, 0, 0, 0x1 },
+    { 1, r_pz_ermac_slam, 0, 0, 0x32 },
+    { 3, (PuzzleMoveEntry)0x12, 3, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x11, 0, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x18, 0, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0xE, 5, 0, 0x42 },
+    { 3, (PuzzleMoveEntry)0x14, 5, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x19, 0, 0, 0x12 },
+    { 1, pz_fighter_r_null, 0, 0, 0x1 },
+    { 3, (PuzzleMoveEntry)0x15, 3, 0, 0x1 },
+    { 1, r_pz_fighter_rx_get_to_point, 3, 0, 0x1 },
 };
 
 static inline const PuzzleReactionTransferEntry* reaction_transfer_at_offset(
@@ -661,7 +628,7 @@ static inline void pz_fighter_create_projectile(
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_pz_fighter_projectile_launcher,
-            sizeof(PuzzleProjectile), &projectile) != 0 &&
+            sizeof(PuzzleProjectile), (MkHdr**)&projectile) != 0 &&
         projectile != 0) {
         projectile->object =
             g_pz_fighters_engine.projectile_objects[plyr_pdata->plyr_num];
@@ -737,83 +704,83 @@ float pz_fighter_perform_special_move(void) {
     switch (plyr_pdata->character_id) {
     case 0:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->transfer(pz_fighter_scorpion_attack_start, 0.0f);
+            aproc->vtbl->jump_sleep(pz_fighter_scorpion_attack_start, 0.0f);
             return 0.0f;
         }
         break;
     case 12:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x12;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x12;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 19:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->transfer(pz_fighter_jax_attack_start, 0.0f);
+            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
             return 0.0f;
         }
         break;
     case 8:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x11;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x11;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 4:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x0F;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x0F;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 5:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x17;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x17;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 10:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x0F;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x0F;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 1:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x0D;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x0D;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 3:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x13;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x13;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 23:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x18;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x18;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 21:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x16;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x16;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 29:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->function = 0x14;
-            aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
+            active_cmdscript->unk28 = 0x14;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
@@ -824,27 +791,27 @@ float pz_fighter_perform_special_move(void) {
     case 11:
     case 33:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->transfer(pz_fighter_jax_attack_start, 0.0f);
+            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
             return 0.0f;
         }
         break;
     }
 
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
 /* Soft ceiling: pz_finish_him_request ~98.46% - emit-order island. */
 float pz_finish_him_request(void) {
     if (xz_distance_between_players() > 2.0f) {
-        aproc->vtbl->transfer(pz_fighter_far_propell, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_far_propell, 0.0f);
     } else {
-        active_cmdscript->function = 0x2B;
+        active_cmdscript->unk28 = 0x2B;
         cmdscript_reset_stack();
         cmdscript_setup_execution(
-            pz_shared_cmo, active_cmdscript->function);
+            pz_shared_cmo, active_cmdscript->unk28);
         call_player_script_function(pz_shared_cmo);
-        aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     }
     return 0.0f;
 }
@@ -875,8 +842,8 @@ static float pz_fighter_scorpion_attack_start(void) {
             snd_req(0xD71);
             blend_to_ani(shared_ani.dash_back, 3, 0.2f);
             plyr_anim_pdata->step = 0.75f;
-            plyr_anim_pdata->field_68 = 0.0f;
-            plyr_anim_pdata->field_64 = 1.8f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.8f;
             ani_to_frame_x(12.0f);
             init_air_move();
             ani_to_frame_x(17.0f);
@@ -891,8 +858,8 @@ static float pz_fighter_scorpion_attack_start(void) {
             snd_req(0xD71);
             blend_to_ani(shared_ani.dash_back, 3, 0.2f);
             plyr_anim_pdata->step = 0.9f;
-            plyr_anim_pdata->field_68 = 0.0f;
-            plyr_anim_pdata->field_64 = 1.0f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.0f;
             ani_to_frame_x(12.0f);
             init_air_move();
             ani_to_frame_x(17.0f);
@@ -929,12 +896,12 @@ static float pz_fighter_scorpion_attack_start(void) {
     ani_to_blend_frame(10.0f);
     blend_to_fstance(0.1f);
     toggle_obj_and_ani_flips(plyr_anim_pdata);
-    active_cmdscript->function = 0x2B;
+    active_cmdscript->unk28 = 0x2B;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->function);
+        pz_shared_cmo, active_cmdscript->unk28);
     call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -965,8 +932,8 @@ static float pz_fighter_jax_attack_start(void) {
             snd_req(0xD71);
             blend_to_ani(shared_ani.dash_back, 3, 0.2f);
             plyr_anim_pdata->step = 0.75f;
-            plyr_anim_pdata->field_68 = 0.0f;
-            plyr_anim_pdata->field_64 = 1.8f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.8f;
             ani_to_frame_x(12.0f);
             init_air_move();
             ani_to_frame_x(17.0f);
@@ -981,8 +948,8 @@ static float pz_fighter_jax_attack_start(void) {
             snd_req(0xD71);
             blend_to_ani(shared_ani.dash_back, 3, 0.2f);
             plyr_anim_pdata->step = 0.9f;
-            plyr_anim_pdata->field_68 = 0.0f;
-            plyr_anim_pdata->field_64 = 1.0f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.0f;
             ani_to_frame_x(12.0f);
             init_air_move();
             ani_to_frame_x(17.0f);
@@ -1036,7 +1003,7 @@ static float pz_fighter_jax_attack_start(void) {
         plyr_pdata->fighter_definition->projectile_return_end, 3, 0.1f);
     ani_to_blend_frame(15.0f);
     blend_to_stance(0.15f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1044,11 +1011,11 @@ float pz_fighters_react_to_bomb_explosion(void) {
     if (pz_fighter_fetch_plyr_to_home_post_distance(
             ((PlyrPdata*)plyr_pdata)->plyr_num) >
         6.5f) {
-        active_cmdscript->function = 0x44;
+        active_cmdscript->unk28 = 0x44;
     } else {
-        active_cmdscript->function = 0x45;
+        active_cmdscript->unk28 = 0x45;
     }
-    aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
@@ -1056,13 +1023,13 @@ float pz_fighter_perform_ohyeah_move(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 50) {
-        aproc->vtbl->transfer(pz_fighter_one_arm_swing, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
         return 0.0f;
     } else if (choice < 70) {
-        aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
         return 0.0f;
     } else {
-        aproc->vtbl->transfer(pz_fighter_gaydance, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
         return 0.0f;
     }
 }
@@ -1071,22 +1038,22 @@ float pz_fighter_perform_super_move_just_enabled(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 50) {
-        aproc->vtbl->transfer(pz_fighter_go_get_him, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_go_get_him, 0.0f);
         return 0.0f;
     } else if (choice < 60) {
-        aproc->vtbl->transfer(pz_fighter_one_arm_swing, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
         return 0.0f;
     } else if (choice < 75) {
-        aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
         return 0.0f;
     } else {
-        aproc->vtbl->transfer(pz_fighter_gaydance, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
         return 0.0f;
     }
 }
 
 float pz_fighter_perform_other_guy_super_move_just_enabled(void) {
-    aproc->vtbl->transfer(pz_fighter_dont_get_me, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_dont_get_me, 0.0f);
     return 0.0f;
 }
 
@@ -1094,20 +1061,20 @@ float pz_fighter_perform_ohno_move(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 30) {
-        aproc->vtbl->transfer(pz_fighter_WTF, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_WTF, 0.0f);
         return 0.0f;
     } else if (choice < 70) {
-        aproc->vtbl->transfer(pz_fighter_WTF2, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_WTF2, 0.0f);
         return 0.0f;
     } else if (
         choice < 88 &&
         pz_fighter_is_losing_big(plyr_pdata->plyr_num) != 0) {
-        aproc->vtbl->transfer(pz_fighter_beg, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
         return 0.0f;
     } else {
         xfer_proc(
             get_player_proc(his_obj), pz_fighter_execute_distracts_and_hit);
-        aproc->vtbl->transfer(
+        aproc->vtbl->jump_sleep(
             pz_fighter_execute_point_reaction_no_space, 0.0f);
         return 0.0f;
     }
@@ -1115,17 +1082,17 @@ float pz_fighter_perform_ohno_move(void) {
 
 float pz_fighter_perform_center_pos_minor_adjustement(void) {
     if (xz_distance_between_players() > 1.2f) {
-        aproc->vtbl->transfer(pz_fighter_light_propell, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
         return 0.0f;
     } else {
-        active_cmdscript->function = 8;
-        aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+        active_cmdscript->unk28 = 8;
+        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
         return 0.0f;
     }
 }
 
 float pz_fighter_perform_center_pos_single_close_move(void) {
-    aproc->vtbl->transfer(pz_fighter_light_propell, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
     return 0.0f;
 }
 
@@ -1146,26 +1113,26 @@ float pz_fighter_smart_flippy(void) {
     }
 
     if (distance < 0.1f) {
-        aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
         return 0.0f;
     }
     if (distance < 0.9f) {
-        active_cmdscript->function = 4;
+        active_cmdscript->unk28 = 4;
     } else {
-        active_cmdscript->function = 3;
+        active_cmdscript->unk28 = 3;
     }
-    aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
 float pz_fighter_perform_center_pos_single_range_move(void) {
     if ((unsigned short)randu0(100) < 30) {
-        aproc->vtbl->transfer(pz_fighter_light_propell, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
         return 0.0f;
     }
 
-    active_cmdscript->function = 3;
-    aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+    active_cmdscript->unk28 = 3;
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
@@ -1173,14 +1140,14 @@ float pz_fighter_perform_center_pos_range_attack(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 40) {
-        aproc->vtbl->transfer(pz_fighter_superman_move, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
         return 0.0f;
     } else if (choice < 55) {
-        aproc->vtbl->transfer(pz_fighter_propell, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_propell, 0.0f);
         return 0.0f;
     } else {
-        active_cmdscript->function = 1;
-        aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+        active_cmdscript->unk28 = 1;
+        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
         return 0.0f;
     }
 }
@@ -1189,13 +1156,13 @@ float pz_fighter_perform_dist_attack(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 20) {
-        active_cmdscript->function = 2;
+        active_cmdscript->unk28 = 2;
     } else if (choice < 60) {
-        active_cmdscript->function = 6;
+        active_cmdscript->unk28 = 6;
     } else {
-        active_cmdscript->function = 7;
+        active_cmdscript->unk28 = 7;
     }
-    aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
@@ -1203,15 +1170,15 @@ float pz_fighter_perform_off_wall_attack(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 40) {
-        aproc->vtbl->transfer(pz_fighter_superman_move, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
         return 0.0f;
     }
     if (choice < 80) {
-        active_cmdscript->function = 1;
+        active_cmdscript->unk28 = 1;
     } else {
-        active_cmdscript->function = 2;
+        active_cmdscript->unk28 = 2;
     }
-    aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
@@ -1219,43 +1186,43 @@ float pz_fighter_random_taunt(void) {
     unsigned short roll = randu0(100);
 
     if (roll < 30) {
-        aproc->vtbl->transfer(pz_fighter_select_taunt_1, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_1, 0.0f);
         return 0.0f;
     } else if (roll < 60) {
-        aproc->vtbl->transfer(pz_fighter_select_taunt_2, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_2, 0.0f);
         return 0.0f;
     } else {
-        aproc->vtbl->transfer(pz_fighter_select_taunt_3, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_3, 0.0f);
         return 0.0f;
     }
 }
 
 float pz_fighter_perform_other_guy_ohno(void) {
-    aproc->vtbl->transfer(pz_fighter_laugh, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_laugh, 0.0f);
     return 0.0f;
 }
 
 float pz_fighter_perform_other_guy_ohyeah(void) {
-    aproc->vtbl->transfer(pz_fighter_whatever2, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_whatever2, 0.0f);
     return 0.0f;
 }
 
 float pz_fighter_perform_other_guy_holding_onto_super_move(void) {
-    aproc->vtbl->transfer(pz_fighter_beg, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
     return 0.0f;
 }
 
 float pz_fighter_perform_holding_onto_super_move(void) {
-    aproc->vtbl->transfer(pz_fighter_workthecrowd, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_workthecrowd, 0.0f);
     return 0.0f;
 }
 
 float pz_fighter_perform_peak_move(void) {
     if ((unsigned short)randu0(100) < 65) {
-        aproc->vtbl->transfer(pz_fighter_peak, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_peak, 0.0f);
         return 0.0f;
     } else {
-        aproc->vtbl->transfer(pz_fighter_fast_look, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_fast_look, 0.0f);
         return 0.0f;
     }
 }
@@ -1263,10 +1230,10 @@ float pz_fighter_perform_peak_move(void) {
 float pz_fighter_perform_relief_move(void) {
     if ((unsigned short)randu0(100) < 65 &&
         pz_fighter_is_winning_big(plyr_pdata->plyr_num)) {
-        aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
         return 0.0f;
     } else {
-        aproc->vtbl->transfer(pz_fighter_round_whew, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_round_whew, 0.0f);
         return 0.0f;
     }
 }
@@ -1297,7 +1264,7 @@ float pz_fighter_dummy_propell(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1328,7 +1295,7 @@ float pz_fighter_light_propell(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1359,7 +1326,7 @@ static float pz_fighter_propell(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1390,7 +1357,7 @@ static float pz_fighter_far_propell(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1406,12 +1373,12 @@ float pz_fighter_perform_scripted_move(void) {
     unsigned short roll = randu0(100);
     int script_move =
         select_scripted_move(move_index, distance_class, roll);
-    active_cmdscript->function = script_move;
+    active_cmdscript->unk28 = script_move;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->function);
+        pz_shared_cmo, active_cmdscript->unk28);
     call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1435,9 +1402,9 @@ void pz_fighter_walk_FB_true(
         blend_to_ani(
             plyr_pdata->fighter_definition->walk_forward_start, 0x23, 0.2f);
         plyr_anim_pdata->step = forward_speed;
-        plyr_anim_pdata->field_64 = object_weight_setting;
+        plyr_anim_pdata->weight = object_weight_setting;
         ani_to_frame_x_call(
-            face_opponent_now, plyr_anim_pdata->end_frame - 13.0f);
+            face_opponent_now, plyr_anim_pdata->high_frame - 13.0f);
     } else {
         set_my_state(0x2001);
         plyr_anim_pdata->flags |= 0x40;
@@ -1445,9 +1412,9 @@ void pz_fighter_walk_FB_true(
             plyr_pdata->fighter_definition->walk_backward_start, 0x23,
             0.2f);
         plyr_anim_pdata->step = backward_speed;
-        plyr_anim_pdata->field_64 = object_weight_setting;
+        plyr_anim_pdata->weight = object_weight_setting;
         ani_to_frame_x_call(
-            face_opponent_now, plyr_anim_pdata->end_frame - 14.0f);
+            face_opponent_now, plyr_anim_pdata->high_frame - 14.0f);
     }
     random_foot(1);
     if (continue_test() == 0 &&
@@ -1473,8 +1440,8 @@ void pz_fighter_walk_FB_true(
         return;
     }
     ani_to_frame_x_call(
-        face_opponent_now, plyr_anim_pdata->end_frame - 10.0f);
-    plyr_anim_pdata->field_64 = object_weight_setting;
+        face_opponent_now, plyr_anim_pdata->high_frame - 10.0f);
+    plyr_anim_pdata->weight = object_weight_setting;
 }
 
 /* pz_fighter_shake_camera: 100% via typed out-pdata and spawn ownership. */
@@ -1489,7 +1456,7 @@ void pz_fighter_shake_camera(int duration, float strength) {
     g_pz_cam_already_shaking = 1;
     if (_create_mkproc_generic_tinystack(
             0x1007, 0x1E, p_pz_shake_camera,
-            sizeof(PuzzleCameraShakePdata), &pdata) != 0) {
+            sizeof(PuzzleCameraShakePdata), (MkHdr**)&pdata) != 0) {
         pdata->duration = duration;
         pdata->strength = strength;
     }
@@ -1497,7 +1464,7 @@ void pz_fighter_shake_camera(int duration, float strength) {
 
 static float p_pz_shake_camera(void) {
     int i;
-    PuzzleCameraShakePdata* pdata = apdata;
+    PuzzleCameraShakePdata* pdata = (PuzzleCameraShakePdata*)apdata;
     int first;
     int second;
     int offset;
@@ -1568,7 +1535,7 @@ float pz_fighter_showoff_warmup2(void) {
     set_ani_speed(0.15f);
     ani_to_blend_frame(1.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1580,7 +1547,7 @@ float pz_fighter_showoff_warmup1(void) {
     set_ani_speed(0.2f);
     ani_to_blend_frame(1.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1592,7 +1559,7 @@ float pz_fighter_active_warmup2(void) {
     set_ani_speed(0.2f);
     ani_to_blend_frame(1.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1604,7 +1571,7 @@ float pz_fighter_active_warmup1(void) {
     set_ani_speed(0.2f);
     ani_to_blend_frame(1.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1615,7 +1582,7 @@ float pz_fighter_bow_warmup(void) {
     set_ani_speed(1.25f);
     ani_to_blend_frame(1.0f);
     blend_to_stance(0.15f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1627,7 +1594,7 @@ void pz_fighter_kill_global_projectile(void) {
 
 /* Near match: 98.53% - register allocation plus string-pool addressing. */
 static float p_pz_fighter_projectile_launcher(void) {
-    PuzzleProjectile* projectile = apdata;
+    PuzzleProjectile* projectile = (PuzzleProjectile*)apdata;
     int passed_target = 0;
     Vec position;
 
@@ -1678,7 +1645,7 @@ static float p_pz_fighter_projectile_launcher(void) {
             if (passed_target == 1) {
                 void* saved_pdata = apdata;
 
-                apdata = projectile->owner;
+                apdata = (MkHdr*)projectile->owner;
                 fx_reset(projectile->effect);
                 if (projectile->owner->character_id != 6) {
                     bgnd_launch_fx_at_position(
@@ -1740,7 +1707,7 @@ float pz_fighter_won2(void) {
     set_ani_speed(0.65f);
     plyr_obj->presentation_flags.unk_bit1 = 0;
     ani_to_frame_x(131.0f);
-    aproc->vtbl->transfer(pz_fighter_one_arm_victory, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory, 0.0f);
     return 0.0f;
 }
 
@@ -1764,7 +1731,7 @@ float pz_fighter_wipe_blood_off(void) {
     plyr_bleed_medium_cycle(plyr_pdata, 0x18);
     plyr_bleed_medium_cycle(plyr_pdata, 0x19);
     ani_to_frame_x(128.0f);
-    aproc->vtbl->transfer(pz_fighter_double_arm_victory, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_double_arm_victory, 0.0f);
     return 0.0f;
 }
 
@@ -1786,7 +1753,7 @@ static float pz_fighter_double_arm_victory(void) {
     blend_to_ani(pz_shared_ani.double_arm_victory, flags, 0.05f);
     set_ani_speed(0.5f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1804,7 +1771,7 @@ float pz_fighter_whatever2(void) {
     blend_to_ani(pz_shared_ani.whatever2, flags, 0.1f);
     set_ani_speed(0.7f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -1821,7 +1788,7 @@ float pz_fighter_disgusted_with_grinding(void) {
     set_ani_speed(0.75f);
     plyr_obj->presentation_flags.unk_bit1 = 0;
     ani_to_frame_x(163.0f);
-    aproc->vtbl->transfer(pz_fighter_one_arm_victory2, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory2, 0.0f);
     return 0.0f;
 }
 
@@ -1846,7 +1813,7 @@ float pz_fighter_one_arm_victory2(void) {
     blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
     set_ani_speed(0.5f);
     ani_loop_more_frames(1000.0f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1870,7 +1837,7 @@ float pz_fighter_one_arm_victory(void) {
     blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
     set_ani_speed(0.75f);
     ani_loop_more_frames(1000.0f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1890,7 +1857,7 @@ float pz_fighter_round_ground_pound(void) {
     set_ani_speed(0.65f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1909,7 +1876,7 @@ float pz_fighter_WTF2(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1928,7 +1895,7 @@ static float pz_fighter_gaydance(void) {
     init_air_move();
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1944,7 +1911,7 @@ static float pz_fighter_dont_get_me(void) {
     set_ani_speed(0.75f);
     ani_to_blend_frame(20.0f);
     blend_to_stance(0.2f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1961,7 +1928,7 @@ static float pz_fighter_go_get_him(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1978,7 +1945,7 @@ static float pz_fighter_one_arm_swing(void) {
     set_ani_speed(1.45f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -1996,7 +1963,7 @@ static float pz_fighter_select_taunt_3(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2014,7 +1981,7 @@ static float pz_fighter_select_taunt_2(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2032,7 +1999,7 @@ static float pz_fighter_select_taunt_1(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2051,7 +2018,7 @@ float pz_fighter_WTF(void) {
     set_ani_speed(0.9f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2083,7 +2050,7 @@ float pz_fighter_round_failure(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2100,17 +2067,12 @@ static float pz_fighter_workthecrowd(void) {
     blend_to_ani(pz_shared_ani.workthecrowd_loop, flags, 0.1f);
     ani_loop_more_frames(220.0f);
     blend_to_stance(0.05f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
-/*
- * Near-match looped-celebration family: retail 0x114/current 0x110 and
- * 92.72% each. m2c confirms identical animation, loop, gravity and transfer
- * operations; the four-byte residue is the final bitfield-value lifetime and
- * equivalent epilogue scheduling. A separate loop-only flags snapshot was
- * semantically valid but MWCC coalesced it completely, so it was removed.
- */
+/* TODO: [near miss] 92.87%; loop flag copy coalesces and saves one fewer GPR;
+ * typed repeat-helper trial retains the discrepancy; stop at coloring. */
 static float pz_fighter_beg(void) {
     int flags = 3;
     unsigned int loop;
@@ -2133,7 +2095,7 @@ static float pz_fighter_beg(void) {
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
     plyr_obj->gravity_enabled = 1;
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2155,7 +2117,7 @@ float pz_fighter_laugh_small(void) {
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
     plyr_obj->gravity_enabled = 1;
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2182,7 +2144,7 @@ float pz_fighter_laugh(void) {
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
     plyr_obj->gravity_enabled = 1;
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2209,7 +2171,7 @@ float pz_fighter_big_time_happy(void) {
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
     plyr_obj->gravity_enabled = 1;
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2225,7 +2187,7 @@ static float pz_fighter_fast_look(void) {
     set_ani_speed(2.15f);
     ani_to_blend_frame(5.0f);
     blend_to_stance(0.2f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2244,7 +2206,7 @@ static float pz_fighter_peak(void) {
     g_pz_fighters_engine.peak_mode = 2;
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2260,7 +2222,7 @@ float pz_fighter_round_whew(void) {
     set_ani_speed(0.55f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2292,7 +2254,7 @@ float pz_fighter_round_victory(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2333,18 +2295,18 @@ float pz_fighter_give_present(void) {
     init_ground_move();
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_force_reaction,
-            sizeof(PuzzleReactionDelayPdata), &pdata) != 0 &&
+            sizeof(PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
         pdata != 0) {
         pdata->ticks = 30;
         pdata->reaction = 0x2D;
         pdata->saved_pdata = apdata;
     }
-    active_cmdscript->function = 0x37;
+    active_cmdscript->unk28 = 0x37;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->function);
+        pz_shared_cmo, active_cmdscript->unk28);
     call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -2356,7 +2318,7 @@ float pz_fighter_footstomp(void) {
     init_ground_move();
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_force_reaction,
-            sizeof(PuzzleReactionDelayPdata), &pdata) != 0 &&
+            sizeof(PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
         pdata != 0) {
         pdata->ticks = 22;
         pdata->reaction = 0x20;
@@ -2364,7 +2326,7 @@ float pz_fighter_footstomp(void) {
     }
     pz_fighter_attack(pz_shared_ani.footstomp, &attack.attack, 0x20);
     ani_to_frame_x(34.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2375,7 +2337,7 @@ float pz_fighter_punch_dizzyfall(void) {
     pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x11);
     pz_fighter_check_breakout();
     ani_to_frame_x(22.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2386,7 +2348,7 @@ float pz_fighter_back_and_forth_showoff(void) {
     pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x1D);
     pz_fighter_check_breakout();
     ani_to_frame_x(22.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2417,12 +2379,12 @@ int pz_fighter_distance_check(void) {
 
 #define PZ_RUN_SHARED_FIGHTER_SCRIPT(script_index)                              \
     do {                                                                        \
-        active_cmdscript->function = (script_index);                     \
+        active_cmdscript->unk28 = (script_index);                     \
         cmdscript_reset_stack();                                                \
         cmdscript_setup_execution(pz_shared_cmo,                                \
-                                  active_cmdscript->function);            \
+                                  active_cmdscript->unk28);            \
         call_player_script_function(pz_shared_cmo);                             \
-        aproc->vtbl->transfer(pz_fighter_exit, 0.0f);                           \
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);                           \
     } while (0)
 
 float pz_fighter_execute_point_reaction_no_space(void) {
@@ -2556,14 +2518,14 @@ float pz_fighter_dash_back(void) {
     snd_req(0xD71);
     blend_to_ani(shared_ani.dash_back, 3, 0.2f);
     plyr_anim_pdata->step = 0.9f;
-    plyr_anim_pdata->field_68 = 0.0f;
-    plyr_anim_pdata->field_64 = 1.0f;
+    plyr_anim_pdata->weight_velocity = 0.0f;
+    plyr_anim_pdata->weight = 1.0f;
     ani_to_frame_x(12.0f);
     init_air_move();
     ani_to_frame_x(17.0f);
     init_ground_move();
     random_foot(1);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2595,8 +2557,8 @@ void pz_fighter_create_space_between_fighters_for_special_moves(void) {
         snd_req(0xD71);
         blend_to_ani(shared_ani.dash_back, 3, 0.2f);
         plyr_anim_pdata->step = 0.75f;
-        plyr_anim_pdata->field_68 = 0.0f;
-        plyr_anim_pdata->field_64 = 1.8f;
+        plyr_anim_pdata->weight_velocity = 0.0f;
+        plyr_anim_pdata->weight = 1.8f;
         ani_to_frame_x(12.0f);
         init_air_move();
         ani_to_frame_x(17.0f);
@@ -2612,8 +2574,8 @@ void pz_fighter_create_space_between_fighters_for_special_moves(void) {
     snd_req(0xD71);
     blend_to_ani(shared_ani.dash_back, 3, 0.2f);
     plyr_anim_pdata->step = 0.9f;
-    plyr_anim_pdata->field_68 = 0.0f;
-    plyr_anim_pdata->field_64 = 1.0f;
+    plyr_anim_pdata->weight_velocity = 0.0f;
+    plyr_anim_pdata->weight = 1.0f;
     ani_to_frame_x(12.0f);
     init_air_move();
     ani_to_frame_x(17.0f);
@@ -2669,7 +2631,7 @@ float pz_fighter_backflip_and_point(void) {
     random_hit(7);
     ani_to_blend_frame(20.0f);
     set_my_state(0);
-    aproc->vtbl->transfer(pz_fighter_long_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2689,7 +2651,7 @@ float pz_fighter_just_backflip(void) {
     ani_to_frame_x(38.0f);
     init_ground_move();
     ani_to_end();
-    aproc->vtbl->transfer(pz_fighter_long_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2703,7 +2665,7 @@ float pz_fighter_shove(void) {
     move->active_flags |= 1;
     pz_fighter_attack(pz_shared_ani.shove, &attack.attack, 0x14);
     ani_to_end();
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2759,7 +2721,7 @@ float pz_fighter_superman_move(void) {
     object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
     ground_me(object);
     ani_to_end();
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2771,7 +2733,7 @@ float pz_fighter_exit(void) {
     plyr_pdata->input_unlock_tick = 0;
     plyr_pdata->blocking_disable_tick_1 = 0;
     plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->transfer(j_exit_6, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
     return 0.0f;
 }
 
@@ -2783,7 +2745,7 @@ float pz_fighter_long_exit(void) {
     plyr_pdata->input_unlock_tick = 0;
     plyr_pdata->blocking_disable_tick_1 = 0;
     plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->transfer(j_exit_6, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
     return 0.0f;
 }
 
@@ -2793,7 +2755,7 @@ void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_force_reaction,
-            sizeof(PuzzleReactionDelayPdata), &pdata) != 0 &&
+            sizeof(PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
         pdata != 0) {
         pdata->ticks = ticks;
         pdata->reaction = reaction;
@@ -2803,7 +2765,7 @@ void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
 
 /* Soft ceiling: 99.47% - return-constant relocation labels only. */
 static float p_force_reaction(void) {
-    PuzzleReactionDelayPdata* pdata = apdata;
+    PuzzleReactionDelayPdata* pdata = (PuzzleReactionDelayPdata*)apdata;
 
     if (--pdata->ticks > 0) {
         return 1.0f;
@@ -2849,7 +2811,7 @@ static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 /* TODO: [breakthrough needed] 94.857956%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;
-    PuzzleReactionTransferData* reaction_data = apdata;
+    PuzzleReactionTransferData* reaction_data = (PuzzleReactionTransferData*)apdata;
     PuzzleProcess* opponent_proc;
     PuzzleProcess* hold_proc;
     PuzzleCmdScript* script;
@@ -2918,16 +2880,16 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     swap_active_plyr_proc();
 
     if (dispatch.call_type == 4) {
-        script->function = (int)dispatch.entry;
+        script->unk28 = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_pz_call_script_function);
     } else if (dispatch.call_type == 0) {
-        script->function = (int)dispatch.entry;
+        script->unk28 = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_call_player_script_function);
     } else if (dispatch.call_type == 2) {
-        script->function = (int)dispatch.entry;
+        script->unk28 = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_call_character_cmo_function);
     } else if (dispatch.call_type == 3) {
-        script->function = (int)dispatch.entry;
+        script->unk28 = (int)dispatch.entry;
         xfer_player_proc(
             opponent_proc, r_call_other_pz_player_char_script_function);
     } else {
@@ -2939,7 +2901,7 @@ static float pz_fighter_r_null(void) {
     _mkproc_sleep_ticks = 8.0f;
     aproc->vtbl->sleep();
     blend_to_stance(0.1f);
-    aproc->vtbl->transfer(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2975,7 +2937,7 @@ static float r_pz_ermac_slam(void) {
     init_ground_move();
     stop_me();
     ani_to_end();
-    aproc->vtbl->transfer(j_getup_back_6, 0.0f);
+    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
 
@@ -3004,7 +2966,7 @@ static float r_pz_fighter_spear_tug(void) {
         his_pdata->fighter_definition->spear_tug_end, 3, 0.2f);
     plyr_anim_pdata->step = 1.3f;
     ani_loop_more_frames(120.0f);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -3017,7 +2979,7 @@ static float r_pz_fighter_spear_hit(void) {
     ani_to_frame_x(83.0f);
     set_my_state(0x604);
     ani_to_end();
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3077,7 +3039,7 @@ static float r_pz_fighter_almost_in_grinder(void) {
 
     set_ani_speed(0.85f);
     ani_to_blend_frame(10.0f);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3098,7 +3060,7 @@ static float r_pz_fighter_feet3_swept_out(void) {
     land_chores(0xD7F, 0xCB8, 0.0f, 0.0f);
     pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
     ani_to_end();
-    aproc->vtbl->transfer(j_getup_back_9, 0.0f);
+    aproc->vtbl->jump_sleep(j_getup_back_9, 0.0f);
     return 0.0f;
 }
 
@@ -3152,7 +3114,7 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
         plyr_obj->presentation_flags.unk_bit1 = 0;
         tightrope_restrictions_off();
         plyr_anim_pdata->step = 0.6f;
-        plyr_anim_pdata->blend_weight = 0.5f;
+        plyr_anim_pdata->transition_weight = 0.5f;
         transition_to_anim_script(
             plyr_anim_pdata, shared_ani.dizzyfall_recover, 0, 0.05f);
         _mkproc_sleep_ticks = 1.0f;
@@ -3161,7 +3123,7 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
         init_air_move();
         plyr_anim_pdata->step = 0.9f;
         ani_to_frame_x(12.0f);
-        while (plyr_anim_pdata->current_frame <= plyr_anim_pdata->end_frame) {
+        while (plyr_anim_pdata->frame <= plyr_anim_pdata->high_frame) {
             ani_1_frame();
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -3171,7 +3133,7 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
         }
     }
     pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
-    aproc->vtbl->transfer(j_getup_back_6, 0.0f);
+    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
 
@@ -3195,7 +3157,7 @@ static float r_pz_fighter_block_lo(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     } while ((plyr_pdata->state & 0x800) != 0 && his_pdata->state != 0);
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3217,7 +3179,7 @@ static float r_pz_fighter_block_hi(void) {
             break;
         }
     }
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3246,7 +3208,7 @@ static float pz_fighter_present_on_attackers_hand(void) {
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_present_control,
-            sizeof(PuzzlePresentState), &present) != 0 &&
+            sizeof(PuzzlePresentState), (MkHdr**)&present) != 0 &&
         present != 0) {
         present->state = 0;
         g_pz_fighters_engine.present = present;
@@ -3265,7 +3227,7 @@ void pz_fighter_kill_present(void) {
 /* Near match: 97.39% - vector temporary scheduling and pool labels only. */
 static float p_present_control(void) {
     static int l_blend_ticks;
-    PuzzlePresentState* present = apdata;
+    PuzzlePresentState* present = (PuzzlePresentState*)apdata;
     Vec offset;
     Vec target;
     Vec bone_a;
@@ -3388,7 +3350,7 @@ void pz_fighter_allow_continuation(void) {
     g_pz_fighters_engine.flag_bits.continuation_allowed = 1;
 }
 
-/* Soft ceiling: pz_fighter_clear_out_external_forces ~97.50% - pool label only. */
+/* TODO: [near miss] 97.50%; zero uses f0 instead of retail f1; stop at FPR coloring. */
 void pz_fighter_clear_out_external_forces(void) {
     plyr_obj->external_force_x = 0.0f;
     plyr_obj->external_force_z = 0.0f;
@@ -3404,7 +3366,7 @@ void pz_fighter_clear_out_all_external_forces(
 static float r_call_other_pz_player_char_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->his_plyr_pdata->cmo,
-                              active_cmdscript->function);
+                              active_cmdscript->unk28);
     call_player_script_function(plyr_pdata->his_plyr_pdata->cmo);
     return 0.0f;
 }
@@ -3412,7 +3374,7 @@ static float r_call_other_pz_player_char_script_function(void) {
 static float r_call_character_cmo_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->cmo,
-                              active_cmdscript->function);
+                              active_cmdscript->unk28);
     call_player_script_function(plyr_pdata->cmo);
     return 0.0f;
 }
@@ -3420,7 +3382,7 @@ static float r_call_character_cmo_function(void) {
 static float r_call_player_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->fighter_definition->cmo,
-                              active_cmdscript->function);
+                              active_cmdscript->unk28);
     call_player_script_function(plyr_pdata->fighter_definition->cmo);
     return 0.0f;
 }
@@ -3428,7 +3390,7 @@ static float r_call_player_script_function(void) {
 float r_pz_call_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(pz_shared_cmo,
-                              active_cmdscript->function);
+                              active_cmdscript->unk28);
     call_player_script_function(pz_shared_cmo);
     return 0.0f;
 }

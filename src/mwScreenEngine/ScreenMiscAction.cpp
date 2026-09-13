@@ -37,9 +37,9 @@ enum { kObjectFlagEnabled = 0x2 };
 enum ScreenCompareOp {
     kCompareEqual = 0,
     kCompareNotEqual = 1,
-    kCompareLess = 2,
+    kCompareGreater = 2,
     kCompareGreaterEqual = 3,
-    kCompareGreater = 4,
+    kCompareLess = 4,
     kCompareLessEqual = 5,
 };
 
@@ -93,22 +93,19 @@ int SetScreenVisibleAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
+/* TODO: [near miss] 95.8%; retail operator mapping restored; Boolean-result lowering remains. */
 int ScreenIntegerCompare(int lhs, int op, int rhs) {
-    /*
-     * Soft ceiling ~95%: retail < (op2) / > (op4) xor operand order is
-     * swapped vs MWCC's emission of lhs<rhs / lhs>rhs; stop.
-     */
     switch (op) {
     case kCompareEqual:
         return lhs == rhs;
     case kCompareNotEqual:
         return lhs != rhs;
-    case kCompareLess:
-        return lhs < rhs;
-    case kCompareGreaterEqual:
-        return lhs >= rhs;
     case kCompareGreater:
         return lhs > rhs;
+    case kCompareGreaterEqual:
+        return lhs >= rhs;
+    case kCompareLess:
+        return lhs < rhs;
     case kCompareLessEqual:
         return lhs <= rhs;
     default:

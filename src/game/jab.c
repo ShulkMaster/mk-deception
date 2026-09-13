@@ -265,8 +265,8 @@ typedef union JabFloatBits {
 } JabFloatBits;
 
 JabBoneMatcherState* start_bone_matcher(
-    float blend, MkObj* parent, int parent_bone, MkObj* child,
-    int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend);
 void bone_matcher_parent_set_offset(
     JabBoneMatcherState* matcher, float* offset);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
@@ -561,7 +561,8 @@ void jab_attach_drink_obj_to_hand(
     player = get_my_plyr_obj();
     drink->light_flags = player->light_flags;
     specskin_initialize_clump(drink->clump);
-    matcher = start_bone_matcher(0.0f, player, 0x19, drink, 0);
+    matcher = start_bone_matcher(
+        player, 0x19, drink, 0, 0.0f);
     if (matcher != 0) {
         matcher->flags_08_bits.copy_bone_matrix = 1;
         YXZ_angles_to_MKMATRIX(angles, drink->bones[0]->parent_matrix);

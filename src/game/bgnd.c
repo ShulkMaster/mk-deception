@@ -1,4 +1,5 @@
 #include "game/bgnd.h"
+#include "game/profile_unlock.h"
 #include "game/ejb.h"
 #include "game/game_info.h"
 #include "game/jdn.h"
@@ -667,8 +668,8 @@ extern MkPtr* g_bgnd_collision_to_script_if[8];
 extern BgndObstacleEventData* g_active_obstacle_event_data;
 extern BgndCollisionItem* g_active_bgnd_col_item;
 extern MkPtr* weapon_trail_light_list;
-extern unsigned int default_bgnd_bits[2];
-extern unsigned int default_pz_bgnd_bits[2];
+extern ProfileUnlockBits64 default_bgnd_bits;
+extern ProfileUnlockBits64 default_pz_bgnd_bits;
 extern int exec_tick_ctr;
 extern PebbleData* g_bl_beetles;
 extern BlBeetlePdata* g_bl_beetles_pdata;
@@ -787,14 +788,6 @@ BgndPebblePlayerData* g_pebbles_pdata[20] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-typedef struct BgndUnlockData {
-    char pad00[0x10];
-    unsigned int bgnds[2]; /* +0x10 */
-    char pad18[0x20];
-    unsigned int puzzle_bgnds[2]; /* +0x38 */
-} BgndUnlockData;
-
-extern BgndUnlockData gp_data;
 
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
@@ -857,6 +850,7 @@ void bgnd_level_transition_start(void) {
     g_game_info.plyr0.slot.pdata->collision_disabled = 1;
     g_game_info.plyr1.slot.pdata->collision_disabled = 1;
 }
+/* TODO: [breakthrough] 64.375%; canonical 64-bit unlock owner recovered; mask lifetime and return CFG remain. */
 int is_bgnd_locked(int bgnd_id) {
     unsigned long long unlocked;
     unsigned long long mask;
@@ -867,9 +861,7 @@ int is_bgnd_locked(int bgnd_id) {
 
     mask = 1ULL << bgnd_id;
     if (mode_of_play == 6) {
-        unlocked =
-            ((unsigned long long)(gp_data.puzzle_bgnds[0] | default_pz_bgnd_bits[0]) << 32) |
-            (gp_data.puzzle_bgnds[1] | default_pz_bgnd_bits[1]);
+        unlocked = gp_data.pz_bgnds.value | default_pz_bgnd_bits.value;
         return (unlocked & mask) == 0;
     }
 
@@ -877,8 +869,7 @@ int is_bgnd_locked(int bgnd_id) {
         return 0;
     }
 
-    unlocked = ((unsigned long long)(gp_data.bgnds[0] | default_bgnd_bits[0]) << 32) |
-               (gp_data.bgnds[1] | default_bgnd_bits[1]);
+    unlocked = gp_data.cat3.value | default_bgnd_bits.value;
     return (unlocked & mask) == 0;
 }
 static int bgnd_cycle_tbl[22] = {
@@ -886,21 +877,15 @@ static int bgnd_cycle_tbl[22] = {
     0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
 };
 
-/* Clean-C near match: retail/local 420/412. The exact cycle table, unlock-bit
- * selection, attract override, wrap/fallback behavior, and returned arena
- * agree. Objdiff alignment is defeated by wholesale nonvolatile-register
- * recoloring (retail r18-r31 versus local r24-r31) and precomputed bitwise ORs. */
+/* TODO: [breakthrough needed] 0%; canonical 64-bit snapshots recovered;
+ * wholesale register/allocation alignment and inlined lock predicate remain. */
 int get_next_bgnd(void) {
     int play_mode = mode_of_play;
-    unsigned int puzzle_high = gp_data.puzzle_bgnds[0];
+    unsigned long long puzzle_bits = gp_data.pz_bgnds.value;
     int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
-    unsigned int puzzle_low = gp_data.puzzle_bgnds[1];
-    unsigned int default_puzzle_high = default_pz_bgnd_bits[0];
-    unsigned int default_puzzle_low = default_pz_bgnd_bits[1];
-    unsigned int unlocked_high = gp_data.bgnds[0];
-    unsigned int unlocked_low = gp_data.bgnds[1];
-    unsigned int default_high = default_bgnd_bits[0];
-    unsigned int default_low = default_bgnd_bits[1];
+    unsigned long long default_puzzle_bits = default_pz_bgnd_bits.value;
+    unsigned long long unlocked_bits = gp_data.cat3.value;
+    unsigned long long default_bits = default_bgnd_bits.value;
 
     for (;;) {
         int locked;
@@ -909,18 +894,14 @@ int get_next_bgnd(void) {
             locked = 1;
         } else if (play_mode == 6) {
             unsigned long long mask = 1ULL << background;
-            unsigned long long unlocked =
-                ((unsigned long long)(puzzle_high | default_puzzle_high) << 32) |
-                (puzzle_low | default_puzzle_low);
+            unsigned long long unlocked = puzzle_bits | default_puzzle_bits;
             locked = (unlocked & mask) == 0;
         } else if ((g_game_info.field_04 & 0x80) != 0 &&
                    (g_game_info.field_04 & 0x40) == 0) {
             locked = 0;
         } else {
             unsigned long long mask = 1ULL << background;
-            unsigned long long unlocked =
-                ((unsigned long long)(unlocked_high | default_high) << 32) |
-                (unlocked_low | default_low);
+            unsigned long long unlocked = unlocked_bits | default_bits;
             locked = (unlocked & mask) == 0;
         }
         if (!locked) {
@@ -10811,10 +10792,8 @@ void spad_set_vector_y(int index, void* script, float y) {
     (void)script;
     g_bgnd_scratch_pad_vectors[index].y = y;
 }
-/*
- * Clean-C ceiling: 84.75%, retail/local 316/304 bytes. Both SDK square-root
- * refinements and the final dot/length division agree; stack reuse differs.
- */
+/* TODO: [near miss] 85.12658%; both sqrt table offsets are corrected;
+ * retail/local 316/304 bytes retain the existing stack-reuse ceiling. */
 float spad_xz_cos_two_vectors(int first, int second) {
     union {
         float f;
@@ -10835,7 +10814,7 @@ float spad_xz_cos_two_vectors(int first, int second) {
         first_length = 0.0f;
     } else {
         estimate1.u =
-            (unsigned int)GXMathSqrtTable[(input1.u >> 10) & 0x3FFE] << 8;
+            (unsigned int)GXMathSqrtTable[(input1.u >> 11) & 0x1FFF] << 8;
         estimate1.u |= (((input1.u & 0x7F800000U) + 0x3F800000U) >> 1) &
                        0x7F800000U;
         first_length =
@@ -10850,7 +10829,7 @@ float spad_xz_cos_two_vectors(int first, int second) {
         second_length = 0.0f;
     } else {
         estimate2.u =
-            (unsigned int)GXMathSqrtTable[(input2.u >> 10) & 0x3FFE] << 8;
+            (unsigned int)GXMathSqrtTable[(input2.u >> 11) & 0x1FFF] << 8;
         estimate2.u |= (((input2.u & 0x7F800000U) + 0x3F800000U) >> 1) &
                        0x7F800000U;
         second_length =
@@ -13303,7 +13282,7 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                 moveset->definition->animation_section_name);
             add_anim_section_async_pal(
                 0x2001E, animation_section,
-                &global_movesets[player + 6].standing_animation_script,
+                (void*)&global_movesets[player + 6].standing_animation_script,
                 0, 1);
             wait_for_slot_load(0x2001E);
             load_bgnd_fstyle_sign(player);

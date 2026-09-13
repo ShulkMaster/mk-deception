@@ -208,8 +208,8 @@ extern int collide_sphere_vs_plyr(
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern int mode_of_play;
 extern ProjectileBoneMatcher* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone,
-    MkObj* child, int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 extern void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* out);
@@ -244,7 +244,7 @@ static inline float projectile_fast_sqrt(float squared) {
     }
     bits.f = squared;
     bits.u =
-        ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+        ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
         ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
     return 0.5f * (bits.f * (3.0f - (bits.f * bits.f) / squared));
 }
@@ -415,6 +415,8 @@ void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
 }
 
+/* TODO: [breakthrough] 86.60439%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     MkObj* object;
     float speed;
@@ -915,6 +917,8 @@ static void pw_projectile(void) {
     proj_pdata = (ProjectilePdata*)pdata_of_proc(aproc);
 }
 
+/* TODO: [breakthrough] 86.94936%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void retarget_projectile(ProjectilePdata* pdata) {
     ProjectilePdata* source;
     MkObj* object;
@@ -964,6 +968,8 @@ void retarget_projectile(ProjectilePdata* pdata) {
     pdata->max_ticks = 300.0f;
 }
 
+/* TODO: [breakthrough] 87.67961%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static void projectile_set_velocity_angy_tol(
     MkObj* object, float speed, float tolerance) {
     float cone_cos;
@@ -1017,6 +1023,7 @@ static void projectile_set_velocity_angy_tol(
     object->pos_vel.z *= speed;
 }
 
+/* TODO: [breakthrough needed] 80.47369%; matcher argument interleaving improves scheduling; existing body/frame differences remain. */
 static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     ProjectileImpaleInfo* info = pdata->impale_info;
     ProjectileBoneMatcher* matcher;
@@ -1031,8 +1038,11 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     }
 
     matcher = start_bone_matcher(
-        0.0f, pdata->retarget_object, info->parent_bone,
-        victim, info->child_bone);
+        pdata->retarget_object,
+        info->parent_bone,
+        victim,
+        info->child_bone,
+        0.0f);
     if (matcher == 0) {
         return;
     }
@@ -1088,6 +1098,8 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08 &= (unsigned char)~0x20;
 }
 
+/* TODO: [breakthrough] 65.5321%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_projectile_handler(void) {
     ProjectilePdata* projectile = proj_pdata;
     PlyrPdata* owner;

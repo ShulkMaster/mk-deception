@@ -15,19 +15,6 @@ typedef struct PfxParametricParticle {
     PfxColor color;
 } PfxParametricParticle; /* 0x28 */
 
-typedef struct PfxLiveSlot {
-    int live;
-    char pad04[0x44];
-} PfxLiveSlot; /* 0x48 */
-
-typedef struct PfxRuntimeView {
-    char pad00[0x54];
-    int live; /* +0x54 */
-    int active_slot; /* +0x58 */
-    char pad5C[0x54];
-    PfxLiveSlot slots[1]; /* +0xB0 -- trailing slot table */
-} PfxRuntimeView;
-
 typedef struct PfxRenderView {
     char pad00[0x30];
     float source_x; /* +0x30 */
@@ -121,7 +108,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time);
 void pfx_parametric_update(PfxVm* pfx, float frame_time);
 void pfx_run(PfxVm* pfx, float frame_time);
 void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture);
-void update_live_particles(PfxRuntimeView* pfx);
+void update_live_particles(PfxVm* pfx);
 void pfx_set_renderstate(PfxRenderView* pfx);
 void pfx_reset_renderstate(void);
 void pfx_render_set_blendmode(PfxRenderView* pfx, int mode);

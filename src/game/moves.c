@@ -103,26 +103,8 @@ typedef struct MovesSharedAnimations {
     AniData* grab_animations[9];
 } MovesSharedAnimations;
 
-typedef struct MovesFighterDefinitionView {
-    char pad00[0x74];
-    AniData* stance;
-    char pad78[0x20];
-    AniData* weapon_block_intro;
-    AniData* weapon_block_loop;
-    char padA0[8];
-    AniData* duck_block_intro;
-    AniData* duck_block_loop;
-} MovesFighterDefinitionView;
 
-typedef struct MovesDashAnimationView {
-    char pad00[0x348];
-    AniData* dash_back;
-} MovesDashAnimationView;
 
-typedef struct MovesDashFighterDefinitionView {
-    char pad00[0x1A8];
-    AniData* weapon_rest_animation;
-} MovesDashFighterDefinitionView;
 
 typedef struct MovesScalePdata {
     MkHdr hdr;
@@ -145,49 +127,10 @@ typedef struct MovesBlastPdata {
     float end_alpha;
 } MovesBlastPdata;
 
-typedef struct MovesPlayerIdentityView {
-    char pad00[0x1D0];
-    int character_id;
-    int player_number;
-} MovesPlayerIdentityView;
 
-typedef struct MovesSidekickBlendData {
-    char pad00[0x50];
-    float exit_step;
-} MovesSidekickBlendData;
 
-typedef struct MovesSidekickFighterDefinition {
-    char pad00[4];
-    MovesSidekickBlendData* blend_data;
-    char pad08[0x80];
-    AniData* switch_animation;
-    AniData* exit_animation;
-} MovesSidekickFighterDefinition;
 
-typedef struct MovesSidekickStateView {
-    char pad00[0x72C];
-    MkObj* sidekick_obj;
-    unsigned int sidekick_instance;
-    MkProc* sidekick_anim_proc;
-    unsigned int sidekick_anim_proc_instance;
-    int sidekick_active;
-    int sidekick_available;
-} MovesSidekickStateView;
 
-typedef struct MovesSidekickSwitchState {
-    char pad00[0x10];
-    PlyrPdata* opponent;
-    MkObj* opponent_obj;
-    PlyrInfo* player_info;
-    char pad1C[4];
-    MkProc* player_proc;
-    unsigned int player_proc_instance;
-    char pad28[0x704];
-    MkObj* sidekick_obj;
-    unsigned int sidekick_instance;
-    MkProc* sidekick_anim_proc;
-    unsigned int sidekick_anim_proc_instance;
-} MovesSidekickSwitchState;
 
 typedef struct MovesSidekickActionView {
     char pad00[0x318];
@@ -204,11 +147,6 @@ typedef struct MovesSidekickActionView {
     ScriptSlot* cmo;
 } MovesSidekickActionView;
 
-typedef struct MovesProcessLatchView {
-    char pad00[0x5C];
-    MkProc* anim_proc;
-    unsigned int anim_proc_instance;
-} MovesProcessLatchView;
 
 typedef struct MovesSpearAttackView {
     char pad00[0x318];
@@ -228,27 +166,7 @@ typedef struct MovesMoveDataView {
     AniData* boss_spear_tug;
 } MovesMoveDataView;
 
-typedef struct MovesAttackStateView {
-    char pad00[0x23C];
-    int attack_phase;
-    int attack_flags;
-    char pad244[0x20];
-    int attack_counter;
-    int shared_attack_until;
-    unsigned int last_voice_tick;
-    char pad270[4];
-    int attack_start_tick;
-} MovesAttackStateView;
 
-typedef struct MovesBlockStateView {
-    char pad00[0x5B0];
-    int drone_block_latch;          /* +0x5B0 */
-    char pad5B4[0x124];
-    int block_counter;             /* +0x6D8 */
-    unsigned int previous_block_tick; /* +0x6DC */
-    char pad6E0[4];
-    int block_reserve;             /* +0x6E4 */
-} MovesBlockStateView;
 
 typedef struct MovesAttackInfo {
     float attack_frame;
@@ -286,15 +204,7 @@ typedef struct MovesSwitchLogEntry {
     int mapped_index;
 } MovesSwitchLogEntry;
 
-typedef struct MovesGameInfoView {
-    char pad00[0x64];
-    MkPtr* pickup_list;
-} MovesGameInfoView;
 
-typedef struct MovesGameStateView {
-    char pad00[0x18];
-    int state;
-} MovesGameStateView;
 
 typedef struct MovesPickupTransform {
     char pad00[0x30];
@@ -389,7 +299,7 @@ extern float aniproc_land(void);
 
 typedef float (*MovesEntryFn)(void);
 typedef struct MovesProcVtable MovesProcVtable;
-typedef void (*MovesSleepFn)(MovesEntryFn, MovesProcVtable*, float);
+typedef MkProcJumpSleepFn MovesSleepFn;
 struct MovesProcVtable {
     void* functions[9];
     MovesSleepFn sleep;
@@ -397,7 +307,7 @@ struct MovesProcVtable {
 
 typedef struct MovesYieldVtable {
     void* functions[6];
-    void (*yield)(struct MovesYieldVtable*);
+    void (*yield)(void);
 } MovesYieldVtable;
 
 void bgnd_swap_level(int level);
@@ -413,6 +323,7 @@ static float p_sidekick_exit_now(void);
 void trial_increment_state_value(int player, int state, int amount);
 void avoid_double_ani(void);
 void init_ground_move_no_aniproc(void);
+void init_air_move(void);
 void face_opponent_now(void);
 void ani_loop_more_frames(float frames);
 int my_pad_position(void);
@@ -736,7 +647,7 @@ void blast_effect_at_plyr(void) {
     MkProc* proc;
 
     blast = load_named_model_for_player(
-        "BLAST", ((MovesPlayerIdentityView*)plyr_pdata)->character_id,
+        "BLAST", plyr_pdata->plyr_num,
         0x600A, 0);
     if (blast == 0) {
         return;
@@ -788,7 +699,7 @@ void kobra_teleport_position(void) {
         opponent_x + delta_x * inverse_distance * -2.0f;
     plyr_obj->pos.value.z =
         opponent_z + delta_z * inverse_distance * -2.0f;
-    if (((MovesGameStateView*)&g_game_info)->state != 2) {
+    if (g_game_info.bgnd_id != 2) {
         set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
     clear_my_face_opponent_flag();
@@ -951,7 +862,7 @@ void kenshi_teleport_position(void) {
         opponent_x + delta_x * inverse_distance * 1.25f;
     plyr_obj->pos.value.z =
         opponent_z + delta_z * inverse_distance * 1.25f;
-    if (((MovesGameStateView*)&g_game_info)->state != 2) {
+    if (g_game_info.bgnd_id != 2) {
         set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
 }
@@ -979,7 +890,7 @@ void scorpion_teleport_position(void) {
     plyr_obj->pos.value.x = opponent_x + normal_x * -3.0f;
     plyr_obj->pos.value.z = opponent_z + normal_z * -3.0f;
     bgnd_clear_danger_zone_callback(plyr_pdata);
-    if (((MovesGameStateView*)&g_game_info)->state != 2) {
+    if (g_game_info.bgnd_id != 2) {
         set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
     plyr_obj->pos.value.y = g_game_info.field_34 + 2.2f;
@@ -1018,7 +929,7 @@ static inline void moves_jump(MovesEntryFn entry) {
     MovesProcVtable* vtable;
 
     vtable = (MovesProcVtable*)aproc->vtbl;
-    vtable->sleep(entry, vtable, 0.0f);
+    vtable->sleep(entry, 0.0f);
 }
 
 static inline void moves_sleep(float ticks) {
@@ -1026,7 +937,7 @@ static inline void moves_sleep(float ticks) {
 
     _mkproc_sleep_ticks = ticks;
     vtable = (MovesYieldVtable*)aproc->vtbl;
-    vtable->yield(vtable);
+    vtable->yield();
 }
 
 static inline MkObj* moves_resolve_weapon_latch(
@@ -1275,7 +1186,7 @@ float do_my_fatality(void) {
 
 /* TODO: [breakthrough needed] 95.61%; nullable pickup-list expansion remains. */
 void drop_active_weapon_to_original_position(PlyrPdata* player) {
-    MovesGameInfoView* game;
+    GameInfo* game;
     MovesPickup* pickup;
     MkPtr* link;
     MkPtr* next;
@@ -1301,9 +1212,9 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
         return;
     }
 
-    game = (MovesGameInfoView*)&g_game_info;
+    game = (GameInfo*)&g_game_info;
     mk_pull_discard(&pickup->hdr, &player->active_weapon_links);
-    mk_insert(&pickup->hdr, &game->pickup_list);
+    mk_insert(&pickup->hdr, &game->field_64);
     enable_bgnd_obj_repel(&pickup->hdr);
     plyr_weapon_release(player);
     plyr_weapon2_release(player);
@@ -1422,7 +1333,7 @@ static float x_pickup(void) {
         found = 0;
     } else {
         found = moves_find_nearby_pickup(
-            object, &((MovesGameInfoView*)&g_game_info)->pickup_list,
+            object, &g_game_info.field_64,
             &nearby_pickup, &offset);
     }
 
@@ -1436,7 +1347,7 @@ static float x_pickup(void) {
 /* Select the grab animation before applying pickup, transform and script effects. */
 /* TODO: [breakthrough needed] 85.92%; pickup/animation-switch lifetimes and call scheduling remain. */
 static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
-    MovesGameInfoView* game;
+    GameInfo* game;
     unsigned int grab_type;
     AniData* animation;
     float angle;
@@ -1558,8 +1469,8 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
         return;
     }
 
-    game = (MovesGameInfoView*)&g_game_info;
-    if (find_in_mklist(&pickup->hdr, &game->pickup_list) == 0) {
+    game = (GameInfo*)&g_game_info;
+    if (find_in_mklist(&pickup->hdr, &game->field_64) == 0) {
         if ((flipped == 1 && (unsigned int)(sector - 1) <= 1U) ||
             (flipped == 0 &&
              ((unsigned int)sector == 6U || (unsigned int)sector == 7U))) {
@@ -1574,7 +1485,7 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
         set_my_state(0x4211);
         set_ani_speed(0.35f);
         tightrope_restrictions_on();
-        mk_pull_discard(&pickup->hdr, &game->pickup_list);
+        mk_pull_discard(&pickup->hdr, &game->field_64);
         mk_insert(&pickup->hdr, &plyr_pdata->active_weapon_links);
         switch_to_bgnd_moveset(plyr_pdata, pickup->background_moveset);
         if (pickup->background_sobj_id != 0) {
@@ -1594,7 +1505,7 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
 
     set_ani_speed(0.35f);
     tightrope_restrictions_on();
-    mk_pull_discard(&pickup->hdr, &game->pickup_list);
+    mk_pull_discard(&pickup->hdr, &game->field_64);
     mk_insert(&pickup->hdr, &plyr_pdata->active_weapon_links);
     hide_sobj(pickup->transform_a);
     set_ani_weight(1.0f);
@@ -1999,6 +1910,8 @@ float switch_proc_advance_moveset(void) {
     return -1.0f;
 }
 
+/* TODO: [breakthrough] 85.5567%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
     union {
         float f;
@@ -2015,7 +1928,7 @@ static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
     if (length_sq > 0.0f) {
         length_bits.f = length_sq;
         guess_bits.u =
-            (unsigned int)GXMathSqrtTable[(length_bits.u >> 10) & 0x3FFE] << 8;
+            (unsigned int)GXMathSqrtTable[(length_bits.u >> 11) & 0x1FFF] << 8;
         guess_bits.u |=
             (((length_bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
             0x7F800000U;
@@ -2996,13 +2909,14 @@ void sidekick_intro_check(void) {
     }
 }
 
+/* TODO: [near miss] 84.816216%; base-to-current differences are GPR coloring after canonical typing; stop at coloring. */
 static float p_plyr_sidekick_intro(void) {
     union {
         float f;
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
+    PlyrPdata* player;
     MovesSidekickActionView* actions;
     PlyrFighterDefinition* alternate_style;
     MkProc* anim_proc;
@@ -3028,7 +2942,7 @@ static float p_plyr_sidekick_intro(void) {
     int function;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     actions = (MovesSidekickActionView*)pdata->player;
     sidekick = player->sidekick_obj;
     if (sidekick != 0 &&
@@ -3037,22 +2951,22 @@ static float p_plyr_sidekick_intro(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     sidekick->flags_09_bits.head_tracking = 1;
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
-    main_object = player->player_info->slot.mirror_a;
-    opponent_object = player->opponent_obj;
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
+    main_object = player->plyr_info->slot.mirror_a;
+    opponent_object = player->his_obj;
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
@@ -3081,7 +2995,7 @@ static float p_plyr_sidekick_intro(void) {
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         v3_add_v3_scaled(&offset, &offset, &lateral, 0.55f);
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
@@ -3114,7 +3028,7 @@ static float p_plyr_sidekick_intro(void) {
         (PlyrFighterDefinition*)pdata->player->weapon_styles[1];
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         transition_to_anim_script(
             anim, alternate_style->duck_exit_animation, 0, 0.1f);
     } else {
@@ -3133,7 +3047,7 @@ static float p_plyr_sidekick_intro(void) {
     sidekick->flags_09_bits.head_tracking = 0;
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         transition_to_anim_script(
             anim, actions->charge_exit_animation, 3, 0.25f);
     } else {
@@ -3209,7 +3123,7 @@ static float p_plyr_smoke_entrance(void) {
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
+    PlyrPdata* player;
     MovesSidekickActionView* actions;
     MkProc* anim_proc;
     MkProc* player_proc;
@@ -3234,7 +3148,7 @@ static float p_plyr_smoke_entrance(void) {
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     actions = (MovesSidekickActionView*)pdata->player;
     sidekick = player->sidekick_obj;
     if (sidekick != 0 &&
@@ -3243,23 +3157,23 @@ static float p_plyr_smoke_entrance(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
-    main_object = player->player_info->slot.mirror_a;
-    opponent_object = player->opponent_obj;
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
+    main_object = player->plyr_info->slot.mirror_a;
+    opponent_object = player->his_obj;
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
@@ -3288,7 +3202,7 @@ static float p_plyr_smoke_entrance(void) {
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.7f);
         transition = 0;
     } else {
@@ -3447,7 +3361,7 @@ static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* player) {
 static float p_sidekick_exit_now(void) {
     MovesSidekickPdata* pdata;
     PlyrPdata* player;
-    MovesSidekickFighterDefinition* fighter;
+    PlyrFighterDefinition* fighter;
     MkObj* sidekick;
     MkProc* anim_proc;
     AnimPdata* anim;
@@ -3461,12 +3375,12 @@ static float p_sidekick_exit_now(void) {
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     transition_to_anim_script(
         anim,
-        ((MovesSidekickFighterDefinition*)player->fighter_definition)
-            ->exit_animation,
+        (player->fighter_definition)
+            ->walk_backward_loop,
         0, 0.2f);
     fighter =
-        (MovesSidekickFighterDefinition*)player->fighter_definition;
-    anim->step = 1.2f * fighter->blend_data->exit_step;
+        player->fighter_definition;
+    anim->step = 1.2f * fighter->move_blend_data->walk_backward_step;
     sidekick->flags_09_bits.bit6 = 1;
     _mkproc_sleep_ticks = 45.0f;
     aproc->vtbl->sleep();
@@ -3478,7 +3392,7 @@ static float p_sidekick_exit_now(void) {
 /* TODO: [breakthrough] 97.58152%; inverse-length predicate/grouping restored;
  * coordinate snapshots and remaining FP/stack lowering need comparison. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
-    MovesSidekickStateView* state;
+    PlyrPdata* state;
     MovesSidekickPdata* exit_data;
     PlyrPdata* player;
     MkObj* sidekick;
@@ -3493,7 +3407,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     float position_y;
     float position_z;
 
-    state = (MovesSidekickStateView*)plyr_pdata;
+    state = plyr_pdata;
     sidekick = player_live_sidekick_obj(plyr_pdata);
 
 
@@ -3556,14 +3470,15 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     return 1;
 }
 
+/* TODO: [near miss] 72.37255%; regression is GPR coloring after canonical typing; earlier structural differences remain. */
 static float p_plyr_sidekick_switch(void) {
     union {
         float f;
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
-    MovesSidekickFighterDefinition* fighter;
+    PlyrPdata* player;
+    PlyrFighterDefinition* fighter;
     MovesSidekickPdataRef watchdog_pdata;
     MkProc* player_proc;
     MkProc* anim_proc;
@@ -3585,7 +3500,7 @@ static float p_plyr_sidekick_switch(void) {
     MkProc* proc;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     sidekick = player->sidekick_obj;
     object_weight = 2.0f;
     if (sidekick != 0 &&
@@ -3594,7 +3509,7 @@ static float p_plyr_sidekick_switch(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     sidekick_anim = (AnimPdata*)pdata_of_proc(anim_proc);
@@ -3607,24 +3522,24 @@ static float p_plyr_sidekick_switch(void) {
         return -1.0f;
     }
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     script = get_cmdscript_for_proc(player_proc);
-    main_object = player->player_info->slot.mirror_a;
+    main_object = player->plyr_info->slot.mirror_a;
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
 
-    direction.x = main_object->pos.value.x - player->opponent_obj->pos.value.x;
+    direction.x = main_object->pos.value.x - player->his_obj->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.value.z - player->opponent_obj->pos.value.z;
+    direction.z = main_object->pos.value.z - player->his_obj->pos.value.z;
     position_y = main_object->pos.value.y;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
-    if (is_plyr_airborn(player->opponent_obj, player->opponent) != 0) {
+    if (is_plyr_airborn(player->his_obj, player->his_plyr_pdata) != 0) {
         object_weight = 3.0f;
     }
 
@@ -3665,8 +3580,8 @@ static float p_plyr_sidekick_switch(void) {
         destroy_mkprocs_pid(0xC029);
     }
     fighter =
-        (MovesSidekickFighterDefinition*)pdata->player->fighter_definition;
-    set_anim_script(sidekick_anim, fighter->switch_animation, 0);
+        pdata->player->fighter_definition;
+    set_anim_script(sidekick_anim, fighter->walk_forward_loop, 0);
     moves_sleep(1.0f);
     unhide_obj(sidekick);
     sidekick_anim->step = 1.25f;
@@ -3691,6 +3606,8 @@ static float p_plyr_sidekick_switch(void) {
     return -1.0f;
 }
 
+/* TODO: [breakthrough] 78.42432%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_plyr_sidekick_projectile(void) {
     union {
         float f;
@@ -3701,7 +3618,7 @@ static float p_plyr_sidekick_projectile(void) {
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
+    PlyrPdata* player;
     MovesSidekickActionView* actions;
     MkProc* anim_proc;
     MkProc* player_proc;
@@ -3728,7 +3645,7 @@ static float p_plyr_sidekick_projectile(void) {
     int function;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     actions = (MovesSidekickActionView*)pdata->player;
     sidekick = player->sidekick_obj;
     object_weight = 2.0f;
@@ -3739,12 +3656,12 @@ static float p_plyr_sidekick_projectile(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
-    main_object = player->player_info->slot.mirror_a;
-    opponent_object = player->opponent_obj;
+    main_object = player->plyr_info->slot.mirror_a;
+    opponent_object = player->his_obj;
 
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
@@ -3755,7 +3672,7 @@ static float p_plyr_sidekick_projectile(void) {
     if (length_sq > 0.0f) {
         bits.f = length_sq;
         guess.u =
-            (unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8;
+            (unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8;
         guess.u |=
             (((bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
             0x7F800000U;
@@ -3769,18 +3686,18 @@ static float p_plyr_sidekick_projectile(void) {
     moves_prepare_sidekick_entrance(anim, sidekick);
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) == 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) == 0) {
         transition = 8;
     }
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
 
     inverse_length = 0.0f;
     if (length_sq > 0.0f) {
@@ -3874,7 +3791,7 @@ static float p_plyr_noob_entrance(void) {
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
+    PlyrPdata* player;
     MovesSidekickActionView* actions;
     MkProc* anim_proc;
     MkProc* player_proc;
@@ -3898,7 +3815,7 @@ static float p_plyr_noob_entrance(void) {
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     actions = (MovesSidekickActionView*)pdata->player;
     sidekick = player->sidekick_obj;
     if (sidekick != 0 &&
@@ -3907,23 +3824,23 @@ static float p_plyr_noob_entrance(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     moves_prepare_sidekick_entrance(anim, sidekick);
     moves_prepare_sidekick_entrance(anim, sidekick);
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
-    main_object = player->player_info->slot.mirror_a;
-    opponent_object = player->opponent_obj;
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
+    main_object = player->plyr_info->slot.mirror_a;
+    opponent_object = player->his_obj;
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
@@ -3954,7 +3871,7 @@ static float p_plyr_noob_entrance(void) {
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.7f);
         transition = 0;
     } else {
@@ -4008,13 +3925,14 @@ static float p_plyr_noob_entrance(void) {
     return -1.0f;
 }
 
+/* TODO: [near miss] 84.28537%; base-to-current differences are GPR coloring after canonical typing; stop at coloring. */
 static float p_plyr_sidekick_charge(void) {
     union {
         float f;
         unsigned int u;
     } inverse_bits;
     MovesSidekickPdata* pdata;
-    MovesSidekickSwitchState* player;
+    PlyrPdata* player;
     MovesSidekickActionView* actions;
     MkProc* anim_proc;
     MkProc* player_proc;
@@ -4042,7 +3960,7 @@ static float p_plyr_sidekick_charge(void) {
     int function;
 
     pdata = (MovesSidekickPdata*)apdata;
-    player = (MovesSidekickSwitchState*)pdata->player;
+    player = pdata->player;
     actions = (MovesSidekickActionView*)pdata->player;
     sidekick = player->sidekick_obj;
     if (sidekick != 0 &&
@@ -4051,23 +3969,23 @@ static float p_plyr_sidekick_charge(void) {
     }
     anim_proc = player->sidekick_anim_proc;
     if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc->instance != player->sidekick_anim_instance) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
-    player_proc = player->player_proc;
+    player_proc = player->own_player_proc;
     if (player_proc != 0 &&
-        player_proc->instance != player->player_proc_instance) {
+        player_proc->instance != player->own_player_proc_instance) {
         player_proc = 0;
     }
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->player_info->slot.pdata->sidekick_active);
-    main_object = player->player_info->slot.mirror_a;
-    opponent_object = player->opponent_obj;
+        sidekick, player->plyr_info->slot.pdata->sidekick_active);
+    main_object = player->plyr_info->slot.mirror_a;
+    opponent_object = player->his_obj;
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
@@ -4098,7 +4016,7 @@ static float p_plyr_sidekick_charge(void) {
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             main_object,
-            player->opponent->plyr_info->slot.mirror_a) != 0) {
+            player->his_plyr_pdata->plyr_info->slot.mirror_a) != 0) {
         v3_add_v3_scaled(&offset, &offset, &lateral, 0.45f);
         transition = 0;
     } else {
@@ -4210,13 +4128,13 @@ int is_weapon_style(MovesStyle* style) {
 void attack_to_frame_x(AniData* animation, unsigned int voice_event,
                        unsigned int whoosh_event, int transition, float frame,
                        float blend_rate, float step, float weight) {
-    MovesAttackStateView* attack_state;
+    PlyrPdata* attack_state;
     float voice_frame;
     float whoosh_frame;
 
-    attack_state = (MovesAttackStateView*)plyr_pdata;
-    attack_state->attack_start_tick = game_tick_ctr;
-    attack_state->attack_phase = 1;
+    attack_state = plyr_pdata;
+    attack_state->last_collision_tick = game_tick_ctr;
+    attack_state->throw_restriction = 1;
     clear_collision_result();
     attack_state->shared_attack_until =
         exec_tick_ctr + (int)(0.5f + frame / step);
@@ -4235,10 +4153,10 @@ void attack_to_frame_x(AniData* animation, unsigned int voice_event,
             if (voice_frame > 0.0f) {
                 ani_to_frame_x(voice_frame);
             }
-            if ((unsigned int)(exec_tick_ctr - attack_state->last_voice_tick) >
+            if ((unsigned int)(exec_tick_ctr - (unsigned int)attack_state->field_26C) >
                 30U) {
                 random_voice((unsigned short)voice_event);
-                attack_state->last_voice_tick = exec_tick_ctr;
+                attack_state->field_26C = exec_tick_ctr;
             }
             if (whoosh_frame > 0.0f) {
                 ani_to_frame_x(whoosh_frame);
@@ -4253,10 +4171,10 @@ void attack_to_frame_x(AniData* animation, unsigned int voice_event,
             if (voice_frame > 0.0f) {
                 ani_to_frame_x(voice_frame);
             }
-            if ((unsigned int)(exec_tick_ctr - attack_state->last_voice_tick) >
+            if ((unsigned int)(exec_tick_ctr - (unsigned int)attack_state->field_26C) >
                 30U) {
                 random_voice((unsigned short)voice_event);
-                attack_state->last_voice_tick = exec_tick_ctr;
+                attack_state->field_26C = exec_tick_ctr;
             }
         }
         if (voice_frame == whoosh_frame) {
@@ -4264,10 +4182,10 @@ void attack_to_frame_x(AniData* animation, unsigned int voice_event,
                 ani_to_frame_x(whoosh_frame);
             }
             whoosh_fx((unsigned short)whoosh_event);
-            if ((unsigned int)(exec_tick_ctr - attack_state->last_voice_tick) >
+            if ((unsigned int)(exec_tick_ctr - (unsigned int)attack_state->field_26C) >
                 30U) {
                 random_voice((unsigned short)voice_event);
-                attack_state->last_voice_tick = exec_tick_ctr;
+                attack_state->field_26C = exec_tick_ctr;
             }
         }
     }
@@ -4410,10 +4328,10 @@ static float rollup_finish(void) {
 }
 
 float glitch_to_stance_j_exit(void) {
-    MovesFighterDefinitionView* fighter;
+    PlyrFighterDefinition* fighter;
 
-    fighter = (MovesFighterDefinitionView*)plyr_pdata->fighter_definition;
-    set_anim_script(plyr_anim_pdata, fighter->stance, 0x20);
+    fighter = plyr_pdata->fighter_definition;
+    set_anim_script(plyr_anim_pdata, fighter->duck_exit_animation, 0x20);
     while (do_i_have_life_left() == 0) {
         moves_sleep(1.0f);
     }
@@ -4423,7 +4341,7 @@ float glitch_to_stance_j_exit(void) {
 
 static float drahmin_dash_back(void) {
     snd_req(0xD71);
-    blend_to_ani(((MovesDashAnimationView*)plyr_pdata)->dash_back, 0xB, 0.1f);
+    blend_to_ani(plyr_pdata->turn_to_screen_animation, 0xB, 0.1f);
     plyr_anim_pdata->step = 1.4f;
     plyr_anim_pdata->weight_velocity = 0.0f;
     plyr_anim_pdata->weight = 1.5f;
@@ -4431,7 +4349,7 @@ static float drahmin_dash_back(void) {
     init_air_move();
     ani_to_frame_x(16.0f);
     snd_req(0xD71);
-    blend_to_ani(((MovesDashAnimationView*)plyr_pdata)->dash_back, 3, 0.1f);
+    blend_to_ani(plyr_pdata->turn_to_screen_animation, 3, 0.1f);
     init_ground_move();
     plyr_anim_pdata->step = 1.4f;
     plyr_anim_pdata->weight = 1.5f;
@@ -4448,10 +4366,10 @@ static float drahmin_dash_back(void) {
 float joy_dash_back(void) {
     avoid_double_ani();
     init_ground_move_no_aniproc();
-    if (((MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition)
+    if ((plyr_pdata->fighter_definition)
             ->weapon_rest_animation != 0) {
         plyr_spawn_anim(
-            ((MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition)
+            (plyr_pdata->fighter_definition)
                 ->weapon_rest_animation,
             p_animate_weapon_rest);
     }
@@ -5042,7 +4960,7 @@ float switch_proc_pickup(void) {
             can_pick_up = 0;
         } else {
             can_pick_up = moves_has_nearby_pickup(
-                object, &((MovesGameInfoView*)&g_game_info)->pickup_list);
+                object, &g_game_info.field_64);
         }
         if (can_pick_up != 0) {
             player = switch_pdata->player;
@@ -5153,8 +5071,8 @@ float fall_dead(void) {
 /* Wait for the pre-victory state and opponent before selecting boss or normal scripts. */
 /* TODO: [breakthrough needed] 92.67%; latch normalization, flag stores and wait-loop scheduling remain. */
 float victory(void) {
-    MovesFighterDefinitionView* fighter;
-    MovesProcessLatchView* opponent_latch;
+    PlyrFighterDefinition* fighter;
+    PlyrPdata* opponent_latch;
     AnimPdata* opponent_anim;
     MkProc* opponent_anim_proc;
     int ticks;
@@ -5179,10 +5097,10 @@ float victory(void) {
     plyr_obj->flags_09_bits.bit4 = 0;
     plyr_obj->flags_09_bits.head_tracking = 0;
 
-    fighter = (MovesFighterDefinitionView*)plyr_pdata->fighter_definition;
+    fighter = plyr_pdata->fighter_definition;
     ticks = 240;
-    if (plyr_anim_pdata->script_word !=
-        (unsigned int)fighter->stance) {
+    if (plyr_anim_pdata->script !=
+        (AnimScript*)fighter->duck_exit_animation) {
         while (plyr_anim_pdata->frame < plyr_anim_pdata->high_frame &&
                plyr_pdata->state != 0x4200 && ticks != 0) {
             moves_sleep(1.0f);
@@ -5211,7 +5129,7 @@ float victory(void) {
     }
 
     opponent_latch =
-        (MovesProcessLatchView*)plyr_pdata->his_plyr_pdata;
+        plyr_pdata->his_plyr_pdata;
     opponent_anim_proc = opponent_latch->anim_proc;
     if (opponent_anim_proc != 0 &&
         opponent_anim_proc->instance != opponent_latch->anim_proc_instance) {
@@ -6190,13 +6108,12 @@ void kill_spear(void) {
 static float weapon_block(void) {
     set_my_state(0xA00);
     blend_to_ani(
-        ((MovesFighterDefinitionView*)plyr_pdata->fighter_definition)
-            ->weapon_block_intro,
+        plyr_pdata->fighter_definition->weapon_block_animation,
         3, 0.1f);
     plyr_anim_pdata->step = 1.0f;
     ani_to_end();
     glitch_to_ani(
-        ((MovesFighterDefinitionView*)plyr_pdata->fighter_definition)
+        (plyr_pdata->fighter_definition)
             ->weapon_block_loop,
         0);
     moves_jump(j_block_loop);
@@ -6232,8 +6149,8 @@ static inline void moves_transition_block(
 }
 
 float j_block_loop(void) {
-    MovesAttackStateView* opponent_attack;
-    MovesBlockStateView* block;
+    PlyrPdata* opponent_attack;
+    PlyrPdata* block;
     PlyrMoveBlendData* style_data;
     PlyrPdata* opponent;
     unsigned int timeout;
@@ -6242,8 +6159,8 @@ float j_block_loop(void) {
     int requirement;
 
     timeout = exec_tick_ctr + 120;
-    block = (MovesBlockStateView*)plyr_pdata;
-    block->block_reserve++;
+    block = plyr_pdata;
+    block->block_hit_count++;
     xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = 1.0f;
     while (am_i_blocking() != 0) {
@@ -6256,11 +6173,11 @@ float j_block_loop(void) {
             } else {
                 opponent = g_game_info.plyr0.slot.pdata;
             }
-            opponent_attack = (MovesAttackStateView*)his_pdata;
+            opponent_attack = (PlyrPdata*)his_pdata;
             opponent_state = opponent->state;
             if (((opponent_state & 0x1000) != 0 &&
-                 opponent_attack->attack_phase != 3) ||
-                (opponent_attack->attack_flags & 0x100) != 0 ||
+                 opponent_attack->throw_restriction != 3) ||
+                (opponent_attack->secondary_state & 0x100) != 0 ||
                 plyr_pdata->his_plyr_pdata->duck_reaction_active != 0) {
                 g_min_time_in_block_for_drone =
                     exec_tick_ctr + drone_ai_get_min_time_in_block();
@@ -6268,26 +6185,26 @@ float j_block_loop(void) {
             if ((unsigned int)g_min_time_in_block_for_drone <
                 (unsigned int)exec_tick_ctr) {
                 if (plyr_pdata->state == 0xA00) {
-                    block->block_counter = 0;
+                    block->combo_depth = 0;
                 }
-                block->previous_block_tick = exec_tick_ctr;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return 0.0f;
             }
             if (timeout < (unsigned int)exec_tick_ctr) {
                 if (plyr_pdata->state == 0xA00) {
-                    block->block_counter = 0;
+                    block->combo_depth = 0;
                 }
-                ((MovesBlockStateView*)plyr_pdata->his_plyr_pdata)
-                    ->drone_block_latch = 0;
-                block->previous_block_tick = exec_tick_ctr;
+                (plyr_pdata->his_plyr_pdata)
+                    ->duck_reaction_active = 0;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return 0.0f;
             }
         }
 
         if (plyr_pdata->his_attack_counter != get_his_attack_counter()) {
-            block->block_counter++;
+            block->combo_depth++;
         }
         changed_without_weapon = 0;
         if (plyr_pdata->his_attack_counter != get_his_attack_counter()) {
@@ -6304,7 +6221,7 @@ float j_block_loop(void) {
         if (changed_without_weapon != 0) {
             timeout = exec_tick_ctr + 90;
             if (drone_ai_check_next_block_state(exec_tick_ctr) == 1) {
-                block->previous_block_tick = exec_tick_ctr;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return 0.0f;
             }
@@ -6335,7 +6252,7 @@ float j_block_loop(void) {
             plyr_pdata->his_attack_counter = get_his_attack_counter();
             timeout = exec_tick_ctr + 90;
             if (drone_ai_check_next_block_state(exec_tick_ctr) == 1) {
-                block->previous_block_tick = exec_tick_ctr;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return 0.0f;
             }
@@ -6364,16 +6281,16 @@ float j_block_loop(void) {
 }
 
 float x_block(void) {
-    MovesBlockStateView* block;
+    PlyrPdata* block;
     int opponent_requirement;
 
-    block = (MovesBlockStateView*)plyr_pdata;
+    block = plyr_pdata;
     init_ground_move_no_aniproc();
     stop_me();
     random_hit(7);
     dead_liukang_snd_chain_check(plyr_pdata, 4, 8, 0x32);
-    if ((unsigned int)(exec_tick_ctr - block->previous_block_tick) > 10U) {
-        block->block_counter = 0;
+    if ((unsigned int)(exec_tick_ctr - (unsigned int)block->field_6DC) > 10U) {
+        block->combo_depth = 0;
     }
     random_voice(9);
     g_drone_faked_out = 0;
@@ -6388,10 +6305,10 @@ float x_block(void) {
             drone_ai_check_block_fakeout() == 1) {
             g_drone_faked_out = 1;
         }
-        if (block->block_reserve > 10) {
-            block->block_reserve -= 10;
+        if (block->block_hit_count > 10) {
+            block->block_hit_count -= 10;
         } else {
-            block->block_reserve = 0;
+            block->block_hit_count = 0;
         }
     }
 
@@ -6417,19 +6334,19 @@ float x_block(void) {
 
 /* TODO: [breakthrough needed] 90.08%; timer/local ownership and loop frame layout remain. */
 void j_duck_block_loop(void) {
-    MovesBlockStateView* block;
-    MovesBlockStateView* opponent_block;
-    MovesAttackStateView* opponent_attack;
+    PlyrPdata* block;
+    PlyrPdata* opponent_block;
+    PlyrPdata* opponent_attack;
     PlyrPdata* opponent;
     unsigned int timeout;
     int requirement;
 
-    block = (MovesBlockStateView*)plyr_pdata;
+    block = plyr_pdata;
     timeout = exec_tick_ctr + 120;
-    if (block->block_reserve > 3) {
-        block->block_reserve--;
+    if (block->block_hit_count > 3) {
+        block->block_hit_count--;
     } else {
-        block->block_reserve = 0;
+        block->block_hit_count = 0;
     }
     xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = 0.5f;
@@ -6440,7 +6357,7 @@ void j_duck_block_loop(void) {
         nudge_towards_him(0.2f);
         moves_sleep(1.0f);
         if (plyr_pdata->his_attack_counter != get_his_attack_counter()) {
-            block->block_counter++;
+            block->combo_depth++;
         }
 
         if (plyr_pdata->drone_request != 0) {
@@ -6449,23 +6366,23 @@ void j_duck_block_loop(void) {
             } else {
                 opponent = g_game_info.plyr0.slot.pdata;
             }
-            opponent_attack = (MovesAttackStateView*)his_pdata;
+            opponent_attack = (PlyrPdata*)his_pdata;
             if (((opponent->state & 0x1000) == 0 ||
-                 opponent_attack->attack_phase == 3) &&
+                 opponent_attack->throw_restriction == 3) &&
                 (unsigned int)g_min_time_in_block_for_drone <
                     (unsigned int)exec_tick_ctr &&
-                ((MovesBlockStateView*)plyr_pdata->his_plyr_pdata)
-                        ->drone_block_latch == 0) {
+                (plyr_pdata->his_plyr_pdata)
+                        ->duck_reaction_active == 0) {
                 set_my_state(0x101);
-                block->previous_block_tick = exec_tick_ctr;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return;
             }
             if (timeout < (unsigned int)exec_tick_ctr) {
                 opponent_block =
-                    (MovesBlockStateView*)plyr_pdata->his_plyr_pdata;
-                opponent_block->drone_block_latch = 0;
-                block->previous_block_tick = exec_tick_ctr;
+                    plyr_pdata->his_plyr_pdata;
+                opponent_block->duck_reaction_active = 0;
+                block->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
                 return;
             }
@@ -6582,15 +6499,15 @@ static float block_a_intro(void) {
 }
 
 static float blend_to_duck_block(void) {
-    MovesFighterDefinitionView* fighter;
+    PlyrFighterDefinition* fighter;
 
-    fighter = (MovesFighterDefinitionView*)plyr_pdata->fighter_definition;
+    fighter = plyr_pdata->fighter_definition;
     set_my_state(0x901);
     if (should_i_weapon_block() != 0) {
         blend_to_ani(fighter->duck_block_intro, 3, 0.1f);
         plyr_anim_pdata->step = 1.0f;
         ani_to_end();
-        glitch_to_ani(fighter->duck_block_loop, 0);
+        glitch_to_ani(fighter->duck_block_animation, 0);
     } else {
         blend_to_ani(shared_ani.duck_block_intro, 3, 0.1f);
         plyr_anim_pdata->step = 1.0f;

@@ -1,8 +1,10 @@
+#include "game/switch.h"
 #include "game/minigames.h"
 #include "game/controller.h"
 #include "game/game_info.h"
 #include "game/ladder.h"
 #include "game/settings.h"
+#include "libmkparticle/emitter.h"
 #include "libmkparticle/particle.h"
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/texture_anim.h"
@@ -63,6 +65,10 @@ typedef struct PuzzleWagerProfile PuzzleWagerProfile;
 
 void* memcpy(void* destination, const void* source, unsigned long size);
 void* memset(void* destination, int value, unsigned long size);
+char* strcat(char* destination, const char* source);
+int get_pause_menu_ssh(void);
+void preload_screen_data(const char* name, int slot);
+int am_i_female(PlyrPdata* fighter);
 unsigned int pan_snd_req(int sound_id, float pan);
 int fx_by_owner(const char* name, int owner);
 unsigned int snd_req(int sound_id);
@@ -552,29 +558,6 @@ typedef struct PuzzleArcadeBackground {
     int background_data;
 } PuzzleArcadeBackground;
 
-typedef struct PuzzlePfxView {
-    char pad00[0x54];
-    int particle_count;
-} PuzzlePfxView;
-
-typedef struct PuzzleStormEmitter {
-    char pad00[0x1C];
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char disabled : 1;
-            unsigned char flags_pad : 7;
-        } flag_bits;
-    };
-    char pad1D[0x2CB];
-    void* transform; /* +0x2E8 */
-} PuzzleStormEmitter;
-
-typedef struct PuzzleStormTransform {
-    char pad00[0x30];
-    float x; /* +0x30 */
-} PuzzleStormTransform;
-
 typedef struct PuzzleBlockOffset {
     float x;
     float y;
@@ -679,13 +662,13 @@ typedef struct PuzzleControl {
     FighterRuntimeData* winner_runtime_data; /* +0x6C */
     PlyrPdata* losing_fighter; /* +0x70 */
     int winner_character_id; /* +0x74 */
-    PuzzlePfxView* puzzle_pfx; /* +0x78 */
+    PfxVm* puzzle_pfx; /* +0x78 */
     int* puzzle_particle_capacity; /* +0x7C */
     Vec* particle_positions; /* +0x80 */
     float* particle_timers; /* +0x84 */
     int particle_position_stride; /* +0x88 */
     int particle_timer_stride; /* +0x8C */
-    PuzzlePfxView* ice_pfx; /* +0x90 */
+    PfxVm* ice_pfx; /* +0x90 */
     int* ice_particle_capacity; /* +0x94 */
     Vec* ice_positions; /* +0x98 */
     float* ice_timers; /* +0x9C */
@@ -790,71 +773,6 @@ typedef struct PuzzleStaticArt {
     };
 } PuzzleStaticArt;
 
-typedef struct PuzzleSwitchState {
-    int player;
-    int field_04;
-    int event;
-    char pad0C[0x4C];
-    PlyrPdata* fighter_pdata; /* +0x58 */
-} PuzzleSwitchState;
-
-typedef struct PuzzleSwitchPdata {
-    char pad00[8];
-    PuzzleSwitchState* state; /* +0x08 */
-} PuzzleSwitchPdata;
-
-typedef struct PuzzleFighterSelectionView {
-    char pad00[0xA8];
-    int supermove_index; /* +0xA8 */
-} PuzzleFighterSelectionView;
-
-typedef struct PuzzleFighterView {
-    char pad00[0x6F8];
-    PuzzleFighterSelectionView* selection; /* +0x6F8 */
-} PuzzleFighterView;
-
-typedef struct PuzzleMainPlyrView {
-    char pad00[0x14];
-    union {
-        unsigned char flags_14;
-        struct {
-            signed char special_character : 1;
-            signed char random_palette_lock : 1;
-            signed char flags_14_pad : 6;
-        } character_bits;
-    };
-    char pad15[0x3F];
-    int character_id;
-    PuzzleFighterView* fighter;
-    char pad5C[0x10];
-} PuzzleMainPlyrView; /* 0x6C */
-
-typedef struct PuzzleMainGameView {
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char startup_wait : 1;
-            unsigned char flags_pad_high : 1;
-            signed char round_active : 1;
-            unsigned char flags_pad_mid : 3;
-            signed char first_pass_started : 1;
-            unsigned char flags_pad_low : 1;
-        } startup_bits;
-    };
-    char pad01[3];
-    unsigned char feature_flags;
-    char pad05[0x9F];
-    PuzzleMainPlyrView players[2];
-} PuzzleMainGameView;
-
-static inline PuzzleMainGameView* puzzle_game_view(void) {
-    return (PuzzleMainGameView*)&g_game_info;
-}
-
-typedef struct PuzzleScriptView {
-    char pad00[0x58];
-    unsigned int data_table_index;
-} PuzzleScriptView;
 
 #define PUZZLE_STRING_DATA                                                    \
     "puzzle_kombat.mko\0" "pause_menu/pause_menu\0" "%d00\0" "0\0"      \
@@ -895,7 +813,7 @@ int pz_loss_in_a_row;
 int __mini_game_display_ctrl;
 static PuzzleControl* puzzle_ctrl;
 extern PuzzleFightersEngine g_pz_fighters_engine;
-extern PuzzleSwitchPdata* switch_pdata;
+extern SwitchPdata* switch_pdata;
 extern int game_tick_ctr;
 extern MkFileInfo sec_pz_bgnd_beetlelair;
 extern MkFileInfo sec_pz_bgnd_hellsfoundry;
@@ -965,7 +883,7 @@ static float p_puzzle_fighter_chain_msg(void);
 static void minigame_puzzlefighter_setup(void);
 void bleed_startup(void);
 void setup_sound_banks(int bank);
-void display_load_meter(void);
+void display_load_meter(int section_slot);
 void load_lights(void* lights, void** list);
 void init_weapon_trail_light_list(void);
 int is_char_locked(int character, int player);
@@ -1093,6 +1011,7 @@ static int pz_ai_decide_move(PuzzlePlayerState* player);
 static void pz_ai_decide_match(PuzzlePlayerState* player);
 static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player);
 static int pz_ai_decide_superbomb(PuzzlePlayerState* player);
+static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player);
 
 void minigame_get_bgnd_y_value(int* player1_y, int* player2_y) {
     if (puzzle_ctrl == 0) {
@@ -1130,15 +1049,15 @@ static void puzzle_fighter_mode_clear(void);
 static void pzpfx_copy_playpieces(PuzzlePlayerState* player);
 static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player);
 
-PuzzleStaticArt art_puzzle_fighter_static_tbl = {{
-    {0x08020013, 236, 363}, {0x0802000D, 45, 114},
-    {0x0802000D, 385, 114}, {0x08020012, 262, 309},
-    {0x08020012, 345, 309}, {0x08020015, 257, 262},
-    {0x08020015, 324, 262}, {0x08020014, -1, -1},
-    {0x08020014, -2, -2}, {0x08020011, -1, -1},
-    {0x08020011, -2, -2}, {0x08020016, 265, 131},
-    {0x08020016, 348, 131}, {0, 0, 0},
-}};
+PuzzleStaticArt art_puzzle_fighter_static_tbl = {
+    0x08020013, 236, 363, 0x0802000D, 45, 114,
+    0x0802000D, 385, 114, 0x08020012, 262, 309,
+    0x08020012, 345, 309, 0x08020015, 257, 262,
+    0x08020015, 324, 262, 0x08020014, -1, -1,
+    0x08020014, -2, -2, 0x08020011, -1, -1,
+    0x08020011, -2, -2, 0x08020016, 265, 131,
+    0x08020016, 348, 131, 0, 0, 0,
+};
 
 PuzzleLocalizedImageEntry pzlang_image_table[10] = {
     {0, 0x08020011, {{258,341,346,366},{258,330,346,366},{258,329,346,366},{258,330,346,366},{258,332,346,366}}},
@@ -1280,15 +1199,15 @@ puzzle_switch_select_player(PlyrPdata* fighter_pdata) {
 }
 
 static inline float puzzle_switch_set_command(int command) {
-    PuzzleSwitchState* switch_state;
+    PlyrInfo* switch_state;
     PuzzlePlayerState* player;
 
     if (__mini_game_display_ctrl != 0) {
         if (puzzle_ctrl->input_bits.accept_input != 0) {
-            switch_state = switch_pdata->state;
-            if (switch_state != 0 && switch_state->event == 2) {
+            switch_state = switch_pdata->player;
+            if (switch_state != 0 && switch_state->player_state == 2) {
                 player = puzzle_switch_select_player(
-                    switch_state->fighter_pdata);
+                    switch_state->slot.pdata);
 
                 if (player->input_command < 6) {
                     player->input_command = command;
@@ -1406,32 +1325,45 @@ puzzle_fighter_pair_position_open(PuzzlePlayerState* player,
     }
 }
 
-static inline int
+static inline void
 puzzle_fighter_update_invisibility(PuzzlePlayerState* player) {
     PuzzleInvisiblePdata* invisible_pdata;
+    PuzzleBoardCell* cell;
+    int row;
+    int column;
 
-    if (player->invisibility_ticks > 0 &&
-        player->invisibility_ticks < 0x1000) {
-        player->invisibility_ticks--;
-        if (player->invisibility_ticks == 0) {
-            if (_create_mkproc_generic_nostack(
-                    0x6010, 0x1F, p_pzsm_invisible, 0,
-                    (MkHdr**)&invisible_pdata) != 0) {
-                invisible_pdata->player = player;
-            } else {
-                return 1;
+    do {
+        if (player->invisibility_ticks > 0 &&
+            player->invisibility_ticks < 0x1000) {
+            player->invisibility_ticks--;
+            if (player->invisibility_ticks == 0) {
+                if (_create_mkproc_generic_nostack(
+                        0x6010, 0x1F, p_pzsm_invisible, 0,
+                        (MkHdr**)&invisible_pdata) != 0) {
+                    invisible_pdata->player = player;
+                } else {
+                    break;
+                }
             }
         }
-    }
 
-    if (player->invisibility_fade > 0) {
+        if (player->invisibility_fade <= 0) {
+            return;
+        }
         player->invisibility_fade++;
-        if (player->invisibility_fade > 14) {
-            player->invisibility_fade = -1;
-            return 1;
+        if (player->invisibility_fade <= 14) {
+            return;
+        }
+        player->invisibility_fade = -1;
+    } while (0);
+
+    for (row = 0; row < 14; row++) {
+        for (column = 0; column < 8; column++) {
+            cell = &player->board[row * 8 + column];
+            cell->match_flag_bits.breaking = 0;
+            cell->match_flag_bits.matched = 0;
         }
     }
-    return 0;
 }
 
 static inline int puzzle_ai_select_best_piece(
@@ -1702,16 +1634,16 @@ float puzzle_fighter_get_super_bar_level(unsigned int player) {
 /* TODO: [near miss] 92.77465%; natural const-data placement changes relocations;
  * retain ordinary declarations without section attributes. */
 float p_puzzle_fighter(void) {
-    PuzzleMainGameView* game;
-    PuzzleScriptView* script;
+    GameInfo* game;
+    ScriptSlot* script;
     BgndDataTable* section;
     int character;
     int attempts;
 
     set_game_switch_maps();
     set_section_memory_scheme(2);
-    game = puzzle_game_view();
-    if ((game->feature_flags & 0x20) != 0) {
+    game = &g_game_info;
+    if ((game->field_04 & 0x20) != 0) {
         push_game_state(3);
     } else {
         push_game_state(0x12);
@@ -1720,11 +1652,11 @@ float p_puzzle_fighter(void) {
     load_ssf(gameart_file_table);
     load_art_section(0x10005, &sec_fightingart);
     load_ssf(puzzlefighter_file_table);
-    script = (PuzzleScriptView*)cmdscript_loadfile_by_name(
+    script = cmdscript_loadfile_by_name(
         11, PUZZLE_STRINGS + PUZZLE_SCRIPT_STRING);
-    g_game_info.cmdscript = (ScriptSlot*)script;
+    g_game_info.cmdscript = script;
     section = (BgndDataTable*)get_data_table(
-        (ScriptSlot*)script, script->data_table_index);
+        script, script->table_count);
     g_game_info.section = section;
     g_game_info.misc = section->misc;
     if (section->misc->lights_bgnd != 0) {
@@ -1744,12 +1676,11 @@ float p_puzzle_fighter(void) {
     turn_camera_on();
     mode_of_play = 6;
     puzzle_mode_net = 0;
-    if ((game->feature_flags & 0x80) == 0) {
+    if ((game->field_04 & 0x80) == 0) {
         pz_preinit_world(is_pz_net_master);
     }
 
-    get_pause_menu_ssh();
-    display_load_meter();
+    display_load_meter(get_pause_menu_ssh());
     g_game_info.field_08 = 1;
     UpdateShadowCameraLightSource(g_game_info.misc->shadow_cam_light);
     ShadowStrength = g_game_info.misc->shadow_strength;
@@ -1758,7 +1689,7 @@ float p_puzzle_fighter(void) {
     }
     init_weapon_trail_light_list();
 
-    if ((game->feature_flags & 0x20) != 0) {
+    if ((game->field_04 & 0x20) != 0) {
         attempts = 100;
         do {
             character = randu0(44);
@@ -1767,18 +1698,12 @@ float p_puzzle_fighter(void) {
         if (attempts == 0) {
             character = 0;
         }
-        puzzle_game_view()->players[0].character_id = character;
-        puzzle_game_view()
-            ->players[0]
-            .character_bits.random_palette_lock = 0;
+        g_game_info.plyr0.player_index = character;
+        g_game_info.plyr0.flags_14_bits.alternate_palette = 0;
         if (character == 0x15) {
-            puzzle_game_view()
-                ->players[0]
-                .character_bits.special_character = 1;
+            g_game_info.plyr0.flags_14_bits.alternate_costume = 1;
         } else {
-            puzzle_game_view()
-                ->players[0]
-                .character_bits.special_character = 0;
+            g_game_info.plyr0.flags_14_bits.alternate_costume = 0;
         }
 
         attempts = 100;
@@ -1789,39 +1714,25 @@ float p_puzzle_fighter(void) {
         if (attempts == 0) {
             character = 0;
         }
-        puzzle_game_view()->players[1].character_id = character;
-        puzzle_game_view()
-            ->players[1]
-            .character_bits.random_palette_lock = 0;
+        g_game_info.plyr1.player_index = character;
+        g_game_info.plyr1.flags_14_bits.alternate_palette = 0;
         if (character == 0x15) {
-            puzzle_game_view()
-                ->players[1]
-                .character_bits.special_character = 1;
+            g_game_info.plyr1.flags_14_bits.alternate_costume = 1;
         } else {
-            puzzle_game_view()
-                ->players[1]
-                .character_bits.special_character = 0;
+            g_game_info.plyr1.flags_14_bits.alternate_costume = 0;
         }
         resolve_alternate_palettes(&g_game_info.plyr1);
     }
 
-    if (puzzle_game_view()->players[0].character_id == 0x15) {
-        puzzle_game_view()
-            ->players[0]
-            .character_bits.special_character = 1;
+    if (g_game_info.plyr0.player_index == 0x15) {
+        g_game_info.plyr0.flags_14_bits.alternate_costume = 1;
     } else {
-        puzzle_game_view()
-            ->players[0]
-            .character_bits.special_character = 0;
+        g_game_info.plyr0.flags_14_bits.alternate_costume = 0;
     }
-    if (puzzle_game_view()->players[1].character_id == 0x15) {
-        puzzle_game_view()
-            ->players[1]
-            .character_bits.special_character = 1;
+    if (g_game_info.plyr1.player_index == 0x15) {
+        g_game_info.plyr1.flags_14_bits.alternate_costume = 1;
     } else {
-        puzzle_game_view()
-            ->players[1]
-            .character_bits.special_character = 0;
+        g_game_info.plyr1.flags_14_bits.alternate_costume = 0;
     }
     resolve_alternate_palettes(&g_game_info.plyr1);
 
@@ -1831,24 +1742,22 @@ float p_puzzle_fighter(void) {
     setup_sound_banks(5);
     load_art_section_language(
         0x70034,
-        pz_super_move_table[puzzle_game_view()->players[0]
-                                .fighter->selection->supermove_index]
+        pz_super_move_table[g_game_info.plyr0.slot.pdata->runtime_data->puzzle_supermove_index]
             .art_section);
     load_art_section_language(
         0x70035,
-        pz_super_move_table[puzzle_game_view()->players[1]
-                                .fighter->selection->supermove_index]
+        pz_super_move_table[g_game_info.plyr1.slot.pdata->runtime_data->puzzle_supermove_index]
             .art_section);
     load_art_section(0x70038, &sec_pz_plyr_art);
     pz_event.type = 1;
     pz_fighter_event(&pz_event);
-    game->startup_bits.first_pass_started = 1;
+    game->flag_bits.pad_bit1 = 1;
     start_first_pass_render();
     _mkproc_sleep_ticks = 3.0f;
     ((PuzzleProcVtable*)aproc->vtbl)->sleep();
     end_first_pass_render();
     turn_camera_off();
-    while (game->startup_bits.startup_wait != 0) {
+    while (game->flag_bits.high_res_path != 0) {
         _mkproc_sleep_ticks = 1.0f;
         ((PuzzleProcVtable*)aproc->vtbl)->sleep();
     }
@@ -2236,8 +2145,35 @@ static float p_pz_mode_endofgame(void) {
     return 120.0f;
 }
 
-/* Recovered retail round-fill flow. Remaining bounded work is source shaping
- * around the shared BSS base and duplicated sequence setup (36-byte delta). */
+static inline void pz_validate_network_sequence(void) {
+    int sequence_length;
+    int value;
+
+    sequence_length = 0;
+    while ((value = __pz_feed_rand_msg.sequence[sequence_length]) >= 0) {
+        if (value == 0) {
+            ((PuzzleProcVtable*)aproc->vtbl)
+                ->transfer(p_pz_mode_exit, 0.0f);
+            return;
+        }
+        if (value > 8) {
+            if (value == 9) {
+                puzzle_ctrl->flags2_bits.network_sequence_marker = 1;
+            } else if (value != PUZZLE_BLOCK_WILDCARD) {
+                ((PuzzleProcVtable*)aproc->vtbl)
+                    ->transfer(p_pz_mode_exit, 0.0f);
+                return;
+            }
+        }
+        sequence_length++;
+    }
+
+    __pz_feed_rand_msg.sequence_length = sequence_length;
+    puzzle_ctrl->sequence_bits.piece_sequence_owned = 0;
+}
+
+/* TODO: [near miss] 99.71%; validation and start-message field agree;
+ * offset.y address, floating-point registers and shared BSS offsets remain. */
 static float p_pz_mode_fill(void) {
     PuzzleBlockOffset* offset;
     int* sequence;
@@ -2245,8 +2181,6 @@ static float p_pz_mode_fill(void) {
     int wait_ticks;
     int row;
     int column;
-    int sequence_length;
-    int sequence_value;
 
     if (puzzle_ctrl->players[0]->active_cell != 0) {
         if (puzzle_ctrl->players[0]->flags3_bits.hide_active_piece == 0) {
@@ -2334,8 +2268,8 @@ static float p_pz_mode_fill(void) {
                 do {
                     _mkproc_sleep_ticks = 1.0f;
                     ((PuzzleProcVtable*)aproc->vtbl)->sleep();
-                } while (__pz_start_msg.network_side != 0);
-                __pz_start_msg.network_side =
+                } while (__pz_start_msg.player_character != 0);
+                __pz_start_msg.player_character =
                     g_game_info.plyr1.player_index;
             }
         } else {
@@ -2361,30 +2295,7 @@ static float p_pz_mode_fill(void) {
                            .sequence;
             if (sequence != 0) {
                 __pz_feed_rand_msg.sequence = sequence;
-                sequence_length = 0;
-                while ((sequence_value = sequence[sequence_length]) >= 0) {
-                    if (sequence_value == 0) {
-                        ((PuzzleProcVtable*)aproc->vtbl)->transfer(
-                            p_pz_mode_exit, 0.0f);
-                        break;
-                    }
-                    if (sequence_value > 8) {
-                        if (sequence_value == PUZZLE_BLOCK_SUPERBREAKER) {
-                            puzzle_ctrl->flags2_bits.network_sequence_marker =
-                                1;
-                        } else if (sequence_value !=
-                                   PUZZLE_BLOCK_WILDCARD) {
-                            ((PuzzleProcVtable*)aproc->vtbl)->transfer(
-                                p_pz_mode_exit, 0.0f);
-                            break;
-                        }
-                    }
-                    sequence_length++;
-                }
-                if (sequence_value < 0) {
-                    __pz_feed_rand_msg.sequence_length = sequence_length;
-                    puzzle_ctrl->sequence_bits.piece_sequence_owned = 0;
-                }
+                pz_validate_network_sequence();
             }
             puzzle_ctrl->piece_sequence_length =
                 __pz_feed_rand_msg.sequence_length;
@@ -2450,7 +2361,7 @@ static float p_pz_mode_who_won(void) {
     puzzle_record_round_winner(puzzle_ctrl->players[0]);
     puzzle_record_round_winner(puzzle_ctrl->players[1]);
 
-    puzzle_game_view()->startup_bits.round_active = 0;
+    g_game_info.flag_bits.lens_flare_enabled = 0;
     pz_event.type = 2;
     pz_fighter_event(&pz_event);
 
@@ -2511,8 +2422,6 @@ static float p_pz_mode_who_won(void) {
     return 1.0f;
 }
 
-/* Near miss: exact retail size, control flow, calls, and accesses. The
- * remaining objdiff entries are register operands and pool labels only. */
 static float p_pz_mode_play(void) {
     MkHdr* proc_data;
     MkProc* proc;
@@ -2706,7 +2615,6 @@ static float p_pz_mode_start(void) {
     return 1.0f;
 }
 
-/* Near match: p_pz_mode_clear 99.57%; the 1.0f pool identity differs only. */
 static float p_pz_mode_clear(void) {
     int widescreen_x;
 
@@ -2805,15 +2713,7 @@ static void pz_update_plyr_profile_status(void) {
     puzzle_profile_update_maxima(stats, player);
 }
 
-/* Emission-only near match (93.53%, retail 0x1FC/current 0x204). The network
- * message owns the selected sequence, matching retail's stored-pointer reloads;
- * signed sentinel and invalid-value exits agree. The remaining two-instruction
- * excess is loop-exit scheduling, BSS relocation selection, and register
- * allocation. */
 static float pz_init_network_array(void) {
-    int sequence_length;
-    int value;
-
     __pz_feed_rand_msg.array_index = 0;
     while (puzzle_array_table_local[__pz_feed_rand_msg.array_index].sequence !=
            0) {
@@ -2834,29 +2734,7 @@ static float pz_init_network_array(void) {
         0) {
         __pz_feed_rand_msg.sequence =
             puzzle_array_table_local[__pz_feed_rand_msg.array_index].sequence;
-        sequence_length = 0;
-        while ((value = __pz_feed_rand_msg.sequence[sequence_length]) >= 0) {
-            if (value == 0) {
-                ((PuzzleProcVtable*)aproc->vtbl)
-                    ->transfer(p_pz_mode_exit, 0.0f);
-                break;
-            }
-            if (value > 8) {
-                if (value == 9) {
-                    puzzle_ctrl->flags2_bits.network_sequence_marker = 1;
-                } else if (value != PUZZLE_BLOCK_WILDCARD) {
-                    ((PuzzleProcVtable*)aproc->vtbl)
-                        ->transfer(p_pz_mode_exit, 0.0f);
-                    break;
-                }
-            }
-            sequence_length++;
-        }
-
-        if (value < 0) {
-            __pz_feed_rand_msg.sequence_length = sequence_length;
-            puzzle_ctrl->sequence_bits.piece_sequence_owned = 0;
-        }
+        pz_validate_network_sequence();
     }
 
     puzzle_ctrl->piece_sequence_length =
@@ -2943,13 +2821,13 @@ float p_puzzle_switch_2(void) {
 /* TODO: [breakthrough needed] 92.43137%; shared selector CFG differs;
  * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_1(void) {
-    PuzzleSwitchState* switch_state;
+    PlyrInfo* switch_state;
     PuzzlePlayerState* player;
 
-    switch_state = switch_pdata->state;
+    switch_state = switch_pdata->player;
     if (switch_state != 0 && __mini_game_display_ctrl != 0 &&
         puzzle_ctrl->input_bits.accept_input != 0) {
-        player = puzzle_switch_select_player(switch_state->fighter_pdata);
+        player = puzzle_switch_select_player(switch_state->slot.pdata);
 
         if (player->super_active != 0) {
             player->super_active = 0;
@@ -3268,18 +3146,13 @@ puzzle_fighter_mode_play__drop_sequence(PuzzlePlayerState* player,
     return 1;
 }
 
-/* Near miss: the recovered signed flag overlays and cleanup stores agree with
- * retail. The remaining 28 bytes materialize the typed invisibility helper's
- * boolean result instead of branching its two exceptional exits directly to
- * the shared cleanup loop. */
+/* TODO: [near miss] 99.14%; event predicate, calls and cleanup CFG agree;
+ * floating-point and cleanup-loop register allocation remain. */
 static int puzzle_fighter_mode_play__new_piece(PuzzlePlayerState* player,
                                                PuzzlePlayerState* opponent) {
     PuzzleAiData ai_data;
     PuzzlePlayerState* other_player;
-    PuzzleBoardCell* cell;
     int original_cleared;
-    int row;
-    int column;
     float balance;
 
     original_cleared = player->cleared_blocks;
@@ -3350,10 +3223,10 @@ static int puzzle_fighter_mode_play__new_piece(PuzzlePlayerState* player,
         } else if (player->counter_drops_remaining > 70) {
             snd_req(0x45);
         } else if (player->counter_drops_remaining > 40) {
-            if (randu0(3) == 0) {
-                snd_req(0x43);
-            } else {
+            if (randu0(3) != 0) {
                 snd_req(0x44);
+            } else {
+                snd_req(0x43);
             }
         } else if (player->counter_drops_remaining > 20 &&
                    (randu0(3) == 0 ||
@@ -3369,11 +3242,11 @@ static int puzzle_fighter_mode_play__new_piece(PuzzlePlayerState* player,
 
     if (puzzle_ctrl->round_bits.round_started == 0) {
         puzzle_ctrl->round_bits.round_started = 1;
-        if (!((player->flags2_mode_bits.new_piece != 0 &&
-               other_player->flags2_mode_bits.new_piece != 0 &&
-               other_player->mode_step ==
-                   puzzle_fighter_mode_play__counter_drops) &&
-              player->flags2_mode_bits.score_applied == 0)) {
+        if (!(player->flags2_mode_bits.new_piece != 0 &&
+              other_player->flags2_mode_bits.new_piece != 0 &&
+              other_player->mode_step ==
+                  puzzle_fighter_mode_play__counter_drops) &&
+            player->flags2_mode_bits.score_applied == 0) {
             pz_event.type = 0x18;
             pz_event.player = player->event_player;
             pz_fighter_event(&pz_event);
@@ -3399,15 +3272,7 @@ static int puzzle_fighter_mode_play__new_piece(PuzzlePlayerState* player,
     pz_event.player = player->event_player;
     pz_fighter_event(&pz_event);
 
-    if (puzzle_fighter_update_invisibility(player) != 0) {
-        for (row = 0; row < 14; row++) {
-            for (column = 0; column < 8; column++) {
-                cell = &player->board[row * 8 + column];
-                cell->match_flag_bits.breaking = 0;
-                cell->match_flag_bits.matched = 0;
-            }
-        }
-    }
+    puzzle_fighter_update_invisibility(player);
 
     player->flags2_mode_bits.counter_active = 0;
     player->flags2_mode_bits.score_applied = 0;
@@ -3425,15 +3290,13 @@ static int puzzle_fighter_mode_play__new_piece(PuzzlePlayerState* player,
         player->ai_rotation_sequence_index = 0;
         player->ai_drop_sequence_index = 0;
         player->ai_pause_ticks = 0;
-        player->drop_flags &= ~0x04;
+        player->timed_drop_bits.timed_drop_initialized = 0;
         player->input_command = 0;
     }
 
     return 1;
 }
 
-/* Near miss: retail traversal is recovered; one addis and register scheduling
- * remain as compiler-emission differences. */
 static int
 puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
                                         PuzzlePlayerState* opponent) {
@@ -3442,10 +3305,7 @@ puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
     PuzzleBoardCell* bottom_row;
     int type;
     int column;
-    int column_offset;
     int row;
-    int row_offset;
-
 
     if (player->counter_drops_remaining != 0) {
         if (player->counter_drop_delay > 0) {
@@ -3460,12 +3320,9 @@ puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
         player->event_bits.counter_drops_active = 1;
 
         row = 0;
-        row_offset = 0;
         do {
-            for (column = 0, column_offset = 0; column < 8;
-                 column++, column_offset += sizeof(*cell)) {
-                cell = (PuzzleBoardCell*)((unsigned char*)player->board +
-                                          row_offset + column_offset);
+            for (column = 0; column < 8; column++) {
+                cell = &player->board_rows[row][column];
                 if (cell->type != 0 && cell->state == 0) {
                     continue;
                 }
@@ -3484,16 +3341,14 @@ puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
                     player->counter_sequence_index--;
                 }
 
-                if (type >= 4 &&
-                    (unsigned int)type != PUZZLE_BLOCK_WILDCARD) {
+                if (type >= 4 && type != PUZZLE_BLOCK_WILDCARD) {
                     type -= 4;
                     if (type == 0) {
                         type = PUZZLE_BLOCK_WILDCARD;
                     }
                 }
 
-                destination = (PuzzleBoardCell*)((unsigned char*)bottom_row +
-                                                  column_offset);
+                destination = &bottom_row[column];
                 player->counter_sequence_index--;
                 destination->type = type;
                 destination->state = 0;
@@ -3508,10 +3363,12 @@ puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
                     break;
                 }
             }
+            if (player->counter_drop_delay != 0 ||
+                player->counter_drops_remaining == 0) {
+                break;
+            }
             row++;
-            row_offset += 8 * sizeof(*cell);
-        } while (row < 14 && player->counter_drop_delay == 0 &&
-                 player->counter_drops_remaining != 0);
+        } while (row < 14);
     }
 
     if (puzzle_fighter_fill_holes(player) != 0) {
@@ -3528,7 +3385,6 @@ puzzle_fighter_mode_play__counter_drops(PuzzlePlayerState* player,
     return 1;
 }
 
-/* Near miss: exact code; remaining difference is a constant reloc label. */
 static int
 puzzle_fighter_mode_play__collapse_holes(PuzzlePlayerState* player,
                                          PuzzlePlayerState* opponent) {
@@ -4124,7 +3980,8 @@ static int pz_ai_decide_move(PuzzlePlayerState* player) {
     return player->input_command;
 }
 
-/* TODO: [breakthrough needed] 91.229164%; shared five-cell scan/default-block placement unresolved. */
+/* TODO: [breakthrough needed] 91.23%; shared five-cell/default join remains;
+ * helper duplication and direct result exits regress. */
 static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
     PuzzleBoardCell* row;
     int band;
@@ -4723,16 +4580,63 @@ static int pz_ai_match_precalc(PuzzlePlayerState* player,
     return minimum_row;
 }
 
-/* Recovery in progress: both recursive neighbor algorithms, visited-state
- * accesses, and match counts agree with retail. Structured boundary-loop
- * exhaustion emits two post-loop pointer tests, accounting for the 40-byte
- * structural CFG residue; this is not an emission-only near miss. */
-static int puzzle_fighter_match_left_right__ai(PuzzleMatchContext* context) {
-    PuzzleMatchContext next;
+#pragma auto_inline off
+static inline void puzzle_match_left_neighbor_ai(
+    PuzzleMatchContext* context, PuzzleMatchContext* next, int* matched) {
     PuzzleBoardCell* boundary;
     PuzzleBoardCell* neighbor;
-    unsigned int boundary_offset;
     int row;
+
+    for (row = 0; row < 14; row++) {
+        boundary = context->player->board + row * 8;
+        if (context->cell == boundary) {
+            return;
+        }
+    }
+    neighbor = context->cell - 1;
+    if (neighbor >= context->player->board &&
+        (neighbor->type - 4 == context->base_type ||
+         neighbor->type == context->base_type) &&
+        neighbor->ai_bits.ai_state == 0) {
+        neighbor->flag_bits.ai_visited = 1;
+        next->cell = neighbor;
+        puzzle_fighter_match_above_below__ai(next);
+        puzzle_fighter_match_left_right__ai(next);
+        *matched = 1;
+        next->matched_count++;
+    }
+}
+
+static inline void puzzle_match_right_neighbor_ai(
+    PuzzleMatchContext* context, PuzzleMatchContext* next, int* matched) {
+    PuzzleBoardCell* boundary;
+    PuzzleBoardCell* neighbor;
+    int row;
+
+    for (row = 0; row < 14; row++) {
+        boundary = context->player->board + ((row + 1) * 8 - 1);
+        if (context->cell == boundary) {
+            return;
+        }
+    }
+    neighbor = context->cell + 1;
+    if (neighbor <= context->player->board_end &&
+        (neighbor->type - 4 == context->base_type ||
+         neighbor->type == context->base_type) &&
+        neighbor->ai_bits.ai_state == 0) {
+        neighbor->flag_bits.ai_visited = 1;
+        next->cell = neighbor;
+        puzzle_fighter_match_above_below__ai(next);
+        puzzle_fighter_match_left_right__ai(next);
+        *matched = 1;
+        next->matched_count++;
+    }
+}
+
+/* TODO: [near miss] 99.16%; shared exits and recursive boundaries recovered;
+ * neighbor pointer/type use swapped registers. */
+static int puzzle_fighter_match_left_right__ai(PuzzleMatchContext* context) {
+    PuzzleMatchContext next;
     int matched = 0;
 
     next.player = context->player;
@@ -4740,56 +4644,16 @@ static int puzzle_fighter_match_left_right__ai(PuzzleMatchContext* context) {
     next.matched_count = 0;
     next.flag_bits.matched_latch = context->match_bits.match_state;
 
-    boundary_offset = 0;
-    for (row = 0; row < 14; row++, boundary_offset += 8 * sizeof(*boundary)) {
-        boundary = (PuzzleBoardCell*)((unsigned char*)context->player->board +
-                                      boundary_offset);
-        if (context->cell == boundary) {
-            break;
-        }
-    }
-    if (context->cell != boundary) {
-        neighbor = context->cell - 1;
-        if (neighbor >= context->player->board &&
-            (neighbor->type - 4 == context->base_type ||
-             neighbor->type == context->base_type) &&
-            neighbor->ai_bits.ai_state == 0) {
-            neighbor->flag_bits.ai_visited = 1;
-            next.cell = neighbor;
-            puzzle_fighter_match_above_below__ai(&next);
-            puzzle_fighter_match_left_right__ai(&next);
-            matched = 1;
-            next.matched_count++;
-        }
-    }
-
-    for (row = 0; row < 14; row++) {
-        boundary = context->player->board + ((row + 1) * 8 - 1);
-        if (context->cell == boundary) {
-            break;
-        }
-    }
-    if (context->cell != boundary) {
-        neighbor = context->cell + 1;
-        if (neighbor <= context->player->board_end &&
-            (neighbor->type - 4 == context->base_type ||
-             neighbor->type == context->base_type) &&
-            neighbor->ai_bits.ai_state == 0) {
-            neighbor->flag_bits.ai_visited = 1;
-            next.cell = neighbor;
-            puzzle_fighter_match_above_below__ai(&next);
-            puzzle_fighter_match_left_right__ai(&next);
-            matched = 1;
-            next.matched_count++;
-        }
-    }
+    puzzle_match_left_neighbor_ai(context, &next, &matched);
+    puzzle_match_right_neighbor_ai(context, &next, &matched);
 
     context->matched_count += next.matched_count;
     return matched;
 }
 
-/* Exact match: definition order intentionally permits retail's one-level
- * recursive inlining before the left/right sibling. */
+#pragma auto_inline reset
+/* Definition order permits one-level recursive inlining in this sibling. */
+
 static int puzzle_fighter_match_above_below__ai(
     PuzzleMatchContext* context) {
     PuzzleMatchContext next;
@@ -5249,7 +5113,6 @@ static void pzsm_ai_get_data(PuzzleAiData* data) {
     }
 }
 
-/* Near miss: exact code; only the shared 0.5f relocation label differs. */
 static int puzzle_fighter_mode_play__supermove(PuzzlePlayerState* player,
                                                PuzzlePlayerState* opponent) {
     if (opponent->mode_step != puzzle_fighter_mode_play__supermove_sleep) {
@@ -5274,7 +5137,6 @@ static int puzzle_fighter_mode_play__supermove(PuzzlePlayerState* player,
     return 1;
 }
 
-/* Near miss: exact code; remaining difference is a constant reloc label. */
 static int puzzle_fighter_mode_play__supermove_fade_out(
     PuzzlePlayerState* player, PuzzlePlayerState* opponent) {
     int object_index;
@@ -5301,7 +5163,6 @@ static int puzzle_fighter_mode_play__supermove_fade_out(
     return 1;
 }
 
-/* Exact: typed bitfield assignment recovers retail's rlwimi sequence. */
 static int puzzle_fighter_mode_play__supermove_wind_up(
     PuzzlePlayerState* player, PuzzlePlayerState* opponent) {
     if (puzzle_ctrl->supermove_phase_ticks ==
@@ -5320,7 +5181,6 @@ static int puzzle_fighter_mode_play__supermove_wind_up(
     return 1;
 }
 
-/* Exact: table callback and completion event flow. */
 static int puzzle_fighter_mode_play__supermove_do(
     PuzzlePlayerState* player, PuzzlePlayerState* opponent) {
     if (pz_super_move_table[player->selected_supermove].update(player,
@@ -5358,7 +5218,6 @@ static int puzzle_fighter_mode_play__supermove_wind_down(
     return 1;
 }
 
-/* Near miss: exact code; remaining difference is a constant reloc label. */
 static int puzzle_fighter_mode_play__supermove_done(
     PuzzlePlayerState* player, PuzzlePlayerState* opponent) {
     if (g_puzzle_music != 0) {
@@ -5401,7 +5260,8 @@ static int pzsm_kancel(PuzzlePlayerState* player,
                        PuzzlePlayerState* opponent) {
     return 0;
 }
-/* Near miss: exact size; address decomposition and register allocation only. */
+/* TODO: [near miss] 98.68%; row-12 address decomposition and sequence-loop
+ * registers differ; typed-row control is neutral. */
 static int pzsm_raise_up(PuzzlePlayerState* player,
                          PuzzlePlayerState* opponent) {
     int row;
@@ -5474,20 +5334,96 @@ static int pzsm_raise_up(PuzzlePlayerState* player,
     return 1;
 }
 
-/*
- * Recovery in progress: pzsm_rain_dance 94.16%, retail 0x860/current 0x878.
- * Retail behavior and access widths are recovered, including staging new rain
- * pieces in board row 12. The effect-handle lifetime is nonalgorithmic, but the
- * two-level placement-loop exit remains structural rather than emission-only.
- */
-/* TODO: [breakthrough needed] 94.04291%; placement-loop exit remains structural;
- * natural const-data placement also changes relocations. */
-static int pzsm_rain_dance(PuzzlePlayerState* player,
-                           PuzzlePlayerState* opponent) {
+static inline int pzsm_place_rain_blocks(PuzzlePlayerState* player,
+                                        PuzzlePlayerState* opponent) {
     int row;
     int column;
     int placed_count;
     PuzzleBoardCell* drop_row;
+
+    placed_count = 0;
+    drop_row = &opponent->board[12 * 8];
+    for (row = 0; row < 14; row++) {
+        for (column = 0; column < 8; column++) {
+            PuzzleBoardCell* cell = &opponent->board_rows[row][column];
+            int previous_row;
+            int previous_column;
+            int distance;
+            int type;
+
+            if (cell->type != 0) {
+                continue;
+            }
+            previous_row =
+                ((int)(player->supermove_delay_ticks & 0xEFFF0000U)) >> 16;
+            if (previous_row == row) {
+                previous_column =
+                    (unsigned short)player->supermove_delay_ticks;
+                distance = previous_column - column;
+                if (previous_column < column) {
+                    distance = column - previous_column;
+                }
+                if (distance <= 1) {
+                    continue;
+                }
+            }
+
+            if (row >= opponent->active_row - 1 &&
+                opponent->active_cell != 0) {
+                if (opponent->active_row >= 13) {
+                    if (opponent->board[12 * 8 + opponent->active_column].type !=
+                        0) {
+                        opponent->active_cell = 0;
+                        opponent->saved_mode_step =
+                            puzzle_fighter_mode_play__supermove_im_dead;
+                    }
+                } else {
+                    opponent->active_row++;
+                    opponent->active_cell =
+                        &opponent->board_rows[opponent->active_row]
+                                             [opponent->active_column];
+                }
+            }
+
+            for (;;) {
+                if (player->counter_sequence_index < 0) {
+                    player->counter_sequence_index =
+                        puzzle_ctrl->piece_sequence_length - 1;
+                }
+                type = puzzle_ctrl
+                           ->piece_sequence[player->counter_sequence_index];
+                if (type != PUZZLE_BLOCK_SUPERBREAKER) {
+                    break;
+                }
+                player->counter_sequence_index--;
+            }
+
+            if (type >= 4 && type != PUZZLE_BLOCK_WILDCARD) {
+                type -= 4;
+                if (type == 0) {
+                    type = PUZZLE_BLOCK_WILDCARD;
+                }
+            }
+            player->counter_sequence_index--;
+            drop_row[column].type = type;
+            player->counter_drop_delay = 5;
+            player->supermove_phase_ticks--;
+            player->supermove_delay_ticks = (row << 16) + column;
+            placed_count++;
+            if (player->supermove_phase_ticks == 0 || placed_count >= 2) {
+                return row;
+            }
+        }
+    }
+
+    return row;
+}
+
+/* TODO: [breakthrough] 95.94%; canonical emitter ABI/types recovered;
+ * owner selection, emitter lifetime and placement exit still differ. */
+static int pzsm_rain_dance(PuzzlePlayerState* player,
+                           PuzzlePlayerState* opponent) {
+    int row;
 
     if (player->supermove_state == 0) {
         int storm_handle;
@@ -5543,16 +5479,15 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
             PUZZLE_STRINGS + PUZZLE_STORM_EFFECT_STRING,
             player->event_player == 0 ? 1 : 2);
         if (storm_handle != 0) {
-            void* storm = pfx_from_handle(storm_handle);
-            PuzzleStormEmitter* emitter = (PuzzleStormEmitter*)pfx_get_emitter(
-                (PfxEmitterTableView*)((unsigned char*)storm + 0x40), 0);
+            MkPfx* storm = pfx_from_handle(storm_handle);
+            PfxVmEmitter* emitter = pfx_get_emitter(
+                (PfxVm*)storm->matrix, 0);
             float storm_x;
 
-            emitter->flag_bits.disabled = 0;
+            emitter->flags.bits.cycle_paused = 0;
             storm_x = 1.55f * opponent->sound_pan;
-            emitter = (PuzzleStormEmitter*)pfx_get_emitter(
-                (PfxEmitterTableView*)((unsigned char*)storm + 0x40), 0);
-            ((PuzzleStormTransform*)emitter->transform)->x = storm_x;
+            emitter = pfx_get_emitter((PfxVm*)storm->matrix, 0);
+            emitter->pfx_transform->elements[12] = storm_x;
         }
     }
 
@@ -5621,82 +5556,7 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
         return 0;
     }
 
-    placed_count = 0;
-    drop_row = &opponent->board[12 * 8];
-    for (row = 0; row < 14; row++) {
-        for (column = 0; column < 8; column++) {
-            PuzzleBoardCell* cell = &opponent->board[row * 8 + column];
-            int previous_row;
-            int previous_column;
-            int distance;
-            int type;
-
-            if (cell->type != 0) {
-                continue;
-            }
-            previous_row =
-                ((int)(player->supermove_delay_ticks & 0xEFFF0000U)) >> 16;
-            if (previous_row == row) {
-                previous_column =
-                    (unsigned short)player->supermove_delay_ticks;
-                distance = previous_column - column;
-                if (previous_column < column) {
-                    distance = column - previous_column;
-                }
-                if (distance <= 1) {
-                    continue;
-                }
-            }
-
-            if (row >= opponent->active_row - 1 &&
-                opponent->active_cell != 0) {
-                if (opponent->active_row >= 13) {
-                    if (opponent->board[12 * 8 + opponent->active_column].type !=
-                        0) {
-                        opponent->active_cell = 0;
-                        opponent->saved_mode_step =
-                            puzzle_fighter_mode_play__supermove_im_dead;
-                    }
-                } else {
-                    opponent->active_row++;
-                    opponent->active_cell =
-                        &opponent->board[opponent->active_row * 8 +
-                                         opponent->active_column];
-                }
-            }
-
-            do {
-                if (player->counter_sequence_index < 0) {
-                    player->counter_sequence_index =
-                        puzzle_ctrl->piece_sequence_length - 1;
-                }
-                type = puzzle_ctrl
-                           ->piece_sequence[player->counter_sequence_index];
-                if (type == PUZZLE_BLOCK_SUPERBREAKER) {
-                    player->counter_sequence_index--;
-                }
-            } while (type == PUZZLE_BLOCK_SUPERBREAKER);
-
-            if (type >= 4 && type != PUZZLE_BLOCK_WILDCARD) {
-                type -= 4;
-                if (type == 0) {
-                    type = PUZZLE_BLOCK_WILDCARD;
-                }
-            }
-            player->counter_sequence_index--;
-            drop_row[column].type = type;
-            player->counter_drop_delay = 5;
-            player->supermove_phase_ticks--;
-            player->supermove_delay_ticks = (row << 16) + column;
-            placed_count++;
-            if (player->supermove_phase_ticks == 0 || placed_count >= 2) {
-                break;
-            }
-        }
-        if (player->supermove_phase_ticks == 0 || placed_count >= 2) {
-            break;
-        }
-    }
+    row = pzsm_place_rain_blocks(player, opponent);
 
     {
         int target_y = art_puzzle_fighter_static_tbl
@@ -5793,7 +5653,6 @@ static int pzsm_lower_down(PuzzlePlayerState* player,
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* Near miss: exact code; remaining differences are constant reloc labels. */
 static float p_pzsm_invisible(void) {
     PuzzleInvisiblePdata* pdata = (PuzzleInvisiblePdata*)apdata;
     PuzzlePlayerState* player;
@@ -6474,7 +6333,6 @@ static int pzsm_double_bomb(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near matches: color wrappers differ only in equivalent compiler emission. */
 static int pzsm_clear_yellow(PuzzlePlayerState* player,
                              PuzzlePlayerState* opponent) {
     if (player->supermove_state == 0) {
@@ -6523,21 +6381,20 @@ static int pzsm_clear_blue(PuzzlePlayerState* player,
     return puzzle_fighter_fill_holes(player) != 0;
 }
 
-/* Near miss: exact size and operations; remaining differences are registers. */
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static int pzsm_klear_kore(PuzzlePlayerState* player, unsigned int color) {
     int cleared = 0;
+    unsigned int breaker_color = color + 4;
+    PuzzleBoardCell* cell;
     int row;
     int column;
-    int row_offset = 0;
-    unsigned int breaker_color = color + 4;
 
     player->saved_mode_step = puzzle_fighter_mode_play__new_piece;
 
-    for (row = 0; row < 14; row++, row_offset += 8) {
+    for (row = 0; row < 14; row++) {
         for (column = 0; column < 8; column++) {
-            PuzzleBoardCell* cell = &player->board[row_offset + column];
+            cell = &player->board[column + row * 8];
 
             if (cell->type == color || cell->type == breaker_color) {
                 unsigned int visual_index =
@@ -6875,8 +6732,8 @@ static void puzzle_fighter_calc_center_weight(PuzzlePlayerState* player) {
     }
 }
 
-/* Emission-only near match (94.96%, exact retail 0xC4 size). Both 8x14 board
- * scans and output stores agree; only induction-register coloring differs. */
+/* TODO: [near miss] 94.96%; both board scans and output stores agree;
+ * operand/declaration controls are neutral; stop at register allocation. */
 void puzzle_fighter_get_num_blocks_on_screen(unsigned int* player1_blocks,
                                              unsigned int* player2_blocks) {
     PuzzlePlayerState* player;
@@ -7350,26 +7207,21 @@ static float p_puzzle_fighter_chain_msg(void) {
     return -1.0f;
 }
 
-/* Near miss: exact size and compaction operations. Remaining differences are
- * register coloring and equivalent loop pretest/increment scheduling. */
 static int puzzle_fighter_fill_holes(PuzzlePlayerState* player) {
     PuzzleBoardCell* cell;
     PuzzleBoardCell* destination;
     PuzzleBoardCell* source;
-    int column;
     int row;
+    int column;
     int destination_row;
     int board_moving;
-    int row_offset;
 
     board_moving = 0;
     player->flag_bits.scanning_holes = 1;
 
     for (column = 0; column < 8; column++) {
-        row = 0;
-        row_offset = 0;
-        while (row < 14) {
-            cell = &player->board[row_offset + column];
+        for (row = 0; row < 14; row++) {
+            cell = &player->board[column + row * 8];
             if (cell->type != 0 &&
                 (cell->state == 0 ||
                  player->low_state_bits.low_state != 0)) {
@@ -7377,21 +7229,16 @@ static int puzzle_fighter_fill_holes(PuzzlePlayerState* player) {
                 if (cell->fall_ticks != 0) {
                     board_moving = 1;
                 }
-                row++;
-                row_offset += 8;
-                continue;
-            }
-
-            destination_row = row;
-            if (row < 14) {
-                do {
-                    source = &player->board[row * 8 + column];
+            } else {
+                destination_row = row;
+                for (; row < 14; row++) {
+                    source = &player->board[column + row * 8];
                     if (source->type != 0 && source->state == 0) {
-                        while (row < 14) {
-                            source = &player->board[row * 8 + column];
+                        for (; row < 14; row++) {
+                            source = &player->board[column + row * 8];
                             if (source->type != 0) {
                                 destination = &player->board[
-                                    destination_row * 8 + column];
+                                    column + destination_row * 8];
                                 memcpy(destination, source,
                                        sizeof(PuzzleBoardCell));
                                 memset(source, 0, sizeof(PuzzleBoardCell));
@@ -7400,15 +7247,10 @@ static int puzzle_fighter_fill_holes(PuzzlePlayerState* player) {
                                 board_moving = 1;
                                 destination_row++;
                             }
-                            row++;
-                            row_offset += 8;
                         }
                     }
-                    row++;
-                    row_offset += 8;
-                } while (row < 14);
+                }
             }
-            break;
         }
     }
 
@@ -7698,84 +7540,89 @@ static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player) {
 #pragma optimize_for_size reset
 #pragma dont_inline reset
 
-/* Recovery in progress: the recursive match algorithm and boundary scans
- * agree with retail. Each structured scan emits one redundant post-break
- * comparison; retail threads the equality branch directly around the neighbor
- * block. This structural CFG residue is not an emission-only near miss. */
-static int puzzle_fighter_match_left_right(PuzzleMatchContext* context) {
-    PuzzleMatchContext next;
+#pragma auto_inline off
+static inline void puzzle_match_left_neighbor(
+    PuzzleMatchContext* context, PuzzleMatchContext* next, int* matched) {
     PuzzleBoardCell* boundary;
     PuzzleBoardCell* neighbor;
-    unsigned int boundary_offset;
     int row;
+
+    for (row = 0; row < 14; row++) {
+        boundary = context->player->board + row * 8;
+        if (context->cell == boundary) {
+            return;
+        }
+    }
+    neighbor = context->cell - 1;
+    if (neighbor >= context->player->board &&
+        (neighbor->type == context->cell->type ||
+         neighbor->type == context->base_type) &&
+        neighbor->match_bits.match_state == 0) {
+        neighbor->match_flag_bits.breaking = 0;
+        if (neighbor->state == 0) {
+            neighbor->state = PUZZLE_CELL_BREAK_STATE;
+            neighbor->visual = context->block_visual;
+            neighbor->type = context->base_type;
+            next->cell = neighbor;
+            puzzle_fighter_match_above_below(next);
+            puzzle_fighter_match_left_right(next);
+            next->matched_count++;
+        }
+        *matched = 1;
+    }
+}
+
+static inline void puzzle_match_right_neighbor(
+    PuzzleMatchContext* context, PuzzleMatchContext* next, int* matched) {
+    PuzzleBoardCell* boundary;
+    PuzzleBoardCell* neighbor;
+    int row;
+
+    for (row = 0; row < 14; row++) {
+        boundary = context->player->board + ((row + 1) * 8 - 1);
+        if (context->cell == boundary) {
+            return;
+        }
+    }
+    neighbor = context->cell + 1;
+    if (neighbor <= context->player->board_end &&
+        (neighbor->type == context->cell->type ||
+         neighbor->type == context->base_type) &&
+        neighbor->match_bits.match_state == 0) {
+        neighbor->match_flag_bits.breaking = 0;
+        if (neighbor->state == 0) {
+            neighbor->state = PUZZLE_CELL_BREAK_STATE;
+            neighbor->visual = context->block_visual;
+            neighbor->type = context->base_type;
+            next->cell = neighbor;
+            puzzle_fighter_match_above_below(next);
+            puzzle_fighter_match_left_right(next);
+            next->matched_count++;
+        }
+        *matched = 1;
+    }
+}
+
+static int puzzle_fighter_match_left_right(PuzzleMatchContext* context) {
+    PuzzleMatchContext next;
     int matched;
 
     matched = 0;
-    next.breaker_visual = context->breaker_visual;
     next.block_visual = context->block_visual;
+    next.breaker_visual = context->breaker_visual;
     next.player = context->player;
     next.base_type = context->base_type;
     next.matched_count = 0;
     next.match_bits.match_state = context->match_bits.match_state;
 
-    boundary_offset = 0;
-    for (row = 0; row < 14;
-         row++, boundary_offset += 8 * sizeof(*boundary)) {
-        boundary = (PuzzleBoardCell*)((unsigned char*)context->player->board +
-                                      boundary_offset);
-        if (context->cell == boundary) {
-            break;
-        }
-    }
-    if (context->cell != boundary) {
-        neighbor = context->cell - 1;
-        if (neighbor >= context->player->board &&
-            (neighbor->type == context->cell->type ||
-             neighbor->type == context->base_type) &&
-            neighbor->match_bits.match_state == 0) {
-            neighbor->match_flag_bits.breaking = 0;
-            if (neighbor->state == 0) {
-                neighbor->state = PUZZLE_CELL_BREAK_STATE;
-                neighbor->visual = context->block_visual;
-                neighbor->type = context->base_type;
-                next.cell = neighbor;
-                puzzle_fighter_match_above_below(&next);
-                puzzle_fighter_match_left_right(&next);
-                next.matched_count++;
-            }
-            matched = 1;
-        }
-    }
-
-    for (row = 0; row < 14; row++) {
-        boundary = context->player->board + ((row + 1) * 8 - 1);
-        if (context->cell == boundary) {
-            break;
-        }
-    }
-    if (context->cell != boundary) {
-        neighbor = context->cell + 1;
-        if (neighbor <= context->player->board_end &&
-            (neighbor->type == context->cell->type ||
-             neighbor->type == context->base_type) &&
-            neighbor->match_bits.match_state == 0) {
-            neighbor->match_flag_bits.breaking = 0;
-            if (neighbor->state == 0) {
-                neighbor->state = PUZZLE_CELL_BREAK_STATE;
-                neighbor->visual = context->block_visual;
-                neighbor->type = context->base_type;
-                next.cell = neighbor;
-                puzzle_fighter_match_above_below(&next);
-                puzzle_fighter_match_left_right(&next);
-                next.matched_count++;
-            }
-            matched = 1;
-        }
-    }
+    puzzle_match_left_neighbor(context, &next, &matched);
+    puzzle_match_right_neighbor(context, &next, &matched);
 
     context->matched_count += next.matched_count;
     return matched;
 }
+
+#pragma auto_inline reset
 
 static int puzzle_fighter_match_above_below(PuzzleMatchContext* context) {
     PuzzleMatchContext next;
@@ -7830,14 +7677,8 @@ static int puzzle_fighter_match_above_below(PuzzleMatchContext* context) {
     return matched;
 }
 
-/* Recovery in progress: all four rotation-state algorithms and shared up/down
- * fallback ownership agree with retail. Falling through from the two case-2
- * collision failures to one shared fallback restores the exact 0x434-byte
- * retail size at 72.36803%. Retail's kicked retry enters after the initial
- * column-bound test; a structured loop repeats that test at its header. A
- * semantic retry state grew the body to 0x458 at 70.45725%, while a clean
- * unroll grew it to 0x588 at 56.74350%. This one irreducible retry entry remains
- * a structural CFG ceiling. */
+/* TODO: [breakthrough needed] 72.37%; kicked retry bypasses the column guard
+ * in retail; recover its structured source boundary before further tuning. */
 static PuzzleBoardCell*
 puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
     PuzzleBoardCell* candidate;
@@ -7974,17 +7815,30 @@ puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
     return player->active_cell;
 }
 
+static inline unsigned short puzzle_prepare_spawn_cell(PuzzlePlayerState* player) {
+    int index;
+    unsigned short blocked = 0;
+    PuzzleBoardCell* cell;
+
+    player->active_cell = &player->board[96];
+    for (index = 0; index < 8; index++) {
+        cell = &player->active_cell[index];
+        if (cell->type != 0 && cell->state == 0) {
+            return 1;
+        }
+    }
+    player->active_cell += 3;
+    if (player->active_cell->type != 0) {
+        blocked = 1;
+    }
+    return blocked;
+}
+
 #pragma optimize_for_size on
-/* Emission-only near match (94.87%, retail 0x1C8/current 0x1D0). The pair
- * ownership swap, u16 sequence/result values, spawn scan, resets, and
- * superbreaker injection agree. The eight-byte excess is a post-scan test that
- * retail branch-threads from the loop break; exhaustion guards compile larger. */
 static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
     PuzzleBoardCell* saved_pair;
-    PuzzleBoardCell* cell;
     unsigned short next_type;
     unsigned short blocked;
-    int cell_offset;
     int index;
 
     do {
@@ -8005,23 +7859,7 @@ static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
         player->next_rotation_state = 0;
     } while (player->current_pair[0].type == 0);
 
-    blocked = 0;
-    player->active_cell = &player->board[96];
-    for (index = 0, cell_offset = 0; index < 8;
-         index++, cell_offset += sizeof(*cell)) {
-        cell = (PuzzleBoardCell*)((unsigned char*)player->active_cell +
-                                  cell_offset);
-        if (cell->type != 0 && cell->state == 0) {
-            blocked = 1;
-            break;
-        }
-    }
-    if (blocked == 0) {
-        player->active_cell += 3;
-        if (player->active_cell->type != 0) {
-            blocked = 1;
-        }
-    }
+    blocked = puzzle_prepare_spawn_cell(player);
 
     player->flags2_bits.supermove_active = 0;
     player->flags2_bits.new_piece_latch = 0;
@@ -8048,14 +7886,15 @@ static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
     player->cleared_blocks = 0;
     player->pending_counter_drops = 0;
     player->best_chain_count = 0;
-    return blocked == 0;
+    return !blocked;
 }
 #pragma optimize_for_size reset
 
-/* Near match: p_puzzle_fighter_fight_msg 99.76%; float-pool labels only. */
+/* Retail @4772 is -1.0f: retire this nostack process when the message ends. */
+/* TODO: [near miss] 99.7619%; return values verified; remaining float-pool relocation identity. */
 static float p_puzzle_fighter_fight_msg(void) {
     if (puzzle_ctrl->fight_message == 0) {
-        return 0.0f;
+        return -1.0f;
     }
 
     puzzle_ctrl->fight_message->scale_x +=
@@ -8073,7 +7912,7 @@ static float p_puzzle_fighter_fight_msg(void) {
             pull_screen_obj(puzzle_ctrl->fight_message);
             destroy_screen_obj(puzzle_ctrl->fight_message);
             puzzle_ctrl->fight_message = 0;
-            return 0.0f;
+            return -1.0f;
         }
         pfx_2d_obj_set_alpha(
             puzzle_ctrl->fight_message,
@@ -8213,12 +8052,12 @@ static int init_pz_pfx_2d(void) {
     ((PfxVm*)puzzle_effect->matrix)->billboard_size =
         pfx_2d_elements_tbl.billboard_size;
     puzzle_effect->flag_bits.visible = 1;
-    emitter = (PfxEmitter*)pfx_get_emitter(
-        (PfxEmitterTableView*)puzzle_effect->matrix, 0);
+    emitter = pfx_get_emitter(
+        (PfxVm*)puzzle_effect->matrix, 0);
     emitter->lifetime = emitter_lifetime;
     puzzle_effect->depth_bias = 50.0f;
     puzzle_effect->effect_state = 0;
-    puzzle_ctrl->puzzle_pfx = (PuzzlePfxView*)puzzle_effect->matrix;
+    puzzle_ctrl->puzzle_pfx = (PfxVm*)puzzle_effect->matrix;
     puzzle_ctrl->puzzle_particle_capacity =
         &((PfxVm*)puzzle_ctrl->puzzle_pfx)->particle_capacity;
     puzzle_ctrl->particle_position_stride =
@@ -8244,12 +8083,12 @@ static int init_pz_pfx_2d(void) {
     ((PfxVm*)ice_effect->matrix)->billboard_size =
         pfx_2d_elements_tbl.billboard_size;
     ice_effect->flag_bits.visible = 1;
-    emitter = (PfxEmitter*)pfx_get_emitter(
-        (PfxEmitterTableView*)ice_effect->matrix, 0);
+    emitter = pfx_get_emitter(
+        (PfxVm*)ice_effect->matrix, 0);
     emitter->lifetime = emitter_lifetime;
     ice_effect->depth_bias = 40.0f;
     ice_effect->effect_state = 0;
-    puzzle_ctrl->ice_pfx = (PuzzlePfxView*)ice_effect->matrix;
+    puzzle_ctrl->ice_pfx = (PfxVm*)ice_effect->matrix;
     puzzle_ctrl->ice_particle_capacity =
         &((PfxVm*)puzzle_ctrl->ice_pfx)->particle_capacity;
     puzzle_ctrl->ice_position_stride =
@@ -8259,7 +8098,7 @@ static int init_pz_pfx_2d(void) {
     return 1;
 }
 
-/* Structural mismatch (92.37%, retail 0x184/current 0x1A0): field ownership,
+/* TODO: [breakthrough needed] 92.37113%; retail 0x184/current 0x1A0: field ownership,
  * calls, and copy order agree, but the validity latch costs 28 bytes. Typed
  * acquisition/error helpers inline cleanly yet do not reproduce retail's
  * shared error tail, so this is not classified as an emission-only near miss. */
@@ -8283,7 +8122,7 @@ static float p_pzpfx_copy_iceblock_data(void) {
             puzzle_ctrl->ice_timers == 0) {
             fields_valid = 0;
         } else {
-            puzzle_ctrl->ice_pfx->particle_count = 0;
+            puzzle_ctrl->ice_pfx->particle_cursor = 0;
         }
     }
 
@@ -8293,7 +8132,7 @@ static float p_pzpfx_copy_iceblock_data(void) {
         return -1.0f;
     }
 
-    puzzle_ctrl->puzzle_pfx->particle_count = 0;
+    puzzle_ctrl->puzzle_pfx->particle_cursor = 0;
     if (g_fatality_sound == 0) {
         pzpfx_copy_puzzleblocks(puzzle_ctrl->players[0]);
         pzpfx_copy_puzzleblocks(puzzle_ctrl->players[1]);
@@ -8306,6 +8145,7 @@ static float p_pzpfx_copy_iceblock_data(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 99.75903%; canonical particle cursor agrees; remaining instruction/relocation residue. */
 static float p_pzpfx_copy_data(void) {
     if (apfx->effect_state != 0 || __mini_game_display_ctrl == 0) {
         return 1.0f;
@@ -8321,7 +8161,7 @@ static float p_pzpfx_copy_data(void) {
         return -1.0f;
     }
 
-    puzzle_ctrl->puzzle_pfx->particle_count = 0;
+    puzzle_ctrl->puzzle_pfx->particle_cursor = 0;
     if (g_fatality_sound == 0) {
         if (puzzle_ctrl->ice_pfx != 0) {
             puzzle_ctrl->pfx_bits2.copy_ice_particles = 1;
@@ -8338,7 +8178,7 @@ static float p_pzpfx_copy_data(void) {
     return 1.0f;
 }
 
-/* Near miss: preview/current-pair copy behavior and arithmetic agree with
+/* TODO: [near miss] 97.426865%; preview/current-pair copy behavior and arithmetic agree with
  * retail. Remaining differences are placement-base formation, integer-to-float
  * scheduling, and the resulting nonvolatile-register allocation. */
 static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
@@ -8405,7 +8245,7 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
         } else {
             continue;
         }
-        puzzle_ctrl->puzzle_pfx->particle_count++;
+        puzzle_ctrl->puzzle_pfx->particle_cursor++;
         puzzle_ctrl->particle_positions =
             (Vec*)((char*)puzzle_ctrl->particle_positions +
                    puzzle_ctrl->particle_position_stride);
@@ -8490,7 +8330,7 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
                 continue;
             }
             {
-                puzzle_ctrl->puzzle_pfx->particle_count++;
+                puzzle_ctrl->puzzle_pfx->particle_cursor++;
                 puzzle_ctrl->particle_positions =
                     (Vec*)((char*)puzzle_ctrl->particle_positions +
                            puzzle_ctrl->particle_position_stride);
@@ -8506,6 +8346,7 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
  * and common advancement are recovered. The 24-byte excess is one
  * six-instruction condition recheck imposed by the clean structured rejection
  * paths, so this is not an emission-only near miss. */
+/* TODO: [near miss] 97.38516%; canonical particle cursors agree; remaining loop/register ordering. */
 static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
     const PuzzleArtPlacement* placement;
     const int* origin_x;
@@ -8611,7 +8452,7 @@ static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
                         puzzle_ctrl->particle_positions->z;
                     *puzzle_ctrl->ice_timers =
                         (float)player->invisibility_fade;
-                    puzzle_ctrl->ice_pfx->particle_count++;
+                    puzzle_ctrl->ice_pfx->particle_cursor++;
                     puzzle_ctrl->ice_positions =
                         (Vec*)((char*)puzzle_ctrl->ice_positions +
                                puzzle_ctrl->ice_position_stride);
@@ -8629,7 +8470,7 @@ static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
                 }
             }
 
-            puzzle_ctrl->puzzle_pfx->particle_count++;
+            puzzle_ctrl->puzzle_pfx->particle_cursor++;
             puzzle_ctrl->particle_positions =
                 (Vec*)((char*)puzzle_ctrl->particle_positions +
                        puzzle_ctrl->particle_position_stride);
@@ -8640,7 +8481,7 @@ static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
     }
 }
 
-/* Emission-only near match (95.00%, retail 0x780/current 0x79C). The complete
+/* TODO: [near miss] 94.995834%; retail 0x780/current 0x79C. The complete
  * round reset, preserved state, object cleanup, and AI setup agree. Computing
  * the unsigned loss quotient before its threshold matches retail's lifetime;
  * remaining differences are shared AI-move tail layout and register coloring. */
@@ -8676,8 +8517,10 @@ static void puzzle_fighter_mode_clear(void) {
     puzzle_ctrl->input_bits.input_latched = 0;
     puzzle_ctrl->gameplay_ticks = 0;
     puzzle_ctrl->supermove_phase_ticks = 0;
-    memset(puzzle_ctrl->boards[0], 0, 0x8C0);
-    memset(puzzle_ctrl->boards[1], 0, 0x8C0);
+    memset(puzzle_ctrl->boards[0], 0,
+           PUZZLE_BOARD_CELLS * sizeof(*puzzle_ctrl->boards[0]));
+    memset(puzzle_ctrl->boards[1], 0,
+           PUZZLE_BOARD_CELLS * sizeof(*puzzle_ctrl->boards[1]));
     memset(puzzle_ctrl->players[0], 0, sizeof(PuzzlePlayerState));
     memset(puzzle_ctrl->players[1], 0, sizeof(PuzzlePlayerState));
     memset(puzzle_ctrl->next_pairs[0], 0, sizeof(PuzzleBoardCell) * 2);
@@ -9445,16 +9288,17 @@ static void render_wiffs(PuzzlePlayerState* player) {
     }
 }
 
-/* Emission-only near match (93.16%, retail 0x220/current 0x214). The typed UI
- * table, placements, branches, and render calls agree. The three-instruction
- * deficit is placement-base CSE and resulting register coloring; distinct
- * scoped aliases and retail-ordered final assignments compile identically. */
+/* Emission-only near match (93.19853%, retail 0x220/current 0x214). Retail
+ * 0x8010F7DC tests flags3 bit6 (counter display), matching its producer at
+ * 0x8010AC54; bit7 hides the defeated player's piece independently. The
+ * remaining three-instruction deficit is placement-base CSE and register
+ * coloring; scoped aliases and retail-ordered assignments compile identically. */
 static void render_UI(PuzzlePlayerState* player) {
     int placement_index = player->event_player + 1;
     PuzzleArtPlacement* placement;
     ScreenObj* object;
 
-    if (player->flags3_bits.hide_active_piece != 0) {
+    if (player->flags3_bits.counter_drops_active != 0) {
         StringObj* block_count;
 
         if (g_game_info.pause_flag_bits.controller_disable_guard == 0 &&

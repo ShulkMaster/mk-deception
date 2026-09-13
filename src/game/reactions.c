@@ -1,3 +1,4 @@
+#include "game/ground_fx.h"
 /*
  * Port readiness:
  *   Structs: CLEAN
@@ -367,7 +368,6 @@ void start_blood_particles(
 int stay_down_check(void);
 void tightrope_restrictions_off(void);
 void tightrope_restrictions_on(void);
-extern void (*large_ground_fx)(void);
 void ani_1_frame(void);
 void ani_loop_more_frames(float frames);
 void ani_x_more_frames(float frames);

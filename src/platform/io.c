@@ -1,3 +1,4 @@
+#include "game/switch.h"
 #include "platform/io.h"
 
 #include "game/controller.h"
@@ -24,7 +25,7 @@ extern int vsprintf(char* buffer, const char* format, __va_list args);
 
 extern int current_player_is_drone(void);
 extern int get_konquest_drone_switch_state(int player);
-extern int joypad_state_5(void);
+extern int joypad_state_5(PlyrPdata* pdata);
 extern SwitchMapEntry default_switch_map[16];
 extern void del_string_obj_by_id(int id);
 extern void string_left_xy(int id, int font, const char* text, int x, int y,
@@ -41,10 +42,10 @@ extern void share_my_attack_info(float scale, float duration);
 extern void trial_register_special_move(unsigned int action);
 extern void cmdscript_reset_stack(void);
 extern void cmdscript_setup_execution(ScriptSlot* script, unsigned int action);
-extern void call_player_script_function(ScriptSlot* script);
+extern float call_player_script_function(ScriptSlot* script);
 extern ScriptSlot* reactions_cmo;
-extern void do_my_fatality(void);
-extern void do_my_2nd_fatality(void);
+extern float do_my_fatality(void);
+extern float do_my_2nd_fatality(void);
 
 typedef struct SwitchLogEntry {
     int switch_index;
@@ -54,10 +55,7 @@ typedef struct SwitchLogEntry {
     int mapped_index;
 } SwitchLogEntry;
 
-typedef struct SwitchProcData {
-    MkHdr hdr;
-    PlyrInfo* player;
-} SwitchProcData;
+typedef SwitchPdata SwitchProcData;
 
 void show_sw_log(void);
 void log_switch(int player, int switch_index, int tick,
@@ -97,7 +95,7 @@ int sw_log_on;
 int last_switch_time;
 int practice_p2_index;
 int practice_p1_index;
-MkHdr* switch_pdata;
+SwitchPdata* switch_pdata;
 
 void scan_remote_switches(void) {
 }
@@ -369,6 +367,8 @@ void show_sw_log(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 91.51049%; explicit retail player argument restored;
+ * remaining log-table/index lowering needs matching work. */
 void log_switch(int player, int switch_index, int tick,
                 const char* label, int mapped_index) {
     SwitchLogEntry* entry;
@@ -389,7 +389,7 @@ void log_switch(int player, int switch_index, int tick,
             entry->label = label;
             entry->mapped_index = mapped_index;
             if (g_game_info.plyr0.slot.fighter != 0)
-                p1_switch_log[p1_log_index].joy_state = joypad_state_5();
+                p1_switch_log[p1_log_index].joy_state = joypad_state_5(g_game_info.plyr0.slot.pdata);
             else
                 entry->joy_state = 0;
         }
@@ -411,7 +411,7 @@ void log_switch(int player, int switch_index, int tick,
             entry->label = label;
             entry->mapped_index = mapped_index;
             if (g_game_info.plyr1.slot.fighter != 0)
-                p2_switch_log[p2_log_index].joy_state = joypad_state_5();
+                p2_switch_log[p2_log_index].joy_state = joypad_state_5(g_game_info.plyr1.slot.pdata);
             else
                 entry->joy_state = 0;
         }
@@ -692,7 +692,7 @@ void post_switchp(void) {
 }
 
 void pre_switchp(void) {
-    switch_pdata = apdata;
+    switch_pdata = (SwitchPdata*)apdata;
 }
 
 void debug_error_message() {

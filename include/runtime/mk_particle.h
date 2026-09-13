@@ -12,6 +12,7 @@ typedef void (*PfxTransformCb)(void);
 typedef struct FighterMirror FighterMirror;
 typedef struct PfxColor PfxColor;
 typedef struct PfxMetrics PfxMetrics;
+struct BloodParticleDefinition;
 
 /* PFX VM name object - scale written during create @ +0x354. */
 typedef struct PfxNameObj {
@@ -129,7 +130,11 @@ struct MkPfx {
         int field_288;
         int effect_state;
     };
-    int field_28C;
+    /* Retail +0x28C: blood definition pointer, JDN lifetime or NCS bone. */
+    union {
+        int field_28C;
+        struct BloodParticleDefinition* blood_definition;
+    };
     int field_290;
     int field_294;
     float field_298;

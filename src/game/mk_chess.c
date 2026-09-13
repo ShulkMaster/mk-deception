@@ -8,6 +8,7 @@
 #include "game/bgnd.h"
 #include "runtime/light.h"
 #include "game/controller.h"
+#include "game/switch.h"
 #include "platform/main.h"
 #include "platform/display.h"
 #include "platform/gcutils.h"
@@ -116,15 +117,6 @@ typedef struct ChessProcVtable {
     ChessProcJumpFn jump_sleep; /* +0x24 */
 } ChessProcVtable;
 
-typedef struct ChessSwitchState {
-    int field_00;
-    unsigned int player; /* +0x04 */
-} ChessSwitchState;
-
-typedef struct ChessSwitchPdata {
-    char pad00[8];
-    ChessSwitchState* state; /* +0x08 */
-} ChessSwitchPdata;
 
 typedef struct ChessPieceEventResult {
     int values[2];
@@ -416,7 +408,7 @@ extern ChessProfileStats p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern const MkFileEntry mkchess_ingame_art_file_table[];
-extern ChessSwitchPdata* switch_pdata;
+extern SwitchPdata* switch_pdata;
 extern CameraObj* camera_obj;
 extern ChessBezierCameraState g_bezier_cam;
 
@@ -5811,7 +5803,7 @@ void mk_chess_in_fight_setup(void) {
 float p_board_switch_4(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_4);
     }
     return -1.0f;
@@ -5831,7 +5823,7 @@ float p_board_switch_over_3(void) {
 float p_board_switch_3(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_3);
     }
     return -1.0f;
@@ -5842,7 +5834,7 @@ float p_board_switch_3(void) {
 float p_board_switch_2(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_2);
     }
     return -1.0f;
@@ -5853,7 +5845,7 @@ float p_board_switch_2(void) {
 float p_board_switch_1(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_1);
     }
     return -1.0f;
@@ -5864,7 +5856,7 @@ float p_board_switch_1(void) {
 float p_board_switch_r2(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_r2);
     }
     return -1.0f;
@@ -5875,7 +5867,7 @@ float p_board_switch_r2(void) {
 float p_board_switch_l1(void) {
     if (mk_chess_input_possibile() != 0 && mk_chess_pdata != 0) {
         xfer_proc(
-            mk_chess_pdata->sides[switch_pdata->state->player]->input_proc,
+            mk_chess_pdata->sides[switch_pdata->player->controller_slot]->input_proc,
             x_chess_l1);
     }
     return -1.0f;
@@ -5918,12 +5910,14 @@ static int mk_chess_check_input_from_correct_side_no_ai(void) {
     ChessManagerInfo* manager;
     unsigned int switch_player;
 
-    if (switch_pdata->state == 0) {
+    if (switch_pdata->player == 0) {
         return 0;
     }
 
+    /* Retail 0x80139EB0..B4 dereferences a null manager when a player exists
+     * without Chess state. Preserve that failure path; do not add a guard. */
     manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-    switch_player = switch_pdata->state->player;
+    switch_player = switch_pdata->player->controller_slot;
 
     if (manager->input_state == 10) {
         return 1;

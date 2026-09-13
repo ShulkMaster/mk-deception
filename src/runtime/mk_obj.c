@@ -109,18 +109,6 @@ typedef struct HeadTrackingPdata {
     float blend_weight;
 } HeadTrackingPdata;
 
-struct ClothInitEntry {
-    int bone_tag;
-    float stiffness;
-    float segment_length;
-    float force;
-    float field_10;
-    float damping;
-    float initial_x;
-    float initial_z;
-    float table_scale;
-    int field_24;
-};
 
 typedef struct ShadowBonePair {
     int source_bone;

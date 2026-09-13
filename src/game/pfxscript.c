@@ -381,12 +381,12 @@ static unsigned int banks_find_owned_fx(
 static void build_step_effect(
     ScriptSlot* script, const PfxStepEffectDescription* description, int emitter_count);
 static void build_parametric_effect_from_table(
-    ScriptSlot* script, unsigned int effect, int update);
+    ScriptSlot* script, const PfxParametricEffectDescription* description, int update);
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 static void resolve_pfx_handle(
     unsigned int handle, PfxResolvedHandle* resolved);
 static void initialize_effect(PfxScriptVm* effect);
-void texture_animation(int vertical_frames, float horizontal_scale, float speed);
+void texture_animation(float horizontal_scale, int vertical_frames, float speed);
 void fx_reset_emit(unsigned int effect);
 static inline void bank_destroy(MkHdr* bank);
 PfxScriptEffect* find_pfx_by_name(const char* name);
@@ -1145,8 +1145,8 @@ void update_texanim(int texture_field, int age_field, float frame_time,
     }
 }
 
-void update_fade_alpha2(int color_field, int age_field, int start_alpha,
-                        int end_alpha, float start_time, float duration) {
+void update_fade_alpha2(int color_field, int age_field, float start_time,
+                        float duration, int start_alpha, int end_alpha) {
     PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->behavior != 0) {
@@ -1156,10 +1156,10 @@ void update_fade_alpha2(int color_field, int age_field, int start_alpha,
     }
 }
 
-/* Soft ceiling: 76.51% - exact packed-color loop, two-instruction residue. */
+/* TODO: [near miss] 76.508194%; typed color-table loop retains existing instruction scheduling residue. */
 void update_lerp_color(
-    int color_field, int age_field, int color_count, int first_color,
-    const PfxScriptColorRow* table, float duration) {
+    int color_field, int age_field, float duration, int color_count,
+    int first_color, const PfxScriptColorRow* table) {
     PfxScriptEnvironment* environment;
     PfxColor* colors;
     PfxColor* color;
@@ -1312,7 +1312,7 @@ void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
         saved = effect->effect_name;
         effect->effect_name = name;
         build_parametric_effect_from_table(
-            active_cmdscript->mko, (unsigned int)effect, emitter_count);
+            active_cmdscript->mko, effect, emitter_count);
         effect->effect_name = saved;
     }
 }
@@ -1328,7 +1328,7 @@ void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
     if (effect != 0 && name != 0) {
         saved = effect->effect_name;
         effect->effect_name = name;
-        build_parametric_effect_from_table(active_cmdscript->mko, (unsigned int)effect, 1);
+        build_parametric_effect_from_table(active_cmdscript->mko, effect, 1);
         effect->effect_name = saved;
     }
 }
@@ -1375,7 +1375,7 @@ void create_step_effect(const PfxStepEffectDescription* effect) {
     }
 }
 
-/* TODO: [breakthrough needed] 53.225174%; step table scalar types and owner/VM
+/* TODO: [breakthrough needed] 53.897903%; step table scalar types and owner/VM
  * bases corrected; remaining control-flow/register reconstruction needs evidence. */
 static void build_step_effect(
     ScriptSlot* script, const PfxStepEffectDescription* description,
@@ -1493,7 +1493,8 @@ static void build_step_effect(
         memset(next_fields, 0, sizeof(next_fields));
         memset(next_flags, 0, sizeof(next_flags));
         pfx_behavior_scan_fields(behavior, next_fields, next_flags);
-        if (next_fields[1] != behavior_flags[1] ||
+        /* Retail 80082BD4 compares the two render-mask high words. */
+        if (next_flags[1] != behavior_flags[1] ||
             next_flags[0] != behavior_flags[0]) {
             return;
         }
@@ -1633,8 +1634,8 @@ static void build_step_effect(
     pfx_render_set_blendmode(
         (struct PfxRenderView*)runtime, description->blend_mode);
     if (description->texture->frame_count > 1) {
-        texture_animation(description->texture->frame_count,
-                          description->texture->horizontal_scale,
+        texture_animation(description->texture->horizontal_scale,
+                          description->texture->frame_count,
                           description->texture->animation_speed);
     }
 
@@ -2028,8 +2029,8 @@ void texture_animation_with_vsize(
     }
 }
 
-/* Soft ceiling: texture_animation -- typed texture metadata/layout. */
-void texture_animation(int vertical_frames, float horizontal_scale, float speed) {
+/* TODO: [breakthrough needed] 66.346664%; interleaved ABI preserves callee score; existing texture arithmetic/CFG differences remain. */
+void texture_animation(float horizontal_scale, int vertical_frames, float speed) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
     RwRaster* texture;
@@ -2413,8 +2414,8 @@ void fx_bind_render_to_obj_bone(
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-void parametric_update(unsigned int effect) {
-    if (effect != 0U) {
+void parametric_update(const PfxParametricEffectDescription* effect) {
+    if (effect != 0) {
         build_parametric_effect_from_table(
             active_cmdscript->mko, effect, 1);
     }
@@ -2693,11 +2694,10 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     pfx_cleanup_load_script(&load);
 }
 
-/* TODO: [breakthrough needed] 45.36053%; builder frame, scheduling and bitfield
- * lowering remain; typed input changes register allocation and needs separate recovery. */
+/* TODO: [breakthrough needed] 39.81594%; builder frame, scheduling and bitfield
+ * lowering remain after the canonical pointer parameter correction. */
 static void build_parametric_effect_from_table(
-    ScriptSlot* script, unsigned int effect_table, int update) {
-    const PfxParametricEffectDescription* description;
+    ScriptSlot* script, const PfxParametricEffectDescription* description, int update) {
     PfxParametricEmitterDescription* emitter_description;
     PfxScriptEnvironment* environment;
     PfxSpawnTableSlot table_slots[2];
@@ -2717,7 +2717,6 @@ static void build_parametric_effect_from_table(
     int matrix_column;
     void* transform;
 
-    description = (const PfxParametricEffectDescription*)effect_table;
     environment = active_pfx_environment();
     if (environment->remaining_effects == 0 ||
         *environment->remaining_effects == 0) {
@@ -3260,6 +3259,9 @@ static void vdestroy_effectbank(PfxBank* bank) {
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
+/* Retail compatibility: invalid handles return at 80086238 without writing
+ * resolved. fx_set_render_priority (800817B8..800817CC) consequently reads
+ * an uninitialized output on that path; preserve this retail failure. */
 static void resolve_pfx_handle(
     unsigned int handle, PfxResolvedHandle* resolved) {
     PfxBankLatch* bank_latch;

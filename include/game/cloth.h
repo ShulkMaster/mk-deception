@@ -5,6 +5,21 @@
 
 typedef struct ClothInitEntry ClothInitEntry;
 
+/* MKO cloth initialization rows: one integer and nine float words. */
+struct ClothInitEntry {
+    int bone_tag;
+    float stiffness;
+    float segment_length;
+    float force;
+    float field_10;
+    float damping;
+    float initial_x;
+    float initial_z;
+    float table_scale;
+    float field_24; /* +0x24 - MKO float tag; not consumed here */
+};
+typedef char ClothInitEntrySizeCheck[sizeof(ClothInitEntry) == 0x28 ? 1 : -1];
+
 void start_cloth_bones(MkObj* object);
 void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count);
@@ -66,7 +81,7 @@ void mks_set_ground_y_all_cloth_bones(float ground_y);
 void mks_cb2_eq_cloth_bone(int bone_id);
 void mks_cb1_eq_cloth_bone(int bone_id);
 void mks_mat_id_set_zbias(int material_id, float zbias);
-void mks_cloth_bones_init_by_tbl(int table_id, int flags);
+void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags);
 int find_cloth_bone_id_from_tag(MkObj* obj, int tag);
 void mks_debug_display_cloth_ontop(int enabled);
 void mks_debug_display_cloth_coll_plane(void);

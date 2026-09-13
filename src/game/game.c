@@ -1,3 +1,7 @@
+#include "game/controller.h"
+#include "game/plyr.h"
+#include "runtime/cam.h"
+#include "platform/gcutils.h"
 #include "game/game_info.h"
 #include "game/attract.h"
 #include "game/plyrprofile.h"
@@ -19,6 +23,8 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
+
+void run_reaction_cleanup_function(PlyrPdata* player);
 
 extern void fade_to_black(int ticks, int sleep);
 extern void save_both_profiles(int mode);
@@ -242,7 +248,6 @@ extern void bleed_startup(void);
 extern void create_wall_monitor(void);
 extern void reset_camera_paths(void);
 extern void screen_engine_cleanup(void);
-extern void wait_for_slot_load();
 extern float game_speed;
 extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
@@ -551,7 +556,6 @@ extern void mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
 extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
-extern unsigned long long debug_get_msec_timer(void);
 extern void set_section_memory_scheme(int scheme);
 extern void ck_for_controller_removed(void);
 extern void trial_setup_fight(void);
@@ -2147,20 +2151,18 @@ static float get_num_sections_to_load(void) {
 static LoadingScreenEntry* get_loading_table(void) {
     unsigned int mode;
     unsigned int region;
-    char* tables;
 
     mode = mode_of_play;
-    tables = (char*)plyr_ending_timings;
     switch (mode) {
     case 0:
     case 1:
     case 4:
     case 10:
-        return (LoadingScreenEntry*)(tables + 0x52C);
+        return loading_fight_pic_tbl;
     case 6:
-        return (LoadingScreenEntry*)(tables + 0x9A0);
+        return loading_puzzle_pic_tbl;
     case 9:
-        return (LoadingScreenEntry*)(tables + 0x904);
+        return loading_chess_pic_tbl;
     case 7:
     case 8:
         if ((int)mode == 7) {
@@ -2171,24 +2173,24 @@ static LoadingScreenEntry* get_loading_table(void) {
 
         switch (region) {
         default:
-            return (LoadingScreenEntry*)(tables + 0x73C);
+            return loading_konquest_er1_pic_tbl;
         case 2:
-            return (LoadingScreenEntry*)(tables + 0x778);
+            return loading_konquest_er2_pic_tbl;
         case 3:
-            return (LoadingScreenEntry*)(tables + 0x88C);
+            return loading_konquest_nr1_pic_tbl;
         case 4:
-            return (LoadingScreenEntry*)(tables + 0x808);
+            return loading_konquest_cr1_pic_tbl;
         case 5:
-            return (LoadingScreenEntry*)(tables + 0x844);
+            return loading_konquest_ow1_pic_tbl;
         case 6:
-            return (LoadingScreenEntry*)(tables + 0x7CC);
+            return loading_konquest_or1_pic_tbl;
         case 7:
-            return (LoadingScreenEntry*)(tables + 0x8C8);
+            return loading_konquest_ed1_pic_tbl;
         case 8:
-            return (LoadingScreenEntry*)(tables + 0x79C);
+            return loading_konquest_nx1_pic_tbl;
         }
     default:
-        return (LoadingScreenEntry*)(tables + 0x52C);
+        return loading_fight_pic_tbl;
     }
 }
 
@@ -2329,11 +2331,9 @@ int is_load_meter_active(void) {
 void display_load_meter(int section_slot) {
     LoadScreenPdata* pdata;
     LoadingScreenEntry* table;
-    char* tables;
     int* image_index;
     int current_index;
 
-    tables = (char*)plyr_ending_timings;
     g_game_info.flag_bits.pad_bit1 = 0;
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
@@ -2349,15 +2349,15 @@ void display_load_meter(int section_slot) {
     switch ((int)mode_of_play) {
     case 0:
     case 10:
-        table = (LoadingScreenEntry*)(tables + 0x52C);
+        table = loading_fight_pic_tbl;
         image_index = &game_settings.pad_3C;
         break;
     case 6:
-        table = (LoadingScreenEntry*)(tables + 0x9A0);
+        table = loading_puzzle_pic_tbl;
         image_index = &game_settings.pad_44[1];
         break;
     case 9:
-        table = (LoadingScreenEntry*)(tables + 0x904);
+        table = loading_chess_pic_tbl;
         image_index = &game_settings.pad_44[0];
         break;
     case 7:
@@ -2366,7 +2366,7 @@ void display_load_meter(int section_slot) {
         table = get_loading_table();
         break;
     default:
-        table = (LoadingScreenEntry*)(tables + 0x52C);
+        table = loading_fight_pic_tbl;
         image_index = &game_settings.pad_3C;
         break;
     }
@@ -2391,7 +2391,7 @@ float do_continue(void) {
     push_game_state(0xA);
     pause_player = winner == 1;
     screen_slot = get_pause_menu_ssh();
-    wait_for_slot_load();
+    wait_for_slot_load(screen_slot);
     continue_timer = 10;
     load_screen("pause_menu/pause_continue", screen_slot, 0, 0);
     turn_controllers_on();
@@ -2956,9 +2956,7 @@ float p_gamelogic(void) {
     int active_players;
     int pause_slot;
     const char* pause_name;
-    char* tables;
 
-    tables = (char*)plyr_ending_timings;
     turn_controllers_off();
     start_time = (unsigned int)debug_get_msec_timer();
     g_game_info.flag_bits.field_bit6 = 0;
@@ -2989,15 +2987,15 @@ float p_gamelogic(void) {
         switch ((int)mode_of_play) {
         case 0:
         case 10:
-            table = (LoadingScreenEntry*)(tables + 0x52C);
+            table = loading_fight_pic_tbl;
             image_index = &game_settings.pad_3C;
             break;
         case 6:
-            table = (LoadingScreenEntry*)(tables + 0x9A0);
+            table = loading_puzzle_pic_tbl;
             image_index = &game_settings.pad_44[1];
             break;
         case 9:
-            table = (LoadingScreenEntry*)(tables + 0x904);
+            table = loading_chess_pic_tbl;
             image_index = &game_settings.pad_44[0];
             break;
         case 7:
@@ -3006,7 +3004,7 @@ float p_gamelogic(void) {
             table = get_loading_table();
             break;
         default:
-            table = (LoadingScreenEntry*)(tables + 0x52C);
+            table = loading_fight_pic_tbl;
             image_index = &game_settings.pad_3C;
             break;
         }
