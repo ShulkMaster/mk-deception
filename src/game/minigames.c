@@ -1699,6 +1699,8 @@ float puzzle_fighter_get_super_bar_level(unsigned int player) {
  * recovered. Remaining differences are loop-local register lifetimes and
  * repeated g_game_info address formation around the art/render tail; declaring
  * the randu0 result u16 worsens both size and allocation. */
+/* TODO: [near miss] 92.77465%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 float p_puzzle_fighter(void) {
     PuzzleMainGameView* game;
     PuzzleScriptView* script;
@@ -1868,6 +1870,8 @@ static inline CameraObj* camera_live_node(CameraItem* owner) {
     return object;
 }
 
+/* TODO: [near miss] 99.70085%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static float p_puzzle_fighter_real_one(void) {
     CameraObj* camera;
     int pause_slot;
@@ -2577,6 +2581,8 @@ static float p_pz_mode_play(void) {
 
 /* Near miss: exact size and instruction sequence; objdiff reports only
  * register operands and shared constant/string relocation labels. */
+/* TODO: [near miss] 99.513275%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static float p_pz_mode_start(void) {
     MkHdr* proc_data;
     MkProc* proc;
@@ -5474,6 +5480,8 @@ static int pzsm_raise_up(PuzzlePlayerState* player,
  * pieces in board row 12. The effect-handle lifetime is nonalgorithmic, but the
  * two-level placement-loop exit remains structural rather than emission-only.
  */
+/* TODO: [breakthrough needed] 94.04291%; placement-loop exit remains structural;
+ * natural const-data placement also changes relocations. */
 static int pzsm_rain_dance(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
     int row;
@@ -5712,6 +5720,8 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
  * Near match: pzsm_rain_dance_cleanup 99.67%, exact size and instructions;
  * the remaining three argument mismatches are storm-string relocation labels.
  */
+/* TODO: [near miss] 99.666664%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static void pzsm_rain_dance_cleanup(void) {
     reset_effect(PUZZLE_STRINGS + PUZZLE_STORM_EFFECT_STRING);
 
@@ -6988,7 +6998,8 @@ static inline StringObj* puzzle_message_live_text(PuzzleMessagePdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.658540%; register coloring, instruction scheduling; one-trial ceiling. */
+/* TODO: [near miss] 98.56707%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static void puzzle_fighter_display_block_count_msg(
     PuzzlePlayerState* player) {
     PuzzleMessagePdata* pdata;
@@ -7408,6 +7419,8 @@ static int puzzle_fighter_fill_holes(PuzzlePlayerState* player) {
 /* Near miss: the recovered CFG, signed fields, and visual load/store ordering
  * agree with retail. The 16-byte size gap is two string-pool address sequences;
  * remaining differences are register allocation and moved index setup. */
+/* TODO: [near miss] 97.9106%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static int puzzle_fighter_find_match(PuzzlePlayerState* player) {
     PuzzleMatchContext context;
     PuzzleBoardCell* cell;
@@ -8147,6 +8160,8 @@ static int puzzle_fighter_mode_start(int message) {
 
 /* Near miss: exact retail size and operations. Remaining differences are
  * nonvolatile-register allocation, instruction scheduling, and pool labels. */
+/* TODO: [near miss] 96.60166%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 static int init_pz_pfx_2d(void) {
     PfxBuildInfo build;
     MkPfx* puzzle_effect = 0;
@@ -8836,6 +8851,8 @@ static void render_wiffs(PuzzlePlayerState* player);
 static void render_UI(PuzzlePlayerState* player);
 
 /* Near match: load_puzzle_champion_screen 99.49%; pool identities only. */
+/* TODO: [near miss] 99.55696%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 void load_puzzle_champion_screen(void) {
     ScreenObj* champion_a;
     ScreenObj* champion_b;
@@ -9345,7 +9362,7 @@ void render_minigame_list(void) {
     }
 }
 
-__declspec(section ".rodata") const char puzzle_strings[] =
+const char puzzle_strings[] =
     PUZZLE_STRING_DATA;
 
 /* Recovery in progress: complete typed 14x8 wiff renderer. The structured

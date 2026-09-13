@@ -50,9 +50,11 @@ typedef char TgaHeaderValuesSizeCheck[
  * register allocation plus scheduling of one equivalent header-byte extract.
  */
 
-/* Retail owns these bytes here, in this order, with the word at .rodata+4. */
-__declspec(section ".rodata") static const char tga_write_mode[] = "w";
+/* Retail places this mode string in .rodata; retain natural const placement. */
+static const char tga_write_mode[] = "w";
 
+/* TODO: [near miss] 94.08943%; natural const-data placement changes relocations;
+ * retain ordinary declarations without section attributes. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   MkHwFileRequest *file;
   TgaHeader header;
