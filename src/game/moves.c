@@ -647,7 +647,7 @@ void blast_effect_at_plyr(void) {
     MkProc* proc;
 
     blast = load_named_model_for_player(
-        "BLAST", (plyr_pdata)->character_id,
+        "BLAST", plyr_pdata->plyr_num,
         0x600A, 0);
     if (blast == 0) {
         return;
@@ -2909,6 +2909,7 @@ void sidekick_intro_check(void) {
     }
 }
 
+/* TODO: [near miss] 84.816216%; base-to-current differences are GPR coloring after canonical typing; stop at coloring. */
 static float p_plyr_sidekick_intro(void) {
     union {
         float f;
@@ -3469,6 +3470,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     return 1;
 }
 
+/* TODO: [near miss] 72.37255%; regression is GPR coloring after canonical typing; earlier structural differences remain. */
 static float p_plyr_sidekick_switch(void) {
     union {
         float f;
@@ -3923,6 +3925,7 @@ static float p_plyr_noob_entrance(void) {
     return -1.0f;
 }
 
+/* TODO: [near miss] 84.28537%; base-to-current differences are GPR coloring after canonical typing; stop at coloring. */
 static float p_plyr_sidekick_charge(void) {
     union {
         float f;

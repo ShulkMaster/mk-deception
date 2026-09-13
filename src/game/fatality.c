@@ -558,8 +558,8 @@ int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
     FatalityBoneMatcher* matcher, Vec* offset);
 FatalityBoneMatcher* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone,
-    MkObj* child, int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
 void get_bone_world_pos(MkObj* object, int bone_id, Vec* position);
 void get_bone_offset_world_pos(
@@ -2069,10 +2069,7 @@ void fat_goro_fold_arms(
     }
 }
 
-/*
- * Soft ceiling: exact retail size and costume-specific object/matcher
- * behavior; remaining differences are register allocation and scheduling.
- */
+/* TODO: [breakthrough needed] 82.871796%; matcher argument interleaving improves scheduling; existing body/frame differences remain. */
 MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
     static const int canteen_bone_tag = 0x13;
     static const int gourd_bone_tag = 0x2D;
@@ -2141,7 +2138,11 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
             offset->x = -offset->x;
         }
         matcher = start_bone_matcher(
-            0.0f, fatality_state.attacker_object, parent_bone, jug, 0);
+            fatality_state.attacker_object,
+            parent_bone,
+            jug,
+            0,
+            0.0f);
         fatality_state.range34.fields34.bone_matcher = &matcher->hdr;
         matcher->flags.value |= 0x40;
         YXZ_angles_to_MKMATRIX(

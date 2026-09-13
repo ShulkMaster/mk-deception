@@ -343,7 +343,7 @@ typedef struct MkObj {
         void* field_5C;
         MkObjItemAttachData* item_attach_data;
     }; /* +0x5C - cleared during destruction / item attachment data */
-    unsigned int field_60;
+    int field_60;
     float bone_angle_64;
     float bone_angle_68;
     void* ground_colls;     /* +0x6C */

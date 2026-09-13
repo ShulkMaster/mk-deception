@@ -74,9 +74,9 @@ typedef char BoneMatcherStateSize[(sizeof(BoneMatcherState) == 0x110) ? 1 : -1];
 #ifdef __cplusplus
 extern "C" {
 #endif
-BoneMatcherState* start_bone_matcher(float blend_ticks, MkObj* parent,
-                                    int parent_bone, MkObj* child,
-                                    int child_bone);
+BoneMatcherState* start_bone_matcher(
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 #ifdef __cplusplus
 }
 #endif

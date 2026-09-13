@@ -497,8 +497,7 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [breakthrough needed] 73.26786%; global-address formation and repeated retail clears differ;
- * independently named BSS owners retain their retail initialization order. */
+/* TODO: [breakthrough needed] 75.14286%; independently named BSS owners retain address-formation and repeated-clear differences. */
 void start_constrain_proc(void) {
     ConstrainState* state;
     Vec* perpendicular;

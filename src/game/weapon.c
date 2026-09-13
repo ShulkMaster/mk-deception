@@ -738,7 +738,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     }
     if (matcher == 0) {
         matcher = start_bone_matcher(
-            0.0f, player_object, bone_index, item, 0);
+            player_object, bone_index, item, 0, 0.0f);
     }
     if (matcher != 0) {
         mk_insert(&matcher->hdr, &item->child_list);

@@ -483,8 +483,8 @@ void trial_state_collision_check(int collision_result, int player);
 void pz_fighter_reaction_xfer_him(int reaction);
 int reaction_xfer_him(int reaction, float rate, int strength);
 NcsBoneMatcher* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone,
-    MkObj* child, int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 void plyr_aux_weapon_release(PlyrPdata* player);
 void snd_req(int sound_id);
 void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
@@ -650,6 +650,7 @@ MkProc* start_scorpion_spear(int field_34) {
     return fire_sc_spear(plyr_pdata, &velocity, field_34, 0, 0, 0);
 }
 
+/* TODO: [breakthrough needed] 68.385056%; signed activation flag restores base score; existing frame/CFG differences remain. */
 MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     CameraObj* camera;
     MkObj* weapon;
@@ -730,6 +731,7 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     return proc;
 }
 
+/* TODO: [breakthrough needed] 67.456955%; signed activation flag restores base score; existing frame/CFG differences remain. */
 MkProc* fire_sc_spear(
     PlyrPdata* player, const Vec* velocity, int field_34,
     int flag_40, MkHdr* bound_object, int flag_20) {
@@ -896,7 +898,7 @@ float p_sc_spear1(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 76.63253%; original validation retained; consumer structure needs separate recovery. */
+/* TODO: [breakthrough needed] 76.171684%; consistent matcher ABI moves one float load; existing consumer CFG differences remain. */
 static float p_sc_spear2(void) {
     Vec spear_rotation = {0.0f, 3.1415927f, 0.0f};
     PlyrPdata* owner;
@@ -973,8 +975,7 @@ static float p_sc_spear2(void) {
                 &spear_rotation, &sc_spear_obj->bones[0]->rotation_90);
         }
         pdata_sc_spear->bonematcher = start_bone_matcher(
-            2.0f, owner->his_obj, pdata_sc_spear->field_34,
-            sc_spear_obj, 0);
+            owner->his_obj, pdata_sc_spear->field_34, sc_spear_obj, 0, 2.0f);
         if (pdata_sc_spear->bonematcher == 0) {
             ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
                 p_sc_spear_kill, 0.0f);

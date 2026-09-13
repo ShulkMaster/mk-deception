@@ -100,7 +100,7 @@ struct PlayerCollisionData {
     };
     unsigned int recorded_count; /* +0x93FC */
     unsigned int active_count; /* +0x9400 */
-    unsigned int render_recorded; /* +0x9404 */
+    int render_recorded; /* +0x9404 */
     float active_scale; /* +0x9408 */
     float attack_radius; /* +0x940C */
 };

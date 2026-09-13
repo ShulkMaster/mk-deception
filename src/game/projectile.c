@@ -208,8 +208,8 @@ extern int collide_sphere_vs_plyr(
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern int mode_of_play;
 extern ProjectileBoneMatcher* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone,
-    MkObj* child, int child_bone);
+    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
+    float blend_ticks);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 extern void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* out);
@@ -1023,6 +1023,7 @@ static void projectile_set_velocity_angy_tol(
     object->pos_vel.z *= speed;
 }
 
+/* TODO: [breakthrough needed] 80.47369%; matcher argument interleaving improves scheduling; existing body/frame differences remain. */
 static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     ProjectileImpaleInfo* info = pdata->impale_info;
     ProjectileBoneMatcher* matcher;
@@ -1037,8 +1038,11 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     }
 
     matcher = start_bone_matcher(
-        0.0f, pdata->retarget_object, info->parent_bone,
-        victim, info->child_bone);
+        pdata->retarget_object,
+        info->parent_bone,
+        victim,
+        info->child_bone,
+        0.0f);
     if (matcher == 0) {
         return;
     }

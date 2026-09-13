@@ -3671,8 +3671,11 @@ MkHdr* plyr_grab_other_flip_states(
     plyr_pdata->held_opponent_latch.instance =
         opponent->hdr.instance;
     matcher = (GrabBoneMatcher*)start_bone_matcher(
-        5.0f, plyr_obj, plyr_obj->fallback_bone_index,
-        opponent, opponent->fallback_bone_index);
+        plyr_obj,
+        plyr_obj->fallback_bone_index,
+        opponent,
+        opponent->fallback_bone_index,
+        5.0f);
     if (matcher != 0) {
         matcher->parent_offset.z = 0.0f;
         matcher->parent_offset.y = 0.0f;

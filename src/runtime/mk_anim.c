@@ -740,11 +740,11 @@ void bm_force_fake_child_bid(BoneMatcherState* matcher, int bone_id) {
 /* TODO: [near miss] 99.63504%; canonical matcher owner preserves codegen;
  * branch/register allocation differences remain. */
 BoneMatcherState* start_bone_matcher(
-    float blend_ticks,
     MkObj* parent_obj,
     int parent_bid,
     MkObj* child_obj,
-    int child_bid) {
+    int child_bid,
+    float blend_ticks) {
     BoneMatcherState* matcher;
     MkBone* parent_bone;
     MkBone* child_bone;

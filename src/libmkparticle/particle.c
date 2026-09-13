@@ -82,8 +82,7 @@ int get_field_size(int type) {
     return size;
 }
 
-/* TODO: [near miss] 99.12727%; shared table storage preserves retail reads;
- * parametric relocation now uses render_fields + 0x48. */
+/* TODO: [near miss] 99.94546% report; shared-table addressing uses render_fields + 0x48; retain the bounded backing array. */
 int pfx_field_get_type(int field) {
     int index;
 

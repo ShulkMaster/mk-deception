@@ -962,11 +962,11 @@ void update_bounce(int object, int target, int axis, float value);
 void update_texanim_hold(int object, int texture, float value, int first, int last);
 void update_texanim(int object, int texture, float value, int first, int last);
 struct PfxScriptColorRow;
-void update_lerp_color(int color_field, int age_field, int color_count,
-                       int first_color, const struct PfxScriptColorRow* table,
-                       float duration);
-void update_fade_alpha2(int color_field, int age_field, int start_alpha,
-                        int end_alpha, float start_time, float duration);
+void update_lerp_color(int color_field, int age_field, float duration,
+                       int color_count, int first_color,
+                       const struct PfxScriptColorRow* table);
+void update_fade_alpha2(int color_field, int age_field, float start_time,
+                        float duration, int start_alpha, int end_alpha);
 void update_fade_alpha(int object, int alpha, float start, float end);
 void update_mul_scalar(int object, float x, float y, float z);
 void update_wrapbox(int object, float x, float y, float z, float w);
@@ -1005,7 +1005,7 @@ void emit_spherical_section(int a, float b, float c, float d, float e,
 void emit_spherical_from_boundary(int a, float b);
 void emit_spherical(int a, float b);
 void texture_animation_with_vsize(float a, float b, int c, float d);
-void texture_animation(int vertical_frames, float horizontal_scale, float speed);
+void texture_animation(float horizontal_scale, int vertical_frames, float speed);
 void emission_duration(float value);
 void emit_cylindrical(int a, float b, float c, float d, float e, float f,
                       float g, float h);
@@ -4013,24 +4013,22 @@ void _update_texanim(void) {
                    ((ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-/* TODO: [near miss] 58.666668%; canonical callee order changes argument-load scheduling. */
 void _update_lerp_color(void) {
     update_lerp_color(((ScriptRawArgs*)current_args)->slots[0].i,
         ((ScriptRawArgs*)current_args)->slots[1].i,
+        ((ScriptRawArgs*)current_args)->slots[2].f,
         ((ScriptRawArgs*)current_args)->slots[3].i,
         ((ScriptRawArgs*)current_args)->slots[4].i,
-        ((ScriptRawArgs*)current_args)->slots[5].pointer,
-        ((ScriptRawArgs*)current_args)->slots[2].f);
+        ((ScriptRawArgs*)current_args)->slots[5].pointer);
 }
 
-/* TODO: [near miss] 71.666664%; canonical callee order changes argument-load scheduling. */
 void _update_fade_alpha2(void) {
     update_fade_alpha2(((ScriptRawArgs*)current_args)->slots[0].i,
         ((ScriptRawArgs*)current_args)->slots[1].i,
-        ((ScriptRawArgs*)current_args)->slots[4].i,
-        ((ScriptRawArgs*)current_args)->slots[5].i,
         ((ScriptRawArgs*)current_args)->slots[2].f,
-        ((ScriptRawArgs*)current_args)->slots[3].f);
+        ((ScriptRawArgs*)current_args)->slots[3].f,
+        ((ScriptRawArgs*)current_args)->slots[4].i,
+        ((ScriptRawArgs*)current_args)->slots[5].i);
 }
 
 void _update_fade_alpha(void) {
@@ -4236,10 +4234,9 @@ void _texture_animation_with_vsize(void) {
                                  ((ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-/* TODO: [near miss] 83.333336%; canonical callee order changes argument-load scheduling. */
 void _texture_animation(void) {
-    texture_animation(((ScriptRawArgs*)current_args)->slots[1].i,
-        ((ScriptRawArgs*)current_args)->slots[0].f,
+    texture_animation(((ScriptRawArgs*)current_args)->slots[0].f,
+        ((ScriptRawArgs*)current_args)->slots[1].i,
         ((ScriptRawArgs*)current_args)->slots[2].f);
 }
 
@@ -4588,15 +4585,14 @@ void _bone_matcher_parent_set_offset(void) {
                                    ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-/* TODO: [near miss] 49.375%; canonical callee order moves the float load
- * before the four GPR loads and changes their base register; all arguments agree. */
 void _start_bone_matcher(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        start_bone_matcher(((ScriptRawArgs*)current_args)->slots[4].f,
-                           ((ScriptRawArgs*)current_args)->slots[0].pointer,
-                           ((ScriptRawArgs*)current_args)->slots[1].i,
-                           ((ScriptRawArgs*)current_args)->slots[2].pointer,
-                           ((ScriptRawArgs*)current_args)->slots[3].i);
+        start_bone_matcher(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer,
+            ((ScriptRawArgs*)current_args)->slots[1].i,
+            ((ScriptRawArgs*)current_args)->slots[2].pointer,
+            ((ScriptRawArgs*)current_args)->slots[3].i,
+            ((ScriptRawArgs*)current_args)->slots[4].f);
 }
 
 void _obj_get_ang_vel(void) {

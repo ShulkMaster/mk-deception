@@ -3104,7 +3104,6 @@ int collide_sphere_vs_plyr(
     return collide_shape_vs_plyr(player, &shape);
 }
 
-/* TODO: [near miss] 99.09091%; canonical collision owners change address formation and copies. */
 int collide_shape_vs_plyr(
     PlyrInfo* player, const CollisionShape* shape) {
     PlayerCollisionData* collision;
@@ -3137,7 +3136,7 @@ int collide_shape_vs_plyr(
     return 0;
 }
 
-/* TODO: [breakthrough needed] 75.15455%; canonical collision owners change address formation and copies. */
+/* TODO: [breakthrough needed] 71.2%; canonical node arrays retain address formation, reload and frame differences. */
 int collide_plyr_vs_plyr(void) {
     PlyrInfo* player;
     PlayerCollisionData* collision;
@@ -4273,8 +4272,7 @@ void term_player_collision(PlyrInfo* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 70.40237%; player-info contract corrected neutrally;
- * collision scratch layout/frame differences remain; defer paired-single code. */
+/* TODO: [breakthrough needed] 70.46154%; canonical node arrays change address formation; retail copy/frame lowering remains unresolved. */
 void reset_player_collision(PlyrInfo* player) {
     int definition_count;
     PlayerCollisionData* storage;
@@ -4389,7 +4387,7 @@ static void update_players_collision_nodes(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 72.31035%; canonical collision owners change address formation and copies. */
+/* TODO: [breakthrough needed] 72.44396%; canonical collision owners retain scheduling/frame differences. */
 static void update_player_collision_nodes(PlayerCollisionData* collision) {
     PlayerCollisionData* storage;
     PlayerCollisionNode* node;

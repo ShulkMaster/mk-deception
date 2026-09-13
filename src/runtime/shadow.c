@@ -147,8 +147,7 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough needed] 64.423004%; retail r4 character owner fixed;
- * projection/rendering CFG and numeric lowering still need reconstruction. */
+/* TODO: [breakthrough needed] 64.635475%; corrected character owner and natural height conversion retained; projection/rendering CFG remains unresolved. */
 void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     PlyrPdata* owner = (PlyrPdata*)shadow;
     ShadowFighterObject* fighter;
@@ -591,8 +590,7 @@ static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 80.763885%; natural signed-height conversion
- * replaces endian-dependent double construction; float lowering remains. */
+/* TODO: [breakthrough needed] 80.90278%; natural signed-height conversion retains FP lowering and stack-slot differences. */
 int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
                      RwCamera* ip_camera, unsigned int pass_count) {
     int pass;
