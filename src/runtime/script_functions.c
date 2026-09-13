@@ -1,3 +1,5 @@
+#include "game/pz_fighters.h"
+#include "runtime/bone_matcher.h"
 /*
  * MKO command-script native wrappers.
  *
@@ -31,7 +33,7 @@ extern unsigned char exit_table_340[];
 extern unsigned char* plyr_obj;
 extern unsigned char* plyr_anim_pdata;
 extern PlyrPdata* his_pdata;
-extern unsigned int pz_fighter_state;
+extern PuzzleFightersEngine g_pz_fighters_engine;
 
 typedef struct FakeBoneMatcher FakeBoneMatcher;
 typedef struct MkFlippedBoneMap MkFlippedBoneMap;
@@ -857,8 +859,7 @@ extern void* npc_fast_anims[];
 extern void* konq_nis_anims[];
 extern void* konquest_animations[];
 extern void* shared_ani[];
-void pz_fighter_set_y_constrain(unsigned char* player_obj, int mode,
-                                PzConstrainArgs* args, float value);
+void pz_fighter_set_y_constrain(MkObj* player_obj, int mode, float value);
 void pz_fighter_attack(
     void* animation, PuzzleAttackParameters* attack, int reaction);
 void attack_opponent_with(
@@ -873,7 +874,7 @@ void blend_to_ani_frame(void* animation, int flags,
                         ScriptAnimationArgs* args, float frame, float blend);
 void glitch_to_ani(void* animation, int flags);
 void reaction_xfer_him_nohit(void* entry);
-void set_anim_hiframe(void* script_args, float frame);
+void set_anim_hiframe(float frame);
 int was_button_pressed(int button);
 int am_i_airborn(void);
 int is_his_chest_to_screen(void);
@@ -960,10 +961,12 @@ void update_attract(int object, int target, float value);
 void update_bounce(int object, int target, int axis, float value);
 void update_texanim_hold(int object, int texture, float value, int first, int last);
 void update_texanim(int object, int texture, float value, int first, int last);
-void update_lerp_color(int object, int color, float value, int first, int last,
-                       int flags);
-void update_fade_alpha2(int object, int alpha, float start, float end,
-                        int first, int last);
+struct PfxScriptColorRow;
+void update_lerp_color(int color_field, int age_field, int color_count,
+                       int first_color, const struct PfxScriptColorRow* table,
+                       float duration);
+void update_fade_alpha2(int color_field, int age_field, int start_alpha,
+                        int end_alpha, float start_time, float duration);
 void update_fade_alpha(int object, int alpha, float start, float end);
 void update_mul_scalar(int object, float x, float y, float z);
 void update_wrapbox(int object, float x, float y, float z, float w);
@@ -1002,7 +1005,7 @@ void emit_spherical_section(int a, float b, float c, float d, float e,
 void emit_spherical_from_boundary(int a, float b);
 void emit_spherical(int a, float b);
 void texture_animation_with_vsize(float a, float b, int c, float d);
-void texture_animation(float a, int b, float c);
+void texture_animation(int vertical_frames, float horizontal_scale, float speed);
 void emission_duration(float value);
 void emit_cylindrical(int a, float b, float c, float d, float e, float f,
                       float g, float h);
@@ -1024,10 +1027,10 @@ void create_y_mirror_effect(int effect);
 void z_bias(float value);
 void particle_size(float value);
 void face_y(void);
-void set_decal_plane(int plane);
+void set_decal_plane(const float* plane);
 void bind_to_bone(int bone);
 void create_step_effect(int effect);
-void parametric_update(int value);
+void parametric_update(const struct PfxParametricEffectDescription* value);
 float dist_xz_to_xz(void* a, void* b);
 void v3_to_xz_ang(void* out, void* value);
 void v3_to_xy_ang(void* out, void* value);
@@ -1064,7 +1067,6 @@ void get_bone_world_pos(void* object, int bone, void* out);
 typedef struct BoneMatcherState BoneMatcherState;
 void bone_matcher_child_set_offset(BoneMatcherState* matcher, Vec* offset);
 void bone_matcher_parent_set_offset(BoneMatcherState* matcher, Vec* offset);
-void* start_bone_matcher(void* a, void* b, int c, int d, float e);
 void obj_get_ang_vel(void* out, void* object);
 void obj_set_ang_vel(MkObj* object, void* value);
 void obj_set_pos_vel(MkObj* object, void* value);
@@ -1401,9 +1403,9 @@ void add_trigger_list_to_world(void);
 int ani_1_frame(void);
 int ani_no_pos(void);
 int ani_through_end(void);
-int ani_to_blend_frame(void *, float);
+void ani_to_blend_frame(float);
 int ani_to_end(void);
-int ani_to_frame_x(void *, float);
+void ani_to_frame_x(float);
 int ani_with_pos(void);
 int ani_x_more_frames(void *, float);
 int auto_ani_on(void);
@@ -1703,8 +1705,8 @@ int set_active_projectile_2d_track(void);
 int set_active_projectile_3d_track(void);
 int set_active_projectile_continue_thru_hit(void);
 void set_age_progression(int);
-int set_ani_speed(void *, float);
-int set_ani_weight(void *, float);
+void set_ani_speed(float);
+void set_ani_weight(float);
 int set_attackers_attack_region(int);
 int set_block_requirement(int);
 int set_both_face_opponent_flags(void);
@@ -1801,7 +1803,7 @@ int add_years_to_time(int, int);
 int adjust_his_damage_multiplier(void *, float);
 int adjust_my_damage_multiplier(void *, float);
 int air_collision_pause(int, void *, float, float);
-int ani_loop_more_frames(void *, float);
+void ani_loop_more_frames(float);
 int ani_to_frame_x_aniproc(void *, float);
 void assign_obj_to_trigger(int, unsigned int);
 void bgnd_add_scripted_brains_to_npc(unsigned int, unsigned int);
@@ -1952,7 +1954,7 @@ int konquest_run_camera_script(int, int);
 void konquest_teleport_hero_to_location(const Vec*);
 void konquest_transition_object_to_state(int, int, int);
 int land_chores(int, int, void *, float, float);
-int launch_me_up(void *, float, float);
+void launch_me_up(float, float);
 int load_script_as_reaction(int, int);
 int mk_chess_add_movement_skill(int, int, int, int);
 int mk_chess_ani_loop_more_frames(void *, float);
@@ -1994,13 +1996,14 @@ int mks_cb1_set_ground_y(void *, float);
 int mks_cb1_set_scale(int, void *, float, float, float);
 int mks_cc1_eq_insert_cloth_coll(int, void *, float);
 int mks_cc1_expand_cyl(void *, float, float);
-int mks_ccp1_eq_insert_cloth_coll_plane(int, void *, float, float, float, float);
-int mks_cloth_bones_init_by_tbl(int, int);
+void mks_ccp1_eq_insert_cloth_coll_plane(int, float, float, float, float);
+typedef struct ClothInitEntry ClothInitEntry;
+void mks_cloth_bones_init_by_tbl(ClothInitEntry*, int);
 int mks_debug_display_cloth_coll_cyl(int, int, int);
 int mks_debug_display_cloth_coll_plane(void *, float);
 int mks_gravity_update_by_group(int, int, void *, float, float, float, float);
-int mks_insert_cloth_force_bones(void *, float, float);
-int mks_mat_id_set_zbias(int, void *, float);
+void mks_insert_cloth_force_bones(float, float);
+void mks_mat_id_set_zbias(int, float);
 int mks_npc_cb1_eq_cloth_bone(int, int);
 int mks_npc_cc1_eq_insert_cloth_coll(int, int, void *, float);
 int mks_npc_cloth_bones_init_by_tbl(int, int, int);
@@ -2116,7 +2119,7 @@ int set_tile_grid_size(int, int);
 void set_tile_visibility(int, int);
 void shake_camera(int, void *, float);
 int share_my_attack_info(void *, float, float);
-int slow_ani_x(void *, float, float);
+void slow_ani_x(float, float);
 int slow_ani_x_if_miss(void *, float, float, float);
 int snd_req_delay(int, int);
 int sobj_set_alpha(int, int);
@@ -2371,7 +2374,8 @@ int parse_args(void*, ...);
 int plyr_spawn_his_anim_limb(
     int, int, int, void*, int, ScriptProcEntryFn, unsigned char*, float);
 int player_area_collision_check(int, int, float, float, float);
-float pz_fighter_inline_force_away_with_ani(int, int, float, float);
+float pz_fighter_inline_force_away_with_ani(
+    float, unsigned int, float, unsigned int);
 int set_active_projectile_collision_info(int, void *, float, float, float);
 int shake_hit_voice(int, int, int, float);
 void show_text(int, unsigned int, unsigned int, unsigned int, int, float, float, float);
@@ -2731,7 +2735,7 @@ void _trial_add_required_attack(void) {
 }
 
 void _pz_fighter_should_continue_move(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = (pz_fighter_state >> 2) & 1;
+    ((ScriptRawResult*)active_cmdscript)->value.i = (g_pz_fighters_engine.attack_policy_flags >> 2) & 1;
 }
 
 void _set_background_color(void) {
@@ -2993,8 +2997,7 @@ void _pz_fighter_set_y_constrain(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pz_fighter_set_y_constrain(plyr_obj, args.pz_constrain->mode,
-                               args.pz_constrain,
+    pz_fighter_set_y_constrain((MkObj*)plyr_obj, args.pz_constrain->mode,
                                args.pz_constrain->value);
 }
 
@@ -3014,6 +3017,8 @@ void _pz_fighter_attack(void) {
                       args.attack->arg3);
 }
 
+/* TODO: [near miss] 45.3125%; named exit owners retain retail stores;
+ * cached argument/player bases differ from repeated retail global loads. */
 void _exit_attack_with(void) {
     ScriptArgsRef args;
     ScriptResultRef result;
@@ -3027,7 +3032,7 @@ void _exit_attack_with(void) {
     player->input_unlock_tick = args.exit_args->input_unlock_tick;
     player->blocking_disable_tick_1 = args.exit_args->blocking_tick;
     player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player->script_exit_args[2] = args.exit_args->exit_arg2;
+    player->script_exit_arg_2 = args.exit_args->exit_arg2;
     result.exit->exit = j_exit_6;
     result.exit->state = 2;
 }
@@ -3428,7 +3433,7 @@ void _set_player_hiframe(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_anim_hiframe(current_args, args.raw->slots[0].f);
+    set_anim_hiframe(args.raw->slots[0].f);
 }
 
 void _set_player_movement_weight(void) {
@@ -3660,6 +3665,8 @@ void _blend_to_ani(void) {
         args.animation->frame);
 }
 
+/* TODO: [near miss] 45.3125%; named exit owners retain retail stores;
+ * cached argument/player bases differ from repeated retail global loads. */
 void _exit_react(void) {
     ScriptArgsRef args;
     ScriptResultRef result;
@@ -3673,7 +3680,7 @@ void _exit_react(void) {
     player->input_unlock_tick = args.exit_args->input_unlock_tick;
     player->blocking_disable_tick_2 = args.exit_args->blocking_tick;
     player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player->script_exit_args[2] = args.exit_args->exit_arg2;
+    player->script_exit_arg_2 = args.exit_args->exit_arg2;
     result.exit->exit = j_exit_react;
     result.exit->state = 2;
 }
@@ -3783,17 +3790,12 @@ float j_call_player_script_function(void) {
     return 1.0f;
 }
 
-typedef struct ScriptFighterAnimationBanks {
-    unsigned char pad00[0x74];
-    void* primary[57];
-    void* alternate[1];
-} ScriptFighterAnimationBanks;
-
+/* TODO: [near miss] 92.675674%; canonical banks retain selector load scheduling differences. */
 void* get_animation(int animation_id) {
     PlyrPdata* player;
     void** animations;
 
-    if ((unsigned int)(animation_id + 0x60000) == 0x4BFA ||
+    if ((unsigned int)animation_id + 0x60000U == 0x4BFA ||
         animation_id < 0) {
         return 0;
     }
@@ -3818,8 +3820,7 @@ void* get_animation(int animation_id) {
         animations = (void**)&his_pdata->reaction_animation;
         animation_id -= 600;
     } else if (animation_id >= 500) {
-        animations = ((ScriptFighterAnimationBanks*)
-                          his_pdata->fighter_definition)->alternate;
+        animations = (void**)his_pdata->fighter_definition->alternate_animations;
         animation_id -= 500;
     } else if (animation_id >= 400) {
         animations = (void**)player->animation_data;
@@ -3828,8 +3829,7 @@ void* get_animation(int animation_id) {
         animations = shared_ani;
         animation_id -= 100;
     } else {
-        animations = ((ScriptFighterAnimationBanks*)
-                          player->fighter_definition)->primary;
+        animations = (void**)player->fighter_definition->primary_animations;
     }
 
     return animations[animation_id];
@@ -4013,22 +4013,24 @@ void _update_texanim(void) {
                    ((ScriptRawArgs*)current_args)->slots[4].i);
 }
 
+/* TODO: [near miss] 58.666668%; canonical callee order changes argument-load scheduling. */
 void _update_lerp_color(void) {
     update_lerp_color(((ScriptRawArgs*)current_args)->slots[0].i,
-                      ((ScriptRawArgs*)current_args)->slots[1].i,
-                      ((ScriptRawArgs*)current_args)->slots[2].f,
-                      ((ScriptRawArgs*)current_args)->slots[3].i,
-                      ((ScriptRawArgs*)current_args)->slots[4].i,
-                      ((ScriptRawArgs*)current_args)->slots[5].i);
+        ((ScriptRawArgs*)current_args)->slots[1].i,
+        ((ScriptRawArgs*)current_args)->slots[3].i,
+        ((ScriptRawArgs*)current_args)->slots[4].i,
+        ((ScriptRawArgs*)current_args)->slots[5].pointer,
+        ((ScriptRawArgs*)current_args)->slots[2].f);
 }
 
+/* TODO: [near miss] 71.666664%; canonical callee order changes argument-load scheduling. */
 void _update_fade_alpha2(void) {
     update_fade_alpha2(((ScriptRawArgs*)current_args)->slots[0].i,
-                       ((ScriptRawArgs*)current_args)->slots[1].i,
-                       ((ScriptRawArgs*)current_args)->slots[2].f,
-                       ((ScriptRawArgs*)current_args)->slots[3].f,
-                       ((ScriptRawArgs*)current_args)->slots[4].i,
-                       ((ScriptRawArgs*)current_args)->slots[5].i);
+        ((ScriptRawArgs*)current_args)->slots[1].i,
+        ((ScriptRawArgs*)current_args)->slots[4].i,
+        ((ScriptRawArgs*)current_args)->slots[5].i,
+        ((ScriptRawArgs*)current_args)->slots[2].f,
+        ((ScriptRawArgs*)current_args)->slots[3].f);
 }
 
 void _update_fade_alpha(void) {
@@ -4234,10 +4236,11 @@ void _texture_animation_with_vsize(void) {
                                  ((ScriptRawArgs*)current_args)->slots[3].f);
 }
 
+/* TODO: [near miss] 83.333336%; canonical callee order changes argument-load scheduling. */
 void _texture_animation(void) {
-    texture_animation(((ScriptRawArgs*)current_args)->slots[0].f,
-                      ((ScriptRawArgs*)current_args)->slots[1].i,
-                      ((ScriptRawArgs*)current_args)->slots[2].f);
+    texture_animation(((ScriptRawArgs*)current_args)->slots[1].i,
+        ((ScriptRawArgs*)current_args)->slots[0].f,
+        ((ScriptRawArgs*)current_args)->slots[2].f);
 }
 
 void _emission_duration(void) {
@@ -4362,17 +4365,17 @@ void _face_y(void) {
 }
 
 void _set_decal_plane(void) {
-    set_decal_plane(((ScriptRawArgs*)current_args)->slots[0].i);
+    set_decal_plane(((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _create_multiemit_parametric_fx(void) {
-    create_multiemit_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].i,
+    create_multiemit_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].pointer,
                                    get_script_string_arg(2),
                                    ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _create_parametric_fx(void) {
-    create_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2));
+    create_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].pointer, get_script_string_arg(2));
 }
 
 void _create_multiemit_step_fx(void) {
@@ -4394,7 +4397,7 @@ void _create_step_effect(void) {
 }
 
 void _parametric_update(void) {
-    parametric_update(((ScriptRawArgs*)current_args)->slots[0].i);
+    parametric_update(((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _dist_xz_to_xz(void) {
@@ -4585,13 +4588,15 @@ void _bone_matcher_parent_set_offset(void) {
                                    ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
+/* TODO: [near miss] 49.375%; canonical callee order moves the float load
+ * before the four GPR loads and changes their base register; all arguments agree. */
 void _start_bone_matcher(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        start_bone_matcher(((ScriptRawArgs*)current_args)->slots[0].pointer,
-                           ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                           ((ScriptRawArgs*)current_args)->slots[2].i,
-                           ((ScriptRawArgs*)current_args)->slots[3].i,
-                           ((ScriptRawArgs*)current_args)->slots[4].f);
+        start_bone_matcher(((ScriptRawArgs*)current_args)->slots[4].f,
+                           ((ScriptRawArgs*)current_args)->slots[0].pointer,
+                           ((ScriptRawArgs*)current_args)->slots[1].i,
+                           ((ScriptRawArgs*)current_args)->slots[2].pointer,
+                           ((ScriptRawArgs*)current_args)->slots[3].i);
 }
 
 void _obj_get_ang_vel(void) {
@@ -9305,7 +9310,7 @@ void _set_anim_hiframe(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_anim_hiframe(current_args, args.raw->slots[0].f);
+    set_anim_hiframe(args.raw->slots[0].f);
 }
 
 void _bgnd_reg_col_cb_for_beetle_lair(void) {
@@ -9478,7 +9483,7 @@ void _ani_loop_more_frames(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_loop_more_frames(current_args, args.raw->slots[0].f);
+    ani_loop_more_frames(args.raw->slots[0].f);
 }
 
 void _ani_1_frame(void) {
@@ -9610,7 +9615,9 @@ void _pz_fighter_inline_force_away_with_ani(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.f = pz_fighter_inline_force_away_with_ani(args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[0].f, args.raw->slots[2].f);
+    ((ScriptRawResult*)active_cmdscript)->value.f = pz_fighter_inline_force_away_with_ani(
+        args.raw->slots[0].f, args.raw->slots[1].u,
+        args.raw->slots[2].f, args.raw->slots[3].u);
 }
 
 void _suspend_in_midair(void) {
@@ -12487,7 +12494,7 @@ void _mks_ccp1_eq_insert_cloth_coll_plane(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_ccp1_eq_insert_cloth_coll_plane(args.raw->slots[0].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    mks_ccp1_eq_insert_cloth_coll_plane(args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
 }
 
 void _mks_cc1_expand_cyl(void) {
@@ -12550,7 +12557,7 @@ void _mks_insert_cloth_force_bones(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_insert_cloth_force_bones(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    mks_insert_cloth_force_bones(args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _mks_cb2_eq_cloth_bone(void) {
@@ -12571,14 +12578,14 @@ void _mks_mat_id_set_zbias(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_mat_id_set_zbias(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    mks_mat_id_set_zbias(args.raw->slots[0].i, args.raw->slots[1].f);
 }
 
 void _mks_cloth_bones_init_by_tbl(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_cloth_bones_init_by_tbl(args.raw->slots[0].i, args.raw->slots[1].i);
+    mks_cloth_bones_init_by_tbl(args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _mks_start_goro_arms_fixup(void) {
@@ -13080,7 +13087,7 @@ void _set_ani_weight(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_ani_weight(current_args, args.raw->slots[0].f);
+    set_ani_weight(args.raw->slots[0].f);
 }
 
 void _front_rollup_check(void) {
@@ -13487,7 +13494,7 @@ void _launch_me_up(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    launch_me_up(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    launch_me_up(args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _tightrope_restrictions_off(void) {
@@ -13542,7 +13549,7 @@ void _set_ani_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_ani_speed(current_args, args.raw->slots[0].f);
+    set_ani_speed(args.raw->slots[0].f);
 }
 
 void _set_my_secondary_state(void) {
@@ -13588,21 +13595,21 @@ void _slow_ani_x(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    slow_ani_x(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    slow_ani_x(args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _ani_to_blend_frame(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_to_blend_frame(current_args, args.raw->slots[0].f);
+    ani_to_blend_frame(args.raw->slots[0].f);
 }
 
 void _ani_to_frame_x(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_to_frame_x(current_args, args.raw->slots[0].f);
+    ani_to_frame_x(args.raw->slots[0].f);
 }
 
 void _ani_to_frame_x_aniproc(void) {

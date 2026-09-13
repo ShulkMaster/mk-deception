@@ -1,4 +1,5 @@
 #include "runtime/shadow.h"
+#include "runtime/plyr_pdata.h"
 
 #include "math/gxQuat.h"
 #include "math/mk_math.h"
@@ -15,63 +16,15 @@
 #include "rw/rwframe.h"
 #include "rw/rwvector.h"
 
-typedef struct ShadowFighterObject ShadowFighterObject;
+typedef MkObj ShadowFighterObject;
 
-typedef struct ShadowLightPair {
-    ShadowFighterObject* primary;  /* +0x00 */
-    unsigned int primary_id;       /* +0x04 */
-    ShadowFighterObject* secondary; /* +0x08 */
-    unsigned int secondary_id;     /* +0x0C */
-    unsigned char unknown_10[8];   /* +0x10 */
-    ShadowFighterObject* pair_c;   /* +0x18 */
-    unsigned int pair_c_id;        /* +0x1C */
-    ShadowFighterObject* pair_d;   /* +0x20 */
-    unsigned int pair_d_id;        /* +0x24 */
-} ShadowLightPair;
+typedef PlyrMirrorSlots ShadowLightPair;
 
-typedef struct ShadowObject {
-    char pad_00[0x40];
-    ShadowFighterObject* fighter_a; /* +0x40 */
-    unsigned int fighter_a_id;
-    ShadowFighterObject* fighter_b;
-    unsigned int fighter_b_id;
-    char pad_50[0x17C]; /* +0x50 -> +0x1CC */
-    int mode; /* +0x1CC */
-    int alt_shadowbox; /* +0x1D0 */
-    char pad_1D4[0x13C]; /* +0x1D4 -> +0x310 */
-    ShadowLightPair* light_pair; /* +0x310 */
-    char pad_314[0x130]; /* +0x314 -> +0x444 */
-    float sphere_x; /* +0x444 */
-    float sphere_y;
-    float sphere_z;
-    float sphere_w; /* +0x450 */
-    RwV3d ground_point; /* +0x454 */
-    float ground_w; /* +0x460 */
-    RwRaster* shadow_raster; /* +0x464 */
-    RwRaster* blur_raster; /* +0x468 */
-    RwTexture* shadow_texture; /* +0x46c */
-    ShadowboxObject* shadowbox; /* +0x470 */
-} ShadowObject;
+/* Public shadow handles refer to the shadow state owned by player pdata. */
 
 typedef struct ShadowboxObject {
     MkObj object;
 } ShadowboxObject;
-
-struct ShadowFighterObject {
-    MkObj object; /* +0x00 */
-    char field_100[0xCC];
-    int mode; /* +0x1CC */
-};
-
-/* Shadow state overlays the leading region of the 0x74C player/monk pdata. */
-typedef char ShadowLightPairSizeCheck[
-    sizeof(ShadowLightPair) == 0x28 ? 1 : -1];
-typedef char ShadowObjectPrefixSizeCheck[
-    sizeof(ShadowObject) == 0x474 ? 1 : -1];
-typedef char ShadowFighterObjectPrefixSizeCheck[
-    sizeof(ShadowFighterObject) == 0x1D0 ? 1 : -1];
-typedef char ShadowboxObjectSizeCheck[
-    sizeof(ShadowboxObject) == 0x100 ? 1 : -1];
 
 static const char stringBase0[] = "Shadow2\0SHADOWBOX\0";
 
@@ -89,7 +42,6 @@ static const float kZero = 0.0f;
 static const float kPi = 3.1415927f;
 static const float kGroundOffset = 0.005f;
 static const float kAlphaScale = 255.0f;
-static const double kFloatConvBias = 4503601774854144.0;
 
 int ShadowAA = 1;
 int ShadowBlur = 1;
@@ -113,7 +65,7 @@ static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
 static inline ShadowFighterObject* shadow_validate_fighter(
     ShadowFighterObject* fighter, unsigned int expected_id);
 static inline int shadow_fighter_visible(ShadowFighterObject* fighter);
-static inline void shadow_destroy_shadowbox(ShadowboxObject** box_ptr);
+static inline void shadow_destroy_shadowbox(MkObj** box_ptr);
 
 typedef struct Im2DVertex {
     float u;
@@ -132,7 +84,7 @@ static inline ShadowFighterObject* shadow_validate_fighter(
     if (fighter == NULL) {
         return NULL;
     }
-    if (fighter->object.hdr.instance != expected_id) {
+    if (fighter->hdr.instance != expected_id) {
         return NULL;
     }
     return fighter;
@@ -142,16 +94,16 @@ static inline int shadow_fighter_visible(ShadowFighterObject* fighter) {
     if (fighter == NULL) {
         return 0;
     }
-    if (fighter->object.hide_flag_bits.hidden) {
+    if (fighter->hide_flag_bits.hidden) {
         return 0;
     }
     return 1;
 }
 
-static inline void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
+static inline void shadow_destroy_shadowbox(MkObj** box_ptr) {
     ShadowboxObject* box;
 
-    box = *box_ptr;
+    box = (ShadowboxObject*)*box_ptr;
     if (box == NULL) {
         return;
     }
@@ -161,7 +113,10 @@ static inline void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
     *box_ptr = NULL;
 }
 
+/* TODO: [breakthrough needed] 78.35714%; canonical pdata shadow fields agree;
+ * inspect remaining aggregate copy/callback and cleanup lowering. */
 void init_shadow(ShadowObject* shadow, MkObj* object) {
+    PlyrPdata* owner = (PlyrPdata*)shadow;
     RpAtomic* atomic;
 
     if (shadow != NULL) {
@@ -169,30 +124,33 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
         if (atomic->interpolator.flags & 2) {
             _rpAtomicResyncInterpolatedSphere(atomic);
         }
-        shadow->sphere_x = atomic->boundingSphere.center.x;
-        shadow->sphere_y = atomic->boundingSphere.center.y;
-        shadow->sphere_z = atomic->boundingSphere.center.z;
-        shadow->sphere_w = atomic->boundingSphere.radius;
-        shadow->ground_w = shadow->sphere_w;
+        owner->shadow_sphere_center.x = atomic->boundingSphere.center.x;
+        owner->shadow_sphere_center.y = atomic->boundingSphere.center.y;
+        owner->shadow_sphere_center.z = atomic->boundingSphere.center.z;
+        owner->shadow_sphere_radius = atomic->boundingSphere.radius;
+        owner->shadow_ground_radius = owner->shadow_sphere_radius;
         RwV3dTransformPoints(
-            &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
+            (RwV3d*)&owner->shadow_ground_point, (const RwV3d*)&object->pos.value, 1,
             &object->frame->modelling);
     }
     if (SetupShadow(shadow) == 0) {
-        if (shadow->shadow_raster != NULL) {
-            RwRasterDestroy(shadow->shadow_raster);
-            shadow->shadow_raster = NULL;
+        if (owner->shadow_raster != NULL) {
+            RwRasterDestroy(owner->shadow_raster);
+            owner->shadow_raster = NULL;
         }
-        if (shadow->shadow_texture != NULL) {
-            shadow->shadow_texture->raster = NULL;
-            RwTextureDestroy(shadow->shadow_texture);
-            shadow->shadow_texture = NULL;
+        if (owner->shadow_texture != NULL) {
+            owner->shadow_texture->raster = NULL;
+            RwTextureDestroy(owner->shadow_texture);
+            owner->shadow_texture = NULL;
         }
-        shadow_destroy_shadowbox(&shadow->shadowbox);
+        shadow_destroy_shadowbox(&owner->shadowbox);
     }
 }
 
+/* TODO: [breakthrough needed] 64.423004%; retail r4 character owner fixed;
+ * projection/rendering CFG and numeric lowering still need reconstruction. */
 void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
+    PlyrPdata* owner = (PlyrPdata*)shadow;
     ShadowFighterObject* fighter;
     RwCamera* camera;
     RwMatrix* frame_matrix;
@@ -225,21 +183,17 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     float mag_a;
     float mag_b;
     int clear_flags;
-    union {
-        double d;
-        int i[2];
-    } conv;
     float aspect;
     float inv_height;
 
     fighter = (ShadowFighterObject*)fighter_object;
     shadow_scale = kShadowScaleDefault;
-    if (fighter->mode == 0x1D) {
+    if (owner->character_id == 0x1D) {
         shadow_scale = kShadowScaleAlt;
     }
     gc_enable_alpha_writes(1);
     RwV3dTransformPoints(
-        &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
+        (RwV3d*)&owner->shadow_ground_point, (const RwV3d*)&object->pos.value, 1,
         &object->frame->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
@@ -255,9 +209,9 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     view_window.y = shadow_scale;
     RwCameraSetViewWindow(camera, &view_window);
     frame_matrix = &rwCameraParentFrame(camera)->modelling;
-    frame_matrix->pos.x = fighter->object.pos.value.x;
-    frame_matrix->pos.y = fighter->object.pos.value.y;
-    frame_matrix->pos.z = fighter->object.pos.value.z;
+    frame_matrix->pos.x = fighter->pos.value.x;
+    frame_matrix->pos.y = fighter->pos.value.y;
+    frame_matrix->pos.z = fighter->pos.value.z;
     frame_matrix->pos.x = frame_matrix->pos.x + frame_matrix->at.x * (kViewWindowBias * camera->farPlane);
     frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->at.y * (kViewWindowBias * camera->farPlane);
     frame_matrix->pos.z = frame_matrix->pos.z + frame_matrix->at.z * (kViewWindowBias * camera->farPlane);
@@ -265,38 +219,36 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     RwFrameUpdateObjects(rwCameraParentFrame(camera));
     ShadowCameraUpdate_flag = 1;
     ShadowCameraUpdate(camera, object->clump, 1);
-    lights = shadow->light_pair;
+    lights = owner->mirror_slots;
     if (lights != NULL) {
-        validated = shadow_validate_fighter(lights->primary, lights->primary_id);
+        validated = shadow_validate_fighter(lights->weapon[0].primary.obj, lights->weapon[0].primary.instance);
         if (validated != NULL && shadow_fighter_visible(validated)) {
-            validated = shadow_validate_fighter(lights->secondary, lights->secondary_id);
+            validated = shadow_validate_fighter(lights->weapon[0].mirror.obj, lights->weapon[0].mirror.instance);
             if (validated != NULL) {
-                ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
+                ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
             }
         }
-        validated = shadow_validate_fighter(lights->pair_c, lights->pair_c_id);
+        validated = shadow_validate_fighter(lights->weapon[1].primary.obj, lights->weapon[1].primary.instance);
         if (validated != NULL && shadow_fighter_visible(validated)) {
-            validated = shadow_validate_fighter(lights->pair_d, lights->pair_d_id);
+            validated = shadow_validate_fighter(lights->weapon[1].mirror.obj, lights->weapon[1].mirror.instance);
             if (validated != NULL) {
-                ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
+                ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
             }
         }
     }
-    validated = shadow_validate_fighter(shadow->fighter_a, shadow->fighter_a_id);
+    validated = shadow_validate_fighter(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
     if (validated != NULL && shadow_fighter_visible(validated)) {
-        validated = shadow_validate_fighter(shadow->fighter_b, shadow->fighter_b_id);
+        validated = shadow_validate_fighter(owner->mirror_obj.obj, owner->mirror_obj.instance);
         if (validated != NULL) {
-            ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
+            ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
         }
     }
     clear_flags = ShadowAA;
     ShadowCameraUpdate_flag = 0;
     if (clear_flags != 0) {
         ip_camera = ShadowIPCamera;
-        src_raster = shadow->shadow_raster;
-        conv.i[0] = 0x43300000;
-        conv.i[1] = src_raster->height ^ 0x80000000;
-        inv_height = (float)(conv.d - kFloatConvBias);
+        src_raster = owner->shadow_raster;
+        inv_height = (float)src_raster->height;
         aspect = kOne / ip_camera->farPlane;
         ip_camera->frameBuffer = src_raster;
         RwCameraClear(ip_camera, &clear_color_black, 3);
@@ -317,12 +269,12 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
             RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
         ip_camera->frameBuffer = NULL;
-        shadow->blur_raster = ShadowRasterAA;
+        owner->shadow_blur_raster = ShadowRasterAA;
     } else {
-        shadow->blur_raster = ShadowCameraRaster;
+        owner->shadow_blur_raster = ShadowCameraRaster;
     }
     if (ShadowBlur != 0) {
-        ShadowRasterBlur(shadow->shadow_raster, shadow->blur_raster,
+        ShadowRasterBlur(owner->shadow_raster, owner->shadow_blur_raster,
                          ShadowIPCamera, ShadowBlur);
     }
     dir_matrix = &ShadowDirectionMatrix;
@@ -330,11 +282,11 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     plane_normal.y = kOne;
     plane_normal.z = kZero;
     plane_point.x = kZero;
-    plane_point.y = fighter->object.ground_colls_y;
+    plane_point.y = fighter->ground_colls_y;
     plane_point.z = kZero;
-    light_pos.x = fighter->object.pos.value.x;
-    light_pos.y = fighter->object.pos.value.y;
-    light_pos.z = fighter->object.pos.value.z;
+    light_pos.x = fighter->pos.value.x;
+    light_pos.y = fighter->pos.value.y;
+    light_pos.z = fighter->pos.value.z;
     light_dir.x = dir_matrix->at.x;
     light_dir.y = dir_matrix->at.y;
     light_dir.z = dir_matrix->at.z;
@@ -347,7 +299,7 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     work_a.y = angle * light_dir.y;
     work_a.z = angle * light_dir.z;
     PSVECAdd(&light_pos, &work_a, &work_b);
-    box = shadow->shadowbox;
+    box = (ShadowboxObject*)owner->shadowbox;
     box->object.pos.value.x = work_b.x;
     box->object.pos.value.z = work_b.z;
     box->object.ang.y = gxVectAngleZX(&light_dir) - kPi;
@@ -395,6 +347,7 @@ int UpdateShadowCameraLightSource(const float* angles) {
 static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
     RwCamera* camera;
     void* frame;
+    RwRaster* raster;
 
     camera = *camera_ptr;
     if (camera == NULL) {
@@ -405,9 +358,10 @@ static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
         _rwObjectHasFrameSetFrame(camera, NULL);
         RwFrameDestroy(frame);
     }
-    if (camera->zBuffer != NULL) {
+    raster = camera->zBuffer;
+    if (raster != NULL) {
         camera->zBuffer = NULL;
-        RwRasterDestroy(camera->zBuffer);
+        RwRasterDestroy(raster);
     }
     if (camera->frameBuffer != NULL) {
         camera->frameBuffer = NULL;
@@ -451,6 +405,8 @@ static inline RwCamera* shadow_create_camera(int resolution) {
     return NULL;
 }
 
+/* TODO: [near miss] 91.13333%; saved z-buffer now reaches destruction;
+ * inlined owner cleanup and register scheduling remain. */
 void destroy_shadow_system(void) {
     shadow_destroy_camera(&ShadowCamera);
     shadow_destroy_camera(&ShadowIPCamera);
@@ -465,31 +421,35 @@ void destroy_shadow_system(void) {
 }
 
 void TearDownShadow(ShadowObject* shadow) {
+    PlyrPdata* owner = (PlyrPdata*)shadow;
     ShadowboxObject* box;
 
-    if (shadow->shadow_raster != 0) {
-        RwRasterDestroy(shadow->shadow_raster);
-        shadow->shadow_raster = 0;
+    if (owner->shadow_raster != 0) {
+        RwRasterDestroy(owner->shadow_raster);
+        owner->shadow_raster = 0;
     }
-    if (shadow->shadow_texture != 0) {
-        shadow->shadow_texture->raster = NULL;
-        RwTextureDestroy(shadow->shadow_texture);
-        shadow->shadow_texture = 0;
+    if (owner->shadow_texture != 0) {
+        owner->shadow_texture->raster = NULL;
+        RwTextureDestroy(owner->shadow_texture);
+        owner->shadow_texture = 0;
     }
-    box = shadow->shadowbox;
+    box = (ShadowboxObject*)owner->shadowbox;
     if (box != 0) {
         if (box->object.hdr.instance != 0) {
             box->object.hdr.typed_vtbl->destroy((MkHdr*)box);
         }
-        shadow->shadowbox = 0;
+        owner->shadowbox = 0;
     }
 }
 
+/* TODO: [near miss] 99.5%; canonical owner preserves accesses;
+ * pooled float relocation remains. */
 void shadow_set_new_ground_plane(ShadowObject* shadow, ShadowboxObject* ground,
                                  float y) {
+    PlyrPdata* owner = (PlyrPdata*)shadow;
     ShadowboxObject* box;
 
-    box = shadow->shadowbox;
+    box = (ShadowboxObject*)owner->shadowbox;
     if (box != 0) {
         box->object.pos.value.y = kGroundOffset + y;
     }
@@ -499,7 +459,10 @@ void shadow_set_new_ground_plane(ShadowObject* shadow, ShadowboxObject* ground,
     ground->object.pos.value.y = y;
 }
 
+/* TODO: [breakthrough needed] 77.58871%; canonical pdata/object fields agree;
+ * inspect remaining model/material setup and flag-store lowering. */
 int SetupShadow(ShadowObject* shadow) {
+    PlyrPdata* owner = (PlyrPdata*)shadow;
     RpMaterial* material;
     RwTexture* texture;
     MkSobj* sobj;
@@ -507,28 +470,28 @@ int SetupShadow(ShadowObject* shadow) {
     unsigned int flags;
     ShadowboxObject* box;
 
-    shadow->shadow_raster = RwRasterCreate(save_res_for_shadowbox,
+    owner->shadow_raster = RwRasterCreate(save_res_for_shadowbox,
                                             save_res_for_shadowbox, 0x20,
                                             0x505);
-    if (shadow->shadow_raster == NULL) {
+    if (owner->shadow_raster == NULL) {
         return 0;
     }
-    if (shadow->mode == 0x1D) {
-        if (shadow->alt_shadowbox == 0) {
-            shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+    if (owner->character_id == 0x1D) {
+        if (owner->plyr_num == 0) {
+            owner->shadowbox = (MkObj*)load_model_from_slot_transl(
                 0x0003000B, 0x008F0002, 0x5012);
         } else {
-            shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+            owner->shadowbox = (MkObj*)load_model_from_slot_transl(
                 0x0004000B, 0x008F0002, 0x5012);
         }
     } else {
-        shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+        owner->shadowbox = (MkObj*)load_model_from_slot_transl(
             0, 0x0001000A, 0x5012);
     }
-    if (shadow->shadowbox == NULL) {
+    if (owner->shadowbox == NULL) {
         return 0;
     }
-    box = shadow->shadowbox;
+    box = (ShadowboxObject*)owner->shadowbox;
     flags = box->object.flags_08;
     flags = (flags & ~(1 << 6)) | (1 << 6);
     box->object.flags_08 = (unsigned char)flags;
@@ -539,13 +502,13 @@ int SetupShadow(ShadowObject* shadow) {
     flags = (flags & ~(1 << 1)) | (1 << 1);
     box->object.flags_08 = (unsigned char)flags;
     insert_fgnd_mkobj(box);
-    if (shadow->mode == 0x1D) {
+    if (owner->character_id == 0x1D) {
         material = obj_find_material_with_texture((MkObj*)box, stringBase0);
     } else {
         material = obj_find_material_with_texture((MkObj*)box, stringBase0 + 8);
     }
     if (material != NULL) {
-        texture = RwTextureCreate(shadow->shadow_raster);
+        texture = RwTextureCreate(owner->shadow_raster);
         material->texture = texture;
         if (material->texture != NULL) {
             filter = texture->filter_flags;
@@ -554,7 +517,7 @@ int SetupShadow(ShadowObject* shadow) {
             filter = texture->filter_flags;
             filter = (filter & 0xFFFF00FF) | 0x3300;
             texture->filter_flags = filter;
-            shadow->shadow_texture = material->texture;
+            owner->shadow_texture = material->texture;
         }
     }
     obj_create_sobjs((MkObj*)box);
@@ -571,6 +534,8 @@ int SetupShadow(ShadowObject* shadow) {
     return 1;
 }
 
+/* TODO: [near miss] 90.166664%; AA width/height/depth restored from retail;
+ * inline camera creation/cleanup lowering remains. */
 int init_shadow_system(void) {
     RwCamera* camera;
     RwMatrix* frame_matrix;
@@ -611,7 +576,7 @@ int init_shadow_system(void) {
     }
     ShadowCamera->frameBuffer = raster;
     if (ShadowAA != 0 && ShadowRasterAA == NULL) {
-        raster = RwRasterCreate(aa_resolution, 0x20, 0, 0x505);
+        raster = RwRasterCreate(aa_resolution, aa_resolution, 0x20, 0x505);
         ShadowRasterAA = raster;
         if (raster == NULL) {
             return 0;
@@ -626,22 +591,18 @@ static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 80.763885%; natural signed-height conversion
+ * replaces endian-dependent double construction; float lowering remains. */
 int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
                      RwCamera* ip_camera, unsigned int pass_count) {
     int pass;
     int last_pass;
-    union {
-        double d;
-        int i[2];
-    } conv;
     float raster_height;
     float inv_height;
     float inv_far;
     int alpha;
 
-    conv.i[0] = 0x43300000;
-    conv.i[1] = src_raster->height ^ 0x80000000;
-    raster_height = (float)(conv.d - kFloatConvBias);
+    raster_height = (float)src_raster->height;
     inv_height = kOne / raster_height;
     inv_far = kOne / ip_camera->farPlane;
     last_pass = pass_count - 1;

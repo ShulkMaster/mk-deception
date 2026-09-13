@@ -6086,7 +6086,7 @@ static inline int player_is_stationary_impl(PlyrPdata* player) {
     if (animation == 0) {
         return 0;
     }
-    if (animation->script_word ==
+    if (animation->animation ==
         player->global_moveset->standing_animation_script) {
         return 1;
     }

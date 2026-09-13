@@ -1,3 +1,4 @@
+#include "runtime/bone_matcher.h"
 #include "runtime/mk_obj.h"
 #include "runtime/anim_api.h"
 #include "runtime/cstring.h"
@@ -61,68 +62,6 @@ typedef char MorphStateSize[(sizeof(MorphState) == 0x40) ? 1 : -1];
 static int set_morph_frameno(MorphState* morph);
 static unsigned short* morph_find_frame(
     MorphState* morph, unsigned short* current);
-
-typedef struct BoneMatcherFlags08Bits {
-    unsigned char inactive : 1;                 /* bit7 */
-    unsigned char copy_bone_matrix : 1;         /* bit6 */
-    unsigned char copy_clone_matrix : 1;        /* bit5 */
-    unsigned char preserve_bone_matrix : 1;     /* bit4 */
-    unsigned char copy_parent_angles : 1;       /* bit3 */
-    unsigned char flip_parent_angle_y : 1;      /* bit2 */
-    unsigned char release_parent_weight : 1;    /* bit1 */
-    unsigned char blend_child_transform : 1;    /* bit0 */
-} BoneMatcherFlags08Bits;
-
-typedef union BoneMatcherFlags08 {
-    unsigned char raw;
-    BoneMatcherFlags08Bits bits;
-} BoneMatcherFlags08;
-
-typedef struct BoneMatcherFlags09Bits {
-    unsigned char use_unmirrored_parent : 1;    /* bit7 */
-    unsigned char copy_child_flip : 1;          /* bit6 */
-    unsigned char snap_child_transform : 1;     /* bit5 */
-    unsigned char pad : 5;
-} BoneMatcherFlags09Bits;
-
-typedef union BoneMatcherFlags09 {
-    unsigned char raw;
-    BoneMatcherFlags09Bits bits;
-} BoneMatcherFlags09;
-
-typedef struct BoneMatcherState {
-    MkHdr hdr;
-    union {
-        unsigned int flags_word_08;
-        struct {
-            BoneMatcherFlags08 flags_08;
-            BoneMatcherFlags09 flags_09;
-            unsigned char pad0A[2];
-        };
-    };
-    float child_weight;
-    MkObj* parent_obj;
-    unsigned int parent_instance;
-    int parent_bid;
-    Vec parent_offset;
-    MkObj* child_obj;
-    unsigned int child_instance;
-    MkSobj* clone_obj;
-    unsigned int clone_instance;
-    int fake_child_bid;
-    Vec child_offset;
-    float blend_ticks;
-    char pad4C[4];
-    RwMatrix child_matrix;
-    RwMatrix flipped_child_matrix;
-    Quat parent_rotation;
-    Vec parent_translation;
-    Quat mirrored_parent_rotation;
-    Vec mirrored_parent_translation;
-    char pad108[8];
-} BoneMatcherState; /* 0x110 */
-typedef char BoneMatcherStateSize[
-    (sizeof(BoneMatcherState) == 0x110) ? 1 : -1];
 
 typedef struct BoneScanContext {
     RwMatrix* matrix;
@@ -798,6 +737,8 @@ void bm_force_fake_child_bid(BoneMatcherState* matcher, int bone_id) {
     matcher->fake_child_bid = bone_id;
 }
 
+/* TODO: [near miss] 99.63504%; canonical matcher owner preserves codegen;
+ * branch/register allocation differences remain. */
 BoneMatcherState* start_bone_matcher(
     float blend_ticks,
     MkObj* parent_obj,
@@ -1429,7 +1370,7 @@ static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
 
 
 
-/* TODO: [breakthrough needed] 78.317116%; packed-pose/frame and scheduling differences; six-pass cap. */
+/* TODO: [breakthrough needed] 79.180115%; packed-pose/frame and scheduling differences; six-pass cap. */
 int pose_anim(AnimPdata* anim, int update_object) {
     AnimScript* script;
     PlyrPdata* owner;
@@ -2579,11 +2520,12 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                 (AnimMatrixFrame*)sample;
                             int rotation_x = (short)frame->packed_xy.bits.x;
                             int rotation_y =
-                                (int)frame->packed_y_high * 16 +
+                                ((int)frame->packed_yzw >> 24) * 16 +
                                 frame->packed_xy.bits.y_low;
                             int rotation_z =
                                 (int)(frame->packed_yzw << 8) >> 20;
-                            int rotation_w = (short)frame->packed_zw.bits.w;
+                            int rotation_w =
+                                (int)(frame->packed_yzw << 20) >> 20;
 
                             bone->parent_matrix->pos.x =
                                 flip_factor *

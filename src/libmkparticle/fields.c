@@ -17,16 +17,14 @@ PfxFieldDefinition properties[] = {
     {0, 0, 0},
 };
 
-PfxFieldDefinition render_fields[] = {
+PfxFieldDefinition render_fields[10] = {
     {0x100, 0x002, 1},
     {0x104, 0x100, 1},
     {0x101, 0x010, 2},
     {0x102, 0x020, 3},
     {0x103, 0x040, 3},
     {0x163, 0x200, 1},
-};
-
-PfxFieldDefinition parametric_fields[] = {
+    /* Retail parametric_fields starts here, at render_fields + 0x48. */
     {0x400, 0, 1},
     {0x402, 0, 3},
     {0x403, 0, 3},

@@ -82,6 +82,8 @@ int get_field_size(int type) {
     return size;
 }
 
+/* TODO: [near miss] 99.12727%; shared table storage preserves retail reads;
+ * parametric relocation now uses render_fields + 0x48. */
 int pfx_field_get_type(int field) {
     int index;
 
@@ -240,14 +242,13 @@ void pfx_frame_end_check(PfxVm* pfx) {
     (void)pfx;
 }
 
-void update_live_particles(PfxRuntimeView* pfx) {
+void update_live_particles(PfxVm* pfx) {
     int live;
     int index;
 
-    /* Soft ceiling: 98% -- retail loads live before the slot index. */
-    live = pfx->live;
-    index = pfx->active_slot;
-    pfx->slots[index].live = live;
+    live = pfx->particle_cursor;
+    index = pfx->active_transform;
+    pfx->transforms[index].live = live;
 }
 
 void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {

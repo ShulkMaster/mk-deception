@@ -1,3 +1,4 @@
+#include "game/ground_fx.h"
 #include "runtime/utils.h"
 
 #include "game/game_info.h"
@@ -72,8 +73,6 @@ extern int jump_target_mode;
 extern int use_feedback_effect;
 extern MkPtr* pfx_render_list;
 extern MkPtr* pfx_clone_render_list;
-extern int small_ground_fx;
-extern int large_ground_fx;
 extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
