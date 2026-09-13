@@ -579,9 +579,24 @@ static inline NcsSpearEffect* ncs_get_spear_effect(void) {
     return effect;
 }
 
+static inline NcsSpearEffect* ncs_live_spear_effect(SpearProcPdata* owner) {
+    NcsSpearEffect* effect;
+
+    effect = owner->effect;
+    if (effect != 0) {
+        if (effect->hdr.instance == owner->effect_instance) {
+            return effect;
+        }
+        effect = 0;
+    } else {
+        effect = 0;
+    }
+    return effect;
+}
+
 static float p_mkpfx_fadingrun(void);
 float p_sc_spear1(void);
-void sc_spear_prewake(void);
+static void sc_spear_prewake(void);
 void sc_spear_postsleep(void);
 static float p_prison_grab(void);
 
@@ -621,19 +636,21 @@ void start_mkpfx_FadeSnapShot(void) {
 }
 
 static float p_mkpfx_fadingrun(void) {
+    Pfx2dObj* quad = fading_screen.fade_obj->pfx2d;
+
     fading_screen.alpha -= 4.0f * game_speed;
     if (fading_screen.alpha <= 0.0f) {
         DeleteCameraSnapShot();
         return -1.0f;
     }
 
-    fading_screen.fade_obj->pfx2d->verts[0].a =
+    quad->verts[0].a =
         (unsigned char)fading_screen.alpha;
-    fading_screen.fade_obj->pfx2d->verts[1].a =
+    quad->verts[1].a =
         (unsigned char)fading_screen.alpha;
-    fading_screen.fade_obj->pfx2d->verts[2].a =
+    quad->verts[2].a =
         (unsigned char)fading_screen.alpha;
-    fading_screen.fade_obj->pfx2d->verts[3].a =
+    quad->verts[3].a =
         (unsigned char)fading_screen.alpha;
     return 1.0f;
 }
@@ -905,6 +922,7 @@ float p_sc_spear1(void) {
     return 1.0f;
 }
 
+/* TODO: [breakthrough needed] 76.63253%; original validation retained; consumer structure needs separate recovery. */
 static float p_sc_spear2(void) {
     Vec spear_rotation = {0.0f, 3.1415927f, 0.0f};
     PlyrPdata* owner;
@@ -1029,6 +1047,7 @@ static float p_sc_spear2(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 84.560974%; original validation retained; consumer structure needs separate recovery. */
 static float p_sc_spear2_victory(void) {
     CameraObj* camera;
     NcsSpearEffect* effect;
@@ -1071,15 +1090,16 @@ static float p_sc_spear2_victory(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 96.447365%; float-register coloring remains; comparison-order trial neutral. */
 static float p_sc_spear2_getup(void) {
     NcsSpearEffect* effect;
 
     if (sc_spear_obj->pos.value.y > g_game_info.field_34 + 4.0f &&
         sc_spear_obj->pos_vel.y != 0.0f) {
-        sc_spear_obj->pos_vel.x = 0.0f;
-        sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.z = 0.0f;
-        effect = ncs_get_spear_effect();
+        sc_spear_obj->pos_vel.y = 0.0f;
+        sc_spear_obj->pos_vel.x = 0.0f;
+        effect = ncs_live_spear_effect(pdata_sc_spear);
         if (effect != 0) {
             effect->field_2A0 = 0.75f;
             effect->field_2A8 = 0.005f;
@@ -1215,7 +1235,7 @@ static float p_sc_spear3_pre(void) {
 static float p_sc_spear3(void) {
     NcsSpearEffect* effect;
 
-    effect = ncs_get_spear_effect();
+    effect = ncs_live_spear_effect(pdata_sc_spear);
     if (effect != 0) {
         effect->field_298 = 1.0f;
         effect->field_29C = 0.0f;
@@ -1435,6 +1455,7 @@ static float p_sc_spear4_getup(void) {
     return 1.0f;
 }
 
+/* TODO: [breakthrough needed] 74.734695%; original validation retained; consumer structure needs separate recovery. */
 float p_sc_spear_kill(void) {
     NcsSpearEffect* effect;
     NcsSpearObjectView* weapon;
@@ -1592,12 +1613,12 @@ static float p_pfx_sc_spear(void) {
     return 1.0f;
 }
 
-void retract_spear_from_camera(void) {
-    xfer_proc(aproc, p_sc_spear_retract_victory);
+void retract_spear_from_camera(MkProc* proc) {
+    xfer_proc(proc, p_sc_spear_retract_victory);
 }
 
-void xfer_spearproc_to_retract(void) {
-    xfer_proc(aproc, p_sc_spear_retract);
+void xfer_spearproc_to_retract(MkProc* proc) {
+    xfer_proc(proc, p_sc_spear_retract);
 }
 
 void destroy_spearproc_bonematcher(MkProc* proc) {
@@ -1624,20 +1645,27 @@ void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc) {
     }
 }
 
-MkObj* get_spearobj_from_spearproc(void) {
-    SpearProcPdata* pdata;
-    MkObj* object;
+static inline MkObj* ncs_live_spear_object(SpearProcPdata* pdata) {
+    MkObj* object = pdata->spear_object;
 
-    pdata = (SpearProcPdata*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return 0;
-    }
-    object = pdata->spear_object;
-    if (object != 0 &&
-        object->hdr.instance != pdata->spear_object_instance) {
+    if (object != 0) {
+        if (object->hdr.instance == pdata->spear_object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
         object = 0;
     }
     return object;
+}
+
+MkObj* get_spearobj_from_spearproc(MkProc* proc) {
+    SpearProcPdata* pdata = (SpearProcPdata*)pdata_of_proc(proc);
+
+    if (pdata == 0) {
+        return 0;
+    }
+    return ncs_live_spear_object(pdata);
 }
 
 void sc_spear_postsleep(void) {
@@ -1647,7 +1675,7 @@ void sc_spear_postsleep(void) {
     his_obj = 0;
 }
 
-void sc_spear_prewake(void) {
+static void sc_spear_prewake(void) {
     MkObj* object;
 
     if (aproc->pid != 0x5019) {
@@ -1657,11 +1685,7 @@ void sc_spear_prewake(void) {
     if (pdata_sc_spear == 0) {
         mkproc_die();
     }
-    object = pdata_sc_spear->spear_object;
-    if (object != 0 &&
-        object->hdr.instance != pdata_sc_spear->spear_object_instance) {
-        object = 0;
-    }
+    object = ncs_live_spear_object(pdata_sc_spear);
     sc_spear_obj = object;
     if (object == 0) {
         mkproc_die();
@@ -1861,17 +1885,25 @@ static float p_prison_grab(void) {
     return 1.0f;
 }
 
+static inline MkProc* ncs_live_camera_process(GameInfo* owner) {
+    MkProc* process = owner->camera_proc;
+    if (process != 0) {
+        if (process->instance == owner->camera_proc_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 void ncs_dkp_camera_konqchar_show_hide_alpha(
     int character_index, MkObj* character) {
     MkProc* process;
     NcsKonquestCharacterPdata* pdata;
 
-    process = g_game_info.camera_proc;
-    process = process != 0
-                  ? (process->instance == g_game_info.camera_proc_instance
-                         ? process
-                         : 0)
-                  : 0;
+    process = ncs_live_camera_process(&g_game_info);
     if (process == 0) {
         return;
     }
@@ -2092,10 +2124,10 @@ void destroy_gore2_obj(unsigned int object_id, int particle_index) {
     Gore2Pool* pool;
     int type;
 
-    type = 0;
-    while (type < 10 &&
-           pbl_gore2_obj_list[type].object_id != object_id) {
-        type++;
+    for (type = 0; type < 10; type++) {
+        if (pbl_gore2_obj_list[type].object_id == object_id) {
+            break;
+        }
     }
     if (type >= 10) {
         return;
@@ -2117,10 +2149,10 @@ int attach_gore2_obj(
     int result;
     int type;
 
-    type = 0;
-    while (type < 10 &&
-           pbl_gore2_obj_list[type].object_id != object_id) {
-        type++;
+    for (type = 0; type < 10; type++) {
+        if (pbl_gore2_obj_list[type].object_id == object_id) {
+            break;
+        }
     }
     if (type >= 10) {
         return -1;
@@ -2136,7 +2168,6 @@ int attach_gore2_obj(
 
     pool = mkpdata_pbl_gore2_update->pools[type];
     particle_index = mkpdata_pbl_gore2_update->next_particle[type];
-    result = particle_index;
     particle = &pool->particles[particle_index];
     particle->flags.word = 0;
     if (rotation != 0) {
@@ -2146,9 +2177,9 @@ int attach_gore2_obj(
         particle->rotation.z = rotation->z;
     } else {
         particle->flags.bits.has_rotation = 0;
-        particle->rotation.x = 0.0f;
-        particle->rotation.y = 0.0f;
         particle->rotation.z = 0.0f;
+        particle->rotation.y = 0.0f;
+        particle->rotation.x = 0.0f;
     }
     if (offset != 0) {
         particle->flags.bits.has_translation = 1;
@@ -2157,9 +2188,9 @@ int attach_gore2_obj(
         particle->translation.z = offset->z;
     } else {
         particle->flags.bits.has_translation = 0;
-        particle->translation.x = 0.0f;
-        particle->translation.y = 0.0f;
         particle->translation.z = 0.0f;
+        particle->translation.y = 0.0f;
+        particle->translation.x = 0.0f;
     }
     particle->flags.bits.attached = 1;
     particle->owner.object = owner;
@@ -2167,6 +2198,7 @@ int attach_gore2_obj(
     particle->bone = bone;
     pool->states[particle_index].bits.visible = 1;
 
+    result = particle_index;
     particle_index++;
     if (particle_index >= pool->capacity) {
         particle_index = 0;
@@ -3277,7 +3309,21 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     limb_sever_show_z_meat_chunks(owner, 13, 0);
 }
 
-/* Soft ceiling: retail keeps the limb index and cache base in separate registers. */
+static inline MkObj* ncs_live_severed_limb(FighterObjectRef* ref) {
+    MkObj* object = ref->object;
+
+    if (object != 0) {
+        if (object->hdr.instance == ref->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97%; cache-base offset folding and owner/index coloring remain. */
 MkObj* mks_limb_sever(
     MkObj* object, int limb, int include_children) {
     FighterMirror* fighter;
@@ -3290,26 +3336,19 @@ MkObj* mks_limb_sever(
         fighter = g_game_info.plyr1.slot.fighter;
     }
     severed_ref = &fighter->severed_limbs[limb];
-    severed = severed_ref->object;
-    if (severed != 0) {
-        if (severed->hdr.instance != severed_ref->instance) {
-            severed = 0;
-        }
-    } else {
-        severed = 0;
-    }
+    severed = ncs_live_severed_limb(severed_ref);
     if (severed == 0) {
         severed = obj_sever_limb(object, limb, 0, include_children);
         if (severed != 0) {
             severed_ref->object = severed;
-            severed_ref->instance = severed->hdr.instance;
+            fighter->severed_limbs[limb].instance = severed->hdr.instance;
             severed->light_flags = object->light_flags;
         }
     }
     return severed;
 }
 
-/* Soft ceiling: remaining delta is MWCC save/restore and register scheduling. */
+/* TODO: [near miss] 98.333336%; link/process r29-r30 coloring remains; stop. */
 void limb_sever_destroy_existing_attach_proc(
     PlyrInfo* player, int limb) {
     MkPtr** list;
@@ -3320,15 +3359,17 @@ void limb_sever_destroy_existing_attach_proc(
     if (list != 0) {
         link = *list;
         while (link != 0) {
-            MkProc* proc = (MkProc*)link->hdr;
+            MkHdr* object = link->hdr;
 
-            if (link->instance != proc->instance) {
+            if (link->instance != object->instance) {
                 MkPtr* next = link->next;
 
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
             } else {
+                MkProc* proc = (MkProc*)object;
+
                 if (proc != 0) {
                     NcsLimbAttachPdata* pdata =
                         (NcsLimbAttachPdata*)pdata_of_proc(proc);
@@ -3784,20 +3825,22 @@ void limb_sever_update_slide_end_coeff(
     }
 }
 
-MkHdr* proc_of_anim_pdata(MkObjLatch* data) {
-    MkHdr* proc;
+static inline MkProc* ncs_live_animation_process(AnimPdata* data) {
+    MkProc* process = data->proc;
 
-    proc = data->obj;
-    if (proc != 0) {
-        if (proc->instance == data->obj_instance) {
-            /* The instance latch still identifies this process. */
-        } else {
-            proc = 0;
+    if (process != 0) {
+        if (process->instance == data->proc_instance) {
+            return process;
         }
+        process = 0;
     } else {
-        proc = 0;
+        process = 0;
     }
-    return proc;
+    return process;
+}
+
+MkProc* proc_of_anim_pdata(AnimPdata* data) {
+    return ncs_live_animation_process(data);
 }
 
 void set_pdata_anim_step(AnimPdata* pdata, float step) {

@@ -126,6 +126,7 @@ void* movelist_get_counter(void) {
     return 0;
 }
 
+#pragma opt_propagation off
 void movelist_change_move(int delta) {
     MovelistPdata* screen_pdata;
     int style_index;
@@ -146,6 +147,8 @@ void movelist_change_move(int delta) {
     }
     sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT, display_move, max_move);
 }
+
+#pragma opt_propagation reset
 
 static inline MovelistPfxObj* movelist_style_live_pfx_obj(MovelistStyleSlot* owner) {
     MovelistPfxObj* object = owner->pfx_obj;
@@ -199,16 +202,21 @@ void movelist_change_style(int delta) {
     movelist_set_pfx_byte_flags(pfx_obj, 0, 0);
 }
 
+#pragma opt_propagation off
 void* get_movelist_strings(int* out_max) {
     MovelistPdata* screen_pdata;
 
     screen_pdata = (MovelistPdata*)get_screen_pdata();
     if (screen_pdata != 0) {
-        *out_max = movelist_style_slot(screen_pdata, screen_pdata->style_idx)->max_move;
+        int style_index = screen_pdata->style_idx;
+        MovelistStyleSlot* style = movelist_style_slot(screen_pdata, style_index);
+        *out_max = style->max_move;
         return movelist_style_slot(screen_pdata, screen_pdata->style_idx)->moves;
     }
     return 0;
 }
+
+#pragma opt_propagation reset
 
 void start_movelist(void) {
     MovelistPdata* movelist_pdata;

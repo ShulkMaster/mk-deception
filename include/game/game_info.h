@@ -52,10 +52,13 @@ typedef struct GcPadFlags {
 /* Per-port pad state @ +0x17C, stride 0x1C (gcio scan_switches). */
 typedef struct GcPadSlot {
     union {
-        unsigned char flags;
+        unsigned int flags_word; /* initialization clears all four bytes */
         GcPadFlags flag_bits;
+        struct {
+            unsigned char flags;
+            unsigned char pad_01[3];
+        };
     }; /* +0x00 */
-    unsigned char pad_01[3];
     SwitchMapEntry* switch_map; /* +0x04 - logical switch rows */
     PlyrInfo* player;          /* +0x08 - abs +0x184 for port 0 */
     unsigned int prev_buttons; /* +0x0C - abs +0x188 */

@@ -435,10 +435,7 @@ int is_special_move_available(PlyrPdata* pdata, int move_id) {
     return 1;
 }
 
-/*
- * Soft ceiling: all mapped-move comparisons match in retail order. Retail
- * retains two sentinel comparisons that share the same -2 result as default.
- */
+/* TODO: [breakthrough needed] 92.26923%; sentinel tail differs; propagation control neutral. */
 int fetch_shujinko_special_number_for(unsigned int move_id) {
     if (move_id == 0x1203) return 4;
     if (move_id == 0x1205) return 5;
@@ -453,7 +450,9 @@ int fetch_shujinko_special_number_for(unsigned int move_id) {
     if (move_id == 0x4245) return 10;
     if (move_id == 0x3FFEFFFE) return -2;
     return -2;
-}void tag_team_activate_player(MkObj* object, int active) {
+}
+
+void tag_team_activate_player(MkObj* object, int active) {
     PlyrClumpView* clump;
     PlyrClumpLink* link;
     PlyrClumpLink* sentinel;
@@ -675,7 +674,7 @@ MkObj* get_plyr_obj_plyr_num(int player) {
 }
 
 int get_my_particle_player_bank_num(void) {
-    return plyr_pdata->plyr_num != 0 ? 2 : 1;
+    return plyr_pdata->plyr_num == 0 ? 1 : 2;
 }
 
 int get_my_plyr_num(void) {
@@ -686,18 +685,21 @@ int plyr_pdata_sidekick_active(PlyrPdata* pdata) {
     return pdata->sidekick_active;
 }
 
-MkObj* plyr_pdata_get_sidekick_obj(PlyrPdata* pdata) {
-    MkObj* obj;
-
-    obj = pdata->sidekick_obj;
-    if (obj != 0) {
-        if (((MkHdr*)obj)->instance != pdata->sidekick_instance) {
-            obj = 0;
+static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
+    MkObj* object = owner->sidekick_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->sidekick_instance) {
+            return object;
         }
+        object = 0;
     } else {
-        obj = 0;
+        object = 0;
     }
-    return obj;
+    return object;
+}
+
+MkObj* plyr_pdata_get_sidekick_obj(PlyrPdata* pdata) {
+    return player_live_sidekick_obj(pdata);
 }
 
 MkObj* get_my_sidekick_obj(void) {
@@ -1482,22 +1484,26 @@ void xfer_player_proc(MkProc* proc, MkProcEntryFn entry) {
     xfer_proc(proc, entry);
 }
 
+/* TODO: [near miss] 99.37143%; flags/output-pointer load order differs; stop at scheduling. */
 int load_plyr_model_async(int player, int char_id, int* flags) {
-    MkHdr* pdata_out;
-    LoadPlyrModelPdata* pdata;
+    union {
+        MkHdr* header;
+        LoadPlyrModelPdata* loader;
+    } pdata_out;
     int pid;
+    unsigned int flag_word;
 
     pid = player + LOAD_PLYR_MODEL_PID;
     destroy_mkprocs_pid(pid);
     if (_create_mkproc_generic_bigstack(
-            pid, 0x1F, p_load_plyr_model_async, sizeof(LoadPlyrModelPdata), &pdata_out) == 0) {
+            pid, 0x1F, p_load_plyr_model_async, sizeof(LoadPlyrModelPdata), &pdata_out.header) == 0) {
         return 0;
     }
 
-    pdata = (LoadPlyrModelPdata*)pdata_out;
-    pdata->player = player;
-    pdata->char_id = char_id;
-    pdata->flags.word = (unsigned int)*flags;
+    flag_word = (unsigned int)*flags;
+    pdata_out.loader->player = player;
+    pdata_out.loader->char_id = char_id;
+    pdata_out.loader->flags.word = flag_word;
     return 1;
 }
 
@@ -1685,34 +1691,54 @@ void ps_plyr(void) {
     his_pdata = 0;
 }
 
+static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->left_hand_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->left_hand_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_right_hand_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->right_hand_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->right_hand_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void pw_plyr_inline(void) {
     MkObj* object;
     MkProc* anim_proc;
     MkProc* hand_proc;
 
     plyr_pdata = (PlyrPdata*)apdata;
-    object = plyr_pdata->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == plyr_pdata->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = player_live_tracked_obj(plyr_pdata);
     plyr_obj = object;
-    anim_proc = plyr_pdata->anim_proc;
-    if (anim_proc != 0) {
-        if (anim_proc->instance ==
-            (int)plyr_pdata->anim_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = player_live_anim_proc(plyr_pdata);
     plyr_anim_proc = anim_proc;
     if (anim_proc != 0) {
         plyr_anim_pdata = (AnimPdata*)pdata_of_proc(anim_proc);
@@ -1722,32 +1748,12 @@ static inline void pw_plyr_inline(void) {
         }
         g_perform_validation = 0;
     }
-    hand_proc = plyr_pdata->left_hand_anim_proc;
-    if (hand_proc != 0) {
-        if (hand_proc->instance ==
-            (int)plyr_pdata->left_hand_anim_instance) {
-            /* Keep the live process. */
-        } else {
-            hand_proc = 0;
-        }
-    } else {
-        hand_proc = 0;
-    }
+    hand_proc = player_live_left_hand_anim_proc(plyr_pdata);
     plyr_lefthand_anim_proc = hand_proc;
-    hand_proc = plyr_pdata->right_hand_anim_proc;
-    if (hand_proc != 0) {
-        if (hand_proc->instance ==
-            (int)plyr_pdata->right_hand_anim_instance) {
-            /* Keep the live process. */
-        } else {
-            hand_proc = 0;
-        }
-    } else {
-        hand_proc = 0;
-    }
+    hand_proc = player_live_right_hand_anim_proc(plyr_pdata);
     plyr_righthand_anim_proc = hand_proc;
-    if (g_game_info.plyr0.slot.pdata != 0 &&
-        g_game_info.plyr1.slot.pdata != 0) {
+    if (g_game_info.plyr0.slot.mirror_a != 0 &&
+        g_game_info.plyr1.slot.mirror_a != 0) {
         his_obj = plyr_pdata->his_obj;
         his_pdata = plyr_pdata->his_plyr_pdata;
     }
@@ -1810,58 +1816,6 @@ static inline void initialize_player_shadow(
             create_shadow_proc(pid, pdata, object, shadow);
         }
     }
-}
-
-static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->left_hand_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->left_hand_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkProc* player_live_right_hand_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->right_hand_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->right_hand_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
-    MkObj* object = owner->sidekick_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->sidekick_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
 }
 
 /* TODO: [near miss] 97.929780%; register coloring, relocation offsets; one-trial ceiling. */
@@ -2865,26 +2819,27 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.857140%; original latch retained; branch lowering; one-trial ceiling. */
-float active_sidekick_swap_change_style(PlyrPdata* pdata) {
-    MkProc* process = pdata->own_player_proc;
-    CmdScript* script;
-
+static inline MkProc* player_live_own_process(PlyrPdata* owner) {
+    MkProc* process = owner->own_player_proc;
     if (process != 0) {
-        if (process->instance ==
-            (int)pdata->own_player_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
+        if ((unsigned int)process->instance == owner->own_player_proc_instance) {
+            return process;
         }
+        process = 0;
     } else {
         process = 0;
     }
+    return process;
+}
+
+float active_sidekick_swap_change_style(PlyrPdata* pdata) {
+    MkProc* process = player_live_own_process(pdata);
+    CmdScript* script;
+
     active_sidekick_swap(pdata, 2);
     script = get_cmdscript_for_proc(process);
     script->unk28 = 0x7C;
-    ((PlyrProcVtable*)aproc->vtbl)
-        ->jump_sleep(r_call_script_function, 0.0f);
+    aproc->vtbl->jump_sleep(r_call_script_function, 0.0f);
     return 0.0f;
 }
 
@@ -3560,6 +3515,46 @@ void plyr_spawn_anim(MkProcEntryFn hand_script, MkProcEntryFn entry) {
     }
 }
 
+static inline MkObj* plyr_pdata_live_held_opponent_latch_obj(PlyrPdata* owner) {
+    MkObj* object = owner->held_opponent_latch.obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->held_opponent_latch.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
+    MkProc* object = owner->hold_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->hold_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* plyr_pdata_live_his_plyr_pdata_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->his_plyr_pdata->anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->his_plyr_pdata->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
 static inline void release_other_player_inline(void) {
     MkObj* held;
     MkProc* hold_proc;
@@ -3569,17 +3564,7 @@ static inline void release_other_player_inline(void) {
     plyr_obj->flags_09_bits.bit4 = 1;
     plyr_obj->flags_09_bits.face_opponent = 1;
 
-    held = plyr_pdata->held_opponent_latch.obj;
-    if (held != 0) {
-        if (held->hdr.instance ==
-            plyr_pdata->held_opponent_latch.instance) {
-            /* Keep the live object. */
-        } else {
-            held = 0;
-        }
-    } else {
-        held = 0;
-    }
+    held = plyr_pdata_live_held_opponent_latch_obj(plyr_pdata);
     if (held != 0) {
         held->flags_09_bits.launched = 1;
         held->flags_09_bits.bit4 = 1;
@@ -3593,47 +3578,29 @@ static inline void release_other_player_inline(void) {
     plyr_pdata->his_plyr_pdata->held_by_player = 0;
     plyr_pdata->his_plyr_pdata->hold_state = 0;
 
-    hold_proc = plyr_pdata->hold_proc;
-    if (hold_proc != 0) {
-        if (hold_proc->instance ==
-            (int)plyr_pdata->hold_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            hold_proc = 0;
-        }
-    } else {
-        hold_proc = 0;
-    }
+    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
     if (hold_proc != 0) {
         plyr_pdata->hold_proc = 0;
         plyr_pdata->hold_proc_instance = 0;
         if (hold_proc->instance != 0) {
-            ((void (*)(MkHdr*))hold_proc->vtbl->destroy)((MkHdr*)hold_proc);
+            hold_proc->vtbl->destroy(hold_proc);
         }
 
-        animation_proc = plyr_pdata->his_plyr_pdata->anim_proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance ==
-                (int)plyr_pdata->his_plyr_pdata->anim_proc_instance) {
-                /* Keep the live process. */
-            } else {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
-        }
+        animation_proc = plyr_pdata_live_his_plyr_pdata_anim_proc(plyr_pdata);
         if (animation_proc != 0) {
             animation = (AnimPdata*)pdata_of_proc(animation_proc);
-            animation->transition_weight = 1.0f;
-            animation->transition_step = 0.0f;
+            animation->hand_transition = 1.0f;
+            animation->hand_transition_step = 0.0f;
         }
     }
 }
 
+/* TODO: [breakthrough] 97.40196%; hand-transition offsets fixed; hold-latch branch folding remains. */
 void release_other_player(void) {
     release_other_player_inline();
 }
 
+/* TODO: [breakthrough] 92.56303%; hand-transition offsets fixed; validation branch/frame differences remain. */
 int check_release_other_player(void) {
     MkProc* hold_proc = plyr_pdata->hold_proc;
 
@@ -3674,44 +3641,6 @@ static inline void set_object_flip(
     }
 }
 
-static inline MkObj* plyr_pdata_live_held_opponent_latch_obj(PlyrPdata* owner) {
-    MkObj* object = owner->held_opponent_latch.obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->held_opponent_latch.instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    MkProc* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->hold_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkProc* plyr_pdata_live_his_plyr_pdata_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->his_plyr_pdata->anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->his_plyr_pdata->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 

@@ -10,11 +10,10 @@
  * Campaign history: docs/campaigns/index.md (B20-B22)
  */
 
-#if !defined(TARGET_PC)
 #pragma use_lmw_stmw on
-#endif
 
 void mcard_msg_remove_screen(void);
+void mcmsg_nothing(void);
 void recover_from_message(void);
 void init_memcard_msg_screen(void);
 void set_memcard_popup_message_title_text(const char* text);
@@ -44,18 +43,27 @@ extern int mcard_msg_active;
 extern int mcard_hault_msg_active;
 extern int f_writing_to_memcard;
 
-/* Retail stringBase0 slices used by format popups (full pool stays in ASM). */
-static const char STR_MC_FMT_SPACE[] = " ";
-static const char STR_MC_FMT_SSS[] = "%s %s %s";
-static const char STR_MC_FMT_SS[] = "%s %s%s";
-static const char STR_MC_FMT_BODY_SPACES[] = "  ";
-static const char STR_MC_FMT_SSSS[] = "%s %s %s %s";
-static const char STR_MC_FMT_SDSDS[] = "%s %d %s %d %s";
-static const char STR_MC_FMT_SS_COMMA[] = "%s, %s";
-static const char STR_MC_FMT_SSSDSDS[] = "%s %s %s %d %s %d %s";
-static const char STR_MC_FMT_NO_SPACE_OPTS[] = "%s %s %s   %s\n%s   ";
+/* Retail gcmcardmsg-owned strings, including the memory-card NBC table. */
+static const char stringBase0[] =
+#include "platform/gcmcardmsg_stringBase0.inc"
+;
 
-/* Retail's three contiguous 0x1E popup scratch buffers. */
+#define STR_MC_FMT_SPACE (&stringBase0[0x5EA8])
+#define STR_MC_FMT_SSS (&stringBase0[0x5EE2])
+#define STR_MC_FMT_SS (&stringBase0[0x5EEB])
+#define STR_MC_FMT_BODY_SPACES (&stringBase0[0x5EF3])
+#define STR_MC_FMT_SSSS (&stringBase0[0x5ED6])
+#define STR_MC_FMT_SDSDS (&stringBase0[0x5F05])
+#define STR_MC_FMT_SS_COMMA (&stringBase0[0x5F14])
+#define STR_MC_FMT_SSSDSDS (&stringBase0[0x5EAA])
+#define STR_MC_FMT_NO_SPACE_OPTS (&stringBase0[0x5EBF])
+#define STR_MC_FMT_S (&stringBase0[0x5ED3])
+#define STR_MC_FMT_KONQUEST_BODY (&stringBase0[0x5EF6])
+
+/* Confirmed retail compatibility bug: message_buffer is only 30 bytes at
+ * 0x803D36E0. mcard_msg_save's sprintf crosses +0x20 into cardstat (0x803D3700);
+ * longer messages also reach icon_buffer (0x803D376C). Preserve these extents
+ * and the unbounded write; see docs/decomp/profile-ui-retrofeed.md. */
 static char message_buf_temp2[0x1e];
 static char message_buf_temp1[0x1e];
 static char message_buffer[0x1e];
@@ -96,8 +104,8 @@ int msg_save_error_konq_region_answer;
 /* Once-flag: PPWLS boot no-card / space popup already shown. */
 static int low_storage_slot_message_done;
 
-/* Soft ceiling: format popup helpers -- pad/answer emit vs inlined rtn bodies. */
-static int pad_action_pressed(int action) {
+/* Shared source helpers for operations expanded directly in retail callers. */
+static inline int pad_action_pressed(int action) {
     if (check_switch_action(get_p1_pad(), action) != 0) {
         return 1;
     }
@@ -107,12 +115,12 @@ static int pad_action_pressed(int action) {
     return 0;
 }
 
-static void eat_pad_action(int action) {
+static inline void eat_pad_action(int action) {
     eat_switch_action(get_p1_pad(), action);
     eat_switch_action(get_p2_pad(), action);
 }
 
-static void format_msg_accept(int* answerOut, int answer) {
+static inline void format_msg_accept(int* answerOut, int answer) {
     snd_req(0x1aa5);
     mcard_hault_msg_active = 0;
     pause_procs(0);
@@ -120,7 +128,7 @@ static void format_msg_accept(int* answerOut, int answer) {
     *answerOut = answer;
 }
 
-static void sleep_aproc(float ticks) {
+static inline void sleep_aproc(float ticks) {
     _mkproc_sleep_ticks = ticks;
     aproc->vtbl->sleep();
 }
@@ -128,9 +136,8 @@ static void sleep_aproc(float ticks) {
 
 /*
  * Halt-message id classifier shared by is_this_a_hault_message / mcard_msg_end.
- * Soft ceiling: range emit vs compact form; algo matches retail decision tree.
  */
-static int is_hault_message_id(int id) {
+static inline int is_hault_message_id(int id) {
     if (id < 0x14) {
         if (id == 3) {
             return 0;
@@ -174,6 +181,7 @@ static int is_hault_message_id(int id) {
  * Soft ceiling: gc_no_space_routine -- no-space popup + answer; OSResetSystem
  * reboot path left soft (host must not hard-reset). Algo OK for menu path.
  */
+/* TODO: [breakthrough needed] 60.85165%; retail pool restored; remaining call/branch lowering needs comparison. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     const char* a;
@@ -231,6 +239,7 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
     return ret;
 }
 
+/* TODO: [breakthrough needed] 77.27778%; retail pool restored; remaining call/branch lowering needs comparison. */
 void gc_boot_space_check(void) {
     int prevStatus[2];
     int device;
@@ -243,7 +252,6 @@ void gc_boot_space_check(void) {
     const char* optC;
     const char* bodyPart;
 
-    /* Soft ceiling: popup string-pool / halt-classifier emit; algo OK for PPWLS. */
     if (low_storage_slot_message_done != 0) {
         return;
     }
@@ -281,7 +289,7 @@ void gc_boot_space_check(void) {
         init_memcard_msg_screen();
         set_memcard_popup_message_title_text(nbc_find_text(0x32, 0));
         bodyPart = nbc_find_text(0x33, 0);
-        sprintf(message_buffer, "%s", bodyPart);
+        sprintf(message_buffer, STR_MC_FMT_S, bodyPart);
         set_memcard_popup_message_body_text(message_buffer);
         optA = nbc_find_text(0x15, 0);
         optB = nbc_find_text(0x13, 0);
@@ -336,6 +344,7 @@ void mcard_msg_end(void) {
     mcard_msg_active = 0;
 }
 
+/* TODO: [breakthrough needed] 60.80645%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_middle_sleep(int mode, int caller) {
     if ((mode == 7 || mode == 8) && caller == 0) {
         return;
@@ -363,12 +372,12 @@ static void mcard_msg_card_change_at_format_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_changed_at_format(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; no device-range check (retail). */
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x8d, 0));
     set_memcard_popup_message_body_text(nbc_find_text(0x8c, 0));
@@ -414,12 +423,12 @@ void mcard_msg_card_inaccessable_in_konq(void) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_auto_save(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -438,8 +447,8 @@ void mcard_msg_auto_save(int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_save_failed(int device) {
-    /* Soft ceiling: string-pool / sleep emit; device unused (retail). */
     (void)device;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x83, 0));
@@ -452,6 +461,7 @@ void mcard_msg_save_failed(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_failed(int device) {
     (void)device;
     init_memcard_msg_screen();
@@ -465,6 +475,7 @@ void mcard_msg_create_failed(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_successful(int device) {
     (void)device;
     init_memcard_msg_screen();
@@ -502,10 +513,10 @@ static void mcard_msg_confirm_erase_rtn(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 44.395603%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_confirm_erase(void) {
     int lang;
 
-    /* Soft ceiling: language type + sleep emit; algo OK for delete confirm. */
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x89, 0));
     set_memcard_popup_message_body_text(nbc_find_text(0x8a, 0));
@@ -555,6 +566,7 @@ static void mcard_msg_load_no_card_konq_region_hault_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.71429%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_load_no_card_konq_region_hault(const char* profileName, int unused, int device) {
     const char* part5;
     const char* part6;
@@ -584,7 +596,7 @@ void mcard_msg_load_no_card_konq_region_hault(const char* profileName, int unuse
     part7 = nbc_find_text(7, 0);
     part6 = nbc_find_text(6, 0);
     part5 = nbc_find_text(5, 0);
-    sprintf(message_buffer, "%s %s%s %s%s %s", part5, message_buf_temp1,
+    sprintf(message_buffer, STR_MC_FMT_KONQUEST_BODY, part5, message_buf_temp1,
             part6, message_buf_temp2, part7, part8);
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x80, 0));
@@ -660,6 +672,7 @@ static void mcard_msg_cant_enter_konquest_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 95.30864%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_cant_enter_konquest(int device, const char* profileName) {
     if (device < 0 || device >= 2) {
         return;
@@ -669,7 +682,7 @@ void mcard_msg_cant_enter_konquest(int device, const char* profileName) {
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x75, 0));
-    sprintf(message_buffer, "%s", nbc_find_text(0x76, 0));
+    sprintf(message_buffer, STR_MC_FMT_S, nbc_find_text(0x76, 0));
     if (strlen(profileName) != 0) {
         strcat(message_buffer, profileName);
     } else {
@@ -718,6 +731,7 @@ static void mcard_msg_save_no_card_konq_region_hault_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.71429%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int unused) {
     const char* part5;
     const char* part6;
@@ -746,7 +760,7 @@ void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int unuse
     part7 = nbc_find_text(7, 0);
     part6 = nbc_find_text(6, 0);
     part5 = nbc_find_text(5, 0);
-    sprintf(message_buffer, "%s %s%s %s%s %s", part5, message_buf_temp1,
+    sprintf(message_buffer, STR_MC_FMT_KONQUEST_BODY, part5, message_buf_temp1,
             part6, message_buf_temp2, part7, part8);
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x7f, 0));
@@ -829,11 +843,11 @@ static void mcard_msg_name_conflict_rtn(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 77.29474%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_name_conflict(void) {
-    /* Soft ceiling: string-pool / halt-classifier emit; algo OK for create. */
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x68, 0));
-    sprintf(message_buffer, "%s", nbc_find_text(0x69, 0));
+    sprintf(message_buffer, STR_MC_FMT_S, nbc_find_text(0x69, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0xf, 0));
     set_memcard_popup_message_type(0xb);
@@ -896,12 +910,12 @@ static void mcard_msg_format_failed_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_format_failed(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -921,12 +935,12 @@ void mcard_msg_format_failed(int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_format_successful(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -945,12 +959,12 @@ void mcard_msg_format_successful(int device) {
     sleep_aproc(60.0f);
 }
 
+/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_formating(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -981,12 +995,12 @@ static void mcard_msg_format_confirmation_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_format_confirmation(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: ~92% -- stringBase0 / sleep emit; stop. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1021,12 +1035,12 @@ static void mcard_msg_no_file_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_file(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1069,10 +1083,10 @@ static void mcard_msg_card_gone_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 90.14706%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_gone(const char* profileName, int device) {
     const char* name;
 
-    /* Soft ceiling: string-pool / strcat emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1123,6 +1137,7 @@ static void mcard_msg_crc_failure_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_crc_failure(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1132,7 +1147,6 @@ void mcard_msg_crc_failure(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1171,6 +1185,7 @@ static void mcard_msg_incompatible_card_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_incompatible_card(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1180,7 +1195,6 @@ void mcard_msg_incompatible_card(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1236,6 +1250,7 @@ static void mcard_msg_wrong_device_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_wrong_device(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1245,7 +1260,6 @@ void mcard_msg_wrong_device(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1284,6 +1298,7 @@ static void mcard_msg_card_damaged_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_damaged(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1293,7 +1308,6 @@ void mcard_msg_card_damaged(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1336,6 +1350,7 @@ static void mcard_msg_another_market_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_another_market(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1345,7 +1360,6 @@ void mcard_msg_another_market(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1388,6 +1402,7 @@ static void mcard_msg_sys_corrupt_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 91.42857%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_sys_corrupt(const char* nameOrNull, int device) {
     const char* name;
     const char* partA;
@@ -1397,8 +1412,6 @@ void mcard_msg_sys_corrupt(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK.
-     * Retail body also zeros msg_crc_failure_answer (shared sda quirk). */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1447,6 +1460,7 @@ static void mcard_msg_no_cards_at_settings_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 95.54054%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_cards_at_settings(void) {
     const char* a;
     const char* b;
@@ -1454,7 +1468,6 @@ void mcard_msg_no_cards_at_settings(void) {
     const char* optA;
     const char* optB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x38, 0));
     a = nbc_find_text(0x3b, 0);
@@ -1508,6 +1521,7 @@ static void mcard_msg_mu_removed_rtn(void) {
     }
 }
 
+/* TODO: [near miss] 94.593025%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_mu_removed(const char* nameOrNull, int device) {
     const char* partA;
     const char* slotName;
@@ -1516,7 +1530,6 @@ void mcard_msg_mu_removed(const char* nameOrNull, int device) {
     const char* optB;
     const char* optC;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1540,6 +1553,7 @@ void mcard_msg_mu_removed(const char* nameOrNull, int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_delete_failed_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x23, 0));
@@ -1552,6 +1566,7 @@ void mcard_msg_delete_failed_generic(void) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_delete_successful_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x20, 0));
@@ -1564,12 +1579,12 @@ void mcard_msg_delete_successful_generic(void) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_delete_failed(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1588,12 +1603,12 @@ void mcard_msg_delete_failed(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_delete_successful(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1612,12 +1627,12 @@ void mcard_msg_delete_successful(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_deleting_file(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1636,6 +1651,7 @@ void mcard_msg_deleting_file(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 99.91071%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_storage(const char* text) {
     if (text == 0) {
         text = STR_MC_FMT_SPACE;
@@ -1657,6 +1673,7 @@ void mcard_msg_read(int device) {
     (void)device;
 }
 
+/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_deleting_data(int device) {
     const char* partA;
     const char* slotName;
@@ -1680,12 +1697,12 @@ void mcard_msg_deleting_data(int device) {
     sleep_aproc(90.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_create(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1704,12 +1721,12 @@ void mcard_msg_create(int device) {
     sleep_aproc(30.0f);
 }
 
+/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_save(int device) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
-    /* Soft ceiling: string-pool / sleep emit; algo OK. */
     if (device < 0 || device >= 2) {
         return;
     }
@@ -1727,3 +1744,58 @@ void mcard_msg_save(int device) {
     prepare_for_sleeping_message();
     sleep_aproc(90.0f);
 }
+
+/* Retail dispatch table precedes gc_mc_msg_text in .data. */
+void (*msg_routine_table[])(void) = {
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcard_msg_card_gone_rtn,
+    mcmsg_nothing,
+    mcard_msg_no_file_rtn,
+    mcard_msg_crc_failure_rtn,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcard_msg_mu_removed_rtn,
+    mcard_msg_sys_corrupt_rtn,
+    mcard_msg_another_market_rtn,
+    mcard_msg_card_damaged_rtn,
+    mcard_msg_wrong_device_rtn,
+    mcard_msg_incompatible_card_rtn,
+    mcard_msg_no_space_rtn,
+    mcard_msg_format_confirmation_rtn,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcard_msg_format_failed_rtn,
+    mcard_msg_no_room_for_profile_rtn,
+    mcard_msg_debug_rtn,
+    mcard_msg_no_cards_at_boot_rtn,
+    mcard_msg_save_cancelled_rtn,
+    mcard_msg_name_conflict_rtn,
+    mcard_msg_no_cards_at_cap_rtn,
+    mcard_msg_no_cards_at_settings_rtn,
+    msg_save_error_konq_region_rtn,
+    msg_quit_confirmation_rtn,
+    mcard_msg_save_no_card_konq_region_hault_rtn,
+    mcard_msg_cant_enter_konquest_rtn,
+    mcard_msg_profile_reset_confirmation_rtn,
+    mcard_msg_profile_damaged_in_konquest_rtn,
+    mcard_msg_load_no_card_konq_region_hault_rtn,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcmsg_nothing,
+    mcard_msg_confirm_erase_rtn,
+    mcard_msg_card_inaccessable_in_konq_rtn,
+    mcard_msg_card_change_at_format_rtn,
+    mcmsg_nothing,
+    mcmsg_nothing,
+};
+
+const char* gc_mc_msg_text[] = {
+#include "platform/gcmcardmsg_text.inc"
+};

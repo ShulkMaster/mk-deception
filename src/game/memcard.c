@@ -730,6 +730,8 @@ void end_save_message(int mode, int result, int device, int flag) {
     }
 }
 
+/* TODO: [breakthrough needed] 67.29457%; retail string arguments restored;
+ * remaining retry/dispatch codegen needs structural comparison. */
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes) {
@@ -773,7 +775,7 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
                 result = save_to_memcard2(
                     device, 0,
                     ((region - 1) + (unsigned int)slot * 8) * SAVE_CHUNK_SIZE + 0x28B8,
-                    flag, stringBase0, stringBase0 + 1, regionBuf, SAVE_CHUNK_SIZE,
+                    flag, STR_EMPTY_NAME, &stringBase0[9], regionBuf, SAVE_CHUNK_SIZE,
                     freeBlocks, freeBytes, 0, flag, mode, 0);
             }
 

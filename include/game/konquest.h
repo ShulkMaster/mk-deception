@@ -34,7 +34,7 @@ void hide_objective_arrow_and_beam(void);
 void enable_trigger(struct KonquestTriggerDefinition* definition, int state);
 void npc_set_anim_proc(MkProcEntryFn entry);
 void show_fight_message(int message);
-void* get_konquest_tile_objects_obj(void);
+MkHdr* get_konquest_tile_objects_obj(void);
 void unhide_konquest_object_by_uid(int uid);
 void hide_konquest_object_by_uid(int uid);
 void pickup_dynamic_pui(KonquestPuiDefinition* item);

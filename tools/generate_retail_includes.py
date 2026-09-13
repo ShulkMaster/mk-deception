@@ -248,6 +248,35 @@ def emit_nbc(elf: Elf32) -> dict[str, str]:
     }
 
 
+def emit_gcmcardmsg(elf: Elf32) -> dict[str, str]:
+    pool = elf.symbol("@stringBase0")
+    table = elf.symbol("gc_mc_msg_text")
+    if (pool.size != 0x5F1B or pool.section_index != elf.section(".rodata").index
+            or table.size != 145 * 5 * 4 or table.section_index != elf.section(".data").index):
+        raise ValueError("gcmcardmsg.o: unexpected text pool/table layout")
+    data = elf.symbol_data(pool.name)
+    if not data.endswith(b"\0"):
+        raise ValueError("gcmcardmsg.o: unterminated string pool")
+    strings = data[:-1].split(b"\0")
+    pool_text = "/* Generated from retail gcmcardmsg.o @stringBase0. */\n"
+    pool_text += "\n".join(
+        "    " + (c_string(value)[:-1] + r'\0"' if i + 1 < len(strings) else c_string(value))
+        for i, value in enumerate(strings)
+    ) + "\n"
+    relocs = elf.relocations(".data")
+    lines = ["/* Generated gc_mc_msg_text: 145 entries, five languages each. */"]
+    for offset in range(table.value, table.value + table.size, 4):
+        reloc = relocs.get(offset)
+        if (reloc is None or reloc.type != R_PPC_ADDR32 or reloc.symbol.name != pool.name
+                or not 0 <= reloc.addend < pool.size or b"\0" not in data[reloc.addend:]):
+            raise ValueError(f"gcmcardmsg.o: invalid text relocation at 0x{offset:X}")
+        lines.append(f"    &stringBase0[0x{reloc.addend:X}],")
+    return {
+        "platform/gcmcardmsg_stringBase0.inc": pool_text,
+        "platform/gcmcardmsg_text.inc": "\n".join(lines) + "\n",
+    }
+
+
 def emit_pselect(elf: Elf32) -> dict[str, str]:
     pool = elf.symbol("@stringBase0")
     if pool.section_index != elf.section(".rodata").index:
@@ -589,6 +618,7 @@ def generate(object_root: Path) -> dict[str, str]:
     jobs = (
         ("ai.o", emit_ai),
         ("nbc.o", emit_nbc),
+        ("gcmcardmsg.o", emit_gcmcardmsg),
         ("pselect.o", emit_pselect),
         ("fonts.o", emit_fonts),
         ("gxMath.o", emit_sqrt),
@@ -604,8 +634,8 @@ def generate(object_root: Path) -> dict[str, str]:
             if relative in outputs:
                 raise ValueError(f"duplicate generated path: {relative}")
             outputs[relative] = contents
-    if len(outputs) != 12:
-        raise AssertionError(f"expected 12 generated includes, got {len(outputs)}")
+    if len(outputs) != 14:
+        raise AssertionError(f"expected 14 generated includes, got {len(outputs)}")
     return outputs
 
 

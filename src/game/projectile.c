@@ -257,21 +257,25 @@ static inline void projectile_set_target_position(const Vec* position) {
     }
 }
 
+static inline MkProc* projectile_live_process(ProjectilePdata* owner) {
+    MkProc* process = owner->process;
+
+    if (process != 0) {
+        if (process->instance == owner->process_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 static inline void projectile_set_process_handler(MkProcEntryFn handler) {
     MkProc* process;
 
     if (proj_pdata != 0) {
-        process = proj_pdata->process;
-        if (process != 0) {
-            if ((unsigned int)process->instance ==
-                proj_pdata->process_instance) {
-                /* The instance latch still identifies this process. */
-            } else {
-                process = 0;
-            }
-        } else {
-            process = 0;
-        }
+        process = projectile_live_process(proj_pdata);
         if (process != 0) {
             xfer_proc(process, handler);
         }
@@ -357,10 +361,14 @@ void set_active_projectile_target_ground(
     }
 }
 
+#pragma scheduling off
+/* TODO: [near miss] 99.7%; body matches; saved-LR/r31 epilogue load order remains. */
 void set_active_projectile_upward_attack(const Vec* target) {
     projectile_set_process_handler(p_projectile_launch_upward);
     projectile_set_target_position(target);
 }
+
+#pragma scheduling reset
 
 int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
     if (object->hide_flag_bits.bit6) {
@@ -377,6 +385,8 @@ void active_projectile_setup_done(void) {
     proj_pdata = 0;
 }
 
+#pragma scheduling off
+/* TODO: [near miss] 88.23529%; scalar copies agree; li/load order in flag assignment remains. */
 void set_active_projectile_velocity_damp(const Vec* damping) {
     if (proj_pdata != 0) {
         proj_pdata->behavior_bits.velocity_damping_set = 1;
@@ -386,15 +396,20 @@ void set_active_projectile_velocity_damp(const Vec* damping) {
     }
 }
 
+#pragma scheduling reset
+
 void set_active_projectile_max_ticks(int ticks) {
     if (proj_pdata != 0) {
         proj_pdata->max_ticks = (float)ticks;
     }
 }
 
+#pragma scheduling off
 void set_active_projectile_target_pos(const Vec* position) {
     projectile_set_target_position(position);
 }
+
+#pragma scheduling reset
 
 void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
@@ -457,6 +472,8 @@ void set_active_projectile_dn_sound(int sound) {
     }
 }
 
+#pragma use_lmw_stmw on
+#pragma optimize_for_size on
 void set_active_projectile_sound(
     int start_sound, int flight_sound, int impact_sound) {
     if (proj_pdata != 0) {
@@ -471,6 +488,9 @@ void set_active_projectile_sound(
         }
     }
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
     MkObj* object = owner->object;
@@ -1488,24 +1508,27 @@ static float p_ground_target_collide(void) {
     return 1.0f;
 }
 
+static inline MkProc* projectile_live_hold_process(PlyrPdata* owner) {
+    MkProc* process = owner->hold_proc;
+
+    if (process != 0) {
+        if (process->instance == owner->hold_proc_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 int check_for_throw(PlyrPdata* player) {
-    PlyrPdata* target = player->his_plyr_pdata;
-    MkProc* hold_proc = target->hold_proc;
+    MkProc* hold_proc = projectile_live_hold_process(player->his_plyr_pdata);
 
     if (hold_proc != 0) {
-        if ((unsigned int)hold_proc->instance ==
-            target->hold_proc_instance) {
-            /* The instance latch still identifies this process. */
-        } else {
-            hold_proc = 0;
-        }
-    } else {
-        hold_proc = 0;
+        return 1;
     }
-    if (hold_proc == 0) {
-        return 0;
-    }
-    return 1;
+    return 0;
 }
 
 static float p_projectile_launch_upward(void) {

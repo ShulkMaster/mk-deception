@@ -454,7 +454,8 @@ MkPfx* pfx_from_handle(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/* Soft ceiling: verified local effect/emitter view and handle encoding. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 unsigned int fx_next_emitter(unsigned int handle) {
     PfxResolvedHandle resolved;
     PfxScriptEffect* effect;
@@ -462,11 +463,11 @@ unsigned int fx_next_emitter(unsigned int handle) {
     int emitter_index;
 
     type = (handle >> 14) & 3;
-    if (type == 1 || type == 2) {
+    if (type != 1 && type != 2) {
+        effect = 0;
+    } else {
         resolve_pfx_handle((handle & 0xFFFF3FFF) | 0x4000, &resolved);
         effect = resolved.effect;
-    } else {
-        effect = 0;
     }
 
     if (effect == 0) {
@@ -480,16 +481,21 @@ unsigned int fx_next_emitter(unsigned int handle) {
                 &effect->emitter[emitter_index]) ||
             pfx_emitter_unused(
                 &effect->emitter[emitter_index])) {
+            unsigned int emitter_handle;
+
             pfx_emitter_reset(
                 &effect->emitter[emitter_index]);
-            handle = (handle & 0xFFFF3FFF) | 0x8000;
-            handle &= 0xFFF0FFFF;
-            handle |= (emitter_index & 0xF) << 16;
-            return handle;
+            emitter_handle = (handle & 0xFFFF3FFF) | 0x8000;
+            emitter_handle &= 0xFFF0FFFF;
+            emitter_handle |= (emitter_index & 0xF) << 16;
+            return emitter_handle;
         }
     }
     return 0;
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 MkPfx* pfx_from_emitter(unsigned int handle) {
     PfxResolvedHandle resolved;
@@ -503,50 +509,54 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/*
- * Soft ceiling: fx_by_id ~78.45% - retail keeps the effect index in r31 and
- * coalesces the two live-latch copies; the recovered search and handle bits
- * are otherwise exact.
- */
+static inline PfxBank* pfx_live_bank(const PfxBankLatch* latch) {
+    PfxBank* bank = latch->bank;
+
+    if (bank != 0) {
+        if (bank->hdr.instance == latch->bank_instance) {
+            return bank;
+        }
+        bank = 0;
+    } else {
+        bank = 0;
+    }
+    return bank;
+}
+static inline PfxScriptEffect* pfx_live_effect(const PfxEffectLatch* latch) {
+    PfxScriptEffect* effect = latch->effect;
+
+    if (effect != 0) {
+        if (effect->hdr.instance == latch->effect_instance) {
+            return effect;
+        }
+        effect = 0;
+    } else {
+        effect = 0;
+    }
+    return effect;
+}
+
+/* TODO: [near miss] 96.36364%; effect/latch coloring and handle packing remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 unsigned int fx_by_id(int effect_id, unsigned int owner) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
-    PfxBank* raw_bank;
-    PfxBank* bank;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
+    PfxBank* bank;
     int bank_index;
     int effect_index;
 
     for (bank_index = 0; bank_index < 15; bank_index++) {
         bank_latch = &banks[bank_index];
-        raw_bank = bank_latch->bank;
-        if (raw_bank != 0) {
-            if (raw_bank->hdr.instance == bank_latch->bank_instance) {
-                bank = raw_bank;
-            } else {
-                bank = 0;
-            }
-        } else {
-            bank = 0;
-        }
+        bank = pfx_live_bank(bank_latch);
 
         if (bank != 0 && (bank->owner_flags & owner) != 0) {
             for (effect_index = 0;
                  effect_index < bank->effect_count;
                  effect_index++) {
                 effect_latch = &bank->effects[effect_index];
-                raw_effect = effect_latch->effect;
-                if (raw_effect != 0) {
-                    if (raw_effect->hdr.instance ==
-                        effect_latch->effect_instance) {
-                        effect = raw_effect;
-                    } else {
-                        effect = 0;
-                    }
-                } else {
-                    effect = 0;
-                }
+                effect = pfx_live_effect(effect_latch);
 
                 if (effect != 0 && effect->effect_id == effect_id) {
                     return (bank->handle_bank & 0xF) |
@@ -559,6 +569,9 @@ unsigned int fx_by_id(int effect_id, unsigned int owner) {
     }
     return 0;
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 unsigned int fx_by_owner(const char* name, unsigned int owner) {
     return banks_find_owned_fx(name, owner);
@@ -1023,29 +1036,29 @@ void change_on_y_less_than_field(int field, int source) {
 }
 
 void change_on_y_less(int field, float value) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
-    if (environment->behavior != 0 && environment->next_behavior != 0) {
-        pfxvm_change_on_y_less(
-            environment->behavior, field, value, environment->next_behavior);
+    if (behavior != 0 && next_behavior != 0) {
+        pfxvm_change_on_y_less(behavior, field, value, next_behavior);
     }
 }
 
 void change_on_less(int field, float value) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
-    if (environment->behavior != 0 && environment->next_behavior != 0) {
-        pfxvm_change_on_less(
-            environment->behavior, field, value, environment->next_behavior);
+    if (behavior != 0 && next_behavior != 0) {
+        pfxvm_change_on_less(behavior, field, value, next_behavior);
     }
 }
 
 void change_on_greater(int field, float value) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
-    if (environment->behavior != 0 && environment->next_behavior != 0) {
-        pfxvm_change_on_greater(
-            environment->behavior, field, value, environment->next_behavior);
+    if (behavior != 0 && next_behavior != 0) {
+        pfxvm_change_on_greater(behavior, field, value, next_behavior);
     }
 }
 
@@ -1289,32 +1302,42 @@ void update_attract(int field, int target_field, float strength) {
     }
 }
 
-void create_multiemit_parametric_fx(unsigned int* effect, unsigned int id) {
-    unsigned int saved;
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
+                                    char* name, int emitter_count) {
+    char* saved;
 
-    if (effect != 0 && id != 0) {
-        saved = *effect;
-        *effect = id;
+    if (effect != 0 && name != 0) {
+        saved = effect->effect_name;
+        effect->effect_name = name;
         build_parametric_effect_from_table(
-            active_cmdscript->mko, (unsigned int)effect, 0);
-        *effect = saved;
+            active_cmdscript->mko, (unsigned int)effect, emitter_count);
+        effect->effect_name = saved;
     }
 }
 
-void create_parametric_fx(unsigned int* effect, unsigned int id) {
-    unsigned int saved;
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
-    if (effect != 0 && id != 0) {
-        saved = *effect;
-        *effect = id;
-        build_parametric_effect_from_table(
-            active_cmdscript->mko, (unsigned int)effect, 1);
-        *effect = saved;
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
+    char* saved;
+
+    if (effect != 0 && name != 0) {
+        saved = effect->effect_name;
+        effect->effect_name = name;
+        build_parametric_effect_from_table(active_cmdscript->mko, (unsigned int)effect, 1);
+        effect->effect_name = saved;
     }
 }
 
-/* TODO: [breakthrough needed] 77%; retail emitter-count argument restored;
- * remaining wrapper instruction/relocation differences need local evidence. */
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void create_multiemit_step_fx(PfxStepEffectDescription* effect,
                               char* name, int emitter_count) {
     char* saved;
@@ -1327,6 +1350,11 @@ void create_multiemit_step_fx(PfxStepEffectDescription* effect,
     }
 }
 
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void create_step_fx(PfxStepEffectDescription* effect, char* name) {
     char* saved;
 
@@ -1337,6 +1365,9 @@ void create_step_fx(PfxStepEffectDescription* effect, char* name) {
         effect->effect_name = saved;
     }
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 void create_step_effect(const PfxStepEffectDescription* effect) {
     if (effect != 0) {
@@ -1629,7 +1660,9 @@ static void build_step_effect(
     }
 }
 
-/* Soft ceiling: reset_effect ~75.68% - split saves and load scheduling only. */
+/* TODO: [near miss] 91.5614%; zero materialization, flag-load scheduling and constant name remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void reset_effect(const char* name) {
     PfxScriptEffect* effect;
     int emitter_index;
@@ -1639,8 +1672,8 @@ void reset_effect(const char* name) {
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        effect->lifecycle_flags.bits.restart_cycle = 0;
         runtime = (PfxVm*)effect->emitters;
+        effect->lifecycle_flags.bits.restart_cycle = 0;
         for (emitter_index = 0;
              emitter_index < runtime->emitter_count;
              emitter_index++) {
@@ -1667,6 +1700,9 @@ void reset_effect(const char* name) {
         runtime->elapsed_time = 0.0f;
     }
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 /* Soft ceiling: reset_effect_ppfx ~79.30% - split nonvolatile saves only. */
 void reset_effect_ppfx(PfxScriptEffect* effect) {
@@ -1703,6 +1739,9 @@ void reset_effect_ppfx(PfxScriptEffect* effect) {
     runtime->elapsed_time = 0.0f;
 }
 
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+/* TODO: [near miss] 98.21429%; loop-zero materialization and float-constant name remain. */
 void fx_reset(unsigned int handle) {
     PfxResolvedHandle resolved;
     PfxScriptEffect* effect;
@@ -1731,6 +1770,9 @@ void fx_reset(unsigned int handle) {
     runtime->particle_cursor = 0;
     runtime->elapsed_time = 0.0f;
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static inline PfxVmEmitter* emitter_from_handle(unsigned int handle) {
     PfxScriptEffect* effect;
@@ -1802,17 +1844,16 @@ void restart_effect_ppfx(PfxScriptEffect* effect) {
     pfx_emitter_restart_cycle(emitter);
 }
 
+/* TODO: [near miss] 81.91304%; zero lifetime across emitter lookup differs; stop. */
 void resume_effect(const char* name) {
     PfxScriptEffect* effect;
     PfxVmEmitter* emitter;
-    int emitter_index;
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
         effect->lifecycle_flags.bits.restart_cycle = 1;
-        emitter_index = 0;
-        emitter = pfx_get_emitter((PfxVm*)effect->emitters, emitter_index);
-        emitter->flags.bits.cycle_paused = emitter_index;
+        emitter = pfx_get_emitter((PfxVm*)effect->emitters, 0);
+        emitter->flags.bits.cycle_paused = 0;
     }
 }
 
@@ -2331,7 +2372,8 @@ void bind_to_bone(int bone_index) {
     }
 }
 
-/* Soft ceiling: fx_bind_emitter_to_obj_bone ~74.74% - save scheduling only. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void fx_bind_emitter_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
     PfxResolvedHandle resolved;
@@ -2343,6 +2385,9 @@ void fx_bind_emitter_to_obj_bone(
     }
 }
 
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
 void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
     PfxResolvedHandle resolved;
 
@@ -2352,7 +2397,8 @@ void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
     }
 }
 
-/* Soft ceiling: fx_bind_render_to_obj_bone ~74.74% - save scheduling only. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void fx_bind_render_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
     PfxResolvedHandle resolved;
@@ -2364,6 +2410,9 @@ void fx_bind_render_to_obj_bone(
     }
 }
 
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
 void parametric_update(unsigned int effect) {
     if (effect != 0U) {
         build_parametric_effect_from_table(
@@ -2371,32 +2420,29 @@ void parametric_update(unsigned int effect) {
     }
 }
 
-/* Soft ceiling: 48.26% - validated-latch branches differ by four instructions. */
+
+/* TODO: [near miss] 94.65116%; zero materialization and clear-loop register coloring remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void unload_all_effect_banks(void) {
     int index;
-    int remaining;
 
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = banks[index].bank;
-        if (bank != 0 &&
-            bank->hdr.instance != banks[index].bank_instance) {
-            bank = 0;
-        }
+        bank = pfx_live_bank(&banks[index]);
         if (bank != 0) {
             bank_destroy(&bank->hdr);
         }
     }
-    index = 0;
-    remaining = 15;
-    do {
+    for (index = 0; index < 15; index++) {
         banks[index].bank = 0;
         banks[index].bank_instance = 0;
-        index++;
-        remaining--;
-    } while (remaining != 0);
+    }
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 int load_effect_bank(char* name) {
     CmdScript* script;
@@ -2647,12 +2693,8 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     pfx_cleanup_load_script(&load);
 }
 
-/*
- * Soft ceiling: retail m2c confirms the complete parametric build pipeline.
- * Source is 12 bytes smaller because retail preserves redundant stack-slot
- * initialization that clean typed C folds; remaining records are large-frame
- * register allocation, scheduling, bitfield emission, and relocations.
- */
+/* TODO: [breakthrough needed] 45.36053%; builder frame, scheduling and bitfield
+ * lowering remain; typed input changes register allocation and needs separate recovery. */
 static void build_parametric_effect_from_table(
     ScriptSlot* script, unsigned int effect_table, int update) {
     const PfxParametricEffectDescription* description;
@@ -2980,40 +3022,45 @@ static void initialize_effect(PfxScriptVm* effect) {
     }
 }
 
-/* Soft ceiling: pfxscript_initialize -- typed bank-latch reset and proc setup. */
+/* TODO: [near miss] 95.55556%; bank-clear zero reuse and register coloring remain. */
+#pragma optimize_for_size on
 void pfxscript_initialize(void) {
-    int flags;
+    union {
+        int word;
+        struct {
+            unsigned char reserved_high : 2;
+            unsigned char no_destroy : 1;
+            unsigned char reserved_low : 5;
+            unsigned char reserved_bytes[3];
+        } bits;
+    } flags;
     int proc_flags;
     int index;
-    int remaining;
 
-    index = 0;
-    remaining = 15;
-    do {
+    for (index = 0; index < 15; index++) {
         banks[index].bank = 0;
         banks[index].bank_instance = 0;
-        index++;
-        remaining--;
-    } while (remaining != 0);
-    flags = 0;
+    }
+    flags.word = 0;
     cached_handle = 0;
-    ((unsigned char*)&flags)[0] |= MKPROC_FLAG_NO_DESTROY;
-    proc_flags = flags;
+    flags.bits.no_destroy = 1;
+    proc_flags = flags.word;
     create_mkproc(0x2E, get_mkproc_nostack(&proc_flags), 0x7777,
                   p_update_effects, 0);
 }
 
+#pragma optimize_for_size reset
+
+/* TODO: [near miss] 93.93939%; loop-zero initialization and return relocation remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 static float p_update_effects(void) {
     int index;
 
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = banks[index].bank;
-        if (bank != 0 &&
-            bank->hdr.instance != banks[index].bank_instance) {
-            bank = 0;
-        }
+        bank = pfx_live_bank(&banks[index]);
         if (bank != 0) {
             bank_run_fx(bank);
         }
@@ -3021,17 +3068,19 @@ static float p_update_effects(void) {
     return 1.0f;
 }
 
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void fxbanks_unload_by_owner(unsigned int owner_flags) {
     int index;
 
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = banks[index].bank;
-        if (bank != 0 &&
-            bank->hdr.instance != banks[index].bank_instance) {
-            bank = 0;
-        }
+        bank = pfx_live_bank(&banks[index]);
         if (bank != 0 && (bank->owner_flags & owner_flags) != 0) {
             if (bank->hdr.instance != 0U) {
                 PfxBankVtablePrefix* vtbl;
@@ -3044,6 +3093,9 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
         }
     }
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static inline void bank_destroy(MkHdr* bank) {
     PfxBankVtablePrefix* vtbl;
@@ -3173,31 +3225,40 @@ static unsigned int banks_find_owned_fx(
     return 0;
 }
 
-/* Soft ceiling: 71.43% - exact size and algorithm; register allocation only. */
+
+static inline PfxScriptEffect* pfx_checked_effect_type(PfxScriptEffect* effect) {
+    if (effect != 0) {
+        if (effect->hdr.vtbl == &vtbl_pfx) {
+            return effect;
+        }
+        effect = 0;
+    }
+    return effect;
+}
+
+/* TODO: [breakthrough needed] 89.31035%; validator joins and loop-zero lifetimes remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 static void vdestroy_effectbank(PfxBank* bank) {
     PfxEffectLatch* effect_latch;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
     int effect_index;
 
     for (effect_index = 0; effect_index < bank->effect_count; effect_index++) {
         bank->effect_owners[effect_index] = 0;
         effect_latch = &bank->effects[effect_index];
-        raw_effect = effect_latch->effect;
-        if (raw_effect != 0 &&
-            raw_effect->hdr.instance == effect_latch->effect_instance) {
-            effect = raw_effect;
-        } else {
-            effect = 0;
-        }
-        if (effect != 0 && effect->hdr.vtbl == &vtbl_pfx &&
-            effect->hdr.instance != 0) {
+        effect = pfx_live_effect(effect_latch);
+        effect = pfx_checked_effect_type(effect);
+        if (effect != 0 && effect->hdr.instance != 0) {
             effect->hdr.typed_vtbl->destroy(&effect->hdr);
         }
     }
     bank->hdr.instance = 0;
     mkhdr_memfree(&bank->hdr);
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static void resolve_pfx_handle(
     unsigned int handle, PfxResolvedHandle* resolved) {

@@ -2376,10 +2376,11 @@ static inline int ppl_fill_matching_names(
 }
 
 /* Screen multi-profile list: fills out[] with name string pointers; returns count. */
+/* TODO: [near miss] 99.03846%; shared pdata preserves retail layout; remaining register coloring. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
     MkProc* proc;
-    PplListPdata* list;
+    ProfileCodePdata* list;
     const unsigned char* code;
     int count;
 
@@ -2389,7 +2390,7 @@ int ppl_get_multi_profile_names_p2(char** out) {
     }
     proc = find_mkproc_pid(PPL_LIST_PID_P2);
     if (proc != 0) {
-        list = (PplListPdata*)pdata_of_proc(proc);
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
         if (list != 0) {
             code = list->code;
             count = ppl_fill_matching_names(code, out);
@@ -2398,10 +2399,11 @@ int ppl_get_multi_profile_names_p2(char** out) {
     return count;
 }
 
+/* TODO: [near miss] 99.03846%; shared pdata preserves retail layout; remaining register coloring. */
 int ppl_get_multi_profile_names_p1(char** out) {
     int i;
     MkProc* proc;
-    PplListPdata* list;
+    ProfileCodePdata* list;
     const unsigned char* code;
     int count;
 
@@ -2411,7 +2413,7 @@ int ppl_get_multi_profile_names_p1(char** out) {
     }
     proc = find_mkproc_pid(PPL_LIST_PID_P1);
     if (proc != 0) {
-        list = (PplListPdata*)pdata_of_proc(proc);
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
         if (list != 0) {
             code = list->code;
             count = ppl_fill_matching_names(code, out);
@@ -2427,7 +2429,7 @@ static void ppl_get_multi_profile_icons(
 void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count) {
     int i;
     MkProc* proc;
-    PplListPdata* list;
+    ProfileCodePdata* list;
     GVTexturePair copy;
 
     i = 0;
@@ -2436,7 +2438,7 @@ void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count) {
     }
     proc = find_mkproc_pid(PPL_LIST_PID_P2);
     if (proc != 0) {
-        list = (PplListPdata*)pdata_of_proc(proc);
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
         if (list != 0) {
             copy = out;
             ppl_get_multi_profile_icons(list->code, &copy, count);
@@ -2447,7 +2449,7 @@ void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count) {
 void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
     int i;
     MkProc* proc;
-    PplListPdata* list;
+    ProfileCodePdata* list;
     GVTexturePair copy;
 
     i = 0;
@@ -2456,7 +2458,7 @@ void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
     }
     proc = find_mkproc_pid(PPL_LIST_PID_P1);
     if (proc != 0) {
-        list = (PplListPdata*)pdata_of_proc(proc);
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
         if (list != 0) {
             copy = out;
             ppl_get_multi_profile_icons(list->code, &copy, count);
@@ -2488,10 +2490,10 @@ static void ppl_get_multi_profile_icons(
     }
 }
 
+/* TODO: [near miss] 98.92857%; shared pdata preserves retail layout; remaining register coloring. */
 int ppl_get_multi_profile_count(int player) {
-    /* Soft ceiling: exact size/operations; remaining differences are GPR coloring. */
     MkProc* proc;
-    PplListPdata* list;
+    ProfileCodePdata* list;
     const unsigned char* code;
     int count;
 
@@ -2502,7 +2504,7 @@ int ppl_get_multi_profile_count(int player) {
         proc = find_mkproc_pid(PPL_LIST_PID_P2);
     }
     if (proc != 0) {
-        list = (PplListPdata*)pdata_of_proc(proc);
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
         if (list != 0) {
             code = list->code;
             count = ppl_count_matching_profiles(code);

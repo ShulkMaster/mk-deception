@@ -1348,6 +1348,7 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     }
 }
 
+/* TODO: [near miss] 97.5%; flag-guard exit polarity remains; early-return control neutral. */
 void trial_register_special_move(unsigned int move) {
     KonquestMissionState* state = get_mission_state();
 
@@ -1362,6 +1363,7 @@ void trial_register_special_move(unsigned int move) {
     }
 }
 
+/* TODO: [near miss] 97.5%; flag-guard exit polarity remains; early-return control neutral. */
 void trial_register_script_function(unsigned int function) {
     KonquestMissionState* state = get_mission_state();
 
@@ -1658,12 +1660,8 @@ float p_show_text_window(void) {
     return -1.0f;
 }
 
-/*
- * Near match at exact retail size: argument packing, save-data stores, fade,
- * and game-logic jump agree. The remaining island is an equivalent rlwimi
- * choice: retail shifts the new background root and inserts the preserved low
- * half, while MWCC selects the old word and inserts the new high half.
- */
+/* TODO: [near miss] 85.51724%; background packing uses inverse rlwimi;
+ * store-order control neutral; staged packing regressed and was reverted. */
 void trial_set_next_mission(
     int mission, int pair_a_low, int pair_a_high,
     int pair_b_low, int pair_b_high, int value_a, int value_b,
@@ -1673,9 +1671,9 @@ void trial_set_next_mission(
     pair_b_low |= (unsigned int)pair_b_high << 16;
 
     konquest_save_data.next_mission = mission;
-    konquest_save_data.mission_pair_b = pair_b_low;
     konquest_save_data.mission_pair_a =
         (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
+    konquest_save_data.mission_pair_b = pair_b_low;
     konquest_save_data.next_value_a = value_a;
     konquest_save_data.next_value_b = value_b;
     konquest_save_data.background_and_flags =
@@ -2966,45 +2964,50 @@ static void increment_required_moves_progress(
     }
 }
 
+/* TODO: [breakthrough needed] 90.378784%; entry guard fixed;
+ * retained condition-array/index boundary remains unresolved. */
 void trial_increment_state_value(
     int player, int state_index, int opponent_event) {
     KonquestMissionState* state = get_mission_state();
     KonquestSuccessCondition* conditions;
 
     mission_state = state;
-    if (state == 0 || mode_of_play != 8) {
-        return;
-    }
-    if (!g_game_info.flag_bits.lens_flare_enabled) {
-        return;
-    }
-    if (opponent_event == 0 &&
-        player != state->fight->animation_side) {
-        return;
-    }
-    if (opponent_event == 1 &&
-        player == state->fight->animation_side) {
-        return;
-    }
-    if (state->trial_type != 0) {
-        return;
-    }
+    if (state != 0 && mode_of_play == 8) {
+        if (!g_game_info.flag_bits.lens_flare_enabled) {
+            return;
+        }
+        if (opponent_event == 0 &&
+            player != state->fight->animation_side) {
+            return;
+        }
+        if (opponent_event == 1 &&
+            player == state->fight->animation_side) {
+            return;
+        }
+        if (state->trial_type != 0) {
+            return;
+        }
 
-    conditions = state->success_conditions;
-    if (conditions[state_index].required_count <= 0) {
-        return;
-    }
-    if (conditions[state_index].current_count >=
-        conditions[state_index].required_count) {
-        return;
-    }
-    if (register_condition(&conditions[state_index].condition)) {
-        increment_progress_count(1);
-        conditions[state_index].current_count++;
+        conditions = state->success_conditions;
+        if (conditions[state_index].required_count <= 0) {
+            return;
+        }
+        if (conditions[state_index].current_count >=
+            conditions[state_index].required_count) {
+            return;
+        }
+        if (register_condition(&conditions[state_index].condition)) {
+            increment_progress_count(1);
+            conditions[state_index].current_count++;
+        }
     }
 }
 
+
+
 #pragma dont_inline on
+/* TODO: [breakthrough needed] 96.370964%; validation join remains;
+ * inlining barrier preserves counter call but blocks canonical helper. */
 float p_konquest_register_bleeding(void) {
     KonquestMissionState* state = mission_state_item.state;
 
@@ -4278,11 +4281,6 @@ static void ps_konquest_trial_monk(void) {
     current_anim_pdata = 0;
 }
 
-/*
- * Near match at retail size: mission/process generation validation and the
- * animation-pdata publication match. Residue is one folded valid-latch join,
- * r3/r4 coloring, and scheduling the aproc load before the final call.
- */
 static void pw_konquest_trial_monk(void) {
     KonquestMissionState* state = get_mission_state();
     MkProc* process;
@@ -4291,16 +4289,9 @@ static void pw_konquest_trial_monk(void) {
     if (state == 0) {
         return;
     }
-    process = state->monk_process;
+    process = mission_validate_monk_process(state->monk_process, state);
     if (process != 0) {
-        if (process->instance != state->monk_process_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
-    if (process != 0) {
-        current_anim_pdata = (AnimPdata*)pdata_of_proc(aproc);
+        current_anim_pdata = (AnimPdata*)pdata_of_proc(process);
     }
 }
 

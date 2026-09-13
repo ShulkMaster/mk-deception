@@ -323,14 +323,12 @@ void ck_for_controller_removed(void) {
 }
 
 void dispatch_right_sticks(int port) {
-    GcPadSlot* pad;
     float x;
     float y;
 
-    pad = &g_game_info.pads[port];
-    if (pad->flag_bits.connected &&
+    if (g_game_info.pads[port].flag_bits.connected &&
         get_stick_pos(port, 1, &x, &y) != 0 && y > 0.0f) {
-        pad->buttons |= pad->switch_map[0].mask;
+        g_game_info.pads[port].buttons |= g_game_info.pads[port].switch_map[0].mask;
     }
 }
 
@@ -744,35 +742,29 @@ void init_temp_switch_map(int player, int use_profile) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
+/* TODO: [near miss] 86.34146%; indexed copies agree; stop at table-address scheduling/coloring. */
 void init_player_switch_maps(void) {
-    SwitchMapEntry* src;
     SwitchMapEntry* dest;
+    SwitchMapEntry* src;
     int i;
 
     p1_use_temp_switch_map = 0;
-    src = default_switch_map;
     dest = p1_temp_switch_map;
+    src = default_switch_map;
     for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest->mask = src->mask;
-        dest->proc_fn = src->proc_fn;
-        dest->label = src->label;
-        src++;
-        dest++;
+        dest[i] = src[i];
     }
 
     p2_use_temp_switch_map = 0;
-    src = default_switch_map;
     dest = p2_temp_switch_map;
+    src = default_switch_map;
     for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest->mask = src->mask;
-        dest->proc_fn = src->proc_fn;
-        dest->label = src->label;
-        src++;
-        dest++;
+        dest[i] = src[i];
     }
     p1_rumble_on = 0;
     p2_rumble_on = 0;
 }
+
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
@@ -899,19 +891,17 @@ int is_plyr_controller_enabled(PlyrInfo* player) {
 }
 
 void init_port_info_struct(void) {
-    GcPadSlot* slots;
     unsigned int i;
 
-    slots = g_game_info.pads;
     for (i = 0; i < 4; i++) {
-        slots[i].flags = 0;
-        ((GcPadFlags*)&slots[i].flags)->stick_dispatch = 1;
-        slots[i].switch_map = default_switch_map;
-        slots[i].player = 0;
-        slots[i].prev_buttons = 0;
-        slots[i].buttons = 0;
-        slots[i].edge = 0;
-        slots[i].stick_pack = 0;
+        g_game_info.pads[i].flags_word = 0;
+        g_game_info.pads[i].flag_bits.stick_dispatch = 1;
+        g_game_info.pads[i].switch_map = default_switch_map;
+        g_game_info.pads[i].player = 0;
+        g_game_info.pads[i].prev_buttons = 0;
+        g_game_info.pads[i].buttons = 0;
+        g_game_info.pads[i].edge = 0;
+        g_game_info.pads[i].stick_pack = 0;
     }
 }
 #pragma ppc_unroll_instructions_limit 40
