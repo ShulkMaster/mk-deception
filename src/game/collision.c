@@ -2211,6 +2211,8 @@ static int repel_cylinder_and_box(
     return result;
 }
 
+/* TODO: [breakthrough] 87.268135%; retail normal and movement-test signs
+ * corrected; remaining FP scheduling and stack layout need refinement. */
 static int repel_cylinder_and_quad(
     CollisionShape* cylinder, const CollisionShape* quad,
     CollisionRepelInfo* info, int side_test) {
@@ -2263,7 +2265,7 @@ static int repel_cylinder_and_quad(
         normal.y * (cylinder->cylinder_center.y - movement->y) +
         normal.z * (cylinder->cylinder_center.z - movement->z);
     if (plane_distance >= moved_plane + cylinder->cylinder_radius &&
-        normal.x * movement->x + normal.z * movement->z <= 0.0f) {
+        normal.x * movement->x + normal.z * movement->z >= 0.0f) {
         return 0;
     }
 
@@ -2306,9 +2308,9 @@ static int repel_cylinder_and_quad(
         return 0;
     }
 
-    direction.x = normal.x * -1.0f;
-    direction.y = normal.y * -1.0f;
-    direction.z = normal.z * -1.0f;
+    direction.x = normal.x * 1.0f;
+    direction.y = normal.y * 1.0f;
+    direction.z = normal.z * 1.0f;
     direction.y = 0.0f;
     normalize_xz(&direction);
     if (projection <= tangent_max && projection >= tangent_min) {

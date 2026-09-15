@@ -238,21 +238,7 @@ typedef struct MovesWeaponGrabEntry {
     float weighting;
 } MovesWeaponGrabEntry;
 
-typedef struct MovesActionRef {
-    int source;
-    unsigned int action;
-} MovesActionRef;
-
-typedef struct MovesAttackActionTable {
-    char pad00[0xF0];
-    MovesActionRef attack_1[3];
-    char pad108[0x10];
-    MovesActionRef attack_2[3];
-    char pad130[0x10];
-    MovesActionRef attack_3[3];
-    char pad158[0x10];
-    MovesActionRef attack_4[3];
-} MovesAttackActionTable;
+typedef AiFightstyleAttack MovesActionRef;
 
 unsigned int scan_freak_4[1] = {(unsigned int)-1};
 MovesActionRef temp_throw_switch = {4, 0x8F};
@@ -1991,47 +1977,42 @@ static AniData* fetch_grab_anim_ptr(unsigned int grab_type) {
 }
 
 static inline void moves_dispatch_attack(MovesActionRef* action) {
-    union {
-        unsigned int value;
-        MkProcEntryFn entry;
-    } target;
     ScriptSlot* script;
 
     plyr_going_to_attack_with(action);
-    switch (action->source) {
+    switch (action->opcode) {
     case 0:
         script = plyr_pdata->fighter_definition->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
+        cmdscript_setup_execution(script, action->argument);
         call_player_script_function(script);
         break;
     case 1:
-        target.value = action->action;
-        moves_jump(target.entry);
+        moves_jump(action->entry);
         break;
     case 2:
         script = plyr_pdata->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
+        cmdscript_setup_execution(script, action->argument);
         call_player_script_function(script);
         break;
     case 3:
         script = his_pdata->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
+        cmdscript_setup_execution(script, action->argument);
         call_player_script_function(script);
         break;
     case 4:
         cmdscript_reset_stack();
         cmdscript_setup_execution(
-            reactions_cmo, action->action);
+            reactions_cmo, action->argument);
         call_player_script_function(reactions_cmo);
         break;
     }
 }
 
 /* The two tagged dispatches belong to their respective attack branches. */
-/* TODO: [breakthrough needed] 82.82%; tagged dispatch expansion, log ownership and frame layout remain. */
+/* TODO: [breakthrough needed] 85.118060%; canonical tagged action fixed; log ownership and frame layout remain. */
 float x_attack_5(void) {
     MovesSwitchLogEntry* entry;
     unsigned int throw_script;
@@ -2063,12 +2044,12 @@ float x_attack_5(void) {
     pre_attack_chores();
     throw_script = plyr_pdata->status_data->throw_script;
     if (throw_script == 0) {
-        temp_throw_switch.source = 4;
-        temp_throw_switch.action = 0x8F;
+        temp_throw_switch.opcode = 4;
+        temp_throw_switch.argument = 0x8F;
         moves_dispatch_attack(&temp_throw_switch);
     } else {
-        temp_throw_switch.source = 2;
-        temp_throw_switch.action = throw_script;
+        temp_throw_switch.opcode = 2;
+        temp_throw_switch.argument = throw_script;
         moves_dispatch_attack(&temp_throw_switch);
     }
     set_my_state(0);
@@ -2077,19 +2058,19 @@ float x_attack_5(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 78.89%; tagged dispatch expansion and frame layout remain. */
+/* TODO: [breakthrough needed] 81.026430%; canonical tagged action fixed; dispatch scheduling and frame layout remain. */
 static float x_attack_5_remote(void) {
     unsigned int throw_script;
 
     pre_attack_chores();
     throw_script = plyr_pdata->status_data->throw_script;
     if (throw_script == 0) {
-        temp_throw_switch.source = 4;
-        temp_throw_switch.action = 0x8F;
+        temp_throw_switch.opcode = 4;
+        temp_throw_switch.argument = 0x8F;
         moves_dispatch_attack(&temp_throw_switch);
     } else if (is_big_boss(plyr_pdata) == 0) {
-        temp_throw_switch.source = 2;
-        temp_throw_switch.action = throw_script;
+        temp_throw_switch.opcode = 2;
+        temp_throw_switch.argument = throw_script;
         moves_dispatch_attack(&temp_throw_switch);
     }
     set_my_state(0);
@@ -2099,9 +2080,9 @@ static float x_attack_5_remote(void) {
 }
 
 /* Scan the character-specific action sequence through the typed jump-table base. */
-/* TODO: [breakthrough needed] 88.30%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [breakthrough needed] 88.343025%; canonical attack table fixed; switch-log ownership and dispatch scheduling remain. */
 float x_attack_4(void) {
-    MovesAttackActionTable* actions;
+    AiFightstyleAttackTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences;
@@ -2132,7 +2113,7 @@ float x_attack_4(void) {
     }
 
     actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+        (AiFightstyleAttackTable*)plyr_pdata->fighter_definition->move_blend_data;
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2224,7 +2205,7 @@ float x_attack_4(void) {
     }
 
     pre_attack_chores();
-    action = &actions->attack_4[joy_state];
+    action = &actions->attacks[15 + joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
@@ -2233,9 +2214,9 @@ float x_attack_4(void) {
 }
 
 /* Keep the guarded character dispatches and their direct action-sequence scans. */
-/* TODO: [breakthrough needed] 90.36%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [breakthrough needed] 90.410490%; canonical attack table fixed; switch-log ownership and dispatch scheduling remain. */
 float x_attack_3(void) {
-    MovesAttackActionTable* actions;
+    AiFightstyleAttackTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
@@ -2266,7 +2247,7 @@ float x_attack_3(void) {
     }
 
     actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+        (AiFightstyleAttackTable*)plyr_pdata->fighter_definition->move_blend_data;
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2361,7 +2342,7 @@ float x_attack_3(void) {
     }
 
     pre_attack_chores();
-    action = &actions->attack_3[joy_state];
+    action = &actions->attacks[10 + joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
@@ -2369,9 +2350,9 @@ float x_attack_3(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 90.24%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [breakthrough needed] 90.300970%; canonical attack table fixed; switch-log ownership and dispatch scheduling remain. */
 float x_attack_2(void) {
-    MovesAttackActionTable* actions;
+    AiFightstyleAttackTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
@@ -2397,7 +2378,7 @@ float x_attack_2(void) {
     }
 
     actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+        (AiFightstyleAttackTable*)plyr_pdata->fighter_definition->move_blend_data;
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2495,7 +2476,7 @@ float x_attack_2(void) {
     }
 
     pre_attack_chores();
-    action = &actions->attack_2[joy_state];
+    action = &actions->attacks[5 + joy_state];
     if (joy_state == 2) {
         set_my_state(0x1200);
     }
@@ -2503,9 +2484,9 @@ float x_attack_2(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 90.44%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [breakthrough needed] 91.035230%; canonical attack table fixed; switch-log ownership and dispatch scheduling remain. */
 float x_attack_1(void) {
-    MovesAttackActionTable* actions;
+    AiFightstyleAttackTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
@@ -2531,7 +2512,7 @@ float x_attack_1(void) {
     }
 
     actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+        (AiFightstyleAttackTable*)plyr_pdata->fighter_definition->move_blend_data;
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2658,7 +2639,7 @@ float x_attack_1(void) {
     }
 
     pre_attack_chores();
-    action = &actions->attack_1[joy_state];
+    action = &actions->attacks[joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
@@ -6332,7 +6313,7 @@ float x_block(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 90.08%; timer/local ownership and loop frame layout remain. */
+/* TODO: [breakthrough] 89.871796%; human guard backedge restored; timer/local ownership and frame layout remain. */
 void j_duck_block_loop(void) {
     PlyrPdata* block;
     PlyrPdata* opponent_block;
@@ -6387,11 +6368,10 @@ void j_duck_block_loop(void) {
                 return;
             }
             requirement = his_pdata->block_requirement;
-            if (requirement != 0 && requirement != 7) {
-                continue;
+            if (requirement == 0 || requirement == 7) {
+                break;
             }
         }
-        break;
     }
 
     if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&

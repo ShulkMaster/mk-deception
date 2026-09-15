@@ -243,7 +243,7 @@ extern int snd_req_delay(int sound_id, int ticks);
 extern void init_pwr_bars(void);
 extern void turn_switch_log_on(void);
 extern void trial_game_init(void);
-extern void show_fighting_style(int style, int player);
+extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void bleed_startup(void);
 extern void create_wall_monitor(void);
 extern void reset_camera_paths(void);
@@ -2038,8 +2038,8 @@ void game_init(void) {
         break;
     }
 
-    show_fighting_style((int)g_game_info.plyr0.slot.pdata->weapon_styles[0], 0);
-    show_fighting_style((int)g_game_info.plyr1.slot.pdata->weapon_styles[0], 1);
+    show_fighting_style(g_game_info.plyr0.slot.pdata->weapon_styles[0], 0);
+    show_fighting_style(g_game_info.plyr1.slot.pdata->weapon_styles[0], 1);
     bleed_startup();
     create_wall_monitor();
 
