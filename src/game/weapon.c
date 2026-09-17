@@ -26,14 +26,6 @@ typedef struct WeaponCollisionDef {
     Vec offset;
 } WeaponCollisionDef;
 
-typedef struct WeaponCollisionInfo {
-    char pad00[0x4C];
-    WeaponCollisionDef collision;
-} WeaponCollisionInfo;
-
-#define WEAPON_COLLISION_INFO(object) \
-    ((WeaponCollisionInfo*)(object)->field_5C)
-
 #define RESOLVE_WEAPON_LATCH(result, latch)                               \
     do {                                                                  \
         MkObj* raw_object_;                                               \
@@ -57,7 +49,7 @@ extern WeaponDefinition goro_gauntlets_weapon_desc_ll;
 static int plyr_obj_item_grab(PlyrPdata* player, PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
                        int bone_index, const Vec* position,
-                       const Vec* rotation, const Vec* scale,
+                       const Vec* child_offset, const Vec* rotation,
                        int insert_at_head);
 static MkObj* plyr_obj_item_release(PlyrPdata* player,
                              PlyrMirrorObjLatch* item_latch,
@@ -290,7 +282,7 @@ void unimpale_victim(PlyrPdata* victim) {
                 attacker, &slots->weapon[0].primary,
                 &slots->weapon[0].secondary, item,
                 attach->attachment_bone, &attach->attachment_position,
-                &attach->attachment_rotation, &attach->attachment_scale, 1);
+                &attach->attachment_child_offset, &attach->attachment_rotation, 1);
         }
     }
 
@@ -309,16 +301,13 @@ void unimpale_victim(PlyrPdata* victim) {
                     attacker, &slots->weapon[1].primary,
                     &slots->weapon[1].secondary, item,
                     attach->attachment_bone, &attach->attachment_position,
-                    &attach->attachment_rotation, &attach->attachment_scale, 1);
+                    &attach->attachment_child_offset, &attach->attachment_rotation, 1);
             }
         }
     }
 }
 
-/*
- * Soft ceiling: player_impale ~95.26% - the remaining differences are
- * nonvolatile-register allocation and redundant latch-copy moves.
- */
+/* TODO: [near miss] 95.32164%; retail impale flow agrees; owner/weapon GPR coloring and latch result moves remain; stop at compiler limit */
 void player_impale(MkObj* weapon, MkObj* second_weapon) {
     WeaponDefinition* definition;
     WeaponImpaleData* impale;
@@ -356,7 +345,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                     victim, &victim->impaled_item_a,
                     &victim->impaled_item_a_secondary, weapon,
                     impale->bone_index, &impale->position,
-                    &impale->rotation, &impale->scale, 0) != 0) {
+                    &impale->child_offset, &impale->rotation, 0) != 0) {
                 RESOLVE_WEAPON_LATCH(
                     secondary, &victim->impaled_item_a_secondary);
                 attachment = (ImpaleSecondaryObject*)secondary;
@@ -388,7 +377,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                         victim, &victim->impaled_item_a,
                         &victim->impaled_item_a_secondary, second_weapon,
                         impale->bone_index, &impale->position,
-                        &impale->rotation, &impale->scale, 0) != 0) {
+                        &impale->child_offset, &impale->rotation, 0) != 0) {
                     RESOLVE_WEAPON_LATCH(
                         secondary, &victim->impaled_item_a_secondary);
                     attachment = (ImpaleSecondaryObject*)secondary;
@@ -416,14 +405,12 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
 }
 
 void get_weapon_collision_def(MkObj* object, WeaponCollisionDef* collision) {
-    collision->radius =
-        WEAPON_COLLISION_INFO(object)->collision.radius;
-    collision->offset.x =
-        WEAPON_COLLISION_INFO(object)->collision.offset.x;
-    collision->offset.y =
-        WEAPON_COLLISION_INFO(object)->collision.offset.y;
-    collision->offset.z =
-        WEAPON_COLLISION_INFO(object)->collision.offset.z;
+    /* Retail 800B9900 reads radius and XYZ at +4C/+50/+54/+58.
+     * Use the canonical owner: pointer fields precede this scalar span. */
+    collision->radius = ((const WeaponDefinition*)object->field_5C)->field_4c.x;
+    collision->offset.x = ((const WeaponDefinition*)object->field_5C)->field_4c.y;
+    collision->offset.y = ((const WeaponDefinition*)object->field_5C)->field_4c.z;
+    collision->offset.z = ((const WeaponDefinition*)object->field_5C)->field_58;
 }
 
 #define SHOW_WEAPON_TRAIL(latch)                                          \
@@ -556,7 +543,7 @@ void plyr_aux_weapon_grab(PlyrPdata* player, MkObj* item) {
     attach = item->item_attach_data;
     plyr_obj_item_grab(player, &player->aux_weapon_latch, 0, item,
                        attach->attachment_bone, &attach->attachment_position,
-                       &attach->attachment_rotation, &attach->attachment_scale, 0);
+                       &attach->attachment_child_offset, &attach->attachment_rotation, 0);
 }
 
 MkObj* plyr_weapon2_release(PlyrPdata* player) {
@@ -600,7 +587,7 @@ void plyr_weapon4_grab(PlyrPdata* player, MkObj* item) {
         plyr_obj_item_grab(player, &slots->weapon[3].primary,
                            &slots->weapon[3].secondary, item_arg,
                            attach->attachment_bone, &attach->attachment_position,
-                           &attach->attachment_rotation, &attach->attachment_scale, 1);
+                           &attach->attachment_child_offset, &attach->attachment_rotation, 1);
     }
 }
 
@@ -623,7 +610,7 @@ void plyr_weapon3_grab(PlyrPdata* player, MkObj* item) {
         plyr_obj_item_grab(player, &slots->weapon[2].primary,
                            &slots->weapon[2].secondary, item_arg,
                            attach->attachment_bone, &attach->attachment_position,
-                           &attach->attachment_rotation, &attach->attachment_scale, 1);
+                           &attach->attachment_child_offset, &attach->attachment_rotation, 1);
     }
 }
 
@@ -646,7 +633,7 @@ void plyr_weapon2_grab(PlyrPdata* player, MkObj* item) {
         plyr_obj_item_grab(player, &slots->weapon[1].primary,
                            &slots->weapon[1].secondary, item_arg,
                            attach->attachment_bone, &attach->attachment_position,
-                           &attach->attachment_rotation, &attach->attachment_scale, 1);
+                           &attach->attachment_child_offset, &attach->attachment_rotation, 1);
     }
 }
 
@@ -661,7 +648,7 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
     attach = item->item_attach_data;
     plyr_obj_item_grab(player, &slot->primary, &slot->secondary, item,
                        attach->attachment_bone, &attach->attachment_position,
-                       &attach->attachment_rotation, &attach->attachment_scale, 1);
+                       &attach->attachment_child_offset, &attach->attachment_rotation, 1);
 }
 
 
@@ -682,12 +669,12 @@ static inline WeaponBoneMatcherState* plyr_mirror_obj_latch_live_obj(PlyrMirrorO
 
 
 
-/* TODO: [breakthrough needed] 94.497330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 94.55080%; retail attachment control flow agrees; latch result moves and repeated-vector-load elimination remain; no forced volatile reads */
 static int plyr_obj_item_grab(PlyrPdata* player,
                        PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
                        int bone_index, const Vec* position,
-                       const Vec* rotation, const Vec* scale,
+                       const Vec* child_offset, const Vec* rotation,
                        int insert_at_head) {
     MkObj* player_object;
     MkObj* current_item;
@@ -745,15 +732,15 @@ static int plyr_obj_item_grab(PlyrPdata* player,
         matcher->parent_offset.x = position->x;
         matcher->parent_offset.y = position->y;
         matcher->parent_offset.z = position->z;
-        matcher->child_offset.x = scale->x;
-        matcher->child_offset.y = scale->y;
-        matcher->child_offset.z = scale->z;
-        matcher->parent_translation.x = scale->x;
-        matcher->parent_translation.y = scale->y;
-        matcher->parent_translation.z = scale->z;
-        matcher->mirrored_parent_translation.x = scale->x;
-        matcher->mirrored_parent_translation.y = scale->y;
-        matcher->mirrored_parent_translation.z = scale->z;
+        matcher->child_offset.x = child_offset->x;
+        matcher->child_offset.y = child_offset->y;
+        matcher->child_offset.z = child_offset->z;
+        matcher->parent_translation.x = child_offset->x;
+        matcher->parent_translation.y = child_offset->y;
+        matcher->parent_translation.z = child_offset->z;
+        matcher->mirrored_parent_translation.x = child_offset->x;
+        matcher->mirrored_parent_translation.y = child_offset->y;
+        matcher->mirrored_parent_translation.z = child_offset->z;
         matcher->mirrored_parent_translation.x *= -1.0f;
         if (insert_at_head) {
             matcher->flags_08.bits.inactive = 0;

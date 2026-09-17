@@ -73,80 +73,76 @@ typedef struct ReactionDispatchContext {
     int saved_state;
 } ReactionDispatchContext;
 
-typedef struct ReactionFighterDefinitionView {
-    char pad00[0x158];
-    int judo_throw_reaction;
-} ReactionFighterDefinitionView;
-
 typedef struct ReactionSharedAnimations {
-    void* jax_piston_high;       /* +0x000 */
-    int chest_stumble;           /* +0x004 */
-    char pad008[0x54];
-    void* jax_piston_low;        /* +0x05C */
-    char pad060[0x2C];
-    void* gut_on_butt;           /* +0x08C */
-    char pad090[4];
-    void* gut_on_feet;           /* +0x094 */
-    char pad098[0x34];
-    void* enough_air;            /* +0x0CC */
-    char pad0D0[0x2C];
-    void* cyrus_stomp;           /* +0x0FC */
-    char pad100[0x30];
-    void* feet_hit;              /* +0x130 */
-    char pad134[8];
-    int swept_in;                /* +0x13C */
-    int swept_reverse;           /* +0x140 */
-    int swept_out;               /* +0x144 */
-    char pad148[0x0C];
+    AniData* jax_piston_high;       /* +0x000 */
+    AniData* chest_stumble;           /* +0x004 */
+    AniData* pad008[21];
+    AniData* jax_piston_low;        /* +0x05C */
+    AniData* pad060[11];
+    AniData* gut_on_butt;           /* +0x08C */
+    AniData* pad090[1];
+    AniData* gut_on_feet;           /* +0x094 */
+    AniData* pad098[13];
+    AniData* enough_air;            /* +0x0CC */
+    AniData* pad0D0[11];
+    AniData* cyrus_stomp;           /* +0x0FC */
+    AniData* pad100[12];
+    AniData* feet_hit;              /* +0x130 */
+    AniData* pad134[2];
+    AniData* swept_in;                /* +0x13C */
+    AniData* swept_reverse;           /* +0x140 */
+    AniData* swept_out;               /* +0x144 */
+    AniData* pad148[3];
     union {
-        void* falling_back;
-        int falling_back_id;
+        AniData* falling_back;
+        AniData* falling_back_id;
     };                           /* +0x154 */
-    void* side_head_spin;        /* +0x158 */
-    char pad15C[0x0C];
-    void* side_head_dive;        /* +0x168 */
-    void* airborn_small_lift;    /* +0x16C */
-    char pad170[8];
-    void* top_of_head_slam;      /* +0x178 */
-    void* head_slam_fall;        /* +0x17C */
-    char pad180[0x24];
-    void* wall_hit;              /* +0x1A4 */
-    char pad1A8[0x0C];
-    void* jump_chin;             /* +0x1B4 */
-    void* jump_slambounce;       /* +0x1B8 */
-    char pad1BC[8];
-    void* ermac_slam;            /* +0x1C4 */
-    char pad1C8[8];
-    void* cyrax_blade;           /* +0x1D0 */
-    void* combo_broken_launch;   /* +0x1D4 */
-    char pad1D8[0x10];
-    void* combo_broken_recover;  /* +0x1E8 */
-    char pad1EC[0x2C];
-    int post_surf_getup;         /* +0x218 */
-    char pad21C[0x0C];
+    AniData* side_head_spin;        /* +0x158 */
+    AniData* pad15C[3];
+    AniData* side_head_dive;        /* +0x168 */
+    AniData* airborn_small_lift;    /* +0x16C */
+    AniData* pad170[2];
+    AniData* top_of_head_slam;      /* +0x178 */
+    AniData* head_slam_fall;        /* +0x17C */
+    AniData* pad180[9];
+    AniData* wall_hit;              /* +0x1A4 */
+    AniData* pad1A8[3];
+    AniData* jump_chin;             /* +0x1B4 */
+    AniData* jump_slambounce;       /* +0x1B8 */
+    AniData* pad1BC[2];
+    AniData* ermac_slam;            /* +0x1C4 */
+    AniData* pad1C8[2];
+    AniData* cyrax_blade;           /* +0x1D0 */
+    AniData* combo_broken_launch;   /* +0x1D4 */
+    AniData* pad1D8[4];
+    AniData* combo_broken_recover;  /* +0x1E8 */
+    AniData* pad1EC[11];
+    AniData* post_surf_getup;         /* +0x218 */
+    AniData* pad21C[3];
     AniData* throw_getup;        /* +0x228 */
-    char pad22C[0x60];
-    void* throw_fall;            /* +0x28C */
-    char pad290[0x1C];
-    void* standing_block_a;      /* +0x2AC */
-    char pad2B0[8];
-    void* standing_block_b;      /* +0x2B8 */
-    char pad2BC[0x0C];
-    void* standing_block_c;      /* +0x2C8 */
-    char pad2CC[8];
-    void* standing_block_d;      /* +0x2D4 */
-    char pad2D8[0x0C];
-    void* duck_block;            /* +0x2E4 */
-    void* standing_weapon_block; /* +0x2E8 */
-    char pad2EC[4];
-    void* counter_caught;        /* +0x2F0 */
-    char pad2F4[0x1C];
-    void* counter_caught_6;      /* +0x310 */
-    void* counter_caught_7;      /* +0x314 */
-    void* counter_caught_8;      /* +0x318 */
-    void* counter_caught_9;      /* +0x31C */
-    int combo_breaker;           /* +0x320 */
+    AniData* pad22C[24];
+    AniData* throw_fall;            /* +0x28C */
+    AniData* pad290[7];
+    AniData* standing_block_a;      /* +0x2AC */
+    AniData* pad2B0[2];
+    AniData* standing_block_b;      /* +0x2B8 */
+    AniData* pad2BC[3];
+    AniData* standing_block_c;      /* +0x2C8 */
+    AniData* pad2CC[2];
+    AniData* standing_block_d;      /* +0x2D4 */
+    AniData* pad2D8[3];
+    AniData* duck_block;            /* +0x2E4 */
+    AniData* standing_weapon_block; /* +0x2E8 */
+    AniData* pad2EC[1];
+    AniData* counter_caught;        /* +0x2F0 */
+    AniData* pad2F4[7];
+    AniData* counter_caught_6;      /* +0x310 */
+    AniData* counter_caught_7;      /* +0x314 */
+    AniData* counter_caught_8;      /* +0x318 */
+    AniData* counter_caught_9;      /* +0x31C */
+    AniData* combo_breaker;           /* +0x320 */
 } ReactionSharedAnimations;
+typedef char ReactionSharedAnimationsSizeCheck[sizeof(ReactionSharedAnimations) == (804 / 4) * sizeof(AniData*) ? 1 : -1];
 
 typedef struct ReactionPostSurfPdata {
     char pad000[0x6F4];
@@ -185,11 +181,6 @@ typedef struct ReactionTransferPdata {
     PlyrPdata* opponent_pdata;
     MkObj* opponent_obj;
 } ReactionTransferPdata;
-
-typedef struct ReactionFighterDefinitionDispatchView {
-    char pad000[0x1A8];
-    void* weapon_rest_animation;
-} ReactionFighterDefinitionDispatchView;
 
 typedef struct ReactionPdataRepelView {
     char pad000[0x71C];
@@ -262,7 +253,7 @@ int blend_to_fstance(float rate);
 void freeze_player(void);
 void unfreeze_player(void);
 void set_my_state(int state);
-void glitch_to_ani(int animation, int transition);
+void glitch_to_ani(AniData* animation, int transition);
 void adjust_p1_life(float amount);
 void adjust_p2_life(float amount);
 int should_weapon_block(PlyrPdata* player);
@@ -310,13 +301,13 @@ int my_joypad_state_5(void);
 int check_switch();
 void stop_prison_grab_proc(void);
 float p_glitch_to_stance(void);
-void p_animate_weapon_rest(void);
+float p_animate_weapon_rest(void);
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 float r_call_script_function(void);
 float r_call_player_char_script_function(void);
 static float r_call_other_player_char_script_function(void);
 void run_reaction_cleanup_function(PlyrPdata* player);
-void plyr_spawn_anim(void* animation);
+void plyr_spawn_anim(AniData* animation, MkProcEntryFn entry);
 
 extern int f_fatality_was_done;
 extern int g_drone_blocking_in_reaction;
@@ -334,7 +325,7 @@ void ground_me(MkHdr* object);
 void wall_eligible_on(void);
 void wall_eligible_off(void);
 void blend_to_ani_frame(
-    int animation, int transition, float blend, float frame);
+    AniData* animation, int transition, float blend, float frame);
 float j_getup_back_6(void);
 float j_getup_front_12(void);
 float blend_to_stance_j_exit(void);
@@ -372,7 +363,7 @@ void ani_1_frame(void);
 void ani_loop_more_frames(float frames);
 void ani_x_more_frames(float frames);
 void blend_to_ani_INOUT(
-    int in_animation, int out_animation, float blend_rate,
+    AniData* in_animation, AniData* out_animation, float blend_rate,
     float in_speed, float out_speed);
 void disable_blocking(void);
 void enable_all_my_blocking(void);
@@ -894,16 +885,14 @@ static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
 
 
 
-/* TODO: [breakthrough] 92.28834%; scale-reset call ABI fixed;
- * remaining stack layout and instruction ordering need recovery. */
+/* TODO: [near miss] 96.69438%; Five attempts completed; remaining stack/register allocation, aggregate address lowering and equivalent arithmetic scheduling. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
-    ReactionFighterDefinitionDispatchView* fighter;
+    PlyrFighterDefinition* fighter;
     ReactionPlyrInfoCombatView* combat_info;
     ReactionDispatchContext dispatch;
     LoadableReactionScript* loadable;
-    ReactionStatusFlagsView* cleanup_status;
     CmdScript* cmdscript;
     CmdScript* saved_cmdscript;
     MkProc* opponent_proc;
@@ -936,8 +925,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     face_after = 1;
     face_reaction = 0;
     force_air = 0;
-    if (((g_game_info.flags >> 3) & 1) != 0 ||
-        ((g_game_info.flags >> 4) & 1) != 0 ||
+    if (g_game_info.flag_bits.level_fatality_active ||
+        g_game_info.flag_bits.level_transition_active ||
         f_fatality_was_done != 0) {
         return 0;
     }
@@ -998,9 +987,17 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     switch (aproc->pid) {
+    case 0x1001:
+    case 0x1002:
+        swap_active_plyr_proc();
+        break;
     case 0x501D:
     case 0x2026:
     case 0x5019:
+    case 0xB00E:
+    case 0xB00F:
+    case 0xB011:
+    case 0xB012:
         if (victim_obj == g_game_info.plyr1.slot.mirror_a) {
             become_plyr2_proc();
         } else {
@@ -1008,9 +1005,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         }
         break;
     case 0xB010:
-        break;
     default:
-        swap_active_plyr_proc();
         break;
     }
 
@@ -1021,7 +1016,6 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     if (plyr_pdata != 0 &&
         ((ReactionStatusFlagsView*)plyr_pdata->status_flags)
             ->cleanup_function != 0) {
-        cleanup_status = (ReactionStatusFlagsView*)plyr_pdata->status_flags;
         saved_player = plyr_pdata;
         saved_opponent = his_pdata;
         saved_object = plyr_obj;
@@ -1030,12 +1024,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         cleanup_object = plyr_pdata_live_tracked_obj(saved_player);
 
         plyr_obj = cleanup_object;
-        cleanup_opponent_object = his_pdata->tracked_obj;
-        if (cleanup_opponent_object != 0 &&
-            cleanup_opponent_object->hdr.instance !=
-                his_pdata->tracked_obj_instance) {
-            cleanup_opponent_object = 0;
-        }
+        cleanup_opponent_object =
+            plyr_pdata_live_tracked_obj(saved_player->his_plyr_pdata);
         his_obj = cleanup_opponent_object;
         if (cleanup_object != 0 && cleanup_opponent_object != 0) {
             saved_cmdscript = active_cmdscript;
@@ -1043,7 +1033,9 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             cmdscript_set_parameters(
                 &global_script_interpreter, 1, saved_player);
             cmdscript_setup_execution(
-                saved_player->cmo, cleanup_status->cleanup_function);
+                saved_player->cmo,
+                ((ReactionStatusFlagsView*)saved_player->status_flags)
+                    ->cleanup_function);
             cmdscript_execute(saved_player->cmo);
             active_cmdscript = saved_cmdscript;
             plyr_pdata = saved_player;
@@ -1055,10 +1047,10 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     plyr_pdata->duck_reaction_active = 0;
     plyr_pdata->his_plyr_pdata->duck_reaction_active = 0;
     scale_me_normal();
-    fighter = (ReactionFighterDefinitionDispatchView*)
-        plyr_pdata->fighter_definition;
+    fighter = plyr_pdata->fighter_definition;
     if (fighter->weapon_rest_animation != 0) {
-        plyr_spawn_anim(p_animate_weapon_rest);
+        /* GQNE5D 800ED010..800ED024 passes animation in r3, entry in r4. */
+        plyr_spawn_anim(fighter->weapon_rest_animation, p_animate_weapon_rest);
     }
 
     original_previous_state = plyr_pdata->previous_state;
@@ -1373,12 +1365,10 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             dispatch.transfer.call_type = loadable->slot_count;
             dispatch.transfer.entry = (ReactionEntry)loadable->script;
         }
-        switch (dispatch.transfer.call_type) {
-        case 4:
+        if (dispatch.transfer.call_type == 4) {
             cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
             xfer_player_proc(opponent_proc, r_call_script_function);
-            break;
-        case 3:
+        } else if (dispatch.transfer.call_type == 3) {
             if ((unsigned int)dispatch.transfer.entry == 0x39 &&
                 victim->character_id == 0x1B) {
                 cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
@@ -1389,18 +1379,14 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
                 xfer_player_proc(
                     opponent_proc, r_call_other_player_char_script_function);
             }
-            break;
-        case 5:
+        } else if (dispatch.transfer.call_type == 5) {
             xfer_player_proc_to_script(victim_obj, dispatch.transfer.entry);
-            break;
-        case 1:
+        } else if (dispatch.transfer.call_type == 1) {
             xfer_player_proc(opponent_proc, dispatch.transfer.entry);
-            break;
-        case 2:
+        } else if (dispatch.transfer.call_type == 2) {
             cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
             xfer_player_proc(
                 opponent_proc, r_call_player_char_script_function);
-            break;
         }
     }
     return face_after;
@@ -3384,9 +3370,9 @@ static float r_scorpion_spear_1(void) {
 
 static float r_judo_throw1(void) {
     ReactionProcVtable* vtable;
-    ReactionFighterDefinitionView* fighter;
+    PlyrFighterDefinition* fighter;
 
-    fighter = (ReactionFighterDefinitionView*)his_pdata->fighter_definition;
+    fighter = his_pdata->fighter_definition;
     glitch_to_ani(fighter->judo_throw_reaction, 3);
     ani_to_end();
     vtable = (ReactionProcVtable*)aproc->vtbl;

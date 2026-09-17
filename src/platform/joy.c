@@ -1,4 +1,5 @@
 #include "platform/joy.h"
+#include "platform/io.h"
 
 #include "game/ai.h"
 #include "game/ejb.h"
@@ -31,7 +32,6 @@ extern int round_winner;
 extern int f_fatality_available;
 extern int my_next_duck_state;
 extern unsigned int game_tick_ctr;
-extern int check_switch(SwitchData* switches, int button);
 extern int exec_tick_ctr;
 extern int g_drone_blocking_in_reaction;
 extern MkObj* plyr_obj;
@@ -62,6 +62,8 @@ void dodge_3d_scan(void) {
     }
 }
 
+/* TODO: [near miss] 99.54044%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 float joy_duck_loop(void) {
     back_to_normal();
     if (my_next_duck_state != 0) {
@@ -99,8 +101,10 @@ float joy_duck_loop(void) {
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 0x11, 0);
 
-    while (check_switch(plyr_pdata->switch_data, 0xE) == 0 &&
-           (plyr_pdata->drone_request == 0 || plyr_pdata->field_728 == 1)) {
+    /* GQNE5D 800F9FD4..800F9FF8: either held Down or a continuing
+     * drone request branches back into the crouch body. */
+    while (check_switch(plyr_pdata->controller_port, 0xE) != 0 ||
+           (plyr_pdata->drone_request != 0 && plyr_pdata->field_728 != 1)) {
         if (check_for_dead_movement() != 0) {
             break;
         }
@@ -203,8 +207,10 @@ float joy_duck_remote_start(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.54781%; instructions and literal values agree; generated literal identities remain */
 float p_joy_loop(void) {
     int angle_outside_limit;
+    int allow_stance_transition;
 
     if (plyr_pdata->drone_handoff_pending != 0) {
         plyr_pdata->drone_handoff_pending = 0;
@@ -213,8 +219,8 @@ float p_joy_loop(void) {
     }
 
     if (plyr_pdata->special_move_disabled == 1) {
-        if (check_switch(plyr_pdata->switch_data, 0xC) != 0 ||
-            check_switch(plyr_pdata->switch_data, 0xE) != 0) {
+        if (check_switch(plyr_pdata->controller_port, 0xC) != 0 ||
+            check_switch(plyr_pdata->controller_port, 0xE) != 0) {
             disable_this_move_exec(0x6004, 30);
         } else {
             plyr_pdata->special_move_disabled = 0;
@@ -239,18 +245,23 @@ float p_joy_loop(void) {
     }
     plyr_pdata->angle_jump_pending = 0;
 
-    if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
-        check_switch(plyr_pdata->switch_data, 0xF) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&
+        check_switch(plyr_pdata->controller_port, 0xF) != 0) {
         jump_to(joy_duck_loop);
         return 0.0f;
     }
-    if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
-        check_switch(plyr_pdata->switch_data, 0xD) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&
+        check_switch(plyr_pdata->controller_port, 0xD) != 0) {
         jump_to(joy_duck_loop);
         return 0.0f;
     }
 
-    if (check_switch(plyr_pdata->switch_data, 0xD) != 0) {
+    /* Retail compatibility: both movement guards take the absolute value of
+     * the boolean (angle > 2.7f), not of the angle. At 0x800FA458/0x800FA578,
+     * fcmpo and GT extraction precede integer-to-float conversion and the
+     * comparison with zero; each selected branch calls the angle helper again.
+     * Preserve this asymmetric guard, including the redundant evaluation. */
+    if (check_switch(plyr_pdata->controller_port, 0xD) != 0) {
         angle_outside_limit = get_my_angle_y_error() > 2.7f;
         if ((float)angle_outside_limit >= 0.0f) {
             angle_outside_limit = get_my_angle_y_error() > 2.7f;
@@ -264,13 +275,13 @@ float p_joy_loop(void) {
         }
         if (which_way_is_towards() > 0.0f) {
             jump_to(step_backward);
-        } else {
-            jump_to(step_forward);
+            return 0.0f;
         }
+        jump_to(step_forward);
         return 0.0f;
     }
 
-    if (check_switch(plyr_pdata->switch_data, 0xF) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xF) != 0) {
         angle_outside_limit = get_my_angle_y_error() > 2.7f;
         if ((float)angle_outside_limit >= 0.0f) {
             angle_outside_limit = get_my_angle_y_error() > 2.7f;
@@ -284,22 +295,26 @@ float p_joy_loop(void) {
         }
         if (which_way_is_towards() < 0.0f) {
             jump_to(step_backward);
-        } else {
-            jump_to(step_forward);
+            return 0.0f;
         }
+        jump_to(step_forward);
         return 0.0f;
     }
 
-    if (check_switch(plyr_pdata->switch_data, 0xE) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xE) != 0) {
         if (!am_i_flipped_or_turned()) {
             jump_to(step_right);
-        } else {
-            jump_to(step_left);
+            return 0.0f;
         }
+        jump_to(step_left);
         return 0.0f;
     }
 
-    if (!g_game_info.feature_flags.bits.high_bit &&
+    allow_stance_transition = 0;
+    if (!g_game_info.feature_flags.bits.high_bit) {
+        allow_stance_transition = 1;
+    }
+    if (allow_stance_transition != 0 &&
         plyr_anim_pdata->animation ==
             plyr_pdata->fighter_definition->duck_animation) {
         set_my_state(0);
@@ -308,23 +323,27 @@ float p_joy_loop(void) {
         return 0.0f;
     }
 
-    if (check_switch(plyr_pdata->switch_data, 0xC) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xC) != 0) {
         if (which_way_is_towards() > 0.0f) {
             if (!plyr_obj->hide_flag_bits.bit6) {
                 jump_to(step_right);
-            } else {
-                jump_to(step_left);
+                return 0.0f;
             }
-        } else if (plyr_obj->hide_flag_bits.bit6) {
-            jump_to(step_right);
-        } else {
             jump_to(step_left);
+            return 0.0f;
         }
+        if (plyr_obj->hide_flag_bits.bit6 == 1) {
+            jump_to(step_right);
+            return 0.0f;
+        }
+        jump_to(step_left);
         return 0.0f;
     }
     return 1.0f;
 }
 
+/* TODO: [near miss] 99.67647%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 float p_joy_entry(void) {
     float playback_rate = plyr_anim_pdata->step;
     int saved_state = plyr_pdata->state;
@@ -354,23 +373,23 @@ float p_joy_entry(void) {
         return 0.0f;
     }
     if ((saved_state & 0x100) &&
-        check_switch(plyr_pdata->switch_data, 0xE) != 0) {
+        check_switch(plyr_pdata->controller_port, 0xE) != 0) {
         my_next_duck_state = 0x101;
         jump_to(joy_duck_loop);
         return 0.0f;
     }
-    if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
-        check_switch(plyr_pdata->switch_data, 0xF) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&
+        check_switch(plyr_pdata->controller_port, 0xF) != 0) {
         jump_to(joy_duck_loop);
         return 0.0f;
     }
-    if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
-        check_switch(plyr_pdata->switch_data, 0xD) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&
+        check_switch(plyr_pdata->controller_port, 0xD) != 0) {
         jump_to(joy_duck_loop);
         return 0.0f;
     }
-    if (check_switch(plyr_pdata->switch_data, 0xC) != 0 ||
-        check_switch(plyr_pdata->switch_data, 0xE) != 0) {
+    if (check_switch(plyr_pdata->controller_port, 0xC) != 0 ||
+        check_switch(plyr_pdata->controller_port, 0xE) != 0) {
         /* The PID-specific state write precedes the unconditional publication. */
         if (aproc->pid == 0x1001) {
             plyr_pdata->special_move_disabled = 1;

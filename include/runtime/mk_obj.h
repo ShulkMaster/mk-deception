@@ -91,7 +91,7 @@ typedef struct ClothCollisionPoint {
 } ClothCollisionPoint; /* 0x10 */
 
 typedef struct ClothBone {
-    unsigned int collision_point_count; /* +0x00 */
+    int collision_point_count; /* +0x00; signed loop bound in all retail cylinder tests */
     float table_scale; /* +0x04 */
     float stiffness_squared; /* +0x08 */
     float segment_length; /* +0x0C */
@@ -130,15 +130,31 @@ typedef struct ClothBone {
     char pad_AC[4];
     Vec world_target; /* +0xB0 */
     char pad_BC[4];
-    Vec force_position; /* +0xC0 */
-    char pad_CC[4];
+    union {
+        struct {
+            Vec force_position; /* +0xC0 */
+            char pad_CC[4];
+        };
+        RwMatrixPosition force_position_row; /* retail copies all four words */
+    };
     Vec velocity; /* +0xD0 */
     char pad_DC[4];
     Quat collision_rotation; /* +0xE0 */
-    Vec collision_local_position; /* +0xF0 */
-    char pad_FC[4];
-    Vec previous_collision_local_position; /* +0x100 */
-    char pad_10C[0x24];
+    union {
+        struct {
+            Vec collision_local_position; /* +0xF0 */
+            char pad_FC[4];
+        };
+        RwMatrixPosition collision_local_position_row; /* retail copies all four words */
+    };
+    union {
+        struct {
+            Vec previous_collision_local_position; /* +0x100 */
+            char pad_10C[4];
+        };
+        RwMatrixPosition previous_collision_local_position_row;
+    };
+    char pad_110[0x20];
 } ClothBone; /* 0x130 */
 
 typedef struct MkxMem {
@@ -476,5 +492,22 @@ extern MkPtr* fgnd_mkobj_list;
 #ifdef __cplusplus
 }
 #endif
+
+/* Scale process data shared by its runtime owner and charge-up callers. */
+typedef struct ScaleScriptEntry {
+    unsigned int flags;
+    Vec scale;
+    float duration;
+} ScaleScriptEntry;
+
+typedef struct ScalePdata {
+    MkHdr hdr;
+    MkObj* obj;
+    unsigned int obj_instance;
+    ScaleScriptEntry* script_start;
+    ScaleScriptEntry* script;
+    Vec prior_scale;
+    float elapsed;
+} ScalePdata;
 
 #endif

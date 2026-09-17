@@ -2350,7 +2350,9 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* Soft ceiling: bind_to_bone -- typed script/load-context/object chain. */
+/* Retail dereferences the load-context object before checking its OID;
+ * a null object is not a supported binding context. */
+/* TODO: [near miss] 94.50000%; only two equivalent early-exit branch pairs differ; positive-guard control neutral; stop at lowering */
 void bind_to_bone(int bone_index) {
     PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2358,16 +2360,15 @@ void bind_to_bone(int bone_index) {
 
     environment = active_pfx_environment();
     effect = environment->source_effect;
-    if (bone_index != 0 && active_cmdscript != 0 &&
-        active_cmdscript->mko != 0 &&
-        active_cmdscript->mko->load_ctx != 0) {
-        object = active_cmdscript->mko->load_ctx->bgnd_obj;
-        if (object != 0 &&
-            (object->oid == 0x1001 || object->oid == 0x1002)) {
-            effect->bound_obj = object;
-            if (effect->bound_obj != 0) {
-                pfx_bind_emitter_to_obj_bone(
-                    effect, effect->bound_obj, bone_index);
+    if (bone_index != 0 && active_cmdscript != 0) {
+        if (active_cmdscript->mko != 0 &&
+            active_cmdscript->mko->load_ctx != 0) {
+            object = active_cmdscript->mko->load_ctx->bgnd_obj;
+            if ((int)object->oid == 0x1001 || (int)object->oid == 0x1002) {
+                effect->bound_obj = object;
+                if (effect->bound_obj != 0) {
+                    pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
+                }
             }
         }
     }

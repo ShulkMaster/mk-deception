@@ -24,7 +24,13 @@ typedef struct PfxNameObj {
 typedef struct PfxSlot {
     MkHdr* hdr;            /* +0x00 */
     unsigned int instance; /* +0x04 */
-    unsigned char flags;   /* +0x08 -- bit7 = owns / destroy on teardown */
+    union {
+        unsigned char flags; /* +0x08 -- bit7 destroys the bound header on teardown */
+        struct {
+            unsigned char owns_bind : 1;
+            unsigned char flags_rest : 7;
+        } flag_bits;
+    };
     unsigned char pad09[3];
 } PfxSlot;
 

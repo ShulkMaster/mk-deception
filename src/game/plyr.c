@@ -16,6 +16,8 @@
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_obj.h"
+#include "runtime/mk_plugins.h"
+#include "rw/rpworld_types.h"
 #include "runtime/section.h"
 #include "runtime/shadow.h"
 #include "runtime/anim_pdata.h"
@@ -349,39 +351,6 @@ typedef struct PlyrProcVtable {
     int (*jump_sleep)(MkProcEntryFn entry, float ticks);
 } PlyrProcVtable;
 
-typedef struct PlyrClumpLink {
-    struct PlyrClumpLink* next;
-    struct PlyrClumpLink* previous;
-} PlyrClumpLink;
-
-typedef struct PlyrClumpNode {
-    void* geometry;
-    char pad04[0x24];
-    PlyrClumpLink link;
-} PlyrClumpNode;
-
-typedef struct PlyrClumpView {
-    char pad00[8];
-    PlyrClumpLink geometry_list;
-} PlyrClumpView;
-
-typedef struct PlyrGeometryView {
-    char pad00[0x20];
-    RpMaterial** materials;
-    unsigned int material_count;
-} PlyrGeometryView;
-
-typedef struct PlyrSpecularMaterialView {
-    char pad00[0x2C];
-    struct {
-        unsigned char hidden : 1;
-        unsigned char pad : 7;
-    } flags_2C;
-} PlyrSpecularMaterialView;
-
-extern int MkmaterialLocalOffset;
-extern int SpecularMaterialOffset;
-
 static inline MkObj* resolve_player_object(
     MkObj* object, unsigned int instance) {
     if (object == 0 || object->hdr.instance != instance) {
@@ -437,36 +406,29 @@ int fetch_shujinko_special_number_for(unsigned int move_id) {
     return -2;
 }
 
+/* TODO: [near miss] 96.15385%; retail visibility logic agrees; bit-order control rejected; stop at register allocation and independent bit scheduling */
 void tag_team_activate_player(MkObj* object, int active) {
-    PlyrClumpView* clump;
-    PlyrClumpLink* link;
-    PlyrClumpLink* sentinel;
+    RpClump* clump;
+    RwLLLink* link;
+    RwLLLink* sentinel;
 
-    clump = (PlyrClumpView*)object->clump;
+    clump = object->clump;
     if (clump == 0) {
         return;
     }
 
-    link = clump->geometry_list.next;
-    sentinel = &clump->geometry_list;
+    link = clump->atomicList.next;
+    sentinel = &clump->atomicList;
     while (link != sentinel) {
-        PlyrClumpNode* node =
-            (PlyrClumpNode*)((char*)link - 0x28);
-        PlyrGeometryView* geometry =
-            (PlyrGeometryView*)node->geometry;
-        unsigned int offset = 0;
-        unsigned int count = geometry->material_count;
+        RpGeometry* geometry = rpAtomicFromClumpNode(link)->geometry;
+        unsigned int count = geometry->matList.numMaterials;
         unsigned int i;
 
         for (i = 0; i < count; i++) {
-            RpMaterial* material =
-                *(RpMaterial**)((char*)geometry->materials + offset);
-            unsigned int local =
-                *(unsigned int*)((char*)material +
-                                 MkmaterialLocalOffset);
-            PlyrSpecularMaterialView* specular =
-                (PlyrSpecularMaterialView*)
-                    ((char*)material + SpecularMaterialOffset);
+            RpMaterial* material = geometry->matList.materials[i];
+            unsigned int local = MK_MATERIAL_PLUGIN(material)->flags;
+            SpecularMaterialPluginData* specular =
+                mk_get_specular_material_plugin(material);
             int primary = ((local >> 10) & 1) ^ 1;
             int alternate;
 
@@ -476,16 +438,15 @@ void tag_team_activate_player(MkObj* object, int active) {
 
             if (active != 0) {
                 if (primary != 0 && alternate == 0) {
-                    specular->flags_2C.hidden = 0;
+                    specular->flags.bits.hidden = 0;
                 } else {
-                    specular->flags_2C.hidden = 1;
+                    specular->flags.bits.hidden = 1;
                 }
             } else if (primary != 0 || alternate != 0) {
-                specular->flags_2C.hidden = 1;
+                specular->flags.bits.hidden = 1;
             } else {
-                specular->flags_2C.hidden = 0;
+                specular->flags.bits.hidden = 0;
             }
-            offset += sizeof(*geometry->materials);
         }
         link = link->next;
     }
@@ -852,49 +813,45 @@ void register_baraka_cb_functions(void) {
     plyr_pdata->baraka_moveset_callback = baraka_advance_active_moveset;
 }
 
-typedef struct BarakaMovesetWeapons {
-    PlyrMirrorObjLatch primary;
-    PlyrMirrorObjLatch reflection;
-    char pad10[8];
-    PlyrMirrorObjLatch secondary;
-} BarakaMovesetWeapons;
-
 static inline MkObj* baraka_live_object(PlyrMirrorObjLatch* latch) {
     MkObj* object = latch->obj;
 
     if (object != 0) {
-        if (object->hdr.instance != latch->instance) {
-            object = 0;
+        if (object->hdr.instance == latch->instance) {
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
     return object;
 }
 
-static inline BarakaBladesPdata* baraka_blades(PlyrPdata* pdata) {
-    MkProc* proc = pdata->baraka_blades_monitor;
-
-    if (proc != 0) {
-        if (proc->instance !=
-            (int)pdata->baraka_blades_monitor_instance) {
-            proc = 0;
+static inline MkProc* player_live_blades_monitor(PlyrPdata* owner) {
+    MkProc* process = owner->baraka_blades_monitor;
+    if (process != 0) {
+        if (process->instance == (int)owner->baraka_blades_monitor_instance) {
+            return process;
         }
+        process = 0;
     } else {
-        proc = 0;
+        process = 0;
     }
-    if (proc == 0) {
-        return 0;
-    }
-    return (BarakaBladesPdata*)pdata_of_proc(proc);
+    return process;
 }
 
+
 static inline void baraka_retract_blades(PlyrPdata* pdata) {
-    BarakaBladesPdata* blades = baraka_blades(pdata);
+    MkProc* proc = player_live_blades_monitor(pdata);
+    BarakaBladesPdata* blades;
     PlyrMirrorSlots* slots;
     MkObj* first;
     MkObj* second;
 
+    if (proc == 0) {
+        return;
+    }
+    blades = (BarakaBladesPdata*)pdata_of_proc(proc);
     if (blades == 0) {
         return;
     }
@@ -923,8 +880,13 @@ static inline void baraka_retract_blades(PlyrPdata* pdata) {
 }
 
 static inline void baraka_extend_blades(PlyrPdata* pdata) {
-    BarakaBladesPdata* blades = baraka_blades(pdata);
+    MkProc* proc = player_live_blades_monitor(pdata);
+    BarakaBladesPdata* blades;
 
+    if (proc == 0) {
+        return;
+    }
+    blades = (BarakaBladesPdata*)pdata_of_proc(proc);
     if (blades != 0) {
         blades->blade_a_target = 1.0f;
         blades->blade_a_step = 0.1f;
@@ -936,16 +898,16 @@ static inline void baraka_extend_blades(PlyrPdata* pdata) {
     }
 }
 
+/* TODO: [near miss] 99.51681%; retail null exits restored; register and literal identity residue remains */
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context) {
-    BarakaMovesetWeapons* weapons = (BarakaMovesetWeapons*)context;
     MkObj* object;
 
-    object = baraka_live_object(&weapons->primary);
+    object = baraka_live_object(&context->weapon[0].primary);
     if (object != 0) {
         object->hide_flag_bits.hidden = 1;
     }
-    object = baraka_live_object(&weapons->secondary);
+    object = baraka_live_object(&context->weapon[1].primary);
     if (object != 0) {
         object->hide_flag_bits.hidden = 1;
     }
@@ -975,18 +937,6 @@ static inline void plyr_start_script_in_slot(
     }
 }
 
-static inline MkProc* player_live_blades_monitor(PlyrPdata* owner) {
-    MkProc* process = owner->baraka_blades_monitor;
-    if (process != 0) {
-        if (process->instance == (int)owner->baraka_blades_monitor_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade) {
     MkProc* proc = player_live_blades_monitor(pdata);
@@ -3340,8 +3290,8 @@ void destroy_mkpdata_plyr(PlyrPdata* pdata) {
     free_mkpdata_plyrs = pdata;
 }
 
-/* TODO: [near miss] 99.96377%; canonical footprint latch preserves stores;
- * existing instruction/register residue remains. */
+/* TODO: [near miss] 99.96377%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 PlyrPdata* get_mkpdata_plyr(void) {
     PlyrPdata* pdata = free_mkpdata_plyrs;
     int index;
@@ -3404,13 +3354,13 @@ PlyrPdata* get_mkpdata_plyr(void) {
         pdata->reserved_FC = 0;
         pdata->spear_proc = 0;
         pdata->spear_proc_instance = 0;
-        pdata->reserved_108[0] = 0;
+        pdata->reserved_108 = 0;
         pdata->own_player_proc = 0;
         pdata->own_player_proc_instance = 0;
         pdata->aux_player_proc = 0;
         pdata->aux_player_proc_instance = 0;
-        pdata->reserved_108[1] = 0;
-        pdata->reserved_108[2] = 0;
+        pdata->scale_pdata = 0;
+        pdata->scale_pdata_instance = 0;
         pdata->foot_print_proc = 0;
         pdata->foot_print_proc_instance = 0;
         pdata->reserved_124[0] = 0;
@@ -3485,6 +3435,8 @@ float p_animate_weapon_rest(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 99.72222%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 static float p_animate_weapon_rest_lp(void) {
     int rest_ticks;
 
@@ -3494,7 +3446,7 @@ static float p_animate_weapon_rest_lp(void) {
     return rest_ticks < 0 ? -1.0f : 1.0f;
 }
 
-void plyr_spawn_anim(MkProcEntryFn hand_script, MkProcEntryFn entry) {
+void plyr_spawn_anim(AniData* hand_animation, MkProcEntryFn entry) {
     AnimPdata* animation;
 
     if (create_mkproc_anim2(0x5002, entry, &animation) != 0) {
@@ -3502,7 +3454,7 @@ void plyr_spawn_anim(MkProcEntryFn hand_script, MkProcEntryFn entry) {
         animation->obj_instance = plyr_obj->hdr.instance;
         animation->owner = plyr_pdata;
         animation->owner_instance = plyr_pdata->instance;
-        animation->hand_script = hand_script;
+        animation->hand_animation = hand_animation;
     }
 }
 

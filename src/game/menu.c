@@ -980,13 +980,14 @@ float p_game_options(void) {
     return sleep_ticks_neg_one;
 }
 
-/* TODO: [near miss] 95.95122%; switch/branch scheduling and NV coloring remain. */
+/* TODO: [near miss] 96.17073%; shared screen load restored; string-address scheduling and pdata/next-process coloring remain; stop at lowering */
 float p_pause_menu(void) {
     PauseMenuPdata* pdata;
     MkVtableMkprocLocal* vtbl;
     MkProcEntryFn next_proc;
     unsigned int scheme;
     int screen_slot;
+    const char* screen_name;
     int jump_mode;
 
     pdata = (PauseMenuPdata*)apdata;
@@ -1031,11 +1032,12 @@ float p_pause_menu(void) {
         break;
     }
 
-    if ((int)mode_of_play == 7) {
-        load_screen(&stringBase0[0x49E], screen_slot, 0, 0);
+    if ((int)mode_of_play != 7) {
+        screen_name = &stringBase0[0x4BB];
     } else {
-        load_screen(&stringBase0[0x4BB], screen_slot, 0, 0);
+        screen_name = &stringBase0[0x49E];
     }
+    load_screen(screen_name, screen_slot, 0, 0);
     pause_all_game_sounds();
 
     if (g_game_info.feature_flags.bits.high_bit != 0) {
@@ -1159,7 +1161,7 @@ int get_pause_menu_ssh(void) {
     return slot;
 }
 
-/* TODO: [near miss] 96.64557%; allowed-state branch join and pool labels remain. */
+/* TODO: [near miss] 97.40506%; canonical bit extraction retained; equivalent allowed-state branch join remains; stop at lowering */
 float p_pause_menu_switch(void) {
     PauseMenuPdata* pdata;
     MkProc* proc;
@@ -1178,7 +1180,7 @@ float p_pause_menu_switch(void) {
     } else if ((int)mode_of_play == 6) {
         if ((int)display_off != 0) {
             can_pause = 0;
-        } else if ((g_game_info.flags & 0x80) != 0) {
+        } else if (g_game_info.flag_bits.high_res_path != 0) {
             can_pause = 0;
         } else {
             can_pause = 1;

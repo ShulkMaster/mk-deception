@@ -1026,7 +1026,7 @@ typedef struct KonquestNisLoadPdata {
 typedef struct KonquestLightAdjustPdata {
     MkHdr hdr;
     RpLight* light;
-    MkSobj* object;
+    MkObj* object;
     unsigned int object_instance;
 } KonquestLightAdjustPdata;
 
@@ -9845,11 +9845,8 @@ void konquest_transition_from_fight(void) {
     gamelogic_jump(4, p_konquest_mode);
 }
 
-/*
- * Near match: fighter assignment, saved-state fields, controller/timer state,
- * persistence calls, and transition process creation agree with retail.
- * Residue is nonvolatile-register coloring plus individual saves/restores.
- */
+/* TODO: [near miss] 99.313255%; controller-port selection corrected;
+ * nonvolatile register allocation and saves/restores remain. */
 void konquest_transition_to_fight(int save_progress) {
     int other_state;
     PlyrInfo* player0;
@@ -9861,7 +9858,7 @@ void konquest_transition_to_fight(int save_progress) {
     }
 
     player0 = &g_game_info.plyr0;
-    if (player0->player_index == konquest_pdata->input_port) {
+    if (player0->pad_index == konquest_pdata->input_port) {
         set_player_state(player0, 2);
         set_player_state(&g_game_info.plyr1, other_state);
         player0->player_index = konquest_save_data.player_a;
@@ -11470,8 +11467,8 @@ static void update_sun_moon_position(float angle) {
 }
 
 
-static inline MkSobj* konquest_light_adjust_pdata_live_object(KonquestLightAdjustPdata* owner) {
-    MkSobj* object = owner->object;
+static inline MkObj* konquest_light_adjust_pdata_live_object(KonquestLightAdjustPdata* owner) {
+    MkObj* object = owner->object;
     if (object != 0) {
         if (object->hdr.instance == owner->object_instance) {
             return object;
@@ -11488,11 +11485,11 @@ static inline MkSobj* konquest_light_adjust_pdata_live_object(KonquestLightAdjus
 
 
 
-/* TODO: [breakthrough needed] 85.322430%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [breakthrough] 85.084114%; MkObj light owner restored; stack layout and instruction ordering remain. */
 float p_adjust_directional_light(void) {
     KonquestDirectionalLightRow* light_table;
     KonquestLightAdjustPdata* pdata;
-    MkSobj* object;
+    MkObj* object;
     Vec angles;
     int last_row;
     int current_index;

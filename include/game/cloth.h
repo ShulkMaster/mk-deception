@@ -32,7 +32,14 @@ typedef struct ClothCollisionPlane {
     union {
         unsigned int flags_storage; /* +0x6C; constructor clears the whole word */
         struct {
-            unsigned char flags_6C;
+            union {
+                unsigned char flags_6C;
+                struct {
+                    unsigned char flags_80 : 1;
+                    unsigned char flags_40 : 1;
+                    unsigned char flags_rest : 6;
+                } flags_6C_bits;
+            };
             char pad6D[3];
         };
     };
@@ -57,7 +64,10 @@ typedef struct ClothCollisionVolume {
     unsigned int bone_count; /* +0x1C */
     ClothBone* bones[12];    /* +0x20 */
     unsigned int bone_settings[13]; /* +0x50; slot zero is reserved */
+    /* Both retail constructors allocate 0x140; trailing storage is unresolved. */
+    unsigned char reserved_84[0xBC];
 } ClothCollisionVolume;
+typedef char ClothCollisionVolumeSizeCheck[sizeof(ClothCollisionVolume) == 0x140 ? 1 : -1];
 
 void mks_bgnd_obj_enable_cloth_update(int model_index, int enabled);
 void mks_npc_disable_ground_y_all_cloth_bones(int model_index);

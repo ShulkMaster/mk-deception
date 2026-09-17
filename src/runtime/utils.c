@@ -2086,6 +2086,7 @@ static float p_process_uvscrolling(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 95.16666%; retail behavior agrees; owner/control coloring, blend-output slots and equivalent return/FP lowering; stop at compiler limit */
 UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
                                           float u1, float v1, float u2,
                                           float v2) {
@@ -2096,7 +2097,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     if (owner == 0) {
         return 0;
     }
-    ctrl = (UvScrollControl*)get_mkhdr_generic(0xb0);
+    ctrl = (UvScrollControl*)get_mkhdr_generic(sizeof(UvScrollControl));
     if (ctrl != 0) {
         ctrl->target = 0;
         ctrl->target_is_atomic = 1;
@@ -2133,7 +2134,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     return 0;
 }
 
-/* TODO: [near miss] 99.78836%; reversed FP equality operands survive source-order check; stop at lowering. */
+/* TODO: [near miss] 99.78836%; only four reversed FP equality operands remain; stop at documented lowering limit */
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;
@@ -2149,7 +2150,7 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
     if (owner == 0) {
         return 0;
     }
-    ctrl = (UvScrollControl*)get_mkhdr_generic(0xb0);
+    ctrl = (UvScrollControl*)get_mkhdr_generic(sizeof(UvScrollControl));
     if (ctrl != 0) {
         ctrl->target = 0;
         ctrl->target_is_atomic = 1;

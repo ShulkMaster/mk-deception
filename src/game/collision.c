@@ -2211,8 +2211,7 @@ static int repel_cylinder_and_box(
     return result;
 }
 
-/* TODO: [breakthrough] 87.268135%; retail normal and movement-test signs
- * corrected; remaining FP scheduling and stack layout need refinement. */
+/* TODO: [near miss] 89.41325%; independent rejection guards restored; automatic vector alignment and FP scheduling remain */
 static int repel_cylinder_and_quad(
     CollisionShape* cylinder, const CollisionShape* quad,
     CollisionRepelInfo* info, int side_test) {
@@ -2254,8 +2253,10 @@ static int repel_cylinder_and_quad(
     plane_distance = normal.x * quad->quad_vertex_0.x +
         normal.y * quad->quad_vertex_0.y +
         normal.z * quad->quad_vertex_0.z;
-    if (plane_distance >= center_plane + cylinder->cylinder_radius ||
-        plane_distance <= center_plane - cylinder->cylinder_radius) {
+    if (plane_distance >= center_plane + cylinder->cylinder_radius) {
+        return 0;
+    }
+    if (plane_distance <= center_plane - cylinder->cylinder_radius) {
         return 0;
     }
 
@@ -2277,8 +2278,7 @@ static int repel_cylinder_and_quad(
         tangent.z * quad->quad_vertex_0.z;
     height_min = height_max = quad->quad_vertex_0.y;
     for (index = 1; index < 4; index++) {
-        const Vec* vertex = (const Vec*)(
-            (const char*)&quad->quad_vertex_0 + index * 0x10);
+        const Vec* vertex = &quad->quad_vertices[index].value;
         value = tangent.x * vertex->x + tangent.y * vertex->y +
             tangent.z * vertex->z;
         if (value > tangent_max) {
@@ -2294,17 +2294,20 @@ static int repel_cylinder_and_quad(
             height_min = vertex->y;
         }
     }
-    if (cylinder->cylinder_center.y >= height_max ||
-        cylinder->cylinder_center.y + cylinder->cylinder_height <=
-            height_min) {
+    if (cylinder->cylinder_center.y >= height_max) {
+        return 0;
+    }
+    if (cylinder->cylinder_center.y + cylinder->cylinder_height <= height_min) {
         return 0;
     }
 
     projection = tangent.x * cylinder->cylinder_center.x +
         tangent.y * cylinder->cylinder_center.y +
         tangent.z * cylinder->cylinder_center.z;
-    if (tangent_max <= projection - cylinder->cylinder_radius ||
-        tangent_min >= projection + cylinder->cylinder_radius) {
+    if (tangent_max <= projection - cylinder->cylinder_radius) {
+        return 0;
+    }
+    if (tangent_min >= projection + cylinder->cylinder_radius) {
         return 0;
     }
 
@@ -2327,8 +2330,8 @@ static int repel_cylinder_and_quad(
         distance = 0.0f;
         if (distance_bits.value > 0.0f) {
             guess_bits.bits =
-                (*(unsigned short*)((char*)GXMathSqrtTable +
-                  ((distance_bits.bits >> 10) & 0x3FFE)) << 8) |
+                ((unsigned int)GXMathSqrtTable[
+                  (distance_bits.bits >> 11) & 0x1FFF] << 8) |
                 ((((distance_bits.bits & 0x7F800000) + 0x3F800000) >> 1) &
                  0x7F800000);
             distance = 0.5f * guess_bits.value *
@@ -2350,8 +2353,8 @@ static int repel_cylinder_and_quad(
         distance = 0.0f;
         if (distance_bits.value > 0.0f) {
             guess_bits.bits =
-                (*(unsigned short*)((char*)GXMathSqrtTable +
-                  ((distance_bits.bits >> 10) & 0x3FFE)) << 8) |
+                ((unsigned int)GXMathSqrtTable[
+                  (distance_bits.bits >> 11) & 0x1FFF] << 8) |
                 ((((distance_bits.bits & 0x7F800000) + 0x3F800000) >> 1) &
                  0x7F800000);
             distance = 0.5f * guess_bits.value *

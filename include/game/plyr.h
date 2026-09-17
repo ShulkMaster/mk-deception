@@ -8,6 +8,8 @@ typedef struct AnimPdata AnimPdata;
 
 PlyrPdata* get_mkpdata_plyr(void);
 void init_mkpdata_plyrs(void);
+void plyr_spawn_anim(AniData* animation, MkProcEntryFn entry);
+float p_animate_weapon_rest(void);
 void init_plyr_info_struct(PlyrInfo* player);
 int load_plyr_model_async(int player, int char_id, int* flags);
 void set_player_state(PlyrInfo* player, int state);
