@@ -18,6 +18,7 @@ LSCObject lsc_obj[32];
 const char* const lsc_build =
     "\nLSC/GC Ver.2.17 Build:Sep  3 2004 17:47:55\n";
 
+/* TODO: [near miss] 97.439026%; retail keeps a separate loop-pointer move; clean initializer folds it. */
 void LSC_Finish(void)
 {
     int critical_state;
@@ -41,6 +42,7 @@ void LSC_Finish(void)
     LSC_UnlockCrs(&critical_state);
 }
 
+/* TODO: [near miss] 93.333336%; initialization and locking agree with retail; only its unobservable lsc_build read is absent in clean C. */
 void LSC_Init(void)
 {
     int critical_state;

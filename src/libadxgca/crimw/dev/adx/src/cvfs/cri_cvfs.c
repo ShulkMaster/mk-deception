@@ -429,6 +429,7 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
+/* TODO: [near miss] 96.88552%; CFG, calls, widths, and layout match; residual is register coloring in split-path loops. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
@@ -565,6 +566,7 @@ void cvFsClose(CvFsObject* handle)
     }
 }
 
+/* TODO: [near miss] 96.91932%; path split, handle lifetime, device resolution, open/error CFG, and release paths match retail; residual is global/register coloring. */
 CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
 {
     CvFsObject* handle;
@@ -638,6 +640,7 @@ void cvFsSetDefDev(char* name)
     cvFsError(set_default_unknown_device);
 }
 
+/* TODO: [near miss] 95.157234%; validation, device-table scan, helper call, and callback registration match retail; only pooled-global/register residue remains. */
 void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 {
     CvFsInterface* interface;

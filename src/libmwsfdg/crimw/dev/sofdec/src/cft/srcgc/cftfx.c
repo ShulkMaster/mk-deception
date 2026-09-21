@@ -72,9 +72,14 @@ typedef char CFTColorConversionStateSizeCheck[
 
 static CFTColorConversionState cft_color_state;
 
+/* TODO: [near miss] 80.695656%; flat coefficient/table aliases recover the donor's pointer lifetime, but FP scheduling and remaining state loads differ. */
 void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
 {
     CFTColorConversionState* state = &cft_color_state;
+    float* yuv_coeff = &state->yuv_rgb_coeff[0][0];
+    u8* conv_y = state->conv_y;
+    u8* conv_u = state->conv_u;
+    u8* conv_v = state->conv_v;
     s32 index;
 
     state->y_rgb = &table[0][0][0];
@@ -88,24 +93,24 @@ void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
         s32 offset = index * 4;
 
         state->y_rgb[offset + 1] =
-            state->yuv_rgb_coeff[0][0] * (float)state->conv_y[index];
+            yuv_coeff[0] * (float)conv_y[index];
         state->y_rgb[offset + 2] =
-            state->yuv_rgb_coeff[1][0] * (float)state->conv_y[index];
+            yuv_coeff[3] * (float)conv_y[index];
         state->y_rgb[offset + 3] =
-            state->yuv_rgb_coeff[2][0] * (float)state->conv_y[index];
+            yuv_coeff[6] * (float)conv_y[index];
         state->y_rgb[offset] = 255.0f;
-        state->cb_rgb[offset + 1] = state->yuv_rgb_coeff[0][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cb_rgb[offset + 2] = state->yuv_rgb_coeff[1][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cb_rgb[offset + 3] = state->yuv_rgb_coeff[2][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cr_rgb[offset + 1] = state->yuv_rgb_coeff[0][2] *
-            ((float)state->conv_v[index] - 128.0f);
-        state->cr_rgb[offset + 2] = state->yuv_rgb_coeff[1][2] *
-            ((float)state->conv_v[index] - 128.0f);
-        state->cr_rgb[offset + 3] = state->yuv_rgb_coeff[2][2] *
-            ((float)state->conv_v[index] - 128.0f);
+        state->cb_rgb[offset + 1] = yuv_coeff[1] *
+            ((float)conv_u[index] - 128.0f);
+        state->cb_rgb[offset + 2] = yuv_coeff[4] *
+            ((float)conv_u[index] - 128.0f);
+        state->cb_rgb[offset + 3] = yuv_coeff[7] *
+            ((float)conv_u[index] - 128.0f);
+        state->cr_rgb[offset + 1] = yuv_coeff[2] *
+            ((float)conv_v[index] - 128.0f);
+        state->cr_rgb[offset + 2] = yuv_coeff[5] *
+            ((float)conv_v[index] - 128.0f);
+        state->cr_rgb[offset + 3] = yuv_coeff[8] *
+            ((float)conv_v[index] - 128.0f);
     }
 }
 
@@ -305,6 +310,8 @@ static inline void cftStorePixelQuad(
     second_output[0] = cftPackEvenPixels(second_luma, second_chroma);
 }
 
+/* TODO: [breakthrough needed] 82.605260%; retail/m2c use the +0x10 chroma pitch, but the
+ * converter's remaining pointer/update schedule still differs structurally. */
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {
@@ -326,7 +333,7 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     cb = (u8*)planes.cb;
     cr = (u8*)planes.cr;
     y_step = planes.y_pitch & ~3;
-    c_step = planes.c_height & ~1;
+    c_step = planes.c_pitch & ~1;
     y_rewind = (planes.y_pitch * 2) & ~7;
 
     for (block_y = 0; block_y < height / 4; block_y++) {

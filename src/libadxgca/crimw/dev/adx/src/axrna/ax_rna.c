@@ -201,6 +201,7 @@ void AXRNA_SetOutVol(AXRNAHandle* handle, int volume)
     }
 }
 
+/* TODO: [breakthrough needed] 80.18823%; declaration order is neutral; ratio lowering and surrounding lifetimes need structural evidence. */
 void AXRNA_SetSfreq(AXRNAHandle* handle, int sample_rate)
 {
     AXPBSRC source;
@@ -352,8 +353,8 @@ void axrna_end_flash(unsigned long request_address)
 {
     ARQRequest* request = (ARQRequest*)request_address;
     int owner = (int)(request->owner & 0x7FFFFFFF);
-    int channel = owner % AXRNA_MAX_CHANNELS;
     AXRNAHandle* handle = &axrna_obj[owner / AXRNA_MAX_CHANNELS];
+    int channel = owner % AXRNA_MAX_CHANNELS;
 
     if (handle->flash_pending[channel] == 1) {
         handle->buffers[channel]->interface->put_chunk(
@@ -472,6 +473,7 @@ int AXRNA_GetNumData(AXRNAHandle* handle)
     return num_data;
 }
 
+/* TODO: [near miss] 93.45192%; sequential guards, voice address setup, stop/reset paths, and switch updates match; remaining residue is AXPB temporary/register scheduling. */
 void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
 {
     AXPBADDR address;
@@ -479,7 +481,10 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
     u32 start;
     u32 end;
 
-    if (handle == 0 || enabled == axrna_get_play_switch(handle)) {
+    if (handle == 0) {
+        return;
+    }
+    if (enabled == axrna_get_play_switch(handle)) {
         return;
     }
     GCRNA_LockCs();

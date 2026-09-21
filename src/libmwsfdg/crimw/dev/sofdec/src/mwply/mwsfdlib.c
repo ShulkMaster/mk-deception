@@ -146,6 +146,8 @@ extern int SFD_IsVersionCompatible(const char* version, int handle_size,
 extern int SFD_Init(void* parameters);
 extern void MWSFD_SetCond(void* player, int condition, int value);
 
+/* TODO: [near miss] 99.872730%; signed error dispatch matches the donor; only
+ * pooled-global base/address allocation differs. */
 void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
 {
     void* player = (void*)object;
@@ -164,7 +166,7 @@ void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
         }
     }
 
-    switch ((unsigned int)error) {
+    switch (error) {
     case 0xFFFFFFFD:
     case 0xFFFFFFFE:
         sprintf(mwg_sfd_errstr, data_error, error);
@@ -197,6 +199,23 @@ int MWSFLIB_SetErrCode(int error)
     return error & ~-((error == 0) & 1);
 }
 
+static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
+                                     const MwsInitParam* parameter)
+{
+    if (parameter != 0) {
+        work->frame_rate = parameter->frame_rate;
+        work->max_width = parameter->max_width;
+        work->decoder_count = parameter->decoder_count;
+        work->field_10 = parameter->field_0C;
+    } else {
+        work->frame_rate = mwsfd_init_literals.default_frame_rate;
+        work->max_width = 1;
+        work->decoder_count = 1;
+        work->field_10 = 0;
+    }
+}
+
+/* TODO: [near miss] 91.21951%; typed library cursor retained; stop at global-base GPR coloring. */
 void mwPlyFinishSfdFx(void)
 {
     MwsLibraryWork* cursor = &mwsfd_libwork;
@@ -241,6 +260,8 @@ int MWSFD_GetUsePicUsr(void)
 
 static void mwsflib_LscErrFunc(void* object, const char* message);
 
+/* TODO: [near miss] 91.903740%; donor parameter-helper boundary is neutral;
+ * global-base allocation and call scheduling remain. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;
@@ -283,17 +304,7 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
         memset(work, 0, sizeof(*work));
         MWSFSVR_SetMwsfdSvrFlg(0);
         work->field_5C = 0;
-        if (sfd_parameter != 0) {
-            work->frame_rate = sfd_parameter->frame_rate;
-            work->max_width = sfd_parameter->max_width;
-            work->decoder_count = sfd_parameter->decoder_count;
-            work->field_10 = sfd_parameter->field_0C;
-        } else {
-            work->frame_rate = mwsfd_init_literals.default_frame_rate;
-            work->max_width = 1;
-            work->decoder_count = 1;
-            work->field_10 = 0;
-        }
+        mwsflib_SetLibPrm(work, sfd_parameter);
         work->use_picture_user_data = 1;
         work->pause_border = 1;
         mwg_vcnt = 0;

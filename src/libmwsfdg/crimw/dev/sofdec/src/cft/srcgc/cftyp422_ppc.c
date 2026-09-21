@@ -79,6 +79,7 @@ static inline void make_chroma_tables(CFTArgbTable table)
     }
 }
 
+/* TODO: [breakthrough needed] 61.076923%; batched alpha-ramp writes preserve the exact table values, but retail loop/lifetime lowering remains unresolved. */
 void CFT_MakeArgb8888Alp3211Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
@@ -414,30 +415,35 @@ void CFT_Ycc420plnToArgb8888(
     const CFTArgb8888Output* dst,
     CFTArgbTable table)
 {
-    if (table != 0) {
-        cnvDynamicYcc420plnToArgb8888(src, dst, table);
-    } else {
+    if (table == 0) {
         cnvStaticYcc420plnToArgb8888(src, dst);
+    } else {
+        cnvDynamicYcc420plnToArgb8888(src, dst, table);
     }
 }
 
+/* TODO: [near miss] 99.910446%; donor arithmetic and pointer lifetimes now
+ * match retail; only BSS/rodata relocation labels and loop formatting remain. */
 void CFT_Ycc420plnToArgb8888Init(void)
 {
     s32 i;
+    float* y_luminance = y__r;
     float* cb_green = cb_g;
     float* cb_blue = cb_b;
-    float* y_luminance = y__r;
     float* cr_red = cr_r;
     float* cr_green = cr_g;
+    float value;
+    s32 offset;
 
     CFT_dummy = CFT_version;
-    i = 0;
-    do {
-        *cb_green++ = -0.392f * (float)(i - 128);
-        *cb_blue++ = 2.017f * (float)(i - 128);
-        *y_luminance++ = 1.164f * (float)(i - 16);
-        *cr_red++ = 1.596f * (float)(i - 128);
-        *cr_green++ = -0.813f * (float)(i - 128);
-        i++;
-    } while (i != 256);
+    for (i = 0; i != 256; i++) {
+        offset = i - 16;
+        value = 1.164f * (float)offset;
+        offset = i - 128;
+        *y_luminance++ = value;
+        *cb_green++ = -0.392f * (float)offset;
+        *cb_blue++ = 2.017f * (float)offset;
+        *cr_red++ = 1.596f * (float)offset;
+        *cr_green++ = -0.813f * (float)offset;
+    }
 }

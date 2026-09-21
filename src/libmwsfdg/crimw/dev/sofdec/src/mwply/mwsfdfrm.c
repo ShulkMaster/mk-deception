@@ -84,6 +84,12 @@ typedef struct SfdCalculatedPlane {
     short y_pitch;
 } SfdCalculatedPlane;
 
+/* The decoder stores picture-user data as a pointer/length pair at +0x38. */
+typedef struct MwsPictureUserData {
+    void* data;
+    int size;
+} MwsPictureUserData;
+
 typedef char MwsSfhInfoSizeCheck[sizeof(MwsSfhInfo) == 0x14 ? 1 : -1];
 typedef char MwsPlayerHeaderOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->headers == 0xC4 ? 1 : -1];
@@ -152,22 +158,26 @@ static const char set_sync_invalid[0x34] =
     "E1122629: mwPlySetFrmSync: handle is invalid.";
 #pragma force_active off
 
-/* Soft ceiling: mwsffrm_AnalySofdecHeader ~93.72% -- direct ring indexing
- * folds the +0xC4 header base that retail applies after the slot offset. */
+/* TODO: [near miss] 95.847%; donor-shaped locals improve the stack/register
+ * lifetimes, but retail still keeps the +0xC4 slot base separate. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
-    void* header;
-    int is_header;
-    int stream_exists;
-    int color_type;
-    int maximum_frames;
-    unsigned int source_effect;
+    MwsPlayer* p;
     int color_adjustment;
+    int maximum_frames;
     int effect_type;
+    int is_header;
+    int color_type;
+    int stream_exists;
+    int frame_count;
+    int wr;
     MwsSfhInfo* info;
+    unsigned int source_effect;
+    void* header;
 
-    player->header_count++;
+    p = player;
+    p->header_count++;
     if (size < 0x800 || data == 0) {
         return;
     }
@@ -189,8 +199,10 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
     } else if (color_type == 3) {
         color_adjustment = 1;
     }
-    if (SFH_AnlyMaxFrmNum(header, &maximum_frames) == 0) {
+    if (SFH_AnlyMaxFrmNum(header, &frame_count) == 0) {
         maximum_frames = -1;
+    } else {
+        maximum_frames = frame_count;
     }
     if (SFH_AnlyFtrFxType(header, 0xE0, &source_effect) == 0) {
         effect_type = 0x11;
@@ -217,14 +229,15 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
         }
     }
 
-    info = &player->headers[player->next_header];
-    info->header_number = player->header_count - 1;
+    wr = p->next_header;
+    info = &p->headers[wr];
+    info->header_number = p->header_count - 1;
     info->color_adjustment = color_adjustment;
     info->maximum_frames = maximum_frames;
     info->effect_type = effect_type;
     info->valid = 1;
-    player->next_header++;
-    player->next_header %= 8;
+    p->next_header++;
+    p->next_header %= 8;
     SFH_Destroy(header);
 }
 
@@ -266,8 +279,8 @@ void MWSFFRM_InitSfhInfTable(MwsPlayer* player)
     MWSFSFX_SetColAdj(player, zero);
 }
 
-/* Soft ceiling: mwPlyGetFxType ~93.95% -- direct ring indexing folds the
- * header base offset into MWCC's indexed address; retail adds the slot first. */
+/* TODO: [near miss] 93.952380%; direct ring indexing has equivalent behavior,
+ * but retail keeps the slot offset separate from the header base in codegen. */
 int mwPlyGetFxType(MwsPlayer* player)
 {
     MwsSfhInfo* info = &player->headers[player->current_header % 8];
@@ -315,33 +328,36 @@ void mwPlyCalcYccPlane(void* buffer, int width, int height,
     output->c_height = plane.c_pitch;
 }
 
+/* TODO: [breakthrough needed] 93.618324%; donor-backed user-record typing and
+ * lifetime order improve field loads; retail keeps dimensions after the
+ * picture-type switch, leaving an unresolved source/CFG boundary. */
 void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
                            void* output_pointer)
 {
-    MwsFrameOutput* output = output_pointer;
+    int display_time;
     int frame_structure;
     int picture_type;
-    int frame_rate;
+    SfdHandle* sfd;
     int divisor;
-    int display_time;
+    void* frame;
+    int frame_rate;
     int presentation_time;
+    void* configured_picture_user;
+    int picture_user_size;
+    MwsPictureUserData* picture_user;
+    void* internal_picture_user;
+    void* picture_user_data;
     int width;
     int height;
     int macroblocks_per_row;
     int macroblock_rows;
     int display_time_source;
     int display_scale;
-    int picture_order;
     int presentation_source;
     int field_38;
     int field_3C;
-    void* frame;
-    SfdHandle* sfd;
-    void** picture_user;
-    void* picture_user_data;
-    int picture_user_size;
-    void* internal_picture_user;
-    void* configured_picture_user;
+    int picture_order;
+    MwsFrameOutput* output = output_pointer;
 
     sfd = player->sfd;
     frame = source->frame_buffer;
@@ -414,9 +430,9 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
 
     internal_picture_user = player->picture_user_internal;
     configured_picture_user = player->picture_user_source;
-    picture_user = (void**)source->picture_user_buffer;
-    picture_user_data = picture_user[0];
-    picture_user_size = (int)picture_user[1];
+    picture_user = source->picture_user_buffer;
+    picture_user_data = picture_user->data;
+    picture_user_size = picture_user->size;
     if (MWSFD_GetUsePicUsr() != 1) {
         output->picture_user_data = 0;
         output->picture_user_size = 0;
@@ -434,6 +450,7 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
     memcpy(output->transport_fields, &source->display_mode, 0x38);
 }
 
+/* TODO: [breakthrough needed] 81.05064%; color-adjustment boolean recovered; resolve skip-loop CFG/lifetimes. */
 void mwPlyGetCurFrm(MwsPlayer* player, void* output)
 {
     MwsFrameOutput* frame_output = output;
@@ -522,7 +539,7 @@ void mwPlyGetCurFrm(MwsPlayer* player, void* output)
     player->previous_picture_order = frame_output->picture_order;
 
     info = &player->headers[player->current_header % 8];
-    color_adjustment = info->valid == 0 ? 0 : info->color_adjustment;
+    color_adjustment = info->valid == 0 ? 0 : info->color_adjustment == 1;
     if (player->picture_user_data != 0) {
         color_adjustment = MWSFSFX_IsFrmCcs(player) == 1;
     }

@@ -122,15 +122,12 @@ void LSC_ExecServer(void)
     s32 i;
 
     LSC_LockCrs(&critical_state);
-    i = 0;
-    lsc = lsc_obj;
-    do {
+    for (i = 0; i < 32; i++) {
+        lsc = &lsc_obj[i];
         if (lsc->used == 1) {
             lsc_ExecHndl(lsc);
         }
-        i++;
-        lsc++;
-    } while (i < 32);
+    }
     LSC_UnlockCrs(&critical_state);
 }
 
@@ -172,6 +169,7 @@ void LSC_Start(LSCObject* lsc)
     LSC_UnlockCrs(&critical_state);
 }
 
+/* TODO: [near miss] 98.014180%; retail indexed previous-entry math and checksum CFG match; remaining residue is GPR/pointer allocation with no clean local lever. */
 s32 LSC_EntryFileRange(LSCObject* lsc, const char* filename,
                        void* directory, s32 offset, s32 sector_count)
 {
@@ -193,13 +191,10 @@ s32 LSC_EntryFileRange(LSCObject* lsc, const char* filename,
         return -1;
     }
 
-    info = &lsc->stream_info[lsc->write_position];
     previous = &lsc->stream_info[(lsc->write_position + 15) % 16];
-    if (previous->id == 0x7FFFFFFF) {
-        stream_id = 0;
-    } else {
-        stream_id = previous->id + 1;
-    }
+    stream_id = previous->id;
+    info = &lsc->stream_info[lsc->write_position];
+    stream_id = (stream_id == 0x7FFFFFFF) ? 0 : stream_id + 1;
     info->id = stream_id;
     info->filename = filename;
     filename_length = strlen(filename);
@@ -240,6 +235,7 @@ void LSC_Destroy(LSCObject* lsc)
     }
 }
 
+/* TODO: [near miss] 97.000000%; retail derives the free-object address from the index (mulli/add), so the pointer-walk rewrite regresses; no honest source lever remains in this trial. */
 LSCObject* LSC_Create(SJ* sj)
 {
     LSCObject* lsc;
