@@ -20,20 +20,8 @@ typedef struct SfdMpvFrame {
     int field_4C;
     int field_50;
     void* picture_user_buffer;
-    union {
-        unsigned char bytes[0x80];
-        MPVPictureInfo decoded;
-        struct {
-            unsigned char reserved_58[0x14];
-            int temporal_reference;
-            unsigned char reserved_70[0x18];
-            int decode_order;
-            int field_order;
-            unsigned char reserved_90[0x48];
-        } order;
-    } picture_info;
-    int field_D8;
-    int field_DC;
+    MPVPictureInfo picture_info;
+    long long picture_pts;
 } SfdMpvFrame;
 
 typedef struct SfdMpvFrameWork {
@@ -86,6 +74,6 @@ void SFMPVF_TermDec(SfdHandle* handle);
 SfdVideoFrameState* SFMPVF_SearchVfrmData(SfdHandle* handle,
                                           const SfdMpvFrame* frame);
 SfdMpvFrame* SFMPVF_SearchFrmObj(SfdHandle* handle,
-                                 const void* frame_data);
+                                 const SfdVideoFrameInfo* info);
 
 #endif

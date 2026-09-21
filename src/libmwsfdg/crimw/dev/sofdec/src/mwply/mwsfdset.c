@@ -1,8 +1,8 @@
 #include "cri/sj.h"
+#include "cri/adxt_internal.h"
 #include "sofdec/sfd_player_types.h"
 
 typedef struct SfdHandle SfdHandle;
-typedef struct MwsStream MwsStream;
 typedef struct MwsLoader MwsLoader;
 typedef struct MwsSound {
     int active;
@@ -14,16 +14,16 @@ typedef struct MwsSound {
 
 typedef struct MwsPlayer {
     unsigned char reserved_000[4];
-    int active;
-    int status;
-    int playback_mode;
+    int used;
+    int stat;
+    int mode;
     unsigned char reserved_010[0x30];
     SfdHandle* sfd;
-    MwsStream* stream;
+    ADXStream* stm;
     unsigned char reserved_048[4];
-    MwsLoader* loader;
+    MwsLoader* lsc;
     unsigned char reserved_050[0x244];
-    MwsSound sound;
+    MwsSound sst;
 } MwsPlayer;
 
 extern void MWSFSVM_Error(const char* message, ...);
@@ -39,7 +39,7 @@ extern int SFD_SetCond(SfdHandle* handle, int condition,
                        SfdConditionValue value);
 extern int SFD_GetHnStat(SfdHandle* handle);
 extern int SFD_SetAudioCh(SfdHandle* handle, int channel);
-extern void MWSTM_SetFlowLimit(MwsStream* stream, int minimum_size,
+extern void MWSTM_SetFlowLimit(ADXStream* stream, int minimum_size,
                                int maximum_size);
 extern void MWSFLSC_SetFlowLimit(MwsPlayer* player, int limit);
 
@@ -48,7 +48,7 @@ static inline int mwsfd_IsEnabled(MwsPlayer* player)
     if (player == 0) {
         return 0;
     }
-    return player->active;
+    return player->used;
 }
 
 static const char get_handle_invalid[] =
@@ -102,7 +102,7 @@ int mwSfdGetOutVol(MwsPlayer* player)
         return 0;
     }
     movie_volume = MWSFRNA_GetOutVol(player);
-    sound_volume = MWSST_GetOutVol(&player->sound);
+    sound_volume = MWSST_GetOutVol(&player->sst);
     if (movie_volume == sound_volume) {
         return movie_volume;
     }
@@ -119,7 +119,7 @@ void mwSfdSetOutVol(MwsPlayer* player, int volume)
         return;
     }
     MWSFRNA_SetOutVol(player, volume);
-    MWSST_SetOutVol(&player->sound, volume);
+    MWSST_SetOutVol(&player->sst, volume);
 }
 
 void mwSfdGetTime(MwsPlayer* player, int* value, int* scale)
@@ -156,7 +156,7 @@ void mwPlySetSyncMode(MwsPlayer* player, int mode)
     } else if (mode == 1) {
         SFD_SetCond(sfd, 0xF, 1);
     } else if (mode == 2) {
-        if (player->playback_mode == 1) {
+        if (player->mode == 1) {
             SFD_SetCond(sfd, 0xF, 2);
         } else {
             SFD_SetCond(sfd, 0xF, 1);
@@ -176,7 +176,7 @@ int mwSfdGetStat(MwsPlayer* player)
         MWSFSVM_Error(get_status_invalid);
         return 0;
     }
-    status = player->status;
+    status = player->stat;
     if (status == 2) {
         status = SFD_GetHnStat(player->sfd);
         if (status == 4 || status == 6) {
@@ -195,12 +195,12 @@ int MWSFD_IsEnableHndl(MwsPlayer* player)
     if (player == 0) {
         return 0;
     }
-    return player->active;
+    return player->used;
 }
 
 void MWSFD_SetFlowLimit(MwsPlayer* player, int limit, int maximum_size)
 {
-    MWSTM_SetFlowLimit(player->stream, limit, maximum_size);
+    MWSTM_SetFlowLimit(player->stm, limit, maximum_size);
     MWSFLSC_SetFlowLimit(player, limit);
 }
 

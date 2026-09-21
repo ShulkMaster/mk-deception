@@ -5,6 +5,8 @@ static double dctac_i_const[8][8];
 static double dctac_f_const[8][8];
 static const char* dctac_version_dummy;
 
+/* TODO: [breakthrough needed] 34.057804%; the generic nested-loop donor regresses sharply;
+ * retail's two-pass transform ownership and lifetime structure remain unresolved. */
 void dctac_TransDouble(const double* input, double* output,
                        const double* transform) {
     double temporary[64];
@@ -100,6 +102,8 @@ void DCT_AcIdctDouble(const double input[8][8], double output[8][8]) {
     dctac_TransDouble(&input[0][0], &output[0][0], &dctac_i_const[0][0]);
 }
 
+/* TODO: [breakthrough needed] 77.437500%; cosine-table algorithm agrees, but retail literal/BSS
+ * pooling and the remaining floating-point scheduling shape are unresolved. */
 void DCT_AcInit(void) {
     int row;
     int column;

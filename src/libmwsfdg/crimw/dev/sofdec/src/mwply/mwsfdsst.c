@@ -57,7 +57,37 @@ static inline int mwsst_IsValid(const MwsStHandle* handle)
     return 1;
 }
 
-/* TODO: [near miss] 93.83%; manager addressing and destroy guard scheduling remain. */
+static void mwsst_Stop(MwsStHandle* handle)
+{
+    if (mwsst_IsValid(handle) == 1) {
+        void* backend = handle->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
+            mwsstmng.interface->stop(backend);
+        }
+    }
+}
+
+static void mwsst_DestroyHn(MwsStHandle* handle)
+{
+    if (handle != 0 && mwsstmng.interface != 0 &&
+        mwsstmng.interface->destroy != 0) {
+        mwsstmng.interface->destroy(handle);
+    }
+}
+
+static void mwsst_ReleaseLib(void)
+{
+    if (mwsstmng.interface != 0 && mwsstmng.active_count != 0) {
+        mwsstmng.active_count--;
+        if (mwsstmng.active_count == 0 &&
+            mwsstmng.interface->finish != 0) {
+            mwsstmng.interface->finish();
+        }
+    }
+}
+
+/* TODO: [near miss] 93.834950%; donor helper boundaries are codegen-neutral;
+ * manager addressing and destroy-guard scheduling remain. */
 void MWSST_Destroy(MwsStHandle* handle)
 {
     MwsStHandle* sound;
@@ -73,36 +103,23 @@ void MWSST_Destroy(MwsStHandle* handle)
     }
 
     MWSFSVM_GotoIdleBorder();
-    if (mwsst_IsValid(sound) == 1) {
-        void* backend = sound->backend;
-        if (mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
-            mwsstmng.interface->stop(backend);
-        }
-    }
+    mwsst_Stop(sound);
     handle->active = 0;
-    if (sound != 0 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->destroy != 0) {
-        mwsstmng.interface->destroy(sound);
-    }
+    mwsst_DestroyHn(sound);
     stream->interface->destroy(stream);
     handle->backend = 0;
-    if (mwsstmng.interface != 0 && mwsstmng.active_count != 0) {
-        mwsstmng.active_count--;
-        if (mwsstmng.active_count == 0 &&
-            mwsstmng.interface->finish != 0) {
-            mwsstmng.interface->finish();
-        }
-    }
+    mwsst_ReleaseLib();
 }
 
-/* TODO: [near miss] 98.34%; initial backend snapshot is reloaded during validation. */
+/* TODO: [near miss] 98.581080%; initial backend/stream/element load order
+ * matches; retail reloads backend for validation. */
 void MWSST_Reset(MwsStPlayerPrefix* wrapper)
 {
     MwsStHandle* sound = &wrapper->sound;
     SfdHandle* player = wrapper->player;
+    MwsStHandle* backend = sound->backend;
     SJ* stream = sound->stream;
     int element_id = sound->element_id;
-    MwsStHandle* backend = sound->backend;
 
     if (mwsst_IsValid(sound) != 1) {
         return;

@@ -15,14 +15,14 @@ struct MwsSupply {
 
 typedef struct MwsPlayer {
     unsigned char reserved_000[0x08];
-    int status;
+    int stat;
     unsigned char reserved_00C[0x34];
     SfdHandle* sfd;
     unsigned char reserved_044[0x08];
-    LSC* loader;
+    LSC* lsc;
     unsigned char reserved_050[0x24];
-    signed char concat_play;
-    unsigned char concat_stopped;
+    signed char linkstm;
+    unsigned char linkstm_req;
     unsigned char reserved_076[0x02];
     int entry_count;
     unsigned char reserved_07C[0x13C];
@@ -94,21 +94,21 @@ void mwPlyLinkStm(MwsPlayer* player, int link)
         return;
     }
     sfd = player->sfd;
-    if (player->concat_play == 1 && link == 0) {
-        player->concat_stopped = 1;
+    if (player->linkstm == 1 && link == 0) {
+        player->linkstm_req = 1;
     }
-    if (player->concat_play == 0 && link == 1) {
+    if (player->linkstm == 0 && link == 1) {
         if (SFD_SetConcatPlay(sfd) != 0) {
             MWSFSVM_Error(link_failed);
         }
     }
-    player->concat_play = link;
+    player->linkstm = link;
 }
 
 void MWSFLSC_SetFlowLimit(MwsPlayer* player, int minimum_buffer_size)
 {
-    if (player->loader != 0) {
-        LSC_SetFlowLimit(player->loader, minimum_buffer_size);
+    if (player->lsc != 0) {
+        LSC_SetFlowLimit(player->lsc, minimum_buffer_size);
     }
 }
 
@@ -122,20 +122,22 @@ static inline void mwPlyStartSeamless(MwsPlayer* player)
     if (MWSFD_IsEnableHndl(player) == 0) {
         MWSFSVM_Error(link_invalid);
     } else {
-        if (player->concat_play == 0 && SFD_SetConcatPlay(player->sfd) != 0) {
+        if (player->linkstm == 0 && SFD_SetConcatPlay(player->sfd) != 0) {
             MWSFSVM_Error(link_failed);
         }
-        player->concat_play = 1;
+        player->linkstm = 1;
     }
     mwSfdStartSj(player, player->input_sj);
     MWSFPLY_SetFlowLimit(player);
-    LSC_Start(player->loader);
+    LSC_Start(player->lsc);
     if (player->supply != 0) {
         player->supply->interface->start(player->supply);
     }
     MWSFCRE_SetSupplySj(player);
 }
 
+/* TODO: [near miss] 97.23141%; retail start/entry CFG and member offsets agree;
+ * narrowing recorded_filename lifetime was neutral, leaving only localized register scheduling. */
 void mwPlyStartFnameLp(MwsPlayer* player, const char* filename)
 {
     const char* recorded_filename;
@@ -149,14 +151,14 @@ void mwPlyStartFnameLp(MwsPlayer* player, const char* filename)
         return;
     }
     MWSFPLY_RecordFname(player, filename);
-    LSC_Stop(player->loader);
+    LSC_Stop(player->lsc);
     recorded_filename = player->filename;
     if (MWSFD_IsEnableHndl(player) == 0) {
         MWSFSVM_Error(entry_invalid);
     } else if (recorded_filename == 0) {
         MWSFSVM_Error(entry_null);
-    } else if (LSC_EntryFname(player->loader, recorded_filename) < 0) {
-        player->status = 4;
+    } else if (LSC_EntryFname(player->lsc, recorded_filename) < 0) {
+        player->stat = 4;
         MWSFSVM_Error(entry_failed, recorded_filename);
     } else {
         player->entry_count++;
@@ -164,7 +166,7 @@ void mwPlyStartFnameLp(MwsPlayer* player, const char* filename)
     if (MWSFD_IsEnableHndl(player) == 0) {
         MWSFSVM_Error(loop_invalid);
     } else {
-        LSC_SetLpFlg(player->loader, 1);
+        LSC_SetLpFlg(player->lsc, 1);
     }
     if (MWSFD_IsEnableHndl(player) == 0) {
         MWSFSVM_Error(seamless_invalid);

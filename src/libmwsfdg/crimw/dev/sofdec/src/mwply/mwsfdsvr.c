@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "cri/adxt_internal.h"
 
 typedef struct LSC LSC;
 typedef struct SfdHandle SfdHandle;
@@ -31,7 +32,7 @@ struct MwsPlayer {
     int status;
     unsigned char reserved_00C[0x34];
     SfdHandle* sfd;
-    void* stream;
+    ADXStream* stream;
     unsigned char reserved_048[0x04];
     LSC* loader;
     unsigned char reserved_050[0x10];
@@ -100,10 +101,10 @@ extern void MWSFSVM_GotoIdleBorder(void);
 extern int MWSFSVM_TestAndSet(int* value);
 extern int MWSST_GetStat(MwsStHandle* sound);
 extern void MWSST_Pause(MwsStHandle* sound, int paused);
-extern int MWSTM_GetStat(void* stream);
-extern int MWSTM_IsFsStatErr(void* stream);
-extern int MWSTM_ReqStart(void* stream);
-extern void MWSTM_SetFileRange(void* stream, const char* filename, int offset,
+extern int MWSTM_GetStat(ADXStream* stream);
+extern int MWSTM_IsFsStatErr(ADXStream* stream);
+extern int MWSTM_ReqStart(ADXStream* stream);
+extern void MWSTM_SetFileRange(ADXStream* stream, const char* filename, int offset,
                                int length, int end_position);
 extern int SFD_GetHnStat(SfdHandle* handle);
 extern void SFD_ExecOne(SfdHandle* handle);
@@ -135,6 +136,31 @@ extern int mwg_field_no;
 extern int mwg_vcnt;
 extern MwsPlayer* mwsfd_hn_last;
 
+static inline void mwsfd_SetSleepBdr(MwsPlayer* player, int value)
+{
+    MwsLibraryWork* work = MWSFLIB_GetLibWorkPtr();
+
+    player->sleeping_server = value;
+    work->sleeping_server = value;
+}
+
+static inline void mwsfd_ClrSleepBdr(MwsPlayer* player)
+{
+    mwsfd_SetSleepBdr(player, 0);
+}
+
+static inline void mwsfd_SleepLoop(MwsPlayer* player)
+{
+    int i;
+
+    for (i = 0; i < 10; i++) {
+        mwsfd_SetSleepBdr(player, 1);
+        ADXM_WaitVsync();
+        mwsfd_ClrSleepBdr(player);
+        if (player->in_mwply_server == 0) break;
+    }
+}
+
 static inline void mwsfd_VsyncBody(void)
 {
     MwsLibraryWork* work;
@@ -154,37 +180,12 @@ static inline void mwsfd_VsyncBody(void)
 
 void mwlSfdSleepDecSvr(MwsPlayer* player)
 {
-    MwsLibraryWork* work;
-    int count;
-    int enabled;
-
     mwPlySaveRsc();
-    work = MWSFLIB_GetLibWorkPtr();
-    player->sleeping_server = 1;
-    work->sleeping_server = 1;
+    mwsfd_SetSleepBdr(player, 1);
     MWSFSVM_GotoIdleBorder();
-    work = MWSFLIB_GetLibWorkPtr();
-    player->sleeping_server = 0;
-    work->sleeping_server = 0;
+    mwsfd_ClrSleepBdr(player);
     mwPlyRestoreRsc();
-
-    if (player->in_mwply_server == 1) {
-        count = 0;
-        enabled = 1;
-        do {
-            work = MWSFLIB_GetLibWorkPtr();
-            player->sleeping_server = enabled;
-            work->sleeping_server = enabled;
-            ADXM_WaitVsync();
-            work = MWSFLIB_GetLibWorkPtr();
-            player->sleeping_server = 0;
-            work->sleeping_server = 0;
-            if (player->in_mwply_server == 0) {
-                break;
-            }
-            count++;
-        } while (count < 10);
-    }
+    if (player->in_mwply_server == 1) mwsfd_SleepLoop(player);
 }
 
 void MWSFSVR_SetHnSfdSvrFlg(MwsPlayer* player, int enabled)
@@ -204,8 +205,9 @@ void MWSFSVR_SetMwsfdSvrFlg(int enabled)
 }
 
 #pragma dont_inline on
-int mwsfd_ExecSvrHndl(MwsPlayer* player)
+int mwsfd_ExecSvrHndl(void* object)
 {
+    MwsPlayer* player = object;
     SfdHandle* sfd;
 
     sfd = player->sfd;
@@ -331,6 +333,8 @@ int MWSFSVR_VsyncThrdProc(void* object)
     return 0;
 }
 
+/* TODO: [near miss] 98.305260%; status 1/2 source order retained after the
+ * case-order trial regressed to 0%; compiler dispatch and literal-pool residue. */
 static int mwSfdExecDecSvrHndl(MwsPlayer* player)
 {
     SfdHandle* sfd;
@@ -398,7 +402,7 @@ static int mwSfdExecDecSvrHndl(MwsPlayer* player)
         }
         break;
     }
-    case 2:
+    case 2: {
         sfd = player->sfd;
         if (player->terminating_supply == 1) {
             if (LSC_GetNumStm(player->loader) == 0) {
@@ -412,6 +416,7 @@ static int mwSfdExecDecSvrHndl(MwsPlayer* player)
         }
         if (SFD_GetHnStat(sfd) == 6) player->status = 3;
         break;
+    }
     case 0:
         break;
     default:

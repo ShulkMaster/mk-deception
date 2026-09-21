@@ -1,14 +1,15 @@
 #include "cri/svm.h"
+#include "dolphin/types.h"
 #include "runtime/cstdio.h"
 
 #undef va_start
 #define va_start(arguments, format) ((void)(format), __builtin_va_info(&(arguments)))
 
 static char errstr[256];
-static int mwg_main_fid;
-static int mwg_idle_fid;
-static int mwg_vsync_fid;
-static int mwg_vbin_fid;
+static s32 mwg_main_fid;
+static s32 mwg_idle_fid;
+static s32 mwg_vsync_fid;
+static s32 mwg_vbin_fid;
 
 void MWSFSVM_GotoIdleBorder(void)
 {
@@ -26,7 +27,7 @@ void MWSFSVM_Error(const char* format, ...)
     va_end(arguments);
 }
 
-unsigned int MWSFSVM_TestAndSet(int* value)
+int MWSFSVM_TestAndSet(int* value)
 {
     return SVM_TestAndSet(value);
 }

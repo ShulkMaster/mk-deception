@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
 #include "sofdec/sfd_player.h"
 
@@ -20,7 +21,7 @@ struct MwsPlayer {
     int playback_mode;
     unsigned char reserved_010[0x30];
     SfdHandle* sfd;
-    void* stream;
+    ADXStream* stream;
     unsigned char reserved_048[0x04];
     LSC* loader;
     unsigned char reserved_050[0x24];
@@ -30,9 +31,9 @@ struct MwsPlayer {
     unsigned char reserved_077;
     int entry_count;
     unsigned char reserved_07C[0x04];
-    int field_080;
-    int field_084;
-    int field_088;
+    int frames_obtained;
+    int frames_released;
+    int frames_skipped_display;
     unsigned char reserved_08C[0x12C];
     char* filename;
     int filename_capacity;
@@ -82,8 +83,8 @@ extern void MWSST_Pause(MwsStHandle* sound, int paused);
 extern void MWSST_Reset(MwsPlayer* player);
 extern void MWSST_StartSj(MwsStHandle* sound);
 extern void MWSST_Stop(MwsStHandle* sound);
-extern int MWSTM_GetStat(void* stream);
-extern void MWSTM_ReqStop(void* stream);
+extern int MWSTM_GetStat(ADXStream* stream);
+extern void MWSTM_ReqStop(ADXStream* stream);
 extern int SFD_Pause(SfdHandle* handle, int paused);
 extern int SFD_Standby(SfdHandle* handle);
 extern void mwPlyLinkStm(MwsPlayer* player, int link);
@@ -113,7 +114,7 @@ void MWSFPLY_RecordFname(MwsPlayer* player, const char* filename)
 
 void mwPlyChkSupply(MwsPlayer* player)
 {
-    void* stream = player->stream;
+    ADXStream* stream = player->stream;
     SfdHandle* sfd = player->sfd;
 
     if (stream != 0 && MWSTM_GetStat(stream) == 3) {
@@ -255,8 +256,8 @@ static inline void mwSfdPrepareStart(MwsPlayer* player)
         MWSFTAG_InitTagInf(player);
         MWSFFRM_InitSfhInfTable(player);
     }
-    player->field_080 = 0;
-    player->field_084 = 0;
+    player->frames_obtained = 0;
+    player->frames_released = 0;
     if (SFD_Standby(player->sfd) != 0) {
         MWSFLIB_SetErrCode(-0x137);
         MWSFSVM_Error(standby_failed);
@@ -264,7 +265,7 @@ static inline void mwSfdPrepareStart(MwsPlayer* player)
     mwSfdPause(player, player->paused);
     MWSST_Pause(&player->sound, 1);
     MWSST_StartSj(&player->sound);
-    player->field_088 = 0;
+    player->frames_skipped_display = 0;
     player->concat_stopped = 0;
     player->status = 1;
 }

@@ -258,6 +258,8 @@ void DCT_FsriTrans6Blk(DctFsriParams* params)
     DCT_FsriTransCore(params, -1);
 }
 
+/* TODO: [blocked] 25.000%; RE4 confirms the exact GQR7 mtspr sequence;
+ * matching requires authorized handwritten assembly. */
 void DCT_FsriSetGqr(void)
 {
     /* Retail programs GQR7 for signed 16-bit paired-single stores. */
