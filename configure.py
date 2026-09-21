@@ -1993,6 +1993,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.c",
+                extra_cflags=["-sdata", "0"],
             ),
             Object(
                 NonMatching,
@@ -2064,7 +2065,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.c",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-sdata", "0", "-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
@@ -2076,6 +2077,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.c",
+                extra_cflags=["-sdata", "0"],
             ),
             Object(
                 NonMatching,

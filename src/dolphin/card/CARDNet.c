@@ -4,6 +4,8 @@
 
 u16 __CARDVendorID = 0xFFFF;
 u8 __CARDPermMask = 0x1C;
+/* Retail SDK object has a four-byte terminal .sdata layout slot here. */
+u8 gap_07_8050FEFC_sdata[4] = {0, 0, 0, 0};
 
 s32 CARDGetSerialNo(s32 chan, u64* serialNo)
 {

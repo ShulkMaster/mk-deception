@@ -3,6 +3,8 @@
 
 const char* __ARQVersion =
     "<< Dolphin SDK - ARQ\trelease build: Apr  5 2004 04:15:04 (0x2301) >>";
+/* Retail SDK object has a four-byte terminal .sdata layout slot here. */
+unsigned char gap_07_8050FECC_sdata[4] = {0, 0, 0, 0};
 
 static ARQRequest* __ARQRequestQueueHi;
 static ARQRequest* __ARQRequestTailHi;
@@ -14,6 +16,26 @@ static ARQCallback __ARQCallbackHi;
 static ARQCallback __ARQCallbackLo;
 static unsigned long __ARQChunkSize;
 static int __ARQ_init_flag;
+
+void __ARQPopTaskQueueHi(void)
+{
+    if (__ARQRequestQueueHi != 0) {
+        if (__ARQRequestQueueHi->type == 0) {
+            ARStartDMA(__ARQRequestQueueHi->type,
+                       __ARQRequestQueueHi->source,
+                       __ARQRequestQueueHi->destination,
+                       __ARQRequestQueueHi->length);
+        } else {
+            ARStartDMA(__ARQRequestQueueHi->type,
+                       __ARQRequestQueueHi->destination,
+                       __ARQRequestQueueHi->source,
+                       __ARQRequestQueueHi->length);
+        }
+        __ARQCallbackHi = __ARQRequestQueueHi->callback;
+        __ARQRequestPendingHi = __ARQRequestQueueHi;
+        __ARQRequestQueueHi = __ARQRequestQueueHi->next;
+    }
+}
 
 
 void __ARQServiceQueueLo(void)
@@ -90,12 +112,11 @@ void ARQInit(void)
     }
 }
 
-void ARQPostRequest(void* requestMemory, unsigned long owner, unsigned long type,
+void ARQPostRequest(ARQRequest* request, unsigned long owner, unsigned long type,
                     unsigned long priority, unsigned long source,
                     unsigned long destination, unsigned long length,
                     ARQCallback callback)
 {
-    ARQRequest* request = requestMemory;
     int enabled;
 
     request->next = 0;
@@ -104,23 +125,30 @@ void ARQPostRequest(void* requestMemory, unsigned long owner, unsigned long type
     request->source = source;
     request->destination = destination;
     request->length = length;
-    request->callback = callback != 0 ? callback : __ARQCallbackHack;
+    if (callback != 0) {
+        request->callback = callback;
+    } else {
+        request->callback = __ARQCallbackHack;
+    }
 
     enabled = OSDisableInterrupts();
-    if (priority == 0) {
+    switch (priority) {
+    case 0:
         if (__ARQRequestQueueLo != 0) {
             __ARQRequestTailLo->next = request;
         } else {
             __ARQRequestQueueLo = request;
         }
         __ARQRequestTailLo = request;
-    } else if (priority == 1) {
+        break;
+    case 1:
         if (__ARQRequestQueueHi != 0) {
             __ARQRequestTailHi->next = request;
         } else {
             __ARQRequestQueueHi = request;
         }
         __ARQRequestTailHi = request;
+        break;
     }
 
     if (__ARQRequestPendingHi == 0 && __ARQRequestPendingLo == 0) {

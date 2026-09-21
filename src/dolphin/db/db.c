@@ -4,6 +4,7 @@
 DBInterface* __DBInterface;
 int DBVerbose;
 
+/* TODO: [near miss] 94.000000%; retail and current DBInit opcodes/data agree; only the local exception-symbol relocation metadata differs, with no honest source-only correction available. */
 void DBInit(void)
 {
     __DBInterface = (DBInterface*)OSPhysicalToCached(0x40);

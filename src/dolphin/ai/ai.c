@@ -189,6 +189,7 @@ unsigned char AIGetStreamVolRight(void)
     return GET_REG_FIELD(AI_REGS[1], 8, 8);
 }
 
+/* TODO: [near miss] 99.34066%; OSNanosecondsToTicks donor rewrite tested at 53.45055%; retain manual timer-scale form and stop at r9/r10 coloring. */
 void AIInit(void* callback_stack)
 {
     unsigned long timer_scale;
@@ -263,6 +264,7 @@ static void __AICallbackStackSwitch(AIDCallback callback)
     callback();
 }
 
+/* TODO: [breakthrough needed] 76.975204%; timing CFG agrees, but MWCC frame/prologue and register/lowering shape still diverge. */
 static void __AI_SRC_INIT(void)
 {
     OSTime rising_32khz = 0;
