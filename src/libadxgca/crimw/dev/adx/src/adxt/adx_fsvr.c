@@ -6,6 +6,9 @@ extern void ADXF_ExecServer(void);
 
 int adxt_fssvr_enter_cnt;
 
+/* Run the two-pass CRI file/stream service sequence. The phase values are
+ * observed by callbacks and deliberately leave gaps for the lock/re-entry
+ * states represented by the retail scheduler. */
 void ADXT_ExecFsSvr(void)
 {
     ADXCRS_Lock();

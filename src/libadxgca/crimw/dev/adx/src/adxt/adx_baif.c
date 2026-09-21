@@ -23,13 +23,9 @@ static inline unsigned int sw32(unsigned int v)
     return v >> 24 | (v >> 8 & 0xFF00) | (v << 8 & 0xFF0000) | v << 24;
 }
 
-static inline unsigned short sw16(unsigned short v)
-{
-    return v >> 8 | v << 8;
-}
+#define SWAP16(x) ((((x) >> 8) & 0xFF) | (((x) & 0xFF) << 8))
 
-
-static void* AIFF_GetInfo(void*, int*, int*, int*, int*);
+static unsigned char* AIFF_GetInfo(unsigned char*, int*, int*, int*, int*);
 void ADXB_ExecOneAiff8(AdxBasicDecoder*);
 void ADXB_ExecOneAiff16(AdxBasicDecoder*);
 
@@ -85,8 +81,9 @@ void ADXB_ExecOneAiff8(AdxBasicDecoder* d)
 void ADXB_ExecOneAiff16(AdxBasicDecoder* d)
 {
     AdxDecodeParams* dp;
-    unsigned short *pcm, *left, *right, sample;
+    unsigned short *pcm, *left, *right;
     unsigned short* input;
+    unsigned short sample;
     int i, count;
 
     dp = &d->decode;
@@ -106,18 +103,18 @@ void ADXB_ExecOneAiff16(AdxBasicDecoder* d)
             right = &pcm[dp->pcm_distance + dp->write_position];
             for (i = 0; i < count; i++) {
                 sample = input[i * 2];
-                left[i] = sample / 256 | sample * 256;
+                left[i] = (sample << 8) | (sample >> 8);
                 sample = input[i * 2 + 1];
-                right[i] = sample / 256 | sample * 256;
+                right[i] = (sample << 8) | (sample >> 8);
             }
         } else {
             for (i = 0; i < count; i++) {
                 sample = input[i];
-                left[i] = sample / 256 | sample * 256;
+                left[i] = (sample << 8) | (sample >> 8);
             }
         }
         d->decoded_samples = count;
-        d->decoded_data_length = count * (d->channel_count << 1);
+        d->decoded_data_length = d->channel_count * (count * 2);
         d->status = 2;
     }
     if (d->status == 2) {
@@ -130,7 +127,7 @@ void ADXB_ExecOneAiff16(AdxBasicDecoder* d)
 int ADXB_DecodeHeaderAiff(AdxBasicDecoder* d, signed char* input, int length)
 {
     short data_length;
-    int rate, channels, bits, samples, result;
+    int samples, bits, channels, rate, result;
     signed char* data;
 
     d->header_decoded = 1;
@@ -138,7 +135,8 @@ int ADXB_DecodeHeaderAiff(AdxBasicDecoder* d, signed char* input, int length)
         data_length = 0;
         result = -1;
     } else {
-        data = AIFF_GetInfo(input, &rate, &channels, &bits, &samples);
+        data = (signed char*)AIFF_GetInfo((unsigned char*)input, &rate,
+                                         &channels, &bits, &samples);
         if (data == NULL) {
             result = -1;
         } else {
@@ -160,16 +158,21 @@ int ADXB_DecodeHeaderAiff(AdxBasicDecoder* d, signed char* input, int length)
     if (result < 0)
         return 0;
     d->coefficient = 0;
-    d->loop_count = d->loop_type = 0;
-    d->loop_end_offset = d->loop_end_sample = d->loop_start_offset =
-        d->loop_start_sample = d->loop_insert_samples = 0;
+    d->loop_type = 0;
+    d->loop_count = 0;
+    d->loop_end_offset = 0;
+    d->loop_end_sample = 0;
+    d->loop_start_offset = 0;
+    d->loop_start_sample = 0;
+    d->loop_insert_samples = 0;
     d->decode.channel_count = d->channel_count;
     d->decode.block_size = d->block_length;
     d->decode.samples_per_block = d->samples_per_block;
     d->decode.pcm_buffer = d->pcm_buffer;
     d->decode.pcm_size = d->pcm_size;
     d->decode.pcm_distance = d->pcm_distance;
-    d->decoded_data_length = d->decoded_samples = 0;
+    d->current_write_position = 0;
+    d->total_decoded_samples = 0;
     d->format_type = 3;
     if (d->bits_per_sample == 8)
         d->codec_type = 1;
@@ -185,62 +188,71 @@ int ADXB_CheckAiff(const signed char* input)
     return 0;
 }
 
-static void* AIFF_GetInfo(void* header, int* rate, int* channels, int* bits,
-                          int* samples)
+/* TODO: [near miss] 93.987180%; AIFF parse and byte-pack CFG agree;
+ * remaining residue is register coloring. */
+static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
+                                   int* channels, int* bits, int* samples)
 {
     unsigned char* p;
     unsigned char* end;
-    int id;
-    int size;
-    int form;
-    int have_comm;
-    int have_ssnd;
-    unsigned int value;
-    void* data;
+    unsigned char* data;
+    signed long id;
+    signed long size;
+    signed long form;
+    signed long have_comm;
+    signed long have_ssnd;
+    unsigned short exp;
+    unsigned short mant;
+    unsigned long offset;
 
-    have_ssnd = have_comm = 0;
+    p = header + 12;
+    have_comm = 0;
+    have_ssnd = 0;
     data = NULL;
-    p = header;
-
-    id = rd32(p); p += 4;
-    size = rd32(p);
-    size = sw32(size); p += 4;
-    form = rd32(p); p += 4;
+    id = rd32(header);
+    size = rd32(header + 4);
+    size = sw32(size);
+    form = rd32(header + 8);
     if (id != FORM)
         return NULL;
     if (form != AIFF)
         return NULL;
     end = p + size - 4;
     while (p < end) {
-        id = rd32(p); p += 4;
-        size = rd32(p);
-        size = sw32(size); p += 4;
+        id = rd32(p);
+        size = rd32(p + 4);
+        size = sw32(size);
+        p += 8;
         switch (id) {
         case COMM:
-            if (!have_comm) {
-                if (size < 18)
-                    return NULL;
-                value = rd16(p);
-                *channels = sw16(value); p += 2;
-                *samples = sw32(rd32(p)); p += 4;
-                *bits = (short)sw16(rd16(p)); p += 2;
-                value = sw16(rd16(p)); p += 2;
-                *rate = sw16(rd16(p));
-                *rate >>= 0x400E - value;
-                p += 8;
-                have_comm = 1;
-                if (have_ssnd)
-                    return data;
-            }
+            if (have_comm != 0)
+                break;
+            if (size < 18)
+                return NULL;
+            have_comm = 1;
+            *channels = (p[0] & 0xFF) | ((p[1] & 0xFFFF) << 8);
+            *channels = SWAP16(*channels);
+            *samples = rd32(p + 2);
+            *samples = sw32(*samples);
+            *bits = (p[6] & 0xFF) | ((p[7] & 0xFFFF) << 8);
+            *bits = SWAP16(*bits);
+            exp = SWAP16((unsigned short)(p[8] | (p[9] << 8)));
+            mant = SWAP16((unsigned short)(p[10] | (p[11] << 8)));
+            p += 0x12;
+            *rate = (signed long)mant >> (0x400E - exp);
+            if (have_ssnd != 0)
+                return data;
             break;
         case SSND:
-            if (!have_ssnd) {
-                value = sw32(rd32(p)); p += 4;
-                data = p + value;
-                have_ssnd = 1;
-                if (have_comm)
-                    return data;
-            }
+            if (have_ssnd != 0)
+                break;
+            have_ssnd = 1;
+            offset = rd32(p);
+            offset = sw32(offset);
+            p += 4;
+            data = p + offset;
+            if (have_comm != 0)
+                return data;
             break;
         default:
             p += (size + 1) & ~1;

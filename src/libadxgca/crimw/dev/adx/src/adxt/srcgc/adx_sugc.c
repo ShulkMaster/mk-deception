@@ -15,7 +15,16 @@ const char* const adxgcsdk_build =
 
 void adxgc_err_dvd(void* object, const char* message);
 
-void ADXGC_SetupDvdFs(const int* read_mode)
+typedef struct ADXGC_DVDFS_PRM {
+    int read_mode;
+} ADXGC_DVDFS_PRM;
+
+typedef char ADXGC_DVDFS_PRMSizeCheck[
+    sizeof(ADXGC_DVDFS_PRM) == 4 ? 1 : -1];
+
+/* TODO: [breakthrough needed] 73.395836%; retail's direct vendor-pool base
+ * and lifetime remain unresolved. */
+void ADXGC_SetupDvdFs(const ADXGC_DVDFS_PRM* read_mode)
 {
     cvFsEntryErrFunc(adxgc_err_dvd, 0);
     cvFsAddDev("MFS", &mfCiGetInterface, 0);
@@ -23,7 +32,7 @@ void ADXGC_SetupDvdFs(const int* read_mode)
     cvFsAddDev("GCD", &gcCiGetInterface, 0);
     cvFsSetDefDev("GCD");
     if (read_mode != 0) {
-        gcCiSetRdMode(0, 0, 0, *read_mode);
+        gcCiSetRdMode(0, 0, 0, read_mode->read_mode);
     } else {
         gcCiSetRdMode(0, 0, 0, 0);
     }

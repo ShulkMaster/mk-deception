@@ -17,9 +17,12 @@ typedef struct WaveChunk {
     unsigned int size;
 } WaveChunk;
 
+static signed char* adxb_wav_fmt_id = (signed char*)"fmt ";
+static signed char* adxb_wav_data_id = (signed char*)"data";
+
 static inline unsigned short ADXB_SwapWav16(unsigned short value)
 {
-    return (value & 0xFF) << 8 | value >> 8;
+    return (value & 0xFF) << 8 | (value >> 8 & 0xFF);
 }
 
 static inline unsigned int ADXB_SwapWav32(unsigned int value)
@@ -31,7 +34,7 @@ static inline unsigned int ADXB_SwapWav32(unsigned int value)
 void ADXB_ExecOneWav4(AdxBasicDecoder* decoder);
 void ADXB_ExecOneWav8(AdxBasicDecoder* decoder);
 void ADXB_ExecOneWav16(AdxBasicDecoder* decoder);
-int ADX_DecodeInfoWav(signed char*, int, short*, signed char*, signed char*,
+int ADX_DecodeInfoWav(unsigned char*, int, short*, signed char*, signed char*,
                       signed char*, signed char*, int*, int*, int*, short*);
 
 void ADXB_ExecOneWav(AdxBasicDecoder* decoder)
@@ -165,6 +168,8 @@ void ADXB_ExecOneWav8(AdxBasicDecoder* decoder)
     }
 }
 
+/* TODO: [breakthrough needed] 67.724140%; donor byte-swap lowering helps;
+ * retail's unrolled indexed-store CFG remains. */
 void ADXB_ExecOneWav16(AdxBasicDecoder* decoder)
 {
     AdxDecodeParams* params;
@@ -172,7 +177,6 @@ void ADXB_ExecOneWav16(AdxBasicDecoder* decoder)
     unsigned short* left;
     unsigned short* right;
     const unsigned short* input;
-    unsigned short sample;
     int i;
     int count;
 
@@ -199,15 +203,12 @@ void ADXB_ExecOneWav16(AdxBasicDecoder* decoder)
             right = &pcm[params->pcm_distance + params->write_position];
 
             for (i = 0; i < count; i++) {
-                sample = input[i * 2];
-                left[i] = sample << 8 | sample >> 8;
-                sample = input[i * 2 + 1];
-                right[i] = sample << 8 | sample >> 8;
+                left[i] = ADXB_SwapWav16(input[i * 2]);
+                right[i] = ADXB_SwapWav16(input[i * 2 + 1]);
             }
         } else {
             for (i = 0; i < count; i++) {
-                sample = input[i];
-                left[i] = sample << 8 | sample >> 8;
+                left[i] = ADXB_SwapWav16(input[i]);
             }
         }
 
@@ -231,7 +232,7 @@ int ADXB_DecodeHeaderWav(AdxBasicDecoder* decoder, signed char* input,
 
     decoder->header_decoded = 1;
 
-    if (ADX_DecodeInfoWav(input, input_length, &data_length,
+    if (ADX_DecodeInfoWav((unsigned char*)input, input_length, &data_length,
                           &decoder->encoding, &decoder->bits_per_sample,
                           &decoder->block_length, &decoder->channel_count,
                           &decoder->sample_rate, &decoder->total_samples,
@@ -258,7 +259,9 @@ int ADXB_DecodeHeaderWav(AdxBasicDecoder* decoder, signed char* input,
     return data_length;
 }
 
-int ADX_DecodeInfoWav(signed char* input, int input_length,
+/* TODO: [near miss] 95.545456%; the masked 16-bit swap is closer; data-chunk
+ * addressing and equivalent swap scheduling remain. */
+int ADX_DecodeInfoWav(unsigned char* input, int input_length,
                       short* data_length, signed char* encoding,
                       signed char* bits_per_sample, signed char* block_length,
                       signed char* channel_count, int* sample_rate,
@@ -266,14 +269,12 @@ int ADX_DecodeInfoWav(signed char* input, int input_length,
                       short* codec_type)
 {
     WaveFormatEx* format;
-    static signed char* fmt_id = (signed char*)"fmt ";
-    static signed char* data_id = (signed char*)"data";
     WaveChunk* chunk;
     int i;
     int wav_size;
 
     for (i = 0; i < input_length; i++) {
-        if (memcmp(&input[i], fmt_id, 4) == 0) {
+        if (memcmp(&input[i], adxb_wav_fmt_id, 4) == 0) {
             break;
         }
     }
@@ -293,7 +294,7 @@ int ADX_DecodeInfoWav(signed char* input, int input_length,
     }
 
     for (i = 0; i < input_length; i++) {
-        if (memcmp(&input[i], data_id, 4) == 0) {
+        if (memcmp(&input[i], adxb_wav_data_id, 4) == 0) {
             break;
         }
     }

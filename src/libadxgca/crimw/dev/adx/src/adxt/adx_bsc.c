@@ -40,15 +40,8 @@ typedef struct AdxEncryptionKey {
     short increment;
 } AdxEncryptionKey;
 
-typedef struct AdxBasicDecoderProgressView {
-    unsigned char reserved_00[0x74];
-    int state;
-} AdxBasicDecoderProgressView;
-
 typedef char AdxBasicDecoderExtSizeCheck[
     sizeof(AdxBasicDecoderExt) == 0xF8 ? 1 : -1];
-typedef char AdxBasicDecoderProgressViewSizeCheck[
-    sizeof(AdxBasicDecoderProgressView) == 0x78 ? 1 : -1];
 
 extern void ADXB_ExecOneAhx(AdxBasicAhx*);
 extern void ADXB_ExecOneAiff(AdxBasicDecoder*);
@@ -284,7 +277,10 @@ short* adxb_DefGetWr(void*, int*, int*, int*);
 void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
-    int delta;
+    int nsmpl;
+    int nbyte;
+    int cur;
+    int last;
 
     if (base->format_type == 0) {
         ADXB_ExecOneAdx(decoder);
@@ -300,28 +296,32 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
         ADXB_ExecOneWav(base);
     }
     if (decoder->notify != 0) {
-        delta = base->decoded_data_length - decoder->last_notified_data_length;
-        if (delta < 0) {
-            delta = 0x7FFFFFFF - decoder->last_notified_data_length +
-                    base->decoded_data_length;
+        nsmpl = base->decoded_samples;
+        last = decoder->last_notified_data_length;
+        cur = base->decoded_data_length;
+        nbyte = cur - last;
+        if (nbyte < 0) {
+            nbyte = (0x7FFFFFFF - last) + cur;
         }
-        decoder->notify(decoder->notify_object, delta,
-                        base->channel_count * base->decoded_samples * 2);
+        decoder->notify(decoder->notify_object, nbyte,
+                        base->channel_count * (nsmpl * 2));
         decoder->last_notified_data_length = base->decoded_data_length;
     }
 }
 
+/* TODO: [near miss] 95.14091%; PL2 loop now uses the proven decoded-block
+ * field at +0x10; shared decode arithmetic still differs in coloring. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
     AdxDecodeParams* params = &base->decode;
-    int block_samples;
     int block_size;
+    int block_samples;
     int loop_samples;
+    int pcm_distance;
+    int pcm_size;
     int write_position;
     short* pcm_buffer;
-    int pcm_size;
-    int pcm_distance;
     int decoded_blocks;
     int decoded_samples;
     int trailing_samples;
@@ -339,7 +339,7 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
             if (decoder->pl2_context != 0) {
                 AdxXpnd* expander = base->expander;
                 ADXCRS_Lock();
-                for (i = 0; i < expander->params.num_blocks * 32; i++) {
+                for (i = 0; i < expander->num_decoded_blocks * 32; i++) {
                     short* left = &expander->params.output_left[i];
                     short* right = &expander->params.output_right[i];
                     pl2encodefunc(decoder, *left, left, right);
@@ -389,6 +389,8 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
     }
 }
 
+/* TODO: [breakthrough needed] 82.313130%; retail/donor local ordering regressed
+ * to 76.747475%; recover the MK-specific ABI/source shape before retrying. */
 void ADXB_EvokeDecode(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
@@ -482,12 +484,12 @@ void ADXB_EntryData(AdxBasicDecoderExt* decoder, signed char* input, int length)
     if (base->format_type == 0) {
         base->decode.input = (const unsigned short*)input;
         base->decode.input_blocks = length / base->block_length;
-        ((AdxBasicDecoderProgressView*)base)->state = 0;
+        base->field_74 = 0;
     } else {
         base->decode.input = (const unsigned short*)input;
         base->decode.input_blocks =
             length / ((base->bits_per_sample / 8) * base->channel_count);
-        ((AdxBasicDecoderProgressView*)base)->state = 0;
+        base->field_74 = 0;
     }
     base->decoded_samples = 0;
     base->decoded_data_length = 0;
@@ -577,7 +579,7 @@ void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder)
     base->total_samples = 0x7FFFFFFF;
     base->block_length = 127;
     base->samples_per_block = 1024;
-    base->format_type = base->field_9A;
+    base->format_type = base->raw_format_type;
     base->decode.channel_count = base->channel_count;
     base->decode.block_size = base->block_length;
     base->decode.samples_per_block = base->samples_per_block;
@@ -619,6 +621,9 @@ void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder)
         }                                                                       \
     } while (0)
 
+/* TODO: [breakthrough needed] 74.463110%; retail fields/key ABI match and the
+ * donor-backed four-short key trial was neutral; broader key-generation
+ * CFG/register divergence remains. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
@@ -668,7 +673,8 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                              &base->loop_count, &base->loop_type,
                              &base->loop_start_sample, &base->loop_start_offset,
                              &base->loop_end_sample, &base->loop_end_offset);
-        ADX_DecodeInfoAinf(input, length, &decoder->ainf_length, decoder->ainf,
+        ADX_DecodeInfoAinf((unsigned char*)input, length,
+                           &decoder->ainf_length, decoder->ainf,
                            &decoder->default_out_volume, decoder->default_pan);
         base->format_type = 0;
     }

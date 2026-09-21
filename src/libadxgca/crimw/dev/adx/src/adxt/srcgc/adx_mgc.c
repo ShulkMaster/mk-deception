@@ -80,6 +80,7 @@ typedef char ADXMThreadParamsSizeCheck[
 typedef char ADXMSleepCallbackSizeCheck[
     sizeof(ADXMSleepCallback) == 0x8 ? 1 : -1];
 
+/* TODO: [near miss] 99.70731%; decrement, wait loops, thread cancellation, and SVM teardown match; residual is pooled-global relocation labeling. */
 void ADXM_ShutdownThrd(void)
 {
     adxm_init_level--;
@@ -106,10 +107,13 @@ int ADXM_IsSetupThrd(void)
     return adxm_init_level != 0;
 }
 
+/* TODO: [breakthrough needed] 90.850746%; prologue matches, but aggregate copy and global lifetimes still differ. */
 void ADXM_SetupThrd(const ADXMThreadParams* params)
 {
+    const char* build = adxgc_build;
+
     if (adxm_init_level == 0) {
-        SVM_Init(adxgc_build);
+        SVM_Init(build);
         SVM_SetCbLock(adxm_lock, 0);
         SVM_SetCbUnlock(adxm_unlock, 0);
 
@@ -205,6 +209,8 @@ void* adxm_fs_proc(void* argument)
     return 0;
 }
 
+/* TODO: [near miss] 94.500000%; CFG and semantics agree; retail load
+ * scheduling and pooled-global offsets have no clean source lever. */
 void* adxm_vsync_proc(void* argument)
 {
     int* external_vsync_count = &adxt_vsync_cnt;
@@ -276,6 +282,8 @@ void adxm_unlock(void* object)
     }
 }
 
+/* TODO: [near miss] 99.844444%; synchronization ABI and lock CFG/lifetime
+ * agree; retail scalar/thread owners remain in a different pooled-BSS order. */
 void adxm_lock(void* object)
 {
     int interrupts;

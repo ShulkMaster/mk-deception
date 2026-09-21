@@ -22,7 +22,7 @@ enum {
     ADXT_DEFAULT_PAN = -128
 };
 
-typedef void (*AdxtAhxDetachCallback)(void);
+typedef void (*AdxtAhxDetachCallback)(ADXTHandle* handle);
 typedef void (*AdxtPl2DetachCallback)(ADXTHandle* handle);
 
 extern ADXTHandle adxt_obj[];
@@ -228,18 +228,19 @@ static inline SJ* adxt_GetInputSj(ADXTHandle* handle)
     return handle->input_sj;
 }
 
+/* TODO: [near miss] 96.09375%; RE4's explicit input-SJ member check and local ordering recover the ring-buffer CFG; one block-size register assignment remains. */
 s32 ADXT_InsertSilence(ADXTHandle* handle, s32 channels, s32 samples)
 {
-    SJ* sj;
-    SJCK chunk;
-    SJCK remainder;
     s32 block_bytes;
     s32 requested_bytes;
+    SJ* sj;
     s32 usable_bytes;
     s32 written_bytes;
+    SJCK chunk;
+    SJCK remainder;
 
-    sj = adxt_GetInputSj(handle);
-    if (sj == 0) {
+    sj = handle->input_sj;
+    if (handle->input_sj == 0) {
         return 0;
     }
     block_bytes = channels * 18;
@@ -313,8 +314,8 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
-/* TODO: [near miss] 99.9885%; filename buffer excluded from pooled BSS; explicit array initialization put it in data and was restored. */
-/* TODO: [near miss] 99.9885%; timing-global BSS pool skips the file-ID buffer; explicit zero initialization did not fix placement. */
+/* TODO: [near miss] 99.873566%; retail/RE4 discard and time-resync CFG/helper
+ * sequence agree; only pooled-BSS relocation identity remains, so stop. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;
@@ -352,6 +353,7 @@ void ADXT_SetTranspose(
 {
 }
 
+/* TODO: [near miss] 99.70238%; pause/resume CFG, renderer calls, time rebasing, and lock lifetime match; remaining narrow-load/register residue has no clean local lever. */
 void ADXT_Pause(ADXTHandle* handle, s32 paused)
 {
     s32 status;
@@ -395,6 +397,8 @@ s32 ADXT_GetErrCode(ADXTHandle* handle)
     return handle->error_code;
 }
 
+/* TODO: [near miss] 98.977270%; retail loop CFG and 0xC0 handle stride agree;
+ * do/while spelling was neutral, leaving register/pooled-global residue. */
 void ADXT_ExecServer(void)
 {
     adxt_ExecServers();
@@ -534,8 +538,9 @@ static inline void adxt_GetTimeSfreq2(
         *scale = ADXSJD_GetSfreq(handle->decoder);
         decoded_samples = ADXSJD_GetDecNumSmpl(handle->decoder);
         queued_samples = adxt_GetNumSmplObuf(handle, 0);
-        *sample_count = handle->linked_decoded_samples + decoded_samples -
+        *sample_count = decoded_samples -
                         (ADXRNA_GetNumData(handle->rna) + queued_samples);
+        *sample_count += handle->linked_decoded_samples;
     } else if (handle->status == ADXT_STATUS_PLAY_END) {
         *sample_count = ADXSJD_GetTotalNumSmpl(handle->decoder);
         *scale = ADXSJD_GetSfreq(handle->decoder);
@@ -548,6 +553,7 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
+/* TODO: [near miss] 96.52682%; donor-local f32 diff lifetime was measured with no codegen change; retained signed mode and direct FP path remain, with pool/FP residue. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;
@@ -651,6 +657,7 @@ void ADXT_Stop(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
+/* TODO: [near miss] 99.531250%; ADXTHandle offsets and reset/start CFG agree; only loop temporary register coloring remains. */
 void ADXT_StartSj(ADXTHandle* handle, SJ* input)
 {
     s32 channel;
@@ -687,6 +694,8 @@ void ADXT_StartSj(ADXTHandle* handle, SJ* input)
     ADXCRS_Unlock();
 }
 
+/* TODO: [near miss] 99.523810%; file/decoder CFG and size agree;
+ * only loop pointer/count register coloring remains. */
 void adxt_start_stm(
     ADXTHandle* handle, const char* filename, void* directory,
     s32 file_offset, s32 file_sectors)
@@ -695,7 +704,7 @@ void adxt_start_stm(
     s32 channel;
 
     ADXSTM_SetBufSize(
-        handle->stream, handle->minimum_buffer_sectors * ADXT_SECTOR_SIZE,
+        handle->stream, handle->reload_threshold_sectors * ADXT_SECTOR_SIZE,
         handle->stream_buffer_sectors * ADXT_SECTOR_SIZE);
     ADXSTM_SetEos(handle->stream, adxstm_seteos_sct);
     ADXSTM_EntryEosFunc(handle->stream, 0, 0);
@@ -739,6 +748,8 @@ void ADXT_DestroyAll(void)
     }
 }
 
+/* TODO: [near miss] 99.887010%; typed AHX detach callback preserves the
+ * retail/RE4 handle ABI; remaining residue is pooled-string/branch placement. */
 void ADXT_Destroy(ADXTHandle* handle)
 {
     AXRNAHandle* rna;
@@ -754,7 +765,7 @@ void ADXT_Destroy(ADXTHandle* handle)
         return;
     }
     if (ahxdetachfunc != 0) {
-        ahxdetachfunc();
+        ahxdetachfunc(handle);
     }
     if (pl2detachfunc != 0) {
         pl2detachfunc(handle);
@@ -816,6 +827,7 @@ void ADXT_Destroy(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
+/* TODO: [breakthrough] 99.777374%; explicit shift source now matches retail mulli/slwi output; remaining constructor residue is localized to handle-loop/register scheduling. */
 ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
 {
     ADXTHandle* handle;
@@ -843,7 +855,7 @@ ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
     handle = &adxt_obj[index];
     memset(handle, 0, sizeof(*handle));
     handle->maximum_channels = maximum_channels;
-    output_bytes = maximum_channels * 0x3060 * 2;
+    output_bytes = (maximum_channels * 0x3060) << 1;
     handle->input_buffer = aligned_work + output_bytes;
     handle->input_buffer_size =
         ((aligned_work_size - output_bytes - 0x124) / ADXT_SECTOR_SIZE) *
@@ -899,13 +911,13 @@ ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
     handle->server_frequency = adxt_def_svrfreq;
     handle->stream_buffer_sectors =
         handle->input_buffer_size / ADXT_SECTOR_SIZE;
-    handle->minimum_buffer_sectors =
+    handle->reload_threshold_sectors =
         (s16)(0.85f * (f32)handle->stream_buffer_sectors);
     handle->output_volume = 0;
     for (channel = 0; channel < maximum_channels; channel++) {
         handle->output_pan[channel] = ADXT_DEFAULT_PAN;
     }
-    handle->field_46 = 0;
+    handle->output_balance = 0;
     handle->stream_loop_enabled = 1;
     handle->field_54 = 0;
     handle->field_58 = 0;

@@ -3,24 +3,28 @@
 
 int ADXB_CheckSpsd(const signed char* input) { return memcmp(input, "SPSD", 4) == 0; }
 
-/* Soft ceiling: 97.06% - equivalent copy-loop scheduling/register allocation; stop. */
 void ADXB_ExecOneSpsd(AdxBasicDecoder* decoder)
 {
-    AdxDecodeParams* params = &decoder->decode;
-    const unsigned short* input = params->input;
+    AdxDecodeParams* params;
+    short* pcm;
+    short* left;
+    short* right;
+    const unsigned short* input;
+    int i;
+    int count;
+
+    params = &decoder->decode;
+    input = params->input;
     if (decoder->status == 1 && ADXPD_GetStat(decoder->expander) == 0) {
-        int count, i;
-        short* pcm;
-        short* left;
         decoder->get_write_info(decoder->get_write_object, &params->write_position,
                                 &params->room, &params->loop_samples);
         count = params->pcm_size - params->write_position;
-        if (params->room < count) count = params->room;
-        if (params->input_blocks < count) count = params->input_blocks;
+        if (count > params->room) count = params->room;
+        if (count > params->input_blocks) count = params->input_blocks;
         pcm = params->pcm_buffer;
         left = &pcm[params->write_position];
         if (decoder->channel_count == 2) {
-            short* right = &pcm[params->pcm_distance + params->write_position];
+            right = &pcm[params->pcm_distance + params->write_position];
             for (i = 0; i < count; i++) {
                 left[i] = input[i * 2];
                 right[i] = input[i * 2 + 1];
@@ -29,7 +33,7 @@ void ADXB_ExecOneSpsd(AdxBasicDecoder* decoder)
             for (i = 0; i < count; i++) left[i] = input[i];
         }
         decoder->decoded_samples = count;
-        decoder->decoded_data_length = count * (decoder->channel_count << 1);
+        decoder->decoded_data_length = decoder->channel_count * (count << 1);
         decoder->status = 2;
     }
     if (decoder->status == 2) {

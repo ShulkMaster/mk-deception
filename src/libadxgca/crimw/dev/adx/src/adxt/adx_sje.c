@@ -223,47 +223,63 @@ void ADXSJE_ExecServer(void)
     }
 }
 
-void ADXSJE_ExecHndl(AdxSjeHandle* encoder)
+static inline void adxsje_header_exec(AdxSjeHandle* encoder)
 {
     s32 channel;
     s32 header_size;
     SJCK chunk;
-    s16 coefficient0;
+    SJ* output;
+    s16 sample;
     s16 coefficient1;
+    s16 coefficient0;
     AdxSjePredictorFilter* filter;
+    AdxSjeIirFilter* iir_filter;
 
+    output = encoder->output;
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        encoder->input[channel]->interface->get_chunk(
+            encoder->input[channel], 1, 2, &chunk);
+        if (chunk.len == 0) {
+            break;
+        }
+        sample = *(s16*)chunk.data;
+        encoder->initial_previous1[channel] = sample;
+        encoder->initial_previous0[channel] = sample;
+        encoder->input[channel]->interface->unget_chunk(
+            encoder->input[channel], 1, &chunk);
+    }
+    if (channel < encoder->channel_count) {
+        return;
+    }
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        encoder->previous0[channel] = encoder->initial_previous0[channel];
+        encoder->previous1[channel] = encoder->initial_previous1[channel];
+    }
+    header_size = adxsje_output_header(encoder, output);
+    if (header_size == 0) {
+        return;
+    }
+    encoder->output_length += header_size;
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        filter = encoder->filter[channel];
+        ADX_GetCoefficient((s16)encoder->cutoff_frequency,
+                           encoder->sample_rate,
+                           &coefficient0, &coefficient1);
+        filter->coefficient0 = coefficient0;
+        filter->coefficient1 = coefficient1;
+        iir_filter = filter->iir_filter;
+        iir_filter->coefficient0 = coefficient0;
+        iir_filter->coefficient1 = coefficient1;
+    }
+    encoder->status = 2;
+}
+
+/* TODO: [breakthrough needed] 95.270000%; donor-backed header helper preserves
+ * the break/completion CFG; pointer traversal and coloring remain. */
+void ADXSJE_ExecHndl(AdxSjeHandle* encoder)
+{
     if (encoder->status == 1) {
-        for (channel = 0; channel < encoder->channel_count; channel++) {
-            encoder->input[channel]->interface->get_chunk(
-                encoder->input[channel], 1, 2, &chunk);
-            if (chunk.len == 0) {
-                return;
-            }
-            encoder->initial_previous1[channel] = *(s16*)chunk.data;
-            encoder->initial_previous0[channel] = *(s16*)chunk.data;
-            encoder->input[channel]->interface->unget_chunk(
-                encoder->input[channel], 1, &chunk);
-        }
-        for (channel = 0; channel < encoder->channel_count; channel++) {
-            encoder->previous0[channel] = encoder->initial_previous0[channel];
-            encoder->previous1[channel] = encoder->initial_previous1[channel];
-        }
-        header_size = adxsje_output_header(encoder, encoder->output);
-        if (header_size == 0) {
-            return;
-        }
-        encoder->output_length += header_size;
-        for (channel = 0; channel < encoder->channel_count; channel++) {
-            filter = encoder->filter[channel];
-            ADX_GetCoefficient((s16)encoder->cutoff_frequency,
-                               encoder->sample_rate,
-                               &coefficient0, &coefficient1);
-            filter->coefficient0 = coefficient0;
-            filter->coefficient1 = coefficient1;
-            filter->iir_filter->coefficient0 = coefficient0;
-            filter->iir_filter->coefficient1 = coefficient1;
-        }
-        encoder->status = 2;
+        adxsje_header_exec(encoder);
     } else if (encoder->status == 2) {
         adxsje_encode_exec(encoder);
     }
@@ -350,6 +366,8 @@ void ADXSJE_Destroy(AdxSjeHandle* encoder)
     }
 }
 
+/* TODO: [near miss] 98.053440%; initialization order, bounds, and filter
+ * construction match retail; pooled-BSS ownership and coloring remain. */
 AdxSjeHandle* ADXSJE_Create(s32 input_count, SJ** input, SJ* output)
 {
     s32 index;
@@ -421,16 +439,19 @@ void ADXSJE_Init(void)
     memset(adxsje_obj, 0, sizeof(adxsje_obj));
 }
 
+/* TODO: [near miss] 92.468530%; retail stack slots and common error edges now
+ * agree; remaining indirect-call/register scheduling differences need new evidence. */
 s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
 {
     s32 signature_length;
     s32 written;
     s32 limit;
     s32 value32;
+    u16 signature;
+    s16 header;
     s16 value16;
     s8 value8;
     s32 index;
-    s32 write_failed;
     SJCK chunk;
 
     signature_length = strlen(cri_str);
@@ -440,12 +461,11 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
         return 0;
     }
 
-    write_failed = 0;
     do {
-        value16 = (s16)0x8000;
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-        value16 = (s16)encoder->header_length;
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
+        signature = 0x8000;
+        if (adxsje_write68(&signature, 2, 1, output) != 1) break;
+        header = (s16)encoder->header_length;
+        if (adxsje_write68(&header, 2, 1, output) != 1) break;
         value8 = (s8)encoder->encoding_type;
         if (adxsje_write68(&value8, 1, 1, output) != 1) break;
         value8 = (s8)encoder->block_size;
@@ -485,37 +505,30 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
             for (index = 0; index < encoder->loop_count; index++) {
                 value16 = (s16)index;
                 if (adxsje_write68(&value16, 2, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 value16 = 1;
                 if (adxsje_write68(&value16, 2, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 value32 = encoder->loop_start_sample;
                 if (adxsje_write68(&value32, 4, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 value32 = encoder->loop_start_offset;
                 if (adxsje_write68(&value32, 4, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 value32 = encoder->loop_end_sample;
                 if (adxsje_write68(&value32, 4, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 value32 = encoder->loop_end_offset;
                 if (adxsje_write68(&value32, 4, 1, output) != 1) {
-                    write_failed = 1;
-                    break;
+                    return 0;
                 }
                 written += 0x14;
             }
-            if (write_failed != 0) break;
         }
 
         if (encoder->ainf_enabled == 1) {
@@ -564,12 +577,10 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
         limit = encoder->header_length - signature_length;
         while (written < limit) {
             if (adxsje_write68(&value8, 1, 1, output) != 1) {
-                write_failed = 1;
-                break;
+                return 0;
             }
             written++;
         }
-        if (write_failed != 0) break;
         if (adxsje_write68(cri_str, 1, signature_length, output) !=
             signature_length) {
             break;
@@ -579,25 +590,30 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
     return 0;
 }
 
+/* TODO: [near miss] 90.785710%; retail arithmetic lifetime, return-value
+ * register, and shared u16 marker slot now match; residual stack/call
+ * lowering remains. */
 s32 adxsje_write_end_code(AdxSjeHandle* encoder)
 {
-    s32 output_size;
     s32 end_size;
-    s32 index;
-    s16 value;
-    u8 zero;
+    s32 output_size;
     SJ* output;
+    s32 output_length;
+    s32 index;
+    u16 value;
+    u8 zero;
     SJCK marker_chunk;
     SJCK size_chunk;
     SJCK zero_chunk;
 
     output = encoder->output;
+    output_length = encoder->output_length;
     if (encoder->loop_count <= 0) {
         output_size = encoder->block_size;
     } else {
         output_size =
-            ((encoder->output_length + encoder->block_size + 0x7FF) / 0x800)
-            * 0x800 - encoder->output_length;
+            ((output_length + encoder->block_size + 0x7FF) / 0x800) * 0x800 -
+            output_length;
     }
     end_size = output_size - 4;
     if (output->interface->get_num_data(output, 0) < output_size) {
@@ -718,29 +734,36 @@ s32 adxsje_encode_data(AdxSjeHandle* encoder)
     return total_size;
 }
 
+/* TODO: [near miss] 98.263885%; cached output, donor-typed value/byte
+ * lifetimes, signed scale XOR, and chunk CFG match; residual register coloring remains. */
 s32 adxsje_output_sdata(AdxSjeHandle* encoder)
 {
     s32 channel;
     s32 total_size;
-    s16 header;
-    u8 byte;
-    u32* data;
+    SJ* output;
+    s32 value;
+    s16 sample;
+    s8 byte;
 
     total_size = 0;
+    output = encoder->output;
     for (channel = 0; channel < encoder->channel_count; channel++) {
-        header = (s16)((encoder->scale[channel] - 1) ^ encoder->random_seed);
+        value = (s16)(encoder->scale[channel] - 1) ^ encoder->random_seed;
         encoder->random_seed = (s16)(encoder->random_increment +
             encoder->random_seed * encoder->random_multiplier);
         encoder->random_seed &= 0x7FFF;
-        data = (u32*)encoder->encoded[channel];
-        if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 0) {
-            header = 0;
+        if (((u32*)encoder->encoded[channel])[0] == 0 &&
+            ((u32*)encoder->encoded[channel])[1] == 0 &&
+            ((u32*)encoder->encoded[channel])[2] == 0 &&
+            ((u32*)encoder->encoded[channel])[3] == 0) {
+            value = 0;
         }
-        byte = (u8)(header >> 8);
-        adxsje_write_chunk(encoder->output, &byte, 1);
-        byte = (u8)header;
-        adxsje_write_chunk(encoder->output, &byte, 1);
-        adxsje_write_chunk(encoder->output, encoder->encoded[channel], 0x10);
+        sample = (s16)value;
+        byte = sample >> 8;
+        adxsje_write_chunk(output, &byte, 1);
+        byte = sample;
+        adxsje_write_chunk(output, &byte, 1);
+        adxsje_write_chunk(output, encoder->encoded[channel], 0x10);
         total_size += ADXSJE_BLOCK_BYTES;
     }
     return total_size;
@@ -800,12 +823,43 @@ void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
     }
 }
 
+static inline void adxsje_prdflt_exec(
+    AdxSjePredictorFilter* filter, s16 sample, s32 index)
+{
+    s32 value;
+    s16 residual;
+    s32 magnitude;
+
+    if (index == 0) {
+        s32 clear_index;
+
+        for (clear_index = 0; clear_index < filter->sample_count;
+             clear_index++) {
+            filter->residual[clear_index] = 0;
+        }
+        filter->maximum = 0;
+    }
+    if (filter != 0) {
+        value = sample -
+            ((filter->coefficient0 * filter->previous0) >> 12) -
+            ((filter->coefficient1 * filter->previous1) >> 12);
+        residual = adxsje_clamp_s16(value);
+        filter->residual[index] = residual;
+        magnitude = residual < 0 ? -residual : residual;
+        if (magnitude > filter->maximum) {
+            filter->maximum = residual < 0 ? -residual : residual;
+        }
+        filter->previous1 = filter->previous0;
+        filter->previous0 = sample;
+    }
+}
+
+/* TODO: [breakthrough needed] 90.467320%; donor-backed predictor helper
+ * boundary restores reset/clip/peak CFG; remaining PCM pointer and second-pass lowering differ. */
 s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
 {
     s32 index;
-    s32 clear_index;
     s32 value;
-    s32 magnitude;
     s32 code;
     s16 sample;
     s16 residual;
@@ -819,26 +873,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     filter->previous1 = encoder->previous1[channel];
     for (index = 0; index < encoder->block_samples; index++) {
         sample = encoder->samples[channel][index];
-        if (index == 0) {
-            for (clear_index = 0; clear_index < filter->sample_count;
-                 clear_index++) {
-                filter->residual[clear_index] = 0;
-            }
-            filter->maximum = 0;
-        }
-        if (filter != 0) {
-            value = sample -
-                ((filter->coefficient0 * filter->previous0) >> 12) -
-                ((filter->coefficient1 * filter->previous1) >> 12);
-            residual = adxsje_clamp_s16(value);
-            filter->residual[index] = residual;
-            magnitude = residual < 0 ? -residual : residual;
-            if (magnitude > filter->maximum) {
-                filter->maximum = residual < 0 ? -residual : residual;
-            }
-            filter->previous1 = filter->previous0;
-            filter->previous0 = sample;
-        }
+        adxsje_prdflt_exec(filter, sample, index);
     }
 
     value = ((filter->maximum - 1) / 7) + 1;
@@ -858,26 +893,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
         sample = encoder->samples[channel][index];
         filter->previous0 = iir_filter->previous0;
         filter->previous1 = iir_filter->previous1;
-        if (index == 0) {
-            for (clear_index = 0; clear_index < filter->sample_count;
-                 clear_index++) {
-                filter->residual[clear_index] = 0;
-            }
-            filter->maximum = 0;
-        }
-        if (filter != 0) {
-            value = sample -
-                ((filter->coefficient0 * filter->previous0) >> 12) -
-                ((filter->coefficient1 * filter->previous1) >> 12);
-            residual = adxsje_clamp_s16(value);
-            filter->residual[index] = residual;
-            magnitude = residual < 0 ? -residual : residual;
-            if (magnitude > filter->maximum) {
-                filter->maximum = residual < 0 ? -residual : residual;
-            }
-            filter->previous1 = filter->previous0;
-            filter->previous0 = sample;
-        }
+        adxsje_prdflt_exec(filter, sample, index);
 
         residual = filter != 0 ? filter->residual[index] : 0;
         value = (s32)(filter->gain * residual);
@@ -901,14 +917,15 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     return 0;
 }
 
+/* TODO: [near miss] 96.471430%; source/destination declaration order now matches retail cursor registers; remaining unrolled-copy differences are harmless temporary-register coloring. */
 s32 adxsje_write68(const void* source, s32 element_size, s32 count, SJ* output)
 {
     s32 index;
     s32 byte_count;
-    s32* destination32;
     const s32* source32;
-    s16* destination16;
+    s32* destination32;
     const s16* source16;
+    s16* destination16;
     SJCK chunk;
 
     byte_count = element_size * count;

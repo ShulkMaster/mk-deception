@@ -79,7 +79,12 @@ void ADXT_Finish(void)
     }
 }
 
-/* TODO: [near miss] 99.97531%; canonical handle array recovered; version-pointer/BSS pooling order remains. */
+/* This unreferenced vendor accessor fixes the library's first-reference BSS order. */
+ADXTHandle* ADXT_GetObj(int index)
+{
+    return &adxt_obj[index];
+}
+
 void ADXT_Init(void)
 {
     cri_verstr_ptr = adxt_build;

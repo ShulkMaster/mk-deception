@@ -8,7 +8,7 @@ typedef struct ADXFCommandRecord {
     u8 command;
     u8 phase;
     u16 sequence;
-    void* file;
+    struct ADXFFile* file;
     s32 position;
     s32 length;
 } ADXFCommandRecord;
@@ -20,9 +20,11 @@ typedef struct ADXFFile {
     s8 stop_requested;
     ADXStream* stm;
     SJ* sj;
-    u8 reserved_0C[8];
+    s32 ptid;
+    s32 flid;
     s32 skpos;
-    u8 reserved_18[8];
+    s32 fnsct;
+    s32 rqsct;
     s32 rdsct;
     void* buf;
     s32 bsize;

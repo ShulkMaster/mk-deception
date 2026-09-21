@@ -27,6 +27,8 @@ typedef struct ADXFFile {
     unsigned char reserved_2C[0x18];
 } ADXFFile;
 
+typedef struct ADXFPartitionInfo ADXFPartitionInfo;
+
 typedef char ADXFCommandRecordSizeCheck[
     sizeof(ADXFCommandRecord) == 0x10 ? 1 : -1];
 typedef char ADXFFileSizeCheck[sizeof(ADXFFile) == 0x44 ? 1 : -1];
@@ -39,12 +41,15 @@ int adxf_hstry_no;
 unsigned short adxf_cmd_ncall[16];
 ADXFCommandRecord adxf_cmd_hstry[16];
 int adxf_ocbi_fg;
-unsigned char adxf_ptinfo[0x400];
+ADXFPartitionInfo* adxf_ptinfo[0x100];
 ADXFFile adxf_obj[16];
 
 const char* const adxf_build =
     "\nADXF/GC Ver.7.17 Build:Sep  3 2004 17:48:09\n";
 
+/* TODO: [near miss] 99.871796%; reset algorithm and typed table sizes match;
+ * retail BSS offsets differ in compiler-emitted global ordering; no honest
+ * field or ABI correction is supported by the retail layout. */
 void ADXF_Finish(void)
 {
     adxf_init_cnt--;
@@ -62,6 +67,8 @@ void ADXF_Finish(void)
     }
 }
 
+/* TODO: [breakthrough needed] 92.674416%; retail BSS placement and an unused
+ * build-string load need source evidence, not dead reads. */
 void ADXF_Init(void)
 {
     if (adxf_init_cnt == 0) {
