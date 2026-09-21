@@ -315,17 +315,25 @@ void SJMEM_Destroy(SJ* sj)
     SJCRS_Unlock();
 }
 
+static int sjmem_SearchFreeObj(void)
+{
+    int index;
+
+    for (index = 0; index < 32; index++) {
+        if (sjmem_obj[index].used == 0) {
+            break;
+        }
+    }
+    return index;
+}
+
 SJ* SJMEM_Create(void* buffer, int buffer_size)
 {
     int index;
     SJMemory* memory;
 
     SJCRS_Lock();
-    for (index = 0; index < 32; index++) {
-        if (sjmem_obj[index].used == 0) {
-            break;
-        }
-    }
+    index = sjmem_SearchFreeObj();
 
     if (index == 32) {
         memory = 0;

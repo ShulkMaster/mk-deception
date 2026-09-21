@@ -142,10 +142,12 @@ int mfCiGetNumTr(void* object)
     return handle->transfer_length;
 }
 
+/* TODO: [near miss] 99.07895%; direct sector-count expression regressed to 94.289474%; retain named temporary, with register coloring remaining. */
 void mfCiSetSctLen(void* object, int sector_length)
 {
     MfCiObject* handle = (MfCiObject*)object;
     int byte_position;
+    int sector_count;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -156,9 +158,9 @@ void mfCiSetSctLen(void* object, int sector_length)
 
     byte_position = handle->sector_position * handle->sector_length;
     handle->sector_length = sector_length;
-    handle->sector_count =
-        ((handle->sector_length + handle->file_size) - 1) /
-        handle->sector_length;
+    sector_count = handle->sector_length + handle->file_size;
+    sector_count--;
+    handle->sector_count = sector_count / handle->sector_length;
     handle->sector_position = byte_position / handle->sector_length;
     handle->transfer_length = handle->request_sectors * sector_length;
 }
@@ -205,6 +207,9 @@ void mfCiStopTr(void* object)
     SVM_Unlock();
 }
 
+/* TODO: [near miss] 99.205880%; validation, locking, address parsing,
+ * copy/zero-fill, and completion ordering match; residual is relocation and
+ * register coloring, with no honest local ABI/type correction. */
 int mfCiReqRd(void* object, int sectors, void* buffer)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -296,6 +301,7 @@ int mfCiTell(void* object)
     return handle->sector_position;
 }
 
+/* TODO: [near miss] 98.196724%; retained clamp is semantically exact; retail uses an alternate branch orientation that MWCC does not preserve cleanly. */
 int mfCiSeek(void* object, int offset, int origin)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -344,9 +350,12 @@ void mfCiClose(void* object)
     }
 }
 
+/* TODO: [near miss] 95.228570%; pointer/CTR scan shape is retained from
+ * retail, while remaining global/register residue lacks a clean local lever. */
 void* mfCiOpen(const char* filename, void* parameter, int mode)
 {
     MfCiObject* handle;
+    MfCiObject* current;
     int index;
     int file_size;
 
@@ -367,11 +376,13 @@ void* mfCiOpen(const char* filename, void* parameter, int mode)
     }
 
     handle = 0;
+    current = mfci_obj;
     for (index = 0; index < MFCI_MAX_HANDLES; index++) {
-        if (mfci_obj[index].used == 0) {
+        if (current->used == 0) {
             handle = &mfci_obj[index];
             break;
         }
+        current++;
     }
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -411,11 +422,20 @@ void mfCiEntryErrFunc(MfCiErrorCallback callback, void* object)
     mfci_err_obj = object;
 }
 
+/* TODO: [breakthrough needed] 33.333332%; RE4's empty 40-slot server pass is
+ * retained, but this object's optimizer removes retail's initial compare. */
 void mfCiExecServer(void)
 {
-    /* Memory-backed transfers complete synchronously in mfCiReqRd. */
+    int index;
+
+    /* Memory-backed transfers complete synchronously; retail still scans all
+     * handle slots as an empty per-server pass. */
+    for (index = 0; index < MFCI_MAX_HANDLES; index++) {
+    }
 }
 
+/* TODO: [breakthrough needed] 58.000000%; retail loads mfci_build before
+ * returning the 0x68 table, but no semantic consumer justifies a dead read. */
 CvFsInterface* mfCiGetInterface(void)
 {
     return &mfci_vtbl;
@@ -449,3 +469,6 @@ CvFsInterface mfci_vtbl = {
     0,
     0
 };
+
+/* Retail split-layout tail for the zero-initialized section. */
+unsigned int gap_06_804C8A64_bss;

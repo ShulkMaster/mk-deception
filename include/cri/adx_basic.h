@@ -29,7 +29,8 @@ typedef struct AdxBasicDecoder {
     int sample_rate;
     int total_samples;
     short coefficient;
-    short field_1E;
+    /* +0x1E is an unconsumed two-byte gap in the ADXB object. */
+    unsigned char padding_1E[2];
     int loop_insert_samples;
     short loop_count;
     short loop_type;
@@ -42,8 +43,7 @@ typedef struct AdxBasicDecoder {
     int pcm_size;
     int pcm_distance;
     AdxDecodeParams decode;
-    short field_74;
-    short field_76;
+    int field_74;
     AdxGetWriteInfo get_write_info;
     void* get_write_object;
     AdxAddWriteInfo add_write_info;
@@ -53,8 +53,9 @@ typedef struct AdxBasicDecoder {
     int decoded_samples;
     int decoded_data_length;
     short format_type;
-    short field_9A;
+    short raw_format_type;
     short codec_type;
+    unsigned char padding_9E[2];
 } AdxBasicDecoder;
 
 typedef char AdxDecodeParamsSizeCheck[

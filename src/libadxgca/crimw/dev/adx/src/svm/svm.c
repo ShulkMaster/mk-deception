@@ -110,6 +110,7 @@ unsigned int SVM_TestAndSet(int* value)
     return result;
 }
 
+/* TODO: [breakthrough needed] 94.52%; retail clears the goto-border callback table, but the honest reset trial regressed on this TU's BSS ownership/call layout. */
 void SVM_Finish(void)
 {
     svm_init_level--;
@@ -155,11 +156,14 @@ int SVM_ExecSvrMwIdle(void)
     return SVM_ExecServerGroup(6, 6);
 }
 
+/* TODO: [near miss] 98.111115%; six-slot callback loop, execution flag, and signed result accumulation match retail; pooled-global relocation and register coloring remain. */
 int SVM_ExecSvrMain(void)
 {
     return SVM_ExecServerGroup(5, 5);
 }
 
+/* TODO: [near miss] 98.111115%; six-slot callback loop and signed result
+ * accumulation match; only pooled-global offsets/register coloring remain. */
 int SVM_ExecSvrFs(void)
 {
     return SVM_ExecServerGroup(4, 4);
@@ -182,6 +186,7 @@ void SVM_SetCbLock(SVMCallbackFunction function, void* object)
     svm_lock_func.object = object;
 }
 
+/* TODO: [breakthrough needed] 91.716670%; SVMErrorCallback is the proven two-word ABI and lock/unlock CFG matches retail; remaining global-owner layout residue needs broader TU evidence. */
 void SVM_SetCbErr(SVMErrorFunction function, void* object)
 {
     svm_lock_internal();
@@ -239,13 +244,14 @@ void SVM_DelCbSvr(int server_type, int id)
     svm_unlock_internal();
 }
 
+/* TODO: [near miss] 93.47369%; retail callback-row cursor and explicit full-table return recovered; remaining lock/global relocation and bounded-loop lowering residue has no clean local lever. */
 int SVM_SetCbSvr(int server_type, SVMServerFunction function, void* object)
 {
     int id;
     SVMServerCallback* callback;
 
     svm_lock_internal();
-    callback = &svm_svr_ftbl[server_type][0];
+    callback = svm_svr_ftbl[server_type];
     for (id = 0; id < 6; id++, callback++) {
         if (callback->function == 0) {
             callback->function = function;
@@ -257,7 +263,10 @@ int SVM_SetCbSvr(int server_type, SVMServerFunction function, void* object)
         svm_report_error("1051001:SVM_SetCbSvr:too many server function");
     }
     svm_unlock_internal();
-    return id == 6 ? -1 : id;
+    if (id == 6) {
+        return -1;
+    }
+    return id;
 }
 
 void SVM_CallErr1(const char* message)
@@ -281,12 +290,15 @@ void SVM_CallErr(const char* message, ...)
     va_end(arguments);
 }
 
+/* TODO: [near miss] 86.30556%; unlock CFG/ABI agree; post-decrement source-shape
+ * trial was compiler-neutral, so pooled global-owner offsets remain. */
 void SVM_Unlock(void)
 {
     svm_unlock_internal();
 }
 
-/* TODO: [near miss] 99.92%; BSS owner offsets differ; explicit-zero layout trial regresses merged addressing. */
+/* TODO: [near miss] 99.92308%; lock callback CFG/ABI/lifetime agree; only
+ * retail-vs-MWCC SVM global-owner offsets remain, with no honest local fix. */
 void SVM_Lock(void)
 {
     svm_lock_internal();

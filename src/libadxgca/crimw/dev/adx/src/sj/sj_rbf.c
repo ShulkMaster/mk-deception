@@ -167,51 +167,52 @@ int SJRBF_IsGetChunk(
 {
     SJRingBuffer* ring = (SJRingBuffer*)sj;
     int chunk_size;
-    int result;
 
     SJCRS_Lock();
     if (ring == 0) {
         SJERR_CallErr("E2004090217 : NULL pointer is specified.");
-        result = 0;
+        size = 0;
     } else if (ring->used == 0) {
         SJERR_CallErr("E2004090218 : Specified handle is invalid.");
-        result = 0;
+        size = 0;
     } else {
         if (channel == 0) {
-            chunk_size = ring->buffer_size - ring->write_position;
-            chunk_size += ring->extra_size;
+            chunk_size = ring->buffer_size - ring->write_position +
+                         ring->extra_size;
             if (ring->free_size < chunk_size) {
                 chunk_size = ring->free_size;
             }
-            if (size < chunk_size) {
-                chunk_size = size;
+            channel = size;
+            if (chunk_size < size) {
+                channel = chunk_size;
             }
         } else if (channel == 1) {
-            chunk_size = ring->buffer_size - ring->read_position;
-            chunk_size += ring->extra_size;
+            chunk_size = ring->buffer_size - ring->read_position +
+                         ring->extra_size;
             if (ring->data_size < chunk_size) {
                 chunk_size = ring->data_size;
             }
-            if (size < chunk_size) {
-                chunk_size = size;
+            channel = size;
+            if (chunk_size < size) {
+                channel = chunk_size;
             }
         } else {
-            chunk_size = 0;
+            channel = 0;
             if (ring->error_callback != 0) {
                 ring->error_callback(ring->error_object, -3);
             }
         }
 
-        *available = chunk_size;
-        if (chunk_size != size) {
-            result = 0;
+        *available = channel;
+        if (channel != size) {
+            size = 0;
         } else {
-            result = 1;
+            size = 1;
         }
     }
     SJCRS_Unlock();
 
-    return result;
+    return size;
 }
 
 static void sjrbf_UngetChunk(
@@ -274,12 +275,15 @@ void SJRBF_UngetChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
+/* TODO: [near miss] 99.635414%; typed mirror-copy source is structurally
+ * aligned; remaining mismatch is r6/r7 coloring. */
 void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
 {
     SJRingBuffer* ring = (SJRingBuffer*)sj;
     int offset;
     int length;
     int copy_length;
+    u8* copy_destination;
 
     SJCRS_Lock();
     if (ring == 0) {
@@ -294,8 +298,9 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
                 if (chunk->len < copy_length) {
                     copy_length = chunk->len;
                 }
-                memcpy(ring->buffer + offset + ring->buffer_size,
-                       chunk->data, copy_length);
+                copy_destination = ring->buffer + offset;
+                copy_destination += ring->buffer_size;
+                memcpy(copy_destination, chunk->data, copy_length);
             }
 
             length = chunk->data - ring->buffer + chunk->len;
@@ -324,6 +329,7 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
+/* TODO: [near miss] 99.63636%; combined span expression recovered; stop at string-base/value coloring. */
 static void sjrbf_GetChunk(
     SJRingBuffer* ring, int channel, int max_size, SJCK* chunk)
 {
@@ -343,8 +349,8 @@ static void sjrbf_GetChunk(
     }
 
     if (channel == 0) {
-        chunk_size = ring->buffer_size - ring->write_position;
-        chunk_size += ring->extra_size;
+        chunk_size = ring->buffer_size - ring->write_position +
+                     ring->extra_size;
         if (ring->free_size < chunk_size) {
             chunk_size = ring->free_size;
         }
@@ -359,8 +365,8 @@ static void sjrbf_GetChunk(
         ring->free_size -= chunk->len;
         ring->flow_count[0][0] += chunk->len;
     } else if (channel == 1) {
-        chunk_size = ring->buffer_size - ring->read_position;
-        chunk_size += ring->extra_size;
+        chunk_size = ring->buffer_size - ring->read_position +
+                     ring->extra_size;
         if (ring->data_size < chunk_size) {
             chunk_size = ring->data_size;
         }
@@ -493,17 +499,25 @@ void SJRBF_Destroy(SJ* sj)
     SJCRS_Unlock();
 }
 
+static inline int sjrbf_SearchFreeObj(void)
+{
+    int index;
+
+    for (index = 0; index < 256; index++) {
+        if (sjrbf_obj[index].used == 0) {
+            break;
+        }
+    }
+    return index;
+}
+
 SJ* SJRBF_Create(void* buffer, int buffer_size, int extra_size)
 {
     SJRingBuffer* ring;
     int index;
 
     SJCRS_Lock();
-    for (index = 0; index < 256; index++) {
-        if (sjrbf_obj[index].used == 0) {
-            break;
-        }
-    }
+    index = sjrbf_SearchFreeObj();
 
     if (index == 256) {
         ring = 0;
