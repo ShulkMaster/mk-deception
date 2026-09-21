@@ -6,7 +6,7 @@
 SfdPlayerRecordFrameFn SFPLY_recordgetfrm;
 int sfply_last_hnctrl_wksiz;
 SfdPlayerSetPtsInfoFn SFPLY_SetPtsInfo;
-void (*SFPLY_ResetPtsm)(unsigned int* pts);
+void (*SFPLY_ResetPtsm)(SfdPtsManager* pts);
 
 const unsigned int SFPLY_cond_dfl[101] = {
     1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1,
@@ -76,25 +76,23 @@ int SFD_TermSupply(SfdHandle* handle)
 }
 
 #pragma dont_inline on
+/* TODO: [near miss] 89.402435%; typed PTS-manager copy matches the donor;
+ * MPV save area and reset callback/lifetime lowering remain. */
 static int sfply_ResetHn(SfdHandle* handle)
 {
-    typedef struct SfdMpvSavedConditions {
-        int values[15];
-    } SfdMpvSavedConditions;
-
     SfdBufferSupply supply;
     SfdCreateConfig create;
     SfdErrorCallback error_callback;
     SfdHandle* new_handle;
     SfdHandle* seek_source;
-    SfdMpvSavedConditions saved_conditions;
+    unsigned char saved_conditions[0x40];
     SfdUserIsSkipFn user_is_skip_callback;
     SfdTimeSourceFn user_time_callback;
     int byte_rate;
     int error;
-    int error_object;
+    SfdCallbackObject error_object;
     int external_clock_arg0;
-    int external_clock_arg1;
+    SfdCallbackObject external_clock_arg1;
     SfdExternalClockFn external_clock_callback;
     int file_size;
     int old_supply_end;
@@ -107,7 +105,7 @@ static int sfply_ResetHn(SfdHandle* handle)
     int video_pts_scale;
     void* video_pts_entries;
     unsigned int conditions[100];
-    unsigned int video_pts[3];
+    SfdPtsManager video_pts;
 
     old_supply_end = 0;
     create = handle->create_config;
@@ -132,10 +130,8 @@ static int sfply_ResetHn(SfdHandle* handle)
     external_clock_arg1 = handle->timer_state.external_clock_object;
     user_is_skip_callback = handle->timer_state.skip_state.callback;
     speed = handle->timer_state.speed;
-    video_pts[0] = handle->timer_state.video_pts[0];
-    video_pts[1] = handle->timer_state.video_pts[1];
-    video_pts[2] = handle->timer_state.video_pts[2];
-    seek_source = handle->seek_state.source_handle;
+    video_pts = handle->timer_state.video_pts;
+    seek_source = (SfdHandle*)handle->seek_state.work;
     if (seek_source != 0) {
         byte_rate = seek_source->timer_state.stream_time.byte_rate;
         file_size = seek_source->timer_state.stream_time.file_size;
@@ -206,16 +202,14 @@ static int sfply_ResetHn(SfdHandle* handle)
     if (speed != 1000) {
         SFD_SetSpeed(new_handle, speed);
     }
-    if (video_pts[0] != 0) {
-        new_handle->timer_state.video_pts[0] = video_pts[0];
-        new_handle->timer_state.video_pts[1] = video_pts[1];
-        new_handle->timer_state.video_pts[2] = video_pts[2];
+    if (video_pts.field_00 != 0) {
+        new_handle->timer_state.video_pts = video_pts;
         if (SFPLY_ResetPtsm != 0) {
-            SFPLY_ResetPtsm(video_pts);
+            SFPLY_ResetPtsm(&video_pts);
         }
     }
     if (seek_source != 0) {
-        SFD_EntrySeek(new_handle, seek_source);
+        SFD_EntrySeek(new_handle, (SfdSeeWork*)seek_source);
         SFD_SetByteRate(new_handle, byte_rate);
         SFD_SetFileSize(new_handle, file_size);
         SFD_SetTotTime(new_handle, total_time_value, total_time_scale);
@@ -281,8 +275,11 @@ int SFD_Start(SfdHandle* handle)
     return result;
 }
 
+/* TODO: [near miss] 95.520836%; typed handle-table cursor now matches
+ * retail/RE4; reset-state and register-scheduling residue remain. */
 int SFD_Destroy(SfdHandle* handle)
 {
+    SfdHandle** slot;
     int i;
     int result;
 
@@ -309,9 +306,10 @@ int SFD_Destroy(SfdHandle* handle)
     handle->playback_state = 0;
     handle->requested_state = 0;
     result = SFTRN_CallTrSetup(handle, 4);
-    for (i = 0; i < 8; i++) {
-        if (SFLIB_libwork.handles[i] == handle) {
-            SFLIB_libwork.handles[i] = 0;
+    slot = SFLIB_libwork.handles;
+    for (i = 0; i < 8; i++, slot++) {
+        if (*slot == handle) {
+            *slot = 0;
         }
     }
     return result;
@@ -341,6 +339,7 @@ void SFPLY_AddDecPic(SfdHandle* handle, int count, int parameter)
     }
 }
 
+/* TODO: [near miss] 99.213486%; handle allocation and initialization agree with retail; only localized owner/register scheduling remains. */
 static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
                               const void* transport_buffer_setup)
 {

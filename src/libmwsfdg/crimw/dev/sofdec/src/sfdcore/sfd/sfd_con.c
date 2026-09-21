@@ -49,14 +49,13 @@ void SFCON_UpdateConcatTime(SfdHandle* handle, int concat_time)
     SfdTimerState* timer = &handle->timer_state;
     int token;
     int write_index;
-    int cumulative_samples;
 
     SFLIB_LockCs(&token);
     timer->sample_history.fields_00[1] += concat_time;
-    /* Soft ceiling: cumulative sample count/write index register coloring. */
-    write_index = timer->sample_history.fields_00[2] + 1;
-    cumulative_samples = timer->sample_history.fields_00[1];
-    timer->sample_history.samples[write_index % 32] = cumulative_samples;
+    write_index = timer->sample_history.fields_00[2];
+    write_index++;
+    timer->sample_history.samples[write_index % 32] =
+        timer->sample_history.fields_00[1];
     timer->sample_history.fields_00[2] = write_index;
     SFLIB_UnlockCs(&token);
 }

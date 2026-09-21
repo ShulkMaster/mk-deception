@@ -40,7 +40,7 @@ typedef struct SfdSeeTiming {
 } SfdSeeTiming;
 
 /* A retained source handle doubles as the seek-analysis cache. */
-typedef struct SfdSeeSeekSource {
+struct SfdSeeWork {
     SfdSeeSourcePrefix prefix;
     unsigned char unknown_0044[0x85C];
     SfdSeeHeadSnapshot system;
@@ -51,28 +51,28 @@ typedef struct SfdSeeSeekSource {
     unsigned char unknown_0D18[0x10];
     SfdSeeTiming timing;
     unsigned char unknown_0DE8[0x520];
-} SfdSeeSeekSource;
+};
 
 typedef char SfdSeeSourcePrefixSizeCheck[
     sizeof(SfdSeeSourcePrefix) == 0x44 ? 1 : -1];
 typedef char SfdSeeHeadSnapshotSizeCheck[
     sizeof(SfdSeeHeadSnapshot) == 0x0C ? 1 : -1];
-typedef char SfdSeeSeekSourceSizeCheck[
-    sizeof(SfdSeeSeekSource) == 0x1308 ? 1 : -1];
+typedef char SfdSeeWorkSizeCheck[
+    sizeof(SfdSeeWork) == 0x1308 ? 1 : -1];
 typedef char SfdSeeTimingSizeCheck[
     sizeof(SfdSeeTiming) == 0xC0 ? 1 : -1];
 
 extern int SFHDS_GetMuxVerNum(SfdHandle* handle);
 
-static inline SfdSeeSeekSource* sfsee_GetSource(SfdHandle* handle)
+static inline SfdSeeWork* sfsee_GetSource(SfdHandle* handle)
 {
-    return (SfdSeeSeekSource*)handle->seek_state.source_handle;
+    return handle->seek_state.work;
 }
 
 /* Soft ceiling: inlined users omit one redundant retail source-rate reload. */
 static inline void sfsee_UpdateByteRate(SfdHandle* handle)
 {
-    SfdSeeSeekSource* source = sfsee_GetSource(handle);
+    SfdSeeWork* source = sfsee_GetSource(handle);
     SfdSeeTiming* timing = &source->timing;
     int file_size;
     int time_value;
@@ -106,13 +106,14 @@ static inline void sfsee_UpdateByteRate(SfdHandle* handle)
     if (file_size > 0 && time_value > 0) {
         timing->byte_rate = UTY_MulDiv(file_size, time_scale, time_value);
     } else {
-        timing->byte_rate = source->prefix.analyzed_byte_rate;
+        SfdSeeWork* fallback_source = sfsee_GetSource(handle);
+        timing->byte_rate = fallback_source->prefix.analyzed_byte_rate;
     }
 }
 
 int SFD_SetSeekPos(SfdHandle* handle, int position)
 {
-    SfdSeeSeekSource* source;
+    SfdSeeWork* source;
 
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF00015C);
@@ -127,7 +128,7 @@ int SFD_SetSeekPos(SfdHandle* handle, int position)
 
 int SFD_SetByteRate(SfdHandle* handle, int byte_rate)
 {
-    SfdSeeSeekSource* source;
+    SfdSeeWork* source;
 
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF00015B);
@@ -143,7 +144,7 @@ int SFD_SetByteRate(SfdHandle* handle, int byte_rate)
 
 int SFD_SetTotTime(SfdHandle* handle, int value, int scale)
 {
-    SfdSeeSeekSource* source;
+    SfdSeeWork* source;
 
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF00015A);
@@ -160,7 +161,7 @@ int SFD_SetTotTime(SfdHandle* handle, int value, int scale)
 
 int SFD_SetFileSize(SfdHandle* handle, int file_size)
 {
-    SfdSeeSeekSource* source;
+    SfdSeeWork* source;
 
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000159);
@@ -174,9 +175,11 @@ int SFD_SetFileSize(SfdHandle* handle, int file_size)
     return 0;
 }
 
+/* TODO: [near miss] 99.625000%; retained source matches RE4/retail CFG; one
+ * final fallback load differs as lwz versus mr, with no clean source lever. */
 static void sfsee_ExecHeadAnaly(SfdHandle* handle)
 {
-    SfdSeeSeekSource* source = sfsee_GetSource(handle);
+    SfdSeeWork* source = sfsee_GetSource(handle);
     SfdSeeTiming* timing;
     int audio_ready;
     int video_ready;
@@ -255,64 +258,60 @@ static void sfsee_ExecHeadAnaly(SfdHandle* handle)
     sfsee_UpdateByteRate(handle);
 }
 
-/*
- * Soft ceiling: retail retains a seek-control base and lowers the same nested
- * buffer/transport lookup with indexed addressing; the state changes agree.
- */
-void SFSEE_ExecServer(SfdHandle* handle)
+static int sfsee_GetInputEndPosition(SfdHandle* handle)
 {
-    SfdSeeSeekSource* source;
-    SfdSeeTiming* source_timing;
-    SfdSeeTiming* timing;
     SfdTransportState* transports;
-    int buffer_index;
-    int changed;
-    int current_position;
+    SfdTransportState* output;
     int position;
-    int transport_index;
-    int transport_position;
 
-    if (handle->seek_state.source_handle == 0) {
-        return;
+    transports = handle->transports;
+    output = &transports[
+        handle->buffers[transports[0].parameter_14].input_transport];
+    position = output->state;
+    if (position >= 0) {
+        return position;
     }
+    return -1;
+}
 
-    sfsee_ExecHeadAnaly(handle);
-    source = sfsee_GetSource(handle);
+static void sfsee_ExecEstimate(SfdHandle* handle, SfdSeekState* seek)
+{
+    int changed;
+    int position;
+    int transport_position;
+    SfdSeeWork* source;
+    SfdSeekRequest* request;
+    SfdTimerStreamTimeUnit* timer;
+
+    source = seek->work;
+    request = &seek->request;
     if (SFCON_IsEndcodeSkip(handle) != 0) {
         return;
     }
 
-    source_timing = &source->timing;
     changed = 0;
-    if (source_timing->discovered_file_size <= 0) {
-        position = handle->seek_state.field_08 == -3
+    if (source->timing.discovered_file_size <= 0) {
+        position = request->position == -3
                        ? 0
-                       : source_timing->seek_position;
+                       : source->timing.seek_position;
         if (position >= 0) {
-            transports = handle->transports;
-            transport_position = -1;
-            buffer_index = handle->transports[0].parameter_14;
-            transport_index = handle->buffers[buffer_index].input_transport;
-            current_position = transports[transport_index].state;
-            if (current_position >= 0) {
-                transport_position = current_position;
-            }
+            transport_position = sfsee_GetInputEndPosition(handle);
             if (transport_position != -1) {
-                source_timing->discovered_file_size =
+                source->timing.discovered_file_size =
                     position + transport_position;
                 changed = 1;
             }
         }
     }
 
-    if (source_timing->discovered_total_time_value <= 0) {
-        timing = (SfdSeeTiming*)&handle->timer_state;
-        if (timing->current_total_time_value > 0) {
-            source_timing->discovered_total_time_value =
-                timing->current_total_time_value;
+    if (source->timing.discovered_total_time_value <= 0) {
+        timer = &handle->timer_state.stream_time;
+        if (timer->value > 0) {
+            source->timing.discovered_total_time_value =
+                timer->value;
             changed = 1;
-            source_timing->discovered_total_time_scale =
-                timing->current_total_time_scale;
+            source->timing.discovered_total_time_scale =
+                timer->scale;
         }
     }
 
@@ -321,9 +320,22 @@ void SFSEE_ExecServer(SfdHandle* handle)
     }
 }
 
+/* TODO: [near miss] 99.450980%; stream-time value/scale now use the typed
+ * timer member instead of a padded overlay; harmless estimate-local coloring remains. */
+void SFSEE_ExecServer(SfdHandle* handle)
+{
+    SfdSeekState* seek = &handle->seek_state;
+
+    if (seek->work == 0) {
+        return;
+    }
+    sfsee_ExecHeadAnaly(handle);
+    sfsee_ExecEstimate(handle, seek);
+}
+
 void SFSEE_FixAvPlay(SfdHandle* handle, int video_enabled, int audio_enabled)
 {
-    SfdSeeSeekSource* source = sfsee_GetSource(handle);
+    SfdSeeWork* source = sfsee_GetSource(handle);
     SfdSeeTiming* timing;
 
     if (source == 0) {
@@ -338,19 +350,19 @@ void SFSEE_FixAvPlay(SfdHandle* handle, int video_enabled, int audio_enabled)
     }
 }
 
-int SFD_EntrySeek(SfdHandle* handle, SfdHandle* source)
+int SFD_EntrySeek(SfdHandle* handle, SfdSeeWork* work)
 {
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000151);
     }
-    handle->seek_state.source_handle = source;
+    handle->seek_state.work = work;
     return 0;
 }
 
 void SFSEE_InitHn(SfdSeekState* state)
 {
-    state->source_handle = 0;
-    state->field_04 = 0;
-    state->field_08 = -3;
-    state->field_0C = 1;
+    state->work = 0;
+    state->request.field_00 = 0;
+    state->request.position = -3;
+    state->request.field_08 = 1;
 }

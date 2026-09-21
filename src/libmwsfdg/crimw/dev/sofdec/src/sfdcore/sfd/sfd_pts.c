@@ -2,23 +2,33 @@
 #include "sofdec/sfd_error.h"
 #include "sofdec/sfd_transport.h"
 
-int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
+static int sfpts_Wrap(int index, int capacity)
 {
-    SfdPtsQueue* queue =
-        &handle->buffers[buffer_index].work.ring.pts_queue;
+    int wrapped = index - capacity;
 
-    if (queue->entries == 0) {
-        return 0;
+    if (index < capacity) {
+        wrapped = index;
     }
-    return queue->count >= queue->capacity;
+    return wrapped;
 }
 
+int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
+{
+    if (handle->buffers[buffer_index].work.ring.pts_queue.entries == 0) {
+        return 0;
+    }
+    return handle->buffers[buffer_index].work.ring.pts_queue.count >=
+           handle->buffers[buffer_index].work.ring.pts_queue.capacity;
+}
+
+/* TODO: [breakthrough needed] 48.060240%; unsigned position/buffer arithmetic now matches donor types; queue-search CFG and register shape remain divergent. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
-                     unsigned char* position, SfdPtsEntry* output)
+                     unsigned int position, SfdPtsEntry* output)
 {
     SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
     SfdPtsQueue* queue = &ring->pts_queue;
-    unsigned char* buffer_end = ring->buffer + ring->buffer_size;
+    unsigned int buffer_start = (unsigned int)ring->buffer;
+    unsigned int buffer_end = buffer_start + ring->buffer_size;
     int index;
     int offset;
 
@@ -32,16 +42,16 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
     index = queue->read_index;
     for (offset = 0; offset < queue->count; offset++) {
         SfdPtsEntry* entry = &queue->entries[index];
-        unsigned char* entry_end = entry->data + entry->size;
+        unsigned int entry_start = (unsigned int)entry->data;
+        unsigned int entry_end = entry_start + entry->size;
         int contains;
 
         if (entry_end <= buffer_end) {
-            contains = entry->data <= position && position < entry_end;
+            contains = entry_start <= position && position < entry_end;
         } else {
-            contains =
-                (entry->data <= position && position < buffer_end) ||
-                (ring->buffer <= position &&
-                 position < entry_end - ring->buffer_size);
+            contains = (entry_start <= position && position < buffer_end) ||
+                       (buffer_start <= position &&
+                        position < entry_end - ring->buffer_size);
         }
         if (contains) {
             break;
@@ -63,34 +73,36 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
 }
 
 int SFPTS_WritePtsQue(SfdHandle* handle, int buffer_index,
-                      const SfdPtsEntry* entry, int* full)
+                      SfdPtsEntry* entry, int* full)
 {
-    SfdBufferState* buffer;
-    SfdPtsQueue* queue;
+    int write_index;
+    SfdPtsEntry* entries;
     int status;
-    int next_index;
 
     *full = 0;
     if (entry->pts < 0) {
         return 0;
     }
-    buffer = &handle->buffers[buffer_index];
-    queue = &buffer->work.ring.pts_queue;
-    if (queue->entries == 0) {
+    entries = handle->buffers[buffer_index].work.ring.pts_queue.entries;
+    if (entries == 0) {
         return 0;
     }
-    if (queue->count == queue->capacity) {
+    if (handle->buffers[buffer_index].work.ring.pts_queue.count ==
+        handle->buffers[buffer_index].work.ring.pts_queue.capacity) {
         *full = 1;
         status = -1;
     } else {
-        queue->entries[queue->write_index] = *entry;
-        next_index = queue->write_index + 1;
-        queue->write_index = next_index - queue->capacity;
-        if (next_index < queue->capacity) {
-            queue->write_index = next_index;
-        }
-        queue->count++;
-        if (queue->count >= queue->capacity) {
+        write_index =
+            handle->buffers[buffer_index].work.ring.pts_queue.write_index;
+        entries[write_index] = *entry;
+        write_index = sfpts_Wrap(
+            write_index + 1,
+            handle->buffers[buffer_index].work.ring.pts_queue.capacity);
+        handle->buffers[buffer_index].work.ring.pts_queue.count++;
+        handle->buffers[buffer_index].work.ring.pts_queue.write_index =
+            write_index;
+        if (handle->buffers[buffer_index].work.ring.pts_queue.count >=
+            handle->buffers[buffer_index].work.ring.pts_queue.capacity) {
             *full = 1;
         } else {
             *full = 0;
@@ -103,11 +115,9 @@ int SFPTS_WritePtsQue(SfdHandle* handle, int buffer_index,
     return 0;
 }
 
-int SFD_SetVideoPts(SfdHandle* handle, void* memory, int size)
+int SFD_SetVideoPts(SfdHandle* handle, unsigned char* memory, int size)
 {
-    SfdPtsQueue* queue;
     unsigned char* aligned;
-    int aligned_size;
 
     if (memory == 0 || size <= 0) {
         return 0;
@@ -116,14 +126,13 @@ int SFD_SetVideoPts(SfdHandle* handle, void* memory, int size)
         return SFLIB_SetErr(0, 0xFF000165);
     }
     aligned = (unsigned char*)(((unsigned long)memory + 7) & ~7UL);
-    aligned_size = size - (aligned - (unsigned char*)memory);
-    memset(aligned, 0, aligned_size);
-    queue = &handle->buffers[1].work.ring.pts_queue;
-    queue->entries = (SfdPtsEntry*)aligned;
-    queue->capacity = aligned_size / sizeof(SfdPtsEntry);
-    queue->count = 0;
-    queue->write_index = 0;
-    queue->read_index = 0;
+    size -= aligned - memory;
+    memset(aligned, 0, size);
+    handle->buffers[1].work.ring.pts_queue.entries = (SfdPtsEntry*)aligned;
+    handle->buffers[1].work.ring.pts_queue.capacity = size / 16;
+    handle->buffers[1].work.ring.pts_queue.count = 0;
+    handle->buffers[1].work.ring.pts_queue.write_index = 0;
+    handle->buffers[1].work.ring.pts_queue.read_index = 0;
     return 0;
 }
 

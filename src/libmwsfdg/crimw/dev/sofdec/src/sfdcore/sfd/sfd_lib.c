@@ -7,10 +7,10 @@
 const char SFLIB_version_str[0x54] =
     "\nCRI SFD/GC Ver.1.940 Build:Sep  3 2004 11:38:48\n\0"
     "Append: MW2407 GC20Apr2004Patch1\n";
-int sflib_sizeof_sfdhn;
-void* SFD_pts_error_msg;
-SfdHandle* sfd_hn_last;
-static const char* cri_verstr_ptr;
+int sflib_sizeof_sfdhn = 0;
+void* SFD_pts_error_msg = 0;
+SfdHandle* sfd_hn_last = 0;
+static const char* cri_verstr_ptr = 0;
 SfdLibraryWork SFLIB_libwork;
 
 void SFLIB_UnlockCs(int* token)
@@ -31,7 +31,10 @@ int SFLIB_CheckHn(SfdHandle* handle)
     if (handle == 0) {
         return -1;
     }
-    return handle->playback_state == 0 ? -1 : 0;
+    if (handle->playback_state == 0) {
+        return -1;
+    }
+    return 0;
 }
 
 static inline void sflib_CallErrFn(SfdErrorInfo* info, int error)
@@ -93,12 +96,14 @@ void SFLIB_InitErrInf(SfdErrorInfo* info)
     info->field_10 = 0;
 }
 
+/* TODO: [near miss] 97.000000%; donor-backed lifetime order and the early
+ * transport-error return match retail; teardown locals retain r29-r31 residue. */
 int SFD_Finish(void)
 {
-    int destroy_error;
-    int error;
     int i;
+    int destroy_error;
     int transport_error;
+    int error;
     SfdHandle** slot;
 
     slot = SFLIB_libwork.handles;
@@ -113,17 +118,18 @@ int SFD_Finish(void)
     transport_error = SFTRN_Finish(&SFLIB_libwork.transport_registry);
     SFHDS_Finish();
     SJRBF_Finish();
-    if (transport_error == 0) {
-        error = 0;
-        if (destroy_error != 0) {
-            error = destroy_error;
-        }
-    } else {
-        error = transport_error;
+    if (transport_error != 0) {
+        return transport_error;
+    }
+    error = 0;
+    if (destroy_error != 0) {
+        error = destroy_error;
     }
     return error;
 }
 
+/* TODO: [breakthrough needed] 91.152780%; typed library initialization and
+ * retail BSS ownership agree; transport/error lifetimes remain broad. */
 int SFD_Init(const SfdLibraryConfig* config)
 {
     int error;
@@ -134,8 +140,8 @@ int SFD_Init(const SfdLibraryConfig* config)
     SJRBF_Init();
     UTY_MemsetDword((unsigned int*)&SFLIB_libwork, 0, 0x89);
     MEM_Copy(SFLIB_libwork.default_conditions, SFPLY_cond_dfl, 0x190);
-    SFLIB_libwork.transport_registry_source = config->transport_registry;
     SFLIB_libwork.timer_source = config->timer_source;
+    SFLIB_libwork.transport_registry_source = config->transport_registry;
     SFLIB_libwork.field_0198 = 0;
     SFLIB_InitErrInf(&SFLIB_libwork.error_info);
     SFTIM_Init(&SFLIB_libwork.timer_work, config->timer_source);
