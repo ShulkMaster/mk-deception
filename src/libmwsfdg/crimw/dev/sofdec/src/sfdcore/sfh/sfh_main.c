@@ -108,6 +108,16 @@ static inline signed short sfh_read_le_s16(const unsigned char* data, int offset
     return (signed short)((value << 8) | (value >> 8));
 }
 
+static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
+                                      int* result)
+{
+    const unsigned char* header = handle->header;
+
+    if (!sfh_is_analyzable(handle)) return 0;
+    *result = (int)sfh_read_le32(header, offset);
+    return 1;
+}
+
 static inline const SFHStreamRecord* sfh_find_stream(
     const unsigned char* header, unsigned char stream_id)
 {
@@ -439,6 +449,7 @@ int SFH_AnlyByteRate(const SFHHandle* handle, int* result)
     return 1;
 }
 
+/* TODO: [breakthrough needed] 84.571430%; typed header access and validation agree with retail, but state/header load ownership remains structurally different. */
 int SFH_AnlyNumElemPrv(const SFHHandle* handle, int* result)
 {
     const unsigned char* header = handle->header;
@@ -499,6 +510,8 @@ int SFH_AnlyPketSizLen(const SFHHandle* handle, int* result)
     return 1;
 }
 
+/* TODO: [breakthrough needed] 85.555560%; typed header access and validation agree with retail,
+ * but the helper/lifetime scheduling shape remains structurally unresolved. */
 int SFH_AnlyPackType(const SFHHandle* handle, int* result)
 {
     const unsigned char* header = handle->header;
@@ -509,14 +522,12 @@ int SFH_AnlyPackType(const SFHHandle* handle, int* result)
     return 1;
 }
 
+/* TODO: [near miss] 78.076920%; donor-backed checked header reader is retained,
+ * but retail initialization and byte-swap scheduling still differ. */
 int SFH_AnlyHdrSiz(const SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, 0x80);
-    return 1;
+    return sfh_read_header_u32(handle, 0x80, result);
 }
 
 static inline int sfh_anly_hdr_tool_ver(const SFHHandle* handle, int* major,
@@ -658,6 +669,7 @@ static inline int sfh_query_video_features(const SFHHandle* handle,
     return 1;
 }
 
+/* TODO: [breakthrough needed] 82.77725%; donor helper-boundary trial regressed; recover the retail class/feature ownership shape. */
 int SFH_IsEffFtrInf(const SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
@@ -722,8 +734,8 @@ void SFH_Destroy(SFHHandle* handle)
 SFHHandle* SFH_Create(const void* header, int header_size)
 {
     int capacity = sfh_objinf.capacity;
+    SFHHandle* objects = sfh_objinf.objects;
     SFHHandle* handle = 0;
-    SFHHandle* candidate = sfh_objinf.objects;
     int i;
 
     if (sfh_objinf.active_count >= capacity) {
@@ -731,11 +743,10 @@ SFHHandle* SFH_Create(const void* header, int header_size)
     }
 
     for (i = 0; i < capacity; i++) {
-        handle = candidate;
-        if (!candidate->state) {
+        handle = &objects[i];
+        if (handle->state == 0) {
             break;
         }
-        candidate++;
     }
 
     handle->state = 1;
@@ -755,22 +766,27 @@ void SFH_Finish(void)
     }
 }
 
-void SFH_Init(int capacity, SFHHandle* objects)
+static inline void sfh_ClearHn(SFHHandle* objects, int capacity)
 {
     int i;
 
-    if (sfh_init_cont > 0) {
-        return;
-    }
-
-    sfh_init_cont++;
-    sfhlib_version_dummy = SFH_sbver_str;
     for (i = 0; i < capacity; i++) {
         objects[i].state = 0;
         objects[i].header = 0;
         objects[i].header_size = 0;
         objects[i].version = 0;
     }
+}
+
+void SFH_Init(int capacity, SFHHandle* objects)
+{
+    if (sfh_init_cont > 0) {
+        return;
+    }
+
+    sfh_init_cont++;
+    sfhlib_version_dummy = SFH_sbver_str;
+    sfh_ClearHn(objects, capacity);
     sfh_objinf.capacity = capacity;
     sfh_objinf.active_count = 0;
     sfh_objinf.objects = objects;

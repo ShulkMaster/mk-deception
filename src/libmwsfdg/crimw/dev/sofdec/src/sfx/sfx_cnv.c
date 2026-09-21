@@ -2,31 +2,42 @@
 #include "sofdec/sfx.h"
 
 extern s32 SFXA_IsNeedUpdateLumiTbl(SFXAObject* object);
-extern void SFXA_MakeAlp3110Tbl(SFXAObject* object, s32 adjustment,
+extern void SFXA_MakeAlp3110Tbl(SFXAObject* object, void* source,
                                 void* table);
-extern void SFXA_MakeAlp3211Tbl(SFXAObject* object, s32 adjustment,
+extern void SFXA_MakeAlp3211Tbl(SFXAObject* object, void* source,
                                 void* table);
-extern void SFXA_MakeAlpLumiTbl(SFXAObject* object, s32 adjustment,
+extern void SFXA_MakeAlpLumiTbl(SFXAObject* object, void* source,
                                 void* table);
-extern void SFXZ_MakeCnvZTbl(SFXZObject* object, s32 adjustment,
+extern void SFXZ_MakeCnvZTbl(SFXZObject* object, void* source,
                              void* table);
 extern void CFT_MakeArgb8888ColAdjTbl(void* table);
 extern void CFT_MakeYcc422ColAdjTbl(void* table);
 
+static inline void sfxcnv_MakeLumiTbl(u8* table)
+{
+    s32 i;
+
+    for (i = 0; i <= 15; i++) {
+        table[i] = 0;
+    }
+    for (i = 16; i <= 235; i++) {
+        table[i] = (u8)(1.164f * (i - 16));
+    }
+    for (i = 236; i <= 255; i++) {
+        table[i] = 0xff;
+    }
+}
+
+/* TODO: [near miss] 99.877625%; instruction/data-value exact, default score retains only relocation-label residue. */
 void SFX_MakeTable(SFXHandle* handle, SFXFrameInfo* frame,
                    s32 composition_mode)
 {
     s32 make_table = 1;
-    s32 i;
-    s8* table;
 
-    if (handle->field_3c == 100) {
+    if (handle->table_type == 100) {
         make_table = 0;
-    } else if (handle->field_3c == composition_mode) {
+    } else if (handle->table_type == composition_mode) {
         switch (composition_mode) {
-        case 0:
-        case 100:
-            break;
         case 2:
             if (SFXA_IsNeedUpdateLumiTbl(handle->alpha) != 1) {
                 make_table = 0;
@@ -39,6 +50,10 @@ void SFX_MakeTable(SFXHandle* handle, SFXFrameInfo* frame,
         case 22:
             make_table = 0;
             break;
+        case 0:
+        case 11:
+        case 12:
+        case 100:
         default:
             break;
         }
@@ -48,48 +63,39 @@ void SFX_MakeTable(SFXHandle* handle, SFXFrameInfo* frame,
         return;
     }
 
-    handle->field_3c = composition_mode;
+    handle->table_type = composition_mode;
     switch (composition_mode) {
     case 11:
     case 13:
-        SFXZ_MakeCnvZTbl(handle->depth, frame->color_adjustment,
-                         handle->work_0);
+        SFXZ_MakeCnvZTbl(handle->depth, frame->table_source,
+                         handle->work_buffers[0]);
         break;
     case 2:
-        SFXA_MakeAlpLumiTbl(handle->alpha, frame->color_adjustment,
-                            handle->work_0);
+        SFXA_MakeAlpLumiTbl(handle->alpha, frame->table_source,
+                            handle->work_buffers[0]);
         break;
     case 4:
-        SFXA_MakeAlp3110Tbl(handle->alpha, frame->color_adjustment,
-                            handle->work_0);
+        SFXA_MakeAlp3110Tbl(handle->alpha, frame->table_source,
+                            handle->work_buffers[0]);
         break;
     case 5:
-        SFXA_MakeAlp3211Tbl(handle->alpha, frame->color_adjustment,
-                            handle->work_0);
+        SFXA_MakeAlp3211Tbl(handle->alpha, frame->table_source,
+                            handle->work_buffers[0]);
         break;
     case 21:
-        CFT_MakeArgb8888ColAdjTbl(handle->work_0);
+        CFT_MakeArgb8888ColAdjTbl(handle->work_buffers[0]);
         break;
     case 22:
-        CFT_MakeYcc422ColAdjTbl(handle->work_0);
+        CFT_MakeYcc422ColAdjTbl(handle->work_buffers[0]);
         break;
     case 1:
-        table = handle->work_0;
-        for (i = 0; i < 16; i++) {
-            table[i] = 0;
-        }
-        for (i = 16; i < 236; i++) {
-            table[i] = 1.164f * (i - 16);
-        }
-        for (i = 236; i < 256; i++) {
-            table[i] = 255;
-        }
+        sfxcnv_MakeLumiTbl(handle->work_buffers[0]);
         break;
     case 0:
     case 3:
     case 100:
     default:
-        SFXLIB_Error(handle, (void*)frame,
+        SFXLIB_Error(handle, frame,
                      "E201311: sfxcnv_MakeTable : compo is not support.");
         break;
     }
@@ -119,7 +125,7 @@ s32 SFX_DecideTableAlph3(SfxTagInfo* info, s32 composition_mode)
 
 s32 sfxcnv_IsCnvUpHalf(const SFXHandle* handle)
 {
-    switch (handle->stream_info) {
+    switch (handle->composition_mode) {
     case 0x11:
     case 0x31:
     case 0x41:

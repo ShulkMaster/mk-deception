@@ -5,8 +5,8 @@ void SFX_CnvFrmY84C44(SFXHandle* handle, SFXFrameInfo* frame,
 {
     int format = frame->format;
 
-    if (handle->stream_info == 0) {
-        handle->stream_info = SFXINF_GetStmInf(frame, "COMPO");
+    if (handle->composition_mode == 0) {
+        handle->composition_mode = SFXINF_GetStmInf(frame, "COMPO");
     }
     switch (format) {
     case 3:
@@ -17,7 +17,7 @@ void SFX_CnvFrmY84C44(SFXHandle* handle, SFXFrameInfo* frame,
     case 2:
     default:
         SFXLIB_Error(
-            handle, (void*)frame,
+            handle, frame,
             "E201193: SFX_CnvFrmY84C44 : frmfmt is not support.");
         break;
     }

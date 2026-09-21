@@ -121,7 +121,7 @@ static void sftrn_BuildSystem(SfdHandle* handle,
     }
 
     if (setup->entries[8] != 0) {
-        handle->transports[1].parameter_1C = 7;
+        handle->transports[1].buffer_output3 = 7;
         handle->buffers[7].input_transport = 1;
         handle->buffers[7].output_transport = 8;
         handle->transports[8].parameter_10 = 7;
@@ -191,6 +191,7 @@ static int sftrn_BuildAll(SfdHandle* handle,
     return 0;
 }
 
+/* TODO: [near miss] 89.524590%; transport slot +0x1C is typed as the proven third output buffer; three-state loop scheduling and constant coloring remain. */
 int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
                  const SfdBufferCreateConfig* create,
                  const void* buffer_setup)
@@ -204,13 +205,13 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
     transport = transports;
     for (i = 0; i < 9; i++, transport++) {
         transport->context = 0;
+        transport->interface = setup->entries[i];
         transport->terminated = 0;
         transport->prepared = 0;
-        transport->interface = setup->entries[i];
         transport->parameter_10 = 8;
         transport->parameter_14 = 8;
         transport->parameter_18 = 8;
-        transport->parameter_1C = 8;
+        transport->buffer_output3 = 8;
         transport->state = -1;
     }
 
@@ -220,6 +221,7 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
     return 0;
 }
 
+/* TODO: [near miss] 98.064514%; retail null-entry exit now matches; only equivalent zero-init coloring (mr vs li) remains. */
 int SFTRN_Finish(SfdTransportRegistry* registry)
 {
     int i;
@@ -230,36 +232,46 @@ int SFTRN_Finish(SfdTransportRegistry* registry)
     result = 0;
     entry = registry->entries;
     for (i = 0; i < 15; i++, entry++) {
-        if (*entry != 0) {
-            callback = ((const SfdTransportRawCallback*)*entry)[1];
-            result = callback(0, 0, 0, 0);
-            if (result != 0) {
-                break;
-            }
+        if (*entry == 0) {
+            break;
+        }
+        callback = ((const SfdTransportRawCallback*)*entry)[1];
+        result = callback(0, 0, 0, 0);
+        if (result != 0) {
+            break;
+        }
+    }
+    return result;
+}
+
+static inline int sftrn_CallInit(const SfdTransportInterface* const* entry,
+                                 int result)
+{
+    int i;
+    const SfdTransportInterface* interface;
+    SfdTransportRawCallback callback;
+
+    for (i = 0; i < 15; i++, entry++) {
+        interface = *entry;
+        if (interface == 0) {
+            break;
+        }
+        callback = ((const SfdTransportRawCallback*)interface)[0];
+        result = callback(0, 0, 0, 0);
+        if (result != 0) {
+            break;
         }
     }
     return result;
 }
 
 int SFTRN_Init(SfdTransportRegistry* registry,
-               const SfdTransportRegistry* source)
+               SfdTransportRegistry* source)
 {
-    int i;
-    const SfdTransportInterface* const* entry;
-    SfdTransportRawCallback callback;
     int result;
 
-    *registry = *source;
     result = 0;
-    entry = source->entries;
-    for (i = 0; i < 15; i++, entry++) {
-        if (*entry != 0) {
-            callback = ((const SfdTransportRawCallback*)*entry)[0];
-            result = callback(0, 0, 0, 0);
-            if (result != 0) {
-                break;
-            }
-        }
-    }
+    *registry = *source;
+    result = sftrn_CallInit(source->entries, result);
     return result;
 }

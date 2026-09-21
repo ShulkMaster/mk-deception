@@ -1,6 +1,8 @@
 #include "sofdec/uty_mem.h"
 
-void UTY_MemcpyDword(unsigned int* destination, const unsigned int* source,
+/* TODO: [near miss] 97.244896%; mutable source matches RE4 and fixes the
+ * load schedule; remaining unrolled-loop register coloring is unresolved. */
+void UTY_MemcpyDword(unsigned int* destination, unsigned int* source,
                      unsigned int count) {
     unsigned int remainder = (count & 15) + 1;
     unsigned int blocks;
@@ -43,11 +45,11 @@ void UTY_MemcpyDword(unsigned int* destination, const unsigned int* source,
         word1 = source[13];
         word2 = source[14];
         word3 = source[15];
+        source += 16;
         destination[12] = word0;
         destination[13] = word1;
         destination[14] = word2;
         destination[15] = word3;
-        source += 16;
         destination += 16;
     }
 }
