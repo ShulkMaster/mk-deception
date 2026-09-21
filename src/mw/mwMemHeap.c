@@ -41,6 +41,7 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
              size_kb, origin_info.name, destination_info.name, info->sourceFunction, info->line);
 }
 
+/* TODO: [near miss] 99.09%; size/string GPR coloring remains; stop after bounded permuter search. */
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
     MwMemHeapInfo heap_info;
     float size_kb;
@@ -93,7 +94,6 @@ static void* movie_strategy(u32 size, _mwMemHeap* source, u32 flags,
     return block;
 }
 
-#pragma optimize_for_size on
 static void* fixed1024_strategy(u32 size, _mwMemHeap* source, u32 flags,
                                 MwMemMallocRequest* request) {
     void* block;
@@ -127,7 +127,6 @@ DEFINE_FIXED_STRATEGY(fixed32_strategy, fixed_block_32_heap, fixed_block_64_heap
                       "overflowing 32 word fixed block heap into 64 word heap\n")
 DEFINE_FIXED_STRATEGY(fixed16_strategy, fixed_block_16_heap, fixed_block_32_heap,
                       "overflowing 16 word fixed block heap into 32 word heap\n")
-#pragma optimize_for_size reset
 
 void mwMemDestroyFixedBlockHeaps(void) {
     if (mkobj_heap != 0) mwMemHeapDestroy(mkobj_heap);
@@ -158,24 +157,24 @@ void mwMemDestroyFixedBlockHeaps(void) {
     fixed_block_1024_heap = 0;
 }
 
-#pragma optimize_for_size on
+/* TODO: [breakthrough] 62.07%; fixed/create initialization order improved; register scheduling remains. */
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapCreateParams create;
     MwMemHeapParams defaults;
     MwMemFixedParams fixed;
     mwMemHeapGetDefaultParams(&defaults);
+    create.fixedInitParams = &fixed;
     defaults.paramByte0 = 0xAB;
     defaults.paramByte1 = 0;
     defaults.overflowEnable = 1;
     defaults.strategyCallback = 0;
-    create.parentHeap = wave_heap;
-    create.arenaSize = 1;
-    create.field_0x08 = 4;
-    create.strategyType = MW_MEM_STRATEGY_FIXED;
-    create.fixedInitParams = &fixed;
-    create.extraSizeShift = 0;
     fixed.field_0x00 = 2;
     fixed.sizeThreshold = 8;
+    create.parentHeap = wave_heap;
+    create.arenaSize = 1;
+    create.strategyType = MW_MEM_STRATEGY_FIXED;
+    create.extraSizeShift = 0;
+    create.field_0x08 = 4;
 
     create.name = "MKOBJ fixed block heap";
     fixed.blockCount = config->mkobjCount;
@@ -252,7 +251,6 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     defaults.strategyCallback = 0;
     bigstack_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 }
-#pragma optimize_for_size reset
 
 static inline _mwMemHeap* createNormalHeap(MwMemHeapCreateParams* create,
                                             _mwMemHeap* parent, u32 size,
@@ -260,8 +258,8 @@ static inline _mwMemHeap* createNormalHeap(MwMemHeapCreateParams* create,
                                             MwMemHeapParams* defaults) {
     create->parentHeap = parent;
     create->arenaSize = size;
-    create->field_0x08 = 0x10;
     create->strategyType = MW_MEM_STRATEGY_NORMAL;
+    create->field_0x08 = 0x10;
     create->name = name;
     create->extraSizeShift = 0;
     return _mwMemHeapCreate(create, defaults, 0, 0);
@@ -273,8 +271,8 @@ static inline _mwMemHeap* createOptionalNormalHeap(MwMemHeapCreateParams* create
                                                     MwMemHeapParams* defaults) {
     create->parentHeap = parent;
     create->arenaSize = size;
-    create->field_0x08 = 0x10;
     create->strategyType = MW_MEM_STRATEGY_NORMAL;
+    create->field_0x08 = 0x10;
     create->name = name;
     create->extraSizeShift = 0;
     if (create->arenaSize == 0) {
@@ -283,8 +281,6 @@ static inline _mwMemHeap* createOptionalNormalHeap(MwMemHeapCreateParams* create
     return _mwMemHeapCreate(create, defaults, 0, 0);
 }
 
-#pragma optimize_for_size on
-/* TODO: [near miss] 99.15%; initializer register/constant addressing remains; size-mode trial has no effect. */
 static void mwMemHeapInit(void) {
     _mwMemHeap* system_heap = mwMemSystemGetHeap(0);
     MwMemHeapCreateParams create;
@@ -313,8 +309,8 @@ static void mwMemHeapInit(void) {
 
     create.parentHeap = system_heap;
     create.arenaSize = mwMemVirtualHeapGetHeapSize();
-    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_VIRTUAL;
+    create.field_0x08 = 0x10;
     create.name = "MPEG heap";
     create.extraSizeShift = 0;
     defaults.strategyCallback = movie_strategy;
@@ -325,17 +321,17 @@ static void mwMemHeapInit(void) {
     defaults.paramByte1 = 0;
     mwMemHeapGetParams(permanent_heap, &section_defaults);
     section_fixed.field_0x00 = 2;
-    section_fixed.blockCount = 0x3C;
-    section_fixed.blockSize = 0xC8;
     section_fixed.sizeThreshold = 0;
-    section_fixed.flags = 3;
     section_create.parentHeap = permanent_heap;
     section_create.arenaSize = 1;
-    section_create.field_0x08 = 3;
     section_create.strategyType = MW_MEM_STRATEGY_FIXED;
-    section_create.fixedInitParams = &section_fixed;
-    section_create.name = "SECTION TABLE fixed block heap";
     section_create.extraSizeShift = 0;
+    section_create.fixedInitParams = &section_fixed;
+    section_create.field_0x08 = 3;
+    section_fixed.flags = 3;
+    section_create.name = "SECTION TABLE fixed block heap";
+    section_fixed.blockSize = 0xC8;
+    section_fixed.blockCount = 0x3C;
     section_table_heap = _mwMemHeapCreate(&section_create, &section_defaults, 0, 0);
 
     mwMemHeapGetMaxFreeBlock(system_heap, &free_size, &free_count);
@@ -345,13 +341,12 @@ static void mwMemHeapInit(void) {
     defaults.overflowEnable = 1;
     create.parentHeap = system_heap;
     create.arenaSize = free_size;
-    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_OVERFLOW;
+    create.field_0x08 = 0x10;
     create.name = "OVERFLOW Heap";
     create.extraSizeShift = 0;
     overflow_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
     mwMemSystemSetHeap(1, overflow_heap);
 }
-#pragma optimize_for_size reset
 
 const float gap_09_805117E4_sdata2 = 0.0f;
