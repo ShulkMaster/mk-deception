@@ -5,25 +5,27 @@ static MPVMCFunction mpvumc_oneref[8];
 
 void MPVUMC_BpicSkipped(MPVContext* context, s32 count)
 {
-    s32 end = context->macroblock_index;
-    s32 amount = count - 1;
-    void (*decode_macroblock)(MPVContext*) = context->motion_skipped;
-    s32 zero = 0;
+    s32 end;
+    s32 amount;
+    void (*decode_macroblock)(MPVContext*);
 
-    context->cbp_mask = zero;
+    context->cbp_mask = 0;
+    end = context->macroblock_index;
+    decode_macroblock = context->motion_skipped;
+    amount = count - 1;
     context->macroblock_index -= amount;
     context->macroblock_column -= amount;
     while (context->macroblock_column < 0) {
         context->macroblock_column +=
-            context->condition_state.decoder.picture.macroblocks_per_row;
+            context->condition_state.picture.macroblocks_per_row;
         context->macroblock_row--;
     }
     while (context->macroblock_index < end) {
         decode_macroblock(context);
         context->macroblock_column++;
         if (context->macroblock_column >=
-            context->condition_state.decoder.picture.macroblocks_per_row) {
-            context->macroblock_column = zero;
+            context->condition_state.picture.macroblocks_per_row) {
+            context->macroblock_column = 0;
             context->macroblock_row++;
         }
         context->macroblock_index++;
@@ -63,27 +65,30 @@ void MPVUMC_PpicSkipped(MPVContext* context, s32 count)
 {
     s32 end = context->macroblock_index;
     s32 amount = count - 1;
+    MPVPlaneSet* output = &context->frame_buffers.forward;
+    MPVPlaneSet* reference = output + 1;
+    s32 y8;
+    s32 y16;
 
     context->macroblock_index -= amount;
     context->macroblock_column -= amount;
     while (context->macroblock_column < 0) {
         context->macroblock_column +=
-            context->condition_state.decoder.picture.macroblocks_per_row;
+            context->condition_state.picture.macroblocks_per_row;
         context->macroblock_row--;
     }
     while (context->macroblock_index < end) {
         MPVBlockOffsets offsets;
+        y8 = context->macroblock_row * 8;
+        y16 = y8 * 2;
         offsets.chroma = context->macroblock_column * 8 +
-                         context->macroblock_row * 8 *
-                             context->frame_buffers.forward.chroma_stride;
+                         y8 * output->chroma_stride;
         offsets.luma = context->macroblock_column * 16 +
-                       context->macroblock_row * 16 *
-                           context->frame_buffers.forward.luma_stride;
-        mpvumc_PpicSkipMb(&offsets, &context->frame_buffers.forward,
-                          &context->frame_buffers.backward);
+                       y16 * output->luma_stride;
+        mpvumc_PpicSkipMb(&offsets, output, reference);
         context->macroblock_column++;
         if (context->macroblock_column >=
-            context->condition_state.decoder.picture.macroblocks_per_row) {
+            context->condition_state.picture.macroblocks_per_row) {
             context->macroblock_column = 0;
             context->macroblock_row++;
         }
@@ -310,17 +315,24 @@ void MPVUMC_EndOfFrame(void) {}
 
 void MPVUMC_InitOutRfb(MPVContext* context)
 {
-    s32 width_plus = context->condition_state.decoder.picture.width + 15;
-    s32 height_plus = context->condition_state.decoder.picture.height + 15;
-    u8* output_rfb = context->frame_buffers.output_rfb;
-    s32 rounded_width = (width_plus / 16) * 16;
-    s32 luma_stride = ((rounded_width + 31) / 32) << 5;
-    s32 chroma_stride = (((rounded_width / 2) + 31) / 32) << 5;
+    s32 width = context->condition_state.picture.width;
+    s32 height = context->condition_state.picture.height;
+    s32 macroblocks_wide;
+    s32 macroblocks_high;
+    s32 rounded_width;
+    s32 luma_stride;
+    s32 chroma_stride;
     s32 rounded_height;
+    u8* output_rfb = context->frame_buffers.output_rfb;
 
+    macroblocks_wide = (width + 15) / 16;
+    rounded_width = macroblocks_wide * 16;
+    luma_stride = (rounded_width + 31) / 32 * 32;
+    chroma_stride = (rounded_width / 2 + 31) / 32 * 32;
     context->output.luma_stride = luma_stride;
     context->output.chroma_stride = chroma_stride;
-    rounded_height = (height_plus / 16) * 16;
+    macroblocks_high = (height + 15) / 16;
+    rounded_height = macroblocks_high * 16;
     context->output.luma = output_rfb;
     context->output.chroma0 =
         context->output.luma + rounded_height * luma_stride;

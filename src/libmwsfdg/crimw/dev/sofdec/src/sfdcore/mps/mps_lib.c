@@ -18,10 +18,11 @@ static inline int mpslib_check_handle(MpsHandle* handle) {
 
 static inline int mpslib_set_error(MpsHandle* handle, int error) {
     if (handle == 0) {
-        MPSLIB_libwork->error = error;
-        if (error != 0 && MPSLIB_libwork->error_callback != 0) {
-            MPSLIB_libwork->error_callback(MPSLIB_libwork->error_object,
-                                            error);
+        MpsLibWork* work = MPSLIB_libwork;
+
+        work->error = error;
+        if (error != 0 && work->error_callback != 0) {
+            work->error_callback(work->error_object, error);
         }
     } else {
         handle->error = error;
@@ -33,13 +34,31 @@ static inline int mpslib_set_error(MpsHandle* handle, int error) {
 }
 
 int MPS_Destroy(MpsHandle* handle) {
-    if (mpslib_check_handle(handle) != 0) {
-        return mpslib_set_error(0, 0xFF020103);
+    int invalid;
+
+    mpslib_hn_last = handle;
+    if (handle == 0) {
+        invalid = -1;
+    } else if (handle->state == 1) {
+        invalid = -1;
+    } else {
+        invalid = 0;
+    }
+    if (invalid != 0) {
+        MpsLibWork* work = MPSLIB_libwork;
+        int error = 0xFF020103;
+
+        work->error = error;
+        if (work->error_callback != 0) {
+            work->error_callback(work->error_object, error);
+        }
+        return error;
     }
     handle->state = 1;
     return 0;
 }
 
+/* TODO: [breakthrough needed] 67.687500%; typed header initialization removes the artificial raw-word union, but retail's contiguous initialization lowering remains unresolved. */
 MpsHandle* MPS_Create(void) {
     MpsHandle* handle;
     int i;
@@ -62,9 +81,29 @@ MpsHandle* MPS_Create(void) {
                     sizeof(*handle) / sizeof(unsigned int));
     handle->state = 2;
     handle->packet_length_bytes = 2;
-    for (i = 0; i < 46; i++) {
-        handle->payload.decoder_words[i] = -1;
+    handle->headers.pack_header.scr = -1;
+    handle->headers.pack_header.is_mpeg1 = -1;
+    handle->headers.pack_header.mux_rate = -1;
+    handle->headers.last_system_header.header_length = -1;
+    handle->headers.last_system_header.rate_bound = -1;
+    handle->headers.last_system_header.audio_bound = -1;
+    handle->headers.last_system_header.video_bound = -1;
+    handle->headers.last_system_header.fixed_flag = -1;
+    handle->headers.last_system_header.csps_flag = -1;
+    handle->headers.last_system_header.audio_lock_flag = -1;
+    handle->headers.last_system_header.video_lock_flag = -1;
+    for (i = 0; i < 3; i++) {
+        handle->headers.system_headers[i] =
+            handle->headers.last_system_header;
     }
+    handle->headers.packet_header.pts = -1;
+    handle->headers.packet_header.dts = -1;
+    handle->headers.packet_header.stream_id = -1;
+    handle->headers.packet_header.stream_type = -1;
+    handle->headers.packet_header.stream_index = -1;
+    handle->headers.packet_header.packet_length = -1;
+    handle->headers.packet_header.std_buffer_size = -1;
+    handle->headers.packet_header.payload_length = -1;
     handle->field_D0 = 0;
     handle->decode_header = MPSDEC_DecHdMpeg1;
     handle->field_D8 = 0;
@@ -85,12 +124,31 @@ int MPSLIB_CheckHn(MpsHandle* handle) {
 
 int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback,
                  MpsCallbackObject object) {
+    int invalid;
+
     if (handle == 0) {
-        MPSLIB_libwork->error_callback = callback;
-        MPSLIB_libwork->error_object = object;
+        MpsLibWork* work = MPSLIB_libwork;
+
+        work->error_callback = callback;
+        work->error_object = object;
     } else {
-        if (mpslib_check_handle(handle) != 0) {
-            return mpslib_set_error(0, 0xFF020101);
+        mpslib_hn_last = handle;
+        if (handle == 0) {
+            invalid = -1;
+        } else if (handle->state == 1) {
+            invalid = -1;
+        } else {
+            invalid = 0;
+        }
+        if (invalid != 0) {
+            MpsLibWork* work = MPSLIB_libwork;
+            int error = 0xFF020101;
+
+            work->error = error;
+            if (work->error_callback != 0) {
+                work->error_callback(work->error_object, error);
+            }
+            return error;
         }
         handle->error_callback = callback;
         handle->error_object = object;
@@ -103,24 +161,39 @@ int MPSLIB_SetErr(MpsHandle* handle, int error) {
 }
 
 void MPS_Finish(void) {
-    int i;
+    MpsLibWork* work;
     MpsHandle* handle;
+    int i;
+    int handle_count;
 
-    handle = MPSLIB_libwork->handles;
-    for (i = 0; i < MPSLIB_libwork->handle_count; i++, handle++) {
+    work = MPSLIB_libwork;
+    handle_count = work->handle_count;
+    handle = work->handles;
+    for (i = 0; i < handle_count; i++) {
         if (handle->state != 1) {
             MPS_Destroy(handle);
         }
+        handle++;
     }
     MPSDEC_Finish();
     MPSGET_Finish();
 }
 
+static int mpslib_clear_handles(MpsHandle* handles, int count) {
+    int i;
+
+    for (i = 0; i < count; i++) {
+        handles[i].state = 1;
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 96.419754%; retail/donor handle-clear loop matches, but
+ * MWCC omits a dead branch pair; exact helper naming was neutral. */
 int MPS_Init(int handle_count, MpsLibWork* work) {
     static const unsigned int test_wrok = 0x01020304;
     MpsLibWork* libwork;
-    unsigned int work_size;
-    int i;
+    int result;
 
     cri_verstr_ptr = MPSLIB_version_str;
     if (*(const unsigned char*)&test_wrok != 1) {
@@ -130,18 +203,18 @@ int MPS_Init(int handle_count, MpsLibWork* work) {
     }
 
     MPSLIB_libwork = work;
-    work_size = sizeof(MpsLibWork) +
-                (handle_count - 1) * sizeof(MpsHandle);
     UTY_MemsetDword((unsigned int*)work, 0,
-                    work_size / sizeof(unsigned int));
+                    (sizeof(MpsLibWork) +
+                     (handle_count - 1) * sizeof(MpsHandle)) /
+                        sizeof(unsigned int));
     libwork = MPSLIB_libwork;
     libwork->error_callback = 0;
     libwork->error_object = 0;
     libwork->error = 0;
     MPSLIB_libwork->handle_count = handle_count;
-    libwork = MPSLIB_libwork;
-    for (i = 0; i < handle_count; i++) {
-        libwork->handles[i].state = 1;
+    result = mpslib_clear_handles(MPSLIB_libwork->handles, handle_count);
+    if (result != 0) {
+        return result;
     }
     MPSDEC_Init();
     MPSGET_Init();

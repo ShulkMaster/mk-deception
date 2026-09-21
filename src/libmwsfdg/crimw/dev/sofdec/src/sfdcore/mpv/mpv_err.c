@@ -25,7 +25,7 @@ int MPVERR_SetCode(MPVContext* handle, int error)
     return error;
 }
 
-int MPV_SetErrFunc(MPVContext* handle, MPVErrorCallback callback, int object)
+int MPV_SetErrFunc(MPVContext* handle, MPVErrorCallback callback, void* object)
 {
     if (MPVLIB_CheckHn(handle) != 0) {
         return MPVERR_SetCode(0, 0xFF030203);

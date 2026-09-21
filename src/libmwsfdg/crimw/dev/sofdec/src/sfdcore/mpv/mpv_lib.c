@@ -67,7 +67,7 @@ extern int MPVVLC_IsVlcSizErr(void);
 extern void MPVVLC_Init(void* work, MPVContext* decoder);
 extern void MPVBDEC_Init(void* context);
 extern int MPVDEC_CheckVersion(const char* version, int object_size,
-                               int alignment);
+                               int picture_attribute_size);
 extern int MPVABDEC_IntraBlock(void* context, void* block);
 extern int MPVABDEC_NintraBlock(void* context, void* block);
 extern void MPV_SetUsrSj(MPVContext* handle, int index, void* stream,
@@ -209,7 +209,7 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     handle->field_18C = 0;
 
     UTY_MemcpyDword((unsigned int*)handle->condition_state.conditions,
-                    (const unsigned int*)mpvlib_libwork.conditions, 16);
+                    (unsigned int*)mpvlib_libwork.conditions, 16);
     MPVERR_InitErrInf(&handle->error_info);
     MPVCMC_InitObj(handle);
     dct_params = &handle->dct_state.params;
@@ -217,7 +217,7 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     dct_params->workspace = (float*)handle->field_D00;
     dct_params->coefficients = &handle->transform.coefficients[3][0];
     dct_params->output_blocks = handle->dct_output_blocks;
-    mpvlib_InitPicAtr(&handle->condition_state.decoder.picture);
+    mpvlib_InitPicAtr(&handle->condition_state.picture);
 
     handle->field_1300 = 0;
     handle->field_1304 = 0;
@@ -240,19 +240,27 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     return handle;
 }
 
+static MPVContext* mpvlib_SearchFreeHn(void)
+{
+    MPVContext* handle = mpvlib_libwork.handles;
+    int index;
+
+    for (index = 0; index < mpvlib_libwork.handle_count; index++) {
+        if (handle->state == 1) {
+            return handle;
+        }
+        handle++;
+    }
+    return 0;
+}
+
+/* TODO: [breakthrough needed] 66.39344%; RE4's helper-shaped search improves the
+ * CFG, but the remaining locked-cache dcbi/dcbz_l sequence requires unavailable
+ * ordinary-C evidence and must not be forced. */
 MPVContext* MPV_Create(void)
 {
-    MPVContext* current = mpvlib_libwork.handles;
-    MPVContext* handle = 0;
-    int remaining = mpvlib_libwork.handle_count;
+    MPVContext* handle = mpvlib_SearchFreeHn();
 
-    while (remaining-- > 0) {
-        if (current->state == 1) {
-            handle = current;
-            break;
-        }
-        current++;
-    }
     if (handle == 0) {
         return 0;
     }
@@ -302,13 +310,13 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->time_code_seconds = zero;
     attributes->time_code_pictures = zero;
     attributes->group_count = zero;
-    attributes->field_34 = zero;
+    attributes->sequence_header_count = zero;
     attributes->field_38 = three;
     attributes->field_3C = one;
     attributes->field_40 = one;
     attributes->field_44 = one;
-    attributes->field_48 = zero;
-    attributes->field_4C = zero;
+    attributes->bit_rate = zero;
+    attributes->vbv_buffer_size = zero;
     attributes->field_50 = negative_one;
     attributes->field_52 = negative_one;
     attributes->field_54 = zero;
@@ -316,8 +324,8 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_56 = negative_one;
     attributes->field_57 = negative_one;
     attributes->field_58 = zero;
-    attributes->field_59 = one;
-    attributes->field_5A = zero;
+    attributes->aspect_ratio = one;
+    attributes->constrained_parameters = zero;
     attributes->field_5B = zero;
     attributes->field_5C = zero;
     attributes->field_5D = byte_max;
@@ -394,7 +402,7 @@ int MPV_Init(int handle_count, void* work)
     }
 
     UTY_MemcpyDword((unsigned int*)mpvlib_libwork.conditions,
-                    (const unsigned int*)mpvlib_cond_dfl, 16);
+                    (unsigned int*)mpvlib_cond_dfl, 16);
     mpvlib_libwork.field_4C = after_handles;
     mpvlib_libwork.index_work = index_work;
     mpvlib_libwork.handle_count = handle_count;
@@ -451,7 +459,7 @@ int MPV_Init(int handle_count, void* work)
     mpv_clip_0_255_base = mpv_clip_0_255_tbl + 0x180;
     if (index_work + 0x1860 != 0) {
         UTY_MemcpyDword((unsigned int*)(index_work + 0x1860),
-                        (const unsigned int*)mpv_clip_0_255_tbl, 0x100);
+                        (unsigned int*)mpv_clip_0_255_tbl, 0x100);
         mpv_clip_0_255_base = index_work + 0x19E0;
     }
 

@@ -53,6 +53,8 @@ void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
     }
 }
 
+/* TODO: [breakthrough needed] 29.235916%; donor per-case alignment subtraction
+ * improves the switch CFG; the tuned SWAR schedule remains unresolved. */
 void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
 {
     s32 row;
@@ -60,7 +62,6 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
     u8* destination = context->destination;
     u32 alignment = (unsigned long)reference & 3;
 
-    reference -= alignment;
     switch (alignment) {
     case 0:
         for (row = 0; row < 16; row++) {
@@ -82,6 +83,7 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         }
         break;
     case 1:
+        reference -= 1;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
             u32* output = (u32*)destination;
@@ -105,6 +107,7 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         }
         break;
     case 2:
+        reference -= 2;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
             u32* output = (u32*)destination;
@@ -128,6 +131,7 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         }
         break;
     default:
+        reference -= 3;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
             u32* output = (u32*)destination;

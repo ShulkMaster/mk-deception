@@ -10,7 +10,7 @@ typedef struct MPVBDECContextView {
     u8 field_0x0000[0x1100];
     s16 dc_sign_masks[16];
     s8 scan[64];
-    f32 coefficient_scale[64];
+    u8 scale[0x100];
     u8 vlc_group[32];
     MPVBDECVlcDescriptor vlc_desc[6];
 } MPVBDECContextView;
@@ -73,12 +73,12 @@ void MPVBDEC_Init(MPVBDECContextView* context)
     output_scan = context->scan;
     if (output_scan != 0) {
         UTY_MemcpyDword((unsigned int*)output_scan,
-                        (const unsigned int*)mpvbdec_zigzag, 16);
+                        (unsigned int*)mpvbdec_zigzag, 16);
     }
     output_masks = context->dc_sign_masks;
     if (output_masks != 0) {
         UTY_MemcpyDword((unsigned int*)output_masks,
-                        (const unsigned int*)mpvbdec_bitmsk, 8);
+                        (unsigned int*)mpvbdec_bitmsk, 8);
     }
     memcpy(context->vlc_group, group_tbl, sizeof(group_tbl));
 

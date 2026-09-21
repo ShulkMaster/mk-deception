@@ -88,10 +88,10 @@ static inline u32 mpvdec_ReadIntraAddress(MPVContext* context,
                 delta = context->macroblock_index - old_index;
                 context->macroblock_column += delta;
                 while (context->macroblock_column >=
-                       context->condition_state.decoder.picture.
+                       context->condition_state.picture.
                            macroblocks_per_row) {
                     context->macroblock_column -=
-                        context->condition_state.decoder.picture.
+                        context->condition_state.picture.
                             macroblocks_per_row;
                     context->macroblock_row++;
                 }
@@ -276,10 +276,10 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
                     delta = context->macroblock_index - old_index;
                     context->macroblock_column += delta;
                     while (context->macroblock_column >=
-                           context->condition_state.decoder.picture.
+                           context->condition_state.picture.
                                macroblocks_per_row) {
                         context->macroblock_column -=
-                            context->condition_state.decoder.picture.
+                            context->condition_state.picture.
                                 macroblocks_per_row;
                         context->macroblock_row++;
                     }
@@ -661,10 +661,10 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
                     delta = context->macroblock_index - old_index;
                     context->macroblock_column += delta;
                     while (context->macroblock_column >=
-                           context->condition_state.decoder.picture.
+                           context->condition_state.picture.
                                macroblocks_per_row) {
                         context->macroblock_column -=
-                            context->condition_state.decoder.picture.
+                            context->condition_state.picture.
                                 macroblocks_per_row;
                         context->macroblock_row++;
                     }
@@ -904,10 +904,10 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
                     delta = context->macroblock_index - old_index;
                     context->macroblock_column += delta;
                     while (context->macroblock_column >=
-                           context->condition_state.decoder.picture.
+                           context->condition_state.picture.
                                macroblocks_per_row) {
                         context->macroblock_column -=
-                            context->condition_state.decoder.picture.
+                            context->condition_state.picture.
                                 macroblocks_per_row;
                         context->macroblock_row++;
                     }
@@ -982,7 +982,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-int MPVDEC_CheckVersion(const char* version, u32 object_size, int alignment)
+int MPVDEC_CheckVersion(const char* version, int object_size,
+                        int picture_attribute_size)
 {
     if (strcmp("1.933", version) != 0) {
         return -1;
@@ -990,5 +991,8 @@ int MPVDEC_CheckVersion(const char* version, u32 object_size, int alignment)
     if (object_size != 0x1378) {
         return -1;
     }
-    return ((alignment - 0x80) | (0x80 - alignment)) >> 31;
+    if (picture_attribute_size != 0x80) {
+        return -1;
+    }
+    return 0;
 }

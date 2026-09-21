@@ -85,6 +85,8 @@ static MPVMotionFunction mc_forward_func[10];
 static MPVMotionFunction mc_intra_func[20];
 static MPVSkipFunction skip_func[10];
 
+/* TODO: [near miss] 94.060150%; retail/donor slice parser agrees; residual register
+ * allocation/lifetime coloring remains after the bounded source audit. */
 static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -114,7 +116,7 @@ static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
 
     value = (u8)value - 1;
     context->macroblock_index =
-        value * context->condition_state.decoder.picture.macroblocks_per_row - 1;
+        value * context->condition_state.picture.macroblocks_per_row - 1;
     context->macroblock_row = value;
     context->macroblock_column = -1;
 
@@ -180,7 +182,8 @@ static inline int mpvhdec_SeekDelimSj(SJ* stream, int wanted_mask)
         stream->interface->get_chunk(stream, 1, 0x7FFFFFFF, &chunk);
         if (chunk.len < 4) {
             stream->interface->unget_chunk(stream, 1, &chunk);
-            return 0;
+            delimiter_type = 0;
+            break;
         }
 
         delimiter = MPV_SearchDelim(chunk.data, chunk.len, -1);
@@ -254,6 +257,7 @@ int MPVHDEC_DecPicture(MPVContext* context, SJ* stream)
     }
 }
 
+/* TODO: [near miss] 97.588234%; donor/retail share the common delimiter result epilogue, but MWCC keeps the short-chunk zero directly in r3 instead of the live result register. */
 int MPV_GoNextDelimSj(SJ* stream)
 {
     SJCK chunk;
@@ -448,10 +452,10 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     words = aligned + 3;
 
     MPVHDEC_READ_BITS(
-        context->condition_state.decoder.picture.temporal_reference, 10);
+        context->condition_state.picture.temporal_reference, 10);
     MPVHDEC_READ_BITS(
-        context->condition_state.decoder.picture.picture_type, 3);
-    picture_type = context->condition_state.decoder.picture.picture_type;
+        context->condition_state.picture.picture_type, 3);
+    picture_type = context->condition_state.picture.picture_type;
     MPVHDEC_READ_BITS(context->vbv_delay, 16);
 
     if (picture_type == 2 || picture_type == 3) {
@@ -532,7 +536,7 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     int consumed;
 
     context->user_data_index = 2;
-    context->condition_state.decoder.picture.group_count++;
+    context->condition_state.picture.group_count++;
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
@@ -562,15 +566,15 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
         bit_offset += 25;
     }
 
-    context->condition_state.decoder.picture.time_code_pictures =
+    context->condition_state.picture.time_code_pictures =
         value & 0x3F;
-    context->condition_state.decoder.picture.time_code_seconds =
+    context->condition_state.picture.time_code_seconds =
         (value >> 6) & 0x3F;
-    context->condition_state.decoder.picture.time_code_minutes =
+    context->condition_state.picture.time_code_minutes =
         (value >> 13) & 0x3F;
-    context->condition_state.decoder.picture.time_code_hours =
+    context->condition_state.picture.time_code_hours =
         (value >> 19) & 0x1F;
-    context->condition_state.decoder.picture.drop_frame_flag = value >> 24;
+    context->condition_state.picture.drop_frame_flag = value >> 24;
 
     context->link_flag_0 = bits >> 31;
     if (bit_offset == 31) {
@@ -607,8 +611,8 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
     return bits;
 }
 
-/* TODO: [near miss] 96.038250%; reader register allocation remains;
- * two matching passes exhausted. */
+/* TODO: [near miss] 96.038250%; sequence-header parser and member offsets
+ * agree; residual register/lifetime coloring remains. */
 static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -622,7 +626,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     int consumed;
 
     context->user_data_index = 1;
-    context->condition_state.decoder.picture.field_34++;
+    context->condition_state.picture.sequence_header_count++;
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
@@ -632,11 +636,11 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     next_bits = aligned[2];
     words = aligned + 3;
 
-    MPVHDEC_READ_BITS(context->condition_state.decoder.picture.width, 12);
-    MPVHDEC_READ_BITS(context->condition_state.decoder.picture.height, 12);
-    MPVHDEC_READ_BITS(context->field_2A4, 4);
+    MPVHDEC_READ_BITS(context->condition_state.picture.width, 12);
+    MPVHDEC_READ_BITS(context->condition_state.picture.height, 12);
+    MPVHDEC_READ_BITS(context->aspect_ratio, 4);
     MPVHDEC_READ_BITS(value, 4);
-    context->condition_state.decoder.picture.frame_rate_code = value;
+    context->condition_state.picture.frame_rate_code = value;
     MPVHDEC_READ_BITS(context->bit_rate, 18);
     /* Consume the marker bit; its value is not used by retail. */
     bit_offset++;
@@ -648,7 +652,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
         bits <<= 1;
     }
     MPVHDEC_READ_BITS(context->vbv_buffer_units, 10);
-    MPVHDEC_READ_FLAG(context->field_2B0);
+    MPVHDEC_READ_FLAG(context->constrained_parameters);
 
     MPVHDEC_READ_FLAG(value);
     if (value != 0) {
@@ -658,7 +662,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
         }
     } else {
         UTY_MemcpyDword((unsigned int*)context->intra_quant_matrix,
-                        (const unsigned int*)mpvbdec_dfl_iqm, 16);
+                        (unsigned int*)mpvbdec_dfl_iqm, 16);
     }
 
     MPVHDEC_READ_FLAG(value);
@@ -672,18 +676,19 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
                         0x10101010, 16);
     }
 
-    context->condition_state.decoder.picture.macroblocks_per_row =
-        (context->condition_state.decoder.picture.width + 15) >> 4;
-    context->condition_state.decoder.picture.macroblock_rows =
-        (context->condition_state.decoder.picture.height + 15) >> 4;
+    context->condition_state.picture.macroblocks_per_row =
+        (context->condition_state.picture.width + 15) >> 4;
+    context->condition_state.picture.macroblock_rows =
+        (context->condition_state.picture.height + 15) >> 4;
     context->last_macroblock_index =
-        context->condition_state.decoder.picture.macroblock_rows *
-        context->condition_state.decoder.picture.macroblocks_per_row - 1;
-    context->condition_state.decoder.picture.field_48 = context->bit_rate;
-    context->condition_state.decoder.picture.field_4C =
+        context->condition_state.picture.macroblock_rows *
+        context->condition_state.picture.macroblocks_per_row - 1;
+    context->condition_state.picture.bit_rate = context->bit_rate;
+    context->condition_state.picture.vbv_buffer_size =
         context->vbv_buffer_units;
-    context->condition_state.decoder.picture.field_59 = context->field_2A4;
-    context->condition_state.decoder.picture.field_5A = context->field_2B0;
+    context->condition_state.picture.aspect_ratio = context->aspect_ratio;
+    context->condition_state.picture.constrained_parameters =
+        context->constrained_parameters;
 
     consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
@@ -841,6 +846,7 @@ void MPV_SetUsrSj(MPVContext* context, int index, void* stream,
     user_stream->callback_argument = callback_argument;
 }
 
+/* TODO: [breakthrough needed] 99.83871%; retail static-array placement is mc_bidirect/mc_backward/mc_forward/mc_intra/skip, while MWCC preserves the current first-reference BSS order; declaration reordering was neutral. */
 void MPVHDEC_Init(void)
 {
     memset(skip_func, 0, sizeof(skip_func));

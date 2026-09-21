@@ -33,9 +33,7 @@ void MPVCMC_InitMcOiRt(MPVContext* object) {
     }
 }
 
-/* Soft ceiling: 92.06% - retail addresses the six secondary output blocks
- * directly from the outer context; clean loops make MWCC retain a +0x158 base.
- * Permutation improved only by adding a redundant pointer-copy lifetime. */
+/* TODO: [near miss] 92.057144%; retail keeps a typed output-block base live in a separate register, but the honest local-base form was compiler-neutral. */
 void MPVCMC_InitObj(MPVContext* object) {
     u8* destination;
     s32 count;

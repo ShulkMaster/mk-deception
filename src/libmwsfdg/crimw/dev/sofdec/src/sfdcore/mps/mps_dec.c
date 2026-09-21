@@ -127,7 +127,7 @@ static inline unsigned int mpsdec_peek_bits(MpsBitReader* reader, int count) {
 static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
                              int* consumed, int packet_length_bytes) {
     MpsBitReader reader;
-    MpsPacketHeader* header = &handle->payload.headers.packet_header;
+    MpsPacketHeader* header = &handle->headers.packet_header;
     int stream_id;
     int stream_type;
     int stream_index;
@@ -211,11 +211,13 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
         header->packet_length + base_header_size - *consumed;
 }
 
+/* TODO: [breakthrough needed] 81.154570%; retail and donor confirm the typed
+ * system-header/callback layout; callback lifetime and parser lowering remain. */
 static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
                             int* consumed) {
     unsigned int trailer;
     MpsBitReader reader;
-    MpsSystemHeader* header = &handle->payload.headers.last_system_header;
+    MpsSystemHeader* header = &handle->headers.last_system_header;
     MpsSystemCallbackInfo info;
 
     mpsdec_init_bits(&reader, data, 32);
@@ -272,10 +274,11 @@ static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
     }
 }
 
+/* TODO: [near miss] 89.258064%; pack-header bit extraction and fixed-length result agree, but terminal-read lowering remains unresolved. */
 static void mpsdec_DecPackHd(MpsHandle* handle, const unsigned char* data,
                              int* consumed) {
     MpsBitReader reader;
-    MpsPackHeader* header = &handle->payload.headers.pack_header;
+    MpsPackHeader* header = &handle->headers.pack_header;
     unsigned int prefix;
     unsigned int high;
     unsigned int middle;
@@ -303,39 +306,40 @@ static void mpsdec_DecPackHd(MpsHandle* handle, const unsigned char* data,
 
 int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
                       int* consumed, int* header_flags) {
-    const unsigned char* cursor = data;
-    int remaining = size;
+    int used;
+    int parse_more;
+    int delimiter;
+    int index;
 
-    while (remaining >= 4) {
-        int used = 0;
-        int parse_more = 0;
-        int delimiter = MPS_CheckDelim(cursor);
+    while (size >= 4) {
+        used = parse_more = 0;
+        delimiter = MPS_CheckDelim(data);
 
         switch (delimiter) {
         case 0x80000:
             break;
         case 0x10000:
-            mpsdec_DecPackHd(handle, cursor, &used);
+            mpsdec_DecPackHd(handle, data, &used);
             parse_more = 1;
             break;
         case 0x20000:
-            mpsdec_DecSysHd(handle, cursor, &used);
+            mpsdec_DecSysHd(handle, data, &used);
             parse_more = 1;
             break;
         case 0x40000:
-            mpsdec_DecPketHd(handle, cursor, &used,
+            mpsdec_DecPketHd(handle, data, &used,
                              handle->packet_length_bytes);
             if (handle->pes_callback != 0) {
                 handle->pes_callback(
                     handle->pes_object,
-                    (unsigned char)handle->payload.headers.packet_header.stream_id);
+                    (unsigned char)handle->headers.packet_header.stream_id);
             }
             break;
         }
 
         *header_flags |= delimiter;
-        cursor += used;
-        remaining -= used;
+        data += used;
+        size -= used;
         *consumed += used;
         if (!parse_more) {
             break;
@@ -343,8 +347,7 @@ int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
     }
 
     if ((*header_flags & 0x20000) != 0) {
-        MpsSystemHeader* header = &handle->payload.headers.last_system_header;
-        int index;
+        MpsSystemHeader* header = &handle->headers.last_system_header;
 
         if (header->audio_bound != 0) {
             index = 0;
@@ -353,7 +356,7 @@ int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
         } else {
             index = 2;
         }
-        handle->payload.headers.system_headers[index] = *header;
+        handle->headers.system_headers[index] = *header;
     }
     return 0;
 }
