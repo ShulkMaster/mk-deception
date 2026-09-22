@@ -22,12 +22,15 @@ typedef struct TRKEvent {
 } TRKEvent;
 
 typedef struct TRKTargetState {
-    u8 field_0x00[0x8C];
-    u32 saved_msr;
-    u8 field_0x90[8];
+    u32 gpr[32];
+    u32 lr;
+    u32 ctr;
+    u32 xer;
+    u32 msr;
+    u32 dar;
+    u32 dsisr;
     u32 stopped;
-    u8 input_activated;
-    u8 field_0x9D[3];
+    BOOL input_activated;
     volatile u8* input_pending;
 } TRKTargetState;
 
@@ -49,6 +52,8 @@ typedef struct TRKExceptionStatus {
 
 typedef char MessageBufferSizeCheck[sizeof(MessageBuffer) == 0x890 ? 1 : -1];
 typedef char TRKEventSizeCheck[sizeof(TRKEvent) == 0xC ? 1 : -1];
+typedef char TRKTargetStateSizeCheck[
+    sizeof(TRKTargetState) == 0xA4 ? 1 : -1];
 
 extern BOOL gTRKBigEndian;
 extern TRKTargetState gTRKState;
@@ -107,6 +112,12 @@ u32 GetTRKConnected(void);
 void SetTRKConnected(u32 connected);
 void TRKNubMainLoop(void);
 DSError TRKTargetContinue(void);
+DSError TRKTargetStop(void);
+BOOL TRKTargetStopped(void);
+u32 TRKTargetGetPC(void);
+DSError TRKTargetSingleStep(u8 count, BOOL step_over);
+DSError TRKTargetStepOutOfRange(u32 range_start, u32 range_end,
+                                BOOL step_over);
 
 void usr_put_initialize(void);
 BOOL usr_puts_serial(const char* message);

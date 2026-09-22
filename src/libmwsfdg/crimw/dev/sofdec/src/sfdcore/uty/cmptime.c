@@ -1,21 +1,17 @@
-int UTY_CmpTime(int leftValue, int rightScale, int rightValue, int leftScale) {
-    /*
-     * Retail uses this signed 64-bit cross-product comparison. At -O1 the
-     * remaining four-byte delta is equivalent boolean-return lowering; the
-     * multiply operands, signed high words, guard, and result are unchanged.
-     */
-    int integerWidth = sizeof(long long);
-    int isEarlier;
+int UTY_CmpTime(int count1, int scale1, int count2, int scale2)
+{
+    int ret;
+    int size = sizeof(long long);
 
-    if (integerWidth < 8) {
+    if (size < 8) {
         for (;;) {
         }
     }
 
-    isEarlier = (long long)rightValue * rightScale <
-                (long long)leftValue * leftScale;
-    if (isEarlier) {
-        return 0;
+    if ((long long)count1 * scale2 <= (long long)count2 * scale1) {
+        ret = 1;
+    } else {
+        ret = 0;
     }
-    return 1;
+    return ret;
 }

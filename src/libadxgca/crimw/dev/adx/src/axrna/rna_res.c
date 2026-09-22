@@ -79,15 +79,13 @@ void RNARES_Finish(void)
     }
 }
 
-/* Soft ceiling: RNARES_Init has the retail pool construction and unrolled
- * layout; residue is register allocation plus one retail-only `mr`. */
-void RNARES_Init(const char* build)
+/* TODO: [near miss] 96.489365%; pool construction matches, with only register coloring left in the unrolled fill. */
+void RNARES_Init(void)
 {
     u32 i;
     u32 offset;
+    u32 nbuf;
     RNAResource* resource;
-
-    (void)build;
 
     if (rnares_init_cnt == 0) {
         if (rnares_setup_fg == 0) {
@@ -96,9 +94,10 @@ void RNARES_Init(const char* build)
             rnares_aram_ptr = ARAlloc(rnares_aram_size);
         }
         memset(rnares_obj, 0, sizeof(rnares_obj));
+        nbuf = rnares_nbuf;
         resource = rnares_obj;
         offset = 0;
-        for (i = 0; i < rnares_nbuf; i++, resource++) {
+        for (i = 0; i < nbuf; i++, resource++) {
             resource->buffer = (rnares_aram_ptr + offset) >> 1;
             resource->size = 0x1000;
             offset += 0x2000;

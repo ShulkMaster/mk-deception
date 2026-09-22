@@ -4,7 +4,7 @@
 #include "sofdec/sfd_transport.h"
 
 typedef struct SfdLibraryConfig {
-    const SfdTransportRegistry* transport_registry;
+    SfdTransportRegistry* transport_registry;
     int timer_source;
 } SfdLibraryConfig;
 

@@ -83,13 +83,13 @@ typedef struct MPVPictureAttributes {
     int time_code_seconds;
     int time_code_pictures;
     int group_count;
-    int field_34;
+    int sequence_header_count;
     int field_38;
     int field_3C;
     int field_40;
     int field_44;
-    int field_48;
-    int field_4C;
+    int bit_rate;
+    int vbv_buffer_size;
     s16 field_50;
     s16 field_52;
     u8 field_54;
@@ -97,8 +97,8 @@ typedef struct MPVPictureAttributes {
     s8 field_56;
     s8 field_57;
     u8 field_58;
-    u8 field_59;
-    u8 field_5A;
+    u8 aspect_ratio;
+    u8 constrained_parameters;
     u8 field_5B;
     u8 field_5C;
     u8 field_5D;
@@ -109,13 +109,10 @@ typedef struct MPVPictureAttributes {
     u8 field_62;
     u8 field_63;
     u8 field_64;
-    u8 padding_65[3];
+    u8 padding_65[0x1B]; /* +0x65..7F: unused tail of retail MPV_PICATR */
 } MPVPictureAttributes;
 
-typedef struct MPVPictureInfo {
-    MPVPictureAttributes attributes;
-    u8 decoder_state[0x18];
-} MPVPictureInfo;
+typedef MPVPictureAttributes MPVPictureInfo;
 
 typedef struct MPVFrameBuffers {
     MPVPlaneSet forward;
@@ -133,7 +130,8 @@ typedef struct MPVBitReader {
     const u32* words;
 } MPVBitReader;
 
-typedef struct MPVDecoderFields {
+/* The retail MPV object overlays exactly 16 condition words with this prefix. */
+typedef struct MPVDecoderPrefix {
     u8 field_190[0x0C];
     s32 mc_table;       /* +0x19C */
     s32 field_1A0;
@@ -143,12 +141,14 @@ typedef struct MPVDecoderFields {
     void (*callback)(void* argument);
     void* callback_argument;
     u8 field_1B8[0x18];
-    MPVPictureAttributes picture; /* +0x1D0 */
-} MPVDecoderFields;
+} MPVDecoderPrefix;
 
-typedef union MPVConditionState {
-    int conditions[17];
-    MPVDecoderFields decoder;
+typedef struct MPVConditionState {
+    union {
+        int conditions[16];            /* +0x190 */
+        MPVDecoderPrefix decoder;      /* +0x190 */
+    };
+    MPVPictureAttributes picture;     /* +0x1D0: complete 0x80-byte record */
 } MPVConditionState;
 
 typedef struct MPVDctCounters {
@@ -225,14 +225,13 @@ struct MPVContext {
     s32 state;                                /* +0x188 */
     s32 field_18C;
     MPVConditionState condition_state;        /* +0x190 */
-    u8 field_238[0x18];
     MPVErrorInfo error_info;                  /* +0x250 */
     MPVFrameBuffers frame_buffers;            /* +0x264 */
     MPVYccPlane output;
-    u32 field_2A4;
+    u32 aspect_ratio;
     s32 bit_rate;
     s32 vbv_buffer_units;
-    u32 field_2B0;
+    u32 constrained_parameters;
     s32 link_flag_0;
     s32 link_flag_1;
     s32 vbv_delay;
@@ -298,12 +297,12 @@ typedef char MPVMacroblockSourcesSizeCheck[
 typedef char MPVYccPlaneSizeCheck[sizeof(MPVYccPlane) == 0x10 ? 1 : -1];
 typedef char MPVMotionInfoSizeCheck[
     sizeof(MPVMotionInfo) == 0x24 ? 1 : -1];
-typedef char MPVDecoderFieldsSizeCheck[
-    sizeof(MPVDecoderFields) == 0xA8 ? 1 : -1];
+typedef char MPVDecoderPrefixSizeCheck[
+    sizeof(MPVDecoderPrefix) == 0x40 ? 1 : -1];
 typedef char MPVConditionStateSizeCheck[
-    sizeof(MPVConditionState) == 0xA8 ? 1 : -1];
+    sizeof(MPVConditionState) == 0xC0 ? 1 : -1];
 typedef char MPVPictureAttributesSizeCheck[
-    sizeof(MPVPictureAttributes) == 0x68 ? 1 : -1];
+    sizeof(MPVPictureAttributes) == 0x80 ? 1 : -1];
 typedef char MPVPictureInfoSizeCheck[
     sizeof(MPVPictureInfo) == 0x80 ? 1 : -1];
 typedef char MPVDctCountersSizeCheck[

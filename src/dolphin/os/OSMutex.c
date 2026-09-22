@@ -1,4 +1,5 @@
 #include "dolphin/os.h"
+#include "dolphin/types.h"
 
 #define ENQUEUE_MUTEX(mutex, queue)                 \
     do {                                            \
@@ -126,7 +127,7 @@ void OSWaitCond(OSCond* condition, OSMutex* mutex)
     OSThread* current = OSGetCurrentThread();
 
     if (mutex->thread == current) {
-        signed long count = mutex->count;
+        s32 count = mutex->count;
         mutex->count = 0;
         DEQUEUE_MUTEX(mutex, &current->queueMutex);
         mutex->thread = 0;

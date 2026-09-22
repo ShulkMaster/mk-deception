@@ -151,14 +151,8 @@ struct PuzzleObjectVtable {
 struct PuzzleFighterRenderObject {
     PuzzleObjectVtable* vtbl; /* +0x00 */
     unsigned int instance; /* +0x04 */
-    union {
-        unsigned char flags; /* +0x08 */
-        PuzzleObjectFlags flags_bits;
-    };
-    union {
-        unsigned char secondary_flags; /* +0x09 */
-        PuzzleObjectSecondaryFlags secondary_flags_bits;
-    };
+    PuzzleObjectFlags flags_bits; /* +0x08 */
+    PuzzleObjectSecondaryFlags secondary_flags_bits; /* +0x09 */
     char pad0A[0x16];
     void* frame; /* +0x20 */
     char pad24[8];
@@ -241,10 +235,7 @@ typedef struct PuzzleBoneObjectView {
 
 typedef struct PuzzleFatalityHazardObject {
     char pad00[8];
-    union {
-        unsigned char flags; /* +0x08 */
-        PuzzleObjectFlags flags_bits;
-    };
+    PuzzleObjectFlags flags_bits; /* +0x08 */
     char pad09[0x0B];
     PuzzleSobjMaterialData* material_data; /* +0x14 */
     char pad18[0x10];
@@ -354,13 +345,10 @@ typedef struct PuzzleEffectBankContext {
 
 typedef struct PuzzleParticleEmitter {
     char pad00[0x1C];
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char hidden : 1;
-            unsigned char flags_low : 7;
-        } flags_bits;
-    }; /* +0x1C */
+    struct {
+        unsigned char hidden : 1;
+        unsigned char flags_low : 7;
+    } flags_bits; /* +0x1C */
 } PuzzleParticleEmitter;
 
 struct PuzzleParticleEffect {
@@ -448,7 +436,7 @@ float xz_distance_between_players(void);
 int pan_snd_req(int sound, float pan);
 int pan_vol_snd_req(int sound, float pan, float volume);
 int plyr_snd_req(int sound);
-void* bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
+void bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
 void bgnd_set_fx_ang_y(float angle);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
@@ -504,7 +492,7 @@ void spawn_bld_fall(
 static PuzzleFleshchunkPdata* ft_create_flesh_path(
     PuzzleFighterRenderObject* object, Vec* position, int active,
     int flags,
-    const Vec* initial_velocity, int mode, const Vec* terminal_velocity,
+    Vec* initial_velocity, int mode, Vec* terminal_velocity,
     int (*completion_callback)(void), float gravity, float bounce,
     float scale);
 PuzzleFaceBleedProcess* _create_mkproc_generic_nostack(
@@ -731,11 +719,9 @@ PuzzleFatalityDefinitions g_fatalityTable = {
     }
 };
 
-/*
- * Soft ceiling: retail keeps a redundant positive branch plus a shared-return
- * branch; clean C emits one inverse branch to the same zero result. Callers
- * pass the engine and mode even though retail reads the canonical global.
- */
+/* Callers pass engine/mode, but retail reads the canonical global. */
+/* TODO: [near miss] 98.57143%; nested fatality-index guard was neutral; retail's
+ * positive/shared-return branches remain an equivalent structured condition. */
 int pz_fighter_check_fatality_random_event(void) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
@@ -919,8 +905,8 @@ static float pz_fighter_burn_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 92.54601%; typed allocation and effect context preserve retail code;
- * pooled-string base and float/register scheduling remain. */
+/* TODO: [near miss] 92.54601%; explicit screen-width if branches were neutral;
+ * pooled-string scheduling and object GPR remain after two attempts. */
 static float pz_fighter_load_and_place_initial_burn(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* burners[2];
@@ -1004,12 +990,8 @@ static float pz_fighters_burn_fatality_preround(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near miss: 94.61%, exact retail 0x300 size. The state machine,
- * CFG, calls, comparisons, arithmetic, stores, signed-distance construction,
- * and attacker/victim ABI agree. Remaining differences are save/restore
- * selection, one GPR move, one FPR move, a reload, and a constant relocation.
- */
+/* TODO: [near miss] 96.43229%; attacker reload after event restored;
+ * distance/effect FPR scheduling and saved registers remain. */
 static float pz_fighters_burn_fatality_prep(void) {
     static int start_burn;
     static int attack_begun;
@@ -1074,7 +1056,9 @@ static float pz_fighters_burn_fatality_prep(void) {
         attack_begun = 0;
         start_burn = 0;
         g_pz_fighters_engine.fatality_active = 1;
-        xfer_proc(pz_fighter_get_player_proc(attacker), r_pz_fighter_burn);
+        xfer_proc(pz_fighter_get_player_proc(
+                      g_pz_fighters_engine.fatality_attacker),
+                  r_pz_fighter_burn);
         xfer_proc(pz_fighter_get_player_proc(
                       g_pz_fighters_engine.fatality_victim),
                   r_pz_fighter_summon_burn);
@@ -1187,11 +1171,7 @@ static float pz_fighter_burn_actively_fighting(int active) {
     return 0.0f;
 }
 
-/*
- * Genuine near match: exact 0x2C0 size and all 161 non-string instructions
- * match. The 15 delete/insert pairs are five equivalent three-instruction
- * pooled-string address sequences using different local relocation anchors.
- */
+#pragma opt_propagation off
 static float p_burn_controller(void) {
     unsigned short event;
     float x;
@@ -1255,6 +1235,7 @@ static float p_burn_controller(void) {
     }
     return 1.0f;
 }
+#pragma opt_propagation reset
 
 /* Soft ceiling: pz_fighter_snake_entering_fatality ~99.75% -- stop. */
 static void pz_fighter_snake_entering_fatality(
@@ -1294,16 +1275,15 @@ static float pz_fighter_snake_round_over(void) {
         restart_effect_ppfx(particle_effect);                               \
         pfx_bind_emitter_to_obj_bone(particle_effect, object, 5);           \
         emitter = pfx_get_emitter(particle_effect->emitters, 0);            \
-        emitter->flags &= (unsigned char)~0x80;                             \
+        emitter->flags_bits.hidden = 0;                                     \
         if (pause_after_setup) {                                            \
             fx_pause_emit(effect);                                          \
         }                                                                   \
     } while (0)
 
-/* TODO: [near miss] 92.02427%; canonical animation arguments preserve retail code;
- * pooled-string ownership, register allocation and emitter scheduling remain. */
+/* TODO: [near miss] 94.08009%; typed emitter flag access and union flattening
+ * improve the initializer; pooled-data addressing and emitter scheduling remain. */
 static float pz_fighter_load_and_place_initial_snake(void) {
-    PuzzleDirectLightDefinition* light_def = &skinned_obj_light_def;
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
     PuzzleAnimPdata* snake_pdata[2];
@@ -1324,7 +1304,7 @@ static float pz_fighter_load_and_place_initial_snake(void) {
         snakes[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
             0x70036, 0x08230000, 0x6021);
         obj_change_to_skinned_obj_light_list(
-            snakes[i], light_def);
+            snakes[i], &skinned_obj_light_def);
         snakes[i]->model_flags = 0x400;
         snakes[i]->x = i != 0 ? 2.18f : -2.18f;
         if (screen_width > 650) {
@@ -1412,12 +1392,8 @@ static float pz_fighters_snake_fatality_preround(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near miss: 94.93%, retail 0x488/current 0x490. The CFG, calls,
- * comparisons, arithmetic, stores, signed-distance test, and attacker/victim
- * engine views agree. Opcode multisets differ only by one extra current fmr
- * and one pointer reload; remaining islands are base/relocation scheduling.
- */
+/* TODO: [near miss] 94.92759%; shared-engine base lifetimes and FPR scheduling
+ * remain; merging engine aliases regresses codegen. */
 static float pz_fighters_snake_fatality_prep(void) {
   static int attack_begun;
   static int loser_anim;
@@ -1594,19 +1570,19 @@ static inline void pz_snake_bite(unsigned int snake) {
         snake == 0 ? "saliva_burst1" : "saliva_burst2", 4);
     fx_pause_emit(saliva);
     transition_to_anim_script_frame(
-        0.1f, 35.0f,
+        0.1f, 0.0f,
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
         pz_shared_ani.snake_bite, 0x23);
     set_pdata_anim_step(
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
     _mkproc_sleep_ticks = 3.0f;
     aproc->vtbl->sleep(aproc->vtbl);
-    if (g_pz_fighters_engine.fatality_abort == 0) {
+    if (g_pz_fighters_engine.fatality_abort != 1) {
         fx_reset(burst);
         fx_resume_emit(burst);
         _mkproc_sleep_ticks = 45.0f;
         aproc->vtbl->sleep(aproc->vtbl);
-        if (g_pz_fighters_engine.fatality_abort == 0) {
+        if (g_pz_fighters_engine.fatality_abort != 1) {
             fx_resume_emit(saliva);
             transition_to_anim_script_frame(
                 0.15f, 0.0f,
@@ -1629,7 +1605,7 @@ static inline void pz_snake_lunge(unsigned int snake) {
     pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
     fx_pause_emit(saliva);
     transition_to_anim_script_frame(
-        0.05f, 35.0f,
+        0.05f, 0.0f,
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
         pz_shared_ani.snake_lunge, 0x23);
     set_pdata_anim_step(
@@ -1643,7 +1619,7 @@ static inline void pz_snake_lunge(unsigned int snake) {
         _mkproc_sleep_ticks = 15.0f;
         aproc->vtbl->sleep(aproc->vtbl);
         fx_pause_emit(saliva);
-        if (g_pz_fighters_engine.fatality_abort == 0) {
+        if (g_pz_fighters_engine.fatality_abort != 1) {
             _mkproc_sleep_ticks = 20.0f;
             aproc->vtbl->sleep(aproc->vtbl);
             fx_resume_emit(saliva);
@@ -1664,13 +1640,8 @@ static inline void pz_snake_lunge(unsigned int snake) {
     }
 }
 
-/*
- * Emission-only near match (91.93%, retail 0x814/current 0x824). m2c and the
- * process creation site confirm the complete preround/event controller and
- * float-return process ABI. Remaining differences are saved-register
- * allocation and equivalent branch/load scheduling in the typed lunge and
- * bite helper expansions; the current expansion is four instructions larger.
- */
+/* TODO: [breakthrough] 92.201164%; animation start frames and abort tests corrected;
+ * base lifetimes/helper scheduling remain; shared-return trial regressed. */
 static float p_snake_controller(void) {
     unsigned int event;
 
@@ -1706,13 +1677,9 @@ static float p_snake_controller(void) {
     return 1.0f;
 }
 
-/*
- * Near match: 95.02%, retail 0x42C/current 0x414. The effect selection,
- * explicit position branches, animation sequence, emitter bitfield updates,
- * ten-tick pauses, and terminal process loop match retail. The remaining six
- * instructions are effect-handle register reuse and local float/string
- * relocation scheduling.
- */
+/* TODO: [near miss] 97.996254%; duplicate branch resumes and unsigned victim
+ * compare recover retail CFG; signed loop induction plus FPR/constant-pool and
+ * owner-register coloring remain after five attempts. */
 static float r_pz_fighter_eaten(void) {
     PuzzleParticleEffect* blood_burst;
     PuzzleParticleEffect* neck_blood;
@@ -1720,6 +1687,7 @@ static float r_pz_fighter_eaten(void) {
     void* mouth_blood;
     void* mouth_chunks;
     void* saliva;
+    void* neck_effect;
     int i;
 
     if (plyr_pdata->side == 0) {
@@ -1739,12 +1707,13 @@ static float r_pz_fighter_eaten(void) {
     {
         PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
 
-        if (fighters->fatality_victim == 0) {
+        if ((unsigned int)fighters->fatality_victim == 0) {
             saliva = fx_by_owner("saliva1", 4);
+            fx_resume_emit(saliva);
         } else {
             saliva = fx_by_owner("saliva2", 4);
+            fx_resume_emit(saliva);
         }
-        fx_resume_emit(saliva);
         ani_loop_more_frames(11.0f);
         ani_loop_more_frames(17.0f);
         xfer_proc(
@@ -1810,25 +1779,26 @@ static float r_pz_fighter_eaten(void) {
     ani_to_end();
     random_hit(11);
 
-    fx_pause_emit(neck_blood);
+    neck_effect = fx_by_owner("neck_blood", 4);
+    fx_pause_emit(neck_effect);
     _mkproc_sleep_ticks = 40.0f;
     aproc->vtbl->sleep(aproc->vtbl);
     random_hit(11);
-    fx_resume_emit(neck_blood);
+    fx_resume_emit(neck_effect);
     fx_pause_emit(mouth_chunks);
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep(aproc->vtbl);
     snd_req(0x1AEF);
     random_hit(11);
-    fx_pause_emit(neck_blood);
+    fx_pause_emit(neck_effect);
     _mkproc_sleep_ticks = 20.0f;
     aproc->vtbl->sleep(aproc->vtbl);
     random_hit(11);
-    fx_resume_emit(neck_blood);
+    fx_resume_emit(neck_effect);
     fx_pause_emit(mouth_blood);
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep(aproc->vtbl);
-    fx_pause_emit(neck_blood);
+    fx_pause_emit(neck_effect);
 
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
@@ -1930,13 +1900,8 @@ static float pz_fighters_lightning_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near match: 95.85%, retail 0x678/current 0x670. The unsigned
- * shock/cycle/frame counters reproduce retail's loop comparisons, and the
- * terminal transfer has its explicit process-callback zero return. Texture
- * animation, bolt destruction, collapse, effects, and sound order agree. The
- * remaining two-instruction gap is saved-register/constant-pool coloring.
- */
+/* TODO: [near miss] 96.21739%; retail pre-lookup head.y clear restored;
+ * effect/counter allocation and constant scheduling remain. */
 static float pz_fighter_lightning_strike_victim_1(void) {
     PuzzleParticleEffect* particle;
     PuzzleParticleEmitter* emitter;
@@ -1964,6 +1929,7 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     head.x = plyr_obj->x;
     head.y = plyr_obj->y;
     head.z = plyr_obj->z;
+    head.y = 0.0f;
     get_bone_world_pos(plyr_obj, 0x10, &head);
     head.y += 0.1f;
     bolt = (PuzzleFighterRenderObject*)load_named_model_from_slot(
@@ -2090,11 +2056,8 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 99.18%, exact retail size. Branch-local offset and victim
- * lifetimes recover the repeated pointing helper; only register arguments
- * remain different.
- */
+/* TODO: [near miss] 99.25641%; positioning operations and branch-local owners
+ * agree; FPR/GPR coloring and constant labels remain. */
 static float pz_fighters_lightning_fatality_prep(void) {
   static int one_last_hit = 1;
   static int start_pointing = 1;
@@ -2308,12 +2271,8 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     }
 }
 
-/*
- * Near match: 99.29%, exact 0x7FC size. Late pan evaluation, multiply-by-
- * negative-one, the local-result stale-instance resolver, and the joined
- * success return recover every retail operation; only register arguments
- * differ in objdiff.
- */
+/* TODO: [near miss] 99.41292%; bolt/effect ownership and stale-instance checks
+ * agree; inlined helper register coloring and constant labels remain. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -2419,27 +2378,24 @@ static float pz_fighter_load_and_place_initial_objects_falling(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near match (93.09%, exact retail 0x1A0 size). The complete
- * state machine and call order agree; residue is stack-slot and FPR/GPR
- * allocation, branch-local Vec scheduling, and constant relocations.
- */
+/* TODO: [near miss] 99.39423%; vector stack slots and case-3 owner coloring remain;
+ * pre-bone-query hazard snapshot agrees with retail. */
 static float pz_fighters_objects_falling_fatality_in_progress(void) {
     PuzzleFatalityHazardObject* falling_object;
     PuzzlePlayerData* victim_data;
-    Vec impact_position;
 
     switch (g_pz_fighter_fatality_engine.active_effect) {
     case 2: {
+        Vec impact_position;
         Vec bone_offset = {0.0f, 0.6f, 0.0f};
 
-        get_bone_world_pos(
-            pz_fighter_get_player_obj(
-                g_pz_fighters_engine.fatality_attacker),
-            0x10,
-            &impact_position);
+        PuzzleFighterRenderObject* attacker;
+
+        attacker = pz_fighter_get_player_obj(
+            g_pz_fighters_engine.fatality_attacker);
         falling_object =
             g_pz_fighter_fatality_engine.hazard_groups[0].objects[0];
+        get_bone_world_pos(attacker, 0x10, &impact_position);
         impact_position.x += bone_offset.x;
         impact_position.y += bone_offset.y;
         impact_position.z += bone_offset.z;
@@ -2482,11 +2438,8 @@ static float pz_fighters_objects_falling_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 98.96%, exact retail size. Offset lifetime, signed-distance
- * comparison, branch-local victim reloads, and ordered hazard bit stores agree;
- * objdiff's remaining differences are register arguments only.
- */
+/* TODO: [near miss] 99.02778%; positioning and ordered hazard stores agree;
+ * FPR/GPR coloring and constant labels remain. */
 static float pz_fighters_objects_falling_fatality_prep(void) {
   static int one_last_hit = 1;
   static int start_pointing = 1;
@@ -2625,11 +2578,6 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: pz_fighter_objects_falling_victim_crushed ~94.90% --
- * the crushed pose, staged effects, and prone transfer agree; remaining
- * differences are MWCC expression/register scheduling.
- */
 static float pz_fighter_objects_falling_victim_crushed(void) {
     bgnd_launch_fx_at_position(
         "chunk_crush1_fx", plyr_obj->x, plyr_obj->y, plyr_obj->z);
@@ -2646,8 +2594,8 @@ static float pz_fighter_objects_falling_victim_crushed(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.09%; eye offsets, scales and bit extraction match;
- * aggregate-base register allocation remains. */
+/* TODO: [near miss] 98.74809%; eye offsets/scales and flag extraction agree;
+ * aggregate-base allocation and pooled relocations remain. */
 static void pz_fighter_fatality_launch_eyes(void) {
     Vec launch_offset = {0.0f, 0.1f, 0.02f};
     Vec left_offset = {-0.05f, 0.0f, 0.1f};
@@ -2720,14 +2668,14 @@ static void pz_fighter_fatality_launch_eyes(void) {
     unhide_obj(right_eye);
 }
 
-/*
- * Soft ceiling: exact-size retail algorithm and state ordering. Remaining
- * differences are branch inversion, group-pointer/register allocation, stack
- * frame allocation, and local float relocation labels.
- */
+/* TODO: [near miss] 98.95364%; three typed slots recover retained addresses;
+ * branch and remaining register/constant differences persist. */
 static float p_objects_falling_controller2(void) {
     PuzzleFatalityHazardGroup* group;
     unsigned int i;
+    PuzzleFatalityHazardObject** first;
+    PuzzleFatalityHazardObject** second;
+    PuzzleFatalityHazardObject** third;
 
     if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
@@ -2737,29 +2685,31 @@ static float p_objects_falling_controller2(void) {
         for (i = 0; i < 2; i++) {
             if ((int)g_pz_fighter_fatality_engine.controller
                     ->hazard_initialized[i] == 1) {
-                group = &g_pz_fighter_fatality_engine.hazard_groups[i];
-                group->objects[0]->x = 1.7f;
-                group->objects[1]->x = 1.7f;
-                group->objects[2]->x = 1.7f;
+                first = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[0];
+                second = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[1];
+                third = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[2];
+                (*first)->x = 1.7f;
+                (*second)->x = 1.7f;
+                (*third)->x = 1.7f;
                 if (screen_width > 650) {
-                    group->objects[0]->x = 2.1f;
-                    group->objects[1]->x = 2.1f;
-                    group->objects[2]->x = 2.1f;
+                    (*first)->x = 2.1f;
+                    (*second)->x = 2.1f;
+                    (*third)->x = 2.1f;
                 }
                 if (i == 1) {
-                    group->objects[0]->x *= -1.0f;
-                    group->objects[1]->x *= -1.0f;
-                    group->objects[2]->x *= -1.0f;
+                    (*first)->x *= -1.0f;
+                    (*second)->x *= -1.0f;
+                    (*third)->x *= -1.0f;
                 }
                 _mkproc_sleep_ticks = 1.0f;
                 aproc->vtbl->sleep(aproc->vtbl);
-                unhide_sobj(group->objects[0]);
-                unhide_sobj(group->objects[1]);
-                unhide_sobj(group->objects[2]);
+                unhide_sobj((*first));
+                unhide_sobj((*second));
+                unhide_sobj((*third));
                 g_pz_fighter_fatality_engine.controller
                     ->hazard_initialized[i] = 0;
-                group->objects[0]->motion = 0.02f;
-                group->objects[1]->motion = 0.02f;
+                (*first)->motion = 0.02f;
+                (*second)->motion = 0.02f;
             }
             if (g_pz_fighter_fatality_engine.controller
                     ->hazard_initialized[i] == 0) {
@@ -2990,8 +2940,8 @@ static void pz_fighter_set_objects_falling_obj(
 }
 
 #pragma opt_propagation off
-/* TODO: [breakthrough] 95.63%; indexed clear order recovered; phase-zero reuse
- * and array-base register remain. */
+/* TODO: [near miss] 95.625%; phase-zero reuse and array-base registers remain;
+ * typed stores and argument order agree; sibling initializer trial regressed. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     int i;
@@ -3022,8 +2972,8 @@ static float pz_fighter_chomper2_unload(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [breakthrough] 93.13%; indexed clear order recovered; phase-zero reuse
- * and array-base register remain. */
+/* TODO: [near miss] 93.125%; phase-zero reuse and array-base registers remain;
+ * moving loop initialization after phase stores regresses; retain early index. */
 static float pz_fighter_chomper2_round_over(void) {
     int i;
     float (*motion)[2];
@@ -3041,13 +2991,12 @@ static float pz_fighter_chomper2_round_over(void) {
 }
 #pragma opt_propagation reset
 
-/* TODO: [near miss] 94.03209%; typed controller size preserves retail layout;
- * nested array induction, register scheduling and pooled relocations remain. */
+/* TODO: [near miss] 94.86631%; direct member accesses improve pointer reloads;
+ * loop induction/register scheduling and pooled references remain. */
 static float pz_fighter_load_and_place_initial_chompers2(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
     PuzzleFatalityController* controller;
-    PuzzleFatalityHazardObject* chomper;
     unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_crusher);
@@ -3105,11 +3054,12 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
     }
 
     for (i = 0; i < 2; i++) {
-        chomper =
-            g_pz_fighter_fatality_engine.hazard_groups[i].objects[0];
-        chomper->flags_bits.airborne = 1;
-        chomper->flags_bits.gravity_enabled = 1;
-        chomper->motion = 0.0f;
+        g_pz_fighter_fatality_engine.hazard_groups[i]
+            .objects[0]->flags_bits.airborne = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[i]
+            .objects[0]->flags_bits.gravity_enabled = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[i]
+            .objects[0]->motion = 0.0f;
         g_pz_fighter_fatality_engine.controller
             ->chomper_position[i][0] = 0.0f;
         g_pz_fighter_fatality_engine.controller
@@ -3126,11 +3076,8 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 98.63%, retail 0x2E8/current 0x2E4. All state operations and
- * reloads agree; residue is register allocation plus one unreachable duplicate
- * branch in retail's switch dispatch. Explicit default/empty cases regress.
- */
+/* TODO: [near miss] 99.166664%; coordinate FPRs recovered; retail duplicate
+ * dispatch branch and register/pooled references remain. */
 static float pz_fighters_chomper2_fatality_in_progress(void) {
     static int launch_sounds = 1;
     static int launch_more_meat_chunks = 1;
@@ -3182,19 +3129,15 @@ static float pz_fighters_chomper2_fatality_in_progress(void) {
                     Vec blood_offset = {0.05f, 0.0f, 0.0f};
 
                     if (attacker_data->side == 0) {
-                        blood_x =
-                            g_pz_fighters_engine.fighter_posts[1].x +
-                            blood_offset.x;
-                        blood_z =
-                            g_pz_fighters_engine.fighter_posts[1].z +
-                            blood_offset.z;
+                        blood_x = g_pz_fighters_engine.fighter_posts[1].x;
+                        blood_z = g_pz_fighters_engine.fighter_posts[1].z;
+                        blood_x += blood_offset.x;
+                        blood_z += blood_offset.z;
                     } else {
-                        blood_x =
-                            g_pz_fighters_engine.fighter_posts[0].x -
-                            blood_offset.x;
-                        blood_z =
-                            g_pz_fighters_engine.fighter_posts[0].z -
-                            blood_offset.z;
+                        blood_x = g_pz_fighters_engine.fighter_posts[0].x;
+                        blood_z = g_pz_fighters_engine.fighter_posts[0].z;
+                        blood_x -= blood_offset.x;
+                        blood_z -= blood_offset.z;
                     }
                 }
                 blood_z -= 0.2f;
@@ -3245,11 +3188,9 @@ static float pz_fighters_chomper2_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/*
- * Retail uses the old timer value in case 1 and reloads the attacker index for
- * each independently indexed engine access. Exact retail size; objdiff's
- * remaining 0.62% is register-argument allocation only.
- */
+/* Retail uses the old timer value and reloads the attacker for each access. */
+/* TODO: [near miss] 99.481606%; positioning arithmetic agrees; only register
+ * allocation and constant labels remain. */
 static float pz_fighters_chomper2_fatality_prep(void) {
   static int attack_begun;
   PuzzleFatalityHazardObject *chomper;
@@ -3419,8 +3360,8 @@ static float pz_fighters_chomper2_fatality_prep(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [breakthrough] 99.32%; typed motion-array owner restores loop ordering;
- * only array-base register and indexed-store operand order remain. */
+/* TODO: [near miss] 99.318184%; typed motion-array loop agrees with retail;
+ * array-base register and indexed-store operand order remain. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
     float (*motion)[2];
@@ -3439,24 +3380,23 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
 }
 #pragma opt_propagation reset
 
-/*
- * Soft ceiling: 96.15151% in the full-TU report. The automatic Vec restores
- * retail's 0x40 stack frame and complete instruction shape, while the TU's
- * pooled-string mode restores @stringBase0 addressing for both effects.
- * Residue is FPR/GPR allocation, one subtract scheduling choice, and local
- * constant/string relocation labels.
- */
+/* TODO: [near miss] 99.42424%; coordinate accumulation recovers FPR shape;
+ * prologue registers and constant/string references remain. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     Vec blood_offset = {0.05f, 0.0f, 0.0f};
     float blood_x;
     float blood_z;
 
     if (plyr_pdata->side == 0) {
-        blood_x = g_pz_fighters_engine.fighter_posts[1].x + blood_offset.x;
-        blood_z = g_pz_fighters_engine.fighter_posts[1].z + blood_offset.z;
+        blood_x = g_pz_fighters_engine.fighter_posts[1].x;
+        blood_z = g_pz_fighters_engine.fighter_posts[1].z;
+        blood_x += blood_offset.x;
+        blood_z += blood_offset.z;
     } else {
-        blood_x = g_pz_fighters_engine.fighter_posts[0].x - blood_offset.x;
-        blood_z = g_pz_fighters_engine.fighter_posts[0].z - blood_offset.z;
+        blood_x = g_pz_fighters_engine.fighter_posts[0].x;
+        blood_z = g_pz_fighters_engine.fighter_posts[0].z;
+        blood_x -= blood_offset.x;
+        blood_z -= blood_offset.z;
     }
     blood_z -= 0.2f;
     bgnd_launch_fx_at_position(
@@ -3501,7 +3441,8 @@ static inline void pz_chomper_apply_motion(
         } else if (fighting == 0) {
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[side][object_index] = 0.0f;
-            object->motion = 0.0f;
+            g_pz_fighter_fatality_engine.hazard_groups[side]
+                .objects[object_index]->motion = 0.0f;
         } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
             object->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
@@ -3608,12 +3549,8 @@ static inline void pz_chomper_update_state(
     }
 }
 
-/*
- * Near match (99.01% report, retail 0x9D0/current 0x9D4). The controller is
- * recovered, including hazard ownership, store order, side-specific sound
- * branches, unsigned iteration, and fighting/preround zeroing order. One
- * extra instruction plus register/stack-slot coloring remains.
- */
+/* TODO: [near miss] 99.13376%; indexed hazard-object reload now matches the
+ * sibling controller; load scheduling and shared return-constant lowering remain. */
 static float p_chomper2_controller(void) {
     const int object_count = 1;
     const unsigned int bird_chance = 20;
@@ -3765,10 +3702,8 @@ static float pz_fighters_chomper2_preround(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the exact-size nested loop and controller initialization
- * match retail; only zero-register allocation/rematerialization differs.
- */
+/* TODO: [near miss] 87.625%; nested-loop/controller operations agree;
+ * zero-register coloring and rematerialization remain. */
 static void pz_fighter_chomper_entering_fatality(
     int attacker, int victim) {
     unsigned int group;
@@ -3800,12 +3735,8 @@ static float pz_fighter_chomper_unload(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail and source have the same 128-byte nested loop and
- * state transitions. Residue is zero-register allocation and MWCC choosing
- * an inner-loop `li 0` instead of copying a retained zero value. A named
- * first-object bound compiled identically and was removed.
- */
+/* TODO: [near miss] 90.40625%; nested loop/state stores agree; zero reuse
+ * and scheduling remain after prior neutral bound trial; stop at allocation. */
 static float pz_fighter_chomper_round_over(void) {
     unsigned int group;
     int object;
@@ -3825,13 +3756,13 @@ static float pz_fighter_chomper_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.611115%; typed controller size preserves retail layout;
- * loop induction/register scheduling and pooled relocations remain. */
+/* TODO: [near miss] 99.88426%; explicit secondary-column lifetime was neutral;
+ * direct member accesses recover pointer reloads, while pooled references and
+ * column register coloring remain. */
 static float pz_fighter_load_and_place_initial_chompers(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
     PuzzleFatalityController* controller;
-    PuzzleFatalityHazardObject* chomper;
     unsigned int i;
     unsigned int j;
 
@@ -3897,11 +3828,12 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
 
     for (i = 0; i < 2; i++) {
         for (j = 0; j < 2; j++) {
-            chomper =
-                g_pz_fighter_fatality_engine.hazard_groups[i].objects[j];
-            chomper->flags_bits.airborne = 1;
-            chomper->flags_bits.gravity_enabled = 1;
-            chomper->motion = 0.0f;
+            g_pz_fighter_fatality_engine.hazard_groups[i]
+                .objects[j]->flags_bits.airborne = 1;
+            g_pz_fighter_fatality_engine.hazard_groups[i]
+                .objects[j]->flags_bits.gravity_enabled = 1;
+            g_pz_fighter_fatality_engine.hazard_groups[i]
+                .objects[j]->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
                 ->chomper_position[i][j] = 0.0f;
             g_pz_fighter_fatality_engine.controller
@@ -3919,8 +3851,8 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 92.99%; flesh-path velocity now matches retail;
- * controller address formation and switch-tail scheduling remain. */
+/* TODO: [near miss] 99.29389%; aggregate stack slots and relocations remain;
+ * five-attempt budget exhausted after spike/flag/compare recovery. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -3939,9 +3871,6 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
     switch (g_pz_fighter_fatality_engine.active_effect) {
     case 2: {
         Vec head_offset = {0.0f, 0.6f, 0.0f};
-        spike = g_pz_fighter_fatality_engine
-                    .hazard_groups[g_pz_fighters_engine.fatality_attacker]
-                    .objects[0];
         attacker_object =
             pz_fighter_get_player_obj(
                 g_pz_fighters_engine.fatality_attacker);
@@ -3955,6 +3884,9 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
         }
 
         get_bone_world_pos(attacker_object, 0x10, &impact_position);
+        spike = g_pz_fighter_fatality_engine
+                    .hazard_groups[g_pz_fighters_engine.fatality_attacker]
+                    .objects[0];
         impact_position.x += head_offset.x;
         impact_position.y += head_offset.y;
         impact_position.z += head_offset.z;
@@ -3996,9 +3928,6 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
     }
 
     case 3:
-        spike = g_pz_fighter_fatality_engine
-                    .hazard_groups[g_pz_fighters_engine.fatality_attacker]
-                    .objects[0];
         attacker_object =
             pz_fighter_get_player_obj(
                 g_pz_fighters_engine.fatality_attacker);
@@ -4012,6 +3941,9 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
         }
         get_bone_world_pos(attacker_object, 0x10, &impact_position);
 
+        spike = g_pz_fighter_fatality_engine
+                    .hazard_groups[g_pz_fighters_engine.fatality_attacker]
+                    .objects[0];
         if (spike->y < 3.95f) {
             spike->motion = 0.12f;
             attacker_object->secondary_flags_bits.stopped = 0;
@@ -4068,6 +4000,9 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
             snd_req_vol(0x1AAE, 1.0f);
             snd_req_delay(0x1AAF, 7);
 
+            spike = g_pz_fighter_fatality_engine
+                        .hazard_groups[g_pz_fighters_engine.fatality_attacker]
+                        .objects[0];
             if (spike != 0) {
                 material = sobj_find_material_with_texture(spike, "spikes");
                 if (material != 0) {
@@ -4080,7 +4015,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
                 pz_get_pdata_by_id(g_pz_fighters_engine.fatality_attacker);
             snd_major_hit_voice();
             g_pz_fighter_fatality_engine.active_effect = 5;
-            if (g_pz_fighters_engine.fatality_attacker == 1) {
+            if ((unsigned int)g_pz_fighters_engine.fatality_attacker == 1) {
                 g_pz_fighters_engine.fatality_piece->x = 1.56f;
                 g_pz_fighters_engine.fatality_piece->z = -0.27f;
             } else {
@@ -4088,7 +4023,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
                 g_pz_fighters_engine.fatality_piece->z = -0.28f;
             }
             g_pz_fighters_engine.fatality_piece->y = 0.2f;
-            g_pz_fighters_engine.fatality_piece->flags |= 0x20;
+            g_pz_fighters_engine.fatality_piece->flags_bits.gravity_enabled = 1;
             g_pz_fighters_engine.fatality_piece->external_force_x = 0.0f;
             g_pz_fighters_engine.fatality_piece->external_force_y = 0.0f;
             g_pz_fighters_engine.fatality_piece->external_force_z = 0.0f;
@@ -4176,11 +4111,9 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/*
- * The success and abort paths intentionally retain separate event guards, as
- * emitted by retail. Exact retail size; objdiff's remaining 0.58% is
- * register-argument allocation only.
- */
+/* Success and abort paths retain separate event guards, as retail does. */
+/* TODO: [near miss] 99.51258%; positioning arithmetic agrees; only register
+ * allocation and constant labels remain. */
 static float pz_fighters_chomper_fatality_prep(void) {
   static int attack_begun;
   PuzzleFatalityHazardObject *chomper;
@@ -4416,13 +4349,8 @@ static float pz_fighters_chomper_preround(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near match (93.72%, retail 0x958/current 0x954). m2c confirms
- * both complete two-sided chomper state machines, bird launch paths, timers,
- * sound/camera calls, and nested motion loops. The side induction variable is
- * unsigned, matching retail's cmplwi loop tests. Remaining differences are
- * localized register/stack-slot coloring and equivalent helper scheduling.
- */
+/* TODO: [near miss] 99.08194%; direct store order, unsigned timer, and indexed
+ * reload align retail; shared return constant and register coloring remain. */
 static float p_chomper_controller(void) {
     Vec bird_target_right;
     Vec bird_start_right;
@@ -4452,8 +4380,8 @@ static float p_chomper_controller(void) {
                         pz_fighters_fatality_bird_in_place);
                     g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 6;
                 } else {
-                    g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
                     pz_chomper_start_motion(1, 2.5f, 0.28f);
+                    g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
                     motion_changed = 1;
                 }
             } else if ((randu0(100) & 0xFFFF) < 5) {
@@ -4468,27 +4396,27 @@ static float p_chomper_controller(void) {
                     pz_fighters_fatality_bird_in_place);
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 6;
             } else {
-                g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
                 pz_chomper_start_motion(0, 2.5f, 0.28f);
+                g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
                 motion_changed = 1;
             }
         }
         if (g_pz_fighter_fatality_engine.controller->hazard_initialized[1] == 8) {
-            g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
             pz_chomper_start_motion(1, 2.5f, 0.55f);
+            g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
             motion_changed = 1;
         }
         if (g_pz_fighter_fatality_engine.controller->hazard_initialized[0] == 7) {
-            g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
             pz_chomper_start_motion(0, 2.5f, 0.55f);
+            g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
             motion_changed = 1;
         }
         for (side = 0; side < 2; side++) {
             pz_chomper_update_state(side, 1, &motion_changed);
         }
-        if ((int)g_pz_fighter_fatality_engine.controller->preround_timer != 0) {
+        if (g_pz_fighter_fatality_engine.controller->preround_timer != 0) {
             g_pz_fighter_fatality_engine.controller->preround_timer--;
-            if ((int)g_pz_fighter_fatality_engine.controller->preround_timer == 0) {
+            if (g_pz_fighter_fatality_engine.controller->preround_timer == 0) {
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 0;
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 0;
             }
@@ -4586,8 +4514,9 @@ static float pz_fighter_grinder_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.45513%; typed controller size preserves retail layout;
- * register allocation and pooled relocations remain. */
+/* TODO: [near miss] 99.90385%; controller-before-array declaration order was
+ * neutral; secondary register coloring and pooled relocations remain after
+ * three attempts. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* grinders[2];
@@ -4643,7 +4572,7 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
         g_pz_fighter_fatality_engine.controller = controller;
         controller->grinder_position[0] =
             g_pz_fighter_fatality_engine.primary_object->motion_rate;
-        controller->grinder_position[1] =
+        g_pz_fighter_fatality_engine.controller->grinder_position[1] =
             g_pz_fighter_fatality_engine.secondary_object->motion_rate;
         g_pz_fighter_fatality_engine.controller->grinder_target[0] =
             g_pz_fighter_fatality_engine.controller->grinder_position[0];
@@ -4693,12 +4622,8 @@ static float pz_fighters_grinder_fatality_preround(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 95.10%, retail 0x244/current 0x248. Direct global reloads,
- * victim lifetime, and the shared success/attack-selection tail recover the
- * retail CFG. Residue is one zero lifetime plus FPR/GPR allocation and
- * equivalent instruction scheduling.
- */
+/* TODO: [near miss] 98.37931%; callback reload and negative-target direction fixed;
+ * coordinate FPR allocation and initialization scheduling remain. */
 static float pz_fighters_grinder_fatality_prep(void) {
     static int attack_begun;
     PuzzleFighterRenderObject* attacker_object;
@@ -4727,7 +4652,7 @@ static float pz_fighters_grinder_fatality_prep(void) {
     delta_z = target_z - attacker_object->z;
     direction = 1;
     if (target_x < 0.0f) {
-        if (attacker_object->x >= target_x) {
+        if (attacker_object->x < target_x) {
             direction = -1;
         }
     } else if (attacker_object->x > target_x) {
@@ -4744,7 +4669,8 @@ static float pz_fighters_grinder_fatality_prep(void) {
         }
         attack_begun = 0;
         g_pz_fighters_engine.fatality_active = 1;
-        xfer_proc(pz_fighter_get_player_proc(attacker),
+        xfer_proc(pz_fighter_get_player_proc(
+                      g_pz_fighters_engine.fatality_attacker),
                   r_pz_fighter_grinding);
         xfer_proc(pz_fighter_get_player_proc(
                       g_pz_fighters_engine.fatality_victim),
@@ -4785,15 +4711,15 @@ static float pz_fighter_grinder_actively_fighting(int active) {
 
 static inline void pz_grinder_scale_launch_vector(
     Vec* output, const RwV3d* input, float scale) {
-    output->x = input->x * scale;
-    output->y = input->y * scale;
-    output->z = input->z * scale;
+    output->x = scale * input->x;
+    output->y = scale * input->y;
+    output->z = scale * input->z;
 }
 
 static inline void pz_grinder_launch_piece(
-    PuzzleFighterRenderObject* object, int bone, float height,
+    PuzzleFighterRenderObject** object_slot, int bone, float height,
     float velocity_x, float velocity_y, float velocity_z,
-    const Vec* terminal) {
+    Vec* terminal) {
     MKMATRIX* bone_matrix;
     Vec position;
     Vec velocity;
@@ -4804,21 +4730,21 @@ static inline void pz_grinder_launch_piece(
     }
 
     bone_matrix = force_calc_bone_world_mat(plyr_obj, bone);
-    RwFrameTransform(object->frame, bone_matrix, 0);
+    RwFrameTransform((*object_slot)->frame, bone_matrix, 0);
     get_bone_world_pos(plyr_obj, bone, &position);
     position.y = height;
-    unhide_obj(object);
+    unhide_obj(*object_slot);
     pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
-    velocity.x = velocity_x * direction;
     velocity.y = velocity_y;
+    velocity.x = velocity_x * direction;
     velocity.z = velocity_z * direction;
     ft_create_flesh_path(
-        object, &position, 0, 0, &velocity, 0, terminal, 0,
+        *object_slot, &position, 0, 0, &velocity, 0, terminal, 0,
         -0.004f, 0.5f, 0.1f);
 }
 
-/* TODO: [breakthrough needed] 88.76525%; typed private sizes preserve code;
- * inspect remaining aggregate materialization and register scheduling. */
+/* TODO: [near miss] 99.48059%; launch reloads and vector operation order restored;
+ * aggregate stack placement and relocations remain; final-vector scope was neutral. */
 float r_pz_fighter_grinding(void) {
     PuzzleGrinderNoisePdata* noise;
     PuzzleGrinderMeatController* meat;
@@ -4877,7 +4803,7 @@ float r_pz_fighter_grinding(void) {
     {
         Vec terminal = {0.04f, 0.08f, 0.03f};
         pz_grinder_launch_piece(
-            g_pz_fighters_engine.grinder_meat_alt0, 9, 0.8f,
+            &g_pz_fighters_engine.grinder_meat_alt0, 9, 0.8f,
             0.02f, 0.05f, 0.003f, &terminal);
     }
     snd_req_delay(0x1ADD, 40);
@@ -4893,7 +4819,7 @@ float r_pz_fighter_grinding(void) {
     {
         Vec terminal = {0.02f, 0.02f, 0.07f};
         pz_grinder_launch_piece(
-            g_pz_fighters_engine.grinder_meat_alt2, 20, 0.8f,
+            &g_pz_fighters_engine.grinder_meat_alt2, 20, 0.8f,
             0.02f, 0.03f, 0.003f, &terminal);
     }
     obj_set_bone_collapse_flag(plyr_obj, 20);
@@ -4913,13 +4839,13 @@ float r_pz_fighter_grinding(void) {
     {
         Vec terminal = {0.04f, 0.08f, 0.03f};
         pz_grinder_launch_piece(
-            g_pz_fighters_engine.grinder_meat_alt1, 9, 0.45f,
+            &g_pz_fighters_engine.grinder_meat_alt1, 9, 0.45f,
             0.04f, 0.04f, 0.003f, &terminal);
     }
     {
         Vec terminal = {0.04f, 0.08f, 0.03f};
         pz_grinder_launch_piece(
-            g_pz_fighters_engine.grinder_meat_default, 9, 0.6f,
+            &g_pz_fighters_engine.grinder_meat_default, 9, 0.6f,
             0.04f, 0.08f, -0.005f, &terminal);
     }
     snd_req(0x1AD7);
@@ -4988,10 +4914,6 @@ static float p_grinder_noise(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: 99.62%; paired grinder phase targets and loop-sound fade
- * agree, with only register/scheduling residue.
- */
 static float p_grinder_controller(void) {
     int changed = 0;
     int i;
@@ -5169,12 +5091,8 @@ float pz_fighter_attempt_push_into_grinder(void) {
     return 0.0f;
 }
 
-/*
- * Emission-only near match (95.52%, retail 0x240/current 0x23C). The u16
- * random choice and shared successful return tail match retail's truncation
- * and CFG. Remaining differences are one instruction plus automatic-Vec
- * relocation labels, FPR/GPR allocation, and equivalent object scheduling.
- */
+/* TODO: [near miss] 99.40972%; branch-local object lifetime recovered;
+ * object GPR coloring and automatic-vector relocations remain. */
 static float p_grinder_meat_throw_controller(void) {
     PuzzleGrinderMeatController* meat =
         (PuzzleGrinderMeatController*)apdata;
@@ -5224,19 +5142,22 @@ static float p_grinder_meat_throw_controller(void) {
         }
         meat->phase = 1;
     } else {
-        object = meat->object;
         if (meat->direction == 0) {
+            object = meat->object;
             if (object->x < -1.8f && object->y < 0.8f) {
                 snd_req(0x1ADB);
                 bgnd_launch_fx_at_position(
                     "chunk_at_left_grinder", object->x, object->y, object->z);
                 return -1.0f;
             }
-        } else if (object->x > 1.8f && object->y < 0.8f) {
-            snd_req(0x1ADB);
-            bgnd_launch_fx_at_position(
-                "chunk_at_right_grinder", object->x, object->y, object->z);
-            return -1.0f;
+        } else {
+            object = meat->object;
+            if (object->x > 1.8f && object->y < 0.8f) {
+                snd_req(0x1ADB);
+                bgnd_launch_fx_at_position(
+                    "chunk_at_right_grinder", object->x, object->y, object->z);
+                return -1.0f;
+            }
         }
     }
     return 1.0f;
@@ -5255,7 +5176,6 @@ void pz_fighter_get_grinder_post(int player, Vec* post) {
     post->z = g_pz_fighters_engine.fighter_posts[0].z;
 }
 
-/* Soft ceiling: pz_fighter_victim_fatality_bouncy ~99.26% - MWCC emit details; stop. */
 static float pz_fighter_victim_fatality_bouncy(void) {
     face_opponent_now();
     stop_me();
@@ -5299,7 +5219,6 @@ static int pz_fighter_always_continue(void) {
     return 0;
 }
 
-/* Soft ceiling: r_pz_fighter_rx_get_to_point ~98.92% - process-transfer coloring; stop. */
 float r_pz_fighter_rx_get_to_point(void) {
     face_opponent_now();
     shake_hit_voice(0.02f, 0, 0, 4);
@@ -5325,6 +5244,7 @@ static float pz_fighter_fatality_victim_to_exact_spot(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.51923%; relocation alignment improved; local codegen remains. */
 static float pz_fighter_fatality_good_solid_kick(void) {
     PuzzleAttackParameters attack = {
         11.0f, 0.1f, 0.9f, 0x00010001, 0x00070008, 3,
@@ -5404,17 +5324,10 @@ static RpMaterial* material_set_texture(
     return material;
 }
 
-/*
- * Soft ceiling: 97.07042% in the full-TU report. The recovered body has the
- * retail instruction count and access widths. With the authentic TU-level
- * stmw/lmw setting restored, residue is limited to adjacent Vec-component
- * load/store scheduling and local float relocation labels. No force-match
- * workaround is retained.
- */
 static PuzzleFleshchunkPdata* ft_create_flesh_path(
     PuzzleFighterRenderObject* object, Vec* position, int active,
     int flags,
-    const Vec* initial_velocity, int mode, const Vec* terminal_velocity,
+    Vec* initial_velocity, int mode, Vec* terminal_velocity,
     int (*completion_callback)(void), float gravity, float bounce,
     float scale) {
     PuzzleFaceBleedProcess* process;

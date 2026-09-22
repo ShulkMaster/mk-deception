@@ -762,6 +762,8 @@ static void PrintDebugPalCaution(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 92.071980%; donor switch rewrite regressed to
+ * 90.470820%; retain structured validation while later timing CFG is unresolved. */
 void VIConfigure(const GXRenderModeObj* rm) {
     VITimingInfo* tm;
     u32 regDspCfg;
@@ -804,26 +806,10 @@ void VIConfigure(const GXRenderModeObj* rm) {
         PrintDebugPalCaution();
     }
 
-    switch (tvInBootrom) {
-    case VI_MPAL:
-    case VI_NTSC:
-    case 6:
-    case 7:
-        if (!(tvInGame == VI_NTSC || tvInGame == VI_MPAL || tvInGame == 6 || tvInGame == 7)) {
-            OSPanic(__FILE__, 1979,
-                    "VIConfigure(): Tried to change mode from (%d) to (%d), which is forbidden\n",
-                    tvInBootrom, tvInGame);
-        }
-        break;
-    case VI_PAL:
-    case VI_EURGB60:
-        if (!(tvInGame == VI_PAL || tvInGame == VI_EURGB60)) {
-            OSPanic(__FILE__, 1979,
-                    "VIConfigure(): Tried to change mode from (%d) to (%d), which is forbidden\n",
-                    tvInBootrom, tvInGame);
-        }
-        break;
-    default:
+    if (!((tvInBootrom == VI_MPAL || tvInBootrom == VI_NTSC || tvInBootrom == 6 || tvInBootrom == 7) &&
+          (tvInGame == VI_NTSC || tvInGame == VI_MPAL || tvInGame == 6 || tvInGame == 7)) &&
+        !((tvInBootrom == VI_PAL || tvInBootrom == VI_EURGB60) &&
+          (tvInGame == VI_PAL || tvInGame == VI_EURGB60))) {
         OSPanic(__FILE__, 1979,
                 "VIConfigure(): Tried to change mode from (%d) to (%d), which is forbidden\n",
                 tvInBootrom, tvInGame);

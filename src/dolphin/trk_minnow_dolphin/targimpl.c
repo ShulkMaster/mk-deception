@@ -4,11 +4,11 @@
 typedef struct TRKStopInfoPacket {
     u32 length;
     u8 command;
-    u8 field_0x05[3];
+    u8 reserved_05[3];
     u32 pc;
     u32 instruction;
     u32 exception_id;
-    u8 field_0x14[0x2C];
+    u8 reserved_14[0x2C];
 } TRKStopInfoPacket;
 
 typedef char TRKStopInfoPacketSizeCheck[
@@ -47,25 +47,30 @@ u32 TRKTargetGetPC(void)
 void TRKTargetAddExceptionInfo(MessageBuffer* message)
 {
     TRKStopInfoPacket packet;
+    u32 instruction;
 
     memset(&packet, 0, sizeof(packet));
     packet.length = sizeof(packet);
     packet.command = 0x91;
     packet.pc = gTRKExceptionStatus.pc;
-    TRKTargetReadInstruction(&packet.instruction, gTRKExceptionStatus.pc);
+    TRKTargetReadInstruction(&instruction, gTRKExceptionStatus.pc);
+    packet.instruction = instruction;
     packet.exception_id = gTRKExceptionStatus.exception_id;
     TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }
 
+/* TODO: [breakthrough] 95.428570%; separate instruction temporary restored the retail stack/CFG; exception_id remains a 16-bit load versus the current packet field width. */
 void TRKTargetAddStopInfo(MessageBuffer* message)
 {
     TRKStopInfoPacket packet;
+    u32 instruction;
 
     memset(&packet, 0, sizeof(packet));
     packet.length = sizeof(packet);
     packet.command = 0x90;
     packet.pc = gTRKCPUState.pc;
-    TRKTargetReadInstruction(&packet.instruction, gTRKCPUState.pc);
+    TRKTargetReadInstruction(&instruction, gTRKCPUState.pc);
+    packet.instruction = instruction;
     packet.exception_id = gTRKCPUState.exception_id;
     TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }

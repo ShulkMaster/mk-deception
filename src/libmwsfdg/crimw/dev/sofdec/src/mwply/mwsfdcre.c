@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
 #include "sofdec/sfd_player.h"
 
@@ -21,6 +22,14 @@ typedef struct MwsPictureUserConfig {
     int buffer_size;
     int element_size;
 } MwsPictureUserConfig;
+
+typedef struct MwsPictureUserWork {
+    unsigned char header[0x40];
+    unsigned char element_buffer[0x7C0];
+} MwsPictureUserWork;
+
+typedef char MwsPictureUserWorkSizeCheck[
+    sizeof(MwsPictureUserWork) == 0x800 ? 1 : -1];
 
 typedef struct MwsCreateParams {
     int file_type;
@@ -55,7 +64,7 @@ struct MwsPlayer {
     int create_field_2C;
     int playback_mode;
     SfdHandle* sfd;
-    void* stream;
+    ADXStream* stream;
     void* transport;
     LSC* loader;
     int field_050;
@@ -81,7 +90,7 @@ struct MwsPlayer {
     MwsPictureUserConfig internal_picture_user;
     unsigned char reserved_170[12];
     MwsPictureUserConfig* picture_user;
-    void* picture_user_work;
+    MwsPictureUserWork* picture_user_work;
     int picture_user_header_size;
     int picture_user_write;
     int picture_user_read;
@@ -212,11 +221,11 @@ extern SFXHandle* MWSFSFX_Create(void*, int, int, int);
 extern void MWSFSFX_Destroy(SFXHandle*);
 extern int MWSFSFX_CalcHnWorkSiz(int, int);
 extern void MWSFSFX_SetCompoMode(MwsPlayer*, int);
-extern void* MWSTM_Create(SJ*);
-extern void MWSTM_Destroy(void*);
+extern ADXStream* MWSTM_Create(SJ*);
+extern void MWSTM_Destroy(ADXStream*);
 extern LSC* LSC_Create(SJ*);
 extern void LSC_Destroy(LSC*);
-extern void LSC_SetStmHndl(LSC*, void*);
+extern void LSC_SetStmHndl(LSC*, ADXStream*);
 extern int SFD_SetPicUsrBuf(SfdHandle*, void*, int, int);
 extern int SFD_SetMpvCond(SfdHandle*, int, int);
 extern void SFD_SetMpvParaTbl(const int*, void* const*, void* const*, int, int,
@@ -688,8 +697,7 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
         MWSFSVM_Error(reset_stop_failed);
         return -1;
     }
-    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc,
-                     (SfdCallbackObject)player) != 0) {
+    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
         MWSFSVM_Error(reset_error_callback_failed);
         return -1;
@@ -711,6 +719,7 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
     return 0;
 }
 
+/* TODO: [breakthrough needed] 90.062770%; callback-object typing is canonical and codegen-neutral; large creation/setup lifetime and allocation residue remains. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
 {
@@ -723,7 +732,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     void* stream_work;
     void* audio_stream_buffer;
     void* audio_decoder_work;
-    void* picture_user_work;
+    MwsPictureUserWork* picture_user_work;
     void* decoder_work;
     void* video_work;
     void* filename_work;
@@ -928,8 +937,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         MWSFSVM_Error(sfd_create_error);
         return 0;
     }
-    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc,
-                     (SfdCallbackObject)player) != 0) {
+    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
         MWSFSVM_Error(sfd_error_callback_error);
         return 0;
@@ -940,29 +948,32 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     player->picture_user_header_size = 0x40;
     player->picture_user_write = 0;
     player->picture_user_read = 0;
-    player->internal_picture_user.buffer =
-        (unsigned char*)picture_user_work + 0x40;
+    player->internal_picture_user.buffer = picture_user_work->element_buffer;
     player->internal_picture_user.buffer_size = 0x7C0;
     player->internal_picture_user.element_size = 0x40;
     player->picture_user = &player->internal_picture_user;
     return sfd;
 }
 
+/* TODO: [breakthrough needed] 86.9645%; direct buffer-owner access improves the frame-size path; MWCC still hoists parameter loads before the saved-register prologue. */
 static int mwsfcre_MallocRfb(MwsPlayer* player,
                              const MwsCreateParams* params,
                              MwsReferenceBuffers* output)
 {
-    MwsCreateBss* buffers = &mwsfdcre_bufnum;
-    int result = 0;
-    int frame_size = mwsfcre_CalcFrameSize(params);
-    if (buffers->buffer_count != 0) {
-        if (buffers->buffer_count < 2 || buffers->buffer_size < frame_size) {
+    int result;
+    int frame_size;
+
+    result = 0;
+    frame_size = mwsfcre_CalcFrameSize(params);
+    if (mwsfdcre_bufnum.buffer_count != 0) {
+        if (mwsfdcre_bufnum.buffer_count < 2 ||
+            mwsfdcre_bufnum.buffer_size < frame_size) {
             output->buffers[0] = 0;
             output->buffers[1] = 0;
             result = -1;
         } else {
-            output->buffers[0] = buffers->buffers[0];
-            output->buffers[1] = buffers->buffers[1];
+            output->buffers[0] = mwsfdcre_bufnum.buffers[0];
+            output->buffers[1] = mwsfdcre_bufnum.buffers[1];
         }
     } else {
         output->buffers[0] = mwsfcre_Alloc(player, frame_size);
@@ -979,25 +990,25 @@ void MWSFCRE_SetSupplySj(MwsPlayer* player)
     SfdHandle* sfd = player->sfd;
     if (stream == 0) return;
     if (stream == player->memory_sj) {
-        supply.field_00 = 1;
+        supply.kind = 1;
         supply.stream_joint = stream;
         supply.buffer = player->memory_buffer;
         supply.buffer_size = player->memory_buffer_size;
-        supply.field_10 = 0;
+        supply.extra_size = 0;
         supply.field_14 = 0;
     } else if (stream == player->input_sj) {
-        supply.field_00 = 0;
+        supply.kind = 0;
         supply.stream_joint = stream;
         supply.buffer = player->input_buffer;
         supply.buffer_size = player->input_buffer_size;
-        supply.field_10 = player->input_buffer_extra_size;
+        supply.extra_size = player->input_buffer_extra_size;
         supply.field_14 = 0;
     } else {
-        supply.field_00 = player->supply_mode;
+        supply.kind = player->supply_mode;
         supply.stream_joint = stream;
         supply.buffer = player->supply_buffer;
         supply.buffer_size = player->supply_buffer_size;
-        supply.field_10 = player->supply_buffer_extra_size;
+        supply.extra_size = player->supply_buffer_extra_size;
         supply.field_14 = 0;
     }
     if (SFD_SetSupplySj(sfd, &supply) != 0) {

@@ -74,7 +74,7 @@ void mfCiEntryErrFunc(MfCiErrorCallback callback, void* object);
 void mfCiExecServer(void);
 CvFsInterface* mfCiGetInterface(void);
 
-const char* const mfci_build =
+const char* const volatile mfci_build =
     "\nMFCI/GC Ver.1.09 Build:Sep  3 2004 17:48:35\n";
 
 /* Diagnostics retained by the retail entry-indexed memory-file API. */
@@ -98,6 +98,29 @@ extern CvFsInterface mfci_vtbl;
 
 typedef char MfCiObjectSizeCheck[sizeof(MfCiObject) == 0x38 ? 1 : -1];
 typedef char CvFsInterfaceSizeCheck[sizeof(CvFsInterface) == 0x68 ? 1 : -1];
+
+static inline int mfci_ByteToSct(int sector_length, int byte_count)
+{
+    int sector_count;
+
+    sector_count = sector_length;
+    sector_count += byte_count;
+    return (sector_count - 1) / sector_length;
+}
+
+static inline MfCiObject* mfci_GetFreeHn(void)
+{
+    MfCiObject* handle = 0;
+    int index;
+
+    for (index = 0; index < MFCI_MAX_HANDLES; index++) {
+        if (mfci_obj[index].used == 0) {
+            handle = &mfci_obj[index];
+            break;
+        }
+    }
+    return handle;
+}
 
 static inline unsigned char* mfci_get_adr_size(const char* filename,
                                                 int* file_size)
@@ -157,8 +180,7 @@ void mfCiSetSctLen(void* object, int sector_length)
     byte_position = handle->sector_position * handle->sector_length;
     handle->sector_length = sector_length;
     handle->sector_count =
-        ((handle->sector_length + handle->file_size) - 1) /
-        handle->sector_length;
+        mfci_ByteToSct(handle->sector_length, handle->file_size);
     handle->sector_position = byte_position / handle->sector_length;
     handle->transfer_length = handle->request_sectors * sector_length;
 }
@@ -205,6 +227,9 @@ void mfCiStopTr(void* object)
     SVM_Unlock();
 }
 
+/* TODO: [near miss] 99.205880%; validation, locking, address parsing,
+ * copy/zero-fill, and completion ordering match; residual is relocation and
+ * register coloring, with no honest local ABI/type correction. */
 int mfCiReqRd(void* object, int sectors, void* buffer)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -296,6 +321,7 @@ int mfCiTell(void* object)
     return handle->sector_position;
 }
 
+/* TODO: [near miss] 98.196724%; retained clamp is semantically exact; retail uses an alternate branch orientation that MWCC does not preserve cleanly. */
 int mfCiSeek(void* object, int offset, int origin)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -344,10 +370,11 @@ void mfCiClose(void* object)
     }
 }
 
+/* TODO: [near miss] 99.107140%; RE4's two private helpers recover both
+ * operation islands; only pooled rodata/BSS base-register coloring remains. */
 void* mfCiOpen(const char* filename, void* parameter, int mode)
 {
     MfCiObject* handle;
-    int index;
     int file_size;
 
     (void)parameter;
@@ -366,13 +393,7 @@ void* mfCiOpen(const char* filename, void* parameter, int mode)
         return 0;
     }
 
-    handle = 0;
-    for (index = 0; index < MFCI_MAX_HANDLES; index++) {
-        if (mfci_obj[index].used == 0) {
-            handle = &mfci_obj[index];
-            break;
-        }
-    }
+    handle = mfci_GetFreeHn();
     if (handle == 0) {
         if (mfci_err_func != 0) {
             mfci_err_func(
@@ -387,8 +408,7 @@ void* mfCiOpen(const char* filename, void* parameter, int mode)
     mfci_get_adr_size(handle->filename, &file_size);
     handle->file_size = file_size;
     handle->sector_count =
-        ((handle->sector_length + handle->file_size) - 1) /
-        handle->sector_length;
+        mfci_ByteToSct(handle->sector_length, handle->file_size);
     handle->sector_position = 0;
     handle->request_sectors = 0;
     handle->transfer_length = 0;
@@ -411,13 +431,21 @@ void mfCiEntryErrFunc(MfCiErrorCallback callback, void* object)
     mfci_err_obj = object;
 }
 
+/* TODO: [breakthrough needed] 33.333332%; RE4's empty 40-slot server pass is
+ * retained, but this object's optimizer removes retail's initial compare. */
 void mfCiExecServer(void)
 {
-    /* Memory-backed transfers complete synchronously in mfCiReqRd. */
+    int index;
+
+    /* Memory-backed transfers complete synchronously; retail still scans all
+     * handle slots as an empty per-server pass. */
+    for (index = 0; index < MFCI_MAX_HANDLES; index++) {
+    }
 }
 
 CvFsInterface* mfCiGetInterface(void)
 {
+    mfci_build;
     return &mfci_vtbl;
 }
 

@@ -38,6 +38,18 @@ static s16 mpvemp_mbai[36] = {
         SKIP_BITS(count);                                                      \
     } while (0)
 
+#define READ_WORD(value)                                                       \
+    do {                                                                       \
+        if (bit_offset != 0) {                                                 \
+            (value) = bits | (next_bits >> (32 - bit_offset));                 \
+            bits = next_bits << bit_offset;                                    \
+        } else {                                                               \
+            (value) = bits;                                                    \
+            bits = next_bits;                                                  \
+        }                                                                      \
+        next_bits = *words++;                                                  \
+    } while (0)
+
 #define READ_CODE(value, count)                                                \
     do {                                                                       \
         int split = 32 - (count);                                              \
@@ -87,6 +99,8 @@ static s16 mpvemp_mbai[36] = {
         }                                                                      \
     } while (0)
 
+/* TODO: [breakthrough] 82.96429%; retail window setup is restored; remaining bit-reader
+ * lifetimes and branch structure need further evidence. */
 int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
 {
     const u32* words;
@@ -94,7 +108,6 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     u32 bits;
     u32 next_bits;
     u32 value;
-    u32 second;
     int bit_offset;
     int remaining;
     s16 code;
@@ -104,16 +117,10 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
 
     aligned = (const u32*)((unsigned long)data & ~3UL);
     bit_offset = (data - (const u8*)aligned) * 8;
-    second = aligned[1];
-    value = aligned[0] << bit_offset;
-    if (bit_offset != 0) {
-        bits = second << bit_offset;
-        value |= second >> (32 - bit_offset);
-    } else {
-        bits = second;
-    }
-    next_bits = aligned[2];
-    words = aligned + 3;
+    bits = *aligned++ << bit_offset;
+    next_bits = *aligned++;
+    words = aligned;
+    READ_WORD(value);
     if (value != 0x101) {
         return 0;
     }
@@ -189,6 +196,8 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     }
 }
 
+/* TODO: [near miss] 95.513370%; donor switches restore both macroblock-type
+ * guard CFGs; only localized bit-reader scheduling remains. */
 int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
 {
     const u32* words;
@@ -228,14 +237,16 @@ int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
     }
 
     PEEK_BITS(macroblock_type, 6);
-    if ((macroblock_type < 22 && macroblock_type != 11) ||
-        macroblock_type >= 24) {
-        return 0;
-    }
-    if (macroblock_type == 11) {
+    switch (macroblock_type) {
+    case 11:
         SKIP_BITS(6);
-    } else {
+        break;
+    case 22:
+    case 23:
         SKIP_BITS(5);
+        break;
+    default:
+        return 0;
     }
 
     remaining = macroblock_count - 1;
@@ -260,19 +271,22 @@ int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
     }
 
     PEEK_BITS(macroblock_type, 6);
-    if ((macroblock_type < 22 && macroblock_type != 11) ||
-        macroblock_type >= 24) {
-        return 0;
-    }
-    if (macroblock_type == 11) {
+    switch (macroblock_type) {
+    case 11:
         SKIP_BITS(6);
-    } else {
+        break;
+    case 22:
+    case 23:
         SKIP_BITS(5);
+        break;
+    default:
+        return 0;
     }
     return ((const u8*)words + ((bit_offset + 7) >> 3) - 8) - data <= length;
 }
 
 #undef READ_BITS
+#undef READ_WORD
 #undef READ_CODE
 #undef READ_FLAG
 #undef SKIP_HEADER_BITS

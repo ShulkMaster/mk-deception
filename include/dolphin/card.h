@@ -71,7 +71,6 @@ typedef struct CARDFileInfo {
     s32 offset;
     s32 length;
     u16 iBlock;
-    u16 padding;
 } CARDFileInfo;
 
 typedef struct CARDDir {

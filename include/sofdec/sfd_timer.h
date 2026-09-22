@@ -31,7 +31,7 @@ typedef struct SfdTimeCode {
     short subframe;
 } SfdTimeCode;
 
-typedef void (*SfdTimeCodeConvertFn)(int rate, const SfdTimeCode* timecode,
+typedef void (*SfdTimeCodeConvertFn)(int rate, SfdTimeCode* timecode,
                                      int* value, int* scale);
 
 typedef char SfdTimerSummarySizeCheck[
@@ -61,7 +61,7 @@ void SFTIM_GetTimeOneFrmVideo(SfdHandle* handle, int* value, int* scale);
 void SFTIM_InitTtu(SfdTimerTimeUnit* unit, int scale);
 int SFTIM_GetNextItime(SfdTimerState* state, int time);
 void SFTIM_UpdateItime(SfdTimerState* state, int time);
-void SFTIM_Tc2Time(const SfdTimeCode* timecode, int* value, int* scale);
+void SFTIM_Tc2Time(SfdTimeCode* timecode, int* value, int* scale);
 int SFTIM_GetVideoStartSample(SfdTimerState* state, int sample_rate,
                               int* using_time_unit);
 unsigned int SFTIM_GetAudioStartSample(SfdTimerState* state, int sample_rate);

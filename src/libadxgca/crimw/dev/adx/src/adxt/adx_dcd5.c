@@ -37,6 +37,7 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
+/* TODO: [breakthrough needed] 62.335526%; retail keeps narrow predictor values, but the honest 16-bit local trial regressed; unrolled decoder scheduling remains unresolved. */
 int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
@@ -101,6 +102,7 @@ int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
+/* TODO: [breakthrough needed] 64.40426%; retail's narrow predictor locals are backend allocation artifacts; honest 16-bit typing regressed to 53.601063%, leaving mono unroll scheduling unresolved. */
 int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
@@ -168,6 +170,8 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
+/* TODO: [breakthrough needed] 78.764710%; direct global quantizer use helps;
+ * full donor local ownership regressed to 70.882355%. */
 int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
                     short delay[2], short coefficient0, short coefficient1,
                     short* randomState, short randomMultiplier,
@@ -175,7 +179,6 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
     int block;
     int previous = delay[0];
     int older = delay[1];
-    const int* quantizer = AdxQtbl;
 
     for (block = 0; block < numBlocks; block++) {
         short code = *(const short*)input;
@@ -195,7 +198,7 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
             decoded = clamp_sample(decoded);
             *output++ = (short)decoded;
             older = decoded;
-            previous = clamp_sample(quantizer[packed & 15] * gain +
+            previous = clamp_sample(AdxQtbl[packed & 15] * gain +
                 ((coefficient0 * decoded + coefficient1 * previous) >> 12));
             *output++ = (short)previous;
         } while (--sample != 0);

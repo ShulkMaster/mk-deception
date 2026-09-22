@@ -8,6 +8,22 @@ typedef struct AniTextureControl AniTextureControl;
 typedef struct PuzzlePresentState PuzzlePresentState;
 typedef struct MkProc MkProc;
 
+typedef struct PuzzleAttackPolicyFlags {
+    unsigned char bit7 : 1;
+    unsigned char bit6 : 1;
+    unsigned char bit5 : 1;
+    unsigned char bit4 : 1;
+    unsigned char distance_reaction : 1; /* bit3 */
+    unsigned char bit2 : 1;
+    unsigned char bit1 : 1;
+    unsigned char bit0 : 1;
+} PuzzleAttackPolicyFlags;
+
+typedef struct PuzzleAttackRuntimeFlags {
+    unsigned char enabled : 1; /* bit7 */
+    unsigned char low_bits : 7;
+} PuzzleAttackRuntimeFlags;
+
 typedef struct PuzzleFighterMove {
     unsigned int event_type; /* +0x00 */
     float block_count; /* +0x04 */
@@ -22,12 +38,19 @@ typedef struct PuzzleFighterMove {
     union {
         unsigned int policy_word; /* +0x28 */
         struct {
-            unsigned char policy_flags; /* +0x28 */
-            unsigned char runtime_flags; /* +0x29 */
+            union {
+                unsigned char policy_flags;
+                PuzzleAttackPolicyFlags policy_bits;
+            }; /* +0x28 */
+            union {
+                unsigned char runtime_flags;
+                PuzzleAttackRuntimeFlags runtime_bits;
+            }; /* +0x29 */
             unsigned char policy_pad[2];
         };
     };
-    char pad2C[8];
+    unsigned int continuation_move; /* +0x2C */
+    unsigned int continuation_priority; /* +0x30 */
 } PuzzleFighterMove; /* 0x34 */
 
 typedef struct PuzzleFighterStartFlags {
@@ -46,22 +69,6 @@ typedef struct PuzzleFighterStartFlagGroups {
     signed char unused : 3;
 } PuzzleFighterStartFlagGroups;
 
-typedef struct PuzzleAttackPolicyFlags {
-    unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
-    unsigned char bit4 : 1;
-    unsigned char distance_reaction : 1; /* bit3 */
-    unsigned char bit2 : 1;
-    unsigned char bit1 : 1;
-    unsigned char bit0 : 1;
-} PuzzleAttackPolicyFlags;
-
-typedef struct PuzzleAttackRuntimeFlags {
-    unsigned char enabled : 1; /* bit7 */
-    unsigned char low_bits : 7;
-} PuzzleAttackRuntimeFlags;
-
 typedef struct PuzzleFightersEngine {
     float balance; /* +0x00 */
     Vec arena_axis; /* +0x04 */
@@ -79,30 +86,7 @@ typedef struct PuzzleFightersEngine {
     int round_running; /* +0x58 */
     int super_move_active; /* +0x5C */
     int random_fatality_active; /* +0x60 */
-    union {
-        PuzzleFighterMove fighter_move; /* +0x64 */
-        struct {
-            char pad_move64[0x20];
-            unsigned int distance_flags; /* +0x84 */
-            unsigned int attack_has_followup; /* +0x88 */
-            union {
-                unsigned int attack_policy_word; /* +0x8C */
-                struct {
-                    union {
-                        unsigned char attack_policy_flags;
-                        PuzzleAttackPolicyFlags attack_policy_bits;
-                    }; /* +0x8C */
-                    union {
-                        unsigned char attack_runtime_flags;
-                        PuzzleAttackRuntimeFlags attack_runtime_bits;
-                    }; /* +0x8D */
-                    unsigned char attack_policy_pad[2];
-                };
-            };
-            unsigned int continuation_move; /* +0x90 */
-            unsigned int continuation_priority; /* +0x94 */
-        };
-    };
+    PuzzleFighterMove fighter_move; /* +0x64 */
     unsigned int pending_move_count; /* +0x98 */
     PuzzleFighterMove pending_moves[2]; /* +0x9C */
     int fighters_positioned; /* +0x104 */

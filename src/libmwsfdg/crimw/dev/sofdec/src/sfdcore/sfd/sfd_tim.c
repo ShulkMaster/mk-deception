@@ -5,10 +5,10 @@ const int SFTIM_prate[9] = {
     1, 24000, 24000, 25000, 29970, 30000, 50000, 59940, 60000,
 };
 
-int sftim_v_sample;
-int sftim_v_time;
-unsigned int sftim_a_sample;
-long long sftim_as_pts;
+int sftim_v_sample = 0;
+int sftim_v_time = 0;
+unsigned int sftim_a_sample = 0;
+long long sftim_as_pts = 0;
 
 int SFTIM_GetSpeed(SfdHandle* handle)
 {
@@ -109,6 +109,8 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     return ready;
 }
 
+/* TODO: [breakthrough needed] 76.321915%; retail frame-time load order is
+ * restored; the floating-point timing CFG remains structurally different. */
 int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
 {
     int ready;
@@ -122,8 +124,8 @@ int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
     if (frame_time == 0) {
         return 0;
     }
-    value = frame_time->value;
     scale = frame_time->scale;
+    value = frame_time->value;
     if (handle->conditions_primary[14] != 0) {
         ready = 1;
     } else if (handle->timer_state.current_time_scale == 1) {
@@ -224,70 +226,73 @@ void SFTIM_Pause(SfdHandle* handle, int state)
     int video_token;
     int external_token;
 
-    if (state != 2) {
-        return;
+    switch (state) {
+    case 2:
+        if (handle->playback_settings.frame_rate_code == 0) {
+            numerator = 0;
+            denominator = 29970;
+        } else {
+            numerator = 1000;
+            denominator = SFTIM_prate[handle->playback_settings.frame_rate_code];
+        }
+        increment = UTY_MulDiv(SFLIB_libwork.timer_work.source, numerator,
+                               denominator);
+        SFLIB_LockCs(&video_token);
+        handle->timer_state.video_clock_sample += increment;
+        handle->timer_state.field_02CC += increment;
+        SFLIB_UnlockCs(&video_token);
+
+        increment = UTY_MulDiv(handle->timer_state.clock_sample_scale, numerator,
+                               denominator);
+        SFLIB_LockCs(&external_token);
+        handle->timer_state.current_clock_sample += increment;
+        SFLIB_UnlockCs(&external_token);
+        break;
+    case 1:
+    default:
+        break;
     }
-    if (handle->playback_settings.frame_rate_code == 0) {
-        numerator = 0;
-        denominator = 29970;
-    } else {
-        numerator = 1000;
-        denominator = SFTIM_prate[handle->playback_settings.frame_rate_code];
-    }
-    increment = UTY_MulDiv(SFLIB_libwork.timer_work.source, numerator,
-                           denominator);
-    SFLIB_LockCs(&video_token);
-    handle->timer_state.video_clock_sample += increment;
-    handle->timer_state.field_02CC += increment;
-    SFLIB_UnlockCs(&video_token);
-
-    increment = UTY_MulDiv(handle->timer_state.clock_sample_scale, numerator,
-                           denominator);
-    SFLIB_LockCs(&external_token);
-    handle->timer_state.current_clock_sample += increment;
-    SFLIB_UnlockCs(&external_token);
 }
 
-static void sftim_Tc2Time59D(int rate, const SfdTimeCode* timecode,
+static void sftim_Tc2Time59D(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
-    *value = (timecode->frames +
-              timecode->hours * 215892 +
-              timecode->minutes * 3598 +
-              (timecode->minutes / 10) * 2 +
-              timecode->seconds * 60 +
-              timecode->frame_offset) * 1000 +
-             timecode->subframe * 500;
+    int frames;
+
+    frames = timecode->hours * 215892 + timecode->minutes * 3598 +
+             (timecode->minutes / 10) * 2 + timecode->seconds * 60 +
+             (timecode->frames + timecode->frame_offset);
+    *value = frames * 1000 + timecode->subframe * 500;
     *scale = rate;
 }
 
-static void sftim_Tc2Time29D(int rate, const SfdTimeCode* timecode,
+static void sftim_Tc2Time29D(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
-    *value = (timecode->frames +
-              timecode->hours * 107892 +
-              timecode->minutes * 1798 +
-              (timecode->minutes / 10) * 2 +
-              timecode->seconds * 30 +
-              timecode->frame_offset) * 1000 +
-             timecode->subframe * 500;
+    int frames;
+
+    frames = timecode->hours * 107892 + timecode->minutes * 1798 +
+             (timecode->minutes / 10) * 2 + timecode->seconds * 30 +
+             (timecode->frames + timecode->frame_offset);
+    *value = frames * 1000 + timecode->subframe * 500;
     *scale = rate;
 }
 
-static void sftim_Tc2Time23D(int rate, const SfdTimeCode* timecode,
+static void sftim_Tc2Time23D(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
-    *value = (timecode->frames +
-              timecode->hours * 86292 +
-              timecode->minutes * 1438 +
-              (timecode->minutes / 10) * 2 +
-              timecode->seconds * 24 +
-              timecode->frame_offset) * 1000 +
-             timecode->subframe * 500;
+    int frames;
+
+    frames = timecode->hours * 86292 + timecode->minutes * 1438 +
+             (timecode->minutes / 10) * 2 + timecode->seconds * 24 +
+             (timecode->frames + timecode->frame_offset);
+    *value = frames * 1000 + timecode->subframe * 500;
     *scale = rate;
 }
 
-static void sftim_Tc2Time59N(int rate, const SfdTimeCode* timecode,
+/* TODO: [breakthrough needed] 77.866670%; mutable timecode ABI fixes load
+ * scheduling; retained combined expression still differs broadly. */
+static void sftim_Tc2Time59N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
     *value = timecode->minutes * 3600000 +
@@ -298,7 +303,9 @@ static void sftim_Tc2Time59N(int rate, const SfdTimeCode* timecode,
     *scale = rate;
 }
 
-static void sftim_Tc2Time29N(int rate, const SfdTimeCode* timecode,
+/* TODO: [breakthrough needed] 63.760000%; mutable donor ABI is retained;
+ * arithmetic expression grouping remains structurally different. */
+static void sftim_Tc2Time29N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
     *value = timecode->minutes * 1800000 +
@@ -309,7 +316,9 @@ static void sftim_Tc2Time29N(int rate, const SfdTimeCode* timecode,
     *scale = rate;
 }
 
-static void sftim_Tc2Time23N(int rate, const SfdTimeCode* timecode,
+/* TODO: [breakthrough needed] 63.760000%; mutable donor ABI is retained;
+ * arithmetic expression grouping remains structurally different. */
+static void sftim_Tc2Time23N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
     *value = timecode->minutes * 1440000 +
@@ -320,13 +329,16 @@ static void sftim_Tc2Time23N(int rate, const SfdTimeCode* timecode,
     *scale = rate;
 }
 
-static void sftim_Tc2TimeN(int rate, const SfdTimeCode* timecode,
+static void sftim_Tc2TimeN(int rate, SfdTimeCode* timecode,
                            int* value, int* scale)
 {
-    *value = ((timecode->hours * 3600 + timecode->minutes * 60 +
-               timecode->seconds) * rate) +
-             (timecode->frames + timecode->frame_offset) * 1000 +
-             timecode->subframe * 500;
+    int seconds;
+    int frames;
+
+    seconds = timecode->minutes * 60 + timecode->hours * 3600 +
+              timecode->seconds;
+    frames = timecode->frames + timecode->frame_offset;
+    *value = frames * 1000 + seconds * rate + timecode->subframe * 500;
     *scale = rate;
 }
 
@@ -342,7 +354,9 @@ static const SfdTimeCodeConvertFn sftim_tc2time[9][2] = {
     {sftim_Tc2TimeN, sftim_Tc2TimeN},
 };
 
-void SFTIM_Tc2Time(const SfdTimeCode* timecode, int* value, int* scale)
+/* TODO: [breakthrough needed] 83.690475%; mutable dispatch ABI now matches;
+ * table/rate lifetime ordering remains. */
+void SFTIM_Tc2Time(SfdTimeCode* timecode, int* value, int* scale)
 {
     int frame_rate_code = timecode->frame_rate_code;
     SfdTimeCodeConvertFn convert =
@@ -364,7 +378,7 @@ void SFTIM_SetTimeFn(SfdHandle* handle, SfdTimeSourceFn callback, int index)
 }
 
 int SFD_SetExtClockFn(SfdHandle* handle, SfdExternalClockFn callback, int arg0,
-                      int arg1)
+                      SfdCallbackObject arg1)
 {
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000129);
@@ -413,19 +427,18 @@ int SFD_SetUsrIsSkipFn(SfdHandle* handle, SfdUserIsSkipFn callback)
 
 int SFTIM_ChkRegularTime(SfdHandle* handle, int* value, int* scale)
 {
-    int regular;
+    int state = handle->playback_state;
 
-    if (handle->playback_state == 4 || handle->playback_state == -4 ||
-        handle->playback_state == 6 || handle->playback_state == -6) {
-        regular = 1;
-    } else {
+    if (state != 4 && state != -4 && state != 6 && state != -6) {
         *value = -1;
         *scale = 1;
-        regular = 0;
+        return 0;
     }
-    return regular;
+    return 1;
 }
 
+/* TODO: [near miss] 98.640450%; donor wrap increment order matches retail;
+ * previous-sample register coloring/reload remains. */
 static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
 {
     int sample;
@@ -456,7 +469,8 @@ static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
     if (update != 0 && handle->timer_state.previous_external_sample != -5) {
         delta = sample - handle->timer_state.previous_external_sample;
         if (delta < 0) {
-            delta = handle->timer_state.external_clock_wrap + delta + 1;
+            delta = handle->timer_state.external_clock_wrap + delta;
+            delta++;
         }
         handle->timer_state.current_clock_sample += delta;
     }
@@ -467,6 +481,8 @@ static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
     return result;
 }
 
+/* TODO: [breakthrough needed] 67.272730%; donor's redundant regular-time
+ * branch regresses; retained direct check call still has broad CFG differences. */
 static int sftim_GetTimeUfrm(SfdHandle* handle, int* value, int* scale)
 {
     SFTIM_ChkRegularTime(handle, value, scale);
@@ -502,15 +518,16 @@ int SFTIM_GetTime(SfdHandle* handle, int* value, int* scale)
 
 int SFTIM_GetTimeSub(SfdHandle* handle, int* value, int* scale)
 {
-    SfdTimerTimeUnit* elapsed = &handle->timer_state.elapsed_time;
+    SfdTimerState* timer = &handle->timer_state;
+    SfdTimerTimeUnit* elapsed = &timer->elapsed_time;
 
-    *value = handle->timer_state.current_time_value;
-    *scale = handle->timer_state.current_time_scale;
+    *value = timer->current_time_value;
+    *scale = timer->current_time_scale;
     if (*scale == 1) {
         return 0;
     }
-    if (*scale == handle->timer_state.start_time_scale) {
-        *value += handle->timer_state.start_time_value;
+    if (*scale == timer->start_time_scale) {
+        *value += timer->start_time_value;
     } else if (elapsed->active != 0) {
         *value += UTY_MulDiv(elapsed->value, *scale, elapsed->scale);
     }
@@ -519,23 +536,10 @@ int SFTIM_GetTimeSub(SfdHandle* handle, int* value, int* scale)
 
 int SFD_GetTime(SfdHandle* handle, int* value, int* scale)
 {
-    SfdTimerTimeUnit* elapsed;
-
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000121);
     }
-    elapsed = &handle->timer_state.elapsed_time;
-    *value = handle->timer_state.current_time_value;
-    *scale = handle->timer_state.current_time_scale;
-    if (*scale == 1) {
-        return 0;
-    }
-    if (*scale == handle->timer_state.start_time_scale) {
-        *value += handle->timer_state.start_time_value;
-    } else if (elapsed->active != 0) {
-        *value += UTY_MulDiv(elapsed->value, *scale, elapsed->scale);
-    }
-    return 0;
+    return SFTIM_GetTimeSub(handle, value, scale);
 }
 
 void SFTIM_SetStartTime(SfdTimerState* state, int value, int scale)
@@ -580,40 +584,52 @@ unsigned int SFTIM_GetAudioStartSample(SfdTimerState* state, int sample_rate)
     return sample;
 }
 
-int SFTIM_IsStagnant(SfdHandle* handle)
+static int sftim_CheckStagnant(SfdHandle* handle)
 {
-    int stagnant;
+    SfdTimerState* timer;
+    SfdTimerLibraryWork* library;
     int threshold;
+    int base;
     int elapsed;
     int scale;
 
+    timer = &handle->timer_state;
     if (SFSET_GetCond(handle, 6) == 0) {
-        stagnant = 0;
-    } else {
-        threshold = SFSET_GetCond(handle, 0x33);
-        if (threshold == 0) {
-            stagnant = 0;
-        } else {
-            if (SFSET_GetCond(handle, 0x47) == 1) {
-                elapsed = handle->timer_state.video_clock_sample -
-                          handle->timer_state.previous_clock_sample;
-                scale = SFLIB_libwork.timer_work.source;
-            } else {
-                elapsed = handle->timer_state.current_clock_sample -
-                          handle->timer_state.previous_clock_sample;
-                scale = handle->timer_state.clock_sample_scale;
-            }
-            stagnant = elapsed / scale > threshold;
-        }
+        return 0;
     }
-    if (stagnant != 0) {
+    threshold = SFSET_GetCond(handle, 0x33);
+    if (threshold == 0) {
+        return 0;
+    }
+    library = &SFLIB_libwork.timer_work;
+    if (SFSET_GetCond(handle, 0x47) == 1) {
+        scale = library->source;
+        elapsed = timer->video_clock_sample - timer->previous_clock_sample;
+    } else {
+        elapsed = timer->current_clock_sample;
+        base = timer->previous_clock_sample;
+        elapsed -= base;
+        scale = timer->clock_sample_scale;
+    }
+    if (elapsed / scale > threshold) {
+        return 1;
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 99.396550%; donor helper boundary matches; remaining
+ * elapsed/base register swap would require the donor's volatile crutch. */
+int SFTIM_IsStagnant(SfdHandle* handle)
+{
+    if (sftim_CheckStagnant(handle) != 0) {
         SFLIB_SetErr(handle, 0xFF000222);
         return 1;
     }
     return 0;
 }
 
-/* TODO: [near miss] 98.51%; time-source fallback call setup differs; stop at codegen. */
+/* TODO: [near miss] 98.508770%; time-source fallback call setup differs;
+ * retail/RE4 timer layout and callback flow agree, so stop at codegen. */
 void SFTIM_VbIn(void)
 {
     int i;
@@ -689,22 +705,29 @@ void SFTIM_VbIn(void)
 
 int SFTIM_GetNextItime(SfdTimerState* state, int time)
 {
-    int next = state->interval_time_last + state->interval_time_estimate;
-    int end = state->interval_time_last + state->interval_time_max;
+    int itime;
+    int minimum;
+    int maximum;
+    int result;
 
-    if (time >= next) {
-        if (time < end) {
-            return end;
-        }
-        return 0x7FFFFFFF;
+    itime = state->interval_time_last;
+    minimum = itime + state->interval_time_estimate;
+    maximum = itime + state->interval_time_max;
+    if (time < minimum) {
+        result = minimum;
+    } else if (time < maximum) {
+        result = maximum;
+    } else {
+        result = 0x7FFFFFFF;
     }
-    return next;
+    return result;
 }
 
 void SFTIM_UpdateItime(SfdTimerState* state, int time)
 {
     int delta;
-    int correction;
+    int minimum;
+    int step;
 
     if (state->interval_time_last == -5) {
         state->interval_time_last = time;
@@ -715,23 +738,24 @@ void SFTIM_UpdateItime(SfdTimerState* state, int time)
         return;
     }
     state->interval_time_last = time;
-    if (state->interval_time_max < delta) {
-        state->interval_time_max = delta;
-    }
-    if (state->interval_time_min > delta) {
-        state->interval_time_min = delta;
-    }
-    if (state->interval_time_estimate == 0x7FFFFFFF) {
+    state->interval_time_max = state->interval_time_max > delta
+                                   ? state->interval_time_max
+                                   : delta;
+    state->interval_time_min = state->interval_time_min < delta
+                                   ? state->interval_time_min
+                                   : delta;
+    minimum = state->interval_time_estimate;
+    if (minimum == 0x7FFFFFFF) {
         state->interval_time_estimate = delta;
         return;
     }
-    if (state->interval_time_estimate <= delta) {
+    if (minimum <= delta) {
         state->interval_time_estimate = delta;
         return;
     }
-    correction = (state->interval_time_estimate - delta) / 8;
-    if (correction != 0) {
-        state->interval_time_estimate -= correction;
+    step = (minimum - delta) / 8;
+    if (step != 0) {
+        state->interval_time_estimate = minimum - step;
         return;
     }
     state->interval_time_estimate = delta;
@@ -753,6 +777,7 @@ void SFTIM_InitTtu(SfdTimerTimeUnit* unit, int scale)
     unit->scale = 1;
 }
 
+/* TODO: [breakthrough needed] 59.87719%; typed timer-tail layout is preserved; initialization CFG still needs recovery. */
 void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
 {
     int i;
@@ -849,9 +874,9 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
     state->clock_sample_scale = 1;
     state->external_clock_wrap = -1;
     state->external_clock_object = 0;
-    state->video_pts[0] = 0;
-    state->video_pts[1] = 0;
-    state->video_pts[2] = 0;
+    state->video_pts.field_00 = 0;
+    state->video_pts.field_04 = 0;
+    state->video_pts.field_08 = 0;
 }
 
 void SFTIM_Finish(SfdTimerLibraryWork* work)

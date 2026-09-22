@@ -68,7 +68,8 @@ static inline int ProcessNextCommand(void)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 90.59%; buffer-copy ordering, flag tests and timer-clock ownership remain. */
+/* TODO: [breakthrough] 91.972824%; explicit Prev buffer-field stores now
+ * match; reset-clock arithmetic/branch scheduling remains localized. */
 void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     DVDLowCallback callback;
@@ -81,7 +82,9 @@ void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
     if (LastCommandWasRead) {
         LastReadFinished = __OSGetSystemTime();
         FirstRead = 0;
-        Prev = Curr;
+        Prev.address = Curr.address;
+        Prev.length = Curr.length;
+        Prev.offset = Curr.offset;
         if (StopAtNextInt) cause |= 8;
     }
     LastCommandWasRead = 0;
@@ -190,8 +193,11 @@ static inline int HitCache(const DVDBuffer* current, const DVDBuffer* previous)
         (previous->offset + previous->length - 1) >> 15;
     unsigned long current_start = current->offset >> 15;
     unsigned long cache_blocks = AudioBufferOn() ? 5 : 15;
-    return current_start > previous_end - 2 ||
-           current_start < previous_end + cache_blocks + 3;
+    if (current_start > previous_end - 2 ||
+        current_start < previous_end + cache_blocks + 3) {
+        return 1;
+    }
+    return 0;
 }
 
 static inline void DoJustRead(void* address, unsigned long length,
@@ -236,7 +242,7 @@ static inline void WaitBeforeRead(void* address, unsigned long length,
     OSSetAlarm(&AlarmForWA, wait, AlarmHandler);
 }
 
-/* TODO: [breakthrough needed] 53.88%; workaround/read phase lifetimes and cache/wait dispatch remain. */
+/* TODO: [breakthrough] 57.042168%; explicit HitCache true/false CFG matches the donor; workaround/read lifetimes and cache/wait dispatch remain. */
 int DVDLowRead(void* address, unsigned long length, unsigned long offset,
                DVDLowCallback callback)
 {
@@ -366,7 +372,8 @@ int DVDLowAudioBufferConfig(int enable, unsigned long size,
     return IssueImmediate(0xE4000000 | (enable ? 0x10000 : 0) | size, callback);
 }
 
-/* TODO: [breakthrough needed] 70.17%; timer-clock ownership and reset-loop saved locals remain. */
+/* TODO: [breakthrough needed] 70.17021%; donor reg|4|1 spelling is
+ * codegen-neutral; reset-loop lifetimes and timer/frame lowering remain broad. */
 void DVDLowReset(void)
 {
     unsigned long reg;
@@ -408,5 +415,12 @@ void __DVDLowSetWAType(unsigned long type, signed long seek_location)
 
 int __DVDLowTestAlarm(const OSAlarm* alarm)
 {
-    return alarm == &AlarmForBreak || alarm == &AlarmForTimeout;
+    if (alarm == &AlarmForBreak) {
+        return 1;
+    }
+    if (alarm == &AlarmForTimeout) {
+        return 1;
+    }
+
+    return 0;
 }

@@ -38,3 +38,5 @@ compile_commands.json
 # Miscellaneous
 /*.txt
 *.exe
+
+docs/decomp

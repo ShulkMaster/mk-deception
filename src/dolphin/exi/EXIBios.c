@@ -66,6 +66,8 @@ static u32 IDSerialPort1;
 u32 EXIClearInterrupts(s32 chan, int exi, int tc, int ext);
 static int __EXIProbe(s32 chan);
 
+/* TODO: [near miss] 90.081970%; mask logic and EXIControl offsets match; only
+ * Ecb-address/branch scheduling differs before the shared CFG. */
 static void SetExiInterruptMask(s32 chan, EXIControl* exi) {
     EXIControl* exi2;
     exi2 = &Ecb[2];
@@ -119,9 +121,11 @@ static inline void CompleteTransfer(s32 chan) {
     }
 }
 
-/* TODO: [breakthrough needed] 43.95%; transfer setup/frame differs; recover immediate-buffer packing and owner lifetimes */
+/* TODO: [breakthrough needed] 43.947020%; donor BOOL spelling is neutral;
+ * retail frame/register ownership differs despite the matching pack loop. */
 int EXIImm(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     EXIControl* exi;
+    EXICallback prev;
     BOOL enabled;
     u32 data;
     int i;
@@ -160,6 +164,8 @@ int EXIImm(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     return 1;
 }
 
+/* TODO: [near miss] 95.000000%; loop and ABI agree with the SDK; only
+ * epilogue restore ordering differs, so retain the local int spelling. */
 int EXIImmEx(s32 chan, void* buf, s32 len, u32 mode) {
     s32 xLen;
 
@@ -178,7 +184,8 @@ int EXIImmEx(s32 chan, void* buf, s32 len, u32 mode) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 67.66%; DMA setup differs; inspect argument snapshots and channel-register addressing */
+/* TODO: [breakthrough needed] 67.661020%; donor/retail DMA CFG and EXIControl
+ * offsets agree; register-base ownership and scheduling remain unresolved. */
 int EXIDma(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     EXIControl* exi;
     BOOL enabled;
@@ -212,7 +219,8 @@ int EXIDma(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 62.97%; poll/completion expansion differs; recover transfer helper ownership and exit joins */
+/* TODO: [breakthrough needed] 62.972790%; donor/retail CFG and Ecb offsets
+ * agree; persistent register-base ownership and loop lowering remain unresolved. */
 int EXISync(s32 chan) {
     EXIControl* exi;
     int rc;
@@ -265,6 +273,8 @@ u32 EXIClearInterrupts(s32 chan, int exi, int tc, int ext) {
     return cpr;
 }
 
+/* TODO: [breakthrough needed] 67.354836%; donor and retail agree on the
+ * callback/EXIControl algorithm; residual is compiler register/frame scheduling. */
 EXICallback EXISetExiCallback(s32 chan, EXICallback exiCallback) {
     EXIControl* exi;
     EXICallback prev;
@@ -340,6 +350,8 @@ static int __EXIProbe(s32 chan) {
     return rc;
 }
 
+/* TODO: [breakthrough needed] 83.125000%; retail CFG/ABI and Ecb idTime
+ * offset agree; fallback return ownership and branch lowering remain. */
 int EXIProbe(s32 chan) {
     EXIControl* exi = &Ecb[chan];
     int rc;
@@ -353,6 +365,8 @@ int EXIProbe(s32 chan) {
     return rc;
 }
 
+/* TODO: [breakthrough needed] 84.000000%; donor/retail result ladder and
+ * low-RAM gate agree; return ownership and branch lowering remain unresolved. */
 s32 EXIProbeEx(s32 chan) {
     if (EXIProbe(chan)) {
         return 1;
@@ -387,6 +401,8 @@ static inline int __EXIAttach(s32 chan, EXICallback extCallback) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 73.716415%; donor/retail nested-lock CFG and
+ * Ecb offsets agree; local ownership and register scheduling remain unresolved. */
 int EXIAttach(s32 chan, EXICallback extCallback) {
     EXIControl* exi;
     BOOL enabled;
@@ -407,6 +423,8 @@ int EXIAttach(s32 chan, EXICallback extCallback) {
     return rc;
 }
 
+/* TODO: [breakthrough needed] 78.510635%; donor/retail CFG and Ecb offsets
+ * agree; condition lowering and local ownership remain unresolved. */
 int EXIDetach(s32 chan) {
     EXIControl* exi;
     BOOL enabled;
@@ -471,7 +489,8 @@ inline int EXISelectSD(s32 chan, u32 dev, u32 freq) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 69.19%; device/frequency setup differs; inspect channel owner across probe and interrupt calls */
+/* TODO: [breakthrough needed] 69.186670%; donor/retail CFG, device/frequency
+ * bits, and Ecb/MMIO offsets agree; expression ownership remains unresolved. */
 int EXISelect(s32 chan, u32 dev, u32 freq) {
     EXIControl* exi;
     u32 cpr;
@@ -511,7 +530,8 @@ int EXISelect(s32 chan, u32 dev, u32 freq) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 80.51%; channel-owner saves differ; inspect deselect/probe lifetime and final return joins */
+/* TODO: [breakthrough needed] 80.514710%; donor/retail CFG and Ecb/MMIO
+ * offsets agree; channel ownership and final return joins remain unresolved. */
 int EXIDeselect(s32 chan) {
     EXIControl* exi;
     u32 cpr;
@@ -630,7 +650,8 @@ static void EXTIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     }
 }
 
-/* TODO: [breakthrough needed] 74.20%; initialization polling/setup differs; inspect register-bank and probe-reset expansions */
+/* TODO: [breakthrough needed] 74.196580%; EXIControl offsets and probe-reset
+ * stores match retail; remaining scheduling has no supported layout correction. */
 void EXIInit() {
     u32 id;
 
@@ -726,6 +747,8 @@ int EXIUnlock(s32 chan) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 64.166664%; direct Ecb[chan].state regressed
+ * to 62.5%; address/index scheduling still needs a structural source shape. */
 u32 EXIGetState(s32 chan) {
     EXIControl* exi;
 
@@ -739,6 +762,8 @@ static void UnlockedHandler(s32 chan, OSContext* context) {
     EXIGetID(chan, 0, &id);
 }
 
+/* TODO: [breakthrough needed] 80.05932%; EXIControl offsets agree, but the
+ * remaining inline-helper/CFG expansion has no honest layout correction. */
 s32 EXIGetID(s32 chan, u32 dev, u32* id) {
     EXIControl* exi = &Ecb[chan];
     int err;

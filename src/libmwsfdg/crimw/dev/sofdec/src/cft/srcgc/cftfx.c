@@ -72,9 +72,15 @@ typedef char CFTColorConversionStateSizeCheck[
 
 static CFTColorConversionState cft_color_state;
 
+/* TODO: [breakthrough needed] 81.63768%; flat coefficient/table aliases recover
+ * lifetime, but FP scheduling and state loads remain structural. */
 void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
 {
     CFTColorConversionState* state = &cft_color_state;
+    float* yuv_coeff = &state->yuv_rgb_coeff[0][0];
+    u8* conv_y = state->conv_y;
+    u8* conv_u = state->conv_u;
+    u8* conv_v = state->conv_v;
     s32 index;
 
     state->y_rgb = &table[0][0][0];
@@ -88,27 +94,29 @@ void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
         s32 offset = index * 4;
 
         state->y_rgb[offset + 1] =
-            state->yuv_rgb_coeff[0][0] * (float)state->conv_y[index];
+            yuv_coeff[0] * (float)conv_y[index];
         state->y_rgb[offset + 2] =
-            state->yuv_rgb_coeff[1][0] * (float)state->conv_y[index];
+            yuv_coeff[3] * (float)conv_y[index];
         state->y_rgb[offset + 3] =
-            state->yuv_rgb_coeff[2][0] * (float)state->conv_y[index];
+            yuv_coeff[6] * (float)conv_y[index];
         state->y_rgb[offset] = 255.0f;
-        state->cb_rgb[offset + 1] = state->yuv_rgb_coeff[0][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cb_rgb[offset + 2] = state->yuv_rgb_coeff[1][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cb_rgb[offset + 3] = state->yuv_rgb_coeff[2][1] *
-            ((float)state->conv_u[index] - 128.0f);
-        state->cr_rgb[offset + 1] = state->yuv_rgb_coeff[0][2] *
-            ((float)state->conv_v[index] - 128.0f);
-        state->cr_rgb[offset + 2] = state->yuv_rgb_coeff[1][2] *
-            ((float)state->conv_v[index] - 128.0f);
-        state->cr_rgb[offset + 3] = state->yuv_rgb_coeff[2][2] *
-            ((float)state->conv_v[index] - 128.0f);
+        state->cb_rgb[offset + 1] = yuv_coeff[1] *
+            ((float)conv_u[index] - 128.0f);
+        state->cb_rgb[offset + 2] = yuv_coeff[4] *
+            ((float)conv_u[index] - 128.0f);
+        state->cb_rgb[offset + 3] = yuv_coeff[7] *
+            ((float)conv_u[index] - 128.0f);
+        state->cr_rgb[offset + 1] = yuv_coeff[2] *
+            ((float)conv_v[index] - 128.0f);
+        state->cr_rgb[offset + 2] = yuv_coeff[5] *
+            ((float)conv_v[index] - 128.0f);
+        state->cr_rgb[offset + 3] = yuv_coeff[8] *
+            ((float)conv_v[index] - 128.0f);
     }
 }
 
+/* TODO: [breakthrough needed] 80.88535%; table math is donor-shaped, but FP
+ * scheduling and state access still differ materially. */
 void CFT_MakeYcc422ColAdjTbl(u32 table[4][256])
 {
     CFTColorConversionState* state = &cft_color_state;
@@ -165,17 +173,17 @@ static inline u32 cftMakeAlphaPair(u8 first, u8 second)
 }
 
 static inline void cftApplyDynamicAlphaRow(
-    u32* output, const u8** source, const u8* table)
+    u32* output, const u8* source, const u8* table)
 {
-    const u8* y = *source;
-    u32 first_alpha = cftMakeAlphaPair(table[y[0]], table[y[1]]);
-    u32 second_alpha = cftMakeAlphaPair(table[y[2]], table[y[3]]);
+    u32 first_alpha = cftMakeAlphaPair(table[source[0]], table[source[1]]);
+    u32 second_alpha = cftMakeAlphaPair(table[source[2]], table[source[3]]);
 
     output[0] &= first_alpha | 0x00FF00FF;
     output[1] &= second_alpha | 0x00FF00FF;
-    *source = y + 4;
 }
 
+/* TODO: [breakthrough] 50.76978%; typed row pointers recover the retail row
+ * topology; a consumed-cursor helper regresses, so the lifetime cause remains. */
 static void cnvDynamicYcc420plnToA256UserTable(
     const CFTYcc420Planar* source,
     const CFTArgb8888Output* destination,
@@ -195,17 +203,14 @@ static void cnvDynamicYcc420plnToA256UserTable(
     for (block_y = 0; block_y < height_in_blocks; block_y++) {
         s32 block_x;
         for (block_x = 0; block_x < width_in_blocks; block_x++) {
-            s32 row_advance = source_stride - 4;
+            const u8* row2 = y + source_stride;
+            const u8* row3 = row2 + source_stride;
+            const u8* row4 = row3 + source_stride;
 
-            cftApplyDynamicAlphaRow(output, &y, table);
-            y += row_advance;
-            cftApplyDynamicAlphaRow(output + 2, &y, table);
-            y += row_advance;
-            cftApplyDynamicAlphaRow(output + 4, &y, table);
-            y += row_advance;
-            cftApplyDynamicAlphaRow(output + 6, &y, table);
-            y += row_advance;
-            y -= source_stride * 4;
+            cftApplyDynamicAlphaRow(output, y, table);
+            cftApplyDynamicAlphaRow(output + 2, row2, table);
+            cftApplyDynamicAlphaRow(output + 4, row3, table);
+            cftApplyDynamicAlphaRow(output + 6, row4, table);
             y += 4;
             output += 16;
         }
@@ -233,6 +238,8 @@ static inline void cftApplyStaticAlphaRow(u32* output, u32 pixels)
     output[1] &= cftMakeDirectAlphaMask1(pixels);
 }
 
+/* TODO: [breakthrough needed] 81.45631%; static conversion shape is plausible,
+ * but its load/store schedule remains materially different. */
 static void cnvStaticYcc420plnToA256V(
     const CFTYcc420Planar* source,
     const CFTArgb8888Output* destination)
@@ -305,6 +312,8 @@ static inline void cftStorePixelQuad(
     second_output[0] = cftPackEvenPixels(second_luma, second_chroma);
 }
 
+/* TODO: [breakthrough needed] 82.605260%; retail/m2c use the +0x10 chroma pitch, but the
+ * converter's remaining pointer/update schedule still differs structurally. */
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {
@@ -326,7 +335,7 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     cb = (u8*)planes.cb;
     cr = (u8*)planes.cr;
     y_step = planes.y_pitch & ~3;
-    c_step = planes.c_height & ~1;
+    c_step = planes.c_pitch & ~1;
     y_rewind = (planes.y_pitch * 2) & ~7;
 
     for (block_y = 0; block_y < height / 4; block_y++) {
@@ -380,7 +389,3 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
         cr += c_step;
     }
 }
-
-/* Retail split-layout tails for the read-only and zero-initialized sections. */
-const u32 gap_04_80319FA4_rodata = 0;
-u32 gap_06_804AF97C_bss;

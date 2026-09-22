@@ -9,17 +9,11 @@ typedef struct OSResetFunctionQueue {
     OSResetFunctionInfo* tail;
 } OSResetFunctionQueue;
 
-typedef struct OSRebootParams {
-    int valid;
-    unsigned long restartCode;
-    unsigned char reserved[0x14];
-} OSRebootParams;
-
 static OSResetFunctionQueue ResetFunctionQueue;
 static unsigned long bootThisDol;
 
 #define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
-extern OSRebootParams __OSRebootParams;
+extern OSExecParams __OSRebootParams;
 
 volatile unsigned short __VIRegs[] : 0xCC002000;
 volatile unsigned long __PIRegs[] : 0xCC003000;
@@ -127,6 +121,7 @@ static void ShutdownDevices(int recalibrate)
 void OSResetSystem(int reset, unsigned long resetCode, int forceMenu)
 {
     OSSram* sram;
+    unsigned char unused[8];
 
     OSDisableScheduler();
     if (reset == 1 && forceMenu) {
@@ -164,7 +159,7 @@ void OSResetSystem(int reset, unsigned long resetCode, int forceMenu)
 unsigned int OSGetResetCode(void)
 {
     if (__OSRebootParams.valid) {
-        return 0x80000000 | __OSRebootParams.restartCode;
+        return 0x80000000 | __OSRebootParams.restart_code;
     }
     return (__PIRegs[9] & 0xFFFFFFF8) / 8;
 }

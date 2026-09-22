@@ -30,7 +30,7 @@ static int SFVOM_GetRead(SfdHandle* handle, SfdFrameTime** output)
     }
     result = SFBUF_VfrmGetRead(
         handle, handle->transports[SFD_VIDEO_OUTPUT_TRANSPORT].parameter_10,
-        output);
+        (void**)output);
     if (result != 0) {
         return result;
     }

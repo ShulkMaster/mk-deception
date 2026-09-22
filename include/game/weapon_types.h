@@ -15,8 +15,8 @@ typedef struct WeaponImpaleData {
     int bone_index;
     Vec position;
     char pad10[4];
-    Vec rotation;
-    Vec scale;
+    Vec child_offset; /* +0x14 */
+    Vec rotation; /* +0x20 - Euler angles */
     Vec gusher_direction;
 } WeaponImpaleData; /* 0x38 */
 
@@ -25,8 +25,8 @@ struct WeaponDefinition {
     const int* bone_tags;         /* +0x04 */
     int attachment_bone;
     Vec attachment_position;
-    Vec attachment_rotation;
-    Vec attachment_scale; /* +0x24 - vector passed to the bone matcher */
+    Vec attachment_child_offset; /* +0x18 - point on the attached item */
+    Vec attachment_rotation; /* +0x24 - Euler angles */
     const char* secondary_model_name; /* +0x30 */
     const int* trail_bone_tags; /* +0x34 */
     int trail_map_count; /* +0x38 */

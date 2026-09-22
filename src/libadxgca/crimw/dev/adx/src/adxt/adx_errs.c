@@ -4,15 +4,16 @@ typedef void (*ADXErrorCallback)(void* object, const char* message);
 
 extern void SVM_CallErr(const char* message, ...);
 
-ADXErrorCallback adxerr_func;
-void* adxerr_obj;
+ADXErrorCallback adxerr_func = 0;
+void* adxerr_obj = 0;
 char adxerr_msg[256];
 
-static inline void ADXERR_ItoA(int value, signed char* string, int length)
+static inline void adxerr_itoa(int value, signed char* string, int length)
 {
-    static signed char buffer[32];
-    int columns;
+    static signed char buf[32];
     int i;
+    int n;
+    int l;
 
     for (i = 0; i < 32; i++) {
         string[i] = value % 10;
@@ -23,19 +24,23 @@ static inline void ADXERR_ItoA(int value, signed char* string, int length)
         }
     }
 
-    columns = strlen((const char*)buffer);
-    columns = columns >= length - 1 ? length - 1 : columns;
-    for (i = 0; i < columns; i++) {
-        string[i] = buffer[columns - i - 1];
+    l = strlen((const char*)buf);
+    n = length - 1;
+    if (l < n) {
+        n = l;
+    }
+    for (i = 0; i < n; i++) {
+        string[i] = buf[n - 1 - i];
     }
     string[i] = '\0';
 }
 
+/* TODO: [near miss] 99.96784%; instructions and BSS layout agree; only anonymous pooled-space/local relocation labels remain. */
 void ADXERR_ItoA2(int value1, int value2, signed char* string, int length)
 {
-    ADXERR_ItoA(value1, string, length);
+    adxerr_itoa(value1, string, length);
     strncat((char*)string, " ", length - strlen((const char*)string) - 1);
-    ADXERR_ItoA(value2, string + strlen((const char*)string),
+    adxerr_itoa(value2, string + strlen((const char*)string),
                 4 - strlen((const char*)string));
 }
 

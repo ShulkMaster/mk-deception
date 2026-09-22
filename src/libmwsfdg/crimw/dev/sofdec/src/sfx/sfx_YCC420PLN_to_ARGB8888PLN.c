@@ -8,12 +8,13 @@ typedef struct CFTYcc420Planar {
     s32 y_stride;
     s32 cb_stride;
     s32 cr_stride;
-    u8 reserved_18[4];
+    s32 reserved_18;
 } CFTYcc420Planar;
 
 typedef struct CFTArgb8888Output {
     SFXPlaneBuffer plane;
-    u8 reserved_10[8];
+    s32 reserved_10;
+    s32 reserved_14;
 } CFTArgb8888Output;
 
 typedef char CFTYcc420PlanarSizeCheck[
@@ -34,8 +35,7 @@ extern s32 SFX_GetCcirFx(void);
 
 static inline SfxTagInfo* sfxcnv_GetTagInfo(SFXHandle* handle)
 {
-    /* SFXHandle exposes its tag-control prefix through the SfxTagInfo API. */
-    return (SfxTagInfo*)handle;
+    return handle;
 }
 
 static inline void sfxcnv_CnvNormalYcc420plnToArgb8888(
@@ -53,19 +53,19 @@ static inline void sfxcnv_CnvNormalYcc420plnToArgb8888(
     source.cr_stride = frame->cr.width;
 
     destination.plane.pixels = output;
-    destination.plane.width = frame->field_44;
+    destination.plane.width = frame->frame_width;
     if (sfxcnv_IsCnvUpHalf(handle) == 1) {
-        destination.plane.height = frame->field_48 / 2;
+        destination.plane.height = frame->frame_height / 2;
     } else {
-        destination.plane.height = frame->field_48;
+        destination.plane.height = frame->frame_height;
     }
 
-    if (handle->field_count == 0) {
+    if (handle->output_width == 0) {
         destination.plane.pitch = frame->y.width * 4;
-    } else if (handle->field_14 == 0) {
-        destination.plane.pitch = handle->field_count / 4;
+    } else if (handle->unit_width == 0) {
+        destination.plane.pitch = handle->output_width / 4;
     } else {
-        destination.plane.pitch = handle->field_count;
+        destination.plane.pitch = handle->output_width;
     }
 
     if (handle->field_74 == 1) {
@@ -73,13 +73,13 @@ static inline void sfxcnv_CnvNormalYcc420plnToArgb8888(
     }
 
     if (use_table == 1) {
-        table = handle->work_0;
+        table = handle->work_buffers[0];
     } else {
         table = 0;
     }
 
     /* Both GC source orientations use the same CFT conversion entry point. */
-    if (frame->field_74 == 1) {
+    if (frame->chroma_position_h == 1) {
         if (table != 0) {
             CFT_Ycc420plnToArgb8888(&source, &destination, table);
         } else {
@@ -112,24 +112,24 @@ static void sfxcnv_CnvAlphFulYcc420plnToArgb8888(
     source.cr_stride = frame->cr.width;
 
     destination.plane.pixels = output;
-    destination.plane.width = frame->field_44;
+    destination.plane.width = frame->frame_width;
     if (sfxcnv_IsCnvUpHalf(handle) == 1) {
-        destination.plane.height = frame->field_48 / 2;
+        destination.plane.height = frame->frame_height / 2;
     } else {
-        destination.plane.height = frame->field_48;
+        destination.plane.height = frame->frame_height;
     }
-    if (handle->field_count == 0) {
+    if (handle->output_width == 0) {
         destination.plane.pitch = frame->y.width * 4;
-    } else if (handle->field_14 == 0) {
-        destination.plane.pitch = handle->field_count / 4;
+    } else if (handle->unit_width == 0) {
+        destination.plane.pitch = handle->output_width / 4;
     } else {
-        destination.plane.pitch = handle->field_count;
+        destination.plane.pitch = handle->output_width;
     }
     if (handle->field_74 == 1) {
         SFX_SetBottomUpPlnBuf(&destination.plane);
     }
     /* Both GC source orientations use the same CFT conversion entry point. */
-    if (frame->field_74 == 1) {
+    if (frame->chroma_position_h == 1) {
         CFT_Ycc420plnToArgb8888(&source, &destination, 0);
     } else {
         CFT_Ycc420plnToArgb8888(&source, &destination, 0);
@@ -144,18 +144,18 @@ static void sfxcnv_CnvAlphFulYcc420plnToArgb8888(
     alpha_source.cr_stride = frame->cr.width;
 
     alpha_destination.plane.pixels = output;
-    alpha_destination.plane.width = frame->field_44;
-    alpha_destination.plane.height = frame->field_48 / 2;
-    if (handle->field_count == 0) {
+    alpha_destination.plane.width = frame->frame_width;
+    alpha_destination.plane.height = frame->frame_height / 2;
+    if (handle->output_width == 0) {
         alpha_destination.plane.pitch = frame->y.width * 4;
-    } else if (handle->field_14 == 0) {
-        alpha_destination.plane.pitch = handle->field_count / 4;
+    } else if (handle->unit_width == 0) {
+        alpha_destination.plane.pitch = handle->output_width / 4;
     } else {
-        alpha_destination.plane.pitch = handle->field_count;
+        alpha_destination.plane.pitch = handle->output_width;
     }
 
     if (SFX_GetCcirFx() == 1) {
-        table = handle->work_0;
+        table = handle->work_buffers[0];
     } else {
         table = 0;
     }
@@ -166,7 +166,7 @@ void SFX_CnvFrmYcc420plnToArgb8888(SFXHandle* handle,
                                     SFXFrameInfo* frame,
                                     void* output)
 {
-    switch (handle->stream_info) {
+    switch (handle->composition_mode) {
     case 0x11:
         if (SFX_GetColAdj(sfxcnv_GetTagInfo(handle)) != 1) {
             sfxcnv_CnvNormalYcc420plnToArgb8888(handle, frame, output, 0);
@@ -198,7 +198,7 @@ void SFX_CnvFrmYcc420plnToArgb8888(SFXHandle* handle,
         SFX_MakeTable(
             handle, frame,
             SFX_DecideTableAlph3(sfxcnv_GetTagInfo(handle),
-                                 handle->stream_info));
+                                 handle->composition_mode));
         sfxcnv_CnvNormalYcc420plnToArgb8888(
             handle, frame, output, 1);
         break;
@@ -211,7 +211,7 @@ void SFX_CnvFrmYcc420plnToArgb8888(SFXHandle* handle,
     case 0x111:
     default:
         SFXLIB_Error(
-            handle, (void*)frame,
+            handle, frame,
             "E201182: CnvToArgb8888 : compo is not support.");
         break;
     }

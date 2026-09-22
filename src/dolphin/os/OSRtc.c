@@ -75,7 +75,7 @@ void __OSInitSram(void)
     OSSetGbsMode(OSGetGbsMode());
 }
 
-static void* LockSram(unsigned long offset)
+static inline void* LockSram(unsigned long offset)
 {
     int enabled = OSDisableInterrupts();
     if (Scb.locked) {
@@ -158,14 +158,19 @@ unsigned int OSGetProgressiveMode(void)
 
 void OSSetProgressiveMode(unsigned int enabled)
 {
+#ifndef DEBUG
+    unsigned long padding[1];
+#endif
     OSSram* sram;
+
     enabled = (enabled << 7) & 0x80;
     sram = __OSLockSram();
     if (enabled == (sram->flags & 0x80)) {
         __OSUnlockSram(0);
         return;
     }
-    sram->flags = (sram->flags & ~0x80) | enabled;
+    sram->flags &= ~0x80;
+    sram->flags |= enabled;
     __OSUnlockSram(1);
 }
 
@@ -204,11 +209,15 @@ unsigned short OSGetGbsMode(void)
     return mode;
 }
 
-/* TODO: [near miss] 99.847824%; unsigned mode masks recovered; retail frame is eight bytes larger; no padding. */
 void OSSetGbsMode(unsigned short mode)
 {
+#ifndef DEBUG
+    unsigned long padding[1];
+#endif
     OSSramEx* sram;
+
     if ((mode & 0x7C00U) == 0x5000U || (mode & 0xC0U) == 0xC0U) mode = 0;
+
     sram = __OSLockSramEx();
     if (mode == sram->gbs) {
         __OSUnlockSramEx(0);

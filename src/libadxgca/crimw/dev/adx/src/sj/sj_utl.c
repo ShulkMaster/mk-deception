@@ -25,21 +25,18 @@ static inline int sj_hexstr_to_val(
     return value;
 }
 
-/* Soft ceiling: the remaining SJ_SearchTag differences are zero/store
- * scheduling and temporary register allocation in the two unrolled parses. */
+/* TODO: [near miss] 93.30827%; explicit start cursor regressed to 92.55639%; retain direct cursor, with unrolled decode scheduling remaining. */
 unsigned char* SJ_SearchTag(
     const SJCK* source, const char* tag, const char* terminator, SJCK* result) {
     unsigned char* current;
     unsigned char* end;
-    unsigned char* start;
     const int* table;
 
     result->data = 0;
     table = sj_hexstr_to_val_tbl;
     result->len = 0;
-    start = source->data;
-    current = start;
-    end = start + source->len;
+    current = source->data;
+    end = current + source->len;
     while (current < end) {
         if (strncmp((const char*)current, tag, 7) == 0) {
             result->data = current + 0x10;

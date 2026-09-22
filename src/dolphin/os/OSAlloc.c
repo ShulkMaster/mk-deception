@@ -1,5 +1,6 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
+#include "dolphin/types.h"
 
 #define NULL ((void*)0)
 #define ALIGNMENT 32
@@ -88,11 +89,11 @@ static Cell* DLInsert(Cell* list, Cell* cell) {
     return cell;
 }
 
-void* OSAllocFromHeap(OSHeapHandle heap, unsigned long size) {
+void* OSAllocFromHeap(OSHeapHandle heap, u32 size) {
     HeapDesc* hd;
     Cell* cell;
     Cell* newCell;
-    long leftoverSize;
+    s32 leftoverSize;
 
     hd = &HeapArray[heap];
     size += HEADERSIZE;

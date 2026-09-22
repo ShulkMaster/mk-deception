@@ -870,8 +870,7 @@ int was_i_hit_x_times(int hit_count);
 int was_button_and_direction(int button, int direction);
 void glitch_to_ani_frame(void* animation, int flags,
                          ScriptAnimationArgs* args, float frame);
-void blend_to_ani_frame(void* animation, int flags,
-                        ScriptAnimationArgs* args, float frame, float blend);
+void blend_to_ani_frame(AniData* animation, int flags, float blend, float frame);
 void glitch_to_ani(void* animation, int flags);
 void reaction_xfer_him_nohit(void* entry);
 void set_anim_hiframe(float frame);
@@ -885,7 +884,7 @@ int is_he_flipped(void);
 int am_i_flipped(void);
 int is_fast_getup(void);
 int disable_impale_check(void);
-void tag_team_activate_player(int player, int active);
+void tag_team_activate_player(MkObj* object, int active);
 void load_and_set_refl_on_weapon(void);
 void advance_active_moveset(int amount);
 int get_active_moveset_from_pdata(void* pdata);
@@ -1638,8 +1637,8 @@ int npc_reset_my_timed_events(void);
 int npc_restart_his_normal_behavior(int);
 int npc_run_shove_animation(int);
 int npc_set_ani_flags(int);
-int npc_set_ani_frame(void *, float);
-int npc_set_ani_speed(void *, float);
+void npc_set_ani_frame(float);
+void npc_set_ani_speed(float);
 int npc_set_dialog_anim(int);
 int npc_set_gravity(void *, float);
 int npc_set_my_ang_y(void *, float);
@@ -2033,7 +2032,7 @@ int npc_at_waypoint_set_flags(int, int);
 int npc_attack(int, int);
 int npc_blend_to_ani(int, int, void *, float, float);
 int npc_blend_to_ani_with_offset(int, int, void *, float, float);
-int npc_change_path_speed(void *, float);
+void npc_change_path_speed(float);
 int npc_enable_event(int, int);
 int npc_enable_his_event(int, int, int);
 int npc_glitch_him_to_ani(int, int, int);
@@ -2167,7 +2166,7 @@ void bgnd_kill_fx(const char*);
 int bgnd_launch_plyr_up_and_forward_running(void);
 float bgnd_npc_get_ang_y(int);
 float bgnd_pebble_fetch_current_info(unsigned int);
-int bgnd_pfx_reset_effect(void);
+void bgnd_pfx_reset_effect(const char* name);
 int bgnd_pfx_resume_effect(void);
 float bgnd_sobj_get_x_pos(int);
 float bgnd_sobj_get_y_pos(int);
@@ -2365,7 +2364,7 @@ int mk_chess_launch_n_land_ani_with_xz(int, int, int, float, float, float, float
 int mk_chess_place_special_cell_at(int, int, int, int, float, float, float, float);
 void mk_chess_put_active_piece_at_cell(int, float, float);
 int mk_chess_rotate_towards_cell(int, void *, float, float, float, float);
-int mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, int, int, int, void *, float, float, float, float);
+void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, float, int, float, int, float, int, float);
 int mks_set_rotate_update_by_group(int, int, int, float, float, float);
 int mks_set_sin_update_by_group(int, int, int, int, float, float, float, float, float, float);
 int obj_grnd_bounce(int, int, int, void *, float, float, float);
@@ -2735,7 +2734,7 @@ void _trial_add_required_attack(void) {
 }
 
 void _pz_fighter_should_continue_move(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = (g_pz_fighters_engine.attack_policy_flags >> 2) & 1;
+    ((ScriptRawResult*)active_cmdscript)->value.i = (g_pz_fighters_engine.fighter_move.policy_flags >> 2) & 1;
 }
 
 void _set_background_color(void) {
@@ -3494,8 +3493,7 @@ void _blend_to_ani_frame(void) {
     args.bytes = current_args;
     script.bytes = active_cmdscript;
     blend_to_ani_frame(script.command->animation, args.animation->flags,
-                       args.animation, args.animation->frame,
-                       args.animation->blend);
+                       args.animation->frame, args.animation->blend);
 }
 
 void _glitch_him_to_ani(void) {
@@ -3836,7 +3834,7 @@ void* get_animation(int animation_id) {
 }
 
 void _tag_team_activate_player(void) {
-    tag_team_activate_player(((ScriptRawArgs*)current_args)->slots[0].i,
+    tag_team_activate_player(((ScriptRawArgs*)current_args)->slots[0].pointer,
                              ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
@@ -7027,7 +7025,7 @@ void _mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(args.raw->slots[0].i, args.raw->slots[2].i, args.raw->slots[4].i, args.raw->slots[6].i, current_args, args.raw->slots[1].f, args.raw->slots[3].f, args.raw->slots[5].f, args.raw->slots[7].f);
+    mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].i, args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].i, args.raw->slots[7].f);
 }
 
 void _mks_debug_display_cloth_coll_plane(void) {
@@ -10361,8 +10359,7 @@ void _bgnd_pfx_resume_effect(void) {
 }
 
 void _bgnd_pfx_reset_effect(void) {
-    get_script_string_arg(1);
-    bgnd_pfx_reset_effect();
+    bgnd_pfx_reset_effect(get_script_string_arg(1));
 }
 
 void _bgnd_reset_players_animation_height(void) {
@@ -11810,7 +11807,7 @@ void _npc_change_path_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    npc_change_path_speed(current_args, args.raw->slots[0].f);
+    npc_change_path_speed(args.raw->slots[0].f);
 }
 
 void _npc_set_pinanim_flag(void) {
@@ -11824,7 +11821,7 @@ void _npc_set_ani_frame(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    npc_set_ani_frame(current_args, args.raw->slots[0].f);
+    npc_set_ani_frame(args.raw->slots[0].f);
 }
 
 void _npc_set_my_ground_level(void) {
@@ -12112,7 +12109,7 @@ void _npc_set_ani_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    npc_set_ani_speed(current_args, args.raw->slots[0].f);
+    npc_set_ani_speed(args.raw->slots[0].f);
 }
 
 void _bgnd_start_sobj_uv_scroll_tbl(void) {

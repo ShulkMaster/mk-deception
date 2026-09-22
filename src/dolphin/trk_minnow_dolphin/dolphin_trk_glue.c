@@ -126,6 +126,7 @@ DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
     return 0;
 }
 
+/* TODO: [breakthrough] 88.741936%; ordered 2/1/0 CFG now matches retail; remaining differences are string-pool materialization and r29/r30 coloring. */
 int InitMetroTRKCommTable(int hardware_id)
 {
     int result = 1;
@@ -133,8 +134,7 @@ int InitMetroTRKCommTable(int hardware_id)
     OSReport("Devkit set to : %ld\n", hardware_id);
     TRK_Use_BBA = 0;
 
-    switch (hardware_id) {
-    case 2:
+    if (hardware_id == 2) {
         OSReport("MetroTRK : Set to BBA\n");
         TRK_Use_BBA = 1;
         gDBCommTable.initialize = udp_cc_initialize;
@@ -148,7 +148,7 @@ int InitMetroTRKCommTable(int hardware_id)
         gDBCommTable.post_stop = udp_cc_post_stop;
         gDBCommTable.initialize_interrupts = 0;
         return 0;
-    case 1:
+    } else if (hardware_id == 1) {
         OSReport("MetroTRK : Set to GDEV hardware\n");
         result = Hu_IsStub();
         gDBCommTable.initialize = gdev_cc_initialize;
@@ -161,8 +161,7 @@ int InitMetroTRKCommTable(int hardware_id)
         gDBCommTable.pre_continue = gdev_cc_pre_continue;
         gDBCommTable.post_stop = gdev_cc_post_stop;
         gDBCommTable.initialize_interrupts = gdev_cc_initinterrupts;
-        break;
-    case 0:
+    } else if (hardware_id == 0) {
         OSReport("MetroTRK : Set to AMC DDH hardware\n");
         result = AMC_IsStub();
         gDBCommTable.initialize = ddh_cc_initialize;
@@ -175,12 +174,10 @@ int InitMetroTRKCommTable(int hardware_id)
         gDBCommTable.pre_continue = ddh_cc_pre_continue;
         gDBCommTable.post_stop = ddh_cc_post_stop;
         gDBCommTable.initialize_interrupts = ddh_cc_initinterrupts;
-        break;
-    default:
+    } else {
         OSReport("MetroTRK : Set to UNKNOWN hardware. (%ld)\n", hardware_id);
         OSReport("MetroTRK : Invalid hardware ID passed from OS\n");
         OSReport("MetroTRK : Defaulting to GDEV Hardware\n");
-        break;
     }
     return result;
 }

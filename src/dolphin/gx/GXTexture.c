@@ -374,6 +374,7 @@ u32 GXGetTexObjTlut(const GXTexObj* tex_obj) {
     return t->tlutName;
 }
 
+/* TODO: [near miss] 99.88421%; six-local donor shape reaches 100% only via unused snapshot locals/stack forcing; retain operations/ABI and stop at honest coloring. */
 void GXLoadTexObjPreLoaded(GXTexObj* obj, GXTexRegion* region, GXTexMapID id) {
     __GXTlutRegionInt* tlr;
     __GXTexObjInt* t = (__GXTexObjInt*)obj;
@@ -612,7 +613,7 @@ GXTlutRegionCallback GXSetTlutRegionCallback(GXTlutRegionCallback f) {
     return oldcb;
 }
 
-
+/* TODO: [breakthrough needed] 83.750000%; extraction casts were neutral; the shared-field form and SU-load ordering need stronger evidence. */
 static void __SetSURegs(u32 tmap, u32 tcoord) {
     u32 w;
     u32 h;

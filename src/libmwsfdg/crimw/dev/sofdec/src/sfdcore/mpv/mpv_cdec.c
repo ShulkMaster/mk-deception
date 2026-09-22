@@ -1,10 +1,5 @@
 #include "sofdec/mpv_mc.h"
 
-typedef union MPVCDECCoefficients {
-    f32 values[64];
-    f64 pairs[32];
-} MPVCDECCoefficients;
-
 /* The six contiguous input blocks occupy 384 floats or 192 paired stores. */
 typedef union MPVCDECIntraCoefficients {
     f32 values[6][64];
@@ -51,16 +46,21 @@ static inline void MPVCDEC_ClearCoefficients(f64** cursor)
     *(*cursor)++ = 0.0;
 }
 
+/* TODO: [breakthrough needed] 92.558136%; donor declaration order is neutral;
+ * its indexed block/nonzero form regresses to 79.930230%, so retain cursors. */
 s32 MPVCDEC_NintraBlocks(MPVContext* context)
 {
-    MPVCodingBlock* block = &context->coding.block;
-    DctFsriParams* params = &context->dct_state.params;
-    MPVCDECCoefficients* coefficients =
-        (MPVCDECCoefficients*)&context->transform.coefficients[3];
-    s8* nonzero = params->block_nonzero;
+    MPVCodingBlock* block;
+    DctFsriParams* params;
+    f32* coefficients;
+    s8* nonzero;
     s32 pattern;
     s32 index;
 
+    block = &context->coding.block;
+    params = &context->dct_state.params;
+    coefficients = &context->transform.coefficients[3][0];
+    nonzero = params->block_nonzero;
     block->quantizer_scale = context->quantizer_scale;
     block->quant_matrix = (const u8*)context->nonintra_quant_matrix;
     context->coding.non_intra_mode = 1;
@@ -72,7 +72,7 @@ s32 MPVCDEC_NintraBlocks(MPVContext* context)
             *nonzero = context->decode_nonintra_block(context, block);
         }
         pattern = (s32)((u32)pattern << 1);
-        coefficients++;
+        coefficients += 64;
         nonzero++;
     }
     DCT_FsriTransCbp(params);

@@ -2,18 +2,6 @@
 
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
-static inline u32 mpvmc_pack_avg4(const u8* reference0, const u8* reference1)
-{
-    return (((reference0[0] + (reference0[1] + reference1[0] + reference1[1] + 2)) << 22) &
-            0xFF000000) |
-           (((reference0[1] + (reference0[2] + reference1[1] + reference1[2] + 2)) << 14) &
-            0x00FF0000) |
-           (((reference0[2] + (reference0[3] + reference1[2] + reference1[3] + 2)) << 6) &
-            0x0000FF00) |
-           (((reference0[3] + (reference0[4] + reference1[3] + reference1[4] + 2)) >> 2) &
-            0x000000FF);
-}
-
 static inline u32 mpvmc_avg_words(u32 left, u32 right)
 {
     u32 different = left ^ right;
@@ -65,20 +53,73 @@ static inline void mpvmc_copy_shift3_row(const u8* reference, u8* destination)
     ((u32*)destination)[1] = (words[1] << 24) | (words[2] >> 8);
 }
 
+/* TODO: [breakthrough needed] 58.776318%; clean expansion now matches retail loads/prefetch and packing, but register/frame scheduling remains. */
 void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
 {
     int row;
-    u32 stride = context->reference_stride;
-    const u8* reference0 = context->reference0;
-    const u8* reference1 = context->reference1;
-    u8* destination = context->destination;
+    u32 stride;
+    const u8* reference0;
+    const u8* reference1;
+    u32* destination;
+    u32 a0;
+    u32 b0;
+    u32 a1;
+    u32 b1;
+    u32 a2;
+    u32 b2;
+    u32 p0;
+    u32 p1;
+    u32 p2;
+    u32 p3;
+    u32 p4;
+    u32 p5;
+    u32 p6;
+    u32 p7;
+
+    stride = context->reference_stride;
+    reference0 = context->reference0;
+    reference1 = context->reference1;
+    destination = (u32*)context->destination;
 
     for (row = 0; row < 8; row++) {
-        ((u32*)destination)[0] = mpvmc_pack_avg4(reference0, reference1);
-        ((u32*)destination)[1] = mpvmc_pack_avg4(reference0 + 4, reference1 + 4);
-        destination += 8;
+        a0 = reference0[0];
+        b0 = reference1[0];
+        __dcbt((void*)reference1, stride);
+        a1 = reference0[1];
+        b1 = reference1[1];
+        p0 = a0 + a1 + b0 + b1 + 2;
+        a2 = reference0[2];
+        b2 = reference1[2];
+        p1 = a1 + a2 + b1 + b2 + 2;
+        a0 = reference0[3];
+        b0 = reference1[3];
+        p2 = a2 + a0 + b2 + b0 + 2;
+        a1 = reference0[4];
+        b1 = reference1[4];
+        p3 = a0 + a1 + b0 + b1 + 2;
+        a2 = reference0[5];
+        b2 = reference1[5];
+        p4 = a1 + a2 + b1 + b2 + 2;
+        a0 = reference0[6];
+        b0 = reference1[6];
+        p5 = a2 + a0 + b2 + b0 + 2;
+        a1 = reference0[7];
+        b1 = reference1[7];
+        p6 = a0 + a1 + b0 + b1 + 2;
+        a2 = reference0[8];
+        b2 = reference1[8];
+        p7 = a1 + a2 + b1 + b2 + 2;
+        destination[0] = (((p0 << 22) & 0xFF000000) |
+                          ((p1 << 14) & 0x00FF0000) |
+                          ((p2 << 6) & 0x0000FF00) |
+                          ((p3 >> 2) & 0x000000FF));
+        destination[1] = (((p4 << 22) & 0xFF000000) |
+                          ((p5 << 14) & 0x00FF0000) |
+                          ((p6 << 6) & 0x0000FF00) |
+                          ((p7 >> 2) & 0x000000FF));
         reference0 += stride;
         reference1 += stride;
+        destination += 2;
     }
 }
 

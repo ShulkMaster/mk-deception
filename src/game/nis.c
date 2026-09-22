@@ -410,28 +410,20 @@ void nis_signal_event(int event) {
     nis_event_list[word_index] |= 1U << bit;
 }
 
+/* TODO: [breakthrough] 71.02631%; event indexing/loop corrected; prologue,
+ * register allocation and constant relocation remain. */
 void nis_wait_for_event(int event, int timeout) {
     float sleep_ticks;
-    unsigned int offset;
-    int bit_mask;
+    unsigned int word_index;
+    unsigned int bit_mask;
     int remaining;
-    char* list;
-    unsigned int word;
 
     sleep_ticks = flt_349;
-    list = (char*)nis_event_list;
-    offset = (unsigned int)event;
-    offset = offset << 29;
-    offset = offset >> 3;
-    bit_mask = 1 << (event & 0x1F);
+    word_index = (unsigned int)event >> 5;
+    bit_mask = 1U << (event & 0x1F);
     remaining = timeout;
-    for (;;) {
-        if (nis_wait_override == 0) {
-            word = *(unsigned int*)(list + offset);
-            if ((word & bit_mask) != 0) {
-                break;
-            }
-        }
+    while (nis_wait_override != 0 ||
+           (nis_event_list[word_index] & bit_mask) == 0) {
         if (remaining == 0) {
             break;
         }

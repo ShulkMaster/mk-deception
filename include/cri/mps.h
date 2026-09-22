@@ -1,7 +1,7 @@
 #ifndef CRI_MPS_H
 #define CRI_MPS_H
 
-typedef int MpsCallbackObject;
+typedef void* MpsCallbackObject;
 
 typedef struct MpsPackHeader {
     long long scr;
@@ -63,22 +63,18 @@ typedef void (*MpsPsMapCallback)(void);
 typedef int (*MpsDecodeHeaderFn)(struct MpsHandle* handle, const unsigned char* data,
                                  int size, int* consumed, int* header_flags);
 
+/* MPS_CheckDelim's start-code classes (matching the CRI MPS interface). */
+#define MPS_DELIM_END 0x80000
+#define MPS_DELIM_PACK 0x10000
+#define MPS_DELIM_SYSHD 0x20000
+#define MPS_DELIM_PKET 0x40000
+
 typedef struct MpsDecodedHeaders {
     MpsPackHeader pack_header;
     MpsSystemHeader last_system_header;
     MpsSystemHeader system_headers[3];
     MpsPacketHeader packet_header;
 } MpsDecodedHeaders;
-
-/**
- * Alternate views of the 0xB8-byte decoded-header storage. `MPS_Create`
- * initializes all 46 words together; decoder and getter paths use the typed
- * header view.
- */
-typedef union MpsHandlePayload {
-    MpsDecodedHeaders headers;
-    int decoder_words[46];
-} MpsHandlePayload;
 
 typedef struct MpsHandle {
     int state;
@@ -87,7 +83,7 @@ typedef struct MpsHandle {
     int error;
     int packet_length_bytes;
     int field_14;
-    MpsHandlePayload payload;
+    MpsDecodedHeaders headers;
     int field_D0;
     MpsDecodeHeaderFn decode_header;
     int field_D8;
@@ -121,8 +117,6 @@ typedef char MpsSystemCallbackInfoSizeCheck[
     sizeof(MpsSystemCallbackInfo) == 0xD8 ? 1 : -1];
 typedef char MpsDecodedHeadersSizeCheck[
     sizeof(MpsDecodedHeaders) == 0xB8 ? 1 : -1];
-typedef char MpsHandlePayloadSizeCheck[
-    sizeof(MpsHandlePayload) == 0xB8 ? 1 : -1];
 typedef char MpsHandleSizeCheck[sizeof(MpsHandle) == 0x100 ? 1 : -1];
 typedef char MpsLibWorkSizeCheck[sizeof(MpsLibWork) == 0x110 ? 1 : -1];
 
@@ -133,7 +127,7 @@ int MPS_GetPackHd(MpsHandle* handle, MpsPackHeader* out);
 void MPSGET_Finish(void);
 void MPSGET_Init(void);
 
-int MPS_CheckDelim(const unsigned char* data);
+unsigned int MPS_CheckDelim(const unsigned char* data);
 int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
                       int* consumed, int* header_flags);
 void MPSDEC_Finish(void);

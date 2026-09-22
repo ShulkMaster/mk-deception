@@ -45,7 +45,7 @@ int MPV_GetPicAtr(MPVContext* handle, MPVPictureInfo* picture)
     if (MPVLIB_CheckHn(handle) != 0) {
         return MPVERR_SetCode(0, 0xFF03020C);
     }
-    current = (MPVPictureInfo*)&handle->condition_state.decoder.picture;
+    current = &handle->condition_state.picture;
     *picture = *current;
     return 0;
 }

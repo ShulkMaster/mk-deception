@@ -6,6 +6,11 @@
 /* These game/process functions are emitted by C translation units. Establish
  * their linkage before legacy headers redeclare them in this C++ unit. */
 extern "C" {
+struct MkProc;
+struct MkHdr;
+struct MkHdr* pdata_of_proc(struct MkProc* proc);
+struct MkProc* find_mkproc_pid(int pid);
+void unload_section_slot(int handle);
 void destroy_mkprocs_pid(int pid);
 void unload_p1_player_profile(void);
 void unload_p2_player_profile(void);
@@ -72,13 +77,6 @@ typedef struct ScreenActionView {
     void* owner;                /* +0x2C */
     void* params;               /* +0x30 */
 } ScreenActionView;
-
-/* MkProc.flags (+0xA8) bit 0x08 (SKIP_IF_PAUSED) -> retail rlwimi. */
-typedef struct MkProcPauseFlag {
-    unsigned char pad0 : 4;
-    unsigned char skip_if_paused : 1;
-    unsigned char pad1 : 3;
-} MkProcPauseFlag;
 
 void* __nw__FUl(unsigned long size);
 void free_mem(void* mem);
@@ -1204,11 +1202,9 @@ void fire_screen_studio_event(int event, int flag) {
 
 
 
-/*
- * Sleep current proc until screen-engine tick pid 0x9011 is gone.
- * Soft ceiling: wait_for_screen_close ~59.5% -- -sdata 0 forces ha/l for
- * aproc/_mkproc_sleep_ticks (retail @sda21) + larger stmw frame; algo OK.
- */
+/* Sleep current proc until screen-engine tick pid 0x9011 is gone. */
+/* TODO: [near miss] 99.80769%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 void wait_for_screen_close(void) {
     float sleep;
     int pid_base;
@@ -1274,34 +1270,23 @@ void preload_screen_data(const char* name, int slot) {
  * the Midway must-run path for menu chrome to reach render_2d_objs. Host
  * still fills ScreenClient::LoadScreenSet so ScreenMgr::Render has Screens.
  *
- * Soft ceiling: ~91.6% -- stmw vs split stw + instance branch shape.
  * B21 PPWLS: load_screen("common/memory_card/mc_main", 0x90046, ...) from
  * p_player_profile_whats_loaded_screen; studio events 0x1FB7/0x1FBE refresh/done.
  */
+/* TODO: [near miss] 99.05173%; matching-only argument aliases removed; equivalent shared-pdata validation branch lowering remains */
 void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot) {
-    const char* name_nv;
-    int slot_nv;
-    MkHdr* share_nv;
-    int unload_nv;
     MkHdr* current;
     unsigned int loaded;
     ScreenObj* screen_obj;
     MkProc* tick;
     MkProc* ctrl;
     ScreenCtrlPdata* ctrl_pdata;
-    MkProcPauseFlag* pflags;
     int port;
 
-    /* Pin all 4 args into NVs first so prologue can emit stmw r28. */
-    name_nv = name;
-    slot_nv = slot;
-    share_nv = share_pdata;
-    unload_nv = unload_slot;
+    screen_engine_client.slot = slot;
 
-    screen_engine_client.slot = slot_nv;
-
-    if (unload_nv != 0) {
-        unload_section_slot(slot_nv);
+    if (unload_slot != 0) {
+        unload_section_slot(slot);
     }
 
     current = screen_engine_client.share_pdata;
@@ -1313,13 +1298,12 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
         current = 0;
     }
 
-    /* Q1 try: instance->pdata (Ghidra) dropped load_screen ~2% -- keep pdata->instance. */
-    if ((share_nv == 0 || current == 0 || share_nv == current) && share_nv != 0) {
-        screen_engine_client.share_pdata = share_nv;
-        screen_engine_client.share_instance = (int)share_nv->instance;
+    if ((share_pdata == 0 || current == 0 || share_pdata == current) && share_pdata != 0) {
+        screen_engine_client.share_pdata = share_pdata;
+        screen_engine_client.share_instance = (int)share_pdata->instance;
     }
 
-    loaded = (unsigned int)LoadScreen__9ScreenMgrFPcUi(screen_manager, (char*)name_nv, 1);
+    loaded = (unsigned int)LoadScreen__9ScreenMgrFPcUi(screen_manager, (char*)name, 1);
     if (loaded == 0) {
         return;
     }
@@ -1328,7 +1312,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
     }
 
     if (apdata == 0) {
-        apdata = share_nv;
+        apdata = share_pdata;
     }
 
     target_game_mode = 0x18;
@@ -1346,8 +1330,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
         return;
     }
 
-    pflags = (MkProcPauseFlag*)&tick->flags;
-    pflags->skip_if_paused = 1;
+    tick->flags_bits.skip_if_paused = 1;
     mk_insert((MkHdr*)screen_obj, &tick->pdata_list_b);
 
     for (port = 0; port < 3; port++) {
@@ -1358,8 +1341,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
             ctrl_pdata->port = port;
             ctrl_pdata->field0C = 0;
             ctrl_pdata->field10 = 0;
-            pflags = (MkProcPauseFlag*)&ctrl->flags;
-            pflags->skip_if_paused = 1;
+            ctrl->flags_bits.skip_if_paused = 1;
         }
         mk_insert((MkHdr*)ctrl, &tick->pdata_list_b);
     }
@@ -1533,7 +1515,7 @@ static float p_repeat_button_input__Fv(void);
                 _pdata->delayLeft = 0x1E;                                      \
                 _proc->sleep_ticks = (float)button_repeat_time;                \
                 /* Retail: lbz/rlwimi/stb on flags low byte @+0xa8. */          \
-                ((MkProcPauseFlag*)&_proc->flags)->skip_if_paused = 1;         \
+                _proc->flags_bits.skip_if_paused = 1;         \
             }                                                                  \
         } else {                                                               \
             _proc = 0;                                                         \
@@ -1557,7 +1539,7 @@ static float p_repeat_button_input__Fv(void);
                 _pdata->repeating = 0;                                         \
                 _pdata->delayLeft = 0x1E;                                      \
                 _proc->sleep_ticks = (float)button_repeat_time;                \
-                ((MkProcPauseFlag*)&_proc->flags)->skip_if_paused = 1;         \
+                _proc->flags_bits.skip_if_paused = 1;         \
                 s_nRepeatedStickBits |= (bit_);                                \
             }                                                                  \
         }                                                                      \
@@ -6883,10 +6865,9 @@ extern unsigned int IsValidInt__22GameVariableDispatcherFUiUiUiUii(
  * SpreadSheet nav click -- extraResId indexes ui_sound_table (< 0x3D).
  * Special id 0x1B4E ducks pid 0x2001 via set_snd_vol before snd_req.
  */
-static void SpreadSheetPlayNavSound(SpreadSheet* self) {
+static inline void SpreadSheetPlayNavSound(SpreadSheet* self) {
     SpreadSheet_text* ss;
     unsigned int soundIndex;
-    int soundId;
     MkProc* proc;
     MkHdr* pdata;
 
@@ -6899,8 +6880,7 @@ static void SpreadSheetPlayNavSound(SpreadSheet* self) {
         vdebug_print_message(stringBase0 + 0x264, (int)soundIndex);
         return;
     }
-    soundId = ui_sound_table[soundIndex];
-    if (soundId == 0x1B4E) {
+    if (ui_sound_table[soundIndex] == 0x1B4E) {
         proc = find_mkproc_pid(0x2001);
         if (proc != 0) {
             pdata = pdata_of_proc(proc);
@@ -6909,7 +6889,7 @@ static void SpreadSheetPlayNavSound(SpreadSheet* self) {
             }
         }
     }
-    snd_req(soundId);
+    snd_req(ui_sound_table[soundIndex]);
 }
 
 void Init__11SpreadSheetFv(SpreadSheet* self) {
@@ -7008,9 +6988,11 @@ void RefreshOption__11SpreadSheetFv(SpreadSheet* self) {
     RefreshOption__11SpreadSheetFi(self, 1);
 }
 
+/* Retail action handlers call these navigation methods; the sound helper expands. */
+#pragma auto_inline off
+/* TODO: [near miss] 96.19318%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
 void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
-    void (*update)(SpreadSheet* self);
 
     if (self->cellArray == 0) {
         return;
@@ -7037,13 +7019,12 @@ void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    update = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4];
-    update(self);
+    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
 }
 
+/* TODO: [near miss] 96.39785%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
 void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
-    void (*update)(SpreadSheet* self);
 
     if (self->cellArray == 0) {
         return;
@@ -7071,13 +7052,12 @@ void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    update = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4];
-    update(self);
+    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
 }
 
+/* TODO: [near miss] 96.95454%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
 void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
-    void (*update)(SpreadSheet* self);
 
     if (self->cellArray == 0) {
         return;
@@ -7116,13 +7096,12 @@ void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    update = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4];
-    update(self);
+    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
 }
 
+/* TODO: [near miss] 91.91666%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
 void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int winMax;
-    void (*update)(SpreadSheet* self);
 
     if (self->cellArray == 0) {
         return;
@@ -7153,9 +7132,10 @@ void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    update = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4];
-    update(self);
+    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
 }
+
+#pragma auto_inline reset
 
 /* Persist scroll/focus ints after a Scroll* when optionId is bound. */
 static void SpreadSheetSyncOptionArray(SpreadSheet* self) {
@@ -7274,8 +7254,8 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* /*mgr*/, 
 /*
  * SpreadSheet::HandleAction -- scroll, row/col state, compares, show/hide (0x7db).
  * Unknown args fall through to ScreenControl::HandleAction. result init 1.
- * Soft ceiling: ~17.8% -- retail binary cmp tree vs switch; stop.
  */
+/* TODO: [near miss] 96.88641%; Five attempts completed; remaining comparison CFG, register allocation and helper scheduling require a future round. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
                                                             const void* actionIn) {
     const ScreenActionView* action;
@@ -7299,44 +7279,44 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
     result = 1;
 
     switch (arg) {
-    case 0x7d2:
-        ScrollDown__11SpreadSheetFi(self, 1);
-        SpreadSheetSyncOptionArray(self);
-        break;
-    case 0x7d3:
-        ScrollUp__11SpreadSheetFi(self, 1);
-        SpreadSheetSyncOptionArray(self);
-        break;
-    case 0x7d4:
-        ScrollLeft__11SpreadSheetFi(self, 1);
-        SpreadSheetSyncOptionArray(self);
-        break;
-    case 0x7d5:
-        ScrollRight__11SpreadSheetFi(self, 1);
+    case 0x53500061:
+        ScrollDown__11SpreadSheetFi(self, GetInt__12ScreenParamsFUi(params, 0));
         SpreadSheetSyncOptionArray(self);
         break;
     case 0x53500060:
         ScrollUp__11SpreadSheetFi(self, GetInt__12ScreenParamsFUi(params, 0));
         SpreadSheetSyncOptionArray(self);
         break;
-    case 0x53500061:
-        ScrollDown__11SpreadSheetFi(self, GetInt__12ScreenParamsFUi(params, 0));
+    case 0x7D2:
+        ScrollDown__11SpreadSheetFi(self, 1);
+        SpreadSheetSyncOptionArray(self);
+        break;
+    case 0x7D3:
+        ScrollUp__11SpreadSheetFi(self, 1);
         SpreadSheetSyncOptionArray(self);
         break;
     case 0x53500062:
         ScrollLeft__11SpreadSheetFi(self, GetInt__12ScreenParamsFUi(params, 0));
         SpreadSheetSyncOptionArray(self);
         break;
+    case 0x7D4:
+        ScrollLeft__11SpreadSheetFi(self, 1);
+        SpreadSheetSyncOptionArray(self);
+        break;
     case 0x53500063:
         ScrollRight__11SpreadSheetFi(self, GetInt__12ScreenParamsFUi(params, 0));
         SpreadSheetSyncOptionArray(self);
         break;
-
+    case 0x7D5:
+        ScrollRight__11SpreadSheetFi(self, 1);
+        SpreadSheetSyncOptionArray(self);
+        break;
     case 0x53500000:
         /* Set row state at unkD4 + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
+        idx = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetRowStateFire(self, self->unkD4 + p0, p1);
+        SpreadSheetSetRowStateFire(self, idx, p1);
         break;
     case 0x53500001:
         /* Add p1 to row state at unkD4 + p0. */
@@ -7355,7 +7335,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetSetRowStateFire(self, idx, state - p1);
         break;
     case 0x53500003:
-    case 0x53500005:
         /* Subtract p0 from row state at focus Y (unkDC). */
         idx = self->unkDC;
         state = SpreadSheetGetRowState(self, idx);
@@ -7369,12 +7348,19 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         state = SpreadSheetGetRowState(self, idx);
         SpreadSheetSetRowStateFire(self, idx, state + p0);
         break;
-
+    case 0x53500005:
+        /* Subtract p0 from row state at focus Y (unkDC). */
+        idx = self->unkDC;
+        state = SpreadSheetGetRowState(self, idx);
+        p0 = GetInt__12ScreenParamsFUi(params, 0);
+        SpreadSheetSetRowStateFire(self, idx, state - p0);
+        break;
     case 0x53500006:
         /* Compare window origin Y (unkD4). */
+        idx = self->unkD4;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, self->unkD4, p0, p1);
+        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
         break;
     case 0x53500007:
         /* Compare row state at unkD4 + p0. */
@@ -7396,16 +7382,37 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     case 0x53500009:
         /* Compare focus offset within window (unkDC - unkD4). */
+        idx = self->unkDC - self->unkD4;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, self->unkDC - self->unkD4, p0,
+        SpreadSheetCompareSubActions(self, actionIn, idx, p0,
                                      p1);
         break;
     case 0x5350000A:
         /* Compare focus Y (unkDC). */
+        idx = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, self->unkDC, p0, p1);
+        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
+        break;
+    case 0x5350000C:
+        /* Start/mid/end class of focus Y vs unkEC. */
+        idx = self->unkDC;
+        p0 = GetInt__12ScreenParamsFUi(params, 0);
+        p1 = GetInt__12ScreenParamsFUi(params, 1);
+        if (self->unkEC > 0) {
+            if (self->unkEC == 1) {
+                /* Retail leaves GetInt(1) in r3 as compare lhs. */
+                lhs = p1;
+            } else if (idx == 0) {
+                lhs = 0;
+            } else if (idx == self->unkEC - 1) {
+                lhs = 2;
+            } else {
+                lhs = 1;
+            }
+            SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
+        }
         break;
     case 0x5350000B:
         /* Compare row state at focus Y. */
@@ -7414,30 +7421,12 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
         break;
-    case 0x5350000C:
-        /* Start/mid/end class of focus Y vs unkEC. */
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        p1 = GetInt__12ScreenParamsFUi(params, 1);
-        if (self->unkEC > 0) {
-            if (self->unkEC == 1) {
-                /* Retail leaves GetInt(1) in r3 as compare lhs. */
-                lhs = p1;
-            } else if (self->unkDC == 0) {
-                lhs = 0;
-            } else if (self->unkDC == self->unkEC - 1) {
-                lhs = 2;
-            } else {
-                lhs = 1;
-            }
-            SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
-        }
-        break;
-
     case 0x53500030:
         /* Set col state at scrollX + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
+        idx = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetColStateFire(self, self->scrollX + p0, p1);
+        SpreadSheetSetColStateFire(self, idx, p1);
         break;
     case 0x53500031:
         /* Add p1 to col state at scrollX + p0. */
@@ -7457,8 +7446,17 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     case 0x53500033:
         /* Set col state at focus X (scrollY). */
+        idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        SpreadSheetSetColStateFire(self, self->scrollY, p0);
+        SpreadSheetSetColStateFire(self, idx, p0);
+        break;
+    case 0x53500039:
+        /* Compare focus offset within window (scrollY - scrollX). */
+        idx = self->scrollY - self->scrollX;
+        p0 = GetInt__12ScreenParamsFUi(params, 0);
+        p1 = GetInt__12ScreenParamsFUi(params, 1);
+        SpreadSheetCompareSubActions(self, actionIn, idx, p0,
+                                     p1);
         break;
     case 0x53500034:
         /* Add p0 to col state at focus X. */
@@ -7474,12 +7472,12 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         SpreadSheetSetColStateFire(self, idx, state - p0);
         break;
-
     case 0x53500036:
         /* Compare window origin X (scrollX). */
+        idx = self->scrollX;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, self->scrollX, p0, p1);
+        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
         break;
     case 0x53500037:
         /* Compare col state at scrollX + p0. */
@@ -7499,24 +7497,32 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, vis, p0, p1);
         break;
-    case 0x53500039:
-        /* Compare focus offset within window (scrollY - scrollX). */
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, self->scrollY - self->scrollX, p0,
-                                     p1);
-        break;
     case 0x5350003A:
         /*
          * Compare focus X; also run sub-actions when unkE8==1 and rhs!=1 even if
          * the compare fails (retail CR quirk path).
          */
+        idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        if (ScreenIntegerCompare__Fiii(self->scrollY, p0, p1) != 0 ||
+        if (ScreenIntegerCompare__Fiii(idx, p0, p1) != 0 ||
             (self->unkE8 == 1 && p1 != 1)) {
             ProcessSubActions__12ScreenObjectFPC12ScreenActioni(self, actionIn, 0);
         }
+        break;
+    case 0x5350003C:
+        /* Start/mid/end class of focus X vs unkE8. */
+        idx = self->scrollY;
+        p0 = GetInt__12ScreenParamsFUi(params, 0);
+        p1 = GetInt__12ScreenParamsFUi(params, 1);
+        if (idx == 0) {
+            lhs = 0;
+        } else if (idx == self->unkE8 - 1) {
+            lhs = 2;
+        } else {
+            lhs = 1;
+        }
+        SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
         break;
     case 0x5350003B:
         /* Compare col state at focus X. */
@@ -7525,21 +7531,7 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
         break;
-    case 0x5350003C:
-        /* Start/mid/end class of focus X vs unkE8. */
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        p1 = GetInt__12ScreenParamsFUi(params, 1);
-        if (self->scrollY == 0) {
-            lhs = 0;
-        } else if (self->scrollY == self->unkE8 - 1) {
-            lhs = 2;
-        } else {
-            lhs = 1;
-        }
-        SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
-        break;
-
-    case 0x7db:
+    case 0x7DB:
         /* Show/hide only when params node 0 is this object -- no peer delegate. */
         node = GetScreenNode__12ScreenParamsFUi(params, 0);
         if (node == (void*)self) {
@@ -7553,7 +7545,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
             }
         }
         break;
-
     default:
         result = HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(self, mgr,
                                                                            actionIn);

@@ -21,17 +21,14 @@
 
 typedef struct EjbProcSleepVtable {
     void* reserved[4];
-    int (*destroy)(void);
+    void (*destroy)(MkProc* process);
     void* dispatch;
     void (*sleep)(void);
     void* reserved_after_sleep[2];
     float (*transfer)(MkProcEntryFn entry, float delay);
 } EjbProcSleepVtable;
 
-typedef struct EjbActionRef {
-    int field_00;
-    unsigned int action;
-} EjbActionRef;
+typedef AiFightstyleAttack EjbActionRef;
 
 typedef struct EjbSwitchLogEntry {
     unsigned int switch_id;
@@ -67,60 +64,6 @@ typedef struct EjbAnimPdataExtended {
     float landing_frame; /* +0xFC */
 } EjbAnimPdataExtended;
 
-typedef struct EjbPlyrPdataExtended {
-    char pad000[0x238];
-    int initialize_mode; /* +0x238 */
-    char pad23C[0x14];
-    int hit_count; /* +0x250 */
-    int reaction_hit_count; /* +0x254 */
-    char pad258[4];
-    int combo_hit_count; /* +0x25C */
-    char pad260[0x2C];
-    float taunt_life_scale; /* +0x28C */
-    float postround_value; /* +0x290 */
-    float combo_damage; /* +0x294 */
-    char pad298[8];
-    int script_exit_value; /* +0x2A0 */
-    int attack_disable_ticks; /* +0x2A4 */
-    int clear_opponent_block; /* +0x2A8 */
-    int exit_stance_mode; /* +0x2AC */
-    int fatality_advance; /* +0x2B0 */
-} EjbPlyrPdataExtended;
-
-typedef struct EjbFighterDefinitionExtended {
-    int character_id;
-    char pad04[8];
-    MkObj* impale_source; /* +0x0C */
-    unsigned int impale_source_instance;
-    char pad14[0x10];
-    MkObj* impale_target; /* +0x24 */
-    unsigned int impale_target_instance;
-    char pad2C[0x48];
-    AniData* standing_animation; /* +0x74 */
-    char pad78[0x4C];
-    AniData* crouching_animation; /* +0xC4 */
-} EjbFighterDefinitionExtended;
-
-typedef struct EjbSuperchargeView {
-    char pad000[0x10C];
-    MkHdr* scale_pdata;
-    unsigned int scale_pdata_instance;
-    char pad114[0x16C];
-    unsigned int recharge_tick;
-    unsigned int active_until;
-    float charge_scale;
-} EjbSuperchargeView;
-
-typedef struct EjbScalePdata {
-    char pad00[4];
-    unsigned int instance;
-    char pad08[8];
-    const unsigned int* script;
-    const unsigned int* current_script;
-    Vec scale;
-    float script_frame;
-} EjbScalePdata;
-
 typedef struct EjbBoneMatcherView {
     char pad00[0x0C];
     float position_weight; /* +0x0C */
@@ -129,13 +72,13 @@ typedef struct EjbBoneMatcherView {
 } EjbBoneMatcherView;
 
 typedef struct EjbSharedAnimationsView {
-    char pad000[0x10];
+    AniData* pad000[4];
     AniData* turn_around; /* +0x10 */
     AniData* airborne_turn; /* +0x14 */
-    char pad018[0x18];
+    AniData* pad018[6];
     AniData* step_throw_into;
     AniData* step_throw_out;
-    char pad038[0x1D8];
+    AniData* pad038[118];
     AniData* back_getup_3; /* +0x210 */
     AniData* back_getup_3_flipped; /* +0x214 */
     AniData* back_getup_6; /* +0x218 */
@@ -155,9 +98,10 @@ typedef struct EjbSharedAnimationsView {
     AniData* sit_getup_12; /* +0x250 */
     AniData* chamber_to_stance;
     AniData* chamber_to_stance_2;
-    char pad25C[0x14];
+    AniData* pad25C[5];
     AniData* reverse_to_stance; /* +0x270 */
 } EjbSharedAnimationsView;
+typedef char EjbSharedAnimationsViewSizeCheck[sizeof(EjbSharedAnimationsView) == (628 / 4) * sizeof(AniData*) ? 1 : -1];
 
 extern PlyrPdata* his_pdata;
 extern CameraObj* camera_obj;
@@ -181,8 +125,8 @@ void random_voice(int group);
 int advance_anim(AnimPdata* anim);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
-void transition_to_anim_script_frame(
-    AnimPdata* anim, AniData* animation, int flags, float frame);
+int transition_to_anim_script_frame(
+    float blend, float frame, AnimPdata* anim, AnimScript* animation, unsigned int flags);
 void set_plyr_attack_region(
     int use_body, float radius, float extension);
 void start_plyr_attack(float scale);
@@ -249,8 +193,7 @@ void ps_plyr_force(void);
 float two_player_animation_blend(
     AniData* animation, int attacker_mode, int victim_mode,
     float attacker_blend, float victim_blend);
-void plyr_match_weapon_flip_to_obj_flip(
-    PlyrPdata* player, MkObj* object);
+void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player);
 float p_konquest_register_bleeding(void);
 void special_move_cam_setup(
     int mode, int ticks, int flags, float x, float y, float z,
@@ -416,6 +359,14 @@ EjbPlyrForcePdata* plyr_force_pdata;
         }                                                                \
     } while (0)
 
+static inline void set_my_state_impl(int state) {
+    plyr_pdata->previous_state = plyr_pdata->state;
+    plyr_pdata->state = state;
+    if (state == 0) {
+        plyr_pdata->secondary_state = 0;
+    }
+}
+
 static inline void ejb_sleep_ticks(float ticks) {
     _mkproc_sleep_ticks = ticks;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -435,14 +386,12 @@ static inline int blend_to_stance_inline(float blend_rate) {
         crouching = 1;
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->crouching_animation,
+            plyr_pdata->fighter_definition->duck_animation,
             0x20, blend_rate);
     } else {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->standing_animation,
+            plyr_pdata->fighter_definition->standing_animation_script,
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -1075,19 +1024,23 @@ float j_getup_back_9(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 98.38028%; retail clamp and owner reads restored; one initial owner-register move remains; stop at coloring. */
 float aniproc_land(void) {
     AnimPdata* anim;
-    EjbAnimPdataExtended* animation;
-    EjbFighterDefinitionExtended* fighter;
+    GlobalMoveset* fighter;
+    float target_frame;
 
     anim = anim_pdata;
-    animation = (EjbAnimPdataExtended*)anim;
-    EJB_ADVANCE_TO_FRAME(anim, animation->transition_rate);
-    anim_set_hiframe(anim_pdata, animation->landing_frame);
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
+    target_frame = anim->landing_start;
+    if (target_frame > anim->high_frame) {
+        target_frame = anim->high_frame;
+    }
+    EJB_ADVANCE_TO_FRAME(anim, target_frame);
+    anim_set_hiframe(
+        anim_pdata, anim_pdata->landing_end);
+    fighter = plyr_pdata->fighter_definition;
     transition_to_anim_script(
-        anim_pdata, fighter->standing_animation, 0, 0.1f);
+        anim_pdata, fighter->standing_animation_script, 0, 0.1f);
     plyr_pdata->saved_anim_script_word = 0;
     ((EjbProcSleepVtable*)aproc->vtbl)
         ->transfer((MkProcEntryFn)p_animate, 0.0f);
@@ -1139,27 +1092,27 @@ static inline void check_for_combo_message_impl(void) {
     float displayed_damage;
 
     {
-        MkProc* process = aproc;
-        EjbPlyrPdataExtended* player =
-            (EjbPlyrPdataExtended*)plyr_pdata;
-        int player_number = process->pid == 0x1001;
+        int player_number = aproc->pid == 0x1001;
+        PlyrPdata* player = plyr_pdata;
         int combo_hits = player->combo_hit_count;
 
         if (combo_hits > 1 &&
             (combo_hits > 2 || player->combo_damage > 0.15f)) {
-            displayed_damage = (int)(player->combo_damage * 100.5f);
+            displayed_damage = player->combo_damage;
+            displayed_damage *= 100.5f;
+            displayed_damage = (int)displayed_damage;
             show_damage_text(
                 player_number, combo_hits, displayed_damage);
         }
     }
     trial_register_combo(
         plyr_pdata->plyr_num,
-        ((EjbPlyrPdataExtended*)plyr_pdata)->combo_hit_count,
-        plyr_pdata, ((EjbPlyrPdataExtended*)plyr_pdata)->combo_damage);
-    ((EjbPlyrPdataExtended*)plyr_pdata)->hit_count = 0;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->reaction_hit_count = 0;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->combo_damage = 0.0f;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->combo_hit_count = 0;
+        plyr_pdata->combo_hit_count,
+        plyr_pdata, plyr_pdata->combo_damage);
+    plyr_pdata->hit_count = 0;
+    plyr_pdata->reaction_hit_count = 0;
+    plyr_pdata->combo_damage = 0.0f;
+    plyr_pdata->combo_hit_count = 0;
 }
 
 static inline MkProc* player_live_transient_proc(PlyrPdata* owner) {
@@ -1175,7 +1128,6 @@ static inline MkProc* player_live_transient_proc(PlyrPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 96.534880%; register coloring, relocation offsets; one-trial ceiling. */
 void land_chores(
     int land_sound, int second_sound,
     float shake_ticks, float shake_strength) {
@@ -1188,7 +1140,7 @@ void land_chores(
     process = player_live_transient_proc(plyr_pdata);
 
     if (process != 0 && process != aproc && process->instance != 0) {
-        ((EjbProcSleepVtable*)process->vtbl)->destroy();
+        ((EjbProcSleepVtable*)process->vtbl)->destroy(process);
     }
     object->pos_vel.x = 0.0f;
     object->pos_vel.y = 0.0f;
@@ -1351,12 +1303,11 @@ void nudge_towards_him(float max_step) {
     plyr_obj->ang.y += max_step;
 }
 
+/* TODO: [near miss] 98.18182%; five-attempt limit reached; inspect and record remaining FP operand scheduling. */
 void rotate_towards_position(Vec* target, float max_step) {
     float desired;
     float difference;
     float absolute_difference;
-    EjbAnimPdataExtended* animation;
-    EjbFighterDefinitionExtended* fighter;
 
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
@@ -1372,7 +1323,7 @@ void rotate_towards_position(Vec* target, float max_step) {
         absolute_difference = -difference;
     }
     if (absolute_difference > 2.7f) {
-        set_my_state(0x201);
+        set_my_state_impl(0x201);
         init_air_move_no_aniproc();
         ani_with_new_angle_y(
             shared_ani.airborne_turn, 3, 9.0f, 1.0f, 0.1f);
@@ -1381,16 +1332,14 @@ void rotate_towards_position(Vec* target, float max_step) {
             (unsigned int)exec_tick_ctr) {
             ejb_sleep_ticks(1.0f);
         }
-        fighter =
-            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
         if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
             (plyr_pdata->state & 0x100) != 0) {
             transition_to_anim_script(
-                plyr_anim_pdata, fighter->crouching_animation,
+                plyr_anim_pdata, plyr_pdata->fighter_definition->duck_animation,
                 0x20, 0.1f);
         } else {
             transition_to_anim_script(
-                plyr_anim_pdata, fighter->standing_animation,
+                plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script,
                 0x20, 0.1f);
         }
         xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -1399,25 +1348,24 @@ void rotate_towards_position(Vec* target, float max_step) {
             plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
         ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
         plyr_anim_pdata->step = 1.0f;
-        animation = (EjbAnimPdataExtended*)plyr_anim_pdata;
-        while (animation->pose_frame < 14.0f) {
+        while (plyr_anim_pdata->old_frame < 14.0f) {
             ejb_sleep_ticks(1.0f);
         }
         random_foot(0);
         init_ground_move();
-        while (animation->pose_frame < 17.0f) {
+        while (plyr_anim_pdata->old_frame < 17.0f) {
             ejb_sleep_ticks(1.0f);
         }
-        set_my_state(0);
-        plyr_pdata->secondary_state = 0;
-        if (is_blind(plyr_pdata) != 0 ||
-            fighter->character_id == 0x33) {
+        set_my_state_impl(0);
+        if (is_blind(plyr_pdata) != 0) {
+            plyr_obj->flags_09_bits.head_tracking = 0;
+        } else if (plyr_pdata->fighter_definition->fighter_id == 0x33) {
             plyr_obj->flags_09_bits.head_tracking = 0;
         } else {
             plyr_obj->flags_09_bits.head_tracking = 1;
         }
     } else {
-        while (absolute_difference > max_step) {
+        while ((difference >= 0.0f ? difference : -difference) > max_step) {
             if (difference < 0.0f) {
                 plyr_obj->ang.y -= max_step;
             } else {
@@ -1428,80 +1376,72 @@ void rotate_towards_position(Vec* target, float max_step) {
                 target->x - plyr_obj->pos.value.x,
                 target->z - plyr_obj->pos.value.z);
             difference = ang_sub_ang(desired, plyr_obj->ang.y);
-            if (difference >= 0.0f) {
-                absolute_difference = difference;
-            } else {
-                absolute_difference = -difference;
-            }
         }
     }
     plyr_obj->ang.y = desired;
 }
 
+/* TODO: [near miss] 99.45544%; five-attempt limit reached; remaining equivalent branch and operand scheduling differences. */
 void rotate_towards_him(float max_step) {
     float desired;
     float difference;
-    float absolute_difference;
-    EjbFighterDefinitionExtended* fighter;
+    float delta_x;
+    float delta_z;
+    GlobalMoveset* fighter;
 
-    if (g_game_info.plyr0.slot.mirror_a == 0 ||
-        g_game_info.plyr1.slot.mirror_a == 0 ||
-        (plyr_obj->flags_0B & 8) == 8) {
-        return;
-    }
-
-    desired = gxMathArcTanYX(
-        his_obj->pos.value.x - plyr_obj->pos.value.x,
-        his_obj->pos.value.z - plyr_obj->pos.value.z);
-    difference = ang_sub_ang(desired, plyr_obj->ang.y);
-    if (rotate_towards_sync(difference) == 1) {
-        set_my_state(0x201);
-        xfer_proc(plyr_anim_proc, p_anim_idle);
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.turn_around, 3, 0.125f);
-        plyr_anim_pdata->step = 0.6f;
-        ejb_sleep_ticks(1.0f);
-        while (plyr_anim_pdata->frame < 4.8f) {
-            advance_anim(plyr_anim_pdata);
-            pose_anim(plyr_anim_pdata, 1);
-            ejb_sleep_ticks(1.0f);
+    if (g_game_info.plyr0.slot.mirror_a != 0) {
+        if (g_game_info.plyr1.slot.mirror_a == 0) {
+            return;
         }
-        plyr_anim_pdata->flags |= 0x1000;
-        plyr_obj->ang.y += 3.1415927f;
-        toggle_obj_and_ani_flips(plyr_anim_pdata);
-        fighter =
-            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
-        transition_to_anim_script(
-            plyr_anim_pdata, fighter->standing_animation, 0, 0.125f);
-        plyr_anim_pdata->step = 1.0f;
-        ejb_sleep_ticks(1.0f);
-        while (plyr_anim_pdata->frame < 8.0f) {
-            advance_anim(plyr_anim_pdata);
-            pose_anim(plyr_anim_pdata, 1);
-            ejb_sleep_ticks(1.0f);
-        }
-        set_my_state(0);
-        plyr_pdata->secondary_state = 0;
-        xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
-    } else {
-        absolute_difference =
-            difference >= 0.0f ? difference : -difference;
-        while (absolute_difference > max_step) {
-            if (difference < 0.0f) {
-                plyr_obj->ang.y -= max_step;
-            } else {
-                plyr_obj->ang.y += max_step;
-            }
-            ejb_sleep_ticks(1.0f);
-            desired = gxMathArcTanYX(
-                his_obj->pos.value.x - plyr_obj->pos.value.x,
-                his_obj->pos.value.z - plyr_obj->pos.value.z);
+        if (plyr_obj->flags_0B_bits.bit3 != 1) {
+            delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
+            delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
+            desired = gxMathArcTanYX(delta_x, delta_z);
             difference = ang_sub_ang(desired, plyr_obj->ang.y);
-            absolute_difference =
-                difference >= 0.0f ? difference : -difference;
+            if (rotate_towards_sync(difference) == 1) {
+                set_my_state_impl(0x201);
+                xfer_proc(plyr_anim_proc, p_anim_idle);
+                transition_to_anim_script(
+                    plyr_anim_pdata, shared_ani.turn_around, 3, 0.125f);
+                plyr_anim_pdata->step = 0.6f;
+                ejb_sleep_ticks(1.0f);
+                while (plyr_anim_pdata->frame < 4.8f) {
+                    advance_anim(plyr_anim_pdata);
+                    pose_anim(plyr_anim_pdata, 1);
+                    ejb_sleep_ticks(1.0f);
+                }
+                plyr_anim_pdata->flags |= 0x1000;
+                plyr_obj->ang.y += 3.1415927f;
+                toggle_obj_and_ani_flips(plyr_anim_pdata);
+                fighter = plyr_pdata->fighter_definition;
+                transition_to_anim_script(
+                    plyr_anim_pdata, fighter->standing_animation_script, 0, 0.125f);
+                plyr_anim_pdata->step = 1.0f;
+                ejb_sleep_ticks(1.0f);
+                while (plyr_anim_pdata->frame < 8.0f) {
+                    advance_anim(plyr_anim_pdata);
+                    pose_anim(plyr_anim_pdata, 1);
+                    ejb_sleep_ticks(1.0f);
+                }
+                set_my_state_impl(0);
+                xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+            } else {
+                while ((difference >= 0.0f ? difference : -difference) > max_step) {
+                    if (difference < 0.0f) {
+                        plyr_obj->ang.y -= max_step;
+                    } else {
+                        plyr_obj->ang.y += max_step;
+                    }
+                    ejb_sleep_ticks(1.0f);
+                    delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
+                    delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
+                    desired = gxMathArcTanYX(delta_x, delta_z);
+                    difference = ang_sub_ang(desired, plyr_obj->ang.y);
+                }
+            }
+            plyr_obj->ang.y = desired;
         }
     }
-    plyr_obj->ang.y = desired;
 }
 
 static float ani_with_new_angle_y(
@@ -1768,11 +1708,7 @@ void set_ani_speed(float speed) {
 }
 
 void set_my_state(int state) {
-    plyr_pdata->previous_state = plyr_pdata->state;
-    plyr_pdata->state = state;
-    if (state == 0) {
-        plyr_pdata->secondary_state = 0;
-    }
+    set_my_state_impl(state);
 }
 
 void set_my_secondary_state(int state) {
@@ -2241,9 +2177,10 @@ void glitch_to_ani_frame(
 }
 
 void blend_to_ani_frame(
-    AniData* animation, int flags, float frame) {
+    AniData* animation, int flags, float blend, float frame) {
+    /* Retail forwards f1 (blend) and f2 (target frame), 800C7640. */
     transition_to_anim_script_frame(
-        plyr_anim_pdata, animation, flags, frame);
+        blend, frame, plyr_anim_pdata, (AnimScript*)animation, flags);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
@@ -2256,31 +2193,28 @@ void blend_to_ani(AniData* animation, int transition, float blend_rate) {
 }
 
 static inline void exit_reaction_common(void) {
-    EjbPlyrPdataExtended* player;
-    EjbFighterDefinitionExtended* fighter;
     MkHdr* object_hdr;
-    float frames;
     float ticks;
+    float frames;
     float exit_ticks;
     float blend_rate;
     unsigned int duration;
 
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     frames = plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
     ticks = frames / plyr_anim_pdata->step;
-    if (player->script_exit_value < 3 ||
-        player->script_exit_value > 100) {
-        player->script_exit_value = 20;
+    if (plyr_pdata->script_exit_value_int > 100 ||
+        plyr_pdata->script_exit_value_int < 3) {
+        plyr_pdata->script_exit_value_int = 20;
     }
-    if (player->attack_disable_ticks != 0) {
-        if (player->attack_disable_ticks < 2 ||
-            player->attack_disable_ticks > 60) {
-            player->attack_disable_ticks = 2;
+    if (plyr_pdata->script_exit_args[0] != 0) {
+        if (plyr_pdata->script_exit_args[0] > 60 ||
+            plyr_pdata->script_exit_args[0] < 2) {
+            plyr_pdata->script_exit_args[0] = 2;
         }
         plyr_pdata->attacks_disabled_until =
             game_tick_ctr +
-            (int)((float)player->attack_disable_ticks *
+            (int)((float)plyr_pdata->script_exit_args[0] *
                   inverse_game_speed + 0.5f);
     }
     duration = plyr_pdata->input_unlock_tick;
@@ -2295,11 +2229,11 @@ static inline void exit_reaction_common(void) {
             game_tick_ctr +
             (int)((float)duration * inverse_game_speed + 0.5f);
     }
-    if (player->clear_opponent_block != 0) {
+    if (plyr_pdata->script_exit_args[1] != 0) {
         his_pdata->blocking_disabled_2 = 0;
     }
 
-    exit_ticks = (float)player->script_exit_value;
+    exit_ticks = (float)plyr_pdata->script_exit_value_int;
     if (ticks > exit_ticks) {
         _mkproc_sleep_ticks = (float)(int)(ticks - exit_ticks);
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -2313,25 +2247,23 @@ static inline void exit_reaction_common(void) {
         plyr_anim_pdata->step *= ticks / exit_ticks;
     }
     blend_rate = 1.0f / exit_ticks;
-    switch (player->exit_stance_mode) {
+    switch (plyr_pdata->script_exit_arg_2) {
     case 0:
         if (plyr_anim_pdata->last_exec_tick ==
             (unsigned int)exec_tick_ctr) {
             ejb_sleep_ticks(1.0f);
         }
-        fighter =
-            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
         if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
             (plyr_pdata->state & 0x100)) {
             transition_to_anim_script(
-                plyr_anim_pdata, fighter->crouching_animation,
+                plyr_anim_pdata, plyr_pdata->fighter_definition->duck_animation,
                 0x20, blend_rate);
         } else {
             transition_to_anim_script(
-                plyr_anim_pdata, fighter->standing_animation,
+                plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script,
                 0x20, blend_rate);
         }
-        xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+        xfer_proc(plyr_anim_proc, p_animate);
         plyr_obj->flags_09_bits.launched = 1;
         object_hdr =
             plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -2368,26 +2300,25 @@ float j_exit_6(void) {
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     frames = plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
     ticks = frames / plyr_anim_pdata->step;
-    if (((EjbPlyrPdataExtended*)plyr_pdata)->script_exit_value > 100 ||
-        ((EjbPlyrPdataExtended*)plyr_pdata)->script_exit_value < 3) {
-        ((EjbPlyrPdataExtended*)plyr_pdata)->script_exit_value = 20;
+    if (plyr_pdata->script_exit_value_int > 100 ||
+        plyr_pdata->script_exit_value_int < 3) {
+        plyr_pdata->script_exit_value_int = 20;
     }
-    if (((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks != 0) {
-        if (((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks > 60 ||
-            ((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks < 2) {
-            ((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks = 2;
+    if (plyr_pdata->script_exit_args[0] != 0) {
+        if (plyr_pdata->script_exit_args[0] > 60 ||
+            plyr_pdata->script_exit_args[0] < 2) {
+            plyr_pdata->script_exit_args[0] = 2;
         }
         if (is_plyr_airborn_impl(
                 plyr_pdata->his_obj,
                 plyr_pdata->his_plyr_pdata) == 1 &&
-            ((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks == 15 &&
+            plyr_pdata->script_exit_args[0] == 15 &&
             his_pdata->hit_count > 0) {
-            ((EjbPlyrPdataExtended*)plyr_pdata)->attack_disable_ticks = 6;
+            plyr_pdata->script_exit_args[0] = 6;
         }
         plyr_pdata->attacks_disabled_until =
             game_tick_ctr +
-            (int)((float)((EjbPlyrPdataExtended*)plyr_pdata)
-                      ->attack_disable_ticks *
+            (int)((float)plyr_pdata->script_exit_args[0] *
                   inverse_game_speed + 0.5f);
     }
     duration = plyr_pdata->input_unlock_tick;
@@ -2402,12 +2333,12 @@ float j_exit_6(void) {
             game_tick_ctr +
             (int)((float)duration * inverse_game_speed + 0.5f);
     }
-    if (((EjbPlyrPdataExtended*)plyr_pdata)->clear_opponent_block != 0) {
+    if (plyr_pdata->script_exit_args[1] != 0) {
         his_pdata->blocking_disabled_2 = 0;
     }
 
     exit_ticks =
-        (float)((EjbPlyrPdataExtended*)plyr_pdata)->script_exit_value;
+        (float)plyr_pdata->script_exit_value_int;
     if (ticks > exit_ticks) {
         _mkproc_sleep_ticks = (float)(int)(ticks - exit_ticks);
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -2421,7 +2352,7 @@ float j_exit_6(void) {
         plyr_anim_pdata->step *= ticks / exit_ticks;
     }
     blend_rate = 1.0f / exit_ticks;
-    switch (((EjbPlyrPdataExtended*)plyr_pdata)->exit_stance_mode) {
+    switch (plyr_pdata->script_exit_arg_2) {
     case 0:
         if (plyr_anim_pdata->last_exec_tick ==
             (unsigned int)exec_tick_ctr) {
@@ -2431,14 +2362,12 @@ float j_exit_6(void) {
             (plyr_pdata->state & 0x100)) {
             transition_to_anim_script(
                 plyr_anim_pdata,
-                ((EjbFighterDefinitionExtended*)
-                    plyr_pdata->fighter_definition)->crouching_animation,
+                plyr_pdata->fighter_definition->duck_animation,
                 0x20, blend_rate);
         } else {
             transition_to_anim_script(
                 plyr_anim_pdata,
-                ((EjbFighterDefinitionExtended*)
-                    plyr_pdata->fighter_definition)->standing_animation,
+                plyr_pdata->fighter_definition->standing_animation_script,
                 0x20, blend_rate);
         }
         xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -2521,14 +2450,12 @@ float j_blend_to_stance_in_x(void) {
         (plyr_pdata->state & 0x100) != 0) {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->crouching_animation,
+            plyr_pdata->fighter_definition->duck_animation,
             0x20, blend_rate);
     } else {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->standing_animation,
+            plyr_pdata->fighter_definition->standing_animation_script,
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -2553,14 +2480,12 @@ static inline void glitch_to_stance_impl(float blend_rate) {
         (plyr_pdata->state & 0x100)) {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->crouching_animation,
+            plyr_pdata->fighter_definition->duck_animation,
             0x20, blend_rate);
     } else {
         set_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->standing_animation,
+            plyr_pdata->fighter_definition->standing_animation_script,
             0x20);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -2964,12 +2889,12 @@ void idle_victim(void) {
     }
 }
 
+/* TODO: [near miss] 99.93079%; only initial collision-result register coloring remains; stop after one lifetime control */
 int ani_col_abort(
     int attack_region, int reaction, int strength,
     float target_frame, float region_scale,
     float attack_scale, float reaction_rate) {
     int passed_target;
-    int collision_result;
     int collision_blocked;
     int counter_allowed;
     int state;
@@ -2980,7 +2905,9 @@ int ani_col_abort(
     g_no_throw_f = 0;
     start_plyr_attack(attack_scale);
 
-    if (plyr_anim_pdata->frame <= target_frame) {
+    if (plyr_anim_pdata->frame >= target_frame) {
+        int collision_result;
+
         plyr_pdata->attack_region = attack_region;
         if (his_pdata->collision_disabled != 0) {
             collision_result = 0;
@@ -3009,10 +2936,12 @@ int ani_col_abort(
     while (plyr_anim_pdata->frame <= target_frame &&
            passed_target == 0 &&
            plyr_pdata->collision_result == -1) {
+        int collision_result;
+
         advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         ejb_sleep_ticks(1.0f);
-        if (plyr_anim_pdata->frame > target_frame) {
+        if (plyr_anim_pdata->frame >= target_frame) {
             passed_target = 1;
             plyr_anim_pdata->frame = target_frame;
         }
@@ -3066,20 +2995,21 @@ int ani_col_abort(
             counter_allowed = 0;
         } else {
             state = plyr_pdata->state;
-            switch (state) {
-            case 0x1210:
-            case 0x1211:
-            case 0x120B:
-            case 0x3204:
-            case 0x3205:
+            if (state == 0x1210) {
                 counter_allowed = 0;
-                break;
-            default:
+            } else if (state == 0x1211) {
+                counter_allowed = 0;
+            } else if (state == 0x120B) {
+                counter_allowed = 0;
+            } else if (state == 0x3204) {
+                counter_allowed = 0;
+            } else if (state == 0x3205) {
+                counter_allowed = 0;
+            } else {
                 if (ejb_function_pointers[42] != 0) {
                     ejb_function_pointers[42]();
                 }
                 counter_allowed = 1;
-                break;
             }
         }
         if (counter_allowed != 0) {
@@ -3123,6 +3053,7 @@ void check_to_register_miss(void) {
     }
 }
 
+/* TODO: [near miss] 97.68650%; five attempts reached; local float slots/load scheduling and collision-restriction branch lowering remain */
 float ani_to_frame_x_col(
     int attack_region, int reaction, int strength,
     float target_frame, float horizontal_scale,
@@ -3146,13 +3077,13 @@ float ani_to_frame_x_col(
     g_no_throw_f = 0;
     start_plyr_attack(adjusted_vertical);
 
-    if (plyr_anim_pdata->frame <= target_frame) {
+    if (plyr_anim_pdata->frame >= target_frame) {
         plyr_pdata->attack_region = attack_region;
         if (his_pdata->collision_disabled != 0) {
             collision_result = 0;
         } else {
             set_plyr_attack_region(
-                attack_region, 0.0f, adjusted_horizontal);
+                attack_region, adjusted_horizontal, 0.0f);
             collision_result = collide_plyr_vs_plyr();
             if (collision_result == 1) {
                 trial_state_collision_check(
@@ -3172,15 +3103,12 @@ float ani_to_frame_x_col(
         }
     }
 
-    for (;;) {
-        if (plyr_anim_pdata->frame > target_frame ||
-            passed_target != 0) {
-            break;
-        }
+    while (plyr_anim_pdata->frame <= target_frame &&
+           passed_target == 0) {
         advance_result = advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         ejb_sleep_ticks(1.0f);
-        if (plyr_anim_pdata->frame > target_frame) {
+        if (plyr_anim_pdata->frame >= target_frame) {
             passed_target = 1;
             plyr_anim_pdata->frame = target_frame;
         }
@@ -3221,7 +3149,8 @@ float ani_to_frame_x_col(
                 break;
             }
             case 6: {
-                MkObj* opponent_object = plyr_pdata->his_obj;
+                PlyrPdata* opponent;
+                MkObj* opponent_object;
                 int opponent_state = his_pdata->state;
 
                 if ((opponent_state & 0x1000) != 0) {
@@ -3234,26 +3163,15 @@ float ani_to_frame_x_col(
                 if (opponent_state == 0x120C) {
                     collision_blocked = 0;
                 }
-                if (is_big_boss(
-                        plyr_pdata->his_plyr_pdata) == 0) {
-                    if (opponent_state == 0x605) {
-                        collision_blocked = 1;
-                    } else if (opponent_state == 0x3202) {
-                        collision_blocked = 1;
-                    } else if (opponent_state == -0x39FE) {
-                        collision_blocked = 1;
-                    } else if (opponent_state == 0x6001) {
-                        collision_blocked = 1;
-                    } else if (opponent_state == 0x60C) {
-                        collision_blocked = 0;
-                    } else if (opponent_object->pos_vel.y != 0.0f &&
-                               opponent_object->gravity != 0.0f) {
-                        collision_blocked = 1;
-                    }
+                opponent = plyr_pdata->his_plyr_pdata;
+                opponent_object = plyr_pdata->his_obj;
+                if (is_plyr_airborn_impl(opponent_object, opponent) != 0) {
+                    collision_blocked = 1;
                 }
                 if (is_big_boss(his_pdata) != 0) {
                     collision_blocked = 1;
                 }
+                opponent_state = his_pdata->state;
                 if (opponent_state == 0x101) {
                     collision_blocked = 1;
                 }
@@ -3267,8 +3185,8 @@ float ani_to_frame_x_col(
                     collision_blocked = 1;
                 }
                 if ((opponent_state & 0x400) != 0 &&
-                    opponent_state != -0x3A00 &&
-                    opponent_state != -0x39FF &&
+                    opponent_state != 0xC600 &&
+                    opponent_state != 0xC601 &&
                     opponent_state != 0x4207) {
                     collision_blocked = 1;
                 }
@@ -3299,7 +3217,7 @@ float ani_to_frame_x_col(
                     collision_result = 0;
                 } else {
                     set_plyr_attack_region(
-                        attack_region, 0.0f, adjusted_horizontal);
+                        attack_region, adjusted_horizontal, 0.0f);
                     collision_result = collide_plyr_vs_plyr();
                     if (collision_result == 1) {
                         trial_state_collision_check(
@@ -3326,20 +3244,21 @@ float ani_to_frame_x_col(
                         counter_allowed = 0;
                     } else {
                         state = plyr_pdata->state;
-                        switch (state) {
-                        case 0x1210:
-                        case 0x1211:
-                        case 0x120B:
-                        case 0x3204:
-                        case 0x3205:
+                        if (state == 0x1210) {
                             counter_allowed = 0;
-                            break;
-                        default:
+                        } else if (state == 0x1211) {
+                            counter_allowed = 0;
+                        } else if (state == 0x120B) {
+                            counter_allowed = 0;
+                        } else if (state == 0x3204) {
+                            counter_allowed = 0;
+                        } else if (state == 0x3205) {
+                            counter_allowed = 0;
+                        } else {
                             if (ejb_function_pointers[42] != 0) {
                                 ejb_function_pointers[42]();
                             }
                             counter_allowed = 1;
-                            break;
                         }
                     }
                     if (counter_allowed != 0) {
@@ -3374,27 +3293,25 @@ float ani_to_frame_x_col(
     return 0.0f;
 }
 
+/* TODO: [near miss] 97.17391%; retained object agrees; FP/GPR coloring, merged null arms and known animation-owner move remain; stop at lowering */
 void air_collision_pause(
     int pause_ticks, float target_frame, float gravity) {
     MkProc* process;
+    MkObj* object;
     float saved_step;
 
     if (plyr_pdata->collision_result != -1) {
         plyr_obj->flags_09_bits.launched = 0;
-        process = plyr_pdata->transient_proc;
-        if (process != 0 &&
-            process->instance !=
-                (int)plyr_pdata->transient_proc_instance) {
-            process = 0;
-        }
+        object = plyr_obj;
+        process = player_live_transient_proc(plyr_pdata);
         if (process != 0 && process != aproc &&
             process->instance != 0) {
-            ((EjbProcSleepVtable*)process->vtbl)->destroy();
+            ((EjbProcSleepVtable*)process->vtbl)->destroy(process);
         }
-        plyr_obj->pos_vel.x = 0.0f;
-        plyr_obj->pos_vel.y = 0.0f;
-        plyr_obj->pos_vel.z = 0.0f;
-        plyr_obj->gravity = 0.0f;
+        object->pos_vel.x = 0.0f;
+        object->pos_vel.y = 0.0f;
+        object->pos_vel.z = 0.0f;
+        object->gravity = 0.0f;
         if (pause_ticks != 0 &&
             target_frame > plyr_anim_pdata->frame) {
             AnimPdata* animation;
@@ -3437,27 +3354,23 @@ int collision_2(int attack_region, float radius, float extension) {
 
 void wait_to_land(void) {
     MkProc* process;
+    MkObj* object;
 
     plyr_obj->flags_09_bits.launched = 1;
-    while (plyr_obj->flags_08_bits.moving &&
-           plyr_obj->gravity != 0.0f) {
+    while ((object = plyr_obj)->flags_08_bits.moving &&
+           object->gravity != 0.0f) {
         _mkproc_sleep_ticks = 1.0f;
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
 
-    process = plyr_pdata->transient_proc;
-    if (process != 0 &&
-        process->instance !=
-            (int)plyr_pdata->transient_proc_instance) {
-        process = 0;
-    }
+    process = player_live_transient_proc(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
-        ((EjbProcSleepVtable*)process->vtbl)->destroy();
+        ((EjbProcSleepVtable*)process->vtbl)->destroy(process);
     }
-    plyr_obj->pos_vel.x = 0.0f;
-    plyr_obj->pos_vel.y = 0.0f;
-    plyr_obj->pos_vel.z = 0.0f;
-    plyr_obj->gravity = 0.0f;
+    object->pos_vel.x = 0.0f;
+    object->pos_vel.y = 0.0f;
+    object->pos_vel.z = 0.0f;
+    object->gravity = 0.0f;
     plyr_obj->flags_09_bits.bit6 = 1;
 }
 
@@ -3899,10 +3812,10 @@ void uv_my_angle_y(Vec* direction, float angle_offset) {
     direction->z = gxMathCos(wrapped_angle);
 }
 
-static inline EjbScalePdata* ejb_supercharge_view_live_scale_pdata(EjbSuperchargeView* owner) {
-    EjbScalePdata* object = (EjbScalePdata*) owner->scale_pdata;
+static inline ScalePdata* plyr_live_scale_pdata(PlyrPdata* owner) {
+    ScalePdata* object = owner->scale_pdata;
     if (object != 0) {
-        if (object->instance == owner->scale_pdata_instance) {
+        if (object->hdr.instance == owner->scale_pdata_instance) {
             return object;
         }
         object = 0;
@@ -3913,31 +3826,29 @@ static inline EjbScalePdata* ejb_supercharge_view_live_scale_pdata(EjbSupercharg
 }
 
 
-static inline EjbSuperchargeView* supercharge_player(void) {
-    return (EjbSuperchargeView*)plyr_pdata;
-}
-
+/* TODO: [near miss] 99.80263%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 int super_charge_me(void) {
-    EjbScalePdata* scale_pdata;
+    ScalePdata* scale_pdata;
 
-    if (supercharge_player()->recharge_tick < (unsigned int)game_tick_ctr) {
-        supercharge_player()->recharge_tick = game_tick_ctr +
+    if (plyr_pdata->charge_up_disabled_until < (unsigned int)game_tick_ctr) {
+        plyr_pdata->charge_up_disabled_until = game_tick_ctr +
             (int)(660.0f * inverse_game_speed + 0.5f);
-        supercharge_player()->charge_scale = 1.3f;
-        supercharge_player()->active_until = game_tick_ctr +
+        plyr_pdata->charge_scale = 1.3f;
+        plyr_pdata->damage_boost_until = game_tick_ctr +
             (int)(60.0f * inverse_game_speed + 0.5f);
-        scale_pdata = ejb_supercharge_view_live_scale_pdata(supercharge_player());
+        scale_pdata = plyr_live_scale_pdata(plyr_pdata);
 
         if (scale_pdata != 0) {
-            scale_pdata->scale = plyr_obj->scale;
-            scale_pdata->script = scale_script_chargeup;
-            scale_pdata->current_script = scale_script_chargeup;
-            scale_pdata->script_frame = 0.0f;
+            scale_pdata->prior_scale = plyr_obj->scale;
+            scale_pdata->script_start = (ScaleScriptEntry*)scale_script_chargeup;
+            scale_pdata->script = (ScaleScriptEntry*)scale_script_chargeup;
+            scale_pdata->elapsed = 0.0f;
         } else {
-            scale_pdata = (EjbScalePdata*)start_scale_proc(
+            scale_pdata = (ScalePdata*)start_scale_proc(
                 plyr_obj, scale_script_chargeup);
-            supercharge_player()->scale_pdata = (MkHdr*)scale_pdata;
-            supercharge_player()->scale_pdata_instance = scale_pdata->instance;
+            plyr_pdata->scale_pdata = scale_pdata;
+            plyr_pdata->scale_pdata_instance = scale_pdata->hdr.instance;
         }
         return 1;
     }
@@ -4071,25 +3982,21 @@ int check_button_and_pad(
 }
 
 void glitch_to_fstance(float blend_rate) {
-    EjbFighterDefinitionExtended* fighter;
-
     plyr_obj->hide_flag_bits.bit6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
-    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, plyr_obj);
+    plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
     if (plyr_anim_pdata->last_exec_tick == (unsigned int)exec_tick_ctr) {
         _mkproc_sleep_ticks = 1.0f;
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
     if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
         (plyr_pdata->state & 0x100)) {
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->crouching_animation,
+            plyr_anim_pdata, plyr_pdata->fighter_definition->duck_animation,
             0x20, blend_rate);
     } else {
         set_anim_script(
-            plyr_anim_pdata, fighter->standing_animation, 0x20);
+            plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script, 0x20);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     plyr_obj->flags_09_bits.launched = 1;
@@ -4103,14 +4010,14 @@ void glitch_to_stance(float blend_rate) {
 }
 
 int blend_to_fstance(float blend_rate) {
-    EjbFighterDefinitionExtended* fighter;
+    GlobalMoveset* fighter;
     MkObj* object = plyr_obj;
     MkHdr* object_hdr;
     int crouching;
 
     object->hide_flag_bits.bit6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
-    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, object);
+    plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
     crouching = 0;
     if (plyr_anim_pdata->last_exec_tick == (unsigned int)exec_tick_ctr) {
         _mkproc_sleep_ticks = 1.0f;
@@ -4119,16 +4026,14 @@ int blend_to_fstance(float blend_rate) {
     if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
         (plyr_pdata->state & 0x100)) {
         crouching = 1;
-        fighter =
-            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
+        fighter = plyr_pdata->fighter_definition;
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->crouching_animation,
+            plyr_anim_pdata, fighter->duck_animation,
             0x20, blend_rate);
     } else {
-        fighter =
-            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
+        fighter = plyr_pdata->fighter_definition;
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->standing_animation,
+            plyr_anim_pdata, fighter->standing_animation_script,
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -4171,7 +4076,7 @@ void setup_for_flip_ani(void) {
 
     object->hide_flag_bits.bit6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
-    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, object);
+    plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
 }
 
 float p_chamber_to_stance_2(void) {
@@ -4189,8 +4094,8 @@ float p_chamber_to_stance_2(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.10448%; canonical frame wait agrees; known initial animation-owner register move and literal identities remain. */
 float p_chamber_to_stance(void) {
-    EjbFighterDefinitionExtended* fighter;
     AnimPdata* animation;
     MkHdr* object_hdr;
     float target_frame;
@@ -4209,16 +4114,14 @@ float p_chamber_to_stance(void) {
         (unsigned int)exec_tick_ctr) {
         ejb_sleep_ticks(1.0f);
     }
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
     if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
         (plyr_pdata->state & 0x100)) {
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->crouching_animation,
+            plyr_anim_pdata, plyr_pdata->fighter_definition->duck_animation,
             0x20, 0.1f);
     } else {
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->standing_animation,
+            plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script,
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -4257,23 +4160,20 @@ float p_blend_to_stance_in_10(void) {
 }
 
 float j_exit_blend_stance(void) {
-    EjbFighterDefinitionExtended* fighter;
     MkHdr* object_hdr;
 
     if (plyr_anim_pdata->last_exec_tick ==
         (unsigned int)exec_tick_ctr) {
         ejb_sleep_ticks(1.0f);
     }
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
     if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
         (plyr_pdata->state & 0x100)) {
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->crouching_animation,
+            plyr_anim_pdata, plyr_pdata->fighter_definition->duck_animation,
             0x20, 0.1f);
     } else {
         transition_to_anim_script(
-            plyr_anim_pdata, fighter->standing_animation,
+            plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script,
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -4290,28 +4190,29 @@ float j_exit_blend_stance(void) {
 }
 
 float j_exit(void) {
-    EjbPlyrPdataExtended* player;
-
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
     if (plyr_anim_pdata->last_exec_tick == (unsigned int)exec_tick_ctr) {
         _mkproc_sleep_ticks = 1.0f;
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
-    if (player->fatality_advance != 0 &&
+    if (plyr_pdata->fatality_advance != 0 &&
         get_fatality_available_flag() != 0) {
-        return ((EjbProcSleepVtable*)aproc->vtbl)
+        ((EjbProcSleepVtable*)aproc->vtbl)
             ->transfer(x_advance_fatality, 0.0f);
+        return 0.0f;
     }
     if ((int)mode_of_play == 6) {
-        return ((EjbProcSleepVtable*)aproc->vtbl)
+        ((EjbProcSleepVtable*)aproc->vtbl)
             ->transfer(p_plyr_pz_fighter_entry, 0.0f);
+        return 0.0f;
     }
     if (plyr_pdata->drone_request != 0) {
-        return ((EjbProcSleepVtable*)aproc->vtbl)
+        ((EjbProcSleepVtable*)aproc->vtbl)
             ->transfer(drone_entry, 0.0f);
+        return 0.0f;
     }
-    return ((EjbProcSleepVtable*)aproc->vtbl)
+    ((EjbProcSleepVtable*)aproc->vtbl)
         ->transfer(p_joy_entry, 0.0f);
+    return 0.0f;
 }
 
 void special_move_cam_him(
@@ -4362,7 +4263,7 @@ int stay_down_check(void) {
 }
 
 /* Preserve the two-phase death wait, boss animation loop and final stance/drone dispatch. */
-/* TODO: [breakthrough needed] 90.78%; death-wait local ownership, frame layout and transfer scheduling remain. */
+/* TODO: [near miss] 99.97268%; Only two equal transition-duration literal relocation identities remain; stop at pooling. */
 float j_stay_down_dead(void) {
     float life;
     float frames;
@@ -4387,15 +4288,14 @@ float j_stay_down_dead(void) {
             go_into_major_pain_please = 0;
         }
         if (!is_big_boss(plyr_pdata)) {
-            if (g_game_info.pause_flag_bits.fatality_window &&
-                go_into_twitch_death_please == 1) {
-                go_into_twitch_death_please = 0;
-                ((EjbProcSleepVtable*)aproc->vtbl)
-                    ->transfer(go_into_twitch_death, 0.0f);
-                return 0.0f;
-            }
-            if (!g_game_info.pause_flag_bits.fatality_window &&
-                go_into_major_pain_please == 1) {
+            if (g_game_info.pause_flag_bits.fatality_window) {
+                if (go_into_twitch_death_please == 1) {
+                    go_into_twitch_death_please = 0;
+                    ((EjbProcSleepVtable*)aproc->vtbl)
+                        ->transfer(go_into_twitch_death, 0.0f);
+                    return 0.0f;
+                }
+            } else if (go_into_major_pain_please == 1) {
                 go_into_major_pain_please = 0;
                 ((EjbProcSleepVtable*)aproc->vtbl)
                     ->transfer(go_into_major_pain, 0.0f);
@@ -4410,14 +4310,12 @@ float j_stay_down_dead(void) {
                 (plyr_pdata->state & 0x100) != 0) {
                 transition_to_anim_script(
                     plyr_anim_pdata,
-                    ((EjbFighterDefinitionExtended*)
-                        plyr_pdata->fighter_definition)->crouching_animation,
+                    plyr_pdata->fighter_definition->duck_animation,
                     0x20, 0.05f);
             } else {
                 transition_to_anim_script(
                     plyr_anim_pdata,
-                    ((EjbFighterDefinitionExtended*)
-                        plyr_pdata->fighter_definition)->standing_animation,
+                    plyr_pdata->fighter_definition->standing_animation_script,
                     0x20, 0.05f);
             }
             xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -4428,13 +4326,9 @@ float j_stay_down_dead(void) {
             ground_me(object_hdr);
             plyr_anim_pdata->step = 1.0f;
 
-            for (;;) {
-                life = aproc->pid == 0x1001
-                    ? g_game_info.plyr0.field_0C
-                    : g_game_info.plyr1.field_0C;
-                if (life != 0.0f) {
-                    break;
-                }
+            while ((aproc->pid == 0x1001
+                        ? g_game_info.plyr0.field_0C
+                        : g_game_info.plyr1.field_0C) == 0.0f) {
                 frames = 1.0f;
                 animation = plyr_anim_pdata;
                 while (frames > 0.0f) {
@@ -4446,18 +4340,14 @@ float j_stay_down_dead(void) {
             }
         }
 
-        for (;;) {
-            life = aproc->pid == 0x1001
-                ? g_game_info.plyr0.field_0C
-                : g_game_info.plyr1.field_0C;
-            if (life != 0.0f) {
-                break;
-            }
+        while ((aproc->pid == 0x1001
+                    ? g_game_info.plyr0.field_0C
+                    : g_game_info.plyr1.field_0C) == 0.0f) {
             ejb_sleep_ticks(1.0f);
         }
     }
-    plyr_obj->flags_09 |= 0x20;
-    plyr_obj->flags_0B &= ~0x40;
+    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags_0B_bits.bit6 = 0;
     if (plyr_anim_pdata->last_exec_tick ==
         (unsigned int)exec_tick_ctr) {
         ejb_sleep_ticks(1.0f);
@@ -4466,18 +4356,16 @@ float j_stay_down_dead(void) {
         (plyr_pdata->state & 0x100) != 0) {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->crouching_animation,
+            plyr_pdata->fighter_definition->duck_animation,
             0x20, 0.1f);
     } else {
         transition_to_anim_script(
             plyr_anim_pdata,
-            ((EjbFighterDefinitionExtended*)
-                plyr_pdata->fighter_definition)->standing_animation,
+            plyr_pdata->fighter_definition->standing_animation_script,
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
-    plyr_obj->flags_09 |= 0x80;
+    plyr_obj->flags_09_bits.launched = 1;
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -4603,6 +4491,7 @@ static void subzero_propell_collision(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
 }
 
+/* TODO: [near miss] 99.92424%; instructions and literal values agree; only generated literal identity remains. */
 static void wait_for_backland(void) {
     MkObj* object;
     MkProc* process;
@@ -4615,14 +4504,9 @@ static void wait_for_backland(void) {
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
 
-    process = plyr_pdata->transient_proc;
-    if (process != 0 &&
-        process->instance !=
-            (int)plyr_pdata->transient_proc_instance) {
-        process = 0;
-    }
+    process = player_live_transient_proc(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
-        ((EjbProcSleepVtable*)process->vtbl)->destroy();
+        ((EjbProcSleepVtable*)process->vtbl)->destroy(process);
     }
     object->pos_vel.x = 0.0f;
     object->pos_vel.y = 0.0f;
@@ -4632,7 +4516,7 @@ static void wait_for_backland(void) {
 }
 
 void impale_him(void) {
-    EjbFighterDefinitionExtended* fighter;
+    GlobalMoveset* fighter;
     MkObj* source;
     MkObj* target;
 
@@ -4640,12 +4524,11 @@ void impale_him(void) {
         return;
     }
 
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
-    source = ejb_live_object(fighter->impale_source,
-        &fighter->impale_source_instance);
-    target = ejb_live_object(fighter->impale_target,
-        &fighter->impale_target_instance);
+    fighter = plyr_pdata->fighter_definition;
+    source = ejb_live_object(fighter->primary_weapon,
+        &fighter->primary_weapon_instance);
+    target = ejb_live_object(fighter->secondary_weapon,
+        &fighter->secondary_weapon_instance);
     player_impale(source, target);
 }
 
@@ -4656,7 +4539,8 @@ void temp_vomit(void) {
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
 
-/* TODO: [near miss] 98.095240%; register coloring, relocation offsets; one-trial ceiling. */
+/* TODO: [near miss] 99.88095%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 void drift_downwards(void) {
     PlyrPdata* pdata;
     MkObj* object;
@@ -4668,7 +4552,7 @@ void drift_downwards(void) {
 
 
     if (process != 0 && process != aproc && process->instance != 0) {
-        ((EjbProcSleepVtable*)process->vtbl)->destroy();
+        ((EjbProcSleepVtable*)process->vtbl)->destroy(process);
     }
 
     object->pos_vel.x = 0.0f;
@@ -4678,17 +4562,16 @@ void drift_downwards(void) {
     plyr_obj->gravity = -0.005f;
 }
 
+/* TODO: [near miss] 99.72973%; only f1/f3 allocation in the life calculation and literal identities remain. */
 static void taunt_raise_my_life_bar(void) {
-    EjbPlyrPdataExtended* player;
     float life_amount;
 
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
     trial_increment_state_value(plyr_pdata->plyr_num, 0x1B, 0);
-    if (player->taunt_life_scale > 1.0f) {
-        player->taunt_life_scale = 1.0f;
+    if (plyr_pdata->taunt_life_scale > 1.0f) {
+        plyr_pdata->taunt_life_scale = 1.0f;
     }
-    life_amount = player->taunt_life_scale * 0.1f;
-    player->taunt_life_scale *= 0.8f;
+    life_amount = plyr_pdata->taunt_life_scale * 0.1f;
+    plyr_pdata->taunt_life_scale *= 0.8f;
     if (g_game_info.plyr0.field_0C != 0.0f &&
         g_game_info.plyr1.field_0C != 0.0f) {
         if (aproc->pid == 0x1001) {
@@ -4711,16 +4594,14 @@ static void taunt_raise_my_life_bar(void) {
 }
 
 int taunt_increase_life(float amount, float multiplier) {
-    EjbPlyrPdataExtended* player;
     float life_amount;
 
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
     trial_increment_state_value(plyr_pdata->plyr_num, 0x1B, 0);
-    if (player->taunt_life_scale > 1.0f) {
-        player->taunt_life_scale = 1.0f;
+    if (plyr_pdata->taunt_life_scale > 1.0f) {
+        plyr_pdata->taunt_life_scale = 1.0f;
     }
-    life_amount = player->taunt_life_scale * amount;
-    player->taunt_life_scale *= multiplier;
+    life_amount = plyr_pdata->taunt_life_scale * amount;
+    plyr_pdata->taunt_life_scale *= multiplier;
     if (g_game_info.plyr0.field_0C != 0.0f &&
         g_game_info.plyr1.field_0C != 0.0f) {
         if (aproc->pid == 0x1001) {
@@ -4875,10 +4756,11 @@ void weapon_trail_on(void) {
     plyr_weapon_trail_show(plyr_pdata->mirror_slots);
 }
 
+/* TODO: [near miss] 97.14286%; only owner/action register coloring remains; stop after lifetime control */
 void plyr_going_to_attack_with(const EjbActionRef* action_ref) {
     unsigned int action;
 
-    action = action_ref->action;
+    action = action_ref->argument;
     if (action == plyr_pdata->previous_action) {
         plyr_pdata->repeated_action_count++;
     } else {
@@ -5184,6 +5066,7 @@ float back_rollup_check(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 98.86793%; canonical frame wait agrees; known animation-owner register move and literal identities remain; stop at compiler limit */
 float back_to_crouch(void) {
     AnimPdata* animation;
     float target_frame;
@@ -5203,8 +5086,7 @@ float back_to_crouch(void) {
     EJB_ADVANCE_TO_FRAME(animation, target_frame);
     transition_to_anim_script(
         plyr_anim_pdata,
-        ((EjbFighterDefinitionExtended*)
-            plyr_pdata->fighter_definition)->crouching_animation,
+        plyr_pdata->fighter_definition->duck_animation,
         0, 0.1f);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -5217,20 +5099,15 @@ float back_to_crouch(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the retail-sized decision tree and every process-transfer
- * target are recovered. MWCC emits two additional return-tail instructions
- * from the clean structured branches; the remaining records are branch-target
- * alignment, bit-test spelling, register allocation, and float relocations.
- */
+/* TODO: [near miss] 96.89139%; winner initialization and flag tests restored; equivalent return-tail joins remain */
 float end_of_round_check(void) {
     int winner;
     MkHdr* object_hdr;
 
+    winner = 0;
     if ((g_game_info.flags & 1) == 0) {
         return 0.0f;
     }
-    winner = 0;
     if (round_winner == 1 && aproc->pid == 0x1001) {
         winner = 1;
     }
@@ -5260,7 +5137,7 @@ float end_of_round_check(void) {
             return 0.0f;
         }
         if (g_game_info.pause_flag_bits.fatality_window) {
-            if (f_fatality_was_done || (g_game_info.flags & 4) != 0) {
+            if (f_fatality_was_done || g_game_info.flag_bits.level_fatality_done != 0) {
                 return 0.0f;
             }
             if (is_big_boss(plyr_pdata) != 0) {
@@ -5272,16 +5149,12 @@ float end_of_round_check(void) {
                     (plyr_pdata->state & 0x100) != 0) {
                     transition_to_anim_script(
                         plyr_anim_pdata,
-                        ((EjbFighterDefinitionExtended*)
-                            plyr_pdata->fighter_definition)
-                                ->crouching_animation,
+                        plyr_pdata->fighter_definition->duck_animation,
                         0x20, 0.1f);
                 } else {
                     transition_to_anim_script(
                         plyr_anim_pdata,
-                        ((EjbFighterDefinitionExtended*)
-                            plyr_pdata->fighter_definition)
-                                ->standing_animation,
+                        plyr_pdata->fighter_definition->standing_animation_script,
                         0x20, 0.1f);
                 }
                 xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -5308,7 +5181,7 @@ float end_of_round_check(void) {
                     ->transfer(fall_dead, 0.0f);
                 return 0.0f;
             }
-            if ((plyr_pdata->state_flags.raw & 0x10) != 0) {
+            if (plyr_pdata->state_flags.bits.dizzy != 0) {
                 ((EjbProcSleepVtable*)aproc->vtbl)
                     ->transfer(fall_dead, 0.0f);
                 return 0.0f;
@@ -5317,7 +5190,7 @@ float end_of_round_check(void) {
                 ->transfer(dizzy, 0.0f);
             return 0.0f;
         }
-        if ((g_game_info.flags & 4) != 0) {
+        if (g_game_info.flag_bits.level_fatality_done != 0) {
             return 0.0f;
         }
         if (is_big_boss(plyr_pdata) != 0) {
@@ -5328,7 +5201,7 @@ float end_of_round_check(void) {
         ((EjbProcSleepVtable*)aproc->vtbl)
             ->transfer(fall_dead, 0.0f);
     } else if (plyr_pdata->state == 0x4200 ||
-               (plyr_pdata->state_flags.raw & 0x10) != 0) {
+               plyr_pdata->state_flags.bits.dizzy != 0) {
         skip_end_of_trial_wrapup();
     } else {
         end_of_trial_wrapup(winner);
@@ -5340,12 +5213,6 @@ int plyr_get_f_constrained(PlyrPdata* pdata) {
     return pdata->f_constrained;
 }
 
-/*
- * Soft ceiling: all retail state, animation, combo, weapon, and tracking
- * resets are present in retail store order. Source is four bytes smaller;
- * objdiff isolates the residue to combo-message register allocation/conversion
- * scheduling, equivalent bitfield masks, and local float relocations.
- */
 void back_to_normal(void) {
     MkHdr* object_hdr;
 
@@ -5362,14 +5229,12 @@ void back_to_normal(void) {
             (plyr_pdata->state & 0x100) != 0) {
             transition_to_anim_script(
                 plyr_anim_pdata,
-                ((EjbFighterDefinitionExtended*)
-                    plyr_pdata->fighter_definition)->crouching_animation,
+                plyr_pdata->fighter_definition->duck_animation,
                 0x20, 0.1f);
         } else {
             transition_to_anim_script(
                 plyr_anim_pdata,
-                ((EjbFighterDefinitionExtended*)
-                    plyr_pdata->fighter_definition)->standing_animation,
+                plyr_pdata->fighter_definition->standing_animation_script,
                 0x20, 0.1f);
         }
         xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
@@ -5382,7 +5247,7 @@ void back_to_normal(void) {
     }
     plyr_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.tightrope_restricted = 1;
-    plyr_obj->flags_0B &= ~8;
+    plyr_obj->flags_0B_bits.bit3 = 0;
     plyr_obj->hide_flag_bits.still_move = 1;
     plyr_obj->flags_09_bits.bit6 = 1;
     plyr_obj->flags_09_bits.bit4 = 1;
@@ -5410,7 +5275,7 @@ void back_to_normal(void) {
     if (plyr_pdata->state_flags.bits.frozen) {
         unfreeze_player();
     }
-    plyr_pdata->state_flags.raw &= ~4;
+    plyr_pdata->state_flags.bits.pad_bit2 = 0;
     wall_eligible_off();
     plyr_pdata->previous_state = plyr_pdata->state;
     plyr_pdata->state = 0;
@@ -5419,11 +5284,11 @@ void back_to_normal(void) {
         plyr_pdata->plyr_num, plyr_pdata->combo_hit_count,
         plyr_pdata, plyr_pdata->combo_damage);
     check_for_combo_message_impl();
-    ((EjbPlyrPdataExtended*)plyr_pdata)->combo_damage = 0.0f;
+    plyr_pdata->combo_damage = 0.0f;
     plyr_pdata->damage_multiplier = 1.0f;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->hit_count = 0;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->reaction_hit_count = 0;
-    ((EjbPlyrPdataExtended*)plyr_pdata)->combo_hit_count = 0;
+    plyr_pdata->hit_count = 0;
+    plyr_pdata->reaction_hit_count = 0;
+    plyr_pdata->combo_hit_count = 0;
     plyr_pdata->combo_flags = 0;
     plyr_pdata->script_exit_value_int = 0;
     plyr_pdata->script_exit_args[0] = 0;
@@ -5436,8 +5301,7 @@ void back_to_normal(void) {
     plyr_weapon_trail_hide(plyr_pdata->mirror_slots);
     if (is_blind(plyr_pdata) != 0) {
         plyr_obj->flags_09_bits.head_tracking = 0;
-    } else if (((EjbFighterDefinitionExtended*)
-                    plyr_pdata->fighter_definition)->character_id == 0x33) {
+    } else if (plyr_pdata->fighter_definition->fighter_id == 0x33) {
         plyr_obj->flags_09_bits.head_tracking = 0;
     } else {
         plyr_obj->flags_09_bits.head_tracking = 1;
@@ -5674,17 +5538,17 @@ static void start_impale_bleeding(void) {
 }
 
 void scale_me_normal(void) {
-    EjbScalePdata* scale_pdata;
+    ScalePdata* scale_pdata;
 
-    scale_pdata = ejb_supercharge_view_live_scale_pdata(supercharge_player());
+    scale_pdata = plyr_live_scale_pdata(plyr_pdata);
     if (scale_pdata == 0) {
         return;
     }
 
-    scale_pdata->scale = plyr_obj->scale;
-    scale_pdata->script = scale_script_normal;
-    scale_pdata->current_script = scale_script_normal;
-    scale_pdata->script_frame = 0.0f;
+    scale_pdata->prior_scale = plyr_obj->scale;
+    scale_pdata->script_start = (ScaleScriptEntry*)scale_script_normal;
+    scale_pdata->script = (ScaleScriptEntry*)scale_script_normal;
+    scale_pdata->elapsed = 0.0f;
 }
 
 void set_anim_hiframe(float frame) {

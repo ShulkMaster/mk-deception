@@ -30,13 +30,7 @@ typedef struct SfdMpvPictureUserBuffers {
 typedef struct SfdMpvAuxWork {
     SfdMpvPictureUserBuffers picture_buffers;
     int reserved_1014;
-    union {
-        long long picture_pts;
-        struct {
-            int picture_pts_high;
-            int picture_pts_low;
-        } words;
-    };
+    long long picture_pts;
 } SfdMpvAuxWork;
 
 typedef struct SfdMpvPlaybackSettings {
@@ -182,7 +176,6 @@ static const SfdMpvDropFrameConversion sfmpv_conv_29_97 = {
 static const SfdMpvDropFrameConversion sfmpv_conv_59_94 = {
     215784, 35964, 3600, 3596, 56, 60, 10, 4,
 };
-const int gap_04_803180F4_rodata = 0;
 
 static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work);
 static void sfmpv_SetFrmInf(SfdHandle* handle, SfdMpvFrame* frame,
@@ -315,7 +308,7 @@ static inline void sfmpv_InitFrame(SfdMpvFrame* frame, void* frame_buffer)
     frame->picture_order = 0;
     frame->field_4C = 0;
     frame->field_50 = 0;
-    UTY_MemsetDword((unsigned int*)frame->picture_info.bytes,
+    UTY_MemsetDword((unsigned int*)&frame->picture_info,
                     (unsigned int)-1, 0x20);
 }
 
@@ -323,17 +316,20 @@ static inline void sfmpv_CalcYccPlaneSub(void* buffer, int width, int height,
                                          SfdYccPlane* output)
 {
     int aligned_width = ((width + 15) / 16) * 16;
-    int aligned_height = ((height + 15) / 16) * 16;
-    int luma_stride = ((aligned_width + 31) / 32) * 32;
-    int half_width = aligned_width / 2;
-    int chroma_stride = ((half_width + 31) / 32) * 32;
-    int half_height = aligned_height / 2;
+    int aligned_height;
+    int chroma_stride;
+    int luma_stride;
+
+    luma_stride = ((aligned_width + 31) / 32) * 32;
+    chroma_stride = ((aligned_width / 2 + 31) / 32) * 32;
 
     output->luma_stride = luma_stride;
     output->chroma_stride = chroma_stride;
     output->planes[2] = buffer;
+    aligned_height = ((height + 15) / 16) * 16;
     output->planes[0] = output->planes[2] + aligned_height * luma_stride;
-    output->planes[1] = output->planes[0] + half_height * chroma_stride;
+    output->planes[1] = output->planes[0] +
+                        (aligned_height / 2) * chroma_stride;
 }
 
 static int SFMPV_Seek(SfdHandle* handle, int parameter, int value)
@@ -347,9 +343,9 @@ static int SFMPV_Seek(SfdHandle* handle, int parameter, int value)
 
     (void)parameter;
     (void)value;
-    if (handle->seek_state.source_handle != 0 && work->field_088 <= 0) {
+    if (handle->seek_state.work != 0 && work->field_088 <= 0) {
         cache = (SfdMpvSeekCache*)((unsigned char*)
-                    handle->seek_state.source_handle + 0xAD0);
+                    handle->seek_state.work + 0xAD0);
     }
     if (cache != 0 && cache->valid != 0) {
         SJCK header;
@@ -405,9 +401,9 @@ static void sfmpv_SetFrmInf(SfdHandle* handle, SfdMpvFrame* frame,
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     SfdVideoFrameState* state = SFMPVF_SearchVfrmData(handle, frame);
-    MPVPictureAttributes* picture = &frame->picture_info.decoded.attributes;
+    MPVPictureAttributes* picture = &frame->picture_info;
 
-    *output = &state->data.info;
+    *output = &state->info;
     state->state = 1;
     work->active_frame = frame;
     (*output)->width = picture->width;
@@ -427,20 +423,23 @@ static void sfmpv_SetFrmInf(SfdHandle* handle, SfdMpvFrame* frame,
     (*output)->picture_user_buffer = frame->picture_user_buffer;
     (*output)->field_3C = picture->field_40;
     (*output)->field_40 = picture->field_44;
-    (*output)->display_mode = picture->field_40 == 0 ? 2 : 1;
-    (*output)->field_54 = frame->field_DC;
-    (*output)->field_50 = frame->field_D8;
+    if (picture->field_40 == 0) {
+        (*output)->display_mode = 2;
+    } else {
+        (*output)->display_mode = 1;
+    }
+    (*output)->picture_pts = frame->picture_pts;
     (*output)->field_58 = picture->field_38;
     (*output)->field_5C = picture->field_3C;
-    (*output)->field_60 = picture->field_48;
-    (*output)->field_64 = picture->field_4C;
+    (*output)->field_60 = picture->bit_rate;
+    (*output)->field_64 = picture->vbv_buffer_size;
     (*output)->field_68 = picture->field_50;
     (*output)->field_6A = picture->field_52;
     (*output)->fields_6C[0] = picture->field_55;
     (*output)->fields_6C[1] = picture->field_56;
     (*output)->fields_6C[2] = picture->field_57;
-    (*output)->fields_6C[3] = picture->field_59;
-    (*output)->fields_6C[4] = picture->field_5A;
+    (*output)->fields_6C[3] = picture->aspect_ratio;
+    (*output)->fields_6C[4] = picture->constrained_parameters;
     (*output)->fields_6C[5] = picture->field_5B;
     (*output)->fields_6C[6] = picture->field_5C;
     (*output)->fields_6C[7] = picture->field_5D;
@@ -490,9 +489,20 @@ static int SFMPV_Pause(SfdHandle* handle, int state)
     return 0;
 }
 
+static inline int sfmpv_StopSub(SfdHandle* handle)
+{
+    int result;
+
+    result = 0;
+    if (handle->transports[2].context == 0) {
+        result = 0;
+    }
+    return result;
+}
+
 static int SFMPV_Stop(SfdHandle* handle)
 {
-    return 0;
+    return sfmpv_StopSub(handle);
 }
 
 static int SFMPV_Start(SfdHandle* handle)
@@ -597,7 +607,7 @@ static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
         frame->picture_order = 0;
         frame->field_4C = 0;
         frame->field_50 = 0;
-        UTY_MemsetDword((unsigned int*)frame->picture_info.bytes,
+        UTY_MemsetDword((unsigned int*)&frame->picture_info,
                         (unsigned int)-1, 0x20);
     }
     work->field_084 = 0;
@@ -647,8 +657,7 @@ static int SFMPV_Create(SfdHandle* handle)
     if (decoder == 0) {
         return SFLIB_SetErr(0, 0xFF000F0A);
     }
-    if (MPV_SetErrFunc(decoder, sfmpv_ErrFn,
-                       (SfdCallbackObject)handle) != 0) {
+    if (MPV_SetErrFunc(decoder, sfmpv_ErrFn, handle) != 0) {
         MPV_Destroy(decoder);
         return SFLIB_SetErr(0, 0xFF000F0B);
     }
@@ -735,6 +744,7 @@ static int sfmpv_GoDdelim(SfdHandle* handle, int delimiter_mask)
     return consumed;
 }
 
+/* TODO: [breakthrough] 76.237180%; canonical 64-bit PTS ownership improves the frame setup; allocation, picture-copy, and buffer-selection CFG still need recovery. */
 static int sfmpv_SetFrmPara(SfdHandle* handle,
                             const MPVPictureInfo* picture,
                             MPVFrameBuffers* buffers,
@@ -754,12 +764,11 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
         }
     }
     *output_frame = frame;
-    frame->picture_info.decoded = *picture;
-    frame->field_DC = aux->words.picture_pts_low;
-    frame->field_D8 = aux->words.picture_pts_high;
+    frame->picture_info = *picture;
+    frame->picture_pts = aux->picture_pts;
 
     if (handle->create_config.video_output_format == 3) {
-        int picture_type = picture->attributes.picture_type;
+        int picture_type = picture->picture_type;
         if ((picture_type == 1 || picture_type == 2) &&
             work->pending_frame == 0) {
             SFMPVF_EndRefFrm(work->reference_frames[0]);
@@ -767,8 +776,8 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
             work->reference_frames[1] = frame;
         }
         {
-            int width = ((picture->attributes.width + 15) / 16) * 16;
-            int height = ((picture->attributes.height + 15) / 16) * 16;
+            int width = ((picture->width + 15) / 16) * 16;
+            int height = ((picture->height + 15) / 16) * 16;
             int luma_stride = ((width + 31) / 32) * 32;
             int chroma_stride = (((width / 2) + 31) / 32) * 32;
             int luma_size = height * luma_stride;
@@ -792,7 +801,7 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
                 buffers->backward.planes[0] + chroma_size;
         }
     } else {
-        int picture_type = picture->attributes.picture_type;
+        int picture_type = picture->picture_type;
         if (picture_type == 1 || picture_type == 2) {
             work->plane_indices[0] ^= 1;
             work->plane_indices[1] ^= 1;
@@ -802,7 +811,7 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
         buffers->backward = work->planes[work->plane_indices[1]];
     }
     buffers->output_rfb = frame->frame_buffer;
-    buffers->picture_info = &frame->picture_info.decoded;
+    buffers->picture_info = &frame->picture_info;
     buffers->decoded_dct_count = 0;
     buffers->skipped_dct_count = 0;
     handle->playback_runtime.field_28 = 0;
@@ -877,7 +886,7 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
     flow_before = SJRBF_GetFlowCnt(stream, 0, 1);
     result = MPV_DecodeFrmSj(work->decoder, stream, &buffers);
     consumed = SJRBF_GetFlowCnt(stream, 0, 1) - flow_before;
-    SFTMR_AddTsum(&handle->timer_summaries[picture->attributes.picture_type],
+    SFTMR_AddTsum(&handle->timer_summaries[picture->picture_type],
                   UTY_GetTmr() - start);
     handle->error_info.field_0C += buffers.decoded_dct_count;
     handle->error_info.field_10 += buffers.skipped_dct_count;
@@ -921,7 +930,7 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
         frame->field_40 = buffers.decoded_dct_count + decoded_base +
                           work->frame_state[2];
         frame->field_44 = buffers.skipped_dct_count + skipped_base;
-        if (picture->attributes.field_38 != 3 && work->pending_frame == 0) {
+        if (picture->field_38 != 3 && work->pending_frame == 0) {
             work->pending_frame = frame;
         } else {
             work->pending_frame = 0;
@@ -930,8 +939,7 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
         work->frame_state[1] = 0;
         if (work->pending_frame == 0) {
             if (handle->create_config.video_output_format == 3 &&
-                (picture->attributes.picture_type == 1 ||
-                 picture->attributes.picture_type == 2)) {
+                (picture->picture_type == 1 || picture->picture_type == 2)) {
                 SFMPVF_RefStbyFrm(frame);
             } else {
                 SFMPVF_StbyFrm(frame);
@@ -940,7 +948,7 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
                           &handle->playback_runtime.field_0C);
             work->field_084 = 0;
         }
-        SFPLY_AddDecPic(handle, 1, picture->attributes.picture_type);
+        SFPLY_AddDecPic(handle, 1, picture->picture_type);
     } else if (work->pending_frame == 0) {
         SFMPVF_FreeFrm(frame);
     }
@@ -954,7 +962,7 @@ static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvSkipTimer* skip_timer =
         (SfdMpvSkipTimer*)&handle->timer_state;
-    int picture_type = work->picture_info.attributes.picture_type;
+    int picture_type = work->picture_info.picture_type;
     int skip;
     int decode_state;
 
@@ -964,14 +972,14 @@ static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
     if (SFSET_GetCond(handle, 39) == 1) {
         return 0;
     }
-    if ((signed char)work->picture_info.attributes.field_58 != 0) {
+    if ((signed char)work->picture_info.field_58 != 0) {
         return work->frame_state[0];
     }
 
-    if (handle->seek_state.field_08 >= 0 &&
+    if (handle->seek_state.request.position >= 0 &&
         timer->output_start.valid == 0 &&
-        UTY_CmpTime(handle->seek_state.field_08,
-                    handle->seek_state.field_0C,
+        UTY_CmpTime(handle->seek_state.request.position,
+                    handle->seek_state.request.field_08,
                     timer->current.value, timer->current.scale) == 0) {
         skip = 1;
     } else {
@@ -1260,7 +1268,7 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
         (SfdMpvTimerOverlay*)&handle->timer_state;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
-    const MPVPictureAttributes* attributes = &picture->attributes;
+    const MPVPictureAttributes* attributes = picture;
 
     if (group_changed != 0 && pts >= 0) {
         sfmpv_Pts2Tc(pts, attributes->frame_rate_code,
@@ -1270,7 +1278,7 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
         return;
     }
     if (timer->source_valid == 0) {
-        if (handle->seek_state.source_handle == 0) {
+        if (handle->seek_state.work == 0) {
             timer->reformed_timecode.frame_rate_code =
                 attributes->frame_rate_code;
             timer->reformed_timecode.drop_frame = 0;
@@ -1331,7 +1339,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
-    const MPVPictureAttributes* attributes = &picture->attributes;
+    const MPVPictureAttributes* attributes = picture;
     SfdMpvRepeatEntry* entries = repeat_timer->entries;
     int temporal_reference = attributes->temporal_reference;
     int index;
@@ -1355,7 +1363,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     } else if (attributes->picture_type == 1 ||
                attributes->picture_type == 2) {
         int reference = work->reference_frames[1]
-                            ->picture_info.decoded.attributes
+                            ->picture_info
                             .temporal_reference;
         int end = temporal_reference;
         if (end < reference) {
@@ -1389,7 +1397,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
         SfdMpvFrame* reference_frame = work->reference_frames[1];
         SfdMpvTimeCodeSnapshot* frame_time =
             (SfdMpvTimeCodeSnapshot*)&reference_frame->time_unit;
-        int reference = reference_frame->picture_info.decoded.attributes
+        int reference = reference_frame->picture_info
                             .temporal_reference;
         SfdMpvRepeatEntry* reference_entry = &entries[reference % 64];
 
@@ -1430,7 +1438,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         (SfdMpvAuxWork*)((unsigned char*)work + sizeof(*work));
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     MPVPictureInfo* picture = &work->picture_info;
-    MPVPictureAttributes* attributes = &picture->attributes;
+    MPVPictureAttributes* attributes = picture;
     const unsigned char* delimiter;
     SfdPtsEntry pts_entry;
     long long timestamp;
@@ -1492,7 +1500,8 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         {
             SfdMpvSizeCallback callback =
                 (SfdMpvSizeCallback)SFSET_GetCond(handle, 95);
-            SfdCallbackObject object = SFSET_GetCond(handle, 95);
+            SfdCallbackObject object =
+                (SfdCallbackObject)SFSET_GetCond(handle, 95);
 
             if (callback != 0 &&
                 callback(object, attributes->width,
@@ -1508,7 +1517,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     } else if (handle->create_config.video_output_format == 3 &&
                work->reference_frames[1] != 0) {
         int reference = work->reference_frames[1]
-                            ->picture_info.decoded.attributes
+                            ->picture_info
                             .temporal_reference;
         if (attributes->picture_type == 2) {
             if (attributes->temporal_reference < reference &&
@@ -1533,7 +1542,8 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     if ((delimiter_type & 0x40) != 0) {
         SfdMpvHeaderCallback callback =
             (SfdMpvHeaderCallback)SFSET_GetCond(handle, 77);
-        SfdCallbackObject object = SFSET_GetCond(handle, 78);
+        SfdCallbackObject object =
+            (SfdCallbackObject)SFSET_GetCond(handle, 78);
 
         if (callback != 0) {
             delimiter = MPV_SearchDelim(header->data, header->len, 1);
@@ -1549,7 +1559,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     raw_pts = -1;
     if (delimiter != 0) {
         SFPTS_ReadPtsQue(handle, handle->transports[2].parameter_10,
-                         (unsigned char*)delimiter, &pts_entry);
+                         (unsigned int)delimiter, &pts_entry);
         if (pts_entry.pts >= 0) {
             int rate = SFTIM_prate[attributes->frame_rate_code];
             int delta;
@@ -1667,10 +1677,10 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
             byte_rate < ring_size ? byte_rate : ring_size;
     }
 
-    if (handle->seek_state.source_handle != 0 && work->field_088 <= 0) {
+    if (handle->seek_state.work != 0 && work->field_088 <= 0) {
         SfdMpvSeekCache* cache =
             (SfdMpvSeekCache*)((unsigned char*)
-                handle->seek_state.source_handle + 0xAD0);
+                handle->seek_state.work + 0xAD0);
         if (cache->valid == 0) {
             cache->header_size = header->len < 0x200 ? header->len : 0x200;
             MEM_Copy(cache->header, header->data, cache->header_size);
@@ -1922,11 +1932,11 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
             SFBUF_AddRtotSj(handle, buffer_index, consumed);
             handle->playback_runtime.time_values[4] += consumed;
             if (result == 0) {
-                if ((signed char)work->picture_info.attributes.field_58 == 0) {
+                if ((signed char)work->picture_info.field_58 == 0) {
                     work->frame_state[0] = 1;
                 }
                 SFPLY_AddSkipPic(
-                    handle, 1, work->picture_info.attributes.picture_type);
+                    handle, 1, work->picture_info.picture_type);
                 *processed = 1;
             }
             return result;
@@ -2186,14 +2196,12 @@ static int sfmpv_ExecServerSub(SfdHandle* handle)
         SJ* stream;
         int write_count;
         int read_count;
-        int flow_high = handle->playback_runtime.timing.input_flow.high;
-        unsigned int flow_low =
-            handle->playback_runtime.timing.input_flow.low;
+        long long flow = handle->playback_runtime.time_values[3];
 
         SFBUF_RingGetSj(handle, input_buffer, &stream);
         SFBUF_GetFlowCnt(stream, &write_count, &read_count);
         handle->playback_runtime.time_values[3] =
-            SFBUF_UpdateFlowCnt(flow_high, flow_low, write_count);
+            SFBUF_UpdateFlowCnt(flow, write_count);
     }
 
     if (SFBUF_GetPrepFlg(handle, output_buffer) != 1 &&
@@ -2214,8 +2222,8 @@ static int sfmpv_ExecServerSub(SfdHandle* handle)
             if (SFMPVF_GetNumFrm(handle) >= frame_limit) {
                 int stream_ready;
                 if (SFBUF_GetTermFlg(handle, input_buffer) == 1 ||
-                    (handle->header_state.field_00 != 0 &&
-                     handle->header_state.field_7C == 0)) {
+                    (handle->header_state.processed != 0 &&
+                     handle->header_state.video.fixed_flag == 0)) {
                     stream_ready = 1;
                 } else {
                     int bit_rate;

@@ -10,6 +10,7 @@ void __OSSystemCallVectorEnd(void);
  * leaf (HID0, sync/isync, and rfi). It remains supplied by the retail object;
  * portable C cannot represent that exception-vector contract honestly.
  */
+/* TODO: [breakthrough needed] 38.160000%; donor-typed address form did not change the scheduling mismatch, and the privileged vector remains outside honest portable-C scope. */
 void __OSInitSystemCall(void)
 {
     void* address = OSPhysicalToCached(0xC00);

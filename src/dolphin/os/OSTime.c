@@ -2,6 +2,7 @@
 
 #define __OSSystemTime ((OSTime*)0x800030D8)
 
+/* TODO: [blocked] 85.45%; OSGetTime/OSGetTick are retail mftb/mftbu leaves and need explicit assembly authorization. */
 /*
  * OSGetTime and OSGetTick are authentic no-frame time-base-register leaves in
  * retail.  Their ABI is declared in dolphin/os.h; portable C does not define a

@@ -12,7 +12,7 @@ typedef struct SFXAObject {
     u8 alpha0;
     u8 alpha1;
     u8 alpha2;
-    u8 field_17;
+    u8 reserved_17;
 } SFXAObject;
 
 typedef struct SFXAWork {
@@ -75,36 +75,22 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 84.638885%; direct typed initialization is compiler-neutral; the donor's register-forcing workaround is rejected. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
-    SFXAWork* work;
-    s32 reverse;
-    s32 low;
-    s32 high;
-    s32 update;
-    u8 alpha1;
-    u8 alpha2;
-
     if (object == 0) {
         return object;
     }
 
-    reverse = 0;
-    work = &sfxa_work;
-    low = 31;
-    object->reverse_luminance = reverse;
-    high = 100;
-    update = 1;
-    object->luminance_low = low;
-    alpha1 = 127;
-    alpha2 = 255;
-    object->luminance_high = high;
-    object->need_luminance_update = update;
-    object->alpha0 = (u8)reverse;
-    object->alpha1 = alpha1;
-    object->alpha2 = alpha2;
-    work->active_count++;
-    object->active = update;
+    object->reverse_luminance = 0;
+    object->luminance_low = 31;
+    object->luminance_high = 100;
+    object->need_luminance_update = 1;
+    object->alpha0 = 0;
+    object->alpha1 = 127;
+    object->alpha2 = 255;
+    sfxa_work.active_count++;
+    object->active = 1;
     return object;
 }
 

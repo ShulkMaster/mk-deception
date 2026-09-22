@@ -44,6 +44,7 @@ int MPV_SkipFrmSj(MPVContext* context, SJ* stream)
     return MPVERR_SetCode(context, error);
 }
 
+/* TODO: [near miss] 97.11957%; retail and current source share the CFG, calls, field copy, and GQR lifetime, with only equivalent parameter/nonvolatile register coloring remaining. */
 int MPV_DecodeFrmSj(MPVContext* context, SJ* stream,
                     MPVFrameBuffers* buffers)
 {
@@ -72,8 +73,7 @@ int MPV_DecodeFrmSj(MPVContext* context, SJ* stream,
     MPVCDEC_InitFrm(context);
     result = MPVHDEC_DecPicture(context, stream);
     MPVUMC_EndOfFrame(context);
-    *buffers->picture_info =
-        *(MPVPictureInfo*)&context->condition_state.decoder.picture;
+    *buffers->picture_info = context->condition_state.picture;
     buffers->decoded_dct_count =
         context->error_info.field_0C - initial_decoded;
     buffers->skipped_dct_count =

@@ -506,11 +506,11 @@ void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     void* bone_mat;
 
     slot = pfx->slot_table;
-    slot->flags = (unsigned char)(slot->flags & 0x7F);
-    slot->hdr = &obj->hdr;
-    slot->instance = obj->hdr.instance;
+    slot->flag_bits.owns_bind = 0;
+    pfx->slot_table->hdr = &obj->hdr;
+    pfx->slot_table->instance = obj->hdr.instance;
 
-        bone_mat = obj->bones[bone];
+    bone_mat = obj->bones[bone];
     if (bone_mat == 0) {
         bone_mat = obj->field_24;
         emitter_vm = (PfxEmitter*)pfx_get_emitter(pfx_vm(pfx), 0);

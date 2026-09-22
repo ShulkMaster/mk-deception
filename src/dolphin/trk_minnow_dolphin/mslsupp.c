@@ -59,7 +59,7 @@ int __close_file(file_handle handle)
     }
 }
 
-/* TODO: [near miss] 98.95%; final redundant byte mask is omitted; stop with correct byte protocol. */
+/* TODO: [near miss] 98.947365%; final redundant byte mask is omitted; stop with correct byte protocol. */
 int __open_file(const char* name, FileMode* mode, FILE* file)
 {
     u8 trk_mode;

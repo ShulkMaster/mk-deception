@@ -43,7 +43,8 @@ static void WriteCallback(s32 chan, s32 result)
     }
 }
 
-/* Soft ceiling: retail reserves an extra 8 frame bytes for this cleanup CFG. */
+/* TODO: [near miss] 99.820000%; retail's shared error join is goto-shaped;
+ * structured cleanup preserves effects with only frame/register residue. */
 static void EraseCallback(s32 chan, s32 result)
 {
     CARDControl* card = &__CARDBlock[chan];
@@ -123,7 +124,8 @@ s32 __CARDAllocBlock(s32 chan, u32 cBlock, CARDCallback callback)
     return __CARDUpdateFatBlock(chan, fat, callback);
 }
 
-/* Soft ceiling: identical operations with only the card/FAT r8-r9 colors swapped. */
+/* TODO: [near miss] 98.846150%; card/FAT owner operations and CFG agree;
+ * only harmless r8/r9 owner coloring remains. */
 s32 __CARDFreeBlock(s32 chan, u16 block, CARDCallback callback)
 {
     CARDControl* card;

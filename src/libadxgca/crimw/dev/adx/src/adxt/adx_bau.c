@@ -30,7 +30,8 @@ static inline unsigned short sw16(unsigned short v)
 }
 
 
-static void* AU_GetInfo(void*, int, int*, int*, int*, int*, int*);
+static unsigned char* AU_GetInfo(unsigned char*, int, int*, int*, int*, int*,
+                                 int*);
 void ADXB_ExecOneAuUlaw(AdxBasicDecoder*);
 void ADXB_ExecOneAu8(AdxBasicDecoder*);
 void ADXB_ExecOneAu16(AdxBasicDecoder*);
@@ -127,8 +128,9 @@ void ADXB_ExecOneAu8(AdxBasicDecoder* d)
 void ADXB_ExecOneAu16(AdxBasicDecoder* d)
 {
     AdxDecodeParams* dp;
-    unsigned short *pcm, *left, *right, sample;
+    unsigned short *pcm, *left, *right;
     unsigned short* input;
+    unsigned short sample;
     int i, count;
 
     dp = &d->decode;
@@ -148,18 +150,17 @@ void ADXB_ExecOneAu16(AdxBasicDecoder* d)
             right = &pcm[dp->pcm_distance + dp->write_position];
             for (i = 0; i < count; i++) {
                 sample = input[i * 2];
-                left[i] = sample / 256 | sample * 256;
+                left[i] = (sample << 8) | (sample >> 8);
                 sample = input[i * 2 + 1];
-                right[i] = sample / 256 | sample * 256;
+                right[i] = (sample << 8) | (sample >> 8);
             }
         } else {
             for (i = 0; i < count; i++) {
-                sample = input[i];
-                left[i] = sample / 256 | sample * 256;
+                left[i] = input[i] >> 8 | input[i] << 8;
             }
         }
         d->decoded_samples = count;
-        d->decoded_data_length = count * (d->channel_count << 1);
+        d->decoded_data_length = d->channel_count * (count * 2);
         d->status = 2;
     }
     if (d->status == 2) {
@@ -172,7 +173,7 @@ void ADXB_ExecOneAu16(AdxBasicDecoder* d)
 int ADXB_DecodeHeaderAu(AdxBasicDecoder* d, signed char* input, int length)
 {
     short data_length;
-    int rate, channels, bits, samples, codec, result;
+    int codec, samples, bits, channels, rate, result;
     signed char* data;
 
     d->header_decoded = 1;
@@ -180,8 +181,8 @@ int ADXB_DecodeHeaderAu(AdxBasicDecoder* d, signed char* input, int length)
         data_length = 0;
         result = -1;
     } else {
-        data = AU_GetInfo(input, length, &rate, &channels, &bits, &samples,
-                          &codec);
+        data = (signed char*)AU_GetInfo((unsigned char*)input, length, &rate,
+                                        &channels, &bits, &samples, &codec);
         if (data == NULL) {
             result = -1;
         } else {
@@ -203,16 +204,21 @@ int ADXB_DecodeHeaderAu(AdxBasicDecoder* d, signed char* input, int length)
     if (result < 0)
         return 0;
     d->coefficient = 0;
-    d->loop_count = d->loop_type = 0;
-    d->loop_end_offset = d->loop_end_sample = d->loop_start_offset =
-        d->loop_start_sample = d->loop_insert_samples = 0;
+    d->loop_type = 0;
+    d->loop_count = 0;
+    d->loop_end_offset = 0;
+    d->loop_end_sample = 0;
+    d->loop_start_offset = 0;
+    d->loop_start_sample = 0;
+    d->loop_insert_samples = 0;
     d->decode.channel_count = d->channel_count;
     d->decode.block_size = d->block_length;
     d->decode.samples_per_block = d->samples_per_block;
     d->decode.pcm_buffer = d->pcm_buffer;
     d->decode.pcm_size = d->pcm_size;
     d->decode.pcm_distance = d->pcm_distance;
-    d->decoded_data_length = d->decoded_samples = 0;
+    d->current_write_position = 0;
+    d->total_decoded_samples = 0;
     d->format_type = 4;
     d->codec_type = codec;
     return data_length;
@@ -225,21 +231,24 @@ int ADXB_CheckAu(const signed char* input)
     return 0;
 }
 
-static void* AU_GetInfo(void* header, int length, int* rate, int* channels,
-                        int* bits, int* samples, int* codec)
+/* TODO: [near miss] 95.538460%; retail .sd-before-.snd order now matches;
+ * remaining byte-lane/register coloring and helper lowering are unresolved. */
+static unsigned char* AU_GetInfo(unsigned char* header, int length, int* rate,
+                                 int* channels, int* bits, int* samples,
+                                 int* codec)
 {
     unsigned char* p = header;
     unsigned int magic;
-    unsigned int header_size;
+    int header_size;
     int data_size;
     unsigned int encoding;
 
     magic = rd32(p); p += 4;
-    if (magic != 0x646E732E && magic != 0x64732E)
+    if (magic != 0x64732E && magic != 0x646E732E)
         return NULL;
     header_size = rd32(p);
     header_size = sw32(header_size); p += 4;
-    if (length < (int)header_size)
+    if (header_size > length)
         return NULL;
     data_size = rd32(p);
     data_size = sw32(data_size); p += 4;
@@ -263,5 +272,5 @@ static void* AU_GetInfo(void* header, int length, int* rate, int* channels,
         *samples = (data_size / 2) / *channels;
     else
         *samples = 0x7FFF0000;
-    return (unsigned char*)header + header_size;
+    return header + header_size;
 }

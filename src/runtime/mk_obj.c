@@ -78,21 +78,6 @@ typedef struct FadeMaterialPdata {
     float accumulator;
 } FadeMaterialPdata;
 
-typedef struct ScaleScriptEntry {
-    unsigned int flags;
-    Vec scale;
-    float duration;
-} ScaleScriptEntry;
-
-typedef struct ScalePdata {
-    MkHdr hdr;
-    MkObj* obj;
-    unsigned int obj_instance;
-    ScaleScriptEntry* script_start;
-    ScaleScriptEntry* script;
-    Vec prior_scale;
-    float elapsed;
-} ScalePdata;
 
 typedef struct LimbSet {
     char pad00[0x780];
@@ -1691,6 +1676,7 @@ void get_bone_offset_world_pos(
              offset->z * mkbone->matrix.at.z + mkbone->matrix.pos.z;
 }
 
+/* TODO: [near miss] 99.72656%; only six r6/r7 owner/index substitutions remain; one scope control already neutral. */
 static void set_bone_world_pos_xz(
     void* obj, int bone, void* pos) {
     MkObj* mkobj;
@@ -1730,26 +1716,29 @@ static void set_bone_world_pos_xz(
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
-    if ((mkobj->hide_flags & 0x10) == 0) {
+    if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = (RwFrame*)mkobj->clumps[i]->object.parent;
-            frame_matrix = (RwMatrix*)((char*)frame + 0x10);
+            frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
         }
     }
     if (mkobj->matrix_count > 1) {
+        RwMatrix* matrices;
+
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
-        if (sobj != 0 && sobj->matrices != 0) {
+        if (sobj != 0 && (matrices = sobj->matrices) != 0) {
             for (i = 1; i < (int)mkobj->matrix_count; i++) {
                 matrix_index = mkobj->matrix_indices[i];
-                sobj->matrices[matrix_index].pos = matrix->pos;
+                matrices[matrix_index].pos = matrix->pos;
             }
         }
     }
 }
 
+/* TODO: [near miss] 99.73881%; only six r6/r7 owner/index substitutions remain; one scope control already neutral. */
 void set_bone_world_pos(void* obj, int bone, void* pos) {
     MkObj* mkobj;
     MkBone* mkbone;
@@ -1789,21 +1778,23 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
-    if ((mkobj->hide_flags & 0x10) == 0) {
+    if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = (RwFrame*)mkobj->clumps[i]->object.parent;
-            frame_matrix = (RwMatrix*)((char*)frame + 0x10);
+            frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
         }
     }
     if (mkobj->matrix_count > 1) {
+        RwMatrix* matrices;
+
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
-        if (sobj != 0 && sobj->matrices != 0) {
+        if (sobj != 0 && (matrices = sobj->matrices) != 0) {
             for (i = 1; i < (int)mkobj->matrix_count; i++) {
                 matrix_index = mkobj->matrix_indices[i];
-                sobj->matrices[matrix_index].pos = matrix->pos;
+                matrices[matrix_index].pos = matrix->pos;
             }
         }
     }
@@ -2281,6 +2272,8 @@ MkSobj* obj_first_sobj(MkObj* obj) {
     return (MkSobj*)first_mkhdr(&obj->sobj_list);
 }
 
+/* TODO: [near miss] 99.91428%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 void update_mksobj(MkSobj* sobj) {
     MkSobj* mksobj;
     RwMatrix* matrix;
@@ -2290,7 +2283,7 @@ void update_mksobj(MkSobj* sobj) {
     int changed;
 
     mksobj = sobj;
-    matrix = (RwMatrix*)((char*)mksobj->frame + 0x10);
+    matrix = &mksobj->frame->modelling;
     changed = 0;
 
     if (mksobj->flags_08_bits.bit5 != 0) {
@@ -2328,7 +2321,7 @@ void update_mksobj(MkSobj* sobj) {
             face_frame = (RwFrame*)mksobj->atomic->object.parent;
             if (face_frame != 0) {
                 face_frame->object.privateFlags |= 0x20;
-                face_matrix = (RwMatrix*)((char*)face_frame + 0x10);
+                face_matrix = &face_frame->modelling;
                 camera_matrix = (RwMatrix*)camera_facing_matrix_ay;
                 face_matrix->right = camera_matrix->right;
                 face_matrix->up = camera_matrix->up;
@@ -2872,6 +2865,7 @@ void obj_match_pos_ang_to_src_obj(MkObj* dst_obj, MkObj* src_obj) {
     dst_obj->light_flags = src_obj->light_flags;
 }
 
+/* TODO: [near miss] 99.51389%; seven matrix-loop register substitutions only; bounded permuter control neutral, stop at coloring */
 void update_obj_pos(MkObj* mkobj) {
     RwMatrix* matrix;
     RwMatrix* matrices;
@@ -2888,7 +2882,7 @@ void update_obj_pos(MkObj* mkobj) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = (RwFrame*)mkobj->clumps[i]->object.parent;
-            frame_matrix = (RwMatrix*)((char*)frame + 0x10);
+            frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
         }
@@ -3012,7 +3006,7 @@ static void* AtomicFaceCamera(void* atomic, void* data) {
     frame = (RwFrame*)rpAtomic->object.parent;
     if (frame != 0) {
         frame->object.privateFlags |= 0x20;
-        frameMatrix = (RwMatrix*)((char*)frame + 0x10);
+        frameMatrix = &frame->modelling;
         cameraMatrix = (RwMatrix*)camera_facing_matrix_ay;
         frameMatrix->right = cameraMatrix->right;
         frameMatrix->up = cameraMatrix->up;
@@ -3538,19 +3532,17 @@ void limb_sever_show_z_meat_chunks_all_plyr_num(int plyr) {
 }
 
 static inline unsigned int limb_material_bank_base(MkObj* obj) {
-    unsigned int base;
-
-    base = 0;
     if (get_player_number(obj) == 0) {
-        if (g_game_info.plyr0.slot.fighter->limb_material_bank != 0) {
-            base = 0x400;
+        if (g_game_info.plyr0.slot.pdata->sidekick_active != 0) {
+            return 0x400;
         }
-    } else if (g_game_info.plyr1.slot.fighter->limb_material_bank != 0) {
-        base = 0x400;
+    } else if (g_game_info.plyr1.slot.pdata->sidekick_active != 0) {
+        return 0x400;
     }
-    return base;
+    return 0;
 }
 
+/* TODO: [near miss] 96.90140%; remaining GPR coloring and inline material-result move; stop at compiler allocation. */
 void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     MkPtr* ptr;
     MkSobj* sobj;
@@ -3558,16 +3550,16 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     RpMaterial* material;
     unsigned int material_id_base;
     unsigned int material_id;
-    unsigned int chunk_offset;
+    unsigned int chunk_index;
     int chunk_id;
 
     material_id_base = limb_material_bank_base(obj);
 
-    chunk_offset = 0;
+    chunk_index = 0;
     while (limb_meat_chunk_list[
-               chunk_offset / sizeof(*limb_meat_chunk_list)] > -1) {
+               chunk_index] > -1) {
         chunk_id = limb_meat_chunk_list[
-            chunk_offset / sizeof(*limb_meat_chunk_list)];
+            chunk_index];
         material_id = material_id_base + (unsigned int)chunk_id;
         material = 0;
         ptr = first_mkptr(&obj->sobj_list);
@@ -3583,10 +3575,11 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
         if (material != 0) {
             show_material(material);
         }
-        chunk_offset += 4;
+        chunk_index++;
     }
 }
 
+/* TODO: [near miss] 97.68750%; remaining GPR coloring and inline material-result move; stop at compiler allocation. */
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
     MkObj* mkobj;
@@ -3628,6 +3621,7 @@ void limb_sever_show_z_meat_chunks(
     }
 }
 
+/* TODO: [near miss] 96.90140%; remaining GPR coloring and inline material-result move; stop at compiler allocation. */
 void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
     MkPtr* ptr;
     MkSobj* sobj;
@@ -3635,16 +3629,16 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
     RpMaterial* material;
     unsigned int material_id_base;
     unsigned int material_id;
-    unsigned int chunk_offset;
+    unsigned int chunk_index;
     int chunk_id;
 
     material_id_base = limb_material_bank_base(obj);
 
-    chunk_offset = 0;
+    chunk_index = 0;
     while (limb_meat_chunk_list[
-               chunk_offset / sizeof(*limb_meat_chunk_list)] > -1) {
+               chunk_index] > -1) {
         chunk_id = limb_meat_chunk_list[
-            chunk_offset / sizeof(*limb_meat_chunk_list)];
+            chunk_index];
         material_id = material_id_base + (unsigned int)chunk_id;
         material = 0;
         ptr = first_mkptr(&obj->sobj_list);
@@ -3660,7 +3654,7 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
         if (material != 0) {
             hide_material(material);
         }
-        chunk_offset += 4;
+        chunk_index++;
     }
 }
 

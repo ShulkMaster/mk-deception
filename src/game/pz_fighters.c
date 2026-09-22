@@ -292,9 +292,13 @@ void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);
+/* TODO: [near miss] 98.085106%; coordinate FPR allocation remains;
+ * declaration-order trial is neutral, retain the typed squared-distance math. */
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
     float* player1_absolute, float* player2_absolute);
+/* TODO: [near miss] 97.906975%; same coordinate FPR allocation as the absolute
+ * variant; operations, store order and signed-distance guards agree. */
 void pz_fighters_calc_distance_to_desired_idle_pos(
     float* player1_distance, float* player2_distance);
 void pz_fighter_classify_move_8012260C(
@@ -458,7 +462,7 @@ static inline void pz_fighter_breakout_of_random_fatality(void) {
 
 static inline void pz_fighter_cancel_active_move(void) {
     g_pz_fighters_engine.random_fatality_active = 0;
-    g_pz_fighters_engine.attack_policy_word = 0;
+    g_pz_fighters_engine.fighter_move.policy_word = 0;
     g_pz_fighters_engine.fighter_state[0] = 0;
     g_pz_fighters_engine.fighter_state[1] = 0;
 }
@@ -480,7 +484,7 @@ static inline void pz_fighter_begin_super_move(void) {
  * differences are stack/GPR allocation, typed queue/reaction-slot induction,
  * equivalent structured joins, and local relocation labels.
  */
-/* TODO: [near miss] 94.43%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 94.38884%; signed winner snapshot trial regressed; retain compact-save CFG and stop at queue/relocation lowering. */
 void pz_fighter_event(PuzzleFighterEvent* event) {
     PuzzleFightersEngine* engine;
     unsigned int block_count;
@@ -915,7 +919,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
  * removes the synthetic flag; the remaining engine-base rematerialization and
  * twelve-byte control-flow deficit remain structural.
  */
-/* TODO: [breakthrough needed] 88.16%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [breakthrough needed] 88.132744%; queue-compaction induction remains structurally different; retain typed pointer loop and stop before pointer-arithmetic forcing. */
 static void pz_fighter_fight_request(
     unsigned int player, unsigned int block_count, int chain_count,
     unsigned int event_type) {
@@ -950,10 +954,10 @@ static void pz_fighter_fight_request(
                         continuation =
                             g_pz_fighters_engine.random_fatality_active == 1 &&
                             g_pz_fighters_engine.fighter_move.player == player &&
-                            g_pz_fighters_engine.attack_runtime_bits.enabled == 1 &&
+                            g_pz_fighters_engine.fighter_move.runtime_bits.enabled == 1 &&
                             event_type <= 1 &&
                             (priority > 1 || move == 1 ||
-                             g_pz_fighters_engine.attack_policy_bits.bit1);
+                             g_pz_fighters_engine.fighter_move.policy_bits.bit1);
                         break;
                     }
                 }
@@ -963,9 +967,9 @@ static void pz_fighter_fight_request(
     }
 
     if (continuation == 1) {
-        g_pz_fighters_engine.continuation_move = move;
-        g_pz_fighters_engine.continuation_priority = priority;
-        g_pz_fighters_engine.attack_policy_bits.bit2 = 1;
+        g_pz_fighters_engine.fighter_move.continuation_move = move;
+        g_pz_fighters_engine.fighter_move.continuation_priority = priority;
+        g_pz_fighters_engine.fighter_move.policy_bits.bit2 = 1;
         return;
     }
 
@@ -1083,13 +1087,9 @@ static void pz_fighter_fight_request(
 /*
  * Queue a board event in descending priority order. Retail keeps at most two
  * pending moves; a newly inserted third entry drops the lowest-priority tail.
- * Near match (92.98%, retail 0x168/current 0x164): m2c confirms the complete
- * insertion/compaction algorithm and 0x34-byte move layout. One instruction of
- * queue-base/index induction and register coloring remains. Explicit indexed
- * while and named byte-offset variants were respectively emission-neutral and
- * slightly worse, so the typed array walk is retained.
  */
-/* TODO: [near miss] 99.39%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 99.388885%; insertion/compaction agree; r27/r28 index
+ * coloring remains and declaration-order control is neutral. */
 static void pz_fighter_buffer_new_move(
     unsigned int event_type, unsigned int player, unsigned int move,
     unsigned int priority) {
@@ -1293,7 +1293,7 @@ void pz_fighter_classify_move_8012260C(
  * pending-move scan/switch register scheduling. Keeping the initial state2 live
  * regresses to 90.94%/0x498 and was rejected.
  */
-/* TODO: [near miss] 96.80%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 96.613335%; direct state-validity condition regressed; retain nested switch CFG and stop at scan/branch coloring. */
 static float p_puzzle_fighter_master(void) {
     int state1;
     int state2;
@@ -1439,7 +1439,7 @@ static float p_puzzle_fighter_master(void) {
     g_pz_fighters_engine.random_fatality_active = 0;
     g_pz_fighters_engine.breakout = 0;
     g_pz_fighters_engine.balance_out_of_range = 0;
-    g_pz_fighters_engine.attack_policy_word = 0;
+    g_pz_fighters_engine.fighter_move.policy_word = 0;
 
     if (puzzle_fighter_get_super_bar_level(0) > 0.95f) {
         super_ready = 1;
@@ -1464,12 +1464,8 @@ static float p_puzzle_fighter_master(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: complete center-control policy, with retail's shared failure
- * paths recovered. Remaining differences are equivalent nested-branch targets,
- * individual versus multi-register saves, GPR/FPR allocation, and labels.
- */
-/* TODO: [near miss] 98.65%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 98.5%; shared failure branches and coordinate FPRs differ;
+ * dx/dz declaration swap is neutral; retain recovered policy. */
 static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
@@ -1664,10 +1660,8 @@ static int pz_fighter_check_for_player_to_center_position_control(void) {
     return 0;
 }
 
-/*
- * Soft ceiling: retail behavior and ABI are complete. Remaining differences
- * are FPR allocation, equivalent bound/return scheduling, and float labels.
- */
+/* TODO: [near miss] 97.3384%; distance-local declaration trial is neutral;
+ * inlined FPR allocation and equivalent bound/return scheduling remain. */
 static int pz_fighter_individual_plyr_do_something(
     unsigned int player, unsigned int other_state) {
     int result;
@@ -1737,8 +1731,8 @@ static int pz_fighter_individual_plyr_do_something(
     return result;
 }
 
-/* TODO: [near miss] 98.73%; random-event ABI recovered; duplicate zero and
- * second-player distance FPR allocation remain. */
+/* TODO: [near miss] 98.34906%; duplicate zero and second-player distance FPRs
+ * remain; sibling declaration trials are neutral; retain state/call order. */
 static int pz_fighters_idle_process(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -1794,19 +1788,8 @@ static int pz_fighters_idle_process(void) {
     return 1;
 }
 
-/*
- * Emission-only near miss (95.32%, retail 0x2C4/current 0x2D4). m2c confirms the
- * complete positioning, pending-event, and two-player super-owner state
- * machine. A structured single-pass dispatch now matches retail's fallthrough
- * into the second-player checks and assigns zero only after both candidates
- * fail. Refreshing the engine alias after the potentially mutating random-event
- * call recovers retail's post-call base lifetime. The remaining 16 bytes are
- * individual versus multi-register saves, one repeated zero materialization,
- * and localized register/FPR scheduling; calls, branches, state transitions,
- * and accesses agree.
- */
-/* TODO: [near miss] 98.85%; random-event ABI recovered; remaining state and
- * register lowering need local diagnosis. */
+/* TODO: [near miss] 98.60452%; repeated zero, distance FPR allocation and
+ * dispatch address scheduling remain; stop at local codegen. */
 static int pz_fighters_inside_super_move_scenerio(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -1853,7 +1836,7 @@ static int pz_fighters_inside_super_move_scenerio(void) {
                 pz_fighter_move_into_desired_position);
             moved = 1;
         }
-        if (moved != 0) {
+        if (moved == 1) {
             fighters->positioning_active = 1;
             return 1;
         }
@@ -1936,10 +1919,10 @@ static inline void pz_fighter_pop_pending_event(void) {
             sizeof(PuzzleFighterMove));
     }
     g_pz_fighters_engine.pending_move_count--;
-    g_pz_fighters_engine.attack_has_followup = 1;
+    g_pz_fighters_engine.fighter_move.has_followup = 1;
     g_pz_fighters_engine.random_fatality_active = 0;
     g_pz_fighters_engine.breakout = 0;
-    g_pz_fighters_engine.attack_policy_word = 0;
+    g_pz_fighters_engine.fighter_move.policy_word = 0;
 }
 
 #define PZ_DISPATCH_BOMB_REACTION()                                       \
@@ -1947,7 +1930,7 @@ static inline void pz_fighter_pop_pending_event(void) {
         pz_fighter_shake_camera(3, 0.02f);                                \
         g_pz_fighters_engine.fighter_move.mode = 15;                      \
         if (((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state != 0x605 || \
-            g_pz_fighters_engine.attack_policy_bits.bit4) {               \
+            g_pz_fighters_engine.fighter_move.policy_bits.bit4) {               \
             g_pz_fighters_engine.fighter_state[0] = 3;                    \
             ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state |= 0x1200; \
             xfer_proc(                                                    \
@@ -1955,7 +1938,7 @@ static inline void pz_fighter_pop_pending_event(void) {
                 pz_fighters_react_to_bomb_explosion);                    \
         }                                                                 \
         if (((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state != 0x605 || \
-            g_pz_fighters_engine.attack_policy_bits.bit4) {               \
+            g_pz_fighters_engine.fighter_move.policy_bits.bit4) {               \
             g_pz_fighters_engine.fighter_state[1] = 3;                    \
             ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state |= 0x1200; \
             xfer_proc(                                                    \
@@ -2135,7 +2118,8 @@ static float p_objects_moving(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.62%; constraint operations and CFG agree; stop at GPR/FPR coloring. */
+/* TODO: [near miss] 97.325584%; constraint operations/CFG agree; function-scope
+ * fighter/distance trial is neutral; remaining GPR/FPR allocation. */
 static void check_fighter_constraints(void) {
     unsigned int player;
 
@@ -2213,11 +2197,8 @@ void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y) {
     g_pz_fighters_engine.y_constraint[player] = y;
 }
 
-/*
- * Soft ceiling: retail policy and control flow are complete. Remaining
- * differences are handled-flag/GPR allocation, equivalent return and
- * bitfield-store scheduling, and float relocation labels.
- */
+/* TODO: [near miss] 96.66374%; asymmetric state guard trial regressed to 95.90351%
+ * and was reverted; handled/constraint register and branch scheduling remain. */
 static void pz_fighter_process_immediate_request(void) {
     unsigned int happy_player;
     PlyrPdata* happy_pdata;
@@ -2227,7 +2208,7 @@ static void pz_fighter_process_immediate_request(void) {
     int constraint_index2;
 
     if (g_pz_fighters_engine.random_fatality_active != 0 &&
-        g_pz_fighters_engine.attack_policy_bits.bit4 &&
+        g_pz_fighters_engine.fighter_move.policy_bits.bit4 &&
         g_pz_fighters_engine.immediate_request_type != 8 &&
         g_pz_fighters_engine.immediate_request_type != 9 &&
         (((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state == 0x605 ||
@@ -2241,7 +2222,7 @@ static void pz_fighter_process_immediate_request(void) {
         pz_fighter_shake_camera(3, 0.02f);
         g_pz_fighters_engine.fighter_move.mode = 15;
         if (((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state != 0x605 ||
-            g_pz_fighters_engine.attack_policy_bits.bit4) {
+            g_pz_fighters_engine.fighter_move.policy_bits.bit4) {
             g_pz_fighters_engine.fighter_state[0] = 3;
             ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state |= 0x1200;
             xfer_proc(
@@ -2250,7 +2231,7 @@ static void pz_fighter_process_immediate_request(void) {
             handled = 1;
         }
         if (((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state != 0x605 ||
-            g_pz_fighters_engine.attack_policy_bits.bit4) {
+            g_pz_fighters_engine.fighter_move.policy_bits.bit4) {
             g_pz_fighters_engine.fighter_state[1] = 3;
             ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state |= 0x1200;
             xfer_proc(
@@ -2259,19 +2240,19 @@ static void pz_fighter_process_immediate_request(void) {
             handled = 1;
         }
         if (handled == 1) {
-            g_pz_fighters_engine.attack_policy_word = 0;
+            g_pz_fighters_engine.fighter_move.policy_word = 0;
             g_pz_fighters_engine.random_fatality_active = 1;
-            g_pz_fighters_engine.attack_policy_bits.bit4 = 1;
+            g_pz_fighters_engine.fighter_move.policy_bits.bit4 = 1;
         }
         return;
     }
 
     if (g_pz_fighters_engine.immediate_request_type == 9) {
-        if (g_pz_fighters_engine.attack_policy_bits.bit4) {
+        if (g_pz_fighters_engine.fighter_move.policy_bits.bit4) {
             pz_fighter_shake_camera(3, 0.02f);
             g_pz_fighters_engine.fighter_move.mode = 15;
             if (((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state != 0x605 ||
-                g_pz_fighters_engine.attack_policy_bits.bit4) {
+                g_pz_fighters_engine.fighter_move.policy_bits.bit4) {
                 g_pz_fighters_engine.fighter_state[0] = 3;
                 ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state |= 0x1200;
                 xfer_proc(
@@ -2280,7 +2261,7 @@ static void pz_fighter_process_immediate_request(void) {
                 handled = 1;
             }
             if (((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state != 0x605 ||
-                g_pz_fighters_engine.attack_policy_bits.bit4) {
+                g_pz_fighters_engine.fighter_move.policy_bits.bit4) {
                 g_pz_fighters_engine.fighter_state[1] = 3;
                 ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state |= 0x1200;
                 xfer_proc(
@@ -2289,9 +2270,9 @@ static void pz_fighter_process_immediate_request(void) {
                 handled = 1;
             }
             if (handled == 1) {
-                g_pz_fighters_engine.attack_policy_word = 0;
+                g_pz_fighters_engine.fighter_move.policy_word = 0;
                 g_pz_fighters_engine.random_fatality_active = 1;
-                g_pz_fighters_engine.attack_policy_bits.bit4 = 1;
+                g_pz_fighters_engine.fighter_move.policy_bits.bit4 = 1;
                 return;
             }
         } else {
@@ -2318,9 +2299,9 @@ static void pz_fighter_process_immediate_request(void) {
                 handled = 1;
             }
             if (handled == 1) {
-                g_pz_fighters_engine.attack_policy_word = 0;
+                g_pz_fighters_engine.fighter_move.policy_word = 0;
                 g_pz_fighters_engine.random_fatality_active = 1;
-                g_pz_fighters_engine.attack_policy_bits.bit4 = 1;
+                g_pz_fighters_engine.fighter_move.policy_bits.bit4 = 1;
                 return;
             }
         }
@@ -2341,7 +2322,7 @@ static void pz_fighter_process_immediate_request(void) {
         ((MkObj*)g_game_info.plyr1.slot.mirror_a)->flags_09_bits.launched = 1;
         g_pz_fighters_engine.y_constraint_enabled[constraint_index2] = 0;
         g_pz_fighters_engine.random_fatality_active = 1;
-        g_pz_fighters_engine.attack_policy_word = 0;
+        g_pz_fighters_engine.fighter_move.policy_word = 0;
         g_pz_fighters_engine.fighter_move.mode = 6;
         g_pz_fighters_engine.fighter_move.player =
             g_pz_fighters_engine.immediate_request_player;
@@ -2365,8 +2346,8 @@ static void pz_fighter_process_immediate_request(void) {
         ((MkObj*)g_game_info.plyr1.slot.mirror_a)->flags_09_bits.launched = 1;
         g_pz_fighters_engine.y_constraint_enabled[constraint_index2] = 0;
         g_pz_fighters_engine.fighter_move.mode = 15;
-        g_pz_fighters_engine.attack_policy_word = 0;
-        g_pz_fighters_engine.attack_policy_bits.bit7 = 1;
+        g_pz_fighters_engine.fighter_move.policy_word = 0;
+        g_pz_fighters_engine.fighter_move.policy_bits.bit7 = 1;
         g_pz_fighters_engine.fighter_move.script_move =
             g_pz_fighters_engine.immediate_request_type;
         g_pz_fighters_engine.fighter_move.player =
@@ -2376,12 +2357,8 @@ static void pz_fighter_process_immediate_request(void) {
     }
 }
 
-/*
- * Soft ceiling (93.35%, retail 0x360/current 0x374): complete dequeue and
- * retail-ordered dispatch. Remaining differences are queue-loop GPR/address
- * scheduling, saves, and labels.
- */
-/* TODO: [near miss] 99.07%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 99.00463%; canonical player-field access recovers engine base;
+ * dequeue/reaction register scheduling and labels remain. */
 static float pz_fighters_handle_next_pending_move(void) {
     PuzzleFighterMove* move;
 
@@ -2394,11 +2371,11 @@ static float pz_fighters_handle_next_pending_move(void) {
 
             g_pz_fighters_engine.random_fatality_active = 1;
             other_player = 0;
-            if (move->player == 0) {
+            if (g_pz_fighters_engine.fighter_move.player == 0) {
                 other_player = 1;
             }
             pz_fighter_perform_end_of_round_anims(
-                move->player, other_player);
+                g_pz_fighters_engine.fighter_move.player, other_player);
             g_pz_fighters_engine.balance = 0.0f;
             pz_fighters_fatality_round_over();
             pz_fighter_calculate_start_pos();
@@ -2445,12 +2422,8 @@ static float pz_fighters_handle_next_pending_move(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling (93.92%, retail 0x3CC/current 0x3E0): complete simplified
- * dequeue and normalized dispatch. Remaining differences are queue-loop
- * GPR/address scheduling and labels.
- */
-/* TODO: [near miss] 99.00%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 99.06996%; direct script-field accesses recover engine base;
+ * dequeue and reaction register/address scheduling remain. */
 static float pz_fighters_handle_next_pending_move_simplified(void) {
     PuzzleFighterMove* move;
 
@@ -2461,18 +2434,18 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
         {
             unsigned int script_move;
 
-            script_move = move->script_move;
+            script_move = g_pz_fighters_engine.fighter_move.script_move;
             g_pz_fighters_engine.random_fatality_active = 1;
             if (script_move > 2 && script_move < 5) {
-                move->script_move = 5;
+                g_pz_fighters_engine.fighter_move.script_move = 5;
             } else if (script_move == 6) {
-                move->script_move = script_move + 1;
+                g_pz_fighters_engine.fighter_move.script_move = script_move + 1;
             } else if (script_move == 8) {
-                move->script_move = script_move + 1;
+                g_pz_fighters_engine.fighter_move.script_move = script_move + 1;
             } else if (script_move == 10) {
-                move->script_move = script_move + 2;
+                g_pz_fighters_engine.fighter_move.script_move = script_move + 2;
             } else if (script_move == 11) {
-                move->script_move = script_move + 1;
+                g_pz_fighters_engine.fighter_move.script_move = script_move + 1;
             }
             pz_fighter_handle_move(move);
             break;
@@ -2585,14 +2558,11 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
         (move_ptr)->active_flags = 1;                                     \
     } while (0)
 
-/*
- * Soft ceiling: complete four-way round-end animation policy; remaining
- * differences are saved-GPR selection, middle-branch lifetimes, and labels.
- */
-/* TODO: [near miss] 97.63%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 97.81145%; random selection now has retail 16-bit narrowing;
+ * middle-branch owner bases and saved-register allocation remain. */
 static void pz_fighter_perform_end_of_round_anims(
     unsigned int winner_player, unsigned int loser_player) {
-    unsigned int selection;
+    unsigned short selection;
 
     selection = randu0(100);
     if (selection < 20) {
@@ -2617,7 +2587,7 @@ static void pz_fighter_perform_end_of_round_anims(
             g_pz_fighters_engine.fighter_state[1] = 6;
         }
         pdata->state |= 0x4201;
-        g_pz_fighters_engine.distance_flags = 1;
+        g_pz_fighters_engine.fighter_move.active_flags = 1;
         g_pz_fighters_engine.fighter_move.player = winner_player;
         script = get_cmdscript_for_proc(proc);
         script->function_index = 0x2E;
@@ -2635,9 +2605,8 @@ static void pz_fighter_perform_end_of_round_anims(
     }
 }
 
-/* TODO: [near miss] 99.94%; active_flags store uses equivalent r3/r5 owner bases;
- * table stride, selection and stores agree; stop at address-register coloring. */
 static void pz_fighter_first_block_has_been_placed(unsigned int player) {
+    PuzzleFightersEngine* engine;
     PuzzleProcess* process;
     PlyrPdata* fighter;
     PuzzleFighterEntry reaction;
@@ -2646,13 +2615,14 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     unsigned int index;
 
     roll = (unsigned short)randu0(100);
-    g_pz_fighters_engine.fighter_move.player = player;
-    g_pz_fighters_engine.fighter_move.mode = 15;
+    engine = &g_pz_fighters_engine;
+    engine->fighter_move.player = player;
+    engine->fighter_move.mode = 15;
 
     for (index = 0; index < fistMoveMadeTable.count; index++) {
         if (roll < fistMoveMadeTable.rows[index].percent) {
             reaction = fistMoveMadeTable.rows[index].reaction;
-            selected_player = g_pz_fighters_engine.fighter_move.player;
+            selected_player = engine->fighter_move.player;
             fighter = puzzle_player_pdata(selected_player);
             if ((fighter->state & 0x200) != 0) {
                 return;
@@ -2667,7 +2637,7 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
             }
 
             fighter->state |= 0x1200;
-            g_pz_fighters_engine.fighter_move.active_flags = 1;
+            engine->fighter_move.active_flags = 1;
             g_pz_fighters_engine.random_fatality_active = 1;
             if (g_pz_fighters_engine.fighter_move.player == 0) {
                 process = g_game_info.plyr0.idle_proc;
@@ -2684,11 +2654,8 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
  * Retail open-codes this setup in every handler. Keeping the player loads at
  * each decision point reproduces its branch and register lifetimes.
  */
-/*
- * Soft ceiling: complete dual-transfer policy; remaining differences are
- * GPR/FPR allocation, multi-register saves, and local float labels.
- */
-/* TODO: [near miss] 99.80%; equivalent distance FPR allocation remains; stop after declaration trial. */
+/* TODO: [near miss] 99.709305%; five coordinate FPR differences and pool labels
+ * remain; prior declaration trial exhausted the supported coloring insight. */
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     MkObj* fighter;
     PlyrPdata* pdata;
@@ -2819,7 +2786,7 @@ static float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move) {
 static float pz_fighter_handle_winning_big_based_on_score_move(
     PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
-    g_pz_fighters_engine.attack_has_followup = 0;
+    g_pz_fighters_engine.fighter_move.has_followup = 0;
     xfer_proc(
         pz_fighter_player_proc(move->player),
         pz_fighter_give_present);
@@ -2918,13 +2885,8 @@ static float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling (93.90%, retail 0x1D8/current 0x1E8): complete scripted-move
- * dispatch. Declaration lifetime now recovers retail's move/pdata GPR
- * allocation; remaining differences are FPR scheduling, individual versus
- * multi-register saves, and local float labels.
- */
-/* TODO: [near miss] 99.70%; equivalent distance FPR allocation remains; stop after declaration trial. */
+/* TODO: [near miss] 99.49152%; five coordinate FPR differences and pool labels
+ * remain; prior declaration trial exhausted the supported coloring insight. */
 static float pz_fighter_handle_move(PuzzleFighterMove* move) {
     PlyrPdata* pdata;
     unsigned int script_move;
@@ -3048,8 +3010,8 @@ void pz_fighter_startup_attack(
     unsigned int reaction_mode, float frame1, float frame2, float frame3,
     float frame4, float desired_distance);
 
-/* TODO: [near miss] 91.84%; frame argument-load scheduling remains;
- * explicit local frame inputs are neutral. */
+/* TODO: [near miss] 91.75652%; startup/animation FPR load scheduling remains;
+ * explicit local frame input is retained after no-edit review. */
 void pz_fighter_attack(
     AniScript* animation, PuzzleAttackParameters* attack, int reaction) {
     float frame4 = attack->field_18;
@@ -3072,14 +3034,14 @@ void pz_fighter_attack(
     }
 
     if (attack->has_followup == 0) {
-        g_pz_fighters_engine.attack_has_followup = 0;
+        g_pz_fighters_engine.fighter_move.has_followup = 0;
     } else {
-        g_pz_fighters_engine.attack_has_followup = 1;
+        g_pz_fighters_engine.fighter_move.has_followup = 1;
     }
-    if (g_pz_fighters_engine.attack_policy_bits.distance_reaction) {
-        g_pz_fighters_engine.attack_runtime_bits.enabled = 1;
+    if (g_pz_fighters_engine.fighter_move.policy_bits.distance_reaction) {
+        g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 1;
     } else {
-        g_pz_fighters_engine.attack_runtime_bits.enabled = 0;
+        g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 0;
     }
     if (attack->ignore_distance == 1) {
         frame4 = 0.0f;
@@ -3096,20 +3058,17 @@ void pz_fighter_attack(
 }
 
 void pz_fighter_dont_fudge_desired_distance(void) {
-    g_pz_fighters_engine.distance_flags |= PZ_FIGHTER_DISTANCE_FIXED;
+    g_pz_fighters_engine.fighter_move.active_flags |= PZ_FIGHTER_DISTANCE_FIXED;
 }
 
-/*
- * Soft ceiling: 97.649574%, exact 468-byte frame/reaction loop; remaining
- * differences are saved-register allocation, one boolean-store schedule, and
- * float labels. Retail 0x801274E8 leaves plyr_anim_pdata in r3 for the
- * advance_anim call at 0x8012745C; the animation argument is required.
- */
+/* TODO: [near miss] 99.44444%; parameter aliases were neutral; reaction
+ * latch/order recover call scheduling, saved-register allocation, and float
+ * labels remain after three attempts. */
 float pz_fighter_ani_attack(
     int reaction, unsigned int reaction_mode, float end_frame,
     float reaction_frame, float hit_distance) {
-    int frame_clamped = 0;
     int reaction_started = 0;
+    int frame_clamped = 0;
 
     while (plyr_anim_pdata->frame <= end_frame && frame_clamped == 0) {
         advance_anim(plyr_anim_pdata);
@@ -3123,17 +3082,17 @@ float pz_fighter_ani_attack(
         }
 
         if (reaction_mode != 2 &&
-            (g_pz_fighters_engine.distance_flags & 1) != 0 &&
+            (g_pz_fighters_engine.fighter_move.active_flags & 1) != 0 &&
             reaction_started == 0 &&
             plyr_anim_pdata->frame >= reaction_frame &&
             xz_distance_between_players() < hit_distance) {
-            pz_fighter_reaction_xfer_him(reaction);
             reaction_started = 1;
+            pz_fighter_reaction_xfer_him(reaction);
         }
     }
 
     if (reaction_started == 0 &&
-        (g_pz_fighters_engine.distance_flags & 1) != 0) {
+        (g_pz_fighters_engine.fighter_move.active_flags & 1) != 0) {
         if (his_pdata->plyr_num == 0) {
             g_pz_fighters_engine.fighter_state[0] = 0;
         } else {
@@ -3161,7 +3120,7 @@ void pz_fighter_startup_attack(
     float distance;
     float correction;
 
-    if ((g_pz_fighters_engine.distance_flags &
+    if ((g_pz_fighters_engine.fighter_move.active_flags &
          PZ_FIGHTER_DISTANCE_FIXED) == 0) {
         distance = xz_distance_between_players();
         if (desired_distance < 0.65f &&
@@ -3189,7 +3148,7 @@ void pz_fighter_startup_attack(
         }
     }
 
-    if ((g_pz_fighters_engine.distance_flags & 2) != 0 &&
+    if ((g_pz_fighters_engine.fighter_move.active_flags & 2) != 0 &&
         reaction_mode != 2) {
         if (reaction_mode == 1 ||
             (reaction_mode == 4 &&
@@ -3210,6 +3169,8 @@ void pz_fighter_startup_attack(
         frame1, frame2, frame3, frame4);
 }
 
+/* TODO: [near miss] 97.97298%; coordinate FPR allocation remains; sibling
+ * declaration-order trials were neutral; walk thresholds and transfer agree. */
 static float pz_fighter_move_into_desired_position(void) {
     MkObj* player1 = puzzle_fighter_object(0);
     float dx;
@@ -3323,11 +3284,9 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     }
 }
 
-/*
- * Soft ceiling: 94.94% at the exact retail 0x284 size. Spacing, wrapped-facing
- * math, and both aggregate angle initializations agree; remaining differences
- * are caller-side float rounding, FPR scheduling, and local float labels.
- */
+/* TODO: [near miss] 97.12422%; explicit float-rounding cast recovers retail
+ * frsp after gxMathArcTanYX; multiply, declaration-order, and expression-form
+ * trials were neutral, so FPR/pool coloring remains after five attempts. */
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
@@ -3366,7 +3325,7 @@ static void pz_fighter_snap_to_distance(
     his_angle.z = his_obj->ang.z;
 
     xz_unit_vector(&direction, &my_position, &his_position);
-    facing = (float)gxMathArcTanYX(direction.x, direction.z);
+    facing = (float)(double)gxMathArcTanYX(direction.x, direction.z);
     my_angle.y = facing;
     opposite_correction = -1.0f * correction;
     my_x_offset = direction.x * correction;
@@ -3389,13 +3348,9 @@ static void pz_fighter_snap_to_distance(
     xz_distance_between_players();
 }
 
-/*
- * Emission-only near miss (63.72%, retail 0x114/current 0x11C). The CFG, ABI,
- * frame, calls, access offsets, stores, and arithmetic opcode multiset agree.
- * Current has exactly two extra scalar-center fmr instructions; the low fuzzy
- * score cascades from their FPR coloring. Direct expressions, engine fields,
- * and local-Vec layouts all produce materially worse code.
- */
+/* TODO: [near miss] 72.608696%; direct canonical engine-field access moves the
+ * base formation toward retail; center FPR scheduling and two extra stores
+ * remain after five bounded attempts. */
 static void pz_fighter_calculate_start_pos(void) {
     float screen_scale = 1.0f;
     float post1_scale;
@@ -3414,8 +3369,6 @@ static void pz_fighter_calculate_start_pos(void) {
     float center_z;
     float center_x_delta;
     float center_z_delta;
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
-
     if (screen_width > 650) {
         screen_scale = 1.1f;
     }
@@ -3424,41 +3377,43 @@ static void pz_fighter_calculate_start_pos(void) {
     post2_scale = 1.6f * screen_scale;
     center_x = 0.0f;
     center_z = 0.0f;
-    center_x_delta = fighters->arena_axis.x * fighters->balance;
-    center_z_delta = fighters->arena_axis.z * fighters->balance;
+    center_x_delta = g_pz_fighters_engine.arena_axis.x *
+                     g_pz_fighters_engine.balance;
+    center_z_delta = g_pz_fighters_engine.arena_axis.z *
+                     g_pz_fighters_engine.balance;
     center_x += center_x_delta;
     center_z += center_z_delta;
 
-    player1_x_offset = 0.5f * fighters->arena_axis.x;
-    player1_z_offset = 0.5f * fighters->arena_axis.z;
-    player2_x_offset = -0.5f * fighters->arena_axis.x;
-    player2_z_offset = -0.5f * fighters->arena_axis.z;
+    player1_x_offset = 0.5f * g_pz_fighters_engine.arena_axis.x;
+    player1_z_offset = 0.5f * g_pz_fighters_engine.arena_axis.z;
+    player2_x_offset = -0.5f * g_pz_fighters_engine.arena_axis.x;
+    player2_z_offset = -0.5f * g_pz_fighters_engine.arena_axis.z;
     player1_idle_x = player1_x_offset + center_x;
     player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
     player1_idle_z = player1_z_offset + center_z;
     player2_idle_x = player2_x_offset + center_x;
     player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
     player2_idle_z = player2_z_offset + center_z;
-    fighters->center_x = 0.0f;
-    fighters->center_z = 0.0f;
-    fighters->center_y = 0.0f;
-    fighters->center_x = center_x;
-    fighters->center_z = center_z;
+    g_pz_fighters_engine.center_x = 0.0f;
+    g_pz_fighters_engine.center_z = 0.0f;
+    g_pz_fighters_engine.center_y = 0.0f;
+    g_pz_fighters_engine.center_x = center_x;
+    g_pz_fighters_engine.center_z = center_z;
 
-    fighters->player1_idle_x = player1_idle_x;
-    fighters->player1_idle_y = player1_idle_y;
-    fighters->player1_idle_z = player1_idle_z;
-    fighters->player2_idle_x = player2_idle_x;
-    fighters->player2_idle_y = player2_idle_y;
-    fighters->player2_idle_z = player2_idle_z;
-    fighters->fighter_posts[0].x =
-        fighters->arena_axis.x * post1_scale;
-    fighters->fighter_posts[0].z =
-        fighters->arena_axis.z * post1_scale;
-    fighters->fighter_posts[1].x =
-        fighters->arena_axis.x * post2_scale;
-    fighters->fighter_posts[1].z =
-        fighters->arena_axis.z * post2_scale;
+    g_pz_fighters_engine.player1_idle_x = player1_idle_x;
+    g_pz_fighters_engine.player1_idle_y = player1_idle_y;
+    g_pz_fighters_engine.player1_idle_z = player1_idle_z;
+    g_pz_fighters_engine.player2_idle_x = player2_idle_x;
+    g_pz_fighters_engine.player2_idle_y = player2_idle_y;
+    g_pz_fighters_engine.player2_idle_z = player2_idle_z;
+    g_pz_fighters_engine.fighter_posts[0].x =
+        g_pz_fighters_engine.arena_axis.x * post1_scale;
+    g_pz_fighters_engine.fighter_posts[0].z =
+        g_pz_fighters_engine.arena_axis.z * post1_scale;
+    g_pz_fighters_engine.fighter_posts[1].x =
+        g_pz_fighters_engine.arena_axis.x * post2_scale;
+    g_pz_fighters_engine.fighter_posts[1].z =
+        g_pz_fighters_engine.arena_axis.z * post2_scale;
 }
 
 float pz_fighter_fetch_distance_to_center_pos(void) {
@@ -3531,7 +3486,8 @@ float p_plyr_pz_fighter_start(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: exact 388-byte body; only two float-pool labels differ. */
+/* TODO: [near miss] 99.329895%; object/index registers and float labels differ;
+ * separate object-player local is neutral. */
 float p_plyr_pz_fighter_entry(void) {
     int player;
 

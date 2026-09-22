@@ -91,7 +91,8 @@ __OSInterruptHandler __OSGetInterruptHandler(__OSInterrupt interrupt)
     return InterruptHandlerTable[interrupt];
 }
 
-/* TODO: [breakthrough needed] 86.21%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
+/* TODO: [breakthrough needed] 86.206894%; retail CFG/operations agree; only
+ * memset argument scheduling differs, and the fixed-width size prototype is codegen-neutral. */
 void __OSInterruptInit(void)
 {
     InterruptHandlerTable = INTERRUPT_HANDLER_STORAGE;
@@ -103,7 +104,7 @@ void __OSInterruptInit(void)
     __OSSetExceptionHandler(4, ExternalInterruptHandler);
 }
 
-/* TODO: [breakthrough needed] 74.69%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
+/* TODO: [breakthrough needed] 74.68681%; RE4's explicit default CFG is neutral here; MMIO scheduling and loop lowering remain. */
 static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
                                         OSInterruptMask current)
 {
@@ -178,6 +179,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
         PI_REGS[1] = reg;
         mask &= ~MASK_PI;
         break;
+    default:
+        break;
     }
     return mask;
 }
@@ -222,12 +225,13 @@ OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
-/* TODO: [breakthrough needed] 70.92%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
+/* TODO: [breakthrough] 73.038280%; cause lifetime now follows the retail
+ * spurious-interrupt guard; priority/handler lowering remains unresolved. */
 void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 {
     unsigned long interrupt_status;
     unsigned long reg;
-    OSInterruptMask cause = 0;
+    OSInterruptMask cause;
     OSInterruptMask unmasked;
     OSInterruptMask* priority;
     __OSInterrupt interrupt;
@@ -238,6 +242,7 @@ void __OSDispatchInterrupt(__OSException exception, OSContext* context)
         OSLoadContext(context);
     }
 
+    cause = 0;
     if (interrupt_status & 0x80) {
         reg = MEM_REGS[15];
         if (reg & 0x01) cause |= INTERRUPT_MASK(0);

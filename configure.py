@@ -1168,7 +1168,8 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "mwMemHeap.o", source="mw/mwMemHeap.c",
-                   extra_cflags=["-use_lmw_stmw on", "-str", "reuse,pool,readonly"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on",
+                                 "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on"]),
@@ -1200,7 +1201,8 @@ config.libs = [
                 NonMatching,
                 "libadxgca.a//crimw/dev/adx/src/adxf/adx_fini.o",
                 source="libadxgca/crimw/dev/adx/src/adxf/adx_fini.c",
-                extra_cflags=["-O2,p", "-sdata", "0"],
+                extra_cflags=["-O2,p", "-sdata", "0", "-sdata2", "0",
+                              "-str", "reuse,readonly"],
             ),
             Object(
                 Matching,
@@ -1351,7 +1353,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_bwav.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_bwav.c",
                 extra_cflags=[
@@ -1506,7 +1508,8 @@ config.libs = [
                 NonMatching,
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc_ini.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc_ini.c",
-                extra_cflags=["-O2,p", "-sdata", "0"],
+                extra_cflags=["-O2,p", "-sdata", "0", "-sdata2", "0",
+                              "-str", "reuse,readonly"],
             ),
             Object(
                 Matching,
@@ -1518,7 +1521,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc.c",
                 extra_cflags=[
@@ -1993,6 +1996,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.c",
+                extra_cflags=["-sdata", "0"],
             ),
             Object(
                 NonMatching,
@@ -2035,7 +2039,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.c",
-                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
+                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on", "-pooldata off"],
             ),
             Object(
                 NonMatching,
@@ -2064,7 +2068,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.c",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-sdata", "0", "-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
@@ -2076,6 +2080,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.c",
+                extra_cflags=["-sdata", "0"],
             ),
             Object(
                 NonMatching,

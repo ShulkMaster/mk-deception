@@ -1,51 +1,17 @@
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
+#include "sofdec/sfd_player_types.h"
 #include "sofdec/uty_math.h"
 
-/* Stream-time adjustment state is TU-owned by the Sofdec timer path. */
-typedef struct SFTST_Time {
-    long long value;
-    long long scale;
-} SFTST_Time;
-
-typedef struct SFTST_Work {
-    int test_enabled;
-    int paused;
-    int reset_history;
-    int adjust_enabled;
-    int average_count;
-    int average_index;
-    int errors[60];
-    SFTST_Time input_time;
-    SFTST_Time sample_time;
-    SFTST_Time output_time;
-    SFTST_Time tolerance;
-    SFTST_Time excess_error;
-    SFTST_Time adjustment_start;
-    SFTST_Time adjustment_offset;
-    long long previous_sample;
-    long long adjusted_time;
-    long long maximum_time;
-    int adjustment_count;
-    int positive_adjustments;
-    int negative_adjustments;
-    int history_resets;
-    int excess_resets;
-    int average;
-    int adjusted_average;
-    int front_max;
-    int front_min;
-    int rear_max;
-    int rear_min;
-    int field_0x1BC;
-} SFTST_Work;
+/* Stream-time adjustment state is embedded in SfdTimerState's +0x2F0 work block. */
+typedef SfdTimerTestTime SFTST_Time;
+typedef SfdTimerTestWork SFTST_Work;
 
 int sftst_debout_siz = 0;
 char* sftst_debout_buf = 0;
 char* sftst_debout_round = 0;
 char* sftst_debout_write = 0;
 SFTST_Work* sftst_last = 0;
-int gap_06_804AC8B4_bss;
 
 extern int sfadxt_stat;
 
@@ -59,39 +25,65 @@ static const SFTST_Header sftst_header = {{
 static const char sftst_format[] =
     "%p, %ld, %ld, %08lX%08lX, %ld, %ld, %ld, %ld,   %ld, %ld,   %ld, %ld, %ld, %ld,   %ld, %ld,   %ld, %ld, %ld, %ld, %ld,   %ld, %ld,   %ld \n";
 
-static inline long long scale_value(long long value, const SFTST_Time* ratio)
+static inline long long scale_value(SFTST_Time* ratio, long long value)
 {
     return value * ratio->value / ratio->scale;
 }
 
-static inline long long current_output(const SFTST_Work* work,
-                                       const SFTST_Time* master,
-                                       const SFTST_Time* sample)
+static inline void reset_history(SFTST_Work* work)
 {
-    if (work->previous_sample == -1) {
-        return 0;
-    }
-    return work->adjusted_time +
-           scale_value(sample->value - work->previous_sample, master);
+    memset(work->errors, 0, sizeof(work->errors));
+    work->average_index = 0;
+    work->history_resets++;
 }
 
-/* TODO: [breakthrough needed] 85.32576%; global layout recovered; time-adjustment arithmetic/CFG still require retail recovery. */
-void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
-                const SFTST_Time* sample, SFTST_Time* output)
+static inline int sum_history(SFTST_Work* work)
 {
-    long long predicted;
-    long long error;
-    long long limit;
-    long long correction;
-    int sum;
     int i;
+    int sum;
+
+    sum = 0;
+    for (i = 0; i < work->average_count; i++) {
+        sum += work->errors[i];
+    }
+    return sum;
+}
+
+static inline void subtract_history(SFTST_Work* work, int value)
+{
+    int i;
+
+    for (i = 0; i < work->average_count; i++) {
+        work->errors[i] -= value;
+    }
+}
+
+/* TODO: [near miss] 98.51667%; remaining debug sprintf/64-bit register
+ * coloring has no clean-C source lever; anonymous donor-absent tail removed. */
+void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
+                SFTST_Time* sample, SFTST_Time* output)
+{
+    long long estimated;
+    long long quotient;
+    long long adjustment;
+    long long absolute_difference;
+    long long difference;
+    long long average;
+    long long absolute_average;
+    long long tolerance;
+    long long step;
     int index;
+    int difference_narrow;
+    long long predicted;
+    long long excess;
+    char message[0x100];
+    int length;
 
     if (sample->scale == 1 || work->test_enabled == 0) {
         *output = *master;
         return;
     }
-    master->value = master->value < work->maximum_time
+    master->value = work->maximum_time > master->value
                         ? work->maximum_time : master->value;
     if (work->paused == 1) {
         work->reset_history = 0;
@@ -99,29 +91,30 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
         if (master->value > work->maximum_time) {
             work->reset_history = 1;
             if (work->previous_sample == -1) {
-                if (work->adjustment_start.value == -1) {
-                    work->adjusted_time =
-                        master->value +
-                        scale_value(master->scale, &work->adjustment_start);
-                } else {
-                    work->adjusted_time =
-                        master->value +
-                        scale_value(master->scale, &work->adjustment_offset);
-                }
-                work->previous_sample = sample->value;
-                memset(work->errors, 0, sizeof(work->errors));
-                work->average_index = 0;
-                work->history_resets++;
+                adjustment = scale_value(&work->adjustment_start,
+                                         master->scale);
+            } else {
+                adjustment = scale_value(&work->adjustment_offset,
+                                         master->scale);
             }
+            work->previous_sample = sample->value;
+            work->adjusted_time = master->value + adjustment;
+            reset_history(work);
         } else if (work->adjust_enabled == 0) {
             work->reset_history = 1;
         }
     }
-    work->maximum_time = work->maximum_time < master->value
-                             ? master->value : work->maximum_time;
-    predicted = current_output(work, master, sample);
+    work->maximum_time = work->maximum_time > master->value
+                             ? work->maximum_time : master->value;
+    if (work->previous_sample == -1) {
+        estimated = 0;
+    } else {
+        estimated = work->adjusted_time +
+                    master->scale * (sample->value - work->previous_sample) /
+                        sample->scale;
+    }
     if (work->reset_history == 0) {
-        if (work->maximum_time < predicted) {
+        if (work->maximum_time < estimated) {
             if (work->adjust_enabled != 0) {
                 work->previous_sample = sample->value;
                 work->adjusted_time = work->maximum_time;
@@ -132,63 +125,70 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
             work->adjustment_count++;
         }
     } else if (work->adjust_enabled == 1) {
-        error = master->value - predicted;
-        if (error < 0) error = -error;
-        limit = scale_value(master->scale, &work->excess_error);
-        if (error > limit) {
+        absolute_difference =
+            ((difference = master->value - estimated) < 0) ? -difference : difference;
+        excess = scale_value(&work->excess_error, master->scale);
+        if (excess < absolute_difference) {
             work->previous_sample = sample->value;
             work->adjusted_time = master->value;
-            memset(work->errors, 0, sizeof(work->errors));
-            work->average_index = 0;
-            work->history_resets++;
+            reset_history(work);
             work->excess_resets++;
         } else {
             index = work->average_index;
             work->average_index = index + 1;
             work->errors[index % work->average_count] =
-                (int)(master->value - predicted);
-            sum = 0;
-            for (i = 0; i < work->average_count; i++) sum += work->errors[i];
-            work->average = sum / work->average_count;
-            work->adjusted_average = work->average;
-            limit = scale_value(master->scale, &work->tolerance);
-            if ((long long)(work->average < 0 ? -work->average : work->average) > limit) {
-                if ((long long)work->average > limit) {
-                    correction = (2LL * work->average) / limit - 1;
-                    work->positive_adjustments += (int)correction;
+                (int)difference;
+            average = sum_history(work) / work->average_count;
+            work->average = (int)average;
+            work->adjusted_average = (int)average;
+            tolerance = master->scale * work->tolerance.value /
+                        work->tolerance.scale;
+            absolute_average = average < 0 ? -average : average;
+            if (tolerance < absolute_average) {
+                if (tolerance < average) {
+                    quotient = average * 2 / tolerance - 1;
+                    work->positive_adjustments += (int)quotient;
                 } else {
-                    correction = (2LL * work->average) / limit + 1;
-                    work->negative_adjustments -= (int)correction;
+                    quotient = average * 2 / tolerance + 1;
+                    work->negative_adjustments += (int)-quotient;
                 }
+                adjustment = quotient;
+                step = adjustment * tolerance / 2;
                 work->previous_sample = sample->value;
-                correction = correction * limit / 2;
-                work->adjusted_time = predicted + correction;
-                for (i = 0; i < work->average_count; i++) work->errors[i] -= (int)correction;
-                sum = 0;
-                for (i = 0; i < work->average_count; i++) sum += work->errors[i];
-                work->adjusted_average = sum / work->average_count;
+                work->adjusted_time = estimated + step;
+                subtract_history(work, (int)step);
+                work->adjusted_average = sum_history(work) /
+                                          work->average_count;
             }
         }
     }
-    predicted = current_output(work, master, sample);
+    if (work->previous_sample == -1) {
+        predicted = 0;
+    } else {
+        predicted = work->adjusted_time +
+                    master->scale * (sample->value - work->previous_sample) /
+                        sample->scale;
+    }
     output->value = predicted;
     output->scale = master->scale;
     if (output->value < work->output_time.value) *output = work->output_time;
     work->input_time = *master;
     work->sample_time = *sample;
     work->output_time = *output;
-    i = (int)(master->value - output->value);
+    difference_narrow = (int)(master->value - output->value);
     if (work->reset_history == 0) {
-        work->front_max = work->front_max < i ? i : work->front_max;
-        work->front_min = i < work->front_min ? i : work->front_min;
+        work->front_max = work->front_max > difference_narrow
+                              ? work->front_max : difference_narrow;
+        work->front_min = work->front_min < difference_narrow
+                              ? work->front_min : difference_narrow;
     } else {
-        work->rear_max = work->rear_max < i ? i : work->rear_max;
-        work->rear_min = i < work->rear_min ? i : work->rear_min;
+        work->rear_max = work->rear_max > difference_narrow
+                             ? work->rear_max : difference_narrow;
+        work->rear_min = work->rear_min < difference_narrow
+                             ? work->rear_min : difference_narrow;
     }
     sftst_last = work;
     if (sftst_debout_buf != 0) {
-        char message[268];
-        int length;
         int milliseconds = UTY_MulDiv(1000, (int)work->sample_time.value,
                                       (int)work->sample_time.scale);
         long long seconds = work->sample_time.value / work->sample_time.scale;
@@ -216,10 +216,10 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
     }
 }
 
-void SFTST_GoNextFrame(SFTST_Work* work, const SFTST_Time* elapsed)
+void SFTST_GoNextFrame(SFTST_Work* work, SFTST_Time* elapsed)
 {
     if (work->adjust_enabled == 0)
-        work->output_time.value += scale_value(work->output_time.scale, elapsed);
+        work->output_time.value += scale_value(elapsed, work->output_time.scale);
 }
 
 void SFTST_SetAdjFlg(SFTST_Work* work, int value) { work->adjust_enabled = value; }

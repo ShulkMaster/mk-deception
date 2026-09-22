@@ -49,6 +49,8 @@ static int isSame(const char* path, const char* name)
     return *path == '/' || *path == 0;
 }
 
+/* TODO: [breakthrough needed] 82.703705%; path parsing and FST offsets agree;
+ * retail hierarchical-search join remains structurally unresolved. */
 long DVDConvertPathToEntrynum(const char* path)
 {
     const char* component_end;
@@ -126,6 +128,8 @@ long DVDConvertPathToEntrynum(const char* path)
     }
 }
 
+/* TODO: [breakthrough needed] 81.896550%; combined range/directory guard is
+ * retained after donor-shaped CFG regressed; retail field-store lowering remains. */
 int DVDFastOpen(long entry_number, DVDFileInfo* file_info)
 {
     if (entry_number < 0 || (unsigned long)entry_number >= MaxEntryNum ||
@@ -137,6 +141,8 @@ int DVDFastOpen(long entry_number, DVDFileInfo* file_info)
     return 1;
 }
 
+/* TODO: [breakthrough needed] 89.600000%; DVDFileInfo stores and path/error
+ * flow match; retail materializes the directory predicate before returning. */
 int DVDOpen(const char* file_name, DVDFileInfo* file_info)
 {
     long entry;
@@ -189,14 +195,19 @@ static unsigned long entryToPath(unsigned long entry, char* path,
     return position;
 }
 
+#pragma dont_inline on
+/* TODO: [breakthrough needed] 89.448980%; helper boundary and typed directory
+ * entry agree; path-termination branches still need a verified CFG hypothesis. */
 int DVDGetCurrentDir(char* path, unsigned long max_length)
 {
-    unsigned long position = entryToPath(currentDirectory, path, max_length);
+    unsigned long entry = currentDirectory;
+    unsigned long position = entryToPath(entry, path, max_length);
+
     if (position == max_length) {
         path[max_length - 1] = 0;
         return 0;
     }
-    if (ENTRY_IS_DIRECTORY(currentDirectory)) {
+    if (ENTRY_IS_DIRECTORY(entry) ? 1 : 0) {
         if (position == max_length - 1) {
             path[position] = 0;
             return 0;
@@ -206,6 +217,7 @@ int DVDGetCurrentDir(char* path, unsigned long max_length)
     path[position] = 0;
     return 1;
 }
+#pragma dont_inline reset
 
 int DVDReadAsyncPrio(DVDFileInfo* file_info, void* address, long length,
                      long offset, DVDCallback callback, long priority)
@@ -232,14 +244,14 @@ static void cbForReadAsync(long result, DVDCommandBlock* block)
     if (file_info->callback) file_info->callback(result, file_info);
 }
 
-/* TODO: [near miss] 99.86%; queue SDA restored; callback-address temporary uses r3 instead of r4; stop at coloring */
 long DVDReadPrio(DVDFileInfo* file_info, void* address, long length,
                  long offset, long priority)
 {
-    DVDCommandBlock* block = &file_info->cb;
-    long state;
     long result;
+    DVDCommandBlock* block;
+    long state;
     int enabled;
+    long retVal;
 
     if (!(0 <= offset && offset <= file_info->length)) {
         OSPanic("dvdfs.c", 820,
@@ -250,28 +262,30 @@ long DVDReadPrio(DVDFileInfo* file_info, void* address, long length,
         OSPanic("dvdfs.c", 826,
                 "DVDRead(): specified area is out of the file  ");
     }
-    if (!DVDReadAbsAsyncPrio(block, address, length,
+    block = &file_info->cb;
+    result = DVDReadAbsAsyncPrio(block, address, length,
                              file_info->start_address + offset,
-                             cbForReadSync, priority)) return -1;
+                             cbForReadSync, priority);
+    if (result == 0) return -1;
     enabled = OSDisableInterrupts();
     for (;;) {
         state = ((volatile DVDCommandBlock*)block)->state;
         if (state == 0) {
-            result = block->transferred_size;
+            retVal = block->transferred_size;
             break;
         }
         if (state == -1) {
-            result = -1;
+            retVal = -1;
             break;
         }
         if (state == 10) {
-            result = -3;
+            retVal = -3;
             break;
         }
         OSSleepThread(&__DVDThreadQueue);
     }
     OSRestoreInterrupts(enabled);
-    return result;
+    return retVal;
 }
 
 static void cbForReadSync(long result, DVDCommandBlock* block)
@@ -279,19 +293,36 @@ static void cbForReadSync(long result, DVDCommandBlock* block)
     OSWakeupThread(&__DVDThreadQueue);
 }
 
+/* TODO: [breakthrough needed] 84.925930%; valid-state results agree; retaining
+ * a defined zero result for invalid states differs from retail's join. */
 long DVDGetTransferredSize(DVDFileInfo* file_info)
 {
+    long bytes;
     DVDCommandBlock* block = &file_info->cb;
 
     switch (block->state) {
-    case 0: case -1: case 3: case 4: case 5:
-    case 6: case 7: case 10: case 11:
-        return block->transferred_size;
-    case 2:
-        return 0;
-    case 1:
-        return block->transferred_size +
-               (block->current_transfer_size - DI_REGS[6]);
+    case DVD_STATE_COVER_CLOSED:
+    case DVD_STATE_NO_DISK:
+    case DVD_STATE_COVER_OPEN:
+    case DVD_STATE_WRONG_DISK:
+    case DVD_STATE_FATAL_ERROR:
+    case DVD_STATE_MOTOR_STOPPED:
+    case DVD_STATE_CANCELED:
+    case DVD_STATE_RETRY:
+    case DVD_STATE_END:
+        bytes = block->transferred_size;
+        break;
+    case DVD_STATE_WAITING:
+        bytes = 0;
+        break;
+    case DVD_STATE_BUSY:
+        bytes = block->transferred_size +
+                (block->current_transfer_size - DI_REGS[6]);
+        break;
+    default:
+        bytes = 0;
+        break;
     }
-    return 0;
+
+    return bytes;
 }

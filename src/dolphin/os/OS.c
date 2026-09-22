@@ -45,6 +45,8 @@ static unsigned long __OSExceptionLocations[OS_EXCEPTION_COUNT] = {
 /* Architectural register initialization is not expressible in portable C. */
 asm void __OSFPRInit(void) { SEQ___OSFPRInit(); }
 
+/* TODO: [blocked] 54.285713%; HID2/cache ordering matches the donor, but
+ * retail's eight GQR writes are privileged assembly with no honest C form. */
 void __OSPSInit(void)
 {
     PPCMthid2(PPCMfhid2() | 0xA0000000);
@@ -112,6 +114,8 @@ void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
     __OSUnhandledException(exception, context, 0, 0);
 }
 
+/* TODO: [breakthrough] 92.006250%; NOP-pointer lifetime matches the retail
+ * frame; r4/r19 coloring and helper residue remain. */
 static void OSExceptionInit(void)
 {
     __OSException exception;
@@ -132,7 +136,6 @@ static void OSExceptionInit(void)
         ICInvalidateRange(destination, size);
     }
     for (exception = 0; exception < OS_EXCEPTION_COUNT; exception++) {
-        unsigned long* db_vector;
         unsigned long size;
         int offset;
         if (BI2DebugFlag && *BI2DebugFlag >= 2 &&
@@ -141,13 +144,13 @@ static void OSExceptionInit(void)
             continue;
         }
         *opcode = old_opcode | exception;
-        db_vector = (unsigned long*)__DBVECTOR;
         size = (unsigned char*)__OSDBJUMPEND -
                (unsigned char*)__OSDBJUMPSTART;
         if (__DBIsExceptionMarked(exception)) {
             DBPrintf(">>> OSINIT: exception %d vectored to debugger\n", exception);
-            memcpy(db_vector, (void*)__OSDBJUMPSTART, size);
+            memcpy((void*)__DBVECTOR, (void*)__OSDBJUMPSTART, size);
         } else {
+            unsigned long* db_vector = (unsigned long*)__DBVECTOR;
             for (offset = 0; offset < (int)size; offset += 4) {
                 *db_vector++ = NOP_INSTRUCTION;
             }
@@ -179,7 +182,7 @@ OSExceptionHandler __OSGetExceptionHandler(__OSException exception)
     return OSExceptionTable[exception];
 }
 
-/* TODO: [breakthrough needed] 77.13%; boot-device and DI owners corrected; initialization call/stack and constant ownership remain */
+/* TODO: [breakthrough needed] 82.56410%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
 void OSInit(void)
 {
     unsigned long console_type;
@@ -189,6 +192,14 @@ void OSInit(void)
     __OSStartTime = __OSGetSystemTime();
     OSDisableInterrupts();
     __OSGetExecParams(&__OSRebootParams);
+    PPCMtmmcr0(0);
+    PPCMtmmcr1(0);
+    PPCMtpmc1(0);
+    PPCMtpmc2(0);
+    PPCMtpmc3(0);
+    PPCMtpmc4(0);
+    PPCDisableSpeculation();
+    PPCSetFpNonIEEEMode();
 
     BootInfo = (OSBootInfo*)0x80000000;
     BI2DebugFlag = 0;

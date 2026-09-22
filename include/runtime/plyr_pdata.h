@@ -186,7 +186,9 @@ typedef struct PlyrPdata {
     unsigned int reserved_FC;
     struct MkProc* spear_proc; /* +0x100 */
     unsigned int spear_proc_instance; /* +0x104 */
-    unsigned int reserved_108[3];
+    unsigned int reserved_108;
+    struct ScalePdata* scale_pdata; /* +0x10C */
+    unsigned int scale_pdata_instance; /* +0x110 */
     AniTextureControlItem facial_texture; /* +0x114 */
     struct MkProc* foot_print_proc; /* +0x11C */
     unsigned int foot_print_proc_instance; /* +0x120 */
@@ -255,7 +257,7 @@ typedef struct PlyrPdata {
     char pad27C[4];
     unsigned int charge_up_disabled_until; /* +0x280 */
     unsigned int damage_boost_until; /* +0x284 */
-    char pad288[4];
+    float charge_scale; /* +0x288 */
     float taunt_life_scale; /* +0x28C */
     float postround_value; /* +0x290 */
     float combo_damage; /* +0x294 */

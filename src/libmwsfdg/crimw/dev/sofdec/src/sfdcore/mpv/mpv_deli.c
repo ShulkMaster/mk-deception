@@ -36,6 +36,7 @@ const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
     return 0;
 }
 
+/* TODO: [breakthrough needed] 75.6875%; signed-pointer reconstruction regresses; reverse-loop/state lowering remains structurally different. */
 void* MPV_BsearchDelim(const unsigned char* data, int length, int mask) {
     const unsigned char* current = data;
     const unsigned char* end = data - length;
@@ -76,34 +77,32 @@ void* MPV_BsearchDelim(const unsigned char* data, int length, int mask) {
 }
 
 int MPV_CheckDelim(const unsigned char* data) {
-    unsigned short prefix = (unsigned short)((data[0] << 8) | data[1]);
-    int delimiter = prefix;
+    int delimiter;
+    int result;
 
-    delimiter = (delimiter << 8) | data[2];
-    delimiter = (delimiter << 8) | data[3];
+    delimiter = (data[0] << 8) | data[1];
+    delimiter <<= 8;
+    delimiter |= data[2];
+    delimiter <<= 8;
+    delimiter |= data[3];
     if (delimiter == 0x100) {
-        return 4;
+        result = 4;
+    } else if (delimiter == 0x101) {
+        result = 3;
+    } else if (delimiter > 0x101 && delimiter <= 0x1AF) {
+        result = 1;
+    } else if (delimiter == 0x1B2) {
+        result = 0x20;
+    } else if (delimiter == 0x1B3) {
+        result = 0x40;
+    } else if (delimiter == 0x1B5) {
+        result = 0x10;
+    } else if (delimiter == 0x1B7) {
+        result = 0x80;
+    } else if (delimiter == 0x1B8) {
+        result = 8;
+    } else {
+        result = 0;
     }
-    if (delimiter == 0x101) {
-        return 3;
-    }
-    if (delimiter > 0x101 && delimiter <= 0x1AF) {
-        return 1;
-    }
-    if (delimiter == 0x1B2) {
-        return 0x20;
-    }
-    if (delimiter == 0x1B3) {
-        return 0x40;
-    }
-    if (delimiter == 0x1B5) {
-        return 0x10;
-    }
-    if (delimiter == 0x1B7) {
-        return 0x80;
-    }
-    if (delimiter == 0x1B8) {
-        return 8;
-    }
-    return 0;
+    return result;
 }

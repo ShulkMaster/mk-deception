@@ -12,13 +12,12 @@ volatile unsigned long __PIRegs[] : 0xCC003000;
 unsigned char __gUnknown800030E3 : 0x800030E3;
 extern OSTime __OSStartTime;
 
+/* TODO: [breakthrough needed] 86.37705%; RE4's inline debounce lowering regresses the frame/CFG here; constant and scheduler residue remain unresolved. */
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     OSResetCallback callback;
     OSTime debounce_ticks;
 
-    (void)interrupt;
-    (void)context;
     HoldDown = __OSGetSystemTime();
     debounce_ticks = OSMicrosecondsToTicks(100);
     while (__OSGetSystemTime() - HoldDown < debounce_ticks &&
@@ -36,6 +35,8 @@ void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
     __PIRegs[0] = 2;
 }
 
+/* TODO: [near miss] 98.584335%; debounce CFG agrees with the SDK; the local
+ * headers use an ABI-equivalent int, and timer-scale/register residue remains. */
 int OSGetResetButtonState(void)
 {
     int enabled;

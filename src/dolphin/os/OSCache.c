@@ -79,6 +79,7 @@ static inline void L2Disable(void) {
     __sync();
 }
 
+/* TODO: [breakthrough needed] 81.447365%; empty-loop and do-while source forms are neutral or compiler-crashing; target entry branch remains unresolved. */
 void L2GlobalInvalidate(void) {
     L2Disable();
     PPCMtl2cr(PPCMfl2cr() | 0x00200000);
@@ -91,10 +92,11 @@ void L2GlobalInvalidate(void) {
     }
 }
 
+/* TODO: [near miss] 70.852270%; donor masks, context layout, and variadic ABI
+ * agree; MWCC argument-save ordering and branch-test lowering remain. */
 void DMAErrorHandler(OSError error, OSContext* context, ...) {
     unsigned long hid2 = PPCMfhid2();
 
-    (void)error;
     OSReport("Machine check received\n");
     OSReport("HID2 = 0x%x   SRR1 = 0x%x\n", hid2, context->srr1);
     if (!(hid2 & 0x00F00000) || !(context->srr1 & 0x00200000)) {

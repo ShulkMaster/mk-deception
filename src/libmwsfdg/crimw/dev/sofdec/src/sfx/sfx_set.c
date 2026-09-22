@@ -9,13 +9,13 @@ void SFX_SetColAdj(SfxTagInfo* info, int adjustment) {
 }
 
 void SFX_GetTagInf(
-    SfxTagInfo* info, int* tag_start, int* tag_size) {
+    SfxTagInfo* info, void** tag_data, int* tag_size) {
     if (info->tag_info_set != 1) {
-        *tag_start = 0;
+        *tag_data = 0;
         *tag_size = 0;
         return;
     }
-    *tag_start = info->tag_start;
+    *tag_data = info->tag_data;
     *tag_size = info->tag_size;
 }
 
@@ -26,7 +26,7 @@ void SFX_SetTagInf(SfxTagInfo* info, void* data, int size) {
     SfxEffect* effect;
 
     tag = "SFXZ";
-    effect = info->effect;
+    effect = info->depth;
     info->tag_data = data;
     info->tag_size = size;
     source.data = data;
@@ -45,8 +45,8 @@ void SFX_SetUnitWidth(SfxTagInfo* info, int width) {
 
 void SFX_SetOutBufSize(
     SfxTagInfo* info, int buffer_size, int buffer_count) {
-    info->output_buffer_size = buffer_size;
-    info->output_buffer_count = buffer_count;
+    info->output_width = buffer_size;
+    info->output_height = buffer_count;
 }
 
 int SFX_GetFxType(SfxTagInfo* info) {

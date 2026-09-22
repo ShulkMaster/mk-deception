@@ -122,6 +122,8 @@ static void __GXDefaultVerifyCallback(GXWarningLevel level, u32 id, const char* 
 }
 #endif
 
+/* TODO: [near miss] 99.450000%; algorithm and layout match, but MWCC keeps
+ * static-local relocation names/coloring different from retail. */
 static int __GXShutdown(BOOL final) {
     static u32 peCount;
     static OSTime time;
@@ -230,6 +232,8 @@ void __GXInitRevisionBits(void) {
     }
 }
 
+/* TODO: [near miss] 99.973960%; RE4/m2c CFG and GXData layout agree; the
+ * residual is only compiler-generated static-local relocation numbering. */
 GXFifoObj* GXInit(void* base, u32 size) {
     static u32 resetFuncRegistered;
     u32 i;

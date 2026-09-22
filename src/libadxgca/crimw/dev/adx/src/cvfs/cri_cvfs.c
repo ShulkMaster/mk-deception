@@ -55,7 +55,7 @@ typedef struct CvFsDevice {
     char name[9];
 } CvFsDevice;
 
-const char* const cvfs_build =
+const char* const volatile cvfs_build =
     "\nCVFS/GC Ver.2.35 Build:Sep  3 2004 17:47:58\n";
 
 /* The retail object retains the complete CVFS diagnostic string pool even
@@ -429,6 +429,7 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
+/* TODO: [near miss] 96.88552%; CFG, calls, widths, and layout match; residual is register coloring in split-path loops. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
@@ -565,6 +566,7 @@ void cvFsClose(CvFsObject* handle)
     }
 }
 
+/* TODO: [near miss] 96.91932%; path split, handle lifetime, device resolution, open/error CFG, and release paths match retail; residual is global/register coloring. */
 CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
 {
     CvFsObject* handle;
@@ -638,11 +640,14 @@ void cvFsSetDefDev(char* name)
     cvFsError(set_default_unknown_device);
 }
 
+/* TODO: [near miss] 98.427670%; donor-backed build read restores the pooled
+ * rodata base; the device-search loop retains localized GPR allocation residue. */
 void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 {
     CvFsInterface* interface;
 
     (void)init_parameter;
+    cvfs_build;
 
     if (name == NULL) {
         cvFsError(add_device_bad_name);

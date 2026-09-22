@@ -238,21 +238,7 @@ typedef struct MovesWeaponGrabEntry {
     float weighting;
 } MovesWeaponGrabEntry;
 
-typedef struct MovesActionRef {
-    int source;
-    unsigned int action;
-} MovesActionRef;
-
-typedef struct MovesAttackActionTable {
-    char pad00[0xF0];
-    MovesActionRef attack_1[3];
-    char pad108[0x10];
-    MovesActionRef attack_2[3];
-    char pad130[0x10];
-    MovesActionRef attack_3[3];
-    char pad158[0x10];
-    MovesActionRef attack_4[3];
-} MovesAttackActionTable;
+typedef AiFightstyleAttack MovesActionRef;
 
 unsigned int scan_freak_4[1] = {(unsigned int)-1};
 MovesActionRef temp_throw_switch = {4, 0x8F};
@@ -1991,61 +1977,51 @@ static AniData* fetch_grab_anim_ptr(unsigned int grab_type) {
 }
 
 static inline void moves_dispatch_attack(MovesActionRef* action) {
-    union {
-        unsigned int value;
-        MkProcEntryFn entry;
-    } target;
-    ScriptSlot* script;
-
     plyr_going_to_attack_with(action);
-    switch (action->source) {
+    switch (action->opcode) {
     case 0:
-        script = plyr_pdata->fighter_definition->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
-        call_player_script_function(script);
+        cmdscript_setup_execution(
+            plyr_pdata->fighter_definition->cmo, action->argument);
+        call_player_script_function(plyr_pdata->fighter_definition->cmo);
         break;
     case 1:
-        target.value = action->action;
-        moves_jump(target.entry);
+        moves_jump(action->entry);
         break;
     case 2:
-        script = plyr_pdata->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
-        call_player_script_function(script);
+        cmdscript_setup_execution(
+            plyr_pdata->cmo, action->argument);
+        call_player_script_function(plyr_pdata->cmo);
         break;
     case 3:
-        script = his_pdata->cmo;
         cmdscript_reset_stack();
-        cmdscript_setup_execution(script, action->action);
-        call_player_script_function(script);
+        cmdscript_setup_execution(
+            plyr_pdata->his_plyr_pdata->cmo, action->argument);
+        call_player_script_function(plyr_pdata->his_plyr_pdata->cmo);
         break;
     case 4:
         cmdscript_reset_stack();
         cmdscript_setup_execution(
-            reactions_cmo, action->action);
+            reactions_cmo, action->argument);
         call_player_script_function(reactions_cmo);
         break;
     }
 }
 
 /* The two tagged dispatches belong to their respective attack branches. */
-/* TODO: [breakthrough needed] 82.82%; tagged dispatch expansion, log ownership and frame layout remain. */
+/* TODO: [near miss] 99.79166%; instructions and literal values agree; generated literal identities remain */
 float x_attack_5(void) {
-    MovesSwitchLogEntry* entry;
     unsigned int throw_script;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_id;
+        p1_current_switch_time = p1_switch_log[p1_log_index].switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_id;
+        p2_current_switch_time = p2_switch_log[p2_log_index].switch_value;
     }
     trial_increment_state_value(
         plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
@@ -2053,9 +2029,9 @@ float x_attack_5(void) {
     if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
         if (am_i_a_big_character() != 0) {
             moves_jump(j_flying_kick);
-        } else {
-            moves_jump(j_flying_kick2);
+            return 0.0f;
         }
+        moves_jump(j_flying_kick2);
         return 0.0f;
     }
 
@@ -2063,12 +2039,12 @@ float x_attack_5(void) {
     pre_attack_chores();
     throw_script = plyr_pdata->status_data->throw_script;
     if (throw_script == 0) {
-        temp_throw_switch.source = 4;
-        temp_throw_switch.action = 0x8F;
+        temp_throw_switch.opcode = 4;
+        temp_throw_switch.argument = 0x8F;
         moves_dispatch_attack(&temp_throw_switch);
     } else {
-        temp_throw_switch.source = 2;
-        temp_throw_switch.action = throw_script;
+        temp_throw_switch.opcode = 2;
+        temp_throw_switch.argument = throw_script;
         moves_dispatch_attack(&temp_throw_switch);
     }
     set_my_state(0);
@@ -2077,19 +2053,18 @@ float x_attack_5(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 78.89%; tagged dispatch expansion and frame layout remain. */
+/* TODO: [near miss] 99.82379%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 static float x_attack_5_remote(void) {
-    unsigned int throw_script;
-
     pre_attack_chores();
-    throw_script = plyr_pdata->status_data->throw_script;
-    if (throw_script == 0) {
-        temp_throw_switch.source = 4;
-        temp_throw_switch.action = 0x8F;
+    if (plyr_pdata->status_data->throw_script == 0) {
+        temp_throw_switch.opcode = 4;
+        temp_throw_switch.argument = 0x8F;
         moves_dispatch_attack(&temp_throw_switch);
     } else if (is_big_boss(plyr_pdata) == 0) {
-        temp_throw_switch.source = 2;
-        temp_throw_switch.action = throw_script;
+        unsigned int throw_script = plyr_pdata->status_data->throw_script;
+        temp_throw_switch.opcode = 2;
+        temp_throw_switch.argument = throw_script;
         moves_dispatch_attack(&temp_throw_switch);
     }
     set_my_state(0);
@@ -2099,10 +2074,8 @@ static float x_attack_5_remote(void) {
 }
 
 /* Scan the character-specific action sequence through the typed jump-table base. */
-/* TODO: [breakthrough needed] 88.30%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [near miss] 96.95349%; five-attempt limit reached; compare remaining branch and literal differences. */
 float x_attack_4(void) {
-    MovesAttackActionTable* actions;
-    MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences;
     int joy_state;
@@ -2110,14 +2083,12 @@ float x_attack_4(void) {
     sequences = &jump_table[0].value;
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_id;
+        p1_current_switch_time = p1_switch_log[p1_log_index].switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_id;
+        p2_current_switch_time = p2_switch_log[p2_log_index].switch_value;
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 4, 0);
     trial_increment_state_value(
@@ -2131,8 +2102,8 @@ float x_attack_4(void) {
         return 0.0f;
     }
 
-    actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    action = &((AiFightstyleAttackTable*)
+        plyr_pdata->fighter_definition->move_blend_data)->attacks[15];
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2223,34 +2194,30 @@ float x_attack_4(void) {
         break;
     }
 
+    action += joy_state;
     pre_attack_chores();
-    action = &actions->attack_4[joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
     moves_dispatch_attack(action);
-    return 0.0f;
+    return 1.0f;
 }
 
 /* Keep the guarded character dispatches and their direct action-sequence scans. */
-/* TODO: [breakthrough needed] 90.36%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [near miss] 99.55247%; five-attempt limit reached; compare remaining branch and literal differences. */
 float x_attack_3(void) {
-    MovesAttackActionTable* actions;
-    MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_id;
+        p1_current_switch_time = p1_switch_log[p1_log_index].switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_id;
+        p2_current_switch_time = p2_switch_log[p2_log_index].switch_value;
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 3, 0);
     trial_increment_state_value(
@@ -2265,8 +2232,8 @@ float x_attack_3(void) {
         return 0.0f;
     }
 
-    actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    action = &((AiFightstyleAttackTable*)
+        plyr_pdata->fighter_definition->move_blend_data)->attacks[10];
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2360,33 +2327,30 @@ float x_attack_3(void) {
         break;
     }
 
+    action += joy_state;
     pre_attack_chores();
-    action = &actions->attack_3[joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
     moves_dispatch_attack(action);
-    return 0.0f;
+    return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 90.24%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [near miss] 99.88673%; instructions and literal values agree;
+ * generated literal relocation identity remains; stop at pool layout. */
 float x_attack_2(void) {
-    MovesAttackActionTable* actions;
-    MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_id;
+        p1_current_switch_time = p1_switch_log[p1_log_index].switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_id;
+        p2_current_switch_time = p2_switch_log[p2_log_index].switch_value;
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 2, 0);
     trial_increment_state_value(
@@ -2396,8 +2360,8 @@ float x_attack_2(void) {
         return 0.0f;
     }
 
-    actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    action = &((AiFightstyleAttackTable*)
+        plyr_pdata->fighter_definition->move_blend_data)->attacks[5];
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2494,33 +2458,29 @@ float x_attack_2(void) {
         break;
     }
 
+    action += joy_state;
     pre_attack_chores();
-    action = &actions->attack_2[joy_state];
     if (joy_state == 2) {
         set_my_state(0x1200);
     }
     moves_dispatch_attack(action);
-    return 0.0f;
+    return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 90.44%; switch-log ownership and inline dispatch scheduling remain. */
+/* TODO: [near miss] 99.08943%; five-attempt limit reached; classify remaining Boolean lowering or literals. */
 float x_attack_1(void) {
-    MovesAttackActionTable* actions;
-    MovesSwitchLogEntry* entry;
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_id;
+        p1_current_switch_time = p1_switch_log[p1_log_index].switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_id;
+        p2_current_switch_time = p2_switch_log[p2_log_index].switch_value;
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 1, 0);
     trial_increment_state_value(
@@ -2530,8 +2490,8 @@ float x_attack_1(void) {
         return 0.0f;
     }
 
-    actions =
-        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    action = ((AiFightstyleAttackTable*)
+        plyr_pdata->fighter_definition->move_blend_data)->attacks;
     joy_state = my_joypad_state_5();
     if (joy_state == 2) {
         init_ground_move();
@@ -2657,14 +2617,14 @@ float x_attack_1(void) {
         break;
     }
 
+    action += joy_state;
     pre_attack_chores();
-    action = &actions->attack_1[joy_state];
     if (joy_state == 2) {
         set_my_state(0x1300);
     }
     moves_dispatch_attack(action);
     plyr_anim_pdata->step = 1.0f;
-    return 0.0f;
+    return 1.0f;
 }
 
 void sidekick_switch_style_swap(unsigned int count) {
@@ -6332,21 +6292,18 @@ float x_block(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 90.08%; timer/local ownership and loop frame layout remain. */
-void j_duck_block_loop(void) {
-    PlyrPdata* block;
+/* TODO: [near miss] 99.64103%; instructions and literal values agree; only generated literal identities remain. */
+float j_duck_block_loop(void) {
     PlyrPdata* opponent_block;
-    PlyrPdata* opponent_attack;
-    PlyrPdata* opponent;
+    int opponent_state;
     unsigned int timeout;
     int requirement;
 
-    block = plyr_pdata;
     timeout = exec_tick_ctr + 120;
-    if (block->block_hit_count > 3) {
-        block->block_hit_count--;
+    if (plyr_pdata->block_hit_count > 3) {
+        plyr_pdata->block_hit_count--;
     } else {
-        block->block_hit_count = 0;
+        plyr_pdata->block_hit_count = 0;
     }
     xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = 0.5f;
@@ -6357,67 +6314,66 @@ void j_duck_block_loop(void) {
         nudge_towards_him(0.2f);
         moves_sleep(1.0f);
         if (plyr_pdata->his_attack_counter != get_his_attack_counter()) {
-            block->combo_depth++;
+            plyr_pdata->combo_depth++;
         }
 
         if (plyr_pdata->drone_request != 0) {
             if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
-                opponent = g_game_info.plyr1.slot.pdata;
+                opponent_state = g_game_info.plyr1.slot.pdata->state;
             } else {
-                opponent = g_game_info.plyr0.slot.pdata;
+                opponent_state = g_game_info.plyr0.slot.pdata->state;
             }
-            opponent_attack = (PlyrPdata*)his_pdata;
-            if (((opponent->state & 0x1000) == 0 ||
-                 opponent_attack->throw_restriction == 3) &&
+            if (((opponent_state & 0x1000) == 0 ||
+                 his_pdata->throw_restriction == 3) &&
                 (unsigned int)g_min_time_in_block_for_drone <
                     (unsigned int)exec_tick_ctr &&
                 (plyr_pdata->his_plyr_pdata)
                         ->duck_reaction_active == 0) {
                 set_my_state(0x101);
-                block->field_6DC = exec_tick_ctr;
+                plyr_pdata->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
-                return;
+                return 0.0f;
             }
             if (timeout < (unsigned int)exec_tick_ctr) {
                 opponent_block =
                     plyr_pdata->his_plyr_pdata;
                 opponent_block->duck_reaction_active = 0;
-                block->field_6DC = exec_tick_ctr;
+                plyr_pdata->field_6DC = exec_tick_ctr;
                 moves_jump(drone_blocking_done);
-                return;
+                return 0.0f;
             }
             requirement = his_pdata->block_requirement;
-            if (requirement != 0 && requirement != 7) {
-                continue;
+            if (requirement == 0 || requirement == 7) {
+                break;
             }
         }
-        break;
     }
 
     if (check_switch(plyr_pdata->controller_port, 0xE) != 0 &&
         plyr_pdata->drone_request == 0) {
         set_my_state(0x101);
     } else {
-        requirement = his_pdata->block_requirement;
         if ((check_switch(plyr_pdata->controller_port, 1) != 0 &&
              plyr_pdata->drone_request == 0) ||
             (plyr_pdata->drone_request == 1 &&
-             (requirement == 0 || requirement == 7))) {
+             ((requirement = his_pdata->block_requirement) == 0 ||
+              requirement == 7))) {
             random_hit(7);
             random_voice(9);
             init_ground_move();
             if (should_i_weapon_block() != 0) {
                 moves_jump(weapon_block);
-            } else {
-                moves_jump(block_a_intro_glitch);
+                return 0.0f;
             }
-            return;
+            moves_jump(block_a_intro_glitch);
+            return 0.0f;
         }
     }
 
     blend_to_stance(0.1f);
     trial_clear_provision();
     moves_jump(j_exit);
+    return 0.0f;
 }
 
 #define MOVES_BLOCK_BODY(block_state, intro_animation, loop_animation)       \

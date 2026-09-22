@@ -14,7 +14,7 @@ typedef struct SFXLibraryWork {
     u8 reserved_3d8[0x10];
 } SFXLibraryWork;
 
-extern SFXZObject* SFXZ_Create(void* work, s32 enabled, s32 format, s32 flags);
+extern SFXZObject* SFXZ_Create(void);
 extern void SFXZ_Destroy(SFXZObject* object);
 extern void SFXZ_Finish(void);
 extern void SFXZ_Init(void);
@@ -24,26 +24,28 @@ extern void SFXA_Finish(void);
 extern void SFXA_Init(void);
 extern void SFXSUD_Finish(void);
 extern void SFXSUD_Init(void);
-extern void CFT_Ycc420plnToArgb8888Init(SFXLibraryWork* work, s32 count);
+extern void CFT_Ycc420plnToArgb8888Init(void);
 
 const char sfx_ver_str[] =
     "\nCRI SFX/GC Ver.2.08 Build:Sep  3 2004 11:38:56\n";
 
-static const char* sfx_dummy;
+s32 sfx_init_cnt = 0;
+s32 sfxcnv_forcesplit = 0;
 SFXLibraryWork sfx_libwork;
-s32 sfxcnv_forcesplit;
-s32 sfx_init_cnt;
+static const char* sfx_dummy;
 
 s32 SFX_GetCcirFx(void) {
     return sfx_libwork.ccir_fx;
 }
 
-void SFXLIB_Error(void* unused0, void* unused1, const char* message) {
+void SFXLIB_Error(SFXHandle* handle, SFXFrameInfo* frame,
+                  const char* message) {
     SFXErrorCallback callback = sfx_libwork.error_callback;
+    void* object = sfx_libwork.error_object;
 
     sfx_libwork.error_count++;
     if (callback != 0) {
-        callback(sfx_libwork.error_object, message);
+        callback(object, message);
     }
 }
 
@@ -73,48 +75,43 @@ static inline SFXHandle* SFX_FindFreeHandle(void) {
     return 0;
 }
 
+static inline s32 sfx_IsEnoughWork(s32 buffer_size) {
+    return buffer_size >= 0x301f;
+}
+
 SFXHandle* SFX_Create(void* buffer, s32 buffer_size) {
-    /* Soft ceiling: retail keeps the initializer constants in call registers;
-     * this clean form reloads them before SFXZ_Create. */
     SFXHandle* handle = SFX_FindFreeHandle();
     SFXZObject* depth;
     SFXAObject* alpha;
-    s32 zero;
-    s32 format;
-    s32 enabled;
 
     if (handle == 0) {
-        return 0;
+        return handle;
     }
 
-    if ((s64)buffer_size >= 0x301f) {
-    } else {
+    if (sfx_IsEnoughWork(buffer_size) != 1) {
         SFXLIB_Error(0, 0, "E201194: sfx_InitHn: work size is short.");
         return 0;
     }
 
     memset(handle, 0, sizeof(*handle));
-    zero = 0;
-    format = 0x11;
-    enabled = 1;
-    handle->stream_info = zero;
-    handle->format = format;
-    handle->field_count = zero;
-    handle->field_10 = zero;
-    handle->depth_enabled = enabled;
-    handle->field_30 = zero;
-    handle->field_3c = zero;
-    handle->work_0 = (void*)(((u32)buffer + 31) & ~31);
-    handle->work_1 = (u8*)handle->work_0 + 0x400;
-    handle->work_2 = (u8*)handle->work_1 + 0x400;
-    handle->depth_work = (u8*)handle->work_2 + 0x400;
-    handle->buffer = buffer;
-    handle->buffer_size = buffer_size;
+    handle->composition_mode = 0;
+    handle->effect_type = 0x11;
+    handle->output_width = 0;
+    handle->output_height = 0;
+    handle->depth_enabled = 1;
+    handle->field_30 = 0;
+    handle->table_type = 0;
+    handle->work_buffers[0] = (u8*)(((u32)buffer + 31) & ~31);
+    handle->work_buffers[1] = handle->work_buffers[0] + 0x400;
+    handle->work_buffers[2] = handle->work_buffers[1] + 0x400;
+    handle->work_buffers[3] = handle->work_buffers[2] + 0x400;
+    handle->work = buffer;
+    handle->work_size = buffer_size;
     handle->frame_number = -1;
-    handle->field_74 = zero;
-    handle->active = enabled;
+    handle->field_74 = 0;
+    handle->active = 1;
 
-    depth = SFXZ_Create(handle->depth_work, enabled, format, zero);
+    depth = SFXZ_Create();
     if (depth == 0) {
         SFXLIB_Error(0, 0, "E201281: SfxZHn: can't create.");
         SFX_Destroy(handle);
@@ -150,13 +147,11 @@ void SFX_Finish(void) {
 
 void SFX_Init(void) {
     if (sfx_init_cnt < 1) {
-        s32 handle_count = 8;
-
         sfx_dummy = sfx_ver_str;
         memset(&sfx_libwork, 0, sizeof(sfx_libwork));
-        sfx_libwork.handle_count = handle_count;
+        sfx_libwork.handle_count = 8;
         sfx_libwork.ccir_fx = 1;
-        CFT_Ycc420plnToArgb8888Init(&sfx_libwork, handle_count);
+        CFT_Ycc420plnToArgb8888Init();
         SFXSUD_Init();
         SFXZ_Init();
         SFXA_Init();

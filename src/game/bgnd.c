@@ -485,14 +485,17 @@ typedef struct BgndPebbleControl {
 } BgndPebbleControl;
 
 typedef struct BgndPebbleCollection {
-    char pad00[8];
+    MkHdr hdr;
     MKMATRIX* matrices;              /* +0x08, stride 0x40 */
-    char pad0C[0x0C];
+    int count;
+    int active_count;
+    PebbleRenderData* render_data;
     BgndPebbleControl* pebbles; /* +0x18, stride 0x70 */
+    PebbleFlags* flags;
 } BgndPebbleCollection;
 
 typedef struct BgndPebblePlayerData {
-    char pad00[8];
+    MkHdr hdr;
     BgndPebbleCollection* collection; /* +0x08 */
     MkSobj* sobj;                     /* +0x0C */
     int count;                        /* +0x10 */
@@ -8180,10 +8183,8 @@ void bgnd_pebble_simple_launch_at_time(int player, int index,
     pebble->bounce_param = behavior_param;
     pebble->end_behavior = 4;
 }
-/*
- * Near match: 96.03%, retail/local 728/728 bytes. Remaining differences are
- * nonvolatile register allocation and equivalent loop-induction scheduling.
- */
+/* TODO: [near miss] 96.08242%; native-safe owner fields preserve GC offsets;
+ * remaining register allocation and loop-induction scheduling are unchanged. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
     BgndPebbleCollection* collection;

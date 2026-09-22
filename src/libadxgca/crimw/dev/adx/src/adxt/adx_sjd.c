@@ -276,139 +276,186 @@ void ADXSJD_ExecServer(void)
     }
 }
 
-void ADXSJD_ExecHndl(AdxSjdHandle* handle)
+static inline void adxsjd_pad_out(AdxSjdHandle* handle)
 {
-    AdxBasicDecoderExt* decoder;
-    AdxBasicDecoderExt* completed_decoder;
-    SJ* input;
-    SJCK leading_chunk;
-    SJCK decoded_chunk;
-    SJCK remainder;
-    SJCK trailing_chunk;
+    SJCK chunk;
     s32 channel;
     s32 bytes;
     s32 samples;
-    s32 decoded_samples;
-    s32 decoded_length;
-    s32 output_samples;
-    s32 format;
+    s32 chunk_bytes;
 
-    if (handle->pending_leading_samples > 0) {
-        ADXCRS_Lock();
-        bytes = handle->pending_leading_samples * 2;
+    if (handle->pending_leading_samples <= 0) {
+        return;
+    }
+    ADXCRS_Lock();
+    bytes = handle->pending_leading_samples * 2;
+    for (channel = 0; channel < handle->channel_count; channel++) {
+        handle->output[channel]->interface->get_chunk(
+            handle->output[channel], 0, 0x7FFFFFFF, &chunk);
+        chunk_bytes = chunk.len;
+        if (bytes < chunk_bytes) {
+            chunk_bytes = bytes;
+        }
+        bytes = chunk_bytes;
+        handle->output[channel]->interface->unget_chunk(
+            handle->output[channel], 0, &chunk);
+    }
+    samples = bytes / 2;
+    bytes = samples * 2;
+    if (bytes > 0) {
         for (channel = 0; channel < handle->channel_count; channel++) {
             handle->output[channel]->interface->get_chunk(
-                handle->output[channel], 0, 0x7FFFFFFF, &leading_chunk);
-            bytes = bytes < leading_chunk.len ? bytes : leading_chunk.len;
-            handle->output[channel]->interface->unget_chunk(
-                handle->output[channel], 0, &leading_chunk);
+                handle->output[channel], 0, bytes, &chunk);
+            memset(chunk.data, 0, bytes);
+            handle->output[channel]->interface->put_chunk(
+                handle->output[channel], 1, &chunk);
         }
-        samples = bytes / 2;
-        bytes = samples * 2;
-        if (bytes > 0) {
-            for (channel = 0; channel < handle->channel_count; channel++) {
-                handle->output[channel]->interface->get_chunk(
-                    handle->output[channel], 0, bytes, &leading_chunk);
-                memset(leading_chunk.data, 0, bytes);
-                handle->output[channel]->interface->put_chunk(
-                    handle->output[channel], 1, &leading_chunk);
-            }
-            handle->pending_leading_samples -= samples;
-        }
-        ADXCRS_Unlock();
+        handle->pending_leading_samples -= samples;
     }
+    ADXCRS_Unlock();
+}
 
-    if (handle->status == 2) {
+static inline void adxsjd_decexec_end(AdxSjdHandle* handle)
+{
+    SJCK decoded_chunk;
+    SJCK remainder;
+    s32 output_samples;
+    AdxBasicDecoderExt* decoder;
+    s32 decoded_length;
+    SJ* input;
+    s32 decoded_samples;
+    s32 channel;
+
+    decoder = handle->decoder;
+    input = handle->input;
+    output_samples = ADXB_GetTotalNumSmpl(decoder);
+    decoded_length = ADXB_GetDecDtLen(decoder);
+    decoded_samples = ADXB_GetDecNumSmpl(decoder);
+    output_samples -= handle->decode_position;
+    if (decoded_samples < output_samples) {
+        output_samples = decoded_samples;
+    }
+    SJ_SplitChunk(
+        &handle->input_chunk, decoded_length, &decoded_chunk, &remainder);
+    input->interface->put_chunk(input, 0, &decoded_chunk);
+    input->interface->unget_chunk(input, 1, &remainder);
+    for (channel = 0; channel < ADXB_GetNumChan(handle->decoder); channel++) {
+        SJ_SplitChunk(
+            &handle->output_chunk[channel], output_samples * 2,
+            &decoded_chunk, &remainder);
+        if (handle->output_callback != 0) {
+            handle->output_callback(
+                handle->output_object, channel, decoded_chunk.data,
+                decoded_chunk.len);
+        }
+        handle->output[channel]->interface->put_chunk(
+            handle->output[channel], 1, &decoded_chunk);
+        handle->output[channel]->interface->unget_chunk(
+            handle->output[channel], 0, &remainder);
+    }
+    handle->decoded_samples += output_samples;
+    handle->decoded_data_length += decoded_length;
+    handle->decode_position += output_samples;
+    handle->trap_count += output_samples;
+    handle->trap_data_length += decoded_length;
+    ADXB_Reset(decoder);
+}
+
+static inline void adxsjd_rawexec_end(AdxSjdHandle* handle)
+{
+    AdxBasicDecoderExt* decoder;
+    s32 output_samples;
+    s32 decoded_length;
+    s32 decoded_samples;
+
+    decoder = handle->decoder;
+    output_samples = ADXB_GetTotalNumSmpl(decoder);
+    decoded_length = ADXB_GetDecDtLen(decoder);
+    decoded_samples = ADXB_GetDecNumSmpl(decoder);
+    output_samples -= handle->decode_position;
+    if (decoded_samples < output_samples) {
+        output_samples = decoded_samples;
+    }
+    handle->decoded_samples += output_samples;
+    handle->decoded_data_length += decoded_length;
+    handle->decode_position += output_samples;
+}
+
+static inline void adxsjd_decode(AdxSjdHandle* handle)
+{
+    AdxBasicDecoderExt* decoder;
+    s32 status;
+    s32 format;
+
+    status = handle->status;
+    if (status == 2) {
         decoder = handle->decoder;
         if (ADXB_GetStat(decoder) == 0) {
             adxsjd_decexec_start(handle);
         }
         ADXB_ExecHndl(decoder);
         if (ADXB_GetStat(decoder) == 3) {
-            completed_decoder = handle->decoder;
-            input = handle->input;
-            output_samples = ADXB_GetTotalNumSmpl(completed_decoder);
-            decoded_length = ADXB_GetDecDtLen(completed_decoder);
-            decoded_samples = ADXB_GetDecNumSmpl(completed_decoder);
-            output_samples -= handle->decode_position;
-            if (decoded_samples < output_samples) {
-                output_samples = decoded_samples;
-            }
-
-            SJ_SplitChunk(
-                &handle->input_chunk, decoded_length, &decoded_chunk,
-                &remainder);
-            input->interface->put_chunk(input, 0, &decoded_chunk);
-            input->interface->unget_chunk(input, 1, &remainder);
-
-            for (channel = 0; channel < ADXB_GetNumChan(completed_decoder);
-                 channel++) {
-                SJ_SplitChunk(
-                    &handle->output_chunk[channel], output_samples * 2,
-                    &decoded_chunk, &remainder);
-                if (handle->output_callback != 0) {
-                    handle->output_callback(
-                        handle->output_object, channel, decoded_chunk.data,
-                        decoded_chunk.len);
-                }
-                handle->output[channel]->interface->put_chunk(
-                    handle->output[channel], 1, &decoded_chunk);
-                handle->output[channel]->interface->unget_chunk(
-                    handle->output[channel], 0, &remainder);
-            }
-
-            handle->decoded_samples += output_samples;
-            handle->decoded_data_length += decoded_length;
-            handle->decode_position += output_samples;
-            handle->trap_count += output_samples;
-            handle->trap_data_length += decoded_length;
-            ADXB_Reset(completed_decoder);
+            adxsjd_decexec_end(handle);
         }
-
         format = decoder->base.format_type;
         if (format == 10 || format == 20 ||
             (u16)(format - 11) <= 1 || format == 15) {
-            completed_decoder = handle->decoder;
-            output_samples = ADXB_GetTotalNumSmpl(completed_decoder);
-            decoded_length = ADXB_GetDecDtLen(completed_decoder);
-            decoded_samples = ADXB_GetDecNumSmpl(completed_decoder);
-            output_samples -= handle->decode_position;
-            if (decoded_samples < output_samples) {
-                output_samples = decoded_samples;
-            }
-            handle->decoded_samples += output_samples;
-            handle->decoded_data_length += decoded_length;
-            handle->decode_position += output_samples;
+            adxsjd_rawexec_end(handle);
         }
-    } else if (handle->status == 1) {
+    } else if (status == 1) {
         adxsjd_decode_prep(handle);
-    }
-
-    if (handle->pending_trailing_samples > 0) {
-        ADXCRS_Lock();
-        bytes = handle->pending_trailing_samples * 2;
-        for (channel = 0; channel < handle->channel_count; channel++) {
-            handle->output[channel]->interface->get_chunk(
-                handle->output[channel], 1, 0x7FFFFFFF, &trailing_chunk);
-            bytes = bytes < trailing_chunk.len ? bytes : trailing_chunk.len;
-            handle->output[channel]->interface->unget_chunk(
-                handle->output[channel], 1, &trailing_chunk);
-        }
-        samples = bytes / 2;
-        bytes = samples * 2;
-        if (bytes > 0) {
-            for (channel = 0; channel < handle->channel_count; channel++) {
-                handle->output[channel]->interface->get_chunk(
-                    handle->output[channel], 1, bytes, &trailing_chunk);
-                handle->output[channel]->interface->put_chunk(
-                    handle->output[channel], 0, &trailing_chunk);
-            }
-            handle->pending_trailing_samples -= samples;
-        }
-        ADXCRS_Unlock();
     }
 }
 
+static inline void adxsjd_skip_out(AdxSjdHandle* handle)
+{
+    SJCK chunk;
+    s32 channel;
+    s32 bytes;
+    s32 samples;
+    s32 chunk_bytes;
+
+    if (handle->pending_trailing_samples <= 0) {
+        return;
+    }
+    ADXCRS_Lock();
+    bytes = handle->pending_trailing_samples * 2;
+    for (channel = 0; channel < handle->channel_count; channel++) {
+        handle->output[channel]->interface->get_chunk(
+            handle->output[channel], 1, 0x7FFFFFFF, &chunk);
+        chunk_bytes = chunk.len;
+        if (bytes < chunk_bytes) {
+            chunk_bytes = bytes;
+        }
+        bytes = chunk_bytes;
+        handle->output[channel]->interface->unget_chunk(
+            handle->output[channel], 1, &chunk);
+    }
+    samples = bytes / 2;
+    bytes = samples * 2;
+    if (bytes > 0) {
+        for (channel = 0; channel < handle->channel_count; channel++) {
+            handle->output[channel]->interface->get_chunk(
+                handle->output[channel], 1, bytes, &chunk);
+            handle->output[channel]->interface->put_chunk(
+                handle->output[channel], 0, &chunk);
+        }
+        handle->pending_trailing_samples -= samples;
+    }
+    ADXCRS_Unlock();
+}
+
+/* TODO: [near miss] 99.648830%; raw-format member is named from retail/RE4
+ * evidence; retained pad/decode/skip CFG differs by one clean-C r28/r23 copy. */
+void ADXSJD_ExecHndl(AdxSjdHandle* handle)
+{
+    adxsjd_pad_out(handle);
+    adxsjd_decode(handle);
+    adxsjd_skip_out(handle);
+}
+
+/* TODO: [near miss] 99.848490%; raw-format member rename is codegen-neutral;
+ * retained footer CFG differs only in linked-loop r31/r28 coloring. */
 void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
     AdxBasicDecoderExt* decoder = handle->decoder;
@@ -416,7 +463,7 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
     SJCK remainder;
     s16 footer_length;
     s32 length;
-    s32 zero_length;
+    s32 index;
 
     if (handle->trap_num_samples >= 0 &&
         handle->trap_count >= handle->trap_num_samples &&
@@ -434,7 +481,7 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
         input, 1, 0x7FFFFFFF, &handle->input_chunk);
     if (ADXB_GetFormat(decoder) == 0 &&
         handle->input_chunk.len >= 4 &&
-        *(u16*)handle->input_chunk.data == 0x8001) {
+        (u16)*(s16*)handle->input_chunk.data == 0x8001) {
         handle->status = 3;
         if (ADX_DecodeFooter(
                 (signed char*)handle->input_chunk.data,
@@ -451,41 +498,40 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
             input->interface->unget_chunk(input, 1, &remainder);
         }
 
-        if (handle->link_switch != 0) {
-            for (;;) {
-                input->interface->get_chunk(
+    if (handle->link_switch != 0) {
+        for (;;) {
+            input->interface->get_chunk(
                     input, 1, 0x7FFFFFFF, &handle->input_chunk);
                 length = handle->input_chunk.len;
                 if (length == 0) {
                     return;
                 }
-                zero_length = 0;
-                while (zero_length < length &&
-                       ((signed char*)handle->input_chunk.data)[zero_length] ==
-                           0) {
-                    zero_length++;
+                for (index = 0; index < length; index++) {
+                    if (((signed char*)handle->input_chunk.data)[index] != 0) {
+                        break;
+                    }
                 }
                 SJ_SplitChunk(
-                    &handle->input_chunk, zero_length, &handle->input_chunk,
+                    &handle->input_chunk, index, &handle->input_chunk,
                     &remainder);
                 input->interface->put_chunk(input, 0, &handle->input_chunk);
                 input->interface->unget_chunk(input, 1, &remainder);
-                if (zero_length < length) {
-                    return;
+                if (index < length) {
+                    break;
                 }
             }
         }
         return;
     }
 
-    if (handle->decode_position >= ADXB_GetTotalNumSmpl(decoder)) {
+    if (handle->decode_position >= ADXB_GetTotalNumSmpl(handle->decoder)) {
         handle->status = 3;
         input->interface->unget_chunk(input, 1, &handle->input_chunk);
         return;
     }
 
     if (handle->output[0]->interface->get_num_data(handle->output[0], 0) / 2 <
-        ADXB_GetBlkSmpl(decoder)) {
+        ADXB_GetBlkSmpl(handle->decoder)) {
         input->interface->unget_chunk(input, 1, &handle->input_chunk);
         return;
     }
@@ -568,7 +614,7 @@ void adxsjd_decode_prep(AdxSjdHandle* handle)
     }
 
     if (header_length < 0) {
-        if (decoder->base.field_9A != 0) {
+        if (decoder->base.raw_format_type != 0) {
             ADXB_SetDefPrm(decoder);
             header_length = 0;
         } else {

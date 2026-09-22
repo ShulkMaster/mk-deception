@@ -1,44 +1,5 @@
-#include "cri/sj.h"
-#include "dolphin/types.h"
+#include "cri/lsc_internal.h"
 #include "runtime/cstring.h"
-
-typedef struct ADXStream ADXStream;
-
-typedef struct LSCStreamInfo {
-    s32 id;
-    const char* filename;
-    u32 filename_checksum;
-    void* directory;
-    s32 offset;
-    s32 sector_count;
-    s32 state;
-    s32 read_sectors;
-} LSCStreamInfo;
-
-typedef struct LSCObject {
-    s8 used;
-    s8 state;
-    s8 reading;
-    s8 loop;
-    s8 paused;
-    u8 reserved_05;
-    u16 reserved_06;
-    SJ* sj;
-    SJCK chunk;
-    s32 minimum_buffer_size;
-    s32 buffer_size;
-    s32 write_position;
-    s32 read_position;
-    s32 stream_count;
-    ADXStream* stream;
-    s32 file_sectors;
-    s32 requested_sectors;
-    s32 error_count;
-    LSCStreamInfo stream_info[16];
-} LSCObject;
-
-typedef char LSCStreamInfoSizeCheck[sizeof(LSCStreamInfo) == 0x20 ? 1 : -1];
-typedef char LSCObjectSizeCheck[sizeof(LSCObject) == 0x238 ? 1 : -1];
 
 extern void LSC_CallErrFunc(const char* format, ...);
 extern void LSC_CallStatFunc(void);

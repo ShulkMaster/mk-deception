@@ -10,136 +10,89 @@ typedef struct SFHHandle {
     int version;
 } SFHHandle;
 
-typedef struct SfhdsVideoHeaderInfo {
-    int codec;
-    int bit_rate;
-    int width;
-    int height;
-    int picture_rate;
-    int has_effective_features;
-    int color_type;
-    int picture_type;
-    int fixed_flag;
-    int sequence_header_fixed_flag;
-    int expand;
-    int gop_n;
-    int gop_m;
-} SfhdsVideoHeaderInfo;
-
-typedef struct SfhdsProcessedHeader {
-    int processed;
-    int mux_version_major;
-    int mux_version_minor;
-    int byte_rate;
-    int header_size;
-    int pack_type;
-    int packet_size_length;
-    int pack_size;
-    int element_count;
-    int audio_element_count;
-    int video_element_count;
-    int private_element_count;
-    int maximum_audio_length;
-    int maximum_video_length;
-    int maximum_frame_count;
-    int private_stream_1;
-    int private_stream_2;
-    int audio_stream;
-    int video_stream;
-    int audio_codec;
-    int audio_layer;
-    int audio_channel_count;
-    int audio_sample_rate;
-    SfhdsVideoHeaderInfo video;
-    int raw_header_size;
-} SfhdsProcessedHeader;
-
-typedef struct SfhdsHeaderBlock {
-    SfhdsProcessedHeader processed;
-    unsigned char raw_header[0x800];
-} SfhdsHeaderBlock;
-
-typedef struct SfhdsSfhLibraryWork {
-    SFHHandle handles[32];
-    int reserved;
-} SfhdsSfhLibraryWork;
-
 typedef void (*SfhdsHeaderCallback)(SfdCallbackObject object,
                                     const void* data, int size);
 
-typedef char SfhdsProcessedHeaderSizeCheck[
-    sizeof(SfhdsProcessedHeader) == 0x94 ? 1 : -1];
-typedef char SfhdsHeaderBlockSizeCheck[
-    sizeof(SfhdsHeaderBlock) == 0x894 ? 1 : -1];
-typedef char SfhdsLibraryWorkSizeCheck[
-    sizeof(SfhdsSfhLibraryWork) == 0x204 ? 1 : -1];
-
-extern int SFH_AnlyByteRate(const SFHHandle*, int*);
-extern int SFH_AnlyElemBitRate(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemChNum(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemCodecAud(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemCodecVid(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemLayer(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemPicRate(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemPicSz(const SFHHandle*, unsigned char, int*, int*);
-extern int SFH_AnlyElemSmpHz(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrColType(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrExpand(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrFixFlg(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrGopM(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrGopN(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrPicType(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrShcFixFlg(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyHdrSiz(const SFHHandle*, int*);
-extern int SFH_AnlyHdrToolVer(const SFHHandle*, int*, int*);
-extern int SFH_AnlyMaxFrmNum(const SFHHandle*, int*);
-extern int SFH_AnlyMaxPlyLenAud(const SFHHandle*, int*);
-extern int SFH_AnlyMaxPlyLenVid(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemAud(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemPrv(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemTot(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemVid(const SFHHandle*, int*);
-extern int SFH_AnlyPackSiz(const SFHHandle*, int*);
-extern int SFH_AnlyPackType(const SFHHandle*, int*);
-extern int SFH_AnlyPketSizLen(const SFHHandle*, int*);
-extern int SFH_IsEffFtrInf(const SFHHandle*, unsigned char, int*);
-extern int SFH_IsExistStmId(const SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyByteRate(SFHHandle*, int*);
+extern int SFH_AnlyElemBitRate(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemChNum(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemCodecAud(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemCodecVid(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemLayer(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemPicRate(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemPicSz(SFHHandle*, unsigned char, int*, int*);
+extern int SFH_AnlyElemSmpHz(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrColType(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrExpand(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrFixFlg(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrGopM(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrGopN(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrPicType(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrShcFixFlg(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyHdrSiz(SFHHandle*, int*);
+extern int SFH_AnlyHdrToolVer(SFHHandle*, int*, int*);
+extern int SFH_AnlyMaxFrmNum(SFHHandle*, int*);
+extern int SFH_AnlyMaxPlyLenAud(SFHHandle*, int*);
+extern int SFH_AnlyMaxPlyLenVid(SFHHandle*, int*);
+extern int SFH_AnlyNumElemAud(SFHHandle*, int*);
+extern int SFH_AnlyNumElemPrv(SFHHandle*, int*);
+extern int SFH_AnlyNumElemTot(SFHHandle*, int*);
+extern int SFH_AnlyNumElemVid(SFHHandle*, int*);
+extern int SFH_AnlyPackSiz(SFHHandle*, int*);
+extern int SFH_AnlyPackType(SFHHandle*, int*);
+extern int SFH_AnlyPketSizLen(SFHHandle*, int*);
+extern int SFH_IsEffFtrInf(SFHHandle*, unsigned char, int*);
+extern int SFH_IsExistStmId(SFHHandle*, unsigned char, int*);
 extern int SFH_IsSfdHeader(SFHHandle*, int*);
 extern SFHHandle* SFH_Create(const void*, int);
 extern void SFH_Destroy(SFHHandle*);
 extern void SFH_Finish(void);
-extern void SFH_Init(int, SFHHandle*);
+extern void SFH_Init(int, void*);
 extern int SFMPS_GetConcatCnt(SfdHandle*);
 
-static SfhdsSfhLibraryWork sfhds_sfhlib_work;
+static unsigned char sfhds_sfhlib_work[0x204];
 
-static SfhdsProcessedHeader* sfhds_GetProcessedHeader(SfdHeaderState* state)
+static SfdHeaderState* sfhds_GetProcessedHeader(SfdHeaderState* state)
 {
-    return (SfhdsProcessedHeader*)state;
+    return state;
 }
 
-static SfhdsHeaderBlock* sfhds_GetHeaderBlock(SfdHandle* handle)
+static SfdHeaderState* sfhds_GetHeaderBlock(SfdHandle* handle)
 {
-    return (SfhdsHeaderBlock*)&handle->header_state;
+    return &handle->header_state;
 }
 
-static SfhdsHeaderBlock* sfhds_GetSeekHeader(SfdHandle* handle)
+static SfdHeaderState* sfhds_GetSeekHeader(SfdHandle* handle)
 {
     unsigned char* source;
 
-    if (handle->seek_state.source_handle == 0) {
+    if (handle->seek_state.work == 0) {
         return 0;
     }
     if (SFMPS_GetConcatCnt(handle) > 0) {
         return 0;
     }
-    source = (unsigned char*)handle->seek_state.source_handle;
-    return (SfhdsHeaderBlock*)(source + 0x0C);
+    source = (unsigned char*)handle->seek_state.work;
+    return (SfdHeaderState*)(source + 0x0C);
+}
+
+static inline int sfhds_SearchStmId(SFHHandle* decoder, int first, int last,
+                                    int* exists)
+{
+    int stream_id;
+
+    for (stream_id = first; stream_id <= last; stream_id++) {
+        if (SFH_IsExistStmId(decoder, (unsigned char)stream_id, exists) != 0 &&
+            *exists != 0) {
+            return stream_id;
+        }
+    }
+    return 0;
 }
 
 static void sfhds_PublishElementCounts(SfdHandle* handle)
 {
-    SfhdsProcessedHeader* header =
+    SfdHeaderState* header =
         sfhds_GetProcessedHeader(&handle->header_state);
 
     handle->playback_settings.values_18[3] = header->audio_element_count;
@@ -149,9 +102,9 @@ static void sfhds_PublishElementCounts(SfdHandle* handle)
 
 int SFHDS_GetColType(SfdHandle* handle)
 {
-    SfhdsProcessedHeader* header =
+    SfdHeaderState* header =
         sfhds_GetProcessedHeader(&handle->header_state);
-    SfhdsVideoHeaderInfo* video = &header->video;
+    SfdHeaderVideoInfo* video = &header->video;
 
     if (header->processed == 0) {
         return -1;
@@ -164,7 +117,7 @@ int SFHDS_GetColType(SfdHandle* handle)
 
 int SFHDS_GetMuxVerNum(SfdHandle* handle)
 {
-    SfhdsProcessedHeader* header =
+    SfdHeaderState* header =
         sfhds_GetProcessedHeader(&handle->header_state);
 
     if (header->processed != 0) {
@@ -185,13 +138,13 @@ int SFHDS_GetMuxVerNum(SfdHandle* handle)
                 ? -1 : local; \
     } while (0)
 
-static void sfhds_DoProcessHdr(SFHHandle* decoder,
-                               SfhdsProcessedHeader* header)
+static void sfhds_DoProcessHdr(SFHHandle* decoder, SfdHeaderState* header)
 {
+    int version;
     int is_sfd_header;
     int byte_rate;
-    int mux_version_major;
-    int mux_version_minor;
+    int version_major;
+    int version_minor;
     int private_stream_1_exists;
     int private_stream_2_exists;
     int private_stream;
@@ -223,8 +176,17 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder,
     int expand;
     int gop_n;
     int gop_m;
-    int mux_version;
     int stream_id;
+    int video_codec_result;
+    int video_bit_rate_result;
+    int video_picture_rate_result;
+    int video_color_type_result;
+    int video_picture_type_result;
+    int video_fixed_flag_result;
+    int video_sequence_header_fixed_flag_result;
+    int video_expand_result;
+    int video_gop_n_result;
+    int video_gop_m_result;
 
     if (SFH_IsSfdHeader(decoder, &is_sfd_header) == 0) {
         is_sfd_header = 0;
@@ -232,44 +194,53 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder,
     if (is_sfd_header == 0) {
         return;
     }
-    if (SFH_AnlyHdrToolVer(decoder, &mux_version_major,
-                           &mux_version_minor) == 0) {
-        mux_version_major = 0;
-        mux_version_minor = 0;
+    if (SFH_AnlyHdrToolVer(decoder, &version_major, &version_minor) == 0) {
+        version_major = 0;
+        version_minor = 0;
     }
-    header->mux_version_major = mux_version_major;
-    header->mux_version_minor = mux_version_minor;
-    mux_version = header->mux_version_major * 100 +
-                  header->mux_version_minor;
+    header->mux_version_major = version_major;
+    header->mux_version_minor = version_minor;
+    version = header->mux_version_major * 100 + header->mux_version_minor;
     if (SFH_AnlyByteRate(decoder, &byte_rate) == 0) {
         byte_rate = 0;
     }
-    if (mux_version < 110) {
+    if (version < 110) {
         byte_rate = -byte_rate;
     }
     header->byte_rate = byte_rate;
 
-    SFHDS_QUERY(header_size, SFH_AnlyHdrSiz, header_size);
-    SFHDS_QUERY(pack_type, SFH_AnlyPackType, pack_type);
-    SFHDS_QUERY(packet_size_length, SFH_AnlyPketSizLen,
-                packet_size_length);
+    header->header_size =
+        SFH_AnlyHdrSiz(decoder, &header_size) == 0 ? -1 : header_size;
+    header->pack_type =
+        SFH_AnlyPackType(decoder, &pack_type) == 0 ? -1 : pack_type;
+    header->packet_size_length =
+        SFH_AnlyPketSizLen(decoder, &packet_size_length) == 0
+            ? -1 : packet_size_length;
     if (header->packet_size_length == -1) {
         header->packet_size_length = 2;
     }
-    SFHDS_QUERY(pack_size, SFH_AnlyPackSiz, pack_size);
-    SFHDS_QUERY(element_count, SFH_AnlyNumElemTot, element_count);
-    SFHDS_QUERY(audio_element_count, SFH_AnlyNumElemAud,
-                audio_element_count);
-    SFHDS_QUERY(video_element_count, SFH_AnlyNumElemVid,
-                video_element_count);
-    SFHDS_QUERY(private_element_count, SFH_AnlyNumElemPrv,
-                private_element_count);
-    SFHDS_QUERY(maximum_audio_length, SFH_AnlyMaxPlyLenAud,
-                maximum_audio_length);
-    SFHDS_QUERY(maximum_video_length, SFH_AnlyMaxPlyLenVid,
-                maximum_video_length);
-    SFHDS_QUERY(maximum_frame_count, SFH_AnlyMaxFrmNum,
-                maximum_frame_count);
+    header->pack_size =
+        SFH_AnlyPackSiz(decoder, &pack_size) == 0 ? -1 : pack_size;
+    header->element_count =
+        SFH_AnlyNumElemTot(decoder, &element_count) == 0 ? -1 : element_count;
+    header->audio_element_count =
+        SFH_AnlyNumElemAud(decoder, &audio_element_count) == 0
+            ? -1 : audio_element_count;
+    header->video_element_count =
+        SFH_AnlyNumElemVid(decoder, &video_element_count) == 0
+            ? -1 : video_element_count;
+    header->private_element_count =
+        SFH_AnlyNumElemPrv(decoder, &private_element_count) == 0
+            ? -1 : private_element_count;
+    header->maximum_audio_length =
+        SFH_AnlyMaxPlyLenAud(decoder, &maximum_audio_length) == 0
+            ? -1 : maximum_audio_length;
+    header->maximum_video_length =
+        SFH_AnlyMaxPlyLenVid(decoder, &maximum_video_length) == 0
+            ? -1 : maximum_video_length;
+    header->maximum_frame_count =
+        SFH_AnlyMaxFrmNum(decoder, &maximum_frame_count) == 0
+            ? -1 : maximum_frame_count;
 
     if (SFH_IsExistStmId(decoder, 0xBD, &private_stream_1_exists) != 0 &&
         private_stream_1_exists != 0) {
@@ -286,71 +257,112 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder,
     }
     header->private_stream_2 = private_stream;
 
-    stream_id = 0xC0;
-    for (;;) {
-        if (SFH_IsExistStmId(decoder, (unsigned char)stream_id,
-                             &audio_stream_exists) != 0 &&
-            audio_stream_exists != 0) {
-            break;
-        }
-        stream_id++;
-        if (stream_id > 0xDF) {
-            stream_id = 0;
-            break;
-        }
-    }
-    header->audio_stream = stream_id;
-    stream_id = 0xE0;
-    for (;;) {
-        if (SFH_IsExistStmId(decoder, (unsigned char)stream_id,
-                             &video_stream_exists) != 0 &&
-            video_stream_exists != 0) {
-            break;
-        }
-        stream_id++;
-        if (stream_id > 0xEF) {
-            stream_id = 0;
-            break;
-        }
-    }
-    header->video_stream = stream_id;
+    header->audio_stream =
+        sfhds_SearchStmId(decoder, 0xC0, 0xDF, &audio_stream_exists);
+    header->video_stream =
+        sfhds_SearchStmId(decoder, 0xE0, 0xEF, &video_stream_exists);
 
     stream_id = header->audio_stream;
     if (stream_id != 0) {
-        SFHDS_STREAM_QUERY(audio_codec, SFH_AnlyElemCodecAud, audio_codec);
-        SFHDS_STREAM_QUERY(audio_layer, SFH_AnlyElemLayer, audio_layer);
-        SFHDS_STREAM_QUERY(audio_channel_count, SFH_AnlyElemChNum,
-                           audio_channel_count);
-        SFHDS_STREAM_QUERY(audio_sample_rate, SFH_AnlyElemSmpHz,
-                           audio_sample_rate);
+        header->audio.codec =
+            SFH_AnlyElemCodecAud(decoder, (unsigned char)stream_id,
+                                 &audio_codec) == 0 ? -1 : audio_codec;
+        header->audio.layer =
+            SFH_AnlyElemLayer(decoder, (unsigned char)stream_id,
+                              &audio_layer) == 0 ? -1 : audio_layer;
+        header->audio.channel_count =
+            SFH_AnlyElemChNum(decoder, (unsigned char)stream_id,
+                              &audio_channel_count) == 0
+                ? -1 : audio_channel_count;
+        header->audio.sample_rate =
+            SFH_AnlyElemSmpHz(decoder, (unsigned char)stream_id,
+                              &audio_sample_rate) == 0
+                ? -1 : audio_sample_rate;
     }
 
     stream_id = header->video_stream;
-    SFHDS_STREAM_QUERY(video.codec, SFH_AnlyElemCodecVid, video_codec);
-    SFHDS_STREAM_QUERY(video.bit_rate, SFH_AnlyElemBitRate, video_bit_rate);
+    if (SFH_AnlyElemCodecVid(decoder, (unsigned char)stream_id,
+                             &video_codec) == 0) {
+        video_codec_result = -1;
+    } else {
+        video_codec_result = video_codec;
+    }
+    header->video.codec = video_codec_result;
+    if (SFH_AnlyElemBitRate(decoder, (unsigned char)stream_id,
+                            &video_bit_rate) == 0) {
+        video_bit_rate_result = -1;
+    } else {
+        video_bit_rate_result = video_bit_rate;
+    }
+    header->video.bit_rate = video_bit_rate_result;
     if (SFH_AnlyElemPicSz(decoder, (unsigned char)stream_id,
                           &header->video.width, &header->video.height) == 0) {
         header->video.width = -1;
         header->video.height = -1;
     }
-    SFHDS_STREAM_QUERY(video.picture_rate, SFH_AnlyElemPicRate,
-                       video_picture_rate);
+    if (SFH_AnlyElemPicRate(decoder, (unsigned char)stream_id,
+                            &video_picture_rate) == 0) {
+        video_picture_rate_result = -1;
+    } else {
+        video_picture_rate_result = video_picture_rate;
+    }
+    header->video.picture_rate = video_picture_rate_result;
     if (SFH_IsEffFtrInf(decoder, (unsigned char)stream_id,
                         &effective_features) == 0) {
         effective_features = 0;
     }
     header->video.has_effective_features = effective_features != 0;
     if (effective_features != 0) {
-        SFHDS_STREAM_QUERY(video.color_type, SFH_AnlyFtrColType, color_type);
-        SFHDS_STREAM_QUERY(video.picture_type, SFH_AnlyFtrPicType,
-                           picture_type);
-        SFHDS_STREAM_QUERY(video.fixed_flag, SFH_AnlyFtrFixFlg, fixed_flag);
-        SFHDS_STREAM_QUERY(video.sequence_header_fixed_flag,
-                           SFH_AnlyFtrShcFixFlg,
-                           sequence_header_fixed_flag);
-        SFHDS_STREAM_QUERY(video.expand, SFH_AnlyFtrExpand, expand);
-        SFHDS_STREAM_QUERY(video.gop_n, SFH_AnlyFtrGopN, gop_n);
-        SFHDS_STREAM_QUERY(video.gop_m, SFH_AnlyFtrGopM, gop_m);
+        if (SFH_AnlyFtrColType(decoder, (unsigned char)stream_id,
+                              &color_type) == 0) {
+            video_color_type_result = -1;
+        } else {
+            video_color_type_result = color_type;
+        }
+        header->video.color_type = video_color_type_result;
+        if (SFH_AnlyFtrPicType(decoder, (unsigned char)stream_id,
+                               &picture_type) == 0) {
+            video_picture_type_result = -1;
+        } else {
+            video_picture_type_result = picture_type;
+        }
+        header->video.picture_type = video_picture_type_result;
+        if (SFH_AnlyFtrFixFlg(decoder, (unsigned char)stream_id,
+                              &fixed_flag) == 0) {
+            video_fixed_flag_result = -1;
+        } else {
+            video_fixed_flag_result = fixed_flag;
+        }
+        header->video.fixed_flag = video_fixed_flag_result;
+        if (SFH_AnlyFtrShcFixFlg(decoder, (unsigned char)stream_id,
+                                 &sequence_header_fixed_flag) == 0) {
+            video_sequence_header_fixed_flag_result = -1;
+        } else {
+            video_sequence_header_fixed_flag_result = sequence_header_fixed_flag;
+        }
+        header->video.sequence_header_fixed_flag =
+            video_sequence_header_fixed_flag_result;
+        if (SFH_AnlyFtrExpand(decoder, (unsigned char)stream_id,
+                              &expand) == 0) {
+            video_expand_result = -1;
+        } else {
+            video_expand_result = expand;
+        }
+        header->video.expand = video_expand_result;
+        if (SFH_AnlyFtrGopN(decoder, (unsigned char)stream_id,
+                           &gop_n) == 0) {
+            video_gop_n_result = -1;
+        } else {
+            video_gop_n_result = gop_n;
+        }
+        header->video.gop_n = video_gop_n_result;
+        if (SFH_AnlyFtrGopM(decoder, (unsigned char)stream_id,
+                           &gop_m) == 0) {
+            video_gop_m_result = -1;
+        } else {
+            video_gop_m_result = gop_m;
+        }
+        header->video.gop_m = video_gop_m_result;
     }
     header->processed = 1;
 }
@@ -362,13 +374,13 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder,
 void SFHDS_ProcessHdr(SfdHeaderState* state)
 {
     SFHHandle* decoder;
-    SfhdsHeaderBlock* block;
+    SfdHeaderState* block;
 
-    block = (SfhdsHeaderBlock*)state;
-    decoder = SFH_Create(block->raw_header, block->processed.raw_header_size);
+    block = state;
+    decoder = SFH_Create(block->raw_header, block->raw_header_size);
 
     if (decoder != 0) {
-        sfhds_DoProcessHdr(decoder, &block->processed);
+        sfhds_DoProcessHdr(decoder, block);
         SFH_Destroy(decoder);
     }
 }
@@ -376,7 +388,7 @@ void SFHDS_ProcessHdr(SfdHeaderState* state)
 
 void SFHDS_ReprocessHdr(SfdHandle* handle)
 {
-    SfhdsHeaderBlock* seek_header = sfhds_GetSeekHeader(handle);
+    SfdHeaderState* seek_header = sfhds_GetSeekHeader(handle);
 
     if (seek_header != 0) {
         *sfhds_GetHeaderBlock(handle) = *seek_header;
@@ -390,16 +402,17 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
 {
     SfhdsHeaderCallback callback =
         (SfhdsHeaderCallback)SFSET_GetCond(handle, 0x4B);
-    SfdCallbackObject callback_object = SFSET_GetCond(handle, 0x4C);
-    SfhdsHeaderBlock* block;
-    SfhdsHeaderBlock* seek_header;
+    SfdCallbackObject callback_object =
+        (SfdCallbackObject)SFSET_GetCond(handle, 0x4C);
+    SfdHeaderState* block;
+    SfdHeaderState* seek_header;
     int copy_size;
 
     if (callback != 0) {
         callback(callback_object, data, size);
     }
     block = sfhds_GetHeaderBlock(handle);
-    if (block->processed.processed != 0) {
+    if (block->processed != 0) {
         return 0;
     }
     copy_size = 0x800;
@@ -407,7 +420,7 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
         copy_size = size;
     }
     MEM_Copy(block->raw_header, data, copy_size);
-    block->processed.raw_header_size = copy_size;
+    block->raw_header_size = copy_size;
     SFHDS_ProcessHdr(&handle->header_state);
     sfhds_PublishElementCounts(handle);
     seek_header = sfhds_GetSeekHeader(handle);
@@ -418,6 +431,8 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
 }
 
 #pragma dont_inline on
+/* TODO: [breakthrough needed] 85.600000%; retained direct start-code chain is
+ * compiler-stable; helper extraction worsened lowering, while RE4's r30 lifetime depends on forbidden asm. */
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag)
 {
@@ -479,7 +494,7 @@ int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
 
 void SFHDS_FinishFhd(SfdHeaderState* state)
 {
-    SfhdsProcessedHeader* header = sfhds_GetProcessedHeader(state);
+    SfdHeaderState* header = sfhds_GetProcessedHeader(state);
 
     header->processed = 0;
     header->byte_rate = 0;
@@ -488,7 +503,7 @@ void SFHDS_FinishFhd(SfdHeaderState* state)
 
 void SFHDS_InitFhd(SfdHeaderState* state, int enabled)
 {
-    SfhdsProcessedHeader* header = sfhds_GetProcessedHeader(state);
+    SfdHeaderState* header = sfhds_GetProcessedHeader(state);
 
     header->processed = 0;
     header->mux_version_major = 0;
@@ -504,5 +519,5 @@ void SFHDS_Finish(void)
 
 void SFHDS_Init(void)
 {
-    SFH_Init(32, sfhds_sfhlib_work.handles);
+    SFH_Init(32, sfhds_sfhlib_work);
 }

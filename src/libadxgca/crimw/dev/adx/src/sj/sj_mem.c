@@ -315,17 +315,25 @@ void SJMEM_Destroy(SJ* sj)
     SJCRS_Unlock();
 }
 
+static int sjmem_SearchFreeObj(void)
+{
+    int index;
+
+    for (index = 0; index < 32; index++) {
+        if (sjmem_obj[index].used == 0) {
+            break;
+        }
+    }
+    return index;
+}
+
 SJ* SJMEM_Create(void* buffer, int buffer_size)
 {
     int index;
     SJMemory* memory;
 
     SJCRS_Lock();
-    for (index = 0; index < 32; index++) {
-        if (sjmem_obj[index].used == 0) {
-            break;
-        }
-    }
+    index = sjmem_SearchFreeObj();
 
     if (index == 32) {
         memory = 0;
@@ -380,7 +388,3 @@ void SJMEM_Error(void* object, int error)
     (void)error;
     SJERR_CallErr("SJMEM Error");
 }
-
-/* Retail split-layout tails for the read-only and zero-initialized sections. */
-const u32 gap_04_8031C3F4_rodata = 0;
-u32 gap_06_804C3184_bss;

@@ -259,7 +259,7 @@ DSError TRKReadBuffer_ui8(MessageBuffer* message, u8* data, int count) {
     return error;
 }
 
-/* TODO: [near miss] 98.92%; inlined length becomes constant compare; reversed relation regresses the exact base reader, stop. */
+/* TODO: [near miss] 98.916664%; retail folds the 4-byte protocol width to an immediate compare; equivalent literal-width trial did not alter codegen. */
 DSError TRKReadBuffer_ui32(MessageBuffer* message, u32* data, int count) {
     DSError error;
     int index;

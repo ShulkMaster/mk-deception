@@ -1,25 +1,9 @@
 #ifndef CRI_ADX_DCD_H
 #define CRI_ADX_DCD_H
 
-typedef union AdxHeaderMagic {
-    unsigned short value;
-    struct {
-        unsigned char high;
-        unsigned char low;
-    } bytes;
-} AdxHeaderMagic;
-
-typedef union AdxHeaderOffset {
-    short value;
-    struct {
-        unsigned char high;
-        unsigned char low;
-    } bytes;
-} AdxHeaderOffset;
-
 typedef struct AdxHeader {
-    AdxHeaderMagic magic;
-    AdxHeaderOffset copyright_offset;
+    unsigned short magic;
+    short copyright_offset;
     unsigned char encoding;
     unsigned char block_size;
     unsigned char bits_per_sample;
@@ -43,7 +27,7 @@ int ADX_CalcHdrInfoLen(int version, int extra_len, int block_size,
                        unsigned int alignment);
 int ADX_DecodeFooter(signed char* buffer, int buffer_len,
                      short* data_len);
-int ADX_DecodeInfoAinf(signed char* buffer, int buffer_len,
+int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
                        int* ainf_len, unsigned char ainf[16],
                        short* default_out_volume, short default_pan[2]);
 int ADX_DecodeInfoExLoop(signed char* buffer, int buffer_len,

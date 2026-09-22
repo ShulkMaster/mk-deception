@@ -4,13 +4,6 @@
 #include "sofdec/sfd_transport.h"
 #include "sofdec/sfx.h"
 
-typedef struct MwsSfxHandleView {
-    SfxTagInfo tag_info;
-    unsigned char reserved_03C[0x24];
-    const char* picture_user_data;
-    int picture_user_size;
-} MwsSfxHandleView;
-
 typedef struct MwsPlayer {
     unsigned char reserved_000[0x0C];
     int playback_state;
@@ -32,7 +25,7 @@ typedef struct MwsPlayer {
     int chroma_position_0;
     int chroma_position_1;
     unsigned char reserved_0A8[4];
-    MwsSfxHandleView* sfx;
+    SFXHandle* sfx;
     unsigned char reserved_0B0[0xE0];
     SJ* additional_info_sj;
     void* additional_info_buffer;
@@ -51,7 +44,7 @@ typedef struct MwsFrameInfo {
     int width;
     int height;
     unsigned char reserved_010[0x20];
-    int presentation_time;
+    void* table_source;
 } MwsFrameInfo;
 
 typedef struct MwsYccPlane {
@@ -60,41 +53,17 @@ typedef struct MwsYccPlane {
     void* cr;
     int y_pitch;
     int c_pitch;
-    int c_height;
+    int cr_pitch;
 } MwsYccPlane;
 
-typedef struct MwsSfxFrameInfo {
-    int format;
-    SFXPlaneBuffer y;
-    SFXPlaneBuffer cb;
-    SFXPlaneBuffer cr;
-    unsigned char reserved_034[0x10];
-    int frame_width;
-    int frame_height;
-    int presentation_time;
-    int tag_start;
-    int tag_size;
-    int field_058;
-    int field_05C;
-    int picture_structure;
-    int chroma_format;
-    int field_068;
-    int field_06C;
-    int field_070;
-    int chroma_position_0;
-    int chroma_position_1;
-} MwsSfxFrameInfo;
+typedef SFXFrameInfo MwsSfxFrameInfo;
 
-typedef char MwsSfxTagInfoSizeCheck[
-    sizeof(SfxTagInfo) == 0x3C ? 1 : -1];
-typedef char MwsSfxHandlePictureUserOffsetCheck[
-    (unsigned long)&((MwsSfxHandleView*)0)->picture_user_data == 0x60 ? 1 : -1];
 typedef char MwsPlayerSfxOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->sfx == 0xAC ? 1 : -1];
 typedef char MwsPlayerAdditionalInfoOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->additional_info_sj == 0x190 ? 1 : -1];
 typedef char MwsSfxFrameInfoSizeCheck[
-    sizeof(MwsSfxFrameInfo) == 0x7C ? 1 : -1];
+    sizeof(MwsSfxFrameInfo) == 0x88 ? 1 : -1];
 
 extern int mwPlyGetFxType(MwsPlayer* player);
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
@@ -103,10 +72,6 @@ extern void mwSfdDestroy(MwsPlayer* player);
 extern void mwPlyCalcYccPlane(void* frame, int width, int height,
                               MwsYccPlane* output);
 
-extern int SFX_GetTypeDivField(MwsSfxHandleView* sfx);
-extern int SFX_GetTypeCcs(MwsSfxHandleView* sfx);
-extern void SFX_SetPicUsrDat(MwsSfxHandleView* sfx, const char* data,
-                             int size);
 extern void SFX_Destroy(SFXHandle* handle);
 extern SFXHandle* SFX_Create(void* buffer, int buffer_size);
 extern void SFX_Finish(void);
@@ -172,6 +137,11 @@ static const char invalid_buffer_format[0x28] =
     "E201184 : MwsfdBufFmt value is invalid.";
 #pragma force_active off
 
+static inline SfxTagInfo* mwsfsfx_GetTagInfo(SFXHandle* sfx)
+{
+    return sfx;
+}
+
 void MWSFSFX_DecideCompoMode(MwsPlayer* player)
 {
     int type;
@@ -184,7 +154,8 @@ void MWSFSFX_DecideCompoMode(MwsPlayer* player)
             player->composition_mode = 0x11;
         }
     }
-    SFX_SetCompoMode(&player->sfx->tag_info, player->composition_mode);
+    SFX_SetCompoMode(mwsfsfx_GetTagInfo(player->sfx),
+                     player->composition_mode);
 }
 
 int MWSFD_IsFrmDivField(MwsPlayer* player)
@@ -257,7 +228,7 @@ void MWSFTAG_UpdateTagInf(MwsPlayer* player)
 {
     SJCK result;
     SJCK source;
-    MwsSfxHandleView* sfx;
+    SFXHandle* sfx;
     unsigned char* data;
 
     if (player->additional_info_sj != 0) {
@@ -265,16 +236,16 @@ void MWSFTAG_UpdateTagInf(MwsPlayer* player)
         data = player->tag_data;
         sfx = player->sfx;
         if (data == 0) {
-            SFX_SetTagInf(&sfx->tag_info, 0, 0);
+            SFX_SetTagInf(mwsfsfx_GetTagInfo(sfx), 0, 0);
             return;
         }
         source.data = data;
         source.len = player->tag_size;
         if (SJ_SearchTag(&source, sfx_tag_start, sfx_tag_end, &result) == 0) {
-            SFX_SetTagInf(&sfx->tag_info, 0, 0);
+            SFX_SetTagInf(mwsfsfx_GetTagInfo(sfx), 0, 0);
             return;
         }
-        SFX_SetTagInf(&sfx->tag_info, result.data, result.len);
+        SFX_SetTagInf(mwsfsfx_GetTagInfo(sfx), result.data, result.len);
     }
 }
 
@@ -324,6 +295,8 @@ void MWSFTAG_DestroyAinfSj(MwsPlayer* player)
     }
 }
 
+/* TODO: [near miss] 99.71429%; create flow agrees; residual is localized
+ * allocation/base-register coloring. */
 SJ* MWSFTAG_CreateAinfSj(MwsPlayer* player)
 {
     SJ* sj;
@@ -355,44 +328,56 @@ int MWSFTAG_IsUseAinfSj(MwsPlayer* player)
     return 0;
 }
 
+/* TODO: [near miss] 99.68750%; typed plane updates agree; residual is
+ * localized address-register coloring. */
 void mwPlyFxSetOutBufPitchHeight(MwsPlayer* player, int pitch, int height)
 {
-    MwsSfxHandleView* sfx;
+    SFXHandle* sfx;
 
     if (MWSFD_IsEnableHndl(player) == 0) {
         MWSFSVM_Error(set_output_size_invalid);
         return;
     }
     sfx = player->sfx;
-    SFX_SetOutBufSize(&sfx->tag_info, pitch, height);
-    SFX_SetUnitWidth(&sfx->tag_info, 0);
+    SFX_SetOutBufSize(mwsfsfx_GetTagInfo(sfx), pitch, height);
+    SFX_SetUnitWidth(mwsfsfx_GetTagInfo(sfx), 0);
 }
 
 void MWSFD_SetColAdj(MwsPlayer* player, int adjustment)
 {
-    SFX_SetColAdj(&player->sfx->tag_info, adjustment);
+    SFX_SetColAdj(mwsfsfx_GetTagInfo(player->sfx), adjustment);
 }
 
 void MWSFSFX_SetColAdj(MwsPlayer* player, int adjustment)
 {
-    SFX_SetColAdj(&player->sfx->tag_info, adjustment);
+    SFX_SetColAdj(mwsfsfx_GetTagInfo(player->sfx), adjustment);
 }
 
 void MWSFSFX_SetFxType(MwsPlayer* player, int type)
 {
-    SFX_SetFxType(&player->sfx->tag_info, type);
+    SFX_SetFxType(mwsfsfx_GetTagInfo(player->sfx), type);
 }
 
 void MWSFSFX_SetCompoMode(MwsPlayer* player, int mode)
 {
-    SFX_SetCompoMode(&player->sfx->tag_info, mode);
+    SFX_SetCompoMode(mwsfsfx_GetTagInfo(player->sfx), mode);
 }
 
+static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
+                                  int width, int height)
+{
+    plane->pixels = pixels;
+    plane->width = width;
+    plane->height = height;
+}
+
+/* TODO: [near miss] 98.47097%; conversion CFG and plane accesses match;
+ * only parameter/error-pointer coloring and equivalent scheduling remain. */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
                             MwsSfxFrameInfo* output)
 {
     int tag_size;
-    int tag_start;
+    void* tag_data;
     MwsYccPlane plane;
     const char* errors = get_cnv_bottom_up_invalid;
     int converted;
@@ -421,28 +406,20 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     output->frame_width = width;
     output->frame_height = height;
     if (input->frame_structure != 3) {
-        output->y.pixels = input->frame;
-        output->y.width = width;
-        output->y.height = height;
+        mwsfsfx_SetPln(&output->y, input->frame, width, height);
     } else {
         mwPlyCalcYccPlane(input->frame, width, height, &plane);
-        output->y.pixels = plane.y;
-        output->y.width = plane.y_pitch;
-        output->y.height = height;
-        output->cb.pixels = plane.cb;
-        output->cb.width = plane.c_pitch;
-        output->cb.height = height;
-        output->cr.pixels = plane.cr;
-        output->cr.width = plane.c_height;
-        output->cr.height = height;
+        mwsfsfx_SetPln(&output->y, plane.y, plane.y_pitch, height);
+        mwsfsfx_SetPln(&output->cb, plane.cb, plane.c_pitch, height);
+        mwsfsfx_SetPln(&output->cr, plane.cr, plane.cr_pitch, height);
     }
 
-    output->presentation_time = input->presentation_time;
-    SFX_GetTagInf(&player->sfx->tag_info, &tag_start, &tag_size);
-    output->tag_start = tag_start;
+    output->table_source = input->table_source;
+    SFX_GetTagInf(mwsfsfx_GetTagInfo(player->sfx), &tag_data, &tag_size);
+    output->tag_data = tag_data;
     output->tag_size = tag_size;
-    output->field_058 = 0;
-    output->field_05C = 0;
+    output->field_58 = 0;
+    output->field_5C = 0;
 
     converted = 3;
     switch (player->picture_structure) {
@@ -478,9 +455,9 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     }
     output->chroma_format = converted;
 
-    output->field_068 = player->field_094;
-    output->field_06C = player->field_098;
-    output->field_070 = player->field_09C;
+    output->field_68 = player->field_094;
+    output->field_6C = player->field_098;
+    output->field_70 = player->field_09C;
     converted = 1;
     switch (player->chroma_position_0) {
     case 0:
@@ -493,7 +470,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         MWSFSVM_Error(errors + 0x4A8);
         break;
     }
-    output->chroma_position_0 = converted;
+    output->chroma_position_h = converted;
 
     converted = 1;
     switch (player->chroma_position_1) {
@@ -507,7 +484,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         MWSFSVM_Error(errors + 0x4A8);
         break;
     }
-    output->chroma_position_1 = converted;
+    output->chroma_position_v = converted;
 }
 
 SFXHandle* MWSFSFX_GetSfxHn(MwsPlayer* player)
@@ -546,5 +523,3 @@ void MWSFSFX_Init(void)
     SFX_Init();
     SFX_SetErrFn(mwsfsfx_SfxErrCbFn, 0);
 }
-
-const int gap_04_80319014_rodata = 0;

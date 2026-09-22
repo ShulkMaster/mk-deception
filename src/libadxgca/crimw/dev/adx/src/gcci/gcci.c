@@ -101,13 +101,20 @@ GcCiDebug gcg_ci_debug;
 void* gcg_ci_err_obj;
 GcCiErrorCallback gcg_ci_err_func;
 GcCiObject gcg_ci_obj[GCCI_MAX_HANDLES];
-const char* gcg_ci_build_ptr;
+const char* volatile gcg_ci_build_ptr;
 extern int gcg_ci_rdmode[1];
 extern char gcg_ci_root_dir[256];
 
 typedef char GcCiObjectSizeCheck[sizeof(GcCiObject) == 0x64 ? 1 : -1];
 typedef char GcCiDebugSizeCheck[sizeof(GcCiDebug) == 0x0C ? 1 : -1];
 typedef char CvFsInterfaceSizeCheck[sizeof(CvFsInterface) == 0x68 ? 1 : -1];
+
+void gcCiInit(void)
+{
+    gcg_ci_debug.transfer_status = 0;
+    gcg_ci_err_obj = 0;
+    gcg_ci_err_func = 0;
+}
 
 void gcci_rd_cbfn(long result, DVDFileInfo* file_info)
 {
@@ -128,10 +135,13 @@ int gcCiGetNumTr(void* object)
     return handle->transfer_length;
 }
 
+/* TODO: [near miss] 99.38596%; callback ABI and object offsets match; only
+ * local error-string relocation and arithmetic register coloring remain. */
 void gcCiSetSctLen(void* object, int sector_length)
 {
     GcCiObject* handle = (GcCiObject*)object;
     int byte_position;
+    int sector_count;
 
     if (handle == 0) {
         if (gcg_ci_err_func != 0) {
@@ -148,9 +158,9 @@ void gcCiSetSctLen(void* object, int sector_length)
 
     byte_position = handle->sector_position * handle->sector_length;
     handle->sector_length = sector_length;
-    handle->sector_count =
-        ((handle->sector_length + handle->file_size) - 1) /
-        handle->sector_length;
+    sector_count = handle->sector_length + handle->file_size;
+    sector_count--;
+    handle->sector_count = sector_count / handle->sector_length;
     handle->sector_position = byte_position / handle->sector_length;
     handle->transfer_length = handle->request_sectors * sector_length;
 }
@@ -234,7 +244,7 @@ static inline void gcci_cancel_transfer(GcCiObject* handle)
         handle->dvd_status = DVDGetCommandBlockStatus(&handle->file_info.cb);
         gcg_ci_debug.dvd_status = handle->dvd_status;
         current = gcci_milliseconds();
-        elapsed = (~start) + current;
+        elapsed = (0xFFFFFFFF - start) + current;
         if (current >= start) {
             elapsed = current - start;
         }
@@ -253,6 +263,8 @@ static inline void gcci_cancel_transfer(GcCiObject* handle)
     DVDGetDriveStatus();
 }
 
+/* TODO: [breakthrough] 95.125000%; wraparound elapsed arithmetic and BSS
+ * ownership now match; callback/time CFG and local scheduling remain. */
 void gcCiStopTr(void* object)
 {
     gcci_cancel_transfer((GcCiObject*)object);
@@ -319,10 +331,13 @@ static inline int gcci_is_any_transferring(GcCiObject* current)
     return 0;
 }
 
+/* TODO: [near miss] 97.620300%; retail validation, busy-handle scan,
+ * completion polling, bounds clamp, cache invalidation, and DVD dispatch
+ * match; remaining residue is local register coloring. */
 int gcCiReqRd(void* object, int sectors, void* buffer)
 {
-    GcCiObject* handle = (GcCiObject*)object;
     GcCiObject* current;
+    GcCiObject* handle = object;
     int index;
     int offset;
     int length;
@@ -420,6 +435,7 @@ int gcCiTell(void* object)
     return handle->sector_position;
 }
 
+/* TODO: [near miss] 97.84314%; retail seek/clamp behavior agrees, but donor ternary branch shape regressed under this TU's current handle declaration; residual coloring remains. */
 int gcCiSeek(void* object, int offset, int origin)
 {
     GcCiObject* handle = (GcCiObject*)object;
@@ -453,7 +469,8 @@ int gcCiSeek(void* object, int offset, int origin)
     return handle->sector_position;
 }
 
-/* TODO: [near miss] 95.74%; close-path scheduling remains; size-mode trial regresses exact file-size sibling. */
+/* TODO: [breakthrough] 96.265490%; shared cancel wraparound and BSS ownership
+ * now match; close-path scheduling remains. */
 void gcCiClose(void* object)
 {
     GcCiObject* handle = (GcCiObject*)object;
@@ -485,13 +502,14 @@ static inline void gcci_make_path(char* path, const char* filename)
     }
 }
 
-/* TODO: [near miss] 95.77273%; path loop recovered; global layout and GPR/scheduling residue remain. */
+/* TODO: [near miss] 94.939390%; retail index/cursor lifetime and pooled-global
+ * offsets are recovered; loop scheduling remains. */
 void* gcCiOpen(const char* filename, void* parameter, int mode)
 {
     char path[256];
     GcCiObject* handle;
-    GcCiObject* current;
     int index;
+    GcCiObject* current;
     int file_size;
 
     (void)parameter;
@@ -600,6 +618,7 @@ void gcCiEntryErrFunc(GcCiErrorCallback callback, void* object)
     gcg_ci_err_obj = object;
 }
 
+/* TODO: [near miss] 94.3617%; retail transfer CFG and 40-handle cursor match; remaining inline register/global relocation residue has no clean local lever. */
 void gcCiExecServer(void)
 {
     GcCiObject* current;
@@ -616,6 +635,7 @@ void gcCiExecServer(void)
 
 CvFsInterface* gcCiGetInterface(void)
 {
+    gcg_ci_build_ptr = gcg_ci_build_ptr;
     memset(gcg_ci_root_dir, 0, sizeof(gcg_ci_root_dir));
     gcg_ci_err_func = 0;
     gcg_ci_err_obj = 0;

@@ -29,13 +29,13 @@ typedef struct ADXTHandle {
     s32 output_buffer_distance;
     s32 server_frequency;
     s16 stream_buffer_sectors;
-    s16 minimum_buffer_sectors;
+    s16 reload_threshold_sectors;
     s16 output_volume;
     s16 output_pan[2];
-    s16 field_46;
+    s16 output_balance;
     s32 maximum_decode_samples;
     s32 loop_count;
-    s32 link_data_length;
+    s32 loop_end_sector_bytes;
     s32 field_54;
     s32 field_58;
     s32 field_5C;

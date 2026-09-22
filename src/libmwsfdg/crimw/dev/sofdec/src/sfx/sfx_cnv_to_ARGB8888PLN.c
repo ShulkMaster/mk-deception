@@ -5,8 +5,8 @@ void SFX_CnvFrmARGB8888(SFXHandle* handle, SFXFrameInfo* frame,
 {
     int format = frame->format;
 
-    if (handle->stream_info == 0) {
-        handle->stream_info = SFXINF_GetStmInf(frame, "COMPO");
+    if (handle->composition_mode == 0) {
+        handle->composition_mode = SFXINF_GetStmInf(frame, "COMPO");
     }
     switch (format) {
     case 3:
@@ -14,7 +14,7 @@ void SFX_CnvFrmARGB8888(SFXHandle* handle, SFXFrameInfo* frame,
         break;
     default:
         SFXLIB_Error(
-            handle, (void*)frame,
+            handle, frame,
             "E201181: SFX_CnvFrmArgb8888 : frmfmt is not support.");
         break;
     }

@@ -15,6 +15,14 @@ static inline int sfset_CanSet(SfdHandle* handle, int condition,
     return 1;
 }
 
+static inline void sfset_SetCondDef(SfdHandle* handle, int condition,
+                                    SfdConditionValue value)
+{
+    if (sfset_CanSet(handle, condition, value) != 0) {
+        handle->conditions_secondary[condition] = value;
+    }
+}
+
 int SFD_GetTrHn(SfdHandle* handle, int transport_index, void** output)
 {
     void* context;
@@ -40,12 +48,12 @@ int SFD_GetCond(SfdHandle* handle, int condition, int* value)
 {
     if (handle == 0) {
         *value = SFLIB_libwork.default_conditions[condition];
-        return 0;
+    } else {
+        if (SFLIB_CheckHn(handle) != 0) {
+            return SFLIB_SetErr(0, 0xFF000113);
+        }
+        *value = handle->conditions_primary[condition];
     }
-    if (SFLIB_CheckHn(handle) != 0) {
-        return SFLIB_SetErr(0, 0xFF000113);
-    }
-    *value = handle->conditions_primary[condition];
     return 0;
 }
 
@@ -57,7 +65,8 @@ void SFSET_SetCond(SfdHandle* handle, int condition,
     }
 }
 
-/* TODO: [near miss] 98.22%; typed handle-slot cursor recovered; remaining default-condition owner and register allocation differ */
+/* TODO: [near miss] 99.669420%; donor-shaped default-condition helper is
+ * retained; only r28/r31 index/slot coloring remains at this clean-C ceiling. */
 int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
     int i;
@@ -71,14 +80,12 @@ int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
             }
         }
         SFLIB_libwork.default_conditions[condition] = value;
-        return 0;
-    }
-    if (SFLIB_CheckHn(handle) != 0) {
-        return SFLIB_SetErr(0, 0xFF000112);
-    }
-    SFSET_SetCond(handle, condition, value);
-    if (sfset_CanSet(handle, condition, value) != 0) {
-        handle->conditions_secondary[condition] = value;
+    } else {
+        if (SFLIB_CheckHn(handle) != 0) {
+            return SFLIB_SetErr(0, 0xFF000112);
+        }
+        SFSET_SetCond(handle, condition, value);
+        sfset_SetCondDef(handle, condition, value);
     }
     return 0;
 }

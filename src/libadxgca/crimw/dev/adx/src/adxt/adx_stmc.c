@@ -36,18 +36,19 @@ struct ADXStream {
     ADXStreamEosCallback eos_callback;
     void* eos_object;
     s32 sj_buffer_size;
-    s8 stop_requested;
+    s8 field_44;
     s8 bind_requested;
     s8 release_requested;
     s8 start_requested;
     s8 stop_pending;
     s8 file_open;
     s8 realtime;
-    u8 reserved_4B[5];
+    u8 reserved_4B;
+    s32 field_4C;
     const char* filename;
     void* directory;
     s32 position;
-    s32 transfer_limit;
+    u32 transfer_limit;
 };
 
 typedef char ADXStreamSizeCheck[sizeof(ADXStream) == 0x60 ? 1 : -1];
@@ -228,8 +229,8 @@ void adxstmf_stat_exec(ADXStream* stream)
     s32 file_status = cvFsGetStat(stream->file);
     s32 requested_bytes;
     s32 file_sector_count;
-    s32 request_sectors;
-    s32 remaining_sectors;
+    s32 read_sectors;
+    s32 sectors;
     SJCK completed_chunk;
     SJCK remainder_chunk;
     SJCK read_chunk;
@@ -260,8 +261,8 @@ void adxstmf_stat_exec(ADXStream* stream)
             if (stream->position >= file_sector_count) {
                 stream->status = ADXSTM_STATUS_END;
             } else if ((u32)stream->transferred_bytes / ADXSTM_SECTOR_SIZE >=
-                           (u32)stream->transfer_limit &&
-                       (u32)stream->transfer_limit < ADXSTM_MAX_SECTORS) {
+                       stream->transfer_limit &&
+                       stream->transfer_limit < ADXSTM_MAX_SECTORS) {
                 stream->status = ADXSTM_STATUS_END;
             }
             stream->retry_count = 0;
@@ -294,7 +295,7 @@ void adxstmf_stat_exec(ADXStream* stream)
     stream->request_chunk.len = 0;
     SVM_Unlock();
 
-    if (stream->stop_requested == 1 || stream->stop_pending == 1) {
+    if (stream->field_44 == 1 || stream->stop_pending == 1) {
         stream->read_active = 0;
         return;
     }
@@ -320,32 +321,30 @@ void adxstmf_stat_exec(ADXStream* stream)
 
     sj->interface->get_chunk(sj, 0, stream->maximum_buffer_size, &read_chunk);
 
-    request_sectors = read_chunk.len / ADXSTM_SECTOR_SIZE;
-    remaining_sectors = stream->eos_sector - stream->position;
-    if (request_sectors < remaining_sectors) {
-        remaining_sectors = request_sectors;
-    }
-
-    request_sectors = stream->file_sectors - stream->position;
-    if (remaining_sectors < request_sectors) {
-        request_sectors = remaining_sectors;
-    }
-    if (request_sectors < stream->maximum_request_sectors) {
-        remaining_sectors = request_sectors;
+    sectors = read_chunk.len / ADXSTM_SECTOR_SIZE;
+    sectors = sectors < stream->eos_sector - stream->position
+                  ? sectors
+                  : stream->eos_sector - stream->position;
+    sectors = sectors < stream->file_sectors - stream->position
+                  ? sectors
+                  : stream->file_sectors - stream->position;
+    if (sectors < stream->maximum_request_sectors) {
+        read_sectors = sectors;
     } else {
-        remaining_sectors = stream->maximum_request_sectors;
+        read_sectors = stream->maximum_request_sectors;
     }
 
     cvFsSeek(stream->file, stream->file_offset + stream->position, 0);
 
-    request_sectors = stream->transfer_limit -
-                      stream->transferred_bytes / ADXSTM_SECTOR_SIZE;
-    if (remaining_sectors < request_sectors) {
-        request_sectors = remaining_sectors;
+    sectors = stream->transfer_limit -
+              stream->transferred_bytes / ADXSTM_SECTOR_SIZE;
+    if (read_sectors < sectors) {
+        sectors = read_sectors;
     }
+    read_sectors = sectors;
 
     stream->request_sectors =
-        cvFsReqRd(stream->file, request_sectors, read_chunk.data);
+        cvFsReqRd(stream->file, read_sectors, read_chunk.data);
     stream->request_chunk.data = read_chunk.data;
     stream->request_chunk.len = read_chunk.len;
     if (stream->request_sectors <= 0) {
@@ -481,89 +480,61 @@ void ADXSTM_Destroy(ADXStream* stream)
     }
 }
 
-ADXStream* ADXSTM_Create(SJ* sj, s32 priority)
+static inline ADXStream* adxstmf_create(SJ* sj, s32 offset, s32 count,
+                                        s32 realtime)
 {
-    ADXStream* stream;
+    ADXStream* stream = 0;
     s32 index;
     s32 sj_size;
-    s32* realtime_offset;
 
-    if (priority < 0x100) {
-        realtime_offset = &adxstmf_rtim_ofst;
-        stream = 0;
-        for (index = 0; index < adxstmf_rtim_num; index++) {
-            stream = &adxstmf_obj[*realtime_offset + index];
-            if (stream->used == 0) {
-                break;
-            }
-        }
-
-        if (index == adxstmf_rtim_num) {
-            stream = 0;
-        } else {
-            ADXCRS_Lock();
-            stream->status = ADXSTM_STATUS_STOP;
-            stream->read_active = 0;
-            stream->sj = sj;
-            stream->file = 0;
-            stream->file_offset = 0;
-            stream->file_size = 0;
-            stream->file_sectors = 0;
-            stream->maximum_request_sectors = 0x200;
-            stream->position = 0;
-            stream->transfer_limit = ADXSTM_MAX_SECTORS;
-            stream->eos_sector = stream->file_sectors;
-            if (stream->sj != 0) {
-                sj_size = sj->interface->get_num_data(sj, 1);
-                stream->sj_buffer_size =
-                    sj_size + sj->interface->get_num_data(sj, 0);
-                stream->minimum_buffer_size = stream->maximum_buffer_size =
-                    stream->sj_buffer_size;
-            }
-            stream->stop_requested = 0;
-            stream->used = 1;
-            ADXCRS_Unlock();
-            stream->realtime = 1;
-        }
-        return stream;
-    }
-
-    stream = 0;
-    for (index = 0; index < adxstmf_nrml_num; index++) {
-        stream = &adxstmf_obj[adxstmf_nrml_ofst + index];
+    for (index = 0; index < count; index++) {
+        stream = (ADXStream*)((u8*)adxstmf_obj +
+                              offset * sizeof(ADXStream));
         if (stream->used == 0) {
             break;
         }
+        offset++;
     }
 
-    if (index == adxstmf_nrml_num) {
-        stream = 0;
-    } else {
-        ADXCRS_Lock();
-        stream->status = ADXSTM_STATUS_STOP;
-        stream->read_active = 0;
-        stream->sj = sj;
-        stream->file = 0;
-        stream->file_offset = 0;
-        stream->file_size = 0;
-        stream->file_sectors = 0;
-        stream->maximum_request_sectors = 0x200;
-        stream->position = 0;
-        stream->transfer_limit = ADXSTM_MAX_SECTORS;
-        stream->eos_sector = stream->file_sectors;
-        if (stream->sj != 0) {
-            sj_size = sj->interface->get_num_data(sj, 1);
-            stream->sj_buffer_size =
-                sj_size + sj->interface->get_num_data(sj, 0);
-            stream->minimum_buffer_size = stream->maximum_buffer_size =
-                stream->sj_buffer_size;
-        }
-        stream->stop_requested = 0;
-        stream->used = 1;
-        ADXCRS_Unlock();
-        stream->realtime = 0;
+    if (index == count) {
+        return 0;
     }
+
+    ADXCRS_Lock();
+    stream->status = ADXSTM_STATUS_STOP;
+    stream->read_active = 0;
+    stream->sj = sj;
+    stream->file = 0;
+    stream->file_offset = 0;
+    stream->file_size = 0;
+    stream->file_sectors = 0;
+    stream->maximum_request_sectors = 0x200;
+    stream->position = 0;
+    stream->transfer_limit = ADXSTM_MAX_SECTORS;
+    stream->eos_sector = stream->file_sectors;
+    if (stream->sj != 0) {
+        sj_size = sj->interface->get_num_data(sj, 1);
+        stream->sj_buffer_size =
+            sj_size + sj->interface->get_num_data(sj, 0);
+        stream->minimum_buffer_size = stream->maximum_buffer_size =
+            stream->sj_buffer_size;
+    }
+    stream->field_44 = 0;
+    stream->used = 1;
+    ADXCRS_Unlock();
+    stream->realtime = realtime;
     return stream;
+}
+
+/* TODO: [near miss] 99.872610%; source-order swap leaves MWCC's add operands unchanged; retained helper is structurally exact, so stop at commutative coloring. */
+ADXStream* ADXSTM_Create(SJ* sj, s32 priority)
+{
+    if (priority < 0x100) {
+        return adxstmf_create(sj, adxstmf_rtim_ofst,
+                              adxstmf_rtim_num, 1);
+    }
+    return adxstmf_create(sj, adxstmf_nrml_ofst,
+                          adxstmf_nrml_num, 0);
 }
 
 void ADXSTM_Finish(void)

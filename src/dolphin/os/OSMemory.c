@@ -73,7 +73,10 @@ static void RealMode(unsigned long address) {
      * intrinsic-based source form that emits the retail SRR/rfi sequence. */
 }
 
+/* TODO: [blocked] 90.285710%; retail stack frame matches SDK padding;
+ * privileged RealMode calls require explicit assembly-sequence authorization. */
 void __OSInitMemoryProtection(void) {
+    unsigned long padding[9];
     unsigned long temp;
     int enabled;
     unsigned long size;

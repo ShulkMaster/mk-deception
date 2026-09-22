@@ -4,15 +4,16 @@
 
 extern u64 OSGetTime(void);
 
-u64 utytmr_unit;
-s32 utytmr_init_cnt;
-s32 utytmr_ch;
+static s32 utytmr_ch = 0;
+static volatile s32 utytmr_init_cnt = 0;
+static u64 utytmr_unit;
 
 u64 UTY_GetTmrUnit(void)
 {
     return utytmr_unit;
 }
 
+/* TODO: [blocked] 44.130436%; retail uses an inline mftb time-base read, which needs explicit assembly authorization. */
 s32 UTY_IsTmrVoid(void)
 {
     if (utytmr_init_cnt > 0 && utytmr_ch != -1) {
@@ -21,6 +22,7 @@ s32 UTY_IsTmrVoid(void)
     return utytmr_unit == 1;
 }
 
+/* TODO: [blocked] 58.823530%; retail uses an inline mftb time-base read, which needs explicit assembly authorization. */
 u64 UTY_GetTmr(void)
 {
     if (utytmr_init_cnt <= 0 || utytmr_ch == -1) {
@@ -29,6 +31,8 @@ u64 UTY_GetTmr(void)
     return OSGetTime();
 }
 
+/* TODO: [near miss] 91.666664%; volatile init-count state removes one reload,
+ * but retail still uses a shorter decrement/branch CFG. */
 void UTY_FinishTmr(void)
 {
     utytmr_init_cnt--;
@@ -40,12 +44,15 @@ void UTY_FinishTmr(void)
 void UTY_InitTmr(s32 channel)
 {
     utytmr_init_cnt++;
-    if (utytmr_init_cnt <= 1 || utytmr_ch != channel) {
-        utytmr_ch = channel;
-        if (channel == -1) {
-            utytmr_unit = 1;
-        } else {
-            utytmr_unit = UTY_BUS_CLOCK >> 2;
+    if (utytmr_init_cnt > 1) {
+        if (utytmr_ch == channel) {
+            return;
         }
     }
+    utytmr_ch = channel;
+    if (channel == -1) {
+        utytmr_unit = 1;
+        return;
+    }
+    utytmr_unit = UTY_BUS_CLOCK >> 2;
 }

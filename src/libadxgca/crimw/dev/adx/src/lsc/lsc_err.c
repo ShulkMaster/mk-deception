@@ -5,11 +5,10 @@
 
 typedef void (*LSCErrCallback)(void* object, char* message);
 
-LSCErrCallback lsc_err_func;
-void* lsc_err_obj;
+LSCErrCallback lsc_err_func = 0;
+void* lsc_err_obj = 0;
 char lsc_err_msg[256];
 
-/* Soft ceiling: LSC_CallErrFunc 99.92% - relocation-label noise only; stop. */
 void LSC_CallErrFunc(const char* format, ...)
 {
     __va_list arguments;

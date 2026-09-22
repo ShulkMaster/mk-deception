@@ -58,7 +58,7 @@ RNAResource* RNARES_Create(void);
 void RNARES_Destroy(RNAResource* resource);
 u32 RNARES_GetBuf(RNAResource* resource);
 u32 RNARES_GetBufSize(RNAResource* resource);
-void RNARES_Init(const char* build);
+void RNARES_Init(void);
 void RNARES_Finish(void);
 void AXRNA_ExecHndl(AXRNAHandle* handle);
 void axrna_end_flash(unsigned long request_address);
@@ -71,7 +71,7 @@ void axrna_voice_drop(void* voice);
 
 static const char axrna_build_string[] =
     "\nAXRNA Ver.1.04 Build:Sep  3 2004 17:49:08\n";
-const char* const axrna_build = axrna_build_string;
+const char* const volatile axrna_build = axrna_build_string;
 static const char axrna_switch_off[] = "OFF";
 static const char axrna_switch_on[] = "ON ";
 /* Retained retail diagnostic labels; the table is part of the object data. */
@@ -86,11 +86,11 @@ int axrna_pan_tbl[31] = {
     68, 72, 76, 81, 85, 89, 93, 98, 102, 106, 110, 115, 119, 123, 127,
 };
 
-u32 axrna_init_cnt;
-unsigned char* axrna_zero_dat;
-int axrna_def_adjsfreq_fg;
-int axrna_foo_cnt;
-int axrna_update_pos;
+u32 axrna_init_cnt = 0;
+unsigned char* axrna_zero_dat = 0;
+int axrna_def_adjsfreq_fg = 0;
+int axrna_foo_cnt = 0;
+int axrna_update_pos = 0;
 int axrna_update_hist[32];
 unsigned char axrna_zero_dat_real[0x103E];
 AXRNAHandle axrna_obj[AXRNA_MAX_HANDLES];
@@ -137,6 +137,20 @@ void AXRNA_SetAdjsfreqFlg(AXRNAHandle* handle, int enabled)
 {
     if (handle != 0) {
         handle->adjust_sample_rate = enabled;
+    }
+}
+
+void AXRNA_DbgDump(void)
+{
+    int i;
+
+    for (i = 0; i < 32; i++) {
+        axrna_foo_cnt += axrna_update_hist[i];
+    }
+    axrna_zero_dat_real[0] = 0;
+    for (i = 0; i < AXRNA_MAX_HANDLES; i++) {
+        RNAERR_CallErrFunc(
+            axrna_switch_names[axrna_get_play_switch(&axrna_obj[i])]);
     }
 }
 
@@ -201,6 +215,7 @@ void AXRNA_SetOutVol(AXRNAHandle* handle, int volume)
     }
 }
 
+/* TODO: [breakthrough needed] 80.18823%; declaration order is neutral; ratio lowering and surrounding lifetimes need structural evidence. */
 void AXRNA_SetSfreq(AXRNAHandle* handle, int sample_rate)
 {
     AXPBSRC source;
@@ -352,8 +367,8 @@ void axrna_end_flash(unsigned long request_address)
 {
     ARQRequest* request = (ARQRequest*)request_address;
     int owner = (int)(request->owner & 0x7FFFFFFF);
-    int channel = owner % AXRNA_MAX_CHANNELS;
     AXRNAHandle* handle = &axrna_obj[owner / AXRNA_MAX_CHANNELS];
+    int channel = owner % AXRNA_MAX_CHANNELS;
 
     if (handle->flash_pending[channel] == 1) {
         handle->buffers[channel]->interface->put_chunk(
@@ -472,6 +487,7 @@ int AXRNA_GetNumData(AXRNAHandle* handle)
     return num_data;
 }
 
+/* TODO: [near miss] 93.45192%; sequential guards, voice address setup, stop/reset paths, and switch updates match; remaining residue is AXPB temporary/register scheduling. */
 void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
 {
     AXPBADDR address;
@@ -479,7 +495,10 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
     u32 start;
     u32 end;
 
-    if (handle == 0 || enabled == axrna_get_play_switch(handle)) {
+    if (handle == 0) {
+        return;
+    }
+    if (enabled == axrna_get_play_switch(handle)) {
         return;
     }
     GCRNA_LockCs();
@@ -727,8 +746,9 @@ void AXRNA_Finish(void)
 
 void AXRNA_Init(void)
 {
+    axrna_build;
     if (axrna_init_cnt == 0) {
-        RNARES_Init(axrna_build);
+        RNARES_Init();
         memset(axrna_obj, 0, sizeof(axrna_obj));
         axrna_zero_dat = (unsigned char*)
             (((unsigned long)axrna_zero_dat_real + 31) & ~31UL);

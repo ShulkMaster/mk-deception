@@ -125,7 +125,7 @@ PbarHideStringItem pbar_hide_string_items[] = {
 
 static ScreenObj* medal_objs[8];
 
-int is_plyr_airborn(MkObj* object);
+int is_plyr_airborn(MkObj* object, PlyrPdata* player);
 int is_timer_off(void);
 int trial_show_standard_fight_messages(void);
 static float p_power_bar_proc(void);
@@ -268,7 +268,7 @@ static inline int airborne_light_active(PlyrInfo* player) {
     if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
         return 1;
     }
-    return is_plyr_airborn(player->slot.mirror_a) != 0;
+    return is_plyr_airborn(player->slot.mirror_a, pdata) != 0;
 }
 
 static inline void start_powerbar_monitor_impl(void) {
@@ -449,7 +449,7 @@ int check_for_green_light(PlyrInfo* player) {
     return airborne_light_active(player);
 }
 
-/* Soft ceiling: 90.92% -- register allocation and latch branch placement. */
+/* TODO: [near miss] 96.86803%; five attempts reached; remaining owner/state register allocation and latch/return branch lowering */
 static float p_update_fighting_state_lights(void) {
     PlyrInfo* player_1 = &g_game_info.plyr0;
     PlyrInfo* player_2 = &g_game_info.plyr1;
@@ -462,9 +462,8 @@ static float p_update_fighting_state_lights(void) {
     int active;
     int player_index;
 
-    for (player_index = 0; player_index < 2; player_index++) {
+    for (player_index = 0; player_index <= 1; player_index++) {
         player = player_index == 0 ? player_1 : player_2;
-        state = fighting_light_state(player);
 
         if (player->slot.mirror_a == 0) {
             break;
@@ -478,66 +477,61 @@ static float p_update_fighting_state_lights(void) {
             active = 0;
         }
         if (active != 0) {
-            state->red_active = 1;
+            fighting_light_state(player)->red_active = 1;
         } else {
-            state->red_active = 0;
+            fighting_light_state(player)->red_active = 0;
         }
-        if (player->controller_slot == 0) {
-            if (player_1_state->green_trigger) {
-                active = 1;
-            } else {
-                active = 0;
-            }
-        } else if (player->controller_slot == 1) {
-            if (player_2_state->green_trigger) {
-                active = 1;
-            } else {
-                active = 0;
-            }
+        if ((player->controller_slot == 0 && player_1_state->green_trigger) ||
+            (player->controller_slot == 1 && player_2_state->green_trigger)) {
+            active = 1;
         } else {
             active = 0;
         }
         if (active != 0) {
-            state->green_active = 1;
+            fighting_light_state(player)->green_active = 1;
         } else {
-            state->green_active = 0;
+            fighting_light_state(player)->green_active = 0;
         }
+        pdata = player->slot.pdata;
         if (pdata->blocking_disabled_2 != 0) {
             active = 1;
         } else if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
             active = 1;
-        } else if (is_plyr_airborn(player->slot.mirror_a) != 0) {
+        } else if (is_plyr_airborn(player->slot.mirror_a, pdata) != 0) {
             active = 1;
         } else {
             active = 0;
         }
         if (active != 0) {
-            state->airborne_active = 1;
+            fighting_light_state(player)->airborne_active = 1;
         } else {
-            state->airborne_active = 0;
+            fighting_light_state(player)->airborne_active = 0;
         }
     }
 
     for (player_index = 0; player_index < 2; player_index++) {
         state = player_index == 0 ? player_1_state : player_2_state;
 
-        light = owned_screen_latch_object(&state->red);
-        if (light == 0) {
+        light = pbar_live_screen(&state->red);
+        if (light != 0) {
+            brighten_screen(light, state->red_active);
+        } else {
             return -1.0f;
         }
-        brighten_screen(light, state->red_active);
 
-        light = owned_screen_latch_object(&state->green);
-        if (light == 0) {
+        light = pbar_live_screen(&state->green);
+        if (light != 0) {
+            brighten_screen(light, state->green_active);
+        } else {
             return -1.0f;
         }
-        brighten_screen(light, state->green_active);
 
-        light = owned_screen_latch_object(&state->airborne);
-        if (light == 0) {
+        light = pbar_live_screen(&state->airborne);
+        if (light != 0) {
+            brighten_screen(light, state->airborne_active);
+        } else {
             return -1.0f;
         }
-        brighten_screen(light, state->airborne_active);
     }
     return 1.0f;
 }

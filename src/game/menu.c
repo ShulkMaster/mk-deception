@@ -117,18 +117,6 @@ typedef struct PauseMenuPdata {
     int was_paused;      /* +0x0C */
 } PauseMenuPdata;
 
-typedef struct MkProcPauseFlag {
-    unsigned char pad0 : 4;
-    unsigned char skip_if_paused : 1;
-    unsigned char pad1 : 3;
-} MkProcPauseFlag;
-
-typedef struct GameInfoPauseStateFlag {
-    unsigned char pad0 : 6;
-    unsigned char paused : 1;
-    unsigned char pad1 : 1;
-} GameInfoPauseStateFlag;
-
 extern PlayerProfile p1_profile[];
 extern PlayerProfile p2_profile[];
 extern int disc_error_occurred;
@@ -992,13 +980,14 @@ float p_game_options(void) {
     return sleep_ticks_neg_one;
 }
 
+/* TODO: [near miss] 96.17073%; shared screen load restored; string-address scheduling and pdata/next-process coloring remain; stop at lowering */
 float p_pause_menu(void) {
-    /* Soft ceiling: ~96% -- switch/branch scheduling and NV coloring remain. */
     PauseMenuPdata* pdata;
     MkVtableMkprocLocal* vtbl;
     MkProcEntryFn next_proc;
     unsigned int scheme;
     int screen_slot;
+    const char* screen_name;
     int jump_mode;
 
     pdata = (PauseMenuPdata*)apdata;
@@ -1043,11 +1032,12 @@ float p_pause_menu(void) {
         break;
     }
 
-    if ((int)mode_of_play == 7) {
-        load_screen(&stringBase0[0x49E], screen_slot, 0, 0);
+    if ((int)mode_of_play != 7) {
+        screen_name = &stringBase0[0x4BB];
     } else {
-        load_screen(&stringBase0[0x4BB], screen_slot, 0, 0);
+        screen_name = &stringBase0[0x49E];
     }
+    load_screen(screen_name, screen_slot, 0, 0);
     pause_all_game_sounds();
 
     if (g_game_info.feature_flags.bits.high_bit != 0) {
@@ -1058,7 +1048,7 @@ float p_pause_menu(void) {
         if (g_game_info.feature_flags.bits.high_bit == 0) {
             pause_procs(1);
         } else {
-            ((GameInfoPauseStateFlag*)&g_game_info.pause_flags)->paused = 0;
+            g_game_info.pause_flag_bits.controllers_disabled = 0;
         }
         _mkproc_sleep_ticks = sleep_ticks_one;
         vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
@@ -1116,7 +1106,7 @@ float p_pause_menu(void) {
     }
 
     if (pdata->was_paused != 0) {
-        ((GameInfoPauseStateFlag*)&g_game_info.pause_flags)->paused = 1;
+        g_game_info.pause_flag_bits.controllers_disabled = 1;
     }
     set_game_switch_maps();
     return sleep_ticks_neg_one;
@@ -1171,8 +1161,8 @@ int get_pause_menu_ssh(void) {
     return slot;
 }
 
+/* TODO: [near miss] 97.40506%; canonical bit extraction retained; equivalent allowed-state branch join remains; stop at lowering */
 float p_pause_menu_switch(void) {
-    /* Soft ceiling: ~97.4% -- allowed-state branch join and pool labels only. */
     PauseMenuPdata* pdata;
     MkProc* proc;
     int can_pause;
@@ -1190,7 +1180,7 @@ float p_pause_menu_switch(void) {
     } else if ((int)mode_of_play == 6) {
         if ((int)display_off != 0) {
             can_pause = 0;
-        } else if ((g_game_info.flags & 0x80) != 0) {
+        } else if (g_game_info.flag_bits.high_res_path != 0) {
             can_pause = 0;
         } else {
             can_pause = 1;
@@ -1204,9 +1194,9 @@ float p_pause_menu_switch(void) {
         proc = _create_mkproc_generic_bigstack(0x208B, 0x1F, (MkProcEntryFn)p_pause_menu,
                                                sizeof(PauseMenuPdata), (MkHdr**)&pdata);
         if (proc != 0) {
-            ((MkProcPauseFlag*)&proc->flags)->skip_if_paused = 1;
+            proc->flags_bits.skip_if_paused = 1;
             pdata->player = player;
-            was_paused = (g_game_info.pause_flags >> 1) & 1;
+            was_paused = g_game_info.pause_flag_bits.controllers_disabled;
             turn_controllers_on();
             pdata->was_paused = was_paused;
             if (g_game_info.feature_flags.bits.high_bit == 0) {

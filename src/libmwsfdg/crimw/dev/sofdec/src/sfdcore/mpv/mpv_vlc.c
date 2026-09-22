@@ -94,7 +94,7 @@ static inline void mpvvlc_fill_u8(unsigned char* output, long count,
 #define mpvvlc_pack_motion(length, code) \
     ((signed short)(((length) << 8) | (unsigned char)(code)))
 #define mpvvlc_pack_cbp(cbp, length) \
-    ((signed short)(((unsigned int)(cbp) << 8) | (length)))
+    ((signed short)((((cbp) & 3) << 14) | ((cbp) << 8) | (length)))
 #define mpvvlc_pack_mbai(value, flags, length) \
     ((signed short)(((value) << 4) | (flags) | (length)))
 static inline signed short mpvvlc_pack_mbai_entry(int base, int flags,
@@ -103,13 +103,6 @@ static inline signed short mpvvlc_pack_mbai_entry(int base, int flags,
 }
 #define mpvvlc_pack_mbai_base(base, flags, length) \
     ((signed short)((base) | (flags) | (length)))
-#define mpvvlc_store_cbp_pair(output, index, cbp)                    \
-    do {                                                             \
-        signed short mpvvlc_cbp_value = mpvvlc_pack_cbp((cbp), 8);  \
-        (output)[index] = mpvvlc_cbp_value;                          \
-        (output)[(index) + 1] = mpvvlc_cbp_value;                    \
-    } while (0)
-
 static inline void mpvvlc_fill_s16(signed short* output, long count,
                                     signed short value) {
     int i;
@@ -354,45 +347,47 @@ static signed short* mpvvlc_InitCbpSub2(signed short* output)
 }
 
 static signed short* mpvvlc_InitCbpSub1(signed short* output) {
-    output[0] = 0;
-    output[1] = 0;
-    output[2] = mpvvlc_pack_cbp(0xE7, 9);
-    output[3] = mpvvlc_pack_cbp(0xDB, 9);
-    output[4] = mpvvlc_pack_cbp(0xFB, 9);
-    output[5] = mpvvlc_pack_cbp(0xF7, 9);
-    output[6] = mpvvlc_pack_cbp(0xEF, 9);
-    output[7] = mpvvlc_pack_cbp(0xDF, 9);
-    mpvvlc_store_cbp_pair(output, 8, 0xBA);
-    mpvvlc_store_cbp_pair(output, 10, 0xB6);
-    mpvvlc_store_cbp_pair(output, 12, 0xAE);
-    mpvvlc_store_cbp_pair(output, 14, 0x9E);
-    mpvvlc_store_cbp_pair(output, 16, 0x79);
-    mpvvlc_store_cbp_pair(output, 18, 0x75);
-    mpvvlc_store_cbp_pair(output, 20, 0x6D);
-    mpvvlc_store_cbp_pair(output, 22, 0x5D);
-    mpvvlc_store_cbp_pair(output, 24, 0xA6);
-    mpvvlc_store_cbp_pair(output, 26, 0x9A);
-    mpvvlc_store_cbp_pair(output, 28, 0x65);
-    mpvvlc_store_cbp_pair(output, 30, 0x59);
-    mpvvlc_store_cbp_pair(output, 32, 0xEB);
-    mpvvlc_store_cbp_pair(output, 34, 0xD7);
-    mpvvlc_store_cbp_pair(output, 36, 0xF3);
-    mpvvlc_store_cbp_pair(output, 38, 0xCF);
-    mpvvlc_store_cbp_pair(output, 40, 0xAA);
-    mpvvlc_store_cbp_pair(output, 42, 0x96);
-    mpvvlc_store_cbp_pair(output, 44, 0xB2);
-    mpvvlc_store_cbp_pair(output, 46, 0x8E);
-    mpvvlc_store_cbp_pair(output, 48, 0x69);
-    mpvvlc_store_cbp_pair(output, 50, 0x55);
-    mpvvlc_store_cbp_pair(output, 52, 0x71);
-    mpvvlc_store_cbp_pair(output, 54, 0x4D);
-    mpvvlc_store_cbp_pair(output, 56, 0xE3);
-    mpvvlc_store_cbp_pair(output, 58, 0xD3);
-    mpvvlc_store_cbp_pair(output, 60, 0xCB);
-    mpvvlc_store_cbp_pair(output, 62, 0xC7);
-    return output + 64;
+    int i;
+
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0, 0);
+    *output++ = mpvvlc_pack_cbp(0x27, 9);
+    *output++ = mpvvlc_pack_cbp(0x1B, 9);
+    *output++ = mpvvlc_pack_cbp(0x3B, 9);
+    *output++ = mpvvlc_pack_cbp(0x37, 9);
+    *output++ = mpvvlc_pack_cbp(0x2F, 9);
+    *output++ = mpvvlc_pack_cbp(0x1F, 9);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x3A, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x36, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2E, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1E, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x39, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x35, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2D, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1D, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x26, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1A, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x25, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x19, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2B, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x17, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x33, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0F, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2A, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x16, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x32, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0E, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x29, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x15, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x31, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0D, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x23, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x13, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0B, 8);
+    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x07, 8);
+    return output;
 }
 
+/* TODO: [breakthrough needed] 65.4251%; donor macro regressed; recover retail motion-table grouping and lifetime structure. */
 static void mpvvlc_InitMotion(void) {
     signed short* output = mpvvlt_motion_0;
     int code;
@@ -690,52 +685,62 @@ void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
 
     if (work != 0) {
         mpvvlc_run_level_8 = work->run_level_8;
-        UTY_MemcpyDword(work->run_level_8, mpvvlt_run_level_8, 128);
+        UTY_MemcpyDword(work->run_level_8, (unsigned int*)mpvvlt_run_level_8,
+                        128);
         mpvvlc_run_level_4 = work->run_level_4;
         UTY_MemcpyDword((unsigned int*)work->run_level_4,
-                        (const unsigned int*)mpvvlt_run_level_4, 4);
+                        (unsigned int*)mpvvlt_run_level_4, 4);
         mpvvlc_run_level_2 = work->run_level_2;
         UTY_MemcpyDword((unsigned int*)work->run_level_2,
-                        (const unsigned int*)mpvvlt_run_level_2, 8);
+                        (unsigned int*)mpvvlt_run_level_2, 8);
         mpvvlc_run_level_1 = work->run_level_1;
         UTY_MemcpyDword((unsigned int*)work->run_level_1,
-                        (const unsigned int*)mpvvlt_run_level_1, 8);
+                        (unsigned int*)mpvvlt_run_level_1, 8);
         mpvvlc_run_level_0a = work->run_level_0a;
         UTY_MemcpyDword((unsigned int*)work->run_level_0a,
-                        (const unsigned int*)mpvvlt_run_level_0a, 8);
+                        (unsigned int*)mpvvlt_run_level_0a, 8);
         mpvvlc_run_level_0b = work->run_level_0b;
         UTY_MemcpyDword((unsigned int*)work->run_level_0b,
-                        (const unsigned int*)mpvvlt_run_level_0b, 8);
+                        (unsigned int*)mpvvlt_run_level_0b, 8);
         mpvvlc_run_level_0c = work->run_level_0c;
         UTY_MemcpyDword((unsigned int*)work->run_level_0c,
-                        (const unsigned int*)mpvvlt_run_level_0c, 8);
+                        (unsigned int*)mpvvlt_run_level_0c, 8);
         mpvvlc_y_dcsiz = work->y_dcsiz;
         UTY_MemcpyDword((unsigned int*)work->y_dcsiz,
-                        (const unsigned int*)mpvvlt_y_dcsiz, 32);
+                        (unsigned int*)mpvvlt_y_dcsiz, 32);
         mpvvlc_c_dcsiz = work->c_dcsiz;
         UTY_MemcpyDword((unsigned int*)work->c_dcsiz,
-                        (const unsigned int*)mpvvlt_c_dcsiz, 32);
+                        (unsigned int*)mpvvlt_c_dcsiz, 32);
         mpvvlc_motion_0 = work->motion_0;
         UTY_MemcpyDword((unsigned int*)work->motion_0,
-                        (const unsigned int*)mpvvlt_motion_0, 64);
+                        (unsigned int*)mpvvlt_motion_0, 64);
         mpvvlc_motion_1 = work->motion_1;
         UTY_MemcpyDword((unsigned int*)work->motion_1,
-                        (const unsigned int*)mpvvlt_motion_1, 16);
+                        (unsigned int*)mpvvlt_motion_1, 16);
         mpvvlc_p_mbtype = work->p_mbtype;
         UTY_MemcpyDword((unsigned int*)work->p_mbtype,
-                        (const unsigned int*)mpvvlt_p_mbtype, 16);
+                        (unsigned int*)mpvvlt_p_mbtype, 16);
         mpvvlc_b_mbtype = work->b_mbtype;
         UTY_MemcpyDword((unsigned int*)work->b_mbtype,
-                        (const unsigned int*)mpvvlt_b_mbtype, 32);
+                        (unsigned int*)mpvvlt_b_mbtype, 32);
     }
 
 }
 
-int MPVVLC_IsVlcSizErr(void) {
-    int size_delta = (int)sizeof(MPVVLCWork) - 0x5B0;
+int MPVVLC_IsVlcSizErr(void)
+{
+    long size;
+    long short_size = sizeof(short);
 
-    if (size_delta > 0) {
+    if (short_size != 2) {
         return 1;
     }
-    return size_delta < 0;
+    size = 0x5B0 - (sizeof(mpvvlt_run_level_8) + sizeof(mpvvlt_run_level_4) +
+                     sizeof(mpvvlt_run_level_2) + sizeof(mpvvlt_run_level_1) +
+                     sizeof(mpvvlt_run_level_0a) + sizeof(mpvvlt_run_level_0b) +
+                     sizeof(mpvvlt_run_level_0c) + sizeof(mpvvlt_y_dcsiz) +
+                     sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) +
+                     sizeof(mpvvlt_motion_1) + sizeof(mpvvlt_p_mbtype) +
+                     sizeof(mpvvlt_b_mbtype));
+    return size < 0;
 }

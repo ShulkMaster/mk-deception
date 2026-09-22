@@ -115,6 +115,7 @@ s32 adxt_dbg_rna_ndata = 0;
 s32 adxt_dbg_ndt = 0;
 s32 adxt_dbg_nch = 0;
 
+/* TODO: [breakthrough needed] 95.932990%; donor-backed stream-mode switch now matches retail's termination CFG; PLAYING/PREP lifetimes and SJ helper lowering remain unresolved. */
 void ADXT_ExecHndl(ADXTHandle* handle)
 {
     SJCK chunk;
@@ -183,13 +184,18 @@ void ADXT_ExecHndl(ADXTHandle* handle)
     }
 
     if (handle->stream != 0 && ADXT_GetStat(handle) != 0) {
-        if (handle->stream_type == ADXT_STREAM_TYPE_FILE ||
-            handle->stream_type == ADXT_STREAM_TYPE_RANGE) {
+        switch (handle->stream_type) {
+        case ADXT_STREAM_TYPE_FILE:
+        case ADXT_STREAM_TYPE_RANGE:
             if (ADXSTM_GetStat(handle->stream) == ADXSTM_STATUS_END) {
                 ADXSJD_TermSupply(handle->decoder);
             }
-        } else if (handle->stream_type == ADXT_STREAM_TYPE_MEMORY) {
+            break;
+        case ADXT_STREAM_TYPE_MEMORY:
             ADXSJD_TermSupply(handle->decoder);
+            break;
+        case ADXT_STREAM_TYPE_LINKED:
+            break;
         }
     }
     if (handle->stream != 0 &&
@@ -204,6 +210,7 @@ void ADXT_ExecHndl(ADXTHandle* handle)
     }
 }
 
+/* TODO: [near miss] 97.550606%; explicit handle alias matched the RE4 lifetime hypothesis but MWCC retained the same r30/r31 coloring; no clean local lever remains. */
 void adxt_stat_decinfo(ADXTHandle* handle)
 {
     signed char channel_error[32];
@@ -264,14 +271,14 @@ void adxt_stat_decinfo(ADXTHandle* handle)
 
     if (loop_count > 0) {
         if (handle->stream_type == ADXT_STREAM_TYPE_MEMORY) {
-            handle->link_data_length = 0;
+            handle->loop_end_sector_bytes = 0;
         } else {
             loop_end_offset = ADXSJD_GetLpEndOfst(decoder);
-            handle->link_data_length =
+            handle->loop_end_sector_bytes =
                 ADXT_SECTOR_SIZE - loop_end_offset % ADXT_SECTOR_SIZE;
             eos_sector =
                 (loop_end_offset + ADXT_SECTOR_SIZE - 1) / ADXT_SECTOR_SIZE;
-            handle->link_data_length %= ADXT_SECTOR_SIZE;
+            handle->loop_end_sector_bytes %= ADXT_SECTOR_SIZE;
             handle->eos_sector = eos_sector;
             ADXSTM_SetEos(handle->stream, eos_sector);
             ADXSTM_EntryEosFunc(handle->stream, adxt_eos_entry, handle);
@@ -321,6 +328,7 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
+/* TODO: [near miss] 99.026740%; declaration order now matches retail's +0x8/+0xA s16 locals and removes one saved-register mismatch, but remaining differences are register coloring. */
 void adxt_nlp_trap_entry(void* object)
 {
     ADXTHandle* handle = (ADXTHandle*)object;
@@ -330,8 +338,8 @@ void adxt_nlp_trap_entry(void* object)
     SJCK first_remainder;
     SJCK second_chunk;
     SJCK second_remainder;
-    s16 second_info_length;
     s16 first_info_length;
+    s16 second_info_length;
     s32 first_info_status;
     s32 second_info_status;
     s32 first_consumed;
@@ -486,8 +494,8 @@ void adxt_trap_entry(void* object)
         return;
     }
     input->interface->get_chunk(
-        input, 1, handle->link_data_length, &chunk);
-    if (chunk.len < handle->link_data_length) {
+        input, 1, handle->loop_end_sector_bytes, &chunk);
+    if (chunk.len < handle->loop_end_sector_bytes) {
         ADXERR_CallErrFunc1(adxt_loop_data_error);
     }
     input->interface->put_chunk(input, 0, &chunk);
