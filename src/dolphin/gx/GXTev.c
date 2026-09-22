@@ -330,7 +330,6 @@ void GXSetTevSwapModeTable(GXTevSwapSel table, GXTevColorChan red, GXTevColorCha
 }
 
 void GXSetAlphaCompare(GXCompare comp0, u8 ref0, GXAlphaOp op, GXCompare comp1, u8 ref1) {
-    GXData* gx = __GXData;
     u32 reg;
 
     CHECK_GXBEGIN(1046, "GXSetAlphaCompare");
@@ -343,11 +342,10 @@ void GXSetAlphaCompare(GXCompare comp0, u8 ref0, GXAlphaOp op, GXCompare comp1, 
     SET_REG_FIELD(1053, reg, 2, 22, op);
 
     GX_WRITE_RAS_REG(reg);
-    gx->bpSentNot = 0;
+    __GXData->bpSentNot = 0;
 }
 
 void GXSetZTexture(GXZTexOp op, GXTexFmt fmt, u32 bias) {
-    GXData* gx;
     u32 zenv0;
     u32 zenv1;
     u32 type;
@@ -375,15 +373,13 @@ void GXSetZTexture(GXZTexOp op, GXTexFmt fmt, u32 bias) {
         break;
     }
 
-    gx = __GXData;
-
     SET_REG_FIELD(1092, zenv1, 2, 0, type);
     SET_REG_FIELD(1093, zenv1, 2, 2, op);
     SET_REG_FIELD(1094, zenv1, 8, 24, 0xF5);
 
     GX_WRITE_RAS_REG(zenv0);
     GX_WRITE_RAS_REG(zenv1);
-    gx->bpSentNot = 0;
+    __GXData->bpSentNot = 0;
 }
 
 void GXSetTevOrder(GXTevStageID stage, GXTexCoordID coord, GXTexMapID map, GXChannelID color) {

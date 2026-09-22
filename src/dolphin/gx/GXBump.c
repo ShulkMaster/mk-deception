@@ -20,7 +20,6 @@ do { \
 
 void GXSetTevIndirect(GXTevStageID tev_stage, GXIndTexStageID ind_stage, GXIndTexFormat format, GXIndTexBiasSel bias_sel, GXIndTexMtxID matrix_sel, GXIndTexWrap wrap_s, GXIndTexWrap wrap_t, GXBool add_prev, GXBool utc_lod, GXIndTexAlphaSel alpha_sel) {
     u32 reg;
-    GXData* gx = __GXData;
 
     CHECK_GXBEGIN(146, "GXInitIndTexture");
     reg = 0;
@@ -35,7 +34,7 @@ void GXSetTevIndirect(GXTevStageID tev_stage, GXIndTexStageID ind_stage, GXIndTe
     SET_REG_FIELD(156, reg, 1, 20, add_prev);
     SET_REG_FIELD(157, reg, 8, 24, tev_stage + 16);
     GX_WRITE_SOME_REG5(GX_LOAD_BP_REG, reg);
-    gx->bpSentNot = 0;
+    __GXData->bpSentNot = 0;
 }
 
 void GXSetIndTexCoordScale(GXIndTexStageID ind_state, GXIndTexScale scale_s, GXIndTexScale scale_t) {
@@ -95,7 +94,6 @@ void __GXSetIndirectMask(u32 mask) {
 }
 
 void __GXFlushTextureState(void) {
-    GXData* gx = __GXData;
-    GX_WRITE_SOME_REG5(GX_LOAD_BP_REG, gx->bpMask);
-    gx->bpSentNot = 0;
+    GX_WRITE_SOME_REG5(GX_LOAD_BP_REG, __GXData->bpMask);
+    __GXData->bpSentNot = 0;
 }

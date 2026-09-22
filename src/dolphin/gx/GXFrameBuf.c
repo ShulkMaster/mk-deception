@@ -54,6 +54,8 @@ void GXSetDispCopyDst(u16 wd, u16 ht) {
     SET_REG_FIELD(1300, __GXData->cpDispStride,  8, 24, 0x4D);
 }
 
+/* TODO: [near miss] 97.236840%; post-call GPR coloring and addi/mr residue
+ * remain; donor/retail ABI, GXData offsets, and CFG agree. */
 void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
     u32 rowTiles;
     u32 colTiles;
@@ -205,7 +207,6 @@ u32 GXSetDispCopyYScale(f32 vscale) {
 
 void GXSetCopyClear(GXColor clear_clr, u32 clear_z) {
     u32 reg;
-    GXData* gx = __GXData;
 
     CHECK_GXBEGIN(1596, "GXSetCopyClear");
     ASSERTMSGLINE(1598, clear_z <= 0xFFFFFF, "GXSetCopyClear: Z clear value is out of range");
@@ -226,7 +227,7 @@ void GXSetCopyClear(GXColor clear_clr, u32 clear_z) {
     SET_REG_FIELD(1613, reg, 24, 0, clear_z);
     SET_REG_FIELD(1613, reg, 8, 24, 0x51);
     GX_WRITE_RAS_REG(reg);
-    gx->bpSentNot = 0;
+    __GXData->bpSentNot = 0;
 }
 
 void GXSetCopyFilter(GXBool aa, const u8 sample_pattern[12][2], GXBool vf, const u8 vfilter[7]) {
@@ -320,6 +321,7 @@ void GXSetDispCopyGamma(GXGamma gamma) {
 void GXCopyDisp(void* dest, GXBool clear) {
     u32 reg;
     u32 tempPeCtrl;
+    u32 phyAddr;
     u8 changePeCtrl;
 
     CHECK_GXBEGIN(1833, "GXCopyDisp");
@@ -353,8 +355,9 @@ void GXCopyDisp(void* dest, GXBool clear) {
     GX_WRITE_RAS_REG(__GXData->cpDispSize);
     GX_WRITE_RAS_REG(__GXData->cpDispStride);
 
+    phyAddr = (u32)dest & 0x3FFFFFFF;
     reg = 0;
-    SET_REG_FIELD(1872, reg, 21, 0, (u32)dest >> 5);
+    SET_REG_FIELD(1872, reg, 21, 0, phyAddr >> 5);
     SET_REG_FIELD(1876, reg, 8, 24, 0x4B);
     GX_WRITE_RAS_REG(reg);
 
@@ -442,12 +445,11 @@ void GXCopyTex(void* dest, GXBool clear) {
 
 void GXClearBoundingBox(void) {
     u32 reg;
-    GXData* gx = __GXData;
 
     CHECK_GXBEGIN(2003, "GXClearBoundingBox");
     reg = 0x550003FF;
     GX_WRITE_RAS_REG(reg);
     reg = 0x560003FF;
     GX_WRITE_RAS_REG(reg);
-    gx->bpSentNot = 0;
+    __GXData->bpSentNot = 0;
 }

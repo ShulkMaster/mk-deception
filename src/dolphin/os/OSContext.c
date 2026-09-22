@@ -8,7 +8,7 @@ volatile OSContext* __OSFPUContext : 0x800000D8;
 #define OS_CURRENT_CONTEXT __OSCurrentContext
 #define OS_FPU_CONTEXT __OSFPUContext
 #define OS_CURRENT_CONTEXT_PHYSICAL (*(volatile unsigned long*)0x800000C0)
-#define OS_CONTEXT_STATE_FPSAVED 1
+#define OS_CONTEXT_STATE_FPSAVED 1u
 #define OS_CONTEXT_STATE_EXCEPTION 2
 
 extern char _SDA2_BASE_[];
@@ -31,6 +31,7 @@ void OSSaveFPUContext(OSContext* context)
     __OSSaveFPUContext(0, 0, context);
 }
 
+#pragma dont_inline on
 void OSSetCurrentContext(OSContext* context)
 {
     OS_CURRENT_CONTEXT = context;
@@ -41,6 +42,7 @@ void OSSetCurrentContext(OSContext* context)
         context->srr1 &= ~0x2000;
     }
 }
+#pragma dont_inline reset
 
 OSContext* OSGetCurrentContext(void)
 {
@@ -63,6 +65,9 @@ void OSLoadContext(OSContext* context)
     OSSetCurrentContext(context);
 }
 
+/* TODO: [blocked] 70.000000%; retail is a two-instruction r1 leaf, but MWCC
+ * lowers __builtin_frame_address as an out-of-line call; no clean C form
+ * exposes the stack pointer and assembly is not authorized. */
 void* OSGetStackPointer(void)
 {
     /* The retail leaf returns r1 directly. */

@@ -484,7 +484,7 @@ static inline void pz_fighter_begin_super_move(void) {
  * differences are stack/GPR allocation, typed queue/reaction-slot induction,
  * equivalent structured joins, and local relocation labels.
  */
-/* TODO: [near miss] 94.43%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 94.38884%; signed winner snapshot trial regressed; retain compact-save CFG and stop at queue/relocation lowering. */
 void pz_fighter_event(PuzzleFighterEvent* event) {
     PuzzleFightersEngine* engine;
     unsigned int block_count;
@@ -919,7 +919,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
  * removes the synthetic flag; the remaining engine-base rematerialization and
  * twelve-byte control-flow deficit remain structural.
  */
-/* TODO: [breakthrough needed] 88.16%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [breakthrough needed] 88.132744%; queue-compaction induction remains structurally different; retain typed pointer loop and stop before pointer-arithmetic forcing. */
 static void pz_fighter_fight_request(
     unsigned int player, unsigned int block_count, int chain_count,
     unsigned int event_type) {
@@ -1293,7 +1293,7 @@ void pz_fighter_classify_move_8012260C(
  * pending-move scan/switch register scheduling. Keeping the initial state2 live
  * regresses to 90.94%/0x498 and was rejected.
  */
-/* TODO: [near miss] 96.80%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 96.613335%; direct state-validity condition regressed; retain nested switch CFG and stop at scan/branch coloring. */
 static float p_puzzle_fighter_master(void) {
     int state1;
     int state2;
@@ -2197,8 +2197,8 @@ void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y) {
     g_pz_fighters_engine.y_constraint[player] = y;
 }
 
-/* TODO: [near miss] 96.66374%; handled/constraint registers and branch scheduling
- * remain; handled-first declaration trial regressed and was reverted. */
+/* TODO: [near miss] 96.66374%; asymmetric state guard trial regressed to 95.90351%
+ * and was reverted; handled/constraint register and branch scheduling remain. */
 static void pz_fighter_process_immediate_request(void) {
     unsigned int happy_player;
     PlyrPdata* happy_pdata;
@@ -2605,9 +2605,8 @@ static void pz_fighter_perform_end_of_round_anims(
     }
 }
 
-/* TODO: [near miss] 99.93976%; active_flags store uses equivalent r3/r5 owner bases;
- * table stride, selection and stores agree; stop at address-register coloring. */
 static void pz_fighter_first_block_has_been_placed(unsigned int player) {
+    PuzzleFightersEngine* engine;
     PuzzleProcess* process;
     PlyrPdata* fighter;
     PuzzleFighterEntry reaction;
@@ -2616,13 +2615,14 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     unsigned int index;
 
     roll = (unsigned short)randu0(100);
-    g_pz_fighters_engine.fighter_move.player = player;
-    g_pz_fighters_engine.fighter_move.mode = 15;
+    engine = &g_pz_fighters_engine;
+    engine->fighter_move.player = player;
+    engine->fighter_move.mode = 15;
 
     for (index = 0; index < fistMoveMadeTable.count; index++) {
         if (roll < fistMoveMadeTable.rows[index].percent) {
             reaction = fistMoveMadeTable.rows[index].reaction;
-            selected_player = g_pz_fighters_engine.fighter_move.player;
+            selected_player = engine->fighter_move.player;
             fighter = puzzle_player_pdata(selected_player);
             if ((fighter->state & 0x200) != 0) {
                 return;
@@ -2637,7 +2637,7 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
             }
 
             fighter->state |= 0x1200;
-            g_pz_fighters_engine.fighter_move.active_flags = 1;
+            engine->fighter_move.active_flags = 1;
             g_pz_fighters_engine.random_fatality_active = 1;
             if (g_pz_fighters_engine.fighter_move.player == 0) {
                 process = g_game_info.plyr0.idle_proc;
@@ -3010,8 +3010,8 @@ void pz_fighter_startup_attack(
     unsigned int reaction_mode, float frame1, float frame2, float frame3,
     float frame4, float desired_distance);
 
-/* TODO: [near miss] 91.84%; frame argument-load scheduling remains;
- * explicit local frame inputs are neutral. */
+/* TODO: [near miss] 91.75652%; startup/animation FPR load scheduling remains;
+ * explicit local frame input is retained after no-edit review. */
 void pz_fighter_attack(
     AniScript* animation, PuzzleAttackParameters* attack, int reaction) {
     float frame4 = attack->field_18;
@@ -3061,8 +3061,9 @@ void pz_fighter_dont_fudge_desired_distance(void) {
     g_pz_fighters_engine.fighter_move.active_flags |= PZ_FIGHTER_DISTANCE_FIXED;
 }
 
-/* TODO: [near miss] 99.44444%; reaction latch/order recover call scheduling;
- * saved-register allocation and float labels remain. */
+/* TODO: [near miss] 99.44444%; parameter aliases were neutral; reaction
+ * latch/order recover call scheduling, saved-register allocation, and float
+ * labels remain after three attempts. */
 float pz_fighter_ani_attack(
     int reaction, unsigned int reaction_mode, float end_frame,
     float reaction_frame, float hit_distance) {
@@ -3283,8 +3284,9 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     }
 }
 
-/* TODO: [breakthrough needed] 94.97516%; retail rounds the angle-call result;
- * confirm its declaration before changing the shared ABI. FPR scheduling remains. */
+/* TODO: [near miss] 97.12422%; explicit float-rounding cast recovers retail
+ * frsp after gxMathArcTanYX; multiply, declaration-order, and expression-form
+ * trials were neutral, so FPR/pool coloring remains after five attempts. */
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
@@ -3323,7 +3325,7 @@ static void pz_fighter_snap_to_distance(
     his_angle.z = his_obj->ang.z;
 
     xz_unit_vector(&direction, &my_position, &his_position);
-    facing = (float)gxMathArcTanYX(direction.x, direction.z);
+    facing = (float)(double)gxMathArcTanYX(direction.x, direction.z);
     my_angle.y = facing;
     opposite_correction = -1.0f * correction;
     my_x_offset = direction.x * correction;
@@ -3346,8 +3348,9 @@ static void pz_fighter_snap_to_distance(
     xz_distance_between_players();
 }
 
-/* TODO: [near miss] 63.72464%; two extra center fmr instructions change FPR coloring;
- * prior direct-expression and Vec trials exhausted; no new evidence to reopen. */
+/* TODO: [near miss] 72.608696%; direct canonical engine-field access moves the
+ * base formation toward retail; center FPR scheduling and two extra stores
+ * remain after five bounded attempts. */
 static void pz_fighter_calculate_start_pos(void) {
     float screen_scale = 1.0f;
     float post1_scale;
@@ -3366,8 +3369,6 @@ static void pz_fighter_calculate_start_pos(void) {
     float center_z;
     float center_x_delta;
     float center_z_delta;
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
-
     if (screen_width > 650) {
         screen_scale = 1.1f;
     }
@@ -3376,41 +3377,43 @@ static void pz_fighter_calculate_start_pos(void) {
     post2_scale = 1.6f * screen_scale;
     center_x = 0.0f;
     center_z = 0.0f;
-    center_x_delta = fighters->arena_axis.x * fighters->balance;
-    center_z_delta = fighters->arena_axis.z * fighters->balance;
+    center_x_delta = g_pz_fighters_engine.arena_axis.x *
+                     g_pz_fighters_engine.balance;
+    center_z_delta = g_pz_fighters_engine.arena_axis.z *
+                     g_pz_fighters_engine.balance;
     center_x += center_x_delta;
     center_z += center_z_delta;
 
-    player1_x_offset = 0.5f * fighters->arena_axis.x;
-    player1_z_offset = 0.5f * fighters->arena_axis.z;
-    player2_x_offset = -0.5f * fighters->arena_axis.x;
-    player2_z_offset = -0.5f * fighters->arena_axis.z;
+    player1_x_offset = 0.5f * g_pz_fighters_engine.arena_axis.x;
+    player1_z_offset = 0.5f * g_pz_fighters_engine.arena_axis.z;
+    player2_x_offset = -0.5f * g_pz_fighters_engine.arena_axis.x;
+    player2_z_offset = -0.5f * g_pz_fighters_engine.arena_axis.z;
     player1_idle_x = player1_x_offset + center_x;
     player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
     player1_idle_z = player1_z_offset + center_z;
     player2_idle_x = player2_x_offset + center_x;
     player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
     player2_idle_z = player2_z_offset + center_z;
-    fighters->center_x = 0.0f;
-    fighters->center_z = 0.0f;
-    fighters->center_y = 0.0f;
-    fighters->center_x = center_x;
-    fighters->center_z = center_z;
+    g_pz_fighters_engine.center_x = 0.0f;
+    g_pz_fighters_engine.center_z = 0.0f;
+    g_pz_fighters_engine.center_y = 0.0f;
+    g_pz_fighters_engine.center_x = center_x;
+    g_pz_fighters_engine.center_z = center_z;
 
-    fighters->player1_idle_x = player1_idle_x;
-    fighters->player1_idle_y = player1_idle_y;
-    fighters->player1_idle_z = player1_idle_z;
-    fighters->player2_idle_x = player2_idle_x;
-    fighters->player2_idle_y = player2_idle_y;
-    fighters->player2_idle_z = player2_idle_z;
-    fighters->fighter_posts[0].x =
-        fighters->arena_axis.x * post1_scale;
-    fighters->fighter_posts[0].z =
-        fighters->arena_axis.z * post1_scale;
-    fighters->fighter_posts[1].x =
-        fighters->arena_axis.x * post2_scale;
-    fighters->fighter_posts[1].z =
-        fighters->arena_axis.z * post2_scale;
+    g_pz_fighters_engine.player1_idle_x = player1_idle_x;
+    g_pz_fighters_engine.player1_idle_y = player1_idle_y;
+    g_pz_fighters_engine.player1_idle_z = player1_idle_z;
+    g_pz_fighters_engine.player2_idle_x = player2_idle_x;
+    g_pz_fighters_engine.player2_idle_y = player2_idle_y;
+    g_pz_fighters_engine.player2_idle_z = player2_idle_z;
+    g_pz_fighters_engine.fighter_posts[0].x =
+        g_pz_fighters_engine.arena_axis.x * post1_scale;
+    g_pz_fighters_engine.fighter_posts[0].z =
+        g_pz_fighters_engine.arena_axis.z * post1_scale;
+    g_pz_fighters_engine.fighter_posts[1].x =
+        g_pz_fighters_engine.arena_axis.x * post2_scale;
+    g_pz_fighters_engine.fighter_posts[1].z =
+        g_pz_fighters_engine.arena_axis.z * post2_scale;
 }
 
 float pz_fighter_fetch_distance_to_center_pos(void) {

@@ -1,13 +1,11 @@
-/* TODO: Missing implementation for retail unit mpc_7xx_603e.c. */
-
-void *TRKSaveExtended1Block(void)
+/* TODO: [blocked] 0.000000%; retail saves privileged PowerPC state with
+ * handwritten register instructions; no honest C implementation is available. */
+void TRKSaveExtended1Block(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *TRKRestoreExtended1Block(void)
+/* TODO: [blocked] 0.000000%; retail restores privileged PowerPC state with
+ * handwritten register instructions; no honest C implementation is available. */
+void TRKRestoreExtended1Block(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }

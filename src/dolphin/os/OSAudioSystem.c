@@ -17,6 +17,8 @@ volatile unsigned short __DSPRegs[] : 0xCC005000;
 
 #define DSP_WORK_BUFFER ((void*)0x81000000)
 
+/* TODO: [near miss] 96.531530%; MMIO order and DSP algorithm agree; remaining
+ * register/lifetime residue depends on a prohibited donor dead read. */
 void __OSInitAudioSystem(void)
 {
     unsigned short reg16;

@@ -4,6 +4,9 @@
 
 extern int vprintf(const char* format, __va_list arguments);
 
+#undef va_start
+#define va_start(list, last_arg) ((void)(last_arg), __builtin_va_info(&(list)))
+
 #define OS_ERROR_COUNT 17
 #define OS_ERROR_FLOATING_POINT 16
 #define OS_EXCEPTION_PROGRAM 6
@@ -23,8 +26,13 @@ extern int vprintf(const char* format, __va_list arguments);
 #define OS_CONTEXT_STATE_FPSAVED 1
 
 #define OS_FPU_CONTEXT (*(volatile OSContext**)0x800000D8)
+#ifdef __MWERKS__
+volatile unsigned short DSP_REGS[] : 0xCC005000;
+volatile unsigned long DI_REGS[] : 0xCC006000;
+#else
 #define DSP_REGS ((volatile unsigned short*)0xCC005000)
 #define DI_REGS ((volatile unsigned long*)0xCC006000)
+#endif
 
 #define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
 extern volatile unsigned long __OSLastInterruptSrr0;
@@ -63,6 +71,9 @@ void OSPanic(const char* file, int line, const char* message, ...)
     }
     PPCHalt();
 }
+
+#undef va_start
+#define va_start(list, last_arg) __va_start(list, last_arg)
 
 OSErrorHandler OSSetErrorHandler(OSError error, OSErrorHandler handler)
 {

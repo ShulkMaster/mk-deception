@@ -131,6 +131,8 @@ static inline void OSSetCurrentThread(OSThread* thread) {
     __OSCurrentThread = thread;
 }
 
+/* TODO: [breakthrough needed] 85.081400%; SDK algorithm and thread layout
+ * agree; static-owner and register scheduling need structural evidence. */
 void __OSThreadInit() {
     OSThread* thread = &DefaultThread;
     OSPriority prio;
@@ -411,6 +413,7 @@ void OSYieldThread(void) {
     OSRestoreInterrupts(enabled);
 }
 
+/* TODO: [near miss] 97.696724%; queueMutex initialization now matches retail store order; absolute active-queue owner still lowers through addi/lwzu instead of direct lwz. */
 int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* stack, u32 stackSize, OSPriority priority, u16 attr) {
     BOOL enabled;
     u32 sp;
@@ -433,8 +436,7 @@ int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* st
 #ifdef DEBUG
     OSInitMutexQueue(&thread->queueMutex);
 #else
-    thread->queueMutex.head = 0;
-    thread->queueMutex.tail = 0;
+    OSInitThreadQueue((void*)&thread->queueMutex);
 #endif
     sp = (u32)stack;
     sp &= ~7;
@@ -471,6 +473,7 @@ int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* st
     return 1;
 }
 
+/* TODO: [near miss] 99.561400%; DEQUEUE_THREAD expresses the typed unlink; only next-link register coloring remains. */
 void OSExitThread(void* val) {
     BOOL enabled = OSDisableInterrupts();
     OSThread* currentThread = OSGetCurrentThread();
@@ -568,6 +571,8 @@ int OSJoinThread(OSThread* thread, void** val) {
     return 0;
 }
 
+/* TODO: [near miss] 99.382710%; donor algorithm and queue operations agree;
+ * only harmless register/static-address coloring remains. */
 s32 OSResumeThread(OSThread* thread) {
     BOOL enabled = OSDisableInterrupts();
     s32 suspendCount;

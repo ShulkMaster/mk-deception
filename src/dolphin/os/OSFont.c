@@ -28,7 +28,7 @@ static ParseStringCallback ParseString;
 static u16 FontEncode = 0xFFFF;
 
 // prototypes
-static char* ParseStringS(u16 encode, const char* string, OSFontHeader** pfont, int* pfontCode);
+static char* ParseStringS(u16 encode, const u8* string, OSFontHeader** pfont, int* pfontCode);
 
 static u16 HankakuToCode[]
     = { 0x20C, 0x20D, 0x20E, 0x20F, 0x210, 0x211, 0x212, 0x213,
@@ -375,6 +375,9 @@ static inline void ReadROM(void* buf, int length, int offset) {
 
 static u32 ReadFont(void* img, u16 encode, void* fontData) {
     u32 size;
+#ifndef DEBUG
+    u32 padding[1];
+#endif
 
     if (encode == OS_FONT_ENCODE_SJIS) {
         ReadROM(img, OS_FONT_ROM_SIZE_SJIS, 0x1AFF00);
@@ -426,7 +429,7 @@ static u32 ReadFont(void* img, u16 encode, void* fontData) {
     return size;
 }
 
-static char* ParseStringS(u16 encode, const char* string, OSFontHeader** pfont, int* pfontCode) {
+static char* ParseStringS(u16 encode, const u8* string, OSFontHeader** pfont, int* pfontCode) {
     OSFontHeader* font;
     u16 code = 0;
 
@@ -481,14 +484,11 @@ static void ExpandFontSheet(OSFontHeader* font, u8* src, u8* dst) {
     DCStoreRange(dst, font->sheetFullSize);
 }
 
-/* TODO: [near miss] 94.05%; fixed VI hardware owner; remaining inlined font selection/register allocation differs */
 int OSInitFont(OSFontHeader* fontData) {
     u16 encode;
     u32 size;
     void* tmp;
     u8* img;
-
-    ASSERTLINE(919, (u32) fontData % 32 == 0);
 
     encode = OSGetFontEncode();
     switch (encode) {
@@ -548,7 +548,7 @@ int OSInitFont(OSFontHeader* fontData) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 76.53%; fixed VI hardware owner; remaining inlined font selection/register allocation differs */
+/* TODO: [near miss] 98.902176%; shared __VIRegs declaration trial improved this function to 99.32609% but regressed exact OSFont symbols; retained macro form is the honest TU-wide ceiling. */
 char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* width) {
     OSFontHeader* font;
     u16 encode;
@@ -561,14 +561,12 @@ char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* wi
     encode = OSGetFontEncode();
     string = ParseString(encode, (char*)string, &font, &fontCode);
     sheet = fontCode / (font->sheetColumn * font->sheetRow);
-    ((u32*)image)[0] = (u32)font + font->sheetImage + (font->sheetSize * sheet);
+    *image = (void*)((u8*)font + font->sheetImage + (font->sheetSize * sheet));
     numChars = fontCode - (sheet * (font->sheetColumn * font->sheetRow));
     row = numChars / font->sheetColumn;
     column = numChars - (row * font->sheetColumn);
     *x = column * font->cellWidth;
     *y = row * font->cellHeight;
-
-    ASSERTLINE(1016, (u32) *image % 32 == 0);
 
     if (width != 0) {
         *width = ((u8*)font + font->widthTable)[fontCode];

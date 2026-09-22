@@ -151,14 +151,8 @@ struct PuzzleObjectVtable {
 struct PuzzleFighterRenderObject {
     PuzzleObjectVtable* vtbl; /* +0x00 */
     unsigned int instance; /* +0x04 */
-    union {
-        unsigned char flags; /* +0x08 */
-        PuzzleObjectFlags flags_bits;
-    };
-    union {
-        unsigned char secondary_flags; /* +0x09 */
-        PuzzleObjectSecondaryFlags secondary_flags_bits;
-    };
+    PuzzleObjectFlags flags_bits; /* +0x08 */
+    PuzzleObjectSecondaryFlags secondary_flags_bits; /* +0x09 */
     char pad0A[0x16];
     void* frame; /* +0x20 */
     char pad24[8];
@@ -241,10 +235,7 @@ typedef struct PuzzleBoneObjectView {
 
 typedef struct PuzzleFatalityHazardObject {
     char pad00[8];
-    union {
-        unsigned char flags; /* +0x08 */
-        PuzzleObjectFlags flags_bits;
-    };
+    PuzzleObjectFlags flags_bits; /* +0x08 */
     char pad09[0x0B];
     PuzzleSobjMaterialData* material_data; /* +0x14 */
     char pad18[0x10];
@@ -354,13 +345,10 @@ typedef struct PuzzleEffectBankContext {
 
 typedef struct PuzzleParticleEmitter {
     char pad00[0x1C];
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char hidden : 1;
-            unsigned char flags_low : 7;
-        } flags_bits;
-    }; /* +0x1C */
+    struct {
+        unsigned char hidden : 1;
+        unsigned char flags_low : 7;
+    } flags_bits; /* +0x1C */
 } PuzzleParticleEmitter;
 
 struct PuzzleParticleEffect {
@@ -732,8 +720,8 @@ PuzzleFatalityDefinitions g_fatalityTable = {
 };
 
 /* Callers pass engine/mode, but retail reads the canonical global. */
-/* TODO: [near miss] 98.57143%; retail's positive/shared-return branches become
- * one inverse branch to zero; retain the equivalent structured condition. */
+/* TODO: [near miss] 98.57143%; nested fatality-index guard was neutral; retail's
+ * positive/shared-return branches remain an equivalent structured condition. */
 int pz_fighter_check_fatality_random_event(void) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
@@ -917,8 +905,8 @@ static float pz_fighter_burn_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 92.54601%; pooled-string scheduling and object GPR remain;
- * coordinate staging changes the constant pool and regresses exact siblings. */
+/* TODO: [near miss] 92.54601%; explicit screen-width if branches were neutral;
+ * pooled-string scheduling and object GPR remain after two attempts. */
 static float pz_fighter_load_and_place_initial_burn(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* burners[2];
@@ -1287,14 +1275,14 @@ static float pz_fighter_snake_round_over(void) {
         restart_effect_ppfx(particle_effect);                               \
         pfx_bind_emitter_to_obj_bone(particle_effect, object, 5);           \
         emitter = pfx_get_emitter(particle_effect->emitters, 0);            \
-        emitter->flags &= (unsigned char)~0x80;                             \
+        emitter->flags_bits.hidden = 0;                                     \
         if (pause_after_setup) {                                            \
             fx_pause_emit(effect);                                          \
         }                                                                   \
     } while (0)
 
-/* TODO: [near miss] 93.57039%; direct light definition removes redundant alias;
- * pooled-data addressing, register allocation and emitter scheduling remain. */
+/* TODO: [near miss] 94.08009%; typed emitter flag access and union flattening
+ * improve the initializer; pooled-data addressing and emitter scheduling remain. */
 static float pz_fighter_load_and_place_initial_snake(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
@@ -1689,8 +1677,9 @@ static float p_snake_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough] 97.565544%; restored distinct neck effect lookup/handle;
- * signed loop/branch and emitter-register differences remain. */
+/* TODO: [near miss] 97.996254%; duplicate branch resumes and unsigned victim
+ * compare recover retail CFG; signed loop induction plus FPR/constant-pool and
+ * owner-register coloring remain after five attempts. */
 static float r_pz_fighter_eaten(void) {
     PuzzleParticleEffect* blood_burst;
     PuzzleParticleEffect* neck_blood;
@@ -1718,12 +1707,13 @@ static float r_pz_fighter_eaten(void) {
     {
         PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
 
-        if (fighters->fatality_victim == 0) {
+        if ((unsigned int)fighters->fatality_victim == 0) {
             saliva = fx_by_owner("saliva1", 4);
+            fx_resume_emit(saliva);
         } else {
             saliva = fx_by_owner("saliva2", 4);
+            fx_resume_emit(saliva);
         }
-        fx_resume_emit(saliva);
         ani_loop_more_frames(11.0f);
         ani_loop_more_frames(17.0f);
         xfer_proc(
@@ -3451,7 +3441,8 @@ static inline void pz_chomper_apply_motion(
         } else if (fighting == 0) {
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[side][object_index] = 0.0f;
-            object->motion = 0.0f;
+            g_pz_fighter_fatality_engine.hazard_groups[side]
+                .objects[object_index]->motion = 0.0f;
         } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
             object->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
@@ -3558,8 +3549,8 @@ static inline void pz_chomper_update_state(
     }
 }
 
-/* TODO: [near miss] 99.00637%; load scheduling, register/stack allocation
- * and shared return-constant lowering remain; stop at local codegen. */
+/* TODO: [near miss] 99.13376%; indexed hazard-object reload now matches the
+ * sibling controller; load scheduling and shared return-constant lowering remain. */
 static float p_chomper2_controller(void) {
     const int object_count = 1;
     const unsigned int bird_chance = 20;
@@ -3765,8 +3756,9 @@ static float pz_fighter_chomper_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.88426%; direct member accesses recover pointer reloads;
- * retained column register and pooled references remain. */
+/* TODO: [near miss] 99.88426%; explicit secondary-column lifetime was neutral;
+ * direct member accesses recover pointer reloads, while pooled references and
+ * column register coloring remain. */
 static float pz_fighter_load_and_place_initial_chompers(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
@@ -4357,8 +4349,8 @@ static float pz_fighters_chomper_preround(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 94.8311%; frame-constant correction improves relocation alignment;
- * remaining local codegen needs review. */
+/* TODO: [near miss] 99.08194%; direct store order, unsigned timer, and indexed
+ * reload align retail; shared return constant and register coloring remain. */
 static float p_chomper_controller(void) {
     Vec bird_target_right;
     Vec bird_start_right;
@@ -4388,8 +4380,8 @@ static float p_chomper_controller(void) {
                         pz_fighters_fatality_bird_in_place);
                     g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 6;
                 } else {
-                    g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
                     pz_chomper_start_motion(1, 2.5f, 0.28f);
+                    g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
                     motion_changed = 1;
                 }
             } else if ((randu0(100) & 0xFFFF) < 5) {
@@ -4404,27 +4396,27 @@ static float p_chomper_controller(void) {
                     pz_fighters_fatality_bird_in_place);
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 6;
             } else {
-                g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
                 pz_chomper_start_motion(0, 2.5f, 0.28f);
+                g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
                 motion_changed = 1;
             }
         }
         if (g_pz_fighter_fatality_engine.controller->hazard_initialized[1] == 8) {
-            g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
             pz_chomper_start_motion(1, 2.5f, 0.55f);
+            g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 1;
             motion_changed = 1;
         }
         if (g_pz_fighter_fatality_engine.controller->hazard_initialized[0] == 7) {
-            g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
             pz_chomper_start_motion(0, 2.5f, 0.55f);
+            g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 1;
             motion_changed = 1;
         }
         for (side = 0; side < 2; side++) {
             pz_chomper_update_state(side, 1, &motion_changed);
         }
-        if ((int)g_pz_fighter_fatality_engine.controller->preround_timer != 0) {
+        if (g_pz_fighter_fatality_engine.controller->preround_timer != 0) {
             g_pz_fighter_fatality_engine.controller->preround_timer--;
-            if ((int)g_pz_fighter_fatality_engine.controller->preround_timer == 0) {
+            if (g_pz_fighter_fatality_engine.controller->preround_timer == 0) {
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[0] = 0;
                 g_pz_fighter_fatality_engine.controller->hazard_initialized[1] = 0;
             }
@@ -4522,8 +4514,9 @@ static float pz_fighter_grinder_round_over(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.90385%; controller reload now follows retail publication;
- * secondary grinder register allocation and pooled relocations remain. */
+/* TODO: [near miss] 99.90385%; controller-before-array declaration order was
+ * neutral; secondary register coloring and pooled relocations remain after
+ * three attempts. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* grinders[2];

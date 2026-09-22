@@ -156,6 +156,8 @@ static inline void __init_bss_section(void* destination, u32 size)
     }
 }
 
+/* TODO: [breakthrough needed] 78.333336%; copy/clear behavior matches retail,
+ * but prologue/address-load and argument-copy source shape remains unresolved. */
 static void __init_data(void) {
     RomCopyInfo* copy;
     BssInitInfo* bss;

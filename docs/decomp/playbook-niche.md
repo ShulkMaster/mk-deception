@@ -22,6 +22,8 @@ N07 | Runtime scratch faults after object growth | Section extents, relocated in
 
 N08 | m2c exposes a possibly unwritten local consumed by retail | Instruction-level write/read paths, ABI frame offsets, and caller/state reachability | Vary only the incoming stack word in a retail runtime scratch and inspect the downstream argument/result. Distinguish demonstrated stack dependence from proof of reachable gameplay. Recover a missing initializer only with evidence; otherwise record the unresolved path, not a zero initializer or undefined C. See [chess checkpoint 128](mk-chess-body-recovery.md).
 
+N09 | Retail keeps an explicit byte-swap sequence but the pinned compiler folds the same typed load/store to `lhbrx`/`stwbrx` | Identical validation CFG, endian result, access width, and destination | Stop at the clean intrinsic/shift expression. Do not import a donor's dead conditional, fake read, or other liveness crutch merely to block the post-RA fold; the `SFH_AnlyMaxFrmNum`/maximum-payload readers demonstrate this ceiling.
+
 ## Hard stops
 
 After the applicable honest source check, stop for:

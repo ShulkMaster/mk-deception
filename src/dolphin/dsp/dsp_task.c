@@ -12,9 +12,9 @@ int __DSP_rude_task_pending;
 void __DSP_exec_task(DSPTaskInfo* current, DSPTaskInfo* next);
 void __DSP_remove_task(DSPTaskInfo* task);
 
-/* TODO: [near miss] 99.98%; DSP bank recovered; frame is eight bytes short after callback context, extent evidence needed */
 void __DSPHandler(__OSInterrupt interrupt, OSContext* context)
 {
+    unsigned char unused[4];
     OSContext callback_context;
     unsigned short control;
     unsigned long mail;

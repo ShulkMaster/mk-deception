@@ -88,7 +88,6 @@ BOOL __PADDisableRumble(BOOL disable);
 typedef void (*SPECCallback)(s32, PADStatus*, u32*);
 static SPECCallback MakeStatus = SPEC2_MakeStatus;
 
-static u32 CmdTypeAndStatus;
 static u32 CmdReadOrigin = 0x41000000;
 static u32 CmdCalibrate = 0x42000000;
 static u32 CmdProbeDevice[4];
@@ -651,6 +650,8 @@ static u8 ClampU8(u8 var, u8 org) {
     return var -= org;
 }
 
+/* TODO: [near miss] 99.295780%; retail observes PADStatus through err at
+ * +0xA; keep +0xB neutral padding and stop at Origin/BarrelBits scheduling. */
 static void SPEC2_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     PADStatus* origin;
 

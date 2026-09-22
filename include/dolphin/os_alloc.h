@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_OS_ALLOC_H
 #define DOLPHIN_OS_ALLOC_H
 
+#include "dolphin/types.h"
 #include "platform/os_types.h"
 
 #ifdef __cplusplus
@@ -18,7 +19,7 @@ void* OSAllocFromArenaLo(unsigned long size, unsigned long alignment);
 OSHeapHandle OSCreateHeap(void* heap_start, void* heap_end);
 OSHeapHandle OSSetCurrentHeap(OSHeapHandle heap);
 int OSCheckHeap(OSHeapHandle heap);
-void* OSAllocFromHeap(OSHeapHandle heap, unsigned long size);
+void* OSAllocFromHeap(OSHeapHandle heap, u32 size);
 void OSFreeToHeap(OSHeapHandle heap, void* pointer);
 
 #ifdef __cplusplus

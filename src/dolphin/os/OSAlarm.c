@@ -146,12 +146,10 @@ static void DecrementerExceptionCallback(__OSException exception,
     alarm = AlarmQueue.head;
     if (!alarm) {
         OSLoadContext(context);
-        return;
     }
     if (now < alarm->fire) {
         SetTimer(alarm);
         OSLoadContext(context);
-        return;
     }
 
     next = alarm->next;
@@ -189,20 +187,21 @@ static void DecrementerExceptionHandler(__OSException exception,
     DecrementerExceptionCallback(exception, context);
 }
 
+/* TODO: [breakthrough needed] 83.250000%; RE4 assertion-shape trial was codegen-neutral; typed traversal agrees, but prologue/loop-entry CFG scheduling remains unresolved. */
 static int OnReset(int final)
 {
     OSAlarm* alarm;
     OSAlarm* next;
 
-    if (final) {
+    if (final != 0) {
         alarm = AlarmQueue.head;
-        next = alarm ? alarm->next : 0;
-        while (alarm) {
+        next = (alarm != 0) ? alarm->next : 0;
+        while (alarm != 0) {
             if (!__DVDTestAlarm(alarm)) {
                 OSCancelAlarm(alarm);
             }
             alarm = next;
-            next = alarm ? alarm->next : 0;
+            next = (alarm != 0) ? alarm->next : 0;
         }
     }
     return 1;

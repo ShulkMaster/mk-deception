@@ -81,6 +81,7 @@ static inline void PushLightScalar(const GXLightObjPriv* o) {
     GX_WRITE_F32(o->position[0]); GX_WRITE_F32(o->position[1]); GX_WRITE_F32(o->position[2]);
     GX_WRITE_F32(o->direction[0]); GX_WRITE_F32(o->direction[1]); GX_WRITE_F32(o->direction[2]);
 }
+/* TODO: [blocked] 0.000000%; retail requires paired-single psq_l/psq_st lowering for the light payload; stop without assembly or forced registers. */
 void GXLoadLightObjImm(const GXLightObj* light, GXLightID id) {
     u32 index=31-__cntlzw(id), address;
     index &= 7; address=index*0x10+0x600;

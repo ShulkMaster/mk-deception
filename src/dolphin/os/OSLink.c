@@ -1,6 +1,8 @@
+typedef struct OSModuleInfo OSModuleInfo;
+
 typedef struct OSModuleQueue {
-    void* head;
-    void* tail;
+    OSModuleInfo* head;
+    OSModuleInfo* tail;
 } OSModuleQueue;
 
 extern OSModuleQueue __OSModuleInfoList : 0x800030C8;

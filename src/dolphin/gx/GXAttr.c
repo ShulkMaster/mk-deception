@@ -112,12 +112,15 @@ void GXSetVtxDesc(GXAttr attr, GXAttrType type) {
 }
 
 
+/* TODO: [near miss] 99.787230%; donor source and GXData layout agree; only
+ * harmless count-register coloring remains. */
 void __GXSetVCD(void) {
     GX_WRITE_SOME_REG4(8, 0x50, __GXData->vcdLo, -12);
     GX_WRITE_SOME_REG4(8, 0x60, __GXData->vcdHi, -12);
     __GXXfVtxSpecs();
 }
 
+/* TODO: [near miss] 88.21918%; retail bit extraction, GXData offsets, and table/helper boundaries agree; residual is MWCC scheduling/register coloring. */
 void __GXCalculateVLim(void) {
     static u8 tbl1[] = { 0, 4, 1, 2 };
     static u8 tbl2[] = { 0, 8, 1, 2 };

@@ -37,6 +37,7 @@ asm float PSVECMag(const Vec* vector)
     SEQ_PSVECMag();
 }
 
+/* TODO: [blocked] 22.5%; clean scalar C is structurally complete, but retail uses paired-single lowering. */
 float PSVECDotProduct(const Vec* a, const Vec* b)
 {
     return a->x * b->x + a->y * b->y + a->z * b->z;

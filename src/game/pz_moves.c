@@ -45,26 +45,20 @@ typedef struct PuzzleFightersEngine {
     unsigned int special_move_enabled; /* +0x78 */
     char pad7C[0x0C];
     int peak_active; /* +0x88 */
-    union {
-        unsigned char flags; /* +0x8C */
-        struct {
-            unsigned char pad_flags_7 : 1;
-            unsigned char special_move_4 : 1;
-            unsigned char special_move_5 : 1;
-            unsigned char pad_flags_4 : 1;
-            unsigned char continuation_allowed : 1;
-            unsigned char continuation_reset : 1;
-            unsigned char easy_continuation : 1;
-            unsigned char pad_flags_0 : 1;
-        } flag_bits;
-    };
-    union {
-        unsigned char flags2; /* +0x8D */
-        struct {
-            unsigned char continuation_blocked : 1;
-            unsigned char pad_flags2_6_0 : 7;
-        } flag2_bits;
-    };
+    struct {
+        unsigned char pad_flags_7 : 1;
+        unsigned char special_move_4 : 1;
+        unsigned char special_move_5 : 1;
+        unsigned char pad_flags_4 : 1;
+        unsigned char continuation_allowed : 1;
+        unsigned char continuation_reset : 1;
+        unsigned char easy_continuation : 1;
+        unsigned char pad_flags_0 : 1;
+    } flag_bits; /* +0x8C */
+    struct {
+        unsigned char continuation_blocked : 1;
+        unsigned char pad_flags2_6_0 : 7;
+    } flag2_bits; /* +0x8D */
     char pad8E[0xC2];
     struct PuzzleFighterObject* present_object; /* +0x150 */
     struct PuzzleFighterObject* projectile_objects[2]; /* +0x154 */
@@ -111,18 +105,14 @@ typedef struct PuzzleProjectile {
 
 typedef struct PuzzleFighterObject {
     char pad00[8];
+    struct {
+        unsigned char pad08_bit7 : 1;
+        unsigned char presentation_active : 1; /* bit6 */
+        unsigned char field_08_bit5 : 1; /* bit5 */
+        unsigned char pad08_middle : 4;
+        unsigned char gravity_enabled : 1; /* bit0 */
+    }; /* +0x08 */
     union {
-        unsigned char flags_08; /* +0x08 */
-        struct {
-            unsigned char pad08_bit7 : 1;
-            unsigned char presentation_active : 1; /* bit6 */
-            unsigned char field_08_bit5 : 1; /* bit5 */
-            unsigned char pad08_middle : 4;
-            unsigned char gravity_enabled : 1; /* bit0 */
-        };
-    };
-    union {
-        unsigned char flags_09; /* +0x09 */
         struct {
             unsigned char pad_high : 4;
             unsigned char reaction_locked : 1; /* bit3 */
@@ -302,16 +292,8 @@ typedef struct PuzzleSpacingTable {
     PuzzleSpacingChoice choices[15];
 } PuzzleSpacingTable;
 
-typedef struct PuzzleAttackWordPair {
-    unsigned int first;
-    unsigned int second;
-} PuzzleAttackWordPair;
-typedef union PuzzleAttackCopy {
+typedef struct PuzzleAttackCopy {
     PuzzleAttackParameters attack;
-    struct {
-        PuzzleAttackWordPair pairs[7];
-        unsigned int tail;
-    } words;
 } PuzzleAttackCopy;
 
 extern PuzzleFightersEngine g_pz_fighters_engine;
@@ -1359,12 +1341,12 @@ static float pz_fighter_far_propell(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.8806%; selection loops and script tail agree;
- * only GPR coloring and constant labels remain. */
+/* TODO: [near miss] 99.0%; move-index/class declaration order recovers saved
+ * GPR values; helper argument/declaration retries were neutral, budget exhausted. */
 float pz_fighter_perform_scripted_move(void) {
     PuzzleFighterMove* move = pz_get_fighter_move();
-    int distance_class = move->distance_class;
     unsigned int move_index = move->script_move;
+    int distance_class = move->distance_class;
     unsigned short roll = randu0(100);
     int script_move =
         select_scripted_move(move_index, distance_class, roll);

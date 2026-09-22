@@ -37,6 +37,8 @@ static inline void WriteMTX4x2(const f32 mtx[3][4]) {
         for (column = 0; column < 4; column++) GX_WRITE_F32(mtx[row][column]);
 }
 
+/* TODO: [blocked] 63.902440%; matrix fields and CFG match retail; six
+ * paired-single FIFO transfers require an unauthorized assembly sequence. */
 void GXSetProjection(const Mtx44 mtx, GXProjectionType type) {
     CHECK_GXBEGIN(295, "GXSetProjection");
 
@@ -230,18 +232,21 @@ void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
 
 void GXSetScissorBoxOffset(s32 x_off, s32 y_off) {
     u32 reg = 0;
-    u32 scissor;
+    u32 hx;
+    u32 hy;
 
     CHECK_GXBEGIN(1119, "GXSetScissorBoxOffset");
 
     ASSERTMSGLINE(1122, (u32)(x_off + 342) < 2048, "GXSetScissorBoxOffset: Invalid X offset");
     ASSERTMSGLINE(1124, (u32)(y_off + 342) < 2048, "GXSetScissorBoxOffset: Invalid Y offset");
 
-    SET_REG_FIELD(1129, reg, 10, 0, (u32)(x_off + 342) >> 1);
-    scissor = reg;
-    SET_REG_FIELD(1130, scissor, 10, 10, (u32)(y_off + 342) >> 1);
-    SET_REG_FIELD(1131, scissor, 8, 24, 0x59);
-    GX_WRITE_RAS_REG(scissor);
+    hx = (u32)(x_off + 342) >> 1;
+    hy = (u32)(y_off + 342) >> 1;
+
+    SET_REG_FIELD(1129, reg, 10, 0, hx);
+    SET_REG_FIELD(1130, reg, 10, 10, hy);
+    SET_REG_FIELD(1131, reg, 8, 24, 0x59);
+    GX_WRITE_RAS_REG(reg);
     __GXData->bpSentNot = 0;
 }
 
@@ -252,15 +257,12 @@ void GXSetClipMode(GXClipMode mode) {
 }
 
 void __GXSetMatrixIndex(GXAttr matIdxAttr) {
-    u32 value;
     if (matIdxAttr < GX_VA_TEX4MTXIDX) {
-        value = __GXData->matIdxA;
-        GX_WRITE_SOME_REG4(8, 0x30, value, -12);
-        GX_WRITE_XF_REG(24, value);
+        GX_WRITE_SOME_REG4(8, 0x30, __GXData->matIdxA, -12);
+        GX_WRITE_XF_REG(24, __GXData->matIdxA);
     } else {
-        value = __GXData->matIdxB;
-        GX_WRITE_SOME_REG4(8, 0x40, value, -12);
-        GX_WRITE_XF_REG(25, value);
+        GX_WRITE_SOME_REG4(8, 0x40, __GXData->matIdxB, -12);
+        GX_WRITE_XF_REG(25, __GXData->matIdxB);
     }
     __GXData->bpSentNot = 1;
 }

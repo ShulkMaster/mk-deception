@@ -1,3 +1,4 @@
+#include "dolphin/os.h"
 #include "dolphin/trk.h"
 #include "runtime/asm_sequences.inc"
 
@@ -7,6 +8,14 @@ extern void TRKSaveExtended1Block(void);
 extern int InitMetroTRKCommTable(int hardware_id);
 extern void TRK_main(void);
 extern char _db_stack_addr[];
+
+#pragma section code_type ".init"
+void __TRK_reset(void)
+{
+    OSResetSystem(0, 0, 0);
+}
+
+#pragma section code_type ".text"
 
 static u32 lc_base;
 
@@ -23,7 +32,7 @@ asm void InitMetroTRK_BBA(void)
 int TRKInitializeTarget(void)
 {
     gTRKState.stopped = 1;
-    gTRKState.saved_msr = __TRK_get_MSR();
+    gTRKState.msr = __TRK_get_MSR();
     lc_base = 0xE0000000;
     return 0;
 }
