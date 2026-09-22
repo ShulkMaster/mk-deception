@@ -870,5 +870,3 @@ void MPVHDEC_Init(void)
     mc_backward_func[3] = MPVUMC_Backward;
     mc_bidirect_func[3] = MPVUMC_BiDirect;
 }
-
-const u32 gap_04_80317D44_rodata = 0;

@@ -30,14 +30,10 @@ static int SFAOAP_GetWrite(SfdHandle* handle, void* output)
     return SFLIB_SetErr(handle, 0xFF000A01);
 }
 
-static int sfaoap_CallState(SfdHandle* handle, int callback, int value)
+static int sfaoap_ChkRet(int value)
 {
     int result = 0;
 
-    if (SFSET_GetCond(handle, 6) == 0) {
-        return 0;
-    }
-    value = SFTRN_CallTrtTrif(handle, 3, callback, value, 0);
     if (value != 0) {
         result = value;
     }
@@ -46,22 +42,34 @@ static int sfaoap_CallState(SfdHandle* handle, int callback, int value)
 
 static int SFAOAP_Pause(SfdHandle* handle, int pause)
 {
-    return sfaoap_CallState(handle, 8, pause);
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    return sfaoap_ChkRet(SFTRN_CallTrtTrif(handle, 3, 8, pause, 0));
 }
 
 static int SFAOAP_Stop(SfdHandle* handle)
 {
-    return sfaoap_CallState(handle, 7, 0);
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    return sfaoap_ChkRet(SFTRN_CallTrtTrif(handle, 3, 7, 0, 0));
 }
 
 static int SFAOAP_Start(SfdHandle* handle)
 {
-    return sfaoap_CallState(handle, 6, 0);
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    return sfaoap_ChkRet(SFTRN_CallTrtTrif(handle, 3, 6, 0, 0));
 }
 
 static int SFAOAP_Standby(SfdHandle* handle)
 {
-    return sfaoap_CallState(handle, 5, 0);
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    return sfaoap_ChkRet(SFTRN_CallTrtTrif(handle, 3, 5, 0, 0));
 }
 
 static int SFAOAP_Destroy(SfdHandle* handle)
@@ -71,27 +79,27 @@ static int SFAOAP_Destroy(SfdHandle* handle)
 
 static int SFAOAP_Create(SfdHandle* handle)
 {
-    if (SFSET_GetCond(handle, 6) != 0) {
-        handle->transports[7].context = &handle->audio_output_callbacks;
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
     }
+    handle->transports[7].context = &handle->audio_output_callbacks;
     return 0;
 }
 
 static int SFAOAP_ExecServer(SfdHandle* handle)
 {
-    int buffer_index;
-
     if (SFSET_GetCond(handle, 6) == 0) {
         return 0;
     }
-    buffer_index = handle->transports[7].parameter_10;
-    if (SFTRN_GetPrepFlg(handle, 7) != 1 &&
-        SFBUF_GetPrepFlg(handle, buffer_index) == 1) {
-        SFTRN_SetPrepFlg(handle, 7, 1);
+    if (SFTRN_GetPrepFlg(handle, 7) != 1) {
+        if (SFBUF_GetPrepFlg(handle, handle->transports[7].parameter_10) == 1) {
+            SFTRN_SetPrepFlg(handle, 7, 1);
+        }
     }
-    if (SFTRN_GetTermFlg(handle, 7) != 1 &&
-        SFBUF_GetTermFlg(handle, buffer_index) == 1) {
-        SFTRN_SetTermFlg(handle, 7, 1);
+    if (SFTRN_GetTermFlg(handle, 7) != 1) {
+        if (SFBUF_GetTermFlg(handle, handle->transports[7].parameter_10) == 1) {
+            SFTRN_SetTermFlg(handle, 7, 1);
+        }
     }
     return 0;
 }

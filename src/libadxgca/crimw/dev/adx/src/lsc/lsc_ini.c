@@ -1,11 +1,5 @@
+#include "cri/lsc_internal.h"
 #include "runtime/cstring.h"
-
-typedef struct LSCObject {
-    signed char used;
-    unsigned char reserved_001[0x237];
-} LSCObject;
-
-typedef char LSCObjectSizeCheck[sizeof(LSCObject) == 0x238 ? 1 : -1];
 
 extern void LSC_LockCrs(void* state);
 extern void LSC_UnlockCrs(void* state);
@@ -15,10 +9,11 @@ extern void LSC_EntryErrFunc(void* callback, void* callback_object);
 int lsc_init_cnt;
 LSCObject lsc_obj[32];
 
-const char* const lsc_build =
+const char* const volatile lsc_build =
     "\nLSC/GC Ver.2.17 Build:Sep  3 2004 17:47:55\n";
 
-/* TODO: [near miss] 97.439026%; retail keeps a separate loop-pointer move; clean initializer folds it. */
+/* TODO: [near miss] 97.439026%; MKD's pointer walk matches retail;
+ * indexed loop regresses and outer declarations are neutral, leaving one copy. */
 void LSC_Finish(void)
 {
     int critical_state;
@@ -42,11 +37,11 @@ void LSC_Finish(void)
     LSC_UnlockCrs(&critical_state);
 }
 
-/* TODO: [near miss] 93.333336%; initialization and locking agree with retail; only its unobservable lsc_build read is absent in clean C. */
 void LSC_Init(void)
 {
     int critical_state;
 
+    lsc_build;
     LSC_LockCrs(&critical_state);
     if (lsc_init_cnt == 0) {
         memset(lsc_obj, 0, sizeof(lsc_obj));

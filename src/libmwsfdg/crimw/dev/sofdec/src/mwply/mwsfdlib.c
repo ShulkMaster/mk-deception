@@ -103,7 +103,6 @@ static int mwg_sfd_errcnt;
 static int mwg_sfd_errcode[16];
 MwsLibraryWork mwsfd_libwork;
 static const char* cri_verstr_ptr;
-int gap_06_804AE1E4_bss;
 
 extern int mwg_vcnt;
 extern SfdHandle* mwPlyGetSfdHn(void* player);
@@ -260,7 +259,7 @@ int MWSFD_GetUsePicUsr(void)
 
 static void mwsflib_LscErrFunc(void* object, const char* message);
 
-/* TODO: [near miss] 91.903740%; donor parameter-helper boundary is neutral;
+/* TODO: [near miss] 91.93048%; donor parameter-helper boundary is neutral;
  * global-base allocation and call scheduling remain. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {

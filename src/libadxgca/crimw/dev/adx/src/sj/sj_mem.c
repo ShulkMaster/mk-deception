@@ -388,7 +388,3 @@ void SJMEM_Error(void* object, int error)
     (void)error;
     SJERR_CallErr("SJMEM Error");
 }
-
-/* Retail split-layout tails for the read-only and zero-initialized sections. */
-const u32 gap_04_8031C3F4_rodata = 0;
-u32 gap_06_804C3184_bss;

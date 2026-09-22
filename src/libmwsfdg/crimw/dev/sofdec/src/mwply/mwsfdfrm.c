@@ -1,5 +1,7 @@
 #include "sofdec/sfd_transport.h"
 
+typedef struct SFHHandle SFHHandle;
+
 typedef struct MwsSfhInfo {
     int valid;
     int header_number;
@@ -109,14 +111,16 @@ extern int SFD_SetCond(SfdHandle* handle, int condition,
 extern void MWSFSFX_SetColAdj(MwsPlayer* player, int adjustment);
 extern void SFD_CalcYccPlane(void* buffer, int width, int height,
                             SfdCalculatedPlane* plane);
-extern void* SFH_Create(const void* data, int size);
-extern void SFH_Destroy(void* header);
-extern int SFH_IsSfdHeader(void* header, int* result);
-extern int SFH_IsExistStmId(void* header, int stream_id, int* result);
-extern int SFH_AnlyFtrColType(void* header, int stream_id, int* type);
-extern int SFH_AnlyMaxFrmNum(void* header, int* count);
-extern int SFH_AnlyFtrFxType(void* header, int stream_id,
-                            unsigned int* type);
+extern SFHHandle* SFH_Create(const void* data, int size);
+extern void SFH_Destroy(SFHHandle* header);
+extern int SFH_IsSfdHeader(SFHHandle* header, int* result);
+extern int SFH_IsExistStmId(SFHHandle* header, unsigned char stream_id,
+                            int* result);
+extern int SFH_AnlyFtrColType(SFHHandle* header, unsigned char stream_id,
+                              int* type);
+extern int SFH_AnlyMaxFrmNum(SFHHandle* header, int* count);
+extern int SFH_AnlyFtrFxType(SFHHandle* header, unsigned char stream_id,
+                            int* type);
 extern int MWSFD_GetUsePicUsr(void);
 extern int SFD_GetFps(SfdHandle* handle, int* frame_rate);
 extern int UTY_MulDiv(int value, int multiplier, int divisor);
@@ -158,8 +162,48 @@ static const char set_sync_invalid[0x34] =
     "E1122629: mwPlySetFrmSync: handle is invalid.";
 #pragma force_active off
 
-/* TODO: [near miss] 95.847%; donor-shaped locals improve the stack/register
- * lifetimes, but retail still keeps the +0xC4 slot base separate. */
+static inline int mwPlyIsNextFrmReady(MwsPlayer* player)
+{
+    if (MWSFD_IsEnableHndl(player) == 0) {
+        MWSFSVM_Error(next_frame_invalid);
+        return 0;
+    }
+    return SFD_IsNextFrmReady(mwPlyGetSfdHn(player));
+}
+
+static inline int mwsffrm_IsCurCcs(MwsPlayer* player)
+{
+    int index = player->current_header % 8;
+    int adjustment;
+
+    if (player->headers[index].valid == 0) {
+        adjustment = 0;
+    } else {
+        adjustment = player->headers[index].color_adjustment;
+    }
+    return adjustment;
+}
+
+static inline int mwsffrm_GetCurFxType(MwsPlayer* player)
+{
+    int index = player->current_header % 8;
+    int type;
+
+    if (player->headers[index].valid == 0) {
+        type = 0x11;
+    } else {
+        type = player->headers[index].effect_type;
+    }
+    return type;
+}
+
+static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
+{
+    return player->picture_user_data != 0;
+}
+
+/* TODO: [near miss] 97.330505%; typed slot indexing matches the body;
+ * residual prologue/register coloring is a clean-source soft ceiling. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
@@ -172,9 +216,8 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
     int stream_exists;
     int frame_count;
     int wr;
-    MwsSfhInfo* info;
-    unsigned int source_effect;
-    void* header;
+    int source_effect;
+    SFHHandle* header;
 
     p = player;
     p->header_count++;
@@ -230,20 +273,15 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
     }
 
     wr = p->next_header;
-    info = &p->headers[wr];
-    info->header_number = p->header_count - 1;
-    info->color_adjustment = color_adjustment;
-    info->maximum_frames = maximum_frames;
-    info->effect_type = effect_type;
-    info->valid = 1;
+    p->headers[wr].header_number = p->header_count - 1;
+    p->headers[wr].color_adjustment = color_adjustment;
+    p->headers[wr].maximum_frames = maximum_frames;
+    p->headers[wr].effect_type = effect_type;
+    p->headers[wr].valid = 1;
     p->next_header++;
     p->next_header %= 8;
     SFH_Destroy(header);
 }
-
-#pragma explicit_zero_data on
-int gap_05_803A8A84_data = 0;
-#pragma explicit_zero_data off
 
 void MWSFFRM_SetShfCbFn(MwsPlayer* player)
 {
@@ -279,12 +317,11 @@ void MWSFFRM_InitSfhInfTable(MwsPlayer* player)
     MWSFSFX_SetColAdj(player, zero);
 }
 
-/* TODO: [near miss] 93.952380%; direct ring indexing has equivalent behavior,
- * but retail keeps the slot offset separate from the header base in codegen. */
 int mwPlyGetFxType(MwsPlayer* player)
 {
-    MwsSfhInfo* info = &player->headers[player->current_header % 8];
-    int type = info->valid == 0 ? 0x11 : info->effect_type;
+    int index = player->current_header % 8;
+    int type = player->headers[index].valid == 0
+                   ? 0x11 : player->headers[index].effect_type;
 
     if (type == 0x51 || type == 0x61) {
         type = 0x41;
@@ -328,9 +365,6 @@ void mwPlyCalcYccPlane(void* buffer, int width, int height,
     output->c_height = plane.c_pitch;
 }
 
-/* TODO: [breakthrough needed] 93.618324%; donor-backed user-record typing and
- * lifetime order improve field loads; retail keeps dimensions after the
- * picture-type switch, leaving an unresolved source/CFG boundary. */
 void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
                            void* output_pointer)
 {
@@ -375,6 +409,10 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
         frame_structure = 3;
         break;
     }
+    width = source->width;
+    height = source->height;
+    macroblocks_per_row = source->macroblocks_per_row;
+    macroblock_rows = source->macroblock_rows;
     switch (source->picture_type) {
     case 1:
         picture_type = 1;
@@ -393,10 +431,6 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
         picture_type = 1;
         break;
     }
-    width = source->width;
-    height = source->height;
-    macroblocks_per_row = source->macroblocks_per_row;
-    macroblock_rows = source->macroblock_rows;
     display_time_source = source->field_34;
     display_scale = source->display_time_scale;
     presentation_source = source->field_30;
@@ -450,37 +484,36 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
     memcpy(output->transport_fields, &source->display_mode, 0x38);
 }
 
-/* TODO: [breakthrough needed] 81.05064%; color-adjustment boolean recovered; resolve skip-loop CFG/lifetimes. */
+/* TODO: [near miss] 96.68777%; donor frame-present CFG, typed metadata owner,
+ * and explicit invalid case restore retail islands; inspect remaining coloring. */
 void mwPlyGetCurFrm(MwsPlayer* player, void* output)
 {
     MwsFrameOutput* frame_output = output;
     SfdVideoFrameInfo* frame;
+    SfdVideoFrameInfo* metadata_frame;
     SfdHandle* sfd;
-    void** picture_user;
+    MwsPictureUserData* picture_user;
     void* user_data;
     int user_size;
+    void* found_data;
+    int found_size;
     int index;
+    int skip_limit;
     int color_adjustment;
     int display_mode;
     int effect_type;
-    MwsSfhInfo* info;
-    const char* errors = get_skip_invalid;
 
     if (MWSFD_IsEnableHndl(player) == 0) {
-        MWSFSVM_Error(errors + 0x16C);
+        MWSFSVM_Error(get_cur_frame_invalid);
         frame_output->frame = 0;
         return;
     }
     sfd = mwPlyGetSfdHn(player);
     SFD_GetFrm(sfd, (void**)&frame);
     if (frame != 0 && player->frame_sync == 0) {
-        for (index = 0; index < player->skipped_display_frames; index++) {
-            if (MWSFD_IsEnableHndl(player) == 0) {
-                MWSFSVM_Error(errors + 0x68);
-                break;
-            }
-            mwPlyGetSfdHn(player);
-            if (SFD_IsNextFrmReady(sfd) != 1) {
+        skip_limit = player->skipped_display_frames;
+        for (index = 0; index < skip_limit; index++) {
+            if (mwPlyIsNextFrmReady(player) != 1) {
                 break;
             }
             SFD_RelFrm(sfd, frame);
@@ -488,82 +521,90 @@ void mwPlyGetCurFrm(MwsPlayer* player, void* output)
             SFD_GetFrm(sfd, (void**)&frame);
         }
     }
-    if (frame == 0) {
-        frame_output->frame = 0;
-        return;
-    }
+    if (frame != 0) {
+        player->acquired_frames++;
+        player->current_frame = frame;
+        metadata_frame = frame;
+        player->frame_field_58 = metadata_frame->field_58;
+        player->frame_field_5C = metadata_frame->field_5C;
+        player->frame_field_6C = (signed char)metadata_frame->fields_6C[0];
+        player->frame_field_6D = (signed char)metadata_frame->fields_6C[1];
+        player->frame_field_6E = (signed char)metadata_frame->fields_6C[2];
+        player->frame_field_3C = metadata_frame->field_3C;
+        player->frame_field_40 = metadata_frame->field_40;
+        player->frame_field_A8 = 0;
+        mwl_convFrmInfFromSFD(player, frame, frame_output);
 
-    player->acquired_frames++;
-    player->current_frame = frame;
-    player->frame_field_58 = frame->field_58;
-    player->frame_field_5C = frame->field_5C;
-    player->frame_field_6C = (signed char)frame->fields_6C[0];
-    player->frame_field_6D = (signed char)frame->fields_6C[1];
-    player->frame_field_6E = (signed char)frame->fields_6C[2];
-    player->frame_field_3C = frame->field_3C;
-    player->frame_field_40 = frame->field_40;
-    player->frame_field_A8 = 0;
-    mwl_convFrmInfFromSFD(player, frame, frame_output);
-
-    picture_user = (void**)frame->picture_user_buffer;
-    user_data = picture_user[0];
-    user_size = (int)picture_user[1];
-    if (MWSFD_GetUsePicUsr() == 1 && player->picture_user_buffer != 0) {
-        if (user_data != 0 && user_size > 4) {
-            SUD_SearchSudDat((unsigned char*)user_data + 4, user_size - 4,
-                             &user_data, &user_size);
-        } else {
-            user_data = 0;
-            user_size = 0;
-        }
-        if (user_data != 0 && user_size > 0) {
-            if (user_size > player->picture_user_capacity) {
-                user_size = player->picture_user_capacity;
+        picture_user = frame->picture_user_buffer;
+        user_data = picture_user->data;
+        user_size = picture_user->size;
+        if (MWSFD_GetUsePicUsr() == 1 && player->picture_user_buffer != 0) {
+            if (user_data != 0 && user_size > 4) {
+                SUD_SearchSudDat((unsigned char*)user_data + 4, user_size - 4,
+                                 &found_data, &found_size);
+            } else {
+                found_data = 0;
+                found_size = 0;
             }
-            memset(player->picture_user_buffer, 0,
-                   player->picture_user_capacity);
-            memcpy(player->picture_user_buffer, user_data, user_size);
-            player->picture_user_data = player->picture_user_buffer;
-            player->picture_user_size = user_size;
-        } else {
-            player->picture_user_data = 0;
-            player->picture_user_size = 0;
+            if (found_data != 0 && found_size > 0) {
+                if (found_size > player->picture_user_capacity) {
+                    found_size = player->picture_user_capacity;
+                }
+                memset(player->picture_user_buffer, 0,
+                       player->picture_user_capacity);
+                memcpy(player->picture_user_buffer, found_data, found_size);
+                player->picture_user_data = player->picture_user_buffer;
+                player->picture_user_size = found_size;
+            } else {
+                player->picture_user_data = 0;
+                player->picture_user_size = 0;
+            }
+            MWSFSFX_SetPicUsrDat(player, player->picture_user_data,
+                                 player->picture_user_size);
         }
-        MWSFSFX_SetPicUsrDat(player, player->picture_user_data,
-                            player->picture_user_size);
-    }
 
-    if (player->previous_picture_order < frame_output->picture_order) {
-        MWSFTAG_UpdateTagInf(player);
-    }
-    player->previous_picture_order = frame_output->picture_order;
+        if (player->previous_picture_order < frame_output->picture_order) {
+            MWSFTAG_UpdateTagInf(player);
+        }
+        player->previous_picture_order = frame_output->picture_order;
 
-    info = &player->headers[player->current_header % 8];
-    color_adjustment = info->valid == 0 ? 0 : info->color_adjustment == 1;
-    if (player->picture_user_data != 0) {
-        color_adjustment = MWSFSFX_IsFrmCcs(player) == 1;
-    }
-    MWSFD_SetColAdj(player, color_adjustment);
+        color_adjustment = mwsffrm_IsCurCcs(player) == 1;
+        if (mwsffrm_IsPicUsrDat(player) == 1) {
+            if (MWSFSFX_IsFrmCcs(player) == 1) {
+                color_adjustment = 1;
+            } else {
+                color_adjustment = 0;
+            }
+        }
+        MWSFD_SetColAdj(player, color_adjustment);
 
-    display_mode = 0;
-    if (frame->field_58 == 1 || frame->field_58 == 2) {
-        display_mode = 2;
-    } else if (frame->field_58 == 3) {
-        if ((signed char)frame->fields_6C[0] == 0) {
+        display_mode = 0;
+        switch (frame->field_58) {
+        case 3:
+            if ((signed char)frame->fields_6C[0] == 0) {
+                display_mode = 2;
+            }
+            break;
+        case 1:
+        case 2:
+            display_mode = 2;
+            break;
+        case 0:
+        default:
+            MWSFSVM_Error(decide_frame_type);
+            break;
+        }
+        if (MWSFD_GetUsePicUsr() == 1 && MWSFD_IsFrmDivField(player) == 1) {
             display_mode = 2;
         }
-    } else {
-        MWSFSVM_Error(errors + 0xF0);
-    }
-    if (MWSFD_GetUsePicUsr() == 1 && MWSFD_IsFrmDivField(player) == 1) {
-        display_mode = 2;
-    }
-    frame_output->display_mode = display_mode;
+        frame_output->display_mode = display_mode;
 
-    player->current_header = frame_output->picture_order;
-    info = &player->headers[player->current_header % 8];
-    effect_type = info->valid == 0 ? 0x11 : info->effect_type;
-    MWSFSFX_SetFxType(player, effect_type);
+        player->current_header = frame_output->picture_order;
+        effect_type = mwsffrm_GetCurFxType(player);
+        MWSFSFX_SetFxType(player, effect_type);
+    } else {
+        frame_output->frame = 0;
+    }
 }
 
 void mwPlySetFrmSync(MwsPlayer* player, int sync)

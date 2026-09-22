@@ -58,28 +58,35 @@ int MPS_Destroy(MpsHandle* handle) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 67.687500%; typed header initialization removes the artificial raw-word union, but retail's contiguous initialization lowering remains unresolved. */
+static inline MpsHandle* mpslib_get_free_handle(void) {
+    MpsLibWork* work = MPSLIB_libwork;
+    MpsHandle* handle = work->handles;
+    int i;
+
+    for (i = 0; i < work->handle_count; i++) {
+        if (handle->state == 1) {
+            return handle;
+        }
+        handle++;
+    }
+    return 0;
+}
+
 MpsHandle* MPS_Create(void) {
     MpsHandle* handle;
     int i;
-    int remaining;
 
-    handle = MPSLIB_libwork->handles;
-    remaining = MPSLIB_libwork->handle_count;
-    while (remaining > 0) {
-        if (handle->state == 1) {
-            break;
-        }
-        handle++;
-        remaining--;
-    }
-    if (remaining <= 0) {
+    handle = mpslib_get_free_handle();
+    if (handle == 0) {
         return 0;
     }
 
     UTY_MemsetDword((unsigned int*)handle, 0,
                     sizeof(*handle) / sizeof(unsigned int));
     handle->state = 2;
+    handle->error_callback = 0;
+    handle->error_object = 0;
+    handle->error = 0;
     handle->packet_length_bytes = 2;
     handle->headers.pack_header.scr = -1;
     handle->headers.pack_header.is_mpeg1 = -1;
@@ -93,8 +100,16 @@ MpsHandle* MPS_Create(void) {
     handle->headers.last_system_header.audio_lock_flag = -1;
     handle->headers.last_system_header.video_lock_flag = -1;
     for (i = 0; i < 3; i++) {
-        handle->headers.system_headers[i] =
-            handle->headers.last_system_header;
+        MpsSystemHeader* header = &handle->headers.system_headers[i];
+
+        header->header_length = -1;
+        header->rate_bound = -1;
+        header->audio_bound = -1;
+        header->video_bound = -1;
+        header->fixed_flag = -1;
+        header->csps_flag = -1;
+        header->audio_lock_flag = -1;
+        header->video_lock_flag = -1;
     }
     handle->headers.packet_header.pts = -1;
     handle->headers.packet_header.dts = -1;
@@ -188,8 +203,8 @@ static int mpslib_clear_handles(MpsHandle* handles, int count) {
     return 0;
 }
 
-/* TODO: [near miss] 96.419754%; retail/donor handle-clear loop matches, but
- * MWCC omits a dead branch pair; exact helper naming was neutral. */
+/* TODO: [near miss] 96.419754%; typed handle-clear helper matches the loop;
+ * only retail's eliminated zero-result branch pair remains: soft ceiling. */
 int MPS_Init(int handle_count, MpsLibWork* work) {
     static const unsigned int test_wrok = 0x01020304;
     MpsLibWork* libwork;

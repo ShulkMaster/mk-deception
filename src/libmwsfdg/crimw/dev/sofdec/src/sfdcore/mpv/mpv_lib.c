@@ -26,11 +26,6 @@ static const int mpvlib_cond_dfl[17] = {
 const int mpvlib_siz_mpvwork = 0x5C;
 const int mpvlib_siz_mpvobj = 0x1378;
 const int mpvlib_siz_mpvixa = 0x1C60;
-static const struct MPVLibChecks {
-    u32 endian_probe;
-    char version[6];
-    u8 padding[2];
-} mpvlib_checks = {0x01020304, "1.933", {0, 0}};
 
 int mpvlib_use_lc;
 u8 mpv_clip_0_255_tbl[0x400];
@@ -40,7 +35,6 @@ void* mpvlib_oix;
 void* mpvlib_iix;
 static MPVLibWork mpvlib_libwork;
 static const char* cri_verstr_ptr;
-u32 gap_06_804984BC_bss;
 
 extern u32* mpvvlc_run_level_8;
 extern s16* mpvvlc_run_level_4;
@@ -155,6 +149,8 @@ void MPV_MbCbFn(void)
 {
 }
 
+/* TODO: [blocked] 68.79630%; retail inlines a dcbi cache-line loop, but no
+ * supported C intrinsic is confirmed; keep the portable cache API fallback. */
 int MPV_Destroy(MPVContext* handle)
 {
     if (mpvlib_CheckHandle(handle) != 0) {
@@ -274,6 +270,8 @@ MPVContext* MPV_Create(void)
     return handle;
 }
 
+/* TODO: [breakthrough needed] 72.38095%; cache-finish CFG remains unresolved;
+ * removing the donor-absent BSS tail only corrected source ownership. */
 void MPV_Finish(void)
 {
     MPVUMC_Finish();
@@ -337,10 +335,12 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = byte_max;
     attributes->field_64 = byte_max;
 }
-
-
+/* TODO: [breakthrough needed] 73.28829%; probe and version are separate,
+ * but rodata order, initialization CFG, and locked-cache lowering still differ. */
 int MPV_Init(int handle_count, void* work)
 {
+    static const u32 test_wrok = 0x01020304;
+    static const char version_check[] = "1.933";
     MPVContext* handles;
     u8* after_handles;
     u8* index_work;
@@ -361,12 +361,12 @@ int MPV_Init(int handle_count, void* work)
         error = MPVERR_SetCode(0, 0xFF03FF01);
     } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
         error = MPVERR_SetCode(0, 0xFF03FF02);
-    } else if (MPVDEC_CheckVersion(mpvlib_checks.version,
+    } else if (MPVDEC_CheckVersion(version_check,
                                    0x1378, 0x80) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF07);
     } else {
         /* The retail build deliberately traps if its endian probe is invalid. */
-        if (*(const u8*)&mpvlib_checks.endian_probe != 1) {
+        if (*(const u8*)&test_wrok != 1) {
             for (;;) {
             }
         }

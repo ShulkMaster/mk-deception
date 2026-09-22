@@ -2,18 +2,18 @@
 #define MKD_SOFDEC_MPV_ERROR_H
 
 typedef struct MPVContext MPVContext;
-typedef void (*MPVErrorCallback)(int object, int error);
+typedef void (*MPVErrorCallback)(void* object, int error);
 
 typedef struct MPVErrorInfo {
     MPVErrorCallback callback;
-    int callback_object;
+    void* callback_object;
     int first_error;
     int field_0C;
     int field_10;
 } MPVErrorInfo;
 
 int MPVERR_SetCode(MPVContext* handle, int error);
-int MPV_SetErrFunc(MPVContext* handle, MPVErrorCallback callback, int object);
+int MPV_SetErrFunc(MPVContext* handle, MPVErrorCallback callback, void* object);
 void MPVERR_InitErrInf(MPVErrorInfo* info);
 void MPVERR_Init(void);
 

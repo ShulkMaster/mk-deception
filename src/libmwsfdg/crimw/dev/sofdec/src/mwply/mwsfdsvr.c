@@ -433,9 +433,7 @@ static int mwSfdExecDecSvrHndl(MwsPlayer* player)
     return 0;
 }
 
-const int gap_04_80319E2C_rodata = 0;
-
-int gap_06_804AE1F4_bss[3];
+static int mwsfd_svr_bdr_cnt;
 MwsPlayer* mwsfd_hn_last;
 int mwg_vcnt;
 int mwg_field_no;

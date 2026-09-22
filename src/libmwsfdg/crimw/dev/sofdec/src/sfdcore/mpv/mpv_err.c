@@ -4,8 +4,7 @@
 extern int MPVLIB_CheckHn(MPVContext* handle);
 
 static MPVErrorInfo mpverrinf;
-/* Retail object tail alignment between mpv_err and the next archive member. */
-int gap_06_80497F54_bss;
+int mpverr_work;
 
 int MPVERR_SetCode(MPVContext* handle, int error)
 {

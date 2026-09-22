@@ -579,6 +579,3 @@ void SJRBF_Error(void* object, int error)
     (void)error;
     SJERR_CallErr("SJRBF Error");
 }
-
-/* Retail split-layout tail for the zero-initialized section. */
-u32 gap_06_804C718C_bss;

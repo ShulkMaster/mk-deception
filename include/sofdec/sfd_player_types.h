@@ -1,7 +1,7 @@
 #ifndef MKD_SOFDEC_SFD_PLAYER_TYPES_H
 #define MKD_SOFDEC_SFD_PLAYER_TYPES_H
 
-typedef int SfdCallbackObject;
+typedef void* SfdCallbackObject;
 typedef int SfdConditionValue;
 typedef int SfdTransportValue;
 
@@ -30,17 +30,7 @@ typedef struct SfdPlaybackRuntime {
     int field_24;
     int field_28;
     int field_2C;
-    union {
-        long long time_values[12];
-        struct {
-            long long reserved_time_values[3];
-            struct {
-                int high;
-                unsigned int low;
-            } input_flow;
-            long long remaining_time_values[8];
-        } timing;
-    };
+    long long time_values[12];
     int tail_values[4];
 } SfdPlaybackRuntime;
 
@@ -102,6 +92,53 @@ typedef struct SfdFrameTime {
     int scale;
 } SfdFrameTime;
 
+/* SFPLY_PTSM: video PTS manager state stored at SfdTimerState + 0x5B0. */
+typedef struct SfdPtsManager {
+    void* field_00;
+    int field_04;
+    int field_08;
+} SfdPtsManager;
+
+/* Stream-time adjustment work embedded in SfdTimerState at +0x2F0.
+ * CRI's SFTIM work reserves the preceding word at +0x2EC, then places this
+ * 0x1C0-byte record before the repeated-field timer records. */
+typedef struct SfdTimerTestTime {
+    long long value;
+    long long scale;
+} SfdTimerTestTime;
+
+typedef struct SfdTimerTestWork {
+    int test_enabled;
+    int paused;
+    int reset_history;
+    int adjust_enabled;
+    int average_count;
+    int average_index;
+    int errors[60];
+    SfdTimerTestTime input_time;
+    SfdTimerTestTime sample_time;
+    SfdTimerTestTime output_time;
+    SfdTimerTestTime tolerance;
+    SfdTimerTestTime excess_error;
+    SfdTimerTestTime adjustment_start;
+    SfdTimerTestTime adjustment_offset;
+    long long previous_sample;
+    long long adjusted_time;
+    long long maximum_time;
+    int adjustment_count;
+    int positive_adjustments;
+    int negative_adjustments;
+    int history_resets;
+    int excess_resets;
+    int average;
+    int adjusted_average;
+    int front_max;
+    int front_min;
+    int rear_max;
+    int rear_min;
+    int field_0x1BC;
+} SfdTimerTestWork;
+
 typedef int (*SfdExternalClockFn)(SfdCallbackObject object, int* value,
                                   int* scale);
 
@@ -149,16 +186,24 @@ typedef struct SfdTimerState {
     int clock_sample_scale;
     int external_clock_wrap;
     SfdCallbackObject external_clock_object;
-    unsigned char unknown_02EC[0x2C4];
-    unsigned int video_pts[3];
+    int field_02EC;
+    SfdTimerTestWork test_work;
+    unsigned char unknown_04B0[0x100];
+    SfdPtsManager video_pts;
     unsigned char unknown_05BC[0x24];
 } SfdTimerState;
 
-typedef struct SfdSeekState {
-    SfdHandle* source_handle;
-    int field_04;
+typedef struct SfdSeeWork SfdSeeWork;
+
+typedef struct SfdSeekRequest {
+    int field_00;
+    int position;
     int field_08;
-    int field_0C;
+} SfdSeekRequest;
+
+typedef struct SfdSeekState {
+    SfdSeeWork* work;
+    SfdSeekRequest request;
 } SfdSeekState;
 
 typedef char SfdPlaybackSettingsSizeCheck[
@@ -178,9 +223,16 @@ typedef char SfdTimerSampleHistorySizeCheck[
 typedef char SfdTimerSampleWindowSizeCheck[
     sizeof(SfdTimerSampleWindow) == 0x90 ? 1 : -1];
 typedef char SfdFrameTimeSizeCheck[sizeof(SfdFrameTime) == 0x1C ? 1 : -1];
+typedef char SfdPtsManagerSizeCheck[sizeof(SfdPtsManager) == 0x0C ? 1 : -1];
+typedef char SfdTimerTestTimeSizeCheck[
+    sizeof(SfdTimerTestTime) == 0x10 ? 1 : -1];
+typedef char SfdTimerTestWorkSizeCheck[
+    sizeof(SfdTimerTestWork) == 0x1C0 ? 1 : -1];
 typedef char SfdTimerStateSizeCheck[
     sizeof(SfdTimerState) == 0x5E0 ? 1 : -1];
 typedef char SfdSeekStateSizeCheck[
     sizeof(SfdSeekState) == 0x10 ? 1 : -1];
+typedef char SfdSeekRequestSizeCheck[
+    sizeof(SfdSeekRequest) == 0xC ? 1 : -1];
 
 #endif

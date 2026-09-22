@@ -28,8 +28,6 @@ static float B0TableOrg[12] = {
 static float PreIDCT[64][64];
 static double sfsd_scale_tbl[64];
 static const char* dctfsri_version_dummy;
-/* Retail's object ends with one named word of BSS alignment padding. */
-unsigned int gap_06_80497E8C_bss;
 
 static inline int dctFsriScanIndex(int index)
 {
@@ -64,6 +62,8 @@ static inline void dctFsriStoreSparseCoefficient(int coefficient, int index,
  * portable C intrinsic for that kernel, so this preserves its scalar lanes,
  * arithmetic order, output permutation, and rounding behavior.
  */
+/* TODO: [breakthrough needed] 18.89823%; scalar reconstruction remains far
+ * from retail's paired-single transform; donor-absent BSS tail was unrelated. */
 static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
 {
     float* coefficients = params->coefficients;

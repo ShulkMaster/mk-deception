@@ -295,6 +295,8 @@ void MWSFTAG_DestroyAinfSj(MwsPlayer* player)
     }
 }
 
+/* TODO: [near miss] 99.71429%; create flow agrees; residual is localized
+ * allocation/base-register coloring. */
 SJ* MWSFTAG_CreateAinfSj(MwsPlayer* player)
 {
     SJ* sj;
@@ -326,6 +328,8 @@ int MWSFTAG_IsUseAinfSj(MwsPlayer* player)
     return 0;
 }
 
+/* TODO: [near miss] 99.68750%; typed plane updates agree; residual is
+ * localized address-register coloring. */
 void mwPlyFxSetOutBufPitchHeight(MwsPlayer* player, int pitch, int height)
 {
     SFXHandle* sfx;
@@ -367,7 +371,7 @@ static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
     plane->height = height;
 }
 
-/* TODO: [near miss] 98.535484%; conversion CFG and plane accesses match;
+/* TODO: [near miss] 98.47097%; conversion CFG and plane accesses match;
  * only parameter/error-pointer coloring and equivalent scheduling remain. */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
                             MwsSfxFrameInfo* output)
@@ -519,5 +523,3 @@ void MWSFSFX_Init(void)
     SFX_Init();
     SFX_SetErrFn(mwsfsfx_SfxErrCbFn, 0);
 }
-
-const int gap_04_80319014_rodata = 0;
