@@ -33,13 +33,6 @@ struct AdxBasicDecoderExt {
     void* notify_object;
 };
 
-typedef struct AdxEncryptionKey {
-    short type;
-    short state;
-    short multiplier;
-    short increment;
-} AdxEncryptionKey;
-
 typedef char AdxBasicDecoderExtSizeCheck[
     sizeof(AdxBasicDecoderExt) == 0xF8 ? 1 : -1];
 
@@ -70,7 +63,7 @@ AdxBasicDecoderExt adxb_obj[16];
 
 static const char skg_version[] =
     "\nSKG/GC Ver.0.64 Build:Sep  3 2004 17:49:16\n";
-const unsigned short skg_prim_tbl[1024] = {
+const short skg_prim_tbl[1024] = {
     0x401B, 0x4021, 0x4025, 0x402B, 0x4031, 0x403F, 0x4043, 0x4045,
     0x405D, 0x4061, 0x4067, 0x406D, 0x4087, 0x4091, 0x40A3, 0x40A9,
     0x40B1, 0x40B7, 0x40BD, 0x40DB, 0x40DF, 0x40EB, 0x40F7, 0x40F9,
@@ -214,58 +207,6 @@ static inline void ADXB_CopySamples(short* output, const short* extra,
     }
 }
 
-#define ADXB_MAKE_ENCRYPTION_KEY(id, key)                                      \
-    do {                                                                        \
-        char key_text[16];                                                      \
-        short factor0;                                                          \
-        short factor1;                                                          \
-        short factor2;                                                          \
-        short factor3;                                                          \
-        short factor4;                                                          \
-        short factor5;                                                          \
-        short factor6;                                                          \
-        short factor7;                                                          \
-        int value;                                                              \
-        sprintf(key_text, skg_hex_format, (id));                                \
-        if (skg_init_count == 0) {                                              \
-            skg_init_count++;                                                   \
-        }                                                                       \
-        factor0 = skg_prim_tbl[0x80 + (signed char)key_text[0]];                \
-        factor1 = skg_prim_tbl[0x80 + (signed char)key_text[1]];                \
-        factor2 = skg_prim_tbl[0x80 + (signed char)key_text[2]];                \
-        factor3 = skg_prim_tbl[0x80 + (signed char)key_text[3]];                \
-        factor4 = skg_prim_tbl[0x80 + (signed char)key_text[4]];                \
-        factor5 = skg_prim_tbl[0x80 + (signed char)key_text[5]];                \
-        factor6 = skg_prim_tbl[0x80 + (signed char)key_text[6]];                \
-        factor7 = skg_prim_tbl[0x80 + (signed char)key_text[7]];                \
-        value = skg_prim_tbl[0x100];                                            \
-        value = skg_prim_tbl[(value * factor0) % 1024];                         \
-        value = skg_prim_tbl[(value * factor1) % 1024];                         \
-        value = skg_prim_tbl[(value * factor2) % 1024];                         \
-        value = skg_prim_tbl[(value * factor3) % 1024];                         \
-        value = skg_prim_tbl[(value * factor4) % 1024];                         \
-        value = skg_prim_tbl[(value * factor5) % 1024];                         \
-        value = skg_prim_tbl[(value * factor6) % 1024];                         \
-        (key).state = skg_prim_tbl[(value * factor7) % 1024];                   \
-        value = skg_prim_tbl[0x200];                                            \
-        value = skg_prim_tbl[(value * factor0) % 1024];                         \
-        value = skg_prim_tbl[(value * factor1) % 1024];                         \
-        value = skg_prim_tbl[(value * factor2) % 1024];                         \
-        value = skg_prim_tbl[(value * factor3) % 1024];                         \
-        value = skg_prim_tbl[(value * factor4) % 1024];                         \
-        value = skg_prim_tbl[(value * factor5) % 1024];                         \
-        value = skg_prim_tbl[(value * factor6) % 1024];                         \
-        (key).multiplier = skg_prim_tbl[(value * factor7) % 1024];              \
-        value = skg_prim_tbl[0x300];                                            \
-        value = skg_prim_tbl[(value * factor0) % 1024];                         \
-        value = skg_prim_tbl[(value * factor1) % 1024];                         \
-        value = skg_prim_tbl[(value * factor2) % 1024];                         \
-        value = skg_prim_tbl[(value * factor3) % 1024];                         \
-        value = skg_prim_tbl[(value * factor4) % 1024];                         \
-        value = skg_prim_tbl[(value * factor5) % 1024];                         \
-        value = skg_prim_tbl[(value * factor6) % 1024];                         \
-        (key).increment = skg_prim_tbl[(value * factor7) % 1024];               \
-    } while (0)
 
 void ADXB_ExecOneAdx(AdxBasicDecoderExt*);
 void ADXB_EvokeDecode(AdxBasicDecoderExt*);
@@ -309,8 +250,8 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 95.14091%; PL2 loop now uses the proven decoded-block
- * field at +0x10; shared decode arithmetic still differs in coloring. */
+/* TODO: [near miss] 99.481820%; operations and CFG agree with retail;
+ * stop at PL2/arithmetic register coloring without new source evidence. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
@@ -326,6 +267,8 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
     int decoded_samples;
     int trailing_samples;
     int i;
+    int copy_count;
+    short* copy_source;
 
     if (base->status == 1 && ADXPD_GetStat(base->expander) == 0) {
         base->get_write_info(base->get_write_object, &params->write_position,
@@ -359,11 +302,11 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
             trailing_samples = block_samples - 1 - decoded_samples;
             loop_samples = (loop_samples + block_samples - 1) / block_samples;
             decoded_blocks = ADXPD_GetNumBlk(base->expander);
-            block_samples = decoded_blocks * block_samples /
-                            params->channel_count;
-            decoded_samples = decoded_blocks < loop_samples * params->channel_count
-                                  ? block_samples
-                                  : block_samples - trailing_samples;
+            decoded_samples = decoded_blocks * block_samples /
+                              params->channel_count;
+            if (loop_samples * params->channel_count <= decoded_blocks) {
+                decoded_samples -= trailing_samples;
+            }
             base->decoded_samples = decoded_samples;
             base->decoded_data_length = decoded_blocks * block_size;
             write_position += decoded_samples;
@@ -376,8 +319,11 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
                                      &pcm_buffer[pcm_distance + pcm_size],
                                      write_position);
                 } else {
-                    ADXB_CopySamples(pcm_buffer, &pcm_buffer[pcm_size],
-                                     write_position);
+                    copy_count = write_position;
+                    copy_source = &pcm_buffer[pcm_size];
+                    while (copy_count-- > 0) {
+                        *pcm_buffer++ = *copy_source++;
+                    }
                 }
             }
             ADXPD_Reset(base->expander);
@@ -389,8 +335,54 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [breakthrough needed] 82.313130%; retail/donor local ordering regressed
- * to 76.747475%; recover the MK-specific ABI/source shape before retrying. */
+static inline void adxb_EntrySte(AdxBasicDecoderExt* decoder, int blocks)
+{
+    AdxBasicDecoder* base = &decoder->base;
+    AdxDecodeParams* params = &base->decode;
+    short* output;
+    AdxXpnd* expander;
+
+    output = params->pcm_buffer;
+    output += params->write_position;
+    expander = base->expander;
+
+    ADXPD_EntrySte(expander, (const signed char*)params->input,
+                   blocks * 2, output, &output[params->pcm_distance]);
+    ADXPD_Start(expander);
+}
+
+static inline void adxb_EntryPl2(AdxBasicDecoderExt* decoder, int blocks)
+{
+    AdxBasicDecoder* base = &decoder->base;
+    AdxDecodeParams* params = &base->decode;
+    short* output;
+    AdxXpnd* expander;
+
+    output = params->pcm_buffer;
+    output += params->write_position;
+    expander = base->expander;
+
+    ADXPD_EntryPl2(expander, (const signed char*)params->input,
+                   blocks, output, &output[params->pcm_distance]);
+    ADXPD_Start(expander);
+}
+
+static inline void adxb_EntryMono(AdxBasicDecoderExt* decoder, int blocks)
+{
+    AdxBasicDecoder* base = &decoder->base;
+    AdxDecodeParams* params = &base->decode;
+    short* output;
+    AdxXpnd* expander;
+
+    output = params->pcm_buffer;
+    output += params->write_position;
+    expander = base->expander;
+
+    ADXPD_EntryMono(expander, (const signed char*)params->input,
+                    blocks, output, 0);
+    ADXPD_Start(expander);
+}
+
 void ADXB_EvokeDecode(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
@@ -404,53 +396,42 @@ void ADXB_EvokeDecode(AdxBasicDecoderExt* decoder)
     int write_position;
     int input_blocks;
     int block_samples;
-    int temp;
+    int end_capacity;
 
     params = &base->decode;
-    input_blocks = params->input_blocks / params->channel_count;
-    pcm_size = params->pcm_size;
-    write_position = params->write_position;
-    room = params->room;
     block_samples = params->samples_per_block;
+    write_position = params->write_position;
+    pcm_size = params->pcm_size;
+    room = params->room;
+    input_blocks = params->input_blocks / params->channel_count;
     loop_position = params->loop_samples;
 
     delete_samples = (loop_position + block_samples - 1) / block_samples;
-    end_samples = (loop_position + block_samples - 1) % block_samples;
+    end_samples = loop_position + block_samples - 1;
+    end_samples %= block_samples;
     end_samples = block_samples - 1 - end_samples;
     end_blocks = (pcm_size - write_position + block_samples - 1) /
                  block_samples;
-    temp = end_blocks * block_samples;
+    end_capacity = end_blocks * block_samples;
     if (delete_samples < end_blocks &&
-        write_position + temp - end_samples < pcm_size) {
+        write_position + end_capacity - end_samples < pcm_size) {
         end_blocks++;
     }
     if (loop_position < room) {
         room += end_samples;
     }
-    temp = room / block_samples;
-    if (input_blocks > temp) input_blocks = temp;
+    if (input_blocks > room / block_samples) {
+        input_blocks = room / block_samples;
+    }
     if (input_blocks > delete_samples) input_blocks = delete_samples;
     if (input_blocks > end_blocks) input_blocks = end_blocks;
 
-    if (params->channel_count == 2) {
-        AdxXpnd* expander = base->expander;
-        short* output = &params->pcm_buffer[params->write_position];
-        ADXPD_EntrySte(expander, (const signed char*)params->input,
-                       input_blocks * 2, output,
-                       &output[params->pcm_distance]);
-        ADXPD_Start(expander);
+    if (base->decode.channel_count == 2) {
+        adxb_EntrySte(decoder, input_blocks);
     } else if (decoder->pl2_context != 0) {
-        AdxXpnd* expander = base->expander;
-        short* output = &params->pcm_buffer[params->write_position];
-        ADXPD_EntryPl2(expander, (const signed char*)params->input,
-                       input_blocks, output, &output[params->pcm_distance]);
-        ADXPD_Start(expander);
+        adxb_EntryPl2(decoder, input_blocks);
     } else {
-        AdxXpnd* expander = base->expander;
-        short* output = &params->pcm_buffer[params->write_position];
-        ADXPD_EntryMono(expander, (const signed char*)params->input,
-                        input_blocks, output, 0);
-        ADXPD_Start(expander);
+        adxb_EntryMono(decoder, input_blocks);
     }
 }
 
@@ -598,37 +579,109 @@ void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder)
     base->total_decoded_samples = 0;
 }
 
-#define ADXB_SELECT_ENCRYPTION_KEY(decoder, version, revision, key)             \
-    do {                                                                        \
-        (key).type = 0;                                                         \
-        if ((version) < 4) {                                                    \
-            (key).state = (key).multiplier = (key).increment = 0;               \
-        } else if ((revision) >= 16) {                                          \
-            ADXB_MAKE_ENCRYPTION_KEY((decoder)->base.total_samples, (key));     \
-        } else if ((revision) >= 8) {                                           \
-            if ((decoder)->default_key[0] == 0 &&                               \
-                (decoder)->default_key[1] == 0 &&                               \
-                (decoder)->default_key[2] == 0) {                               \
-                (decoder)->default_key[0] = adxb_def_k0;                        \
-                (decoder)->default_key[1] = adxb_def_km;                        \
-                (decoder)->default_key[2] = adxb_def_ka;                        \
-            }                                                                   \
-            (key).state = (decoder)->default_key[0];                            \
-            (key).multiplier = (decoder)->default_key[1];                       \
-            (key).increment = (decoder)->default_key[2];                        \
-        } else {                                                                \
-            (key).state = (key).multiplier = (key).increment = 0;               \
-        }                                                                       \
-    } while (0)
+#pragma inline_max_size(2000)
+#pragma inline_max_total_size(4000)
+static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
+                                          short* multiplier, short* increment)
+{
+    char key_text[16];
+    short factor0;
+    short factor1;
+    short factor2;
+    short factor3;
+    short factor4;
+    short factor5;
+    short factor6;
+    short factor7;
+    short state_value;
+    short multiplier_value;
+    int value;
+    sprintf(key_text, skg_hex_format, sample_count);
+    if (skg_init_count == 0) {
+        skg_init_count++;
+    }
+    factor0 = skg_prim_tbl[0x80 + (signed char)key_text[0]];
+    factor1 = skg_prim_tbl[0x80 + (signed char)key_text[1]];
+    factor2 = skg_prim_tbl[0x80 + (signed char)key_text[2]];
+    factor3 = skg_prim_tbl[0x80 + (signed char)key_text[3]];
+    factor4 = skg_prim_tbl[0x80 + (signed char)key_text[4]];
+    factor5 = skg_prim_tbl[0x80 + (signed char)key_text[5]];
+    factor6 = skg_prim_tbl[0x80 + (signed char)key_text[6]];
+    factor7 = skg_prim_tbl[0x80 + (signed char)key_text[7]];
+    value = skg_prim_tbl[0x100];
+    value = skg_prim_tbl[(value * factor0) % 1024];
+    value = skg_prim_tbl[(value * factor1) % 1024];
+    value = skg_prim_tbl[(value * factor2) % 1024];
+    value = skg_prim_tbl[(value * factor3) % 1024];
+    value = skg_prim_tbl[(value * factor4) % 1024];
+    value = skg_prim_tbl[(value * factor5) % 1024];
+    value = skg_prim_tbl[(value * factor6) % 1024];
+    state_value = skg_prim_tbl[(value * factor7) % 1024];
+    value = skg_prim_tbl[0x200];
+    value = skg_prim_tbl[(value * factor0) % 1024];
+    value = skg_prim_tbl[(value * factor1) % 1024];
+    value = skg_prim_tbl[(value * factor2) % 1024];
+    value = skg_prim_tbl[(value * factor3) % 1024];
+    value = skg_prim_tbl[(value * factor4) % 1024];
+    value = skg_prim_tbl[(value * factor5) % 1024];
+    value = skg_prim_tbl[(value * factor6) % 1024];
+    multiplier_value = skg_prim_tbl[(value * factor7) % 1024];
+    value = skg_prim_tbl[0x300];
+    *state = state_value;
+    *multiplier = multiplier_value;
+    value = skg_prim_tbl[(value * factor0) % 1024];
+    value = skg_prim_tbl[(value * factor1) % 1024];
+    value = skg_prim_tbl[(value * factor2) % 1024];
+    value = skg_prim_tbl[(value * factor3) % 1024];
+    value = skg_prim_tbl[(value * factor4) % 1024];
+    value = skg_prim_tbl[(value * factor5) % 1024];
+    value = skg_prim_tbl[(value * factor6) % 1024];
+    *increment = skg_prim_tbl[(value * factor7) % 1024];
+}
 
-/* TODO: [breakthrough needed] 74.463110%; retail fields/key ABI match and the
- * donor-backed four-short key trial was neutral; broader key-generation
- * CFG/register divergence remains. */
+static inline void adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
+                                            unsigned char version,
+                                            unsigned char revision,
+                                            int sample_count,
+                                            short* state, short* multiplier,
+                                            short* increment)
+{
+    if (version < 4) {
+        *state = 0;
+        *multiplier = 0;
+        *increment = 0;
+    } else if (revision >= 16) {
+        adxb_MakeEncryptionKey(sample_count, state, multiplier,
+                               increment);
+    } else if (revision >= 8) {
+        if (decoder->default_key[0] == 0 && decoder->default_key[1] == 0 &&
+            decoder->default_key[2] == 0) {
+            decoder->default_key[0] = adxb_def_k0;
+            decoder->default_key[1] = adxb_def_km;
+            decoder->default_key[2] = adxb_def_ka;
+        }
+        *state = decoder->default_key[0];
+        *multiplier = decoder->default_key[1];
+        *increment = decoder->default_key[2];
+    } else {
+        *state = 0;
+        *multiplier = 0;
+        *increment = 0;
+    }
+}
+#pragma inline_max_size reset
+#pragma inline_max_total_size reset
+
+/* TODO: [breakthrough] 85.882515%; explicit sample count and ordered zero
+ * stores recover setup; retail's first-chain lifetime/scheduling differs. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
     AdxBasicDecoder* base = &decoder->base;
-    AdxEncryptionKey key;
+    short ahx_key[4];
+    short adx_k0;
+    short adx_km;
+    short adx_ka;
     short data_length;
     short delay_left[2];
     short delay_right[2];
@@ -659,12 +712,17 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
         base->loop_end_offset = 0;
         base->total_decoded_samples = 0;
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
-        ADXB_SELECT_ENCRYPTION_KEY(decoder, version, revision, key);
-        if (ahxsetextfunc != 0) ahxsetextfunc(decoder->ahx_decoder, &key.type);
+        ahx_key[0] = 0;
+        adxb_SelectEncryptionKey(decoder, version, revision,
+                                 base->total_samples, &ahx_key[1],
+                                 &ahx_key[2], &ahx_key[3]);
+        if (ahxsetextfunc != 0) ahxsetextfunc(decoder->ahx_decoder, ahx_key);
     } else {
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
-        ADXB_SELECT_ENCRYPTION_KEY(decoder, version, revision, key);
-        ADXPD_SetExtPrm(base->expander, key.state, key.multiplier, key.increment);
+        adxb_SelectEncryptionKey(decoder, version, revision,
+                                 base->total_samples, &adx_k0, &adx_km,
+                                 &adx_ka);
+        ADXPD_SetExtPrm(base->expander, adx_k0, adx_km, adx_ka);
         if (ADX_DecodeInfoExADPCM2((AdxHeader*)input, length, &base->coefficient) < 0) return 0;
         if (ADX_DecodeInfoExIdly((AdxHeader*)input, length, delay_left, delay_right) < 0) return 0;
         ADXPD_SetCoef(base->expander, base->sample_rate, base->coefficient);

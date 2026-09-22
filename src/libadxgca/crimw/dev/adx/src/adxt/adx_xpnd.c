@@ -14,7 +14,6 @@ extern int ADX_DecodeSte4(const signed char* input, int num_blocks,
 
 int adxpd_internal_error;
 AdxXpnd adxpd_obj[16];
-int gap_06_804B5A24_bss;
 
 void ADXPD_ExecHndl(AdxXpnd* decoder)
 {

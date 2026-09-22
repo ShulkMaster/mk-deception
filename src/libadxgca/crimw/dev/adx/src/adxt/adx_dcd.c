@@ -8,7 +8,7 @@ typedef union AdxFloatRepresentation {
     u32 bits;
 } AdxFloatRepresentation;
 
-extern u32 __float_nan[];
+extern float __float_nan;
 extern double __frsqrte(double value);
 
 static inline int classify_float(float value)
@@ -44,10 +44,10 @@ static inline float adx_sqrtf(float value)
         return (float)(value * estimate);
     }
     if (value < 0.0) {
-        return ((AdxFloatRepresentation*)__float_nan)[0].value;
+        return __float_nan;
     }
     if (classify_float(value) == 1) {
-        value = ((AdxFloatRepresentation*)__float_nan)[0].value;
+        value = __float_nan;
     }
     return value;
 }
@@ -112,8 +112,8 @@ int ADX_DecodeFooter(signed char* buffer, int buffer_len,
     return 0;
 }
 
-/* TODO: [near miss] 99.218750%; pointer-before-offset declaration trial emitted
- * identical code; only AINF address/byte temporary coloring remains. */
+/* TODO: [near miss] 99.218750%; defined unsigned AINF word assembly matches;
+ * only address/byte temporary coloring remains. */
 int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
                        int* ainf_len, unsigned char ainf[16],
                        short* default_out_volume, short default_pan[2])
@@ -153,7 +153,7 @@ int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
         ainf_offset += 0x14;
     }
 
-    if (((buffer[ainf_offset] << 24) |
+    if ((((u32)buffer[ainf_offset] << 24) |
          (buffer[ainf_offset + 1] << 16) |
          (buffer[ainf_offset + 2] << 8) |
          buffer[ainf_offset + 3]) != 0x41494E46) {
@@ -308,10 +308,10 @@ int ADX_DecodeInfo(AdxHeader* header, int buffer_len, short* data_len,
     *block_size = header->block_size;
     *bits_per_sample = header->bits_per_sample;
     *channel_count = header->channel_count;
-    *sample_rate = (header->sample_rate_0 << 24) |
+    *sample_rate = ((u32)header->sample_rate_0 << 24) |
                    (header->sample_rate_1 << 16) |
                    (header->sample_rate_2 << 8) | header->sample_rate_3;
-    *total_samples = (header->total_samples_0 << 24) |
+    *total_samples = ((u32)header->total_samples_0 << 24) |
                      (header->total_samples_1 << 16) |
                      (header->total_samples_2 << 8) |
                      header->total_samples_3;

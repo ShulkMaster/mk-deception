@@ -12,18 +12,11 @@ typedef struct WaveFormatEx {
     unsigned short extra_size;
 } WaveFormatEx;
 
-typedef struct WaveChunk {
-    unsigned char id[4];
-    unsigned int size;
-} WaveChunk;
-
 static signed char* adxb_wav_fmt_id = (signed char*)"fmt ";
 static signed char* adxb_wav_data_id = (signed char*)"data";
 
-static inline unsigned short ADXB_SwapWav16(unsigned short value)
-{
-    return (value & 0xFF) << 8 | (value >> 8 & 0xFF);
-}
+#define ADXB_SWAP_WAV16(value) \
+    ((((value) >> 8) & 0xFF) | (((value) & 0xFF) << 8))
 
 static inline unsigned int ADXB_SwapWav32(unsigned int value)
 {
@@ -101,7 +94,7 @@ void ADXB_ExecOneWav4(AdxBasicDecoder* decoder)
         }
 
         decoder->decoded_samples = count;
-        decoder->decoded_data_length = count * 2 * decoder->channel_count;
+        decoder->decoded_data_length = decoder->channel_count * (count * 2);
         decoder->status = 2;
     }
 
@@ -168,47 +161,45 @@ void ADXB_ExecOneWav8(AdxBasicDecoder* decoder)
     }
 }
 
-/* TODO: [breakthrough needed] 67.724140%; donor byte-swap lowering helps;
- * retail's unrolled indexed-store CFG remains. */
 void ADXB_ExecOneWav16(AdxBasicDecoder* decoder)
 {
-    AdxDecodeParams* params;
-    unsigned short* pcm;
+    unsigned short* input;
     unsigned short* left;
     unsigned short* right;
-    const unsigned short* input;
     int i;
     int count;
 
-    params = &decoder->decode;
-    input = params->input;
+    input = (unsigned short*)decoder->decode.input;
 
     if (decoder->status == 1 && ADXPD_GetStat(decoder->expander) == 0) {
         decoder->get_write_info(decoder->get_write_object,
-                                &params->write_position, &params->room,
-                                &params->loop_samples);
+                                &decoder->decode.write_position,
+                                &decoder->decode.room,
+                                &decoder->decode.loop_samples);
 
-        count = params->pcm_size - params->write_position;
-        if (count > params->room) {
-            count = params->room;
+        count = decoder->decode.pcm_size - decoder->decode.write_position;
+        if (count > decoder->decode.room) {
+            count = decoder->decode.room;
         }
-        if (count > params->input_blocks) {
-            count = params->input_blocks;
+        if (count > decoder->decode.input_blocks) {
+            count = decoder->decode.input_blocks;
         }
 
-        pcm = (unsigned short*)params->pcm_buffer;
-        left = &pcm[params->write_position];
+        left = (unsigned short*)decoder->decode.pcm_buffer +
+               decoder->decode.write_position;
 
         if (decoder->channel_count == 2) {
-            right = &pcm[params->pcm_distance + params->write_position];
+            right = (unsigned short*)decoder->decode.pcm_buffer +
+                    (decoder->decode.pcm_distance +
+                     decoder->decode.write_position);
 
             for (i = 0; i < count; i++) {
-                left[i] = ADXB_SwapWav16(input[i * 2]);
-                right[i] = ADXB_SwapWav16(input[i * 2 + 1]);
+                left[i] = ADXB_SWAP_WAV16(input[i * 2]);
+                right[i] = ADXB_SWAP_WAV16(input[i * 2 + 1]);
             }
         } else {
             for (i = 0; i < count; i++) {
-                left[i] = ADXB_SwapWav16(input[i]);
+                left[i] = ADXB_SWAP_WAV16(input[i]);
             }
         }
 
@@ -259,8 +250,6 @@ int ADXB_DecodeHeaderWav(AdxBasicDecoder* decoder, signed char* input,
     return data_length;
 }
 
-/* TODO: [near miss] 95.545456%; the masked 16-bit swap is closer; data-chunk
- * addressing and equivalent swap scheduling remain. */
 int ADX_DecodeInfoWav(unsigned char* input, int input_length,
                       short* data_length, signed char* encoding,
                       signed char* bits_per_sample, signed char* block_length,
@@ -269,7 +258,6 @@ int ADX_DecodeInfoWav(unsigned char* input, int input_length,
                       short* codec_type)
 {
     WaveFormatEx* format;
-    WaveChunk* chunk;
     int i;
     int wav_size;
 
@@ -289,7 +277,7 @@ int ADX_DecodeInfoWav(unsigned char* input, int input_length,
 
     format = (WaveFormatEx*)&input[i + 8];
 
-    if ((short)ADXB_SwapWav16(format->format_tag) > 1) {
+    if ((short)ADXB_SWAP_WAV16(format->format_tag) > 1) {
         return -1;
     }
 
@@ -303,16 +291,16 @@ int ADX_DecodeInfoWav(unsigned char* input, int input_length,
         return -1;
     }
 
-    chunk = (WaveChunk*)&input[i];
-    wav_size = ADXB_SwapWav32(chunk->size);
+    wav_size = ADXB_SwapWav32(
+        *(unsigned int*)(4 + i + (unsigned int)input));
 
     *data_length = i + 8;
     *encoding = -1;
 
     *sample_rate = ADXB_SwapWav32(format->samples_per_second);
-    *channel_count = ADXB_SwapWav16(format->channel_count);
-    *bits_per_sample = ADXB_SwapWav16(format->bits_per_sample);
-    *block_length = ADXB_SwapWav16(format->block_align);
+    *channel_count = ADXB_SWAP_WAV16(format->channel_count);
+    *bits_per_sample = ADXB_SWAP_WAV16(format->bits_per_sample);
+    *block_length = ADXB_SWAP_WAV16(format->block_align);
     *total_samples = wav_size / *block_length;
     *samples_per_block = 1;
 

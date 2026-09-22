@@ -46,16 +46,16 @@ const char* const adxgc_build =
 static ADXMThreadParams adxm_save_tprm = {0, 0, 0, 0, 0, 0};
 ADXMSleepCallback adxm_mwidle_sleep_cb = {0, 0};
 
-int adxgc_exec_svr;
-int adxm_init_level;
-int adxm_lock_level;
-int adxm_goto_border_flag;
-int adxm_safe_cnt;
-int adxm_vsync_cnt;
-int adxm_fs_cnt;
-int adxm_mwidle_cnt;
-int adxm_mwidle_exec_flag;
-OSThread* adxm_main_thread;
+void (*adxgc_exec_svr)(void) = 0;
+int adxm_init_level = 0;
+volatile int adxm_lock_level = 0;
+int adxm_goto_border_flag = 0;
+int adxm_safe_cnt = 0;
+int adxm_vsync_cnt = 0;
+int adxm_fs_cnt = 0;
+int adxm_mwidle_cnt = 0;
+int adxm_mwidle_exec_flag = 0;
+OSThread* adxm_main_thread = 0;
 OSThread adxm_mwidle_thread;
 OSThread adxm_vsync_thread;
 OSThread adxm_fs_thread;
@@ -80,7 +80,8 @@ typedef char ADXMThreadParamsSizeCheck[
 typedef char ADXMSleepCallbackSizeCheck[
     sizeof(ADXMSleepCallback) == 0x8 ? 1 : -1];
 
-/* TODO: [near miss] 99.70731%; decrement, wait loops, thread cancellation, and SVM teardown match; residual is pooled-global relocation labeling. */
+/* TODO: [near miss] 99.756096%; shutdown CFG and calls agree; later thread-state
+ * globals still occupy a different pooled-BSS order. */
 void ADXM_ShutdownThrd(void)
 {
     adxm_init_level--;
@@ -107,7 +108,8 @@ int ADXM_IsSetupThrd(void)
     return adxm_init_level != 0;
 }
 
-/* TODO: [breakthrough needed] 90.850746%; prologue matches, but aggregate copy and global lifetimes still differ. */
+/* TODO: [breakthrough needed] 90.880600%; the scalar BSS prefix now agrees;
+ * thread/state ownership and the parameter aggregate still differ. */
 void ADXM_SetupThrd(const ADXMThreadParams* params)
 {
     const char* build = adxgc_build;
@@ -169,6 +171,8 @@ void ADXM_SetCbErr(SVMErrorFunction function, void* object)
     SVM_SetCbErr(function, object);
 }
 
+/* TODO: [breakthrough needed] 94.352940%; server-loop behavior agrees, but
+ * callback/thread state still uses the unresolved later pooled-BSS order. */
 void* adxm_mwidle_proc(void* argument)
 {
     ADXMThreadParams* thread_params = &adxm_save_tprm;
@@ -195,6 +199,8 @@ void* adxm_mwidle_proc(void* argument)
     return 0;
 }
 
+/* TODO: [breakthrough needed] 94.818184%; loop and counter update agree;
+ * the ABI-safe return and later pooled-BSS owners remain different. */
 void* adxm_fs_proc(void* argument)
 {
     (void)argument;
@@ -236,6 +242,8 @@ void* adxm_vsync_proc(void* argument)
     return 0;
 }
 
+/* TODO: [breakthrough needed] 91.500000%; the counter offset now agrees;
+ * safe-thread state ordering and retail's unspecified return remain unresolved. */
 void* adxm_safe_proc(void* argument)
 {
     (void)argument;
@@ -246,6 +254,8 @@ void* adxm_safe_proc(void* argument)
     return 0;
 }
 
+/* TODO: [breakthrough needed] 84.319145%; the bounded border loop is retained;
+ * thread/state pooled ownership remains structurally different. */
 void adxm_goto_mwidle_border(void* object)
 {
     int count;
@@ -269,6 +279,8 @@ void adxm_goto_mwidle_border(void* object)
     }
 }
 
+/* TODO: [near miss] 99.925930%; volatile lock depth restores retail's reload;
+ * only later thread/priority pooled-BSS offsets remain. */
 void adxm_unlock(void* object)
 {
     OSThread* thread;
@@ -282,8 +294,8 @@ void adxm_unlock(void* object)
     }
 }
 
-/* TODO: [near miss] 99.844444%; synchronization ABI and lock CFG/lifetime
- * agree; retail scalar/thread owners remain in a different pooled-BSS order. */
+/* TODO: [near miss] 99.911110%; synchronization ABI and lock CFG agree;
+ * later thread/priority owners remain in a different pooled-BSS order. */
 void adxm_lock(void* object)
 {
     int interrupts;

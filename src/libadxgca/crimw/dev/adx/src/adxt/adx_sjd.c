@@ -779,6 +779,3 @@ void ADXSJD_Init(void)
     ADXB_Init();
     memset(adxsjd_obj, 0, sizeof(adxsjd_obj));
 }
-
-/* Retail split-layout tail for the zero-initialized section. */
-u32 gap_06_804B101C_bss;

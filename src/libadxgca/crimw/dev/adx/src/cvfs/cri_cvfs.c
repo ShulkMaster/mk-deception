@@ -55,7 +55,7 @@ typedef struct CvFsDevice {
     char name[9];
 } CvFsDevice;
 
-const char* const cvfs_build =
+const char* const volatile cvfs_build =
     "\nCVFS/GC Ver.2.35 Build:Sep  3 2004 17:47:58\n";
 
 /* The retail object retains the complete CVFS diagnostic string pool even
@@ -640,12 +640,14 @@ void cvFsSetDefDev(char* name)
     cvFsError(set_default_unknown_device);
 }
 
-/* TODO: [near miss] 95.157234%; validation, device-table scan, helper call, and callback registration match retail; only pooled-global/register residue remains. */
+/* TODO: [near miss] 98.427670%; donor-backed build read restores the pooled
+ * rodata base; the device-search loop retains localized GPR allocation residue. */
 void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 {
     CvFsInterface* interface;
 
     (void)init_parameter;
+    cvfs_build;
 
     if (name == NULL) {
         cvFsError(add_device_bad_name);

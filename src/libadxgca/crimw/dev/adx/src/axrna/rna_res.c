@@ -80,14 +80,12 @@ void RNARES_Finish(void)
 }
 
 /* TODO: [near miss] 96.489365%; pool construction matches, with only register coloring left in the unrolled fill. */
-void RNARES_Init(const char* build)
+void RNARES_Init(void)
 {
     u32 i;
     u32 offset;
     u32 nbuf;
     RNAResource* resource;
-
-    (void)build;
 
     if (rnares_init_cnt == 0) {
         if (rnares_setup_fg == 0) {
