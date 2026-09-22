@@ -251,7 +251,7 @@ static void sfmps_ProcPrep(SfdHandle* handle)
         if (threshold <= 0) {
             threshold =
                 handle->buffers[handle->transports[1].parameter_10]
-                    .work.ring.buffer_size;
+                    .work.ring.supply.buffer_size;
         }
         if (threshold <= 0) {
             threshold = handle->conditions_primary[22];
@@ -807,11 +807,12 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                 int at_end;
 
                 if (input->terminated == 0 &&
-                    (ring->buffer_size != 0 || ring->extra_size != 0)) {
+                    (ring->supply.buffer_size != 0 ||
+                     ring->supply.extra_size != 0)) {
                     at_end = 0;
                 } else {
                     at_end = cursor + remaining ==
-                             ring->buffer + ring->buffer_size;
+                             ring->supply.buffer + ring->supply.buffer_size;
                 }
                 if (at_end) {
                     amount += remaining;
@@ -909,7 +910,7 @@ static int sfmps_ExecServerSub(SfdHandle* handle)
 
     SFBUF_GetFlowCnt(
         handle->buffers[handle->transports[1].parameter_10]
-            .work.ring.stream_joint,
+            .work.ring.supply.stream_joint,
         &write_flow, &read_flow);
     handle->playback_runtime.time_values[0] =
         SFBUF_UpdateFlowCnt(handle->playback_runtime.time_values[0], write_flow);

@@ -13,28 +13,14 @@ typedef struct SFHObjectInfo {
     SFHHandle* objects;
 } SFHObjectInfo;
 
-typedef union SFHCodecParameters {
-    unsigned short video_bit_rate;
-    struct {
-        unsigned char layer;
-        unsigned char channels;
-    } audio;
-} SFHCodecParameters;
-
-typedef union SFHMediaParameters {
-    unsigned int audio_sample_rate;
-    struct {
-        unsigned char dimensions[3];
-        unsigned char picture_rate;
-    } video;
-} SFHMediaParameters;
-
 typedef struct SFHStreamRecord {
     unsigned char reserved[0x18];
     unsigned char id;
     unsigned char codec;
-    SFHCodecParameters codec_parameters;
-    SFHMediaParameters media_parameters;
+    /* Audio layer/channels; video bitrate bytes. */
+    unsigned char codec_bytes[2];
+    /* Audio sample-rate bytes; video picture dimensions and frame rate. */
+    unsigned char media_bytes[4];
     unsigned char effective_features;
     unsigned char color_type;
     unsigned char picture_type;
@@ -46,6 +32,8 @@ typedef struct SFHStreamRecord {
     unsigned char trailing[0x18];
 } SFHStreamRecord;
 
+typedef char SFHStreamRecordSizeCheck[sizeof(SFHStreamRecord) == 0x40 ? 1 : -1];
+
 const char SFH_sbver_str[] =
     "\nCRI SFH/GC Ver.1.19 Build:Sep  3 2004 11:38:52\n";
 static const char sfh_version_tag[] = "Ver.";
@@ -54,58 +42,57 @@ static int sfh_init_cont = 0;
 static SFHObjectInfo sfh_objinf;
 static const char* sfhlib_version_dummy;
 
-#pragma explicit_zero_data on
-unsigned int gap_05_803A8A5C_data = 0;
-#pragma explicit_zero_data off
-unsigned int gap_06_804AC8CC_bss;
-
-static inline int sfh_is_analyzable(const SFHHandle* handle)
+static inline int sfh_is_valid(const SFHHandle* handle)
 {
-    int state_valid;
-    int version_valid;
     int valid;
 
-    state_valid = 0;
-    if (handle->state < 2) {
-        if (handle->state < -1) {
-            state_valid = 1;
-        } else {
-            state_valid = 0;
-        }
-    } else {
-        state_valid = 1;
-    }
-    if (!state_valid) {
+    switch (handle->state) {
+    case -1:
+    case 0:
+    case 1:
         valid = 0;
-    } else {
-        version_valid = 0;
-        if (handle->version == 0x6B || handle->version >= 0x6E) {
-            version_valid = 1;
-        }
-        if (!version_valid) {
-            valid = 0;
-        } else {
-            valid = 1;
-        }
+        break;
+    default:
+        valid = 1;
+        break;
     }
     return valid;
 }
 
+static int sfh_is_free(SFHHandle* handle)
+{
+    return handle->state == 0;
+}
+
+static inline int sfh_is_version_ok(const SFHHandle* handle)
+{
+    return handle->version == 0x6B || handle->version >= 0x6E;
+}
+
+static inline int sfh_is_analyzable(const SFHHandle* handle)
+{
+    if (!sfh_is_valid(handle)) return 0;
+    if (!sfh_is_version_ok(handle)) return 0;
+    return 1;
+}
+
 static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
 {
-    unsigned int value = *(const unsigned int*)(data + offset);
+    const unsigned char* bytes = data + offset;
 
-    return ((value & 0x000000FF) << 24) |
-           ((value & 0x0000FF00) << 8) |
-           ((value & 0x00FF0000) >> 8) |
-           ((value & 0xFF000000) >> 24);
+    return (unsigned int)bytes[0] |
+           ((unsigned int)bytes[1] << 8) |
+           ((unsigned int)bytes[2] << 16) |
+           ((unsigned int)bytes[3] << 24);
 }
 
 static inline signed short sfh_read_le_s16(const unsigned char* data, int offset)
 {
-    unsigned short value = *(const unsigned short*)(data + offset);
+    signed short value = *(const signed short*)(data + offset);
+    unsigned short bits = (unsigned short)value;
 
-    return (signed short)((value << 8) | (value >> 8));
+    return (signed short)(unsigned short)(((bits & 0xFF) << 8) |
+                                          ((bits >> 8) & 0xFF));
 }
 
 static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
@@ -118,28 +105,94 @@ static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
     return 1;
 }
 
+static inline int sfh_read_header_u32_version(const SFHHandle* handle,
+                                              int offset, int minimum_version,
+                                              int* result)
+{
+    const unsigned char* header = handle->header;
+
+    if (!sfh_is_analyzable(handle)) return 0;
+    if (handle->version < minimum_version) return 0;
+    *result = (int)sfh_read_le32(header, offset);
+    return 1;
+}
+
+static inline int sfh_read_header_u8(const SFHHandle* handle, int offset,
+                                     int* result)
+{
+    const unsigned char* header = handle->header;
+
+    if (!sfh_is_analyzable(handle)) return 0;
+    *result = header[offset];
+    return 1;
+}
+
+static inline int sfh_read_header_s16(const SFHHandle* handle, int offset,
+                                      int* result)
+{
+    const unsigned char* header = handle->header;
+
+    if (!sfh_is_analyzable(handle)) return 0;
+    *result = sfh_read_le_s16(header, offset);
+    return 1;
+}
+
 static inline const SFHStreamRecord* sfh_find_stream(
     const unsigned char* header, unsigned char stream_id)
 {
     const SFHStreamRecord* stream = 0;
+    const SFHStreamRecord* candidate;
     int i;
 
-    for (i = 0; i < 13; i++) {
-        stream = (const SFHStreamRecord*)(header + 0x180);
-        if (stream->id == stream_id) return stream;
-        stream = (const SFHStreamRecord*)(header + 0x1C0);
-        if (stream->id == stream_id) return stream;
-        header += 0x80;
+    for (i = 0; i < 26; i++) {
+        candidate = (const SFHStreamRecord*)(header + 0x180);
+        if (candidate->id == stream_id) {
+            stream = candidate;
+            break;
+        }
+        header += sizeof(SFHStreamRecord);
     }
-    return 0;
+    return stream;
 }
 
-static inline int sfh_stream_class(unsigned char stream_id)
+static inline const SFHStreamRecord* sfh_get_stream(
+    const SFHHandle* handle, unsigned char stream_id)
 {
-    if (stream_id >= 0xC0 && stream_id <= 0xDF) return 0xC0;
-    if (stream_id >= 0xE0 && stream_id <= 0xEF) return 0xE0;
-    if (stream_id == 0xBD || stream_id == 0xBF) return 0xBD;
-    return 0;
+    const unsigned char* header = handle->header;
+
+    if (!sfh_is_analyzable(handle)) return 0;
+    return sfh_find_stream(header, stream_id);
+}
+
+static inline unsigned int sfh_stream_class(unsigned char stream_id)
+{
+    unsigned int type = stream_id;
+
+    if (type >= 0xC0 && type <= 0xDF) {
+        type = 0xC0;
+    } else if (type >= 0xE0 && type <= 0xEF) {
+        type = 0xE0;
+    } else if (type == 0xBD || type == 0xBF) {
+        type = 0xBD;
+    } else {
+        type = 0;
+    }
+    return type;
+}
+
+static inline int sfh_picture_rate(unsigned int code)
+{
+    switch (code) {
+    case 1: return 23976;
+    case 2: return 24000;
+    case 3: return 25000;
+    case 4: return 29970;
+    case 5: return 30000;
+    case 6: return 50000;
+    case 7: return 59940;
+    case 8: return 60000;
+    default: return 0;
+    }
 }
 
 static inline int sfh_is_effective_video(const SFHStreamRecord* stream,
@@ -159,160 +212,158 @@ static inline int sfh_is_effective_video(const SFHStreamRecord* stream,
     return valid;
 }
 
-int SFH_AnlyFtrFxType(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.89320%; retail guards and offsets agree;
+ * stop at stream-search register coloring and equivalent key-load schedule. */
+int SFH_AnlyFtrFxType(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     if (handle->version < 0xD2) return 0;
     *result = stream->fx_type;
     return 1;
 }
 
-int SFH_AnlyFtrGopM(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.89320%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrGopM(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->gop_m;
     if (*result > 0x3F) *result = -1;
     return 1;
 }
 
-int SFH_AnlyFtrGopN(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.89320%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->gop_n;
     if (*result > 0x3F) *result = -1;
     return 1;
 }
 
-int SFH_AnlyFtrExpand(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.701035%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrExpand(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->expand;
     return 1;
 }
 
-int SFH_AnlyFtrShcFixFlg(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrShcFixFlg(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = (stream->flags >> 4) & 1;
     return 1;
 }
 
-int SFH_AnlyFtrFixFlg(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrFixFlg(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->flags & 1;
     return 1;
 }
 
-int SFH_AnlyFtrPicType(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrPicType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->picture_type;
     return 1;
 }
 
-int SFH_AnlyFtrColType(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
+ * inspect remaining search-result register coloring. */
+int SFH_AnlyFtrColType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || !sfh_is_effective_video(stream, stream_id)) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->color_type;
     return 1;
 }
 
-int SFH_AnlyElemPicRate(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 97.16216%; typed media bytes preserve retail CFG/data;
+ * stop at search coloring and one equivalent key-load schedule. */
+int SFH_AnlyElemPicRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
-    int rate;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xE0) return 0;
-    switch (stream->media_parameters.video.picture_rate) {
-    case 1: rate = 23976; break;
-    case 2: rate = 24000; break;
-    case 3: rate = 25000; break;
-    case 4: rate = 29970; break;
-    case 5: rate = 30000; break;
-    case 6: rate = 50000; break;
-    case 7: rate = 59940; break;
-    case 8: rate = 60000; break;
-    default: rate = 0; break;
-    }
-    *result = rate;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xE0) return 0;
+    *result = sfh_picture_rate(stream->media_bytes[3]);
     return 1;
 }
 
-int SFH_AnlyElemPicSz(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.13861%; typed media bytes preserve retail stores;
+ * inspect remaining picture-size load/result register lifetimes. */
+int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
                       int* width, int* height)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
     const unsigned char* dimensions;
 
     *width = 0;
     *height = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xE0) return 0;
-    dimensions = stream->media_parameters.video.dimensions;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xE0) return 0;
+    dimensions = stream->media_bytes;
     *width = dimensions[0];
     *width = (*width << 4) | (dimensions[1] >> 4);
     *width &= 0xFFF;
@@ -322,289 +373,253 @@ int SFH_AnlyElemPicSz(const SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-int SFH_AnlyElemBitRate(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 94.30108%; portable byte decoding preserves the value;
+ * retail uses one halfword load, which safe byte access does not emit. */
+int SFH_AnlyElemBitRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
-    signed short bit_rate;
+    int bit_rate;
+    int value;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xE0) return 0;
-    bit_rate = sfh_read_le_s16((const unsigned char*)stream, 0x1A);
-    if (bit_rate == -1) bit_rate = 0;
-    *result = bit_rate;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xE0) return 0;
+    bit_rate = (signed short)(unsigned short)(
+        ((unsigned short)stream->codec_bytes[1] << 8) |
+        stream->codec_bytes[0]);
+    value = bit_rate;
+    if (bit_rate == 0xFFFF) value = 0;
+    *result = value;
     return 1;
 }
 
-int SFH_AnlyElemCodecVid(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.25000%; mutable handle restores output-store order;
+ * inspect remaining search/codec register coloring. */
+int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xE0) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xE0) return 0;
     *result = stream->codec;
     return 1;
 }
 
-int SFH_AnlyElemSmpHz(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 90.63219%; bytewise little-endian decode avoids the
+ * unaligned aliasing load; retail uses a word load plus swap. */
+int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xC0) return 0;
-    *result = sfh_read_le32((const unsigned char*)stream, 0x1C);
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xC0) return 0;
+    *result = ((unsigned int)stream->media_bytes[3] << 24) |
+              ((unsigned int)stream->media_bytes[2] << 16) |
+              ((unsigned int)stream->media_bytes[1] << 8) |
+              stream->media_bytes[0];
     return 1;
 }
 
-int SFH_AnlyElemChNum(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.20482%; mutable handle restores output-store order;
+ * inspect remaining search/channel register coloring. */
+int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xC0) return 0;
-    *result = stream->codec_parameters.audio.channels;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xC0) return 0;
+    *result = stream->codec_bytes[1];
     return 1;
 }
 
-int SFH_AnlyElemLayer(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.36364%; mutable handle restores output-store order;
+ * inspect remaining search/codec-layer register coloring. */
+int SFH_AnlyElemLayer(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xC0) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xC0) return 0;
     if (stream->codec != 1) return 0;
-    *result = stream->codec_parameters.audio.layer;
+    *result = stream->codec_bytes[0];
     return 1;
 }
 
-int SFH_AnlyElemCodecAud(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 96.25000%; mutable handle restores output-store order;
+ * inspect remaining search/codec register coloring. */
+int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
-    const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
 
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0 || sfh_stream_class(stream_id) != 0xC0) return 0;
+    stream = sfh_get_stream(handle, stream_id);
+    if (stream == 0) return 0;
+    if (sfh_stream_class(stream_id) != 0xC0) return 0;
     *result = stream->codec;
     return 1;
 }
 
-int SFH_AnlyMaxFrmNum(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
+ * retail word-load and validation lowering still differ. */
+int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, 0xC0);
-    return 1;
+    return sfh_read_header_u32(handle, 0xC0, result);
 }
 
-int SFH_AnlyMaxPlyLenVid(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
+ * retail word-load and validation lowering still differ. */
+int SFH_AnlyMaxPlyLenVid(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, 0xBC);
-    return 1;
+    return sfh_read_header_u32(handle, 0xBC, result);
 }
 
-int SFH_AnlyMaxPlyLenAud(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
+ * retail word-load and validation lowering still differ. */
+int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, 0xB8);
-    return 1;
+    return sfh_read_header_u32(handle, 0xB8, result);
 }
 
-int SFH_AnlyByteRate(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 90.11364%; bytewise header decode is portable;
+ * retail word-load and version-validation lowering still differ. */
+int SFH_AnlyByteRate(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    if (handle->version < 0x6E) return 0;
-    *result = sfh_read_le32(header, 0xB4);
-    return 1;
+    return sfh_read_header_u32_version(handle, 0xB4, 0x6E, result);
 }
 
-/* TODO: [breakthrough needed] 84.571430%; typed header access and validation agree with retail, but state/header load ownership remains structurally different. */
-int SFH_AnlyNumElemPrv(const SFHHandle* handle, int* result)
+int SFH_AnlyNumElemPrv(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = header[0xB3];
-    return 1;
+    return sfh_read_header_u8(handle, 0xB3, result);
 }
 
-int SFH_AnlyNumElemVid(const SFHHandle* handle, int* result)
+int SFH_AnlyNumElemVid(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = header[0xB2];
-    return 1;
+    return sfh_read_header_u8(handle, 0xB2, result);
 }
 
-int SFH_AnlyNumElemAud(const SFHHandle* handle, int* result)
+int SFH_AnlyNumElemAud(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = header[0xB1];
-    return 1;
+    return sfh_read_header_u8(handle, 0xB1, result);
 }
 
-int SFH_AnlyNumElemTot(const SFHHandle* handle, int* result)
+int SFH_AnlyNumElemTot(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = header[0xB0];
-    return 1;
+    return sfh_read_header_u8(handle, 0xB0, result);
 }
 
-int SFH_AnlyPackSiz(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
+ * retail word-load and validation lowering still differ. */
+int SFH_AnlyPackSiz(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, 0x8C);
-    return 1;
+    return sfh_read_header_u32(handle, 0x8C, result);
 }
 
-int SFH_AnlyPketSizLen(const SFHHandle* handle, int* result)
+int SFH_AnlyPketSizLen(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = 0;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le_s16(header, 0x88);
-    return 1;
+    return sfh_read_header_s16(handle, 0x88, result);
 }
 
-/* TODO: [breakthrough needed] 85.555560%; typed header access and validation agree with retail,
- * but the helper/lifetime scheduling shape remains structurally unresolved. */
-int SFH_AnlyPackType(const SFHHandle* handle, int* result)
+int SFH_AnlyPackType(SFHHandle* handle, int* result)
 {
-    const unsigned char* header = handle->header;
-
     *result = -1;
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = header[0x84];
-    return 1;
+    return sfh_read_header_u8(handle, 0x84, result);
 }
 
-/* TODO: [near miss] 78.076920%; donor-backed checked header reader is retained,
- * but retail initialization and byte-swap scheduling still differ. */
-int SFH_AnlyHdrSiz(const SFHHandle* handle, int* result)
+/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
+ * retail word-load and validation lowering still differ. */
+int SFH_AnlyHdrSiz(SFHHandle* handle, int* result)
 {
     *result = 0;
     return sfh_read_header_u32(handle, 0x80, result);
 }
 
-static inline int sfh_anly_hdr_tool_ver(const SFHHandle* handle, int* major,
+static inline int sfh_get_tool_str(SFHHandle* handle,
+                                   const unsigned char* source, char* output)
+{
+    if (!sfh_is_valid(handle)) return 0;
+    memset(output, 0, 0x21);
+    memcpy(output, source, 0x20);
+    return 1;
+}
+
+static inline int sfh_is_digit(int character)
+{
+    return character >= '0' && character <= '9';
+}
+
+static inline int sfh_atoi(const char** text)
+{
+    const char* digit = *text;
+    int character;
+    int value = 0;
+
+    for (;;) {
+        character = *digit;
+        if (character == '.' || character == ' ' || character == 0) break;
+        if (!sfh_is_digit(character)) break;
+        value = value * 10 + character;
+        value -= '0';
+        digit++;
+    }
+    *text = digit;
+    return value;
+}
+
+static inline int sfh_get_str_ver(const char* text, int* major, int* minor)
+{
+    const char* digit = strstr(text, sfh_version_tag);
+
+    if (digit == 0) return 0;
+    digit += 4;
+    *major = sfh_atoi(&digit);
+    digit++;
+    *minor = sfh_atoi(&digit);
+    return 1;
+}
+
+static inline int sfh_anly_hdr_tool_ver(SFHHandle* handle, int* major,
                                         int* minor)
 {
-    const unsigned char* header = handle->header;
-    const char* digit;
+    const unsigned char* header;
+    const unsigned char* tool_string;
     char tool_version[33];
-    char character;
-    int digit_valid;
-    int state_valid = 0;
-    int initialized;
-    int parsed;
-    unsigned char header_major;
-    unsigned char header_minor;
     int tool_major;
     int tool_minor;
+    unsigned char header_major;
+    unsigned char header_minor;
 
     *major = 0;
     *minor = 0;
+    header = handle->header;
     tool_version[0] = 0;
-    if (handle->state < 2) {
-        if (handle->state < -1) {
-            state_valid = 1;
-        } else {
-            state_valid = 0;
-        }
-    } else {
-        state_valid = 1;
-    }
-    if (!state_valid) {
-        initialized = 0;
-    } else {
-        memset(tool_version, 0, 0x21);
-        memcpy(tool_version, header + 0x60, 0x20);
-        initialized = 1;
-    }
-    if (!initialized) return 0;
+    tool_string = header + 0x60;
+    if (!sfh_get_tool_str(handle, tool_string, tool_version)) return 0;
     header_major = header[0x38];
     header_minor = header[0x39];
-    digit = strstr(tool_version, sfh_version_tag);
-    if (digit == 0) {
-        parsed = 0;
-    } else {
-        digit += 4;
-        tool_major = 0;
-        for (;;) {
-            character = *digit;
-            if (character != '.' && character != ' ' && character != 0) {
-                digit_valid = 0;
-                if (character >= '0' && character <= '9') digit_valid = 1;
-                if (digit_valid) {
-                    digit++;
-                    tool_major = tool_major * 10 + character - '0';
-                    continue;
-                }
-            }
-            break;
-        }
-        digit++;
-        tool_minor = 0;
-        for (;;) {
-            character = *digit;
-            if (character != '.' && character != ' ' && character != 0) {
-                digit_valid = 0;
-                if (character >= '0' && character <= '9') digit_valid = 1;
-                if (digit_valid) {
-                    digit++;
-                    tool_minor = tool_minor * 10 + character - '0';
-                    continue;
-                }
-            }
-            break;
-        }
-        parsed = 1;
-    }
-    if (!parsed) return 0;
+    if (!sfh_get_str_ver(tool_version, &tool_major, &tool_minor)) return 0;
 
     if (header_major * 100 + header_minor >= tool_major * 100 + tool_minor) {
         *major = header_major;
@@ -616,7 +631,9 @@ static inline int sfh_anly_hdr_tool_ver(const SFHHandle* handle, int* major,
     return 1;
 }
 
-int SFH_AnlyHdrToolVer(const SFHHandle* handle, int* major, int* minor)
+/* TODO: [near miss] 94.188034%; parsing and selection match structurally;
+ * donor declaration order is neutral, so stop at register coloring. */
+int SFH_AnlyHdrToolVer(SFHHandle* handle, int* major, int* minor)
 {
     return sfh_anly_hdr_tool_ver(handle, major, minor);
 }
@@ -669,8 +686,9 @@ static inline int sfh_query_video_features(const SFHHandle* handle,
     return 1;
 }
 
-/* TODO: [breakthrough needed] 82.77725%; donor helper-boundary trial regressed; recover the retail class/feature ownership shape. */
-int SFH_IsEffFtrInf(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [breakthrough] 94.990524%; mutable handle improves the feature path;
+ * recover the remaining audio/video feature-owner CFG. */
+int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
     int stream_class;
@@ -687,30 +705,41 @@ int SFH_IsEffFtrInf(const SFHHandle* handle, unsigned char stream_id,
     }
 }
 
-int SFH_IsExistStmId(const SFHHandle* handle, unsigned char stream_id,
+/* TODO: [near miss] 95.00000%; retail flow/offsets agree; stop at search
+ * register coloring and one equivalent key-load schedule. */
+int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     int* result)
 {
-    const unsigned char* header = handle->header;
+    const unsigned char* header;
 
     *result = 0;
+    header = handle->header;
     if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_find_stream(header, stream_id) != 0;
+    if (sfh_find_stream(header, stream_id) != 0) {
+        *result = 1;
+    } else {
+        *result = 0;
+    }
     return 1;
 }
 
+/* TODO: [near miss] 95.61290%; typed free helper restores early CFG;
+ * stop at cmpwi versus Boolean materialization and register coloring. */
 int SFH_IsSfdHeader(SFHHandle* handle, int* result)
 {
     static const char signature[] = "SofdecStream            ";
+    const unsigned char* identifier;
     int major = 0;
     int minor = 0;
 
     *result = 0;
-    if (handle->state == 0) return 0;
+    identifier = handle->header + 0x20;
+    if (sfh_is_free(handle) == 1) return 0;
     if ((unsigned int)handle->header_size < 0x800) {
         handle->state = -1;
         return 0;
     }
-    if (memcmp(handle->header + 0x20, signature, 0x18) != 0) {
+    if (memcmp(identifier, signature, 0x18) != 0) {
         handle->state = -1;
         return 0;
     }

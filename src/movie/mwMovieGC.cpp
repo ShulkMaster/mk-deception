@@ -1,3 +1,4 @@
+#include "cri/adx_sugc.h"
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
 #include "movie/mwMovie.h"
@@ -99,7 +100,6 @@ typedef char MwMovieVideoStateSizeCheck[
 extern mwMovieSetup MoviePlayerSetup;
 
 extern "C" {
-void ADXGC_SetupDvdFs(const int* read_mode);
 void __mwMovie_startVideo(_mwMovPlayer* player);
 void displayMovieFrame(_mwMovPlayer* player);
 }

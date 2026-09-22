@@ -22,5 +22,3 @@ void SFX_CnvFrmY84C44(SFXHandle* handle, SFXFrameInfo* frame,
         break;
     }
 }
-
-const int gap_04_80317ABC_rodata = 0;

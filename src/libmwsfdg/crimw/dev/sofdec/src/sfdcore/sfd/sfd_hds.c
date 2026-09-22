@@ -10,55 +10,47 @@ typedef struct SFHHandle {
     int version;
 } SFHHandle;
 
-typedef struct SfhdsSfhLibraryWork {
-    SFHHandle handles[32];
-    int reserved;
-} SfhdsSfhLibraryWork;
-
 typedef void (*SfhdsHeaderCallback)(SfdCallbackObject object,
                                     const void* data, int size);
 
-typedef char SfhdsLibraryWorkSizeCheck[
-    sizeof(SfhdsSfhLibraryWork) == 0x204 ? 1 : -1];
-
-extern int SFH_AnlyByteRate(const SFHHandle*, int*);
-extern int SFH_AnlyElemBitRate(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemChNum(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemCodecAud(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemCodecVid(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemLayer(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemPicRate(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyElemPicSz(const SFHHandle*, unsigned char, int*, int*);
-extern int SFH_AnlyElemSmpHz(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrColType(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrExpand(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrFixFlg(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrGopM(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrGopN(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrPicType(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyFtrShcFixFlg(const SFHHandle*, unsigned char, int*);
-extern int SFH_AnlyHdrSiz(const SFHHandle*, int*);
-extern int SFH_AnlyHdrToolVer(const SFHHandle*, int*, int*);
-extern int SFH_AnlyMaxFrmNum(const SFHHandle*, int*);
-extern int SFH_AnlyMaxPlyLenAud(const SFHHandle*, int*);
-extern int SFH_AnlyMaxPlyLenVid(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemAud(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemPrv(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemTot(const SFHHandle*, int*);
-extern int SFH_AnlyNumElemVid(const SFHHandle*, int*);
-extern int SFH_AnlyPackSiz(const SFHHandle*, int*);
-extern int SFH_AnlyPackType(const SFHHandle*, int*);
-extern int SFH_AnlyPketSizLen(const SFHHandle*, int*);
-extern int SFH_IsEffFtrInf(const SFHHandle*, unsigned char, int*);
-extern int SFH_IsExistStmId(const SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyByteRate(SFHHandle*, int*);
+extern int SFH_AnlyElemBitRate(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemChNum(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemCodecAud(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemCodecVid(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemLayer(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemPicRate(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyElemPicSz(SFHHandle*, unsigned char, int*, int*);
+extern int SFH_AnlyElemSmpHz(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrColType(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrExpand(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrFixFlg(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrGopM(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrGopN(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrPicType(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyFtrShcFixFlg(SFHHandle*, unsigned char, int*);
+extern int SFH_AnlyHdrSiz(SFHHandle*, int*);
+extern int SFH_AnlyHdrToolVer(SFHHandle*, int*, int*);
+extern int SFH_AnlyMaxFrmNum(SFHHandle*, int*);
+extern int SFH_AnlyMaxPlyLenAud(SFHHandle*, int*);
+extern int SFH_AnlyMaxPlyLenVid(SFHHandle*, int*);
+extern int SFH_AnlyNumElemAud(SFHHandle*, int*);
+extern int SFH_AnlyNumElemPrv(SFHHandle*, int*);
+extern int SFH_AnlyNumElemTot(SFHHandle*, int*);
+extern int SFH_AnlyNumElemVid(SFHHandle*, int*);
+extern int SFH_AnlyPackSiz(SFHHandle*, int*);
+extern int SFH_AnlyPackType(SFHHandle*, int*);
+extern int SFH_AnlyPketSizLen(SFHHandle*, int*);
+extern int SFH_IsEffFtrInf(SFHHandle*, unsigned char, int*);
+extern int SFH_IsExistStmId(SFHHandle*, unsigned char, int*);
 extern int SFH_IsSfdHeader(SFHHandle*, int*);
 extern SFHHandle* SFH_Create(const void*, int);
 extern void SFH_Destroy(SFHHandle*);
 extern void SFH_Finish(void);
-extern void SFH_Init(int, SFHHandle*);
+extern void SFH_Init(int, void*);
 extern int SFMPS_GetConcatCnt(SfdHandle*);
 
-static SfhdsSfhLibraryWork sfhds_sfhlib_work;
+static unsigned char sfhds_sfhlib_work[0x204];
 
 static SfdHeaderState* sfhds_GetProcessedHeader(SfdHeaderState* state)
 {
@@ -527,5 +519,5 @@ void SFHDS_Finish(void)
 
 void SFHDS_Init(void)
 {
-    SFH_Init(32, sfhds_sfhlib_work.handles);
+    SFH_Init(32, sfhds_sfhlib_work);
 }

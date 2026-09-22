@@ -151,5 +151,3 @@ void SFX_SetBottomUpPlnBuf(SFXPlaneBuffer* plane)
     plane->pixels = (u8*)plane->pixels + plane->pitch * (plane->height - 1);
     plane->pitch = -plane->pitch;
 }
-
-const int gap_04_8031785C_rodata = 0;

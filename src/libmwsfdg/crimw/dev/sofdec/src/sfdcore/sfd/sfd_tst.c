@@ -12,7 +12,6 @@ char* sftst_debout_buf = 0;
 char* sftst_debout_round = 0;
 char* sftst_debout_write = 0;
 SFTST_Work* sftst_last = 0;
-int gap_06_804AC8B4_bss;
 
 extern int sfadxt_stat;
 
@@ -59,8 +58,8 @@ static inline void subtract_history(SFTST_Work* work, int value)
     }
 }
 
-/* TODO: [near miss] 98.493940%; remaining debug sprintf/64-bit register
- * coloring and BSS relocation residue have no clean-C source lever. */
+/* TODO: [near miss] 98.51667%; remaining debug sprintf/64-bit register
+ * coloring has no clean-C source lever; anonymous donor-absent tail removed. */
 void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
                 SFTST_Time* sample, SFTST_Time* output)
 {

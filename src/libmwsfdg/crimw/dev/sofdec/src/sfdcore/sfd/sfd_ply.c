@@ -22,7 +22,7 @@ const unsigned int SFPLY_cond_dfl[101] = {
 static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
                                const void* transport_buffer_setup);
 
-int SFD_SetSupplySj(SfdHandle* handle, const SfdBufferSupply* supply)
+int SFD_SetSupplySj(SfdHandle* handle, SfdBufferSupply* supply)
 {
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000139);
@@ -530,9 +530,9 @@ static int sfply_IsBpaOn(SfdHandle* handle)
     if (SFSET_GetCond(handle, 5) == 1) {
         buffer_index = handle->transports[2].parameter_10;
         ring = &handle->buffers[buffer_index].work.ring;
-        data_size = ring->stream_joint->interface->get_num_data(
-            ring->stream_joint, 1);
-        if (data_size >= (ring->buffer_size * 80) / 100 ||
+        data_size = ring->supply.stream_joint->interface->get_num_data(
+            ring->supply.stream_joint, 1);
+        if (data_size >= (ring->supply.buffer_size * 80) / 100 ||
             data_size >= SFSET_GetCond(handle, 0x46)) {
             return 0;
         }
@@ -656,9 +656,9 @@ static int sfply_StatPlay(SfdHandle* handle)
         if (finished == 0 && SFSET_GetCond(handle, 5) == 1) {
             buffer_index = handle->transports[2].parameter_10;
             ring = &handle->buffers[buffer_index].work.ring;
-            data_size = ring->stream_joint->interface->get_num_data(
-                ring->stream_joint, 1);
-            if (data_size >= (ring->buffer_size * 80) / 100 ||
+            data_size = ring->supply.stream_joint->interface->get_num_data(
+                ring->supply.stream_joint, 1);
+            if (data_size >= (ring->supply.buffer_size * 80) / 100 ||
                 data_size >= SFSET_GetCond(handle, 0x46)) {
                 finished = 1;
             }
@@ -666,9 +666,9 @@ static int sfply_StatPlay(SfdHandle* handle)
         if (finished == 0 && SFSET_GetCond(handle, 6) == 1) {
             buffer_index = handle->transports[3].parameter_10;
             ring = &handle->buffers[buffer_index].work.ring;
-            data_size = ring->stream_joint->interface->get_num_data(
-                ring->stream_joint, 1);
-            if (data_size >= (ring->buffer_size * 80) / 100) {
+            data_size = ring->supply.stream_joint->interface->get_num_data(
+                ring->supply.stream_joint, 1);
+            if (data_size >= (ring->supply.buffer_size * 80) / 100) {
                 finished = 1;
             }
         }

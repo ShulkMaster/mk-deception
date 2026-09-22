@@ -15,19 +15,30 @@ static inline int sfmpvf_IsEarlier(const SfdMpvFrame* candidate,
     if (current == 0) {
         return 1;
     }
-    if (candidate->picture_order != current->picture_order) {
-        return candidate->picture_order < current->picture_order;
+    if (candidate->picture_order < current->picture_order) {
+        return 1;
     }
-    if (candidate->picture_info.sequence_header_count !=
+    if (candidate->picture_order > current->picture_order) {
+        return 0;
+    }
+    if (candidate->picture_info.sequence_header_count <
         current->picture_info.sequence_header_count) {
-        return candidate->picture_info.sequence_header_count <
-               current->picture_info.sequence_header_count;
+        return 1;
     }
-    if (candidate->picture_info.group_count !=
+    if (candidate->picture_info.sequence_header_count >
+        current->picture_info.sequence_header_count) {
+        return 0;
+    }
+    if (candidate->picture_info.group_count <
         current->picture_info.group_count) {
-        return candidate->picture_info.group_count <
-               current->picture_info.group_count;
+        return 1;
     }
+    if (candidate->picture_info.group_count >
+        current->picture_info.group_count) {
+        return 0;
+    }
+    /* temporal_reference is decoded from 10 bits; these differences cannot
+     * overflow int, and 0x200 distinguishes the wraparound ordering. */
     if (candidate->picture_info.temporal_reference -
             current->picture_info.temporal_reference > 0x200) {
         return 1;
@@ -36,26 +47,35 @@ static inline int sfmpvf_IsEarlier(const SfdMpvFrame* candidate,
             candidate->picture_info.temporal_reference > 0x200) {
         return 0;
     }
-    return candidate->picture_info.temporal_reference <
-           current->picture_info.temporal_reference;
+    if (candidate->picture_info.temporal_reference <
+        current->picture_info.temporal_reference) {
+        return 1;
+    }
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 71.843930%; the canonical picture-info fields preserve retail offsets, but standby-frame selection still has broad CFG and lifetime differences. */
+/* TODO: [near miss] 99.595375%; donor-backed post-lock locals and cached frame
+ * count restore the CFG; only first/count register coloring remains. */
 static SfdMpvFrame* sfmpvf_ReferNextFrmReady(SfdHandle* handle)
 {
     SfdMpvFrameWork* work;
-    SfdMpvFrame* first = 0;
-    SfdMpvFrame* second = 0;
+    SfdMpvFrame* first;
+    SfdMpvFrame* second;
     SfdMpvFrame* frame;
-    int ready_count = 0;
+    int ready_count;
+    int frame_count;
     int can_return;
     int token;
     int i;
 
     SFLIB_LockCs(&token);
     work = sfmpvf_GetWork(handle);
+    first = 0;
+    second = 0;
+    ready_count = 0;
+    frame_count = work->frame_count;
     frame = work->frames;
-    for (i = 0; i < work->frame_count; i++, frame++) {
+    for (i = 0; i < frame_count; i++, frame++) {
         if (frame->state == 2 || frame->state == 4) {
             ready_count++;
             if (sfmpvf_IsEarlier(frame, first)) {
@@ -92,22 +112,26 @@ int SFMPVF_IsNextFrmReady(SfdHandle* handle)
     return sfmpvf_ReferNextFrmReady(handle) != 0;
 }
 
-/* TODO: [breakthrough needed] 62.474747%; frame/work offsets agree, but the
- * inlined ordering helper has a different CFG; no layout change is supported. */
+/* TODO: [near miss] 98.68687%; RE4 lifetime and cached frame count recover the
+ * retail CFG; only work/count and compare-temporary register coloring remains. */
 SfdMpvFrame* SFMPVF_HoldFrm(SfdHandle* handle, int* sole_frame)
 {
     SfdMpvFrameWork* work;
-    SfdMpvFrame* selected = 0;
+    SfdMpvFrame* selected;
     SfdMpvFrame* frame;
-    int ready_count = 0;
+    int ready_count;
+    int frame_count;
     int token;
     int i;
 
     SFLIB_LockCs(&token);
     work = sfmpvf_GetWork(handle);
-    *sole_frame = 0;
+    selected = 0;
+    ready_count = 0;
+    frame_count = work->frame_count;
     frame = work->frames;
-    for (i = 0; i < work->frame_count; i++, frame++) {
+    *sole_frame = 0;
+    for (i = 0; i < frame_count; i++, frame++) {
         if (frame->state == 2 || frame->state == 4) {
             ready_count++;
             if (sfmpvf_IsEarlier(frame, selected)) {
@@ -197,17 +221,17 @@ SfdMpvFrame* SFMPVF_AllocFrm(SfdHandle* handle)
     return frame;
 }
 
-/* TODO: [breakthrough needed] 88.611115%; typed count/CTR CFG is retained, but MWCC keeps the handle in r30 and adds a save/restore island; source lifetime/order evidence is insufficient for another honest rewrite. */
 int SFMPVF_GetNumFrm(SfdHandle* handle)
 {
     SfdMpvFrameWork* work;
     SfdMpvFrame* frame;
-    int count = 0;
+    int count;
     int token;
     int i;
 
     SFLIB_LockCs(&token);
     work = sfmpvf_GetWork(handle);
+    count = 0;
     frame = work->frames;
     for (i = 0; i < work->frame_count; i++, frame++) {
         if (frame->state == 2 || frame->state == 4) {
@@ -236,31 +260,39 @@ void SFMPVF_TermDec(SfdHandle* handle)
     sfmpvf_GetWork(handle)->decoder_terminated = 1;
 }
 
+/* TODO: [near miss] 96.8421%; RE4-style typed pointer walk matches the CFG and
+ * operations; only index/work-pointer register coloring remains. */
 SfdVideoFrameState* SFMPVF_SearchVfrmData(SfdHandle* handle,
                                           const SfdMpvFrame* frame)
 {
-    SfdMpvFrameWork* work = sfmpvf_GetWork(handle);
     int i;
+    SfdMpvFrameWork* work;
+    SfdMpvFrame* current;
 
-    for (i = 0; i < work->frame_count; i++) {
-        if (&work->frames[i] == frame) {
+    work = sfmpvf_GetWork(handle);
+    current = work->frames;
+
+    for (i = 0; i < work->frame_count; i++, current++) {
+        if (current == frame) {
             return &handle->video_frames[i];
         }
     }
     return 0;
 }
 
-/* TODO: [breakthrough needed] 68.882355%; typed direct info member removes
- * the unused raw union view, but retail still has a shorter search-loop lifetime. */
 SfdMpvFrame* SFMPVF_SearchFrmObj(SfdHandle* handle,
                                  const SfdVideoFrameInfo* info)
 {
-    SfdMpvFrameWork* work = sfmpvf_GetWork(handle);
     int i;
+    SfdMpvFrame* frames;
+    SfdVideoFrameState* video_frame;
 
-    for (i = 0; i < 16; i++) {
-        if (&handle->video_frames[i].info == info) {
-            return &work->frames[i];
+    frames = sfmpvf_GetWork(handle)->frames;
+    video_frame = handle->video_frames;
+
+    for (i = 0; i < 16; i++, video_frame++) {
+        if (&video_frame->info == info) {
+            return &frames[i];
         }
     }
     return 0;

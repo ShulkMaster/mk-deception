@@ -29,8 +29,6 @@ typedef struct AdxBasicDecoder {
     int sample_rate;
     int total_samples;
     short coefficient;
-    /* +0x1E is an unconsumed two-byte gap in the ADXB object. */
-    unsigned char padding_1E[2];
     int loop_insert_samples;
     short loop_count;
     short loop_type;
@@ -55,6 +53,7 @@ typedef struct AdxBasicDecoder {
     short format_type;
     short raw_format_type;
     short codec_type;
+    /* The extension's key fields begin at +0xA0, after this explicit gap. */
     unsigned char padding_9E[2];
 } AdxBasicDecoder;
 

@@ -2,6 +2,15 @@
 #include "sofdec/sfd_error.h"
 #include "sofdec/sfd_transport.h"
 
+/* Buffer n is addressed from the player base with its 0x74-byte stride. */
+typedef struct SfdPtsBufferHn {
+    unsigned char player_prefix[0x1308];
+    SfdBufferState buffer;
+} SfdPtsBufferHn;
+
+typedef char SfdPtsBufferHnSizeCheck[
+    sizeof(SfdPtsBufferHn) == 0x137C ? 1 : -1];
+
 static int sfpts_Wrap(int index, int capacity)
 {
     int wrapped = index - capacity;
@@ -21,53 +30,70 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [breakthrough needed] 48.060240%; unsigned position/buffer arithmetic now matches donor types; queue-search CFG and register shape remain divergent. */
+/* TODO: [near miss] 93.469880%; retail ranges and register owners agree;
+ * clean-C break keeps count live, while a found sentinel regresses. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {
-    SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
-    SfdPtsQueue* queue = &ring->pts_queue;
-    unsigned int buffer_start = (unsigned int)ring->buffer;
-    unsigned int buffer_end = buffer_start + ring->buffer_size;
     int index;
+    SfdPtsBufferHn* hn;
     int offset;
+    SfdPtsEntry* entry;
+    unsigned int buffer_end;
+    SfdPtsEntry* entries;
+    int read_index;
+    int capacity;
+    unsigned int buffer_start;
+    unsigned int buffer_size;
+    int count;
+    int next;
 
     output->pts = -1;
-    if (queue->entries == 0) {
+    hn = (SfdPtsBufferHn*)((unsigned char*)handle +
+                           buffer_index * sizeof(SfdBufferState));
+    entries = hn->buffer.work.ring.pts_queue.entries;
+    buffer_start = (unsigned int)hn->buffer.work.ring.supply.buffer;
+    buffer_size = hn->buffer.work.ring.supply.buffer_size;
+    if (entries == 0) {
         return 0;
     }
+    buffer_end = buffer_start + buffer_size;
     if (position >= buffer_end) {
-        position -= ring->buffer_size;
+        position -= buffer_size;
     }
-    index = queue->read_index;
-    for (offset = 0; offset < queue->count; offset++) {
-        SfdPtsEntry* entry = &queue->entries[index];
-        unsigned int entry_start = (unsigned int)entry->data;
-        unsigned int entry_end = entry_start + entry->size;
-        int contains;
+    count = hn->buffer.work.ring.pts_queue.count;
+    if (count != 0) {
+        capacity = hn->buffer.work.ring.pts_queue.capacity;
+        read_index = hn->buffer.work.ring.pts_queue.read_index;
+        index = read_index;
+        for (offset = 0; offset < count; offset++) {
+            unsigned int entry_start;
+            unsigned int entry_end;
 
-        if (entry_end <= buffer_end) {
-            contains = entry_start <= position && position < entry_end;
-        } else {
-            contains = (entry_start <= position && position < buffer_end) ||
+            entry = &entries[index];
+            entry_start = (unsigned int)entry->data;
+            entry_end = entry_start + entry->size;
+            if (entry_end <= buffer_end) {
+                if (entry_start <= position && position < entry_end) {
+                    break;
+                }
+            } else if ((entry_start <= position && position < buffer_end) ||
                        (buffer_start <= position &&
-                        position < entry_end - ring->buffer_size);
+                        position < entry_end - buffer_size)) {
+                break;
+            }
+            next = index + 1;
+            index = next - capacity;
+            if (next < capacity) {
+                index = next;
+            }
         }
-        if (contains) {
-            break;
+        if (offset < hn->buffer.work.ring.pts_queue.count) {
+            index = sfpts_Wrap(read_index + offset, capacity);
+            hn->buffer.work.ring.pts_queue.count -= offset;
+            hn->buffer.work.ring.pts_queue.read_index = index;
+            *output = hn->buffer.work.ring.pts_queue.entries[index];
         }
-        index++;
-        if (index >= queue->capacity) {
-            index = 0;
-        }
-    }
-    if (offset < queue->count) {
-        queue->count -= offset;
-        queue->read_index += offset;
-        if (queue->read_index >= queue->capacity) {
-            queue->read_index -= queue->capacity;
-        }
-        *output = queue->entries[queue->read_index];
     }
     return 0;
 }

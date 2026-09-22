@@ -176,7 +176,6 @@ static const SfdMpvDropFrameConversion sfmpv_conv_29_97 = {
 static const SfdMpvDropFrameConversion sfmpv_conv_59_94 = {
     215784, 35964, 3600, 3596, 56, 60, 10, 4,
 };
-const int gap_04_803180F4_rodata = 0;
 
 static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work);
 static void sfmpv_SetFrmInf(SfdHandle* handle, SfdMpvFrame* frame,
@@ -317,17 +316,20 @@ static inline void sfmpv_CalcYccPlaneSub(void* buffer, int width, int height,
                                          SfdYccPlane* output)
 {
     int aligned_width = ((width + 15) / 16) * 16;
-    int aligned_height = ((height + 15) / 16) * 16;
-    int luma_stride = ((aligned_width + 31) / 32) * 32;
-    int half_width = aligned_width / 2;
-    int chroma_stride = ((half_width + 31) / 32) * 32;
-    int half_height = aligned_height / 2;
+    int aligned_height;
+    int chroma_stride;
+    int luma_stride;
+
+    luma_stride = ((aligned_width + 31) / 32) * 32;
+    chroma_stride = ((aligned_width / 2 + 31) / 32) * 32;
 
     output->luma_stride = luma_stride;
     output->chroma_stride = chroma_stride;
     output->planes[2] = buffer;
+    aligned_height = ((height + 15) / 16) * 16;
     output->planes[0] = output->planes[2] + aligned_height * luma_stride;
-    output->planes[1] = output->planes[0] + half_height * chroma_stride;
+    output->planes[1] = output->planes[0] +
+                        (aligned_height / 2) * chroma_stride;
 }
 
 static int SFMPV_Seek(SfdHandle* handle, int parameter, int value)
