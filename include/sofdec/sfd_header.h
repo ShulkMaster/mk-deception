@@ -56,7 +56,7 @@ typedef struct SfdHeaderState {
 typedef char SfdHeaderStateSizeCheck[
     sizeof(SfdHeaderState) == 0x894 ? 1 : -1];
 
-void SFHDS_InitFhd(SfdHeaderState* state, int enabled);
+void SFHDS_InitFhd(SfdHeaderState* state);
 void SFHDS_FinishFhd(SfdHeaderState* state);
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag);

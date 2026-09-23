@@ -3,14 +3,17 @@
 
 #include "dolphin/types.h"
 
-typedef union DctFsriBlock {
+/* Each IDCT output block contains 64 signed samples. */
+typedef struct DctFsriBlock {
     s16 samples[64];
-    u32 packed[32];
 } DctFsriBlock;
 
 typedef struct DctFsriParams {
     s8 block_nonzero[6];
-    u8 field_06[0x22];
+    u8 field_06[0x12];
+    s32 decoded; /* +0x18 */
+    s32 skipped; /* +0x1C */
+    u8 field_20[8];
     int coded_block_pattern;
     float* coefficients;
     DctFsriBlock** output_blocks;

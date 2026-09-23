@@ -387,7 +387,8 @@ static signed short* mpvvlc_InitCbpSub1(signed short* output) {
     return output;
 }
 
-/* TODO: [breakthrough needed] 65.4251%; donor macro regressed; recover retail motion-table grouping and lifetime structure. */
+/* TODO: [breakthrough needed] 65.425100%; retained helpers encode the verified
+ * table values; retail pointer and 16-entry grouping need new source evidence. */
 static void mpvvlc_InitMotion(void) {
     signed short* output = mpvvlt_motion_0;
     int code;

@@ -17,6 +17,15 @@ extern int MPV_GoNextDelimSj(SJ* stream);
 static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                             s32* output, s32* predictor);
 
+static inline void mpvdec_CallMacroblockCallback(MPVContext* context)
+{
+    /* CRI stores this callback and its argument in 32-bit condition slots. */
+    void (*callback)(void*) =
+        (void (*)(void*))context->condition_state.conditions[8];
+    void* argument = (void*)context->condition_state.conditions[9];
+    callback(argument);
+}
+
 static inline void mpvdec_InitMacroblockReader(const u8* data, int extra_offset,
                                         const u32** words, u32* bits,
                                         u32* next_bits, int* bit_offset)
@@ -147,9 +156,8 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
         context->decode_intra_blocks(context);
         context->motion_intra(context);
         if (--context->field_1324 <= 0) {
-            context->field_1324 = context->condition_state.decoder.field_1AC;
-            context->condition_state.decoder.callback(
-                context->condition_state.decoder.callback_argument);
+            context->field_1324 = context->condition_state.conditions[7];
+            mpvdec_CallMacroblockCallback(context);
         }
         bits = context->bit_reader.bits;
         next_bits = context->bit_reader.next_bits;
@@ -443,9 +451,8 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         }
 
         if (--context->field_1324 <= 0) {
-            context->field_1324 = context->condition_state.decoder.field_1AC;
-            context->condition_state.decoder.callback(
-                context->condition_state.decoder.callback_argument);
+            context->field_1324 = context->condition_state.conditions[7];
+            mpvdec_CallMacroblockCallback(context);
         }
         bits = context->bit_reader.bits;
         next_bits = context->bit_reader.next_bits;
@@ -790,9 +797,8 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
         }
 
         if (--context->field_1324 <= 0) {
-            context->field_1324 = context->condition_state.decoder.field_1AC;
-            context->condition_state.decoder.callback(
-                context->condition_state.decoder.callback_argument);
+            context->field_1324 = context->condition_state.conditions[7];
+            mpvdec_CallMacroblockCallback(context);
         }
         bits = context->bit_reader.bits;
         next_bits = context->bit_reader.next_bits;
@@ -947,9 +953,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
         context->decode_intra_blocks(context);
         context->motion_intra(context);
         if (--context->field_1324 <= 0) {
-            context->field_1324 = context->condition_state.decoder.field_1AC;
-            context->condition_state.decoder.callback(
-                context->condition_state.decoder.callback_argument);
+            context->field_1324 = context->condition_state.conditions[7];
+            mpvdec_CallMacroblockCallback(context);
         }
         bits = context->bit_reader.bits;
         next_bits = context->bit_reader.next_bits;
@@ -988,7 +993,7 @@ int MPVDEC_CheckVersion(const char* version, int object_size,
     if (strcmp("1.933", version) != 0) {
         return -1;
     }
-    if (object_size != 0x1378) {
+    if (object_size != MPV_DECODER_VERSION_SIZE) {
         return -1;
     }
     if (picture_attribute_size != 0x80) {

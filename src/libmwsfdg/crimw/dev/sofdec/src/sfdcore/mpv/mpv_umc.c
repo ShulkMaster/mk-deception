@@ -1,7 +1,7 @@
 #include "sofdec/mpv_mc.h"
 
-static MPVMCFunction mpvumc_oneref_y[8];
-static MPVMCFunction mpvumc_oneref[8];
+static MPVMCFunction mpvumc_oneref_y[2][2][2];
+static MPVMCFunction mpvumc_oneref[2][2][2];
 
 void MPVUMC_BpicSkipped(MPVContext* context, s32 count)
 {
@@ -165,43 +165,63 @@ static void mpvumc_OneMakeMb(MPVMacroblockSources* sources,
     }
 }
 
+/* TODO: [borked] 29.605770%; donor 3D tables and setup order agree;
+ * motion-call argument lifetimes still differ from retail. */
 static void mpvumc_OneReadMb(MPVContext* context, u8* destination,
                              MPVBlockOffsets* offsets,
                              const MPVPlaneSet* planes,
                              const MPVMotionInfo* motion)
 {
     MPVMCContext* mc = &context->mc;
-    s32 horizontal = motion->horizontal;
-    s32 vertical = motion->vertical;
-    s32 chroma_stride = planes->chroma_stride;
-    s32 luma_stride = planes->luma_stride;
-    s32 chroma_horizontal = horizontal / 2;
-    s32 chroma_vertical = vertical / 2;
+    s32 horizontal;
+    s32 vertical;
+    s32 chroma_stride;
+    s32 luma_stride;
+    s32 mc_flag;
+    s32 chroma_horizontal;
+    s32 chroma_vertical;
     s32 luma_offset;
     s32 chroma_offset;
     s32 luma_extra;
     s32 chroma_extra;
+    s32 macroblock_row;
+    s32 macroblock_column;
+    s32 row8;
+    s32 row16;
+    s32 column8;
     const u8* reference;
     MPVMCFunction luma_function;
     MPVMCFunction chroma_function;
+    MPVMCFunction (*luma_table)[2];
+    MPVMCFunction (*chroma_table)[2];
 
-    offsets->chroma = context->macroblock_column * 8 +
-                      context->macroblock_row * 8 * chroma_stride;
-    offsets->luma = context->macroblock_column * 16 +
-                    context->macroblock_row * 16 * luma_stride;
-    luma_function = mpvumc_oneref_y[context->condition_state.decoder.mc_table * 4 +
-                                    (((u32)vertical << 1) & 2) +
-                                    (horizontal & 1)];
-    chroma_function =
-        mpvumc_oneref[context->condition_state.decoder.mc_table * 4 +
-                      (((u32)chroma_vertical << 1) & 2) +
-                      (chroma_horizontal & 1)];
+    macroblock_row = context->macroblock_row;
+    chroma_stride = planes->chroma_stride;
+    macroblock_column = context->macroblock_column;
+    mc_flag = context->condition_state.conditions[3];
+    luma_stride = planes->luma_stride;
+    row8 = macroblock_row * 8;
+    column8 = macroblock_column * 8;
+    offsets->chroma = column8 + row8 * chroma_stride;
+    row16 = macroblock_row * 16;
+    offsets->luma = column8 * 2 + row16 * luma_stride;
+    luma_table = mpvumc_oneref_y[mc_flag];
+    chroma_table = mpvumc_oneref[mc_flag];
+    horizontal = motion->horizontal;
+    vertical = motion->vertical;
     luma_offset = offsets->luma + (horizontal >> 1) +
                   (vertical >> 1) * luma_stride;
+    luma_extra = (u32)horizontal & 1;
+    luma_function = luma_table[vertical & 1][horizontal & 1];
+    chroma_horizontal = horizontal / 2;
+    chroma_vertical = vertical / 2;
     chroma_offset = offsets->chroma + (chroma_horizontal >> 1) +
                     (chroma_vertical >> 1) * chroma_stride;
-    luma_extra = (horizontal & 1) & context->condition_state.decoder.mc_table;
-    chroma_extra = (chroma_horizontal & 1) & context->condition_state.decoder.mc_table;
+    chroma_extra = (u32)chroma_horizontal & 1;
+    chroma_function = chroma_table[chroma_vertical & 1]
+                                  [chroma_horizontal & 1];
+    chroma_extra &= mc_flag;
+    luma_extra &= mc_flag;
 
     mc->reference_stride = chroma_stride;
     mc->destination = destination;
@@ -342,22 +362,24 @@ void MPVUMC_InitOutRfb(MPVContext* context)
 
 void MPVUMC_Finish(void) {}
 
+/* TODO: [near miss] 95.857140%; typed 3D table stores retain the same score;
+ * inspect the remaining initializer order and relocation pairing. */
 void MPVUMC_Init(void)
 {
-    mpvumc_oneref[0] = MPVMC08_OneRef1p_TuneC;
-    mpvumc_oneref_y[0] = MPVMC16_OneRef1p_TuneC;
-    mpvumc_oneref[1] = MPVMC08_OneRefH2_TuneC;
-    mpvumc_oneref[2] = MPVMC08_OneRefV2_TuneC;
-    mpvumc_oneref[3] = MPVMC08_OneRef4p_TuneC;
-    mpvumc_oneref[4] = MPVMC08_OneRef1p_TuneC;
-    mpvumc_oneref[5] = MPVMC08_OneRefH2_TuneC;
-    mpvumc_oneref[6] = MPVMC08_OneRefV2_TuneC;
-    mpvumc_oneref[7] = MPVMC08_OneRefV2_TuneC;
-    mpvumc_oneref_y[1] = MPVMC16_OneRefH2_TuneC;
-    mpvumc_oneref_y[2] = MPVMC16_OneRefV2_TuneC;
-    mpvumc_oneref_y[3] = MPVMC16_OneRef4p_TuneC;
-    mpvumc_oneref_y[4] = MPVMC16_OneRef1p_TuneC;
-    mpvumc_oneref_y[5] = MPVMC16_OneRefH2_TuneC;
-    mpvumc_oneref_y[6] = MPVMC16_OneRefV2_TuneC;
-    mpvumc_oneref_y[7] = MPVMC16_OneRefV2_TuneC;
+    mpvumc_oneref[0][0][0] = MPVMC08_OneRef1p_TuneC;
+    mpvumc_oneref_y[0][0][0] = MPVMC16_OneRef1p_TuneC;
+    mpvumc_oneref[0][0][1] = MPVMC08_OneRefH2_TuneC;
+    mpvumc_oneref[0][1][0] = MPVMC08_OneRefV2_TuneC;
+    mpvumc_oneref[0][1][1] = MPVMC08_OneRef4p_TuneC;
+    mpvumc_oneref[1][0][0] = MPVMC08_OneRef1p_TuneC;
+    mpvumc_oneref[1][0][1] = MPVMC08_OneRefH2_TuneC;
+    mpvumc_oneref[1][1][0] = MPVMC08_OneRefV2_TuneC;
+    mpvumc_oneref[1][1][1] = MPVMC08_OneRefV2_TuneC;
+    mpvumc_oneref_y[0][0][1] = MPVMC16_OneRefH2_TuneC;
+    mpvumc_oneref_y[0][1][0] = MPVMC16_OneRefV2_TuneC;
+    mpvumc_oneref_y[0][1][1] = MPVMC16_OneRef4p_TuneC;
+    mpvumc_oneref_y[1][0][0] = MPVMC16_OneRef1p_TuneC;
+    mpvumc_oneref_y[1][0][1] = MPVMC16_OneRefH2_TuneC;
+    mpvumc_oneref_y[1][1][0] = MPVMC16_OneRefV2_TuneC;
+    mpvumc_oneref_y[1][1][1] = MPVMC16_OneRefV2_TuneC;
 }

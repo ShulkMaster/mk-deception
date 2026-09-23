@@ -2015,7 +2015,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_pl2.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_pl2.c",
             ),
