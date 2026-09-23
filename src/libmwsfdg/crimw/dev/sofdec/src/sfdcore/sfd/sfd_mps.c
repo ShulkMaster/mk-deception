@@ -28,6 +28,11 @@ typedef struct SfmpsWork {
     unsigned char field_15C[0x0C];
 } SfmpsWork;
 
+typedef struct SfmpsSavedSystemHeaders {
+    unsigned char data[2][0xB0];
+    int length[2];
+} SfmpsSavedSystemHeaders;
+
 typedef struct SfmpsSeekSnapshot {
     int active;
     int mux_rate;
@@ -35,20 +40,18 @@ typedef struct SfmpsSeekSnapshot {
     int video_bound;
     int audio_bound;
     int field_014;
-    int timer_value;
-    int playback_value;
+    long long scr_base;
     long long video_pts_baseline;
     int first_video_stream;
     int first_audio_stream;
-    unsigned char header0[0xB0];
-    unsigned char header1[0xB0];
-    int header0_size;
-    int header1_size;
+    SfmpsSavedSystemHeaders system_headers;
 } SfmpsSeekSnapshot;
 
 typedef char SfmpsWorkSizeCheck[sizeof(SfmpsWork) == 0x168 ? 1 : -1];
 typedef char SfmpsSeekSnapshotSizeCheck[
     sizeof(SfmpsSeekSnapshot) == 0x198 ? 1 : -1];
+typedef char SfmpsSavedSystemHeadersSizeCheck[
+    sizeof(SfmpsSavedSystemHeaders) == 0x168 ? 1 : -1];
 
 typedef struct SfmpsMpsLibWork {
     MpsErrorCallback error_callback;
@@ -77,10 +80,26 @@ int SFMPS_GetConcatCnt(SfdHandle* handle)
     return sfmps_GetWork(handle)->concat_count;
 }
 
+static inline SfmpsSeekSnapshot* sfmps_GetSeekSnapshot(SfdHandle* handle)
+{
+    SfdSeeWork* source = handle->seek_state.work;
+
+    if (source == 0) {
+        return 0;
+    }
+    if (sfmps_GetWork(handle)->concat_count > 0) {
+        return 0;
+    }
+    return (SfmpsSeekSnapshot*)((unsigned char*)source + 0x8A0);
+}
+
+/* TODO: [near miss] 99.133330%; typed saved headers and separate guards
+ * match retail CFG and stores; stop at equivalent work/decoder GPR coloring. */
 static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
 {
-    SfdSeeWork* seek_source = handle->seek_state.work;
-    SfmpsSeekSnapshot* snapshot;
+    SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
+    SfmpsSavedSystemHeaders* saved;
+    MpsHandle* decoder;
     SfmpsWork* work;
     int consumed;
     int header_flags;
@@ -88,22 +107,22 @@ static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
     int second_result;
     int result;
 
-    if (seek_source == 0 || sfmps_GetWork(handle)->concat_count > 0) {
-        snapshot = 0;
-    } else {
-        snapshot = (SfmpsSeekSnapshot*)((unsigned char*)seek_source + 0x8A0);
+    if (snapshot == 0) {
+        return 0;
     }
-    if (snapshot == 0 || snapshot->active == 0) {
+    if (snapshot->active == 0) {
         return 0;
     }
 
     work = sfmps_GetWork(handle);
     SFHDS_ReprocessHdr(handle);
-    first_result = MPS_DecHd(work->decoder, snapshot->header0,
-                             snapshot->header0_size, &consumed,
+    saved = &snapshot->system_headers;
+    decoder = work->decoder;
+    first_result = MPS_DecHd(decoder, saved->data[0],
+                             saved->length[0], &consumed,
                              &header_flags);
-    second_result = MPS_DecHd(work->decoder, snapshot->header1,
-                              snapshot->header1_size, &consumed,
+    second_result = MPS_DecHd(decoder, saved->data[1],
+                              saved->length[1], &consumed,
                               &header_flags);
     if (first_result != 0 || second_result != 0) {
         result = SFLIB_SetErr(handle, 0xFF000D0D);
@@ -116,8 +135,7 @@ static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
 
     work->first_video_stream = snapshot->first_video_stream;
     work->first_audio_stream = snapshot->first_audio_stream;
-    handle->playback_runtime.tail_values[3] = snapshot->playback_value;
-    handle->playback_runtime.tail_values[2] = snapshot->timer_value;
+    handle->timer_state.field_0150 = snapshot->scr_base;
     work->video_pts_baseline = snapshot->video_pts_baseline;
     return 0;
 }
@@ -220,241 +238,9 @@ static int SFMPS_Create(SfdHandle* handle)
     return 0;
 }
 
-static void sfmps_ProcPrep(SfdHandle* handle)
-{
-    SfmpsWork* work = sfmps_GetWork(handle);
-    MpsSystemHeader system;
-    MpsPackHeader pack;
-    SfmpsSeekSnapshot* snapshot;
-    int max_audio = 0;
-    int max_video = 0;
-    int threshold;
-    int i;
-
-    for (i = 0; i < 3; i++) {
-        MPS_GetSysHd(work->decoder, &system, i);
-        if (system.audio_bound > max_audio) {
-            max_audio = system.audio_bound;
-        }
-        if (system.video_bound > max_video) {
-            max_video = system.video_bound;
-        }
-    }
-    work->max_audio_bound = max_audio;
-    work->max_video_bound = max_video;
-
-    if ((SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_18) |
-         SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_14) |
-         SFBUF_GetPrepFlg(handle, handle->transports[1].buffer_output3)) != 1 &&
-        SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
-        threshold = handle->create_config.buffer.buffer_sizes[0];
-        if (threshold <= 0) {
-            threshold =
-                handle->buffers[handle->transports[1].parameter_10]
-                    .work.ring.supply.buffer_size;
-        }
-        if (threshold <= 0) {
-            threshold = handle->conditions_primary[22];
-        }
-        if (threshold > handle->conditions_primary[22]) {
-            threshold = handle->conditions_primary[22];
-        }
-        if (SFBUF_GetWTot(handle, 0) >= threshold) {
-            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_18, 1);
-            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_14, 1);
-            SFBUF_SetPrepFlg(handle, handle->transports[1].buffer_output3, 1);
-        }
-    }
-
-    MPS_GetPackHd(work->decoder, &pack);
-    if (pack.mux_rate != -1 && pack.mux_rate > 0) {
-        handle->playback_settings.values_18[0] = pack.mux_rate;
-    }
-    MPS_GetSysHd(work->decoder, &system, 1);
-    if (system.fixed_flag != -1) {
-        handle->playback_settings.values_18[1] = system.fixed_flag;
-    }
-    if (handle->playback_settings.values_18[3] == -1) {
-        handle->playback_settings.values_18[3] = work->max_audio_bound;
-    }
-    if (handle->playback_settings.values_18[4] == -1) {
-        handle->playback_settings.values_18[4] = work->max_video_bound;
-    }
-
-    if (SFSET_GetCond(handle, 6) != 0 &&
-        SFSET_GetCond(handle, 0x50) != 0 &&
-        SFBUF_GetWTot(handle, 2) == 0 && work->max_audio_bound == 0 &&
-        SFTRN_GetPrepFlg(handle, 6) != 0) {
-        SFSET_SetCond(handle, 6, 0);
-    }
-    if (SFSET_GetCond(handle, 5) != 0 &&
-        SFSET_GetCond(handle, 0x4F) != 0 &&
-        SFBUF_GetWTot(handle, 1) == 0 && work->max_video_bound == 0 &&
-        SFTRN_GetPrepFlg(handle, 7) != 0) {
-        SFSET_SetCond(handle, 5, 0);
-    }
-
-    if (handle->seek_state.work == 0 || work->concat_count > 0) {
-        snapshot = 0;
-    } else {
-        snapshot = (SfmpsSeekSnapshot*)((unsigned char*)
-            (unsigned char*)handle->seek_state.work + 0x8A0);
-    }
-    if (snapshot != 0 &&
-        work->audio_pts_baseline != 0x7FFFFFFFFFFFFFFFLL) {
-        handle->timer_state.audio_start_pts =
-            work->audio_pts_baseline - snapshot->video_pts_baseline;
-        if (snapshot->active == 0) {
-            snapshot->mux_rate = pack.mux_rate * 50;
-            snapshot->rate_bound = system.rate_bound;
-            snapshot->video_bound = work->max_video_bound;
-            snapshot->audio_bound = work->max_audio_bound;
-            snapshot->timer_value = handle->timer_state.field_0150;
-            snapshot->video_pts_baseline = work->video_pts_baseline;
-            snapshot->first_video_stream = work->first_video_stream;
-            snapshot->first_audio_stream = work->first_audio_stream;
-        }
-    }
-}
-
-/* TODO: [breakthrough needed] 85.860000%; typed PTS-manager callback is
- * proven; buffer-transfer and split-copy lowering remain broad. */
-static int sfmps_CopyDstBuft(SfdHandle* handle, int buffer_index,
-                              const unsigned char* data, int size,
-                              long long pts)
-{
-    SfdBufferTransfer transfer;
-    int result;
-
-    result = SFBUF_RingGetWrite(handle, buffer_index, &transfer);
-    if (result != 0) {
-        return result;
-    }
-    if (size > transfer.chunks[0].len + transfer.chunks[1].len) {
-        return 0;
-    }
-    if (buffer_index == 1 && pts >= 0) {
-        SfdPtsEntry entry;
-        int full;
-
-        if (SFPTS_IsPtsQueFull(handle, buffer_index) != 0) {
-            return 0;
-        }
-        entry.pts = pts;
-        entry.data = transfer.chunks[0].data;
-        entry.size = size;
-        result = SFPTS_WritePtsQue(handle, buffer_index, &entry, &full);
-        if (result != 0) {
-            return result;
-        }
-    } else if (buffer_index == 2 && SFPLY_SetPtsInfo != 0) {
-        SfdPlayerPtsInfo info;
-
-        info.pts = pts;
-        info.size = size;
-        if (SFPLY_SetPtsInfo(&handle->timer_state.video_pts, &info) == -1) {
-            return 0;
-        }
-    }
-    if (size <= transfer.chunks[0].len) {
-        MEM_Copy(transfer.chunks[0].data, data, size);
-    } else {
-        MEM_Copy(transfer.chunks[0].data, data, transfer.chunks[0].len);
-        MEM_Copy(transfer.chunks[1].data,
-                 data + transfer.chunks[0].len,
-                 size - transfer.chunks[0].len);
-    }
-    result = SFBUF_RingAddWrite(handle, buffer_index, size,
-                                transfer.reserved[1]);
-    if (result != 0) {
-        return result;
-    }
-    return 1;
-}
-
-static int sfmps_CopyPadding(SfdHandle* handle, int stream_index,
-                             const unsigned char* data, int size,
-                             long long pts)
-{
-    return 1;
-}
-
-static inline int sfmps_CopyToSj(SJ* sj, const unsigned char* data, int size)
-{
-    SJCK chunk;
-    int remaining;
-
-    if (sj->interface->get_num_data(sj, 0) < size) {
-        return 0;
-    }
-    sj->interface->get_chunk(sj, 0, size, &chunk);
-    MEM_Copy(chunk.data, data, chunk.len);
-    sj->interface->put_chunk(sj, 1, &chunk);
-    if (chunk.len == 0) {
-        return 0;
-    }
-
-    remaining = size - chunk.len;
-    if (remaining > 0) {
-        sj->interface->get_chunk(sj, 0, remaining, &chunk);
-        MEM_Copy(chunk.data, data + size - remaining, chunk.len);
-        sj->interface->put_chunk(sj, 1, &chunk);
-        if (chunk.len != remaining) {
-            copy_sj_error++;
-        }
-    }
-    return 1;
-}
-
-static int sfmps_CopyPrvate(SfdHandle* handle, int stream_index,
-                             const unsigned char* data, int size,
-                             long long pts)
-{
-    SfdBufferChannel channel;
-    int buffer_index = handle->transports[1].buffer_output3;
-    int header_flag;
-    int result;
-
-    if (SFHDS_SetHdr(handle, stream_index, data, size, &header_flag) != 0) {
-        if (header_flag != 0 && buffer_index != 8) {
-            SFBUF_GetUoch(handle, buffer_index, 0, &channel);
-            if (channel.stream_joint != 0) {
-                result = sfmps_CopyToSj(channel.stream_joint, data - 0x12,
-                                        size + 0x12);
-                if (result != 0) {
-                    if (channel.handle_callback != 0) {
-                        channel.handle_callback(handle, 0);
-                    }
-                    if (channel.object_callback != 0) {
-                        channel.object_callback(channel.object, 0);
-                    }
-                }
-            }
-        }
-        return 1;
-    }
-
-    if (buffer_index == 8) {
-        return 1;
-    }
-    SFBUF_GetUoch(handle, buffer_index, stream_index, &channel);
-    if (channel.stream_joint == 0) {
-        return 1;
-    }
-    result = sfmps_CopyToSj(channel.stream_joint, data, size);
-    if (result != 0) {
-        if (channel.handle_callback != 0) {
-            channel.handle_callback(handle, stream_index);
-        }
-        if (channel.object_callback != 0) {
-            channel.object_callback(channel.object, stream_index);
-        }
-    }
-    return result;
-}
-
 static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
 {
+    MpsHandle* decoder = work->decoder;
     MpsSystemHeader header;
     int max_audio = 0;
     int max_video = 0;
@@ -464,7 +250,7 @@ static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
         int audio_bound;
         int video_bound;
 
-        MPS_GetSysHd(work->decoder, &header, index);
+        MPS_GetSysHd(decoder, &header, index);
         audio_bound = header.audio_bound;
         if (max_audio > audio_bound) {
             audio_bound = max_audio;
@@ -480,12 +266,271 @@ static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
     work->max_video_bound = max_video;
 }
 
-/* TODO: [near miss] 96.151726%; the retail stream-bound helper now recovers the inner CFG, but switch/lifetime coloring remains in the selection and boundary paths. */
+static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
+{
+    SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
+    SfmpsWork* work;
+
+    if (snapshot == 0) {
+        return;
+    }
+
+    work = sfmps_GetWork(handle);
+    if (work->audio_pts_baseline == 0x7FFFFFFFFFFFFFFFLL) {
+        return;
+    }
+    handle->timer_state.audio_start_pts =
+        work->audio_pts_baseline - snapshot->video_pts_baseline;
+    if (snapshot->active == 0) {
+        snapshot->mux_rate = handle->playback_settings.values_18[0] * 50;
+        snapshot->rate_bound = handle->playback_settings.values_18[1];
+        snapshot->video_bound = work->max_video_bound;
+        snapshot->audio_bound = work->max_audio_bound;
+        snapshot->scr_base = handle->timer_state.field_0150;
+        snapshot->video_pts_baseline = work->video_pts_baseline;
+        snapshot->first_video_stream = work->first_video_stream;
+        snapshot->first_audio_stream = work->first_audio_stream;
+    }
+}
+
+/* TODO: [near miss] 98.538120%; donor phase helpers and SCR publication
+ * match retail; stop at GPR coloring and equivalent typed-index lowering. */
+static void sfmps_ProcPrep(SfdHandle* handle)
+{
+    SfmpsWork* work = sfmps_GetWork(handle);
+    MpsHandle* decoder;
+    MpsSystemHeader system;
+    MpsPackHeader pack;
+    SfdBufferState* input_buffer;
+    int size;
+    int need;
+    int prep_output2;
+    int prep_output;
+    int prep_user;
+
+    sfmps_UpdateStreamBounds(work);
+
+    prep_output2 = SFBUF_GetPrepFlg(handle,
+                                    handle->transports[1].parameter_18);
+    prep_output = SFBUF_GetPrepFlg(handle,
+                                   handle->transports[1].parameter_14);
+    prep_user = SFBUF_GetPrepFlg(handle,
+                                 handle->transports[1].buffer_output3);
+    if ((prep_output2 | prep_output | prep_user) != 1 &&
+        SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
+        size = handle->create_config.buffer.buffer_sizes[0];
+        need = handle->conditions_primary[22];
+        input_buffer = &handle->buffers[handle->transports[1].parameter_10];
+        if (size <= 0) {
+            size = input_buffer->work.ring.supply.buffer_size;
+        }
+        if (size <= 0) {
+            size = need;
+        }
+        if (size < need) {
+            need = size;
+        }
+        if (SFBUF_GetWTot(handle, 0) >= need) {
+            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_18, 1);
+            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_14, 1);
+            SFBUF_SetPrepFlg(handle, handle->transports[1].buffer_output3, 1);
+        }
+    }
+
+    work = sfmps_GetWork(handle);
+    decoder = work->decoder;
+    MPS_GetPackHd(decoder, &pack);
+    if (pack.mux_rate != -1 && pack.mux_rate > 0) {
+        handle->playback_settings.values_18[0] = pack.mux_rate;
+    }
+    MPS_GetSysHd(decoder, &system, 1);
+    if (system.fixed_flag != -1) {
+        handle->playback_settings.values_18[1] = system.fixed_flag;
+    }
+    if (handle->playback_settings.values_18[3] == -1) {
+        handle->playback_settings.values_18[3] = work->max_audio_bound;
+    }
+    if (handle->playback_settings.values_18[4] == -1) {
+        handle->playback_settings.values_18[4] = work->max_video_bound;
+    }
+
+    work = sfmps_GetWork(handle);
+    if (SFSET_GetCond(handle, 6) != 0 &&
+        SFSET_GetCond(handle, 0x50) != 0 &&
+        SFBUF_GetWTot(handle, 2) == 0 && work->max_audio_bound == 0 &&
+        SFTRN_GetPrepFlg(handle, 6) != 0) {
+        SFSET_SetCond(handle, 6, 0);
+    }
+    if (SFSET_GetCond(handle, 5) != 0 &&
+        SFSET_GetCond(handle, 0x4F) != 0 &&
+        SFBUF_GetWTot(handle, 1) == 0 && work->max_video_bound == 0 &&
+        SFTRN_GetPrepFlg(handle, 7) != 0) {
+        SFSET_SetCond(handle, 5, 0);
+    }
+
+    sfmps_ProcPrepSeek(handle);
+}
+
+static int sfmps_CopyDstBuft(SfdHandle* handle, int buffer_index,
+                              const unsigned char* data, int size,
+                              long long pts)
+{
+    SfdBufferTransfer transfer;
+    unsigned char* first_data;
+    int first_length;
+    unsigned char* second_data;
+    int reserve;
+    int result;
+
+    result = SFBUF_RingGetWrite(handle, buffer_index, &transfer);
+    if (result != 0) {
+        return result;
+    }
+    first_data = transfer.chunks[0].data;
+    first_length = transfer.chunks[0].len;
+    second_data = transfer.chunks[1].data;
+    reserve = transfer.reserved[1];
+    if (size > first_length + transfer.chunks[1].len) {
+        return 0;
+    }
+    if (buffer_index == 1) {
+        if (pts >= 0) {
+            SfdPtsEntry entry;
+            int full;
+
+            if (SFPTS_IsPtsQueFull(handle, buffer_index) != 0) {
+                return 0;
+            }
+            entry.pts = pts;
+            entry.data = first_data;
+            entry.size = size;
+            result = SFPTS_WritePtsQue(handle, buffer_index, &entry, &full);
+            if (result != 0) {
+                return result;
+            }
+        }
+    } else if (buffer_index == 2 && SFPLY_SetPtsInfo != 0) {
+        SfdPlayerPtsInfo info;
+
+        info.pts = pts;
+        info.size = size;
+        if (SFPLY_SetPtsInfo(&handle->timer_state.video_pts, &info) == -1) {
+            return 0;
+        }
+    }
+    if (size <= first_length) {
+        MEM_Copy(first_data, data, size);
+    } else {
+        MEM_Copy(first_data, data, first_length);
+        MEM_Copy(second_data, data + first_length, size - first_length);
+    }
+    result = SFBUF_RingAddWrite(handle, buffer_index, size, reserve);
+    if (result != 0) {
+        return result;
+    }
+    return 1;
+}
+
+static int sfmps_CopyPadding(SfdHandle* handle, int stream_index,
+                             const unsigned char* data, int size,
+                             long long pts)
+{
+    return 1;
+}
+
+static inline int sfmps_CopyToSj(SJ* sj, const unsigned char* data, int size)
+{
+    SJCK second_chunk;
+    SJCK first_chunk;
+
+    if (sj->interface->get_num_data(sj, 0) < size) {
+        return 0;
+    }
+    sj->interface->get_chunk(sj, 0, size, &first_chunk);
+    MEM_Copy(first_chunk.data, data, first_chunk.len);
+    sj->interface->put_chunk(sj, 1, &first_chunk);
+    if (first_chunk.len == 0) {
+        return 0;
+    }
+
+    size -= first_chunk.len;
+    data += first_chunk.len;
+    if (size > 0) {
+        sj->interface->get_chunk(sj, 0, size, &second_chunk);
+        MEM_Copy(second_chunk.data, data, second_chunk.len);
+        sj->interface->put_chunk(sj, 1, &second_chunk);
+        if (second_chunk.len != size) {
+            copy_sj_error++;
+        }
+    }
+    return 1;
+}
+
+static int sfmps_CopyUoch(SfdHandle* handle, int stream_index,
+                          const unsigned char* data, int size)
+{
+    SfdBufferChannel channel;
+    SfdBufferHandleCallback handle_callback;
+    SfdBufferObjectCallback object_callback;
+    SfdCallbackObject object;
+    int result;
+
+    SFBUF_GetUoch(handle, handle->transports[1].buffer_output3,
+                  stream_index, &channel);
+    handle_callback = channel.handle_callback;
+    object_callback = channel.object_callback;
+    object = channel.object;
+    if (channel.stream_joint == 0) {
+        return 1;
+    }
+    result = sfmps_CopyToSj(channel.stream_joint, data, size);
+    if (result == 1) {
+        if (handle_callback != 0) {
+            handle_callback(handle, stream_index);
+        }
+        if (object_callback != 0) {
+            object_callback(object, stream_index);
+        }
+    }
+    return result;
+}
+
+static int sfmps_CopyUo(SfdHandle* handle, int stream_index,
+                        const unsigned char* data, int size)
+{
+    if (handle->transports[1].buffer_output3 == 8) {
+        return 1;
+    }
+    return sfmps_CopyUoch(handle, stream_index, data, size);
+}
+
+/* TODO: [near miss] 98.958530%; donor channel helper and two-chunk copy
+ * match the retail CFG and stack slots; stop at equivalent GPR coloring. */
+static int sfmps_CopyPrvate(SfdHandle* handle, int stream_index,
+                            const unsigned char* data, int size,
+                            long long pts)
+{
+    int header_flag;
+
+    if (SFHDS_SetHdr(handle, stream_index, data, size, &header_flag) != 0) {
+        if (header_flag != 0) {
+            data -= 0x12;
+            size += 0x12;
+            sfmps_CopyUo(handle, 0, data, size);
+        }
+        return 1;
+    }
+    return sfmps_CopyUo(handle, stream_index, data, size);
+}
+
+/* TODO: [near miss] 99.689650%; donor signed-byte boundary restores the
+ * start-code mask; stop at equivalent bound-loop register coloring. */
 static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
                             const unsigned char* data, int size,
                             long long pts)
 {
     SfmpsWork* work;
+    SfmpsWork* selected_work;
     int desired_stream;
     int candidate;
 
@@ -499,14 +544,16 @@ static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
             candidate = stream_index;
             break;
         case 2: {
-            sfmps_UpdateStreamBounds(work);
-            if (work->max_video_bound >= 2) {
+            selected_work = sfmps_GetWork(handle);
+            sfmps_UpdateStreamBounds(selected_work);
+            if (selected_work->max_video_bound >= 2) {
                 candidate = 2;
             } else {
                 candidate = stream_index;
             }
             break;
         }
+        case 0:
         default:
             candidate = stream_index;
             break;
@@ -534,10 +581,15 @@ static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
                 is_boundary = 0;
             } else if (data[2] != 1) {
                 is_boundary = 0;
-            } else if (data[3] == 0xB3) {
-                is_boundary = 1;
             } else {
-                is_boundary = data[3] == 0xB8;
+                /* CRI narrows the signed scan byte before the final test. */
+                unsigned char code = ((const signed char*)data)[3];
+
+                if (code == 0xB3) {
+                    is_boundary = 1;
+                } else {
+                    is_boundary = code == 0xB8;
+                }
             }
             if (is_boundary) {
                 work->selected_video_id = desired_stream;
@@ -560,6 +612,7 @@ static int sfmps_CopyAudio(SfdHandle* handle, int stream_index,
     SfmpsWork* work;
     int desired_stream;
     int candidate;
+    long long minimum;
 
     if (SFSET_GetCond(handle, 6) == 0) {
         return 1;
@@ -587,12 +640,16 @@ static int sfmps_CopyAudio(SfdHandle* handle, int stream_index,
         return 1;
     }
     if (pts >= 0) {
-        if (pts < work->video_pts_baseline) {
-            work->video_pts_baseline = pts;
+        minimum = work->video_pts_baseline;
+        if (pts < minimum) {
+            minimum = pts;
         }
-        if (pts < work->audio_pts_baseline) {
-            work->audio_pts_baseline = pts;
+        work->video_pts_baseline = minimum;
+        minimum = work->audio_pts_baseline;
+        if (pts < minimum) {
+            minimum = pts;
         }
+        work->audio_pts_baseline = minimum;
     }
     return sfmps_CopyDstBuft(handle,
                              handle->transports[1].parameter_18,
@@ -610,28 +667,44 @@ static SfmpsCopyPacketFn const sfmps_CopyPketFn[4] = {
     sfmps_CopyPadding,
 };
 
+/* TODO: [near miss] 99.137930%; donor header/callback snapshots and result
+ * switch match retail operations and CFG; stop at equivalent GPR coloring. */
 static int sfmps_CopyPketData(SfdHandle* handle, const unsigned char* data,
                               int available, int* consumed, int* copied)
 {
-    SfmpsWork* work = sfmps_GetWork(handle);
+    SfmpsWork* work;
     MpsPacketHeader header;
     SJ* output;
-    int result = 0;
+    SfmpsElementCallback callback;
+    void* callback_argument;
+    int stream_id;
+    int stream_type;
+    int stream_index;
+    int payload_length;
+    long long pts;
+    int result;
 
+    result = 0;
     *consumed = 0;
     *copied = 0;
+    work = sfmps_GetWork(handle);
     if (MPS_GetPketHd(work->decoder, &header) != 0) {
         result = SFLIB_SetErr(handle, 0xFF000D06);
     }
-    if (header.payload_length < 0) {
+    payload_length = header.payload_length;
+    stream_id = header.stream_id;
+    stream_type = header.stream_type;
+    stream_index = header.stream_index;
+    pts = header.pts;
+    if (payload_length < 0) {
         return SFLIB_SetErr(handle, 0xFF000D0E);
     }
-    if (header.payload_length == 0) {
+    if (payload_length == 0) {
         *consumed = 0;
         *copied = 1;
         return 0;
     }
-    if (available < header.payload_length) {
+    if (available < payload_length) {
         if (SFBUF_GetTermFlg(handle,
                              handle->transports[1].parameter_10) == 1) {
             SFBUF_SetTermFlg(handle, handle->transports[1].parameter_18, 1);
@@ -641,25 +714,31 @@ static int sfmps_CopyPketData(SfdHandle* handle, const unsigned char* data,
         return 0;
     }
 
-    output = work->element_outputs[header.stream_id - 0xBC];
+    output = work->element_outputs[stream_id - 0xBC];
     if (output != 0) {
-        int copy_result = sfmps_CopyToSj(output, data,
-                                         header.payload_length);
+        int copy_result;
 
-        if (copy_result == 1 && work->element_callback != 0) {
-            work->element_callback(work->element_callback_argument,
-                                   header.stream_id);
+        callback_argument = work->element_callback_argument;
+        callback = work->element_callback;
+        copy_result = sfmps_CopyToSj(output, data, payload_length);
+
+        if (copy_result == 1 && callback != 0) {
+            callback(callback_argument, stream_id);
         }
         *copied = copy_result;
     } else {
-        *copied = sfmps_CopyPketFn[header.stream_type](
-            handle, header.stream_index, data, header.payload_length,
-            header.pts);
+        *copied = sfmps_CopyPketFn[stream_type](
+            handle, stream_index, data, payload_length, pts);
     }
-    if (*copied == 1) {
-        *consumed = header.payload_length;
-    } else if (*copied < 0 || *copied > 1) {
+    switch (*copied) {
+    case 1:
+        *consumed = payload_length;
+        break;
+    case 0:
+        break;
+    default:
         result = *copied;
+        break;
     }
     return result;
 }
@@ -671,36 +750,139 @@ static inline void sfmps_SetOutputTerminated(SfdHandle* handle)
     SFBUF_SetTermFlg(handle, handle->transports[1].buffer_output3, 1);
 }
 
-static inline int sfmps_IsInputTerminated(SfdHandle* handle)
+static inline void sfmps_TermIfInputTerminated(SfdHandle* handle, int* term)
 {
+    int value;
+
     if (SFBUF_GetTermFlg(handle,
                          handle->transports[1].parameter_10) == 1) {
         sfmps_SetOutputTerminated(handle);
-        return 1;
+        value = 1;
+    } else {
+        value = 0;
     }
-    return 0;
+    if (term != 0) {
+        *term = value;
+    }
 }
 
+static inline int sfmps_IsInputTerminated(SfdHandle* handle)
+{
+    int term;
+
+    sfmps_TermIfInputTerminated(handle, &term);
+    return term;
+}
+
+static inline int sfmps_IsZero(const signed char* bytes, int count)
+{
+    int index;
+
+    for (index = 0; index < count; index++) {
+        if (*bytes++ != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline void sfmps_SetPesFns(SfdHandle* handle, MpsHandle* decoder)
+{
+    MpsCallbackObject object;
+    MpsPesCallback callback;
+
+    object = (MpsCallbackObject)SFSET_GetCond(handle, 0x5C);
+    callback = (MpsPesCallback)SFSET_GetCond(handle, 0x5B);
+    MPS_SetPesFn(decoder, callback, object);
+}
+
+static inline void sfmps_SaveSystemHeader(SfmpsSeekSnapshot* snapshot,
+                                          MpsHandle* decoder,
+                                          const unsigned char* data, int size)
+{
+    MpsSystemHeader system;
+    SfmpsSavedSystemHeaders* saved = &snapshot->system_headers;
+    unsigned char* destination;
+    int copy_size;
+
+    MPS_GetLastSysHd(decoder, &system);
+    destination = saved->data[0];
+    copy_size = size < 0xB0 ? size : 0xB0;
+    if (system.video_bound > 0) {
+        saved->length[0] = copy_size;
+    } else if (system.audio_bound > 0) {
+        saved->length[1] = copy_size;
+        destination += sizeof(saved->data[0]);
+    } else {
+        return;
+    }
+    MEM_Copy(destination, data, copy_size);
+}
+
+static inline void sfmps_ScanSkip(SfdHandle* handle,
+                                  const unsigned char* data, int size,
+                                  int* copied)
+{
+    const unsigned char* cursor = data;
+    int amount = 0;
+
+    while (size >= 4) {
+        if ((MPS_CheckDelim(cursor) & 0xD0000) != 0) {
+            *copied = amount;
+            return;
+        }
+        amount++;
+        cursor++;
+        size--;
+    }
+    if (size > 0 && size < 4) {
+        SfdBufferState* input =
+            &handle->buffers[handle->transports[1].parameter_10];
+        SfdBufferRingWork* ring = &input->work.ring;
+        int at_end;
+
+        if (input->terminated == 0 &&
+            (ring->supply.buffer_size != 0 ||
+             ring->supply.extra_size != 0)) {
+            at_end = 0;
+        } else if (cursor + size ==
+                   ring->supply.buffer + ring->supply.buffer_size) {
+            at_end = 1;
+        } else {
+            at_end = 0;
+        }
+        if (at_end) {
+            amount += size;
+        }
+    }
+    *copied = amount;
+}
+
+/* TODO: [near miss] 98.690070%; typed helpers recover saved-header and
+ * scan-exit joins; residual move/address scheduling needs fresh evidence. */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
 {
-    SfmpsWork* work = sfmps_GetWork(handle);
-    MpsHandle* decoder = work->decoder;
-    int delimiter = 0;
+    SfmpsWork* work;
+    MpsHandle* decoder;
+    int buffer_index;
+    int delimiter;
     int decoded_size;
     int header_flags;
     int result = 0;
+    int proceed;
 
-    *consumed = 0;
-    *copied = 0;
+    *copied = *consumed = delimiter = 0;
+    work = sfmps_GetWork(handle);
+    buffer_index = handle->transports[1].parameter_10;
+    decoder = work->decoder;
     if (size >= 4) {
         delimiter = MPS_CheckDelim(data);
         if (delimiter == 0x80000) {
             if (handle->transports[1].state < 0) {
                 handle->transports[1].state =
-                    SFBUF_GetRTot(handle,
-                        handle->transports[1].parameter_10) + 4;
+                    SFBUF_GetRTot(handle, buffer_index) + 4;
             }
             work->delimiter_state = 1;
         } else if (delimiter != 0) {
@@ -708,17 +890,30 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         }
     }
 
-    if (delimiter == 0x80000 && SFCON_IsEndcodeSkip(handle) == 0 &&
-        SFCON_IsSystemEndcodeSkip(handle) == 0) {
+    if (delimiter != 0x80000) {
+        proceed = 0;
+    } else if (SFCON_IsEndcodeSkip(handle) != 0 ||
+               SFCON_IsSystemEndcodeSkip(handle) != 0) {
+        proceed = 0;
+    } else {
+        proceed = 1;
+    }
+    if (proceed != 0) {
         sfmps_SetOutputTerminated(handle);
-        return 0;
+        proceed = 0;
+    } else if (readable < 4 && sfmps_IsInputTerminated(handle) != 0) {
+        proceed = 0;
+    } else if (size < 0x40) {
+        if (delimiter == 0x10000 || delimiter == 0x40000) {
+            sfmps_TermIfInputTerminated(handle, 0);
+            proceed = 0;
+        } else {
+            proceed = 1;
+        }
+    } else {
+        proceed = 1;
     }
-    if (readable < 4 && sfmps_IsInputTerminated(handle) != 0) {
-        return 0;
-    }
-    if (size < 0x40 &&
-        (delimiter == 0x10000 || delimiter == 0x40000)) {
-        sfmps_IsInputTerminated(handle);
+    if (proceed == 0) {
         return 0;
     }
 
@@ -726,45 +921,21 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
     MPS_SetPsMapFn(decoder,
                    (MpsPsMapCallback)SFSET_GetCond(handle, 0x57),
                    (MpsCallbackObject)SFSET_GetCond(handle, 0x58));
-    MPS_SetPesFn(decoder,
-                 (MpsPesCallback)SFSET_GetCond(handle, 0x5B),
-                 (MpsCallbackObject)SFSET_GetCond(handle, 0x5C));
+    sfmps_SetPesFns(handle, decoder);
     if (MPS_DecHd(decoder, data, size, &decoded_size, &header_flags) != 0) {
         result = SFLIB_SetErr(handle, 0xFF000D03);
     }
 
     if ((header_flags & 0x20000) != 0) {
-        SfmpsSeekSnapshot* snapshot;
+        SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
 
-        if (handle->seek_state.work == 0 || work->concat_count > 0) {
-            snapshot = 0;
-        } else {
-            snapshot = (SfmpsSeekSnapshot*)((unsigned char*)
-                (unsigned char*)handle->seek_state.work + 0x8A0);
-        }
         if (snapshot != 0 && snapshot->active == 0) {
-            MpsSystemHeader system;
-            unsigned char* destination;
-            int copy_size = size < 0xB0 ? size : 0xB0;
-
-            MPS_GetLastSysHd(decoder, &system);
-            if (system.video_bound > 0) {
-                snapshot->header0_size = copy_size;
-                destination = snapshot->header0;
-            } else if (system.audio_bound > 0) {
-                snapshot->header1_size = copy_size;
-                destination = snapshot->header1;
-            } else {
-                destination = 0;
-            }
-            if (destination != 0) {
-                MEM_Copy(destination, data, copy_size);
-            }
+            sfmps_SaveSystemHeader(snapshot, decoder, data, size);
         }
     }
 
     if (header_flags == 0x80000 && SFCON_IsEndcodeSkip(handle) != 0) {
-        work->concat_count++;
+        sfmps_GetWork(handle)->concat_count++;
         *consumed = 4;
         work->scan_position = 4;
     } else if (header_flags == 0x80000 &&
@@ -772,68 +943,34 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         *consumed = 4;
         work->scan_position = 4;
     } else if (delimiter == 0) {
-        const unsigned char* cursor = data;
-        int remaining = size;
-        int amount = 0;
-        int prefix_size = handle->create_config.buffer.field_24;
-        int prefix_is_zero = 1;
-        int i;
-
         *copied = 0;
-        if (size >= prefix_size + 3) {
-            for (i = 0; i < prefix_size; i++) {
-                if ((signed char)data[i] != 0) {
-                    prefix_is_zero = 0;
-                    break;
-                }
-            }
-            if (prefix_is_zero) {
-                *copied = prefix_size;
-            }
-        }
-        if (*copied == 0) {
-            while (remaining >= 4) {
-                if ((MPS_CheckDelim(cursor) & 0xD0000) != 0) {
-                    break;
-                }
-                amount++;
-                cursor++;
-                remaining--;
-            }
-            if (remaining > 0 && remaining < 4) {
-                SfdBufferState* input =
-                    &handle->buffers[handle->transports[1].parameter_10];
-                SfdBufferRingWork* ring = &input->work.ring;
-                int at_end;
-
-                if (input->terminated == 0 &&
-                    (ring->supply.buffer_size != 0 ||
-                     ring->supply.extra_size != 0)) {
-                    at_end = 0;
-                } else {
-                    at_end = cursor + remaining ==
-                             ring->supply.buffer + ring->supply.buffer_size;
-                }
-                if (at_end) {
-                    amount += remaining;
-                }
-            }
-            *copied = amount;
+        if (size >= handle->create_config.buffer.field_24 + 3 &&
+            sfmps_IsZero((const signed char*)data,
+                         handle->create_config.buffer.field_24)) {
+            *copied = handle->create_config.buffer.field_24;
+        } else {
+            sfmps_ScanSkip(handle, data, size, copied);
         }
         *consumed = *copied;
         if (*copied > 0 && work->scan_position >= 0) {
-            if (work->scan_position >= prefix_size) {
+            if (work->scan_position >= handle->create_config.buffer.field_24) {
                 work->scan_position += *copied;
-            } else if (work->scan_position + *copied > prefix_size) {
-                *copied -= prefix_size - work->scan_position;
-                work->scan_position = prefix_size + *copied;
+            } else if (work->scan_position + *copied >
+                       handle->create_config.buffer.field_24) {
+                *copied -= handle->create_config.buffer.field_24 -
+                           work->scan_position;
+                work->scan_position =
+                    handle->create_config.buffer.field_24 + *copied;
             } else {
                 work->scan_position += *copied;
                 *copied = 0;
             }
         }
     } else if ((header_flags & 0x40000) == 0) {
-        if (sfmps_IsInputTerminated(handle) == 0 &&
+        int input_terminated;
+
+        sfmps_TermIfInputTerminated(handle, &input_terminated);
+        if (input_terminated == 0 &&
             size > handle->create_config.buffer.field_24) {
             if (decoded_size > 0) {
                 *consumed = decoded_size;
@@ -847,8 +984,9 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         int packet_consumed;
         int packet_copied;
 
-        result = sfmps_CopyPketData(handle, data + decoded_size,
-                                    size - decoded_size, &packet_consumed,
+        data += decoded_size;
+        size -= decoded_size;
+        result = sfmps_CopyPketData(handle, data, size, &packet_consumed,
                                     &packet_copied);
         if (packet_copied == 1) {
             *consumed = decoded_size + packet_consumed;
@@ -858,49 +996,60 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
     return result;
 }
 
-static int sfmps_ExecServerSub(SfdHandle* handle)
+static inline int sfmps_GetRead(SfdHandle* handle, unsigned char** data,
+                                int* size, int* readable)
 {
-    SfmpsWork* work;
     SfdBufferTransfer transfer;
+    int result;
+
+    result = SFBUF_RingGetRead(handle, handle->transports[1].parameter_10,
+                               &transfer);
+    if (result != 0) {
+        return result;
+    }
+    *size = transfer.chunks[0].len;
+    *data = transfer.chunks[0].data;
+    *readable = *size + transfer.chunks[1].len;
+    return 0;
+}
+
+static inline int sfmps_AddRead(SfdHandle* handle, int size)
+{
+    int read_result;
+    int result;
+
+    read_result = SFBUF_RingAddRead(handle,
+                                    handle->transports[1].parameter_10, size);
+    result = 0;
+    if (read_result != 0) {
+        result = read_result;
+    }
+    return result;
+}
+
+static inline int sfmps_ExecServerLoop(SfdHandle* handle, int* input_size)
+{
     int result = 0;
     int consumed_total = 0;
     int copied_total = 0;
     int write_flow;
     int read_flow;
     unsigned char* input_data;
-    int input_size;
     int readable;
     int consumed;
     int copied;
 
-    if ((SFBUF_GetTermFlg(handle, handle->transports[1].parameter_18) &
-         SFBUF_GetTermFlg(handle, handle->transports[1].parameter_14) &
-         SFBUF_GetTermFlg(handle, handle->transports[1].buffer_output3)) == 1) {
-        return 0;
-    }
-    work = sfmps_GetWork(handle);
-    MPS_SetSystemFn(work->decoder,
-                    (MpsSystemCallback)SFSET_GetCond(handle, 0x55),
-                    (MpsCallbackObject)SFSET_GetCond(handle, 0x56));
-
     while (consumed_total < 0x7FFFFFFF) {
-        result = SFBUF_RingGetRead(handle,
-                                   handle->transports[1].parameter_10,
-                                   &transfer);
+        result = sfmps_GetRead(handle, &input_data, input_size, &readable);
         if (result != 0) {
             break;
         }
-        input_data = transfer.chunks[0].data;
-        input_size = transfer.chunks[0].len;
-        readable = input_size + transfer.chunks[1].len;
-        result = sfmps_DecodeOneUnit(handle, input_data, input_size,
+        result = sfmps_DecodeOneUnit(handle, input_data, *input_size,
                                      &consumed, &copied, readable);
         if (result != 0 || consumed == 0) {
             break;
         }
-        result = SFBUF_RingAddRead(handle,
-                                   handle->transports[1].parameter_10,
-                                   consumed);
+        result = sfmps_AddRead(handle, consumed);
         if (result != 0) {
             break;
         }
@@ -909,8 +1058,7 @@ static int sfmps_ExecServerSub(SfdHandle* handle)
     }
 
     SFBUF_GetFlowCnt(
-        handle->buffers[handle->transports[1].parameter_10]
-            .work.ring.supply.stream_joint,
+        handle->buffers[0].work.ring.supply.stream_joint,
         &write_flow, &read_flow);
     handle->playback_runtime.time_values[0] =
         SFBUF_UpdateFlowCnt(handle->playback_runtime.time_values[0], write_flow);
@@ -922,10 +1070,38 @@ static int sfmps_ExecServerSub(SfdHandle* handle)
     return result;
 }
 
+/* TODO: [near miss] 99.401710%; donor-backed inline loop and caller-owned
+ * input size restore retail structure; inspect final register-color residue. */
+static int sfmps_ExecServerSub(SfdHandle* handle)
+{
+    SfmpsWork* work;
+    MpsHandle* decoder;
+    int input_size;
+    int term1;
+    int term2;
+    int term3;
+
+    term1 = SFBUF_GetTermFlg(handle, handle->transports[1].parameter_18);
+    term2 = SFBUF_GetTermFlg(handle, handle->transports[1].parameter_14);
+    term3 = SFBUF_GetTermFlg(handle, handle->transports[1].buffer_output3);
+    if ((term1 & term2 & term3) == 1) {
+        return 0;
+    }
+    work = sfmps_GetWork(handle);
+    decoder = work->decoder;
+    MPS_SetSystemFn(decoder,
+                    (MpsSystemCallback)SFSET_GetCond(handle, 0x55),
+                    (MpsCallbackObject)SFSET_GetCond(handle, 0x56));
+    return sfmps_ExecServerLoop(handle, &input_size);
+}
+
+/* Retail keeps this dispatch wrapper out of line after the read helper folds. */
+#pragma dont_inline on
 static int SFMPS_ExecServer(SfdHandle* handle)
 {
     return sfmps_ExecServerSub(handle);
 }
+#pragma dont_inline off
 
 static int SFMPS_Finish(SfdHandle* handle)
 {

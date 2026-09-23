@@ -5,6 +5,10 @@ static double dctac_i_const[8][8];
 static double dctac_f_const[8][8];
 static const char* dctac_version_dummy;
 
+static inline double dctac_Cos(double angle, int column) {
+    return cos(angle * (0.5 + (double)column));
+}
+
 /* TODO: [breakthrough needed] 34.057804%; the generic nested-loop donor regresses sharply;
  * retail's two-pass transform ownership and lifetime structure remain unresolved. */
 void dctac_TransDouble(const double* input, double* output,
@@ -98,24 +102,45 @@ void dctac_TransDouble(const double* input, double* output,
     }
 }
 
-void DCT_AcIdctDouble(const double input[8][8], double output[8][8]) {
-    dctac_TransDouble(&input[0][0], &output[0][0], &dctac_i_const[0][0]);
+void DCT_AcIdctDouble(const double input[64], double output[64]) {
+    dctac_TransDouble(input, output, &dctac_i_const[0][0]);
 }
 
-/* TODO: [breakthrough needed] 77.437500%; cosine-table algorithm agrees, but retail literal/BSS
- * pooling and the remaining floating-point scheduling shape are unresolved. */
+/* defines this forward transform. Its text is absent from linked retail;
+ * the forward table's earlier first reference establishes retail BSS order. */
+void DCT_AcFdctDouble(const double input[64], double output[64]) {
+    dctac_TransDouble(input, output, &dctac_f_const[0][0]);
+}
+
+/* TODO: [breakthrough needed] 77.468750%; donor BSS order and typed matrix
+ * cursor algorithm agree; literal/BSS base pooling still lowers differently. */
 void DCT_AcInit(void) {
     int row;
     int column;
+    double scale;
+    double angle;
+    double* inverse_row;
+    double* forward_column;
+    double* inverse_element;
+    double* forward_element;
 
     dctac_version_dummy = DCT_GetVerStr();
-    for (row = 0; row < 8; row++) {
-        double scale = row == 0 ? 0.3535533905932738 : 0.5;
-        for (column = 0; column < 8; column++) {
-            double value = scale * cos(
-                0.39269908169872414 * row * (0.5 + column));
-            dctac_i_const[row][column] = value;
-            dctac_f_const[column][row] = value;
+    inverse_row = &dctac_i_const[0][0];
+    forward_column = &dctac_f_const[0][0];
+    for (row = 0; row < 8; row++, inverse_row += 8, forward_column++) {
+        if (row == 0) {
+            scale = 0.3535533905932738;
+        } else {
+            scale = 0.5;
+        }
+        angle = 0.39269908169872414 * row;
+        inverse_element = inverse_row;
+        forward_element = forward_column;
+        for (column = 0; column < 8;
+             column++, inverse_element++, forward_element += 8) {
+            double value = scale * dctac_Cos(angle, column);
+            *inverse_element = value;
+            *forward_element = value;
         }
     }
 }

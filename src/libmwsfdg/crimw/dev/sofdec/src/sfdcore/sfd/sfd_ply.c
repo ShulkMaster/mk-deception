@@ -75,9 +75,9 @@ int SFD_TermSupply(SfdHandle* handle)
     return 0;
 }
 
-#pragma dont_inline on
-/* TODO: [near miss] 89.402435%; typed PTS-manager copy matches the donor;
- * MPV save area and reset callback/lifetime lowering remain. */
+#pragma auto_inline off
+/* TODO: [near miss] 97.695120%; supply expansion and snapshot match retail;
+ * only frame-slot/register coloring remains, so stop without codegen tricks. */
 static int sfply_ResetHn(SfdHandle* handle)
 {
     SfdBufferSupply supply;
@@ -85,7 +85,7 @@ static int sfply_ResetHn(SfdHandle* handle)
     SfdErrorCallback error_callback;
     SfdHandle* new_handle;
     SfdHandle* seek_source;
-    unsigned char saved_conditions[0x40];
+    int saved_conditions[16];
     SfdUserIsSkipFn user_is_skip_callback;
     SfdTimeSourceFn user_time_callback;
     int byte_rate;
@@ -146,8 +146,11 @@ static int sfply_ResetHn(SfdHandle* handle)
         seek_position = 0;
     }
     video_pts_entries = handle->buffers[1].work.ring.pts_queue.entries;
-    video_pts_scale = handle->buffers[1].work.ring.pts_queue.capacity * 16;
-    saved_count = SFMPV_SaveCond(handle, &saved_conditions, 0x40);
+    video_pts_scale =
+        handle->buffers[1].work.ring.pts_queue.capacity *
+        (int)sizeof(SfdPtsEntry);
+    saved_count = SFMPV_SaveCond(handle, saved_conditions,
+                                sizeof(saved_conditions));
 
     handle->playback_state = 0;
     handle->requested_state = 0;
@@ -155,16 +158,19 @@ static int sfply_ResetHn(SfdHandle* handle)
     if (error != 0) {
         return error;
     }
-    MEM_Copy(conditions, handle->conditions_secondary, 0x190);
+    MEM_Copy(conditions, handle->conditions_secondary, sizeof(conditions));
     new_handle = sfply_InitHn(&create, 0);
     if (new_handle == 0) {
         return SFLIB_SetErr(0, 0xFF000202);
     }
-    MEM_Copy(new_handle->conditions_primary, conditions, 0x190);
-    MEM_Copy(new_handle->conditions_secondary, conditions, 0x190);
-    SFMPV_RestoreCond(new_handle, &saved_conditions, saved_count);
+    MEM_Copy(new_handle->conditions_primary, conditions, sizeof(conditions));
+    MEM_Copy(new_handle->conditions_secondary, conditions,
+             sizeof(conditions));
+    SFMPV_RestoreCond(new_handle, saved_conditions, saved_count);
 
     if (preserve_supply != 0) {
+        int new_supply_end;
+
         if (SFLIB_CheckHn(new_handle) != 0) {
             error = SFLIB_SetErr(0, 0xFF000134);
         } else {
@@ -174,11 +180,12 @@ static int sfply_ResetHn(SfdHandle* handle)
         if (error != 0) {
             return error;
         }
+        new_supply_end = supply.field_14;
         if (SFLIB_CheckHn(new_handle) != 0) {
             error = SFLIB_SetErr(0, 0xFF000135);
         } else {
             error = SFTRN_CallTrtTrif(new_handle, 0, 0x0A, old_supply_end,
-                                      supply.field_14);
+                                      new_supply_end);
         }
         if (error != 0) {
             return error;
@@ -220,11 +227,48 @@ static int sfply_ResetHn(SfdHandle* handle)
     }
     return 0;
 }
-#pragma dont_inline reset
+#pragma auto_inline reset
 
 int SFPLY_GetResetFlg(void)
 {
     return SFLIB_libwork.reset_in_progress;
+}
+
+static inline int sfply_StopTr(SfdHandle* handle)
+{
+    int result;
+
+    if (handle->playback_state == 4) {
+        result = SFTRN_CallTrtTrif(handle, 7, 7, 0, 0);
+        if (result != 0) {
+            return result;
+        }
+    }
+    handle->playback_state = 1;
+    handle->requested_state = 1;
+    return 0;
+}
+
+static inline int sfply_StopHn(SfdHandle* handle)
+{
+    int result;
+
+    if (handle->playback_state == 1) {
+        return 0;
+    }
+    result = sfply_StopTr(handle);
+    if (result != 0) {
+        return result;
+    }
+    handle->requested_state = 0;
+    handle->playback_state = 0;
+    SFLIB_libwork.reset_in_progress = 1;
+    result = sfply_ResetHn(handle);
+    SFLIB_libwork.reset_in_progress = 0;
+    if (result != 0) {
+        return result;
+    }
+    return 0;
 }
 
 int SFD_Stop(SfdHandle* handle)
@@ -234,26 +278,7 @@ int SFD_Stop(SfdHandle* handle)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000133);
     }
-    if (handle->playback_state == 1) {
-        result = 0;
-    } else {
-        if (handle->playback_state != 4 ||
-            (result = SFTRN_CallTrtTrif(handle, 7, 7, 0, 0)) == 0) {
-            result = 0;
-            handle->playback_state = 1;
-            handle->requested_state = 1;
-        }
-        if (result == 0) {
-            handle->requested_state = 0;
-            handle->playback_state = 0;
-            SFLIB_libwork.reset_in_progress = 1;
-            result = sfply_ResetHn(handle);
-            SFLIB_libwork.reset_in_progress = 0;
-            if (result == 0) {
-                result = 0;
-            }
-        }
-    }
+    result = sfply_StopHn(handle);
     handle->field_0044 = 1;
     return result;
 }
@@ -275,8 +300,6 @@ int SFD_Start(SfdHandle* handle)
     return result;
 }
 
-/* TODO: [near miss] 95.520836%; typed handle-table cursor now matches
- * retail/RE4; reset-state and register-scheduling residue remain. */
 int SFD_Destroy(SfdHandle* handle)
 {
     SfdHandle** slot;
@@ -286,21 +309,7 @@ int SFD_Destroy(SfdHandle* handle)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000131);
     }
-    if (handle->playback_state != 1) {
-        if (handle->playback_state != 4 ||
-            (result = SFTRN_CallTrtTrif(handle, 7, 7, 0, 0)) == 0) {
-            result = 0;
-            handle->playback_state = 1;
-            handle->requested_state = 1;
-        }
-        if (result == 0) {
-            handle->requested_state = 0;
-            handle->playback_state = 0;
-            SFLIB_libwork.reset_in_progress = 1;
-            sfply_ResetHn(handle);
-            SFLIB_libwork.reset_in_progress = 0;
-        }
-    }
+    sfply_StopHn(handle);
     SFHDS_FinishFhd(&handle->header_state);
     SFBUF_DestroySj(handle);
     handle->playback_state = 0;
@@ -339,16 +348,15 @@ void SFPLY_AddDecPic(SfdHandle* handle, int count, int parameter)
     }
 }
 
-/* TODO: [near miss] 99.213486%; handle allocation and initialization agree with retail; only localized owner/register scheduling remains. */
 static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
                               const void* transport_buffer_setup)
 {
+    SfdHandle* handle;
     int i;
     unsigned int work_size;
     unsigned int work_words;
-    unsigned char* work;
-    SfdHandle* handle;
     SfdTimerSummary* summary;
+    unsigned char* work;
 
     work = create->handle_memory;
     work_size = create->handle_memory_size;
@@ -374,7 +382,7 @@ static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
     handle->field_0044 = 1;
     handle->field_0050 = 0;
     handle->field_0054 = 0;
-    SFHDS_InitFhd(&handle->header_state, 1);
+    SFHDS_InitFhd(&handle->header_state);
 
     UTY_MemsetDword((unsigned int*)&handle->playback_settings, 0, 0x10);
     handle->playback_settings.values_00[0] = 0;
@@ -390,7 +398,8 @@ static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
     handle->playback_settings.values_18[4] = -1;
     handle->playback_settings.values_18[5] = -1;
 
-    UTY_MemsetDword((unsigned int*)&handle->playback_runtime, 0, 0x28);
+    UTY_MemsetDword((unsigned int*)&handle->playback_runtime, 0,
+                     sizeof(handle->playback_runtime) / sizeof(unsigned int));
     handle->playback_runtime.decoded_pictures = 0;
     handle->playback_runtime.skipped_pictures = 0;
     handle->playback_runtime.field_08 = 0;
@@ -415,7 +424,8 @@ static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
     handle->playback_runtime.time_values[10] = 0;
     handle->playback_runtime.time_values[11] = 0;
 
-    UTY_MemsetDword((unsigned int*)handle->timer_summaries, 0, 0x30);
+    UTY_MemsetDword((unsigned int*)handle->timer_summaries, 0,
+                     sizeof(handle->timer_summaries) / sizeof(unsigned int));
     i = 0;
     summary = handle->timer_summaries;
     do {
@@ -426,9 +436,9 @@ static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
     SFTMR_InitTsum(&handle->timer_summaries[5]);
     SFLIB_InitErrInf(&handle->error_info);
     MEM_Copy(handle->conditions_primary, SFLIB_libwork.default_conditions,
-             0x190);
+             sizeof(handle->conditions_primary));
     MEM_Copy(handle->conditions_secondary, SFLIB_libwork.default_conditions,
-             0x190);
+             sizeof(handle->conditions_secondary));
     SFTIM_InitHn(handle, &handle->timer_state);
     if (SFBUF_InitHn(handle, handle->buffers, &create->buffer) != 0) {
         return 0;
@@ -480,33 +490,49 @@ SfdHandle* SFD_Create(SfdCreateConfig* create,
     return handle;
 }
 
+static inline int sfply_IsVidBufFull(SfdHandle* handle)
+{
+    int buffer_index = handle->transports[2].parameter_10;
+    SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
+    int data_size = ring->supply.stream_joint->interface->get_num_data(
+        ring->supply.stream_joint, 1);
+
+    if (data_size >= (ring->supply.buffer_size * 80) / 100 ||
+        data_size >= SFSET_GetCond(handle, 0x46)) {
+        return 1;
+    }
+    return 0;
+}
+
 static int sfply_IsBpaOn(SfdHandle* handle)
 {
-    int buffer_index;
-    int buffer_terminated;
     int current_seconds;
     int current_subsecond;
-    int data_size;
-    int finished;
     int reference_seconds;
-    SfdBufferRingWork* ring;
+    int reference_scale;
+    int buffer_index;
+    int finished;
 
-    if (SFSET_GetCond(handle, 0x43) == 0 ||
-        SFSET_GetCond(handle, 0x0F) == 0 || handle->field_0050 != 0 ||
-        handle->playback_state != 4) {
-        return 0;
-    }
+    if (SFSET_GetCond(handle, 0x43) == 0) return 0;
+    if (SFSET_GetCond(handle, 0x0F) == 0) return 0;
+    if (handle->field_0050 != 0) return 0;
+    if (handle->playback_state != 4) return 0;
 
-    if ((SFSET_GetCond(handle, 5) != 0 &&
-         SFTRN_GetTermFlg(handle, 6) != 0) ||
-        (SFSET_GetCond(handle, 6) != 0 &&
-         SFTRN_GetTermFlg(handle, 7) != 0)) {
+    if (SFSET_GetCond(handle, 5) != 0 &&
+        SFTRN_GetTermFlg(handle, 6) != 0) {
+        finished = 1;
+    } else if (SFSET_GetCond(handle, 6) != 0 &&
+               SFTRN_GetTermFlg(handle, 7) != 0) {
         finished = 1;
     } else {
-        finished = 0;
-        for (buffer_index = 0; buffer_index < 8; buffer_index++) {
+        buffer_index = 0;
+        for (;;) {
             if (SFBUF_GetTermFlg(handle, buffer_index) != 0) {
                 finished = 1;
+                break;
+            }
+            if (++buffer_index >= 8) {
+                finished = 0;
                 break;
             }
         }
@@ -528,102 +554,149 @@ static int sfply_IsBpaOn(SfdHandle* handle)
     }
 
     if (SFSET_GetCond(handle, 5) == 1) {
-        buffer_index = handle->transports[2].parameter_10;
-        ring = &handle->buffers[buffer_index].work.ring;
-        data_size = ring->supply.stream_joint->interface->get_num_data(
-            ring->supply.stream_joint, 1);
-        if (data_size >= (ring->supply.buffer_size * 80) / 100 ||
-            data_size >= SFSET_GetCond(handle, 0x46)) {
-            return 0;
-        }
+        if (sfply_IsVidBufFull(handle) != 0) return 0;
     }
 
     SFTIM_GetTime(handle, &current_seconds, &current_subsecond);
-    reference_seconds = handle->timer_state.field_0284 -
-        UTY_MulDiv(SFSET_GetCond(handle, 0x44),
-                   handle->timer_state.field_0288, 1000000);
+    reference_seconds = handle->timer_state.field_0284;
+    reference_scale = handle->timer_state.field_0288;
+    reference_seconds -= UTY_MulDiv(SFSET_GetCond(handle, 0x44),
+                                    reference_scale, 1000000);
     if (current_seconds <= 0 || reference_seconds <= 0) {
         return 0;
     }
     return SFD_CmpTime(current_seconds, current_subsecond, reference_seconds,
-                       handle->timer_state.field_0288) == 0;
+                       reference_scale) == 0;
+}
+
+static inline int sfply_IsEndTime(SfdHandle* handle)
+{
+    int current_seconds;
+    int current_subsecond;
+    int end_seconds = handle->conditions_primary[20];
+    int end_subsecond = handle->conditions_primary[21];
+
+    if (end_seconds == -4) return 0;
+    SFTIM_GetTime(handle, &current_seconds, &current_subsecond);
+    if (current_seconds < 0) return 0;
+    if (UTY_CmpTime(current_seconds, current_subsecond,
+                    end_seconds, end_subsecond) != 0) return 0;
+    return 1;
+}
+
+static inline int sfply_IsTermAll(SfdHandle* handle)
+{
+    int video_terminated;
+    int audio_terminated;
+    int terminated;
+
+    if (handle->conditions_primary[6] == 0 &&
+        handle->conditions_primary[5] == 0) return 1;
+    terminated = 0;
+    video_terminated = SFTRN_GetTermFlg(handle, 6);
+    audio_terminated = SFTRN_GetTermFlg(handle, 7);
+    switch (SFSET_GetCond(handle, 0x19)) {
+    case 1: terminated = audio_terminated; break;
+    case 2: terminated = video_terminated; break;
+    case 3: terminated = audio_terminated | video_terminated; break;
+    case 0: terminated = audio_terminated & video_terminated; break;
+    }
+    return terminated;
+}
+
+static inline int sfply_IsStagnant(SfdHandle* handle)
+{
+    if (handle->playback_state != 4 || handle->field_0050 == 1 ||
+        handle->playback_runtime.field_1C == 1) return 0;
+    if (SFTIM_IsStagnant(handle) != 0) return 1;
+    return 0;
+}
+
+static inline int sfply_IsOverTime(SfdHandle* handle)
+{
+    int current_seconds;
+    int current_subsecond;
+    int stop_seconds;
+
+    if (handle->playback_state != 4 || handle->field_0050 == 1 ||
+        handle->playback_runtime.field_1C == 1) return 0;
+    if (SFTIM_GetTimeSub(handle, &current_seconds,
+                         &current_subsecond) != 0) return 0;
+    if (current_seconds < 0) return 0;
+    stop_seconds = SFSET_GetCond(handle, 0x36);
+    if (SFD_CmpTime(stop_seconds, 1000, current_seconds,
+                    current_subsecond) != 0) return 1;
+    return 0;
+}
+
+static inline int sfply_StopPlay(SfdHandle* handle)
+{
+    int result = sfply_StopTr(handle);
+    if (result != 0) return result;
+    handle->requested_state = 6;
+    return 0;
+}
+
+static inline int sfply_IsTermAny(SfdHandle* handle)
+{
+    int buffer_index;
+
+    if (SFSET_GetCond(handle, 5) != 0 &&
+        SFTRN_GetTermFlg(handle, 6) != 0) return 1;
+    if (SFSET_GetCond(handle, 6) != 0 &&
+        SFTRN_GetTermFlg(handle, 7) != 0) return 1;
+    for (buffer_index = 0; buffer_index < 8; buffer_index++) {
+        if (SFBUF_GetTermFlg(handle, buffer_index) != 0) return 1;
+    }
+    return 0;
+}
+
+static inline int sfply_IsAudBufFull(SfdHandle* handle)
+{
+    int buffer_index = handle->transports[3].parameter_10;
+    SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
+    int data_size = ring->supply.stream_joint->interface->get_num_data(
+        ring->supply.stream_joint, 1);
+
+    return data_size >= (ring->supply.buffer_size * 80) / 100;
+}
+
+static inline int sfply_IsBpaOff(SfdHandle* handle)
+{
+    int current_seconds;
+    int current_subsecond;
+    int reference_seconds;
+    int reference_scale;
+
+    if (sfply_IsTermAny(handle) != 0) return 1;
+
+    if (SFSET_GetCond(handle, 5) == 1) {
+        if (sfply_IsVidBufFull(handle) != 0) return 1;
+    }
+    if (SFSET_GetCond(handle, 6) == 1) {
+        if (sfply_IsAudBufFull(handle) != 0) return 1;
+    }
+    SFTIM_GetTime(handle, &current_seconds, &current_subsecond);
+    reference_seconds = handle->timer_state.field_0284;
+    reference_scale = handle->timer_state.field_0288;
+    reference_seconds -= UTY_MulDiv(SFSET_GetCond(handle, 0x45),
+                                    reference_scale, 1000000);
+    if (SFD_CmpTime(current_seconds, current_subsecond,
+                    reference_seconds, reference_scale) != 0) return 1;
+    return 0;
 }
 
 static int sfply_StatPlay(SfdHandle* handle)
 {
-    int audio_terminated;
-    int buffer_index;
-    int current_seconds;
-    int current_subsecond;
-    int data_size;
-    int finished;
-    int reference_seconds;
     int result;
-    int stop_playback;
+    int state;
     int token;
-    int video_terminated;
-    SfdBufferRingWork* ring;
 
-    if (handle->conditions_primary[20] == -4) {
-        stop_playback = 0;
+    if (sfply_IsEndTime(handle) != 0 || sfply_IsTermAll(handle) != 0 ||
+        sfply_IsStagnant(handle) != 0 || sfply_IsOverTime(handle) != 0) {
+        result = sfply_StopPlay(handle);
     } else {
-        SFTIM_GetTime(handle, &current_seconds, &current_subsecond);
-        stop_playback = current_seconds >= 0 &&
-            UTY_CmpTime(current_seconds, current_subsecond,
-                        handle->conditions_primary[20],
-                        handle->conditions_primary[21]) == 0;
-    }
-
-    if (stop_playback == 0) {
-        if (handle->conditions_primary[6] == 0 &&
-            handle->conditions_primary[5] == 0) {
-            finished = 1;
-        } else {
-            finished = 0;
-            video_terminated = SFTRN_GetTermFlg(handle, 6);
-            audio_terminated = SFTRN_GetTermFlg(handle, 7);
-            switch (SFSET_GetCond(handle, 0x19)) {
-            case 1:
-                finished = audio_terminated;
-                break;
-            case 2:
-                finished = video_terminated;
-                break;
-            case 3:
-                finished = audio_terminated | video_terminated;
-                break;
-            case 0:
-                finished = audio_terminated & video_terminated;
-                break;
-            }
-        }
-        if (finished != 0) {
-            stop_playback = 1;
-        } else if (handle->playback_state == 4 && handle->field_0050 != 1 &&
-                   handle->playback_runtime.field_1C != 1) {
-            if (SFTIM_IsStagnant(handle) != 0) {
-                stop_playback = 1;
-            } else if (SFTIM_GetTimeSub(handle, &current_seconds,
-                                        &current_subsecond) == 0 &&
-                       current_seconds >= 0 &&
-                       SFD_CmpTime(SFSET_GetCond(handle, 0x36), 1000,
-                                   current_seconds, current_subsecond) != 0) {
-                stop_playback = 1;
-            }
-        }
-    }
-
-    result = 0;
-    if (stop_playback != 0) {
-        if (handle->playback_state != 4 ||
-            (result = SFTRN_CallTrtTrif(handle, 7, 7, 0, 0)) == 0) {
-            result = 0;
-            handle->playback_state = 1;
-            handle->requested_state = 1;
-        }
-        if (result == 0) {
-            handle->requested_state = 6;
-        }
+        result = 0;
     }
     if (result != 0) {
         return handle->playback_state;
@@ -638,52 +711,7 @@ static int sfply_StatPlay(SfdHandle* handle)
             result = SFPL2_Pause(handle, 1);
         }
     } else {
-        if ((SFSET_GetCond(handle, 5) != 0 &&
-             SFTRN_GetTermFlg(handle, 6) != 0) ||
-            (SFSET_GetCond(handle, 6) != 0 &&
-             SFTRN_GetTermFlg(handle, 7) != 0)) {
-            finished = 1;
-        } else {
-            finished = 0;
-            for (buffer_index = 0; buffer_index < 8; buffer_index++) {
-                if (SFBUF_GetTermFlg(handle, buffer_index) != 0) {
-                    finished = 1;
-                    break;
-                }
-            }
-        }
-
-        if (finished == 0 && SFSET_GetCond(handle, 5) == 1) {
-            buffer_index = handle->transports[2].parameter_10;
-            ring = &handle->buffers[buffer_index].work.ring;
-            data_size = ring->supply.stream_joint->interface->get_num_data(
-                ring->supply.stream_joint, 1);
-            if (data_size >= (ring->supply.buffer_size * 80) / 100 ||
-                data_size >= SFSET_GetCond(handle, 0x46)) {
-                finished = 1;
-            }
-        }
-        if (finished == 0 && SFSET_GetCond(handle, 6) == 1) {
-            buffer_index = handle->transports[3].parameter_10;
-            ring = &handle->buffers[buffer_index].work.ring;
-            data_size = ring->supply.stream_joint->interface->get_num_data(
-                ring->supply.stream_joint, 1);
-            if (data_size >= (ring->supply.buffer_size * 80) / 100) {
-                finished = 1;
-            }
-        }
-        if (finished == 0) {
-            SFTIM_GetTime(handle, &current_seconds, &current_subsecond);
-            reference_seconds = handle->timer_state.field_0284 -
-                UTY_MulDiv(SFSET_GetCond(handle, 0x45),
-                           handle->timer_state.field_0288, 1000000);
-            if (SFD_CmpTime(current_seconds, current_subsecond,
-                            reference_seconds,
-                            handle->timer_state.field_0288) != 0) {
-                finished = 1;
-            }
-        }
-        if (finished != 0) {
+        if (sfply_IsBpaOff(handle) != 0) {
             handle->playback_runtime.field_1C = 0;
             result = SFPL2_Pause(handle, 0);
         }
@@ -692,34 +720,65 @@ static int sfply_StatPlay(SfdHandle* handle)
     if (result != 0) {
         return handle->playback_state;
     }
-    if (handle->requested_state == 6) {
-        return 6;
+    state = handle->playback_state;
+    if (handle->requested_state != 5) {
+        if (handle->requested_state < 5) {
+            return state;
+        }
+        if (handle->requested_state < 7) {
+            state = 6;
+        }
     }
-    return handle->playback_state;
+    return state;
 }
 
-static int sfply_StatPrep(SfdHandle* handle)
+static inline int sfply_IsPrepared(SfdHandle* handle)
 {
     int audio_ready;
-    int completed;
-    int mode;
-    int state;
+    int prep;
+    int term;
     int video_ready;
 
-    state = handle->playback_state;
     if (SFSET_GetCond(handle, 5) == 0) {
         video_ready = 1;
     } else {
-        video_ready = SFTRN_GetPrepFlg(handle, 6) |
-                      SFTRN_GetTermFlg(handle, 6);
+        prep = SFTRN_GetPrepFlg(handle, 6);
+        term = SFTRN_GetTermFlg(handle, 6);
+        video_ready = prep | term;
     }
     if (SFSET_GetCond(handle, 6) == 0) {
         audio_ready = 1;
     } else {
-        audio_ready = SFTRN_GetPrepFlg(handle, 7) |
-                      SFTRN_GetTermFlg(handle, 7);
+        prep = SFTRN_GetPrepFlg(handle, 7);
+        term = SFTRN_GetTermFlg(handle, 7);
+        audio_ready = prep | term;
     }
     if (video_ready == 0 || audio_ready == 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static inline int sfply_IsStartable(SfdHandle* handle)
+{
+    if (handle->conditions_primary[14] == 0) return 1;
+    if (handle->conditions_primary[5] == 0) return 1;
+    if (handle->timer_state.field_02B0 != 0) return 1;
+    if (handle->timer_state.field_02CC >= handle->conditions_primary[45]) return 1;
+    if (sfply_IsTermAll(handle) != 0) return 1;
+    return 0;
+}
+
+static int sfply_StatPrep(SfdHandle* handle)
+{
+    int mode;
+    int request;
+    int selector;
+    int state;
+
+    state = handle->playback_state;
+    request = handle->requested_state;
+    if (sfply_IsPrepared(handle) == 0) {
         return state;
     }
 
@@ -742,14 +801,14 @@ static int sfply_StatPrep(SfdHandle* handle)
         SFSET_SetCond(handle, 0x0F, 2);
     }
 
-    mode = 0;
+    selector = 0;
     if (handle->conditions_primary[6] == 1) {
-        mode = 1;
+        selector |= 1;
     }
     if (handle->conditions_primary[5] == 1) {
-        mode |= 2;
+        selector |= 2;
     }
-    switch (mode) {
+    switch (selector) {
     case 1:
         mode = 1;
         break;
@@ -769,7 +828,7 @@ static int sfply_StatPrep(SfdHandle* handle)
     }
     SFSET_SetCond(handle, 0x19, mode);
 
-    switch (handle->requested_state) {
+    switch (request) {
     case 2:
         state = 2;
         break;
@@ -778,32 +837,7 @@ static int sfply_StatPrep(SfdHandle* handle)
         break;
     case 4:
     case 6:
-        if (handle->conditions_primary[14] == 0 ||
-            handle->conditions_primary[5] == 0 ||
-            handle->timer_state.field_02B0 != 0 ||
-            handle->timer_state.field_02CC >=
-                handle->conditions_primary[45]) {
-            completed = 1;
-        } else {
-            completed = 0;
-            video_ready = SFTRN_GetTermFlg(handle, 6);
-            audio_ready = SFTRN_GetTermFlg(handle, 7);
-            switch (SFSET_GetCond(handle, 0x19)) {
-            case 1:
-                completed = audio_ready;
-                break;
-            case 2:
-                completed = video_ready;
-                break;
-            case 3:
-                completed = audio_ready | video_ready;
-                break;
-            case 0:
-                completed = audio_ready & video_ready;
-                break;
-            }
-        }
-        if (completed != 0) {
+        if (sfply_IsStartable(handle) != 0) {
             SFTRN_CallTrtTrif(handle, 7, 6, 0, 0);
             state = 4;
         } else {
@@ -814,29 +848,49 @@ static int sfply_StatPrep(SfdHandle* handle)
     return state;
 }
 
-#pragma dont_inline on
+static inline int sfply_StatStby(SfdHandle* handle, int state)
+{
+    switch (handle->requested_state) {
+    case 2:
+        state = 2;
+        break;
+    case 3:
+        state = 3;
+        break;
+    case 4:
+    case 6:
+        if (sfply_IsStartable(handle) != 0) {
+            SFTRN_CallTrtTrif(handle, 7, 6, 0, 0);
+            state = 4;
+        }
+        break;
+    }
+    return state;
+}
+
 static void sfply_ExecOne(SfdHandle* handle)
 {
-    int audio_terminated;
-    int completed;
-    int original_state;
     int state;
-    int video_terminated;
     unsigned long long start;
 
-    original_state = handle->playback_state;
-    if ((unsigned int)(original_state - 1) > 3 || handle->field_0044 == 0) {
+    state = handle->playback_state;
+    if ((unsigned int)(state - 1) > 3) {
+        return;
+    }
+    if (handle->field_0044 == 0) {
         return;
     }
     handle->field_0044 = 0;
     start = UTY_GetTmr();
-    if ((unsigned int)(original_state - 2) <= 1 || original_state == 4) {
+    if ((unsigned int)(state - 2) <= 1 || state == 4) {
         SFTRN_CallTrSetup(handle, 2);
         SFSEE_ExecServer(handle);
     }
 
     state = handle->playback_state;
     switch (state) {
+    case 0:
+        break;
     case 1:
         switch (handle->requested_state) {
         case 2:
@@ -851,56 +905,21 @@ static void sfply_ExecOne(SfdHandle* handle)
         state = sfply_StatPrep(handle);
         break;
     case 3:
-        switch (handle->requested_state) {
-        case 2:
-            state = 2;
-            break;
-        case 3:
-            state = 3;
-            break;
-        case 4:
-        case 6:
-            if (handle->conditions_primary[14] == 0 ||
-                handle->conditions_primary[5] == 0 ||
-                handle->timer_state.field_02B0 != 0 ||
-                handle->timer_state.field_02CC >=
-                    handle->conditions_primary[45]) {
-                completed = 1;
-            } else {
-                completed = 0;
-                video_terminated = SFTRN_GetTermFlg(handle, 6);
-                audio_terminated = SFTRN_GetTermFlg(handle, 7);
-                switch (SFSET_GetCond(handle, 0x19)) {
-                case 1:
-                    completed = audio_terminated;
-                    break;
-                case 2:
-                    completed = video_terminated;
-                    break;
-                case 3:
-                    completed = audio_terminated | video_terminated;
-                    break;
-                case 0:
-                    completed = audio_terminated & video_terminated;
-                    break;
-                }
-            }
-            if (completed != 0) {
-                SFTRN_CallTrtTrif(handle, 7, 6, 0, 0);
-                state = 4;
-            }
-            break;
-        }
+        state = sfply_StatStby(handle, state);
         break;
     case 4:
         state = sfply_StatPlay(handle);
+        break;
+    case 5:
+        state = handle->playback_state;
+        break;
+    case 6:
+        state = handle->playback_state;
         break;
     }
     handle->playback_state = state;
     SFTMR_AddTsum(&handle->timer_summaries[5], UTY_GetTmr() - start);
 }
-#pragma dont_inline reset
-
 int SFD_ExecOne(SfdHandle* handle)
 {
     if (SFLIB_CheckHn(handle) != 0) {

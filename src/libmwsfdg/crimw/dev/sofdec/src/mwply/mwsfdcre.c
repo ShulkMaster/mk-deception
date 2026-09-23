@@ -1,6 +1,7 @@
 #include "cri/sj.h"
 #include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
+#include "sofdec/sfd_mpvf.h"
 #include "sofdec/sfd_player.h"
 
 typedef struct LSC LSC;
@@ -228,8 +229,6 @@ extern void LSC_Destroy(LSC*);
 extern void LSC_SetStmHndl(LSC*, ADXStream*);
 extern int SFD_SetPicUsrBuf(SfdHandle*, void*, int, int);
 extern int SFD_SetMpvCond(SfdHandle*, int, int);
-extern void SFD_SetMpvParaTbl(const int*, void* const*, void* const*, int, int,
-                              int);
 
 extern void mwSfdVsync(void);
 extern int mwSfdExecSvrHndl(MwsPlayer*);
@@ -299,7 +298,8 @@ static SfdCreateConfig mwsfd_vonlysfd_crepara = {
     {&mwsfd_vonlysfd_trsetup, 0, {0x10000, 0x50800, 0x12000, 0, 0, 0, 0}, 0, 0x800},
     3, {0}, 3, 0, 0
 };
-static int mwsfd_mpvpara[9] = {0xC0, 0xF0, 0x160, 0x1E0, 0, 0x160, 0x1E0, 4, 0};
+static SfdMpvParameters mwsfd_mpvpara = {
+    0xC0, 0xF0, 0x160, 0x1E0, 0, 0x160, 0x1E0, 4, 0};
 static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 0};
 static MwsPackSizeData mwsfd_packsize = {0x800, 0};
 static MwsCreateBss mwsfdcre_bufnum;
@@ -719,7 +719,8 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 90.062770%; callback-object typing is canonical and codegen-neutral; large creation/setup lifetime and allocation residue remains. */
+/* TODO: [breakthrough needed] 90.051950%; typed MPV setup call is retained;
+ * creation/setup lifetime and allocation residue remains. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
 {
@@ -862,15 +863,15 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
 
     buffers->stream_joint_buffer = (unsigned char*)
         (((unsigned int)stream_work + 0x3F) & ~0x3F);
-    mwsfd_mpvpara[0] = (((width / 2) + 31) / 32) * 32;
-    mwsfd_mpvpara[1] = height / 2;
-    mwsfd_mpvpara[2] = width;
-    mwsfd_mpvpara[3] = height;
-    mwsfd_mpvpara[4] = 0;
-    mwsfd_mpvpara[5] = width;
-    mwsfd_mpvpara[6] = height;
-    mwsfd_mpvpara[7] = frame_count;
-    mwsfd_mpvpara[8] = 0;
+    mwsfd_mpvpara.chroma_width = (((width / 2) + 31) / 32) * 32;
+    mwsfd_mpvpara.chroma_height = height / 2;
+    mwsfd_mpvpara.width = width;
+    mwsfd_mpvpara.height = height;
+    mwsfd_mpvpara.reference_buffer = 0;
+    mwsfd_mpvpara.maximum_width = width;
+    mwsfd_mpvpara.maximum_height = height;
+    mwsfd_mpvpara.frame_count = frame_count;
+    mwsfd_mpvpara.frame_buffer = 0;
     mwsfd_adxtpara.stream_buffer = audio_stream_buffer;
     mwsfd_adxtpara.decoder_buffer = audio_decoder_work;
 
@@ -922,10 +923,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     create.video_output_format = output_format;
     create.handle_memory = decoder_work;
     create.handle_memory_size = 0x4000;
-    SFD_SetMpvParaTbl(mwsfd_mpvpara, references.buffers,
-                       frame_buffers, 0x4000,
-                       buffers->video_input_buffer_size,
-                       buffers->system_input_buffer_size);
+    SFD_SetMpvParaTbl(&mwsfd_mpvpara, references.buffers, frame_buffers);
     switch (file_type) {
     case 1:
         SFD_SetAdxtPara(&mwsfd_adxtpara);
@@ -955,18 +953,18 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     return sfd;
 }
 
-/* TODO: [breakthrough needed] 86.9645%; direct buffer-owner access improves the frame-size path; MWCC still hoists parameter loads before the saved-register prologue. */
+/* TODO: [breakthrough] 87.61539%; repeated size predicate restores a retail
+ * branch; parameter loads still precede the saved-register prologue. */
 static int mwsfcre_MallocRfb(MwsPlayer* player,
                              const MwsCreateParams* params,
                              MwsReferenceBuffers* output)
 {
-    int result;
-    int frame_size;
-
-    result = 0;
-    frame_size = mwsfcre_CalcFrameSize(params);
+    int result = 0;
+    int frame_size = mwsfcre_CalcFrameSize(params);
     if (mwsfdcre_bufnum.buffer_count != 0) {
+        /* Retail branches twice on one size comparison, as in RE4. */
         if (mwsfdcre_bufnum.buffer_count < 2 ||
+            mwsfdcre_bufnum.buffer_size < frame_size ||
             mwsfdcre_bufnum.buffer_size < frame_size) {
             output->buffers[0] = 0;
             output->buffers[1] = 0;

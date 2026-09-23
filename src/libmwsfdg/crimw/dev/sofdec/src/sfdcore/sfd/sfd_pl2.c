@@ -7,13 +7,16 @@ void SFAOAP_SetSpeed(SfdHandle* handle, int speed);
 
 static int sfpl2_PauseSub(SfdHandle* handle, int state)
 {
-    int result = 0;
+    int result;
 
-    if (handle->requested_state == 3 || handle->requested_state == 4) {
+    if (handle->requested_state != 3 && handle->requested_state != 4) {
+        result = 0;
+    } else {
         int call_result;
 
         SFTIM_Pause(handle, state);
         call_result = SFTRN_CallTrtTrif(handle, 7, 8, state, 0);
+        result = 0;
         if (call_result != 0) {
             result = call_result;
         }
@@ -55,8 +58,6 @@ int SFD_Standby(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 84.010414%; donor helper ownership and exact-size
- * switch CFG are restored; inlined call-result lowering remains. */
 int SFPL2_Pause(SfdHandle* handle, int state)
 {
     int result;
@@ -82,8 +83,6 @@ int SFPL2_Pause(SfdHandle* handle, int state)
     return result;
 }
 
-/* TODO: [near miss] 94.495800%; donor helper ownership and pause-state CFG
- * match at exact size; inlined switch scheduling remains. */
 int SFD_Pause(SfdHandle* handle, int pause)
 {
     int pause_state;

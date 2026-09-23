@@ -3,13 +3,15 @@
 #include "fdlibm.h"
 #include "runtime/cstring.h"
 
+extern float __float_nan;
+extern double __frsqrte(double value);
+
+/* classifies the IEEE-754 bit pattern through a pointer cast. This view
+ * preserves the retail word read without relying on that aliasing cast. */
 typedef union AdxFloatRepresentation {
     float value;
     u32 bits;
 } AdxFloatRepresentation;
-
-extern float __float_nan;
-extern double __frsqrte(double value);
 
 static inline int classify_float(float value)
 {

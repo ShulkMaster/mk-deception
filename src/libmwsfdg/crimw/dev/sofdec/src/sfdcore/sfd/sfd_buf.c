@@ -1,8 +1,8 @@
 #include "sofdec/sfd_transport.h"
 
-/* shifted-handle view for the buffer helpers. It preserves
- * retail's handle-base addressing in call-bearing consumers; direct typed
- * indexing changes SFBUF_VfrmAddRead's codegen. */
+/* same shifted-handle view: retail folds the first
+ * buffer's offset into each displacement. Direct typed indexing changes
+ * SFBUF_VfrmAddRead's codegen, so keep the view tied to SfdHandle's layout. */
 typedef struct SfdBufferHn {
     unsigned char pad[0x1308];
     SfdBufferState buffer;
@@ -617,8 +617,8 @@ static inline void sfbuf_InitAudio(SfdBufferState* buffer,
     buffer->work.audio.reserved_tail[2] = 0;
 }
 
-/* TODO: [near miss] 92.33945%; typed helpers inline without extra bodies;
- * retail video-loop precheck and stack/register scheduling remain. */
+/* TODO: [near miss] 92.33945%; typed helpers inline; retail retains two
+ * video-loop entry checks that current O4 removes, plus register scheduling. */
 int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
                  SfdBufferCreateConfig* create)
 {

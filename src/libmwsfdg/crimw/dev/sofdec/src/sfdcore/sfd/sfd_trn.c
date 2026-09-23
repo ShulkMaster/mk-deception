@@ -69,19 +69,19 @@ int SFTRN_CallTrSetup(SfdHandle* handle, int callback_index)
 }
 
 static void sftrn_BuildSystem(SfdHandle* handle,
-                              const SfdTransportSetup* setup)
+                              const SfdTransportInterface** table)
 {
     handle->buffers[0].output_transport = 1;
     handle->transports[1].parameter_10 = 0;
 
-    if (setup->entries[2] != 0) {
+    if (table[2] != 0) {
         handle->transports[1].parameter_14 = 1;
         handle->buffers[1].input_transport = 1;
         handle->buffers[1].output_transport = 2;
         handle->transports[2].parameter_10 = 1;
         handle->transports[2].parameter_14 = 3;
         handle->buffers[3].input_transport = 2;
-        if (setup->entries[4] != 0) {
+        if (table[4] != 0) {
             handle->buffers[3].output_transport = 4;
             handle->transports[4].parameter_10 = 3;
             handle->transports[4].parameter_14 = 5;
@@ -97,14 +97,14 @@ static void sftrn_BuildSystem(SfdHandle* handle,
         handle->conditions_secondary[5] = 0;
     }
 
-    if (setup->entries[3] != 0) {
+    if (table[3] != 0) {
         handle->transports[1].parameter_18 = 2;
         handle->buffers[2].input_transport = 1;
         handle->buffers[2].output_transport = 3;
         handle->transports[3].parameter_10 = 2;
         handle->transports[3].parameter_14 = 4;
         handle->buffers[4].input_transport = 3;
-        if (setup->entries[5] != 0) {
+        if (table[5] != 0) {
             handle->buffers[4].output_transport = 5;
             handle->transports[5].parameter_10 = 4;
             handle->transports[5].parameter_14 = 6;
@@ -120,7 +120,7 @@ static void sftrn_BuildSystem(SfdHandle* handle,
         handle->conditions_secondary[6] = 0;
     }
 
-    if (setup->entries[8] != 0) {
+    if (table[8] != 0) {
         handle->transports[1].buffer_output3 = 7;
         handle->buffers[7].input_transport = 1;
         handle->buffers[7].output_transport = 8;
@@ -129,20 +129,20 @@ static void sftrn_BuildSystem(SfdHandle* handle,
 }
 
 static int sftrn_BuildAll(SfdHandle* handle,
-                          const SfdTransportSetup* setup)
+                          const SfdTransportInterface** table)
 {
-    if (setup->entries[1] != 0) {
+    if (table[1] != 0) {
         handle->transports[0].parameter_14 = 0;
         handle->buffers[0].input_transport = 0;
-        sftrn_BuildSystem(handle, setup);
-    } else if (setup->entries[2] != 0) {
+        sftrn_BuildSystem(handle, table);
+    } else if (table[2] != 0) {
         handle->transports[0].parameter_14 = 1;
         handle->buffers[1].input_transport = 0;
         handle->buffers[1].output_transport = 2;
         handle->transports[2].parameter_10 = 1;
         handle->transports[2].parameter_14 = 3;
         handle->buffers[3].input_transport = 2;
-        if (setup->entries[4] != 0) {
+        if (table[4] != 0) {
             handle->buffers[3].output_transport = 4;
             handle->transports[4].parameter_10 = 3;
             handle->transports[4].parameter_14 = 5;
@@ -155,14 +155,14 @@ static int sftrn_BuildAll(SfdHandle* handle,
         }
         SFSET_SetCond(handle, 6, 0);
         handle->conditions_secondary[6] = 0;
-    } else if (setup->entries[3] != 0) {
+    } else if (table[3] != 0) {
         handle->transports[0].parameter_14 = 2;
         handle->buffers[2].input_transport = 0;
         handle->buffers[2].output_transport = 3;
         handle->transports[3].parameter_10 = 2;
         handle->transports[3].parameter_14 = 4;
         handle->buffers[4].input_transport = 3;
-        if (setup->entries[5] != 0) {
+        if (table[5] != 0) {
             handle->buffers[4].output_transport = 5;
             handle->transports[5].parameter_10 = 4;
             handle->transports[5].parameter_14 = 6;
@@ -175,7 +175,7 @@ static int sftrn_BuildAll(SfdHandle* handle,
         }
         SFSET_SetCond(handle, 5, 0);
         handle->conditions_secondary[5] = 0;
-    } else if (setup->entries[8] != 0) {
+    } else if (table[8] != 0) {
         handle->transports[0].parameter_14 = 7;
         handle->buffers[7].input_transport = 0;
         handle->buffers[7].output_transport = 8;
@@ -191,23 +191,26 @@ static int sftrn_BuildAll(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 89.524590%; transport slot +0x1C is typed as the proven third output buffer; three-state loop scheduling and constant coloring remain. */
 int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
-                 const SfdBufferCreateConfig* create,
+                 SfdBufferCreateConfig* create,
                  const void* buffer_setup)
 {
+    const SfdTransportInterface* const* interface_cursor;
     const SfdTransportSetup* setup;
+    const SfdTransportInterface* interface;
     SfdTransportState* transport;
     int i;
 
     (void)buffer_setup;
     setup = create->transport_setup;
+    interface_cursor = setup->entries;
     transport = transports;
-    for (i = 0; i < 9; i++, transport++) {
+    for (i = 0; i < 9; i++, transport++, interface_cursor++) {
         transport->context = 0;
-        transport->interface = setup->entries[i];
+        interface = *interface_cursor;
         transport->terminated = 0;
         transport->prepared = 0;
+        transport->interface = interface;
         transport->parameter_10 = 8;
         transport->parameter_14 = 8;
         transport->parameter_18 = 8;
@@ -215,13 +218,15 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
         transport->state = -1;
     }
 
-    if (sftrn_BuildAll(handle, setup) != 0) {
+    /* The setup tables are const; both wiring helpers only read their slots. */
+    if (sftrn_BuildAll(handle,
+                       (const SfdTransportInterface**)setup->entries) != 0) {
         return SFLIB_SetErr(handle, 0xFF000302);
     }
     return 0;
 }
 
-/* TODO: [near miss] 98.064514%; retail null-entry exit now matches; only equivalent zero-init coloring (mr vs li) remains. */
+/* TODO: [near miss] 98.064514%; retail CFG and accesses agree; only li-zero vs already-zero mr remains; stop at coloring. */
 int SFTRN_Finish(SfdTransportRegistry* registry)
 {
     int i;

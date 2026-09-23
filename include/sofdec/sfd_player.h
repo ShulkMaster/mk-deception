@@ -57,8 +57,8 @@ void SFD_SetOutVol(SfdHandle* handle, int volume);
 int SFD_GetOutPan(SfdHandle* handle, int channel);
 void SFD_SetOutPan(SfdHandle* handle, int channel, int pan);
 int SFD_SetVideoPts(SfdHandle* handle, unsigned char* entries, int buffer_size);
-int SFMPV_SaveCond(SfdHandle* handle, void* conditions, int count);
-void SFMPV_RestoreCond(SfdHandle* handle, const void* conditions, int count);
+int SFMPV_SaveCond(SfdHandle* handle, int* conditions, int buffer_size);
+void SFMPV_RestoreCond(SfdHandle* handle, const int* conditions, int count);
 
 int SFD_SetSupplySj(SfdHandle* handle, SfdBufferSupply* supply);
 void SFD_RelFrm(SfdHandle* handle, void* frame);

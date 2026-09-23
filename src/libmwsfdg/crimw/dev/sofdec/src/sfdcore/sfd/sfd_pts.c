@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [near miss] 93.469880%; retail ranges and register owners agree;
- * clean-C break keeps count live, while a found sentinel regresses. */
+/* TODO: [near miss] 93.469880%; shifted handle is donor/retail-backed;
+ * clean-C break still keeps count live at the found/exhausted join. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {
@@ -155,7 +155,8 @@ int SFD_SetVideoPts(SfdHandle* handle, unsigned char* memory, int size)
     size -= aligned - memory;
     memset(aligned, 0, size);
     handle->buffers[1].work.ring.pts_queue.entries = (SfdPtsEntry*)aligned;
-    handle->buffers[1].work.ring.pts_queue.capacity = size / 16;
+    handle->buffers[1].work.ring.pts_queue.capacity =
+        size / (int)sizeof(SfdPtsEntry);
     handle->buffers[1].work.ring.pts_queue.count = 0;
     handle->buffers[1].work.ring.pts_queue.write_index = 0;
     handle->buffers[1].work.ring.pts_queue.read_index = 0;

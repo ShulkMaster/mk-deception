@@ -170,8 +170,8 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough needed] 78.764710%; direct global quantizer use helps;
- * full donor local ownership regressed to 70.882355%. */
+/* TODO: [breakthrough needed] 78.764710%; donor output-pair indexing is
+ * neutral; retail CTR loop and predictor/register lifetimes need new evidence. */
 int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
                     short delay[2], short coefficient0, short coefficient1,
                     short* randomState, short randomMultiplier,
@@ -196,11 +196,12 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
             int decoded = (packed >> 4) * gain +
                 ((coefficient0 * previous + coefficient1 * older) >> 12);
             decoded = clamp_sample(decoded);
-            *output++ = (short)decoded;
+            output[0] = (short)decoded;
             older = decoded;
             previous = clamp_sample(AdxQtbl[packed & 15] * gain +
                 ((coefficient0 * decoded + coefficient1 * previous) >> 12));
-            *output++ = (short)previous;
+            output[1] = (short)previous;
+            output += 2;
         } while (--sample != 0);
     }
     delay[0] = (short)previous;
