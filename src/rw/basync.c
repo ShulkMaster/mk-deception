@@ -3,7 +3,8 @@
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 
-/* TODO: [near miss] 99.583336%; flags/object GPR homes; scope check unchanged. */
+/* TODO: [near miss] 99.583336%; opt-off allocator ties flags/object; retail
+ * flags has one more reference (a code-free `(void)flags` probe matches). */
 static void FrameSyncHierarchyRecurse(RwFrame* frame, unsigned int inheritedFlags) {
     while (frame != 0) {
         unsigned int flags = inheritedFlags | frame->object.privateFlags;

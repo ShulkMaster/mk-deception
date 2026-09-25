@@ -247,11 +247,11 @@ static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, int active,
 
 void MWY_GCN_RW_ActivateGxBreakPtQueue(void)
 {
-
-
-    int interrupts = OSDisableInterrupts();
     GXBreakPtCallback previousBreak;
     GXDrawDoneCallback previousDrawDone;
+    int interrupts;
+
+    interrupts = OSDisableInterrupts();
 
     if (RwGxBreakPt_bQInitialized == 0) {
         memset(&RwGxBreakPt_Q, 0, sizeof(RwGxBreakPt_Q));

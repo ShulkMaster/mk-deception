@@ -59,9 +59,8 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
 
 
 
-/* TODO: [near miss] 98.77049%; linked-light traversal matches, with GPR
- * coloring only; declaration-order trial regressed and permuter found no
- * coherent source improvement. */
+/* TODO: [near miss] 98.77049%; opt-off link/light/color homes rotate;
+ * declaration order is neutral and `(void)` reference probes do not combine linearly. */
 void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 {
     RpWorld* world = (RpWorld*)RwEngineInstance->curWorld;

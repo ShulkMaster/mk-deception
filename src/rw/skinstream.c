@@ -12,13 +12,11 @@ typedef struct RwGameCubeVertexDataHeader {
     unsigned int serialNumber;
 } RwGameCubeVertexDataHeader;
 
-/* TODO: [near miss] 98.36066%; retail emits an overwritten zero
- * initialization; retain the semantic size calculation without a dead write. */
 unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 {
+    unsigned int size = 0;
     RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
-    unsigned int size;
 
     size = 0x10;
     size += 4;

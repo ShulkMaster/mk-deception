@@ -255,36 +255,45 @@ static inline void mpvumc_SetOutputBlocks(MPVContext* context,
     block[5].destination = block[4].destination + 8;
 }
 
+/* TODO: [breakthrough needed] 86.592590%; typed work owner is retained;
+ * retail's shared adjacent-plane address needs a defined representation. */
 void MPVUMC_BiDirect(MPVContext* context)
 {
     MPVBlockOffsets offsets;
+    MPVMacroblockSources* sources = &context->sources;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
-                     &context->frame_buffers.forward, &context->forward_motion);
-    mpvumc_OneReadMb(context, context->sources.prediction1, &offsets,
-                     &context->frame_buffers.backward, &context->backward_motion);
+                     &context->frame_buffers.forward,
+                     &context->forward_motion);
+    mpvumc_OneReadMb(context, sources->prediction1, &offsets,
+                     &context->frame_buffers.backward,
+                     &context->backward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_BiMakeMb(&context->sources, &context->output_blocks,
-                    context->cbp_mask);
+    mpvumc_BiMakeMb(sources, &context->output_blocks, context->cbp_mask);
 }
 
+/* TODO: [near miss] 91.111115%; typed work owner restores retail setup;
+ * two instructions still schedule across the output address. */
 void MPVUMC_Backward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
-    mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
+    MPVMacroblockSources* sources = &context->sources;
+    mpvumc_OneReadMb(context, sources->prediction0, &offsets,
                      &context->frame_buffers.backward, &context->backward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_OneMakeMb(&context->sources, &context->output_blocks,
-                     context->cbp_mask);
+    mpvumc_OneMakeMb(sources, &context->output_blocks, context->cbp_mask);
 }
 
+/* TODO: [near miss] 91.111115%; typed work owner restores retail prologue;
+ * two pre-inline instructions still schedule across the output address. */
 void MPVUMC_Forward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
-    mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
+    MPVMacroblockSources* sources = &context->sources;
+    MPVOutputBlocks* output = &context->output_blocks;
+    mpvumc_OneReadMb(context, sources->prediction0, &offsets,
                      &context->frame_buffers.forward, &context->forward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_OneMakeMb(&context->sources, &context->output_blocks,
-                     context->cbp_mask);
+    mpvumc_OneMakeMb(sources, output, context->cbp_mask);
 }
 
 /* Soft ceiling: retail uses GQR3 paired-single quantized loads/stores for the
@@ -314,13 +323,19 @@ static void mpvumc_OutputIntra6blk(const DctFsriBlock blocks[6],
     }
 }
 
+/* TODO: [breakthrough] 82.558136%; staged 8/16-pixel offsets recover retail
+ * arithmetic; declaration-order trial was neutral, address schedule remains. */
 void MPVUMC_Intra(MPVContext* context)
 {
     MPVBlockOffsets offsets;
-    offsets.chroma = context->macroblock_column * 8 +
-                     context->macroblock_row * 8 * context->output.chroma_stride;
-    offsets.luma = context->macroblock_column * 16 +
-                   context->macroblock_row * 16 * context->output.luma_stride;
+    int row = context->macroblock_row;
+    int column = context->macroblock_column;
+    int column_8 = column * 8;
+    int row_8 = row * 8;
+    int column_16 = column * 16;
+    int row_16 = row * 16;
+    offsets.chroma = column_8 + row_8 * context->output.chroma_stride;
+    offsets.luma = column_16 + row_16 * context->output.luma_stride;
     mpvumc_SetOutputBlocks(context, &offsets);
     mpvumc_OutputIntra6blk(context->transform.blocks,
                            &context->output_blocks);
@@ -362,8 +377,8 @@ void MPVUMC_InitOutRfb(MPVContext* context)
 
 void MPVUMC_Finish(void) {}
 
-/* TODO: [near miss] 95.857140%; typed 3D table stores retain the same score;
- * inspect the remaining initializer order and relocation pairing. */
+/* TODO: [near miss] 95.857140%; retail initializer order and targets agree;
+ * remaining address/store register coloring is a clean-source ceiling. */
 void MPVUMC_Init(void)
 {
     mpvumc_oneref[0][0][0] = MPVMC08_OneRef1p_TuneC;

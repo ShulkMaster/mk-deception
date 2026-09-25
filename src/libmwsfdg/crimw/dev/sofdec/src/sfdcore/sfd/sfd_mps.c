@@ -293,8 +293,8 @@ static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 98.538120%; donor phase helpers and SCR publication
- * match retail; stop at GPR coloring and equivalent typed-index lowering. */
+/* TODO: [near miss] 98.538120%; direct typed buffer access shifts the
+ * prep-size branch and regresses; retained typed pointer has one extra addi. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     SfmpsWork* work = sfmps_GetWork(handle);
@@ -858,8 +858,8 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
     *copied = amount;
 }
 
-/* TODO: [near miss] 98.690070%; typed helpers recover saved-header and
- * scan-exit joins; residual move/address scheduling needs fresh evidence. */
+/* TODO: [near miss] 98.723970%; header stack slots and +0x28 scan unit now
+ * match retail; scan pointer materialization and register coloring remain. */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
@@ -868,8 +868,8 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
     MpsHandle* decoder;
     int buffer_index;
     int delimiter;
-    int decoded_size;
     int header_flags;
+    int decoded_size;
     int result = 0;
     int proceed;
 
@@ -944,23 +944,23 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         work->scan_position = 4;
     } else if (delimiter == 0) {
         *copied = 0;
-        if (size >= handle->create_config.buffer.field_24 + 3 &&
+        if (size >= handle->create_config.buffer.ring_alignment + 3 &&
             sfmps_IsZero((const signed char*)data,
-                         handle->create_config.buffer.field_24)) {
-            *copied = handle->create_config.buffer.field_24;
+                         handle->create_config.buffer.ring_alignment)) {
+            *copied = handle->create_config.buffer.ring_alignment;
         } else {
             sfmps_ScanSkip(handle, data, size, copied);
         }
         *consumed = *copied;
         if (*copied > 0 && work->scan_position >= 0) {
-            if (work->scan_position >= handle->create_config.buffer.field_24) {
+            if (work->scan_position >= handle->create_config.buffer.ring_alignment) {
                 work->scan_position += *copied;
             } else if (work->scan_position + *copied >
-                       handle->create_config.buffer.field_24) {
-                *copied -= handle->create_config.buffer.field_24 -
+                       handle->create_config.buffer.ring_alignment) {
+                *copied -= handle->create_config.buffer.ring_alignment -
                            work->scan_position;
                 work->scan_position =
-                    handle->create_config.buffer.field_24 + *copied;
+                    handle->create_config.buffer.ring_alignment + *copied;
             } else {
                 work->scan_position += *copied;
                 *copied = 0;
@@ -971,7 +971,7 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
 
         sfmps_TermIfInputTerminated(handle, &input_terminated);
         if (input_terminated == 0 &&
-            size > handle->create_config.buffer.field_24) {
+            size > handle->create_config.buffer.ring_alignment) {
             if (decoded_size > 0) {
                 *consumed = decoded_size;
                 *copied = decoded_size;

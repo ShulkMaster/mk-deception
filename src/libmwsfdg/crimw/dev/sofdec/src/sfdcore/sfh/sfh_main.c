@@ -138,7 +138,7 @@ static inline int sfh_read_header_s16(const SFHHandle* handle, int offset,
 }
 
 static inline const SFHStreamRecord* sfh_find_stream(
-    const unsigned char* header, unsigned char stream_id)
+    const unsigned char* header, unsigned int stream_id)
 {
     const SFHStreamRecord* stream = 0;
     const SFHStreamRecord* candidate;
@@ -212,8 +212,8 @@ static inline int sfh_is_effective_video(const SFHStreamRecord* stream,
     return valid;
 }
 
-/* TODO: [near miss] 96.89320%; retail guards and offsets agree;
- * stop at stream-search register coloring and equivalent key-load schedule. */
+/* TODO: [near miss] 97.524270%; 32-bit search ID matches donor width;
+ * stream-search coloring and key-load schedule remain. */
 int SFH_AnlyFtrFxType(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -228,8 +228,8 @@ int SFH_AnlyFtrFxType(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.89320%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.524270%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrGopM(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
@@ -244,8 +244,8 @@ int SFH_AnlyFtrGopM(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.89320%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.524270%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
@@ -260,8 +260,8 @@ int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.701035%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.371130%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrExpand(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -275,8 +275,8 @@ int SFH_AnlyFtrExpand(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrShcFixFlg(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
@@ -290,8 +290,8 @@ int SFH_AnlyFtrShcFixFlg(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrFixFlg(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -305,8 +305,8 @@ int SFH_AnlyFtrFixFlg(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrPicType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
@@ -320,8 +320,8 @@ int SFH_AnlyFtrPicType(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.734695%; mutable handle restores output-store order;
- * inspect remaining search-result register coloring. */
+/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
+ * search-result register coloring remains. */
 int SFH_AnlyFtrColType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
@@ -335,8 +335,8 @@ int SFH_AnlyFtrColType(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.16216%; typed media bytes preserve retail CFG/data;
- * stop at search coloring and one equivalent key-load schedule. */
+/* TODO: [near miss] 97.747750%; typed media bytes and 32-bit search ID agree;
+ * search coloring and key-load schedule remain. */
 int SFH_AnlyElemPicRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
@@ -350,8 +350,8 @@ int SFH_AnlyElemPicRate(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.13861%; typed media bytes preserve retail stores;
- * inspect remaining picture-size load/result register lifetimes. */
+/* TODO: [near miss] 96.584160%; typed media bytes and 32-bit search ID agree;
+ * picture-size load/result register lifetimes remain. */
 int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
                       int* width, int* height)
 {
@@ -373,8 +373,8 @@ int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 94.30108%; portable byte decoding preserves the value;
- * retail uses one halfword load, which safe byte access does not emit. */
+/* TODO: [near miss] 95.000000%; portable bytes and 32-bit search ID agree;
+ * retail's halfword load remains unmatched by safe byte access. */
 int SFH_AnlyElemBitRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
@@ -395,8 +395,8 @@ int SFH_AnlyElemBitRate(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.25000%; mutable handle restores output-store order;
- * inspect remaining search/codec register coloring. */
+/* TODO: [near miss] 97.023810%; mutable handle and 32-bit search ID agree;
+ * search/codec register coloring remains. */
 int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
@@ -410,8 +410,8 @@ int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 90.63219%; bytewise little-endian decode avoids the
- * unaligned aliasing load; retail uses a word load plus swap. */
+/* TODO: [near miss] 91.494255%; bytewise decode and 32-bit search ID agree;
+ * retail's word load/swap remains a portability ceiling. */
 int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -428,8 +428,8 @@ int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.20482%; mutable handle restores output-store order;
- * inspect remaining search/channel register coloring. */
+/* TODO: [near miss] 96.987950%; mutable handle and 32-bit search ID agree;
+ * search/channel register coloring remains. */
 int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -442,8 +442,8 @@ int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.36364%; mutable handle restores output-store order;
- * inspect remaining search/codec-layer register coloring. */
+/* TODO: [near miss] 97.102270%; mutable handle and 32-bit search ID agree;
+ * search/codec-layer register coloring remains. */
 int SFH_AnlyElemLayer(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -457,8 +457,8 @@ int SFH_AnlyElemLayer(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.25000%; mutable handle restores output-store order;
- * inspect remaining search/codec register coloring. */
+/* TODO: [near miss] 97.023810%; mutable handle and 32-bit search ID agree;
+ * search/codec register coloring remains. */
 int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
@@ -638,9 +638,10 @@ int SFH_AnlyHdrToolVer(SFHHandle* handle, int* major, int* minor)
     return sfh_anly_hdr_tool_ver(handle, major, minor);
 }
 
-static inline int sfh_query_audio_features(const SFHHandle* handle,
-                                           unsigned char stream_id,
-                                           int* result)
+static inline int sfh_query_features(const SFHHandle* handle,
+                                     unsigned int stream_id,
+                                     unsigned int expected_class,
+                                     int* result)
 {
     const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
@@ -649,7 +650,7 @@ static inline int sfh_query_audio_features(const SFHHandle* handle,
     if (!sfh_is_analyzable(handle)) return 0;
     stream = sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
-    if (sfh_stream_class(stream_id) != 0xC0) {
+    if (sfh_stream_class(stream_id) != expected_class) {
         valid = 0;
     } else if (stream->effective_features > 1) {
         valid = 0;
@@ -662,51 +663,29 @@ static inline int sfh_query_audio_features(const SFHHandle* handle,
     return 1;
 }
 
-static inline int sfh_query_video_features(const SFHHandle* handle,
-                                           unsigned char stream_id,
-                                           int* result)
-{
-    const unsigned char* header = handle->header;
-    const SFHStreamRecord* stream;
-    int valid;
-
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0) return 0;
-    if (sfh_stream_class(stream_id) != 0xE0) {
-        valid = 0;
-    } else if (stream->effective_features > 1) {
-        valid = 0;
-    } else if (stream->effective_features == 0) {
-        valid = 0;
-    } else {
-        valid = 1;
-    }
-    *result = valid;
-    return 1;
-}
-
-/* TODO: [breakthrough] 94.990524%; mutable handle improves the feature path;
- * recover the remaining audio/video feature-owner CFG. */
+/* TODO: [near miss] 95.417060%; widened ID and shared typed feature helper
+ * preserve both arms; 32-bit search width helps siblings, owner coloring remains. */
 int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
     int stream_class;
+    unsigned int stream_id_value;
 
     if (handle->version < 0x6E) return 0;
-    stream_class = sfh_stream_class(stream_id);
+    stream_id_value = stream_id;
+    stream_class = sfh_stream_class(stream_id_value);
     switch (stream_class) {
     case 0xC0:
-        return sfh_query_audio_features(handle, stream_id, result);
+        return sfh_query_features(handle, stream_id_value, 0xC0, result);
     case 0xE0:
-        return sfh_query_video_features(handle, stream_id, result);
+        return sfh_query_features(handle, stream_id_value, 0xE0, result);
     default:
         return 0;
     }
 }
 
-/* TODO: [near miss] 95.00000%; retail flow/offsets agree; stop at search
- * register coloring and one equivalent key-load schedule. */
+/* TODO: [near miss] 96.166664%; retail flow and 32-bit search ID agree;
+ * search coloring and equivalent key-load schedule remain. */
 int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     int* result)
 {

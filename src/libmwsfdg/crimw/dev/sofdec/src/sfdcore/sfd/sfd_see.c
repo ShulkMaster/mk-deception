@@ -175,8 +175,8 @@ int SFD_SetFileSize(SfdHandle* handle, int file_size)
     return 0;
 }
 
-/* TODO: [near miss] 99.625000%; retained source matches RE4/retail CFG; one
- * final fallback load differs as lwz versus mr, with no clean source lever. */
+/* TODO: [near miss] 99.625000%; matches RE4 CFG; retail reloads field_18 in the
+ * fallback arm where ours reuses the compare register; RE4 fsize local was neutral. */
 static void sfsee_ExecHeadAnaly(SfdHandle* handle)
 {
     SfdSeeWork* source = sfsee_GetSource(handle);
@@ -266,7 +266,7 @@ static int sfsee_GetInputEndPosition(SfdHandle* handle)
 
     transports = handle->transports;
     output = &transports[
-        handle->buffers[transports[0].parameter_14].input_transport];
+        handle->buffers[transports[0].parameter_14].output_transport];
     position = output->state;
     if (position >= 0) {
         return position;
@@ -291,9 +291,11 @@ static void sfsee_ExecEstimate(SfdHandle* handle, SfdSeekState* seek)
 
     changed = 0;
     if (source->timing.discovered_file_size <= 0) {
-        position = request->position == -3
-                       ? 0
-                       : source->timing.seek_position;
+        if (request->position == -3) {
+            position = 0;
+        } else {
+            position = source->timing.seek_position;
+        }
         if (position >= 0) {
             transport_position = sfsee_GetInputEndPosition(handle);
             if (transport_position != -1) {
@@ -320,8 +322,6 @@ static void sfsee_ExecEstimate(SfdHandle* handle, SfdSeekState* seek)
     }
 }
 
-/* TODO: [near miss] 99.450980%; stream-time value/scale now use the typed
- * timer member instead of a padded overlay; harmless estimate-local coloring remains. */
 void SFSEE_ExecServer(SfdHandle* handle)
 {
     SfdSeekState* seek = &handle->seek_state;

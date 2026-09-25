@@ -14,8 +14,8 @@ typedef struct RwIm3DGlobals {
     RwIm3DStash stash;
 } RwIm3DGlobals;
 
-RwIm3DGlobals* _rwIm3DGlobals;
 RwModuleInfo _rwIm3DModule;
+RwIm3DGlobals* _rwIm3DGlobals;
 
 RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
                               const RwMatrix* localToWorld, unsigned int flags)
@@ -146,16 +146,14 @@ int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
     return 0;
 }
 
-/* TODO: [near miss] 98.97087%; retail spills an unused heap pointer, shifting
- * error locals; no supported semantic use for that result is known. */
 int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
     int transformed =
         ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
                           _rwIm3DModule.globalsOffset))
             ->transformData.vertices != 0;
-
-    RxHeapGetGlobalHeap();
+    /* Only asserted in debug RenderWare builds; -opt off still stores it. */
+    RxHeap* heap = RxHeapGetGlobalHeap();
 
     if (transformed) {
         RwIm3DStash* data =

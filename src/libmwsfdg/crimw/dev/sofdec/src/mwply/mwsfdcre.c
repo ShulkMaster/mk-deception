@@ -351,10 +351,10 @@ static inline void mwsfcre_FreeAll(MwsPlayer* player)
     }
 }
 
-static inline int mwsfcre_CalcFrameSize(const MwsCreateParams* params)
+static inline int mwsfcre_CalcFrameSize(int source_width, int source_height)
 {
-    int width = ((params->width + 15) / 16) * 16;
-    int height = ((params->height + 15) / 16) * 16;
+    int width = ((source_width + 15) / 16) * 16;
+    int height = ((source_height + 15) / 16) * 16;
     int luma_stride = ((width + 31) / 32) * 32;
     int chroma_stride = (((width / 2) + 31) / 32) * 32;
     return height * luma_stride + (height / 2) * chroma_stride * 2 + 0x20;
@@ -462,20 +462,55 @@ static int mwsfcre_MallocRfb(MwsPlayer*, const MwsCreateParams*,
                              MwsReferenceBuffers*);
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer*, const MwsCreateParams*);
 
-/* TODO: [near miss] 93.959206%; real string and float objects separated; remaining codegen/relocation differences. */
-/* TODO: [breakthrough needed] 93.96%; creation ownership/allocation lowering differs; compact-save flag regresses exact sibling. */
+static inline int mwsfcre_IsValidBufFmt(const MwsCreateParams* params)
+{
+    int valid = 1;
+
+    if (params->buffer_format != 0 && params->buffer_format != 3) {
+        MWSFSVM_Error(invalid_buffer_format);
+        valid = 0;
+    }
+    return valid;
+}
+
+static inline int mwsfcre_ChkMallocFn(const MwsCreateParams* params)
+{
+    MwsLibraryWork* work = MWSFLIB_GetLibWorkPtr();
+    int result = 0;
+
+    if (params->work == 0) {
+        if (work->malloc_fn == 0) result = -1;
+        if (work->free_fn == 0) result = -1;
+    }
+    return result;
+}
+
+static inline void mwsfcre_InitCompoWork(MwsPlayer* player,
+                                        const MwsCreateParams* params)
+{
+    int index;
+
+    player->arena = params->work;
+    player->arena_size = params->work_size;
+    player->arena_cursor = params->work;
+    player->arena_used = 0;
+    player->allocation_count = 0;
+    for (index = 0; index < 32; index++) {
+        player->allocations[index] = 0;
+    }
+}
+
+/* TODO: [breakthrough] 93.992410%; RE4-style format helper improves lowering;
+ * allocator/init helpers are neutral; per-field copy retained over memcpy. */
 MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 {
     MwsLibraryWork* work;
-    MwsLibraryWork* allocator_work;
     MwsPlayer* player;
     SfdHandle* sfd;
     int decoder_count;
     int flow_limit;
     int condition_value;
     int maximum_bps;
-    int valid_format;
-    int allocator_result;
     int index;
     float rounded_value;
 
@@ -483,66 +518,26 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
         MWSFSVM_Error(create_parameter_null);
         return 0;
     }
-    valid_format = 1;
-    if (params->buffer_format != 0 && params->buffer_format != 3) {
-        MWSFSVM_Error(invalid_buffer_format);
-        valid_format = 0;
-    }
-    if (valid_format != 1) {
+    if (mwsfcre_IsValidBufFmt(params) != 1) {
         return 0;
     }
     work = MWSFLIB_GetLibWorkPtr();
-    player = &work->players[0];
-    index = 0;
-    if (player->active != 0) {
-        player = &work->players[1]; index = 1;
-        if (player->active != 0) {
-            player = &work->players[2]; index = 2;
-            if (player->active != 0) {
-                player = &work->players[3]; index = 3;
-                if (player->active != 0) {
-                    player = &work->players[4]; index = 4;
-                    if (player->active != 0) {
-                        player = &work->players[5]; index = 5;
-                        if (player->active != 0) {
-                            player = &work->players[6]; index = 6;
-                            if (player->active != 0) {
-                                player = &work->players[7]; index = 7;
-                                if (player->active != 0) index = 8;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    for (index = 0; index < 8; index++) {
+        player = &work->players[index];
+        if (player->active == 0) break;
     }
     if (index == 8) {
         MWSFLIB_SetErrCode(-0xB);
         MWSFSVM_Error(player_limit_exceeded);
         return 0;
     }
-    allocator_work = MWSFLIB_GetLibWorkPtr();
-    allocator_result = 0;
-    if (params->work == 0) {
-        if (allocator_work->malloc_fn == 0) allocator_result = -1;
-        if (allocator_work->free_fn == 0) allocator_result = -1;
-    }
-    if (allocator_result == -1) {
+    if (mwsfcre_ChkMallocFn(params) == -1) {
         MWSFSVM_Error(allocator_missing);
         return 0;
     }
 
     if (player != 0) memset(player, 0, sizeof(*player));
-    player->arena = params->work;
-    player->arena_size = params->work_size;
-    player->arena_cursor = params->work;
-    player->arena_used = 0;
-    player->allocation_count = 0;
-    index = 0;
-    while (index < 32) {
-        player->allocations[index] = 0;
-        index++;
-    }
+    mwsfcre_InitCompoWork(player, params);
     player->file_type = params->file_type;
     player->maximum_bps = params->maximum_bps;
     player->width = params->width;
@@ -719,8 +714,56 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 90.051950%; typed MPV setup call is retained;
- * creation/setup lifetime and allocation residue remains. */
+static inline int mwsfcre_CnvBufFmt(int format)
+{
+    int result;
+
+    switch (format) {
+    case 0: result = 3; break;
+    case 1: result = 1; break;
+    case 2: result = 2; break;
+    case 3: result = 3; break;
+    default:
+        MWSFSVM_Error(create_buffer_format_invalid);
+        result = 3;
+        break;
+    }
+    return result;
+}
+
+static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
+                                      const MwsCreateParams* params,
+                                      void** frame_buffers)
+{
+    int result = 0;
+    int frame_count = params->frame_count;
+    int frame_size;
+    int index;
+
+    if (params->buffer_format < 0 || params->buffer_format >= 4)
+        MWSFSVM_Error(create_buffer_format_invalid);
+    frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
+    if (mwsfdcre_bufnum.buffer_count != 0) {
+        if (mwsfdcre_bufnum.buffer_count < frame_count + 2 ||
+            mwsfdcre_bufnum.buffer_size < frame_size) {
+            result = -1;
+        } else {
+            for (index = 0; index < frame_count; index++) {
+                frame_buffers[index] = mwsfdcre_bufnum.buffers[index + 2];
+                if (frame_buffers[index] == 0) result = -1;
+            }
+        }
+    } else {
+        for (index = 0; index < frame_count; index++) {
+            frame_buffers[index] = mwsfcre_Alloc(player, frame_size);
+            if (frame_buffers[index] == 0) result = -1;
+        }
+    }
+    return result;
+}
+
+/* TODO: [breakthrough] 91.909090%; typed picture-user owner restores final
+ * publication shape; declaration timing is neutral, allocation edges remain. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
 {
@@ -742,7 +785,6 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     int frame_size;
     int frame_result;
     int rfb_result;
-    int uses_audio;
     int output_format;
     int file_type;
     int maximum_bps;
@@ -751,7 +793,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     int frame_count;
     int decoder_work_size;
     int video_work_size;
-    int index;
+    int allocation_size;
 
     decoder_count = params->decoder_count;
     if (decoder_count <= 0) decoder_count = 1;
@@ -799,46 +841,25 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     } else {
         if (params->buffer_format < 0 || params->buffer_format >= 4)
             MWSFSVM_Error(create_buffer_format_invalid);
-        frame_size = mwsfcre_CalcFrameSize(params);
+        frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
         buffers->reference_buffer_size = frame_size * 2;
         buffers->table_size = params->frame_count * frame_size;
     }
 
-    shared_work = mwsfcre_Alloc(
-        player, buffers->audio_input_buffer_size +
-                    buffers->video_input_buffer_size +
-                    buffers->system_input_buffer_size + 0x20);
-    stream_work = mwsfcre_Alloc(
-        player, buffers->stream_joint_buffer_size + 0x40);
+    allocation_size = buffers->audio_input_buffer_size +
+                      buffers->video_input_buffer_size +
+                      buffers->system_input_buffer_size + 0x20;
+    shared_work = mwsfcre_Alloc(player, allocation_size);
+    allocation_size = buffers->stream_joint_buffer_size + 0x40;
+    stream_work = mwsfcre_Alloc(player, allocation_size);
     rfb_result = mwsfcre_MallocRfb(player, params, &references);
-    if (params->buffer_format < 0 || params->buffer_format >= 4) {
-        MWSFSVM_Error(create_buffer_format_invalid);
-    }
-    frame_size = mwsfcre_CalcFrameSize(params);
-    frame_result = 0;
-    if (buffers->buffer_count != 0) {
-        if (buffers->buffer_count < frame_count + 2 ||
-            buffers->buffer_size < frame_size) {
-            frame_result = -1;
-        } else {
-            for (index = 0; index < frame_count; index++) {
-                frame_buffers[index] = buffers->buffers[index + 2];
-                if (frame_buffers[index] == 0) frame_result = -1;
-            }
-        }
-    } else {
-        for (index = 0; index < frame_count; index++) {
-            frame_buffers[index] = mwsfcre_Alloc(player, frame_size);
-            if (frame_buffers[index] == 0) frame_result = -1;
-        }
-    }
+    frame_result = mwsfcre_MallocFrmTbl(player, params, frame_buffers);
 
-    uses_audio = mwsfcre_UsesAudio(file_type);
-    if (uses_audio == 1) {
-        audio_stream_buffer =
-            mwsfcre_Alloc(player, buffers->adx_input_buffer_size);
-        audio_decoder_work =
-            mwsfcre_Alloc(player, buffers->adx_decoder_work_size);
+    if (mwsfcre_UsesAudio(file_type) == 1) {
+        allocation_size = buffers->adx_input_buffer_size;
+        audio_stream_buffer = mwsfcre_Alloc(player, allocation_size);
+        allocation_size = buffers->adx_decoder_work_size;
+        audio_decoder_work = mwsfcre_Alloc(player, allocation_size);
     } else {
         audio_stream_buffer = 0;
         audio_decoder_work = 0;
@@ -854,24 +875,31 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         mwsfcre_FreeAll(player);
         return 0;
     }
-    if (mwsfcre_UsesAudio(file_type) == 1 &&
-        (audio_stream_buffer == 0 || audio_decoder_work == 0)) {
-        MWSFSVM_Error(create_audio_work_failed);
-        mwsfcre_FreeAll(player);
-        return 0;
+    if (mwsfcre_UsesAudio(file_type) == 1) {
+        if (audio_stream_buffer == 0 || audio_decoder_work == 0) {
+            MWSFSVM_Error(create_audio_work_failed);
+            mwsfcre_FreeAll(player);
+            return 0;
+        }
     }
 
     buffers->stream_joint_buffer = (unsigned char*)
         (((unsigned int)stream_work + 0x3F) & ~0x3F);
-    mwsfd_mpvpara.chroma_width = (((width / 2) + 31) / 32) * 32;
-    mwsfd_mpvpara.chroma_height = height / 2;
-    mwsfd_mpvpara.width = width;
-    mwsfd_mpvpara.height = height;
-    mwsfd_mpvpara.reference_buffer = 0;
-    mwsfd_mpvpara.maximum_width = width;
-    mwsfd_mpvpara.maximum_height = height;
-    mwsfd_mpvpara.frame_count = frame_count;
-    mwsfd_mpvpara.frame_buffer = 0;
+    {
+        int current_height;
+        int current_width;
+        current_width = params->width;
+        current_height = params->height;
+        mwsfd_mpvpara.chroma_width = (((current_width / 2) + 31) / 32) * 32;
+        mwsfd_mpvpara.chroma_height = current_height / 2;
+        mwsfd_mpvpara.width = current_width;
+        mwsfd_mpvpara.height = current_height;
+        mwsfd_mpvpara.reference_buffer = 0;
+        mwsfd_mpvpara.maximum_width = current_width;
+        mwsfd_mpvpara.maximum_height = current_height;
+        mwsfd_mpvpara.frame_count = frame_count;
+        mwsfd_mpvpara.frame_buffer = 0;
+    }
     mwsfd_adxtpara.stream_buffer = audio_stream_buffer;
     mwsfd_adxtpara.decoder_buffer = audio_decoder_work;
 
@@ -898,21 +926,13 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         player->input_buffer_extra_size = mwsfd_packsize.value;
         break;
     }
+    create.buffer.ring_alignment = mwsfd_packsize.value;
     if (buffers->system_input_buffer_size != 0) {
         buffers->system_input_buffer_size -=
             buffers->system_input_buffer_size % mwsfd_packsize.value;
     }
 
-    switch (params->buffer_format) {
-    case 0: output_format = 3; break;
-    case 1: output_format = 1; break;
-    case 2: output_format = 2; break;
-    case 3: output_format = 3; break;
-    default:
-        MWSFSVM_Error(create_buffer_format_invalid);
-        output_format = 3;
-        break;
-    }
+    output_format = mwsfcre_CnvBufFmt(params->buffer_format);
     create.buffer.memory = shared_work;
     create.buffer.buffer_sizes[0] = buffers->system_input_buffer_size;
     create.buffer.buffer_sizes[1] = buffers->video_input_buffer_size;
@@ -946,21 +966,29 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     player->picture_user_header_size = 0x40;
     player->picture_user_write = 0;
     player->picture_user_read = 0;
-    player->internal_picture_user.buffer = picture_user_work->element_buffer;
-    player->internal_picture_user.buffer_size = 0x7C0;
-    player->internal_picture_user.element_size = 0x40;
-    player->picture_user = &player->internal_picture_user;
+    {
+        MwsPictureUserConfig* picture_user = &player->internal_picture_user;
+        picture_user->buffer = picture_user_work->element_buffer;
+        picture_user->buffer_size = 0x7C0;
+        picture_user->element_size = 0x40;
+        player->picture_user = picture_user;
+    }
     return sfd;
 }
 
-/* TODO: [breakthrough] 87.61539%; repeated size predicate restores a retail
- * branch; parameter loads still precede the saved-register prologue. */
+/* TODO: [breakthrough needed] 87.615390%; typed geometry path retained;
+ * prologue has nine missing retail instructions; needs owner-lifetime evidence. */
 static int mwsfcre_MallocRfb(MwsPlayer* player,
                              const MwsCreateParams* params,
                              MwsReferenceBuffers* output)
 {
+    int width;
+    int height;
     int result = 0;
-    int frame_size = mwsfcre_CalcFrameSize(params);
+    int frame_size;
+    width = params->width;
+    height = params->height;
+    frame_size = mwsfcre_CalcFrameSize(width, height);
     if (mwsfdcre_bufnum.buffer_count != 0) {
         /* Retail branches twice on one size comparison, as in RE4. */
         if (mwsfdcre_bufnum.buffer_count < 2 ||

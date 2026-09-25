@@ -65,8 +65,8 @@ void SFSET_SetCond(SfdHandle* handle, int condition,
     }
 }
 
-/* TODO: [near miss] 99.669420%; donor-shaped default-condition helper is
- * retained; only r28/r31 index/slot coloring remains at this clean-C ceiling. */
+/* TODO: [near miss] 99.669420%; r28/r31 index/handle coloring; RE4's `ofs = id << 2`
+ * byte-offset local regressed to 99.34% (ofs colored first); permuter found no honest form. */
 int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
     int i;

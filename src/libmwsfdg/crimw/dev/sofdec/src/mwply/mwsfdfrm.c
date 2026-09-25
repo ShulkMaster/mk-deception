@@ -481,11 +481,12 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
         output->picture_user_data = picture_user_data;
         output->picture_user_size = picture_user_size;
     }
-    memcpy(output->transport_fields, &source->display_mode, 0x38);
+    memcpy(output->transport_fields, &source->display_mode,
+           sizeof(output->transport_fields));
 }
 
-/* TODO: [near miss] 96.68777%; donor frame-present CFG, typed metadata owner,
- * and explicit invalid case restore retail islands; inspect remaining coloring. */
+/* TODO: [near miss] 96.68777%; donor frame-present CFG and typed metadata
+ * owner retained; picture-data Boolean lowering and coloring remain. */
 void mwPlyGetCurFrm(MwsPlayer* player, void* output)
 {
     MwsFrameOutput* frame_output = output;

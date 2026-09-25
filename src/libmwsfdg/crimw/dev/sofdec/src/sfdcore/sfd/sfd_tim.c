@@ -814,8 +814,8 @@ static inline void sftim_InitStreamTimeUnit(SfdTimerStreamTimeUnit* unit)
     unit->scale = 1;
 }
 
-/* TODO: [breakthrough needed] 60.986843%; removed non-retail +0x14C store;
- * sample-history loop guards and constant-register schedule still differ. */
+/* TODO: [breakthrough needed] 60.986843%; retail omits the +0x14C store;
+ * sample-history guards and zero-register scheduling still differ. */
 void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
 {
     int i;

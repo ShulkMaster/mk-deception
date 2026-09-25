@@ -63,8 +63,6 @@ static Quat* QuatFromZDiagDomMatrix(Quat* qpQuat, const RwMatrix* mpMatrix) {
 typedef Quat* (*QuatFromMatrixFn)(Quat* qpQuat, const RwMatrix* mpMatrix);
 
 /* Selects the numerically stable quaternion conversion for the dominant diagonal. */
-/* TODO: [near miss] 99.366196%; function-pointer selection differs only in
- * GPR coloring; m2c branch expansion regressed and permuter found no better form. */
 int RtQuatConvertFromMatrix(Quat* qpQuat, const RwMatrix* mpMatrix) {
     int valid;
 
@@ -78,31 +76,16 @@ int RtQuatConvertFromMatrix(Quat* qpQuat, const RwMatrix* mpMatrix) {
         if (T > ((float)0)) {
             QuatFromPositiveDiagMatrix(qpQuat, mpMatrix, T);
         } else {
-            QuatFromMatrixFn convert;
+            QuatFromMatrixFn convert =
+                (mpMatrix->right.x > mpMatrix->up.y)
+                    ? ((mpMatrix->right.x > mpMatrix->at.z)
+                           ? QuatFromXDiagDomMatrix
+                           : QuatFromZDiagDomMatrix)
+                    : ((mpMatrix->up.y > mpMatrix->at.z)
+                           ? QuatFromYDiagDomMatrix
+                           : QuatFromZDiagDomMatrix);
 
-            if (mpMatrix->right.x > mpMatrix->up.y) {
-                QuatFromMatrixFn xOrZ;
-
-                if (mpMatrix->right.x > mpMatrix->at.z) {
-                    xOrZ = QuatFromXDiagDomMatrix;
-                } else {
-                    xOrZ = QuatFromZDiagDomMatrix;
-                }
-                convert = xOrZ;
-            } else {
-                QuatFromMatrixFn yOrZ;
-
-                if (mpMatrix->up.y > mpMatrix->at.z) {
-                    yOrZ = QuatFromYDiagDomMatrix;
-                } else {
-                    yOrZ = QuatFromZDiagDomMatrix;
-                }
-                convert = yOrZ;
-            }
-            {
-                QuatFromMatrixFn selected = convert;
-                selected(qpQuat, mpMatrix);
-            }
+            convert(qpQuat, mpMatrix);
         }
     }
 

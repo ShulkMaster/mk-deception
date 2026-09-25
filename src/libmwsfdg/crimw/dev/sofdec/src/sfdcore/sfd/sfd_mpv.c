@@ -27,7 +27,6 @@ typedef struct SfdMpvPictureUserBuffers {
 
 typedef struct SfdMpvAuxWork {
     SfdMpvPictureUserBuffers picture_buffers;
-    int reserved_1014; /* 8-byte alignment for picture_pts at +0x1018. */
     long long picture_pts;
 } SfdMpvAuxWork;
 
@@ -284,11 +283,11 @@ static inline const unsigned char* sfmpv_SearchTransferDelimiter(
 static inline int sfmpv_DelimiterOffset(const SfdBufferTransfer* transfer,
                                         const unsigned char* delimiter)
 {
-    if (delimiter >= transfer->chunks[0].data &&
+    if (transfer->chunks[0].data <= delimiter &&
         delimiter < transfer->chunks[0].data + transfer->chunks[0].len) {
         return delimiter - transfer->chunks[0].data;
     }
-    if (delimiter >= transfer->chunks[1].data &&
+    if (transfer->chunks[1].data <= delimiter &&
         delimiter < transfer->chunks[1].data + transfer->chunks[1].len) {
         return transfer->chunks[0].len +
                (delimiter - transfer->chunks[1].data);
@@ -297,7 +296,7 @@ static inline int sfmpv_DelimiterOffset(const SfdBufferTransfer* transfer,
 }
 
 static inline const unsigned char* sfmpv_BsearchTransferDelimiter(
-    const SfdBufferTransfer* transfer, int delimiter_mask)
+    const SfdBufferTransfer* transfer, int delimiter_mask, int* code)
 {
     const unsigned char* delimiter;
 
@@ -311,25 +310,39 @@ static inline const unsigned char* sfmpv_BsearchTransferDelimiter(
             transfer->chunks[1].data + transfer->chunks[1].len,
             transfer->chunks[1].len, delimiter_mask);
         if (delimiter != 0) {
+            *code = MPV_CheckDelim(delimiter);
             return delimiter;
         }
-        tail = transfer->chunks[0].len < 3 ? transfer->chunks[0].len : 3;
-        head = transfer->chunks[1].len < 3 ? transfer->chunks[1].len : 3;
+        tail = transfer->chunks[0].len;
+        if (tail > 3) {
+            tail = 3;
+        }
+        head = transfer->chunks[1].len;
+        if (head > 3) {
+            head = 3;
+        }
 
         memcpy(boundary,
                transfer->chunks[0].data + transfer->chunks[0].len - tail,
                tail);
         memcpy(boundary + tail, transfer->chunks[1].data, head);
         for (i = 0; i < tail + head - 3; i++) {
-            if ((MPV_CheckDelim(boundary + i) & delimiter_mask) != 0) {
+            int found_code = MPV_CheckDelim(boundary + i);
+            if ((found_code & delimiter_mask) != 0) {
+                *code = found_code;
                 return transfer->chunks[0].data +
                        transfer->chunks[0].len - tail + i;
             }
         }
     }
-    return MPV_BsearchDelim(
+    delimiter = MPV_BsearchDelim(
         transfer->chunks[0].data + transfer->chunks[0].len,
         transfer->chunks[0].len, delimiter_mask);
+    if (delimiter != 0) {
+        *code = MPV_CheckDelim(delimiter);
+        return delimiter;
+    }
+    return 0;
 }
 
 static inline void sfmpv_InitFrame(SfdMpvFrame* frame, void** frame_buffer)
@@ -624,8 +637,8 @@ static int SFMPV_Standby(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 88.367645%; retail places frame/reference tables
- * before parameters in BSS; declaration order is neutral, so find the real owner. */
+/* TODO: [breakthrough needed] 88.367645%; typed auxiliary view is neutral;
+ * named BSS order remains para/RFB/TA versus retail TA/RFB/para. */
 static int SFMPV_Destroy(SfdHandle* handle)
 {
     SfdMpvFrameWork* work =
@@ -641,7 +654,7 @@ static int SFMPV_Destroy(SfdHandle* handle)
            sizeof(sfmpv_rfb_adr_tbl));
     memcpy(sfmpv_ta_adr_tbl, work->address_table,
            sizeof(sfmpv_ta_adr_tbl));
-    user = (SfdMpvPictureUserBuffers*)((unsigned char*)work + sizeof(*work));
+    user = &((SfdMpvAuxWork*)(work + 1))->picture_buffers;
     sfmpv_picusr_pbuf = user->base;
     sfmpv_picusr_bufnum = user->buffer_count;
     sfmpv_picusr_buf1siz = user->buffer_size;
@@ -688,8 +701,8 @@ static inline int sfmpv_ChkPara(SfdMpvParameters* parameters)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 95.181420%; both typed frame-count bounds are
- * codegen-neutral; validator reload and BSS owner need source evidence. */
+/* TODO: [near miss] 95.181420%; typed auxiliary view retained without a
+ * redundant local; BSS owner and final address schedule still differ. */
 static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
 {
     SfdMpvPictureUserBuffers* user;
@@ -734,7 +747,7 @@ static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
     work->pts_entry.data = 0;
     work->pts_entry.size = -1;
 
-    user = (SfdMpvPictureUserBuffers*)((unsigned char*)work + sizeof(*work));
+    user = &((SfdMpvAuxWork*)(work + 1))->picture_buffers;
     user->base = 0;
     user->buffer_count = 0;
     user->buffer_size = 0;
@@ -790,8 +803,8 @@ static int SFMPV_Create(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [breakthrough] 91.652435%; split count arithmetic improves match;
- * unsigned address checks are neutral, cross-chunk offsets remain. */
+/* TODO: [near miss] 95.579270%; donor ternary caps regress three consumers;
+ * retained bounded helper leaves search-cap branches and one copy. */
 static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
                           int delimiter_mask)
 {
@@ -799,7 +812,7 @@ static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
     const unsigned char* delimiter;
     int consumed;
     int i;
-    int nonzero = 0;
+    int nonzero;
     int ignored_code;
 
     if (SFBUF_RingGetRead(handle, handle->transports[2].parameter_10,
@@ -816,14 +829,14 @@ static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
         int remaining = transfer.chunks[0].len + transfer.chunks[1].len;
         remaining -= 3;
         consumed = remaining > 0 ? remaining : 0;
-    } else if ((unsigned long)delimiter >=
-                   (unsigned long)transfer.chunks[0].data &&
+    } else if ((unsigned long)transfer.chunks[0].data <=
+                   (unsigned long)delimiter &&
                (unsigned long)delimiter <
                    (unsigned long)(transfer.chunks[0].data +
                                    transfer.chunks[0].len)) {
         consumed = delimiter - transfer.chunks[0].data;
-    } else if ((unsigned long)delimiter >=
-                   (unsigned long)transfer.chunks[1].data &&
+    } else if ((unsigned long)transfer.chunks[1].data <=
+                   (unsigned long)delimiter &&
                (unsigned long)delimiter <
                    (unsigned long)(transfer.chunks[1].data +
                                    transfer.chunks[1].len)) {
@@ -833,12 +846,13 @@ static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
         consumed = 0;
     }
     SFBUF_RingAddRead(handle, handle->transports[2].parameter_10, consumed);
+    nonzero = 0;
     for (i = 0; i < (consumed < 3 ? consumed : 3); i++) {
         const unsigned char* byte;
         if (i < transfer.chunks[0].len) {
             byte = transfer.chunks[0].data + i;
         } else {
-            byte = transfer.chunks[1].data + i - transfer.chunks[0].len;
+            byte = transfer.chunks[1].data + (i - transfer.chunks[0].len);
         }
         if ((signed char)*byte != 0) {
             nonzero = 1;
@@ -935,15 +949,17 @@ static inline void sfmpv_SetVofst(SfdHandle* handle)
 {
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvTimeCodeSnapshot* output_start = &timer->output_start;
+    int mode;
     SfdMpvTimeCodeSnapshot* current = &timer->current;
 
     if (output_start->valid == 0) {
+        SfdTimeCode timecode = current->timecode;
         SfdMpvFrameWork* work =
             (SfdMpvFrameWork*)handle->transports[2].context;
-        SfdTimeCode timecode = current->timecode;
         int value;
         int scale;
-        int mode = 0;
+
+        mode = 0;
 
         switch (work->decode_state) {
         case 2:
@@ -966,7 +982,7 @@ static inline void sfmpv_SetVofst(SfdHandle* handle)
         }
         SFTIM_Tc2Time(&timecode, &value, &scale);
         output_start->timecode = timecode;
-        output_start->value = value - timer->initial.value;
+        output_start->value = value - handle->timer_state.field_003C.value;
         output_start->scale = scale;
         output_start->valid = 1;
     }
@@ -1036,8 +1052,8 @@ static inline void sfmpv_AddRtot(SfdHandle* handle, int consumed)
     handle->playback_runtime.time_values[4] += consumed;
 }
 
-/* TODO: [near miss] 97.348760%; donor switch and condition index agree;
- * inlined timer-copy addressing and register coloring remain. */
+/* TODO: [near miss] 98.188270%; keep branch-local timecode and compact
+ * snapshot overlay; one address instruction and coloring remain. */
 static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
@@ -1139,16 +1155,18 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
 static inline int sfmpv_IsSeekSkip(SfdHandle* handle)
 {
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    SfdMpvTimeCodeSnapshot* current = &timer->current;
+    SfdMpvTimeCodeSnapshot* output_start = &timer->output_start;
 
     if (handle->seek_state.request.position < 0) {
         return 0;
     }
-    if (timer->output_start.valid != 0) {
+    if (output_start->valid != 0) {
         return 0;
     }
     if (UTY_CmpTime(handle->seek_state.request.position,
                     handle->seek_state.request.field_08,
-                    timer->current.value, timer->current.scale) != 0) {
+                    current->value, current->scale) != 0) {
         return 0;
     }
     return 1;
@@ -1283,13 +1301,14 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    MPVContext* decoder = work->decoder;
     int decode_state = work->decode_state;
 
     if (work->field_110 != 0) {
         int first;
         int second;
 
-        MPV_GetLinkFlg(work->decoder, &first, &second);
+        MPV_GetLinkFlg(decoder, &first, &second);
         if (first == 1) {
             decode_state = 5;
         } else {
@@ -1316,8 +1335,8 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
     work->decode_state = decode_state;
 }
 
-/* TODO: [near miss] 95.171640%; donor GOP arm, callback local, and state
- * ladder remain; late/state joins differ; reject permutation-only temporaries. */
+/* TODO: [near miss] 98.477615%; typed decoder owner restores state join;
+ * late-skip validity-load scheduling and register coloring remain. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
@@ -1344,16 +1363,18 @@ static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
         skip = 1;
     } else if (sfmpv_IsGopSkip(handle, picture_type) != 0) {
         skip = 1;
+    } else if (sfmpv_IsLateSkip(handle, picture_type) != 0) {
+        skip = 1;
     } else {
-        skip = sfmpv_IsLateSkip(handle, picture_type);
+        skip = 0;
     }
 
     sfmpv_UpdatePicStat(handle, &work->picture_info, skip);
     return skip;
 }
 
-/* TODO: [breakthrough] 91.012050%; donor-order buffer/size declarations improve
- * codegen; geometry and tail-loop lowering remain structurally different. */
+/* TODO: [breakthrough] 91.915665%; typed configured dimensions and grouped
+ * luma/chroma calculations are neutral; retail's early schedule remains. */
 static int sfmpv_ChkBufSiz(SfdHandle* handle,
                            const SfdMpvPlaybackSettings* settings)
 {
@@ -1362,14 +1383,16 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     unsigned char* frame_buffer;
     int frame_size;
     int requested_count = work->setup_values.frame_count;
-    int width = settings->width;
-    int height = settings->height;
-    int aligned_width = ((width + 15) / 16) * 16;
-    int aligned_height = ((height + 15) / 16) * 16;
-    int luma_stride = ((aligned_width + 31) / 32) * 32;
-    int chroma_stride = (((aligned_width / 2) + 31) / 32) * 32;
-    int luma_size = aligned_height * luma_stride;
-    int chroma_size = (aligned_height / 2) * chroma_stride;
+    int configured_width = work->setup_values.width;
+    int configured_height = work->setup_values.height;
+    int width;
+    int height;
+    int aligned_width;
+    int aligned_height;
+    int luma_stride;
+    int chroma_stride;
+    int luma_size;
+    int chroma_size;
     int configured_size;
     int frame_count;
     int decoded_count;
@@ -1377,9 +1400,17 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     unsigned char* reference_buffer;
     SfdMpvFrame* frames = work->frames;
 
+    width = settings->width;
+    height = settings->height;
+    aligned_width = ((width + 15) / 16) * 16;
+    aligned_height = ((height + 15) / 16) * 16;
+    luma_stride = ((aligned_width + 31) / 32) * 32;
+    luma_size = aligned_height * luma_stride;
+    chroma_stride = (((aligned_width / 2) + 31) / 32) * 32;
+    chroma_size = (aligned_height / 2) * chroma_stride;
     frame_size = luma_size + chroma_size * 2 + 0x20;
-    configured_size = sfmpv_CalcFrameSize(work->setup_values.width,
-                                          work->setup_values.height);
+    configured_size = sfmpv_CalcFrameSize(configured_width,
+                                          configured_height);
     if (frame_size * 2 > configured_size * 2) {
         return SFLIB_SetErr(handle, 0xFF000F17);
     }
@@ -1396,10 +1427,6 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
                 break;
             }
             used_size += frame_size;
-        }
-        /* A full run leaves the loop index at 17, but the table has 16 slots. */
-        if (frame_count > 16) {
-            frame_count = 16;
         }
         if (frame_count < requested_count) {
             return SFLIB_SetErr(handle, 0xFF000F17);
@@ -1500,8 +1527,8 @@ static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
 }
 #pragma pool_data on
 
-/* TODO: [near miss] 95.135130%; retail operations/CFG agree; stop at
- * timer-base and accumulated-field register coloring. */
+/* TODO: [near miss] 95.135130%; paired diff is argument-only across the
+ * timer and accumulated fields; stop at clean-C coloring ceiling. */
 static void sfmpv_DoReformTc(SfdHandle* handle,
                              MPVPictureInfo* picture, long long pts,
                              int group_changed)
@@ -1579,8 +1606,8 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
     }
 }
 
-/* TODO: [near miss] 98.649350%; typed indexed clear keeps retail stores;
- * fixed-clear pretest folds under honest bounds, plus tail coloring. */
+/* TODO: [near miss] 98.649350%; bounded for/while clear forms are neutral;
+ * retail-only fixed-clear pretest and tail coloring remain. */
 static void sfmpv_CalcRepeatField(SfdHandle* handle,
                                   MPVPictureInfo* picture,
                                   int group_changed)
@@ -2045,16 +2072,16 @@ static inline void sfmpv_SkipEndcode(SfdHandle* handle, SJ* stream)
     stream->interface->unget_chunk(stream, 1, &chunk);
 }
 
-/* TODO: [breakthrough] 91.495240%; donor rollover, typed timer owners,
- * shared endcode helper, and concat-time sentinel agree; audio CFG remains. */
+/* TODO: [breakthrough] 93.980950%; the sample sentinel and structured
+ * early return preserve behavior, but retail's delayed result join remains. */
 static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    int concat_time;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
-    int concat_time = 0;
 
     if (SFSET_GetCond(handle, 6) == 0) {
         SfdMpvTimeCodeSnapshot* maximum = &timer->maximum;
@@ -2097,17 +2124,19 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             timecode.minutes = minutes;
             timecode.seconds = seconds;
             timecode.frames = frame;
+            timecode.subframe = (short)field;
             timecode.frame_offset = 0;
-            timecode.subframe = field;
             SFTIM_Tc2Time(&timecode, &value, &scale);
             concat_time = value - initial->value;
         }
     } else {
         int sample_rate;
         int samples;
+        int time_unit;
         int* total_samples =
             &handle->timer_state.sample_window.fields_04[0];
 
+        concat_time = 0;
         if (handle->create_config.buffer.transport_setup->entries[3] !=
             &SFD_tr_ad_adxt) {
             samples = 0;
@@ -2116,19 +2145,18 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             concat_time = -1;
         }
         if (concat_time >= 0) {
+            time_unit = timer->initial.scale;
             *total_samples += samples;
-            concat_time = UTY_MulDiv(*total_samples, timer->initial.scale,
-                                     sample_rate) -
+            concat_time = UTY_MulDiv(*total_samples, time_unit, sample_rate) -
                           repeat_timer->reference_time_offset;
             if (concat_time < 0) {
                 concat_time = 0;
             }
         }
+        if (concat_time < 0) {
+            return -1;
+        }
     }
-    if (concat_time < 0) {
-        return -1;
-    }
-
     if (concat_time > 0) {
         SFCON_UpdateConcatTime(handle, concat_time);
         work->field_088++;
@@ -2140,22 +2168,72 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
     return 0;
 }
 
-/* TODO: [breakthrough] 85.267410%; transport +0x20 and three-argument
- * delimiter call agree; decode dispatch and tail still differ. */
-static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
-                               int delimiter_type, int has_data,
-                               int* processed)
+static inline int sfmpv_IsTerm(SfdHandle* handle, int size, int code)
+{
+    if (code == 0x80) {
+        return 1;
+    }
+    if (size <= 4 &&
+        SFBUF_GetTermFlg(handle, handle->transports[2].parameter_10) == 1) {
+        return 1;
+    }
+    return 0;
+}
+
+static inline int sfmpv_SkipPic(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
-    int buffer_index = handle->transports[2].parameter_10;
+    SfdMpvTimeCodeSnapshot* current = &timer->current;
+    SfdMpvTimeCodeSnapshot* previous = &timer->previous;
+    MPVContext* decoder = work->decoder;
+    int flow_before;
+    int consumed;
+    int result;
+
+    if (current->value < repeat_timer->reference_time_origin) {
+        *previous = *current;
+    }
+    flow_before = SJRBF_GetFlowCnt(stream, 0, 1);
+    result = MPV_SkipFrmSj(decoder, stream);
+    consumed = SJRBF_GetFlowCnt(stream, 0, 1) - flow_before;
+    result = sfmpv_ChkDecRet(handle, result, consumed, 0xFF000F07);
+    sfmpv_AddRtot(handle, consumed);
+    switch (result) {
+    case 0:
+        if ((signed char)work->picture_info.field_58 == 0) {
+            work->frame_state[0] = 1;
+        }
+        SFPLY_AddSkipPic(handle, 1, work->picture_info.picture_type);
+        result = 0;
+        break;
+    }
+    return result;
+}
+
+/* TODO: [near miss] 99.651810%; only equivalent r29/r30/r31 coloring
+ * remains across work, result, and snapshot owners; stop here. */
+static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
+                               int delimiter_type, int has_data,
+                               int* processed)
+{
+    SfdMpvTimeCodeSnapshot* total;
+    SfdMpvFrameWork* work;
+    SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    int buffer_index;
     SJ* stream;
+    int decode_result;
+    SJCK chunk;
+    SfdBufferTransfer header_transfer;
+    SfdBufferTransfer frame_transfer;
     int result;
 
     *processed = 0;
+    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    buffer_index = handle->transports[2].parameter_10;
     handle->playback_runtime.field_24 = 0;
     if (work->decode_mode != 0xCC || work->frame_state[1] == 0) {
         delimiter_type &= 0xCC;
@@ -2168,12 +2246,15 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
         SFMPVF_SetGopStat(handle, 1);
     }
     if (delimiter_type == 0x80) {
+        int endcode_buffer_index = handle->transports[2].parameter_10;
+
+        total = &timer->reserved_snapshot;
         if (handle->transports[2].state < 0) {
             handle->transports[2].state =
-                SFBUF_GetRTot(handle, buffer_index) + 4;
+                SFBUF_GetRTot(handle, endcode_buffer_index) + 4;
         }
-        if (timer->reserved_snapshot.value < 0) {
-            timer->reserved_snapshot = timer->maximum;
+        if (total->value < 0) {
+            *total = timer->maximum;
         }
     }
 
@@ -2181,37 +2262,25 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
         if (sfmpv_Concat(handle, stream) == 0) {
             *processed = 1;
         }
-        return result;
-    }
-    if (delimiter_type == 0x80 &&
-        SFCON_IsVideoEndcodeSkip(handle) != 0) {
+    } else if (delimiter_type == 0x80 &&
+               SFCON_IsVideoEndcodeSkip(handle) != 0) {
         sfmpv_SkipEndcode(handle, stream);
         *processed = 1;
-        return result;
-    }
-    if (has_data == 0 &&
-        (delimiter_type == 0x80 ||
-         (active_size <= 4 && SFBUF_GetTermFlg(handle, buffer_index) == 1))) {
+    } else if (has_data == 0 &&
+               sfmpv_IsTerm(handle, active_size, delimiter_type)) {
         SFMPVF_TermDec(handle);
-        return result;
-    }
-    if (has_data == 0 && active_size <= 4) {
+    } else if (has_data == 0 && active_size <= 4) {
         handle->playback_runtime.field_24 = 1;
-        return result;
-    }
-
-    if ((delimiter_type & 0x4C) != 0) {
-        SfdBufferTransfer transfer;
-        SJCK header;
-        int decode_result;
-
-        if (SFBUF_RingGetRead(handle, buffer_index, &transfer) != 0) {
-            header.data = 0;
-            header.len = 0;
+    } else if ((delimiter_type & 0x4C) != 0) {
+        if (SFBUF_RingGetRead(handle,
+                              handle->transports[2].parameter_10,
+                              &header_transfer) != 0) {
+            chunk.data = 0;
+            chunk.len = 0;
         } else {
-            header = transfer.chunks[0];
+            chunk = header_transfer.chunks[0];
         }
-        result = sfmpv_DecodePicAtr(handle, &header, stream,
+        result = sfmpv_DecodePicAtr(handle, &chunk, stream,
                                     delimiter_type, &decode_result);
         if (result != 0) {
             return result;
@@ -2226,66 +2295,33 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
             work->decode_mode = 0xC0;
         }
         *processed = 1;
-        return result;
-    }
-    if ((delimiter_type & 2) != 0) {
-        SfdBufferTransfer transfer;
-        SJCK chunk;
-
-        if (SFBUF_RingGetRead(handle, buffer_index, &transfer) != 0) {
+    } else if ((delimiter_type & 2) != 0) {
+        if (SFBUF_RingGetRead(handle,
+                              handle->transports[2].parameter_10,
+                              &frame_transfer) != 0) {
             chunk.data = 0;
             chunk.len = 0;
         } else {
-            chunk = transfer.chunks[0];
+            chunk = frame_transfer.chunks[0];
         }
         if (sfmpv_IsSkip(handle, &chunk) != 0) {
-            int flow_before;
-            int consumed;
-            int skip_result;
-
-            if (timer->current.value < repeat_timer->reference_time_origin) {
-                timer->previous = timer->current;
-            }
-            flow_before = SJRBF_GetFlowCnt(stream, 0, 1);
-            skip_result = MPV_SkipFrmSj(work->decoder, stream);
-            consumed = SJRBF_GetFlowCnt(stream, 0, 1) - flow_before;
-            switch (skip_result) {
-            case 0:
-                result = 0;
-                break;
-            case -2:
-            case -3:
-                result = consumed > 0
-                             ? 0
-                             : SFLIB_SetErr(handle, skip_result);
-                break;
-            default:
-                result = SFLIB_SetErr(handle, 0xFF000F07);
-                break;
-            }
-            SFBUF_AddRtotSj(handle, buffer_index, consumed);
-            handle->playback_runtime.time_values[4] += consumed;
+            result = sfmpv_SkipPic(handle, stream);
             if (result == 0) {
-                if ((signed char)work->picture_info.field_58 == 0) {
-                    work->frame_state[0] = 1;
-                }
-                SFPLY_AddSkipPic(
-                    handle, 1, work->picture_info.picture_type);
                 *processed = 1;
             }
-            return result;
+        } else {
+            result = sfmpv_DecodeFrm(handle, stream);
         }
-        return sfmpv_DecodeFrm(handle, stream);
-    }
-    if (delimiter_type != 0x80 &&
-        sfmpv_GoDdelim(handle, stream, 0xCC) > 0) {
-        *processed = 1;
+    } else if (delimiter_type != 0x80) {
+        if (sfmpv_GoDdelim(handle, stream, 0xCC) > 0) {
+            *processed = 1;
+        }
     }
     return result;
 }
 
-/* TODO: [near miss] 94.668144%; signed three-byte caps and search returns
- * agree; inspect remaining cross-chunk helper lowering. */
+/* TODO: [near miss] 94.668144%; shared search-cap branch lowering remains;
+ * all five honest cap variants regress this or other inlined consumers. */
 static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
                                     int current_type,
                                     const unsigned char* delimiter)
@@ -2369,8 +2405,8 @@ static inline int sfmpv_ChkRingSpace(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 91.512660%; signed three-byte caps and search returns
- * agree; refresh and cross-chunk helper lowering remain. */
+/* TODO: [near miss] 94.544304%; backward-search output, signed caps,
+ * and null return align; forward-search and coloring differences remain. */
 static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
                                int* delimiter_type, int* has_data)
 {
@@ -2428,7 +2464,7 @@ static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
         if (cached_end != transfer_end) {
             cached_end = transfer_end;
             cached_delimiter = (unsigned char*)
-                sfmpv_BsearchTransferDelimiter(&transfer, 0xCC);
+                sfmpv_BsearchTransferDelimiter(&transfer, 0xCC, &ignored_code);
             SFBUF_RingSetDlm(handle, buffer_index, cached_delimiter,
                              cached_end);
         }
@@ -2456,6 +2492,8 @@ static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
             }
         }
         break;
+    case 0x40:
+    case 0x80:
     default:
         break;
     }
@@ -2699,8 +2737,8 @@ static int SFMPV_Init(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 97.428570%; retail opcode, CFG, offsets, and constants agree;
- * only buffer-owner/counter register coloring remains; stop at soft ceiling. */
+/* TODO: [near miss] 97.428570%; paired diff is argument-only across the
+ * inlined typed buffer setup; stop at buffer-owner/counter coloring. */
 int SFD_SetPicUsrBuf(SfdHandle* handle, void* buffer, int buffer_count,
                      int buffer_size)
 {
@@ -2768,8 +2806,8 @@ void SFD_CalcYccPlane(void* buffer, int width, int height,
     sfmpv_CalcYccPlaneSub(buffer, width, height, output);
 }
 
-/* TODO: [near miss] 99.852270%; scalar BSS prefix agrees; the tentative
- * tables still use a different first-reference order and relocation base. */
+/* TODO: [near miss] 99.852270%; scalar BSS prefix agrees, but tentative
+ * declaration reordering is neutral; seek a proven placement mechanism. */
 void SFD_SetMpvParaTbl(SfdMpvParameters* parameters,
                        void** reference_buffers,
                        void** frame_buffers)

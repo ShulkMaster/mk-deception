@@ -430,10 +430,11 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
     return 1;
 }
 
-/* Retail calls the exact raw-header helper; caller-scoped control preserves it. */
+/* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
+ * preserves both the exact helper and the retail call; helper-only scope does not. */
 #pragma dont_inline on
-/* TODO: [near miss] 96.400000%; staged start-code reads retain retail byte
- * reuse; fallback load-update and owner coloring remain. */
+/* TODO: [near miss] 98.557144%; staged fallback pointer advance matches
+ * retail loads; only argument/register coloring remains. */
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag)
 {
@@ -464,8 +465,8 @@ int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
     start_code |= header[3];
     if ((int)start_code != 0x1BF) {
         prefix_byte_0 = header[-2];
-        prefix_byte_1 = header[-1];
         header -= 2;
+        prefix_byte_1 = header[1];
         header_size += 2;
         start_code = prefix_byte_0;
         start_code = (start_code << 8) | prefix_byte_1;

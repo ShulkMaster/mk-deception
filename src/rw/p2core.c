@@ -205,8 +205,6 @@ RxPipeline* RxPipelineCreate(void)
         return 0;
     }
 }
-/* TODO: [near miss] 96.5625%; retail clears the dead local pointer after
- * freeing it; retain the structured C without the unused assignment. */
 void _rxPipelineDestroy(RxPipeline* pipeline)
 {
     if (pipeline != 0) {
@@ -228,5 +226,6 @@ void _rxPipelineDestroy(RxPipeline* pipeline)
             pipeline->superBlockSize = 0;
         }
         RwEngineInstance->fpFreeListFree(rxPipelineGlobalField(pipesFreeList), pipeline);
+        pipeline = 0;
     }
 }

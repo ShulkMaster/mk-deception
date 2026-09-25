@@ -7,8 +7,6 @@ RwFileFunctions* RwOsGetFileInterface(void) {
 }
 
 
-/* TODO: [near miss] 92.413795%; Boolean file-existence normalization uses
- * neg/or/shift instead of retail subic/subfe; return-after-close regressed. */
 static int rwfexist(const char* name) {
     void* file;
     int exists;
