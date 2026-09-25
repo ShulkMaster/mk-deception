@@ -576,7 +576,8 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 99.954025%; redundant color locals removed; compiler-created by-value copy slots remain reversed. */
+/* TODO: [near miss] 99.954025%; by-value GXColor copy slots remain reversed; named
+ * per-call locals coalesce, and a shared inline with display_dragon_with_text regresses. */
 static void render_image(void* unused) {
     GXColor black;
     int w;

@@ -15,6 +15,21 @@ repository. The supported target is the USA GameCube release, `GQNE5D`.
 - Keep matching source readable and structurally honest. Do not force registers
   with `register`, fake `volatile`, dead sinks, incorrect prototypes, invented
   fields, embedded assembly, or unstructured `goto`.
+- Exception: a local `goto` is allowed as a last resort when all of these hold:
+  - Structured alternatives (early return, `break`, flag, shared exit, helper
+    inline) were measured and regress the match.
+  - The shape has backing evidence, such as matched references of the same
+    vendor code in other decomps (MSL `__dec2num` uses `goto done` in both
+    bfbb and TP/dusk), or the `goto` gives simpler, more honest control flow
+    than a contrived `do { ... } while (0)`, one-trip loop, or dummy flag that
+    exists only to force a match.
+  - The jump stays inside one function and targets a label in that same
+    function. Prefer a forward jump to a shared exit or cleanup. Never jump into a nested
+    block past initializations, never emulate a loop that `for`/`while`
+    expresses, and never use `setjmp`/`longjmp` or computed gotos.
+
+  Record the evidence (measured alternatives and the reference) in the task
+  report, not in a function comment.
 - Exception: adding a function to the assembly-sequence mechanism is an
   extraordinarily rare action and requires explicit user permission for that
   specific function. Proof that a function is genuine handwritten assembly is
@@ -188,7 +203,8 @@ offsets and never hand-edit generated contexts.
 
 Use m2c to recover control flow, operations, and an initial type hypothesis.
 Replace generated temporaries, unknown types, casts, and gotos with supported
-project types and structured C. Check every call and store order against the
+project types and structured C. Keep a `goto` only under the last-resort
+exception in the repository rules. Check every call and store order against the
 retail assembly before treating the reconstruction as source.
 
 ## Permute a localized near match
@@ -224,7 +240,26 @@ Run it immediately with four local workers and stop on score zero:
 python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s --run -- -j 4 --stop-on-zero
 ```
 
-Without `--run`, the wrapper prints the upstream command for the prepared
+`--run` goes through `tools/permuter_mkd.py`, which registers the MKD plugin
+passes from `tools/permuter_plugins/` and applies the `playbook` weight profile.
+That profile favors honest staging, ordering, and operand passes and disables
+dead-sink, padding, and `if (1)` passes. Pass `--profile upstream` to keep
+upstream MWCC weights. The scratch's `settings.toml` `[weight_overrides]` still
+wins.
+
+When argument staging or register coloring around a call remains, first score
+every call-argument staging combination (keep, fold `v op= e` into the
+argument, fold to the value, or hoist into a local) exhaustively:
+
+```sh
+python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s --call-args
+python3 tools/permuter_call_args.py .scratches/permuter/nonmatchings/SCRATCH --joint
+```
+
+A scratch has its own score floor. Compare a candidate with the scratch's
+best score, not with zero, then remeasure it in the real TU.
+
+Without `--run`, the wrapper prints the launcher command for the prepared
 scratch. Edit only that scratch's `base.c` when adding `PERM_GENERAL`,
 `PERM_LINESWAP`, or `PERM_RANDOMIZE`; never put `PERM_*` macros in `src/`.
 Random mode is most useful for a clean near miss. Manual macros are appropriate
@@ -306,6 +341,14 @@ translation unit.
   Windows runs them directly.
 - PowerPC binutils assemble handwritten or generated assembly inputs used by the
   project. They are not a substitute for matching CodeWarrior-generated C/C++.
+
+### Deferred-inline order
+
+`python3 tools/deferred_scan.py` lists units whose retail parse-time symbols
+number backwards through `.text`, which is the `-inline deferred` signature.
+`python3 tools/reverse_deferred_tu.py IN.c OUT.c` writes a reversed-definition
+candidate for a scratch compile. Follow the playbook's M15 deferred-order
+addendum and land it only when the whole unit gains.
 
 ### Project configuration and progress
 
