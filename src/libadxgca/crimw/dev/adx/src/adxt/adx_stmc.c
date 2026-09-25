@@ -485,7 +485,6 @@ static inline ADXStream* adxstmf_create(SJ* sj, s32 offset, s32 count,
 {
     ADXStream* stream = 0;
     s32 index;
-    s32 sj_size;
 
     for (index = 0; index < count; index++) {
         stream = (ADXStream*)((u8*)adxstmf_obj +
@@ -513,9 +512,8 @@ static inline ADXStream* adxstmf_create(SJ* sj, s32 offset, s32 count,
     stream->transfer_limit = ADXSTM_MAX_SECTORS;
     stream->eos_sector = stream->file_sectors;
     if (stream->sj != 0) {
-        sj_size = sj->interface->get_num_data(sj, 1);
-        stream->sj_buffer_size =
-            sj_size + sj->interface->get_num_data(sj, 0);
+        stream->sj_buffer_size = sj->interface->get_num_data(sj, 0) +
+                                 sj->interface->get_num_data(sj, 1);
         stream->minimum_buffer_size = stream->maximum_buffer_size =
             stream->sj_buffer_size;
     }
@@ -526,7 +524,6 @@ static inline ADXStream* adxstmf_create(SJ* sj, s32 offset, s32 count,
     return stream;
 }
 
-/* TODO: [near miss] 99.872610%; source-order swap leaves MWCC's add operands unchanged; retained helper is structurally exact, so stop at commutative coloring. */
 ADXStream* ADXSTM_Create(SJ* sj, s32 priority)
 {
     if (priority < 0x100) {

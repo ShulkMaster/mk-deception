@@ -94,6 +94,8 @@ int ScreenStopAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
     return 1;
 }
 
+/* TODO: [near miss] 99.80769%; byte-flag GPR coloring remains; a direct byte
+ * local regressed, and the C++ permuter parser rejects class declarations. */
 int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                  int /*dt*/) {
     ScreenParams* params;
@@ -102,11 +104,6 @@ int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     Screen* screen;
     unsigned int playingFlag;
 
-    /*
-     * Soft ceiling ~99.8%: retail clrlwi r29,r31,24 vs our r31,r31 (F coloring).
-     * Tried: screen cast-reuse, unsigned char, decl order, scope screen,
-     * signed flag, early-return params -- no change or regress; stop.
-     */
     params = m_params;
     if (params != 0) {
         screen = m_object->m_screen;

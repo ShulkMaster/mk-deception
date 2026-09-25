@@ -58,8 +58,8 @@ static inline void subtract_history(SFTST_Work* work, int value)
     }
 }
 
-/* TODO: [near miss] 98.51667%; remaining debug sprintf/64-bit register
- * coloring has no clean-C source lever; anonymous donor-absent tail removed. */
+/* TODO: [near miss] 99.366670%; debug snapshots match retail ownership. Declaring
+ * output/input/maximum before sample reproduces retail's load order but scores 99.362%; coloring remains. */
 void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
                 SFTST_Time* sample, SFTST_Time* output)
 {
@@ -189,18 +189,23 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
     }
     sftst_last = work;
     if (sftst_debout_buf != 0) {
-        int milliseconds = UTY_MulDiv(1000, (int)work->sample_time.value,
-                                      (int)work->sample_time.scale);
+        long long sample_value = work->sample_time.value;
+        long long input_value = work->input_time.value;
+        long long output_value = work->output_time.value;
+        long long maximum_value = work->maximum_time;
+        int sample_scale = work->sample_time.scale;
+        int milliseconds = UTY_MulDiv(1000, (int)sample_value,
+                                      sample_scale);
         long long seconds = work->sample_time.value / work->sample_time.scale;
 
         length = sprintf(message, sftst_format, work, (int)seconds, milliseconds,
-                         (int)(work->sample_time.value >> 32),
-                         (int)work->sample_time.value,
-                         (int)(work->sample_time.value & 0x7fffffff),
-                         (int)work->maximum_time, (int)work->input_time.value,
-                         (int)work->output_time.value,
-                         (int)(work->input_time.value - work->output_time.value),
-                         (int)(work->maximum_time - work->output_time.value),
+                         (int)(sample_value >> 32),
+                         (int)sample_value,
+                         (int)(sample_value & 0x7fffffff),
+                         (int)maximum_value, (int)input_value,
+                         (int)output_value,
+                         (int)(input_value - output_value),
+                         (int)(maximum_value - output_value),
                          work->front_max, work->front_min, work->rear_max,
                          work->rear_min, work->paused, work->reset_history,
                          work->history_resets, work->excess_resets,
@@ -210,7 +215,7 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
         strcpy(sftst_debout_write, message);
         sftst_debout_write += length;
         if (sftst_debout_write >=
-            sftst_debout_buf + (sftst_debout_siz - 0x400)) {
+            sftst_debout_buf + sftst_debout_siz - 0x400) {
             sftst_debout_write = sftst_debout_round;
         }
     }

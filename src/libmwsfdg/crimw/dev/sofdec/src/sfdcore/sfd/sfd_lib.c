@@ -96,6 +96,16 @@ void SFLIB_InitErrInf(SfdErrorInfo* info)
     info->field_10 = 0;
 }
 
+static inline int sflib_CheckResult(int result)
+{
+    int error = 0;
+
+    if (result != 0) {
+        error = result;
+    }
+    return error;
+}
+
 /* TODO: [near miss] 97.000000%; donor-backed lifetime order and the early
  * transport-error return match retail; teardown locals retain r29-r31 residue. */
 int SFD_Finish(void)
@@ -128,35 +138,37 @@ int SFD_Finish(void)
     return error;
 }
 
-/* TODO: [breakthrough needed] 91.152780%; typed library initialization and
- * retail BSS ownership agree; transport/error lifetimes remain broad. */
+/* TODO: [near miss] 94.138885%; typed status helper restores the error join;
+ * stop at equivalent parameter-store and transport-load scheduling. */
 int SFD_Init(const SfdLibraryConfig* config)
 {
+    int timer_source;
+    const SfdTransportRegistry* registry_source;
     int error;
     int i;
 
     sflib_sizeof_sfdhn = sizeof(SfdHandle);
     cri_verstr_ptr = SFLIB_version_str;
     SJRBF_Init();
-    UTY_MemsetDword((unsigned int*)&SFLIB_libwork, 0, 0x89);
-    MEM_Copy(SFLIB_libwork.default_conditions, SFPLY_cond_dfl, 0x190);
-    SFLIB_libwork.timer_source = config->timer_source;
-    SFLIB_libwork.transport_registry_source = config->transport_registry;
+    UTY_MemsetDword((unsigned int*)&SFLIB_libwork, 0,
+                    sizeof(SFLIB_libwork) / sizeof(unsigned int));
+    MEM_Copy(SFLIB_libwork.default_conditions, SFPLY_cond_dfl,
+             sizeof(SFLIB_libwork.default_conditions));
+    timer_source = config->timer_source;
+    registry_source = config->transport_registry;
+    SFLIB_libwork.transport_registry_source = registry_source;
+    SFLIB_libwork.timer_source = timer_source;
     SFLIB_libwork.field_0198 = 0;
     SFLIB_InitErrInf(&SFLIB_libwork.error_info);
-    SFTIM_Init(&SFLIB_libwork.timer_work, config->timer_source);
+    SFTIM_Init(&SFLIB_libwork.timer_work, timer_source);
     SFBUF_Init(&SFLIB_libwork.buffer_work);
     SFLIB_libwork.reset_in_progress = 0;
     SFLIB_libwork.retained_adxt = 0;
     for (i = 0; i < 8; i++) {
         SFLIB_libwork.handles[i] = 0;
     }
-    error = 0;
-    i = SFTRN_Init(&SFLIB_libwork.transport_registry,
-                   config->transport_registry);
-    if (i != 0) {
-        error = i;
-    }
+    error = sflib_CheckResult(SFTRN_Init(
+        &SFLIB_libwork.transport_registry, config->transport_registry));
     if (error != 0) {
         return error;
     }

@@ -23,8 +23,8 @@ static const int mpvlib_cond_dfl[17] = {
     0, 1, 1, 0, 0, 0, 3, 0x7FFFFFFF, (int)MPV_MbCbFn,
     0, 0, 0, 0, 0, 0, 0, 0x5A5A5A5A
 };
-const int mpvlib_siz_mpvwork = 0x5C;
-const int mpvlib_siz_mpvobj = 0x1378;
+const int mpvlib_siz_mpvwork = sizeof(MPVLibWork);
+const int mpvlib_siz_mpvobj = MPV_DECODER_VERSION_SIZE;
 const int mpvlib_siz_mpvixa = 0x1C60;
 
 int mpvlib_use_lc;
@@ -167,8 +167,8 @@ int MPV_Destroy(MPVContext* handle)
 
 void MPV_GetDctCnt(MPVContext* handle, int* decoded, int* skipped)
 {
-    *decoded = handle->dct_state.counters.decoded;
-    *skipped = handle->dct_state.counters.skipped;
+    *decoded = handle->dct_state.decoded;
+    *skipped = handle->dct_state.skipped;
 }
 
 static MPVContext* mpvlib_InitHn(MPVContext* handle)
@@ -208,10 +208,10 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
                     (unsigned int*)mpvlib_libwork.conditions, 16);
     MPVERR_InitErrInf(&handle->error_info);
     MPVCMC_InitObj(handle);
-    dct_params = &handle->dct_state.params;
+    dct_params = &handle->dct_state;
     DCT_FsriInitPa(dct_params);
     dct_params->workspace = (float*)handle->field_D00;
-    dct_params->coefficients = &handle->transform.coefficients[3][0];
+    dct_params->coefficients = &handle->transform.coefficients[0][0];
     dct_params->output_blocks = handle->dct_output_blocks;
     mpvlib_InitPicAtr(&handle->condition_state.picture);
 
@@ -226,7 +226,7 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     handle->field_1314 = 0;
     handle->decode_intra_block = MPVABDEC_IntraBlock;
     handle->decode_nonintra_block = MPVABDEC_NintraBlock;
-    handle->field_1324 = handle->condition_state.decoder.field_1AC;
+    handle->field_1324 = handle->condition_state.conditions[7];
 
     for (index = 0; index < 4; index++) {
         MPV_SetUsrSj(handle, index, 0, 0, 0);
@@ -283,57 +283,46 @@ void MPV_Finish(void)
 
 static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
 {
-    int zero;
-    int three;
-    int one;
-    int negative_one;
-    int byte_max;
-
     memset(attributes, 0, 4);
-    zero = 0;
-    three = 3;
-    one = 1;
-    negative_one = -1;
-    byte_max = 0xFF;
-    attributes->width = zero;
-    attributes->height = zero;
-    attributes->macroblocks_per_row = zero;
-    attributes->macroblock_rows = zero;
-    attributes->frame_rate_code = zero;
-    attributes->temporal_reference = zero;
-    attributes->picture_type = zero;
-    attributes->drop_frame_flag = zero;
-    attributes->time_code_hours = zero;
-    attributes->time_code_minutes = zero;
-    attributes->time_code_seconds = zero;
-    attributes->time_code_pictures = zero;
-    attributes->group_count = zero;
-    attributes->sequence_header_count = zero;
-    attributes->field_38 = three;
-    attributes->field_3C = one;
-    attributes->field_40 = one;
-    attributes->field_44 = one;
-    attributes->bit_rate = zero;
-    attributes->vbv_buffer_size = zero;
-    attributes->field_50 = negative_one;
-    attributes->field_52 = negative_one;
-    attributes->field_54 = zero;
-    attributes->field_55 = negative_one;
-    attributes->field_56 = negative_one;
-    attributes->field_57 = negative_one;
-    attributes->field_58 = zero;
-    attributes->aspect_ratio = one;
-    attributes->constrained_parameters = zero;
-    attributes->field_5B = zero;
-    attributes->field_5C = zero;
-    attributes->field_5D = byte_max;
-    attributes->field_5E = negative_one;
-    attributes->field_5F = negative_one;
-    attributes->field_60 = negative_one;
-    attributes->field_61 = zero;
-    attributes->field_62 = byte_max;
-    attributes->field_63 = byte_max;
-    attributes->field_64 = byte_max;
+    attributes->width = 0;
+    attributes->height = 0;
+    attributes->macroblocks_per_row = 0;
+    attributes->macroblock_rows = 0;
+    attributes->frame_rate_code = 0;
+    attributes->temporal_reference = 0;
+    attributes->picture_type = 0;
+    attributes->drop_frame_flag = 0;
+    attributes->time_code_hours = 0;
+    attributes->time_code_minutes = 0;
+    attributes->time_code_seconds = 0;
+    attributes->time_code_pictures = 0;
+    attributes->group_count = 0;
+    attributes->sequence_header_count = 0;
+    attributes->field_38 = 3;
+    attributes->field_3C = 1;
+    attributes->field_40 = 1;
+    attributes->field_44 = 1;
+    attributes->bit_rate = 0;
+    attributes->vbv_buffer_size = 0;
+    attributes->field_50 = -1;
+    attributes->field_52 = -1;
+    attributes->field_54 = 0;
+    attributes->field_55 = -1;
+    attributes->field_56 = -1;
+    attributes->field_57 = -1;
+    attributes->field_58 = 0;
+    attributes->aspect_ratio = 1;
+    attributes->constrained_parameters = 0;
+    attributes->field_5B = 0;
+    attributes->field_5C = 0;
+    attributes->field_5D = 0xFF;
+    attributes->field_5E = -1;
+    attributes->field_5F = -1;
+    attributes->field_60 = -1;
+    attributes->field_61 = 0;
+    attributes->field_62 = 0xFF;
+    attributes->field_63 = 0xFF;
+    attributes->field_64 = 0xFF;
 }
 /* TODO: [breakthrough needed] 73.28829%; probe and version are separate,
  * but rodata order, initialization CFG, and locked-cache lowering still differ. */
@@ -362,7 +351,7 @@ int MPV_Init(int handle_count, void* work)
     } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
         error = MPVERR_SetCode(0, 0xFF03FF02);
     } else if (MPVDEC_CheckVersion(version_check,
-                                   0x1378, 0x80) != 0) {
+                                   MPV_DECODER_VERSION_SIZE, 0x80) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF07);
     } else {
         /* The retail build deliberately traps if its endian probe is invalid. */

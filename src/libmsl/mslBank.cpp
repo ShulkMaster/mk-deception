@@ -566,8 +566,8 @@ static void mslBankReadAssetHeaderComplete(
 /* Soft ceiling: mslBankReadWavesComplete ~99.71% -- four relocation-label
  * argument differences remain; operations and control flow are exact.
  */
-/* TODO: [near miss] 99.71%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.71%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -614,8 +614,8 @@ static void mslBankReadWavesComplete(
  * Soft ceiling: ~99.62% -- the complete callback contract is recovered; only
  * eight pooled-string relocation arguments remain.
  */
-/* TODO: [near miss] 99.62%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.62%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -675,8 +675,8 @@ static void mslBankReadSoundsComplete(
 /* Soft ceiling: mslBankOpenWavesComplete ~99.75% -- two diagnostic-string
  * relocation arguments remain.
  */
-/* TODO: [near miss] 99.75%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.75%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -704,8 +704,8 @@ void mslBankOpenWavesComplete(
 /* Soft ceiling: mslBankOpenSoundsComplete ~99.67% -- six pooled-string
  * relocation arguments remain; operations and control flow are exact.
  */
-/* TODO: [near miss] 99.67%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.67%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     char filename[0x100];
@@ -770,8 +770,8 @@ void mslBankOpenSoundsComplete(
 /* Soft ceiling: mslBankLoadAsyncInternal ~99.83% -- two pooled-string
  * relocation arguments remain.
  */
-/* TODO: [near miss] 99.83%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.83%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
     _mslAsyncResponse* response) {
@@ -802,9 +802,8 @@ void mslBankLoadAsyncInternal(
     }
 }
 
-/* Soft ceiling: ~99.94% -- one diagnostic relocation argument remains. */
-/* TODO: [near miss] 99.94%; pooled relocation addends remain; full-pool
- * scratch is report-exact here but regresses the TU, so is not retained. */
+/* TODO: [blocked] 99.94%; pooled string addends only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
@@ -1244,8 +1243,8 @@ _ListNode* mslBankSoundUse(
  * Soft ceiling: mslBankUse ~99.94% -- typed inlined wave lookup and saved
  * register allocation are exact; one pooled diagnostic relocation remains.
  */
-/* TODO: [breakthrough needed] 99.94% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [blocked] 99.94%; pooled string addend only: retail .rodata keeps strings of
+ * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
     int i;

@@ -3,7 +3,7 @@
 
 const char* DCT_GetVerStr(void);
 void DCT_AcInit(void);
-void DCT_AcIdctDouble(const double input[8][8], double output[8][8]);
+void DCT_AcIdctDouble(const double input[64], double output[64]);
 
 static const double scale8[8] = {
     0.3535533905932738,
@@ -62,8 +62,8 @@ static inline void dctFsriStoreSparseCoefficient(int coefficient, int index,
  * portable C intrinsic for that kernel, so this preserves its scalar lanes,
  * arithmetic order, output permutation, and rounding behavior.
  */
-/* TODO: [breakthrough needed] 18.89823%; scalar reconstruction remains far
- * from retail's paired-single transform; donor-absent BSS tail was unrelated. */
+/* TODO: [breakthrough needed] 19.039824%; descending DC word stores agree
+ * with retail; paired-single transform kernel remains outside portable C codegen. */
 static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
 {
     float* coefficients = params->coefficients;
@@ -76,6 +76,8 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
             DctFsriBlock* output = output_blocks[block];
 
             if (params->block_nonzero[block] == 0) {
+                /* Retail and RE4 fill this 4-byte-aligned block as 32 words. */
+                u32* words = (u32*)output->samples + 32;
                 float dc = coefficients[0];
                 signed short value;
                 unsigned int packed;
@@ -89,7 +91,7 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
                 packed = (unsigned short)value;
                 packed |= packed << 16;
                 for (pair = 0; pair < 32; pair++) {
-                    output->packed[pair] = packed;
+                    *--words = packed;
                 }
             } else {
                 int row_pair;
@@ -269,10 +271,8 @@ void DCT_FsriSetGqr(void)
 #pragma opt_loop_invariants off
 static void initSparseTbl(void)
 {
-    union DctCoefficientMatrix {
-        double matrix[8][8];
-        double coefficients[64];
-    } source, destination;
+    double source[64];
+    double destination[64];
     int coefficient;
 
     memset(PreIDCT, 0, sizeof(PreIDCT));
@@ -282,17 +282,17 @@ static void initSparseTbl(void)
         int index;
         for (index = 0; index < 64; index++) {
             if (index == coefficient) {
-                source.coefficients[index] = 1.0 / sfsd_scale_tbl[index];
+                source[index] = 1.0 / sfsd_scale_tbl[index];
             } else {
-                source.coefficients[index] = 0.0;
+                source[index] = 0.0;
             }
         }
 
-        DCT_AcIdctDouble(source.matrix, destination.matrix);
+        DCT_AcIdctDouble(source, destination);
 
         for (index = 0; index < 64; index++) {
             dctFsriStoreSparseCoefficient(coefficient, index,
-                                          &destination.coefficients[index]);
+                                          &destination[index]);
         }
     }
 }

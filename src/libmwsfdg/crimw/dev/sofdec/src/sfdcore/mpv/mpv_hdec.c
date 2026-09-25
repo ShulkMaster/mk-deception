@@ -215,7 +215,7 @@ int MPVHDEC_DecPicture(MPVContext* context, SJ* stream)
     int error;
     int picture_state;
 
-    context->field_1324 = context->condition_state.decoder.field_1AC;
+    context->field_1324 = context->condition_state.conditions[7];
     for (;;) {
         do {
             picture_state = context->condition_state.conditions[1];
@@ -475,9 +475,9 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
         context->backward_motion.limit = 1 << f_code;
     }
 
-    condition_index = context->condition_state.decoder.field_1A8 != 3;
+    condition_index = context->condition_state.conditions[6] != 3;
     table_index = condition_index * 5 + picture_type;
-    motion_mode = context->condition_state.decoder.field_1A0;
+    motion_mode = context->condition_state.conditions[4];
     context->decode_intra_blocks = MPVCDEC_IntraBlocks;
     context->decode_nonintra_blocks = MPVCDEC_NintraBlocks;
     context->decode_macroblock = dec_mbs_func[picture_type];

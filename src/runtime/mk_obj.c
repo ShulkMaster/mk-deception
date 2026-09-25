@@ -3425,7 +3425,8 @@ static inline MkHdr* fighter_live_limb_update_proc(FighterMirror* owner) {
     return object;
 }
 
-/* TODO: [near miss] 96.946106%; register coloring, instruction lowering; one-trial ceiling. */
+/* TODO: [near miss] 96.646706%; null-safe header cast restores retail branch;
+ * remaining register coloring and lowering differ. */
 void limb_sever_reset_limbs(PlyrInfo* player) {
     FighterMirror* fighter;
     FighterObjectRef* ref;
@@ -3456,7 +3457,7 @@ void limb_sever_reset_limbs(PlyrInfo* player) {
 
     for (i = 0; i < 15; i++) {
         ref = &fighter->severed_limbs[i];
-        hdr = &ref->object->hdr;
+        hdr = (MkHdr*)ref->object;
         if (hdr != 0) {
             if (hdr->instance != ref->instance) {
                 hdr = 0;

@@ -602,7 +602,35 @@ static float p_fish_attack_bloodsplat(void) {
     }
 }
 
-/* TODO: [near miss] 99.123375%; scratch baseline confirms latch moves and GPR coloring; owner-latch recovery needed before declaration search. */
+static inline MkObj* fighter_severed_limb_live_object(
+    FighterMirror* fighter, int limb) {
+    MkObj* object = fighter->severed_limbs[limb].object;
+    if (object != 0) {
+        if (object->hdr.instance == fighter->severed_limbs[limb].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [breakthrough] 97.76786%; severed-limb latch now uses an owner+index inline (CFG matches);
+ * target latch still copies r4->r3 (helper and macro-wide forms regressed) plus GPR coloring. */
 float p_fish_attack(void) {
     FishAttackPdata* pdata;
     MkObj* fish;
@@ -832,16 +860,8 @@ float p_fish_attack(void) {
                     }
                 }
                 v3_to_xy_ang(&fish->ang, &fish->pos_vel);
-                severed_object = player->slot.fighter->
-                    severed_limbs[fish_index].object;
-                if (severed_object != 0) {
-                    if (severed_object->hdr.instance != player->slot.fighter->
-                            severed_limbs[fish_index].instance) {
-                        severed_object = 0;
-                    }
-                } else {
-                    severed_object = 0;
-                }
+                severed_object = fighter_severed_limb_live_object(
+                    player->slot.fighter, fish_index);
                 if (severed_object != 0 && pdata->state_ticks < 20) {
                     fish->pos.value.y -= 0.1f;
                 }
@@ -1368,18 +1388,6 @@ void p_statue_xpd_callback(MkSobj* object) {
 }
 
 
-static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 

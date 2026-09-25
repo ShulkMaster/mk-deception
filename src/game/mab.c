@@ -57,13 +57,14 @@ static inline void mkproc_sleep(void) {
 
 /* mkproc 0x2099: spawn BOLT_OBJECT, run alpha table, fade out, destroy. */
 static float p_lightning_strike_effect(void) {
+    LightningAlphaStep* step;
     LightningPdata* pdata;
     MkObj* bolt;
     MkSobj* sobj;
     int alpha;
     int art_slot;
     int step_index;
-    LightningAlphaStep* step;
+    int step_alpha;
     LightningAlphaStep* steps;
     PlyrInfo* owner;
 
@@ -92,13 +93,15 @@ static float p_lightning_strike_effect(void) {
             sobj->flags09_bits.bit5 = 1;
 
             steps = lightning_alpha;
-            for (step_index = 0;
-                 steps[step_index].alpha > -1;
-                 step_index++) {
+            step_alpha = steps[0].alpha;
+            step_index = 0;
+            while (step_alpha > -1) {
                 step = &steps[step_index];
                 obj_set_sobj_alpha(bolt, 1, step->alpha);
                 _mkproc_sleep_ticks = (float)step->ticks;
                 mkproc_sleep();
+                step_index++;
+                step_alpha = steps[step_index].alpha;
             }
         }
 

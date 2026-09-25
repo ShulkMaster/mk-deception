@@ -2393,7 +2393,8 @@ static inline void handle_held_krypt_direction(
 
 
 
-/* TODO: [breakthrough] 98.80645%; camera X fused-add restored; owner/index address differences remain. */
+/* TODO: [breakthrough] 98.80645%; camera X fused-add restored; wallet-text loops: retail forms
+ * pdata+i*8 then folds +0x9c; pointer and owner+index helpers both mis-associate (next: direct access). */
 static float handle_controller_input(void) {
     static int right_button_down;
     static int left_button_down;

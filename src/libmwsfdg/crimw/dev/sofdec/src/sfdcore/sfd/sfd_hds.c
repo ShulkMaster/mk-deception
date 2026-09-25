@@ -415,8 +415,8 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
     if (block->processed != 0) {
         return 0;
     }
-    copy_size = 0x800;
-    if (size < 0x800) {
+    copy_size = sizeof(block->raw_header);
+    if (size < copy_size) {
         copy_size = size;
     }
     MEM_Copy(block->raw_header, data, copy_size);
@@ -430,15 +430,17 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
     return 1;
 }
 
+/* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
+ * preserves both the exact helper and the retail call; helper-only scope does not. */
 #pragma dont_inline on
-/* TODO: [breakthrough needed] 85.600000%; retained direct start-code chain is
- * compiler-stable; helper extraction worsened lowering, while RE4's r30 lifetime depends on forbidden asm. */
+/* TODO: [near miss] 98.557144%; staged fallback pointer advance matches
+ * retail loads; only argument/register coloring remains. */
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag)
 {
     const unsigned char* header;
-    unsigned char start_byte_0;
-    unsigned char start_byte_1;
+    unsigned int start_byte_0;
+    unsigned int start_byte_1;
     unsigned char prefix_byte_0;
     unsigned char prefix_byte_1;
     SFHHandle* decoder;
@@ -457,17 +459,21 @@ int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
     header_size = size + 6;
     start_code = start_byte_0;
     start_code = (start_code << 8) | start_byte_1;
-    start_code = (start_code << 8) | header[2];
-    start_code = (start_code << 8) | header[3];
+    start_code <<= 8;
+    start_code |= header[2];
+    start_code <<= 8;
+    start_code |= header[3];
     if ((int)start_code != 0x1BF) {
         prefix_byte_0 = header[-2];
-        prefix_byte_1 = header[-1];
         header -= 2;
+        prefix_byte_1 = header[1];
         header_size += 2;
         start_code = prefix_byte_0;
         start_code = (start_code << 8) | prefix_byte_1;
-        start_code = (start_code << 8) | start_byte_0;
-        start_code = (start_code << 8) | start_byte_1;
+        start_code <<= 8;
+        start_code |= start_byte_0;
+        start_code <<= 8;
+        start_code |= start_byte_1;
         if ((int)start_code != 0x1BF) {
             return 0;
         }
@@ -501,7 +507,7 @@ void SFHDS_FinishFhd(SfdHeaderState* state)
     header->raw_header_size = 0;
 }
 
-void SFHDS_InitFhd(SfdHeaderState* state, int enabled)
+void SFHDS_InitFhd(SfdHeaderState* state)
 {
     SfdHeaderState* header = sfhds_GetProcessedHeader(state);
 

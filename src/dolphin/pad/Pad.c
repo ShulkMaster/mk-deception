@@ -650,8 +650,8 @@ static u8 ClampU8(u8 var, u8 org) {
     return var -= org;
 }
 
-/* TODO: [near miss] 99.295780%; retail observes PADStatus through err at
- * +0xA; keep +0xB neutral padding and stop at Origin/BarrelBits scheduling. */
+/* TODO: [near miss] 99.295780%; body equals matched TP/dolsdk2004; only the
+ * Origin lis/BarrelBits stw order differs; version and flag probes were neutral. */
 static void SPEC2_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     PADStatus* origin;
 

@@ -73,7 +73,8 @@ typedef struct SfdBufferAudioWork {
     int reserved_tail[3];
 } SfdBufferAudioWork;
 
-/* These work layouts occupy the same 0x3C-byte mode-specific region. */
+/* Retail select one of these overlapping 0x3C-byte layouts by mode.
+ * Keep the typed union: a struct would move the mode-specific fields. */
 typedef union SfdBufferWork {
     SfdBufferRingWork ring;
     SfdBufferVideoWork video;
@@ -335,7 +336,7 @@ int SFTRN_CallTrtTrif(SfdHandle* handle, int transport_index,
                       int value);
 int SFTRN_CallTrSetup(SfdHandle* handle, int callback_index);
 int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
-                 const SfdBufferCreateConfig* create,
+                 SfdBufferCreateConfig* create,
                  const void* buffer_setup);
 int SFTRN_Finish(SfdTransportRegistry* registry);
 int SFTRN_Init(SfdTransportRegistry* registry,

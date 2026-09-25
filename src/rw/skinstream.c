@@ -14,9 +14,9 @@ typedef struct RwGameCubeVertexDataHeader {
 
 unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 {
+    unsigned int size = 0;
     RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
-    unsigned int size;
 
     size = 0x10;
     size += 4;
@@ -42,8 +42,6 @@ unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
     }
 
     size += _rpSkinSplitDataStreamGetSize(skin);
-    /* TODO: Retail emits an overwritten zero initialization and shared GPR
-     * save helpers; keep the semantic calculation without dead source. */
     return size;
 }
 

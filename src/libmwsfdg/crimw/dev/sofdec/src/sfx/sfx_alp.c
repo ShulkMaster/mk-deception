@@ -75,7 +75,8 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 84.638885%; direct typed initialization is compiler-neutral; the donor's register-forcing workaround is rejected. */
+/* TODO: [near miss] 84.638885%; search CFG and stores match retail; remaining
+ * constant scheduling/register coloring would require rejected register forcing. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {

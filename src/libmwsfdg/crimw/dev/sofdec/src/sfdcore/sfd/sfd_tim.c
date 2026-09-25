@@ -37,10 +37,14 @@ int SFTIM_IsVideoTerm(SfdHandle* handle)
                        handle->timer_state.current_time_scale) != 0;
 }
 
+/* TODO: [breakthrough needed] 78.542250%; typed timer and adjusted-clock locals
+ * preserve codegen; early library-base/clock-load scheduling remains unresolved. */
 int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
 {
     int ready;
     int special_timing;
+    int adjusted_clock;
+    SfdTimerState* timer;
     float current_time;
     float target_time;
     float tolerance;
@@ -48,57 +52,58 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     if (handle->conditions_primary[14] != 0) {
         return 1;
     }
-    if (handle->timer_state.current_time_scale == 1) {
-        if (handle->timer_state.current_time_value == -2) {
+    timer = &handle->timer_state;
+    if (timer->current_time_scale == 1) {
+        if (timer->current_time_value == -2) {
             ready = 1;
-        } else if (handle->timer_state.field_02CC < 0) {
-            handle->timer_state.field_02CC = 0;
+        } else if (timer->field_02CC < 0) {
+            timer->field_02CC = 0;
             ready = 1;
         } else if (UTY_CmpTime(value, scale,
-                               handle->timer_state.field_02CC,
+                               timer->field_02CC,
                                SFLIB_libwork.timer_work.source) != 0) {
             ready = 1;
         } else {
             ready = 0;
         }
     } else {
+        adjusted_clock = timer->current_time_value +
+                         (timer->current_time_scale *
+                          handle->conditions_primary[44]) /
+                             SFLIB_libwork.timer_work.source;
         target_time = (10000.0f * (float)value) / (float)scale;
         current_time =
-            (10000.0f *
-             (float)(handle->timer_state.current_time_value +
-                     (handle->timer_state.current_time_scale *
-                      handle->conditions_primary[44]) /
-                         SFLIB_libwork.timer_work.source)) /
-            (float)handle->timer_state.current_time_scale;
+            (10000.0f * (float)adjusted_clock) /
+            (float)timer->current_time_scale;
         if (handle->conditions_primary[15] != 1) {
             tolerance = (float)handle->conditions_primary[46];
             if (current_time + tolerance < target_time) {
                 ready = 0;
             } else if (current_time - tolerance >= target_time) {
                 ready = 1;
-                if (handle->timer_state.last_frame_time != target_time &&
-                    handle->timer_state.previous_frame_time != target_time) {
-                    handle->timer_state.previous_frame_time = target_time;
-                    handle->timer_state.frame_time_repeat_count++;
+                if (timer->last_frame_time != target_time &&
+                    timer->previous_frame_time != target_time) {
+                    timer->previous_frame_time = target_time;
+                    timer->frame_time_repeat_count++;
                 }
             } else {
                 special_timing = 0;
                 if (SFLIB_libwork.timer_work.source == 59940 &&
                     handle->playback_settings.frame_rate_code <= 2 &&
-                    handle->timer_state.speed == 1000) {
+                    timer->speed == 1000) {
                     special_timing = 1;
                 }
-                if (handle->timer_state.frame_time_repeat_count <=
+                if (timer->frame_time_repeat_count <=
                     (special_timing != 0)) {
-                    ready = handle->timer_state.previous_frame_ready;
+                    ready = timer->previous_frame_ready;
                 } else if (current_time < target_time) {
                     ready = 0;
                 } else {
                     ready = 1;
                 }
-                handle->timer_state.frame_time_repeat_count = 0;
-                handle->timer_state.previous_frame_ready = ready;
-                handle->timer_state.last_frame_time = target_time;
+                timer->frame_time_repeat_count = 0;
+                timer->previous_frame_ready = ready;
+                timer->last_frame_time = target_time;
             }
         } else if (target_time <= current_time) {
             ready = 1;
@@ -109,14 +114,19 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     return ready;
 }
 
-/* TODO: [breakthrough needed] 76.321915%; retail frame-time load order is
- * restored; the floating-point timing CFG remains structurally different. */
+/* TODO: [breakthrough needed] 84.917810%; typed clock/lib owners and donor-order
+ * adjustment load help; floating-point scheduling needs fresh evidence. */
 int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
 {
     int ready;
     int special_timing;
     int value;
     int scale;
+    int clock_value;
+    int clock_scale;
+    int adjustment;
+    SfdTimerState* timer;
+    SfdTimerLibraryWork* timer_library;
     float current_time;
     float target_time;
     float tolerance;
@@ -128,62 +138,67 @@ int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
     value = frame_time->value;
     if (handle->conditions_primary[14] != 0) {
         ready = 1;
-    } else if (handle->timer_state.current_time_scale == 1) {
-        if (handle->timer_state.current_time_value == -2) {
-            ready = 1;
-        } else if (handle->timer_state.field_02CC < 0) {
-            handle->timer_state.field_02CC = 0;
-            ready = 1;
-        } else if (UTY_CmpTime(value, scale,
-                               handle->timer_state.field_02CC,
-                               SFLIB_libwork.timer_work.source) != 0) {
-            ready = 1;
-        } else {
-            ready = 0;
-        }
     } else {
-        target_time = (10000.0f * (float)value) / (float)scale;
-        current_time =
-            (10000.0f *
-             (float)(handle->timer_state.current_time_value +
-                     (handle->timer_state.current_time_scale *
-                      handle->conditions_primary[44]) /
-                         SFLIB_libwork.timer_work.source)) /
-            (float)handle->timer_state.current_time_scale;
-        if (handle->conditions_primary[15] != 1) {
-            tolerance = (float)handle->conditions_primary[46];
-            if (current_time + tolerance < target_time) {
-                ready = 0;
-            } else if (current_time - tolerance >= target_time) {
+        timer = &handle->timer_state;
+        timer_library = &SFLIB_libwork.timer_work;
+        clock_scale = timer->current_time_scale;
+        adjustment = handle->conditions_primary[44];
+        clock_value = timer->current_time_value;
+        if (clock_scale == 1) {
+            if (clock_value == -2) {
                 ready = 1;
-                if (handle->timer_state.last_frame_time != target_time &&
-                    handle->timer_state.previous_frame_time != target_time) {
-                    handle->timer_state.previous_frame_time = target_time;
-                    handle->timer_state.frame_time_repeat_count++;
-                }
+            } else if (timer->field_02CC < 0) {
+                timer->field_02CC = 0;
+                ready = 1;
+            } else if (UTY_CmpTime(value, scale, timer->field_02CC,
+                                   timer_library->source) != 0) {
+                ready = 1;
             } else {
-                special_timing = 0;
-                if (SFLIB_libwork.timer_work.source == 59940 &&
-                    handle->playback_settings.frame_rate_code <= 2 &&
-                    handle->timer_state.speed == 1000) {
-                    special_timing = 1;
-                }
-                if (handle->timer_state.frame_time_repeat_count <=
-                    (special_timing != 0)) {
-                    ready = handle->timer_state.previous_frame_ready;
-                } else if (current_time < target_time) {
-                    ready = 0;
-                } else {
-                    ready = 1;
-                }
-                handle->timer_state.frame_time_repeat_count = 0;
-                handle->timer_state.previous_frame_ready = ready;
-                handle->timer_state.last_frame_time = target_time;
+                ready = 0;
             }
-        } else if (target_time <= current_time) {
-            ready = 1;
         } else {
-            ready = 0;
+            target_time = (10000.0f * (float)value) / (float)scale;
+            current_time =
+                (10000.0f *
+                 (float)(clock_value +
+                         (clock_scale * adjustment) /
+                             timer_library->source)) /
+                (float)clock_scale;
+            if (handle->conditions_primary[15] != 1) {
+                tolerance = (float)handle->conditions_primary[46];
+                if (current_time + tolerance < target_time) {
+                    ready = 0;
+                } else if (current_time - tolerance >= target_time) {
+                    ready = 1;
+                    if (timer->last_frame_time != target_time &&
+                        timer->previous_frame_time != target_time) {
+                        timer->previous_frame_time = target_time;
+                        timer->frame_time_repeat_count++;
+                    }
+                } else {
+                    special_timing = 0;
+                    if (timer_library->source == 59940 &&
+                        handle->playback_settings.frame_rate_code <= 2 &&
+                        timer->speed == 1000) {
+                        special_timing = 1;
+                    }
+                    if (timer->frame_time_repeat_count <=
+                        (special_timing != 0)) {
+                        ready = timer->previous_frame_ready;
+                    } else if (current_time < target_time) {
+                        ready = 0;
+                    } else {
+                        ready = 1;
+                    }
+                    timer->frame_time_repeat_count = 0;
+                    timer->previous_frame_ready = ready;
+                    timer->last_frame_time = target_time;
+                }
+            } else if (target_time <= current_time) {
+                ready = 1;
+            } else {
+                ready = 0;
+            }
         }
     }
     return ready;
@@ -290,42 +305,50 @@ static void sftim_Tc2Time23D(int rate, SfdTimeCode* timecode,
     *scale = rate;
 }
 
-/* TODO: [breakthrough needed] 77.866670%; mutable timecode ABI fixes load
- * scheduling; retained combined expression still differs broadly. */
+/* Retail writes the nominal scale before the supplied rate in each
+ * non-drop converter below. */
 static void sftim_Tc2Time59N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
+    int frames;
+
+    frames = timecode->frames + timecode->frame_offset;
     *value = timecode->minutes * 3600000 +
              timecode->hours * 216000000 +
              timecode->seconds * 60000 +
-             (timecode->frames + timecode->frame_offset) * 1000 +
+             frames * 1000 +
              timecode->subframe * 500;
+    *scale = 60000;
     *scale = rate;
 }
 
-/* TODO: [breakthrough needed] 63.760000%; mutable donor ABI is retained;
- * arithmetic expression grouping remains structurally different. */
 static void sftim_Tc2Time29N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
+    int frames;
+
+    frames = timecode->frames + timecode->frame_offset;
     *value = timecode->minutes * 1800000 +
              timecode->hours * 108000000 +
              timecode->seconds * 30000 +
-             (timecode->frames + timecode->frame_offset) * 1000 +
+             frames * 1000 +
              timecode->subframe * 500;
+    *scale = 30000;
     *scale = rate;
 }
 
-/* TODO: [breakthrough needed] 63.760000%; mutable donor ABI is retained;
- * arithmetic expression grouping remains structurally different. */
 static void sftim_Tc2Time23N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
+    int frames;
+
+    frames = timecode->frames + timecode->frame_offset;
     *value = timecode->minutes * 1440000 +
              timecode->hours * 86400000 +
              timecode->seconds * 24000 +
-             (timecode->frames + timecode->frame_offset) * 1000 +
+             frames * 1000 +
              timecode->subframe * 500;
+    *scale = 24000;
     *scale = rate;
 }
 
@@ -354,14 +377,12 @@ static const SfdTimeCodeConvertFn sftim_tc2time[9][2] = {
     {sftim_Tc2TimeN, sftim_Tc2TimeN},
 };
 
-/* TODO: [breakthrough needed] 83.690475%; mutable dispatch ABI now matches;
- * table/rate lifetime ordering remains. */
 void SFTIM_Tc2Time(SfdTimeCode* timecode, int* value, int* scale)
 {
     int frame_rate_code = timecode->frame_rate_code;
+    int rate = SFTIM_prate[frame_rate_code];
     SfdTimeCodeConvertFn convert =
         sftim_tc2time[frame_rate_code][timecode->drop_frame];
-    int rate = SFTIM_prate[frame_rate_code];
 
     if (convert == 0) {
         SFLIB_SetErr(0, 0xFF000221);
@@ -481,11 +502,11 @@ static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
     return result;
 }
 
-/* TODO: [breakthrough needed] 67.272730%; donor's redundant regular-time
- * branch regresses; retained direct check call still has broad CFG differences. */
 static int sftim_GetTimeUfrm(SfdHandle* handle, int* value, int* scale)
 {
-    SFTIM_ChkRegularTime(handle, value, scale);
+    if (SFTIM_ChkRegularTime(handle, value, scale) == 0) {
+        return 0;
+    }
     return 0;
 }
 
@@ -777,7 +798,24 @@ void SFTIM_InitTtu(SfdTimerTimeUnit* unit, int scale)
     unit->scale = 1;
 }
 
-/* TODO: [breakthrough needed] 59.87719%; typed timer-tail layout is preserved; initialization CFG still needs recovery. */
+static inline void sftim_InitStreamTimeUnit(SfdTimerStreamTimeUnit* unit)
+{
+    unit->active = 0;
+    unit->field_04 = 0;
+    unit->file_size = 0;
+    unit->total_time_value = 0;
+    unit->total_time_scale = 0;
+    unit->byte_rate = 0;
+    unit->seek_position = 0;
+    unit->field_1C = 0;
+    unit->field_20 = 0;
+    unit->field_22 = 0;
+    unit->value = -1;
+    unit->scale = 1;
+}
+
+/* TODO: [breakthrough needed] 60.986843%; retail omits the +0x14C store;
+ * sample-history guards and zero-register scheduling still differ. */
 void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
 {
     int i;
@@ -795,54 +833,32 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
     }
     state->skip_state.field_20 = 0;
     state->skip_state.field_22 = 0;
-    state->skip_state.value = 0;
-    state->skip_state.scale = 0;
-
-    state->compact_time.fields_00[0] = 0;
-    state->compact_time.fields_00[1] = 0;
-    state->compact_time.fields_00[2] = 0;
-    state->compact_time.fields_00[3] = 0;
-    state->compact_time.fields_00[4] = 0;
-    state->compact_time.fields_00[5] = 0;
-    state->compact_time.field_18 = 0;
-    state->compact_time.field_1A = 0;
-    state->compact_time.value = 0x7FFFFFFF;
-    state->compact_time.scale = 1;
+    SFTIM_InitTtu(&state->field_00C0, 0);
+    SFTIM_InitTtu(&state->field_003C, 0x7FFFFFFF);
 
     SFTIM_InitTtu(&state->field_0068, -1);
-    state->stream_time.active = 0;
-    state->stream_time.field_04 = 0;
-    state->stream_time.file_size = 0;
-    state->stream_time.total_time_value = 0;
-    state->stream_time.total_time_scale = 0;
-    state->stream_time.byte_rate = 0;
-    state->stream_time.seek_position = 0;
-    state->stream_time.field_1C = 0;
-    state->stream_time.field_20 = 0;
-    state->stream_time.field_22 = 0;
-    state->stream_time.value = -1;
-    state->stream_time.scale = 1;
-    SFTIM_InitTtu(&state->field_00C0, 0);
+    sftim_InitStreamTimeUnit(&state->stream_time);
     SFTIM_InitTtu(&state->video_start_time, -1);
     SFTIM_InitTtu(&state->elapsed_time, 0x7FFFFFFF);
 
     state->start_time_value = 0;
     state->start_time_scale = 0;
-    state->field_014C = 0;
     state->field_0150 = -1;
     state->audio_start_pts = -1;
 
     state->sample_history.fields_00[0] = 0;
     state->sample_history.fields_00[1] = 0;
     state->sample_history.fields_00[2] = 0;
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < sizeof(state->sample_history.samples) /
+                        sizeof(state->sample_history.samples[0]); i++) {
         state->sample_history.samples[i] = 0;
     }
     state->sample_window.enabled = 1;
     state->sample_window.fields_04[0] = 0;
     state->sample_window.fields_04[1] = 0;
     state->sample_window.fields_04[2] = 0;
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < sizeof(state->sample_window.samples) /
+                        sizeof(state->sample_window.samples[0]); i++) {
         state->sample_window.samples[i] = 0;
     }
 

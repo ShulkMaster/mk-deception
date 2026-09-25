@@ -5,9 +5,9 @@
 static RwFreeList toolkitRegEntriesSpace;
 static int _rwPluginRegFreeListBlockSize = 0x40;
 static int _rwPluginRegListPreallocBlocks = 1;
-static RwPluginRegistry** toolkitNonFLRegList;
-static unsigned int numRegToolkits;
 static RwFreeList* toolkitRegEntries;
+static unsigned int numRegToolkits;
+static RwPluginRegistry** toolkitNonFLRegList;
 
 extern unsigned int _rwGetNumEngineInstances(void);
 

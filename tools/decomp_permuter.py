@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import subprocess
@@ -119,6 +120,93 @@ def extract_function(asm: Path, symbol: str) -> str:
     )
 
 
+def restore_inlined_callees(
+    scratch_dir: Path, ctx: Path, function_asm: str, symbol: str, checkout: Path
+) -> list[str]:
+    """Re-attach same-TU callees that retail inlined into the target.
+
+    decomp-permuter replaces every non-`inline` function body with a
+    declaration, both at import and whenever it rebuilds a candidate. MWCC's
+    `-inline auto` still inlines ordinary same-file functions, so the scratch
+    would otherwise call them and never reproduce the retail caller. A callee is
+    restored only when it is defined in this TU and the retail body has no
+    branch or relocation naming it; the restored copy is marked `inline` so the
+    permuter keeps it. Returns the restored names.
+    """
+    sys.path.insert(0, str(checkout))
+    from perm_pycparser import c_ast as ca
+    from src import ast_util
+
+    define_args = []
+    for token in compiler_defines():
+        define_args.append(token)
+    preprocessed = subprocess.run(
+        ["cpp", "-P", "-nostdinc", *define_args, str(ctx)],
+        capture_output=True, text=True, check=False,
+    ).stdout
+    try:
+        full = ast_util.parse_c(preprocessed, from_import=True)
+    except Exception:
+        return []
+    bodies = {
+        node.decl.name: node
+        for node in full.ext
+        if isinstance(node, ca.FuncDef) and node.decl.name != symbol
+    }
+
+    base_c = scratch_dir / "base.c"
+    base = ast_util.parse_c(base_c.read_text(encoding="utf-8"), from_import=True)
+    target_index = next(
+        (i for i, node in enumerate(base.ext)
+         if isinstance(node, ca.FuncDef) and node.decl.name == symbol),
+        None,
+    )
+    if target_index is None:
+        return []
+    present = {
+        node.decl.name
+        for node in base.ext
+        if isinstance(node, ca.FuncDef)
+    }
+    referenced_by_retail = set(re.findall(r"[A-Za-z_$][A-Za-z0-9_$]*", function_asm))
+
+    class Calls(ca.NodeVisitor):
+        def __init__(self) -> None:
+            self.names: list[str] = []
+
+        def visit_FuncCall(self, node: ca.FuncCall) -> None:
+            if isinstance(node.name, ca.ID):
+                self.names.append(node.name.name)
+            self.generic_visit(node)
+
+    restored: list[str] = []
+    pending = [base.ext[target_index]]
+    while pending:
+        visitor = Calls()
+        visitor.visit(pending.pop())
+        for name in visitor.names:
+            if name in present or name in restored or name not in bodies:
+                continue
+            if name in referenced_by_retail:
+                continue  # retail calls it: not inlined here
+            body = bodies[name]
+            if "inline" not in body.decl.funcspec:
+                body.decl.funcspec = [*body.decl.funcspec, "inline"]
+            restored.append(name)
+            pending.append(body)
+    if not restored:
+        return []
+    # Callees must precede the target; later restorations are deeper callees.
+    for name in reversed(restored):
+        base.ext.insert(target_index, bodies[name])
+    base_c.write_text(ast_util.to_c(base, from_import=True), encoding="utf-8")
+    return restored
+
+
+def compiler_defines() -> list[str]:
+    return ["-DBUILD_VERSION=0", "-DVERSION_GQNE5D", "-DNDEBUG=1", "-DPERMUTER"]
+
+
 def compiler_command(unit: dict[str, Any]) -> list[str]:
     source = unit["metadata"]["source_path"]
     base = unit["base_path"]
@@ -211,6 +299,22 @@ def main() -> int:
     parser.add_argument(
         "--run", action="store_true", help="run the local permuter after importing"
     )
+    parser.add_argument(
+        "--profile",
+        choices=("playbook", "upstream"),
+        default="playbook",
+        help="pass weights for --run (see tools/permuter_mkd.py; default: playbook)",
+    )
+    parser.add_argument(
+        "--no-inline-callees",
+        action="store_true",
+        help="keep upstream pruning of same-TU callees that retail inlined",
+    )
+    parser.add_argument(
+        "--call-args",
+        action="store_true",
+        help="exhaustively score call-argument staging variants after importing",
+    )
     args, permuter_args = parser.parse_known_args()
     if permuter_args and permuter_args[0] == "--":
         permuter_args = permuter_args[1:]
@@ -220,7 +324,7 @@ def main() -> int:
     asm = resolve_repo_file(args.asm).resolve()
     if not asm.is_file():
         raise SystemExit(f"assembly file not found: {asm}")
-    import_script, permuter_script = find_permuter(args.permuter)
+    import_script, _ = find_permuter(args.permuter)
     unit = load_unit(asm)
 
     ctx = resolve_repo_file(Path(unit["scratch"]["ctx_path"])).resolve()
@@ -264,10 +368,39 @@ def main() -> int:
             "import succeeded but its new nonmatchings directory is ambiguous"
         )
     scratch_dir = created[0]
+    if not args.no_inline_callees:
+        restored = restore_inlined_callees(
+            scratch_dir, ctx, extract_function(asm, args.function),
+            args.function, import_script.parent,
+        )
+        if restored:
+            print("restored inlined same-TU callees: " + ", ".join(restored))
     print(f"MKD permuter scratch: {display_path(scratch_dir)}")
 
+    if args.call_args:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "permuter_call_args.py"),
+                str(scratch_dir),
+                "--permuter",
+                str(import_script.parent),
+            ],
+            cwd=ROOT,
+            check=False,
+        )
+        if result.returncode or not args.run:
+            return result.returncode
     if args.run:
-        run_command = [sys.executable, str(permuter_script), str(scratch_dir)]
+        run_command = [
+            sys.executable,
+            str(ROOT / "tools" / "permuter_mkd.py"),
+            "--profile",
+            args.profile,
+            "--permuter",
+            str(import_script.parent),
+            str(scratch_dir),
+        ]
         run_command += permuter_args
         return subprocess.run(
             run_command, cwd=import_script.parent, check=False
@@ -277,7 +410,7 @@ def main() -> int:
         + shlex.join(
             [
                 sys.executable,
-                str(permuter_script),
+                str(ROOT / "tools" / "permuter_mkd.py"),
                 str(scratch_dir),
                 "-j",
                 "4",

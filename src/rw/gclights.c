@@ -59,6 +59,8 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
 
 
 
+/* TODO: [near miss] 98.77049%; opt-off link/light/color homes rotate;
+ * declaration order is neutral and `(void)` reference probes do not combine linearly. */
 void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 {
     RpWorld* world = (RpWorld*)RwEngineInstance->curWorld;
@@ -92,11 +94,14 @@ void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 
 
 
+/* TODO: [near miss] 99.138336%; shared direction local and stack layout now
+ * agree; switch dispatch tree differs around nonlocal light enum values. */
 void _rwGCLightsLocalEnable(RpLight* light,
                             RwGameCubeLightingData* lighting)
 {
     if (lighting->lightIndex < 8) {
         RwMatrix* lightLTM;
+        RwV3d direction;
         RwV3d position;
         RwGameCubeLightExt* extension;
         RwRGBAReal* lightColor;
@@ -132,8 +137,6 @@ void _rwGCLightsLocalEnable(RpLight* light,
             break;
 
         case rpLIGHTSPOT: {
-            RwV3d direction;
-
             RwV3dTransformVector(&direction, &lightLTM->at,
                                  &_RwDlInvCamLTM);
             GXInitLightDir(&_RwGCLightObjs[lighting->lightIndex], -direction.x,
@@ -154,8 +157,6 @@ void _rwGCLightsLocalEnable(RpLight* light,
         }
 
         case rpLIGHTSPOTSOFT: {
-            RwV3d direction;
-
             RwV3dTransformVector(&direction, &lightLTM->at,
                                  &_RwDlInvCamLTM);
             GXInitLightDir(&_RwGCLightObjs[lighting->lightIndex], -direction.x,

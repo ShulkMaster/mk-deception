@@ -275,13 +275,12 @@ void SJRBF_UngetChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.635414%; typed mirror-copy source is structurally
- * aligned; remaining mismatch is r6/r7 coloring. */
+/* TODO: [near miss] 99.895836%; RE4 mirror arithmetic restored; ofs+buf add
+ * operand order remains; only a redundant ofs recompute (rejected) closes it. */
 void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
 {
     SJRingBuffer* ring = (SJRingBuffer*)sj;
     int offset;
-    int length;
     int copy_length;
     u8* copy_destination;
 
@@ -298,19 +297,21 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
                 if (chunk->len < copy_length) {
                     copy_length = chunk->len;
                 }
-                copy_destination = ring->buffer + offset;
-                copy_destination += ring->buffer_size;
+                copy_destination =
+                    (u8*)((u32)(chunk->data - ring->buffer) + (u32)ring->buffer);
+                copy_destination =
+                    (u8*)((u32)ring->buffer_size + (u32)copy_destination);
                 memcpy(copy_destination, chunk->data, copy_length);
             }
 
-            length = chunk->data - ring->buffer + chunk->len;
-            if (length > ring->buffer_size) {
-                copy_length = length - ring->buffer_size;
+            offset = (chunk->data - ring->buffer) + chunk->len;
+            if (offset > ring->buffer_size) {
+                copy_length = offset - ring->buffer_size;
                 if (chunk->len < copy_length) {
                     copy_length = chunk->len;
                 }
                 memcpy(ring->buffer,
-                       ring->buffer + (length - copy_length), copy_length);
+                       ring->buffer + (offset - copy_length), copy_length);
             }
 
             ring->data_size += chunk->len;
@@ -329,7 +330,8 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.63636%; combined span expression recovered; stop at string-base/value coloring. */
+/* TODO: [near miss] 99.63636%; source equals RE4; string-base/buffer_size r7/r8
+ * coloring only; permuter improved only through a pointer alias (rejected). */
 static void sjrbf_GetChunk(
     SJRingBuffer* ring, int channel, int max_size, SJCK* chunk)
 {

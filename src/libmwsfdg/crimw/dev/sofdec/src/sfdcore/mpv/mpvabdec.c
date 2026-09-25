@@ -1,10 +1,5 @@
 #include "dolphin/types.h"
 
-typedef union MPVABDECCoefficients {
-    f32 values[64];
-    f64 pairs[32];
-} MPVABDECCoefficients;
-
 typedef struct MPVABDECContext {
     u32 bit_buffer;
     u32 next_buffer;
@@ -32,7 +27,7 @@ typedef struct MPVABDECBlock {
     s32 first_scan;
     s32 current_scan;
     u8 field_0x18[4];
-    MPVABDECCoefficients* coefficients;
+    f64* coefficients; /* +0x1C: 64 floats, cleared as 32 double-width stores */
     const u8* quant_matrix;
     s32 quantizer_scale;
     s32* dc_predictor;
@@ -80,7 +75,7 @@ typedef struct MPVABDECBlock {
         if (negative_) {                                                    \
             quantized = -quantized;                                         \
         }                                                                   \
-        block->coefficients->values[block->current_scan] =                  \
+        ((f32*)block->coefficients)[block->current_scan] =                 \
             (f32)quantized *                                                \
             ctx->coefficient_scale[block->current_scan];                    \
     } while (0)
@@ -98,7 +93,7 @@ typedef struct MPVABDECBlock {
         if (block->sign) {                                                  \
             quantized = -quantized;                                         \
         }                                                                   \
-        block->coefficients->values[block->current_scan] =                  \
+        ((f32*)block->coefficients)[block->current_scan] =                 \
             (f32)quantized * ctx->coefficient_scale[block->current_scan];   \
     } while (0)
 
@@ -824,41 +819,41 @@ static inline s32 mpvabdec_DecodeNonIntra(MPVABDECContext* ctx, MPVABDECBlock* b
 
 s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
 {
-    MPVABDECCoefficients* coefficients = block->coefficients;
+    f64* coefficients = block->coefficients;
 
     /* Clear the fixed 8x8 coefficient block with paired stores. */
-    coefficients->pairs[0] = 0.0;
-    coefficients->pairs[1] = 0.0;
-    coefficients->pairs[2] = 0.0;
-    coefficients->pairs[3] = 0.0;
-    coefficients->pairs[4] = 0.0;
-    coefficients->pairs[5] = 0.0;
-    coefficients->pairs[6] = 0.0;
-    coefficients->pairs[7] = 0.0;
-    coefficients->pairs[8] = 0.0;
-    coefficients->pairs[9] = 0.0;
-    coefficients->pairs[10] = 0.0;
-    coefficients->pairs[11] = 0.0;
-    coefficients->pairs[12] = 0.0;
-    coefficients->pairs[13] = 0.0;
-    coefficients->pairs[14] = 0.0;
-    coefficients->pairs[15] = 0.0;
-    coefficients->pairs[16] = 0.0;
-    coefficients->pairs[17] = 0.0;
-    coefficients->pairs[18] = 0.0;
-    coefficients->pairs[19] = 0.0;
-    coefficients->pairs[20] = 0.0;
-    coefficients->pairs[21] = 0.0;
-    coefficients->pairs[22] = 0.0;
-    coefficients->pairs[23] = 0.0;
-    coefficients->pairs[24] = 0.0;
-    coefficients->pairs[25] = 0.0;
-    coefficients->pairs[26] = 0.0;
-    coefficients->pairs[27] = 0.0;
-    coefficients->pairs[28] = 0.0;
-    coefficients->pairs[29] = 0.0;
-    coefficients->pairs[30] = 0.0;
-    coefficients->pairs[31] = 0.0;
+    coefficients[0] = 0.0;
+    coefficients[1] = 0.0;
+    coefficients[2] = 0.0;
+    coefficients[3] = 0.0;
+    coefficients[4] = 0.0;
+    coefficients[5] = 0.0;
+    coefficients[6] = 0.0;
+    coefficients[7] = 0.0;
+    coefficients[8] = 0.0;
+    coefficients[9] = 0.0;
+    coefficients[10] = 0.0;
+    coefficients[11] = 0.0;
+    coefficients[12] = 0.0;
+    coefficients[13] = 0.0;
+    coefficients[14] = 0.0;
+    coefficients[15] = 0.0;
+    coefficients[16] = 0.0;
+    coefficients[17] = 0.0;
+    coefficients[18] = 0.0;
+    coefficients[19] = 0.0;
+    coefficients[20] = 0.0;
+    coefficients[21] = 0.0;
+    coefficients[22] = 0.0;
+    coefficients[23] = 0.0;
+    coefficients[24] = 0.0;
+    coefficients[25] = 0.0;
+    coefficients[26] = 0.0;
+    coefficients[27] = 0.0;
+    coefficients[28] = 0.0;
+    coefficients[29] = 0.0;
+    coefficients[30] = 0.0;
+    coefficients[31] = 0.0;
 
     return mpvabdec_DecodeNonIntra(ctx, block);
 }
@@ -902,7 +897,7 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     MPV_CONSUME_BITS(dc_length);
     dc_value += *block->dc_predictor;
     *block->dc_predictor = dc_value;
-    block->coefficients->values[0] = 0.125f * (f32)dc_value;
+    ((f32*)block->coefficients)[0] = 0.125f * (f32)dc_value;
     block->first_scan = 0;
     block->current_scan = 0;
     scan = ctx->scan;
@@ -1422,7 +1417,7 @@ s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
     MPV_FINISH_FROM(initial_buffer, dc_length);
     dc_value += *block->dc_predictor;
     *block->dc_predictor = dc_value;
-    block->coefficients->values[0] = 0.125f * (f32)dc_value;
+    ((f32*)block->coefficients)[0] = 0.125f * (f32)dc_value;
     block->first_scan = 0;
     block->current_scan = 0;
     scan = ctx->scan;

@@ -5,24 +5,27 @@ static MPVMCFunction mpvcmc_oneref[8];
 void MPVCMC_SetCcnt(MPVContext* object) {
     s32 count = 4;
 
-    if (object->condition_state.decoder.field_1A4 == 0) {
+    if (object->condition_state.conditions[5] == 0) {
         count = -1;
     }
     object->secondary_output_blocks.count = count;
     object->output_blocks.count = count;
 }
 
+/* TODO: [near miss] 96.875%; RE4's output-block owner restores the retail
+ * address formation and stores; stop at pointer/count register coloring. */
 void MPVCMC_InitMcOiRt(MPVContext* object) {
-    MPVOutputBlock* output = object->output_blocks.blocks;
+    MPVOutputBlocks* output_blocks = &object->output_blocks;
+    MPVOutputBlock* output = output_blocks->blocks;
     s32 count = 4;
     s32 first_stride;
     s32 remaining_stride;
     s32 i;
 
-    if (object->condition_state.decoder.field_1A4 == 0) {
+    if (object->condition_state.conditions[5] == 0) {
         count = -1;
     }
-    object->output_blocks.count = count;
+    output_blocks->count = count;
     first_stride = object->frame_buffers.backward.chroma_stride;
     for (i = 0; i < 2; i++) {
         output[i].stride = first_stride;
@@ -33,25 +36,29 @@ void MPVCMC_InitMcOiRt(MPVContext* object) {
     }
 }
 
-/* TODO: [near miss] 92.057144%; retail keeps a typed output-block base live in a separate register, but the honest local-base form was compiler-neutral. */
 void MPVCMC_InitObj(MPVContext* object) {
     u8* destination;
+    MPVOutputBlocks* output_blocks;
+    MPVOutputBlock* blocks;
     s32 count;
     s32 i;
 
     MPVMC08_Init(object->mc.functions08);
     MPVMC16_Init(&object->mc);
+    output_blocks = &object->secondary_output_blocks;
+    blocks = output_blocks->blocks;
     destination = object->field_D00;
-    count = 4;
-    if (object->condition_state.decoder.field_1A4 == 0) {
+    if (object->condition_state.conditions[5] == 0) {
         count = -1;
+    } else {
+        count = 4;
     }
-    object->secondary_output_blocks.count = count;
+    output_blocks->count = count;
     for (i = 0; i < 6; i++) {
-        object->secondary_output_blocks.blocks[i].destination = destination;
+        blocks[i].destination = destination;
     }
     for (i = 0; i < 6; i++) {
-        object->secondary_output_blocks.blocks[i].stride = 8;
+        blocks[i].stride = 8;
     }
 }
 

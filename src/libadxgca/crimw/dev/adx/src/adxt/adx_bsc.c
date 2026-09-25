@@ -3,38 +3,10 @@
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 
-typedef struct AhxDecoder AhxDecoder;
 typedef struct AdxBasicAhx AdxBasicAhx;
-typedef struct AdxBasicDecoderExt AdxBasicDecoderExt;
-typedef void (*AdxDecodeNotify)(void*, int, int);
 typedef void (*AhxSetExtFunc)(AhxDecoder*, short*);
 typedef void (*Pl2EncodeFunc)(AdxBasicDecoderExt*, short, short*, short*);
 typedef void (*Pl2ResetFunc)(AdxBasicDecoderExt*);
-
-struct AdxBasicDecoderExt {
-    AdxBasicDecoder base;
-    short default_key[3];
-    short snapshot_key[3];
-    short delay_left[2];
-    short delay_right[2];
-    AhxDecoder* ahx_decoder;
-    int ahx_max_decoded_samples;
-    int ahx_max_decoded_blocks;
-    int ainf_length;
-    unsigned char ainf[16];
-    short default_out_volume;
-    short default_pan[2];
-    unsigned char reserved_DA[2];
-    void* pl2_context;
-    unsigned char reserved_E0[8];
-    int last_notified_data_length;
-    int field_EC;
-    AdxDecodeNotify notify;
-    void* notify_object;
-};
-
-typedef char AdxBasicDecoderExtSizeCheck[
-    sizeof(AdxBasicDecoderExt) == 0xF8 ? 1 : -1];
 
 extern void ADXB_ExecOneAhx(AdxBasicAhx*);
 extern void ADXB_ExecOneAiff(AdxBasicDecoder*);
@@ -251,7 +223,7 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
 }
 
 /* TODO: [near miss] 99.481820%; operations and CFG agree with retail;
- * stop at PL2/arithmetic register coloring without new source evidence. */
+ * RECVX predates the PL2 path, so stop at PL2/arithmetic register coloring. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
@@ -530,7 +502,7 @@ int ADXB_GetNumChan(AdxBasicDecoderExt* decoder)
 }
 
 int ADXB_GetSfreq(AdxBasicDecoderExt* decoder) { return decoder->base.sample_rate; }
-short ADXB_GetFormat(AdxBasicDecoderExt* decoder) { return decoder->base.format_type; }
+int ADXB_GetFormat(AdxBasicDecoderExt* decoder) { return decoder->base.format_type; }
 short* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder) { return decoder->base.pcm_buffer; }
 
 void ADXB_EntryGetWrFunc(AdxBasicDecoderExt* decoder, AdxGetWriteInfo function,
@@ -579,6 +551,11 @@ void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder)
     base->total_decoded_samples = 0;
 }
 
+static inline void adxb_InitKeyGenerator(void)
+{
+    skg_init_count++;
+}
+
 #pragma inline_max_size(2000)
 #pragma inline_max_total_size(4000)
 static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
@@ -593,30 +570,28 @@ static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
     short factor5;
     short factor6;
     short factor7;
-    short state_value;
-    short multiplier_value;
     int value;
     sprintf(key_text, skg_hex_format, sample_count);
     if (skg_init_count == 0) {
-        skg_init_count++;
+        adxb_InitKeyGenerator();
     }
-    factor0 = skg_prim_tbl[0x80 + (signed char)key_text[0]];
-    factor1 = skg_prim_tbl[0x80 + (signed char)key_text[1]];
-    factor2 = skg_prim_tbl[0x80 + (signed char)key_text[2]];
-    factor3 = skg_prim_tbl[0x80 + (signed char)key_text[3]];
-    factor4 = skg_prim_tbl[0x80 + (signed char)key_text[4]];
-    factor5 = skg_prim_tbl[0x80 + (signed char)key_text[5]];
-    factor6 = skg_prim_tbl[0x80 + (signed char)key_text[6]];
-    factor7 = skg_prim_tbl[0x80 + (signed char)key_text[7]];
     value = skg_prim_tbl[0x100];
+    factor0 = skg_prim_tbl[0x80 + (signed char)key_text[0]];
     value = skg_prim_tbl[(value * factor0) % 1024];
+    factor1 = skg_prim_tbl[0x80 + (signed char)key_text[1]];
     value = skg_prim_tbl[(value * factor1) % 1024];
+    factor2 = skg_prim_tbl[0x80 + (signed char)key_text[2]];
     value = skg_prim_tbl[(value * factor2) % 1024];
+    factor3 = skg_prim_tbl[0x80 + (signed char)key_text[3]];
     value = skg_prim_tbl[(value * factor3) % 1024];
+    factor4 = skg_prim_tbl[0x80 + (signed char)key_text[4]];
     value = skg_prim_tbl[(value * factor4) % 1024];
+    factor5 = skg_prim_tbl[0x80 + (signed char)key_text[5]];
     value = skg_prim_tbl[(value * factor5) % 1024];
+    factor6 = skg_prim_tbl[0x80 + (signed char)key_text[6]];
     value = skg_prim_tbl[(value * factor6) % 1024];
-    state_value = skg_prim_tbl[(value * factor7) % 1024];
+    factor7 = skg_prim_tbl[0x80 + (signed char)key_text[7]];
+    *state = skg_prim_tbl[(value * factor7) % 1024];
     value = skg_prim_tbl[0x200];
     value = skg_prim_tbl[(value * factor0) % 1024];
     value = skg_prim_tbl[(value * factor1) % 1024];
@@ -625,10 +600,8 @@ static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
     value = skg_prim_tbl[(value * factor4) % 1024];
     value = skg_prim_tbl[(value * factor5) % 1024];
     value = skg_prim_tbl[(value * factor6) % 1024];
-    multiplier_value = skg_prim_tbl[(value * factor7) % 1024];
+    *multiplier = skg_prim_tbl[(value * factor7) % 1024];
     value = skg_prim_tbl[0x300];
-    *state = state_value;
-    *multiplier = multiplier_value;
     value = skg_prim_tbl[(value * factor0) % 1024];
     value = skg_prim_tbl[(value * factor1) % 1024];
     value = skg_prim_tbl[(value * factor2) % 1024];
@@ -672,8 +645,8 @@ static inline void adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
 #pragma inline_max_size reset
 #pragma inline_max_total_size reset
 
-/* TODO: [breakthrough] 85.882515%; explicit sample count and ordered zero
- * stores recover setup; retail's first-chain lifetime/scheduling differs. */
+/* TODO: [breakthrough needed] 87.587430%; first-use factor staging is neutral;
+ * retail's unrolled chain has unresolved factor loads/register lifetimes. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {

@@ -10,7 +10,7 @@ int memcmp(const void*, const void*, unsigned long);
 
 static inline unsigned int rd32(const unsigned char* p)
 {
-    return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
+    return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24;
 }
 
 static inline unsigned short rd16(const unsigned char* p)
@@ -188,8 +188,8 @@ int ADXB_CheckAiff(const signed char* input)
     return 0;
 }
 
-/* TODO: [near miss] 93.987180%; AIFF parse and byte-pack CFG agree;
- * remaining residue is register coloring. */
+/* TODO: [near miss] 93.987180%; 32-bit chunk size/flags and defined byte
+ * shift preserve codegen; offset type still affects owner coloring. */
 static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
                                    int* channels, int* bits, int* samples)
 {
@@ -197,10 +197,10 @@ static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
     unsigned char* end;
     unsigned char* data;
     signed long id;
-    signed long size;
+    int size;
     signed long form;
-    signed long have_comm;
-    signed long have_ssnd;
+    int have_comm;
+    int have_ssnd;
     unsigned short exp;
     unsigned short mant;
     unsigned long offset;

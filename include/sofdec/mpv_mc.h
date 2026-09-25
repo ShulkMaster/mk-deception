@@ -6,6 +6,10 @@
 #include "sofdec/dct_fsri.h"
 #include "sofdec/mpv_error.h"
 
+/* The decoder version ABI covers 0x1378 bytes; allocated handle slots are
+ * sizeof(MPVContext) == 0x1380 bytes. Retail and RE4 distinguish the two. */
+#define MPV_DECODER_VERSION_SIZE 0x1378U
+
 typedef struct MPVMCContext MPVMCContext;
 typedef void (*MPVMCFunction)(MPVMCContext* context);
 
@@ -130,42 +134,14 @@ typedef struct MPVBitReader {
     const u32* words;
 } MPVBitReader;
 
-/* The retail MPV object overlays exactly 16 condition words with this prefix. */
-typedef struct MPVDecoderPrefix {
-    u8 field_190[0x0C];
-    s32 mc_table;       /* +0x19C */
-    s32 field_1A0;
-    s32 field_1A4;
-    s32 field_1A8;
-    s32 field_1AC;
-    void (*callback)(void* argument);
-    void* callback_argument;
-    u8 field_1B8[0x18];
-} MPVDecoderPrefix;
-
 typedef struct MPVConditionState {
-    union {
-        int conditions[16];            /* +0x190 */
-        MPVDecoderPrefix decoder;      /* +0x190 */
-    };
+    int conditions[16];            /* +0x190: callback and argument at [8]/[9] */
     MPVPictureAttributes picture;     /* +0x1D0: complete 0x80-byte record */
 } MPVConditionState;
 
-typedef struct MPVDctCounters {
-    u8 field_078[0x18];
-    s32 decoded;
-    s32 skipped;
-    u8 field_098[0x34];
-} MPVDctCounters;
-
-typedef union MPVDctState {
-    DctFsriParams params;
-    MPVDctCounters counters;
-} MPVDctState;
-
-typedef union MPVTransformWorkspace {
-    float coefficients[9][64];
-    DctFsriBlock blocks[6];
+typedef struct MPVTransformWorkspace {
+    DctFsriBlock blocks[6];       /* +0x000: six 0x80-byte output blocks */
+    float coefficients[6][64];   /* +0x300: six 0x100-byte decoder blocks */
 } MPVTransformWorkspace;
 
 typedef struct MPVCodingBlock {
@@ -217,7 +193,7 @@ struct MPVContext {
     void* index_1280;
     u8* clip_base;
     MPVCodingWorkspace coding;
-    MPVDctState dct_state;                    /* +0x078 */
+    DctFsriParams dct_state;                   /* +0x078 */
     MPVMCContext mc;                         /* +0x0CC */
     MPVMacroblockSources sources;            /* +0x110 */
     MPVOutputBlocks output_blocks;           /* +0x120 */
@@ -297,17 +273,12 @@ typedef char MPVMacroblockSourcesSizeCheck[
 typedef char MPVYccPlaneSizeCheck[sizeof(MPVYccPlane) == 0x10 ? 1 : -1];
 typedef char MPVMotionInfoSizeCheck[
     sizeof(MPVMotionInfo) == 0x24 ? 1 : -1];
-typedef char MPVDecoderPrefixSizeCheck[
-    sizeof(MPVDecoderPrefix) == 0x40 ? 1 : -1];
 typedef char MPVConditionStateSizeCheck[
     sizeof(MPVConditionState) == 0xC0 ? 1 : -1];
 typedef char MPVPictureAttributesSizeCheck[
     sizeof(MPVPictureAttributes) == 0x80 ? 1 : -1];
 typedef char MPVPictureInfoSizeCheck[
     sizeof(MPVPictureInfo) == 0x80 ? 1 : -1];
-typedef char MPVDctCountersSizeCheck[
-    sizeof(MPVDctCounters) == 0x54 ? 1 : -1];
-typedef char MPVDctStateSizeCheck[sizeof(MPVDctState) == 0x54 ? 1 : -1];
 typedef char MPVTransformWorkspaceSizeCheck[
     sizeof(MPVTransformWorkspace) == 0x900 ? 1 : -1];
 typedef char MPVCodingWorkspaceSizeCheck[

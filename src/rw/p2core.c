@@ -205,10 +205,6 @@ RxPipeline* RxPipelineCreate(void)
         return 0;
     }
 }
-/*
- * Soft ceiling: retail clears the local pipeline pointer after freeing it;
- * the value is dead before the function returns.
- */
 void _rxPipelineDestroy(RxPipeline* pipeline)
 {
     if (pipeline != 0) {
@@ -230,5 +226,6 @@ void _rxPipelineDestroy(RxPipeline* pipeline)
             pipeline->superBlockSize = 0;
         }
         RwEngineInstance->fpFreeListFree(rxPipelineGlobalField(pipesFreeList), pipeline);
+        pipeline = 0;
     }
 }

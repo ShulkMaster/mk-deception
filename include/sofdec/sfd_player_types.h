@@ -48,17 +48,7 @@ typedef struct SfdTimerSkipState {
     int fields_04[7];
     unsigned short field_20;
     unsigned short field_22;
-    int value;
-    int scale;
 } SfdTimerSkipState;
-
-typedef struct SfdTimerCompactTimeUnit {
-    int fields_00[6];
-    unsigned short field_18;
-    unsigned short field_1A;
-    int value;
-    int scale;
-} SfdTimerCompactTimeUnit;
 
 typedef struct SfdTimerStreamTimeUnit {
     int active;
@@ -145,7 +135,8 @@ typedef int (*SfdExternalClockFn)(SfdCallbackObject object, int* value,
 typedef struct SfdTimerState {
     SfdTimeSourceFn time_sources[6];
     SfdTimerSkipState skip_state;
-    SfdTimerCompactTimeUnit compact_time;
+    /* RE4's ttu0 is one complete time unit at +0x3C, not a skip-state tail. */
+    SfdTimerTimeUnit field_003C;
     SfdTimerTimeUnit field_0068;
     SfdTimerStreamTimeUnit stream_time;
     SfdTimerTimeUnit field_00C0;
@@ -213,9 +204,7 @@ typedef char SfdPlaybackRuntimeSizeCheck[
 typedef char SfdTimerTimeUnitSizeCheck[
     sizeof(SfdTimerTimeUnit) == 0x2C ? 1 : -1];
 typedef char SfdTimerSkipStateSizeCheck[
-    sizeof(SfdTimerSkipState) == 0x2C ? 1 : -1];
-typedef char SfdTimerCompactTimeUnitSizeCheck[
-    sizeof(SfdTimerCompactTimeUnit) == 0x24 ? 1 : -1];
+    sizeof(SfdTimerSkipState) == 0x24 ? 1 : -1];
 typedef char SfdTimerStreamTimeUnitSizeCheck[
     sizeof(SfdTimerStreamTimeUnit) == 0x2C ? 1 : -1];
 typedef char SfdTimerSampleHistorySizeCheck[

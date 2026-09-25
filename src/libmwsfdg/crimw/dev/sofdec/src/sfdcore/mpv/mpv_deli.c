@@ -1,13 +1,14 @@
 #include "cri/mpv.h"
 
+/* TODO: [near miss] 92.118645%; donor state-one branches and direct input
+ * cursor agree; stop this round at signed-byte/state register lowering. */
 const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
                                      int mask) {
-    const unsigned char* current = data;
     const unsigned char* end = data + length;
     int state = 0;
 
-    while (current < end) {
-        signed char byte = (signed char)*current++;
+    while (data < end) {
+        signed char byte = (signed char)*data++;
 
         switch (state) {
         case 0:
@@ -16,7 +17,11 @@ const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
             }
             break;
         case 1:
-            state = byte == 0 ? 2 : 0;
+            if (byte == 0) {
+                state = 2;
+            } else {
+                state = 0;
+            }
             break;
         case 2:
             if (byte == 1) {
@@ -26,8 +31,8 @@ const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
             }
             break;
         case 3:
-            if (mask & MPV_CheckDelim(current - 4)) {
-                return (void*)(current - 4);
+            if (mask & MPV_CheckDelim(data - 4)) {
+                return (void*)(data - 4);
             }
             state = 0;
             break;
@@ -36,14 +41,15 @@ const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
     return 0;
 }
 
-/* TODO: [breakthrough needed] 75.6875%; signed-pointer reconstruction regresses; reverse-loop/state lowering remains structurally different. */
+/* TODO: [near miss] 90.234375%; donor branches, direct cursor and byte
+ * lifetime agree; stop this round at signed-byte/state register lowering. */
 void* MPV_BsearchDelim(const unsigned char* data, int length, int mask) {
-    const unsigned char* current = data;
     const unsigned char* end = data - length;
+    signed char byte;
     int state = 0;
 
-    while (end < current) {
-        signed char byte = (signed char)*--current;
+    while (end < data) {
+        byte = (signed char)*--data;
 
         switch (state) {
         case 0:
@@ -63,12 +69,14 @@ void* MPV_BsearchDelim(const unsigned char* data, int length, int mask) {
             break;
         case 3:
             if (byte == 0) {
-                if (mask & MPV_CheckDelim(current)) {
-                    return (void*)current;
+                if (mask & MPV_CheckDelim(data)) {
+                    return (void*)data;
                 }
                 state = 0;
+            } else if (byte != 1) {
+                state = 1;
             } else {
-                state = byte == 1 ? 2 : 1;
+                state = 2;
             }
             break;
         }

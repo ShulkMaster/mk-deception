@@ -41,7 +41,6 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
              size_kb, origin_info.name, destination_info.name, info->sourceFunction, info->line);
 }
 
-/* TODO: [near miss] 99.09%; size/string GPR coloring remains; stop after bounded permuter search. */
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
     MwMemHeapInfo heap_info;
     float size_kb;
@@ -49,9 +48,8 @@ void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
     mwMemHeapGetInfo(info->destHeap, &heap_info);
     MEMPRINT(">> Out of RAM \n");
     size_kb = (float)info->size;
-    size_kb *= 1.0f / 1024.0f;
     MEMPRINT("      FAILURE:  cannot allocate: %f K  from heap: %s\n",
-             size_kb, heap_info.name);
+             size_kb *= 1.0f / 1024.0f, heap_info.name);
 }
 
 void mwMemUserConfigInitMemSystem(void) {
@@ -157,13 +155,11 @@ void mwMemDestroyFixedBlockHeaps(void) {
     fixed_block_1024_heap = 0;
 }
 
-/* TODO: [breakthrough] 62.07%; fixed/create initialization order improved; register scheduling remains. */
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapCreateParams create;
     MwMemHeapParams defaults;
     MwMemFixedParams fixed;
     mwMemHeapGetDefaultParams(&defaults);
-    create.fixedInitParams = &fixed;
     defaults.paramByte0 = 0xAB;
     defaults.paramByte1 = 0;
     defaults.overflowEnable = 1;
@@ -174,79 +170,80 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     create.arenaSize = 1;
     create.strategyType = MW_MEM_STRATEGY_FIXED;
     create.extraSizeShift = 0;
+    create.fixedInitParams = &fixed;
     create.field_0x08 = 4;
 
     create.name = "MKOBJ fixed block heap";
-    fixed.blockCount = config->mkobjCount;
     fixed.blockSize = 0x100;
+    fixed.blockCount = config->mkobjCount;
     fixed.flags = 4;
     mkobj_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "MKSOBJ fixed block heap";
-    fixed.blockCount = config->mksobjCount;
     fixed.blockSize = 0x90;
+    fixed.blockCount = config->mksobjCount;
     fixed.flags = 4;
     mksobj_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "MKPROC fixed block heap";
-    fixed.blockCount = config->mkprocCount;
     fixed.blockSize = 0xD0;
+    fixed.blockCount = config->mkprocCount;
     fixed.flags = 3;
     mkproc_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 16 heap";
-    fixed.blockCount = config->fixed16Count;
     fixed.blockSize = 0x40;
+    fixed.blockCount = config->fixed16Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed16_strategy;
     fixed_block_16_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 32 heap";
-    fixed.blockCount = config->fixed32Count;
     fixed.blockSize = 0x80;
+    fixed.blockCount = config->fixed32Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed32_strategy;
     fixed_block_32_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 64 heap";
-    fixed.blockCount = config->fixed64Count;
     fixed.blockSize = 0x100;
+    fixed.blockCount = config->fixed64Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed64_strategy;
     fixed_block_64_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 128 heap";
-    fixed.blockCount = config->fixed128Count;
     fixed.blockSize = 0x200;
+    fixed.blockCount = config->fixed128Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed128_strategy;
     fixed_block_128_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 512 heap";
-    fixed.blockCount = config->fixed512Count;
     fixed.blockSize = 0x800;
+    fixed.blockCount = config->fixed512Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed512_strategy;
     fixed_block_512_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 1024 heap";
-    fixed.blockCount = config->fixed1024Count;
     fixed.blockSize = 0x1000;
+    fixed.blockCount = config->fixed1024Count;
     fixed.flags = 4;
     defaults.strategyCallback = fixed1024_strategy;
     fixed_block_1024_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     fixed.sizeThreshold = 0;
     create.name = "TINYSTACK fixed block heap";
-    fixed.blockCount = config->tinystackCount;
     fixed.blockSize = 0x200;
+    fixed.blockCount = config->tinystackCount;
     fixed.flags = 3;
     defaults.strategyCallback = 0;
     tinystack_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "BIGSTACK fixed block heap";
-    fixed.blockCount = config->bigstackCount;
     fixed.blockSize = 0x4000;
+    fixed.blockCount = config->bigstackCount;
     fixed.flags = 3;
     defaults.strategyCallback = 0;
     bigstack_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);

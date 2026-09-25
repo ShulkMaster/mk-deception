@@ -7,7 +7,8 @@ extern void pfxfont_release_delayed_vertex_buffers(void);
 
 MkPtr *delayed_free_list;
 
-/* Soft ceiling: purge_delayed_mem_frees ~99.69% -- decrement-result GPR coloring. */
+/* TODO: [near miss] 99.6875%; decrement-result GPR coloring remains;
+ * permuter's zero-score inert mask is not an honest source expression. */
 void purge_delayed_mem_frees(void) {
     MkPtr *next;
     MkPtr *entry;
@@ -30,7 +31,8 @@ void purge_delayed_mem_frees(void) {
     }
 }
 
-/* Soft ceiling: do_delayed_mem_frees ~99.66% -- decrement-result GPR coloring. */
+/* TODO: [near miss] 99.655174%; decrement-result GPR coloring remains;
+ * permuter's zero-score inert mask is not an honest source expression. */
 void do_delayed_mem_frees(void) {
     MkPtr *entry;
     MkPtr *next;

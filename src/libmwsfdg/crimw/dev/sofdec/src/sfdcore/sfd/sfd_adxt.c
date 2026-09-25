@@ -260,6 +260,18 @@ static int SFADXT_GetWrite(SfdHandle* handle, void* output)
     return SFLIB_SetErr(handle, 0xFF000C03);
 }
 
+static inline void sfadxt_PauseOff(SfdHandle* handle)
+{
+    SfdAdxtWork* work = sfadxt_GetWork(handle);
+    AdxtHandle* decoder = work->decoder;
+    SfdTestWork* test_work = sfadxt_GetTestWork(handle);
+
+    if (work->paused != 1) {
+        ADXT_Pause(decoder, 0);
+        SFTST_Pause(test_work, 0);
+    }
+}
+
 static int SFADXT_Pause(SfdHandle* handle, int state)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
@@ -268,10 +280,7 @@ static int SFADXT_Pause(SfdHandle* handle, int state)
     switch (state) {
     case 0:
         work->discarded_samples = 0;
-        if (work->paused != 1) {
-            ADXT_Pause(work->decoder, 0);
-            SFTST_Pause(sfadxt_GetTestWork(handle), 0);
-        }
+        sfadxt_PauseOff(handle);
         break;
     case 1:
         ADXT_Pause(decoder, 1);
@@ -369,32 +378,46 @@ static int SFADXT_Destroy(SfdHandle* handle)
     return result;
 }
 
+static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
+                                     AdxtHandle* decoder,
+                                     SfdTestWork* test_work)
+{
+    int decoder_value;
+    int decoder_scale;
+    SfdTestTime master;
+    SfdTestTime sample;
+    SfdTestTime output;
+    int count;
+    int unit;
+
+    sfadxt_stat = ADXT_GetStat(decoder);
+    ADXT_GetTime(decoder, &decoder_value, &decoder_scale, &sfadxt_stat);
+    master.value = decoder_value;
+    master.scale = decoder_scale;
+    sample.value = UTY_GetTmr();
+    sample.scale = UTY_GetTmrUnit();
+    SFTST_Calc(test_work, &master, &sample, &output);
+    count = (int)output.value;
+    unit = (int)output.scale;
+    if (work->maximum_time_value < count) {
+        work->maximum_time_value = count;
+        work->maximum_time_scale = unit;
+    }
+}
+
+/* TODO: [near miss] 96.428570%; typed update values and stack slots agree;
+ * stop at owner-register coloring and one status-call scheduling difference. */
 static int sfadxt_GetTime(SfdHandle* handle, int* value, int* scale)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
     AdxtHandle* decoder = work->decoder;
+    SfdTestWork* test_work = sfadxt_GetTestWork(handle);
 
     if (SFTIM_ChkRegularTime(handle, value, scale) == 0) {
         return 0;
     }
     if (handle->playback_state == 4) {
-        int decoder_value;
-        int decoder_scale;
-        SfdTestTime master;
-        SfdTestTime sample;
-        SfdTestTime output;
-
-        sfadxt_stat = ADXT_GetStat(decoder);
-        ADXT_GetTime(decoder, &decoder_value, &decoder_scale, &sfadxt_stat);
-        master.value = decoder_value;
-        master.scale = decoder_scale;
-        sample.value = UTY_GetTmr();
-        sample.scale = UTY_GetTmrUnit();
-        SFTST_Calc(sfadxt_GetTestWork(handle), &master, &sample, &output);
-        if (work->maximum_time_value < (int)output.value) {
-            work->maximum_time_value = (int)output.value;
-            work->maximum_time_scale = (int)output.scale;
-        }
+        sfadxt_UpdateTime(work, decoder, test_work);
     }
     *value = work->maximum_time_value;
     *scale = work->maximum_time_scale;
@@ -759,15 +782,15 @@ static void sfadxt_CopyData(SfdHandle* handle, const unsigned char* data,
     SfdAdxtWork* work = sfadxt_GetWork(handle);
     SJ* stream_joint = work->stream_joint;
     SJCK chunk;
+    unsigned char* destination;
     int copy_size;
 
     stream_joint->interface->get_chunk(stream_joint, 0,
                                        work->para.stream_buffer_size, &chunk);
+    destination = chunk.data;
     copy_size = size < chunk.len ? size : chunk.len;
-    if (copy_size > 0x19000) {
-        copy_size = 0x19000;
-    }
-    MEM_Copy(chunk.data, data, copy_size);
+    copy_size = copy_size < 0x19000 ? copy_size : 0x19000;
+    MEM_Copy(destination, data, copy_size);
     if (copy_size == 0) {
         stream_joint->interface->unget_chunk(stream_joint, 0, &chunk);
     } else {
@@ -999,7 +1022,8 @@ static int SFADXT_Init(SfdHandle* handle)
 {
     ADXT_Init();
     SFA_Init();
-    UTY_MemsetDword((unsigned int*)&sfadxt_para, 0, 7);
+    UTY_MemsetDword((unsigned int*)&sfadxt_para, 0,
+                    sizeof(sfadxt_para) / sizeof(unsigned int));
     return 0;
 }
 

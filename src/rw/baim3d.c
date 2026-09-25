@@ -14,8 +14,8 @@ typedef struct RwIm3DGlobals {
     RwIm3DStash stash;
 } RwIm3DGlobals;
 
-RwIm3DGlobals* _rwIm3DGlobals;
 RwModuleInfo _rwIm3DModule;
+RwIm3DGlobals* _rwIm3DGlobals;
 
 RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
                               const RwMatrix* localToWorld, unsigned int flags)
@@ -152,9 +152,8 @@ int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
         ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
                           _rwIm3DModule.globalsOffset))
             ->transformData.vertices != 0;
-
-    /* Retail also spills the unused returned heap pointer to the stack. */
-    RxHeapGetGlobalHeap();
+    /* Only asserted in debug RenderWare builds; -opt off still stores it. */
+    RxHeap* heap = RxHeapGetGlobalHeap();
 
     if (transformed) {
         RwIm3DStash* data =
