@@ -312,8 +312,9 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
-/* TODO: [near miss] 99.988500%; retail/RE4 CFG and helper sequence agree;
- * the typed file-ID array does not change MWCC's static-BSS pool ordering. */
+/* TODO: [near miss] 99.873566%; only adxt_time_unit's .bss offset differs (retail
+ * keeps adxt_fileid_buf in declaration order); `= {0}` moves it to .data and RE4-style
+ * uninitialized reverse declarations scramble .bss further. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;
@@ -825,8 +826,8 @@ void ADXT_Destroy(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.912410%; RE4's work-end addition order is instruction-exact;
- * only pooled string/floating-constant relocation identities remain. */
+/* TODO: [near miss] 99.912410%; code is instruction-exact; retail's anonymous literals
+ * interleave with strings of absent functions, so inline literals drop .rodata to 56%. */
 ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
 {
     ADXTHandle* handle;

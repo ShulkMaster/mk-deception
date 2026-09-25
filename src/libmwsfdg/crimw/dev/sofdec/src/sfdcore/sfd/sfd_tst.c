@@ -58,8 +58,8 @@ static inline void subtract_history(SFTST_Work* work, int value)
     }
 }
 
-/* TODO: [near miss] 99.366670%; debug-time snapshots and post-call sample
- * reload match retail ownership; one load schedule and coloring remain. */
+/* TODO: [near miss] 99.366670%; debug snapshots match retail ownership. Declaring
+ * output/input/maximum before sample reproduces retail's load order but scores 99.362%; coloring remains. */
 void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
                 SFTST_Time* sample, SFTST_Time* output)
 {

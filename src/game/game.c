@@ -1133,6 +1133,20 @@ void destroy_onscreen_fight_2d_objects(void) {
     }
 }
 
+static inline int game_count_active_players(void) {
+    int count = 0;
+
+    if (g_game_info.plyr0.player_state == 2) {
+        count++;
+    }
+    if (g_game_info.plyr1.player_state == 2) {
+        count++;
+    }
+    return count;
+}
+
+/* TODO: [breakthrough needed] 94.22173%; shared active-player count helper applied; larger
+ * CFG/stack residue unexamined in this pass. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -1372,13 +1386,7 @@ void do_win_effect(void) {
     }
 
     if (g_game_info.pause_flag_bits.fatality_window != 0) {
-        active_profiles = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_profiles = 1;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_profiles++;
-        }
+        active_profiles = game_count_active_players();
         if (active_profiles == 2) {
             if (victor != 0 && g_game_info.pselect.field_1dc > 0) {
                 icon_x = validated_plyr_screen(&victor->name_latch) != 0
@@ -1397,13 +1405,7 @@ void do_win_effect(void) {
     }
     if (g_game_info.pause_flag_bits.fatality_window != 0 &&
         (int)mode_of_play == 0) {
-        active_profiles = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_profiles = 1;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_profiles++;
-        }
+        active_profiles = game_count_active_players();
         if (active_profiles == 1 &&
             ((round_winner == 1 && g_game_info.plyr0.player_state == 2) ||
              (round_winner == 2 && g_game_info.plyr1.player_state == 2)) &&
@@ -1648,13 +1650,7 @@ int round_over(void) {
 
     update_plyr_medals();
     if (g_game_info.pause_flag_bits.fatality_window) {
-        active_players = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_players++;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_players++;
-        }
+        active_players = game_count_active_players();
 
         if (active_players == 1 && (int)mode_of_play == 0) {
             if (round_winner == 1 &&
@@ -1698,13 +1694,7 @@ int round_over(void) {
         break;
     }
 
-    active_players = 0;
-    if (g_game_info.plyr0.player_state == 2) {
-        active_players++;
-    }
-    if (g_game_info.plyr1.player_state == 2) {
-        active_players++;
-    }
+    active_players = game_count_active_players();
 
     if (active_players == 1 &&
         g_game_info.pause_flag_bits.fatality_window &&
@@ -1742,25 +1732,21 @@ int round_over(void) {
     }
 
     if (g_game_info.pause_flag_bits.fatality_window) {
-        active_players = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_players++;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_players++;
-        }
+        active_players = game_count_active_players();
 
         if (active_players == 2 &&
             ((int)mode_of_play == 1 || (int)mode_of_play == 0)) {
+            int winning_side = winner;
+
             if (!g_game_info.feature_flags.bits.high_bit) {
-                if (winner == 1) {
+                if (winning_side == 1) {
                     if (p1_profile_status == 1) {
                         p1_profile.versus_wins++;
                     }
                     if (p2_profile_status == 1) {
                         p2_profile.versus_losses++;
                     }
-                } else if (winner == 2) {
+                } else if (winning_side == 2) {
                     if (p2_profile_status == 1) {
                         p2_profile.versus_wins++;
                     }
@@ -1768,14 +1754,14 @@ int round_over(void) {
                         p1_profile.versus_losses++;
                     }
                 }
-            } else if (winner == 1) {
+            } else if (winning_side == 1) {
                 if (p1_profile_status == 1) {
                     p1_profile.online_wins++;
                 }
                 if (p2_profile_status == 1) {
                     p2_profile.online_losses++;
                 }
-            } else if (winner == 2) {
+            } else if (winning_side == 2) {
                 if (p2_profile_status == 1) {
                     p2_profile.online_wins++;
                 }
@@ -1786,13 +1772,7 @@ int round_over(void) {
         }
 
         if ((int)mode_of_play == 0) {
-            active_players = 0;
-            if (g_game_info.plyr0.player_state == 2) {
-                active_players++;
-            }
-            if (g_game_info.plyr1.player_state == 2) {
-                active_players++;
-            }
+            active_players = game_count_active_players();
             if (active_players == 2) {
                 if (winner == 1) {
                     if (g_game_info.field_1FC == 1) {
@@ -2691,6 +2671,8 @@ static float p_do_ending(void) {
     return -1.0f;
 }
 
+/* TODO: [near miss] 99.74324%; case-8 fallthrough and count helper restored; three CSE'd
+ * g_game_info base temps rotate r29/r30/r31. */
 float p_game_loop(void) {
     BgndAnimationsView* animations;
     MkProc* proc;
@@ -2809,10 +2791,10 @@ float p_game_loop(void) {
     case 10:
         break;
     case 8:
-        if (trial_show_standard_fight_messages() != 0) {
-            do_fight_effect();
+        if (trial_show_standard_fight_messages() == 0) {
+            break;
         }
-        break;
+        /* fall through: trial fights show the standard message */
     default:
         do_fight_effect();
         break;
@@ -2856,13 +2838,7 @@ float p_game_loop(void) {
         game_save_loop_count++;
         force_bgnd_num = -1;
 
-        active_players = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_players++;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_players++;
-        }
+        active_players = game_count_active_players();
         if (active_players == 2) {
             g_game_info.plyr1.player_index = 0x2C;
             g_game_info.plyr0.player_index = 0x2C;
@@ -2890,13 +2866,7 @@ float p_game_loop(void) {
             break;
         }
 
-        active_players = 0;
-        if (g_game_info.plyr0.player_state == 2) {
-            active_players++;
-        }
-        if (g_game_info.plyr1.player_state == 2) {
-            active_players++;
-        }
+        active_players = game_count_active_players();
         if (active_players == 1) {
             if ((g_game_info.plyr0.player_state == 2 && winner == 1) ||
                 (g_game_info.plyr1.player_state == 2 && winner == 2)) {

@@ -1288,13 +1288,11 @@ float mks_get_victim_to_tr_dot(int player) {
     return result;
 }
 
-/* TODO: [near miss] 99.96%; position aggregate stack offsets differ; inspect real local scope. */
 void resume_effect_at_plyr_num_bid(
     int player_num, int bone, unsigned int handle, int bind_mode,
     int requires_blood) {
     MkObj* object;
     MkPfx* effect;
-    Vec position;
 
     if (player_num == g_game_info.plyr0.slot.pdata->plyr_num) {
         object = g_game_info.plyr0.slot.mirror_a;
@@ -1302,6 +1300,8 @@ void resume_effect_at_plyr_num_bid(
              get_blood_level() >= blood_type_list[11]) &&
             (effect = find_pfx_by_handle(handle)) != 0) {
             if (bind_mode == 1) {
+                Vec position;
+
                 get_bone_world_pos(object, bone, &position);
                 fx_set_param_v3(
                     handle, 0x202, position.x, position.y, position.z);
@@ -1319,6 +1319,8 @@ void resume_effect_at_plyr_num_bid(
              get_blood_level() >= blood_type_list[11]) &&
             (effect = find_pfx_by_handle(handle)) != 0) {
             if (bind_mode == 1) {
+                Vec position;
+
                 get_bone_world_pos(object, bone, &position);
                 fx_set_param_v3(
                     handle, 0x202, position.x, position.y, position.z);

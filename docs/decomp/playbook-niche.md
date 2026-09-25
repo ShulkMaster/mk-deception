@@ -24,6 +24,8 @@ N08 | m2c exposes a possibly unwritten local consumed by retail | Instruction-le
 
 N09 | Retail keeps an explicit byte-swap sequence but the pinned compiler folds the same typed load/store to `lhbrx`/`stwbrx` | Identical validation CFG, endian result, access width, and destination | Stop at the clean intrinsic/shift expression. Do not import a donor's dead conditional, fake read, or other liveness crutch merely to block the post-RA fold; the `SFH_AnlyMaxFrmNum`/maximum-payload readers demonstrate this ceiling.
 
+N10 | Retail classifies a float by loading its IEEE-754 word, while an invented union supplies the candidate word view | Retail `lwz`, four-byte float/word sizes, and a same-source donor's word-access idiom | Test the narrow donor-backed word view under MWCC and a `memcpy` bit-copy on other compilers; verify the host fallback compiles and the complete TU stays exact. `ADX_GetCoefficient` retains 100% after removing an unverified float/word union; a plain `memcpy` under MWCC changes its stack frame and falls to 79.324500%. This does not license arbitrary alias casts or union overlays.
+
 ## Hard stops
 
 After the applicable honest source check, stop for:
@@ -44,6 +46,18 @@ After the applicable honest source check, stop for:
   table-copy `subi r4,r3,4`, despite identical dispatch entries. This does not
   establish report-exact or link-exact status.
 - Equivalent branch/address lowering without new source evidence.
+- Vendor library code whose matched references use `goto` for a shared exit
+  (MSL `__dec2num` in bfbb/TP: `goto done`) where flag-and-break emulations
+  leave extra instructions. Stop emulating. Use the AGENTS.md last-resort
+  `goto` exception instead: the goto must stay within the function, backed by the reference, and structured forms must be measured
+  and shown to regress. Record those measurements in the report.
+- One scheduled instruction moved across a store when the body is textually
+  identical to a matched decomp of the same SDK (`SPEC2_MakeStatus` vs TP and
+  dolsdk2004). Compiler-version and flag probes at object scope were neutral or
+  regressed siblings; stop instead of restructuring the source.
+- A zero-score permuter candidate that only recomputes an unchanged value
+  (`offset = data - buf;` again before its use) to split a live range. Record
+  the insight (`SJRBF_PutChunk`); do not land the redundant statement.
 
 Unknown calls/offsets/CFG are not coloring: classify borked or breakthrough needed
 and name missing evidence. Assembly-required targets are skipped; AGENTS.md
@@ -54,13 +68,38 @@ of the same lifetime did not. See the measured ranking in the
 [knowledge record](matching-knowledge.md#measured-rule-ranking).
 Record source `TODO: [near miss]` with score, residual, and stop reason; disclose
 nonmatching fallback in SHA results. Never omit returns or invent lifetimes,
-types, empty arms, fake volatile, dead sinks, register declarations, or goto.
+types, empty arms, fake volatile, dead sinks, or register declarations. A
+`goto` is allowed only under the AGENTS.md last-resort exception.
 
 ## Optional search
 
 Permuter requires established algorithm/CFG/ABI/layout and the real TU command.
 Keep PERM_* in scratch; task-specific attempt limits never waive verification.
 Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
+
+- The permuter scorer charges only about 5 per register-name difference but 100
+  per inserted or deleted instruction. A low nonzero score can therefore still
+  hide wrong colors, and a candidate at 5 may emit no extra code. Diff the
+  candidate's objdump against `target.o` before judging it.
+- IF a scratch's base score is far above the real TU's residue, REQUIRE a check
+  that retail inlined same-TU callees. Upstream import and every candidate
+  rebuild strip non-`inline` function bodies, so the scratch calls them.
+  `tools/decomp_permuter.py` now restores callees that the retail body never
+  calls, marked `inline` (`SFD_SetCond` base 6450 -> 40); pass
+  `--no-inline-callees` to disable this.
+- IF the best nonzero candidates differ in noise but share one transformation,
+  REQUIRE that it is expressible without `new_var` temporaries, dead `if (1)`
+  blocks, or comma operators; TRY that shared idea as honest C in the real TU.
+  The scratch score does not need to be zero. Five score-110 candidates all fed
+  `(x *= k)` directly to a call; that insight closes
+  `mwMemUserConfigOutofMemoryCallback` (H15 scaled-argument addendum).
+  `tools/permuter_call_args.py` now enumerates that family directly: all
+  keep/fold/fold-value/hoist combinations of a call's arguments, with `--joint`
+  combining call sites. It found the form in 8 compiles, while random upstream
+  search needed about 200k iterations to approach it. The `perm_call_arg_staging` random
+  pass (via `tools/permuter_mkd.py`) mixes it with other passes. Moves never
+  cross an observable call or store, and one combination moves at most one
+  call expression.
 
 - IF an imported candidate behaves differently in the real TU, REQUIRE an
   unchanged-baseline control; TRY compiling the candidate body inside a frozen
