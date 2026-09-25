@@ -11,7 +11,7 @@ static short ulaw_exp_table[256] = { 0x8284, 0x8684, 0x8A84, 0x8E84, 0x9284, 0x9
 
 static inline unsigned int rd32(const unsigned char* p)
 {
-    return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
+    return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24;
 }
 
 static inline unsigned short rd16(const unsigned char* p)
@@ -231,45 +231,44 @@ int ADXB_CheckAu(const signed char* input)
     return 0;
 }
 
-/* TODO: [near miss] 95.538460%; retail .sd-before-.snd order now matches;
- * remaining byte-lane/register coloring and helper lowering are unresolved. */
+/* TODO: [near miss] 95.846150%; unsigned AU size and defined byte shift retain
+ * retail behavior; byte-lane/register scheduling remains. */
 static unsigned char* AU_GetInfo(unsigned char* header, int length, int* rate,
                                  int* channels, int* bits, int* samples,
                                  int* codec)
 {
-    unsigned char* p = header;
     unsigned int magic;
     int header_size;
-    int data_size;
+    unsigned int data_size;
     unsigned int encoding;
 
-    magic = rd32(p); p += 4;
+    magic = rd32(header);
     if (magic != 0x64732E && magic != 0x646E732E)
         return NULL;
-    header_size = rd32(p);
-    header_size = sw32(header_size); p += 4;
+    header_size = rd32(header + 4);
+    header_size = sw32(header_size);
     if (header_size > length)
         return NULL;
-    data_size = rd32(p);
-    data_size = sw32(data_size); p += 4;
-    encoding = rd32(p);
-    encoding = sw32(encoding); p += 4;
+    data_size = rd32(header + 8);
+    data_size = sw32(data_size);
+    encoding = rd32(header + 12);
+    encoding = sw32(encoding);
     switch (encoding) {
     case 1: *codec = 2; *bits = 8; break;
     case 2: *codec = 1; *bits = 8; break;
     case 3: *codec = 0; *bits = 16; break;
     default: return NULL;
     }
-    *rate = rd32(p);
-    *rate = sw32(*rate); p += 4;
-    *channels = rd32(p);
-    *channels = sw32(*channels); p += 4;
+    *rate = rd32(header + 16);
+    *rate = sw32(*rate);
+    *channels = rd32(header + 20);
+    *channels = sw32(*channels);
     if (*codec == 2)
-        *samples = data_size / *channels;
+        *samples = (int)data_size / *channels;
     else if (*codec == 1)
-        *samples = data_size / *channels;
+        *samples = (int)data_size / *channels;
     else if (*codec == 0)
-        *samples = (data_size / 2) / *channels;
+        *samples = ((int)data_size / 2) / *channels;
     else
         *samples = 0x7FFF0000;
     return header + header_size;

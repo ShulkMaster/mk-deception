@@ -37,7 +37,7 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [breakthrough needed] 62.335526%; retail keeps narrow predictor values, but the honest 16-bit local trial regressed; unrolled decoder scheduling remains unresolved. */
+/* TODO: [breakthrough] 67.243420%; typed key snapshots and output pairs retained; CTR/predictor allocation remains. */
 int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
@@ -45,55 +45,66 @@ int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
                         short* randomState, short randomMultiplier,
                         short randomIncrement) {
     int block;
+    int blockCount = numBlocks / 2;
     int previousLeft = delayLeft[0];
     int olderLeft = delayLeft[1];
     int previousRight = delayRight[0];
     int olderRight = delayRight[1];
     const int* quantizer = AdxQtbl;
 
-    for (block = 0; block < numBlocks / 2; block++, input += 36) {
-        const signed char* leftData = input;
-        const signed char* rightData = input + 18;
-        short leftCode = *(const short*)leftData;
+    for (block = 0; block < blockCount; block++) {
+        const signed char* data;
+        short leftCode = *(const short*)input;
         short rightCode;
+        int key;
         int leftGain;
         int rightGain;
         int sample;
 
         if (leftCode & 0x8000) return block * 2;
-        leftGain = ((leftCode ^ *randomState) & 0x1fff) + 1;
-        *randomState = randomIncrement + *randomState * randomMultiplier;
+        key = *randomState;
+        leftGain = ((leftCode ^ key) & 0x1fff) + 1;
+        *randomState = randomIncrement + key * randomMultiplier;
         *randomState &= 0x7fff;
-        rightCode = *(const short*)rightData;
+        rightCode = *(const short*)(input + 18);
         if (rightCode & 0x8000) return block * 2;
-        rightGain = ((rightCode ^ *randomState) & 0x1fff) + 1;
-        *randomState = randomIncrement + *randomState * randomMultiplier;
+        key = *randomState;
+        rightGain = ((rightCode ^ key) & 0x1fff) + 1;
+        *randomState = randomIncrement + key * randomMultiplier;
         *randomState &= 0x7fff;
 
-        leftData += 2;
-        rightData += 2;
+        data = input + 2;
         sample = 16;
         do {
-            signed char leftPacked = *leftData++;
-            signed char rightPacked = *rightData++;
+            signed char leftPacked = data[0];
+            signed char rightPacked = data[18];
             int decodedLeft = (leftPacked >> 4) * leftGain +
                 ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
             int decodedRight = (rightPacked >> 4) * rightGain +
                 ((coefficient0 * previousRight + coefficient1 * olderRight) >> 12);
+            int leftQuantized;
+            int rightQuantized;
+
+            data++;
 
             decodedLeft = clamp_sample(decodedLeft);
             decodedRight = clamp_sample(decodedRight);
-            *outputLeft++ = (short)decodedLeft;
-            *outputRight++ = (short)decodedRight;
+            leftQuantized = quantizer[leftPacked & 15];
+            outputLeft[0] = (short)decodedLeft;
+            rightQuantized = quantizer[rightPacked & 15];
+            outputRight[0] = (short)decodedRight;
+            previousLeft = clamp_sample(leftQuantized * leftGain +
+                ((coefficient0 * decodedLeft + coefficient1 * previousLeft) >> 12));
+            previousRight = clamp_sample(rightQuantized * rightGain +
+                ((coefficient0 * decodedRight + coefficient1 * previousRight) >> 12));
+            outputLeft[1] = (short)previousLeft;
+            outputLeft += 2;
+            outputRight[1] = (short)previousRight;
+            outputRight += 2;
             olderLeft = decodedLeft;
             olderRight = decodedRight;
-            previousLeft = clamp_sample(quantizer[leftPacked & 15] * leftGain +
-                ((coefficient0 * decodedLeft + coefficient1 * previousLeft) >> 12));
-            previousRight = clamp_sample(quantizer[rightPacked & 15] * rightGain +
-                ((coefficient0 * decodedRight + coefficient1 * previousRight) >> 12));
-            *outputLeft++ = (short)previousLeft;
-            *outputRight++ = (short)previousRight;
         } while (--sample != 0);
+        input = data + 18;
     }
     delayLeft[0] = (short)previousLeft;
     delayLeft[1] = (short)olderLeft;
@@ -102,7 +113,8 @@ int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough needed] 64.40426%; retail's narrow predictor locals are backend allocation artifacts; honest 16-bit typing regressed to 53.601063%, leaving mono unroll scheduling unresolved. */
+/* TODO: [breakthrough] 69.101070%; block count, paired stores, and right-key
+ * ownership are explicit; input traversal and inner-loop lowering remain. */
 int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
@@ -110,19 +122,21 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
                          short* randomState, short randomMultiplier,
                          short randomIncrement) {
     int block;
+    int blockCount = numBlocks / 2;
     int previousLeft = delayLeft[0];
     int olderLeft = delayLeft[1];
     int previousRight = delayRight[0];
     int olderRight = delayRight[1];
     const int* quantizer = AdxQtbl;
 
-    for (block = 0; block < numBlocks / 2; block++, input += 36) {
+    for (block = 0; block < blockCount; block++, input += 36) {
         const signed char* leftData = input;
         const signed char* rightData = input + 18;
         short leftCode = *(const short*)leftData;
         short rightCode;
         int leftGain;
         int rightGain;
+        short rightKey;
         int sample;
 
         if (leftCode & 0x8000) return block * 2;
@@ -131,8 +145,9 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
         *randomState &= 0x7fff;
         rightCode = *(const short*)rightData;
         if (rightCode & 0x8000) return block * 2;
-        rightGain = ((rightCode ^ *randomState) & 0x1fff) + 1;
-        *randomState = randomIncrement + *randomState * randomMultiplier;
+        rightKey = *randomState;
+        rightGain = ((rightCode ^ rightKey) & 0x1fff) + 1;
+        *randomState = randomIncrement + rightKey * randomMultiplier;
         *randomState &= 0x7fff;
 
         leftData += 2;
@@ -145,22 +160,28 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
                 ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
             int decodedRight = (rightPacked >> 4) * rightGain +
                 ((coefficient0 * previousRight + coefficient1 * olderRight) >> 12);
-            int mixed;
+            short mixed;
+            int leftQuantized;
+            int rightQuantized;
 
             decodedLeft = clamp_sample(decodedLeft);
             decodedRight = clamp_sample(decodedRight);
             olderLeft = decodedLeft;
             olderRight = decodedRight;
             mixed = clamp_sample(((decodedLeft + decodedRight) * 7) / 10);
-            *outputLeft++ = (short)mixed;
-            *outputRight++ = (short)mixed;
-            previousLeft = clamp_sample(quantizer[leftPacked & 15] * leftGain +
+            outputRight[0] = (short)mixed;
+            outputLeft[0] = (short)mixed;
+            leftQuantized = quantizer[leftPacked & 15];
+            rightQuantized = quantizer[rightPacked & 15];
+            previousLeft = clamp_sample(leftQuantized * leftGain +
                 ((coefficient0 * decodedLeft + coefficient1 * previousLeft) >> 12));
-            previousRight = clamp_sample(quantizer[rightPacked & 15] * rightGain +
+            previousRight = clamp_sample(rightQuantized * rightGain +
                 ((coefficient0 * decodedRight + coefficient1 * previousRight) >> 12));
             mixed = clamp_sample(((previousLeft + previousRight) * 7) / 10);
-            *outputLeft++ = (short)mixed;
-            *outputRight++ = (short)mixed;
+            outputRight[1] = (short)mixed;
+            outputLeft[1] = (short)mixed;
+            outputRight += 2;
+            outputLeft += 2;
         } while (--sample != 0);
     }
     delayLeft[0] = (short)previousLeft;
@@ -170,8 +191,8 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough needed] 78.764710%; donor output-pair indexing is
- * neutral; retail CTR loop and predictor/register lifetimes need new evidence. */
+/* TODO: [breakthrough needed] 84.470590%; direct first-sample clamp and
+ * delayed history match; retail CTR/frame lowering still needs source evidence. */
 int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
                     short delay[2], short coefficient0, short coefficient1,
                     short* randomState, short randomMultiplier,
@@ -179,6 +200,8 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
     int block;
     int previous = delay[0];
     int older = delay[1];
+    int predictor0 = coefficient0;
+    int predictor1 = coefficient1;
 
     for (block = 0; block < numBlocks; block++) {
         short code = *(const short*)input;
@@ -194,13 +217,21 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
         do {
             signed char packed = *input++;
             int decoded = (packed >> 4) * gain +
-                ((coefficient0 * previous + coefficient1 * older) >> 12);
-            decoded = clamp_sample(decoded);
+                ((predictor0 * previous + predictor1 * older) >> 12);
+            int quantized;
+            if (decoded > 32767 || decoded < -32768) {
+                if (decoded < -32768) {
+                    decoded = -32768;
+                } else if (decoded > 32767) {
+                    decoded = 32767;
+                }
+            }
+            quantized = AdxQtbl[packed & 15];
             output[0] = (short)decoded;
-            older = decoded;
-            previous = clamp_sample(AdxQtbl[packed & 15] * gain +
-                ((coefficient0 * decoded + coefficient1 * previous) >> 12));
+            previous = clamp_sample(quantized * gain +
+                ((predictor0 * decoded + predictor1 * previous) >> 12));
             output[1] = (short)previous;
+            older = decoded;
             output += 2;
         } while (--sample != 0);
     }

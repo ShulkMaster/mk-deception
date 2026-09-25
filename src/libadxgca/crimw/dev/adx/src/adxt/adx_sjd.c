@@ -11,30 +11,7 @@ enum {
     ADXSJD_MAX_OUTPUT_CHUNK = 0x4000
 };
 
-typedef struct AhxDecoder AhxDecoder;
 typedef struct AdxBasicAhx AdxBasicAhx;
-
-typedef struct AdxBasicDecoderExt {
-    AdxBasicDecoder base;
-    s16 default_key[3];
-    s16 snapshot_key[3];
-    s16 delay_left[2];
-    s16 delay_right[2];
-    AhxDecoder* ahx_decoder;
-    s32 ahx_max_decoded_samples;
-    s32 ahx_max_decoded_blocks;
-    s32 ainf_length;
-    u8 ainf[16];
-    s16 default_out_volume;
-    s16 default_pan[2];
-    u8 reserved_DA[2];
-    void* pl2_context;
-    u8 reserved_E0[8];
-    s32 last_notified_data_length;
-    s32 field_EC;
-    void (*notify)(void*, s32, s32);
-    void* notify_object;
-} AdxBasicDecoderExt;
 
 typedef void (*AdxSjdTrapCallback)(void* object);
 typedef void (*AdxSjdOutputCallback)(
@@ -69,8 +46,6 @@ typedef struct AdxSjdHandle {
     s32 pending_trailing_samples;
 } AdxSjdHandle;
 
-typedef char AdxBasicDecoderExtSizeCheck[
-    sizeof(AdxBasicDecoderExt) == 0xF8 ? 1 : -1];
 typedef char AdxSjdHandleSizeCheck[
     sizeof(AdxSjdHandle) == 0xA8 ? 1 : -1];
 
@@ -106,7 +81,6 @@ extern s32 ADXB_GetBlkSmpl(AdxBasicDecoderExt* decoder);
 extern s32 ADXB_GetOutBps(AdxBasicDecoderExt* decoder);
 extern s32 ADXB_GetNumChan(AdxBasicDecoderExt* decoder);
 extern s32 ADXB_GetSfreq(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetFormat(AdxBasicDecoderExt* decoder);
 extern s16* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder);
 extern void ADXB_EntryGetWrFunc(
     AdxBasicDecoderExt* decoder, AdxGetWriteInfo function, void* object);

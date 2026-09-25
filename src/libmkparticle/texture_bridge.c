@@ -7,6 +7,8 @@ static int pfxaux_set_render_state(int state, int value) {
     return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
 }
 
+/* TODO: [near miss] 95.6%; retail keeps an equivalent empty success branch;
+ * honest conditional-expression trials regress, so retain the direct guard. */
 void pfxaux_upload_texture(RwTexture* texture) {
     unsigned int address_u;
     unsigned int address_v;

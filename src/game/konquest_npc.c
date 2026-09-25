@@ -49,7 +49,10 @@ typedef struct KonquestPathData {
 
 typedef struct KonquestNpcEventDefinition {
     int script_function;
-    float distance;
+    union {
+        float distance;
+        unsigned int startup_script; /* Event 7 uses this word as a script ID. */
+    };
 } KonquestNpcEventDefinition;
 
 typedef struct KonquestTimedEvent KonquestTimedEvent;
@@ -5528,10 +5531,8 @@ void add_npc(KonquestNpcData* data) {
     mk_append(&npc->hdr, &konquest_pdata->npc_list);
 }
 
-/* Near match: 93.1341%, 12 bytes short of retail. The three guarded list
- * traversals, saved command-script restoration, and distinct visible-list
- * insertion branches are exact; residue is string relocation, boolean
- * normalization, and register scheduling. */
+/* TODO: [near miss] 95.37548%; retail event-7 startup offset is restored;
+ * remaining branch/register scheduling and string relocation differ. */
 void start_running_npcs(void) {
     NpcManagerPdata* manager;
     MkProc* manager_proc;
@@ -5603,10 +5604,10 @@ void start_running_npcs(void) {
                     destroy_mkptr(link);
                     link = next;
                 } else {
-                    unsigned int script_function =
-                        npc->data->events[7].script_function;
-                    if (script_function != 0) {
+                    if (npc->data->events[7].startup_script != 0) {
                         ScriptSlot* slot = konquest_pdata->waypoint_script;
+                        unsigned int script_function =
+                            npc->data->events[7].startup_script;
                         g_active_npc = npc;
                         if (npc != 0) {
                             if (npc->saved_event_script != script_function) {
