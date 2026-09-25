@@ -6,20 +6,18 @@
 extern float __float_nan;
 extern double __frsqrte(double value);
 
-/* classifies the IEEE-754 bit pattern through a pointer cast. This view
- * preserves the retail word read without relying on that aliasing cast. */
-typedef union AdxFloatRepresentation {
-    float value;
-    u32 bits;
-} AdxFloatRepresentation;
+typedef char AdxFloatWordSizeCheck[sizeof(float) == sizeof(unsigned int) ? 1 : -1];
 
 static inline int classify_float(float value)
 {
-    AdxFloatRepresentation representation;
-    u32 bits;
+    unsigned int bits;
 
-    representation.value = value;
-    bits = representation.bits;
+    /* Match CRI's PowerPC word view under MWCC; copy bytes on other compilers. */
+#ifdef __MWERKS__
+    bits = *(const unsigned int*)&value;
+#else
+    memcpy(&bits, &value, sizeof(bits));
+#endif
     switch (bits & 0x7F800000) {
     case 0x7F800000:
         if ((bits & 0x007FFFFF) != 0) {
@@ -114,8 +112,8 @@ int ADX_DecodeFooter(signed char* buffer, int buffer_len,
     return 0;
 }
 
-/* TODO: [near miss] 99.218750%; defined unsigned AINF word assembly matches;
- * only address/byte temporary coloring remains. */
+/* TODO: [near miss] 99.218750%; all 11 residual diffs are AINF address/byte
+ * register coloring; stop pending a genuine owner-lifetime insight. */
 int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
                        int* ainf_len, unsigned char ainf[16],
                        short* default_out_volume, short default_pan[2])

@@ -1062,7 +1062,7 @@ config.libs = [
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "main.o", source="platform/main.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "gcARam.o", source="platform/gcARam.c",
+            Object(Matching, "gcARam.o", source="platform/gcARam.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt", "nocse",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),

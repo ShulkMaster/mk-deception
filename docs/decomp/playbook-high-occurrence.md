@@ -166,6 +166,9 @@ statement, so test per function. Several permuter candidates sharing
 `tmp = (x *= k)` pointed to this form; land the honest spelling, not the
 temporaries.
 
+H15 select-spelling addendum: IF a two-value select lowers to the same `lis`/`bne`/`li` sequence as retail but its nonvolatile or temporary register is swapped with a neighbor, TRY the other spelling (`x = p ? 0 : C;` versus `x = C; if (p) x = 0;`) before touching declarations. The instructions stay identical but the allocation changes: the ternary closes `gc_aram_mwmem_heap_setup` (99.26%→100%) and lifts `gc_aram_init` 98.14%→99.61%, where declaration swaps, block scopes and call-argument staging were neutral.
+H16 store-forwarding addendum: IF a call result is stored to a global and then passed on, but retail stages the argument moves in a different order, TRY assigning the call straight into the global and passing the global (`g = f(); use(g);`). MWCC forwards the stored value without a reload, even under `-opt nocse`, and the move order changes; `gc_aram_init` closes 99.61%→100% this way, and the unit links with SHA OK.
+
 H02 near-exact offset addendum: a single differing load offset in a 99%+ function is a wrong member, not residue. `sfsee_GetInputEndPosition` read `input_transport` (+0x1354) where retail and RE4 read `output_transport` (+0x1358); after the fix, the RE4 `if/else` form for the seek position (instead of a ternary) closes `SFSEE_ExecServer`.
 
 H02 addendum: a near-exact pair of adjacent zero stores can still expose wrong

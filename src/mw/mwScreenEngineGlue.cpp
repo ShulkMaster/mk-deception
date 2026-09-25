@@ -1550,7 +1550,8 @@ static float p_repeat_button_input__Fv(void);
  * See SE_EVT_* / pad bit table in mwScreenEngineGlue.h.
  * D-Pad / C-stick edges spawn hold-repeat mkprocs (retail; port 2 skips).
  */
-/* TODO: [near miss] 99.23024%; retail predecrement load still folds to displaced loads; stop at localized lowering. */
+/* TODO: [near miss] 99.23024%; retail stw -4 + lwzu; `*--slotBits` in the first test
+ * (99.05%) and an indexed store before it (98.78%) both regress; stop at localized lowering. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;
