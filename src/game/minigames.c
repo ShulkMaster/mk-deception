@@ -5391,8 +5391,8 @@ static inline int pzsm_place_rain_blocks(PuzzlePlayerState* player,
     return row;
 }
 
-/* TODO: [breakthrough needed] 95.93284%; owner/emitter lifetimes and placement
- * exit differ; explicit owner assignment regressed, retain ternary. */
+/* TODO: [breakthrough needed] 95.93284%; retail branches owner 2/1 after an early
+ * @stringBase0 address; needs the TU pool as anonymous literals, not puzzle_strings. */
 static int pzsm_rain_dance(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
     int row;

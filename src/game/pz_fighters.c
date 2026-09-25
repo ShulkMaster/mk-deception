@@ -2183,7 +2183,7 @@ void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y) {
     int player;
 
     player = 0;
-    if ((int)fighter->oid == 0x1002) {
+    if (fighter->oid == 0x1002) {
         player = 1;
     }
     if (enabled == 0) {
@@ -3518,7 +3518,7 @@ float p_plyr_pz_fighter_entry(void) {
     plyr_obj->flags_09_bits.bit4 = 1;
     back_to_normal();
     player = 0;
-    if ((int)plyr_obj->oid == 0x1002) {
+    if (plyr_obj->oid == 0x1002) {
         player = 1;
     }
     plyr_obj->flags_09_bits.launched = 1;

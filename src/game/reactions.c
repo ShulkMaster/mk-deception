@@ -33,14 +33,6 @@ struct ReactionProcVtable {
     int (*jump_sleep)(MkProcEntryFn entry, float ticks);
 };
 
-typedef struct LoadableReactionScript {
-    int slot_count;
-    int script;
-    int flags;
-    int power_level;
-    int state;
-} LoadableReactionScript;
-
 typedef struct ReactionDamagePdata {
     char pad00[0x284];
     unsigned int damage_boost_until;
@@ -68,10 +60,6 @@ typedef struct ReactionXferAddress {
     int flags;
 } ReactionXferAddress;
 
-typedef struct ReactionDispatchContext {
-    ReactionDispatchPair transfer;
-    int saved_state;
-} ReactionDispatchContext;
 
 typedef struct ReactionSharedAnimations {
     AniData* jax_piston_high;       /* +0x000 */
@@ -187,11 +175,6 @@ typedef struct ReactionPdataRepelView {
     int bgnd_repel_id;
 } ReactionPdataRepelView;
 
-typedef struct ReactionPlyrInfoCombatView {
-    char pad00[0x1C];
-    unsigned char combat_flags;
-} ReactionPlyrInfoCombatView;
-
 typedef struct ReactionBladeTransform {
     char pad000[0x60];
     Vec position;
@@ -210,11 +193,12 @@ typedef struct ReactionBladeFighterDefinition {
     unsigned int blade_object_instance;
 } ReactionBladeFighterDefinition;
 
-static LoadableReactionScript g_loadable_reaction_scripts[8] = {
-    {5, 0, 0, 0, 0}, {5, 0, 0, 0, 0},
-    {5, 0, 0, 0, 0}, {5, 0, 0, 0, 0},
-    {5, 0, 0, 0, 0}, {5, 0, 0, 0, 0},
-    {5, 0, 0, 0, 0}, {5, 0, 0, 0, 0},
+/* Script-backed reaction records 0xE6..0xED; entries are call type 5. */
+static ReactionXferAddress g_loadable_reaction_scripts[8] = {
+    {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
+    {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
+    {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
+    {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
 };
 
 unsigned int fx_by_owner(const char* name, int owner);
@@ -860,11 +844,9 @@ static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
         if (object->hdr.instance == owner->hold_proc_instance) {
             return object;
         }
-        object = 0;
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
 /* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
@@ -885,14 +867,15 @@ static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
 
 
 
-/* TODO: [near miss] 96.69438%; Five attempts completed; remaining stack/register allocation, aggregate address lowering and equivalent arithmetic scheduling. */
+/* TODO: [near miss] 97.734344%; loadable records, fighting-light bit and latch CFG fixed;
+ * retail spills saved_state where MWCC spills reaction, plus GPR coloring. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
     PlyrFighterDefinition* fighter;
-    ReactionPlyrInfoCombatView* combat_info;
-    ReactionDispatchContext dispatch;
-    LoadableReactionScript* loadable;
+    PlyrFightingLightState* lights;
+    ReactionDispatchPair dispatch_pair;
+    int saved_state;
     CmdScript* cmdscript;
     CmdScript* saved_cmdscript;
     MkProc* opponent_proc;
@@ -909,7 +892,6 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     int state_for_bgnd;
     int reaction_state;
     int original_reaction;
-    int dispatch_reaction;
     int blocked;
     int face_after;
     int face_reaction;
@@ -921,7 +903,6 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     float damage;
 
     reaction_state = tbl_xfer_addresses[reaction].state;
-    dispatch_reaction = reaction;
     face_after = 1;
     face_reaction = 0;
     force_air = 0;
@@ -940,7 +921,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
 
     big_boss = is_big_boss(victim);
     if (big_boss != 0) {
-        dispatch_reaction = big_boss_reaction_remap(dispatch_reaction);
+        reaction = big_boss_reaction_remap(reaction);
         if (victim_obj == g_game_info.plyr0.slot.mirror_a &&
             g_game_info.plyr1.slot.pdata->secondary_state & 0x100) {
             if (damage_scale > 0.06f) {
@@ -957,7 +938,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             damage_scale = 0.9f * damage_scale;
         }
     }
-    original_reaction = dispatch_reaction;
+    original_reaction = reaction;
 
     victim->hit_flash_enabled = 0;
     victim->throw_restriction = 0;
@@ -979,10 +960,10 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         if (input_state >= 4 &&
             !(tbl_xfer_addresses[original_reaction].flags & 0x10)) {
             force_air = 1;
-            dispatch_reaction = 0xF1;
+            reaction = 0xF1;
         } else if (!(tbl_xfer_addresses[original_reaction].flags & 0x10)) {
             force_air = 1;
-            dispatch_reaction = 0xF1;
+            reaction = 0xF1;
         }
     }
 
@@ -1020,6 +1001,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         saved_opponent = his_pdata;
         saved_object = plyr_obj;
         saved_opponent_object = his_obj;
+        plyr_pdata = saved_player;
         his_pdata = saved_player->his_plyr_pdata;
         cleanup_object = plyr_pdata_live_tracked_obj(saved_player);
 
@@ -1054,7 +1036,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     original_previous_state = plyr_pdata->previous_state;
-    dispatch.saved_state = plyr_pdata->state;
+    saved_state = plyr_pdata->state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
     hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
 
@@ -1219,20 +1201,20 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     if (blocked != 0) {
-        dispatch_reaction = 0xF1;
+        reaction = 0xF1;
         plyr_pdata->his_plyr_pdata->collision_result = 2;
         if (tbl_xfer_addresses[original_reaction].power_level == 0) {
-            dispatch_reaction = 0xF2;
+            reaction = 0xF2;
         }
         if (tbl_xfer_addresses[original_reaction].power_level == 3) {
-            dispatch_reaction = 0xF4;
+            reaction = 0xF4;
         }
         if (tbl_xfer_addresses[original_reaction].power_level == 4 ||
             tbl_xfer_addresses[original_reaction].power_level == 5) {
-            dispatch_reaction = 0xF5;
+            reaction = 0xF5;
         }
         if (tbl_xfer_addresses[original_reaction].power_level == 0x64) {
-            dispatch_reaction = 0xF6;
+            reaction = 0xF6;
         }
     } else {
         plyr_pdata->hit_flash_enabled = plyr_pdata->blocking_disabled;
@@ -1258,11 +1240,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             plyr_pdata->blocking_disable_tick_2 = 0;
         }
         plyr_pdata->hit_count++;
-        combat_info = (ReactionPlyrInfoCombatView*)&g_game_info.plyr1;
+        lights = &g_game_info.plyr1.fighting_lights;
         if (plyr_pdata->plyr_num == 0) {
-            combat_info = (ReactionPlyrInfoCombatView*)&g_game_info.plyr0;
+            lights = &g_game_info.plyr0.fighting_lights;
         }
-        if ((combat_info->combat_flags & 0x20) != 0 ||
+        if (lights->airborne_active ||
             plyr_pdata->combo_hit_count == 0) {
             plyr_pdata->combo_hit_count++;
         } else {
@@ -1292,7 +1274,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     } else {
         both_special = 1;
     }
-    plyr_pdata->state = dispatch.saved_state;
+    plyr_pdata->state = saved_state;
     plyr_pdata->previous_state = original_previous_state;
     set_my_state(0x600);
     if (aproc->pid == 0x5019 && force_air != 0) {
@@ -1313,7 +1295,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         g_game_info.flag_bits.lens_flare_enabled &&
         (tbl_xfer_addresses[original_reaction].flags & 0x200)) {
         if (victim->breaker_strength > 0) {
-            dispatch_reaction = 0x78;
+            reaction = 0x78;
             victim->breaker_strength--;
         }
     }
@@ -1324,7 +1306,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         exit_plyr_proc();
     }
 
-    dispatch.transfer = tbl_xfer_addresses[dispatch_reaction].dispatch;
+    dispatch_pair = tbl_xfer_addresses[reaction].dispatch;
     if (opponent_proc != 0) {
         if (face_reaction != 0 && plyr_obj != 0) {
             face_opponent_now();
@@ -1338,11 +1320,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         }
         if (mode_of_play != 6) {
             bgnd_rx_notify(
-                victim->plyr_info, dispatch_reaction,
-                tbl_xfer_addresses[dispatch_reaction].power_level,
-                tbl_xfer_addresses[dispatch_reaction].flags);
+                victim->plyr_info, reaction,
+                tbl_xfer_addresses[reaction].power_level,
+                tbl_xfer_addresses[reaction].flags);
         }
-        if (!(tbl_xfer_addresses[dispatch_reaction].flags & 0x100) ||
+        if (!(tbl_xfer_addresses[reaction].flags & 0x100) ||
             big_boss != 0) {
             bgnd_clear_danger_zone_callback(victim);
         }
@@ -1355,36 +1337,34 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             bgnd_clear_danger_zone_callback(victim);
         }
         if (victim->online_sync_index != -1) {
-            dispatch_reaction = victim->online_sync_index;
-            dispatch.transfer =
-                tbl_xfer_addresses[dispatch_reaction].dispatch;
+            reaction = victim->online_sync_index;
+            dispatch_pair =
+                tbl_xfer_addresses[reaction].dispatch;
         }
-        if (dispatch_reaction >= 0xE6 && dispatch_reaction <= 0xED) {
-            loadable =
-                &g_loadable_reaction_scripts[dispatch_reaction - 0xE6];
-            dispatch.transfer.call_type = loadable->slot_count;
-            dispatch.transfer.entry = (ReactionEntry)loadable->script;
+        if (reaction >= 0xE6 && reaction <= 0xED) {
+            dispatch_pair =
+                g_loadable_reaction_scripts[reaction - 0xE6].dispatch;
         }
-        if (dispatch.transfer.call_type == 4) {
-            cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
+        if (dispatch_pair.call_type == 4) {
+            cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
             xfer_player_proc(opponent_proc, r_call_script_function);
-        } else if (dispatch.transfer.call_type == 3) {
-            if ((unsigned int)dispatch.transfer.entry == 0x39 &&
+        } else if (dispatch_pair.call_type == 3) {
+            if ((unsigned int)dispatch_pair.entry == 0x39 &&
                 victim->character_id == 0x1B) {
-                cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
+                cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
                 xfer_player_proc(
                     opponent_proc, r_call_player_char_script_function);
             } else {
-                cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
+                cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
                 xfer_player_proc(
                     opponent_proc, r_call_other_player_char_script_function);
             }
-        } else if (dispatch.transfer.call_type == 5) {
-            xfer_player_proc_to_script(victim_obj, dispatch.transfer.entry);
-        } else if (dispatch.transfer.call_type == 1) {
-            xfer_player_proc(opponent_proc, dispatch.transfer.entry);
-        } else if (dispatch.transfer.call_type == 2) {
-            cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
+        } else if (dispatch_pair.call_type == 5) {
+            xfer_player_proc_to_script(victim_obj, dispatch_pair.entry);
+        } else if (dispatch_pair.call_type == 1) {
+            xfer_player_proc(opponent_proc, dispatch_pair.entry);
+        } else if (dispatch_pair.call_type == 2) {
+            cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
             xfer_player_proc(
                 opponent_proc, r_call_player_char_script_function);
         }
@@ -1426,7 +1406,7 @@ int reaction_fetch_current_power_level(int player) {
 
 void load_script_as_reaction(unsigned int slot, int script) {
     if (slot <= 7U) {
-        g_loadable_reaction_scripts[slot].script = script;
+        g_loadable_reaction_scripts[slot].dispatch.entry = (ReactionEntry)script;
     }
 }
 

@@ -1145,8 +1145,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [breakthrough needed] 94.22173%; shared active-player count helper applied; larger
- * CFG/stack residue unexamined in this pass. */
+/* TODO: [breakthrough needed] 96.43906%; retail seeds eight handle/instance latches by
+ * copying one zero register (constant propagation defeats chained forms); coloring follows. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -1170,6 +1170,7 @@ void do_win_effect(void) {
     unsigned char alpha;
     int sound_id;
     const char* player_name;
+    const char* draw_text;
     int active_profiles;
     int icon_x;
     char message[0x50];
@@ -1179,13 +1180,12 @@ void do_win_effect(void) {
     fatality_left = 0;
     fatality_right_handle = 0;
     fatality_right_instance = 0;
-    fatality_right = 0;
     winner_text_handle = 0;
     winner_text_instance = 0;
     flawless_text_handle = 0;
     flawless_text_instance = 0;
+    fatality_right = 0;
     flawless_text = 0;
-    winner_text = 0;
     victor = 0;
     defeated = 0;
 
@@ -1237,7 +1237,8 @@ void do_win_effect(void) {
     }
 
     if (round_winner == 3) {
-        sprintf(message, get_string_by_id(0x10005));
+        draw_text = get_string_by_id(0x10005);
+        sprintf(message, draw_text);
     } else {
         if ((int)mode_of_play == 8 && round_winner == 0) {
             sound_id = 0x7D;
@@ -1367,7 +1368,7 @@ void do_win_effect(void) {
         if (fatality_right != 0) {
             pfx_2d_obj_set_alpha(fatality_right, alpha);
         }
-        alpha = alpha < 4 ? 0 : alpha - 4;
+        alpha = alpha < 4 ? 0 : (unsigned char)(alpha - 4);
         _mkproc_sleep_ticks = 1.0f;
         ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
     }
