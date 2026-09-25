@@ -1167,7 +1167,7 @@ config.libs = [
             Object(NonMatching, "konquest_items.o", source="game/konquest_items.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "mwMemHeap.o", source="mw/mwMemHeap.c",
+            Object(Matching, "mwMemHeap.o", source="mw/mwMemHeap.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
