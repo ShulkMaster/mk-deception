@@ -851,7 +851,7 @@ static float p_plyr_head_tracking(void) {
     if (head != 0) {
         target = pdata_headtracking->target;
         target_obj = target->his_obj;
-        if (target_obj != 0 && (int)target_obj->oid == 0) {
+        if (target_obj != 0 && target_obj->oid == 0) {
             return 1.0f;
         }
         if (head->flags_55_bits.collision_disabled != 0 ||
@@ -3507,19 +3507,19 @@ void limb_sever_reset_limbs(PlyrInfo* player) {
     if (player->player_index == 6 &&
         player->flags_14_bits.alternate_costume == 0) {
         effect = find_pfx_by_name_by_bankowner(
-            "eyelt\0eyert\0ARMCHAIN", 1U << player->field_04);
+            "eyelt", 1U << player->field_04);
         if (effect != 0) {
             reset_effect_ppfx(effect);
         }
         pfx_spawn_at_bid(
-            "eyelt\0eyert\0ARMCHAIN", player->slot.mirror_a, 0x10);
+            "eyelt", player->slot.mirror_a, 0x10);
         effect = find_pfx_by_name_by_bankowner(
-            "eyelt\0eyert\0ARMCHAIN" + 6, 1U << player->field_04);
+            "eyert", 1U << player->field_04);
         if (effect != 0) {
             reset_effect_ppfx(effect);
         }
         pfx_spawn_at_bid(
-            "eyelt\0eyert\0ARMCHAIN" + 6,
+            "eyert",
             player->slot.mirror_a, 0x10);
     }
 }
@@ -3662,6 +3662,8 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children);
 
+/* TODO: [near miss] 99.758064%; pooled eye/chain strings, chain-matrix local and bit6 copy fixed;
+ * sobj/root/source-matrix web colors r21 vs retail r23; stop at coloring. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
@@ -3671,13 +3673,14 @@ MkObj* obj_sever_limb(
     PlyrInfo* player;
     MkSobj* sobj;
     MkBone* root;
-    MkBone* source_bone;
     MkBone* chain_bone;
+    MkBone* source_bone;
     MkPtr* sobj_ref;
     ClothBone* source_cloth;
     ClothBone* chain_cloth_bone;
     MkObj* chain;
     RwMatrix* source_matrix;
+    RwMatrix* chain_matrix;
     Vec* limb_velocity;
     void* effect;
     Vec root_offset;
@@ -3691,10 +3694,10 @@ MkObj* obj_sever_limb(
 
     source = obj;
     player = 0;
-    if ((int)source->oid == 0x1001) {
+    if (source->oid == 0x1001) {
         player = &g_game_info.plyr0;
         severed_type = 0x1005;
-    } else if ((int)source->oid == 0x1002) {
+    } else if (source->oid == 0x1002) {
         player = &g_game_info.plyr1;
         severed_type = 0x1006;
     } else {
@@ -3718,9 +3721,7 @@ MkObj* obj_sever_limb(
     severed->parent_inst = source->hdr.instance;
     severed->flags_0C_bits.parented = 1;
     severed->hide_flag_bits.hidden = 1;
-    severed->hide_flags =
-        (unsigned char)((severed->hide_flags & ~0x40) |
-                        (source->hide_flags & 0x40));
+    severed->hide_flag_bits.bit6 = source->hide_flag_bits.bit6;
 
     sobj_ref = get_mkptr_not_owns_mkhdr(&sobj->hdr);
     insert_mkptr(sobj_ref, &severed->sobj_list);
@@ -3811,12 +3812,12 @@ MkObj* obj_sever_limb(
         if (player->player_index == 6) {
             if (limb == 0) {
                 effect = find_pfx_by_name_by_bankowner(
-                    "eyelt\0eyert\0ARMCHAIN", 1U << player->field_04);
+                    "eyelt", 1U << player->field_04);
                 if (effect != 0) {
                     reset_effect_ppfx(effect);
                 }
                 effect = find_pfx_by_name_by_bankowner(
-                    "eyelt\0eyert\0ARMCHAIN" + 6,
+                    "eyert",
                     1U << player->field_04);
                 if (effect != 0) {
                     reset_effect_ppfx(effect);
@@ -3837,7 +3838,7 @@ MkObj* obj_sever_limb(
 
             while (chain_count != 0) {
                 chain = load_named_model_for_player(
-                    "eyelt\0eyert\0ARMCHAIN" + 12, player->field_04,
+                    "ARMCHAIN", player->field_04,
                     severed_type, 0);
                 if (chain != 0) {
                     int chain_bones[7] = {
@@ -3873,9 +3874,9 @@ MkObj* obj_sever_limb(
                         if (source->bones[22] != 0) {
                             source_matrix = &source->bones[22]->matrix;
                         }
-                        memcpy(chain->field_24, source_matrix,
-                               sizeof(RwMatrix));
-                        RwMatrixUpdate(chain->field_24);
+                        chain_matrix = chain->field_24;
+                        memcpy(chain_matrix, source_matrix, sizeof(RwMatrix));
+                        RwMatrixUpdate(chain_matrix);
                         RwFrameUpdateObjects(chain->frame);
                         ft_fake_bone_matcher(
                             chain, severed, 0x16, 0, 0, 0, 1, 0.0f);
@@ -3915,8 +3916,9 @@ MkObj* obj_sever_limb(
                       if (source->bones[23] != 0) {
                         source_matrix = &source->bones[23]->matrix;
                       }
-                      memcpy(chain->field_24, source_matrix, sizeof(RwMatrix));
-                      RwMatrixUpdate(chain->field_24);
+                      chain_matrix = chain->field_24;
+                      memcpy(chain_matrix, source_matrix, sizeof(RwMatrix));
+                      RwMatrixUpdate(chain_matrix);
                       RwFrameUpdateObjects(chain->frame);
                       ft_fake_bone_matcher(chain, severed, 0x17, 0, 0, 0, 1,
                                            0.0f);

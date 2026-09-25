@@ -848,7 +848,7 @@ MkObj* find_obj_by_id(int id) {
         } else {
             resolved = 0;
         }
-        if (resolved != 0 && (int)resolved->oid == id) {
+        if (resolved != 0 && resolved->oid == id) {
             return resolved;
         }
         link = next_mkptr(link);
@@ -1435,11 +1435,11 @@ void pfx_2d_obj_set_alpha_by_id(int id, int alpha) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha) {
+void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha) {
     int i;
 
     for (i = 0; i < 4; i++) {
-        obj->pfx2d->verts[i].a = (unsigned char)alpha;
+        obj->pfx2d->verts[i].a = alpha;
     }
     obj->pfx2d->mirror = 1;
 }

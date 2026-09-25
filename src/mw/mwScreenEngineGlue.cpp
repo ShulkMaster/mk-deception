@@ -30,6 +30,7 @@ void unload_p2_player_profile(void);
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenPoly.h"
 #include "mwScreenEngine/ScreenSCtl.h"
+#include "mwScreenEngine/ScreenControl.h"
 #include "mwScreenEngine/ScreenText.h"
 #include "mwScreenEngine/ScreenMatrixStack.h"
 #include "mwScreenEngine/ScreenResourceLibrary.h"
@@ -6901,11 +6902,12 @@ void Init__11SpreadSheetFv(SpreadSheet* self) {
  * SpreadSheet::RefreshCollection -- ClearContents + AllocateCollection, clamp
  * focus/window into counts, optional Update (vtbl+0x44).
  */
+/* TODO: [near miss] 93.53623%; Update is a real virtual call; subclass slots 0x50/0x58 still
+ * go through the raw vtable pointer. */
 void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
     void** vtbl;
     void (*clearContents)(SpreadSheet* self);
     void (*allocateCollection)(SpreadSheet* self);
-    void (*update)(SpreadSheet* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
@@ -6933,8 +6935,7 @@ void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
         }
     }
     if (self->cellArray != 0) {
-        update = (void (*)(SpreadSheet*))vtbl[0x44 / 4];
-        update(self);
+        ((ScreenControl*)self)->Update();
     }
 }
 
@@ -6943,8 +6944,6 @@ void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
  * focus into counts and keep windows covering focus; Update if doUpdate.
  */
 void RefreshOption__11SpreadSheetFi(SpreadSheet* self, int doUpdate) {
-    void** vtbl;
-    void (*update)(SpreadSheet* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
@@ -6979,9 +6978,7 @@ void RefreshOption__11SpreadSheetFi(SpreadSheet* self, int doUpdate) {
         self->scrollX = 0;
     }
     if (self->cellArray != 0 && doUpdate != 0) {
-        vtbl = (void**)self->vtbl;
-        update = (void (*)(SpreadSheet*))vtbl[0x44 / 4];
-        update(self);
+        ((ScreenControl*)self)->Update();
     }
 }
 
@@ -6991,7 +6988,7 @@ void RefreshOption__11SpreadSheetFv(SpreadSheet* self) {
 
 /* Retail action handlers call these navigation methods; the sound helper expands. */
 #pragma auto_inline off
-/* TODO: [near miss] 96.19318%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
+/* TODO: [near miss] 98.52273%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -7020,10 +7017,10 @@ void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
+    ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 96.39785%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
+/* TODO: [near miss] 98.60215%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -7053,10 +7050,10 @@ void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
+    ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 96.95454%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
+/* TODO: [near miss] 98.818184%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -7097,10 +7094,10 @@ void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
+    ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 91.91666%; five attempts completed; residual range-check branch and virtual-call scheduling remain */
+/* TODO: [near miss] 94.052086%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int winMax;
 
@@ -7133,7 +7130,7 @@ void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     if (delta != 0) {
         SpreadSheetPlayNavSound(self);
     }
-    ((void (*)(SpreadSheet*))((void**)self->vtbl)[0x44 / 4])(self);
+    ((ScreenControl*)self)->Update();
 }
 
 #pragma auto_inline reset
@@ -7256,7 +7253,8 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* /*mgr*/, 
  * SpreadSheet::HandleAction -- scroll, row/col state, compares, show/hide (0x7db).
  * Unknown args fall through to ScreenControl::HandleAction. result init 1.
  */
-/* TODO: [near miss] 96.88641%; Five attempts completed; remaining comparison CFG, register allocation and helper scheduling require a future round. */
+/* TODO: [near miss] 99.58129%; nested single-use GetInt/state results and real Refresh*
+ * virtual calls restored; one extra p0 copy in the origin-compare case remains. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
                                                             const void* actionIn) {
     const ScreenActionView* action;
@@ -7271,8 +7269,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
     int lhs;
     int vis;
     void* node;
-    void (*show)(SpreadSheet* self);
-    void (*hide)(SpreadSheet* self);
 
     action = (const ScreenActionView*)actionIn;
     arg = action->arg;
@@ -7324,37 +7320,34 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        state = SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, state + p1);
+        p1 += SpreadSheetGetRowState(self, idx);
+        SpreadSheetSetRowStateFire(self, idx, p1);
         break;
     case 0x53500002:
         /* Subtract p1 from row state at unkD4 + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->unkD4 + p0;
         state = SpreadSheetGetRowState(self, idx);
-        p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetRowStateFire(self, idx, state - p1);
+        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500003:
         /* Subtract p0 from row state at focus Y (unkDC). */
         idx = self->unkDC;
         state = SpreadSheetGetRowState(self, idx);
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        SpreadSheetSetRowStateFire(self, idx, state - p0);
+        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500004:
         /* Add p0 to row state at focus Y (unkDC). */
         idx = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        state = SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, state + p0);
+        p0 += SpreadSheetGetRowState(self, idx);
+        SpreadSheetSetRowStateFire(self, idx, p0);
         break;
     case 0x53500005:
         /* Subtract p0 from row state at focus Y (unkDC). */
         idx = self->unkDC;
         state = SpreadSheetGetRowState(self, idx);
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        SpreadSheetSetRowStateFire(self, idx, state - p0);
+        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500006:
         /* Compare window origin Y (unkD4). */
@@ -7365,8 +7358,7 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     case 0x53500007:
         /* Compare row state at unkD4 + p0. */
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        state = SpreadSheetGetRowState(self, self->unkD4 + p0);
+        state = SpreadSheetGetRowState(self, self->unkD4 + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
         SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
@@ -7434,16 +7426,15 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        state = SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, state + p1);
+        p1 += SpreadSheetGetColState(self, idx);
+        SpreadSheetSetColStateFire(self, idx, p1);
         break;
     case 0x53500032:
         /* Subtract p1 from col state at scrollX + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->scrollX + p0;
         state = SpreadSheetGetColState(self, idx);
-        p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetColStateFire(self, idx, state - p1);
+        SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500033:
         /* Set col state at focus X (scrollY). */
@@ -7463,15 +7454,14 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         /* Add p0 to col state at focus X. */
         idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        state = SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, state + p0);
+        p0 += SpreadSheetGetColState(self, idx);
+        SpreadSheetSetColStateFire(self, idx, p0);
         break;
     case 0x53500035:
         /* Subtract p0 from col state at focus X. */
         idx = self->scrollY;
         state = SpreadSheetGetColState(self, idx);
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        SpreadSheetSetColStateFire(self, idx, state - p0);
+        SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500036:
         /* Compare window origin X (scrollX). */
@@ -7482,8 +7472,7 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     case 0x53500037:
         /* Compare col state at scrollX + p0. */
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
-        state = SpreadSheetGetColState(self, self->scrollX + p0);
+        state = SpreadSheetGetColState(self, self->scrollX + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
         SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
@@ -7533,16 +7522,14 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
         break;
     case 0x7DB:
-        /* Show/hide only when params node 0 is this object -- no peer delegate. */
+        /* Refresh only when params node 0 is this object -- no peer delegate. */
         node = GetScreenNode__12ScreenParamsFUi(params, 0);
         if (node == (void*)self) {
             p1 = GetInt__12ScreenParamsFUi(params, 1);
             if (p1 == 0) {
-                show = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x48 / 4];
-                show(self);
+                ((ScreenControl*)self)->RefreshCollection();
             } else if (p1 == 1) {
-                hide = (void (*)(SpreadSheet*))((void**)self->vtbl)[0x4c / 4];
-                hide(self);
+                ((ScreenControl*)self)->RefreshOption();
             }
         }
         break;
@@ -7600,8 +7587,8 @@ void ClearStrings__8TextListFv(TextList* self) {
 /*
  * TextList::RefreshCollection(flag) -- Free+Get string collection, clamp
  * focusMax, optionally Update (vtbl+0x44) when unkD4 and flag==1.
- * Soft ceiling: ~84.3% -- Free/Get / window scan schedule; stop.
  */
+/* TODO: [near miss] 98.29269%; Update is a real virtual call; Free/Get and window-scan scheduling remain. */
 void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     char** oldStrings;
     unsigned int oldCount;
@@ -7609,8 +7596,6 @@ void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     int i;
     int idx;
     int found;
-    void** vtbl;
-    void (*update)(TextList* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
@@ -7656,9 +7641,7 @@ void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
         }
     }
     if (self->unkD4 != 0 && doUpdate == 1) {
-        vtbl = (void**)self->vtbl;
-        update = (void (*)(TextList*))vtbl[0x44 / 4];
-        update(self);
+        ((ScreenControl*)self)->Update();
     }
 }
 
@@ -8527,15 +8510,13 @@ void Update__9ImageListFv(ImageList* self) {
 
 /*
  * ImageList::RefreshCollection -- Free+Get texture strip, clamp focus, Update.
- * Soft ceiling: ~69.8% -- Dispatcher arg/accept schedule; stop.
  */
+/* TODO: [breakthrough needed] 88.42647%; RefreshOption/Update are real virtual calls; dispatcher
+ * argument and accept-branch schedule still differ. */
 void RefreshCollection__9ImageListFv(ImageList* self) {
     unsigned int countScratch;
     ImageListTexCollection* col;
     int accept;
-    void** vtbl;
-    void (*updateFn)(ImageList* self);
-    void (*refreshOptFn)(ImageList* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
@@ -8570,14 +8551,10 @@ void RefreshCollection__9ImageListFv(ImageList* self) {
             } else if (self->focusIndex < 0) {
                 self->focusIndex = 0;
             }
-            vtbl = (void**)self->vtbl;
-            updateFn = (void (*)(ImageList*))vtbl[0x4c / 4];
-            updateFn(self);
+                ((ScreenControl*)self)->RefreshOption();
         }
     }
-    vtbl = (void**)self->vtbl;
-    refreshOptFn = (void (*)(ImageList*))vtbl[0x44 / 4];
-    refreshOptFn(self);
+    ((ScreenControl*)self)->Update();
 }
 
 /*

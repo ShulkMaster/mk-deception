@@ -43,7 +43,9 @@ static int _rwTextureFreeListPreallocBlocks = 1;
 static int _rwTexDictionaryFreeListBlockSize = 5;
 static int _rwTexDictionaryFreeListPreallocBlocks = 1;
 
-static RwTextureModuleGlobals* rwTextureModuleData(void)
+/* TODO: [breakthrough] `inline` drops a dead out-of-line body retail lacks (every call
+ * expands); the original is likely an RW module-data macro. */
+static inline RwTextureModuleGlobals* rwTextureModuleData(void)
 {
     return (RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
                                      textureModule.globalsOffset);

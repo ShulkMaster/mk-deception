@@ -31,7 +31,9 @@ static int _rwRasterFreeListBlockSize = 0x80;
 static int _rwRasterFreeListPreallocBlocks = 1;
 static RwModuleInfo rasterModule;
 
-static RwRasterModuleGlobals* rwRasterModuleData(void)
+/* TODO: [breakthrough] `inline` drops a dead out-of-line body retail lacks (every call
+ * expands); the original is likely an RW module-data macro. */
+static inline RwRasterModuleGlobals* rwRasterModuleData(void)
 {
     return (RwRasterModuleGlobals*)((char*)RwEngineInstance +
                                     rasterModule.globalsOffset);
