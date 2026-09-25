@@ -12,6 +12,8 @@ typedef struct RwGameCubeVertexDataHeader {
     unsigned int serialNumber;
 } RwGameCubeVertexDataHeader;
 
+/* TODO: [near miss] 98.36066%; retail emits an overwritten zero
+ * initialization; retain the semantic size calculation without a dead write. */
 unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 {
     RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
@@ -42,8 +44,6 @@ unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
     }
 
     size += _rpSkinSplitDataStreamGetSize(skin);
-    /* TODO: Retail emits an overwritten zero initialization and shared GPR
-     * save helpers; keep the semantic calculation without dead source. */
     return size;
 }
 

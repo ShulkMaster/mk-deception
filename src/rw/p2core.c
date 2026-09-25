@@ -205,10 +205,8 @@ RxPipeline* RxPipelineCreate(void)
         return 0;
     }
 }
-/*
- * Soft ceiling: retail clears the local pipeline pointer after freeing it;
- * the value is dead before the function returns.
- */
+/* TODO: [near miss] 96.5625%; retail clears the dead local pointer after
+ * freeing it; retain the structured C without the unused assignment. */
 void _rxPipelineDestroy(RxPipeline* pipeline)
 {
     if (pipeline != 0) {

@@ -1122,7 +1122,7 @@ config.libs = [
             Object(NonMatching, "krypt.o", source="game/krypt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "mab.o", source="game/mab.c",
+            Object(Matching, "mab.o", source="game/mab.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "gcmcicon.o", source="platform/gcmcicon.c",
@@ -1671,7 +1671,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdrna.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsst.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsst.c",
                 extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],

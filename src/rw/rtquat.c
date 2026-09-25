@@ -63,6 +63,8 @@ static Quat* QuatFromZDiagDomMatrix(Quat* qpQuat, const RwMatrix* mpMatrix) {
 typedef Quat* (*QuatFromMatrixFn)(Quat* qpQuat, const RwMatrix* mpMatrix);
 
 /* Selects the numerically stable quaternion conversion for the dominant diagonal. */
+/* TODO: [near miss] 99.366196%; function-pointer selection differs only in
+ * GPR coloring; m2c branch expansion regressed and permuter found no better form. */
 int RtQuatConvertFromMatrix(Quat* qpQuat, const RwMatrix* mpMatrix) {
     int valid;
 

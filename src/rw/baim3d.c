@@ -146,6 +146,8 @@ int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
     return 0;
 }
 
+/* TODO: [near miss] 98.97087%; retail spills an unused heap pointer, shifting
+ * error locals; no supported semantic use for that result is known. */
 int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
     int transformed =
@@ -153,7 +155,6 @@ int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
                           _rwIm3DModule.globalsOffset))
             ->transformData.vertices != 0;
 
-    /* Retail also spills the unused returned heap pointer to the stack. */
     RxHeapGetGlobalHeap();
 
     if (transformed) {
