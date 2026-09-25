@@ -51,18 +51,7 @@ struct MwsPlayer {
     const void* interface;
     int active;
     int status;
-    int file_type;
-    int maximum_bps;
-    int width;
-    int height;
-    int frame_count;
-    int decoder_count;
-    void* create_work;
-    int create_work_size;
-    int composition_mode;
-    int buffer_format;
-    int create_field_28;
-    int create_field_2C;
+    MwsCreateParams create; /* +0x0C - copy of the creation parameters */
     int playback_mode;
     SfdHandle* sfd;
     ADXStream* stream;
@@ -131,8 +120,8 @@ struct MwsPlayer {
 typedef struct MwsLibraryWork {
     int field_00;
     float frame_rate;
-    int maximum_width;
-    int decoder_count;
+    int video_frequency; /* +0x08 - reference refresh rate */
+    int frame_pool;      /* +0x0C - frames held by the decoder pool */
     int field_10;
     unsigned char reserved_014[0x14];
     MwsMallocFn malloc_fn;
@@ -150,27 +139,6 @@ typedef struct MwsLibraryWork {
 
 typedef struct MwsReferenceBuffers { void* buffers[2]; } MwsReferenceBuffers;
 
-
-typedef struct MwsCreateBss {
-    int buffer_count;
-    int buffer_size;
-    void* buffers[16];
-    int adx_input_buffer_size;
-    int adx_decoder_work_size;
-    int table_size;
-    int reference_buffer_size;
-    int audio_input_buffer_size;
-    int video_input_buffer_size;
-    int system_input_buffer_size;
-    int stream_joint_buffer_size;
-    unsigned char* stream_joint_buffer;
-    int section_tail;
-} MwsCreateBss;
-
-typedef struct MwsPackSizeData {
-    int value;
-    int section_tail;
-} MwsPackSizeData;
 
 typedef struct MwsPlayerInterface {
     void* reserved[3];
@@ -195,7 +163,6 @@ typedef char MwsCreateParamsSizeCheck[sizeof(MwsCreateParams) == 0x30 ? 1 : -1];
 typedef char MwsPlayerSizeCheck[sizeof(MwsPlayer) == 0x2B8 ? 1 : -1];
 typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 typedef char MwsPlayerInterfaceSizeCheck[sizeof(MwsPlayerInterface) == 0x44 ? 1 : -1];
-typedef char MwsCreateBssSizeCheck[sizeof(MwsCreateBss) == 0x70 ? 1 : -1];
 
 extern const SfdTransportInterface SFD_tr_in_mem, SFD_tr_sd_mps;
 extern const SfdTransportInterface SFD_tr_vd_mpv, SFD_tr_ad_adxt;
@@ -301,8 +268,22 @@ static SfdCreateConfig mwsfd_vonlysfd_crepara = {
 static SfdMpvParameters mwsfd_mpvpara = {
     0xC0, 0xF0, 0x160, 0x1E0, 0, 0x160, 0x1E0, 4, 0};
 static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 0};
-static MwsPackSizeData mwsfd_packsize = {0x800, 0};
-static MwsCreateBss mwsfdcre_bufnum;
+static int mwsfd_packsize = 0x800;
+
+/* User-supplied frame buffers. */
+static int mwsfdcre_bufnum;
+static int mwsfdcre_bufsize;
+static void* mwsfdcre_bufptr[16];
+/* Component buffer sizes decided by mwsfcre_CreateSfd. */
+static int adxibuf;  /* ADXT input ring buffer */
+static int adxwk;    /* ADXT work */
+static int tab;      /* decoded frame table */
+static int rfb;      /* reference frame buffers */
+static int aib;      /* audio input buffer */
+static int vib;      /* video input buffer */
+static int sib;      /* system input buffer */
+static int sjb;      /* file stream joint ring buffer */
+static unsigned char* mwsfd_sisjadr; /* 64-byte aligned stream joint buffer */
 
 static inline void* mwsfcre_Alloc(MwsPlayer* player, int size)
 {
@@ -353,11 +334,16 @@ static inline void mwsfcre_FreeAll(MwsPlayer* player)
 
 static inline int mwsfcre_CalcFrameSize(int source_width, int source_height)
 {
-    int width = ((source_width + 15) / 16) * 16;
-    int height = ((source_height + 15) / 16) * 16;
-    int luma_stride = ((width + 31) / 32) * 32;
-    int chroma_stride = (((width / 2) + 31) / 32) * 32;
-    return height * luma_stride + (height / 2) * chroma_stride * 2 + 0x20;
+    int height;
+    int width;
+    int luma_size;
+    int chroma_size;
+
+    width = (source_width + 15) / 16 * 16;
+    height = (source_height + 15) / 16 * 16;
+    luma_size = height * ((width + 31) / 32 * 32);
+    chroma_size = (height / 2) * ((width / 2 + 31) / 32 * 32);
+    return luma_size + chroma_size * 2 + 0x20;
 }
 
 static inline int mwsfcre_UsesAudio(int file_type)
@@ -379,18 +365,21 @@ static inline void mwsfcre_AttachPictureUser(MwsPlayer* player,
                                               const char* short_error)
 {
     MwsPictureUserConfig* config = player->picture_user;
-    int count;
+    void* buffer;
+    int element_size;
+    int skip_count;
+
     if (config == 0) {
         MWSFSVM_Error(picture_user_internal_error);
-        return;
-    }
-    count = player->frame_count + 3;
-    if (config->buffer_size < count * config->element_size) {
-        MWSFSVM_Error(short_error);
-        return;
-    }
-    if (MWSFD_GetUsePicUsr() == 1) {
-        SFD_SetPicUsrBuf(player->sfd, config->buffer, count, config->element_size);
+    } else {
+        skip_count = player->create.frame_count;
+        element_size = config->element_size;
+        buffer = config->buffer;
+        if (config->buffer_size < (skip_count + 3) * element_size) {
+            MWSFSVM_Error(short_error);
+        } else if (MWSFD_GetUsePicUsr() == 1) {
+            SFD_SetPicUsrBuf(player->sfd, buffer, skip_count + 3, element_size);
+        }
     }
 }
 
@@ -402,38 +391,46 @@ void mwPlySetMallocFn(MwsMallocFn malloc_fn, MwsFreeFn free_fn, void* object)
     work->allocator_object = object;
 }
 
-void mwSfdDestroy(MwsPlayer* player)
+/* Decoder-side teardown; retail inlines it into mwSfdDestroy. */
+static inline void MWSFCRE_DestroySfd(MwsPlayer* player)
 {
-    if (player != 0) {
-        mwSfdStopDec(player);
-        player->active = 0;
-        MWSFTAG_DestroyAinfSj(player);
-        if (player->sfx != 0) MWSFSFX_Destroy(player->sfx);
-        if (player->loader != 0) LSC_Destroy(player->loader);
-        if (player->stream != 0) MWSTM_Destroy(player->stream);
-        if (player->input_sj != 0)
-            player->input_sj->interface->destroy(player->input_sj);
-        if (player->memory_sj != 0)
-            player->memory_sj->interface->destroy(player->memory_sj);
-        if (player->sfd != 0 && SFD_Destroy(player->sfd) != 0) {
+    if (player->loader != 0) LSC_Destroy(player->loader);
+    if (player->stream != 0) MWSTM_Destroy(player->stream);
+    if (player->input_sj != 0)
+        player->input_sj->interface->destroy(player->input_sj);
+    if (player->memory_sj != 0)
+        player->memory_sj->interface->destroy(player->memory_sj);
+    if (player->sfd != 0) {
+        if (SFD_Destroy(player->sfd) != 0) {
             MWSFLIB_SetErrCode(-0x132);
             MWSFSVM_Error(destroy_failed);
         }
-        MWSST_Destroy(&player->sound);
-        mwsfcre_FreeAll(player);
-        if (player->allocation_count != 0) MWSFSVM_Error(allocation_leak);
-        memset(player, 0, sizeof(*player));
-        player->active = 0;
-        player->interface = &mwsfd_if;
     }
+    MWSST_Destroy(&player->sound);
+    mwsfcre_FreeAll(player);
+    if (player->allocation_count != 0) MWSFSVM_Error(allocation_leak);
+    memset(player, 0, sizeof(*player));
+    player->active = 0;
+    player->interface = &mwsfd_if;
+}
+
+void mwSfdDestroy(MwsPlayer* player)
+{
+    if (player == 0) {
+        return;
+    }
+    mwSfdStopDec(player);
+    player->active = 0;
+    MWSFTAG_DestroyAinfSj(player);
+    if (player->sfx != 0) MWSFSFX_Destroy(player->sfx);
+    MWSFCRE_DestroySfd(player);
 }
 
 /* TODO: [near miss] 97.768364%; shared free-loop declaration order changes register coloring; allocation behavior retained. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
-    const MwsCreateParams* create =
-        (const MwsCreateParams*)&player->file_type;
-    int size = MWSFSFX_CalcHnWorkSiz(player->width, player->height);
+    const MwsCreateParams* create = &player->create;
+    int size = MWSFSFX_CalcHnWorkSiz(player->create.width, player->create.height);
     void* memory = mwsfcre_Alloc(player, size);
     if (memory == 0) {
         MWSFSVM_Error(composition_work_failed);
@@ -456,6 +453,30 @@ static int mwsfcre_MallocCompoWork(MwsPlayer* player)
         player->additional_info_buffer_size = 0;
     }
     return 0;
+}
+
+/* Linker-discarded in retail: installs user frame buffers instead of component work. Its
+ * references give the .bss objects their retail first-reference order. */
+/* TODO: [blocked] emitted here but absent from retail; `inline` loses the .bss order, so this
+ * relies on link-time dead stripping once mwsfdcre links (unverified while NonMatching). */
+void mwPlySetFrmBuf(int count, int size, void** buffers)
+{
+    int i;
+
+    mwsfdcre_bufnum = count;
+    mwsfdcre_bufsize = size;
+    for (i = 0; i < 16; i++) {
+        mwsfdcre_bufptr[i] = buffers[i];
+    }
+    adxibuf = 0;
+    adxwk = 0;
+    tab = 0;
+    rfb = 0;
+    aib = 0;
+    vib = 0;
+    sib = 0;
+    sjb = 0;
+    mwsfd_sisjadr = 0;
 }
 
 static int mwsfcre_MallocRfb(MwsPlayer*, const MwsCreateParams*,
@@ -500,19 +521,44 @@ static inline void mwsfcre_InitCompoWork(MwsPlayer* player,
     }
 }
 
-/* TODO: [breakthrough] 93.992410%; RE4-style format helper improves lowering;
- * allocator/init helpers are neutral; per-field copy retained over memcpy. */
+static inline void mwsfcre_SetSfdCond(MwsPlayer* player, MwsLibraryWork* work)
+{
+    float frame_time;
+    int frames;
+    int pool;
+    int frequency;
+    SfdHandle* sfd;
+
+    sfd = player->sfd;
+    pool = work->frame_pool;
+    frequency = work->video_frequency;
+    SFD_SetCond(sfd, 8, 0);
+    SFD_SetCond(sfd, 1, 1);
+    SFD_SetCond(sfd, 0, 0);
+    SFD_SetCond(sfd, 0x17, 4);
+    frame_time = create_picture_rounding_half + (float)(frequency * pool * 1000);
+    frames = (int)frame_time;
+    if ((float)frames > frame_time) frames--;
+    SFD_SetCond(sfd, 0x2D, frames);
+    SFD_SetCond(sfd, 0x2C, frames);
+    SFD_SetCond(sfd, 0x2A, frames);
+    SFD_SetCond(sfd, 0xF, 2);
+    SFD_SetCond(sfd, 0x33, 0);
+    SFD_SetCond(sfd, 0xE, 0);
+    SFD_SetCond(sfd, 0x1C, 0);
+    SFD_SetMpvCond(sfd, 5, 0);
+}
+
+/* TODO: [near miss] 97.41461%; RE4 prm copy, SfdCond/PicUsr/DestroySfd shapes restored;
+ * retail keeps the compo-table unroll guard and a player copy at each inlined destroy. */
 MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 {
     MwsLibraryWork* work;
     MwsPlayer* player;
     SfdHandle* sfd;
-    int decoder_count;
+    SFXHandle* sfx;
     int flow_limit;
-    int condition_value;
-    int maximum_bps;
     int index;
-    float rounded_value;
 
     if (params == 0) {
         MWSFSVM_Error(create_parameter_null);
@@ -538,18 +584,7 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 
     if (player != 0) memset(player, 0, sizeof(*player));
     mwsfcre_InitCompoWork(player, params);
-    player->file_type = params->file_type;
-    player->maximum_bps = params->maximum_bps;
-    player->width = params->width;
-    player->height = params->height;
-    player->frame_count = params->frame_count;
-    player->decoder_count = params->decoder_count;
-    player->create_work = params->work;
-    player->create_work_size = params->work_size;
-    player->composition_mode = params->composition_mode;
-    player->buffer_format = params->buffer_format;
-    player->create_field_28 = params->field_28;
-    player->create_field_2C = params->field_2C;
+    player->create = *params;
 
     sfd = mwsfcre_CreateSfd(player, params);
     player->sfd = sfd;
@@ -560,35 +595,25 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
     }
     mwsfcre_AttachPictureUser(player, create_picture_short_message);
 
-    decoder_count = params->decoder_count;
-    if (decoder_count <= 0) decoder_count = 1;
-    maximum_bps = params->maximum_bps;
-    if (params->file_type == 2) {
-        flow_limit = decoder_count *
-            (((maximum_bps / 8) / 0x800) * 0x800);
-    } else if (params->file_type == 3) {
-        flow_limit = decoder_count *
-            (((maximum_bps / 8) / 0x800) * 0x800);
-    } else {
-        flow_limit = decoder_count *
-            (((maximum_bps / 8) / 0x800) * 0x800);
+    {
+        int sector_count = params->decoder_count;
+        int maximum_bps;
+        int file_type;
+
+        file_type = params->file_type;
+        maximum_bps = params->maximum_bps;
+        if (sector_count <= 0) {
+            sector_count = 1;
+        }
+        if (file_type == 2) {
+            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
+        } else if (file_type == 3) {
+            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
+        } else {
+            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
+        }
     }
-    SFD_SetCond(sfd, 8, 0);
-    SFD_SetCond(sfd, 1, 1);
-    SFD_SetCond(sfd, 0, 0);
-    SFD_SetCond(sfd, 0x17, 4);
-    rounded_value = create_picture_rounding_half +
-        (float)(work->maximum_width * work->decoder_count * 1000);
-    condition_value = (int)rounded_value;
-    if ((float)condition_value > rounded_value) condition_value--;
-    SFD_SetCond(sfd, 0x2D, condition_value);
-    SFD_SetCond(sfd, 0x2C, condition_value);
-    SFD_SetCond(sfd, 0x2A, condition_value);
-    SFD_SetCond(sfd, 0xF, 2);
-    SFD_SetCond(sfd, 0x33, 0);
-    SFD_SetCond(sfd, 0xE, 0);
-    SFD_SetCond(sfd, 0x1C, 0);
-    SFD_SetMpvCond(sfd, 5, 0);
+    mwsfcre_SetSfdCond(player, work);
 
     player->input_sj = SJRBF_Create(player->input_buffer,
                                     player->input_buffer_size,
@@ -636,15 +661,16 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
         mwSfdDestroy(player);
         return 0;
     }
-    player->sfx = MWSFSFX_Create(player->composition_work,
-                                 player->composition_work_size,
-                                 params->width, params->height);
-    if (player->sfx == 0) {
+    sfx = MWSFSFX_Create(player->composition_work,
+                         player->composition_work_size,
+                         params->width, params->height);
+    if (sfx == 0) {
         MWSFSVM_Error(create_sfx_failed);
         mwSfdDestroy(player);
         return 0;
     }
-    MWSFSFX_SetCompoMode(player, player->composition_mode);
+    player->sfx = sfx;
+    MWSFSFX_SetCompoMode(player, player->create.composition_mode);
     player->additional_info_sj = MWSFTAG_CreateAinfSj(player);
     if (MWSFTAG_SetAinfSj(player) != 0) {
         MWSFSVM_Error(additional_info_failed);
@@ -701,7 +727,7 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
     if (config == 0) {
         MWSFSVM_Error(picture_user_internal_error);
     } else {
-        frame_count = player->frame_count;
+        frame_count = player->create.frame_count;
         element_size = config->element_size;
         buffer = config->buffer;
         if (config->buffer_size < (frame_count + 3) * element_size) {
@@ -743,13 +769,13 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
     if (params->buffer_format < 0 || params->buffer_format >= 4)
         MWSFSVM_Error(create_buffer_format_invalid);
     frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
-    if (mwsfdcre_bufnum.buffer_count != 0) {
-        if (mwsfdcre_bufnum.buffer_count < frame_count + 2 ||
-            mwsfdcre_bufnum.buffer_size < frame_size) {
+    if (mwsfdcre_bufnum != 0) {
+        if (mwsfdcre_bufnum < frame_count + 2 ||
+            mwsfdcre_bufsize < frame_size) {
             result = -1;
         } else {
             for (index = 0; index < frame_count; index++) {
-                frame_buffers[index] = mwsfdcre_bufnum.buffers[index + 2];
+                frame_buffers[index] = mwsfdcre_bufptr[index + 2];
                 if (frame_buffers[index] == 0) result = -1;
             }
         }
@@ -762,13 +788,25 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
     return result;
 }
 
-/* TODO: [breakthrough] 91.909090%; typed picture-user owner restores final
- * publication shape; declaration timing is neutral, allocation edges remain. */
+/* Component allocation through a sized local (retail keeps the size test). */
+static inline void* mwsfcre_MallocWk(MwsPlayer* player, int work_size)
+{
+    int size = work_size;
+
+    return mwsfcre_Alloc(player, size);
+}
+
+static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
+{
+    return mwsfcre_Alloc(player, size);
+}
+
+/* TODO: [near miss] 94.27381%; retail .bss objects and RE4 size/frame blocks restored; the
+ * 0x4000/0x700 allocations keep an unfolded size test and the inlined Rfb schedule differs. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
 {
     MwsReferenceBuffers references;
-    MwsCreateBss* buffers = &mwsfdcre_bufnum;
     void* frame_buffers[16];
     SfdCreateConfig create;
     SfdHandle* sfd;
@@ -780,94 +818,92 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     void* decoder_work;
     void* video_work;
     void* filename_work;
-    int decoder_count;
-    int packet_count;
     int frame_size;
     int frame_result;
     int rfb_result;
     int output_format;
     int file_type;
-    int maximum_bps;
     int width;
     int height;
     int frame_count;
-    int decoder_work_size;
-    int video_work_size;
     int allocation_size;
 
-    decoder_count = params->decoder_count;
-    if (decoder_count <= 0) decoder_count = 1;
     file_type = params->file_type;
-    maximum_bps = params->maximum_bps;
+    frame_count = params->frame_count;
     width = params->width;
     height = params->height;
-    frame_count = params->frame_count;
-    decoder_work_size = 0x4000;
-    video_work_size = 0x700;
-    if (file_type == 2) {
-        packet_count = (maximum_bps / 8) / 0x800;
-        buffers->system_input_buffer_size = 0;
-        buffers->video_input_buffer_size = 0;
-        buffers->audio_input_buffer_size = 0;
-        buffers->adx_input_buffer_size = 0;
-        buffers->adx_decoder_work_size = 0;
-        buffers->stream_joint_buffer_size =
-            decoder_count * (packet_count * 0x800);
-    } else if (file_type == 3) {
-        packet_count = (maximum_bps / 8) / 0x800;
-        buffers->system_input_buffer_size = 0;
-        buffers->audio_input_buffer_size = 0;
-        buffers->adx_input_buffer_size = 0;
-        buffers->adx_decoder_work_size = 0;
-        buffers->stream_joint_buffer_size =
-            decoder_count * (packet_count * 0x800);
-        buffers->video_input_buffer_size =
-            ((packet_count * 0x800) / 2) + 0x800;
-    } else {
-        packet_count = (maximum_bps / 8) / 0x800;
-        buffers->system_input_buffer_size = 0;
-        buffers->audio_input_buffer_size = 0x5DCC;
-        buffers->stream_joint_buffer_size =
-            decoder_count * (packet_count * 0x800);
-        buffers->video_input_buffer_size =
-            ((packet_count * 0x800) / 2) + 0x800;
-        buffers->adx_input_buffer_size = 0x5F0C;
-        buffers->adx_decoder_work_size = 0xC1C0;
+    {
+        int sector_count = params->decoder_count;
+        int bps;
+
+        bps = params->maximum_bps;
+        if (sector_count <= 0) {
+            sector_count = 1;
+        }
+        if (file_type == 2) {
+            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+            sib = 0;
+            vib = 0;
+            aib = 0;
+            adxibuf = 0;
+            adxwk = 0;
+        } else if (file_type == 3) {
+            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+            vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
+            sib = 0;
+            aib = 0;
+            adxibuf = 0;
+            adxwk = 0;
+        } else {
+            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+            vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
+            sib = 0;
+            aib = 0x5DCC;
+            adxibuf = 0x5F0C;
+            adxwk = 0xC1C0;
+        }
     }
 
-    if (buffers->buffer_count != 0) {
-        buffers->reference_buffer_size = 0;
-        buffers->table_size = 0;
+    if (mwsfdcre_bufnum != 0) {
+        rfb = 0;
+        tab = 0;
     } else {
-        if (params->buffer_format < 0 || params->buffer_format >= 4)
+        int table_frames = params->frame_count;
+        int frame_height;
+        int frame_width;
+
+        frame_width = params->width;
+        frame_height = params->height;
+        if (params->buffer_format >= 4 || params->buffer_format < 0) {
             MWSFSVM_Error(create_buffer_format_invalid);
-        frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
-        buffers->reference_buffer_size = frame_size * 2;
-        buffers->table_size = params->frame_count * frame_size;
+        }
+        frame_size = mwsfcre_CalcFrameSize(frame_width, frame_height);
+        rfb = frame_size * 2;
+        tab = table_frames * frame_size;
     }
 
-    allocation_size = buffers->audio_input_buffer_size +
-                      buffers->video_input_buffer_size +
-                      buffers->system_input_buffer_size + 0x20;
+    allocation_size = aib +
+                      vib +
+                      sib + 0x20;
     shared_work = mwsfcre_Alloc(player, allocation_size);
-    allocation_size = buffers->stream_joint_buffer_size + 0x40;
+    allocation_size = sjb + 0x40;
     stream_work = mwsfcre_Alloc(player, allocation_size);
     rfb_result = mwsfcre_MallocRfb(player, params, &references);
     frame_result = mwsfcre_MallocFrmTbl(player, params, frame_buffers);
 
     if (mwsfcre_UsesAudio(file_type) == 1) {
-        allocation_size = buffers->adx_input_buffer_size;
+        allocation_size = adxibuf;
         audio_stream_buffer = mwsfcre_Alloc(player, allocation_size);
-        allocation_size = buffers->adx_decoder_work_size;
+        allocation_size = adxwk;
         audio_decoder_work = mwsfcre_Alloc(player, allocation_size);
     } else {
         audio_stream_buffer = 0;
         audio_decoder_work = 0;
     }
-    picture_user_work = mwsfcre_Alloc(player, 0x800);
-    decoder_work = mwsfcre_Alloc(player, decoder_work_size);
-    video_work = mwsfcre_Alloc(player, video_work_size);
-    filename_work = mwsfcre_Alloc(player, 0x100);
+    picture_user_work = mwsfcre_MallocX(player, 0x800);
+    decoder_work = mwsfcre_MallocWk(player, 0x4000);
+    video_work = mwsfcre_MallocWk(player, 0x700);
+    filename_work = mwsfcre_MallocX(player, 0x100);
     if (shared_work == 0 || stream_work == 0 || rfb_result != 0 ||
         frame_result != 0 || picture_user_work == 0 || decoder_work == 0 ||
         filename_work == 0 || video_work == 0) {
@@ -883,7 +919,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         }
     }
 
-    buffers->stream_joint_buffer = (unsigned char*)
+    mwsfd_sisjadr = (unsigned char*)
         (((unsigned int)stream_work + 0x3F) & ~0x3F);
     {
         int current_height;
@@ -906,37 +942,37 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     switch (file_type) {
     case 1:
         create = mwsfd_sfdmps_crepara;
-        player->input_buffer = buffers->stream_joint_buffer;
-        player->input_buffer_size = buffers->stream_joint_buffer_size -
-                                    mwsfd_packsize.value;
-        player->input_buffer_extra_size = mwsfd_packsize.value;
+        player->input_buffer = mwsfd_sisjadr;
+        player->input_buffer_size = sjb -
+                                    mwsfd_packsize;
+        player->input_buffer_extra_size = mwsfd_packsize;
         break;
     case 2:
         create = mwsfd_sfdmpv_crepara;
-        player->input_buffer = buffers->stream_joint_buffer;
+        player->input_buffer = mwsfd_sisjadr;
         player->input_buffer_size =
-            buffers->stream_joint_buffer_size - 0x800;
+            sjb - 0x800;
         player->input_buffer_extra_size = 0x800;
         break;
     case 3:
         create = mwsfd_vonlysfd_crepara;
-        player->input_buffer = buffers->stream_joint_buffer;
-        player->input_buffer_size = buffers->stream_joint_buffer_size -
-                                    mwsfd_packsize.value;
-        player->input_buffer_extra_size = mwsfd_packsize.value;
+        player->input_buffer = mwsfd_sisjadr;
+        player->input_buffer_size = sjb -
+                                    mwsfd_packsize;
+        player->input_buffer_extra_size = mwsfd_packsize;
         break;
     }
-    create.buffer.ring_alignment = mwsfd_packsize.value;
-    if (buffers->system_input_buffer_size != 0) {
-        buffers->system_input_buffer_size -=
-            buffers->system_input_buffer_size % mwsfd_packsize.value;
+    create.buffer.ring_alignment = mwsfd_packsize;
+    if (sib != 0) {
+        sib -=
+            sib % mwsfd_packsize;
     }
 
     output_format = mwsfcre_CnvBufFmt(params->buffer_format);
     create.buffer.memory = shared_work;
-    create.buffer.buffer_sizes[0] = buffers->system_input_buffer_size;
-    create.buffer.buffer_sizes[1] = buffers->video_input_buffer_size;
-    create.buffer.buffer_sizes[2] = buffers->audio_input_buffer_size;
+    create.buffer.buffer_sizes[0] = sib;
+    create.buffer.buffer_sizes[1] = vib;
+    create.buffer.buffer_sizes[2] = aib;
     create.picture_user_buffer_minimum = frame_count;
     create.maximum_width = width;
     create.maximum_height = height;
@@ -976,30 +1012,28 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     return sfd;
 }
 
-/* TODO: [breakthrough needed] 87.615390%; typed geometry path retained;
- * prologue has nine missing retail instructions; needs owner-lifetime evidence. */
+/* TODO: [breakthrough needed] 84.51479%; RE4 body over the retail .bss objects; retail issues
+ * the saves and buffer-count load before the frame-size math (pure schedule; peephole-off and
+ * permuter forms rejected); needs scheduling evidence. */
 static int mwsfcre_MallocRfb(MwsPlayer* player,
                              const MwsCreateParams* params,
                              MwsReferenceBuffers* output)
 {
-    int width;
-    int height;
     int result = 0;
     int frame_size;
-    width = params->width;
-    height = params->height;
-    frame_size = mwsfcre_CalcFrameSize(width, height);
-    if (mwsfdcre_bufnum.buffer_count != 0) {
+
+    frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
+    if (mwsfdcre_bufnum != 0) {
         /* Retail branches twice on one size comparison, as in RE4. */
-        if (mwsfdcre_bufnum.buffer_count < 2 ||
-            mwsfdcre_bufnum.buffer_size < frame_size ||
-            mwsfdcre_bufnum.buffer_size < frame_size) {
+        if (mwsfdcre_bufnum < 2 ||
+            mwsfdcre_bufsize < frame_size ||
+            mwsfdcre_bufsize < frame_size) {
             output->buffers[0] = 0;
             output->buffers[1] = 0;
             result = -1;
         } else {
-            output->buffers[0] = mwsfdcre_bufnum.buffers[0];
-            output->buffers[1] = mwsfdcre_bufnum.buffers[1];
+            output->buffers[0] = mwsfdcre_bufptr[0];
+            output->buffers[1] = mwsfdcre_bufptr[1];
         }
     } else {
         output->buffers[0] = mwsfcre_Alloc(player, frame_size);

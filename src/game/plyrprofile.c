@@ -1137,30 +1137,6 @@ static inline void create_profile_sleep(float ticks) {
     mkproc_sleep();
 }
 
-/* Returns nonzero when the player confirms leaving profile creation. */
-static inline int create_profile_cancel_prompt(float delay) {
-    int answered;
-
-    answered = 0;
-    fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_ASK, 0);
-    button_answer = 0;
-    if (delay != 0.0f) {
-        create_profile_sleep(delay);
-    }
-    while (!answered) {
-        create_profile_sleep(kOne);
-        if (button_answer == 1) {
-            return 1;
-        }
-        if (button_answer == 2) {
-            fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_NO, 0);
-            answered = 1;
-        }
-    }
-    button_answer = 0;
-    return 0;
-}
-
 static inline void clear_profile_code(unsigned char code[6], int* digit) {
     unsigned char* cursor;
     int i;
@@ -1243,60 +1219,10 @@ static inline int profile_codes_equal(
     return 1;
 }
 
-static inline int run_create_profile_name_phase(char* name) {
-    for (;;) {
-        ppc_set_stage_value(0);
-        fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-        name_entry_done = 0;
-        turn_controllers_on();
-        disable_all_ports_but_me(pprofile_pad);
-        button_answer = 0;
-
-        while (name_entry_done == 0) {
-            create_profile_sleep(kOne);
-            if (button_answer == 2) {
-                if (create_profile_cancel_prompt(kInitialCancelDelay)) {
-                    return 0;
-                }
-                name_entry_done = 0;
-            }
-        }
-
-        update_storage_status(0);
-        if (does_name_already_exist(name)) {
-            mcard_msg_name_conflict();
-            create_profile_sleep(kSleepIntro);
-            continue;
-        }
-
-        turn_controllers_off();
-        ppc_set_stage_value(1);
-        fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-        button_answer = 0;
-        while (button_answer == 0) {
-            create_profile_sleep(kOne);
-        }
-        if (button_answer != 2) {
-            return 1;
-        }
-    }
-}
-
-static inline int run_create_profile_icon_phase(void) {
-    ppc_set_stage_value(2);
-    fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-    button_answer = 0;
-    while (button_answer != 1) {
-        create_profile_sleep(kOne);
-        if (button_answer == 2 && create_profile_cancel_prompt(0.0f)) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
+/* TODO: [near miss] 99.38028%; flat retail CFG with shared exit/restart jumps recovered;
+ * code-reset zero reuse and GPR coloring remain. */
 float p_create_profile(void) {
-    int restart_name_entry;
+    int answered;
     int code_confirmed;
     int attempts;
     int device;
@@ -1304,7 +1230,6 @@ float p_create_profile(void) {
     int timer;
     int profileCount;
     int i;
-    char* profile_name;
     char* name_cursor;
 
     set_mode_of_play(3);
@@ -1330,12 +1255,55 @@ float p_create_profile(void) {
         }
         create_profile_sleep(kSleepBeforeCreateScreen);
         load_screen(PROFILE_CREATE_SCREEN, PROFILE_MENU_SCREEN_SLOT, 0, 1);
-        profile_name = player_name;
 
         for (;;) {
-            if (!run_create_profile_name_phase(profile_name)) {
-                break;
+            ppc_set_stage_value(0);
+            fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+            name_entry_done = 0;
+            turn_controllers_on();
+            disable_all_ports_but_me(pprofile_pad);
+            button_answer = 0;
+
+            while (name_entry_done == 0) {
+                create_profile_sleep(kOne);
+                if (button_answer == 2) {
+                    answered = 0;
+                    fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_ASK, 0);
+                    button_answer = 0;
+                    create_profile_sleep(kInitialCancelDelay);
+                    while (!answered) {
+                        create_profile_sleep(kOne);
+                        if (button_answer == 1) {
+                            goto exit;
+                        }
+                        if (button_answer == 2) {
+                            fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_NO, 0);
+                            answered = 1;
+                        }
+                    }
+                    name_entry_done = 0;
+                    button_answer = 0;
+                }
             }
+
+            update_storage_status(0);
+            if (does_name_already_exist(player_name)) {
+                mcard_msg_name_conflict();
+                create_profile_sleep(kSleepIntro);
+                continue;
+            }
+
+            turn_controllers_off();
+            ppc_set_stage_value(1);
+            fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+            button_answer = 0;
+            while (button_answer == 0) {
+                create_profile_sleep(kOne);
+            }
+            if (button_answer != 1 && button_answer == 2) {
+                continue;
+            }
+
             name_cursor = player_name;
             for (i = 0; i < 10; i++) {
                 if (*name_cursor == '_') {
@@ -1344,136 +1312,158 @@ float p_create_profile(void) {
                 name_cursor++;
             }
 
-        if (!run_create_profile_icon_phase()) {
-            break;
-        }
-
-        for (;;) {
-            ppc_set_stage_value(3);
+            ppc_set_stage_value(2);
             fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-            initialize_profile_code(player_kode, &player_kode_current_digit);
-            enter_profile_code(player_kode, &player_kode_current_digit);
-
-            attempts = 3;
-            code_confirmed = 0;
-            ppc_set_stage_value(4);
-            fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-            while (attempts != 0 && !code_confirmed) {
-                attempts--;
-                initialize_profile_code(player_confirm_kode,
-                                        &player_confirm_kode_current_digit);
-                enter_profile_code(player_confirm_kode,
-                                   &player_confirm_kode_current_digit);
-                code_confirmed = profile_codes_equal(
-                    player_confirm_kode, player_kode);
-            }
-            if (code_confirmed != 0) break;
-        }
-
-        set_sal_cursor(0);
-        timer = 0x1E;
-        ppc_set_stage_value(5);
-        fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-        create_profile_sleep(kOne);
-        reset_format_or_recreate_flags();
-        select_location_done = 0;
-        button_answer = 0;
-        restart_name_entry = 0;
-        while (select_location_done == 0) {
-            if (timer-- == 0) {
-                check_format_or_recreate();
-                if (update_storage_status(1) != 0) {
-                    create_profile_sleep(kSleepLoop);
-                    fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-                }
-                timer = 0x1E;
-            }
-
-            create_profile_sleep(kOne);
-            if (button_answer == 1) {
-                device = get_wls_left_cursor();
-                if (device >= 0 && device < STORAGE_MAX_DEVICES) {
-                    StorageDevice* device_status;
-
-                    update_storage_status(0);
-                    device_status = DEVICE_AT(device);
-                    if (device_status->status == STORAGE_STATUS_OK) {
-                        if (find_device_display_status_impl(device, 0) == 0) {
-                            profileCount = device_status->profileCount;
-                        } else {
-                            profileCount = -1;
+            button_answer = 0;
+            while (button_answer != 1) {
+                create_profile_sleep(kOne);
+                if (button_answer == 2) {
+                    answered = 0;
+                    fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_ASK, 0);
+                    button_answer = 0;
+                    while (!answered) {
+                        create_profile_sleep(kOne);
+                        if (button_answer == 1) {
+                            goto exit;
                         }
-                        if (does_name_already_exist(player_name)) {
-                            mcard_msg_name_conflict();
-                            pne_set_players_name_to_default(
-                                player_name, &pne_char_position);
-                            restart_name_entry = 1;
-                            break;
-                        } else if (profileCount >= 0 &&
-                                   profileCount < STORAGE_MAX_SLOTS) {
-                            slot = -1;
-                            if (device_status->status == 0) {
-                                for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-                                    if (device_status->profiles[i].present == 0) {
-                                        slot = i;
-                                        break;
+                        if (button_answer == 2) {
+                            fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_NO, 0);
+                            answered = 1;
+                        }
+                    }
+                    button_answer = 0;
+                }
+            }
+
+            do {
+                ppc_set_stage_value(3);
+                fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+                initialize_profile_code(player_kode, &player_kode_current_digit);
+                enter_profile_code(player_kode, &player_kode_current_digit);
+
+                attempts = 3;
+                code_confirmed = 0;
+                ppc_set_stage_value(4);
+                fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+                while (attempts != 0 && !code_confirmed) {
+                    attempts--;
+                    initialize_profile_code(player_confirm_kode,
+                                            &player_confirm_kode_current_digit);
+                    enter_profile_code(player_confirm_kode,
+                                       &player_confirm_kode_current_digit);
+                    code_confirmed = profile_codes_equal(
+                        player_confirm_kode, player_kode);
+                }
+            } while (code_confirmed == 0);
+
+            set_sal_cursor(0);
+            timer = 0x1E;
+            ppc_set_stage_value(5);
+            fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+            create_profile_sleep(kOne);
+            reset_format_or_recreate_flags();
+            select_location_done = 0;
+            button_answer = 0;
+            while (select_location_done == 0) {
+                if (timer-- == 0) {
+                    check_format_or_recreate();
+                    if (update_storage_status(1) != 0) {
+                        create_profile_sleep(kSleepLoop);
+                        fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
+                    }
+                    timer = 0x1E;
+                }
+
+                create_profile_sleep(kOne);
+                if (button_answer == 1) {
+                    device = get_wls_left_cursor();
+                    if (device >= 0 && device < STORAGE_MAX_DEVICES) {
+                        update_storage_status(0);
+                        if (DEVICE_AT(device)->status == STORAGE_STATUS_OK) {
+                            if (find_device_display_status_impl(device, 0) == 0) {
+                                profileCount = DEVICE_AT(device)->profileCount;
+                            } else {
+                                profileCount = -1;
+                            }
+                            if (does_name_already_exist(player_name)) {
+                                mcard_msg_name_conflict();
+                                pne_set_players_name_to_default(
+                                    player_name, &pne_char_position);
+                                goto restart_name_entry;
+                            }
+                            if (profileCount >= 0 &&
+                                profileCount < STORAGE_MAX_SLOTS) {
+                                slot = -1;
+                                if (DEVICE_AT(device)->status == 0) {
+                                    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+                                        if (DEVICE_AT(device)->profiles[i].present == 0) {
+                                            slot = i;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            if (slot != -1) {
-                                reset_sg_status(device_status, slot);
-                                device_status->profiles[slot].icon = player_icon;
+                                if (slot == -1) {
+                                    goto exit;
+                                }
+                                reset_sg_status(DEVICE_AT(device), slot);
+                                DEVICE_AT(device)->profiles[slot].icon = player_icon;
                                 move_player_name(
                                     player_name,
-                                    device_status->profiles[slot].name);
+                                    DEVICE_AT(device)->profiles[slot].name);
                                 move_player_pin(
                                     player_kode,
-                                    device_status->profiles[slot].pin);
-                                device_status->profiles[slot].present = 1;
-                                device_status->profiles[slot].idChecksum =
+                                    DEVICE_AT(device)->profiles[slot].pin);
+                                DEVICE_AT(device)->profiles[slot].present = 1;
+                                DEVICE_AT(device)->profiles[slot].idChecksum =
                                     (int)random();
                                 select_location_done = save_to_memcard_w_error(
                                     device, 6, nbc_find_text(0x30, 1),
-                                    &device_status->settings, 0,
-                                    &device_status->freeBlocks,
-                                    &device_status->freeBytes);
+                                    &DEVICE_AT(device)->settings, 0,
+                                    &DEVICE_AT(device)->freeBlocks,
+                                    &DEVICE_AT(device)->freeBytes);
                                 snd_req(0x1AA5);
                             } else {
-                                break;
+                                snd_req(0x1AA8);
                             }
-                        } else {
-                            snd_req(0x1AA8);
+                        }
+                    } else {
+                        snd_req(0x1AA8);
+                    }
+                    button_answer = 0;
+                }
+                if (button_answer == 2) {
+                    answered = 0;
+                    fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_ASK, 0);
+                    button_answer = 0;
+                    while (!answered) {
+                        create_profile_sleep(kOne);
+                        if (button_answer == 1) {
+                            goto exit;
+                        }
+                        if (button_answer == 2) {
+                            fire_screen_studio_event(PROFILE_MENU_EVENT_CANCEL_NO, 0);
+                            answered = 1;
                         }
                     }
-                } else {
-                    snd_req(0x1AA8);
-                }
-                button_answer = 0;
-            } else if (button_answer == 2) {
-                if (create_profile_cancel_prompt(0.0f)) {
-                    break;
+                    button_answer = 0;
                 }
             }
-        }
-        if (restart_name_entry) {
-            continue;
-        }
-        if (select_location_done == 0) {
-            break;
-        }
-        create_profile_sleep(kOne);
-        fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-        create_profile_sleep(kOne);
-        ppc_set_stage_value(6);
-        fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
-        button_answer = 0;
-        while (button_answer != 1) {
+
             create_profile_sleep(kOne);
-        }
-        break;
+            fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
+            create_profile_sleep(kOne);
+            ppc_set_stage_value(6);
+            fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
+            button_answer = 0;
+            while (button_answer != 1) {
+                create_profile_sleep(kOne);
+            }
+            break;
+        restart_name_entry:;
         }
     }
 
+exit:
     turn_all_ports_on();
     turn_controllers_on();
     pop_game_state();
@@ -2528,6 +2518,8 @@ static inline void mark_profile_as_in_use_impl(int device, int slot) {
     DEVICE_AT(device)->inUse[slot] = 1;
 }
 
+/* TODO: [near miss] 98.00595%; retail breaks jump straight to the rescan top with no post-loop
+ * selected test (structured forms keep it); remaining diff is inlined-scan GPR coloring. */
 StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
                                           unsigned char* code, int* device, int* slot) {
     int matchCount;
@@ -2584,7 +2576,7 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
 
         while (selected == 0) {
             matchCount = ppl_count_matching_profiles(code);
-            if (matchCount != previousCount) {
+            if (previousCount != matchCount) {
                 break;
             }
 

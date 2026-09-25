@@ -73,7 +73,7 @@ void save_both_profiles(int unused);
 float p_load_profile(void);
 int load_profile(int player, int port, unsigned char* code);
 void pfx_2d_obj_set_alpha_by_id(int id, int alpha);
-void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha);
+void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha);
 void destroy_fade_box(void);
 void create_fade_box(void);
 void fade_from_black(int frames, int flag);

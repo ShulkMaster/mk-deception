@@ -70,7 +70,7 @@ struct AniTextureControlItem {
  */
 struct AniTextureControl {
     MkVtable5* vtbl;                 /* +0x00 */
-    int instance;                    /* +0x04 */
+    unsigned int instance;           /* +0x04 */
     int frame;                       /* +0x08 */
     union {
         unsigned int flags_word;
