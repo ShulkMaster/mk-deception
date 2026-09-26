@@ -990,8 +990,6 @@ static inline MkObj* animation_live_obj(AnimPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.375%; rechecked: only two comparison operand orders plus
- * constant labels remain; reversed spelling was neutral, retain ceiling. */
 static float p_krypt_animate(void) {
     AnimPdata* animation;
     MkObj* object;
@@ -1012,7 +1010,7 @@ static float p_krypt_animate(void) {
                 object = animation_live_obj(animation);
 
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
-                if (volume != 0.0f) {
+                if (volume) {
                     pan_vol_pitch_random_snd_req(
                         0x2B, get_pan_value(&object->pos.value), volume, 1.0f);
                 }
@@ -1029,7 +1027,7 @@ static float p_krypt_animate(void) {
                 object = animation_live_obj(animation);
 
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
-                if (volume != 0.0f) {
+                if (volume) {
                     pan_vol_pitch_random_snd_req(
                         0x2A, get_pan_value(&object->pos.value), volume, 1.0f);
                 }

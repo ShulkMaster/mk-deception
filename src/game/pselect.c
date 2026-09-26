@@ -2210,10 +2210,10 @@ static float p_save_bg_profile(void) {
     saved = ((int (*)(int, int))save_profile)(player, 1);
     _mkproc_sleep_ticks = sleep_ticks_one;
     ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
-    if (saved == 0) {
-        fire_screen_studio_event(player + 0x1FDD, player + 1);
-    } else {
+    if (saved != 0) {
         fire_screen_studio_event(player + 0x1FC8, player + 1);
+    } else {
+        fire_screen_studio_event(player + 0x1FDD, player + 1);
     }
     return sleep_ticks_neg_one;
 }

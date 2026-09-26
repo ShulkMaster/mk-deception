@@ -7009,11 +7009,11 @@ static float drone_ai_attack_obstacle_now(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.85238%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.88095%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 static float drone_ai_dodge_3d_with_counter(void) {
     DroneAI* drone;
-    Vec to_opponent;
     Vec facing;
+    Vec to_opponent;
     float right_clearance;
     float left_clearance;
     int likelihood;

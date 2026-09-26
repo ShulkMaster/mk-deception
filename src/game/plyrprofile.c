@@ -2330,10 +2330,10 @@ static inline int ppl_count_matching_profiles(const unsigned char* code) {
 
 static inline int ppl_fill_matching_names(
     const unsigned char* code, char** out) {
-    int count;
+    StorageDevice* dev;
     int device;
     int slotIndex;
-    StorageDevice* dev;
+    int count;
 
     count = 0;
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
@@ -2353,13 +2353,13 @@ static inline int ppl_fill_matching_names(
 }
 
 /* Screen multi-profile list: fills out[] with name string pointers; returns count. */
-/* TODO: [near miss] 99.03846%; shared pdata preserves retail layout; remaining register coloring. */
+/* TODO: [near miss] 99.55%; shared pdata preserves retail layout; only dev-base vs code-cursor GPR (volatile/nonvolatile) swap remains. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
     MkProc* proc;
     ProfileCodePdata* list;
-    const unsigned char* code;
     int count;
+    const unsigned char* code;
 
     count = 0;
     for (i = 0; i < PPL_NAME_SLOTS; i++) {
@@ -2376,7 +2376,7 @@ int ppl_get_multi_profile_names_p2(char** out) {
     return count;
 }
 
-/* TODO: [near miss] 99.03846%; shared pdata preserves retail layout; remaining register coloring. */
+/* TODO: [near miss] 99.36%; shared pdata preserves retail layout; remaining register coloring. */
 int ppl_get_multi_profile_names_p1(char** out) {
     int i;
     MkProc* proc;

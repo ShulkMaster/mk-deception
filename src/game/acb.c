@@ -163,7 +163,6 @@ static inline MovelistPfxObj* movelist_style_live_pfx_obj(MovelistStyleSlot* own
     return object;
 }
 
-/* TODO: [near miss] 99.051730%; register coloring; one-trial ceiling. */
 void movelist_change_style(int delta) {
     MovelistPdata* screen_pdata;
     int zero;
@@ -192,9 +191,7 @@ void movelist_change_style(int delta) {
 
     hide_or_show_2d_obj_by_id(0x9012, 1);
 
-    style_index = screen_pdata->style_idx;
-    style = movelist_style_slot(screen_pdata, style_index);
-    pfx_obj = movelist_style_live_pfx_obj(style);
+    pfx_obj = movelist_style_live_pfx_obj(movelist_style_slot(screen_pdata, screen_pdata->style_idx));
 
     if (pfx_obj == 0) {
         return;

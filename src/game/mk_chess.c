@@ -7543,7 +7543,7 @@ void update_x_cursor_position(
             }
         }
     } else if (*x >= 10 || *x < 0) {
-        *x -= x_step;
+        *x = *x - x_step;
     }
 }
 
