@@ -2365,7 +2365,7 @@ float p_bg_pselect(void) {
 }
 
 #pragma opt_common_subs off
-/* Soft ceiling: p_pz_pselect ~97.47% -- global/FPR coloring and pool labels. */
+/* TODO: [near miss] 99.82%; code agrees; only named stringBase0 vs retail @stringBase0 relocations remain. */
 float p_pz_pselect(void) {
     int bgnd;
     int n_selecting;
@@ -2388,10 +2388,11 @@ float p_pz_pselect(void) {
     turn_controllers_on();
     turn_camera_on();
 
-    gi = &g_game_info;
-    if ((gi->field_04 >> 7) & 1) {
+    if ((g_game_info.field_04 >> 7) & 1) {
         ck_for_controller_removed();
     }
+
+    gi = &g_game_info;
 
     for (;;) {
         n_selecting = 0;
@@ -2422,8 +2423,8 @@ float p_pz_pselect(void) {
                     n_done += 1;
                 }
                 while (wait > 0 && name_sound_state < n_done) {
-                    mkproc_sleep_one();
                     wait -= 1;
+                    mkproc_sleep_one();
                 }
             }
 

@@ -5014,7 +5014,7 @@ int get_konquest_pui_inventory_bit_index(const int* pui) {
     return -1;
 }
 
-/* TODO: [near miss] 98.52941%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 99.29%; size and CFG agree; r4/r5 swap between the link header and item temporaries remains. */
 void pui_update(void) {
     MkPtr* link;
 
@@ -5023,8 +5023,7 @@ void pui_update(void) {
         while (link != 0) {
             KonquestPuiRuntime* pui;
 
-            pui = (KonquestPuiRuntime*)link->hdr;
-            if (link->instance != pui->hdr.instance) {
+            if (link->instance != ((KonquestPuiRuntime*)link->hdr)->hdr.instance) {
                 MkPtr* next;
 
                 next = link->next;
@@ -5032,6 +5031,7 @@ void pui_update(void) {
                 destroy_mkptr(link);
                 link = next;
             } else {
+                pui = (KonquestPuiRuntime*)link->hdr;
                 if (pui != 0) {
                     KonquestChestOwner* owner;
 
@@ -18832,7 +18832,7 @@ static float p_konquest_fade_screen(void) {
 }
 
 
-/* TODO: [near miss] 99.455444%; valid latch restored; fade-in subtraction scheduling and string relocations remain. */
+/* TODO: [near miss] 99.75%; size and latches agree; fade-out subtraction r3/r4 swap and string-pool relocations remain. */
 static void konquest_fade_screen(
     int ticks, int white, int fade_sound, int to_black) {
     KonquestFadePdata* pdata;
@@ -18915,11 +18915,10 @@ static void konquest_fade_screen(
         }
     } else {
         volume_step = 1.0f / (255.0f / (float)fade->ticks);
-        alpha = fade->alpha - (unsigned char)fade->ticks;
-        if (alpha < 0) {
+        if (fade->alpha - (unsigned char)fade->ticks < 0) {
             fade->alpha = 0;
         } else {
-            fade->alpha = alpha;
+            fade->alpha -= (unsigned char)fade->ticks;
         }
         object = resolve_konquest_fade_object(fade);
         if (object != 0) {
