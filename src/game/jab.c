@@ -792,8 +792,9 @@ float p_bind_obj_to_obj_bone(void) {
     pdata = (JadeBindPdata*)pdata_of_proc(aproc);
     RESOLVE_JAB_OBJECT(
         parent, pdata->parent, pdata->parent_instance);
+    child = pdata->child;
     RESOLVE_JAB_OBJECT(
-        child, pdata->child, pdata->child_instance);
+        child, child, pdata->child_instance);
     if (parent == 0 || child == 0) {
         return -1.0f;
     }

@@ -3539,7 +3539,7 @@ static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
     }
 }
 /*
- * Exact-size 99.66% near match. Calls, switch lowering, coordinate projection,
+ * Exact-size 99.91% near match. Calls, switch lowering, coordinate projection,
  * arithmetic, and access widths match retail; residue is constant-pool
  * relocation identity in the partially imported translation unit.
  */
@@ -3558,7 +3558,7 @@ static void bl_process_general_movement(
 
     direction_roll = (unsigned short)randu0(100);
     if (--beetle->heading_ticks <= 0) {
-        if (surface != 0) {
+        if (surface != 0u) {
             x = target->x - beetle->position.x;
             y = target->y - beetle->position.y;
             z = target->z - beetle->position.z;
