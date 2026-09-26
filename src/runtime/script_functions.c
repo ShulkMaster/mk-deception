@@ -1804,7 +1804,7 @@ int adjust_my_damage_multiplier(void *, float);
 int air_collision_pause(int, void *, float, float);
 void ani_loop_more_frames(float);
 int ani_to_frame_x_aniproc(void *, float);
-void assign_obj_to_trigger(int, unsigned int);
+void assign_obj_to_trigger(int, KonquestTriggerDefinition*);
 void bgnd_add_scripted_brains_to_npc(unsigned int, unsigned int);
 void bgnd_apply_active_sobj_pos_vel_drag(void *, float, float, float);
 void bgnd_apply_zoffset(unsigned int, void *, float);
@@ -12432,7 +12432,8 @@ void _assign_obj_to_trigger(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    assign_obj_to_trigger(args.raw->slots[0].i, args.raw->slots[1].i);
+    assign_obj_to_trigger(
+        args.raw->slots[0].i, (KonquestTriggerDefinition*)args.raw->slots[1].pointer);
 }
 
 void _add_object_to_tile(void) {

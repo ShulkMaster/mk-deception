@@ -3287,7 +3287,6 @@ void hide_objective_arrow_and_beam(void);
 static inline KonquestTriggerStruct* find_trigger_by_definition(
     KonquestTriggerDefinition* definition) {
     MkPtr* link;
-    MkPtr* next;
 
     if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
@@ -3296,7 +3295,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
 
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
-                next = link->next;
+                MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
@@ -3315,7 +3314,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
 
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
-                next = link->next;
+                MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
@@ -3860,7 +3859,7 @@ static inline void remove_trigger_from_world(
 void delete_triggers_from_tile(int tile_index);
 KonquestTriggerStruct* add_temporary_trigger( int id, int type, unsigned int flags, int state, unsigned int script_index, float x, float y, float z, float radius);
 void add_trigger_list_to_world(void);
-void assign_obj_to_trigger(int object_uid, unsigned int trigger_id);
+void assign_obj_to_trigger(int object_uid, KonquestTriggerDefinition* definition);
 void konquest_setup_pui_particle( const char* effect_name, int shared_render_object);
 static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     MkPtr* link;
@@ -7766,16 +7765,11 @@ void konquest_setup_pui_particle(
     }
 }
 
-/*
- * Soft ceiling: assign_obj_to_trigger 99.88% -- both stale-safe searches and
- * the final typed assignment match. Residue is only local GPR coloring in the
- * second trigger list and tile-object scan.
- */
-void assign_obj_to_trigger(int object_uid, unsigned int trigger_id) {
+void assign_obj_to_trigger(int object_uid, KonquestTriggerDefinition* definition) {
     KonquestTriggerStruct* trigger;
     KonquestUidObject* object;
 
-    trigger = find_trigger_by_id(trigger_id);
+    trigger = find_trigger_by_definition(definition);
     if (trigger != 0) {
         object = find_tile_object_by_uid(object_uid);
         if (object != 0) {
@@ -18086,7 +18080,7 @@ void npc_play_teleported_sound(void) {
         position.z = spatial->position.z;
         volume = get_volume_from_distance(&position, 25.0f, 10.0f);
     }
-    if (volume == 0.0f) {
+    if (!volume) {
         return;
     }
     pan_vol_snd_req(0x147E, get_pan_value(&position), volume);
