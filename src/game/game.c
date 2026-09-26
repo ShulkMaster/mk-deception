@@ -2651,14 +2651,14 @@ void ck_do_profile_save(void) {
 static float p_do_ending(void) {
     g_game_info.pause_flag_bits.ladder_complete = 0;
     if (winner == 1) {
-        winner_for_ending = 0;
         char_for_ending = g_game_info.plyr0.player_index;
+        winner_for_ending = 0;
         set_player_state(&g_game_info.plyr1, 0);
         mark_as_unlocked(
             (PlayerProfile*)&p1_profile, 6, char_for_ending);
     } else {
-        winner_for_ending = 1;
         char_for_ending = g_game_info.plyr1.player_index;
+        winner_for_ending = 1;
         set_player_state(&g_game_info.plyr0, 0);
         mark_as_unlocked(
             (PlayerProfile*)&p2_profile, 6, char_for_ending);
