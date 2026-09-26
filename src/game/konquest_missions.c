@@ -3969,13 +3969,12 @@ static inline MkProc* mission_validate_monk_process(
     return object;
 }
 
-/* TODO: [near miss] 98.544304%; register coloring, instruction scheduling; one-trial ceiling. */
 static float p_transform_into_player(void) {
-    MkProc* monk_process = mission_state->monk_process;
+    MkProc* monk_process;
     AnimPdata* animation;
     MkProc* player_process;
 
-    monk_process = mission_validate_monk_process(monk_process, mission_state);
+    monk_process = mission_validate_monk_process(mission_state->monk_process, mission_state);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = 0.8f;

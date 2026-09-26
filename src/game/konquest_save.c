@@ -317,15 +317,22 @@ int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     return 1;
 }
 
-/*
- * Near match: algorithm and latch CFG agree; the 20-byte size residue is
- * nonvolatile save/restore scheduling plus camera/profile register coloring.
- */
+static inline MkObj* konquest_validate_monk(MkObj* object) {
+    if (object != 0) {
+        if (object->hdr.instance == konquest_pdata->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void full_konquest_load_from_memcard(void) {
     KonquestProfileSave* profile;
     KonquestRegionBuffer* buffer;
     CameraPdata* camera_pdata;
-    MkObj* candidate;
     MkObj* monk;
 
     profile = p1_profile_konquest;
@@ -335,16 +342,7 @@ void full_konquest_load_from_memcard(void) {
         set_current_time(profile->common_time);
     }
     if (profile->profile_valid != 0) {
-        candidate = konquest_pdata->monk_obj;
-        if (candidate != 0) {
-            if (candidate->hdr.instance == konquest_pdata->monk_instance) {
-                monk = candidate;
-            } else {
-                monk = 0;
-            }
-        } else {
-            monk = 0;
-        }
+        monk = konquest_validate_monk(konquest_pdata->monk_obj);
         if (monk != 0) {
             set_monk_position(profile->monk_pos_x, profile->monk_pos_y,
                               profile->monk_pos_z, profile->monk_pos_w);
