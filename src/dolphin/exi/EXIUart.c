@@ -119,11 +119,10 @@ static int QueueLength(void)
     return 16 - (command >> 24);
 }
 
-/* TODO: [near miss] 97.062500%; donor-supported signed-long transfer length is codegen-neutral; r28/r0 transfer-length lowering remains, stop at clean-C ceiling. */
 int WriteUARTN(void* buffer, unsigned long length)
 {
     unsigned long command;
-    int transfer_length;
+    unsigned long transfer_length;
     int queue_length;
     char* pointer;
     int locked;
