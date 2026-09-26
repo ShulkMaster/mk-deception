@@ -502,7 +502,8 @@ typedef struct CameraAnimEvent {
 static inline void remove_camera_offsets_impl(void) {
     CameraObj* camera;
 
-    RESOLVE_CAMERA_OBJ(camera);
+    camera = camera_item.node;
+    camera = (camera != 0) ? ((camera->hdr.instance == camera_item.instance) ? camera : 0) : 0;
     camera->pos.x -= old_cam_pos_offset.x;
     camera->pos.y -= old_cam_pos_offset.y;
     camera->pos.z -= old_cam_pos_offset.z;
@@ -514,7 +515,8 @@ static inline void remove_camera_offsets_impl(void) {
 static inline void add_camera_offsets_impl(void) {
     CameraObj* camera;
 
-    RESOLVE_CAMERA_OBJ(camera);
+    camera = camera_item.node;
+    camera = (camera != 0) ? ((camera->hdr.instance == camera_item.instance) ? camera : 0) : 0;
     old_cam_ang_offset.x = cam_ang_offset.x;
     old_cam_ang_offset.y = cam_ang_offset.y;
     old_cam_ang_offset.z = cam_ang_offset.z;
@@ -1480,18 +1482,16 @@ static inline ScreenObj* fade_box_item_live_node(FadeBoxItem* owner) {
         if (object->instance == owner->instance) {
             return object;
         }
-        object = 0;
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
 
 
 
 
-/* TODO: [near miss] 95.500000%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 98.43%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void remove_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
@@ -1623,7 +1623,6 @@ static float p_move_widescreen_bars(void) {
 
 
 
-/* TODO: [near miss] 97.519684%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void add_widescreen_bars(float height) {
     ScreenObj* upper;
     ScreenObj* lower;
@@ -1654,25 +1653,23 @@ void add_widescreen_bars(float height) {
 
     upper = load_2d_pfxobj(0, 0x2098, (char*)0x10017, 0, 0xF);
     lower = load_2d_pfxobj(0, 0x2098, (char*)0x10017, 0, 0xF);
-    if (upper != 0) {
-        if (lower == 0) {
-            return;
-        }
-        upper_fade_box_item.node = upper;
-        upper_fade_box_item.instance = upper->instance;
-        lower_fade_box_item.node = lower;
-        lower_fade_box_item.instance = lower->instance;
-        snd_req(0x15A4);
-        _create_mkproc_generic_tinystack(
-            0x8229, 0x1F, p_move_widescreen_bars,
-            sizeof(WidescreenBarPdata), (MkHdr**)&pdata);
-        if (pdata != 0) {
-            pdata->step = height;
-            pdata->direction = 1;
-        }
-        if (mode_of_play == 7 && konquest_pdata != 0) {
-            konquest_pdata->widescreen_bars_active = 0;
-        }
+    if (upper == 0 || lower == 0) {
+        return;
+    }
+    upper_fade_box_item.node = upper;
+    upper_fade_box_item.instance = upper->instance;
+    lower_fade_box_item.node = lower;
+    lower_fade_box_item.instance = lower->instance;
+    snd_req(0x15A4);
+    _create_mkproc_generic_tinystack(
+        0x8229, 0x1F, p_move_widescreen_bars,
+        sizeof(WidescreenBarPdata), (MkHdr**)&pdata);
+    if (pdata != 0) {
+        pdata->step = height;
+        pdata->direction = 1;
+    }
+    if (mode_of_play == 7 && konquest_pdata != 0) {
+        konquest_pdata->widescreen_bars_active = 0;
     }
 }
 
@@ -6318,7 +6315,6 @@ void go_to_camera_cut(const CamVec3* position, const Vec* target) {
     look_at_target(target);
 }
 
-/* Soft ceiling: inlined paired latch CSE and contiguous-offset coloring only. */
 float p_hold_camera_in_place(void) {
     remove_camera_offsets_impl();
     add_camera_offsets_impl();
@@ -6337,7 +6333,6 @@ void remove_camera_offsets(void) {
     camera->ang.z -= old_cam_ang_offset.z;
 }
 
-/* TODO: [near miss] 97.962960%; original latch retained; branch lowering; one-trial ceiling. */
 void add_camera_offsets(void) {
     add_camera_offsets_impl();
 }
