@@ -447,10 +447,10 @@ int is_storage_device_full(int device) {
     StorageDevice* dev;
 
     dev = DEVICE_AT(device);
-    if (dev->freeBlocks >= 0x3Au && (unsigned int)dev->freeBytes >= 1u) {
-        return 0;
+    if (dev->freeBlocks < 0x3Au || (unsigned int)dev->freeBytes < 1u) {
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 int is_memcard_scanner_running(void) {
