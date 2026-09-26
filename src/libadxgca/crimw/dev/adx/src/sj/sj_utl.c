@@ -11,45 +11,43 @@ int sj_hexstr_to_val_tbl[0x70] = {
     0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-static inline int sj_hexstr_to_val(
-    const unsigned char* text, const int* table) {
+static inline int sj_HexStrToVal(const char* text, int count)
+{
     int value;
+    int i;
 
-    value = table[(signed char)text[0]];
-    value = (value << 4) + table[(signed char)text[1]];
-    value = (value << 4) + table[(signed char)text[2]];
-    value = (value << 4) + table[(signed char)text[3]];
-    value = (value << 4) + table[(signed char)text[4]];
-    value = (value << 4) + table[(signed char)text[5]];
-    value = (value << 4) + table[(signed char)text[6]];
+    value = 0;
+    for (i = 0; i < count; i++) {
+        value = (value << 4) + sj_hexstr_to_val_tbl[text[i]];
+    }
     return value;
 }
 
-/* TODO: [near miss] 93.30827%; explicit start cursor regressed to 92.55639%; retain direct cursor, with unrolled decode scheduling remaining. */
 unsigned char* SJ_SearchTag(
-    const SJCK* source, const char* tag, const char* terminator, SJCK* result) {
+    SJCK* source, const char* tag, const char* terminator, SJCK* result) {
     unsigned char* current;
     unsigned char* end;
-    const int* table;
 
     result->data = 0;
-    table = sj_hexstr_to_val_tbl;
     result->len = 0;
     current = source->data;
-    end = current + source->len;
+    end = source->data + source->len;
     while (current < end) {
         if (strncmp((const char*)current, tag, 7) == 0) {
             result->data = current + 0x10;
-            result->len = sj_hexstr_to_val(current + 8, sj_hexstr_to_val_tbl);
+            result->len = sj_HexStrToVal((const char*)current + 8, 7);
             break;
         }
         if (terminator != 0 &&
             strncmp((const char*)current, terminator, 7) == 0) {
             return 0;
         }
-        current += sj_hexstr_to_val(current + 8, table) + 0x10;
+        current += sj_HexStrToVal((const char*)current + 8, 7) + 0x10;
     }
-    return current < end ? current : 0;
+    if (current < end) {
+        return current;
+    }
+    return 0;
 }
 
 void SJ_SplitChunk(

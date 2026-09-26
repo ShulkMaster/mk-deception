@@ -65,7 +65,7 @@ int g_mslTickCB_Head;
 int g_mslTickCB_Tail;
 int g_mslTickCB_NumberItems;
 
-/* Matched: 100% report-exact; genuine debugger flag volatility
+/* Genuine debugger flag volatility
  * preserves the retail load on every wait iteration. */
 void _MSL_GCN_BREAK(void) {
     mslDebugPrintf("MSL DID SOMETHING BAD!!!\n");
@@ -77,7 +77,7 @@ void _MSL_GCN_BREAK(void) {
     OSPanic("mslgcn.cpp", 0x66D, "UNSUPPORTED FUNCTION");
 }
 
-/* Matched: 100% report-exact; typed virtual UnPause dispatch and
+/* Typed virtual UnPause dispatch and
  * explicit error return reproduce the retail epilogue. */
 extern "C" int ContinueStream(
     _mslSystem* system, mslRuntimeWave* wave) {
@@ -99,7 +99,7 @@ extern "C" int ContinueStream(
     return result;
 }
 
-/* Matched: 100% report-exact; typed virtual Pause dispatch. */
+/* Typed virtual Pause dispatch. */
 extern "C" int PauseStream(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -111,7 +111,7 @@ extern "C" int PauseStream(
     return playable->Pause();
 }
 
-/* Matched: 100% report-exact; typed virtual Stop, result discarded. */
+/* Typed virtual Stop, result discarded. */
 extern "C" void StopStream(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -122,7 +122,7 @@ extern "C" void StopStream(
     }
 }
 
-/* Matched: 100% report-exact; typed virtual Play dispatch preserves
+/* Typed virtual Play dispatch preserves
  * loop flags and retail failure return. */
 extern "C" int PlayStream(
     _mslSystem* system, mslRuntimeSound* sound,
@@ -151,7 +151,7 @@ extern "C" int PlayStream(
     return result;
 }
 
-/* Matched: 100% report-exact; reference release uses virtual FreeObject. */
+/* Reference release uses virtual FreeObject. */
 extern "C" void UnCopyStreamWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
@@ -241,7 +241,7 @@ extern "C" mslRuntimeWave* LoadStreamWaveFile(
     return wave;
 }
 
-/* Matched: 100% report-exact; typed virtual UnPause dispatch. */
+/* Typed virtual UnPause dispatch. */
 extern "C" int ContinueStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable = wave->playable;
@@ -259,7 +259,7 @@ extern "C" int ContinueStatic(
     return 0;
 }
 
-/* Matched: 100% report-exact; typed virtual Pause, result discarded. */
+/* Typed virtual Pause, result discarded. */
 extern "C" int PauseStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable = wave->playable;
@@ -270,7 +270,7 @@ extern "C" int PauseStatic(
     return 0;
 }
 
-/* Matched: 100% report-exact; typed virtual Stop, result discarded. */
+/* Typed virtual Stop, result discarded. */
 extern "C" int StopStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -287,7 +287,7 @@ extern "C" int StopStatic(
  * caller may suppress platform playback while still allowing the higher
  * MSL state machine to complete; loop polarity comes directly from bit 0.
  */
-/* Matched: 100% report-exact; typed virtual Play dispatch preserves
+/* Typed virtual Play dispatch preserves
  * loop flags, diagnostics, and failure returns. */
 extern "C" int PlayStatic(
     _mslSystem* system, mslRuntimeWave* wave, int allow_voice) {
@@ -319,7 +319,7 @@ extern "C" int PlayStatic(
     return 0;
 }
 
-/* Matched: 100% report-exact; reference release uses virtual FreeObject. */
+/* Reference release uses virtual FreeObject. */
 extern "C" void UnCopyStaticWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
@@ -413,7 +413,7 @@ extern "C" mslRuntimeWave* LoadStaticWaveFile(
     return wave;
 }
 
-/* Matched: 100% report-exact; processed/count declaration order preserves
+/* Processed/count declaration order preserves
  * the retail snapshot and loop-counter register lifetimes. */
 extern "C" int mslTick(void) {
     int head;
@@ -497,8 +497,6 @@ static inline void mslInitCleanup(_mslSystem* system) {
     _mwMemFree(system, 0, 0);
 }
 
-/* TODO: [near miss] 99.009544%; explicit queue result preserves retail failure
- * even if callbacks change track_count; flag test and multiply coloring remain. */
 extern "C" _mslSystem* mslInit(
     mslInitParam* init, mslSysInitParam* system_init) {
     _mslSystem* system;
@@ -546,155 +544,149 @@ extern "C" _mslSystem* mslInit(
     mslCreateLogTable();
     mslDebugPrintf("MSL version %s\n", "1.8.8");
 
-    do {
-        system = (_mslSystem*)_mwMemMalloc(
-            MWSOUND_HEAP, sizeof(_mslSystem), 3, 0, 0, 0);
-        if (system == 0) {
-            mslDebugPrintf(
-                "mslInit: Out of memory allocating mslSystem.\n");
-            break;
-        }
+    system = (_mslSystem*)_mwMemMalloc(
+        MWSOUND_HEAP, sizeof(_mslSystem), 3, 0, 0, 0);
+    if (system == 0) {
+        mslDebugPrintf(
+            "mslInit: Out of memory allocating mslSystem.\n");
+        goto fail;
+    }
 
-        ListPoolAttach(
-            &g_listPoolSound, g_listMemSound, 0x708, 0x54);
-        ListPoolAttach(
-            &g_listPoolAdjust, g_listMemAdjust, 0x40, 0x34);
+    ListPoolAttach(
+        &g_listPoolSound, g_listMemSound, 0x708, 0x54);
+    ListPoolAttach(
+        &g_listPoolAdjust, g_listMemAdjust, 0x40, 0x34);
 
-        gMsi = system;
-        system->flags = init->flags | system_init->flags;
-        system->bank_path[0] = '\0';
+    gMsi = system;
+    system->flags = init->flags | system_init->flags;
+    system->bank_path[0] = '\0';
 
-        AIInit(0);
-        ARQInit();
-        AXInitEx(1);
-        MIXInit();
-        AXSetMode(2);
-        AXRegisterCallback(MSL_GCN_AXUserCallback);
+    AIInit(0);
+    ARQInit();
+    AXInitEx(1);
+    MIXInit();
+    AXSetMode(2);
+    AXRegisterCallback(MSL_GCN_AXUserCallback);
 
-        mode = MIXGetSoundMode();
-        switch (mode) {
-        case 0:
-            sound_mode = 0;
-            break;
-        case 2:
-        case 3:
-            sound_mode = 3;
-            break;
-        default:
-            sound_mode = 1;
-            break;
-        }
-        system->sound_mode = sound_mode;
+    mode = MIXGetSoundMode();
+    switch (mode) {
+    case 0:
+        sound_mode = 0;
+        break;
+    case 2:
+    case 3:
+        sound_mode = 3;
+        break;
+    default:
+        sound_mode = 1;
+        break;
+    }
+    system->sound_mode = sound_mode;
 
+    if (g_MSL_GCN_ARAM_Heap == 0) {
+        ARQRequest request;
+        unsigned char zero_storage[0x420];
+        void* zero_buffer = (void*)(
+            ((unsigned long)zero_storage + 0x1F) & ~0x1FUL);
+        int cache_total;
+        unsigned long heap_base;
+        unsigned long heap_size;
+
+        g_MSL_GCN_ARAM_ZeroBase = system_init->aram_base;
+        g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start =
+            g_MSL_GCN_ARAM_ZeroBase * 2 + 2;
+        g_MSL_GCN_ARAM_ZeroBase_ADPCM_End =
+            (g_MSL_GCN_ARAM_ZeroBase + 0x400) * 2 - 1;
+        g_MSL_volatile_flag = 1;
+        memset(zero_storage, 0, 0x420);
+        ARQPostRequest(
+            &request, 0, 0, 1, (unsigned long)zero_buffer,
+            g_MSL_GCN_ARAM_ZeroBase, 0x400,
+            MSL_ClearVolatileFlag);
+
+        heap_base = system_init->aram_base + 0x400;
+        heap_size = system_init->aram_size - 0x400;
+        mslStreamCache_Initialize_A(heap_base);
+        cache_total = mslStreamCache_GetNumBuffers() *
+            mslStreamCache_GetSizeBuffer();
+        heap_base += cache_total;
+        heap_size -= cache_total;
+
+        ExternalHeap_SetSysMemRoutines(
+            msl_SystemMalloc, msl_SystemFree);
+        g_MSL_GCN_ARAM_Heap =
+            ExternalHeap_Create(heap_base, heap_size, 5, 0xB0);
         if (g_MSL_GCN_ARAM_Heap == 0) {
-            ARQRequest request;
-            unsigned char zero_storage[0x420];
-            void* zero_buffer = (void*)(
-                ((unsigned long)zero_storage + 0x1F) & ~0x1FUL);
-            int cache_size;
-            int cache_total;
-            unsigned long heap_base;
-            unsigned long heap_size;
-
-            g_MSL_GCN_ARAM_ZeroBase = system_init->aram_base;
-            g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start =
-                g_MSL_GCN_ARAM_ZeroBase * 2 + 2;
-            g_MSL_GCN_ARAM_ZeroBase_ADPCM_End =
-                (g_MSL_GCN_ARAM_ZeroBase + 0x400) * 2 - 1;
-            g_MSL_volatile_flag = 1;
-            memset(zero_storage, 0, 0x420);
-            ARQPostRequest(
-                &request, 0, 0, 1, (unsigned long)zero_buffer,
-                g_MSL_GCN_ARAM_ZeroBase, 0x400,
-                MSL_ClearVolatileFlag);
-
-            heap_base = system_init->aram_base + 0x400;
-            heap_size = system_init->aram_size - 0x400;
-            mslStreamCache_Initialize_A(heap_base);
-            cache_size = mslStreamCache_GetSizeBuffer();
-            cache_total =
-                mslStreamCache_GetNumBuffers() * cache_size;
-            heap_base += cache_total;
-            heap_size -= cache_total;
-
-            ExternalHeap_SetSysMemRoutines(
-                msl_SystemMalloc, msl_SystemFree);
-            g_MSL_GCN_ARAM_Heap =
-                ExternalHeap_Create(heap_base, heap_size, 5, 0xB0);
-            if (g_MSL_GCN_ARAM_Heap == 0) {
-                break;
-            }
-            InitCriticalCodeSection_DEBUG(
-                &g_MSL_GCN_ARAM_CriticalSection,
-                "mslgcn.cpp", 0x22E);
-            ExternalHeap_SetMutex(
-                g_MSL_GCN_ARAM_Heap,
-                &g_MSL_GCN_ARAM_CriticalSection);
-            ExternalHeap_SetSysMutexRoutines(
-                msl_SystemEnterMutex, msl_SystemExitMutex);
-            mslArqRequest_Init();
-            while (g_MSL_volatile_flag != 0) {
-            }
-            mslStreamFile_Initialize();
+            goto fail;
         }
+        InitCriticalCodeSection_DEBUG(
+            &g_MSL_GCN_ARAM_CriticalSection,
+            "mslgcn.cpp", 0x22E);
+        ExternalHeap_SetMutex(
+            g_MSL_GCN_ARAM_Heap,
+            &g_MSL_GCN_ARAM_CriticalSection);
+        ExternalHeap_SetSysMutexRoutines(
+            msl_SystemEnterMutex, msl_SystemExitMutex);
+        mslArqRequest_Init();
+        while (g_MSL_volatile_flag != 0) {
+        }
+        mslStreamFile_Initialize();
+    }
 
-        system->tracks = (mslTrack*)_mwMemMalloc(
-            MWSOUND_HEAP, 0x200, 3, 0, 0, 0);
-        if (system->tracks == 0) {
+    system->tracks = (mslTrack*)_mwMemMalloc(
+        MWSOUND_HEAP, 0x200, 3, 0, 0, 0);
+    if (system->tracks == 0) {
+        mslDebugPrintf(
+            "mslInit: Out of memory allocating tracks.\n");
+        goto fail;
+    }
+
+    for (i = 0; i < 0x40; i++) {
+        system->tracks[i].sound = 0;
+    }
+
+    system->track_count = init->track_count;
+    for (i = 0; i < system->track_count; i++) {
+        system->tracks[i].queue = mslQueueNew(0x20);
+        if (system->tracks[i].queue == 0) {
             mslDebugPrintf(
-                "mslInit: Out of memory allocating tracks.\n");
-            break;
+                "mslInit: Out of memory allocating track queues.\n");
+            goto fail;
         }
+    }
 
-        for (i = 0; i < 0x40; i++) {
-            system->tracks[i].sound = 0;
-        }
+    system->volume = 1.0f;
+    system->pan = 0.0f;
+    system->pitch = 1.0f;
+    system->duck_volume = 1.0f;
+    system->duck_pan = 0.0f;
+    system->duck_pitch = 1.0f;
+    system->sound_list_guard = 1;
+    system->active_sounds = 0;
+    system->active_adjustments = 0;
+    system->callbacks = 0;
+    system->reservedE8 = 0;
+    system->pending_bank_loads = 0;
 
-        system->track_count = init->track_count;
-        bool queues_ready = true;
-        for (i = 0; i < system->track_count; i++) {
-            system->tracks[i].queue = mslQueueNew(0x20);
-            if (system->tracks[i].queue == 0) {
-                mslDebugPrintf(
-                    "mslInit: Out of memory allocating track queues.\n");
-                queues_ready = false;
-                break;
-            }
-        }
-        if (queues_ready) {
-            system->volume = 1.0f;
-            system->pan = 0.0f;
-            system->pitch = 1.0f;
-            system->duck_volume = 1.0f;
-            system->duck_pan = 0.0f;
-            system->duck_pitch = 1.0f;
-            system->sound_list_guard = 1;
-            system->active_sounds = 0;
-            system->active_adjustments = 0;
-            system->callbacks = 0;
-            system->reservedE8 = 0;
-            system->pending_bank_loads = 0;
+    InitCriticalCodeSection_DEBUG(
+        &system->critical_section,
+        "mslgcn.cpp", 0x26E);
+    mslDebugPrintf(
+        "MSL after init heap %d\n", mslMainRamUsed());
+    return system;
 
-            InitCriticalCodeSection_DEBUG(
-                &system->critical_section,
-                "mslgcn.cpp", 0x26E);
-            mslDebugPrintf(
-                "MSL after init heap %d\n", mslMainRamUsed());
-            return system;
-        }
-    } while (0);
-
+fail:
     mslInitCleanup(system);
     return 0;
 }
 
-/* Matched: 100% report-exact; ARQ completion clears the volatile wait flag. */
+/* ARQ completion clears the volatile wait flag. */
 extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
     (void)request_address;
     g_MSL_volatile_flag = 0;
 }
 
-/* Matched: 100% report-exact; overflow wait reloads the debugger flag;
+/* Overflow wait reloads the debugger flag;
  * the previous diagnostic-relocation classification was incorrect. */
 extern "C" void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data) {

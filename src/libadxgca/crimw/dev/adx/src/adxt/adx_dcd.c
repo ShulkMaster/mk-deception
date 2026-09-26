@@ -112,8 +112,6 @@ int ADX_DecodeFooter(signed char* buffer, int buffer_len,
     return 0;
 }
 
-/* TODO: [near miss] 99.218750%; all 11 residual diffs are AINF address/byte
- * register coloring; stop pending a genuine owner-lifetime insight. */
 int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
                        int* ainf_len, unsigned char ainf[16],
                        short* default_out_volume, short default_pan[2])
@@ -147,7 +145,7 @@ int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
     if (version == 4) {
         ainf_offset = 0x20;
     }
-    pointer = (unsigned char*)buffer + ainf_offset;
+    pointer = (unsigned char*)((u32)ainf_offset + (u32)buffer);
     ainf_offset += 4;
     if (*(short*)(pointer + 2) != 0) {
         ainf_offset += 0x14;
@@ -161,8 +159,8 @@ int ADX_DecodeInfoAinf(unsigned char* buffer, int buffer_len,
     }
 
     *ainf_len = *(int*)(buffer + ainf_offset + 4);
-    memcpy(ainf, buffer + ainf_offset + 8, 16);
-    pointer = (unsigned char*)buffer + ainf_offset;
+    memcpy(ainf, &buffer[ainf_offset + 8], 16);
+    pointer = (unsigned char*)((u32)ainf_offset + (u32)buffer);
     *default_out_volume = *(short*)(pointer + 0x18);
     default_pan[0] = *(short*)(pointer + 0x1C);
     default_pan[1] = *(short*)(pointer + 0x1E);

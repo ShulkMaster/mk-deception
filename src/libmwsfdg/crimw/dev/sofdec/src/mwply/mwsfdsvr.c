@@ -333,13 +333,13 @@ int MWSFSVR_VsyncThrdProc(void* object)
     return 0;
 }
 
-/* TODO: [near miss] 98.305260%; status 1/2 source order retained after the
- * case-order trial regressed to 0%; compiler dispatch and literal-pool residue. */
 static int mwSfdExecDecSvrHndl(MwsPlayer* player)
 {
     SfdHandle* sfd;
 
     switch (player->status) {
+    case 0:
+        break;
     case 1: {
         int stream_result;
 
@@ -417,9 +417,7 @@ static int mwSfdExecDecSvrHndl(MwsPlayer* player)
         if (SFD_GetHnStat(sfd) == 6) player->status = 3;
         break;
     }
-    case 0:
-        break;
-    default:
+    case 3:
         break;
     }
 

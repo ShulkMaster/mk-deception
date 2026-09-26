@@ -12,25 +12,21 @@ LSCObject lsc_obj[32];
 const char* const volatile lsc_build =
     "\nLSC/GC Ver.2.17 Build:Sep  3 2004 17:47:55\n";
 
-/* TODO: [near miss] 97.439026%; MKD's pointer walk matches retail;
- * indexed loop regresses and outer declarations are neutral, leaving one copy. */
 void LSC_Finish(void)
 {
     int critical_state;
+    LSCObject* object;
+    int i;
 
     LSC_LockCrs(&critical_state);
     lsc_init_cnt--;
     if (lsc_init_cnt == 0) {
-        LSCObject* object = lsc_obj;
-        int i = 0;
-
-        do {
+        for (i = 0; i < 32; i++) {
+            object = &lsc_obj[i];
             if (object->used == 1) {
                 LSC_Destroy(object);
             }
-            i++;
-            object++;
-        } while (i < 32);
+        }
         memset(lsc_obj, 0, sizeof(lsc_obj));
         LSC_EntryErrFunc(0, 0);
     }

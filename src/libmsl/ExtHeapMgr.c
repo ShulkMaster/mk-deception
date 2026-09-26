@@ -3,10 +3,8 @@
 
 /*
  * Retail MSL external-heap owner.
- * Soft ceiling: ExternalHeap_AlignAlloc ~96.78%. Its descriptor split,
- * rollback, accounting, and loop CFG match retail; the remaining two
- * redundant candidate-node loads and GPR coloring are compiler emission.
- * CompareBlocksBySizeThenAddress is exact.
+ * The rollback path keeps a non-null prefix_block sentinel without
+ * dereferencing it (see ExternalHeap_AlignAlloc).
  */
 
 static void ExternalHeap_MutexNullFunc(void* mutex);
@@ -123,8 +121,8 @@ unsigned long ExternalHeap_Alloc(
     return address;
 }
 
-/* TODO: [near miss] 96.78%; two candidate reloads and GPR coloring only;
- * retail rollback sentinel is retained without dereferencing it. */
+/* TODO: [near miss] 99.62%; only volatile-GPR coloring of the candidate
+ * address/size and peak/used load pairs remains; stop at soft ceiling. */
 unsigned long ExternalHeap_AlignAlloc(
     ExternalHeap* heap, unsigned long size, int alignment) {
     ExternalHeapBlock* candidate;
@@ -132,14 +130,15 @@ unsigned long ExternalHeap_AlignAlloc(
     unsigned long mask;
     unsigned long inverse_mask;
     unsigned long aligned_size;
-    unsigned long result = 0;
     unsigned long prefix;
+    unsigned long result = 0;
     ExternalHeapBlock* split_block;
     ExternalHeapBlock* suffix;
     unsigned long aligned_address;
     unsigned long usable;
     RedBlackNode* previous;
     RedBlackNode* candidate_node;
+    RedBlackNode* node;
 
     if ((long)size <= 0) {
         return 0;
@@ -160,14 +159,13 @@ unsigned long ExternalHeap_AlignAlloc(
         &heap->size_tree, (const void*)size,
         &previous, &candidate_node);
     prefix_block = 0;
-    while (result == 0 && candidate_node != 0) {
-        aligned_address =
-            (BLOCK_FROM_SIZE_NODE(candidate_node)->link.address + mask) &
-            inverse_mask;
-        candidate = BLOCK_FROM_SIZE_NODE(candidate_node);
+    while (result == 0 && (node = candidate_node) != 0) {
+        candidate = BLOCK_FROM_SIZE_NODE(node);
+        aligned_address = candidate->link.address;
+        aligned_address = (aligned_address + mask) & inverse_mask;
 
         if (aligned_address <
-            candidate->link.address + candidate->size) {
+            candidate->size + candidate->link.address) {
             prefix = aligned_address - candidate->link.address;
             usable = candidate->size - prefix;
         } else {
@@ -255,7 +253,7 @@ unsigned long ExternalHeap_AlignAlloc(
                 }
             }
         } else {
-            candidate_node = RBN_GetNextNode(candidate_node);
+            candidate_node = RBN_GetNextNode(node);
         }
     }
 

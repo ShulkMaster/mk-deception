@@ -8,21 +8,12 @@ int memcmp(const void*, const void*, unsigned long);
 #define COMM 0x4D4D4F43
 #define SSND 0x444E5353
 
-static inline unsigned int rd32(const unsigned char* p)
-{
-    return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24;
-}
-
-static inline unsigned short rd16(const unsigned char* p)
-{
-    return p[0] | p[1] << 8;
-}
-
-static inline unsigned int sw32(unsigned int v)
-{
-    return v >> 24 | (v >> 8 & 0xFF00) | (v << 8 & 0xFF0000) | v << 24;
-}
-
+#define LE32(p)                                                         \
+    ((unsigned int)(p)[0] | ((unsigned int)(p)[1] << 8) |               \
+     ((unsigned int)(p)[2] << 16) | ((unsigned int)(p)[3] << 24))
+#define SWAP32(x)                                                       \
+    ((((x) >> 24) & 0xFF) | (((x) >> 8) & 0xFF00) |                     \
+     (((x) << 8) & 0xFF0000) | ((x) << 24))
 #define SWAP16(x) ((((x) >> 8) & 0xFF) | (((x) & 0xFF) << 8))
 
 static unsigned char* AIFF_GetInfo(unsigned char*, int*, int*, int*, int*);
@@ -188,8 +179,6 @@ int ADXB_CheckAiff(const signed char* input)
     return 0;
 }
 
-/* TODO: [near miss] 93.987180%; 32-bit chunk size/flags and defined byte
- * shift preserve codegen; offset type still affects owner coloring. */
 static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
                                    int* channels, int* bits, int* samples)
 {
@@ -209,19 +198,19 @@ static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
     have_comm = 0;
     have_ssnd = 0;
     data = NULL;
-    id = rd32(header);
-    size = rd32(header + 4);
-    size = sw32(size);
-    form = rd32(header + 8);
+    id = LE32(header);
+    size = LE32(header + 4);
+    size = SWAP32(size);
+    form = LE32(header + 8);
     if (id != FORM)
         return NULL;
     if (form != AIFF)
         return NULL;
     end = p + size - 4;
     while (p < end) {
-        id = rd32(p);
-        size = rd32(p + 4);
-        size = sw32(size);
+        id = LE32(p);
+        size = LE32(p + 4);
+        size = SWAP32(size);
         p += 8;
         switch (id) {
         case COMM:
@@ -232,8 +221,8 @@ static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
             have_comm = 1;
             *channels = (p[0] & 0xFF) | ((p[1] & 0xFFFF) << 8);
             *channels = SWAP16(*channels);
-            *samples = rd32(p + 2);
-            *samples = sw32(*samples);
+            *samples = LE32(p + 2);
+            *samples = SWAP32(*samples);
             *bits = (p[6] & 0xFF) | ((p[7] & 0xFFFF) << 8);
             *bits = SWAP16(*bits);
             exp = SWAP16((unsigned short)(p[8] | (p[9] << 8)));
@@ -247,8 +236,8 @@ static unsigned char* AIFF_GetInfo(unsigned char* header, int* rate,
             if (have_ssnd != 0)
                 break;
             have_ssnd = 1;
-            offset = rd32(p);
-            offset = sw32(offset);
+            offset = LE32(p);
+            offset = SWAP32(offset);
             p += 4;
             data = p + offset;
             if (have_comm != 0)

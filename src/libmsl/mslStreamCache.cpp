@@ -169,20 +169,20 @@ extern "C" void mslStreamCache_ReleaseBuffer(int address) {
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 91.565216%; same CFG/stores/184-byte size; zero sharing and GPR
- * homes differ. Direct array local loses retail tail reload; stop at emission. */
+/* TODO: [near miss] 91.57% objdiff (92.65% report); retail seeds two zero
+ * homes via mr from i, ours shares one li; permuter found no honest form. */
 extern "C" void mslStreamCache_Initialize_A(int base_address) {
     if (s_StreamCache_pBuffers == 0) {
-        int i = 0;
+        int i;
         StreamCacheBuffer* buffer;
 
         s_StreamCache_pBuffers = s_StreamCache_ArrayBuffers;
-        buffer = s_StreamCache_pBuffers;
         s_StreamCache_BaseAddress = base_address;
         s_StreamCache_NumBuffers = 32;
         s_StreamCache_SizeBuffers = 0x20000;
 
-        for (; i < 32; i++, buffer++) {
+        buffer = s_StreamCache_pBuffers;
+        for (i = 0; i < 32; i++, buffer++) {
             memset(buffer, 0, sizeof(StreamCacheBuffer));
             buffer->state = 0;
             buffer->address = base_address;
