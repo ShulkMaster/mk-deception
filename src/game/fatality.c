@@ -3299,26 +3299,20 @@ FatalityWeaponAttachment* regrab_weapon(
     return attachment;
 }
 
-/* TODO: [near miss] 98.552635%; reflection guards and hide bit agree; stop at primary owner/object coloring. */
 void weapon_reflection_show_hide(
     PlyrPdata* player, int secondary, int hidden) {
-    FatalityWeaponReflectionSet* reflections;
     MkObj* object;
 
     if (secondary == 0) {
-        reflections = (FatalityWeaponReflectionSet*)
-            player->fighter_definition;
-        object = fatality_live_object(reflections->primary,
-            &reflections->primary_instance);
+        object = fatality_live_object(player->weapon_reflections->primary,
+            &player->weapon_reflections->primary_instance);
         if (object != 0) {
             object->hide_flag_bits.hidden = hidden;
             return;
         }
     }
-    reflections = (FatalityWeaponReflectionSet*)
-        player->fighter_definition;
-    object = fatality_live_object(reflections->secondary,
-        &reflections->secondary_instance);
+    object = fatality_live_object(player->weapon_reflections->secondary,
+        &player->weapon_reflections->secondary_instance);
     if (object != 0) {
         object->hide_flag_bits.hidden = hidden;
     }
