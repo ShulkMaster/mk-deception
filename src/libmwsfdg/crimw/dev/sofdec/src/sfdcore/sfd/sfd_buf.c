@@ -574,7 +574,7 @@ static inline int sfbuf_InitRing(SfdBufferState* buffer,
 static inline void sfbuf_InitVideo(SfdHandle* handle, SfdBufferState* buffer,
                                    unsigned int* address, int* size)
 {
-    int index;
+    long index; /* CRI Sint32 (signed long) frame counter */
     int active;
 
     active = *size != 0;
@@ -617,8 +617,6 @@ static inline void sfbuf_InitAudio(SfdBufferState* buffer,
     buffer->work.audio.reserved_tail[2] = 0;
 }
 
-/* TODO: [near miss] 92.33945%; typed helpers inline; retail retains two
- * video-loop entry checks that current O4 removes, plus register scheduling. */
 int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
                  SfdBufferCreateConfig* create)
 {

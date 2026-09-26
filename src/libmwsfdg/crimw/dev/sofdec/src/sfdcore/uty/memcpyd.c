@@ -1,7 +1,7 @@
 #include "sofdec/uty_mem.h"
 
-/* TODO: [near miss] 97.244896%; mutable source matches RE4 and fixes the
- * load schedule; remaining unrolled-loop register coloring is unresolved. */
+/* TODO: [blocked] 97.244896% under the unit's -O2,p override; this source is
+ * instruction-exact at the library default -O4,p (drop extra_cflags in configure.py). */
 void UTY_MemcpyDword(unsigned int* destination, unsigned int* source,
                      unsigned int count) {
     unsigned int remainder = (count & 15) + 1;

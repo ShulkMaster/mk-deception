@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [near miss] 93.469880%; shifted handle is donor/retail-backed;
- * clean-C break still keeps count live at the found/exhausted join. */
+/* TODO: [near miss] 98.49397%; RE4-backed goto-found/-1 exit restores the CFG;
+ * retail keeps each found arm as `bge next; b found` (codeless arm), ours `blt found`. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {
@@ -67,20 +67,18 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
         read_index = hn->buffer.work.ring.pts_queue.read_index;
         index = read_index;
         for (offset = 0; offset < count; offset++) {
-            unsigned int entry_start;
-            unsigned int entry_end;
-
             entry = &entries[index];
-            entry_start = (unsigned int)entry->data;
-            entry_end = entry_start + entry->size;
-            if (entry_end <= buffer_end) {
-                if (entry_start <= position && position < entry_end) {
-                    break;
+            if ((unsigned int)entry->data + entry->size <= buffer_end) {
+                if ((unsigned int)entry->data <= position &&
+                    position < (unsigned int)entry->data + entry->size) {
+                    goto found;
                 }
-            } else if ((entry_start <= position && position < buffer_end) ||
+            } else if (((unsigned int)entry->data <= position &&
+                        position < buffer_end) ||
                        (buffer_start <= position &&
-                        position < entry_end - buffer_size)) {
-                break;
+                        position < (unsigned int)entry->data + entry->size -
+                                       buffer_size)) {
+                goto found;
             }
             next = index + 1;
             index = next - capacity;
@@ -88,7 +86,9 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                 index = next;
             }
         }
-        if (offset < hn->buffer.work.ring.pts_queue.count) {
+        offset = -1;
+    found:
+        if (offset != -1) {
             index = sfpts_Wrap(read_index + offset, capacity);
             hn->buffer.work.ring.pts_queue.count -= offset;
             hn->buffer.work.ring.pts_queue.read_index = index;

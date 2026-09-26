@@ -87,14 +87,14 @@ static void _rw3DRenderPrimitiveInit(const RwIm3DStash* stash)
 
 
 /* Submit transformed immediate-mode vertices to GX, with optional texcoords. */
-/* TODO: Retail keeps the two triangle divisors in GPRs and materializes NULL;
- * this O0 build spills the clean divisor locals and compares NULL immediately. */
+/* TODO: [blocked] 98.76% with current flags; object needs "-O4,s" in configure.py
+ * (literal /3 then lowers to li+divw); scratch compile with it is unit-exact. */
 static int DlSubmitNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RwIm3DStash* stash = &_rwDlImmPool->stash;
     RwIm3DVertex* vertices = _rwDlImmPool->transformData.vertices;
-    if (NULL != stash->renderData.indices) {
+    if ((RwImVertexIndex*)NULL != stash->renderData.indices) {
         const RwImVertexIndex* indices = stash->renderData.indices;
 
         _rw3DRenderPrimitiveInit(stash);
@@ -122,10 +122,8 @@ static int DlSubmitNode(
             break;
         }
         case rwPRIMTYPETRILIST: {
-            unsigned int verticesPerTriangle = 3;
             unsigned short primitiveCount =
-                (unsigned short)((unsigned int)stash->renderData.numIndices /
-                                 verticesPerTriangle);
+                (unsigned short)((unsigned int)stash->renderData.numIndices / 3);
             if ((stash->flags & 1) != 0) {
                 while (primitiveCount-- != 0) {
                     RwIm3DVertex* vertex = &vertices[*indices];
@@ -210,9 +208,8 @@ static int DlSubmitNode(
             break;
         }
         case rwPRIMTYPETRILIST: {
-            int verticesPerTriangle = 3;
             unsigned short primitiveCount =
-                _rwDlImmPool->transformData.numVertices / verticesPerTriangle;
+                _rwDlImmPool->transformData.numVertices / 3;
             if ((stash->flags & 1) != 0) {
                 while (primitiveCount-- != 0) {
                     rwSubmitTexturedVertex(vertices);

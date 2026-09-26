@@ -40,21 +40,15 @@ static inline void MPVCDEC_ClearCoefficients(f64** cursor)
     *(*cursor)++ = 0.0;
 }
 
-/* TODO: [breakthrough needed] 92.558136%; retail forms a context-relative
- * block address inside the arm; typed cursors hoist it, indexed form regresses. */
 s32 MPVCDEC_NintraBlocks(MPVContext* context)
 {
-    MPVCodingBlock* block;
-    DctFsriParams* params;
-    f32* coefficients;
-    s8* nonzero;
     s32 pattern;
     s32 index;
+    MPVCodingBlock* block;
+    DctFsriParams* params;
 
-    block = &context->coding.block;
     params = &context->dct_state;
-    coefficients = &context->transform.coefficients[0][0];
-    nonzero = params->block_nonzero;
+    block = &context->coding.block;
     block->quantizer_scale = context->quantizer_scale;
     block->quant_matrix = (const u8*)context->nonintra_quant_matrix;
     context->coding.non_intra_mode = 1;
@@ -62,12 +56,11 @@ s32 MPVCDEC_NintraBlocks(MPVContext* context)
     params->coded_block_pattern = pattern;
     for (index = 0; index < 6; index++) {
         if (pattern < 0) {
-            block->coefficients = coefficients;
-            *nonzero = context->decode_nonintra_block(context, block);
+            block->coefficients = context->transform.coefficients[index];
+            params->block_nonzero[index] =
+                context->decode_nonintra_block(context, block);
         }
         pattern = (s32)((u32)pattern << 1);
-        coefficients += 64;
-        nonzero++;
     }
     DCT_FsriTransCbp(params);
     return 0;

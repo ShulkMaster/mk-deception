@@ -94,8 +94,8 @@ int ScreenStopAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
     return 1;
 }
 
-/* TODO: [near miss] 99.80769%; byte-flag GPR coloring remains; a direct byte
- * local regressed, and the C++ permuter parser rejects class declarations. */
+/* TODO: [near miss] 99.80769%; flag copy takes r31 not retail's dead-screen r29;
+ * byte-local and declaration-order forms neutral/worse; stop at coloring. */
 int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                  int /*dt*/) {
     ScreenParams* params;
