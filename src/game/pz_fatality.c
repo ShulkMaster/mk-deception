@@ -3188,8 +3188,8 @@ static float pz_fighters_chomper2_fatality_prep(void) {
   return 0.0f;
 }
 
-/* TODO: [near miss] 99.32796%; coordinate FPRs recovered; retail duplicate
- * dispatch branch and register/pooled references remain. */
+/* TODO: [near miss] 99.87%; coordinate FPRs and the empty state-4 dispatch
+ * branch recovered; local struct-copy relocation/register residue remains. */
 static float pz_fighters_chomper2_fatality_in_progress(void) {
     static int launch_sounds = 1;
     static int launch_more_meat_chunks = 1;
@@ -3294,6 +3294,8 @@ static float pz_fighters_chomper2_fatality_in_progress(void) {
             snd_major_hit_voice();
             g_pz_fighter_fatality_engine.active_effect = 4;
         }
+        break;
+    case 4:
         break;
     }
 
