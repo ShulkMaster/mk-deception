@@ -3,19 +3,11 @@
 #include "game/game_info.h"
 #include "runtime/mk_proc.h"
 
-/* Contiguous retail string pool - keep layout; access via named offsets. */
-static const char stringBase0[] =
-    "uninitalized\0"
-    "konquest/popups/k_generic_popup\0"
-    "common/c_generic_popup\0"
-    "Current scheme is: %d\n\0"
-    "pause_menu/pause_generic_popup";
-
-#define STR_UNINITIALIZED (&stringBase0[0])
-#define STR_KONQUEST_POPUP (&stringBase0[0xD])
-#define STR_COMMON_POPUP (&stringBase0[0x2D])
-#define STR_SCHEME_DEBUG_FMT (&stringBase0[0x44])
-#define STR_PAUSE_POPUP (&stringBase0[0x5B])
+#define STR_UNINITIALIZED "uninitalized"
+#define STR_KONQUEST_POPUP "konquest/popups/k_generic_popup"
+#define STR_COMMON_POPUP "common/c_generic_popup"
+#define STR_SCHEME_DEBUG_FMT "Current scheme is: %d\n"
+#define STR_PAUSE_POPUP "pause_menu/pause_generic_popup"
 
 #define GAME_STATE_MCARD_HAULT 0x1A
 #define MCARD_MSG_ROUTINE_MAX 0x2E
