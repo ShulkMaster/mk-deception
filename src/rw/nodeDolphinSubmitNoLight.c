@@ -87,8 +87,8 @@ static void _rw3DRenderPrimitiveInit(const RwIm3DStash* stash)
 
 
 /* Submit transformed immediate-mode vertices to GX, with optional texcoords. */
-/* TODO: [blocked] 98.76% with current flags; object needs "-O4,s" in configure.py
- * (literal /3 then lowers to li+divw); scratch compile with it is unit-exact. */
+/* TODO: [review] needs the `(RwImVertexIndex*)NULL` pointer-constant cast (rwplcore NULL
+ * is plain 0) and object -O4,s; link still blocked by GX helper section placement. */
 static int DlSubmitNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {

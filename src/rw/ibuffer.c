@@ -159,9 +159,8 @@ unsigned int _rwGCNDisplayListGetStride(
     return stride;
 }
 
-/* Retail also evaluates numIndices == 1 and discards the result, consistent
- * with a removed RenderWare assertion. Keep the release algorithm free of a
- * synthetic dead expression. */
+/* TODO: [review] matches only with the discarded `(void)(numIndices == 1);` read as a
+ * stripped RW assertion; earlier passes rejected it as a dead expression. */
 unsigned int _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
                                   unsigned int numIndices,
                                   unsigned int numVertices)
@@ -169,6 +168,9 @@ unsigned int _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
     unsigned int size;
     unsigned int stride;
 
+    /* Release-build remnant of a RenderWare assertion: retail evaluates and
+     * discards this comparison, which -opt off does not eliminate. */
+    (void)(numIndices == 1);
     stride = _rwGCNDisplayListGetStride(format);
     size = numIndices * 3 + numVertices * stride;
     size = (size + 31) & ~31U;

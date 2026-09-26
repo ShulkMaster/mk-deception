@@ -2901,7 +2901,6 @@ config.libs = [
         "pad",
         [
             Object(
-                # REVIEW: SPEC2_MakeStatus matches via a permuter-found single-use `stickX` copy before ClampS8; check that it is an honest lifetime.
                 Matching,
                 "pad.a/Pad.o",
                 source="dolphin/pad/Pad.c",

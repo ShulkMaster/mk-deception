@@ -1,6 +1,8 @@
 #include "cri/mps.h"
 #include "sofdec/uty_mem.h"
 
+/* TODO: [review] link-exact .bss order relies on RE4-backed shape: unreferenced
+ * mpslib_init_cnt, plain-static mpslib_check_handle, and stripped MPS_GetVerStr. */
 static MpsHandle* mpslib_hn_last;
 static const char* cri_verstr_ptr;
 MpsLibWork* MPSLIB_libwork;

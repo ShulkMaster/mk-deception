@@ -1,6 +1,7 @@
 #include "rw/gamecube.h"
 
-/* TODO: [near miss] 99.35518%; retail computes an unused absent-position boolean; stop without a dead sink. */
+/* TODO: [review] matches only with the discarded `(void)(positionPresent == 0);` read as a
+ * stripped RW assertion; earlier passes rejected it as a dead expression. */
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                             const RwGameCubeVertexBuffer* vertexBuffer,
                             const RwGameCubeVertexData* data,
@@ -29,6 +30,10 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                         scale, data->counts[attribute],
                         vertexBuffer->arrays[streamIndex].stride, remap);
                     streamIndex++;
+                } else {
+                    /* Release-build remnant of a RenderWare assertion: retail
+                     * evaluates and discards this comparison at -opt off. */
+                    (void)(positionPresent == 0);
                 }
             }
             break;

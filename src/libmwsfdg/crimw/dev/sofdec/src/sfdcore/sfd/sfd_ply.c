@@ -59,6 +59,8 @@ int SFD_GetFrm(SfdHandle* handle, void** frame)
     return result;
 }
 
+/* TODO: [review] RE4 carries these two stripped public functions; they are kept only
+ * because they restore the retail .bss first-reference order. */
 /* Public CRI queries unreferenced in MKD (stripped at link); their order here
  * sets the retail .bss first-reference order. */
 int SFPLY_GetLastHnCtrlWkSiz(void) {

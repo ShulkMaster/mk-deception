@@ -185,25 +185,33 @@ int get_number_items_in_inventory(void) {
     return count;
 }
 
-/* TODO: [near miss] 91.85185%; equivalent category exits remain folded;
- * flat and nested switch controls differ; retain guards pending dispatch evidence. */
+/* TODO: [review] switch shape is forced by retail's 1/13/7 compare tree: 0+default, 1, 2..6
+ * and 7..12 must be separate targets in this order; 16 alternatives regressed. */
 void add_to_konq_profile_value(int type, int value) {
     int current;
 
-    if (type == 1) {
+    switch (type) {
+    case 1:
+        break;
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+        return;
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+        current = get_konq_profile_value(type, 0);
+        set_konq_profile_value(type, 0, current + value);
+        break;
+    case 0:
+    default:
         return;
     }
-    if (type < 1) {
-        return;
-    }
-    if (type >= 0xD) {
-        return;
-    }
-    if (type < 7) {
-        return;
-    }
-    current = get_konq_profile_value(type, 0);
-    set_konq_profile_value(type, 0, current + value);
 }
 
 int get_konq_profile_value(int type, int index) {
