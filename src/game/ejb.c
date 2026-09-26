@@ -359,6 +359,13 @@ EjbPlyrForcePdata* plyr_force_pdata;
         }                                                                \
     } while (0)
 
+static inline void ejb_anim_advance_to_frame(AnimPdata* animation, float target_frame) {
+    if (target_frame > animation->high_frame) {
+        target_frame = animation->high_frame;
+    }
+    EJB_ADVANCE_TO_FRAME(animation, target_frame);
+}
+
 static inline void set_my_state_impl(int state) {
     plyr_pdata->previous_state = plyr_pdata->state;
     plyr_pdata->state = state;
@@ -1758,20 +1765,21 @@ void if_collision_autoface_me(void) {
     }
 }
 
+/* TODO: [near miss] 98.23%; clamp and frame wait agree; plyr_anim_pdata loads via r3 plus mr r30 instead of directly into r30. */
 void if_collision_slow_ani_x(float speed, float frame) {
-    float old_speed;
     float target_frame;
+    float old_speed;
     AnimPdata* anim;
 
     old_speed = plyr_anim_pdata->step;
     if (plyr_pdata->collision_result != 0) {
         plyr_anim_pdata->step = speed;
     }
-    anim = plyr_anim_pdata;
     target_frame = frame;
-    if (target_frame > anim->high_frame) {
-        target_frame = anim->high_frame;
+    if (target_frame > plyr_anim_pdata->high_frame) {
+        target_frame = plyr_anim_pdata->high_frame;
     }
+    anim = plyr_anim_pdata;
     EJB_ADVANCE_TO_FRAME(anim, target_frame);
     plyr_anim_pdata->step = old_speed;
 }
@@ -5066,11 +5074,7 @@ float back_rollup_check(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.86793%; canonical frame wait agrees; known animation-owner register move and literal identities remain; stop at compiler limit */
 float back_to_crouch(void) {
-    AnimPdata* animation;
-    float target_frame;
-
     force_away(10, 6, 0.05f, 0.8f);
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.back_getup_6,
@@ -5078,12 +5082,7 @@ float back_to_crouch(void) {
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     plyr_anim_pdata->step = 1.5f;
-    target_frame = 12.0f;
-    animation = plyr_anim_pdata;
-    if (target_frame > animation->high_frame) {
-        target_frame = animation->high_frame;
-    }
-    EJB_ADVANCE_TO_FRAME(animation, target_frame);
+    ejb_anim_advance_to_frame(plyr_anim_pdata, 12.0f);
     transition_to_anim_script(
         plyr_anim_pdata,
         plyr_pdata->fighter_definition->duck_animation,
