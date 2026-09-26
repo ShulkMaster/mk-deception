@@ -7471,7 +7471,6 @@ void start_chunk_launch_monitor(void) {
     }
     g_chunk_launch_monitor_pdata = monitor;
 }
-/* TODO: [near miss] 99.86957%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_bgnd_launch_chunk_monitor(void) {
     BgndChunkLaunchMonitor* monitor;
     BgndChunkLaunchEntry* entry;
@@ -7507,8 +7506,9 @@ static float p_bgnd_launch_chunk_monitor(void) {
                             snd_req(0x93);
                         }
                         x = entry->object->pos.x;
-                        y = entry->object->pos.y + 0.5f;
+                        y = entry->object->pos.y;
                         z = entry->object->pos.z;
+                        y += 0.5f;
                         effect = fx_by_owner("brick_piece_explosion", 4);
                         effect = fx_next_emitter(effect);
                         if (effect != 0) {
@@ -9895,11 +9895,8 @@ void bgnd_add_wall_to_unhide(int object_id) {
         }
     }
 }
-/* Near match: 99.13%, exact 160-byte flow; append-index locals differ only in
- * temporary register allocation. */
 void bgnd_add_wall_to_hide(int object_id) {
     BgndWallHiderRuntime* runtime;
-    unsigned int index;
     MkSobj* object;
 
     if (g_game_info.wall_hider != 0) {
@@ -9913,9 +9910,7 @@ void bgnd_add_wall_to_hide(int object_id) {
                 }
             }
             runtime = g_game_info.wall_hider->runtime;
-            index = runtime->hide_count;
-            runtime->hide_count = index + 1;
-            runtime->walls_to_hide[index] = object_id;
+            runtime->walls_to_hide[runtime->hide_count++] = object_id;
         }
     }
 }
