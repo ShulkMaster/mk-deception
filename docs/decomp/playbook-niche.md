@@ -47,8 +47,9 @@ After the applicable honest source check, stop for:
   establish report-exact or link-exact status.
 - Equivalent branch/address lowering without new source evidence.
 - Vendor library code whose matched references use `goto` for a shared exit
-  (MSL `__dec2num` in bfbb/TP: `goto done`) where flag-and-break emulations
-  leave extra instructions. Stop emulating. Use the AGENTS.md last-resort
+  (MSL `__dec2num` in bfbb/TP: `goto done`; `__str2dec`: `goto round`) where
+  flag-and-break emulations leave extra instructions. Stop emulating; both
+  reference forms close `__dec2num` and `__two_exp` at 100%. Use the AGENTS.md last-resort
   `goto` exception instead: the goto must stay within the function, backed by the reference, and structured forms must be measured
   and shown to regress. Record those measurements in the report.
 - One scheduled instruction moved across a store when the body is textually

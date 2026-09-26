@@ -650,10 +650,9 @@ static u8 ClampU8(u8 var, u8 org) {
     return var -= org;
 }
 
-/* TODO: [near miss] 99.295780%; body equals matched TP/dolsdk2004; only the
- * Origin lis/BarrelBits stw order differs; version and flag probes were neutral. */
 static void SPEC2_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     PADStatus* origin;
+    s8 stickX;
 
     status->button = (u16)((data[0] >> 16) & PAD_ALL);
     status->stickX = (s8)(data[0] >> 8);
@@ -722,7 +721,8 @@ static void SPEC2_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     }
 
     origin = &Origin[chan];
-    status->stickX = ClampS8(status->stickX, origin->stickX);
+    stickX = status->stickX;
+    status->stickX = ClampS8(stickX, origin->stickX);
     status->stickY = ClampS8(status->stickY, origin->stickY);
     status->substickX = ClampS8(status->substickX, origin->substickX);
     status->substickY = ClampS8(status->substickY, origin->substickY);

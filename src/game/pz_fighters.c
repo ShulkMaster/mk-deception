@@ -292,7 +292,7 @@ void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);
-/* TODO: [near miss] 98.085106%; coordinate FPR allocation remains;
+/* TODO: [near miss] 98.43%; coordinate load order/FPR allocation remains;
  * declaration-order trial is neutral, retain the typed squared-distance math. */
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
@@ -2183,7 +2183,7 @@ void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y) {
     int player;
 
     player = 0;
-    if ((int)fighter->oid == 0x1002) {
+    if (fighter->oid == 0x1002) {
         player = 1;
     }
     if (enabled == 0) {
@@ -3242,7 +3242,7 @@ void pz_fighters_calc_distance_to_desired_idle_pos_abs(
 
     dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
     dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    *player1_distance = dx * dx + dz * dz;
+    *player1_distance = dz * dz + dx * dx;
     *player1_absolute = *player1_distance;
     if (dx > 0.0f) {
         *player1_distance = -1.0f * *player1_distance;
@@ -3518,7 +3518,7 @@ float p_plyr_pz_fighter_entry(void) {
     plyr_obj->flags_09_bits.bit4 = 1;
     back_to_normal();
     player = 0;
-    if ((int)plyr_obj->oid == 0x1002) {
+    if (plyr_obj->oid == 0x1002) {
         player = 1;
     }
     plyr_obj->flags_09_bits.launched = 1;

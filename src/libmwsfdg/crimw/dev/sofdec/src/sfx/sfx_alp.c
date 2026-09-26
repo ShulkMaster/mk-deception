@@ -75,8 +75,8 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.638885%; search CFG and stores match retail; remaining
- * constant scheduling/register coloring would require rejected register forcing. */
+/* TODO: [near miss] 84.64%; CFG/stores exact; li 0xFF must schedule after stw 100
+ * (shared r0); RE4's only match seeds that via register + inline asm, so stop. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {

@@ -90,10 +90,10 @@ int get_shared_art_section_for_plyr_pdata(PlyrPdata* pdata) {
 }
 
 int get_shared_art_section_for_player(SharedArtPlayer* player) {
-    if ((int)player->oid == 0x1001) {
+    if (player->oid == 0x1001) {
         return 0x3000B;
     }
-    if ((int)player->oid == 0x1002) {
+    if (player->oid == 0x1002) {
         return 0x4000B;
     }
     return -1;

@@ -17,8 +17,8 @@ volatile unsigned short __DSPRegs[] : 0xCC005000;
 
 #define DSP_WORK_BUFFER ((void*)0x81000000)
 
-/* TODO: [near miss] 96.531530%; MMIO order and DSP algorithm agree; remaining
- * register/lifetime residue depends on a prohibited donor dead read. */
+/* TODO: [near miss] 97.972980%; frame is 8 bytes short (donor dead errFlag store fixes it) and
+ * the |=4/0x8AC r0 schedule needs a donor dead reg16 compare; both prohibited, stop. */
 void __OSInitAudioSystem(void)
 {
     unsigned short reg16;
@@ -64,9 +64,8 @@ void __OSInitAudioSystem(void)
     while (!(reg16 & 0x8000)) {
         reg16 = __DSPRegs[2];
     }
-    if ((((unsigned long)((reg16 << 16) | __DSPRegs[3])) + 0x7FAC0000UL) != 0x4348) {
-        /* The retail assertion body is compiled out in non-debug builds. */
-    }
+    /* Retail evaluates the DSP reply check but its assertion body is compiled out. */
+    (void)((((unsigned long)((reg16 << 16) | __DSPRegs[3])) + 0x7FAC0000UL) == 0x4348);
 
     __DSPRegs[5] |= 4;
     __DSPRegs[5] = 0x8AC;

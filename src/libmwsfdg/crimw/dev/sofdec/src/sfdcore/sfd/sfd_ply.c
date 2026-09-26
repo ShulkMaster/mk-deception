@@ -59,6 +59,20 @@ int SFD_GetFrm(SfdHandle* handle, void** frame)
     return result;
 }
 
+/* TODO: [review] RE4 carries these two stripped public functions; they are kept only
+ * because they restore the retail .bss first-reference order. */
+/* Public CRI queries unreferenced in MKD (stripped at link); their order here
+ * sets the retail .bss first-reference order. */
+int SFPLY_GetLastHnCtrlWkSiz(void) {
+    return sfply_last_hnctrl_wksiz;
+}
+
+void SFPLY_SetPtsmFn(SfdPlayerSetPtsInfoFn setfn,
+                     void (*resetfn)(SfdPtsManager* pts)) {
+    SFPLY_SetPtsInfo = setfn;
+    SFPLY_ResetPtsm = resetfn;
+}
+
 int SFD_TermSupply(SfdHandle* handle)
 {
     int buffer_index;
@@ -76,38 +90,35 @@ int SFD_TermSupply(SfdHandle* handle)
 }
 
 #pragma auto_inline off
-/* TODO: [near miss] 97.695120%; supply expansion and snapshot match retail;
- * only frame-slot/register coloring remains, so stop without codegen tricks. */
 static int sfply_ResetHn(SfdHandle* handle)
 {
-    SfdBufferSupply supply;
+    int saved_count;
     SfdCreateConfig create;
-    SfdErrorCallback error_callback;
-    SfdHandle* new_handle;
-    SfdHandle* seek_source;
+    unsigned int conditions[100];
     int saved_conditions[16];
-    SfdUserIsSkipFn user_is_skip_callback;
-    SfdTimeSourceFn user_time_callback;
-    int byte_rate;
-    int error;
+    SfdBufferTransfer supply;
+    SfdPtsManager video_pts;
+    int preserve_supply;
+    int old_supply_end = 0;
+    int new_supply_end;
+    SfdErrorCallback error_callback;
     SfdCallbackObject error_object;
+    SfdTimeSourceFn user_time_callback;
+    SfdExternalClockFn external_clock_callback;
     int external_clock_arg0;
     SfdCallbackObject external_clock_arg1;
-    SfdExternalClockFn external_clock_callback;
-    int file_size;
-    int old_supply_end;
-    int preserve_supply;
-    int saved_count;
-    int seek_position;
+    SfdUserIsSkipFn user_is_skip_callback;
     int speed;
-    int total_time_scale;
+    SfdHandle* seek_source;
+    int byte_rate;
+    int file_size;
     int total_time_value;
-    int video_pts_scale;
+    int total_time_scale;
+    int seek_position;
     void* video_pts_entries;
-    unsigned int conditions[100];
-    SfdPtsManager video_pts;
+    int video_pts_scale;
+    int error;
 
-    old_supply_end = 0;
     create = handle->create_config;
     preserve_supply = handle->conditions_primary[8];
     if (preserve_supply != 0) {
@@ -117,13 +128,12 @@ static int sfply_ResetHn(SfdHandle* handle)
             SFTRN_CallTrtTrif(handle, 0, 9,
                               (SfdTransportValue)&supply, 0);
         }
-        old_supply_end = supply.field_14;
+        old_supply_end = supply.reserved[1];
     }
-
     SFHDS_FinishFhd(&handle->header_state);
     SFBUF_DestroySj(handle);
-    error_callback = handle->error_info.callback;
     error_object = handle->error_info.callback_object;
+    error_callback = handle->error_info.callback;
     user_time_callback = handle->timer_state.time_sources[4];
     external_clock_callback = handle->timer_state.external_clock_callback;
     external_clock_arg0 = handle->timer_state.external_clock_wrap;
@@ -139,19 +149,18 @@ static int sfply_ResetHn(SfdHandle* handle)
         total_time_scale = seek_source->timer_state.stream_time.total_time_scale;
         seek_position = seek_source->timer_state.stream_time.seek_position;
     } else {
-        byte_rate = 0;
-        file_size = 0;
-        total_time_value = 0;
-        total_time_scale = 0;
         seek_position = 0;
+        total_time_scale = 0;
+        total_time_value = 0;
+        file_size = 0;
+        byte_rate = 0;
     }
-    video_pts_entries = handle->buffers[1].work.ring.pts_queue.entries;
     video_pts_scale =
         handle->buffers[1].work.ring.pts_queue.capacity *
         (int)sizeof(SfdPtsEntry);
+    video_pts_entries = handle->buffers[1].work.ring.pts_queue.entries;
     saved_count = SFMPV_SaveCond(handle, saved_conditions,
                                 sizeof(saved_conditions));
-
     handle->playback_state = 0;
     handle->requested_state = 0;
     error = SFTRN_CallTrSetup(handle, 4);
@@ -159,71 +168,66 @@ static int sfply_ResetHn(SfdHandle* handle)
         return error;
     }
     MEM_Copy(conditions, handle->conditions_secondary, sizeof(conditions));
-    new_handle = sfply_InitHn(&create, 0);
-    if (new_handle == 0) {
+    handle = sfply_InitHn(&create, 0);
+    if (handle == 0) {
         return SFLIB_SetErr(0, 0xFF000202);
     }
-    MEM_Copy(new_handle->conditions_primary, conditions, sizeof(conditions));
-    MEM_Copy(new_handle->conditions_secondary, conditions,
-             sizeof(conditions));
-    SFMPV_RestoreCond(new_handle, saved_conditions, saved_count);
-
+    MEM_Copy(handle->conditions_primary, conditions, sizeof(conditions));
+    MEM_Copy(handle->conditions_secondary, conditions, sizeof(conditions));
+    SFMPV_RestoreCond(handle, saved_conditions, saved_count);
     if (preserve_supply != 0) {
-        int new_supply_end;
-
-        if (SFLIB_CheckHn(new_handle) != 0) {
+        if (SFLIB_CheckHn(handle) != 0) {
             error = SFLIB_SetErr(0, 0xFF000134);
         } else {
-            error = SFTRN_CallTrtTrif(new_handle, 0, 9,
+            error = SFTRN_CallTrtTrif(handle, 0, 9,
                                       (SfdTransportValue)&supply, 0);
         }
         if (error != 0) {
             return error;
         }
-        new_supply_end = supply.field_14;
-        if (SFLIB_CheckHn(new_handle) != 0) {
+        new_supply_end = supply.reserved[1];
+        if (SFLIB_CheckHn(handle) != 0) {
             error = SFLIB_SetErr(0, 0xFF000135);
         } else {
-            error = SFTRN_CallTrtTrif(new_handle, 0, 0x0A, old_supply_end,
+            error = SFTRN_CallTrtTrif(handle, 0, 0x0A, old_supply_end,
                                       new_supply_end);
         }
         if (error != 0) {
             return error;
         }
-        SFD_TermSupply(new_handle);
+        SFD_TermSupply(handle);
     }
-
     if (error_callback != 0) {
-        SFD_SetErrFn(new_handle, error_callback, error_object);
+        SFD_SetErrFn(handle, error_callback, error_object);
     }
     if (user_time_callback != 0) {
-        SFD_SetUsrTimeFn(new_handle, user_time_callback);
+        SFD_SetUsrTimeFn(handle, user_time_callback);
     }
     if (external_clock_callback != 0) {
-        SFD_SetExtClockFn(new_handle, external_clock_callback,
+        SFD_SetExtClockFn(handle, external_clock_callback,
                           external_clock_arg0, external_clock_arg1);
     }
     if (user_is_skip_callback != 0) {
-        SFD_SetUsrIsSkipFn(new_handle, user_is_skip_callback);
+        SFD_SetUsrIsSkipFn(handle, user_is_skip_callback);
     }
     if (speed != 1000) {
-        SFD_SetSpeed(new_handle, speed);
+        SFD_SetSpeed(handle, speed);
     }
     if (video_pts.field_00 != 0) {
-        new_handle->timer_state.video_pts = video_pts;
+        handle->timer_state.video_pts = video_pts;
         if (SFPLY_ResetPtsm != 0) {
             SFPLY_ResetPtsm(&video_pts);
         }
     }
     if (seek_source != 0) {
-        SFD_EntrySeek(new_handle, (SfdSeeWork*)seek_source);
-        SFD_SetByteRate(new_handle, byte_rate);
-        SFD_SetFileSize(new_handle, file_size);
-        SFD_SetTotTime(new_handle, total_time_value, total_time_scale);
-        SFD_SetSeekPos(new_handle, seek_position);
+        SFD_EntrySeek(handle, (SfdSeeWork*)seek_source);
+        SFD_SetByteRate(handle, byte_rate);
+        SFD_SetFileSize(handle, file_size);
+        SFD_SetTotTime(handle, total_time_value, total_time_scale);
+        SFD_SetSeekPos(handle, seek_position);
     }
     if (video_pts_entries != 0) {
-        SFD_SetVideoPts(new_handle, video_pts_entries, video_pts_scale);
+        SFD_SetVideoPts(handle, video_pts_entries, video_pts_scale);
     }
     return 0;
 }

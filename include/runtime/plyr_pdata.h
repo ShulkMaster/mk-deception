@@ -298,6 +298,7 @@ typedef struct PlyrPdata {
     union {
         PlyrFighterDefinition* fighter_definition;
         GlobalMoveset* global_moveset;
+        struct FatalityWeaponReflectionSet* weapon_reflections;
     }; /* +0x30C */
     PlyrMirrorSlots* mirror_slots; /* +0x310 */
     union {

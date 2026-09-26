@@ -151,25 +151,23 @@ static inline void __str2dec(decimal* d, const char* s, s16 exp)
 	d->sig.length = i;
 
 	if (*s != 0) {
-		do {
-			const char* p;
+		if (*s < 5)
+			return;
+		if (*s > 5)
+			goto round;
 
-			if (*s < 5)
-				return;
-			if (*s > 5)
-				break;
+		{
+			const char* p = s + 1;
 
-			p = s + 1;
-			while (*p != 0) {
+			for (; *p != 0; p++) {
 				if (*p != '0')
-					break;
-				p++;
+					goto round;
 			}
-			if (*p != 0)
-				break;
+
 			if ((d->sig.text[i - 1] & 1) == 0)
 				return;
-		} while (FALSE);
+		}
+	round:
 		__dorounddecup(d, d->sig.length);
 	}
 }
@@ -215,7 +213,6 @@ static inline BOOL __less_dec(const decimal* x, const decimal* y)
 	return x->exp < y->exp;
 }
 
-/* TODO: [breakthrough] 99.06439%; null-first scan retained; terminal-in-loop scan regressed; shared rounding exit remains. */
 f64 __dec2num(const decimal* d)
 {
 	if (d->sig.length <= 0) {
@@ -325,32 +322,31 @@ f64 __dec2num(const decimal* d)
 
 		first_guess = ldexp(first_guess, exponent);
 
-		do {
-			decimal feedback1;
+		if (isinf(first_guess)) {
+			decimal max;
+			__str2dec(&max, "179769313486231580793729011405303420", 308);
+			if (__less_dec(&max, &dec))
+				goto done;
+			first_guess = DBL_MAX;
+		}
 
-			if (isinf(first_guess)) {
-				decimal max;
-				__str2dec(&max, "179769313486231580793729011405303420", 308);
-				if (__less_dec(&max, &dec))
-					break;
-				first_guess = DBL_MAX;
-			}
+		{
+			decimal feedback1;
 
 			__num2dec_internal(&feedback1, first_guess);
 
 			if (__equals_dec(&feedback1, &dec))
-				break;
+				goto done;
 
 			if (__less_dec(&feedback1, &dec)) {
 				decimal feedback2, difflow, diffhigh;
 				f64 next_guess = first_guess;
 				u64* ull       = (u64*)&next_guess;
-				BOOL finished   = FALSE;
 				++*ull;
 
 				if (isinf(next_guess)) {
 					first_guess = next_guess;
-					break;
+					goto done;
 				}
 
 				__num2dec_internal(&feedback2, next_guess);
@@ -361,13 +357,10 @@ f64 __dec2num(const decimal* d)
 					++*ull;
 					if (isinf(next_guess)) {
 						first_guess = next_guess;
-						finished = TRUE;
-						break;
+						goto done;
 					}
 					__num2dec_internal(&feedback2, next_guess);
 				}
-				if (finished)
-					break;
 
 				__minus_dec(&difflow, &dec, &feedback1);
 				__minus_dec(&diffhigh, &feedback2, &dec);
@@ -405,7 +398,8 @@ f64 __dec2num(const decimal* d)
 					first_guess = next_guess;
 				}
 			}
-		} while (FALSE);
+		}
+	done:
 		if (dec.sign) {
 			first_guess = -first_guess;
 		}
@@ -626,7 +620,6 @@ static BOOL __equals_dec(const decimal* x, const decimal* y)
 	return FALSE;
 }
 
-/* TODO: [breakthrough] 96.86711%; null-first scan retained; terminal-in-loop scan regressed; post-loop test remains. */
 static void __two_exp(decimal* result, s32 exp)
 {
 	switch (exp) {

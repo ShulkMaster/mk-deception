@@ -144,10 +144,10 @@ typedef struct KonquestMissionState {
     int field_2E8;                     /* +0x2E8 */
     int current_setup_function;        /* +0x2EC */
     int next_setup_function;           /* +0x2F0 */
-    int winner_end_function;           /* +0x2F4 */
-    int loser_end_function;            /* +0x2F8 */
+    unsigned int winner_end_function;  /* +0x2F4 */
+    unsigned int loser_end_function;   /* +0x2F8 */
     unsigned int tick_script_function; /* +0x2FC */
-    unsigned int display_flags;        /* +0x300 */
+    int display_flags;                 /* +0x300 */
     unsigned int player_one_switch_state; /* +0x304 */
     unsigned int player_two_switch_state; /* +0x308 */
     int field_30C;                     /* +0x30C */
@@ -409,8 +409,9 @@ void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval);
 void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
-void pfx_2d_obj_set_alpha(ScreenObj* object, int alpha);
+void pfx_2d_obj_set_alpha(ScreenObj* object, unsigned char alpha);
 void duck_sounds(float volume);
+unsigned int randu0(unsigned int max);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
 unsigned int fx_next_emitter(unsigned int handle);
 void fx_restart_emit(unsigned int handle);
@@ -677,11 +678,9 @@ static inline KonquestMissionState* get_mission_state(void) {
         if (state->hdr.instance == mission_state_item.instance) {
             return state;
         }
-        state = 0;
-    } else {
-        state = 0;
+        return 0;
     }
-    return state;
+    return 0;
 }
 
 static inline MkObj* get_mission_monk(void) {
@@ -3077,6 +3076,8 @@ void trial_start_new_round(void) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
+/* TODO: [near miss] 98.829865%; typed alpha/function/flag fields, narrowed sign index and
+ * mission latch fixed; sign-position argument scheduling and GPR coloring remain. */
 int trial_end_round(void) {
     KonquestMissionState* state;
     KonquestRequiredSequenceList* sequences;
@@ -3090,6 +3091,7 @@ int trial_end_round(void) {
     int retry;
     int value;
     int i = 0x168;
+    unsigned short sign_index;
     unsigned char alpha;
 
     g_game_info.flag_bits.field_bit6 = 0;
@@ -3170,9 +3172,10 @@ int trial_end_round(void) {
                 _mkproc_sleep_ticks = 15.0f;
                 aproc->vtbl->sleep();
                 snd_req(0x15E8);
+                sign_index = randu0(3);
                 sign = load_2d_pfxobj_xy(
                     0x2001E, 0x9009,
-                    get_trial_sign_list()[randu0(3)], 0,
+                    get_trial_sign_list()[sign_index], 0,
                     ((screen_width - 0x280) / 2) + 0xC0,
                     0x138, 0x24);
                 if (sign != 0) {
@@ -3966,13 +3969,12 @@ static inline MkProc* mission_validate_monk_process(
     return object;
 }
 
-/* TODO: [near miss] 98.544304%; register coloring, instruction scheduling; one-trial ceiling. */
 static float p_transform_into_player(void) {
-    MkProc* monk_process = mission_state->monk_process;
+    MkProc* monk_process;
     AnimPdata* animation;
     MkProc* player_process;
 
-    monk_process = mission_validate_monk_process(monk_process, mission_state);
+    monk_process = mission_validate_monk_process(mission_state->monk_process, mission_state);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = 0.8f;

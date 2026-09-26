@@ -435,16 +435,18 @@ void clear_all_lights_in(MkPtr** list) {
 }
 
 void load_lights(LightDef** defs, MkPtr** list) {
+    LightDef** cur;
     int index;
 
     main_plyr_light_created = 0;
+    cur = defs;
     index = 0;
     while (index < 3) {
-        if (defs[0] != 0) {
-            load_light(defs[0], list, 0);
+        if (cur[0] != 0) {
+            load_light(cur[0], list, 0);
         }
         index += 1;
-        defs += 1;
+        cur += 1;
     }
 }
 

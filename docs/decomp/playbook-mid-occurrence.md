@@ -90,6 +90,9 @@ reused remainder in the drop branch, raises `sfmpv_Pts2Tc` to 95.630250% at the
 retail 476-byte extent. Stop there when the paired diff is only GPR coloring;
 do not invent a dependency to force the donor's register allocation.
 
+M15 split-literal addendum | IF retail addresses adjacent strings as `@stringBase0 + n` but source spells one literal with embedded NULs plus offsets, REQUIRE the retail pool bytes. TRY separate literals and object-scope `-str reuse,pool,readonly`; `mk_obj` gains in `obj_sever_limb`, `limb_sever_reset_limbs` and `.rodata` with no regression.
+M16 separate-object addendum | IF source overlays several retail .bss/.data symbols with one invented aggregate (or pads an object with a trailing word), REQUIRE the ELF symbol list. TRY the separate objects with retail names, then fix first-use order with the donor's linker-discarded setter (`mwPlySetFrmBuf` in `mwsfdcre`, as in RE4) and verify with `nm -n -S` against the split object. Neighbors may change schedule; measure them and disclose.
+
 M15 deferred-order addendum | IF parse-time symbols (anonymous `.rodata`
 initializer tables, `name$N` statics, `.sbss2`/`.sdata2` aggregate copies)
 carry numbers that fall through retail `.text` while ours rise, REQUIRE that

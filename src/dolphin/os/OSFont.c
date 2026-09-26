@@ -18,7 +18,7 @@ typedef int BOOL;
 #define VI_DEBUG_PAL 4
 #define VI_DTV_STAT 55
 
-#define __VIRegs ((volatile u16*)0xCC002000)
+volatile u16 __VIRegs[] : 0xCC002000;
 
 typedef char* (*ParseStringCallback)(u16, char*, OSFontHeader**, int*);
 
@@ -548,7 +548,6 @@ int OSInitFont(OSFontHeader* fontData) {
     return 1;
 }
 
-/* TODO: [near miss] 98.902176%; shared __VIRegs declaration trial improved this function to 99.32609% but regressed exact OSFont symbols; retained macro form is the honest TU-wide ceiling. */
 char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* width) {
     OSFontHeader* font;
     u16 encode;

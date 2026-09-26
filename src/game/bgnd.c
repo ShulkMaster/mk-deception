@@ -3539,7 +3539,7 @@ static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
     }
 }
 /*
- * Exact-size 99.36% near match. Calls, switch lowering, coordinate projection,
+ * Exact-size 99.91% near match. Calls, switch lowering, coordinate projection,
  * arithmetic, and access widths match retail; residue is constant-pool
  * relocation identity in the partially imported translation unit.
  */
@@ -3551,13 +3551,14 @@ static void bl_process_general_movement(
     float heading;
     float heading_step;
     float motion_scale;
+    float angle;
     float x;
     float y;
     float z;
 
     direction_roll = (unsigned short)randu0(100);
     if (--beetle->heading_ticks <= 0) {
-        if (surface != 0) {
+        if (surface != 0u) {
             x = target->x - beetle->position.x;
             y = target->y - beetle->position.y;
             z = target->z - beetle->position.z;
@@ -3628,12 +3629,12 @@ static void bl_process_general_movement(
     }
 
     beetle->heading_degrees += beetle->heading_step;
-    heading = (3.1415927f * beetle->heading_degrees) / 180.0f;
+    angle = (3.1415927f * beetle->heading_degrees) / 180.0f;
     motion_scale = 1.0f + frand(0.5f);
     beetle->movement_delta_a =
-        movement_scale_a * (motion_scale * gxMathSin(heading));
+        movement_scale_a * (motion_scale * gxMathSin(angle));
     beetle->movement_delta_b =
-        movement_scale_b * (motion_scale * gxMathCos(heading));
+        movement_scale_b * (motion_scale * gxMathCos(angle));
 
     switch (surface) {
     case 4:
@@ -7470,7 +7471,6 @@ void start_chunk_launch_monitor(void) {
     }
     g_chunk_launch_monitor_pdata = monitor;
 }
-/* TODO: [near miss] 99.86957%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_bgnd_launch_chunk_monitor(void) {
     BgndChunkLaunchMonitor* monitor;
     BgndChunkLaunchEntry* entry;
@@ -7506,8 +7506,9 @@ static float p_bgnd_launch_chunk_monitor(void) {
                             snd_req(0x93);
                         }
                         x = entry->object->pos.x;
-                        y = entry->object->pos.y + 0.5f;
+                        y = entry->object->pos.y;
                         z = entry->object->pos.z;
+                        y += 0.5f;
                         effect = fx_by_owner("brick_piece_explosion", 4);
                         effect = fx_next_emitter(effect);
                         if (effect != 0) {
@@ -9850,11 +9851,8 @@ void bgnd_set_wall_hide_distance(void* script, float distance) {
     (void)script;
     g_game_info.wall_hider->hide_distance = distance;
 }
-/* Near match: 98.83%, exact size and flow; the append count/base temporaries
- * use the opposite pair of volatile registers. */
 void bgnd_add_fx_to_hide(const char* effect_name) {
     BgndWallHiderRuntime* runtime;
-    unsigned int effect_index;
     int effect;
 
     if (g_game_info.wall_hider != 0) {
@@ -9862,9 +9860,7 @@ void bgnd_add_fx_to_hide(const char* effect_name) {
         if (runtime != 0 && runtime->hidden_effect_count < 4) {
             effect = fx_by_owner(effect_name, 4);
             runtime = g_game_info.wall_hider->runtime;
-            effect_index = runtime->hidden_effect_count;
-            runtime->hidden_effect_count = effect_index + 1;
-            runtime->hidden_effects[effect_index] = effect;
+            runtime->hidden_effects[runtime->hidden_effect_count++] = effect;
         }
     }
 }
@@ -9899,11 +9895,8 @@ void bgnd_add_wall_to_unhide(int object_id) {
         }
     }
 }
-/* Near match: 99.13%, exact 160-byte flow; append-index locals differ only in
- * temporary register allocation. */
 void bgnd_add_wall_to_hide(int object_id) {
     BgndWallHiderRuntime* runtime;
-    unsigned int index;
     MkSobj* object;
 
     if (g_game_info.wall_hider != 0) {
@@ -9917,9 +9910,7 @@ void bgnd_add_wall_to_hide(int object_id) {
                 }
             }
             runtime = g_game_info.wall_hider->runtime;
-            index = runtime->hide_count;
-            runtime->hide_count = index + 1;
-            runtime->walls_to_hide[index] = object_id;
+            runtime->walls_to_hide[runtime->hide_count++] = object_id;
         }
     }
 }
@@ -9968,16 +9959,15 @@ void bgnd_start_wall_hider(int unused) {
         g_game_info.wall_hider = hider;
     }
 }
-/* Near match: exact 212-byte traversal and removal; only the initial list-head
- * address is kept in r3 locally instead of recomputed from the hider base. */
 void bgnd_remove_wall_from_hider(unsigned int object_id) {
     BgndWallHiderRuntime* runtime;
     MkPtr* link;
     MkPtr* next;
     unsigned int index;
+    BgndWallHiderData* hider = g_game_info.wall_hider;
 
-    if (&g_game_info.wall_hider->walls != 0) {
-        link = g_game_info.wall_hider->walls;
+    if (&hider->walls != 0) {
+        link = hider->walls;
         while (link != 0) {
             runtime = (BgndWallHiderRuntime*)link->hdr;
             if (link->instance != runtime->hdr.instance) {

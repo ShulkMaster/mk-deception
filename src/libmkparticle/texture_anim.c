@@ -3,7 +3,9 @@
 #include "libmkparticle/config.h"
 #include "libmkparticle/pfx_memory.h"
 
-/* Soft ceiling: pfx_texture_animate ~90% -- flag-test and NV register emission. */
+/* TODO: [near miss] 98.14815%; only the f31 frame_time copy is early: retail copies it
+ * after r3-r7, i.e. frame_time is the last parameter; needs header + src/game callers. */
+#pragma peephole off
 void pfx_texture_animate(PfxVm* vm, float frame_time,
                          int texture_width, int frame_width, int frame_height,
                          int frame_count) {
@@ -27,7 +29,7 @@ void pfx_texture_animate(PfxVm* vm, float frame_time,
         if ((vm->flags_0x1D4 & 0x300) == 0) {
             return;
         }
-        if ((vm->flags_0x60 & 2) == 0) {
+        if (((int)vm->flags_0x60 & 2) == 0) {
             return;
         }
     }
@@ -66,6 +68,7 @@ void pfx_texture_animate(PfxVm* vm, float frame_time,
         }
     }
 }
+#pragma peephole reset
 
 int pfx_texture_getframe(const PfxTextureAnim* anim, float time) {
     int frame;

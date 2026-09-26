@@ -16,6 +16,14 @@ enum {
     TRK_POSITION_FILE = 0xD4,
 };
 
+typedef enum {
+    TRK_FILE_OPEN_READ = 0x01,
+    TRK_FILE_OPEN_WRITE = 0x02,
+    TRK_FILE_OPEN_APPEND = 0x04,
+    TRK_FILE_OPEN_BINARY = 0x08,
+    TRK_FILE_OPEN_CREATE = 0x10,
+} TRKFileOpenMode;
+
 int __position_file(file_handle handle, file_position* position, int mode,
                     IdleProc idle)
 {
@@ -59,10 +67,9 @@ int __close_file(file_handle handle)
     }
 }
 
-/* TODO: [near miss] 98.947365%; final redundant byte mask is omitted; stop with correct byte protocol. */
 int __open_file(const char* name, FileMode* mode, FILE* file)
 {
-    u8 trk_mode;
+    TRKFileOpenMode trk_mode;
     int open_mode;
     int io_mode;
     unsigned int binary;

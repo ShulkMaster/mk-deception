@@ -334,7 +334,7 @@ typedef struct MkObj {
             char pad0D[3];
         };
     };
-    unsigned int oid;       /* +0x10 - object id / destroy mask */
+    int oid;                /* +0x10 - object id / destroy mask */
     int clump_count;        /* +0x14 - populated inline clump slots */
     union {
         RpClump* clump;      /* +0x18 - first clump */

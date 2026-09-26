@@ -46,15 +46,10 @@ typedef char TgaHeaderValuesSizeCheck[
 /*
  * Retail builds the packed 18-byte header from this word-sized description.
  * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
- * Soft ceiling: ImageWriteTGA is 96.20%; the remaining differences are
- * register allocation plus scheduling of one equivalent header-byte extract.
  */
 
-/* Retail places this mode string in .rodata; retain natural const placement. */
-static const char tga_write_mode[] = "w";
-
-/* TODO: [near miss] 94.08943%; natural const-data placement changes relocations;
- * retain ordinary declarations without section attributes. */
+/* TODO: [near miss] 96.67%; GPR coloring, one swapped header-byte extract, and
+ * retail's mr-seeded column*3 IV (ours li) remain; permuter found nothing honest. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   MkHwFileRequest *file;
   TgaHeader header;
@@ -66,7 +61,7 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   int row;
   int rows;
 
-  file = debug_file_open(path, tga_write_mode);
+  file = debug_file_open(path, "w");
   if (file != 0) {
     values.id_length = 0;
     values.color_map_type = 0;
@@ -118,17 +113,16 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
         rows = 0;
         do {
           int column;
-          int output_offset;
 
           row--;
-          output_offset = 0;
           for (column = 0; column < output_values.width; column++) {
             unsigned char *source =
                 pixels + (column + row * output_values.width) * 4;
-            destination[output_offset] = source[2];
-            destination[output_offset + 1] = source[1];
-            destination[output_offset + 2] = source[0];
-            output_offset += 3;
+            unsigned char *target = destination + column * 3;
+
+            target[0] = source[2];
+            target[1] = source[1];
+            target[2] = source[0];
           }
           rows++;
           destination += row_bytes;

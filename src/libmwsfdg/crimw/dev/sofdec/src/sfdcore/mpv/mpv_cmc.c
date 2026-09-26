@@ -12,18 +12,18 @@ void MPVCMC_SetCcnt(MPVContext* object) {
     object->output_blocks.count = count;
 }
 
-/* TODO: [near miss] 96.875%; RE4's output-block owner restores the retail
- * address formation and stores; stop at pointer/count register coloring. */
 void MPVCMC_InitMcOiRt(MPVContext* object) {
     MPVOutputBlocks* output_blocks = &object->output_blocks;
     MPVOutputBlock* output = output_blocks->blocks;
-    s32 count = 4;
+    s32 count;
     s32 first_stride;
     s32 remaining_stride;
     s32 i;
 
     if (object->condition_state.conditions[5] == 0) {
         count = -1;
+    } else {
+        count = 4;
     }
     output_blocks->count = count;
     first_stride = object->frame_buffers.backward.chroma_stride;

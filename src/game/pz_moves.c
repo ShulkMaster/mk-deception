@@ -1500,17 +1500,17 @@ int pz_fighter_walk_until_fight_distance(void) {
 }
 
 /*
- * Soft ceilings: pz_fighter_showoff_warmup2/1 and
+ * Soft ceilings: pz_fighter_showoff_warmup1 and
  * pz_fighter_active_warmup2/1 ~99.29%; pz_fighter_bow_warmup ~99.39%.
  * The remaining deltas are float-pool symbol identities only.
  */
 float pz_fighter_showoff_warmup2(void) {
     face_opponent_now();
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.5f);
+    set_ani_weight(0.55f);
     blend_to_ani(pz_shared_ani.showoff_warmup2, 3, 0.1f);
-    set_ani_speed(0.15f);
-    ani_to_blend_frame(1.0f);
+    set_ani_speed(0.7f);
+    ani_to_blend_frame(20.0f);
     blend_to_stance(0.1f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
@@ -3024,7 +3024,7 @@ static float r_pz_fighter_almost_in_grinder(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 98.62% - floating-constant relocation labels only. */
+/* Soft ceiling: 99.85% - floating-constant relocation labels only. */
 static float r_pz_fighter_feet3_swept_out(void) {
     face_opponent_now();
     got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);

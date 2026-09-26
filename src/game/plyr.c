@@ -1181,7 +1181,7 @@ void add_facial_damage(float amount) {
 }
 
 int get_player_number(MkObj* object) {
-    int object_id = (int)object->oid;
+    int object_id = object->oid;
 
     if (object_id == 0x1001) {
         return 0;
@@ -2217,22 +2217,113 @@ static inline MkObj* loaded_model_as_mkobj(void* model) {
     return object;
 }
 
+static inline MkObj* create_player_load_costume(PlyrInfo* player) {
+    PlyrPdata* pdata = player->slot.pdata;
+    MkObj* object = 0;
+    int pid = ((MkProc*)player->idle_proc)->pid;
+    FighterRuntimeData* runtime = pdata->runtime_data;
+    const char* art_section;
+
+    if (pdata->plyr_info->flags_14_bits.alternate_costume) {
+        art_section = pdata->plyr_info->flags_14_bits.alternate_palette
+            ? runtime->alternate_palette_art_section
+            : runtime->alternate_art_section;
+    } else {
+        art_section = pdata->plyr_info->flags_14_bits.alternate_palette
+            ? runtime->palette_art_section
+            : runtime->primary_art_section;
+    }
+
+    if (pid == 0x1001) {
+        load_art_section_by_name(0x3000A, art_section);
+        if (runtime->shared_art_section != 0) {
+            load_art_section_by_name(0x3000B, runtime->shared_art_section);
+        }
+        object = (MkObj*)load_named_model_from_slot(
+            0x3000A, "COSTUME", pid, 1);
+    } else if (pid == 0x1002) {
+        load_art_section_by_name(0x4000A, art_section);
+        if (runtime->shared_art_section != 0) {
+            load_art_section_by_name(0x4000B, runtime->shared_art_section);
+        }
+        object = (MkObj*)load_named_model_from_slot(
+            0x4000A, "COSTUME", pid, 1);
+    }
+    return loaded_model_as_mkobj(object);
+}
+
+static inline void create_player_attach_face_texture(PlyrInfo* player) {
+    PlyrPdata* pdata = player->slot.pdata;
+    MkObj* object = player->slot.mirror_a;
+    FighterRuntimeData* runtime;
+    AniTextureControl* texture;
+    const char* face_texture;
+    unsigned int face_art_id;
+    int art_slot;
+    int palette;
+    int frame_count;
+
+    if (has_sidekick(pdata) != 0) {
+        return;
+    }
+    runtime = pdata->runtime_data;
+    palette = player->flags_14_bits.alternate_palette;
+    if (player->flags_14_bits.alternate_costume == 0) {
+        if (palette == 0) {
+            face_texture = runtime->primary_face_texture;
+        } else {
+            face_texture = runtime->palette_face_texture;
+        }
+    } else if (palette == 0) {
+        face_texture = runtime->alternate_face_texture;
+    } else {
+        face_texture = runtime->alternate_palette_face_texture;
+    }
+    if (face_texture == 0) {
+        return;
+    }
+    if (object->oid == 0x1001) {
+        art_slot = 0x3000A;
+    } else if (object->oid == 0x1002) {
+        art_slot = 0x4000A;
+    } else {
+        art_slot = -1;
+    }
+    face_art_id = get_artid_of_named_item_in_slot(art_slot, "FACEDAM", 0);
+    if (face_art_id == 0) {
+        return;
+    }
+    texture = append_wiff_to_clump_material(
+        art_slot, (char*)face_art_id, (RpClump*)object->clump,
+        (char*)face_texture);
+    if (texture == 0) {
+        return;
+    }
+    frame_count = get_ani_texture_numframes(texture);
+    if (frame_count != 4 && frame_count != 5) {
+        if (texture->instance != 0) {
+            ((void (*)(MkHdr*))texture->vtbl->destroy)((MkHdr*)texture);
+        }
+    } else {
+        insert_ani_texture_control_item(texture, &pdata->facial_texture);
+    }
+}
+
+/* TODO: [near miss] 99.72744%; costume/face phases, per-proc flag slots and typed ids
+ * recovered; face-phase GPR coloring remains. */
 void create_player(int player_index, PlyrInfo* player) {
-    PlyrProcCreateFlags flags;
     PlyrProcCreateFlags flags_arg;
+    PlyrProcCreateFlags flags;
+    PlyrProcCreateFlags aux_flags_arg;
+    PlyrProcCreateFlags aux_flags;
     MkProc* player_proc;
     MkProc* aux_proc;
     PlyrPdata* pdata;
-    FighterRuntimeData* runtime;
     MkObj* object;
-    AniTextureControl* texture;
-    const char* art_section;
-    const char* face_texture;
     const char* const* effect_banks;
-    unsigned int face_art_id;
+    const char* script_name;
     int player_pid = 0;
     int aux_pid = 0;
-    int art_slot;
     int loaded;
     int index;
     LoadBgndCtx effect_context;
@@ -2278,10 +2369,10 @@ void create_player(int player_index, PlyrInfo* player) {
     player->slot.pdata->plyr_info = player;
     player->slot.pdata->mirror_slots = 0;
 
-    flags.word = 0;
-    flags.bits.defer_run = 1;
-    flags_arg = flags;
-    aux_proc = get_mkproc_nostack(&flags_arg.word);
+    aux_flags.word = 0;
+    aux_flags.bits.defer_run = 1;
+    aux_flags_arg = aux_flags;
+    aux_proc = get_mkproc_nostack(&aux_flags_arg.word);
     if (aux_proc != 0) {
         aux_proc = create_mkproc(
             8, aux_proc, aux_pid, player_sleep_forever,
@@ -2307,9 +2398,9 @@ void create_player(int player_index, PlyrInfo* player) {
     if (pdata->character_id < 0 || pdata->character_id >= 0x2C) {
         loaded = 0;
     } else {
+        script_name = global_player_data[pdata->character_id].model_script;
         pdata->cmo = cmdscript_loadfile_by_name(
-            pdata->plyr_num == 0 ? 3 : 7,
-            global_player_data[pdata->character_id].model_script);
+            pdata->plyr_num == 0 ? 3 : 7, script_name);
         if (pdata->cmo->table_count == 0) {
             loaded = 0;
         } else {
@@ -2325,83 +2416,16 @@ void create_player(int player_index, PlyrInfo* player) {
         return;
     }
 
-    runtime = pdata->runtime_data;
-    if (pdata->plyr_info->flags_14_bits.alternate_costume) {
-        art_section = pdata->plyr_info->flags_14_bits.alternate_palette
-            ? runtime->alternate_palette_art_section
-            : runtime->alternate_art_section;
-    } else {
-        art_section = pdata->plyr_info->flags_14_bits.alternate_palette
-            ? runtime->palette_art_section
-            : runtime->primary_art_section;
-    }
-
-    object = 0;
-    if (player_pid == 0x1001) {
-        load_art_section_by_name(0x3000A, art_section);
-        if (runtime->shared_art_section != 0) {
-            load_art_section_by_name(0x3000B, runtime->shared_art_section);
-        }
-        object = (MkObj*)load_named_model_from_slot(
-            0x3000A, "COSTUME", player_pid, 1);
-    } else if (player_pid == 0x1002) {
-        load_art_section_by_name(0x4000A, art_section);
-        if (runtime->shared_art_section != 0) {
-            load_art_section_by_name(0x4000B, runtime->shared_art_section);
-        }
-        object = (MkObj*)load_named_model_from_slot(
-            0x4000A, "COSTUME", player_pid, 1);
-    }
-    object = loaded_model_as_mkobj(object);
+    object = create_player_load_costume(player);
     player->slot.mirror_a = object;
     if (player->slot.mirror_a == 0) {
         return;
     }
-    object = player->slot.mirror_a;
 
     player->slot.pdata->tracked_obj = player->slot.mirror_a;
     player->slot.pdata->tracked_obj_instance =
         player->slot.mirror_a->hdr.instance;
-    if (has_sidekick(pdata) == 0) {
-        if (player->flags_14_bits.alternate_costume) {
-            face_texture = player->flags_14_bits.alternate_palette
-                ? runtime->alternate_palette_face_texture
-                : runtime->alternate_face_texture;
-        } else {
-            face_texture = player->flags_14_bits.alternate_palette
-                ? runtime->palette_face_texture
-                : runtime->primary_face_texture;
-        }
-        if (face_texture != 0) {
-            if (player->slot.mirror_a->oid == 0x1001) {
-                art_slot = 0x3000A;
-            } else if (player->slot.mirror_a->oid == 0x1002) {
-                art_slot = 0x4000A;
-            } else {
-                art_slot = -1;
-            }
-            face_art_id = get_artid_of_named_item_in_slot(
-                art_slot, "FACEDAM", 0);
-            if (face_art_id != 0) {
-                texture = append_wiff_to_clump_material(
-                    art_slot, (char*)face_art_id,
-                    (RpClump*)player->slot.mirror_a->clump,
-                    (char*)face_texture);
-                if (texture != 0) {
-                    index = get_ani_texture_numframes(texture);
-                    if (index != 4 && index != 5) {
-                        if (texture->instance != 0) {
-                            ((void (*)(MkHdr*))texture->vtbl->destroy)(
-                                (MkHdr*)texture);
-                        }
-                    } else {
-                        insert_ani_texture_control_item(
-                            texture, &pdata->facial_texture);
-                    }
-                }
-            }
-        }
-    }
+    create_player_attach_face_texture(player);
 
     player->slot.mirror_a->flags_08_bits.gravity_enabled = 1;
     player->slot.mirror_a->flags_08_bits.rotation_enabled = 1;

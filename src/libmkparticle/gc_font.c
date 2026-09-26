@@ -11,8 +11,6 @@ extern int screen_height;
 #define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
 #define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
-__declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
-
 static void set_vertex_format(void);
 
 int nativefont_system_init(void) {
@@ -81,6 +79,8 @@ static void set_vertex_format(void) {
     GXSetVtxDesc(0xD, 1);
 }
 
+__declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
+
 void nativefont_instance_lock(NativeFontInstance* inst) {
     if (inst == 0) {
         return;
@@ -116,84 +116,52 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
 }
 
 /*
- * Soft ceiling: nativefont_instance_addglyph ~97.48% -- null/locked branch
- * shape, register coloring, and one final redundant extsh only. POS s16 frac=1
- * (*2); retail loads Y then X, writes X then Y, and loads V then U before
- * writing U then V.
+ * POS is s16 with one fractional bit (*2); each vertex samples Y before X and
+ * V before U, then writes X, Y, U, V.
  */
 void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* inst,
                                   NativeFontQuad* quad) {
-    int t;
-    int y;
-    short x;
-    float u;
+    short y;
     float v;
 
     (void)ctx;
 
-    if (quad == 0) {
-        return;
-    }
-    if (inst->locked == 0) {
+    if (quad == 0 || inst->locked == 0) {
         return;
     }
 
     GXBegin(0x80, 0, 4); /* GX_QUADS */
 
     /* (x0, y1) (u0, v1) */
-    t = (short)(int)quad->y1;
-    t = t << 1;
-    y = (short)t;
-    t = (short)(int)quad->x0;
-    t = t << 1;
-    x = (short)t;
-    WGPIPE_S16 = x;
+    y = (short)((short)quad->y1 << 1);
+    WGPIPE_S16 = (short)((short)quad->x0 << 1);
     WGPIPE_S16 = y;
     v = quad->v1;
-    u = quad->u0;
-    WGPIPE_F32 = u;
+    WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
     /* (x0, y0) (u0, v0) */
-    t = (short)(int)quad->y0;
-    t = t << 1;
-    y = (short)t;
-    t = (short)(int)quad->x0;
-    t = t << 1;
-    x = (short)t;
-    WGPIPE_S16 = x;
+    y = (short)((short)quad->y0 << 1);
+    WGPIPE_S16 = (short)((short)quad->x0 << 1);
     WGPIPE_S16 = y;
     v = quad->v0;
-    u = quad->u0;
-    WGPIPE_F32 = u;
+    WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
     /* (x1, y0) (u1, v0) */
-    t = (short)(int)quad->y0;
-    t = t << 1;
-    y = (short)t;
-    t = (short)(int)quad->x1;
-    t = t << 1;
-    x = (short)t;
-    WGPIPE_S16 = x;
+    y = (short)((short)quad->y0 << 1);
+    WGPIPE_S16 = (short)((short)quad->x1 << 1);
     WGPIPE_S16 = y;
     v = quad->v0;
-    u = quad->u1;
-    WGPIPE_F32 = u;
+    WGPIPE_F32 = quad->u1;
     WGPIPE_F32 = v;
 
     /* (x1, y1) (u1, v1) */
-    t = (short)(int)quad->y1;
-    t = t << 1;
-    y = (short)t;
-    t = (short)(int)quad->x1;
-    t = t << 1;
-    x = (short)t;
-    WGPIPE_S16 = x;
+    y = (short)((short)quad->y1 << 1);
+    WGPIPE_S16 = (short)((short)quad->x1 << 1);
     WGPIPE_S16 = y;
     v = quad->v1;
-    u = quad->u1;
-    WGPIPE_F32 = u;
+    WGPIPE_F32 = quad->u1;
     WGPIPE_F32 = v;
 }
 

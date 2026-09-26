@@ -371,15 +371,14 @@ static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
     plane->height = height;
 }
 
-/* TODO: [near miss] 98.47097%; conversion CFG and plane accesses match;
- * only parameter/error-pointer coloring and equivalent scheduling remain. */
+/* TODO: [near miss] 98.54%; CFG/offsets exact; player/output/pool-base coloring
+ * (r29-r31 rotated) and cb-plane load order remain; RE4 needs kept `+ 0` copies. */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
                             MwsSfxFrameInfo* output)
 {
     int tag_size;
     void* tag_data;
     MwsYccPlane plane;
-    const char* errors = get_cnv_bottom_up_invalid;
     int converted;
     int width;
     int height;
@@ -395,7 +394,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         converted = 3;
         break;
     default:
-        MWSFSVM_Error(errors + 0x514);
+        MWSFSVM_Error(invalid_buffer_format);
         converted = 3;
         break;
     }
@@ -433,7 +432,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         converted = 3;
         break;
     default:
-        MWSFSVM_Error(errors + 0x4EC);
+        MWSFSVM_Error(invalid_picture_structure);
         break;
     }
     output->picture_structure = converted;
@@ -450,7 +449,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         converted = 3;
         break;
     default:
-        MWSFSVM_Error(errors + 0x4C8);
+        MWSFSVM_Error(invalid_chroma_format);
         break;
     }
     output->chroma_format = converted;
@@ -467,7 +466,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         converted = 1;
         break;
     default:
-        MWSFSVM_Error(errors + 0x4A8);
+        MWSFSVM_Error(invalid_chroma_position);
         break;
     }
     output->chroma_position_h = converted;
@@ -481,7 +480,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
         converted = 1;
         break;
     default:
-        MWSFSVM_Error(errors + 0x4A8);
+        MWSFSVM_Error(invalid_chroma_position);
         break;
     }
     output->chroma_position_v = converted;

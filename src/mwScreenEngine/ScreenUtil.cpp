@@ -65,43 +65,26 @@ void ScreenUtil::Reset() {
     m_pClient->Reset();
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 int ScreenUtil::ReadHexInt(char* hex4) {
-    int digits[SCREEN_HEX_DIGIT_COUNT];
-    int off;
-    int n;
-    int* base;
+    unsigned int digits[SCREEN_HEX_DIGIT_COUNT];
+    int i;
 
-    /* Retail: li count early, then lbz/extsb stores, then mtctr + lwzx loop. */
-    n = SCREEN_HEX_DIGIT_COUNT;
-    digits[0] = (signed char)hex4[0];
-    digits[1] = (signed char)hex4[1];
-    digits[2] = (signed char)hex4[2];
-    digits[3] = (signed char)hex4[3];
+    digits[0] = hex4[0];
+    digits[1] = hex4[1];
+    digits[2] = hex4[2];
+    digits[3] = hex4[3];
 
-    /*
-     * Soft ceiling: ReadHexInt ~88% -- algo/size match (lwzx + countdown);
-     * leftover is mtctr/bdnz vs addic./bne and prologue load order. Stop.
-     */
-    off = 0;
-    base = digits;
-    do {
-        unsigned int c = *(unsigned int*)((char*)base + off);
-        if (c >= '0' && c <= '9') {
-            *(unsigned int*)((char*)base + off) = c - '0';
-        } else if (c >= 'A' && c <= 'F') {
-            *(int*)((char*)base + off) = *(int*)((char*)base + off) - 'A';
-            *(int*)((char*)base + off) =
-                *(int*)((char*)base + off) + SCREEN_HEX_LETTER_BASE;
+    for (i = 0; i < SCREEN_HEX_DIGIT_COUNT; i++) {
+        if (digits[i] >= '0' && digits[i] <= '9') {
+            digits[i] = digits[i] - '0';
+        } else if (digits[i] >= 'A' && digits[i] <= 'F') {
+            digits[i] -= 'A';
+            digits[i] += SCREEN_HEX_LETTER_BASE;
         }
-        off += 4;
-    } while (--n);
+    }
 
     return (digits[0] << 12) | (digits[1] << 8) | (digits[2] << 4) | digits[3];
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void ScreenUtil::UnloadScreen(Screen* screen) {
     m_pClient->UnloadScreen(screen);

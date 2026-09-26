@@ -186,10 +186,6 @@ int _rxHeapReset(RxHeap* heap)
     heap->dirty = 0;
     return 1;
 }
-/*
- * Soft ceiling: RxHeapDestroy 95.6579% -- retail assigns heap = 0 after
- * freeing it; the dead assignment is intentionally omitted.
- */
 void RxHeapDestroy(RxHeap* heap)
 {
     if (heap != 0) {
@@ -206,6 +202,7 @@ void RxHeapDestroy(RxHeap* heap)
             superBlock = next;
         }
         RwEngineInstance->fpFree(heap);
+        heap = 0;
     }
 }
 

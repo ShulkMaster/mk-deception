@@ -1231,11 +1231,15 @@ float plyr_get_anim_frame(void) {
 
 void plyr_set_vel_xz_y(float xz_velocity, float y_velocity) {
     float sine;
+    float cosine;
+    float x_velocity;
     float z_velocity;
 
     sine = gxMathSin(plyr_obj->ang.y);
-    z_velocity = gxMathCos(plyr_obj->ang.y) * xz_velocity;
-    plyr_obj->pos_vel.x = sine * xz_velocity;
+    cosine = gxMathCos(plyr_obj->ang.y);
+    x_velocity = sine * xz_velocity;
+    z_velocity = cosine * xz_velocity;
+    plyr_obj->pos_vel.x = x_velocity;
     plyr_obj->pos_vel.y = y_velocity;
     plyr_obj->pos_vel.z = z_velocity;
 }

@@ -1865,68 +1865,53 @@ static float p_mk_chess_scale_display_msg_handler(void) {
 }
 
 
-/* TODO: [breakthrough needed] 57.163635%; float result restored; prior payload and owner-reload differences remain. */
+/* TODO: [near miss] 99.69091%; instructions agree; only sda21 literal and string-pool relocations differ pending TU data layout. */
 static float mk_chess_check_leader_vs_leader_condition(void) {
     ChessScaleMessagePdata* pdata;
-    MkHdr* raw_pdata;
-    ChessPiece* attacker;
-    ChessPiece* defender;
-    ScreenObj* message;
-    int center_x;
-    int center_y;
+    unsigned int width;
+    unsigned int center_x;
+    unsigned int center_y;
+    ScreenObj* image;
 
-    if (mk_chess_pdata->sides[0]->live_piece_count != 1 ||
-        mk_chess_pdata->sides[1]->live_piece_count != 1) {
-        return 0.0f;
+    if (mk_chess_pdata->sides[0]->live_piece_count == 1 &&
+        mk_chess_pdata->sides[1]->live_piece_count == 1) {
+        _mkproc_sleep_ticks = 80.0f;
+        ((ChessProcVtable*)aproc->vtbl)->sleep();
+        image = load_named_2d_pfxobj(0xD003C, 0xC01C, "FINALMATCH_MSG", 0, 0x52);
+        center_y = screen_height / 2 + 50;
+        width = image->pfx2d->tex_w;
+        center_x = screen_width / 2;
+        _create_mkproc_generic_tinystack(0xC023, 31, p_mk_chess_scale_display_msg_handler,
+            sizeof(ChessScaleMessagePdata), (MkHdr**)&pdata);
+        pdata->object = image;
+        unhide_screen_obj(image);
+        pdata->step = 0.07666667f;
+        pdata->start_scale = 0.25f;
+        pdata->target_scale = 1.4f;
+        pdata->initial_delay = 0;
+        pdata->center_x = center_x;
+        pdata->center_y = center_y;
+        pdata->texture_width = width;
+        pdata->destroy_after_delay = 1;
+        pdata->final_delay = 100;
+        pdata->fade_after_midpoint = 0;
+        pdata->object->scale_x = 0.25f;
+        pdata->object->scale_y = 0.25f;
+        pdata->object->x = (int)-((float)(pdata->texture_width >> 1) * pdata->object->scale_x - (float)center_x);
+        pdata->object->y = (int)-((float)(pdata->object->pfx2d->tex_h / 2) * pdata->object->scale_y - (float)center_y);
+        pdata->object->flag_bits.scaled = 1;
+        snd_req(0x34);
+
+        _mkproc_sleep_ticks = 80.0f;
+        ((ChessProcVtable*)aproc->vtbl)->sleep();
+        mk_chess_hud_set_piece_portrait(mk_chess_pdata->sides[0]->pieces[0]);
+        mk_chess_hud_set_piece_portrait(mk_chess_pdata->sides[1]->pieces[0]);
+        mk_chess_request_piece_fight(mk_chess_pdata->sides[0]->pieces[0],
+            mk_chess_pdata->sides[1]->pieces[0]->cell_x,
+            mk_chess_pdata->sides[1]->pieces[0]->cell_y, 1);
+        return 1.0f;
     }
-
-    _mkproc_sleep_ticks = 80.0f;
-    ((ChessProcVtable*)aproc->vtbl)->sleep();
-    message = load_named_2d_pfxobj(
-        0xD003C, 0xC01C, "FINALMATCH_MSG", 0, 0x52);
-    center_x = screen_width / 2;
-    center_y = screen_height / 2 + 50;
-
-    raw_pdata = 0;
-    _create_mkproc_generic_tinystack(
-        0xC023, 0x1F, p_mk_chess_scale_display_msg_handler,
-        sizeof(ChessScaleMessagePdata), &raw_pdata);
-    pdata = (ChessScaleMessagePdata*)raw_pdata;
-    pdata->object = message;
-    unhide_screen_obj(message);
-    pdata->step = 0.07666667f;
-    pdata->start_scale = 0.25f;
-    pdata->target_scale = 1.4f;
-    pdata->initial_delay = 0;
-    pdata->center_x = center_x;
-    pdata->center_y = center_y;
-    pdata->texture_width = message->pfx2d->tex_w;
-    pdata->destroy_after_delay = 1;
-    pdata->final_delay = 100;
-    pdata->fade_after_midpoint = 0;
-
-    message->scale_x = 0.25f;
-    message->scale_y = 0.25f;
-    message->x =
-        -(int)(((float)(pdata->texture_width >> 1) *
-                 message->scale_x) -
-               (float)center_x);
-    message->y =
-        -(int)(((float)(message->pfx2d->tex_h / 2) *
-                 message->scale_y) -
-               (float)center_y);
-    message->flags |= 8;
-    snd_req(0x34);
-
-    _mkproc_sleep_ticks = 80.0f;
-    ((ChessProcVtable*)aproc->vtbl)->sleep();
-    attacker = mk_chess_pdata->sides[0]->pieces[0];
-    defender = mk_chess_pdata->sides[1]->pieces[0];
-    mk_chess_hud_set_piece_portrait(attacker);
-    mk_chess_hud_set_piece_portrait(defender);
-    mk_chess_request_piece_fight(
-        attacker, defender->cell_x, defender->cell_y, 1);
-    return 1.0f;
+    return 0.0f;
 }
 
 /* TODO: [breakthrough needed] 18.91%; retail unrolled art initialization and owner reloads still differ; reconstruct from the full call sequence. */
@@ -5385,18 +5370,21 @@ void mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void) {
     g_active_piece->movement->desired_cell_blend = 30.0f;
 }
 
-/* TODO: [near miss] 98.17461%; retained X snapshot restored; stop at FP coloring and zero-result move. */
 void mk_chess_blend_to_my_cell_pos(float distance) {
     ChessPiece* piece = g_active_piece;
     MkObj* object = piece->object;
     ChessCell* cell = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
-    float original_x = object->pos.value.x;
-    float dx = cell->position.x + piece->runtime.fields.cell_offset.x - original_x;
-    float dz = cell->position.z + piece->runtime.fields.cell_offset.z - object->pos.value.z;
-    float length_squared = dx * dx + dz * dz;
+    float dx;
+    float dz;
+    float original_x;
+    float length_squared;
     float inverse_length;
     union { float f; unsigned int u; } input, estimate;
 
+    original_x = object->pos.value.x;
+    dx = cell->position.x + piece->runtime.fields.cell_offset.x - original_x;
+    dz = cell->position.z + piece->runtime.fields.cell_offset.z - object->pos.value.z;
+    length_squared = dx * dx + dz * dz;
     if (length_squared < distance * distance) {
         return;
     }
@@ -7543,7 +7531,7 @@ void update_x_cursor_position(
             }
         }
     } else if (*x >= 10 || *x < 0) {
-        *x -= x_step;
+        *x = *x - x_step;
     }
 }
 
@@ -7650,47 +7638,37 @@ static void mk_chess_cell_end_of_turn(unsigned int x, unsigned int y) {
     }
 }
 
-/* TODO: [breakthrough needed] 52.385246%; resolve retail lis r3, @stringBase0@ha and its surrounding ownership/CFG before further tuning. */
+/* TODO: [near miss] 99.7459%; instructions agree; only sda21 literal and string-pool relocations differ pending TU data layout. */
 void mk_chess_disarmed_msg(void) {
     ChessScaleMessagePdata* pdata;
-    MkHdr* raw_pdata = 0;
-    ScreenObj* message;
-    int center_x;
-    int center_y;
+    unsigned int width;
+    unsigned int center_x;
+    unsigned int center_y;
+    ScreenObj* image;
 
-    message =
-        load_named_2d_pfxobj(0xD003C, 0xC01C, "DISARMED_MSG", 0, 0x52);
-    center_x = screen_width / 2;
+    image = load_named_2d_pfxobj(0xD003C, 0xC01C, "DISARMED_MSG", 0, 0x52);
     center_y = screen_height / 2 + 50;
-
-    _create_mkproc_generic_tinystack(
-        0xC023, 0x1F, p_mk_chess_scale_display_msg_handler,
-        sizeof(ChessScaleMessagePdata), &raw_pdata);
-    pdata = (ChessScaleMessagePdata*)raw_pdata;
-    pdata->object = message;
-    unhide_screen_obj(message);
+    width = image->pfx2d->tex_w;
+    center_x = screen_width / 2;
+    _create_mkproc_generic_tinystack(0xC023, 31, p_mk_chess_scale_display_msg_handler,
+        sizeof(ChessScaleMessagePdata), (MkHdr**)&pdata);
+    pdata->object = image;
+    unhide_screen_obj(image);
     pdata->step = 0.07666667f;
     pdata->start_scale = 0.25f;
     pdata->target_scale = 1.4f;
     pdata->initial_delay = 0;
     pdata->center_x = center_x;
     pdata->center_y = center_y;
-    pdata->texture_width = message->pfx2d->tex_w;
+    pdata->texture_width = width;
     pdata->destroy_after_delay = 1;
     pdata->final_delay = 0x41;
     pdata->fade_after_midpoint = 0;
-
-    message->scale_x = 0.25f;
-    message->scale_y = 0.25f;
-    message->x =
-        -(int)(((float)(pdata->texture_width >> 1) *
-                 message->scale_x) -
-               (float)center_x);
-    message->y =
-        -(int)(((float)(message->pfx2d->tex_h / 2) *
-                 message->scale_y) -
-               (float)center_y);
-    message->flags |= 8;
+    pdata->object->scale_x = 0.25f;
+    pdata->object->scale_y = 0.25f;
+    pdata->object->x = (int)-((float)(pdata->texture_width >> 1) * pdata->object->scale_x - (float)center_x);
+    pdata->object->y = (int)-((float)(pdata->object->pfx2d->tex_h / 2) * pdata->object->scale_y - (float)center_y);
+    pdata->object->flag_bits.scaled = 1;
     snd_req(0x2C);
 }
 
@@ -15426,52 +15404,51 @@ extern void remove_fgnd_mkobj(MkObj* object);
 static inline void mk_chess_move_trap_cursor(ChessDirectionState* hud,
     unsigned int side, int direction)
 {
-    ChessCursor* cursor = &hud->cursors[side];
-    int x = cursor->cell_x;
-    int y = cursor->cell_y;
+    int x = hud->cursors[side].cell_x;
+    int y = hud->cursors[side].cell_y;
     ChessCell* cell;
     MkObj* object;
     snd_req(0x36D);
     if (side == 0) move_cursor_based_on_quadrant(side, &x, &y, direction, 0, 5, 0);
     else move_cursor_based_on_quadrant(side, &x, &y, direction, 5, 10, 0);
     cell = &mk_chess_pdata->board[(unsigned char)x].cells[(unsigned char)y];
-    object = mk_chess_cursor_live_object(cursor);
-    cursor->cell_x = x;
-    cursor->cell_y = y;
-    object->pos.value = cell->position;
+    object = mk_chess_cursor_live_object(&hud->cursors[side]);
+    hud->cursors[side].cell_x = x;
+    hud->cursors[side].cell_y = y;
+    object->pos.value.x = cell->position.x;
+    object->pos.value.y = cell->position.y;
+    object->pos.value.z = cell->position.z;
     update_obj_pos(object);
 }
 
-static inline void mk_chess_scale_trap_ready(ScreenObj* image, unsigned int side)
+static inline void mk_chess_scale_trap_ready(ScreenObj* image, unsigned int center_x)
 {
-    MkHdr* allocation;
-    ChessScaleMessagePdata* scale;
+    ChessScaleMessagePdata* pdata;
+    unsigned int center_y = screen_height / 2 + 50;
     unsigned int width = image->pfx2d->tex_w;
-    int center_y = screen_height / 2 + 50;
-    int center_x = side == 0 ? screen_width / 4 : screen_width * 3 / 4;
     _create_mkproc_generic_tinystack(0xC023, 31, p_mk_chess_scale_display_msg_handler,
-        sizeof(ChessScaleMessagePdata), &allocation);
-    scale = (ChessScaleMessagePdata*)allocation;
-    scale->object = image;
+        sizeof(ChessScaleMessagePdata), (MkHdr**)&pdata);
+    pdata->object = image;
     unhide_screen_obj(image);
-    scale->step = 0.044999998f;
-    scale->start_scale = 0.1f;
-    scale->target_scale = 1.0f;
-    scale->initial_delay = 0;
-    scale->center_x = center_x;
-    scale->center_y = center_y;
-    scale->texture_width = width;
-    scale->destroy_after_delay = 0;
-    scale->final_delay = 0;
-    scale->fade_after_midpoint = 0;
-    scale->object->scale_x = 0.1f;
-    scale->object->scale_y = 0.1f;
-    scale->object->x = (int)-((float)(scale->texture_width >> 1) * scale->object->scale_x - (float)center_x);
-    scale->object->y = (int)-((float)(scale->object->pfx2d->tex_h / 2) * scale->object->scale_y - (float)center_y);
-    scale->object->flag_bits.scaled = 1;
+    pdata->step = 0.044999998f;
+    pdata->start_scale = 0.1f;
+    pdata->target_scale = 1.0f;
+    pdata->initial_delay = 0;
+    pdata->center_x = center_x;
+    pdata->center_y = center_y;
+    pdata->texture_width = width;
+    pdata->destroy_after_delay = 0;
+    pdata->final_delay = 0;
+    pdata->fade_after_midpoint = 0;
+    pdata->object->scale_x = 0.1f;
+    pdata->object->scale_y = 0.1f;
+    pdata->object->x = (int)-((float)(pdata->texture_width >> 1) * pdata->object->scale_x - (float)center_x);
+    pdata->object->y = (int)-((float)(pdata->object->pfx2d->tex_h / 2) * pdata->object->scale_y - (float)center_y);
+    pdata->object->flag_bits.scaled = 1;
 }
 
-/* TODO: [breakthrough needed] 74.97%; trap flow recovered; helper expansion, cursor dispatch and cleanup scheduling remain. */
+/* TODO: [breakthrough] 93.1089%; payloads typed; cursor live-object null tail (8 move cases), READY_MSG center scheduling and
+ * blink/show-side store order remain. */
 float p_mk_chess_place_traps(void)
 {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -15483,7 +15460,6 @@ float p_mk_chess_place_traps(void)
     int expired = 0;
     unsigned int side, index, active_side;
     MkPtr* link;
-    MkHdr* allocation;
     MkProc* process;
     StringObj* text;
     int group;
@@ -15520,12 +15496,11 @@ float p_mk_chess_place_traps(void)
             case 11: mk_chess_move_trap_cursor(hud, side, 7); break;
             case 10: mk_chess_move_trap_cursor(hud, side, 5); break;
             case 1: {
-                ChessCursor* cursor = &hud->cursors[side];
-                if (mk_chess_pdata->board[cursor->cell_x].cells[cursor->cell_y].square_type == 0) {
+                if (mk_chess_pdata->board[hud->cursors[side].cell_x].cells[hud->cursors[side].cell_y].square_type == 0) {
                     selected[side] = 1;
                     snd_req(0x378);
-                    hud->trap_x[side] = cursor->cell_x;
-                    hud->trap_y[side] = cursor->cell_y;
+                    hud->trap_x[side] = hud->cursors[side].cell_x;
+                    hud->trap_y[side] = hud->cursors[side].cell_y;
                 } else snd_req(0x378);
                 break;
             }
@@ -15534,7 +15509,8 @@ float p_mk_chess_place_traps(void)
                 int was_selected = selected[side];
                 if (was_selected == 1 && confirmed[side] == 0) {
                     ready[side] = load_named_2d_pfxobj(0xD003C, 0xC01C, "READY_MSG", 0, 82);
-                    mk_chess_scale_trap_ready(ready[side], side);
+                    if (side == 0) mk_chess_scale_trap_ready(ready[side], screen_width / 4);
+                    else mk_chess_scale_trap_ready(ready[side], screen_width * 3 / 4);
                 }
                 if (was_selected == 1) {
                     confirmed[side] = 1;
@@ -15582,19 +15558,18 @@ float p_mk_chess_place_traps(void)
     set_game_switch_maps();
     mk_chess_camera_init();
     mk_chess_set_game_mode(6);
-    for (side = 0; side < 2; side++) {
-        ChessSideState* team = mk_chess_pdata->sides[side];
-        team->controller->flags.trap_placement_active = 0;
-        team->field_164 = 0;
-    }
+    mk_chess_pdata->sides[0]->controller->flags.trap_placement_active = 0;
+    mk_chess_pdata->sides[0]->field_164 = 0;
+    mk_chess_pdata->sides[1]->controller->flags.trap_placement_active = 0;
+    mk_chess_pdata->sides[1]->field_164 = 0;
     destroy_mkpdata_generic(&hud->hdr);
     manager->directional_state = 0;
     if (board_game_save_data.input_flags.input_locked) {
+        ChessBlinkStringPdata* blink;
         text = string_center_xy(0x2010, 0, get_string(1), screen_width / 2, 65, 29);
         process = _create_mkproc_generic_tinystack(0xC026, 31, p_mk_chess_blink_string,
-            sizeof(ChessBlinkStringPdata), &allocation);
+            sizeof(ChessBlinkStringPdata), (MkHdr**)&blink);
         if (process != 0) {
-            ChessBlinkStringPdata* blink = (ChessBlinkStringPdata*)allocation;
             blink->text = text;
             blink->text_instance = text->instance;
             mk_insert((MkHdr*)text, &process->pdata_list_b);
@@ -15604,11 +15579,11 @@ float p_mk_chess_place_traps(void)
     }
     fade_from_black(5, 0);
     active_side = mk_chess_pdata->manager.active_side;
-    group = active_side == 1 ? 17 : 16;
-    allocation = 0;
+    group = 16;
+    if (active_side == 1) group = 17;
+    display = 0;
     if (_create_mkproc_generic_bigstack(0xC021, 31, p_mk_chess_show_my_side,
-        sizeof(ChessShowSidePdata), &allocation) != 0) {
-        display = (ChessShowSidePdata*)allocation;
+        sizeof(ChessShowSidePdata), (MkHdr**)&display) != 0) {
         display->side = mk_chess_pdata->sides[active_side];
         display->pebble_group = group;
         display->amount = 0.01f;

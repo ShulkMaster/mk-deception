@@ -364,10 +364,6 @@ void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/*
- * Soft ceiling: nav_get_unit_vector_to_area ~99.65% -- operations and control
- * flow match; only five operands use different GPR/FPR allocation.
- */
 void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     KonquestNavData* nav;
     NavArea* area;
@@ -376,7 +372,6 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     Vec farthestNormal;
     Vec nearestNormal;
     float ratio;
-    float blend;
     float inverseLength;
     float lengthSquared;
 
@@ -394,9 +389,8 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     ratio = nearestDistance / farthestDistance;
     nearestNormal.x *= ratio;
     nearestNormal.z *= ratio;
-    blend = 1.0f - ratio;
-    nearestNormal.x += farthestNormal.x * blend;
-    nearestNormal.z += farthestNormal.z * blend;
+    nearestNormal.x += farthestNormal.x * (1.0f - ratio);
+    nearestNormal.z += farthestNormal.z * (1.0f - ratio);
     lengthSquared = nearestNormal.x * nearestNormal.x +
                     nearestNormal.z * nearestNormal.z;
     inverseLength = nav_inverse_sqrt(lengthSquared);

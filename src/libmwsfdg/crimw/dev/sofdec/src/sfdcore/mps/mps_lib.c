@@ -1,19 +1,30 @@
 #include "cri/mps.h"
 #include "sofdec/uty_mem.h"
 
-MpsLibWork* MPSLIB_libwork;
-static const char* cri_verstr_ptr;
+/* TODO: [review] link-exact .bss order relies on RE4-backed shape: unreferenced
+ * mpslib_init_cnt, plain-static mpslib_check_handle, and stripped MPS_GetVerStr. */
 static MpsHandle* mpslib_hn_last;
+static const char* cri_verstr_ptr;
+MpsLibWork* MPSLIB_libwork;
+/* Unreferenced, but still emitted after the referenced statics (retail .bss +0xC). */
+static long mpslib_init_cnt;
 
 const char MPSLIB_version_str[] =
     "\nCRI MPS/GC Ver.1.924 Build:Sep  3 2004 11:38:25\n\0"
     "Append: MW2407 GC20Apr2004Patch1\n";
-static inline int mpslib_check_handle(MpsHandle* handle) {
+
+static int mpslib_check_handle(MpsHandle* handle) {
     mpslib_hn_last = handle;
     if (handle == 0 || handle->state == 1) {
         return -1;
     }
     return 0;
+}
+
+/* Public CRI version query; unreferenced in MKD, so the linker strips it. */
+const char* MPS_GetVerStr(void) {
+    cri_verstr_ptr = MPSLIB_version_str;
+    return MPSLIB_version_str;
 }
 
 static inline int mpslib_set_error(MpsHandle* handle, int error) {
@@ -194,8 +205,9 @@ void MPS_Finish(void) {
     MPSGET_Finish();
 }
 
-static int mpslib_clear_handles(MpsHandle* handles, int count) {
-    int i;
+/* CRI Sint32 (signed long) status; the handle clear always succeeds. */
+static inline long mpslib_clear_handles(MpsHandle* handles, long count) {
+    long i;
 
     for (i = 0; i < count; i++) {
         handles[i].state = 1;
@@ -203,12 +215,10 @@ static int mpslib_clear_handles(MpsHandle* handles, int count) {
     return 0;
 }
 
-/* TODO: [near miss] 96.419754%; typed handle-clear helper matches the loop;
- * only retail's eliminated zero-result branch pair remains: soft ceiling. */
 int MPS_Init(int handle_count, MpsLibWork* work) {
     static const unsigned int test_wrok = 0x01020304;
     MpsLibWork* libwork;
-    int result;
+    long result;
 
     cri_verstr_ptr = MPSLIB_version_str;
     if (*(const unsigned char*)&test_wrok != 1) {

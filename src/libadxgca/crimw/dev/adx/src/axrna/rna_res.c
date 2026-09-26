@@ -79,11 +79,14 @@ void RNARES_Finish(void)
     }
 }
 
-/* TODO: [near miss] 96.489365%; pool construction matches, with only register coloring left in the unrolled fill. */
+/* TODO: [near miss] 97.98%; only offset/0x1000 r4<->r5 swap remains: retail keeps
+ * 0x1000 as a variable (donor needs asm self-copy); stop at coloring. */
 void RNARES_Init(void)
 {
-    u32 i;
     u32 offset;
+    u32 sum;
+    u32 base;
+    u32 i;
     u32 nbuf;
     RNAResource* resource;
 
@@ -96,11 +99,13 @@ void RNARES_Init(void)
         memset(rnares_obj, 0, sizeof(rnares_obj));
         nbuf = rnares_nbuf;
         resource = rnares_obj;
+        base = rnares_aram_ptr;
         offset = 0;
         for (i = 0; i < nbuf; i++, resource++) {
-            resource->buffer = (rnares_aram_ptr + offset) >> 1;
-            resource->size = 0x1000;
+            sum = base + offset;
             offset += 0x2000;
+            resource->buffer = sum >> 1;
+            resource->size = 0x1000;
         }
     }
     rnares_init_cnt++;

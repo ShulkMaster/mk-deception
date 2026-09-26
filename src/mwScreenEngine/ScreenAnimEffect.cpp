@@ -36,6 +36,8 @@ ScreenObject* ScreenAnimEffect::GetObject(SEElements_t* elements) {
     return 0;
 }
 
+/* TODO: [near miss] 97.8%; params (this/time/direction) take r31-r29 before the locals
+ * retail colors first; decl/switch/scope trials neutral or worse; stop at coloring. */
 unsigned int ScreenAnimEffect::Process(int time, int direction,
                                        SEElements_t* elements) {
     int done;
@@ -52,9 +54,8 @@ unsigned int ScreenAnimEffect::Process(int time, int direction,
     count = 0;
     obj = GetObject(elements);
     if (obj != 0) {
-        i = 0;
         count = (int)m_tracks->count;
-        while (i < count) {
+        for (i = 0; i < count; i++) {
             ctrl = ScreenAnimControlAt(m_tracks, i);
             firstKey = ScreenAnimKeyAt(ctrl->m_keys, 0);
             n = firstKey->m_count / 3;
@@ -73,7 +74,6 @@ unsigned int ScreenAnimEffect::Process(int time, int direction,
                     done += 1;
                 }
             }
-            i += 1;
         }
     }
 

@@ -39,7 +39,7 @@ SJ* SJMEM_Create(void* buffer, int buffer_size);
 int SJMEM_GetBufSize(SJ* sj);
 
 unsigned char* SJ_SearchTag(
-    const SJCK* source, const char* tag, const char* terminator, SJCK* result);
+    SJCK* source, const char* tag, const char* terminator, SJCK* result);
 void SJ_SplitChunk(const SJCK* source, int nbyte, SJCK* first, SJCK* remainder);
 
 #endif

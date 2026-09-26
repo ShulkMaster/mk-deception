@@ -175,18 +175,18 @@ int SFD_SetFileSize(SfdHandle* handle, int file_size)
     return 0;
 }
 
-/* TODO: [near miss] 99.625000%; matches RE4 CFG; retail reloads field_18 in the
- * fallback arm where ours reuses the compare register; RE4 fsize local was neutral. */
+/* TODO: [near miss] 99.625000%; retail reloads field_18 in the fallback arm; only an invented
+ * `int*` field pointer (permuter) reproduces it; sub-struct pointer/else-first/ternary do not. */
 static void sfsee_ExecHeadAnaly(SfdHandle* handle)
 {
     SfdSeeWork* source = sfsee_GetSource(handle);
-    SfdSeeTiming* timing;
     int audio_ready;
     int video_ready;
     int system_ready;
     int analysis_pending;
     int byte_rate;
     int field_08;
+    int file_size;
     int duration;
 
     if (source->prefix.analyzed != 0) {
@@ -227,11 +227,10 @@ static void sfsee_ExecHeadAnaly(SfdHandle* handle)
     if (system_ready != 0) {
         source->system.active = 1;
         if (source->prefix.field_0C != 0 && source->prefix.field_18 > 0) {
-            timing = &source->timing;
+            file_size = source->timing.file_size;
             duration = source->prefix.field_40;
-            if (timing->file_size > 0 && duration > 0) {
-                byte_rate = UTY_MulDiv(timing->file_size, 1000,
-                                       duration);
+            if (file_size > 0 && duration > 0) {
+                byte_rate = UTY_MulDiv(file_size, 1000, duration);
             } else {
                 byte_rate = source->prefix.field_18;
             }

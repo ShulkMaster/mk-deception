@@ -2364,7 +2364,7 @@ void bind_to_bone(int bone_index) {
         if (active_cmdscript->mko != 0 &&
             active_cmdscript->mko->load_ctx != 0) {
             object = active_cmdscript->mko->load_ctx->bgnd_obj;
-            if ((int)object->oid == 0x1001 || (int)object->oid == 0x1002) {
+            if (object->oid == 0x1001 || object->oid == 0x1002) {
                 effect->bound_obj = object;
                 if (effect->bound_obj != 0) {
                     pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);

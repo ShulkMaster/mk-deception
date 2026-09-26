@@ -54,8 +54,6 @@ void GXSetDispCopyDst(u16 wd, u16 ht) {
     SET_REG_FIELD(1300, __GXData->cpDispStride,  8, 24, 0x4D);
 }
 
-/* TODO: [near miss] 97.236840%; post-call GPR coloring and addi/mr residue
- * remain; donor/retail ABI, GXData offsets, and CFG agree. */
 void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
     u32 rowTiles;
     u32 colTiles;
@@ -87,7 +85,8 @@ void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
     }
 
     __GXData->cpTexZ = (fmt & _GX_TF_ZTF) == _GX_TF_ZTF;
-    peTexFmtH = (peTexFmt >> 3) & 1;
+    peTexFmtH = peTexFmt >> 3;
+    peTexFmtH &= 1;
     SET_REG_FIELD(1381, __GXData->cpTex, 1, 3, peTexFmtH);
     peTexFmt = peTexFmt & 7;
     __GetImageTileCount(fmt, wd, ht, &rowTiles, &colTiles, &cmpTiles);

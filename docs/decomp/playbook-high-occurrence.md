@@ -21,6 +21,8 @@ and immediates even above 99%; large score swings can be diff-alignment artifact
 An aggregate score can rise while a changed function regresses after branch
 removal; compare each function and its instructions before accepting a gain
 ([AI dispatch audit](../../.agent-work/decomp/ai-matching/README.md#round-137-remove-unsupported-twitch-dispatch-grouping)).
+Recheck any changed function with report fuzzy (`build/GQNE5D/report.json`) as
+well as `objdiff-cli diff`: the two can rank variants differently (p_fish_attack).
 Compare referenced values before calling a mismatch pool-only: different float
 returns can receive the same ordinary score. Run data-value mode as well.
 No forced registers, fake volatile, dead sinks, empty arms, invented fields,
@@ -286,6 +288,10 @@ member loaded from a config pointer). `mwMemAllocateFixedBlockHeaps` closes from
 H10 shared-return addendum: IF retail loads a float return constant once at the final join while source returns the same constant from several top-level `if`/`else if`/`else` arms, TRY dropping those arm returns in favor of one `return` after the chain. Keep genuine early returns inside `switch` cases. `p_chomper_controller` rises 99.08%->99.77% and `p_chomper2_controller` 99.13%->99.79%. If two `switch` cases share a call and one case only guards it, TRY `if (!cond) break;` falling through into `default`: `p_game_loop` drops its duplicate `do_fight_effect` call (99.21%->99.67%).
 
 H05 read-once addendum: IF retail loads a global once before a branch and both arms test it, TRY one real local assigned before the branch (`int winning_side = winner;`). This closes `round_over`. The same function needed M13's repeated-block helper first.
+
+H08 direct-return addendum: IF a typed latch helper's two null arms are merged (`object = 0` in both arms plus one return) while retail keeps separate failure arms, TRY `return object;` on the valid instance and `return 0;` in each failure arm. This closes the hold-proc latch in `reaction_xfer_him`, `get_mission_state` (`trial_end_round`, `trial_check_state`) and the fish-attack target latch. Measure every consumer: the fish latch in the same function regresses in this form, so keep per-owner shapes.
+
+H01 virtual-slot addendum: IF C++ source calls a virtual through a raw vtable cast (`((void**)self->vtbl)[0x44 / 4]`) and retail uses the `lwz r12,0(this); lwz r12,off(r12)` idiom, REQUIRE the slot from the canonical class header. TRY the real virtual call through that class (`((ScreenControl*)self)->Update()`); retail slots +0x44/+0x48/+0x4C are Update/RefreshCollection/RefreshOption, not show/hide. This closes `RefreshOption__11SpreadSheetFi` and improves eight siblings.
 
 H08 owner-index addendum: IF a latch diamond's CFG matches but retail folds the member offsets into its loads (`lwz 0x144(base)`) where ours materializes `&array[i]`, TRY an inline helper taking owner plus index instead of an element pointer (`fighter_severed_limb_live_object(fighter, i)`; `p_fish_attack`). Keep other consumers on their existing helper and measure each: forcing one helper through a shared macro regressed.
 

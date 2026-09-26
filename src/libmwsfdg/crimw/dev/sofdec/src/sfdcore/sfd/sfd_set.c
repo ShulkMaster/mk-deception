@@ -65,18 +65,18 @@ void SFSET_SetCond(SfdHandle* handle, int condition,
     }
 }
 
-/* TODO: [near miss] 99.669420%; r28/r31 index/handle coloring; RE4's `ofs = id << 2`
- * byte-offset local regressed to 99.34% (ofs colored first); permuter found no honest form. */
+/* TODO: [near miss] 99.710750%; only hoisted condition<<2 temp (r30) vs i (r28) coloring remains;
+ * explicit ofs local in any declaration order colors first (<=99.50%); permuter found nothing. */
 int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
+    SfdHandle** slot;
     int i;
 
     if (handle == 0) {
-        SfdHandle** slot = SFLIB_libwork.handles;
+        slot = SFLIB_libwork.handles;
         for (i = 0; i < 8; i++, slot++) {
-            SfdHandle* current = *slot;
-            if (current != 0) {
-                SFSET_SetCond(current, condition, value);
+            if (*slot != 0) {
+                SFSET_SetCond(*slot, condition, value);
             }
         }
         SFLIB_libwork.default_conditions[condition] = value;

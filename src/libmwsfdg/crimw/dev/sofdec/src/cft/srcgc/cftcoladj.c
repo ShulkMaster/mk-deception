@@ -1,8 +1,6 @@
 typedef float CFTMtx3D[3][3];
 typedef unsigned char CFTConvTable[256];
 
-static const float cft_inverse_scale[] = {1.0f};
-
 void CFT_MakeMtx3D(CFTMtx3D left, CFTMtx3D right, CFTMtx3D product)
 {
     product[0][0] = left[0][2] * right[2][0] +
@@ -25,7 +23,6 @@ void CFT_MakeMtx3D(CFTMtx3D left, CFTMtx3D right, CFTMtx3D product)
                     (left[2][0] * right[0][2] + left[2][1] * right[1][2]);
 }
 
-/* TODO: [near miss] 97.755104%; RE4 scalar/lifetime order restores the cofactor schedule; remaining mismatches are register coloring. */
 void CFT_MakeInverseMtx3D(CFTMtx3D matrix, CFTMtx3D inverse)
 {
     float determinant;
@@ -49,7 +46,7 @@ void CFT_MakeInverseMtx3D(CFTMtx3D matrix, CFTMtx3D inverse)
     g = matrix[2][0];
     h = matrix[2][1];
     i = matrix[2][2];
-    scale = cft_inverse_scale[0];
+    scale = 1.0f;
     determinant = (a * e * i + b * f * g + c * d * h) -
                   (a * f * h + b * d * i + c * e * g);
     inverse[0][0] = scale * ((e * i - f * h) / determinant);

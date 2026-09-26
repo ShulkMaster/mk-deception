@@ -1039,7 +1039,7 @@ void insert_mu(int device, int arg1, int arg2) {
     if (g_bMemCardScreensDisabled == 1) {
         return;
     }
-    if (device < 0 || device > 1) {
+    if (device < 0 || device >= 2) {
         reset_storage_device_status_structure(device);
         return;
     }

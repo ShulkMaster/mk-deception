@@ -226,27 +226,30 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
     return 0;
 }
 
-/* TODO: [near miss] 98.064514%; retail CFG and accesses agree; only li-zero vs already-zero mr remains; stop at coloring. */
-int SFTRN_Finish(SfdTransportRegistry* registry)
+static inline int sftrn_CallFinish(const SfdTransportInterface* const* entry,
+                                   int result)
 {
     int i;
-    const SfdTransportInterface** entry;
+    const SfdTransportInterface* interface;
     SfdTransportRawCallback callback;
-    int result;
 
-    result = 0;
-    entry = registry->entries;
     for (i = 0; i < 15; i++, entry++) {
-        if (*entry == 0) {
+        interface = *entry;
+        if (interface == 0) {
             break;
         }
-        callback = ((const SfdTransportRawCallback*)*entry)[1];
+        callback = ((const SfdTransportRawCallback*)interface)[1];
         result = callback(0, 0, 0, 0);
         if (result != 0) {
             break;
         }
     }
     return result;
+}
+
+int SFTRN_Finish(SfdTransportRegistry* registry)
+{
+    return sftrn_CallFinish(registry->entries, 0);
 }
 
 static inline int sftrn_CallInit(const SfdTransportInterface* const* entry,

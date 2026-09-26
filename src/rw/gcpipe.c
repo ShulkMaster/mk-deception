@@ -43,8 +43,8 @@ void _rxGCResEntryWaitDone(RwResEntry* entry)
 }
 
 
-/* TODO: [near miss] 93.31474%; equivalent stack/GPR allocation and callback
- * owner-load ordering remain; stop at coloring. */
+/* TODO: [near miss] 98.94422%; stack exact; retail reuses r5 (arg 3) as the base
+ * for the callback's ambient arg, and atomic ranks below specular (r22 vs r24). */
 void* _rxGCDefaultRenderCallback(
     void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
@@ -52,21 +52,28 @@ void* _rxGCDefaultRenderCallback(
     RwGameCubeVertexArray* vertexArrays;
     RwGameCubeDisplayList* displayList;
     RpMesh* mesh;
+    unsigned int numMeshes;
     RwDlObjectRenderCallBack materialCallback;
     RwMatrix* ltm;
     RpGameCubeVtxFmt* vertexFormat;
-    unsigned int numMeshes;
+    RpAtomic* atomic;
+    int restoreState;
+    unsigned int oldState;
+    int specularMap;
+    int restoreState2;
+    unsigned int oldState2;
 
     vertexBuffer =
         (RwGameCubeVertexBuffer*)(instanceData->resourceEntry + 1);
     vertexArrays = vertexBuffer->arrays;
     displayList = (RwGameCubeDisplayList*)&vertexArrays[
         vertexBuffer->numArrays];
-    vertexBuffer->displayListToken = _RwDlTokenCurrent;
+    vertexBuffer->displayListToken = (unsigned short)_RwDlTokenCurrent;
 
-    ltm = RwFrameGetLTM((RwFrame*)((RpAtomic*)object)->object.parent);
+    atomic = (RpAtomic*)object;
+    ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
     vertexFormat = *(RpGameCubeVtxFmt**)(
-        (unsigned char*)((RpAtomic*)object)->geometry + _rpDlGeomVtxFmtOffset);
+        (unsigned char*)atomic->geometry + _rpDlGeomVtxFmtOffset);
     _rwDlVtxFmtSetup(vertexFormat,
                      (RpGameCubeVtxFmtSetupData*)instanceData);
     if ((instanceData->geometryFlags & 0x10) != 0) {
@@ -88,10 +95,9 @@ void* _rxGCDefaultRenderCallback(
             SpecularMaterialPluginData* specular =
                 (SpecularMaterialPluginData*)(
                 (unsigned char*)material + SpecularMaterialOffset);
-            int restoreState = 0;
 
+            restoreState = 0;
             if (specular->flags.bits.hidden == 0) {
-                unsigned int oldState;
                 RwTexture* texture;
                 RwTexture* alphaTexture;
 
@@ -104,14 +110,15 @@ void* _rxGCDefaultRenderCallback(
                 }
                 texture = material->texture;
                 alphaTexture = RpMaterialGetAlphaPassTexture(material);
-                if (0 != materialCallback) {
+                if ((RwDlObjectRenderCallBack)NULL != materialCallback) {
                     materialCallback(&instanceData->ambient,
-                                     (GXColor*)&material->color, material,
-                                     material->surface.ambient);
+                                     (GXColor*)&mesh->material->color,
+                                     mesh->material,
+                                     mesh->material->surface.ambient);
                 }
                 SetSingleTextureAlphaPassWithAlphaComp(
                     texture, alphaTexture, (RxGCTevAlphaPass*)instanceData);
-                if (0.0f != specular->shininess) {
+                if (specular->shininess) {
                     int useSpecularMap = 0;
                     int hasLighting = 0;
 
@@ -123,8 +130,9 @@ void* _rxGCDefaultRenderCallback(
                         (instanceData->geometryFlags & 0x84) != 0) {
                         useSpecularMap = 1;
                     }
+                    specularMap = useSpecularMap;
                     ProcessSpecularity(material, texture, alphaTexture,
-                                       useSpecularMap);
+                                       specularMap);
                     GXCallDisplayList(displayList->data, displayList->size);
                     CleanupSpecularity(material, texture, alphaTexture);
                 } else {
@@ -148,31 +156,30 @@ void* _rxGCDefaultRenderCallback(
                 (unsigned char*)material + SpecularMaterialOffset);
 
             if (specular->flags.bits.hidden == 0) {
-                int restoreState = 0;
-                unsigned int oldState;
-
+                restoreState2 = 0;
                 if (specular->flags.bits.cullFront != 0) {
-                    restoreState = 1;
+                    restoreState2 = 1;
                     RwEngineInstance->dOpenDevice.fpRenderStateGet(
-                        0x14, &oldState);
+                        0x14, &oldState2);
                     RwEngineInstance->dOpenDevice.fpRenderStateSet(
                         0x14, 1);
                 }
                 if (0 != materialCallback) {
                     materialCallback(&instanceData->ambient,
-                                     (GXColor*)&material->color, material,
-                                     material->surface.ambient);
+                                     (GXColor*)&mesh->material->color,
+                                     mesh->material,
+                                     mesh->material->surface.ambient);
                 }
-                if (0.0f != specular->shininess) {
+                if (specular->shininess) {
                     ProcessSpecularity(material, 0, 0, 0);
                     GXCallDisplayList(displayList->data, displayList->size);
                     CleanupSpecularity(material, 0, 0);
                 } else {
                     GXCallDisplayList(displayList->data, displayList->size);
                 }
-                if (restoreState != 0) {
+                if (restoreState2 != 0) {
                     RwEngineInstance->dOpenDevice.fpRenderStateSet(
-                        0x14, oldState);
+                        0x14, oldState2);
                 }
             }
             displayList++;

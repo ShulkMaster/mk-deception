@@ -558,61 +558,47 @@ static inline void adxb_InitKeyGenerator(void)
 
 #pragma inline_max_size(2000)
 #pragma inline_max_total_size(4000)
+/* One step of the key chain: mix a hex digit of the sample count through the prime table. */
+#define ADXB_SKG_MIX(k, c) (skg_prim_tbl[((k) * skg_prim_tbl[0x80 + (c)]) % 1024])
+
 static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
                                           short* multiplier, short* increment)
 {
     char key_text[16];
-    short factor0;
-    short factor1;
-    short factor2;
-    short factor3;
-    short factor4;
-    short factor5;
-    short factor6;
-    short factor7;
-    int value;
+    short key;
+    short state_key;
+    short multiplier_key;
+    int i;
+
     sprintf(key_text, skg_hex_format, sample_count);
     if (skg_init_count == 0) {
         adxb_InitKeyGenerator();
     }
-    value = skg_prim_tbl[0x100];
-    factor0 = skg_prim_tbl[0x80 + (signed char)key_text[0]];
-    value = skg_prim_tbl[(value * factor0) % 1024];
-    factor1 = skg_prim_tbl[0x80 + (signed char)key_text[1]];
-    value = skg_prim_tbl[(value * factor1) % 1024];
-    factor2 = skg_prim_tbl[0x80 + (signed char)key_text[2]];
-    value = skg_prim_tbl[(value * factor2) % 1024];
-    factor3 = skg_prim_tbl[0x80 + (signed char)key_text[3]];
-    value = skg_prim_tbl[(value * factor3) % 1024];
-    factor4 = skg_prim_tbl[0x80 + (signed char)key_text[4]];
-    value = skg_prim_tbl[(value * factor4) % 1024];
-    factor5 = skg_prim_tbl[0x80 + (signed char)key_text[5]];
-    value = skg_prim_tbl[(value * factor5) % 1024];
-    factor6 = skg_prim_tbl[0x80 + (signed char)key_text[6]];
-    value = skg_prim_tbl[(value * factor6) % 1024];
-    factor7 = skg_prim_tbl[0x80 + (signed char)key_text[7]];
-    *state = skg_prim_tbl[(value * factor7) % 1024];
-    value = skg_prim_tbl[0x200];
-    value = skg_prim_tbl[(value * factor0) % 1024];
-    value = skg_prim_tbl[(value * factor1) % 1024];
-    value = skg_prim_tbl[(value * factor2) % 1024];
-    value = skg_prim_tbl[(value * factor3) % 1024];
-    value = skg_prim_tbl[(value * factor4) % 1024];
-    value = skg_prim_tbl[(value * factor5) % 1024];
-    value = skg_prim_tbl[(value * factor6) % 1024];
-    *multiplier = skg_prim_tbl[(value * factor7) % 1024];
-    value = skg_prim_tbl[0x300];
-    value = skg_prim_tbl[(value * factor0) % 1024];
-    value = skg_prim_tbl[(value * factor1) % 1024];
-    value = skg_prim_tbl[(value * factor2) % 1024];
-    value = skg_prim_tbl[(value * factor3) % 1024];
-    value = skg_prim_tbl[(value * factor4) % 1024];
-    value = skg_prim_tbl[(value * factor5) % 1024];
-    value = skg_prim_tbl[(value * factor6) % 1024];
-    *increment = skg_prim_tbl[(value * factor7) % 1024];
+    *state = 0;
+    *multiplier = 0;
+    *increment = 0;
+    key = skg_prim_tbl[0x100];
+    for (i = 0; i < 8; i++) {
+        key = ADXB_SKG_MIX(key, (signed char)key_text[i]);
+    }
+    state_key = key;
+    key = skg_prim_tbl[0x200];
+    for (i = 0; i < 8; i++) {
+        key = ADXB_SKG_MIX(key, (signed char)key_text[i]);
+    }
+    multiplier_key = key;
+    key = skg_prim_tbl[0x300];
+    *state = state_key;
+    *multiplier = multiplier_key;
+    for (i = 0; i < 8; i++) {
+        key = ADXB_SKG_MIX(key, (signed char)key_text[i]);
+    }
+    *increment = key;
 }
 
-static inline void adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
+/* TODO: [near miss] `inline` only suppresses an out-of-line body that retail lacks; RE4's plain
+ * static adxb_SetKey keeps both caller status checks unfolded (98.63388%) but emits a symbol. */
+static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
                                             unsigned char version,
                                             unsigned char revision,
                                             int sample_count,
@@ -641,12 +627,13 @@ static inline void adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
         *multiplier = 0;
         *increment = 0;
     }
+    return 0;
 }
 #pragma inline_max_size reset
 #pragma inline_max_total_size reset
 
-/* TODO: [breakthrough needed] 87.587430%; first-use factor staging is neutral;
- * retail's unrolled chain has unresolved factor loads/register lifetimes. */
+/* TODO: [near miss] 98.13525%; RE4 SKG loops and status-returning key selector restored;
+ * retail keeps both `status < 0` checks unfolded (see adxb_SelectEncryptionKey). */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
@@ -660,6 +647,7 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
     short delay_right[2];
     unsigned char version;
     unsigned char revision;
+    int status;
 
     base->header_decoded = 1;
     if (ADX_DecodeInfo((AdxHeader*)input, length, &data_length, &base->encoding,
@@ -686,15 +674,17 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
         base->total_decoded_samples = 0;
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
         ahx_key[0] = 0;
-        adxb_SelectEncryptionKey(decoder, version, revision,
-                                 base->total_samples, &ahx_key[1],
-                                 &ahx_key[2], &ahx_key[3]);
+        status = adxb_SelectEncryptionKey(decoder, version, revision,
+                                          base->total_samples, &ahx_key[1],
+                                          &ahx_key[2], &ahx_key[3]);
+        if (status < 0) return -1;
         if (ahxsetextfunc != 0) ahxsetextfunc(decoder->ahx_decoder, ahx_key);
     } else {
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
-        adxb_SelectEncryptionKey(decoder, version, revision,
-                                 base->total_samples, &adx_k0, &adx_km,
-                                 &adx_ka);
+        status = adxb_SelectEncryptionKey(decoder, version, revision,
+                                          base->total_samples, &adx_k0,
+                                          &adx_km, &adx_ka);
+        if (status < 0) return -1;
         ADXPD_SetExtPrm(base->expander, adx_k0, adx_km, adx_ka);
         if (ADX_DecodeInfoExADPCM2((AdxHeader*)input, length, &base->coefficient) < 0) return 0;
         if (ADX_DecodeInfoExIdly((AdxHeader*)input, length, delay_left, delay_right) < 0) return 0;

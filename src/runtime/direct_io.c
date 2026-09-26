@@ -106,12 +106,12 @@ size_t fwrite(const void* data, size_t member_size, size_t member_count,
 }
 
 size_t __fread(void* data, size_t member_size, size_t member_count, FILE* file) {
-    u8* current;
-    size_t remaining;
-    size_t transferred;
-    size_t count;
     int buffered;
     int load_result;
+    u8* current;
+    size_t count;
+    size_t remaining;
+    size_t transferred;
 
     if (fwide(file, 0) == 0) {
         fwide(file, -1);
@@ -121,85 +121,104 @@ size_t __fread(void* data, size_t member_size, size_t member_count, FILE* file) 
         return 0;
     }
     buffered = 1;
-    if (file->mode.bits.binary_io && file->mode.bits.buffer_mode != 2) {
-        buffered = 0;
+    if (file->mode.bits.binary_io) {
+        if (file->mode.bits.buffer_mode != 2) {
+            buffered = 0;
+        }
     }
-    if (file->state.io_state == 0 && (file->mode.bits.io_mode & 1)) {
-        file->state.io_state = 2;
-        file->buffer_length = 0;
+    if (file->state.io_state == 0) {
+        if (file->mode.bits.io_mode & 1) {
+            file->state.io_state = 2;
+            file->buffer_length = 0;
+        }
     }
     if (file->state.io_state < 2) {
         file->state.error = 1;
         file->buffer_length = 0;
         return 0;
     }
-    if ((file->mode.bits.buffer_mode & 1) &&
-        __flush_line_buffered_output_files() != 0) {
-        file->state.error = 1;
-        file->buffer_length = 0;
-        return 0;
+    if (file->mode.bits.buffer_mode & 1) {
+        if (__flush_line_buffered_output_files()) {
+            file->state.error = 1;
+            file->buffer_length = 0;
+            return 0;
+        }
     }
 
     current = data;
     transferred = 0;
-    if (remaining != 0 && file->state.io_state >= 3) {
+    if (remaining && file->state.io_state >= 3) {
         do {
-            int state = file->state.io_state;
-
             if (fwide(file, 0) == 1) {
-                *(u16*)current = file->ungetc_wide_buffer[state - 3];
-                current += 2;
                 transferred += 2;
                 remaining -= 2;
+                *(u16*)current = file->ungetc_wide_buffer[file->state.io_state - 3];
+                current += 2;
             } else {
-                *current++ = file->ungetc_buffer[state - 3];
-                transferred++;
-                remaining--;
+                transferred += 1;
+                remaining -= 1;
+                *current = file->ungetc_buffer[file->state.io_state - 3];
+                current += 1;
             }
-            file->state.io_state = state - 1;
-        } while (remaining != 0 && file->state.io_state >= 3);
-    }
-    if (file->state.io_state == 2) {
-        file->buffer_length = file->saved_buffer_length;
+            file->state.io_state = file->state.io_state - 1;
+            if (!remaining) {
+                break;
+            }
+        } while (file->state.io_state >= 3);
+
+        if (file->state.io_state == 2) {
+            file->buffer_length = file->saved_buffer_length;
+        }
     }
 
-    if (remaining != 0 && (file->buffer_length != 0 || buffered)) {
-        do {
-            if (file->buffer_length == 0) {
-                load_result = __load_buffer(file, 0, 0);
-                if (load_result != 0) {
-                    if (load_result == 1) {
-                        file->state.error = 1;
-                        file->buffer_length = 0;
-                    } else {
-                        file->state.io_state = 0;
-                        file->state.eof = 1;
-                        file->buffer_length = 0;
+    if (remaining) {
+        if (file->buffer_length || buffered) {
+            do {
+                if (!file->buffer_length) {
+                    load_result = __load_buffer(file, 0, 0);
+                    if (load_result) {
+                        if (load_result == 1) {
+                            file->state.error = 1;
+                            file->buffer_length = 0;
+                        } else {
+                            file->state.io_state = 0;
+                            file->state.eof = 1;
+                            file->buffer_length = 0;
+                        }
+                        remaining = 0;
+                        break;
                     }
-                    remaining = 0;
+                }
+
+                count = file->buffer_length;
+                if (count > remaining) {
+                    count = remaining;
+                }
+
+                memcpy(current, file->buffer_ptr, count);
+
+                remaining -= count;
+                current += count;
+                transferred += count;
+                file->buffer_ptr += count;
+                file->buffer_length -= count;
+
+                if (!remaining) {
                     break;
                 }
-            }
-            count = file->buffer_length;
-            if (count > remaining) {
-                count = remaining;
-            }
-            memcpy(current, file->buffer_ptr, count);
-            remaining -= count;
-            current += count;
-            transferred += count;
-            file->buffer_ptr += count;
-            file->buffer_length -= count;
-        } while (remaining != 0 && buffered);
+            } while (buffered);
+        }
     }
-    if (remaining != 0 && !buffered) {
+
+    if (remaining && !buffered) {
         u8* saved_buffer = file->buffer;
         size_t saved_size = file->buffer_size;
 
         file->buffer = current;
         file->buffer_size = remaining;
+
         load_result = __load_buffer(file, &count, 1);
-        if (load_result != 0) {
+        if (load_result) {
             if (load_result == 1) {
                 file->state.error = 1;
                 file->buffer_length = 0;
@@ -209,12 +228,15 @@ size_t __fread(void* data, size_t member_size, size_t member_count, FILE* file) 
                 file->buffer_length = 0;
             }
         }
-        file->buffer = saved_buffer;
+
         transferred += count;
+        file->buffer = saved_buffer;
         file->buffer_size = saved_size;
+
         __prep_buffer(file);
         file->buffer_length = 0;
     }
+
     return transferred / member_size;
 }
 

@@ -379,21 +379,19 @@ void yinyang_finish_music(void) {
     }
 }
 
-/* Soft ceiling: yinyang_stop_music ~99.67% -- SDA relocation only. */
 void yinyang_stop_music(void) {
     if (yinyang_current_music != 0) {
         snd_stop(yinyang_current_music);
         yinyang_current_music = 0;
     }
 
-    if (yy_evil_time_active == 0) {
-        snd_req(0x1BF1);
-    } else {
+    if (yy_evil_time_active != 0) {
         snd_req(0x1BF7);
+    } else {
+        snd_req(0x1BF1);
     }
 }
 
-/* Soft ceiling: yinyang_start_music ~98.68% -- SDA relocation only. */
 void yinyang_start_music(void) {
     if ((unsigned int)yinyang_evil_music_index >= 3) {
         yinyang_evil_music_index = 0;
@@ -402,12 +400,12 @@ void yinyang_start_music(void) {
         yinyang_good_music_index = 0;
     }
 
-    if (yy_evil_time_active == 0) {
-        yinyang_current_music =
-            snd_req(good_tune_tbl[yinyang_good_music_index]);
-    } else {
+    if (yy_evil_time_active != 0) {
         yinyang_current_music =
             snd_req(evil_tune_tbl[yinyang_evil_music_index]);
+    } else {
+        yinyang_current_music =
+            snd_req(good_tune_tbl[yinyang_good_music_index]);
     }
 }
 
@@ -629,8 +627,19 @@ static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
     return object;
 }
 
-/* TODO: [breakthrough] 97.76786%; severed-limb latch now uses an owner+index inline (CFG matches);
- * target latch still copies r4->r3 (helper and macro-wide forms regressed) plus GPR coloring. */
+static inline MkObj* fish_attack_live_target(FishAttackPdata* pdata) {
+    MkObj* object = pdata->target;
+    if (object != 0) {
+        if (object->hdr.instance == pdata->target_instance) {
+            return object;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 99.472404%; typed target latch with direct failure returns fixed its CFG;
+ * the fish latch keeps the in-place macro (helper forms regress); GPR coloring remains. */
 float p_fish_attack(void) {
     FishAttackPdata* pdata;
     MkObj* fish;
@@ -674,8 +683,7 @@ float p_fish_attack(void) {
             return -1.0f;
         }
 
-        RESOLVE_MAB_OBJECT_IN_PLACE(
-            target, pdata->target, pdata->target_instance);
+        target = fish_attack_live_target(pdata);
         plyr_obj = target;
         if (target == 0) {
             return -1.0f;
@@ -694,8 +702,7 @@ float p_fish_attack(void) {
         pdata->turn_limit = (unsigned short)randu0(10) + 5;
         pdata->turning_left = 1;
 
-        RESOLVE_MAB_OBJECT_IN_PLACE(
-            target, pdata->target, pdata->target_instance);
+        target = fish_attack_live_target(pdata);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -717,8 +724,7 @@ float p_fish_attack(void) {
         PlyrInfo* player;
         MkObj* severed_object;
 
-        RESOLVE_MAB_OBJECT_IN_PLACE(
-            target, pdata->target, pdata->target_instance);
+        target = fish_attack_live_target(pdata);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -733,8 +739,7 @@ float p_fish_attack(void) {
         if (pdata->state_ticks <= 0) {
             if (pdata->lifetime < 15 && pdata->state < 4) {
                 pdata->state = 4;
-                RESOLVE_MAB_OBJECT_IN_PLACE(
-                    target, pdata->target, pdata->target_instance);
+                target = fish_attack_live_target(pdata);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -776,8 +781,7 @@ float p_fish_attack(void) {
             {
                 Vec* forward;
 
-                RESOLVE_MAB_OBJECT_IN_PLACE(
-                    target, pdata->target, pdata->target_instance);
+                target = fish_attack_live_target(pdata);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -812,8 +816,7 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
-            RESOLVE_MAB_OBJECT_IN_PLACE(
-                target, pdata->target, pdata->target_instance);
+            target = fish_attack_live_target(pdata);
             plyr_obj = target;
             RESOLVE_MAB_OBJECT_IN_PLACE(
                 fish, pdata->fish, pdata->fish_instance);
