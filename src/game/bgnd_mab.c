@@ -379,21 +379,19 @@ void yinyang_finish_music(void) {
     }
 }
 
-/* Soft ceiling: yinyang_stop_music ~99.67% -- SDA relocation only. */
 void yinyang_stop_music(void) {
     if (yinyang_current_music != 0) {
         snd_stop(yinyang_current_music);
         yinyang_current_music = 0;
     }
 
-    if (yy_evil_time_active == 0) {
-        snd_req(0x1BF1);
-    } else {
+    if (yy_evil_time_active != 0) {
         snd_req(0x1BF7);
+    } else {
+        snd_req(0x1BF1);
     }
 }
 
-/* Soft ceiling: yinyang_start_music ~98.68% -- SDA relocation only. */
 void yinyang_start_music(void) {
     if ((unsigned int)yinyang_evil_music_index >= 3) {
         yinyang_evil_music_index = 0;
@@ -402,12 +400,12 @@ void yinyang_start_music(void) {
         yinyang_good_music_index = 0;
     }
 
-    if (yy_evil_time_active == 0) {
-        yinyang_current_music =
-            snd_req(good_tune_tbl[yinyang_good_music_index]);
-    } else {
+    if (yy_evil_time_active != 0) {
         yinyang_current_music =
             snd_req(evil_tune_tbl[yinyang_evil_music_index]);
+    } else {
+        yinyang_current_music =
+            snd_req(good_tune_tbl[yinyang_good_music_index]);
     }
 }
 
