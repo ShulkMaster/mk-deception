@@ -5385,18 +5385,21 @@ void mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void) {
     g_active_piece->movement->desired_cell_blend = 30.0f;
 }
 
-/* TODO: [near miss] 98.17461%; retained X snapshot restored; stop at FP coloring and zero-result move. */
 void mk_chess_blend_to_my_cell_pos(float distance) {
     ChessPiece* piece = g_active_piece;
     MkObj* object = piece->object;
     ChessCell* cell = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
-    float original_x = object->pos.value.x;
-    float dx = cell->position.x + piece->runtime.fields.cell_offset.x - original_x;
-    float dz = cell->position.z + piece->runtime.fields.cell_offset.z - object->pos.value.z;
-    float length_squared = dx * dx + dz * dz;
+    float dx;
+    float dz;
+    float original_x;
+    float length_squared;
     float inverse_length;
     union { float f; unsigned int u; } input, estimate;
 
+    original_x = object->pos.value.x;
+    dx = cell->position.x + piece->runtime.fields.cell_offset.x - original_x;
+    dz = cell->position.z + piece->runtime.fields.cell_offset.z - object->pos.value.z;
+    length_squared = dx * dx + dz * dz;
     if (length_squared < distance * distance) {
         return;
     }
