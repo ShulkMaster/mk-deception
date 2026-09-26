@@ -725,14 +725,15 @@ ScreenObj* insert_2d_obj(ScreenObj* obj) {
     return obj;
 }
 
+/* TODO: [near miss] 99.07%; retail keeps bne+b at the last engine-vtable check where this source folds to one beq. */
 ScreenObj* insert_string_obj(ScreenObj* obj) {
-    /* Soft ceiling: insert_string_obj (~98.5%+) -- NV coloring; stop. */
     MkPtr* ptr;
     MkPtr* next;
     ScreenObj* cur;
     ScreenObj* as_screen;
     ImageStringObjView* as_string;
     MkVtable5* vtbl;
+    MkVtable5* cur_vtbl;
     int pri;
     int cur_pri;
     MkPtr* insert;
@@ -780,8 +781,8 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
                 destroy_mkptr(ptr);
                 ptr = next;
             } else {
-                vtbl = cur->vtbl;
-                if (vtbl == &vtbl_mkpdata_screen_obj) {
+                cur_vtbl = cur->vtbl;
+                if (cur_vtbl == &vtbl_mkpdata_screen_obj) {
                     as_screen = cur;
                 } else {
                     as_screen = 0;
@@ -789,7 +790,7 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
                 if (as_screen != 0) {
                     cur_pri = as_screen->priority;
                 } else {
-                    if (vtbl == &vtbl_mkpdata_string_obj) {
+                    if (cur_vtbl == &vtbl_mkpdata_string_obj) {
                         as_string = (ImageStringObjView*)cur;
                     } else {
                         as_string = 0;
@@ -797,8 +798,8 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
                     if (as_string != 0) {
                         cur_pri = as_string->priority;
                     } else {
-                        /* Retail zeros cur when vtbl is not screen_engine. */
-                        if (vtbl != &vtbl_screen_engine) {
+                        /* Retail zeros cur when cur_vtbl is not screen_engine. */
+                        if (cur_vtbl != &vtbl_screen_engine) {
                             cur = 0;
                         }
                         if (cur != 0) {

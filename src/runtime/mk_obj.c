@@ -4255,6 +4255,7 @@ void obj_set_rw_lights(MkObj* obj) {
             active = 0;
             entry->state = 0;
             break;
+        case 2:
         default:
             if ((flags & entry->mask) != 0) {
                 active = 1;

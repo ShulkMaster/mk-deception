@@ -175,7 +175,6 @@ void DeleteCameraSnapShot(void) {
     }
 }
 
-/* TODO: [near miss] 99.87395%; cleanup frame register differs; 5040 declaration permutations found no exact candidate. */
 void TakeCameraSnapShot(void) {
     RwRaster* raster;
     RwRaster* z_raster;
@@ -230,10 +229,10 @@ void TakeCameraSnapShot(void) {
             Camera = saved_camera;
         }
         if (camera != 0) {
-            frame = (RwFrame*)camera->object.object.parent;
-            if (frame != 0) {
+            RwFrame* old_frame = (RwFrame*)camera->object.object.parent;
+            if (old_frame != 0) {
                 _rwObjectHasFrameSetFrame(camera, 0);
-                RwFrameDestroy(frame);
+                RwFrameDestroy(old_frame);
             }
             if (camera->zBuffer != 0) {
                 z_raster = camera->zBuffer;

@@ -39,7 +39,6 @@ void mk_hwfile_busywait_dowork(void) { mwFileTick(); }
 int mk_hwfile_write_blocking(MkHwFileRequest* request, void* buffer,
                              int length) {
     void* command;
-    long long offset;
 
     if (request == 0) {
         return -1;
@@ -47,8 +46,7 @@ int mk_hwfile_write_blocking(MkHwFileRequest* request, void* buffer,
     if (buffer == 0) {
         return -1;
     }
-    offset = mk_hwfile_tell(request);
-    command = mwFileWriteAsync(async_to_mwFile(request), offset, buffer,
+    command = mwFileWriteAsync(async_to_mwFile(request), mk_hwfile_tell(request), buffer,
                                length, 1, 0, 0);
     if (command == 0) {
         return -1;
