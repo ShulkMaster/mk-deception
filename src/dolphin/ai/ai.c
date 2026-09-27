@@ -264,16 +264,23 @@ static void __AICallbackStackSwitch(AIDCallback callback)
     callback();
 }
 
-/* TODO: [breakthrough needed] 76.975204%; timing CFG agrees, but MWCC frame/prologue and register/lowering shape still diverge. */
+#pragma peephole off
 static void __AI_SRC_INIT(void)
 {
     OSTime rising_32khz = 0;
     OSTime rising_48khz = 0;
     OSTime difference = 0;
+    OSTime t1 = 0;
     OSTime temp;
     unsigned long sample_32khz;
     unsigned long sample_48khz;
     unsigned long done = 0;
+    unsigned long volume = 0;
+    unsigned long init_count = 0;
+    unsigned long walking = 0;
+
+    walking = 0;
+    init_count = 0;
     temp = 0;
 
     while (!done) {
@@ -294,13 +301,18 @@ static void __AI_SRC_INIT(void)
         if (difference < bound_32KHz - buffer) {
             temp = min_wait;
             done = 1;
+            init_count++;
         } else if (difference >= bound_32KHz + buffer &&
                    difference < bound_48KHz - buffer) {
             temp = max_wait;
             done = 1;
+            init_count++;
         } else {
             done = 0;
+            walking = 1;
+            init_count++;
         }
     }
     while (rising_48khz + temp > OSGetTime()) {}
 }
+#pragma peephole reset

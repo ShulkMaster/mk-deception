@@ -3,9 +3,12 @@
 
 #ifdef __MWERKS__
 volatile u32 __EXIRegs[] : 0xCC006800;
+volatile u32 __PIRegs[] : 0xCC003000;
 #else
 static volatile u32 HostEXIRegs[15];
+static volatile u32 HostPIRegs[1];
 #define __EXIRegs HostEXIRegs
+#define __PIRegs HostPIRegs
 #endif
 
 #define IS_TRUE(value) ((value) != 0)
@@ -177,8 +180,6 @@ void DBInitInterrupts(void)
     __OSUnmaskInterrupts(0x40);
 }
 
-/* TODO: [near miss] 93.333336%; retail schedules the EXI reset constant before
- * its MMIO address; keep the ABI-correct source and stop at localized lowering. */
 void DBInitComm(volatile u8** input_pending, EXICallback monitor_callback)
 {
     int enabled;
@@ -188,15 +189,13 @@ void DBInitComm(volatile u8** input_pending, EXICallback monitor_callback)
     *input_pending = pEXIInputFlag;
     MTRCallback = monitor_callback;
     __OSMaskInterrupts(0x18000);
-    *(volatile u32*)0xCC006828 = 0;
+    __EXIRegs[10] = 0;
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 87.500000%; retail loads DBGCallback before the PI reset
- * store; ABI and callback CFG match, stop at localized scheduling. */
 static void DBGHandler(__OSInterrupt interrupt, OSContext* context)
 {
-    *(volatile u32*)0xCC003000 = 0x1000;
+    __PIRegs[0] = 0x1000;
     if (DBGCallback != 0) {
         DBGCallback((s16)interrupt, context);
     }

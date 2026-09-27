@@ -187,7 +187,7 @@ static void DecrementerExceptionHandler(__OSException exception,
     DecrementerExceptionCallback(exception, context);
 }
 
-/* TODO: [breakthrough needed] 83.250000%; RE4 assertion-shape trial was codegen-neutral; typed traversal agrees, but prologue/loop-entry CFG scheduling remains unresolved. */
+#pragma peephole off
 static int OnReset(int final)
 {
     OSAlarm* alarm;
@@ -206,3 +206,4 @@ static int OnReset(int final)
     }
     return 1;
 }
+#pragma peephole reset

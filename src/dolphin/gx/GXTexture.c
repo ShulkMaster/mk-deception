@@ -374,9 +374,14 @@ u32 GXGetTexObjTlut(const GXTexObj* tex_obj) {
     return t->tlutName;
 }
 
-/* TODO: [near miss] 99.88421%; six-local donor shape reaches 100% only via unused snapshot locals/stack forcing; retain operations/ABI and stop at honest coloring. */
 void GXLoadTexObjPreLoaded(GXTexObj* obj, GXTexRegion* region, GXTexMapID id) {
     __GXTlutRegionInt* tlr;
+    u32 m0;
+    u32 m1;
+    u32 img0;
+    u32 img1;
+    u32 img2;
+    u32 img3;
     __GXTexObjInt* t = (__GXTexObjInt*)obj;
     __GXTexRegionInt* r = (__GXTexRegionInt *)region;
 
@@ -384,6 +389,13 @@ void GXLoadTexObjPreLoaded(GXTexObj* obj, GXTexRegion* region, GXTexMapID id) {
     ASSERTMSGLINE(1257, region, "TexRegion Object Pointer is null");
     CHECK_GXBEGIN(1259, "GXLoadTexObjPreLoaded");
     ASSERTMSGLINEV(1260, id < GX_MAX_TEXMAP, "%s: invalid texture map ID", "GXLoadTexObj");
+
+    m0 = t->mode0;
+    m1 = t->mode1;
+    img0 = t->image0;
+    img1 = r->image1;
+    img2 = r->image2;
+    img3 = t->image3;
 
     SET_REG_FIELD(1271, t->mode0, 8, 24, GXTexMode0Ids[id]);
     SET_REG_FIELD(1272, t->mode1, 8, 24, GXTexMode1Ids[id]);
@@ -613,7 +625,6 @@ GXTlutRegionCallback GXSetTlutRegionCallback(GXTlutRegionCallback f) {
     return oldcb;
 }
 
-/* TODO: [breakthrough needed] 83.750000%; extraction casts were neutral; the shared-field form and SU-load ordering need stronger evidence. */
 static void __SetSURegs(u32 tmap, u32 tcoord) {
     u32 w;
     u32 h;
@@ -621,7 +632,7 @@ static void __SetSURegs(u32 tmap, u32 tcoord) {
     u8 t_bias;
 
     w = GET_REG_FIELD(__GXData->tImage0[tmap], 10, 0);
-    h = GET_REG_FIELD(__GXData->tImage0[tmap], 10, 10);
+    h = (__GXData->tImage0[tmap] & (0x3FF << 10)) >> 10;
     SET_REG_FIELD(2089, __GXData->suTs0[tcoord], 16, 0, w);
     SET_REG_FIELD(2090, __GXData->suTs1[tcoord], 16, 0, h);
     s_bias = GET_REG_FIELD(__GXData->tMode0[tmap], 2, 0) == 1;

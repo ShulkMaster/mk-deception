@@ -43,19 +43,18 @@ static void WriteCallback(s32 chan, s32 result)
     }
 }
 
-/* TODO: [near miss] 99.820000%; retail's shared error join is goto-shaped;
- * structured cleanup preserves effects with only frame/register residue. */
 static void EraseCallback(s32 chan, s32 result)
 {
     CARDControl* card = &__CARDBlock[chan];
     CARDCallback callback;
     u16* fat;
+    u32 offset;
     u32 address;
 
     if (result >= 0) {
         fat = __CARDGetFatBlock(card);
-        address = ((u32)fat - (u32)card->workArea) /
-                  CARD_SYSTEM_BLOCK_SIZE * card->sectorSize;
+        offset = (u32)fat - (u32)card->workArea;
+        address = card->sectorSize * (offset / CARD_SYSTEM_BLOCK_SIZE);
         result = __CARDWrite(chan, address, CARD_SYSTEM_BLOCK_SIZE, fat,
                              WriteCallback);
         if (result >= 0) {
@@ -124,22 +123,18 @@ s32 __CARDAllocBlock(s32 chan, u32 cBlock, CARDCallback callback)
     return __CARDUpdateFatBlock(chan, fat, callback);
 }
 
-/* TODO: [near miss] 98.846150%; card/FAT owner operations and CFG agree;
- * only harmless r8/r9 owner coloring remains. */
 s32 __CARDFreeBlock(s32 chan, u16 block, CARDCallback callback)
 {
-    CARDControl* card;
     u16* fat;
     u16 nextBlock;
 
-    card = &__CARDBlock[chan];
-    if (!card->attached) {
+    if (!__CARDBlock[chan].attached) {
         return CARD_RESULT_NOCARD;
     }
 
-    fat = __CARDGetFatBlock(card);
+    fat = __CARDGetFatBlock(&__CARDBlock[chan]);
     while (block != 0xFFFF) {
-        if (!CARDIsValidBlockNo(card, block)) {
+        if (!CARDIsValidBlockNo(&__CARDBlock[chan], block)) {
             return CARD_RESULT_BROKEN;
         }
 

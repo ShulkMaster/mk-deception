@@ -91,8 +91,6 @@ __OSInterruptHandler __OSGetInterruptHandler(__OSInterrupt interrupt)
     return InterruptHandlerTable[interrupt];
 }
 
-/* TODO: [breakthrough needed] 86.206894%; retail CFG/operations agree; only
- * memset argument scheduling differs, and the fixed-width size prototype is codegen-neutral. */
 void __OSInterruptInit(void)
 {
     InterruptHandlerTable = INTERRUPT_HANDLER_STORAGE;
@@ -104,7 +102,6 @@ void __OSInterruptInit(void)
     __OSSetExceptionHandler(4, ExternalInterruptHandler);
 }
 
-/* TODO: [breakthrough needed] 74.68681%; RE4's explicit default CFG is neutral here; MMIO scheduling and loop lowering remain. */
 static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
                                         OSInterruptMask current)
 {
@@ -185,6 +182,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
     return mask;
 }
 
+/* TODO: [blocked] 69.74%; retail calls OSDisableInterrupts/OSRestoreInterrupts out of line, but ours
+ * inline their C MSR placeholders; resolves once those asm-origin routines exist. */
 OSInterruptMask __OSMaskInterrupts(OSInterruptMask global)
 {
     int enabled;
@@ -205,6 +204,8 @@ OSInterruptMask __OSMaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
+/* TODO: [blocked] 69.74%; retail calls OSDisableInterrupts/OSRestoreInterrupts out of line, but ours
+ * inline their C MSR placeholders; resolves once those asm-origin routines exist. */
 OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
 {
     int enabled;
@@ -225,8 +226,7 @@ OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
-/* TODO: [breakthrough] 73.038280%; cause lifetime now follows the retail
- * spurious-interrupt guard; priority/handler lowering remains unresolved. */
+/* TODO: [near miss] 99.95%; with peephole off the dispatch CFG and handler lowering agree; one row remains. */
 void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 {
     unsigned long interrupt_status;

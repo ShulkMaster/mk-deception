@@ -17,10 +17,11 @@ volatile unsigned short __DSPRegs[] : 0xCC005000;
 
 #define DSP_WORK_BUFFER ((void*)0x81000000)
 
-/* TODO: [near miss] 97.972980%; frame is 8 bytes short (donor dead errFlag store fixes it) and
- * the |=4/0x8AC r0 schedule needs a donor dead reg16 compare; both prohibited, stop. */
+/* TODO: [near miss] 98.02%; dolsdk2004 errFlag local restores the frame; the |=4/0x8AC r0
+ * schedule needs the donors' dead reg16 compare, which is prohibited; stop. */
 void __OSInitAudioSystem(void)
 {
+    unsigned char errFlag;
     unsigned short reg16;
     unsigned long startTick;
 
@@ -59,6 +60,7 @@ void __OSInitAudioSystem(void)
     __DSPRegs[5] &= ~0x800;
     while (__DSPRegs[5] & 0x400) {}
     __DSPRegs[5] &= ~4;
+    errFlag = 0;
 
     reg16 = __DSPRegs[2];
     while (!(reg16 & 0x8000)) {

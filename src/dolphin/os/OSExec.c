@@ -67,8 +67,9 @@ static void Run(void* entry_point)
     ((void (*)(void))entry_point)();
 }
 
-/* TODO: [breakthrough needed] 65.18519%; DVDCommandBlock and loop semantics
- * agree, but frame size, argument scheduling, and branch placement still differ. */
+/* The boot/exec C code from here on was built without the peephole pass. */
+#pragma peephole off
+
 static void ReadDisc(void* address, signed long length, signed long offset)
 {
     DVDCommandBlock block;
@@ -86,7 +87,7 @@ static void Callback(long result, DVDCommandBlock* block)
     Prepared = 1;
 }
 
-/* TODO: [breakthrough needed] 86.562500%; macro-based address test and ABI agree, but MWCC prologue/load scheduling remains unresolved after donor-shaped trial. */
+/* TODO: [near miss] 99.06%; with peephole off only one scheduling row remains. */
 void __OSGetExecParams(OSExecParams* params)
 {
     if ((unsigned long)OS_EXEC_PARAMS >= 0x80000000) {
@@ -96,8 +97,7 @@ void __OSGetExecParams(OSExecParams* params)
     }
 }
 
-/* TODO: [near miss] 89.244896%; donor CFG and widths agree; unsigned offset
- * test is already ABI-correct, leaving cmp/register encodings and 8-byte residue. */
+/* TODO: [near miss] 98.78%; retail compares the apploader offset signed (cmpwi), ours unsigned (cmplwi). */
 static int GetApploaderPosition(void)
 {
     static long apploader_position;
@@ -212,6 +212,8 @@ static inline int IsNewApploader(const AppLoaderHeader* header)
     return strncmp(header->date, "2004/02/01", 10) > 0;
 }
 
+/* TODO: [breakthrough needed] 91.06%; retail materializes inlined boolean tests (IsNewApploader) as
+ * 0/1 flags and calls Run out of line; needs the SDK inline/flag source shape. */
 void __OSBootDolSimple(unsigned long dol_offset, unsigned long restart_code,
                        void* region_start, void* region_end,
                        int args_use_default, int argc, char** argv)
