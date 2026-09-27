@@ -15,9 +15,9 @@ typedef struct BgndMisc {
     unsigned int enter_script; /* +0x04 */
     char pad08[4];
     Vec player0_start; /* +0x0C */
-    char pad18[0x0C];
+    Vec player0_angles; /* +0x18 */
     Vec player1_start; /* +0x24 */
-    char pad30[0x0C];
+    Vec player1_angles; /* +0x30 */
     Vec beetle_target; /* +0x3C - shared beetle movement target */
     LightDef** lights_bgnd; /* +0x48 */
     LightDef** lights_spec; /* +0x4C */

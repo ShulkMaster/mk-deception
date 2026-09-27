@@ -177,12 +177,8 @@ void UnInitCriticalSection(
     OSUnlockMutex(&s_CriticalSectionDebug_SystemMutex);
 }
 
-/* TODO: [near miss] 99.61%; all stores and list publication agree;
- * only the epilogue's saved-register/LR load order differs (248 bytes). */
 int InitCriticalCodeSection_DEBUG(
     MslCriticalSection* section, const char* file, int line) {
-    int i;
-
     OSInitMutex(&section->mutex);
     section->reentry_count = 0;
     section->owner_thread = 0;
@@ -199,23 +195,58 @@ int InitCriticalCodeSection_DEBUG(
     g_CriticalSectionDebug_List = section;
     OSUnlockMutex(&s_CriticalSectionDebug_SystemMutex);
 
-    for (i = 0; i < 10; i++) {
-        section->waiting_threads[i] = 0;
-    }
-    for (i = 0; i < 10; i++) {
-        section->dependencies[i] = 0;
-    }
+    section->waiting_threads[0] = 0;
+    section->waiting_threads[1] = 0;
+    section->waiting_threads[2] = 0;
+    section->waiting_threads[3] = 0;
+    section->waiting_threads[4] = 0;
+    section->waiting_threads[5] = 0;
+    section->waiting_threads[6] = 0;
+    section->waiting_threads[7] = 0;
+    section->waiting_threads[8] = 0;
+    section->waiting_threads[9] = 0;
+    section->dependencies[0] = 0;
+    section->dependencies[1] = 0;
+    section->dependencies[2] = 0;
+    section->dependencies[3] = 0;
+    section->dependencies[4] = 0;
+    section->dependencies[5] = 0;
+    section->dependencies[6] = 0;
+    section->dependencies[7] = 0;
+    section->dependencies[8] = 0;
+    section->dependencies[9] = 0;
     return 1;
 }
 
-/* TODO: [near miss] 92.64%; dependency insertion and interlock CFG agree;
- * GPR homes and one redundant requested-pointer copy differ (300/296 bytes). */
+static inline void CheckInterlock(MslCriticalSection* cs, int* interlock) {
+    int i;
+    int j;
+
+    for (i = 0; i < 10; i++) {
+        MslCriticalSection* dependency = cs->dependencies[i];
+
+        if (dependency != 0) {
+            for (j = 0; j < 10; j++) {
+                if (cs == dependency->dependencies[j]) {
+                    mslDebugPrintf(
+                        "MSL CRITICAL SECTION INTERLOCK POSSIBLE: "
+                        "0x%08x <--> 0x%08x\n",
+                        cs, dependency);
+                    *interlock = 1;
+                }
+            }
+        }
+    }
+}
+
+/* TODO: [near miss] 94.44%; requested/interlock homes match; retail passes an uncoalesced copy of cs (r26)
+ * to the printf and needs r23-r31; pair-helper, report-helper and re-read forms fail; permuter only finds &requested. */
 static int AddRequestingCS_ByThread(
     MslCriticalSection* requested, void* thread) {
-    MslCriticalSection* owned;
-    int inserted = 0;
-    int interlock = 0;
     int i;
+    MslCriticalSection* owned;
+    int interlock = 0;
+    int inserted = 0;
 
     OSLockMutex(&s_CriticalSectionDebug_SystemMutex);
     for (owned = g_CriticalSectionDebug_List;
@@ -226,7 +257,7 @@ static int AddRequestingCS_ByThread(
                     owned->dependencies[i] = requested;
                     inserted = i + 1;
                 }
-                if (owned->dependencies[i] == requested) {
+                if (requested == owned->dependencies[i]) {
                     i = 10;
                 }
             }
@@ -234,23 +265,7 @@ static int AddRequestingCS_ByThread(
     }
 
     if (inserted != 0) {
-        for (i = 0; i < 10; i++) {
-            MslCriticalSection* dependency =
-                requested->dependencies[i];
-            int j;
-
-            if (dependency != 0) {
-                for (j = 0; j < 10; j++) {
-                    if (dependency->dependencies[j] == requested) {
-                        mslDebugPrintf(
-                            "MSL CRITICAL SECTION INTERLOCK POSSIBLE: "
-                            "0x%08x <--> 0x%08x\n",
-                            requested, dependency);
-                        interlock = 1;
-                    }
-                }
-            }
-        }
+        CheckInterlock(requested, &interlock);
     }
 
     OSUnlockMutex(&s_CriticalSectionDebug_SystemMutex);

@@ -13637,7 +13637,7 @@ void nis_end_scene(void) {
     discard_list(&nis_participants);
 }
 
-/* TODO: [near miss] 99.95522%; instructions agree except the script-name pool offset; recover string ownership. */
+/* TODO: [near miss] 99.99%; instructions agree; script-name pool offset is 5 bytes low from a missing TU literal before the monk-face string. */
 void nis_register_participant(int type, void* npc_data) {
     KonquestNisParticipant* participant;
 

@@ -1,3 +1,6 @@
+/* BUILD: Retail emits in source order (no -inline deferred) and sizes the open-mode enum to a
+ * byte (-enum min, as mainloop.o). */
+
 #include "dolphin/trk.h"
 #include "runtime/cfile.h"
 

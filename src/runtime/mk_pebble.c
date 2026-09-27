@@ -1,5 +1,9 @@
+/* BUILD: TU-wide CSE disable replaces create_pebble_userdata pragmas and also improves
+ * pebble_render_callback. */
+
 #include "runtime/mk_pebble.h"
 
+#include "game/collision.h"
 #include "runtime/cstring.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_plugins.h"
@@ -24,7 +28,8 @@ int vdestroy_pebble(PebbleData* pebble_data) {
     /* Retail's int vtable slot deliberately leaves r3 from mkhdr_memfree. */
 }
 
-/* Soft ceiling: create_pebble_userdata ~98.47% -- typed matrix-field indexing colors the loop differently. */
+/* TODO: [near miss] 98.47%; CFG and stores agree (identity init is RwMatrixSetIdentityMacro); only the
+ * loop offset temporaries differ (retail keeps +0xc in r26 and reloads pebbles via r12..r4, ours r4/r31). */
 PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) {
     RpAtomic* atomic;
     PebbleData* pebble_data;
@@ -63,19 +68,7 @@ PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) 
         atomic->renderCallBack = AtomicDefaultRenderCallBack;
     }
     for (i = 0; i < count; i++) {
-        pebble_data->pebbles[i].matrix.at.z = 1.0f;
-        pebble_data->pebbles[i].matrix.up.y = 1.0f;
-        pebble_data->pebbles[i].matrix.right.x = 1.0f;
-        pebble_data->pebbles[i].matrix.up.x = 0.0f;
-        pebble_data->pebbles[i].matrix.right.z = 0.0f;
-        pebble_data->pebbles[i].matrix.right.y = 0.0f;
-        pebble_data->pebbles[i].matrix.at.y = 0.0f;
-        pebble_data->pebbles[i].matrix.at.x = 0.0f;
-        pebble_data->pebbles[i].matrix.up.z = 0.0f;
-        pebble_data->pebbles[i].matrix.pos.z = 0.0f;
-        pebble_data->pebbles[i].matrix.pos.y = 0.0f;
-        pebble_data->pebbles[i].matrix.pos.x = 0.0f;
-        pebble_data->pebbles[i].matrix.flags |= 0x20003;
+        RwMatrixSetIdentityMacro(&pebble_data->pebbles[i].matrix);
     }
     sobj->flags09_bits.has_pebbles = 1;
     pebble_data->count = count;
@@ -89,7 +82,8 @@ static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic) {
     return 0;
 }
 
-/* TODO: [near miss] 98.283844%; original latch retained; stack layout, register coloring; one-trial ceiling. */
+/* TODO: [near miss] 98.65%; frame layout and loop registers match; residual is the bne+b
+ * instance-check shape and one zero copied into r23 (mr r23,r30 vs li). */
 static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     int visible_count;
     int i;
@@ -100,11 +94,12 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     RwMatrix saved_matrix;
     RwSphere render_sphere;
     RwSphere saved_sphere;
-    Vec sphere_offset;
+    CollisionPaddedVec sphere_offset;
     RwSphere test_sphere;
     RwSphere* atomic_sphere;
     RwMatrix* atomic_ltm;
     RwMatrix* cull_ltm;
+    int j;
 
     if (atomic == 0) {
         return atomic;
@@ -143,10 +138,10 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
         cull_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
         visible_count = 0;
         atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
-        sphere_offset.x = atomic_sphere->center.x - cull_ltm->pos.x;
-        sphere_offset.y = atomic_sphere->center.y - cull_ltm->pos.y;
-        sphere_offset.z = atomic_sphere->center.z - cull_ltm->pos.z;
-        test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset);
+        sphere_offset.value.x = atomic_sphere->center.x - cull_ltm->pos.x;
+        sphere_offset.value.y = atomic_sphere->center.y - cull_ltm->pos.y;
+        sphere_offset.value.z = atomic_sphere->center.z - cull_ltm->pos.z;
+        test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset.value);
         for (i = 0; i < pebble_data->count; i++) {
             RwV3d* position = &pebble_data->pebbles[i].matrix.pos;
 
@@ -176,10 +171,10 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     memcpy(&saved_matrix, atomic_ltm, sizeof(saved_matrix));
     saved_sphere = *RpAtomicGetWorldBoundingSphere(atomic);
     render_sphere.radius = saved_sphere.radius;
-    for (i = 0; i < pebble_data->count; i++) {
-        if (pebble_data->flags[i].bits.visible) {
+    for (j = 0; j < pebble_data->count; j++) {
+        if (pebble_data->flags[j].bits.visible) {
             RwMatrixMultiply(&frame->ltm, &saved_matrix,
-                             &pebble_data->pebbles[i].matrix);
+                             &pebble_data->pebbles[j].matrix);
             render_sphere.center.x = saved_sphere.center.x + frame->ltm.pos.x;
             render_sphere.center.y = saved_sphere.center.y + frame->ltm.pos.y;
             render_sphere.center.z = saved_sphere.center.z + frame->ltm.pos.z;

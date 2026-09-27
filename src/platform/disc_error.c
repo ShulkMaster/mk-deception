@@ -124,11 +124,22 @@ static inline void render_disc_message(PfxFontString* string, const char* text) 
     do_delayed_mem_frees();
 }
 
+static inline void show_disc_message(const char* text) {
+    PfxFontString string;
+
+    gc_grab_renderpipe();
+    if (gameart_is_loaded != 0) {
+        render_disc_message(&string, text);
+    } else {
+        gc_native_display_render_text(text);
+    }
+    gc_release_renderpipe();
+}
+
+/* TODO: [near miss] 99.94%; all three messages share show_disc_message, but the first expansion keeps
+ * top/left in r29/r26 where retail has r26/r29 (loop and recovery copies agree); context-only coloring. */
 static int fs_error_handler(int error, const char* text) {
     int drive_status;
-    PfxFontString first_string;
-    PfxFontString repeat_string;
-    PfxFontString recovery_string;
 
     (void)error;
     if (in_error_handler != 0) {
@@ -140,12 +151,14 @@ static int fs_error_handler(int error, const char* text) {
 
     in_error_handler = 1;
     drive_status = DVDGetDriveStatus();
-    if (drive_status < 7) {
-        if (drive_status != -1 && (drive_status < -1 || drive_status < 4)) {
-            in_error_handler = 0;
-            return 0;
-        }
-    } else if (drive_status != 11) {
+    switch (drive_status) {
+    case -1:
+    case 4:
+    case 5:
+    case 6:
+    case 11:
+        break;
+    default:
         in_error_handler = 0;
         return 0;
     }
@@ -158,36 +171,18 @@ static int fs_error_handler(int error, const char* text) {
         gc_stop_reset_watch();
     }
 
-    gc_grab_renderpipe();
-    if (gameart_is_loaded != 0) {
-        render_disc_message(&first_string, text);
-    } else {
-        gc_native_display_render_text(text);
-    }
-    gc_release_renderpipe();
+    show_disc_message(text);
 
     for (;;) {
         handle_reset_switch();
         if (drive_status != DVDGetDriveStatus()) {
             break;
         }
-        gc_grab_renderpipe();
-        if (gameart_is_loaded != 0) {
-            render_disc_message(&repeat_string, text);
-        } else {
-            gc_native_display_render_text(text);
-        }
-        gc_release_renderpipe();
+        show_disc_message(text);
     }
 
     if (gameart_is_loaded != 0) {
-        gc_grab_renderpipe();
-        if (gameart_is_loaded != 0) {
-            render_disc_message(&recovery_string, "");
-        } else {
-            gc_native_display_render_text("");
-        }
-        gc_release_renderpipe();
+        show_disc_message("");
     } else {
         VISetBlack(1);
         VIFlush();
@@ -199,50 +194,53 @@ static int fs_error_handler(int error, const char* text) {
     return 0;
 }
 
+static inline int disc_error_message(int error) {
+    int index;
+
+    if (error == 0) {
+        return 0;
+    }
+    for (index = 0; index < 30; index++) {
+        if (error == error_map[index].error) {
+            return error_map[index].message;
+        }
+    }
+    return 1;
+}
+
+/* TODO: [near miss] 99.27%; message lookup and handler call match; retail keeps the error_map base in r3
+ * and offset in r5 while ours uses r5/r6 (9 register rows in the loop). */
 int mwfile_error_callback(int operation, int error) {
     int message;
     const char* text;
 
-    if (operation != 0) {
-        return;
-    }
-    if (error == 0) {
-        message = 0;
-    } else {
-        int index;
-
-        message = 1;
-        for (index = 0; index < 30; index++) {
-            if (error == error_map[index].error) {
-                message = error_map[index].message;
+    if (operation == 0) {
+        message = disc_error_message(error);
+        if (message != 0) {
+            switch (message) {
+            case 6:
+                text = get_string_ext(disc_error_string_table, 9, 1);
+                break;
+            case 3:
+                text = get_string_ext(disc_error_string_table, 9, 2);
+                break;
+            case 4:
+                text = get_string_ext(disc_error_string_table, 9, 3);
+                break;
+            case 5:
+                text = get_string_ext(disc_error_string_table, 9, 4);
+                break;
+            case 2:
+                text = get_string_ext(disc_error_string_table, 9, 5);
+                break;
+            default:
+                text = get_string_ext(disc_error_string_table, 9, 6);
                 break;
             }
+            return async_error_handler(message, text);
         }
     }
-    if (message == 0) {
-        return;
-    }
-    switch (message) {
-    case 6:
-        text = get_string_ext(disc_error_string_table, 9, 1);
-        break;
-    case 3:
-        text = get_string_ext(disc_error_string_table, 9, 2);
-        break;
-    case 4:
-        text = get_string_ext(disc_error_string_table, 9, 3);
-        break;
-    case 5:
-        text = get_string_ext(disc_error_string_table, 9, 4);
-        break;
-    case 2:
-        text = get_string_ext(disc_error_string_table, 9, 5);
-        break;
-    default:
-        text = get_string_ext(disc_error_string_table, 9, 6);
-        break;
-    }
-    async_error_handler(message, text);
+    return operation;
 }
 
 void check_handle_disc_error(void) {

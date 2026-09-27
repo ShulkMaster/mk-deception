@@ -1,29 +1,9 @@
-class mwFile;
-class mwFileCommand;
+#include "mw/mwFile.h"
+
 class mwFileMountPoint;
 class mwFileServer;
 struct mwFileTypeInfo {
 };
-
-enum mwTargetMemAlign {
-    MW_TARGET_MEM_ALIGN_DEFAULT = 0,
-    MW_TARGET_MEM_ALIGN_32 = 3
-};
-
-union mwFileAsyncValue {
-    void* pointer;
-    mwFile* file;
-    unsigned long bytes;
-};
-
-struct _mwFileAsyncResult {
-    mwFileAsyncValue value;
-    int error;
-};
-
-typedef _mwFileAsyncResult mwFileAsyncResult;
-typedef void (*mwFileCallback)(
-    mwFileCommand*, mwFileAsyncResult, void*);
 
 class mwFileMultithreadedMemTraits {
 public:
@@ -173,30 +153,6 @@ private:
     bool completed;
 };
 
-template <>
-class mwFileFailCommand<0, 0> : public mwFileCommand {
-public:
-    mwFileFailCommand(mwFileCallback completion_callback,
-                      void* completion_data, mwFile* owning_file)
-        : mwFileCommand(completion_callback, completion_data, owning_file),
-          completed(false)
-    {
-    }
-
-    virtual ~mwFileFailCommand();
-    virtual unsigned char isCompleted(mwFileAsyncResult&) const;
-    virtual unsigned char isAborted() const;
-    virtual mwFileAsyncResult waitForCompletion() const;
-    virtual int abort();
-    virtual int service();
-    virtual void serviceCallback();
-    virtual void deleteSelf();
-    virtual int close();
-
-private:
-    bool completed;
-};
-
 typedef char mwFileCommandSizeCheck[sizeof(mwFileCommand) == 0x20 ? 1 : -1];
 typedef char mwFileFailCommandSizeCheck[
     sizeof(mwFileFailCommand<0, -9>) == 0x24 ? 1 : -1];
@@ -319,14 +275,14 @@ inline void mwFileFailCommand<ResultValue, ResultError>::deleteSelf()
     }
 }
 
-extern "C" void mwFileFreeCommand(mwFileCommand* command)
+void mwFileFreeCommand(mwFileCommand* command)
 {
     if (command != 0) {
         command->deleteSelf();
     }
 }
 
-extern "C" mwFileAsyncResult mwFileWaitForCompletion(
+mwFileAsyncResult mwFileWaitForCompletion(
     mwFileCommand* command)
 {
     mwFileAsyncResult result;
@@ -334,7 +290,7 @@ extern "C" mwFileAsyncResult mwFileWaitForCompletion(
     return result;
 }
 
-extern "C" unsigned char mwFileIsCommandCompleted(
+unsigned char mwFileIsCommandCompleted(
     mwFileCommand* command, mwFileAsyncResult* result)
 {
     if (command->isCompleted(*result)) {
@@ -344,7 +300,7 @@ extern "C" unsigned char mwFileIsCommandCompleted(
     return 0;
 }
 
-extern "C" int mwFileAbortCommand(mwFileCommand* command)
+int mwFileAbortCommand(mwFileCommand* command)
 {
     int result = command->abort();
     if (result != 0) {
@@ -354,7 +310,7 @@ extern "C" int mwFileAbortCommand(mwFileCommand* command)
     return 0;
 }
 
-extern "C" mwFileCommand* mwFileWriteAsync(
+mwFileCommand* mwFileWriteAsync(
     mwFile* file, long long offset, void* buffer, unsigned long length,
     int priority, mwFileCallback completion_callback, void* completion_data)
 {
@@ -384,12 +340,13 @@ extern "C" mwFileCommand* mwFileWriteAsync(
     return command;
 }
 
-extern "C" mwFileCommand* mwFileReadAsync(
-    mwFile* file, long long offset, void* buffer, unsigned long length,
+mwFileCommand* mwFileReadAsync(
+    mwFile* file, unsigned long long offset, void* buffer, unsigned long length,
     int priority, mwFileCallback completion_callback, void* completion_data)
 {
     mwFileCommand* command;
     int result;
+    unsigned long long file_size;
 
     if (file == 0) {
         _mwFileNoOp(&stringBase0[NULL_FILE_MESSAGE]);
@@ -400,8 +357,8 @@ extern "C" mwFileCommand* mwFileReadAsync(
         return 0;
     }
 
-    unsigned long long file_size = file->getSize();
-    if (file_size < (unsigned long long)offset) {
+    file_size = file->getSize();
+    if (file_size < offset) {
         _mwFileNoOp(
             &stringBase0[READ_RANGE_MESSAGE], file->getDebugName(),
             (int)offset, file_size);
@@ -416,7 +373,7 @@ extern "C" mwFileCommand* mwFileReadAsync(
                 command, priority & 3);
         }
     } else {
-        if (file_size < (unsigned long long)offset + length) {
+        if (file_size < offset + length) {
             unsigned long truncated_length =
                 (unsigned long)(file_size - offset);
             _mwFileNoOp(
@@ -450,7 +407,7 @@ extern "C" mwFileCommand* mwFileReadAsync(
     return command;
 }
 
-extern "C" mwFileCommand* mwFileCloseAsync(
+mwFileCommand* mwFileCloseAsync(
     mwFile* file, mwFileCallback completion_callback, void* completion_data)
 {
     mwFileCommand* command;
@@ -464,7 +421,7 @@ extern "C" mwFileCommand* mwFileCloseAsync(
     return command;
 }
 
-extern "C" mwFileCommand* mwFileOpenAsync(
+mwFileCommand* mwFileOpenAsync(
     const char* path, int flags, mwFileCallback completion_callback,
     void* completion_data)
 {

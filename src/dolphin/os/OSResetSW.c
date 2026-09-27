@@ -12,11 +12,11 @@ volatile unsigned long __PIRegs[] : 0xCC003000;
 unsigned char __gUnknown800030E3 : 0x800030E3;
 extern OSTime __OSStartTime;
 
-/* TODO: [breakthrough needed] 86.37705%; RE4's inline debounce lowering regresses the frame/CFG here; constant and scheduler residue remain unresolved. */
+/* TODO: [near miss] 86.54%; SDK debounce CFG agrees; retail schedules the HoldDown stores after the tick math, reachable only with a steering temp; stop. */
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     OSResetCallback callback;
-    OSTime debounce_ticks;
+    OSTick debounce_ticks;
 
     HoldDown = __OSGetSystemTime();
     debounce_ticks = OSMicrosecondsToTicks(100);

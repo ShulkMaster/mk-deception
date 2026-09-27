@@ -67,14 +67,11 @@ static asm void Config24MB(void) { SEQ_Config24MB(); }
 
 static asm void Config48MB(void) { SEQ_Config48MB(); }
 
+/* TODO: [blocked] 6.67%; retail uses privileged SRR/rfi assembly; an authorized assembly sequence or supported intrinsic is required. */
 static void RealMode(unsigned long address) {
     (void)address;
-    /* TODO: This privileged leaf may have originated as assembly; recover an
-     * intrinsic-based source form that emits the retail SRR/rfi sequence. */
 }
 
-/* TODO: [blocked] 90.285710%; retail stack frame matches SDK padding;
- * privileged RealMode calls require explicit assembly-sequence authorization. */
 void __OSInitMemoryProtection(void) {
     unsigned long padding[9];
     unsigned long temp;

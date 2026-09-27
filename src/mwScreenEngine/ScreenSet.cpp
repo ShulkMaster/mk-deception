@@ -1,3 +1,5 @@
+/* BUILD: -inline off: GetChild(char*) must bl GetChild(int); GetScreen stmw. */
+
 #include "mwScreenEngine/ScreenSet.h"
 #include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenUtil.h"

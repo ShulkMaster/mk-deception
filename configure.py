@@ -559,8 +559,6 @@ config.libs = [
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Export/mslsupp.o",
                 source="dolphin/trk_minnow_dolphin/mslsupp.c",
-                # Retail emits in source order (no -inline deferred) and sizes
-                # the open-mode enum to a byte (-enum min, as mainloop.o).
                 cflags=[*cflags_runtime, "-sdata 0", "-sdata2 0", "-enum min"],
             ),
             Object(
@@ -615,7 +613,7 @@ config.libs = [
         "OdemuExi2",
         [
             Object(
-                NonMatching,
+                Matching,
                 "OdemuExi2.a/OdemuExi2Lib/DebuggerDriver.o",
                 source="dolphin/odemuexi2/DebuggerDriver.c",
             ),
@@ -783,7 +781,7 @@ config.libs = [
                 source="runtime/s_cos.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/char_io.o",
                 source="runtime/char_io.c",
             ),
@@ -918,7 +916,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(Matching, "gxVect.o", source="math/gxVect.c"),
-            Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(
                 Matching,
                 "gxMat.o",
@@ -934,11 +932,11 @@ config.libs = [
             Object(Matching, "fast_rw.o", source="platform/fast_rw.c"),
             Object(NonMatching, "gcspecskin.o", source="game/gcspecskin.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object(NonMatching, "gcinstance.o", source="platform/gcinstance.c",
+            Object(Matching, "gcinstance.o", source="platform/gcinstance.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "gcpipemanager.o", source="platform/gcpipemanager.c",
                    extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "joy.o", source="platform/joy.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+            Object(Matching, "joy.o", source="platform/joy.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "MovieConfig.o", source="movie/MovieConfig.cpp"),
             Object(NonMatching, "MovieManager.o", source="movie/MovieManager.cpp",
                    extra_cflags=["-use_lmw_stmw on"]),
@@ -1073,7 +1071,7 @@ config.libs = [
             Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
             Object(NonMatching, "utils.o", source="runtime/utils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "mk_mem.o", source="runtime/mk_mem.c",
+            Object(Matching, "mk_mem.o", source="runtime/mk_mem.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_struct.o", source="runtime/mk_struct.c",
                    extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s",
@@ -1083,8 +1081,6 @@ config.libs = [
             Object(NonMatching, "mk_proc.o", source="runtime/mk_proc.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_pebble.o", source="runtime/mk_pebble.c",
-                   # TU-wide CSE disable replaces create_pebble_userdata pragmas
-                   # and also improves pebble_render_callback.
                    extra_cflags=[
                        "-opt", "off", "-O4,s", "-opt", "nocse",
                        "-use_lmw_stmw on",
@@ -1133,11 +1129,9 @@ config.libs = [
             Object(Matching, "mab.o", source="game/mab.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "gcmcicon.o", source="platform/gcmcicon.c",
+            Object(Matching, "gcmcicon.o", source="platform/gcmcicon.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
-                                 "-str reuse,pool,readonly"]),
-            # -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in
-            # .rodata (far lis/addi); plain -str reuse emits @sda21 loads.
+                                 "-str reuse,pool,readonly", "-inline deferred"]),
             Object(NonMatching, "gcmcard.o", source="platform/gcmcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -1165,8 +1159,6 @@ config.libs = [
             Object(NonMatching, "ladder.o", source="game/ladder.c",
                    extra_cflags=["-O4,s"]),
             Object(NonMatching, "ending.o", source="game/ending.c", extra_cflags=["-O4,s"]),
-            # -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
-            # __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off).
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
@@ -1206,7 +1198,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxf/adx_fini.o",
                 source="libadxgca/crimw/dev/adx/src/adxf/adx_fini.c",
                 extra_cflags=["-O2,p", "-sdata", "0", "-sdata2", "0",
@@ -1258,7 +1250,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_sugc.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_sugc.c",
                 extra_cflags=[
@@ -1321,7 +1313,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_inis.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_inis.c",
                 extra_cflags=["-O2,p", "-sdata", "0"],
@@ -1399,10 +1391,10 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_errs.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_errs.c",
-                extra_cflags=["-O4,p", "-sdata", "0"],
+                extra_cflags=["-O4,p", "-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly"],
             ),
             Object(
                 Matching,
@@ -1411,7 +1403,7 @@ config.libs = [
                 extra_cflags=["-O4,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_bsps.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_bsps.c",
                 extra_cflags=["-O4,p", "-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly"],
@@ -1498,13 +1490,10 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc_err.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc_err.c",
                 extra_cflags=["-O4,p", "-sdata", "0"],
-                # Link ceiling: normalized code and BSS are 100%, but the
-                # variadic function relocates through the local BSS anchor
-                # instead of the retail lsc_err_func symbol.
             ),
             Object(
                 Matching,
@@ -1556,7 +1545,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/svm/svm.o",
                 source="libadxgca/crimw/dev/adx/src/svm/svm.c",
                 extra_cflags=[
@@ -1578,7 +1567,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/sj/sj_crs.o",
                 source="libadxgca/crimw/dev/adx/src/sj/sj_crs.c",
                 extra_cflags=["-O2,p", "-sdata", "0"],
@@ -1590,7 +1579,7 @@ config.libs = [
                 extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/sj/sj_mem.o",
                 source="libadxgca/crimw/dev/adx/src/sj/sj_mem.c",
                 extra_cflags=[
@@ -1691,7 +1680,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsl.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsl.c",
                 extra_cflags=["-sdata", "0", "-str", "reuse,readonly"],
@@ -1878,7 +1867,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/dct/dct_ac.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/dct/dct_ac.c",
-                extra_cflags=["-sdata 0", "-sdata2", "0", "-use_lmw_stmw", "on"],
+                extra_cflags=["-sdata 0", "-sdata2", "0", "-use_lmw_stmw", "on", "-pooldata off"],
             ),
             Object(
                 NonMatching,
@@ -1892,12 +1881,12 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_emp.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_emp.c",
             ),
@@ -1939,13 +1928,13 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_alp.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_lib.c",
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_zmv.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_zmv.c",
                 extra_cflags=[
@@ -1954,7 +1943,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv.c",
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
@@ -1978,7 +1967,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_Y84C44.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_Y84C44.c",
                 extra_cflags=[
@@ -2001,18 +1990,18 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.c",
                 extra_cflags=["-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_con.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_con.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_aoap.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_aoap.c",
             ),
@@ -2034,7 +2023,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.c",
             ),
@@ -2096,7 +2085,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_trn.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2140,7 +2129,7 @@ config.libs = [
                 extra_cflags=["-O2,p"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/cmptime.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/cmptime.c",
                 extra_cflags=["-O1"],
@@ -2201,12 +2190,9 @@ config.libs = [
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileCommand.o",
                 source="mw/mwFileCommand.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
-                # Link ceiling: normalized object is 100%, but importing it
-                # selects the weak mwFileQueryable vtable before the derived
-                # vtable (31 linked bytes differ).
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFilePlugin.o",
                 source="mw/mwFilePlugin.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
@@ -2224,7 +2210,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileAsync.o",
                 source="mw/mwFileAsync.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
@@ -2270,7 +2256,7 @@ config.libs = [
                 source="libmsl/mslmem.cpp",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslcore.o",
                 source="libmsl/mslcore.cpp",
                 extra_cflags=[
@@ -2337,7 +2323,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslStreamCache.o",
                 source="libmsl/mslStreamCache.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2349,13 +2335,13 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-str", "reuse,pool,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/RedBlackTree.o",
                 source="libmsl/RedBlackTree.c",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/ExtHeapMgr.o",
                 source="libmsl/ExtHeapMgr.c",
                 extra_cflags=[
@@ -2387,11 +2373,10 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimControl.o",
                 source="mwScreenEngine/ScreenAnimControl.cpp",
-                # -inline off: keep bl GetTime/GetEase*/GetValue on keys.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimEffect.o",
                 source="mwScreenEngine/ScreenAnimEffect.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
@@ -2400,14 +2385,12 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimScene.o",
                 source="mwScreenEngine/ScreenAnimScene.cpp",
-                # -inline off: keep bl GetDirection/Process/GetMaxTime.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimAction.o",
                 source="mwScreenEngine/ScreenAnimAction.cpp",
-                # -inline off: keep bl _GetAnimAction.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2435,15 +2418,12 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenUtil.o",
                 source="mwScreenEngine/ScreenUtil.cpp",
-                # -O4,s: prefer mtctr on ReadHexInt digit loop (still soft-ceiling).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/Screen.o",
                 source="mwScreenEngine/Screen.cpp",
-                # -inline off: keep GetRoot as bl in FireEvent (else inlined -> ~37%).
-                # -O4,s: prefer mtctr dword-pair copy of RenderAll @120 init.
                 extra_cflags=[
                     "-O4,s",
                     "-use_lmw_stmw on",
@@ -2456,7 +2436,6 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenSet.o",
                 source="mwScreenEngine/ScreenSet.cpp",
-                # -inline off: GetChild(char*) must bl GetChild(int); GetScreen stmw.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2466,7 +2445,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenActionStack.o",
                 source="mwScreenEngine/ScreenActionStack.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
@@ -2481,9 +2460,6 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenObject.o",
                 source="mwScreenEngine/ScreenObject.cpp",
-                # -inline off: keep GetFocus/FireEvent/ProcessEvent as bl (MWCC otherwise
-                # inlines them into FireEvent/BroadcastEvent/SetComponent -> 0% / 3-5x size).
-                # -O4,s: mtctr/bdnz + stmw for ctor/HasEvent/SetLast/SetComponent loops.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2508,21 +2484,18 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenMiscAction.o",
                 source="mwScreenEngine/ScreenMiscAction.cpp",
-                # -inline off: keep bl ScreenIntegerCompare from Question Update.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
                 source="mwScreenEngine/GameVariables.cpp",
-                # -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenControl.o",
                 source="mwScreenEngine/ScreenControl.cpp",
-                # -inline off: keep recursive _RefreshData as bl (else MWCC inlines).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2596,7 +2569,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/texture_anim.o",
                 source="libmkparticle/texture_anim.c",
                 extra_cflags=["-O4,s", "-schedule off"],
@@ -2674,7 +2647,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/texture_bridge.o",
                 source="libmkparticle/texture_bridge.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -2683,57 +2656,43 @@ config.libs = [
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/metrics.o",
                 source="libmkparticle/metrics.c",
-                # Retail pfxmetrics_estimate_size requires peephole optimization off.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole", "-pooldata off"],
             ),
             Object(
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_state.o",
                 source="libmkparticle/gc_state.c",
-                # -inline off: retail bl apply_single_texture from alphamap (no inline).
-                # -use_lmw_stmw + scheduling off: xoris i2f / thin GX wrappers.
                 extra_cflags=["-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_render.o",
                 source="libmkparticle/gc_render.c",
-                # Retail calls helper boundaries and separates multiply/add operations.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-fp_contract off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_2d.o",
                 source="libmkparticle/gc_2d.c",
-                # -schedule off: keep source-order i2f/fctiwz closer to retail.
-                # -fp_contract off: retail uses fmuls+fadds (not fmadds) in geometry.
                 extra_cflags=["-use_lmw_stmw on", "-schedule off", "-fp_contract off"],
             ),
             Object(
-                # Report-exact; link blocked: retail pools the 0.0f literal after
-                # alignment_mask (codegen-created), ours creates it at parse time.
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_font.o",
                 source="libmkparticle/gc_font.c",
-                # No -use_lmw_stmw: retail uses _savegpr_29 in nativefont_string_render.
-                # -schedule off: Y-then-X fctiwz / UV load order closer to retail.
-                # Retail nativefont_instance_unlock requires peephole optimization off.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx2d.o",
                 source="libmkparticle/pfx2d.c",
-                # No -use_lmw_stmw: retail uses _savegpr_25/_restgpr_25 in end_render.
                 extra_cflags=["-O4,s"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfxfont.o",
                 source="libmkparticle/pfxfont.c",
-                # No -use_lmw_stmw: retail uses _savegpr_19/_restgpr_19 in string_set.
-                # Scheduling and peephole settings are uniform; no-inline remains local.
-                extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
+                extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole", "-str pool"],
             ),
             Object(
                 NonMatching,
@@ -2766,7 +2725,12 @@ config.libs = [
             Object(Matching, "os.a/OSAlloc.o", source="dolphin/os/OSAlloc.c"),
             Object(Matching, "os.a/OSError.o", source="dolphin/os/OSError.c"),
             Object(NonMatching, "os.a/OSAlarm.o", source="dolphin/os/OSAlarm.c"),
-            Object(NonMatching, "os.a/OSInterrupt.o", source="dolphin/os/OSInterrupt.c"),
+            Object(
+                NonMatching,
+                "os.a/OSInterrupt.o",
+                source="dolphin/os/OSInterrupt.c",
+                extra_cflags=["-opt nopeephole"],
+            ),
             Object(NonMatching, "os.a/OSContext.o", source="dolphin/os/OSContext.c"),
             Object(NonMatching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
             Object(Matching, "os.a/OSFont.o", source="dolphin/os/OSFont.c"),
@@ -2784,7 +2748,12 @@ config.libs = [
                 "os.a/OSLink.o",
                 source="dolphin/os/OSLink.c",
             ),
-            Object(NonMatching, "os.a/OSSync.o", source="dolphin/os/OSSync.c"),
+            Object(
+                NonMatching,
+                "os.a/OSSync.o",
+                source="dolphin/os/OSSync.c",
+                extra_cflags=["-opt nopeephole"],
+            ),
             Object(Matching, "os.a/OSReboot.o", source="dolphin/os/OSReboot.c"),
             Object(
                 NonMatching,
@@ -2792,7 +2761,12 @@ config.libs = [
                 source="dolphin/os/OSTime.c",
                 extra_cflags=["-opt nopeephole"],
             ),
-            Object(NonMatching, "os.a/OSMemory.o", source="dolphin/os/OSMemory.c"),
+            Object(
+                NonMatching,
+                "os.a/OSMemory.o",
+                source="dolphin/os/OSMemory.c",
+                extra_cflags=["-inline noauto"],
+            ),
             Object(Matching, "os.a/OSMessage.o", source="dolphin/os/OSMessage.c"),
             Object(NonMatching, "os.a/OSResetSW.o", source="dolphin/os/OSResetSW.c"),
             Object(Matching, "os.a/OSReset.o", source="dolphin/os/OSReset.c"),
@@ -2864,7 +2838,7 @@ config.libs = [
         "dsp",
         [
             Object(Matching, "dsp.a/dsp.o", source="dolphin/dsp/dsp.c"),
-            Object(NonMatching, "dsp.a/dsp_task.o", source="dolphin/dsp/dsp_task.c"),
+            Object(Matching, "dsp.a/dsp_task.o", source="dolphin/dsp/dsp_task.c"),
             Object(
                 Matching,
                 "dsp.a/dsp_debug.o",
@@ -3006,7 +2980,7 @@ config.libs = [
         "objects": [
             Object(Matching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
             Object(Matching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
-            Object(NonMatching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
+            Object(Matching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
             Object(Matching, "card.a/CARDDir.o", source="dolphin/card/CARDDir.c"),
             Object(Matching, "card.a/CARDCheck.o", source="dolphin/card/CARDCheck.c"),
@@ -3029,12 +3003,12 @@ config.libs = [
         "cflags": [*cflags_base, "-DDOLPHIN_SDK", "-i src/dolphin/gx"],
         "progress_category": "sdk",
         "objects": [
-            Object(NonMatching, "gx.a/GXInit.o", source="dolphin/gx/GXInit.c",
+            Object(Matching, "gx.a/GXInit.o", source="dolphin/gx/GXInit.c",
                    extra_cflags=["-DSDK_REVISION=1", '-pragma "peephole off"']),
             Object(Matching, "gx.a/GXFifo.o", source="dolphin/gx/GXFifo.c",
                    extra_cflags=["-DSDK_REVISION=1"]),
             Object(Matching, "gx.a/GXMisc.o", source="dolphin/gx/GXMisc.c"),
-            Object(NonMatching, "gx.a/GXAttr.o", source="dolphin/gx/GXAttr.c"),
+            Object(Matching, "gx.a/GXAttr.o", source="dolphin/gx/GXAttr.c"),
             Object(Matching, "gx.a/GXBump.o", source="dolphin/gx/GXBump.c"),
             Object(Matching, "gx.a/GXGeometry.o", source="dolphin/gx/GXGeometry.c"),
             Object(Matching, "gx.a/GXFrameBuf.o", source="dolphin/gx/GXFrameBuf.c"),
@@ -3043,9 +3017,9 @@ config.libs = [
             Object(Matching, "gx.a/GXTev.o", source="dolphin/gx/GXTev.c"),
             Object(NonMatching, "gx.a/GXTransform.o", source="dolphin/gx/GXTransform.c",
                    extra_cflags=["-fp_contract off"]),
-            Object(NonMatching, "gx.a/GXTexture.o", source="dolphin/gx/GXTexture.c"),
+            Object(Matching, "gx.a/GXTexture.o", source="dolphin/gx/GXTexture.c"),
             Object(Matching, "gx.a/GXPerf.o", source="dolphin/gx/GXPerf.c"),
-            Object(NonMatching, "gx.a/GXPixel.o", source="dolphin/gx/GXPixel.c"),
+            Object(Matching, "gx.a/GXPixel.o", source="dolphin/gx/GXPixel.c"),
             Object(Matching, "gx.a/GXDisplayList.o", source="dolphin/gx/GXDisplayList.c"),
         ],
     },
@@ -3064,8 +3038,6 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/dlsprite.obj", source="rw/dlsprite.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
-            # Report-exact; link blocked: retail emits the non-inlined GX helpers in
-            # separate .text sections (as dlsprite/dl2drend), ours in the main .text.
             Object(NonMatching, "rwcore.a/nodeDolphinSubmitNoLight.obj",
                    source="rw/nodeDolphinSubmitNoLight.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
@@ -3138,7 +3110,6 @@ config.libs = [
                 source="rw/batextur.c",
                 extra_cflags=["-opt", "off", "-O0"],
             ),
-            # -opt off clears inherited -O4,p from cflags_base before per-TU level
             Object(Matching, "rwcore.a/osintf.obj", source="rw/osintf.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/babbox.obj", source="rw/babbox.c",
@@ -3237,7 +3208,6 @@ config.libs = [
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/gcmorph.obj", source="rw/gcmorph.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            # REVIEW: _rwGCNDisplayListGetSize matches only with a discarded `(void)(numIndices == 1);` read as a stripped RW assertion; earlier passes rejected it as a dead expression.
             Object(Matching, "rpworld.a/ibuffer.obj", source="rw/ibuffer.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rpworld.a/vtxfmt.obj", source="rw/vtxfmt.c",
@@ -3250,7 +3220,6 @@ config.libs = [
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/itools.obj", source="rw/itools.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            # REVIEW: _rwGCNVertexBufferFill matches only with a discarded `(void)(positionPresent == 0);` read as a stripped RW assertion; earlier passes rejected it as a dead expression.
             Object(Matching, "rpworld.a/vtools.obj", source="rw/vtools.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/native.obj", source="rw/native.c",

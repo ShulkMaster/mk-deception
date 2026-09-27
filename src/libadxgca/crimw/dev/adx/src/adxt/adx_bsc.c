@@ -222,8 +222,7 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 99.481820%; operations and CFG agree with retail;
- * RECVX predates the PL2 path, so stop at PL2/arithmetic register coloring. */
+/* TODO: [near miss] 99.80%; RE4 byte-offset PL2 loop matches; round-up sum and trailing count swap r23/r26. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
@@ -239,6 +238,7 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
     int decoded_samples;
     int trailing_samples;
     int i;
+    int offset;
     int copy_count;
     short* copy_source;
 
@@ -254,10 +254,11 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
             if (decoder->pl2_context != 0) {
                 AdxXpnd* expander = base->expander;
                 ADXCRS_Lock();
-                for (i = 0; i < expander->num_decoded_blocks * 32; i++) {
-                    short* left = &expander->params.output_left[i];
-                    short* right = &expander->params.output_right[i];
+                for (i = 0, offset = 0; i < expander->num_decoded_blocks * 32; i++) {
+                    short* left = (short*)((char*)expander->params.output_left + offset);
+                    short* right = (short*)((char*)expander->params.output_right + offset);
                     pl2encodefunc(decoder, *left, left, right);
+                    offset += 2;
                 }
                 ADXCRS_Unlock();
             }
@@ -265,13 +266,13 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
             block_samples = params->samples_per_block;
             block_size = params->block_size;
             loop_samples = params->loop_samples;
+            write_position = params->write_position;
             pcm_buffer = params->pcm_buffer;
             pcm_size = base->pcm_size;
             pcm_distance = base->pcm_distance;
-            write_position = params->write_position;
 
-            decoded_samples = (loop_samples + block_samples - 1) % block_samples;
-            trailing_samples = block_samples - 1 - decoded_samples;
+            trailing_samples = block_samples - 1 -
+                               (loop_samples + block_samples - 1) % block_samples;
             loop_samples = (loop_samples + block_samples - 1) / block_samples;
             decoded_blocks = ADXPD_GetNumBlk(base->expander);
             decoded_samples = decoded_blocks * block_samples /
@@ -596,8 +597,6 @@ static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
     *increment = key;
 }
 
-/* TODO: [near miss] `inline` only suppresses an out-of-line body that retail lacks; RE4's plain
- * static adxb_SetKey keeps both caller status checks unfolded (98.63388%) but emits a symbol. */
 static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
                                             unsigned char version,
                                             unsigned char revision,
@@ -609,6 +608,7 @@ static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
         *state = 0;
         *multiplier = 0;
         *increment = 0;
+        return 0;
     } else if (revision >= 16) {
         adxb_MakeEncryptionKey(sample_count, state, multiplier,
                                increment);
@@ -632,8 +632,8 @@ static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
 #pragma inline_max_size reset
 #pragma inline_max_total_size reset
 
-/* TODO: [near miss] 98.13525%; RE4 SKG loops and status-returning key selector restored;
- * retail keeps both `status < 0` checks unfolded (see adxb_SelectEncryptionKey). */
+/* TODO: [near miss] 99.34%; key selector and both unfolded `status < 0` checks match;
+ * string/data pool base registers (r27/r28) are swapped. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {

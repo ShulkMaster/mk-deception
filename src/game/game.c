@@ -880,7 +880,6 @@ int check_for_winner(void) {
     return winner;
 }
 
-/* TODO: [near miss] 99.902435%; equivalent player-number boolean lowering remains; arithmetic trial reverted. */
 float do_join_in(void) {
     int game_state = get_game_state();
     JoinInPdata* join = (JoinInPdata*)apdata;
@@ -918,7 +917,7 @@ float do_join_in(void) {
         pfx_2d_obj_set_alpha_by_id(0x2020, 0xB4);
     }
 
-    player_number = join->player ? 2 : 1;
+    player_number = join->player == 0 ? 1 : 2;
     sprintf(message, get_string(10), player_number);
     string_center_xy(
         0x2021,
@@ -1424,9 +1423,11 @@ void do_win_effect(void) {
     }
 }
 
+/* TODO: [near miss] 99.85%; first respawn block colors the player-0 mirror pointer r3 and BgndMisc r6 (retail r6/r3); typed misc local, inline reads and mirror locals measured. */
 void reset_fight(int death_trap) {
-    Vec player1_angles;
     Vec player2_angles;
+    Vec player1_angles;
+    BgndMisc* misc;
 
     destroy_mkprocs_pid(0x501B);
     unimpale_victim(g_game_info.plyr0.slot.pdata);
@@ -1452,27 +1453,25 @@ void reset_fight(int death_trap) {
         g_game_info.plyr0.slot.mirror_a->pos.value.y = g_game_info.field_34;
         g_game_info.plyr1.slot.mirror_a->pos.value.y = g_game_info.field_34;
         if (g_game_info.plyr0.slot.mirror_a != 0) {
-            RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
-
-            player1_angles.x = starts->player1_angles.x;
-            player1_angles.y = starts->player1_angles.y;
-            player1_angles.z = starts->player1_angles.z;
-            starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
+            misc = g_game_info.misc;
+            player1_angles.x = misc->player0_angles.x;
+            player1_angles.y = misc->player0_angles.y;
+            player1_angles.z = misc->player0_angles.z;
+            misc->player0_start.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr0.slot.mirror_a,
-                &starts->player1_position,
+                &misc->player0_start,
                 &player1_angles);
         }
         if (g_game_info.plyr1.slot.mirror_a != 0) {
-            RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
-
-            player2_angles.x = starts->player2_angles.x;
-            player2_angles.y = starts->player2_angles.y;
-            player2_angles.z = starts->player2_angles.z;
-            starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
+            misc = g_game_info.misc;
+            player2_angles.x = misc->player1_angles.x;
+            player2_angles.y = misc->player1_angles.y;
+            player2_angles.z = misc->player1_angles.z;
+            misc->player1_start.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr1.slot.mirror_a,
-                &starts->player2_position,
+                &misc->player1_start,
                 &player2_angles);
         }
 
@@ -1494,42 +1493,42 @@ void reset_fight(int death_trap) {
         reset_severed_limbs(1);
         bleed_restart();
 
-        if (g_game_info.plyr0.slot.pdata->character_id == 0x1B &&
-            g_game_info.plyr0.slot.pdata->sidekick_active != 0) {
-            while (g_game_info.plyr0.slot.pdata->player_slot != 1) {
-                advance_active_moveset(g_game_info.plyr0.slot.pdata);
-            }
-        } else {
+        if (g_game_info.plyr0.slot.pdata->character_id != 0x1B ||
+            g_game_info.plyr0.slot.pdata->sidekick_active == 0) {
             while (g_game_info.plyr0.slot.pdata->player_slot != 0) {
                 advance_active_moveset(g_game_info.plyr0.slot.pdata);
             }
+        } else {
+            while (g_game_info.plyr0.slot.pdata->player_slot != 1) {
+                advance_active_moveset(g_game_info.plyr0.slot.pdata);
+            }
         }
-        if (g_game_info.plyr1.slot.pdata->character_id == 0x1B &&
-            g_game_info.plyr1.slot.pdata->sidekick_active != 0) {
-            while (g_game_info.plyr1.slot.pdata->player_slot != 1) {
+        if (g_game_info.plyr1.slot.pdata->character_id != 0x1B ||
+            g_game_info.plyr1.slot.pdata->sidekick_active == 0) {
+            while (g_game_info.plyr1.slot.pdata->player_slot != 0) {
                 advance_active_moveset(g_game_info.plyr1.slot.pdata);
             }
         } else {
-            while (g_game_info.plyr1.slot.pdata->player_slot != 0) {
+            while (g_game_info.plyr1.slot.pdata->player_slot != 1) {
                 advance_active_moveset(g_game_info.plyr1.slot.pdata);
             }
         }
 
         g_game_info.plyr0.slot.mirror_a->hide_flag_bits.bit6 = 0;
         g_game_info.plyr1.slot.mirror_a->hide_flag_bits.bit6 = 1;
-        if ((int)mode_of_play == 8) {
+        if (mode_of_play == 8) {
             xfer_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc,
+                g_game_info.plyr0.idle_proc,
                 glitch_to_stance_j_exit);
             xfer_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc,
+                g_game_info.plyr1.idle_proc,
                 glitch_to_stance_j_exit);
         } else {
             xfer_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc,
+                g_game_info.plyr0.idle_proc,
                 blend_to_stance_j_exit);
             xfer_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc,
+                g_game_info.plyr1.idle_proc,
                 blend_to_stance_j_exit);
         }
 
@@ -2467,7 +2466,8 @@ static float p_say_finish_him(void) {
     }
     first = load_2d_pfxobj(0x10005, 0x201D, (char*)0x20025, 0, 0x2D);
     if (first != 0 && second != 0) {
-        combined_width = (first->pfx2d->tex_w + second->pfx2d->tex_w) / 2;
+        combined_width = first->pfx2d->tex_w + second->pfx2d->tex_w;
+        combined_width = combined_width / 2;
         first->flag_bits.scaled = 1;
         second->flag_bits.scaled = 1;
         for (tick = 0; tick <= 30; tick += 2) {
@@ -2651,14 +2651,14 @@ void ck_do_profile_save(void) {
 static float p_do_ending(void) {
     g_game_info.pause_flag_bits.ladder_complete = 0;
     if (winner == 1) {
-        winner_for_ending = 0;
         char_for_ending = g_game_info.plyr0.player_index;
+        winner_for_ending = 0;
         set_player_state(&g_game_info.plyr1, 0);
         mark_as_unlocked(
             (PlayerProfile*)&p1_profile, 6, char_for_ending);
     } else {
-        winner_for_ending = 1;
         char_for_ending = g_game_info.plyr1.player_index;
+        winner_for_ending = 1;
         set_player_state(&g_game_info.plyr0, 0);
         mark_as_unlocked(
             (PlayerProfile*)&p2_profile, 6, char_for_ending);
@@ -2672,13 +2672,13 @@ static float p_do_ending(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.74324%; case-8 fallthrough and count helper restored; three CSE'd
- * g_game_info base temps rotate r29/r30/r31. */
+/* TODO: [near miss] 99.80695%; switch cases 0/8/10 and case-8 fallthrough match; CSE'd
+ * g_game_info base temps rotate r29/r30/r31 (flag-bits temp needs highest priority). */
 float p_game_loop(void) {
-    BgndAnimationsView* animations;
-    MkProc* proc;
-    int active_players;
     int timeout;
+    int active_players;
+    MkProc* proc;
+    BgndAnimationsView* animations;
 
     set_game_switch_maps();
     if (get_game_state() == 7 && (int)mode_of_play != 8) {
@@ -2857,6 +2857,8 @@ float p_game_loop(void) {
         }
 
         switch ((int)mode_of_play) {
+        case 0:
+            break;
         case 8:
             konquest_transition_from_fight();
             break;

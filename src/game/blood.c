@@ -2278,11 +2278,15 @@ static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
 
 
 
-/* TODO: [near miss] 98.918030%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+static inline unsigned int get_plyr_blood_artid(PlyrPdata* pdata, char* name,
+                                                int slot) {
+    return get_artid_of_named_item_in_slot(
+        get_shared_art_section_for_plyr_pdata(pdata), name, slot);
+}
+
 void plyr_bleed_mouth(PlyrPdata* pdata) {
     MkObj* object;
     char* blood_name;
-    int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
@@ -2291,15 +2295,13 @@ void plyr_bleed_mouth(PlyrPdata* pdata) {
 
         if (object != 0) {
             blood_name = blood_map[4];
-            art_section = get_shared_art_section_for_plyr_pdata(pdata);
-            blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_name, 1);
+            blood_art_id = get_plyr_blood_artid(pdata, blood_name, 1);
             obj_spawn_bld(
                 object, 0, 2, frontL_bld_script2,
                 &pdata->blood_model.paths[1],
                 9, 0, blood_art_id, pdata);
             obj_spawn_bld(
-                object, 0, 2, sideR_bld_script2,
+                object, 0, 2, frontR_bld_script2,
                 &pdata->blood_model.paths[6],
                 9, 0, blood_art_id, pdata);
         }

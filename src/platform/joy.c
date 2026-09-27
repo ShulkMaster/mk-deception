@@ -30,7 +30,7 @@ extern void snd_req(int sound);
 extern MkProc* plyr_anim_proc;
 extern int round_winner;
 extern int f_fatality_available;
-extern int my_next_duck_state;
+static int my_next_duck_state;
 extern unsigned int game_tick_ctr;
 extern int exec_tick_ctr;
 extern int g_drone_blocking_in_reaction;
@@ -43,7 +43,7 @@ typedef struct JoySharedAnimations {
 
 extern JoySharedAnimations shared_ani;
 
-static void jump_to(MkProcEntryFn entry) {
+static inline void jump_to(MkProcEntryFn entry) {
     JOY_PROC_VTABLE(aproc)->jump_sleep(entry, 0.0f);
 }
 
@@ -178,6 +178,7 @@ float joy_duck_remote_end(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.77%; code matches; only the .sdata2 literal symbols differ (retail pools anonymous @N constants). */
 float joy_duck_remote_start(void) {
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     plyr_pdata->duck_loop_counter = 10;
@@ -192,7 +193,10 @@ float joy_duck_remote_start(void) {
         }
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 0x11, 0);
-    while (round_winner == 0 || f_fatality_available != 0) {
+    for (;;) {
+        if (round_winner != 0 && f_fatality_available == 0) {
+            break;
+        }
         plyr_pdata->duck_loop_counter++;
         if (his_pdata->state & 0x1000) {
             plyr_pdata->duck_loop_counter += 3;

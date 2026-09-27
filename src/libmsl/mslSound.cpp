@@ -446,7 +446,7 @@ extern "C" int mslSoundAttach(
     sound->waves = 0;
     sound->update_time = 0.0f;
     sound->bank_ref_count = 0;
-    sound->callback_data = (void*)1;
+    sound->callback_data = 1;
 
     definition = (mslBankSoundDefinition*)_mwMemMalloc(
         MWSOUND_HEAP, sizeof(mslBankSoundDefinition), 3, 0, 0, 0);

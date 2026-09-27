@@ -13291,7 +13291,8 @@ static inline unsigned int mk_chess_bind_next_smoke_emitter(
     return emitter;
 }
 
-/* TODO: [near miss] 99.20577%; only pooled-string addressing differs. */
+/* TODO: [near miss] 99.99278%; smoke/explode string pool offsets differ by 0x2b0;
+ * inspect earlier mk_chess string emission and TU ordering. */
 static void mk_chess_do_smoke_effect(void)
 {
     unsigned int emitter;

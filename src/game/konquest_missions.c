@@ -1201,6 +1201,7 @@ void play_background_music(int sound) {
     }
 }
 
+/* TODO: [near miss] 99.90%; vector initializer loads use rodata offsets 12 bytes before retail; remaining difference is constant-block layout in this TU. */
 void trial_setup_nis_scene(int setup) {
     Vec monk_position = {1.0f, 0.0f, 6.0f};
     Vec monk_angle = {0.0f, 3.1415927f, 0.0f};
@@ -3815,7 +3816,7 @@ void trial_round_init(void) {
 }
 
 void trial_game_init(void) {
-    char mission_name[16];
+    char mission_name[64];
     KonquestMissionState* state = (KonquestMissionState*)get_mkhdr(
         &vtbl_mkpdata_generic, sizeof(KonquestMissionState));
 

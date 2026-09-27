@@ -106,23 +106,24 @@ static inline int sflib_CheckResult(int result)
     return error;
 }
 
-/* TODO: [near miss] 97.000000%; donor-backed lifetime order and the early
- * transport-error return match retail; teardown locals retain r29-r31 residue. */
 int SFD_Finish(void)
 {
-    int i;
-    int destroy_error;
-    int transport_error;
-    int error;
     SfdHandle** slot;
+    int transport_error;
+    int destroy_error;
+    int i;
+    int error;
 
     slot = SFLIB_libwork.handles;
     destroy_error = 0;
-    for (i = 0; i < 8; i++, slot++) {
+    i = 0;
+    do {
         if (*slot != 0) {
             destroy_error = SFD_Destroy(*slot);
         }
-    }
+        i++;
+        slot++;
+    } while (i < 8);
     SFTIM_Finish(&SFLIB_libwork.timer_work);
     SFBUF_Finish(&SFLIB_libwork.buffer_work);
     transport_error = SFTRN_Finish(&SFLIB_libwork.transport_registry);
@@ -138,9 +139,7 @@ int SFD_Finish(void)
     return error;
 }
 
-/* TODO: [near miss] 94.138885%; typed status helper restores the error join;
- * stop at equivalent parameter-store and transport-load scheduling. */
-int SFD_Init(const SfdLibraryConfig* config)
+int SFD_Init(SfdLibraryConfig* config)
 {
     int timer_source;
     const SfdTransportRegistry* registry_source;

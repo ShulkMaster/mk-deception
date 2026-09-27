@@ -87,6 +87,7 @@ void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
         Prev.offset = Curr.offset;
         if (StopAtNextInt) cause |= 8;
     }
+
     LastCommandWasRead = 0;
     StopAtNextInt = 0;
     reg = __DIRegs[0];

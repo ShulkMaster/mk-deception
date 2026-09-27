@@ -30,10 +30,10 @@ static GXFifoObj FifoObj;
 static GXData gxData;
 GXData* const __GXData = &gxData;
 
-void* __memReg;
-void* __peReg;
-void* __cpReg;
-void* __piReg;
+void* __piReg = NULL;
+void* __cpReg = NULL;
+void* __peReg = NULL;
+void* __memReg = NULL;
 
 #if DEBUG
 GXBool __GXinBegin;
@@ -75,7 +75,7 @@ static int __GXShutdown(int final);
 
 static OSResetFunctionInfo GXResetFuncInfo = {__GXShutdown, 0x7F, NULL, NULL};
 
-static void EnableWriteGatherPipe(void) {
+static inline void EnableWriteGatherPipe(void) {
     u32 hid2 = PPCMfhid2();
 
     PPCMtwpar(OSUncachedToPhysical((void*)GXFIFO_ADDR));

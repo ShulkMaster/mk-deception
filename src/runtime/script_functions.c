@@ -2486,10 +2486,17 @@ void _plyr_spawn_his_anim_limb(void) {
                 ((ScriptRawArgs*)current_args)->slots[5].i - 1],
             current_args, ((ScriptRawArgs*)current_args)->slots[6].f);
 }
+
 void _xfer_proc(void) {
-    xfer_proc(((ScriptRawArgs*)current_args)->slots[0].pointer,
-              *(void**)(exit_table_340 +
-                        ((ScriptRawArgs*)current_args)->slots[1].i * 4 + 0x54));
+    int idx;
+    char* tbl;
+    ScriptRawArgs* args;
+
+    args = (ScriptRawArgs*)current_args;
+    idx = args->slots[1].i;
+    tbl = (char*)script_callable_function_table;
+    xfer_proc(args->slots[0].pointer,
+              *(void**)(tbl + idx * 4 - 0x4));
 }
 
 void _transition_to_anim_script_frame(void) {

@@ -2654,8 +2654,6 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
  * Retail open-codes this setup in every handler. Keeping the player loads at
  * each decision point reproduces its branch and register lifetimes.
  */
-/* TODO: [near miss] 99.709305%; five coordinate FPR differences and pool labels
- * remain; prior declaration trial exhausted the supported coloring insight. */
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     MkObj* fighter;
     PlyrPdata* pdata;
@@ -2679,8 +2677,8 @@ static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
         target_x = g_pz_fighters_engine.fighter_posts[1].x;
         target_z = g_pz_fighters_engine.fighter_posts[1].z;
     }
-    dz = target_z - fighter->pos.value.z;
     dx = target_x - fighter->pos.value.x;
+    dz = target_z - fighter->pos.value.z;
     distance = dx * dx + dz * dz;
     if (move->player == 0) {
         pdata = (PlyrPdata*)g_game_info.plyr0.slot.fighter;

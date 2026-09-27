@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep bl GetDirection/Process/GetMaxTime. */
+
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAnimScene.h"
 #include "mwScreenEngine/ScreenAnimEffect.h"
@@ -7,13 +9,13 @@
 #define ANIM_SCENE_UNTIL_TIME 0x40
 
 int ScreenAnimScene::CalculateMaxTime() {
+    int trackOffset;
+    int effectOffset;
     int effectCount;
     int timeOffset;
     SEAnimSceneData_t* data;
     int trackIdx;
-    int trackOffset;
     int effectIdx;
-    int effectOffset;
     SEAnimTrack_t* track;
     int maxTime;
     SEAnimEffects_t* effects;
@@ -31,11 +33,12 @@ int ScreenAnimScene::CalculateMaxTime() {
         effects = track->effects;
         effectCount = effects->count;
         while (effectIdx < effectCount) {
-            /* Retail reloads effects + timeOffset each iter before bl. */
+            /* The effects table and time offset are re-read every iteration. */
             effects = track->effects;
             timeOffset = track->timeOffset;
             effect = SEAnimEffectAtOffset(effects, effectOffset);
-            t = effect->GetMaxTime() + timeOffset;
+            t = effect->GetMaxTime();
+            t += timeOffset;
             if (t > maxTime) {
                 maxTime = t;
             }
@@ -70,24 +73,22 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
+/* TODO: [near miss] 99.88%; only dir (retail r24) / effectCount (r25) coloring swapped;
+ * declaration order and block scope of either are neutral; stop at coloring. */
 void ScreenAnimScene::Process(int dt) {
-    SEAnimSceneData_t* data;
     AnimDirectionE dir;
     int processed;
     int finished;
-    int trackIdx;
-    SEAnimTrack_t* track;
-    SEAnimEffects_t* effects;
-    int effectIdx;
+    SEAnimSceneData_t* data;
     int effectCount;
+    int trackIdx;
+    int effectIdx;
+    SEAnimTrack_t* track;
     int localTime;
-    int timeOffset;
-    ScreenAnimEffect* effect;
     int done;
 
-    /* Retail loads m_data before the playing check. */
     data = m_data;
-    if ((m_flags & ANIM_SCENE_PLAYING) == 0) {
+    if ((m_flags & ANIM_SCENE_PLAYING) <= 0) {
         return;
     }
 
@@ -95,34 +96,28 @@ void ScreenAnimScene::Process(int dt) {
     processed = 0;
     finished = 0;
 
-    if ((m_flags & ANIM_SCENE_FORWARD) != 0) {
+    if ((m_flags & ANIM_SCENE_FORWARD) > 0) {
         m_time += (int)((float)dt * m_speed);
-        if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
+        if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time > m_untilTime) {
                 m_time = (int)m_untilTime;
             }
         }
     } else {
         m_time -= (int)((float)dt * m_speed);
-        if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
+        if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time < m_untilTime) {
                 m_time = (int)m_untilTime;
             }
         }
     }
 
-    trackIdx = 0;
-    while (trackIdx < data->trackCount) {
+    for (trackIdx = 0; trackIdx < data->trackCount; trackIdx++) {
         track = SEAnimTrackAt(data, trackIdx);
-        timeOffset = track->timeOffset;
-        effects = track->effects;
-        effectCount = effects->count;
-        localTime = m_time - timeOffset;
-        effectIdx = 0;
-        while (effectIdx < effectCount) {
-            /* Retail reloads effects each iter then lwzx. */
-            effects = track->effects;
-            effect = *SEAnimEffectPtrSlot(effects, effectIdx);
+        localTime = m_time - track->timeOffset;
+        effectCount = track->effects->count;
+        for (effectIdx = 0; effectIdx < effectCount; effectIdx++) {
+            ScreenAnimEffect* effect = track->effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
                 done = (int)effect->Process(localTime, (int)dir, m_elements);
@@ -130,22 +125,14 @@ void ScreenAnimScene::Process(int dt) {
                     finished += 1;
                 }
             }
-            effectIdx += 1;
         }
-        trackIdx += 1;
     }
 
-    if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
-        if ((m_flags & ANIM_SCENE_FORWARD) != 0) {
-            if ((float)m_time >= m_untilTime) {
-                m_flags &= ~ANIM_SCENE_PLAYING;
-                m_flags &= ~ANIM_SCENE_UNTIL_TIME;
-            }
-        } else {
-            if ((float)m_time <= m_untilTime) {
-                m_flags &= ~ANIM_SCENE_PLAYING;
-                m_flags &= ~ANIM_SCENE_UNTIL_TIME;
-            }
+    if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
+        if (((m_flags & ANIM_SCENE_FORWARD) > 0 && (float)m_time >= m_untilTime) ||
+            ((m_flags & ANIM_SCENE_FORWARD) <= 0 && (float)m_time <= m_untilTime)) {
+            m_flags &= ~ANIM_SCENE_PLAYING;
+            m_flags &= ~ANIM_SCENE_UNTIL_TIME;
         }
     }
 

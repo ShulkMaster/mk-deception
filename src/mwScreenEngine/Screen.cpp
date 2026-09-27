@@ -1,3 +1,6 @@
+/* BUILD: -inline off: keep GetRoot as bl in FireEvent (else inlined -> ~37%). -O4,s: prefer
+ * mtctr dword-pair copy of RenderAll @120 init. */
+
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/ScreenMatrixStack.h"

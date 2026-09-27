@@ -1,12 +1,6 @@
 #include "msl/RedBlackTree.h"
 
-/*
- * Retail red-black tree owner used by the MSL external heap.
- * RBT_InsertNode, key bounds, and next/previous are exact. Key find remains a
- * bounded loop-emission near miss at 91.18%.
- * Soft ceilings: RBT_RemoveNode 99.04% and _RBT_InsertFixup 98.62%; both are
- * size-exact with only GPR-coloring differences in otherwise identical code.
- */
+/* Retail red-black tree owner used by the MSL external heap. */
 
 #define RBT_REPLACE_PARENT(tree, old_node, new_node) \
     do { \
@@ -22,42 +16,48 @@
         } \
     } while (0)
 
-#define RBT_ROTATE_LEFT(tree, node) \
+#define RBT_ROTATE_LEFT(tree, top_expr) \
     do { \
-        RedBlackNode* rbt_pivot = (node)->right; \
-        if (((node)->right = rbt_pivot->left) != 0) { \
-            (node)->right->parent = (node); \
+        RedBlackNode* rbt_pivot; \
+        RedBlackNode* rbt_top; \
+        rbt_top = (top_expr); \
+        rbt_pivot = rbt_top->right; \
+        if ((rbt_top->right = rbt_pivot->left) != 0) { \
+            rbt_top->right->parent = rbt_top; \
         } \
-        if ((rbt_pivot->parent = (node)->parent) != 0) { \
-            if ((node) == (node)->parent->left) { \
-                (node)->parent->left = rbt_pivot; \
+        if ((rbt_pivot->parent = rbt_top->parent) != 0) { \
+            if (rbt_top == rbt_top->parent->left) { \
+                rbt_top->parent->left = rbt_pivot; \
             } else { \
-                (node)->parent->right = rbt_pivot; \
+                rbt_top->parent->right = rbt_pivot; \
             } \
         } else { \
             (tree)->root = rbt_pivot; \
         } \
-        rbt_pivot->left = (node); \
-        (node)->parent = rbt_pivot; \
+        rbt_pivot->left = rbt_top; \
+        rbt_top->parent = rbt_pivot; \
     } while (0)
 
-#define RBT_ROTATE_RIGHT(tree, node) \
+#define RBT_ROTATE_RIGHT(tree, top_expr) \
     do { \
-        RedBlackNode* rbt_pivot = (node)->left; \
-        if (((node)->left = rbt_pivot->right) != 0) { \
-            (node)->left->parent = (node); \
+        RedBlackNode* rbt_pivot; \
+        RedBlackNode* rbt_top; \
+        rbt_top = (top_expr); \
+        rbt_pivot = rbt_top->left; \
+        if ((rbt_top->left = rbt_pivot->right) != 0) { \
+            rbt_top->left->parent = rbt_top; \
         } \
-        if ((rbt_pivot->parent = (node)->parent) != 0) { \
-            if ((node) == (node)->parent->left) { \
-                (node)->parent->left = rbt_pivot; \
+        if ((rbt_pivot->parent = rbt_top->parent) != 0) { \
+            if (rbt_top == rbt_top->parent->left) { \
+                rbt_top->parent->left = rbt_pivot; \
             } else { \
-                (node)->parent->right = rbt_pivot; \
+                rbt_top->parent->right = rbt_pivot; \
             } \
         } else { \
             (tree)->root = rbt_pivot; \
         } \
-        rbt_pivot->right = (node); \
-        (node)->parent = rbt_pivot; \
+        rbt_pivot->right = rbt_top; \
+        rbt_top->parent = rbt_pivot; \
     } while (0)
 
 int RBTK_GetPrevNextToKey(
@@ -88,10 +88,8 @@ int RBTK_GetPrevNextToKey(
     return 1;
 }
 
-/* TODO: [near miss] 91.18%; equivalent search exits omit two retail branches
- * and a zero assignment; decoded execution agrees in 30,206 cases per version. */
-RedBlackNode* RBTK_FindQuickNodeEqualToKey(
-    RedBlackTree* tree, const void* key) {
+static inline RedBlackNode* rbtk_FindQuickNode(RedBlackTree* tree,
+                                               const void* key) {
     RedBlackNode* node = tree->root;
 
     while (node != 0) {
@@ -102,19 +100,23 @@ RedBlackNode* RBTK_FindQuickNodeEqualToKey(
         } else if (comparison < 0) {
             node = node->left;
         } else {
-            break;
+            return node;
         }
     }
-    return node;
+    return 0;
 }
 
-/* TODO: [near miss] 99.04%; equality operand order recovered; rotations and CFG agree;
- * only GPR coloring remains at the exact retail size. */
+RedBlackNode* RBTK_FindQuickNodeEqualToKey(
+    RedBlackTree* tree, const void* key) {
+    return rbtk_FindQuickNode(tree, key);
+}
+
 RedBlackNode* RBT_RemoveNode(
     RedBlackTree* tree, RedBlackNode* removed) {
     RedBlackNode* fixup;
+    RedBlackNode* removed_parent = removed->parent;
 
-    if (removed->parent == 0 && tree->root != removed) {
+    if (removed_parent == 0 && tree->root != removed) {
         return 0;
     }
 
@@ -122,10 +124,8 @@ RedBlackNode* RBT_RemoveNode(
         RedBlackNode* child = removed->left;
 
         if (child != 0) {
-            RedBlackNode* right = removed->right;
-
-            if (right != 0) {
-                RedBlackNode* successor = right;
+            if (removed->right != 0) {
+                RedBlackNode* successor = removed->right;
 
                 while (successor->left != 0) {
                     successor = successor->left;
@@ -235,15 +235,15 @@ RedBlackNode* RBT_RemoveNode(
                 }
                 return removed;
             }
-            if (removed->parent == 0) {
+            if (removed_parent == 0) {
                 tree->root = 0;
                 return removed;
             }
             if (removed->black == 0) {
-                if (removed->parent->left == removed) {
-                    removed->parent->left = 0;
+                if (removed_parent->left == removed) {
+                    removed_parent->left = 0;
                 } else {
-                    removed->parent->right = 0;
+                    removed_parent->right = 0;
                 }
                 removed->parent = 0;
                 return removed;
@@ -261,8 +261,7 @@ RedBlackNode* RBT_RemoveNode(
             if (sibling->black == 0) {
                 sibling->black = 1;
                 fixup->parent->black = 0;
-                parent = fixup->parent;
-                RBT_ROTATE_LEFT(tree, parent);
+                RBT_ROTATE_LEFT(tree, fixup->parent);
                 sibling = fixup->parent->right;
             }
 
@@ -281,8 +280,7 @@ RedBlackNode* RBT_RemoveNode(
                 sibling->black = fixup->parent->black;
                 fixup->parent->black = 1;
                 sibling->right->black = 1;
-                parent = fixup->parent;
-                RBT_ROTATE_LEFT(tree, parent);
+                RBT_ROTATE_LEFT(tree, fixup->parent);
                 fixup = tree->root;
             } else {
                 sibling->black = 0;
@@ -293,8 +291,7 @@ RedBlackNode* RBT_RemoveNode(
             if (sibling->black == 0) {
                 sibling->black = 1;
                 fixup->parent->black = 0;
-                parent = fixup->parent;
-                RBT_ROTATE_RIGHT(tree, parent);
+                RBT_ROTATE_RIGHT(tree, fixup->parent);
                 sibling = fixup->parent->left;
             }
 
@@ -313,8 +310,7 @@ RedBlackNode* RBT_RemoveNode(
                 sibling->black = fixup->parent->black;
                 fixup->parent->black = 1;
                 sibling->left->black = 1;
-                parent = fixup->parent;
-                RBT_ROTATE_RIGHT(tree, parent);
+                RBT_ROTATE_RIGHT(tree, fixup->parent);
                 fixup = tree->root;
             } else {
                 sibling->black = 0;
@@ -367,16 +363,15 @@ void RBT_InsertNode(RedBlackTree* tree, RedBlackNode* node) {
     }
 }
 
-/* TODO: [near miss] 98.62%; exact rotation/recoloring operations and size;
- * only GPR coloring remains. */
 void _RBT_InsertFixup(
     RedBlackTree* tree, RedBlackNode* node) {
     node->black = 0;
     while (node->parent != 0 && node->parent->black == 0) {
         RedBlackNode* parent = node->parent;
         RedBlackNode* grandparent = parent->parent;
+        RedBlackNode* left = grandparent->left;
 
-        if (parent == grandparent->left) {
+        if (parent == left) {
             RedBlackNode* uncle = grandparent->right;
 
             if (uncle != 0 && uncle->black == 0) {
@@ -407,11 +402,10 @@ void _RBT_InsertFixup(
 
                 node->parent->black = 1;
                 node->parent->parent->black = 0;
-                grandparent = node->parent->parent;
-                RBT_ROTATE_RIGHT(tree, grandparent);
+                RBT_ROTATE_RIGHT(tree, node->parent->parent);
             }
         } else {
-            RedBlackNode* uncle = grandparent->left;
+            RedBlackNode* uncle = left;
 
             if (uncle != 0 && uncle->black == 0) {
                 uncle->black = 1;
@@ -441,8 +435,7 @@ void _RBT_InsertFixup(
 
                 node->parent->black = 1;
                 node->parent->parent->black = 0;
-                grandparent = node->parent->parent;
-                RBT_ROTATE_LEFT(tree, grandparent);
+                RBT_ROTATE_LEFT(tree, node->parent->parent);
             }
         }
     }

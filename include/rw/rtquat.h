@@ -32,6 +32,16 @@ typedef struct RwMatrix {
 } RwMatrix;
 typedef char RwMatrixSizeCheck[sizeof(RwMatrix) == 0x40 ? 1 : -1];
 
+/* RenderWare's identity setter: rwMATRIXINTERNALIDENTITY | rwMATRIXTYPEORTHONORMAL. */
+#define RwMatrixSetIdentityMacro(m)                                           \
+    do {                                                                      \
+        (m)->right.x = (m)->up.y = (m)->at.z = 1.0f;                          \
+        (m)->right.y = (m)->right.z = (m)->up.x = 0.0f;                       \
+        (m)->up.z = (m)->at.x = (m)->at.y = 0.0f;                             \
+        (m)->pos.x = (m)->pos.y = (m)->pos.z = 0.0f;                          \
+        (m)->flags |= 0x20003;                                                \
+    } while (0)
+
 typedef int RwOpCombineType;
 
 float _rwSqrt(float num);

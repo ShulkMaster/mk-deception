@@ -1,3 +1,6 @@
+/* BUILD: -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in .rodata (far
+ * lis/addi); plain -str reuse emits @sda21 loads. */
+
 #include "platform/gcmcard.h"
 
 #include "game/memcard.h"

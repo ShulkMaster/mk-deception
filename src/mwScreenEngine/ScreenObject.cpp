@@ -1,3 +1,7 @@
+/* BUILD: -inline off: keep GetFocus/FireEvent/ProcessEvent as bl (MWCC otherwise inlines them
+ * into FireEvent/BroadcastEvent/SetComponent -> 0% / 3-5x size). -O4,s: mtctr/bdnz + stmw for
+ * ctor/HasEvent/SetLast/SetComponent loops. */
+
 #include "mwScreenEngine/ScreenObject.h"
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAction.h"

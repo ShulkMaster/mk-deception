@@ -1,3 +1,6 @@
+/* TODO: [blocked] link: Report-exact; link blocked: retail emits the non-inlined GX helpers in
+ * separate .text sections (as dlsprite/dl2drend), ours in the main .text. */
+
 #include "dolphin/gx.h"
 #include "rw/gamecube.h"
 #include "rw/rwerror.h"

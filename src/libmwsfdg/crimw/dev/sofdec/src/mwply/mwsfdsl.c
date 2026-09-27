@@ -144,9 +144,11 @@ static inline void mwPlySetLpFlg(MwsPlayer* player, int loop)
     LSC_SetLpFlg(player->lsc, loop);
 }
 
-static inline void mwPlyStartSub(MwsPlayer* player)
+static inline void mwPlyStartSub(void* handle)
 {
-    mwPlyLinkStm(player, 1);
+    MwsPlayer* player = (MwsPlayer*)handle;
+
+    mwPlyLinkStm(handle, 1);
     mwSfdStartSj(player, player->input_sj);
     MWSFPLY_SetFlowLimit(player);
     LSC_Start(player->lsc);
@@ -165,8 +167,6 @@ static inline void mwPlyStartSeamless(MwsPlayer* player)
     mwPlyStartSub(player);
 }
 
-/* TODO: [near miss] 98.88%; inlined entry/loop/seamless/LinkStm bodies exact; retail
- * keeps a player copy (mr r30,r29) for the StartSub tail that we coalesce into r29. */
 void mwPlyStartFnameLp(MwsPlayer* player, const char* filename)
 {
     if (MWSFD_IsEnableHndl(player) == 0) {

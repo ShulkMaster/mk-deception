@@ -2333,15 +2333,14 @@ static float r_face3_onback(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: r_cyrax_blade ~99.87% -- fmuls scratch-FPR selection only. */
 static float r_cyrax_blade(void) {
     ReactionProcVtable* vtable;
     float angle;
     float sine;
     float cosine;
 
-    angle = 0.000005992112f *
-        (float)(((int)(166886.1f * his_obj->ang.y)) & 0xFFFFF);
+    angle = his_obj->ang.y;
+    angle = 0.000005992112f * (float)(((int)(166886.1f * angle)) & 0xFFFFF);
     sine = gxMathSin(angle);
     cosine = gxMathCos(angle);
     plyr_obj->pos.value.x = his_obj->pos.value.x + 2.0f * sine;

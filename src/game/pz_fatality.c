@@ -2660,6 +2660,22 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
 /* TODO: [near miss] 99.88426%; explicit secondary-column lifetime was neutral;
  * direct member accesses recover pointer reloads, while pooled references and
  * column register coloring remain. */
+static inline void pz_fighter_register_chomper_columns(
+    PuzzleFighterRenderObject* primary, PuzzleFighterRenderObject* secondary) {
+    g_pz_fighter_fatality_engine.primary_object = primary;
+    g_pz_fighter_fatality_engine.secondary_object = secondary;
+    obj_create_sobjs(primary);
+    obj_create_sobjs(secondary);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[0] =
+        obj_find_sobj_by_id(primary, 2);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[0] =
+        obj_find_sobj_by_id(secondary, 2);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[1] =
+        obj_find_sobj_by_id(primary, 1);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[1] =
+        obj_find_sobj_by_id(secondary, 1);
+}
+
 static float pz_fighter_load_and_place_initial_chompers(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
@@ -2697,18 +2713,7 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
         insert_fgnd_mkobj(columns[i]);
     }
 
-    g_pz_fighter_fatality_engine.primary_object = columns[0];
-    g_pz_fighter_fatality_engine.secondary_object = columns[1];
-    obj_create_sobjs(columns[0]);
-    obj_create_sobjs(columns[1]);
-    g_pz_fighter_fatality_engine.hazard_groups[0].objects[0] =
-        obj_find_sobj_by_id(columns[0], 2);
-    g_pz_fighter_fatality_engine.hazard_groups[1].objects[0] =
-        obj_find_sobj_by_id(columns[1], 2);
-    g_pz_fighter_fatality_engine.hazard_groups[0].objects[1] =
-        obj_find_sobj_by_id(columns[0], 1);
-    g_pz_fighter_fatality_engine.hazard_groups[1].objects[1] =
-        obj_find_sobj_by_id(columns[1], 1);
+    pz_fighter_register_chomper_columns(columns[0], columns[1]);
     g_pz_fighter_fatality_engine.grinder_texture =
         load_tga(0x70036, 0x081F0002);
 

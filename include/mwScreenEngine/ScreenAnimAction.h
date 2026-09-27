@@ -63,11 +63,15 @@ public:
 
 class ScreenPlayAnimUntilAction : public ScreenAction {
 public:
+    ScreenPlayAnimUntilAction() {
+        field_0x3C = 0;
+        field_0x40 = 0;
+    }
     virtual ~ScreenPlayAnimUntilAction();
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
-    unsigned int field_0x3C; /* +0x3C -- CreateAction zeros */
-    unsigned int field_0x40; /* +0x40 -- CreateAction zeros */
+    unsigned int field_0x3C; /* +0x3C -- ctor zeros */
+    unsigned int field_0x40; /* +0x40 -- ctor zeros */
 };
 
 #endif

@@ -79,7 +79,9 @@ static inline void L2Disable(void) {
     __sync();
 }
 
-/* TODO: [breakthrough needed] 81.447365%; empty-loop and do-while source forms are neutral or compiler-crashing; target entry branch remains unresolved. */
+/* The L2/DMA-error C code from here on was built without the peephole pass. */
+#pragma peephole off
+
 void L2GlobalInvalidate(void) {
     L2Disable();
     PPCMtl2cr(PPCMfl2cr() | 0x00200000);
@@ -92,8 +94,6 @@ void L2GlobalInvalidate(void) {
     }
 }
 
-/* TODO: [near miss] 70.852270%; donor masks, context layout, and variadic ABI
- * agree; MWCC argument-save ordering and branch-test lowering remain. */
 void DMAErrorHandler(OSError error, OSContext* context, ...) {
     unsigned long hid2 = PPCMfhid2();
 
@@ -139,6 +139,8 @@ static inline void L2Enable(void) {
     PPCMtl2cr((PPCMfl2cr() | 0x80000000) & ~0x00200000UL);
 }
 
+/* TODO: [blocked] 96.72%; retail calls ICEnable/DCEnable, whose bodies are still empty placeholders for
+ * privileged asm, so ours inlines them away; resolves once those routines exist. */
 void __OSCacheInit(void) {
     if (!(PPCMfhid0() & 0x00008000)) {
         ICEnable();

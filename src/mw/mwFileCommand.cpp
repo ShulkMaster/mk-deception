@@ -1,3 +1,7 @@
+/* TODO: [blocked] link: retail's linker stripped mwFileCommand::getError() const (8 bytes,
+ * UNUSED in orig/GQNE5D/files/mk6gc_release.MAP). Its codegen reference to
+ * __vt__15mwFileQueryable is the likely reason retail emits the derived vtable before the base
+ * one; find its consumers or genuine body, then restore it so the unit can link. */
 struct mwFileTypeInfo;
 struct mwFile;
 class mwFileCommand;

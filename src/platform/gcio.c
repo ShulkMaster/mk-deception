@@ -36,7 +36,8 @@ int get_num_controllers(void) {
     return count;
 }
 
-/* Soft ceiling: retail keeps pad and flag-subobject bases in separate GPRs. */
+/* TODO: [near miss] 98.70%; pad indexing, flag pointer and CFG match; retail keeps `channel` in r31 with
+ * the three strength-reduced offsets in r28-r30 where ours colors channel r25 (54 register-renumbering rows). */
 void scan_switches(void) {
     PADStatus statuses[4];
     int channel;
@@ -49,8 +50,7 @@ void scan_switches(void) {
         PADStatus* status = &statuses[channel];
 
         if (status->err == 0) {
-            GcPadSlot* pad = &g_game_info.pads[channel];
-            GcPadFlags* flags = &pad->flag_bits;
+            GcPadFlags* flags = &g_game_info.pads[channel].flag_bits;
             int switch_index;
 
             if (!flags->connected) {
@@ -85,16 +85,16 @@ void scan_switches(void) {
                 SISetSamplingRate(1);
             }
 
-            pad->prev_buttons = pad->buttons;
-            pad->buttons = 0;
+            g_game_info.pads[channel].prev_buttons = g_game_info.pads[channel].buttons;
+            g_game_info.pads[channel].buttons = 0;
             for (switch_index = 0; switch_index < 16; switch_index++) {
                 int mask = gc_controller_offset_tbl[switch_index];
 
                 if (mask > 0) {
                     if (status->button & mask) {
-                        pad->buttons |= default_switch_map[switch_index].mask;
+                        g_game_info.pads[channel].buttons |= default_switch_map[switch_index].mask;
                     } else {
-                        pad->buttons &= ~default_switch_map[switch_index].mask;
+                        g_game_info.pads[channel].buttons &= ~default_switch_map[switch_index].mask;
                     }
                 }
             }
@@ -102,29 +102,28 @@ void scan_switches(void) {
                 dispatch_pad_sticks(channel);
             }
             dispatch_right_sticks(channel);
-            pad->edge = pad->buttons & (pad->buttons ^ pad->prev_buttons);
-            if (pad->edge != 0 && pad->player == 0) {
+            g_game_info.pads[channel].edge = g_game_info.pads[channel].buttons & (g_game_info.pads[channel].buttons ^ g_game_info.pads[channel].prev_buttons);
+            if (g_game_info.pads[channel].edge != 0 && g_game_info.pads[channel].player == 0) {
                 assign_player(channel);
             }
-            pad->stick_pack = status->stickX + 0x7f;
-            pad->stick_pack |= (unsigned int)(~status->stickY + 0x7f) << 8;
-            pad->stick_pack |= (unsigned int)(status->substickX + 0x7f) << 16;
-            pad->stick_pack |= (unsigned int)(~status->substickY + 0x7f) << 24;
+            g_game_info.pads[channel].stick_pack = status->stickX + 0x7f;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(~status->stickY + 0x7f) << 8;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(status->substickX + 0x7f) << 16;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(~status->substickY + 0x7f) << 24;
         } else if (status->err == -1) {
-            GcPadSlot* pad = &g_game_info.pads[channel];
-            GcPadFlags* flags = &pad->flag_bits;
+            GcPadFlags* flags = &g_game_info.pads[channel].flag_bits;
 
             if (flags->connected) {
                 PADReset(pad_channels[channel]);
             }
             if (are_controllers_locked()) {
-                if (pad->player != 0) {
+                if (g_game_info.pads[channel].player != 0) {
                     int is_active = 0;
 
-                    if (pad->player->player_state == 2) {
+                    if (g_game_info.pads[channel].player->player_state == 2) {
                         is_active = 1;
                     }
-                    if (pad->player->player_state == 1) {
+                    if (g_game_info.pads[channel].player->player_state == 1) {
                         is_active = 1;
                     }
                     if (check_for_non_game_locked_controller_state() && is_active) {
@@ -135,11 +134,11 @@ void scan_switches(void) {
                 } else {
                     flags->connected = 0;
                     PADReset(pad_channels[channel]);
-                    unassign_player(pad->player);
+                    unassign_player(g_game_info.pads[channel].player);
                 }
             } else if (!flags->connected) {
-                if (pad->player != 0) {
-                    unassign_player(pad->player);
+                if (g_game_info.pads[channel].player != 0) {
+                    unassign_player(g_game_info.pads[channel].player);
                 }
                 PADReset(pad_channels[channel]);
             } else {
@@ -147,11 +146,9 @@ void scan_switches(void) {
                 PADReset(pad_channels[channel]);
             }
         } else if (status->err == -3) {
-            GcPadSlot* pad = &g_game_info.pads[channel];
-
-            pad->buttons = 0;
-            pad->prev_buttons = 0;
-            pad->edge = 0;
+            g_game_info.pads[channel].buttons = 0;
+            g_game_info.pads[channel].prev_buttons = 0;
+            g_game_info.pads[channel].edge = 0;
         }
     }
 }
@@ -180,8 +177,10 @@ int is_rumble_available(int channel) {
     if (channel == 0) {
         return pad1_rumble_available;
     }
-    /* Soft ceiling: retail booleanizes this final channel test with subic/subfe. */
-    return pad2_rumble_available & (channel == 1);
+    if (channel == 1) {
+        return pad2_rumble_available;
+    }
+    return 0;
 }
 
 int init_controller(void) {

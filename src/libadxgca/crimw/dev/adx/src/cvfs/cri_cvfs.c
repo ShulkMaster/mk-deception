@@ -247,8 +247,8 @@ static void prefixDeviceName(char* file, const char* device)
 
 static inline CvFsInterface* getDevice(const char* name)
 {
+    unsigned int length = strlen(name);
     unsigned long i;
-    unsigned long length = strlen(name);
 
     for (i = 0; i < 32; i++) {
         if (strncmp(name, cvfs_tbl[i].name, length) == 0) {
@@ -429,7 +429,7 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 96.88552%; CFG, calls, widths, and layout match; residual is register coloring in split-path loops. */
+/* TODO: [near miss] 99.14%; CFG, calls, widths, and layout match; residual is register coloring in split-path loops. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
@@ -566,7 +566,7 @@ void cvFsClose(CvFsObject* handle)
     }
 }
 
-/* TODO: [near miss] 96.91932%; path split, handle lifetime, device resolution, open/error CFG, and release paths match retail; residual is global/register coloring. */
+/* TODO: [near miss] 99.01%; path split, handle lifetime, device resolution, open/error CFG, and release paths match retail; residual is global/register coloring. */
 CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
 {
     CvFsObject* handle;
@@ -640,8 +640,6 @@ void cvFsSetDefDev(char* name)
     cvFsError(set_default_unknown_device);
 }
 
-/* TODO: [near miss] 98.427670%; donor-backed build read restores the pooled
- * rodata base; the device-search loop retains localized GPR allocation residue. */
 void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 {
     CvFsInterface* interface;

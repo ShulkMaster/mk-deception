@@ -444,13 +444,13 @@ void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
 }
 
 void* get_data_table_by_name(const char* name) {
-    void* found;
-    unsigned int i;
-    ScriptSlotEntry* entry;
-    ScriptSlot* slot;
-    unsigned int t;
     ScriptTableDef* def;
+    ScriptSlot* slot;
+    ScriptSlotEntry* entry;
+    unsigned int t;
+    unsigned int i;
     int cmp;
+    void* found;
 
     found = hashtable_get(&c_table_list, name);
     if (found != 0) {
@@ -460,13 +460,10 @@ void* get_data_table_by_name(const char* name) {
         entry = slot_entry_at((int)i);
         if (entry->state == 2) {
             slot = &entry->body;
-            /* Soft ceiling: ~94.9% -- NV carousel (5 regs rotated), retail
-             * applies the -1 after the add (subi last, un-reassociated) and
-             * bumps t before the 0x10 stride; no C shape reproduces both. */
             for (t = 0; t < slot->max_table; t++) {
                 def = &slot->table_defs[t];
                 if (def->is_internal != 0) {
-                    cmp = strcmp(name, def->name + slot->string_reloc - 1);
+                    cmp = strcmp(name, def->name + (slot->string_reloc - 1));
                     if (cmp == 0) {
                         return slot->table_data + def->data_index;
                     }
@@ -1160,12 +1157,14 @@ void _get_bit_field(void) {
 void _copy_stream_to_address(void) {
     unsigned int* args;
     CmdScript* cs;
+    unsigned int idx;
     void* dst;
     unsigned int size;
 
     args = current_args;
     cs = active_cmdscript;
-    dst = (void*)cs->regs[args[1]];
+    idx = args[1] * 4 + 0x2c;
+    dst = (void*)((unsigned int*)cs)[idx / 4];
     size = args[2] * 4;
     memcpy(dst, &args[3], size);
 }
@@ -1190,10 +1189,12 @@ void _call_script_function(void) {
 void _load_table_address(void) {
     unsigned int* args;
     CmdScript* cs;
+    unsigned int idx;
 
     args = current_args;
     cs = active_cmdscript;
-    cs->regs[args[1]] = (unsigned int)get_data_table(cs->mko, args[2]);
+    idx = args[1];
+    cs->regs[idx] = (unsigned int)get_data_table(cs->mko, args[2]);
 }
 
 void _unconditional_branch(void) {

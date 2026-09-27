@@ -154,7 +154,7 @@ void mwPlySetSubtitleCh(MwsPlayer*, int);
 void mwPlySetSyncMode(MwsPlayer*, int);
 void mwPlySetFrmSync(MwsPlayer*, int);
 void mwPlyStartFnameLp(MwsPlayer*, const char*);
-void mwPlyGetCurFrm(MwsPlayer*, MwsFrameOutput*);
+void mwPlyGetCurFrm(void*, void*);
 void mwPlyRelCurFrm(MwsPlayer*);
 void __mwMovie_startVideo(_mwMovPlayer*);
 void displayMovieFrame(_mwMovPlayer*);

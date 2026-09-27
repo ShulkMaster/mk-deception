@@ -1,3 +1,7 @@
+/* BUILD: No -use_lmw_stmw: retail uses _savegpr_19/_restgpr_19 in string_set. Scheduling and
+ * peephole settings are uniform; no-inline remains local. -str pool: retail .data holds the
+ * COLOR tag as @stringBase0. */
+
 #include "libmkparticle/pfxfont.h"
 
 #include "libmkparticle/gc_font.h"
@@ -13,11 +17,10 @@ static const float s_zero = 0.0f;
 static const float s_one = 1.0f;
 /* Font colors use byte-range float channels. */
 static const float s_255 = 255.0f;
-static const float s_half = 0.5f;
 
-static PfxFontAllocFn font_memory_alloc;
-static PfxFontFreeFn font_memory_free;
 static int cull_mode;
+static PfxFontFreeFn font_memory_free;
+static PfxFontAllocFn font_memory_alloc;
 
 void pfxfont_system_init(PfxFontAllocFn alloc_fn, PfxFontFreeFn free_fn) {
     font_memory_alloc = alloc_fn;
@@ -189,8 +192,6 @@ static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* i
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 99.9654%; centering multiply operand order survives commutative check; stop. */
-/* TODO: [near miss] 99.97%; centering multiply operand order remains; stop after equivalent-expression trials. */
 void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text, float wrap_w,
                         int halign) {
     float pen_x;
@@ -277,12 +278,9 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
             case 0:
                 pen_x = zero;
                 break;
-            case 1: {
-                float center_delta = wrap_w;
-                center_delta -= line_w;
-                pen_x = center_delta * s_half;
+            case 1:
+                pen_x = (wrap_w - line_w) / 2.0f;
                 break;
-            }
             case 2:
                 pen_x = wrap_w - line_w;
                 break;
@@ -416,12 +414,10 @@ void pfxfont_end_render(void) {
 
 #pragma dont_inline on
 void pfxfont_string_cleanup(PfxFontString* ctx) {
-    PfxFontInstance* first;
     PfxFontInstance* inst;
     PfxFontInstance* next;
 
     inst = &ctx->instance0;
-    first = inst;
     while (inst != 0) {
         nativefont_string_cleanup(ctx);
         if (inst->verts_raw != 0) {
@@ -430,7 +426,7 @@ void pfxfont_string_cleanup(PfxFontString* ctx) {
             inst->verts = 0;
         }
         next = inst->next;
-        if (inst != first) {
+        if (inst != &ctx->instance0) {
             font_memory_free(inst);
         }
         inst = next;

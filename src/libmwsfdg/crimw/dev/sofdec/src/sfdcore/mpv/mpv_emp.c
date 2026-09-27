@@ -99,12 +99,8 @@ static s16 mpvemp_mbai[36] = {
         }                                                                      \
     } while (0)
 
-/* TODO: [near miss] 98.973210%; only initial reader register coloring and
- * equivalent cursor-add/subtract scheduling remain; stop at soft ceiling. */
 int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
 {
-    const u32* words;
-    const u32* aligned;
     u32 bits;
     u32 next_bits;
     u32 value;
@@ -115,12 +111,13 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     const u8* cursor;
     const u8* delimiter;
     int delimiter_type;
+    const u32* words;
 
-    aligned = (const u32*)((unsigned long)data & ~3UL);
-    bit_offset = (data - (const u8*)aligned) * 8;
-    bits = *aligned++ << bit_offset;
-    next_bits = *aligned++;
-    words = aligned;
+    words = (const u32*)((unsigned long)data & ~3UL);
+    bit_offset = (data - (const u8*)words) * 8;
+    bits = *words++;
+    bits <<= bit_offset;
+    next_bits = *words++;
     READ_WORD(value);
     if (value != 0x101) {
         return 0;
@@ -166,7 +163,8 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     }
     SKIP_BITS(5);
 
-    cursor = (const u8*)words + ((bit_offset + 7) >> 3) - 8;
+    cursor = (const u8*)words + ((bit_offset + 7) >> 3);
+    cursor -= 8;
     offset = cursor - data;
     if (offset > length) {
         return 0;
@@ -213,8 +211,6 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     return 1;
 }
 
-/* TODO: [near miss] 98.636360%; distinct shifted-first word matches reader
- * join; equivalent cursor arithmetic and register coloring set a soft ceiling. */
 int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
 {
     const u32* words;
@@ -222,14 +218,15 @@ int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
     u32 bits;
     u32 next_bits;
     u32 value;
-    u32 second;
     u32 shifted_first;
+    u32 second;
     int byte_offset;
     int bit_offset;
     int remaining;
     s16 code;
     int macroblock_type;
     int offset;
+    const u8* end;
 
     aligned = (const u32*)((unsigned long)data & ~3UL);
     byte_offset = data - (const u8*)aligned;
@@ -305,7 +302,10 @@ int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
     default:
         return 0;
     }
-    offset = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) - data;
+    end = (const u8*)words;
+    end += (bit_offset + 7) >> 3;
+    end -= 8;
+    offset = end - data;
     if (offset > length) {
         return 0;
     }

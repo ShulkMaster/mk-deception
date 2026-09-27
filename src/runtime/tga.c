@@ -48,18 +48,64 @@ typedef char TgaHeaderValuesSizeCheck[
  * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
  */
 
-/* TODO: [near miss] 96.67%; GPR coloring, one swapped header-byte extract, and
- * retail's mr-seeded column*3 IV (ours li) remain; permuter found nothing honest. */
+static inline void tga_copy_row(unsigned char *destination,
+                                const unsigned char *pixels, int row,
+                                int width) {
+  const unsigned char *source;
+  unsigned char *target;
+  int column;
+
+  for (column = 0; column < width; column++) {
+    source = pixels + (column + row * width) * 4;
+    target = destination + column * 3;
+
+    target[0] = source[2];
+    target[1] = source[1];
+    target[2] = source[0];
+  }
+}
+
+static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
+                                        TgaHeaderValues values) {
+  int block_bytes;
+  int row_bytes;
+  unsigned char *pixels;
+  int row;
+  unsigned char *output;
+  int width;
+  int rows;
+
+  output = get_mem(0x1e00);
+  if (output == 0) {
+    return 0;
+  }
+  width = values.width;
+  pixels = image->pixels;
+  row_bytes = width * 3;
+  row = values.height;
+  block_bytes = width * 12;
+  while (row > 0) {
+    unsigned char *destination = output;
+
+    rows = 0;
+    do {
+      row--;
+      tga_copy_row(destination, pixels, row, values.width);
+      rows++;
+      destination += row_bytes;
+    } while (rows < 4);
+    debug_file_write(file, output, block_bytes);
+  }
+  return image;
+}
+
+/* TODO: [near miss] 98.41%; helper split fixes all callee-saved homes and the mr-seeded IV;
+ * row-loop volatile coloring (rows/column r5/r6, target r7/r9) and one header li order remain. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
+  RwImage *result;
   MkHwFileRequest *file;
   TgaHeader header;
   TgaHeaderValues values;
-  TgaHeaderValues output_values;
-  unsigned char *output;
-  unsigned char *pixels;
-  RwImage *result;
-  int row;
-  int rows;
 
   file = debug_file_open(path, "w");
   if (file != 0) {
@@ -98,40 +144,7 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
     header.descriptor = (unsigned char)values.descriptor;
     debug_file_write(file, &header, sizeof(header));
 
-    output_values = values;
-    output = get_mem(0x1e00);
-    if (output == 0) {
-      result = 0;
-    } else {
-      int row_bytes = output_values.width * 3;
-
-      pixels = image->pixels;
-      row = output_values.height;
-      while (row > 0) {
-        unsigned char *destination = output;
-
-        rows = 0;
-        do {
-          int column;
-
-          row--;
-          for (column = 0; column < output_values.width; column++) {
-            unsigned char *source =
-                pixels + (column + row * output_values.width) * 4;
-            unsigned char *target = destination + column * 3;
-
-            target[0] = source[2];
-            target[1] = source[1];
-            target[2] = source[0];
-          }
-          rows++;
-          destination += row_bytes;
-        } while (rows < 4);
-        debug_file_write(file, output, output_values.width * 12);
-      }
-      result = image;
-    }
-
+    result = tga_write_pixels(file, image, values);
     debug_file_close(file);
     return result;
   }

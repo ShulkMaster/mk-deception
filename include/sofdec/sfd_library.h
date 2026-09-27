@@ -33,7 +33,7 @@ extern void* SFD_pts_error_msg;
 extern SfdHandle* sfd_hn_last;
 extern const char SFLIB_version_str[0x54];
 
-int SFD_Init(const SfdLibraryConfig* config);
+int SFD_Init(SfdLibraryConfig* config);
 int SFD_Finish(void);
 int SFD_IsVersionCompatible(const char* version, int handle_size);
 

@@ -20,6 +20,7 @@ asm void PSVECSubtract(const Vec* a, const Vec* b, Vec* difference)
     SEQ_PSVECSubtract();
 }
 
+/* TODO: [blocked] 5.71%; retail uses paired-single loads, multiplies, and stores; matching requires an authorized assembly sequence. */
 void PSVECScale(const Vec* source, Vec* scaled, float scale)
 {
     scaled->x = source->x * scale;

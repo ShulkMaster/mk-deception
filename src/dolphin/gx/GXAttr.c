@@ -17,7 +17,7 @@
 #define CHECK_MTXIDX(line, attr, type)    ASSERTMSGLINE(line, (attr) > GX_VA_TEX7MTXIDX || (type) <= GX_VA_TEX0MTXIDX, "GXSetVtxDesc: GX_VA_*MTXIDX accepts GX_NONE or GX_DIRECT only")
 
 static inline void __GXXfVtxSpecs(void) {
-    u32 nCols = 0;
+    u32 nCols;
     u32 nNrm;
     u32 nTex;
     u32 reg;
@@ -28,7 +28,7 @@ static inline void __GXXfVtxSpecs(void) {
     nCols = GET_REG_FIELD(__GXData->vcdLo, 2, 13) ? 1 : 0;
     nCols += GET_REG_FIELD(__GXData->vcdLo, 2, 15) ? 1 : 0;
 #else
-    nCols = 33 - __cntlzw(GET_REG_FIELD(__GXData->vcdLo, 4, 13));
+    nCols = 33 - __cntlzw((__GXData->vcdLo & (0xf << 13)) >> 13);
     nCols /= 2;
 #endif
 
@@ -112,63 +112,56 @@ void GXSetVtxDesc(GXAttr attr, GXAttrType type) {
 }
 
 
-/* TODO: [near miss] 99.787230%; donor source and GXData layout agree; only
- * harmless count-register coloring remains. */
 void __GXSetVCD(void) {
     GX_WRITE_SOME_REG4(8, 0x50, __GXData->vcdLo, -12);
     GX_WRITE_SOME_REG4(8, 0x60, __GXData->vcdHi, -12);
     __GXXfVtxSpecs();
 }
 
-/* TODO: [near miss] 88.21918%; retail bit extraction, GXData offsets, and table/helper boundaries agree; residual is MWCC scheduling/register coloring. */
 void __GXCalculateVLim(void) {
     static u8 tbl1[] = { 0, 4, 1, 2 };
     static u8 tbl2[] = { 0, 8, 1, 2 };
     static u8 tbl3[] = { 0, 12, 1, 2 };
 
-    GXCompCnt nc = 0;
     u32 vlm;
-    u32 b;
     u32 vl;
     u32 vh;
-    u32 va;
+    s32 nc;
 
-    if (__GXData->vNum != 0) {
-        vl = __GXData->vcdLo;
-        vh = __GXData->vcdHi;
-        va = __GXData->vatA[0];
-        nc = GET_REG_FIELD(va, 1, 9);
-
-        vlm  = GET_REG_FIELD(vl, 1, 0);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 1);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 2);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 3);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 4);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 5);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 6);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 7);
-        vlm += (u8)GET_REG_FIELD(vl, 1, 8);
-        vlm += tbl3[(u8)GET_REG_FIELD(vl, 2, 9)];
-
-        if (nc == 1) {
-            b = 3;
-        } else {
-            b = 1;
-        }
-
-        vlm += tbl3[(u8)GET_REG_FIELD(vl, 2, 11)] * b;
-        vlm += tbl1[(u8)GET_REG_FIELD(vl, 2, 13)];
-        vlm += tbl1[(u8)GET_REG_FIELD(vl, 2, 15)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 0)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 2)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 4)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 6)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 8)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 10)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 12)];
-        vlm += tbl2[(u8)GET_REG_FIELD(vh, 2, 14)];
-        __GXData->vLim = vlm;
+    if (__GXData->vNum == 0) {
+        return;
     }
+
+    vl = __GXData->vcdLo;
+    vh = __GXData->vcdHi;
+    nc = __GXData->vatA[0];
+    nc = (nc & 0x200) >> 9;
+
+    vlm  = GET_REG_FIELD(vl, 1, 0);
+    vlm += GET_REG_FIELD(vl, 1, 1);
+    vlm += GET_REG_FIELD(vl, 1, 2);
+    vlm += GET_REG_FIELD(vl, 1, 3);
+    vlm += GET_REG_FIELD(vl, 1, 4);
+    vlm += GET_REG_FIELD(vl, 1, 5);
+    vlm += GET_REG_FIELD(vl, 1, 6);
+    vlm += GET_REG_FIELD(vl, 1, 7);
+    vlm += GET_REG_FIELD(vl, 1, 8);
+
+    vlm += tbl3[GET_REG_FIELD(vl, 2, 9)];
+    vlm += tbl3[GET_REG_FIELD(vl, 2, 11)] * (nc == GX_NRM_NBT ? 3 : 1);
+    vlm += tbl1[GET_REG_FIELD(vl, 2, 13)];
+    vlm += tbl1[GET_REG_FIELD(vl, 2, 15)];
+
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 0)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 2)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 4)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 6)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 8)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 10)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 12)];
+    vlm += tbl2[GET_REG_FIELD(vh, 2, 14)];
+
+    __GXData->vLim = vlm;
 }
 
 

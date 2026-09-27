@@ -865,10 +865,6 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
     return item;
 }
 
-/*
- * Soft ceiling: plyr_weapon_show ~99.40% -
- * tracked-object latch has one extra move/NV island; stop.
- */
 void plyr_weapon_show(PlyrPdata* player, int show_aux,
                       PlyrMirrorSlots* slots) {
     MkObj* object;
@@ -895,7 +891,16 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
     }
 
     if (player->character_id == 0x12) {
-        RESOLVE_WEAPON_LATCH(object, &player->tracked_obj_latch);
+        object = player->tracked_obj_latch.obj;
+        if (object != 0) {
+            if (object->hdr.instance == player->tracked_obj_latch.instance) {
+                object = player->tracked_obj_latch.obj;
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
         if (object != 0) {
             if (player->plyr_info->flags_14_bits.alternate_costume) {
                 obj_hide_material_by_id(object, 0x83);
@@ -931,10 +936,6 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
     }
 }
 
-/*
- * Soft ceiling: plyr_weapon_hide ~99.40% -
- * tracked-object latch has one extra move/NV island; stop.
- */
 void plyr_weapon_hide(PlyrPdata* player, int show_aux,
                       PlyrMirrorSlots* slots) {
     MkObj* object;
@@ -965,7 +966,12 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 
     if (player->character_id == 0x12) {
-        RESOLVE_WEAPON_LATCH(object, &player->tracked_obj_latch);
+        object = player->tracked_obj_latch.obj;
+        if (object != 0) {
+            object = object->hdr.instance == player->tracked_obj_latch.instance ? object : 0;
+        } else {
+            object = 0;
+        }
         if (object != 0) {
             if (player->plyr_info->flags_14_bits.alternate_costume) {
                 obj_unhide_material_by_id(object, 0x83);

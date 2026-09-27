@@ -105,10 +105,9 @@ int fputs(const char* string, FILE* file) {
 
 int __put_char(int character, FILE* file) {
     int file_kind;
-    int buffer_mode;
 
-    file->buffer_length = 0;
     file_kind = file->mode.bits.file_kind;
+    file->buffer_length = 0;
     if (file->state.error || file_kind == FILE_KIND_CLOSED) {
         return -1;
     }
@@ -129,8 +128,7 @@ int __put_char(int character, FILE* file) {
         return -1;
     }
 
-    buffer_mode = file->mode.bits.buffer_mode;
-    if ((buffer_mode == BUFFER_MODE_UNBUFFERED ||
+    if ((file->mode.bits.buffer_mode == BUFFER_MODE_UNBUFFERED ||
          file->buffer_size == (u32)(file->buffer_ptr - file->buffer)) &&
         __flush_buffer(file, 0) != 0) {
         file->state.error = 1;
@@ -140,8 +138,9 @@ int __put_char(int character, FILE* file) {
 
     file->buffer_length--;
     *file->buffer_ptr++ = (u8)character;
-    if (buffer_mode != BUFFER_MODE_UNBUFFERED) {
-        if ((buffer_mode == BUFFER_MODE_FULL || character == '\n') &&
+    if (file->mode.bits.buffer_mode != BUFFER_MODE_UNBUFFERED) {
+        if ((file->mode.bits.buffer_mode == BUFFER_MODE_FULL ||
+             character == '\n') &&
             __flush_buffer(file, 0) != 0) {
             file->state.error = 1;
             file->buffer_length = 0;
@@ -153,29 +152,26 @@ int __put_char(int character, FILE* file) {
 }
 
 char* fgets(char* buffer, int count, FILE* file) {
-    int remaining = count - 1;
     char* output = buffer;
+    int character;
 
-    if (remaining < 0) {
+    if (--count < 0) {
         return 0;
     }
     __begin_critical_region(2);
-    if (remaining != 0) {
+    if (count != 0) {
         do {
-            int character = get_char(file);
-
+            character = get_char(file);
             if (character == -1) {
-                if (!file->state.eof || output == buffer) {
+                if (file->state.eof && output != buffer) {
+                    break;
+                } else {
                     __end_critical_region(2);
                     return 0;
                 }
-                break;
             }
             *output++ = (char)character;
-            if (character == '\n') {
-                break;
-            }
-        } while (--remaining != 0);
+        } while (character != '\n' && --count != 0);
     }
     __end_critical_region(2);
     *output = '\0';

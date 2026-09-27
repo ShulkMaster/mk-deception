@@ -90,7 +90,7 @@ reused remainder in the drop branch, raises `sfmpv_Pts2Tc` to 95.630250% at the
 retail 476-byte extent. Stop there when the paired diff is only GPR coloring;
 do not invent a dependency to force the donor's register allocation.
 
-M15 split-literal addendum | IF retail addresses adjacent strings as `@stringBase0 + n` but source spells one literal with embedded NULs plus offsets, REQUIRE the retail pool bytes. TRY separate literals and object-scope `-str reuse,pool,readonly`; `mk_obj` gains in `obj_sever_limb`, `limb_sever_reset_limbs` and `.rodata` with no regression.
+M15 split-literal addendum | IF retail addresses adjacent strings as `@stringBase0 + n` but source spells one literal with embedded NULs plus offsets, REQUIRE the retail pool bytes. TRY separate literals and object-scope `-str reuse,pool,readonly`; `mk_obj` gains in `obj_sever_limb`, `limb_sever_reset_limbs` and `.rodata` with no regression. When retail keeps even a one-character literal in `.rodata` instead of `.sdata2`, try object-scope `-sdata2 0 -str reuse,readonly`; `adx_errs` links this way.
 M16 separate-object addendum | IF source overlays several retail .bss/.data symbols with one invented aggregate (or pads an object with a trailing word), REQUIRE the ELF symbol list. TRY the separate objects with retail names, then fix first-use order with the donor's linker-discarded setter (`mwPlySetFrmBuf` in `mwsfdcre`, as in RE4) and verify with `nm -n -S` against the split object. Neighbors may change schedule; measure them and disclose.
 
 M15 deferred-order addendum | IF parse-time symbols (anonymous `.rodata`
@@ -119,18 +119,32 @@ declaration's position: moving konquest's two `""` pointers after the
 age-progression table restores retail's `+0x1CB` addend and raises `.sdata`
 66.7%→100% and `.data` 97.1%→100%. When retail pools strings that no
 remaining code references, the source had code the linker discarded or dead
-debug code. An unused inline pools nothing, and an unused static stays
-emitted, so neither reproduces it. Without a donor body, stop (mslBank's
-`mslBankPlayQ`/`PlayPrep`/`GetIDs` strings; konquest's `X: %.2f` debug
-strings). Anonymous literals also interleave with named `static const`
+debug code. Check the retail link map first: `orig/GQNE5D/files/mk6gc_release.MAP`
+lists every linker-stripped function and constant per object as `UNUSED` with
+its size (weak copies as `UNREFERENCED DUPLICATE`), so it names the missing
+function before any donor search. Constants are created when each function is
+compiled, in source order, so a helper's kind decides pool order: an explicit
+`inline` helper is never compiled standalone (its constants appear at the
+inline site), while a plain `static` helper is compiled standalone first and
+keeps its pool data even when the linker strips its fully inlined text
+(`sfxcnv_MakeLumiTbl` must stay plain `static` for `sfx_cnv` to link; `joy`'s
+`jump_to` and `pfx2d`'s header helper must be `static inline`). An unused
+inline pools nothing, so it cannot stand in for discarded code. Restore a
+discarded function only with its genuine body: `dsp_task` links with the 2004
+SDK `__DSP_add_task` (MAP: UNUSED 0x78; its format string is the `.data`
+tail). Without a donor body, stop (mslBank's `mslBankPlayQ`/`PlayPrep`/`GetIDs`
+strings; konquest's `X: %.2f` debug strings; gxMath's stripped
+`gxMathTan2`/`Sin2`/`CosSin2`/`Cos2`/`ArcSin` and `sinCosTable`). Anonymous literals also interleave with named `static const`
 objects only when both are literals; converting adx_tlk's named error strings
 to inline literals drops `.rodata` 98%→56% because unreferenced placeholders
 disappear, so keep the named objects.
 M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw offsets/alignment + SDA relocations | Recover definition/initialization order and actual alignment. Separate declarations from placement when needed; tentatives can follow reverse/first-use order. Try explicit zero initializers in proven symbol order, then verify that they remain in the same section and preserve every exact sibling: an explicit zero on `sfmpv_ta_adr_tbl` moved it to a separate BSS section and regressed an exact symbol. A 100% zero-filled `.bss` value score does not prove named-symbol order; compare ELF offsets and relocation anchors (the MKD `sfmpv_para`/reference/frame-table order differs from retail despite 100% `.bss`). An uninitialized static among `= 0` globals is placed after all of them; in adx_tlk, `= {0}` moves `adxt_fileid_buf` to `.data` and RE4-style uninitialized reverse declarations reorder by first use, so `ADXT_DiscardSmpl` stays a stop case. No fabricated aggregate/padding.
 
+M15 auto-inline addendum: the auto-inline size limit is TU-controllable with object-scope `-pragma "inline_max_size(N)"` (N 8..24 inlines a 3-instruction helper but keeps a 26-instruction static as a call). Compiler 2.7 ignores `inline_max_auto_size`, and `-inline on`/`noauto`/`level=0` do not clear the base `-inline auto`. Use it only when retail inlining proves the limit; a `gc_font` workaround with it linked the DOL but was not the retail shape and was reverted.
+
 M01 size-bit addendum: IF an `-opt off` TU lowers `ptr != 0` (or a similar Boolean) as `neg/or/srwi` where retail uses `addic r0,x,-1; subfe r,r0,x`, REQUIRE sibling TUs of the same library built with `-O4,s -opt off`. TRY adding `-O4,s` in front of `-opt off` at object scope: the `,s` size bit survives `-opt off` and selects the carry idiom. No spelling (`!!x`, casts, unsigned locals) or other compiler version produces it. `rwfexist` (bafsys) closes and links this way. A sweep of 39 RenderWare `-opt off` objects without `-O4,s` gained 47 exact functions. Three units lost an exact function to literal/sdata relocation labels and stayed on the old flags. Compare every function against a pre-change report; a higher exact count can hide one lost exact function.
 
-M16 bss-order addendum: objdiff cannot compare `.bss`/`.sbss` contents, so a unit can be 100% in objdiff and still break the SHA through variable order. When a link fails with SDA/offset-only byte differences, compare `powerpc-eabi-nm -n -S` of the retail and built objects. MWCC emits uninitialized globals and statics in reverse declaration order. Reversing the declarations links `baim3d` (`_rwIm3DModule` before `_rwIm3DGlobals`) and `batkreg`. When sweeping promotions, check ninja's exit status and delete `main.dol`/`main.elf` before the SHA check: a failed link leaves the old DOL, which still hashes OK (units with assembly-only functions such as `OSTime` fail this way).
+M16 bss-order addendum: objdiff cannot compare `.bss`/`.sbss` contents, so a unit can be 100% in objdiff and still break the SHA through variable order. When a link fails with SDA/offset-only byte differences, compare `powerpc-eabi-nm -n -S` of the retail and built objects. MWCC emits uninitialized globals and statics in reverse declaration order. Reversing the declarations links `baim3d` (`_rwIm3DModule` before `_rwIm3DGlobals`), `batkreg`, `ExtHeapMgr`, `pfxfont`, `pfx2d` and `gcmcicon`. Compiler 1.2.5n instead places explicitly zero-initialized globals before function statics: `GXInit` links once `__piReg`/`__cpReg`/`__peReg`/`__memReg` are spelled `= NULL`. When sweeping promotions, check ninja's exit status and delete `main.dol`/`main.elf` before the SHA check: a failed link leaves the old DOL, which still hashes OK (units with assembly-only functions such as `OSTime` fail this way).
 
 M16 first-reference addendum: if the retail BSS order starts with symbols used
 only by linker-discarded code, require a canonical donor plus retail symbol
@@ -170,6 +184,7 @@ long-lived register state absent from retail. The independent
 donor-declared volatile pointer plus a retail entry load is semantic source
 evidence, not permission for arbitrary dead reads.
 M17 | Vtables/weak destructors differ, including link-only | ELF relocations + hierarchy + weak owner + sizes/order | Correct declarations/zero slots and inline-visible real destructors; verify weak emission/COMDAT selection with linked SHA. Do not duplicate a deleting call's null guard; check newly emitted destructors too.
+M17 emission-order addendum | IF every function is exact but C++ function, vtable or weak-symbol order differs, REQUIRE retail symbol order (`nm -n -S`) and the retail MAP. IF `extern "C" T f() {...}` definitions land at the end of `.text`: MWCC defers an `extern "C"` definition whose body needs an implicitly generated inline (struct copy-assign, template instantiation). TRY the API's prototypes in an `extern "C" { ... }` block (as the library header provides) and plain definitions, which compile in place; `mwFileAsync` links this way. Weak duplicates: the linker keeps the first definition in link order and drops the rest (MAP: `UNREFERENCED DUPLICATE`), so do not add an explicit specialization only to own weak members retail kept from an earlier object; removing the invented `mwFileFailCommand<0,0>` was part of the same fix. Vtables are emitted at the end of the TU in reverse creation order: a class with a key function creates its vtable when that function is compiled; a class without one gets a weak vtable at its first codegen reference (a derived constructor inlining the base constructor; a derived destructor does not reference the base vtable), and deferred functions count at their deferred compile. `mwFileCommand` still needs retail's derived-then-base `.data` order; the only candidate reference is a stripped 8-byte `getError()`, so it stays a stop until that is recovered. Evidence: `.agent-work/decomp/round2-2026-09-26/link10-report.md`.
 
 ## Focused diagnostics
 
