@@ -238,25 +238,16 @@ void ScreenActionStack::Process(ScreenMgr* mgr, int dt) {
     m_processing = 0;
 }
 
-/* TODO: [breakthrough] 95.09%; case grouping matches; retail sets Else/PlayUntil/BlockUntil fields inside
- * inline ctors (no second null check; needs ctors declared in the headers) and the Transition/Replace arm at 0x2f8 still sits after Exit. */
 ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
     int id;
     ScreenAction* action;
-    ScreenElseAction* elseAction;
-    ScreenBlockEventsUntilAction* blockAction;
-    ScreenPlayAnimUntilAction* untilAction;
 
     id = (int)type;
     action = ScreenUtil::CreateAction(id);
     if (action == 0) {
         switch (id) {
         case SCREEN_ACTION_ELSE:
-            elseAction = new ScreenElseAction();
-            if (elseAction != 0) {
-                elseAction->m_takeElse = 1;
-            }
-            action = elseAction;
+            action = new ScreenElseAction();
             break;
         case 0x41a:
         case 0x41b:
@@ -321,22 +312,13 @@ ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
             action = new ScreenStopAnimAction();
             break;
         case SCREEN_ACTION_PLAY_UNTIL:
-            untilAction = new ScreenPlayAnimUntilAction();
-            if (untilAction != 0) {
-                untilAction->field_0x3C = 0;
-                untilAction->field_0x40 = 0;
-            }
-            action = untilAction;
+            action = new ScreenPlayAnimUntilAction();
             break;
         case 0x3fe:
             action = new ScreenSnapAnimAction();
             break;
         case SCREEN_ACTION_BLOCK_UNTIL:
-            blockAction = new ScreenBlockEventsUntilAction();
-            if (blockAction != 0) {
-                blockAction->m_elapsed = 0;
-            }
-            action = blockAction;
+            action = new ScreenBlockEventsUntilAction();
             break;
         case 0x3fa:
         case 0x404:

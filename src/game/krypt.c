@@ -1215,7 +1215,7 @@ static inline void init_tombstone_common(void* pfx_arg, int particle_count, floa
 
     /* Texture path/name are retail immediates (section-relative ids). */
     set_pfx_texture(pfx, (void*)0x00140064, tex_name);
-    pfx_texture_animate(pfx, 1.0f, anim_a, anim_b, anim_c, anim_d);
+    pfx_texture_animate(pfx, anim_a, anim_b, anim_c, anim_d, 1.0f);
     pfx->texture_mode = 0;
 }
 

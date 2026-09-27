@@ -111,14 +111,14 @@ MkPfx* start_pfx_glass_shards(
         }
         glass->pfx.field_2A0 *= 1.35f;
         glass->pfx.field_29C *= 1.35f;
-        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 3.0f,
-                            0x80, 0x20, 0x20, 0x10);
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix,
+                            0x80, 0x20, 0x20, 0x10, 3.0f);
     } else if ((unsigned int)(art_id - 0x013D0000) == 9) {
-        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 5.0f,
-                            0x80, 0x20, 0x20, 0x10);
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix,
+                            0x80, 0x20, 0x20, 0x10, 5.0f);
     } else {
-        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 5.0f,
-                            0x100, 0x40, 0x40, 0x10);
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix,
+                            0x100, 0x40, 0x40, 0x10, 5.0f);
     }
     ((JdnGlassEmitterView*)pfx_get_emitter(
          (PfxEmitterTableView*)glass->pfx.matrix, 0))->pending_spawn_count =

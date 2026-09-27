@@ -28,7 +28,7 @@ extern unsigned int RwStreamRead(RwStream* stream, void* destination,
 extern RwStream* RwStreamSkip(RwStream* stream, unsigned int offset);
 extern int PadSize32(unsigned int value);
 extern int _rwerror(int code, ...);
-extern void RwErrorSet(int* error);
+extern RwError* RwErrorSet(RwError* error);
 extern void DCFlushRange(void* address, unsigned int length);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
 /* RenderWare publishes this plugin at a runtime-selected offset. */
@@ -51,19 +51,19 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        int error[2];
+        RwError error;
 
-        error[0] = 0x116;
-        error[1] = _rwerror(0x80000004);
-        RwErrorSet(error);
+        error.pluginID = 0x116;
+        error.errorCode = _rwerror(0x80000004);
+        RwErrorSet(&error);
         return 0;
     }
     if (version < 0x34002) {
-        int error[2];
+        RwError error;
 
-        error[0] = 0x116;
-        error[1] = _rwerror(0x80000004);
-        RwErrorSet(error);
+        error.pluginID = 0x116;
+        error.errorCode = _rwerror(0x80000004);
+        RwErrorSet(&error);
         return 0;
     }
     if (!RwStreamReadInt32(stream, &platform, 4)) {
@@ -147,8 +147,22 @@ RpGeometry* inplaceGeometryNativeRead(RwStream* stream, RpGeometry* geometry) {
                          geometry->meshHeader->numMeshes);
 }
 
-#pragma dont_inline on
-/* TODO: [near miss] 96.86%; stack layout matches; stream/owner/entry/mesh_count coloring differs, and retail forms the extra-mesh base as base + (numMeshes - 1) * 8 then adds 0x14. */
+static void _inplaceNativeOffset2Pointer(GameCubeNativeMeshHeader* native,
+                                        GameCubeNativeMesh* meshes,
+                                        unsigned int numMeshes,
+                                        unsigned char* vertexData) {
+    unsigned int i;
+
+    for (i = 0; i < native->numMeshes; i++) {
+        native->meshes[i].displayList.pointer =
+            vertexData + native->meshes[i].displayList.offset;
+    }
+    for (i = 0; i < numMeshes; i++) {
+        meshes[i].displayList.pointer =
+            vertexData + meshes[i].displayList.offset;
+    }
+}
+
 static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
                            unsigned int mesh_count) {
     unsigned int version;
@@ -157,28 +171,27 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
     int display_list_size;
     int platform;
     GameCubeNativeMeshHeader* native_header;
-    unsigned char* stream_data;
     unsigned int padding;
-    unsigned int index;
     GameCubeNativeMesh* extra_meshes;
+    unsigned char* stream_data;
 
     if (!RwStreamFindChunk(stream, 1, &chunk_length, &version)) {
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        int error[2];
+        RwError error;
 
-        error[0] = 0x116;
-        error[1] = _rwerror(0x80000004);
-        RwErrorSet(error);
+        error.pluginID = 0x116;
+        error.errorCode = _rwerror(0x80000004);
+        RwErrorSet(&error);
         return 0;
     }
     if (version <= 0x34004) {
-        int error[2];
+        RwError error;
 
-        error[0] = 0x116;
-        error[1] = _rwerror(0x80000004);
-        RwErrorSet(error);
+        error.pluginID = 0x116;
+        error.errorCode = _rwerror(0x80000004);
+        RwErrorSet(&error);
         return 0;
     }
     if (!RwStreamReadInt32(stream, &platform, 4)) {
@@ -206,15 +219,10 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
     stream_data = stream->data.memory.start + stream->data.memory.position;
     RwStreamSkip(stream, display_list_size - padding);
 
-    extra_meshes = &native_header->meshes[native_header->numMeshes];
-    for (index = 0; index < native_header->numMeshes; index++) {
-        native_header->meshes[index].displayList.pointer =
-            stream_data + native_header->meshes[index].displayList.offset;
-    }
-    for (index = 0; index < mesh_count; index++) {
-        extra_meshes[index].displayList.pointer =
-            stream_data + extra_meshes[index].displayList.offset;
-    }
+    extra_meshes = (GameCubeNativeMesh*)(native_header + 1) +
+                   (native_header->numMeshes - 1);
+    _inplaceNativeOffset2Pointer(native_header, extra_meshes, mesh_count,
+                                 stream_data);
 
     (*entry)->link.next = 0;
     (*entry)->link.prev = 0;
@@ -227,13 +235,6 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
     GXInvalidateVtxCache();
     return owner;
 }
-#pragma dont_inline reset
-
-/*
- * Soft ceilings: _rpNativeRead 96.23%, _inplaceNativeTextureRead 98.99%.
- * Their remaining differences are MWCC register coloring and load scheduling;
- * stream layout, relocation loops, access widths, and function sizes agree.
- */
 
 int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     RwTexture* result;

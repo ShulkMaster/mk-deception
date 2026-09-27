@@ -2000,7 +2000,6 @@ void set_rotation(float angle, float variance) {
     }
 }
 
-/* Soft ceiling: texture_animation_with_vsize -- typed texture metadata/layout. */
 void texture_animation_with_vsize(
     int vertical_frames, float horizontal_scale, float vertical_scale,
     float speed) {
@@ -2008,6 +2007,7 @@ void texture_animation_with_vsize(
     PfxScriptVm* effect;
     RwRaster* texture;
     float width;
+    float height;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -2016,25 +2016,26 @@ void texture_animation_with_vsize(
         if (effect != 0 && effect->texture != 0) {
             texture = effect->texture->raster;
             width = (float)texture->width;
+            height = (float)texture->height;
             if (effect->initialization_mode != 0) {
                 effect->runtime_flags |= 0x100;
             }
             pfx_texture_animate(
-                (PfxVm*)effect, speed, (int)width,
+                (PfxVm*)effect, (int)width,
                 (int)(horizontal_scale * width),
-                (int)(vertical_scale * (float)texture->height),
-                vertical_frames);
+                (int)(vertical_scale * height),
+                vertical_frames, speed);
             effect->texture_animation_enabled = 1;
         }
     }
 }
 
-/* TODO: [breakthrough needed] 66.346664%; interleaved ABI preserves callee score; existing texture arithmetic/CFG differences remain. */
 void texture_animation(float horizontal_scale, int vertical_frames, float speed) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
     RwRaster* texture;
     float width;
+    float height;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -2043,15 +2044,15 @@ void texture_animation(float horizontal_scale, int vertical_frames, float speed)
         if (effect != 0 && effect->texture != 0) {
             texture = effect->texture->raster;
             width = (float)texture->width;
+            height = (float)texture->height;
             if (effect->initialization_mode != 0) {
                 effect->runtime_flags |= 0x100;
             }
             pfx_texture_animate(
-                (PfxVm*)effect, speed, (int)width,
+                (PfxVm*)effect, (int)width,
                 (int)(horizontal_scale * width),
-                (int)((float)texture->height /
-                      (horizontal_scale * (float)vertical_frames)),
-                vertical_frames);
+                (int)(height / (horizontal_scale * (float)vertical_frames)),
+                vertical_frames, speed);
             effect->texture_animation_enabled = 1;
         }
     }

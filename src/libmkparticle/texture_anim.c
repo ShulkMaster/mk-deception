@@ -6,9 +6,9 @@
 /* TODO: [near miss] 98.14815%; only the f31 frame_time copy is early: retail copies it
  * after r3-r7, i.e. frame_time is the last parameter; needs header + src/game callers. */
 #pragma peephole off
-void pfx_texture_animate(PfxVm* vm, float frame_time,
+void pfx_texture_animate(PfxVm* vm,
                          int texture_width, int frame_width, int frame_height,
-                         int frame_count) {
+                         int frame_count, float frame_time) {
     PfxTextureFrame* frames;
     float u_step;
     float v_step;

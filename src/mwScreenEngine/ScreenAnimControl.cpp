@@ -6,13 +6,13 @@
 #define ANIM_KEY_LINEAR 2
 #define ANIM_KEY_HOLD 8
 
-/* TODO: [near miss] 97.73%; key accesses and stack layout match (retail reloads m_keys->refs at each use);
- * residual is nonvolatile numbering (n r31 vs r30, offset r30 vs r31) and the blend-time scheduling. */
+/* TODO: [near miss] 99.57%; keyA/keyB fetches and ease-call order match; only n (retail r31) vs
+ * (i-1)*4 offset (r30) and span/ratio f31/f30 coloring remain; split span locals regress to ~91.8%. */
 void ScreenAnimControl::GetValue(float* out, int time) {
-    int n;
     unsigned int count;
     ScreenAnimKey* first;
     ScreenAnimKey* keyA;
+    ScreenAnimKey* keyB;
     int minT;
     int maxT;
     unsigned int i;
@@ -26,6 +26,7 @@ void ScreenAnimControl::GetValue(float* out, int time) {
     int tA;
     int tB;
     int j;
+    int n;
 
     count = m_keys->count;
     if (count == 0) {
@@ -85,14 +86,16 @@ void ScreenAnimControl::GetValue(float* out, int time) {
             return;
         }
 
+        keyB = ScreenAnimKeyAt(m_keys, i);
         keyA = ScreenAnimKeyAt(m_keys, i - 1);
-        tB = ScreenAnimKeyAt(m_keys, i)->GetTime();
+        tB = keyB->GetTime();
         tA = keyA->GetTime();
         t = (float)(tB - tA);
         tA = keyA->GetTime();
         t = (float)(time - tA) / t;
-        easeT = Ease(t, ScreenAnimKeyAt(m_keys, i - 1)->GetEaseOut(),
-                     ScreenAnimKeyAt(m_keys, i)->GetEaseIn());
+        keyA = ScreenAnimKeyAt(m_keys, i - 1);
+        keyB = ScreenAnimKeyAt(m_keys, i);
+        easeT = Ease(t, keyA->GetEaseOut(), keyB->GetEaseIn());
 
         ScreenAnimKeyAt(m_keys, i)->GetValue(valB);
         ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valA);

@@ -99,11 +99,8 @@ static s16 mpvemp_mbai[36] = {
         }                                                                      \
     } while (0)
 
-/* TODO: [near miss] 99.06%; reader setup agrees; the final cursor computes (srawi - 8) before the add
- * to words where retail adds first and subtracts 8 last (r0/r3 temps). */
 int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
 {
-    const u32* words;
     u32 bits;
     u32 next_bits;
     u32 value;
@@ -114,6 +111,7 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     const u8* cursor;
     const u8* delimiter;
     int delimiter_type;
+    const u32* words;
 
     words = (const u32*)((unsigned long)data & ~3UL);
     bit_offset = (data - (const u8*)words) * 8;
@@ -165,7 +163,8 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     }
     SKIP_BITS(5);
 
-    cursor = (const u8*)words - 8 + ((bit_offset + 7) >> 3);
+    cursor = (const u8*)words + ((bit_offset + 7) >> 3);
+    cursor -= 8;
     offset = cursor - data;
     if (offset > length) {
         return 0;

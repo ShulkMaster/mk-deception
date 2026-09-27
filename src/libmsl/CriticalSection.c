@@ -218,7 +218,29 @@ int InitCriticalCodeSection_DEBUG(
     return 1;
 }
 
-/* TODO: [near miss] 93.91%; post-tested dependency scan improves one row; GPR homes and requested-pointer copies still differ. */
+static inline void CheckInterlock(MslCriticalSection* cs, int* interlock) {
+    int i;
+    int j;
+
+    for (i = 0; i < 10; i++) {
+        MslCriticalSection* dependency = cs->dependencies[i];
+
+        if (dependency != 0) {
+            for (j = 0; j < 10; j++) {
+                if (cs == dependency->dependencies[j]) {
+                    mslDebugPrintf(
+                        "MSL CRITICAL SECTION INTERLOCK POSSIBLE: "
+                        "0x%08x <--> 0x%08x\n",
+                        cs, dependency);
+                    *interlock = 1;
+                }
+            }
+        }
+    }
+}
+
+/* TODO: [near miss] 94.44%; requested/interlock homes match; retail passes an uncoalesced copy of cs (r26)
+ * to the printf and needs r23-r31; pair-helper, report-helper and re-read forms fail; permuter only finds &requested. */
 static int AddRequestingCS_ByThread(
     MslCriticalSection* requested, void* thread) {
     int i;
@@ -243,26 +265,7 @@ static int AddRequestingCS_ByThread(
     }
 
     if (inserted != 0) {
-        MslCriticalSection* dependency;
-        int j;
-
-        i = 0;
-        do {
-            dependency = requested->dependencies[i];
-
-            if (dependency != 0) {
-                for (j = 0; j < 10; j++) {
-                    if (requested == dependency->dependencies[j]) {
-                        mslDebugPrintf(
-                            "MSL CRITICAL SECTION INTERLOCK POSSIBLE: "
-                            "0x%08x <--> 0x%08x\n",
-                            requested, dependency);
-                        interlock = 1;
-                    }
-                }
-            }
-            i++;
-        } while (i < 10);
+        CheckInterlock(requested, &interlock);
     }
 
     OSUnlockMutex(&s_CriticalSectionDebug_SystemMutex);

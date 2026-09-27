@@ -8,7 +8,7 @@ typedef struct PfxRwTextureView {
     PfxNativeRasterView* raster; /* +0x00 */
 } PfxRwTextureView;
 
-static PfxRwTextureView* pfx_rw_texture_view(RwTexture* texture) {
+static inline PfxRwTextureView* pfx_rw_texture_view(RwTexture* texture) {
     return (PfxRwTextureView*)texture;
 }
 

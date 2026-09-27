@@ -31,8 +31,8 @@ ExternalHeapMutexRoutine fn_ExtHeapMgr_MutexEnter =
     ExternalHeap_MutexNullFunc;
 ExternalHeapMutexRoutine fn_ExtHeapMgr_MutexExit =
     ExternalHeap_MutexNullFunc;
-ExternalHeapMallocRoutine fn_ExtHeapMgr_SystemMalloc;
 ExternalHeapFreeRoutine fn_ExtHeapMgr_SystemFree;
+ExternalHeapMallocRoutine fn_ExtHeapMgr_SystemMalloc;
 
 static inline ExternalHeapBlock* ExternalHeap_PopFreeBlock(
     ExternalHeap* heap) {
@@ -121,8 +121,6 @@ unsigned long ExternalHeap_Alloc(
     return address;
 }
 
-/* TODO: [near miss] 99.62%; only volatile-GPR coloring of the candidate
- * address/size and peak/used load pairs remains; stop at soft ceiling. */
 unsigned long ExternalHeap_AlignAlloc(
     ExternalHeap* heap, unsigned long size, int alignment) {
     ExternalHeapBlock* candidate;
@@ -130,8 +128,6 @@ unsigned long ExternalHeap_AlignAlloc(
     unsigned long mask;
     unsigned long inverse_mask;
     unsigned long aligned_size;
-    unsigned long prefix;
-    unsigned long result = 0;
     ExternalHeapBlock* split_block;
     ExternalHeapBlock* suffix;
     unsigned long aligned_address;
@@ -139,6 +135,11 @@ unsigned long ExternalHeap_AlignAlloc(
     RedBlackNode* previous;
     RedBlackNode* candidate_node;
     RedBlackNode* node;
+    unsigned long used;
+    unsigned long prefix;
+    unsigned long result = 0;
+    unsigned long address;
+    unsigned long block_size;
 
     if ((long)size <= 0) {
         return 0;
@@ -161,13 +162,13 @@ unsigned long ExternalHeap_AlignAlloc(
     prefix_block = 0;
     while (result == 0 && (node = candidate_node) != 0) {
         candidate = BLOCK_FROM_SIZE_NODE(node);
-        aligned_address = candidate->link.address;
-        aligned_address = (aligned_address + mask) & inverse_mask;
+        address = candidate->link.address;
+        block_size = candidate->size;
+        aligned_address = (address + mask) & inverse_mask;
 
-        if (aligned_address <
-            candidate->size + candidate->link.address) {
-            prefix = aligned_address - candidate->link.address;
-            usable = candidate->size - prefix;
+        if (aligned_address < address + block_size) {
+            prefix = aligned_address - address;
+            usable = block_size - prefix;
         } else {
             prefix = 0;
             usable = 0;
@@ -217,8 +218,8 @@ unsigned long ExternalHeap_AlignAlloc(
                     heap->allocation_count++;
                     heap->free_bytes -= aligned_size;
                     heap->used_bytes += aligned_size;
-                    if ((long)heap->peak_used < (long)heap->used_bytes) {
-                        heap->peak_used = heap->used_bytes;
+                    if ((long)heap->peak_used < (long)(used = heap->used_bytes)) {
+                        heap->peak_used = used;
                     }
                 } else {
                     if (prefix != 0) {
@@ -248,8 +249,8 @@ unsigned long ExternalHeap_AlignAlloc(
                 heap->allocation_count++;
                 heap->free_bytes -= aligned_size;
                 heap->used_bytes += aligned_size;
-                if ((long)heap->peak_used < (long)heap->used_bytes) {
-                    heap->peak_used = heap->used_bytes;
+                if ((long)heap->peak_used < (long)(used = heap->used_bytes)) {
+                    heap->peak_used = used;
                 }
             }
         } else {

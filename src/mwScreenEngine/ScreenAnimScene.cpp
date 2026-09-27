@@ -71,25 +71,22 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
-/* TODO: [breakthrough] 99.35%; joined || time-limit test, typed effect array, and signed m_flags match;
- * retail's flag tests branch ble/bgt (signed > 0 form) where ours use beq/bne; track/dir registers differ. */
+/* TODO: [near miss] 99.88%; only dir (retail r24) / effectCount (r25) coloring swapped;
+ * declaration order and block scope of either are neutral; stop at coloring. */
 void ScreenAnimScene::Process(int dt) {
+    AnimDirectionE dir;
     int processed;
     int finished;
     SEAnimSceneData_t* data;
-    SEAnimTrack_t* track;
-    SEAnimEffects_t* effects;
+    int effectCount;
     int trackIdx;
     int effectIdx;
-    int effectCount;
-    AnimDirectionE dir;
+    SEAnimTrack_t* track;
     int localTime;
-    int timeOffset;
-    ScreenAnimEffect* effect;
     int done;
 
     data = m_data;
-    if ((m_flags & ANIM_SCENE_PLAYING) == 0) {
+    if ((m_flags & ANIM_SCENE_PLAYING) <= 0) {
         return;
     }
 
@@ -97,33 +94,28 @@ void ScreenAnimScene::Process(int dt) {
     processed = 0;
     finished = 0;
 
-    if ((m_flags & ANIM_SCENE_FORWARD) != 0) {
+    if ((m_flags & ANIM_SCENE_FORWARD) > 0) {
         m_time += (int)((float)dt * m_speed);
-        if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
+        if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time > m_untilTime) {
                 m_time = (int)m_untilTime;
             }
         }
     } else {
         m_time -= (int)((float)dt * m_speed);
-        if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
+        if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time < m_untilTime) {
                 m_time = (int)m_untilTime;
             }
         }
     }
 
-    trackIdx = 0;
-    while (trackIdx < data->trackCount) {
+    for (trackIdx = 0; trackIdx < data->trackCount; trackIdx++) {
         track = SEAnimTrackAt(data, trackIdx);
-        timeOffset = track->timeOffset;
-        effects = track->effects;
-        effectCount = effects->count;
-        localTime = m_time - timeOffset;
-        effectIdx = 0;
-        while (effectIdx < effectCount) {
-            effects = track->effects;
-            effect = effects->effects[effectIdx];
+        localTime = m_time - track->timeOffset;
+        effectCount = track->effects->count;
+        for (effectIdx = 0; effectIdx < effectCount; effectIdx++) {
+            ScreenAnimEffect* effect = track->effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
                 done = (int)effect->Process(localTime, (int)dir, m_elements);
@@ -131,14 +123,12 @@ void ScreenAnimScene::Process(int dt) {
                     finished += 1;
                 }
             }
-            effectIdx += 1;
         }
-        trackIdx += 1;
     }
 
-    if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
-        if (((m_flags & ANIM_SCENE_FORWARD) != 0 && (float)m_time >= m_untilTime) ||
-            ((m_flags & ANIM_SCENE_FORWARD) == 0 && (float)m_time <= m_untilTime)) {
+    if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
+        if (((m_flags & ANIM_SCENE_FORWARD) > 0 && (float)m_time >= m_untilTime) ||
+            ((m_flags & ANIM_SCENE_FORWARD) <= 0 && (float)m_time <= m_untilTime)) {
             m_flags &= ~ANIM_SCENE_PLAYING;
             m_flags &= ~ANIM_SCENE_UNTIL_TIME;
         }

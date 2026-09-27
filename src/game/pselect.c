@@ -630,17 +630,16 @@ int get_current_wager_koin(void) {
     return wager_koin_order[g_game_info.pselect.field_1d4];
 }
 
-/* TODO: [near miss] 99.14893%; eligibility and comparisons agree; stop at coloring. */
 void ck_decrement_wager_koin_type(void) {
-    int old_type;
+    int p1_count;
     int attempts;
     int available;
+    int old_type;
 
     old_type = g_game_info.pselect.field_1d4;
     attempts = 0;
     do {
         int koin;
-        int p1_count;
         int p2_count;
 
         g_game_info.pselect.field_1d4 -= 1;
@@ -669,17 +668,16 @@ void ck_decrement_wager_koin_type(void) {
     }
 }
 
-/* TODO: [near miss] 99.166664%; eligibility and comparisons agree; stop at coloring. */
 void ck_increment_wager_koin_type(void) {
-    int old_type;
+    int p1_count;
     int attempts;
     int available;
+    int old_type;
 
     old_type = g_game_info.pselect.field_1d4;
     attempts = 0;
     do {
         int koin;
-        int p1_count;
         int p2_count;
 
         g_game_info.pselect.field_1d4 += 1;

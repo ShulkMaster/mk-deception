@@ -30,7 +30,7 @@ extern void snd_req(int sound);
 extern MkProc* plyr_anim_proc;
 extern int round_winner;
 extern int f_fatality_available;
-extern int my_next_duck_state;
+static int my_next_duck_state;
 extern unsigned int game_tick_ctr;
 extern int exec_tick_ctr;
 extern int g_drone_blocking_in_reaction;
@@ -43,7 +43,7 @@ typedef struct JoySharedAnimations {
 
 extern JoySharedAnimations shared_ani;
 
-static void jump_to(MkProcEntryFn entry) {
+static inline void jump_to(MkProcEntryFn entry) {
     JOY_PROC_VTABLE(aproc)->jump_sleep(entry, 0.0f);
 }
 

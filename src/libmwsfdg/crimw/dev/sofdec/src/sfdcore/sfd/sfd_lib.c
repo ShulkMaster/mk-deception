@@ -139,8 +139,7 @@ int SFD_Finish(void)
     return error;
 }
 
-/* TODO: [near miss] 94.14%; error join matches; parameter stores and transport load scheduling differ. */
-int SFD_Init(const SfdLibraryConfig* config)
+int SFD_Init(SfdLibraryConfig* config)
 {
     int timer_source;
     const SfdTransportRegistry* registry_source;

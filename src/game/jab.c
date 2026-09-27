@@ -921,7 +921,7 @@ void bulvan_function(int command) {
             set_pfx_texture(
                 (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x20038);
             pfx_texture_animate(
-                (PfxVm*)&effect->matrix, 4.0f, 0x40, 0x10, 0x10, 0x10);
+                (PfxVm*)&effect->matrix, 0x40, 0x10, 0x10, 0x10, 4.0f);
             pfx_bind_emitter_to_obj_bone(effect, plyr_obj, 0);
             effect->emitter_enabled = 0;
             pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 24.0f;
@@ -1336,7 +1336,7 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
         set_pfx_texture(
             (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
         pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
+            (PfxVm*)&effect->matrix, 0x100, 0x40, 0x55, 0xC, 4.0f);
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 5.0f;
         effect->field_90 = 0x12C;
@@ -1606,7 +1606,7 @@ void sh_start_grinder_crush_blood(const Vec* position) {
         set_pfx_texture(
             (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F000E);
         pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 1.0f, 0x80, 0x2A, 0x40, 6);
+            (PfxVm*)&effect->matrix, 0x80, 0x2A, 0x40, 6, 1.0f);
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 15.0f;
         effect->field_90 = 0x12C;
@@ -1631,7 +1631,7 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
         set_pfx_texture(
             (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
         pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
+            (PfxVm*)&effect->matrix, 0x100, 0x40, 0x55, 0xC, 4.0f);
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 2.0f;
         effect->field_90 = 0x82;
@@ -1893,7 +1893,7 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
         set_pfx_texture(
             (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0010);
         pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 4.0f, 0x80, 0x20, 0x20, 0x10);
+            (PfxVm*)&effect->matrix, 0x80, 0x20, 0x20, 0x10, 4.0f);
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 2.0f;
         effect->field_90 = 0x82;

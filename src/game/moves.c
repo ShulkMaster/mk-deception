@@ -2204,7 +2204,6 @@ float x_attack_4(void) {
 }
 
 /* Keep the guarded character dispatches and their direct action-sequence scans. */
-/* TODO: [near miss] 99.55247%; five-attempt limit reached; compare remaining branch and literal differences. */
 float x_attack_3(void) {
     MovesActionRef* action;
     unsigned int* sequences = &jump_table[0].value;
@@ -2226,9 +2225,9 @@ float x_attack_3(void) {
     if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
         if (am_i_a_big_character() != 0) {
             moves_jump(j_flying_kick);
-        } else {
-            moves_jump(j_flying_kick2);
+            return 0.0f;
         }
+        moves_jump(j_flying_kick2);
         return 0.0f;
     }
 
@@ -4883,8 +4882,8 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            delta_z = object->pos.value.z - transform->position.z;
             delta_x = object->pos.value.x - transform->position.x;
+            delta_z = object->pos.value.z - transform->position.z;
             delta_y = object->pos.value.y - transform->position.y;
             if (delta_x * delta_x + delta_z * delta_z < 2.9f) {
                 delta_y = delta_y >= 0.0f ? delta_y : -delta_y;
@@ -4898,11 +4897,11 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 99.41%; distance-factor scheduling and pickup owner reloads remain. */
+/* TODO: [near miss] 100% instruction bytes; anonymous float-literal pool label differs (@429 vs retail @84, same data) - TU-wide literal pool ordering residue, not a source defect. */
 float switch_proc_pickup(void) {
     PlyrInfo* player;
-    PlyrPdata* player_data;
     MkObj* object;
+    PlyrPdata* player_data;
     int pad_index;
     int can_pick_up;
     int state;
@@ -4923,30 +4922,30 @@ float switch_proc_pickup(void) {
                 object, &g_game_info.field_64);
         }
         if (can_pick_up != 0) {
-            player = switch_pdata->player;
-            if (player != 0) {
-                if (player->slot.pdata->state == 0x6000) {
+            PlyrInfo* target = switch_pdata->player;
+            if (target != 0) {
+                if (target->slot.pdata->state == 0x6000) {
                     g_game_info.plyr0.slot.pdata->state = 0x6002;
                     mkproc_die();
                 }
-                if (player->player_state != 2 && player->player_state != 3) {
+                if (target->player_state != 2 && target->player_state != 3) {
                     mkproc_die();
                 }
-                state = player->slot.pdata->state;
+                state = target->slot.pdata->state;
                 if ((state & 0x200) != 0 && state != 0x420D) {
                     mkproc_die();
                 }
-                if ((player->slot.pdata->state & 0x800) != 0) {
+                if ((target->slot.pdata->state & 0x800) != 0) {
                     mkproc_die();
                 }
-                if ((unsigned int)player->slot.pdata->attacks_disabled_until >
+                if ((unsigned int)target->slot.pdata->attacks_disabled_until >
                     (unsigned int)game_tick_ctr) {
                     mkproc_die();
                 }
-                if (player->field_0C == 0.0f) {
+                if (target->field_0C == 0.0f) {
                     mkproc_die();
                 }
-                xfer_proc((MkProc*)player->idle_proc, x_pickup);
+                xfer_proc(target->idle_proc, x_pickup);
             }
         }
     }

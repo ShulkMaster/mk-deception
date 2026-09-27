@@ -69,6 +69,7 @@ public:
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
     int m_insertIndex; /* +0xCC */
+    char m_screenName2[0x80]; /* +0xD0 -- unreferenced; CreateAction allocates 0x150 */
 };
 
 class ScreenTransitionScreenAction : public ScreenBaseScreenAction {

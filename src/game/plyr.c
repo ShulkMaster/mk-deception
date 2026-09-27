@@ -1952,7 +1952,6 @@ void plyr_turn_off_mirrorguy(PlyrInfo* player) {
     }
 }
 
-/* TODO: [near miss] 99.566475%; register coloring, relocation offsets; one-trial ceiling. */
 void delete_player(int player_index) {
     PlyrInfo* player;
     PlyrPdata* pdata;
@@ -1971,15 +1970,15 @@ void delete_player(int player_index) {
     } else {
         return;
     }
-    pdata = player->slot.pdata;
-    if (pdata != 0) {
-        object = player_live_tracked_obj(pdata);
+    if (player->slot.pdata != 0) {
+        object = player_live_tracked_obj(player->slot.pdata);
 
         if (object != 0) {
-            if (object == player->slot.mirror_a) {
-                if (object->hdr.instance != 0) {
-                    ((void (*)(MkHdr*))object->hdr.vtbl->destroy)(
-                        (MkHdr*)object);
+            MkObj* mirror = player->slot.mirror_a;
+            if (object == mirror) {
+                if (mirror->hdr.instance != 0) {
+                    ((void (*)(MkHdr*))mirror->hdr.vtbl->destroy)(
+                        (MkHdr*)mirror);
                 }
                 player->slot.mirror_a = 0;
             }
@@ -2147,14 +2146,15 @@ static void setup_plyr_anims(PlyrPdata* pdata) {
 #undef BIND_PLAYER_ANIM
 
 static void load_player_anim_files(PlyrPdata* pdata) {
-    int slot;
     const char* section_name;
     MkFileInfo* section;
     int index;
+    int slot;
 
-    slot = 0x4000C;
     if (pdata == g_game_info.plyr0.slot.pdata) {
         slot = 0x3000C;
+    } else {
+        slot = 0x4000C;
     }
     unload_section_slot(slot);
     if (pdata->plyr_info->flags_14_bits.alternate_costume) {
@@ -2253,13 +2253,13 @@ static inline MkObj* create_player_load_costume(PlyrInfo* player) {
 }
 
 static inline void create_player_attach_face_texture(PlyrInfo* player) {
+    int art_slot;
+    const char* face_texture;
     PlyrPdata* pdata = player->slot.pdata;
     MkObj* object = player->slot.mirror_a;
     FighterRuntimeData* runtime;
     AniTextureControl* texture;
-    const char* face_texture;
     unsigned int face_art_id;
-    int art_slot;
     int palette;
     int frame_count;
 
@@ -2309,8 +2309,8 @@ static inline void create_player_attach_face_texture(PlyrInfo* player) {
     }
 }
 
-/* TODO: [near miss] 99.72744%; costume/face phases, per-proc flag slots and typed ids
- * recovered; face-phase GPR coloring remains. */
+/* TODO: [near miss] 99.92481%; effect-bank loop GPR coloring remains (banks/index
+ * land in r26/r28, retail r27/r26); declaration order and loop forms measured. */
 void create_player(int player_index, PlyrInfo* player) {
     PlyrProcCreateFlags flags_arg;
     PlyrProcCreateFlags flags;
@@ -2320,12 +2320,12 @@ void create_player(int player_index, PlyrInfo* player) {
     MkProc* aux_proc;
     PlyrPdata* pdata;
     MkObj* object;
+    int index;
     const char* const* effect_banks;
     const char* script_name;
     int player_pid = 0;
     int aux_pid = 0;
     int loaded;
-    int index;
     LoadBgndCtx effect_context;
 
     player->field_04 = player_index;
@@ -2499,8 +2499,10 @@ void create_player(int player_index, PlyrInfo* player) {
         effect_context.field_08 = player;
         active_cmdscript->mko = player->slot.pdata->cmo;
         active_cmdscript->mko->load_ctx = &effect_context;
-        for (index = 0; effect_banks[index] != 0; index++) {
+        index = 0;
+        while (effect_banks[index] != 0) {
             load_effect_bank((char*)effect_banks[index]);
+            index++;
         }
         active_cmdscript->mko->load_ctx = 0;
     }

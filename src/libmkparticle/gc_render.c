@@ -82,8 +82,8 @@ static void gc_set_render_state(BOOL use_alpha_map)
     *(volatile float*)GXFIFO_ADDR = (v); \
 } while (0)
 
-/* TODO: [blocked] 91.08%; retail writes colors through an inlined GXColor4u8-style helper
- * (clrlwi per component), which this object's `-inline off` prevents; needs a flag decision. */
+/* TODO: [blocked] 91.14%; retail writes colors through an inlined GXColor4u8-style helper
+ * (clrlwi per component), which this object's `-inline off` prevents; also needs a vm.h flag151_02 bitfield. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
     PfxVec3 base1, base0, base_corner;
@@ -157,9 +157,9 @@ static void gc_generic_render(PfxVm* vm) {
     for (i = 0; i < count; i++) {
         switch (uv_mode) {
         case 0: {
-            const PfxTextureFrame* frame = vm->texture_frames +
-                pfx_texture_getframe((const PfxTextureAnim*)&vm->texture_frame_count, *ages);
-            u = frame->u; v = frame->v;
+            int frame = pfx_texture_getframe(
+                (const PfxTextureAnim*)&vm->texture_frame_count, *ages);
+            u = vm->texture_frames[frame].u; v = vm->texture_frames[frame].v;
             right = u + du; bottom = v + dv;
             break;
         }

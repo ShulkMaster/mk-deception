@@ -9,9 +9,9 @@ typedef struct PfxTextureAnim {
     float frame_time;
 } PfxTextureAnim;
 
-void pfx_texture_animate(PfxVm* vm, float frame_time,
+void pfx_texture_animate(PfxVm* vm,
                          int texture_width, int frame_width, int frame_height,
-                         int frame_count);
+                         int frame_count, float frame_time);
 int pfx_texture_getframe(const PfxTextureAnim* anim, float time);
 
 #endif

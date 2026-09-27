@@ -7957,9 +7957,7 @@ static int puzzle_fighter_mode_start(int message) {
     return 120;
 }
 
-/* Near miss: exact retail size and operations. Remaining differences are
- * nonvolatile-register allocation, instruction scheduling, and pool labels. */
-/* TODO: [near miss] 96.60166%; m2c confirms exact-size effect/emitter flow; NV allocation and pool labels remain. */
+/* TODO: [near miss] 98.49%; frame_time-last pfx_texture_animate call order fixed; NV allocation and pool labels remain. */
 static int init_pz_pfx_2d(void) {
     PfxBuildInfo build;
     MkPfx* puzzle_effect = 0;
@@ -8000,9 +7998,10 @@ static int init_pz_pfx_2d(void) {
     set_pfx_texture((PfxVm*)puzzle_effect->matrix, (void*)0x70033,
                     (void*)pfx_2d_elements_tbl.texture_id);
     pfx_texture_animate(
-        (PfxVm*)puzzle_effect->matrix, 1.0f,
+        (PfxVm*)puzzle_effect->matrix,
         pfx_2d_elements_tbl.texture_width, pfx_2d_elements_tbl.frame_width,
-        pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count);
+        pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
+        1.0f);
     puzzle_effect->emitter_enabled =
         (unsigned short)pfx_2d_elements_tbl.emitter_enabled;
     emitter_lifetime = (float)pfx_2d_elements_tbl.emitter_lifetime;
@@ -8031,9 +8030,10 @@ static int init_pz_pfx_2d(void) {
     set_pfx_texture((PfxVm*)ice_effect->matrix, (void*)0x70033,
                     (void*)pfx_2d_elements_tbl.texture_id);
     pfx_texture_animate(
-        (PfxVm*)ice_effect->matrix, 1.0f,
+        (PfxVm*)ice_effect->matrix,
         pfx_2d_elements_tbl.texture_width, pfx_2d_elements_tbl.frame_width,
-        pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count);
+        pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
+        1.0f);
     ice_effect->emitter_enabled =
         (unsigned short)pfx_2d_elements_tbl.emitter_enabled;
     emitter_lifetime = (float)pfx_2d_elements_tbl.emitter_lifetime;
@@ -8676,11 +8676,12 @@ void load_puzzle_champion_screen(void) {
     }
 }
 
-/* TODO: [near miss] 99.796196%; eleven list-traversal register differences;
- * prior declaration search found no exact candidate; retain typed ownership. */
+/* TODO: [near miss] 99.95924%; process-list next_item/process_item declaration
+ * order fixed 8 of 11 rows; remaining 3 are hdr-instance vs item-instance load
+ * coloring (r0/r4) in the same comparison, insensitive to caching/cast forms. */
 static void minigame_puzzlefighter_destroy(void) {
-    MkPtr* process_item;
     MkPtr* next_item;
+    MkPtr* process_item;
     MkPtr** process_list;
     int index;
 
@@ -8694,16 +8695,16 @@ static void minigame_puzzlefighter_destroy(void) {
         if (process_list != 0) {
             process_item = *process_list;
             while (process_item != 0) {
-                if (process_item->hdr->instance != process_item->instance) {
+                MkHdr* hdr = process_item->hdr;
+
+                if (hdr->instance != process_item->instance) {
                     next_item = process_item->next;
                     process_item->hdr = 0;
                     destroy_mkptr(process_item);
                     process_item = next_item;
                 } else {
-                    if (process_item->hdr != 0 &&
-                        process_item->hdr->instance != 0) {
-                        process_item->hdr->typed_vtbl->destroy(
-                            process_item->hdr);
+                    if (hdr != 0 && hdr->instance != 0) {
+                        hdr->typed_vtbl->destroy(hdr);
                     }
                     process_item = process_item->next;
                 }

@@ -56,6 +56,7 @@ public:
 
 class ScreenElseAction : public ScreenAction {
 public:
+    ScreenElseAction() { m_takeElse = 1; }
     virtual ~ScreenElseAction();
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
@@ -94,10 +95,11 @@ public:
 
 class ScreenBlockEventsUntilAction : public ScreenAction {
 public:
+    ScreenBlockEventsUntilAction() { m_elapsed = 0; }
     virtual ~ScreenBlockEventsUntilAction();
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
-    int m_elapsed; /* +0x3C -- CreateAction zeros; Update adds dt */
+    int m_elapsed; /* +0x3C -- ctor zeros; Update adds dt */
 };
 
 class ScreenSetFocusAction : public ScreenAction {

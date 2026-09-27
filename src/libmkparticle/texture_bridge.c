@@ -7,20 +7,15 @@ static int pfxaux_set_render_state(int state, int value) {
     return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
 }
 
-/* TODO: [near miss] 95.6%; retail keeps an equivalent empty success branch;
- * honest conditional-expression trials regress, so retain the direct guard. */
 void pfxaux_upload_texture(RwTexture* texture) {
-    unsigned int address_u;
-    unsigned int address_v;
+    int address;
 
-    unsigned int flags = texture->filter_flags;
-
-    if ((address_u = (flags & 0xF00) >> 8) !=
-        (address_v = (flags & 0xF000) >> 12)) {
-        address_v = 0;
-    }
-
-    pfxaux_set_render_state(2, address_v);
+    /* RwTextureGetAddressing: V mode when U and V agree, else none. */
+    address = (((texture->filter_flags & 0xF00) >> 8) ==
+               ((texture->filter_flags & 0xF000) >> 12))
+                  ? (texture->filter_flags & 0xF000) >> 12
+                  : 0;
+    pfxaux_set_render_state(2, address);
     pfxaux_set_render_state(1, (int)texture->raster);
     _rwDlTextureRasterFlush();
 }
