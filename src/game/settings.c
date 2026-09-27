@@ -4,14 +4,11 @@
 #include "platform/gcmcardmsg.h"
 #include "runtime/mk_pdata.h"
 
-extern int mcard_msg_no_cards_at_settings_answer;
-
 void* memcpy(void* dst, const void* src, int size);
 const char* nbc_find_text(int index, int table);
 int get_language(void);
 int update_storage_status(int arg);
 int is_memcard_scanner_running(void);
-int is_device_present(int device);
 void push_video_settings(void);
 void fire_screen_studio_event(int event, int arg);
 
@@ -28,25 +25,11 @@ GameSettings game_settings;
 const int gap_05_8033E3C4_data = 0;
 int gap_06_803B34AC_bss;
 
-/* MWCC emits .sbss in reverse declaration order. */
 int game_settings_status;
 int game_settings_device;
 
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_neg_one = -1.0f;
-
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry);
-} MkVtableMkprocLocal;
 
 static float p_save_game_settings(void);
 
@@ -80,16 +63,10 @@ void reset_default_audio_settings(void) {
 #pragma opt_unroll_loops reset
 #pragma opt_strength_reduction reset
 
-/* Soft ceiling: set_game_option ~98.30% -- brightness base/value coloring; stop. */
 void set_game_option(int option_id, int value) {
     int index;
-    int current;
-    int next;
 
     index = option_id - 0x332C;
-    if ((unsigned)index > 7U) {
-        return;
-    }
     switch (index) {
     case 0:
         if (value < 0) {
@@ -136,34 +113,25 @@ void set_game_option(int option_id, int value) {
         }
         game_settings.blood_level = value;
         return;
-    case 5: {
-        GameSettings* settings;
-
+    case 5:
         if (value < 20) {
             return;
         }
         if (value > 95) {
             return;
         }
-        settings = &game_settings;
-        current = settings->brightness;
-        if (value < current) {
-            next = current - 5;
-            settings->brightness = next;
-            if (next >= 20) {
-                return;
+        if (value < game_settings.brightness) {
+            game_settings.brightness -= 5;
+            if (game_settings.brightness < 20) {
+                game_settings.brightness = 20;
             }
-            settings->brightness = 20;
             return;
         }
-        next = current + 5;
-        settings->brightness = next;
-        if (next <= 95) {
-            return;
+        game_settings.brightness += 5;
+        if (game_settings.brightness > 95) {
+            game_settings.brightness = 95;
         }
-        settings->brightness = 95;
         return;
-    }
     case 6:
         if (value < 0) {
             return;
@@ -224,38 +192,20 @@ void set_volume(int channel, int percent) {
     game_settings.volume[channel] =
         default_volume_offset + (float)clamped / default_volume_scale;
 }
-/* Soft ceiling: set_volume ~99.38% -- instructions match; only generated
- * float/double constant relocation labels differ. */
 
 int get_volume(int channel) {
-    return (int)(game_settings.volume[channel] * default_volume_scale);
+    return game_settings.volume[channel] * default_volume_scale;
 }
-/* Soft ceiling: get_volume ~99.58% -- instructions match; only the generated
- * 100.0f constant relocation label differs. */
 
 #pragma dont_inline on
 int save_game_settings(void) {
-    StorageDevice* storage;
-    int* device0_free_bytes;
-    unsigned int* device0_free_blocks;
-    GameSettings* device0_settings;
-    int* device1_free_bytes;
-    unsigned int* device1_free_blocks;
-    GameSettings* device1_settings;
     const char* text;
     int result;
 
-    storage = storage_status;
-    device0_free_bytes = &storage[0].freeBytes;
-    device0_free_blocks = &storage[0].freeBlocks;
-    device0_settings = &storage[0].settings;
-    device1_free_bytes = &storage[1].freeBytes;
-    device1_free_blocks = &storage[1].freeBlocks;
-    device1_settings = &storage[1].settings;
     for (;;) {
         text = nbc_find_text(0x3F, 1);
-        result = save_settings_to_memcard_w_error(0, 2, text, device0_settings, 0,
-                                                  device0_free_blocks, device0_free_bytes);
+        result = save_settings_to_memcard_w_error(0, 2, text, &storage_status[0].settings, 0,
+                                                  &storage_status[0].freeBlocks, &storage_status[0].freeBytes);
         if (result != 0) {
             game_settings_device = 0;
             return 1;
@@ -263,16 +213,16 @@ int save_game_settings(void) {
         game_settings_device = -1;
         if (result == 0) {
             text = nbc_find_text(0x3F, 1);
-            result = save_settings_to_memcard_w_error(1, 2, text, device1_settings, 0,
-                                                      device1_free_blocks, device1_free_bytes);
+            result = save_settings_to_memcard_w_error(1, 2, text, &storage_status[1].settings, 0,
+                                                      &storage_status[1].freeBlocks, &storage_status[1].freeBytes);
             if (result != 0) {
                 game_settings_device = 1;
                 return 1;
             }
+            game_settings_device = -1;
         }
-        game_settings_device = -1;
 
-        if (storage[0].status != 1 || storage[1].status != 1) {
+        if (storage_status[0].status != 1 || storage_status[1].status != 1) {
             break;
         }
         mcard_msg_no_cards_at_settings();
@@ -293,8 +243,6 @@ int save_game_settings(void) {
     game_settings_device = -1;
     return 0;
 }
-/* Soft ceiling: save_game_settings ~97.41% -- typed field pointers and retry
- * CFG match retail; residual is status-load versus SDA-store scheduling. */
 #pragma dont_inline reset
 
 void save_game_settings_in_action_handler(void) {
@@ -302,40 +250,25 @@ void save_game_settings_in_action_handler(void) {
 
     proc = find_mkproc_pid(0x300D);
     if (proc == 0) {
-        _create_mkproc_generic_bigstack(0x300D, 0x1F, (MkProcEntryFn)p_save_game_settings, 0, 0);
+        _create_mkproc_generic_bigstack(0x300D, 0x1F, p_save_game_settings, 0, 0);
     }
 }
 
-/* mkproc 0x300D: write settings, sleep one tick, notify screen studio; return -1. */
 #pragma dont_inline on
 static float p_save_game_settings(void) {
-    MkVtableMkprocLocal* vtbl;
-
     save_game_settings();
     _mkproc_sleep_ticks = sleep_ticks_one;
-    vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
-    vtbl->sleep();
+    aproc->vtbl->sleep();
     fire_screen_studio_event(0x1FEB, 0);
     return sleep_ticks_neg_one;
 }
-/* Soft ceiling: p_save_game_settings ~99.47% -- instructions match; only the
- * generated sleep/return float relocation labels differ. */
 #pragma dont_inline reset
 
-int load_game_settings(void) {
-    int device;
-    int selected;
-    int found;
-    int count;
-    int result;
+static inline int find_ready_settings_device(void) {
+    int count = 0;
+    int device = 0;
+    int found = 0;
 
-    result = 0;
-    if (is_memcard_scanner_running() == 0) {
-        update_storage_status(0);
-    }
-    device = 0;
-    found = 0;
-    count = 0;
     while (found == 0 && count < 2) {
         if (storage_status[device].status == 0) {
             found = 1;
@@ -347,27 +280,43 @@ int load_game_settings(void) {
             }
         }
     }
-    selected = -1;
     if (found != 0) {
-        selected = device;
+        return device;
     }
+    return -1;
+}
+
+static inline int load_game_settings_from(int device) {
+    if (device < 0 || device >= 2) {
+        return 0;
+    }
+    if (is_device_present(device) != 0) {
+        memcpy(&game_settings, &storage_status[device].settings, sizeof(GameSettings));
+        game_settings_status = 1;
+        game_settings_device = device;
+        push_video_settings();
+        return 1;
+    }
+    return 0;
+}
+
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+int load_game_settings(void) {
+    int selected;
+    int result = 0;
+
+    if (is_memcard_scanner_running() == 0) {
+        update_storage_status(0);
+    }
+    selected = find_ready_settings_device();
     if (selected != -1) {
-        if (selected < 0 || selected >= 2) {
-            result = 0;
-        } else if (is_device_present(selected) != 0) {
-            memcpy(&game_settings, &storage_status[selected].settings, sizeof(GameSettings));
-            game_settings_status = 1;
-            game_settings_device = selected;
-            push_video_settings();
-            result = 1;
-        } else {
-            result = 0;
-        }
+        result = load_game_settings_from(selected);
     }
     return result;
 }
-/* Soft ceiling: load_game_settings ~81.41% -- typed device scan/load algorithm
- * is retail-correct; residual is loop/result register and branch scheduling. */
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 void memory_move_game_setting(GameSettings* dst, const GameSettings* src) {
     memcpy(dst, src, sizeof(GameSettings));

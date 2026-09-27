@@ -4,15 +4,12 @@
 #include "runtime/fonts.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
+#include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 
 typedef struct ScreenObj ScreenObj;
 
-/*
- * NIS scene pdata (0x14) -- MkHdr + cancel/scene MKO func indices + script.
- * scene_func @ +0x0C runs in p_run_nis_scene; cancel_func @ +0x08 on skip.
- */
 typedef struct NisPdata {
     MkHdr hdr;                 /* +0x00 */
     unsigned int cancel_func;  /* +0x08 */
@@ -26,21 +23,6 @@ typedef struct KamidoguDropPdata {
     unsigned int owner_id;   /* +0x0C */
     float quat[4];           /* +0x10 */
 } KamidoguDropPdata; /* 0x20 */
-
-/* Local vtbl shape so sleep/jump_sleep take the right args (mk_vtbl uses MkVtblFn). */
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    /* NIS loads f1 before the call (sleep ticks / zero); take float to match. */
-    float (*jump_sleep)(MkProcEntryFn entry, float ticks);
-} MkVtableMkprocLocal;
 
 static const char stringBase0[] =
     "SHUJINKO_UNLOCKED_A\0"
@@ -65,7 +47,6 @@ static const float flt_377 = 0.005f;
 
 unsigned int nis_event_list[4];
 
-/* MWCC emits .sbss in reverse declaration order. */
 int gap_08_80510E74_sbss;
 int nis_wait_override;
 
@@ -74,14 +55,6 @@ extern float identity_quat[];
 extern char p1_profile[];
 extern int screen_width;
 extern int screen_height;
-
-/* Retail leaves MkProc* in r3; Matching mk_pdata.h types these as void. */
-MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                         int pdata_size, MkHdr** pdata_out);
-MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                       int pdata_size, MkHdr** pdata_out);
-MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                        int pdata_size, MkHdr** pdata_out);
 
 void load_named_2d_pfxobj_xy(int slot, int oid, const char* name, int x, int y, int arg6, int arg7);
 ScreenObj* insert_2d_obj(ScreenObj* obj);
@@ -134,34 +107,28 @@ static float p_run_nis_cancel_function(void);
 static float p_run_nis_scene(void);
 
 static void mkproc_sleep(void) {
-    ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 }
 
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void show_shujinko_unlock_screen(int string_id) {
     int x_pos;
-    unsigned int string_id_full;
-    const char* text;
-    PfxFontSlot* font;
     StringObj* str_obj;
-    int text_y;
-    double conv_val;
 
     x_pos = (screen_width - 0x300) / 2;
     load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0], 0, x_pos, 0, 0xE);
     load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0x14], 0, x_pos + 0x200, 0, 0xE);
-    string_id_full = (unsigned int)string_id;
-    string_id_full = string_id_full | 0x20000;
-    text = get_string_by_id(string_id_full);
-    font = load_font(9);
-    conv_val = (double)screen_height;
-    text_y = (int)(flt_340 * (float)conv_val);
-    str_obj = create_wrapped_string(0x7F01, font, text, screen_width / 4, text_y, 0, 1, 0, 0);
+    str_obj = create_wrapped_string(0x7F01, load_font(9), get_string_by_id(string_id | 0x20000), screen_width / 4, flt_340 * screen_height, screen_width / 2, 0, 1, 0);
     insert_2d_obj((ScreenObj*)str_obj);
     fade_from_black(8, 1);
     _mkproc_sleep_ticks = flt_341;
     mkproc_sleep();
     _create_mkproc_generic_tinystack(0x9031, 0x1F, p_fade_fullscreen_image, 0, 0);
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static float p_fade_fullscreen_image(void) {
     float sleep_ticks;
@@ -172,7 +139,7 @@ static float p_fade_fullscreen_image(void) {
     sleep_ticks = flt_349;
     alpha = 0xFF;
     while ((alpha & 0xFF) > 2) {
-        pfx_2d_obj_set_alpha_by_id(0x7F01, (int)alpha);
+        pfx_2d_obj_set_alpha_by_id(0x7F01, alpha);
         _mkproc_sleep_ticks = sleep_ticks;
         mkproc_sleep();
         alpha -= 2;
@@ -184,88 +151,80 @@ static float p_fade_fullscreen_image(void) {
     return flt_350;
 }
 
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+
 void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
     MkPtr* list_item;
-    MkHdr* owner_hdr;
     KamidoguDropPdata* pdata;
-    MkHdr* pdata_storage;
-    float mat_buf[0x18];
-    float zero_val;
+    RwMatrix matrix __attribute__((aligned(16)));
 
     matcher_proc = get_fake_bone_matcher_proc(bonematcher);
-    if (owner != 0) {
-        owner_hdr = as_mkhdr((MkHdr*)owner);
-    } else {
-        owner_hdr = 0;
-    }
-    list_item = find_in_mklist(owner_hdr, &matcher_proc->pdata_list_b);
+    list_item = find_in_mklist(owner != 0 ? as_mkhdr(&owner->hdr) : 0, &matcher_proc->pdata_list_b);
     list_item->hdr = 0;
     destroy_mkptr(list_item);
     mkscripts_destroy_fk_bonematcher(bonematcher);
     if (owner == 0) {
         return;
     }
-    owner->flags_08 = (unsigned char)((owner->flags_08 & 0xBF) | 0x40);
-    pdata_storage = 0;
-    if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, 0x20, &pdata_storage) == 0) {
+    owner->flags_08_bits.airborne = 1;
+    if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, sizeof(KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
         return;
     }
-    pdata = (KamidoguDropPdata*)pdata_storage;
-    set_mat(mat_buf, owner->field_24);
-    zero_val = flt_361;
-    owner->pos.value.x = mat_buf[0xC];
-    owner->pos.value.y = mat_buf[0xD];
-    owner->pos.value.z = mat_buf[0xE];
-    mat_buf[0xC] = zero_val;
-    mat_buf[0xD] = zero_val;
-    mat_buf[0xE] = zero_val;
-    mat_to_quat(pdata->quat, mat_buf);
+    set_mat(&matrix, owner->field_24);
+    owner->pos.value.x = matrix.pos.x;
+    owner->pos.value.y = matrix.pos.y;
+    owner->pos.value.z = matrix.pos.z;
+    matrix.pos.x = matrix.pos.y = matrix.pos.z = flt_361;
+    mat_to_quat(pdata->quat, &matrix);
     pdata->owner = owner;
     pdata->owner_id = owner->hdr.instance;
     snd_req_vol(0x1789, flt_362);
 }
 
+static inline MkObj* kamidogu_live_owner(KamidoguDropPdata* pdata) {
+    MkObj* owner = pdata->owner;
+
+    if (owner != 0) {
+        if (owner->hdr.instance == pdata->owner_id) {
+            return owner;
+        }
+        owner = 0;
+    } else {
+        owner = 0;
+    }
+    return owner;
+}
+
 static float p_drop_kamidogu(void) {
     KamidoguDropPdata* pdata;
     MkObj* owner;
-    MkObj* live;
-    float y_pos;
-    float new_y;
 
     pdata = (KamidoguDropPdata*)apdata;
     if (pdata == 0) {
         return flt_350;
     }
-    owner = pdata->owner;
+    owner = kamidogu_live_owner(pdata);
     if (owner == 0) {
-        live = 0;
-    } else {
-        if (owner->hdr.instance == pdata->owner_id) {
-            live = owner;
-        } else {
-            live = 0;
-        }
-    }
-    if (live == 0) {
         return flt_350;
     }
     interp_quat(pdata->quat, identity_quat, pdata->quat, flt_375);
-    quat_to_mat(live->field_24, pdata->quat);
-    y_pos = live->pos.value.y;
-    if (y_pos >= flt_376) {
-        new_y = y_pos - flt_377;
-        live->pos.value.y = new_y;
-        if (live->pos.value.y < flt_376) {
-            live->pos.value.y = flt_376;
+    quat_to_mat(owner->field_24, pdata->quat);
+    if (owner->pos.value.y >= flt_376) {
+        owner->pos.value.y -= flt_377;
+        if (owner->pos.value.y <= flt_376) {
+            owner->pos.value.y = flt_376;
         }
     }
     return flt_349;
 }
 
-void p_konquest_ending(void) {
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
+
+float p_konquest_ending(void) {
     GameInfo* info;
-    unsigned char flags;
 
     set_process_as_scriptable(aproc);
     set_section_memory_scheme(0);
@@ -275,7 +234,7 @@ void p_konquest_ending(void) {
     add_anim_section_by_name_async_pal(0x50014, &stringBase0[0x28], &bgnd_animations[0x28], 0, 0);
     wait_for_slot_load(0x50014);
     load_art_section_by_name(0x10005, &stringBase0[0x3C]);
-    load_string_bank(2, (char*)&stringBase0[0x4E]);
+    load_string_bank(0x20000, (char*)&stringBase0[0x4E]);
     info = &g_game_info;
     info->plyr0.player_state = 2;
     info->plyr0.player_index = 0x19;
@@ -288,17 +247,15 @@ void p_konquest_ending(void) {
     wait_for_sound_banks_to_load();
     _mkproc_sleep_ticks = flt_349;
     mkproc_sleep();
-    xfer_proc((MkProc*)info->plyr0.idle_proc, p_idle);
-    xfer_proc((MkProc*)info->plyr1.idle_proc, p_idle);
+    xfer_proc(info->plyr0.idle_proc, p_idle);
+    xfer_proc(info->plyr1.idle_proc, p_idle);
     kill_head_tracking();
     destroy_mkprocs_pid(0x1003);
     fade_to_black(8, 0);
     set_mode_of_play(0);
-    flags = g_game_info.flags;
-    flags = (unsigned char)((flags & 0xFD) | 2);
-    g_game_info.flags = flags;
+    g_game_info.flag_bits.pad_bit1 = 1;
     start_tunes();
-    cmdscript_setup_execution(g_game_info.cmdscript, 0);
+    cmdscript_setup_execution(g_game_info.cmdscript, 1);
     cmdscript_execute(g_game_info.cmdscript);
     delete_player(0);
     delete_player(1);
@@ -307,6 +264,7 @@ void p_konquest_ending(void) {
     set_konq_profile_value(0, 4, 1);
     save_profile(0, 2);
     gamelogic_jump(6, p_credits_screen);
+    return flt_350;
 }
 
 void nis_set_wait_override(int value) {
@@ -347,7 +305,7 @@ static float p_init_skip_nis(void) {
     if (str_obj != 0) {
         mk_insert((MkHdr*)str_obj, &aproc->pdata_list_b);
     }
-    ((MkVtableMkprocLocal*)aproc->vtbl)->jump_sleep(p_check_skip_nis, flt_361);
+    aproc->vtbl->jump_sleep(p_check_skip_nis, flt_361);
     return flt_361;
 }
 
@@ -410,33 +368,27 @@ void nis_signal_event(int event) {
     nis_event_list[word_index] |= 1U << bit;
 }
 
-/* TODO: [breakthrough] 71.02631%; event indexing/loop corrected; prologue,
- * register allocation and constant relocation remain. */
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+
+/* TODO: [near miss] 98.95%; size-opt frame and loop match; only r0/r5/r6 temporary coloring of the bit mask remains. */
 void nis_wait_for_event(int event, int timeout) {
     float sleep_ticks;
-    unsigned int word_index;
-    unsigned int bit_mask;
-    int remaining;
 
     sleep_ticks = flt_349;
-    word_index = (unsigned int)event >> 5;
-    bit_mask = 1U << (event & 0x1F);
-    remaining = timeout;
     while (nis_wait_override != 0 ||
-           (nis_event_list[word_index] & bit_mask) == 0) {
-        if (remaining == 0) {
+           (nis_event_list[(unsigned int)event >> 5] & (1U << (event & 0x1F))) == 0) {
+        if (timeout == 0) {
             break;
         }
-        if (remaining > 0) {
-            remaining--;
+        if (timeout > 0) {
+            timeout--;
         }
         _mkproc_sleep_ticks = sleep_ticks;
         mkproc_sleep();
     }
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func) {
     MkProc* proc;
     union {

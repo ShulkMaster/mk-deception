@@ -125,6 +125,8 @@ void __OSContextInit(void);
 void __OSCacheInit(void);
 void __OSPSInit(void);
 void __OSFPRInit(void);
+void __RAS_OSDisableInterrupts_begin(void);
+void __RAS_OSDisableInterrupts_end(void);
 void __OSInitSram(void);
 void __OSThreadInit(void);
 void __OSInitAudioSystem(void);

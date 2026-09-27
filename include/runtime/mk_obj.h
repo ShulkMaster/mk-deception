@@ -104,10 +104,9 @@ typedef struct ClothBone {
     float ground_y; /* +0x28 */
     int active; /* +0x2C */
     union {
-        unsigned char flags_30;
+        unsigned int flags_30;
         ClothBoneFlags30 flags_30_bits;
     }; /* +0x30 */
-    char pad_31[3];
     struct ClothBone* target_bone; /* +0x34 */
     MkBone* bone; /* +0x38 */
     float rest_length; /* +0x3C */

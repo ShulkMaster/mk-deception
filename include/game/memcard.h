@@ -12,16 +12,7 @@
 #include "game/settings.h"
 
 #include "game/storage_types.h"
-
-/*
- * Stack pair passed by ScreenEngine GetImageCollection path to
- * create_*_mc_icon_list (Glue builds {textures, alphas} on stack).
- * Retail loads alphas (+0x04) but only fills textures (+0x00).
- */
-typedef struct McIconListArg {
-    RwTexture** textures; /* +0x00 -- 7 color TGA slots */
-    RwTexture** alphas; /* +0x04 -- loaded unused by create_* */
-} McIconListArg;
+#include "mwScreenEngine/TextureCollection.h"
 
 #define DEVICE_AT(device) (&storage_status[(device)])
 
@@ -54,8 +45,8 @@ void check_format_or_recreate(void);
 void set_wls_left_cursor(int device);
 int get_wls_left_cursor(void);
 
-void create_right_mc_icon_list(McIconListArg* arg);
-void create_left_mc_icon_list(McIconListArg* arg);
+void create_right_mc_icon_list(GVTexturePair out);
+void create_left_mc_icon_list(GVTexturePair out);
 void get_right_mcard_text_matrix(char** out);
 void get_left_mcard_text_matrix(char** out);
 char* get_right_storage_device_space_needed(void);

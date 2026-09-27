@@ -30,11 +30,12 @@ static inline void mpvdec_InitMacroblockReader(const u8* data, int extra_offset,
                                         const u32** words, u32* bits,
                                         u32* next_bits, int* bit_offset)
 {
-    const u32* aligned = (const u32*)((unsigned long)data & ~3UL);
-    *bit_offset = (data - (const u8*)aligned) * 8;
-    *bits = aligned[0] << *bit_offset;
-    *next_bits = aligned[1];
-    *words = aligned + 2;
+    *words = (const u32*)((unsigned long)data & ~3UL);
+    *bit_offset = (data - (const u8*)*words) * 8;
+    *bits = (*words)[0];
+    *next_bits = (*words)[1];
+    *bits <<= *bit_offset;
+    *words += 2;
     *bit_offset += extra_offset;
     if (*bit_offset >= 32) {
         *bit_offset -= 32;
@@ -112,19 +113,19 @@ static inline u32 mpvdec_ReadIntraAddress(MPVContext* context,
     return delta;
 }
 
-/* TODO: [near miss] 96.290985%; reader register allocation and scheduling remain;
- * two matching passes exhausted. */
+/* TODO: [near miss] 97.46%; shared reader init and declaration order fixed the entry;
+ * remaining reader coloring/scheduling not yet examined. */
 void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* words;
+    int bit_offset;
     u32 bits;
     u32 next_bits;
+    const u32* words;
     u32 peek;
     u32 delta;
     u32 marker;
-    int bit_offset;
     int residual_offset;
     int consumed;
 
@@ -203,19 +204,19 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-/* TODO: [near miss] 97.957390%; reader register allocation and scheduling remain;
- * two matching passes exhausted. */
+/* TODO: [near miss] 99.80%; only the mbtype/cbp descriptor and length temporaries swap r0/r3
+ * (same residue as Ppic); int/u16/masked/re-read forms measured neutral. */
 void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* words;
+    int bit_offset;
     u32 bits;
     u32 next_bits;
+    const u32* words;
     u32 peek;
     u32 delta;
     u32 quantizer;
-    int bit_offset;
     int residual_offset;
     int consumed;
     int first_macroblock = 1;
@@ -308,8 +309,8 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         }
 
         if ((context->field_344 & 0x20) == 0) {
-            s16 descriptor;
             u8 code_length;
+            s16 descriptor;
 
             peek = bits >> 26;
             if (bit_offset > 26) {
@@ -399,8 +400,8 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         }
 
         if ((context->field_344 & 2) != 0) {
-            s16 descriptor;
             u8 code_length;
+            s16 descriptor;
 
             peek = bits >> 23;
             if (bit_offset > 23) {
@@ -460,8 +461,8 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         words = context->bit_reader.words;
 
         residual_offset = bit_offset & 7;
-        consumed = ((const u8*)words +
-                    ((bit_offset - residual_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) +
+                    ((bit_offset - residual_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len - consumed <= 0x800) {
             SJ_SplitChunk(&context->header_chunk, consumed,
@@ -587,19 +588,19 @@ void MPVDEC_ResetMv(MPVMotionInfo* motion)
     motion->vertical = 0;
 }
 
-/* TODO: [near miss] 97.868630%; reader register allocation and scheduling remain;
- * two matching passes exhausted. */
+/* TODO: [near miss] 99.79%; only the mbtype/cbp descriptor and length temporaries swap r0/r3
+ * (same residue as Bpic; int/u16/masked/re-read/declaration forms neutral). */
 void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* words;
+    int bit_offset;
     u32 bits;
     u32 next_bits;
+    const u32* words;
     u32 peek;
     u32 delta;
     u32 quantizer;
-    int bit_offset;
     int residual_offset;
     int consumed;
     int first_macroblock = 1;
@@ -806,8 +807,8 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
         words = context->bit_reader.words;
 
         residual_offset = bit_offset & 7;
-        consumed = ((const u8*)words +
-                    ((bit_offset - residual_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) +
+                    ((bit_offset - residual_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len - consumed <= 0x800) {
             SJ_SplitChunk(&context->header_chunk, consumed,
@@ -832,19 +833,19 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-/* TODO: [near miss] 96.318900%; reader register allocation and scheduling remain;
- * two matching passes exhausted. */
+/* TODO: [near miss] 97.70%; shared reader init and declaration order fixed the entry;
+ * remaining reader coloring/scheduling not yet examined. */
 void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* words;
+    int bit_offset;
     u32 bits;
     u32 next_bits;
+    const u32* words;
     u32 peek;
     u32 delta;
     u32 quantizer;
-    int bit_offset;
     int residual_offset;
     int consumed;
 

@@ -40,7 +40,6 @@ static const char stringBase0[] = "C - glass shards\0C.glass_shard";
 static PfxColor glass_fragment_alphas[0xB5];
 float soul_sine[0x400];
 unsigned int g_kill_shard_fx;
-static unsigned int table_defined_242;
 
 extern float game_speed;
 extern unsigned int reseed_rnd_tbl;
@@ -326,27 +325,30 @@ void allow_shard_pfx_now(void) { g_kill_shard_fx = 0; }
 void kill_shard_pfx_now(void) { g_kill_shard_fx = 1; }
 float get_soul_sine(int index) { return soul_sine[index]; }
 
-int build_sine_table_for_scripts(void) {
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
+
+static inline void init_soul_sine(void) {
+    static int table_defined;
     int index;
-    int angle;
-    if (table_defined_242 == 0) {
+
+    if (table_defined == 0) {
         soul_sine[0] = gxMathSin(0.0f);
-        for (index = 1, angle = 2; index < 0x400; index++, angle += 2) {
-            soul_sine[index] = gxMathSin(3.1415927f * (float)angle * 0.0009765625f);
+        for (index = 1; index < 0x400; index++) {
+            soul_sine[index] = gxMathSin(3.1415927f * (float)(index * 2) / 1024.0f);
         }
-        table_defined_242 = 1;
+        table_defined = 1;
     }
+}
+
+int build_sine_table_for_scripts(void) {
+    init_soul_sine();
     return 0x400;
 }
 
 void build_sine_table(void) {
-    int index;
-    int angle;
-    if (table_defined_242 == 0) {
-        soul_sine[0] = gxMathSin(0.0f);
-        for (index = 1, angle = 2; index < 0x400; index++, angle += 2) {
-            soul_sine[index] = gxMathSin(3.1415927f * (float)angle * 0.0009765625f);
-        }
-        table_defined_242 = 1;
-    }
+    init_soul_sine();
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset

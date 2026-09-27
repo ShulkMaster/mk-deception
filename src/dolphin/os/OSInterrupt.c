@@ -1,5 +1,6 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 #define INTERRUPT_MASK(index) (1UL << (31 - (index)))
 #define MASK_MEM 0xF8000000UL
@@ -57,25 +58,19 @@ static OSInterruptMask InterruptPrioTable[] = {
 static void ExternalInterruptHandler(__OSException exception,
                                      OSContext* context);
 
-int OSDisableInterrupts(void)
+asm int OSDisableInterrupts(void)
 {
-    unsigned long msr = PPCMfmsr();
-    PPCMtmsr(msr & ~0x8000);
-    return (msr >> 15) & 1;
+    SEQ_OSDisableInterrupts();
 }
 
-int OSEnableInterrupts(void)
+asm int OSEnableInterrupts(void)
 {
-    unsigned long msr = PPCMfmsr();
-    PPCMtmsr(msr | 0x8000);
-    return (msr >> 15) & 1;
+    SEQ_OSEnableInterrupts();
 }
 
-int OSRestoreInterrupts(int enabled)
+asm int OSRestoreInterrupts(int enabled)
 {
-    unsigned long msr = PPCMfmsr();
-    PPCMtmsr(enabled ? msr | 0x8000 : msr & ~0x8000);
-    return (msr >> 15) & 1;
+    SEQ_OSRestoreInterrupts();
 }
 
 __OSInterruptHandler __OSSetInterruptHandler(__OSInterrupt interrupt,

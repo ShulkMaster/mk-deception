@@ -509,7 +509,7 @@ static inline int mwsfcre_ChkMallocFn(const MwsCreateParams* params)
 static inline void mwsfcre_InitCompoWork(MwsPlayer* player,
                                         const MwsCreateParams* params)
 {
-    int index;
+    long index;
 
     player->arena = params->work;
     player->arena_size = params->work_size;
@@ -549,8 +549,8 @@ static inline void mwsfcre_SetSfdCond(MwsPlayer* player, MwsLibraryWork* work)
     SFD_SetMpvCond(sfd, 5, 0);
 }
 
-/* TODO: [near miss] 97.41461%; RE4 prm copy, SfdCond/PicUsr/DestroySfd shapes restored;
- * retail keeps the compo-table unroll guard and a player copy at each inlined destroy. */
+/* TODO: [near miss] 97.90%; long compo-table counter gives retail's unroll guard; the player copy at each inlined destroy
+ * and the rodata base register (mwsfd_mps_trsetup) remain. */
 MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 {
     MwsLibraryWork* work;
@@ -765,10 +765,14 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
     int frame_count = params->frame_count;
     int frame_size;
     int index;
+    int width;
+    int height;
 
-    if (params->buffer_format < 0 || params->buffer_format >= 4)
+    width = params->width;
+    height = params->height;
+    if (params->buffer_format >= 4 || params->buffer_format < 0)
         MWSFSVM_Error(create_buffer_format_invalid);
-    frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
+    frame_size = mwsfcre_CalcFrameSize(width, height);
     if (mwsfdcre_bufnum != 0) {
         if (mwsfdcre_bufnum < frame_count + 2 ||
             mwsfdcre_bufsize < frame_size) {
@@ -801,31 +805,31 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [near miss] 94.27381%; retail .bss objects and RE4 size/frame blocks restored; the
- * 0x4000/0x700 allocations keep an unfolded size test and the inlined Rfb schedule differs. */
+/* TODO: [near miss] 94.77%; retail keeps an unfolded size test in the 0x4000/0x700 allocations;
+ * FrmTbl frame_size/pointer r22/r20 swap, pool-base scheduling and mpvpara store order remain. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
 {
-    MwsReferenceBuffers references;
-    void* frame_buffers[16];
-    SfdCreateConfig create;
-    SfdHandle* sfd;
     void* shared_work;
     void* stream_work;
-    void* audio_stream_buffer;
-    void* audio_decoder_work;
+    int frame_result;
     MwsPictureUserWork* picture_user_work;
     void* decoder_work;
     void* video_work;
     void* filename_work;
-    int frame_size;
-    int frame_result;
-    int rfb_result;
-    int output_format;
     int file_type;
+    void* audio_stream_buffer;
+    void* audio_decoder_work;
+    int frame_count;
     int width;
     int height;
-    int frame_count;
+    MwsReferenceBuffers references;
+    void* frame_buffers[16];
+    SfdCreateConfig create;
+    SfdHandle* sfd;
+    int frame_size;
+    int rfb_result;
+    int output_format;
     int allocation_size;
 
     file_type = params->file_type;
@@ -882,9 +886,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         tab = table_frames * frame_size;
     }
 
-    allocation_size = aib +
-                      vib +
-                      sib + 0x20;
+    allocation_size = sib + vib + aib + 0x20;
     shared_work = mwsfcre_Alloc(player, allocation_size);
     allocation_size = sjb + 0x40;
     stream_work = mwsfcre_Alloc(player, allocation_size);

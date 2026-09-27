@@ -1011,24 +1011,12 @@ static inline void mslBankFinishPlayInline(
     }
 }
 
-/*
- * Resolve the facade's bank-local ID through the serialized +1 index table,
- * acquire a live sound node, lazily construct LOD sounds, attach the command
- * graph, and start playback. This is the vertical shell-FX contract; the
- * retail function inlines the ID lookup and use/unuse helpers below. Near
- * miss: ~97.84%, retail/current size 0x6a4/0x6a0, with exact operations and
- * control flow.
- * Remaining differences are pooled-string address instructions, GPR coloring,
- * and two scheduled instructions.
- */
-/* TODO: [breakthrough needed] 97.84% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.12%; pooled string layout and an early gMsi load differ; resolve across the TU. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
     mslBankSoundEntry* bank_sound;
     _ListNode* node;
-    unsigned long handle;
 
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayVol: NULL bank pointer.\n");
@@ -1043,7 +1031,7 @@ extern "C" unsigned long mslBankPlayVol(
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
 
-            handle = ListNodeID(&g_listPoolSound, node);
+            unsigned long handle = ListNodeID(&g_listPoolSound, node);
             copy->flags |= play_flags;
             copy->priority = play_arg1;
             copy->track = play_arg0;
@@ -1052,8 +1040,8 @@ extern "C" unsigned long mslBankPlayVol(
             if (bank_sound->sound != 0) {
                 mslBankFinishPlayInline(true, node, bank_sound);
                 return handle;
-            } else {
-                _mslSound* loaded_sound = mslSoundLoad(
+            }
+            _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
                 if (loaded_sound != 0) {
                     mslRuntimeSound* runtime =
@@ -1067,8 +1055,7 @@ extern "C" unsigned long mslBankPlayVol(
                 }
                 mslBankFinishPlayInline(
                     bank_sound->sound != 0, node, bank_sound);
-                return handle;
-            }
+            return handle;
         }
     }
 
@@ -1076,16 +1063,7 @@ extern "C" unsigned long mslBankPlayVol(
     return 0;
 }
 
-/*
- * Resolve and play a bank sound with the full runtime volume, pan, and pitch
- * overlay. Retail inlines the ID lookup and bank-sound use/unuse helpers into
- * this path. Near miss: ~97.88%, retail/current size 0x6c4/0x6c0. Retail
- * loaded-first order, sound publication, inlined helper CFG, and all
- * operations are exact; pooled-string addressing, GPR coloring, and two
- * scheduled instructions remain.
- */
-/* TODO: [breakthrough needed] 97.88% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.90%; pooled string offsets and GPR coloring remain; check TU data layout. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
@@ -1117,24 +1095,20 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
 
             if (bank_sound->sound != 0) {
                 mslBankFinishPlayInline(true, node, bank_sound);
-                return handle;
             } else {
                 _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
                 if (loaded_sound != 0) {
-                    mslRuntimeSound* runtime =
-                        (mslRuntimeSound*)loaded_sound;
-
                     bank_sound->sound = loaded_sound;
-                    runtime->bank_ref_count = 1;
-                    runtime->owner_bank = bank;
+                    ((mslRuntimeSound*)bank_sound->sound)->bank_ref_count = 1;
+                    ((mslRuntimeSound*)bank_sound->sound)->owner_bank = bank;
                 } else {
                     mslDebugPrintf("Unable to load async sound.\n");
                 }
                 mslBankFinishPlayInline(
                     bank_sound->sound != 0, node, bank_sound);
-                return handle;
             }
+            return handle;
         }
     }
 

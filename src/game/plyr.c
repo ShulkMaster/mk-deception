@@ -2074,7 +2074,8 @@ void delete_player(int player_index) {
         }                                                               \
     } while (0)
 
-/* TODO: [near miss] 97.117836%; register coloring, relocation offsets; one-trial ceiling. */
+/* TODO: [near miss] 98.15%; only the weapon-style loop setup differs: retail zeroes index first,
+ * seeds the offset IV with mr r3,r8 and keeps the branchless base; index-first forms go branchy. */
 static void setup_plyr_anims(PlyrPdata* pdata) {
     AnimPdata* animation;
     MkObj* object;
@@ -2112,20 +2113,21 @@ static void setup_plyr_anims(PlyrPdata* pdata) {
     }
 
     moveset_base = pdata == g_game_info.plyr0.slot.pdata ? 0 : 3;
-    for (index = 0; index < 3; index++) {
+    for (index = 0; index < sizeof(pdata->weapon_styles) / sizeof(pdata->weapon_styles[0]); index++) {
         pdata->weapon_styles[index] =
-            (PlyrWeaponStyle*)&global_movesets[moveset_base + index];
+            (PlyrWeaponStyle*)&global_movesets[index + moveset_base];
     }
     load_player_style_scripts(pdata);
     advance_active_moveset(pdata);
 
     mode = (int)mode_of_play;
-    load_signs = 1;
     if ((mode == 0 || mode == 10) &&
         g_game_info.feature_flags.bits.powerbars_locked) {
         load_signs = 0;
     } else if (mode == 6) {
         load_signs = 0;
+    } else {
+        load_signs = 1;
     }
     if (load_signs != 0) {
         load_player_fstyle_signs(pdata);

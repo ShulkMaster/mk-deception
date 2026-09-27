@@ -4,6 +4,7 @@
 #include "math/gxVect.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/asset.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/light.h"
@@ -14,11 +15,6 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 
-/*
- * Common projectile process data. Fields are named incrementally as the
- * projectile TU is lifted; keeping one typed layout avoids repeating raw
- * offsets across the script-facing setup functions.
- */
 typedef struct ProjectilePdata {
     MkHdr hdr;
     MkProc* player_process;                 /* +0x08 */
@@ -97,11 +93,6 @@ typedef struct ProjectileScriptPdata {
     Vec velocity;
 } ProjectileScriptPdata;
 
-typedef struct ProjectileProcVtable {
-    void* reserved[9];
-    float (*jump_sleep)(MkProcEntryFn entry, float ticks);
-} ProjectileProcVtable;
-
 typedef struct ProjectileFollowerPdata {
     MkHdr hdr;
     ProjectilePdata* projectile;
@@ -112,15 +103,6 @@ typedef union ProjectileFloatBits {
     float f;
     unsigned int u;
 } ProjectileFloatBits;
-
-typedef struct ProjectileBoneMatcher {
-    MkHdr hdr;
-    unsigned char flags_08;
-    char pad09[0x13];
-    Vec parent_offset;
-    char pad28[0x14];
-    Vec child_offset;
-} ProjectileBoneMatcher;
 
 static ProjectilePdata* proj_pdata;
 
@@ -147,8 +129,6 @@ void set_active_projectile_collision_info(
     int enabled, float radius, float height, float depth);
 void set_active_projectile_random_rot(float x, float y, float z);
 void set_active_projectile_random_pos(float x, float y, float z);
-void set_active_projectile_impale_info(
-    ProjectileImpaleInfo* info, const int* bone_tags);
 void set_active_projectile_continue_thru_hit(void);
 void set_active_projectile_3d_track(void);
 MkObj* set_active_projectile_tracking_light(LightDef* definition);
@@ -194,8 +174,6 @@ int build_bones_tbl(MkObj* object, const int* tags);
 extern float game_speed;
 extern MkObj* plyr_obj;
 extern MkObj* his_obj;
-extern GameInfo g_game_info;
-extern unsigned short GXMathSqrtTable[];
 extern void trial_state_collision_check(
     int collision_result, int player);
 extern int collide_cylinder_vs_plyr(
@@ -207,9 +185,6 @@ extern int collide_sphere_vs_plyr(
     PlyrInfo* player, const Vec* center, float radius);
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern int mode_of_play;
-extern ProjectileBoneMatcher* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend_ticks);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 extern void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* out);
@@ -400,7 +375,7 @@ void set_active_projectile_velocity_damp(const Vec* damping) {
 
 void set_active_projectile_max_ticks(int ticks) {
     if (proj_pdata != 0) {
-        proj_pdata->max_ticks = (float)ticks;
+        proj_pdata->max_ticks = ticks;
     }
 }
 
@@ -415,8 +390,7 @@ void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
 }
 
-/* TODO: [breakthrough] 86.60439%; sqrt byte-offset indexing corrected;
- * audit the remaining consumer CFG/ABI differences separately. */
+/* TODO: [breakthrough] 88.25%; named gravity bitfield store; audit the remaining consumer CFG/ABI differences separately. */
 void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     MkObj* object;
     float speed;
@@ -436,7 +410,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
         return;
     }
 
-    object->flags_08 |= 0x20;
+    object->flags_08_bits.gravity_enabled = 1;
     speed = projectile_fast_sqrt(
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.y * object->pos_vel.y +
@@ -497,7 +471,7 @@ void set_active_projectile_sound(
 static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
     MkObj* object = owner->object;
     if (object != 0) {
-        if ((unsigned int)object->hdr.instance == owner->object_instance) {
+        if (object->hdr.instance == owner->object_instance) {
             return object;
         }
         object = 0;
@@ -506,11 +480,6 @@ static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
     }
     return object;
 }
-
-
-
-
-
 
 /* TODO: [near miss] 97.701300%; FP ordering and register allocation remain; no further evidence-backed source change. */
 void set_active_projectile_velocity(const Vec* velocity) {
@@ -540,25 +509,12 @@ void set_active_projectile_velocity(const Vec* velocity) {
     }
 }
 
-static inline MkObj* projectile_live_object(ProjectilePdata* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if ((unsigned int)object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 void set_active_add_ang_y(float angle) {
     MkObj* object;
     int fixed;
 
     if (proj_pdata != 0) {
-        object = projectile_live_object(proj_pdata);
+        object = projectile_pdata_live_object(proj_pdata);
 
         if (object != 0) {
             object->ang.y += angle;
@@ -633,7 +589,7 @@ void set_active_projectile_impale_info(
     MkObj* object;
 
     if (proj_pdata != 0) {
-        object = projectile_live_object(proj_pdata);
+        object = projectile_pdata_live_object(proj_pdata);
 
         if (object != 0) {
             build_bones_tbl(object, bone_tags);
@@ -657,7 +613,6 @@ void set_active_projectile_3d_track(void) {
 
 MkObj* set_active_projectile_tracking_light(LightDef* definition) {
     ProjectileFollowerPdata* follower;
-    MkHdr* raw_pdata;
     MkObj* light;
     MkProc* process;
 
@@ -666,21 +621,19 @@ MkObj* set_active_projectile_tracking_light(LightDef* definition) {
         if (light != 0) {
             process = _create_mkproc_generic_tinystack(
                 0x2026, 0x1F, p_point_light_follower,
-                sizeof(ProjectileFollowerPdata), &raw_pdata);
+                sizeof(ProjectileFollowerPdata), (MkHdr**)&follower);
             if (process == 0) {
                 if (light->hdr.instance != 0) {
-                    ((void (*)(MkHdr*))light->hdr.vtbl->destroy)(
-                        &light->hdr);
+                    light->hdr.typed_vtbl->destroy(&light->hdr);
                 }
                 return 0;
             }
 
             proj_pdata->tracking_light = light;
             proj_pdata->tracking_light_instance = light->hdr.instance;
-            follower = (ProjectileFollowerPdata*)raw_pdata;
             follower->projectile = proj_pdata;
             follower->projectile_instance = proj_pdata->hdr.instance;
-            mk_insert(&light->hdr, &process->pdata_list);
+            mk_insert(&light->hdr, &process->pdata_list_b);
             return light;
         }
     }
@@ -702,7 +655,7 @@ static inline ProjectilePdata* projectile_follower_pdata_validate_projectile(Pro
 static inline MkObj* projectile_pdata_live_tracking_light(ProjectilePdata* owner) {
     MkObj* object = owner->tracking_light;
     if (object != 0) {
-        if ((unsigned int)object->hdr.instance == owner->tracking_light_instance) {
+        if (object->hdr.instance == owner->tracking_light_instance) {
             return object;
         }
         object = 0;
@@ -759,6 +712,7 @@ void set_active_projectile_rx_info(
     }
 }
 
+/* TODO: [breakthrough needed] 66.23%; retail keeps stmw prologue, a word store at +0xB0 and a cached pdata pointer; CFG of object load differs. */
 static MkObj* start_projectile_from_specific_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
     float speed, float tolerance, const Vec* bone_offset,
@@ -794,9 +748,9 @@ static MkObj* start_projectile_from_specific_plyr_bone(
         obj_set_all_sobjs_priority(object, 0x13);
     }
 
-    object->hide_flags |= 0x20;
-    object->flags_08 |= 8;
-    object->flags_08 |= 0x20;
+    object->hide_flag_bits.hidden = 1;
+    object->flags_08_bits.angular_velocity_enabled = 1;
+    object->flags_08_bits.gravity_enabled = 1;
     projectile = 0;
     process = _create_mkproc_generic_tinystack(
         0x2026, 0x1F, p_projectile_handler,
@@ -813,7 +767,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     process->pre_destroy = pw_projectile;
     process->destroy_cb = ps_projectile;
     if (object != existing_object) {
-        mk_insert((MkHdr*)object, &process->pdata_list);
+        mk_insert(&object->hdr, &process->pdata_list_b);
     }
 
     launch_object = plyr_obj;
@@ -847,7 +801,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     if (model_name != 0 || existing_object != 0) {
         update_mkobj(object);
     }
-    object->hide_flags &= (unsigned char)~0x20;
+    object->hide_flag_bits.hidden = 0;
 
     projectile->source_object = plyr_obj;
     projectile->source_object_instance = plyr_obj->hdr.instance;
@@ -868,18 +822,14 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     projectile->collision_height = 0.0f;
     projectile->collision_depth = 100.0f;
     projectile->impale_info = 0;
-    projectile->random_position.x = 0.0f;
-    projectile->random_position.y = 0.0f;
-    projectile->random_position.z = 0.0f;
-    projectile->random_rotation.x = 0.0f;
-    projectile->random_rotation.y = 0.0f;
-    projectile->random_rotation.z = 0.0f;
-    projectile->target_position.x = 0.0f;
-    projectile->target_position.y = 0.0f;
-    projectile->target_position.z = 0.0f;
-    projectile->velocity_damping.x = 0.0f;
-    projectile->velocity_damping.y = 0.0f;
-    projectile->velocity_damping.z = 0.0f;
+    projectile->random_position.x = projectile->random_position.y =
+        projectile->random_position.z = 0.0f;
+    projectile->random_rotation.x = projectile->random_rotation.y =
+        projectile->random_rotation.z = 0.0f;
+    projectile->target_position.x = projectile->target_position.y =
+        projectile->target_position.z = 0.0f;
+    projectile->velocity_damping.x = projectile->velocity_damping.y =
+        projectile->velocity_damping.z = 0.0f;
     projectile->hit_script_index = 0;
     projectile->end_callback_index = 0;
     projectile->ground_collision_ticks = 0.0f;
@@ -1023,10 +973,10 @@ static void projectile_set_velocity_angy_tol(
     object->pos_vel.z *= speed;
 }
 
-/* TODO: [breakthrough needed] 80.47369%; matcher argument interleaving improves scheduling; existing body/frame differences remain. */
+/* TODO: [breakthrough needed] 82.77%; typed BoneMatcherState flags; body/frame differences remain. */
 static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     ProjectileImpaleInfo* info = pdata->impale_info;
-    ProjectileBoneMatcher* matcher;
+    BoneMatcherState* matcher;
     MkBone* victim_bone;
     Vec angles;
     float random_x;
@@ -1047,8 +997,8 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
         return;
     }
 
-    matcher->flags_08 |= 0x40;
-    matcher->flags_08 |= 0x10;
+    matcher->flags_08.bits.copy_bone_matrix = 1;
+    matcher->flags_08.bits.preserve_bone_matrix = 1;
     matcher->child_offset.x = info->child_offset.x;
     matcher->child_offset.y = info->child_offset.y;
     matcher->child_offset.z = info->child_offset.z;
@@ -1094,8 +1044,8 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     }
 
     pdata->max_ticks = 1800.0f;
-    victim->flags_08 &= (unsigned char)~8;
-    victim->flags_08 &= (unsigned char)~0x20;
+    victim->flags_08_bits.angular_velocity_enabled = 0;
+    victim->flags_08_bits.gravity_enabled = 0;
 }
 
 /* TODO: [breakthrough] 65.5321%; sqrt byte-offset indexing corrected;
@@ -1123,14 +1073,12 @@ static float p_projectile_handler(void) {
         object = 0;
     }
     if (object == 0) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
     projectile->max_ticks -= game_speed;
     if (projectile->max_ticks < 0.0f) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1218,8 +1166,7 @@ static float p_projectile_handler(void) {
         if (projectile->flight_sound != 0) {
             snd_req(projectile->flight_sound);
         }
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1300,13 +1247,11 @@ static float p_projectile_handler(void) {
         if (impale) {
             projectile_impale(projectile, object);
             victim->his_plyr_pdata->impaled_projectile_state++;
-            ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-                p_projectile_impaled, 0.0f);
+            aproc->vtbl->jump_sleep(p_projectile_impaled, 0.0f);
             return 0.0f;
         }
         if (projectile->behavior_bits.continue_through_hit) {
-            ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-                p_projectile_continue, 0.0f);
+            aproc->vtbl->jump_sleep(p_projectile_continue, 0.0f);
             return 0.0f;
         }
         break;
@@ -1317,15 +1262,11 @@ static float p_projectile_handler(void) {
         return 1.0f;
     }
 
-    ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-        p_projectile_die, 0.0f);
+    aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the three-way collision result mapping and terminal transfer
- * are recovered directly from retail; residue is latch/register scheduling.
- */
+/* TODO: [near miss] 61.24%; collision result mapping follows retail; latch/register scheduling remains. */
 static float p_projectile_continue(void) {
     MkObj* object;
     MkObj* target;
@@ -1360,11 +1301,11 @@ static float p_projectile_continue(void) {
             return 1.0f;
         }
     }
-    ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-        p_projectile_die, 0.0f);
+    aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 67.52%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
 static float p_ground_target(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1380,15 +1321,13 @@ static float p_ground_target(void) {
         object = 0;
     }
     if (object == 0) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
     projectile->max_ticks -= game_speed;
     if (projectile->max_ticks < 0.0f) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1449,15 +1388,11 @@ static float p_ground_target(void) {
     object->pos_vel.y = 0.0f;
     object->pos_vel.x = 0.0f;
     projectile->max_ticks = projectile->ground_collision_ticks;
-    ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-        p_ground_target_collide, 0.0f);
+    aproc->vtbl->jump_sleep(p_ground_target_collide, 0.0f);
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail's ground-target latch, timeout, hold-process gate,
- * cylinder collision, trial result, and reaction transfer are preserved.
- */
+/* TODO: [near miss] 77.12%; ground-target control flow follows retail; scheduling residue remains. */
 static float p_ground_target_collide(void) {
     PlyrPdata* target;
     PlyrInfo* player_info;
@@ -1470,8 +1405,7 @@ static float p_ground_target_collide(void) {
         object = 0;
     }
     if (object == 0) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1487,8 +1421,7 @@ static float p_ground_target_collide(void) {
     proj_pdata->max_ticks -= game_speed;
     if (proj_pdata->max_ticks < 0.0f) {
         trial_state_collision_check(0, player_info->controller_slot);
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1513,8 +1446,7 @@ static float p_ground_target_collide(void) {
                 proj_pdata->reaction, proj_pdata->reaction_scale,
                 proj_pdata->reaction_flags);
         }
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
     return 1.0f;
@@ -1543,6 +1475,7 @@ int check_for_throw(PlyrPdata* player) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 84.81%; body recovered; scheduling and branch layout differences remain. */
 static float p_projectile_launch_upward(void) {
     MkObj* object;
 
@@ -1550,8 +1483,7 @@ static float p_projectile_launch_upward(void) {
     object = proj_pdata->object;
     if (object == 0 ||
         object->hdr.instance != proj_pdata->object_instance) {
-        ((ProjectileProcVtable*)aproc->vtbl)
-            ->jump_sleep(p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1566,13 +1498,13 @@ static float p_projectile_launch_upward(void) {
         if (proj_pdata->down_sound != 0) {
             snd_req(proj_pdata->down_sound);
         }
-        ((ProjectileProcVtable*)aproc->vtbl)
-            ->jump_sleep(p_projectile_downward, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_downward, 0.0f);
         return 0.0f;
     }
     return 1.0f;
 }
 
+/* TODO: [breakthrough needed] 65.90%; body recovered; large scheduling and CFG differences remain. */
 static float p_projectile_downward(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1593,8 +1525,7 @@ static float p_projectile_downward(void) {
         object = 0;
     }
     if (object == 0) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1607,8 +1538,7 @@ static float p_projectile_downward(void) {
     projectile->max_ticks -= game_speed;
     if (projectile->max_ticks < 0.0f ||
         projectile->ground_height != g_game_info.field_34) {
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1656,8 +1586,7 @@ static float p_projectile_downward(void) {
         if (projectile->flight_sound != 0) {
             snd_req(projectile->flight_sound);
         }
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
@@ -1721,8 +1650,7 @@ static float p_projectile_downward(void) {
                    projectile->impact_sound != 0) {
             snd_req(projectile->impact_sound);
         }
-        ((ProjectileProcVtable*)aproc->vtbl)->jump_sleep(
-            p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
     return 1.0f;
@@ -1732,18 +1660,13 @@ static float p_projectile_impaled(void) {
     proj_pdata->max_ticks -= game_speed;
     if (proj_pdata->max_ticks < 0.0f) {
         proj_pdata->impaled_target->impaled_projectile_state--;
-        ((ProjectileProcVtable*)aproc->vtbl)
-            ->jump_sleep(p_projectile_die, 0.0f);
+        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
     return 1.0f;
 }
 
-/*
- * Soft ceiling: the sound teardown, victim state reset, source latch, owner
- * selection, script-process payload, and final transform snapshot follow
- * retail. Remaining differences are helper inlining and register allocation.
- */
+/* TODO: [near miss] 63.15%; teardown sequence follows retail; helper inlining and register allocation remain. */
 float p_projectile_die(void) {
     ProjectilePdata* projectile;
     ProjectileScriptPdata* script_data;

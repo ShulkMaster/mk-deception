@@ -1336,8 +1336,8 @@ static void set_letter_positions_and_values(void* pfx) {
     }
 }
 
-/* TODO: [breakthrough] 97.474045%; restored retail outer-digit float precision;
- * constant/conversion register scheduling remains. */
+/* TODO: [near miss] 98.55%; integer webs now match; only the column-x float setup colors the
+ * converted column f1 (retail f4) and schedules the row lfd/z_far fadds one slot later. */
 static void set_number_positions_and_values(void* pfx) {
     Vec* pos;
     float* uv;
@@ -1347,7 +1347,6 @@ static void set_number_positions_and_values(void* pfx) {
     int view_col;
     int row_off;
     int col_off;
-    int particle;
     int fill;
     float base_x;
     float base_z;
@@ -1357,11 +1356,12 @@ static void set_number_positions_and_values(void* pfx) {
     int col;
     int coffin_idx;
     unsigned int cost;
-    unsigned int tens;
     unsigned int ones;
-    unsigned int thousands;
+    unsigned int tens;
     unsigned int hundreds;
+    unsigned int thousands;
     unsigned int slot;
+    int particle;
 
     particle = 0;
     uv = (float*)pfx_get_field(pfx, -2, 0x301);
@@ -1560,6 +1560,19 @@ static inline ScreenObj* krypt_live_wallet_front_obj(KryptPdata* owner) {
     ScreenObj* object = owner->wallet_front.obj;
     if (object != 0) {
         if (object->instance == owner->wallet_front.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* krypt_wallet_text_at(int index) {
+    StringObj* object = krypt_pdata->wallet_text[index].obj;
+    if (object != 0) {
+        if (object->instance == krypt_pdata->wallet_text[index].obj_instance) {
             return object;
         }
         object = 0;
@@ -1803,20 +1816,22 @@ void heads_up_display_visible(int visible) {
         }
     }
 }
-/* TODO: [near miss] 98.50418%; retail stack restored; wallet address lowering and register allocation remain. */
+/* TODO: [near miss] 99.44%; only the koin i*4 IV init remains (retail mr r29,r31, ours li r29,0);
+ * i = 0 outside the for, ++i and a short counter did not reproduce it. */
 void init_heads_up_display(void) {
+    int i;
     ScreenObj* screen_obj;
     StringObj* string_obj;
-    StringObj* right_label;
-    StringObj* right_text;
     ScreenObj* award_notice_top;
     ScreenObj* award_notice_left;
     ScreenObj* award_notice_right;
     ScreenObj* award_notice_bottom;
     ScreenObj* award_frame;
+    StringObj* right_label;
+    StringObj* right_text;
     /* The formatter emits at most seven characters plus its terminator. */
     char value[8];
-    int i;
+    char* string;
 
     screen_obj = load_named_2d_pfxobj(0x140066, 0x830F, "OPEN_BUTTON", 0, 0x4C);
     if (screen_obj != 0) {
@@ -1833,16 +1848,17 @@ void init_heads_up_display(void) {
     string_obj = string_left_xy(0x8310, 7, "l", 0x32, 0x32, 0x4D);
     krypt_pdata->hud_label_l.obj = string_obj;
     krypt_pdata->hud_label_l.obj_instance = string_obj->instance;
-    string_obj = string_left_xy(
-        0x8310, 0, get_string_by_id(0x20011), 0x56, 0x37, 0x4D);
+    string = get_string_by_id(0x20011);
+    string_obj = string_left_xy(0x8310, 0, string, 0x56, 0x37, 0x4D);
     krypt_pdata->hud_string_20011.obj = string_obj;
     krypt_pdata->hud_string_20011.obj_instance = string_obj->instance;
     right_label = string_right_xy(
         0x8310, 7, "R", screen_width - 0x32, 0x32, 0x4D);
     krypt_pdata->hud_label_r.obj = right_label;
     krypt_pdata->hud_label_r.obj_instance = right_label->instance;
+    string = get_string_by_id(0x20012);
     right_text = string_right_xy(
-        0x8310, 0, get_string_by_id(0x20012), screen_width - 0x5A, 0x37, 0x4D);
+        0x8310, 0, string, screen_width - 0x5A, 0x37, 0x4D);
     krypt_pdata->use_key_string.obj = right_text;
     krypt_pdata->use_key_string.obj_instance = right_text->instance;
 
@@ -1857,7 +1873,11 @@ void init_heads_up_display(void) {
 
     for (i = 0; i < 6; i++) {
         format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
-        string_obj = krypt_wallet_text(&krypt_pdata->wallet_text[i]);
+        string_obj = krypt_pdata->wallet_text[i].obj;
+        string_obj = string_obj != 0
+            ? (string_obj->instance == krypt_pdata->wallet_text[i].obj_instance
+                ? string_obj : 0)
+            : 0;
         if (string_obj != 0) {
             update_string_obj(string_obj, 0, value);
         } else {
@@ -2391,8 +2411,6 @@ static inline void handle_held_krypt_direction(
 
 
 
-/* TODO: [breakthrough] 98.80645%; camera X fused-add restored; wallet-text loops: retail forms
- * pdata+i*8 then folds +0x9c; pointer and owner+index helpers both mis-associate (next: direct access). */
 static float handle_controller_input(void) {
     static int right_button_down;
     static int left_button_down;
@@ -2412,8 +2430,8 @@ static float handle_controller_input(void) {
     int key_bit;
     int available;
     int opened;
-    int row;
     int column;
+    int row;
     MkHdr* right_running_pdata;
     MkHdr* left_running_pdata;
     MkHdr* up_running_pdata;
@@ -2505,9 +2523,9 @@ static float handle_controller_input(void) {
                     load_ssf(krypt_art_file_table);
                     index = krypt_pdata->current_column +
                             krypt_pdata->current_row * 20;
-                    entry = &coffin_data[index];
+                    entry = coffin_data;
                     if (krypt_data_loaded != 0) {
-                        section = get_mk_file_info_from_current_ssf(entry->gallery_art);
+                        section = get_mk_file_info_from_current_ssf(entry[index].gallery_art);
                         unload_section_slot(0x150067);
                         load_art_section_async(0x150067, section);
                     }
@@ -2553,13 +2571,14 @@ static float handle_controller_input(void) {
             }
         }
     } else if (check_switch_edge(krypt_pdata->player_port, 7) != 0) {
-        for (index = 0; index < 6; index++) {
-            TrackedSound* sound = krypt_pdata->fire_pot_sounds[index];
+        int i;
+        for (i = 0; i < 6; i++) {
+            TrackedSound* sound = krypt_pdata->fire_pot_sounds[i];
             if (sound != 0) {
                 if (sound->hdr.instance != 0) {
                     sound->hdr.typed_vtbl->destroy(&sound->hdr);
                 }
-                krypt_pdata->fire_pot_sounds[index] = 0;
+                krypt_pdata->fire_pot_sounds[i] = 0;
             }
         }
         stop_sound_tracking_process(&krypt_pdata->tracked_sound_list);
@@ -2591,7 +2610,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_wallet_text(&krypt_pdata->wallet_text[index]);
+            text = krypt_wallet_text_at(index);
             if (text != 0) {
                 if (text->y < 34) {
                     text->y += 6;
@@ -2620,7 +2639,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_wallet_text(&krypt_pdata->wallet_text[index]);
+            text = krypt_wallet_text_at(index);
             if (text != 0) {
                 if (text->y > -66) {
                     text->y -= 6;

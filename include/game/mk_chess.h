@@ -182,6 +182,15 @@ typedef struct ChessSideHudState {
     char pad00[8];
     union {
         struct { unsigned char flags; unsigned char flags_09; char pad0A[2]; };
+        struct {
+            unsigned char cursor_update : 1;
+            unsigned char cursor_scaling : 1;
+            unsigned char cursor_moving : 1;
+            unsigned char cursor_mode : 2;
+            unsigned char cursor_hidden : 1;
+            unsigned char slide_active : 1;
+            unsigned char slide_out : 1;
+        } flag_bits;
         unsigned int flags_word;
     }; /* +0x08 - bit7 requests cursor update */
     unsigned int side; /* +0x0C */
@@ -355,6 +364,15 @@ typedef struct ChessBoardSave {
         unsigned char ai_settings[4]; /* +0xEA4 - packed difficulty/king flags */
         unsigned short ai_settings_halves[2];
         unsigned int ai_settings_word;
+        struct {
+            unsigned char p1_king_fight : 1; /* ai_settings[0] bit7 */
+            unsigned char p1_difficulty : 4;
+            unsigned char p1_pad : 3;
+            unsigned char p1_pad_lo : 1;
+            unsigned char p2_king_fight : 1; /* ai_settings[1] bit6 */
+            unsigned char p2_difficulty : 4;
+            unsigned char p2_pad : 2;
+        } ai_bits;
     };
     unsigned char active_x[2];
     unsigned char active_y[2];

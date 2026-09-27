@@ -37,7 +37,7 @@ struct WeaponDefinition {
     Vec field_4c;
     float field_58;
     int field_5c; /* +0x5C - material and blood flags read by AI effects */
-    Vec field_60;
+    Vec clash_fx_offset;
     WeaponImpaleData* impale_data; /* +0x6C */
 };
 

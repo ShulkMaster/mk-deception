@@ -15,10 +15,10 @@ static inline void mpsdec_init_bits(MpsBitReader* reader,
         (const unsigned int*)((unsigned long)position & ~3UL);
     int word_offset = (position - (const unsigned char*)words) * 8;
 
-    reader->next_word = words + 2;
+    reader->word_offset = word_offset;
     reader->current = words[0] << word_offset;
     reader->following = words[1];
-    reader->word_offset = word_offset;
+    reader->next_word = words + 2;
 }
 
 static inline unsigned int mpsdec_read_bits(MpsBitReader* reader, int count) {
@@ -179,8 +179,8 @@ static inline unsigned int mpsdec_peek_bits(MpsBitReader* reader, int count) {
             ((long long)high << 30) | ((long long)middle << 15) | low;    \
     } while (0)
 
-/* TODO: [near miss] 96.873764%; typed reader follows donor bit-window flow;
- * timestamp and cursor scheduling remain. */
+/* TODO: [near miss] 99.95%; only the single-PTS branch colors `middle` r31 (retail r30);
+ * shared timestamp temporaries and an inline timestamp reader did not help. */
 static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
                              int* consumed, int packet_length_bytes) {
     MpsBitReader reader;
@@ -272,8 +272,6 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
         header->packet_length + base_header_size - *consumed;
 }
 
-/* TODO: [near miss] 97.712940%; in-place output windows and delimiter test
- * agree; cursor coloring and equivalent shifts remain. */
 static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
                             int* consumed) {
     unsigned int trailer;
@@ -283,12 +281,10 @@ static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
     const unsigned char* position = data + 4;
     const unsigned int* words =
         (const unsigned int*)((unsigned long)position & ~3UL);
-    int word_offset = (position - (const unsigned char*)words) * 8;
-
-    reader.current = words[0] << word_offset;
-    reader.following = words[1];
-    reader.word_offset = word_offset;
-    reader.next_word = words + 2;
+    reader.word_offset = (position - (const unsigned char*)words) * 8;
+    reader.current = *words++ << reader.word_offset;
+    reader.following = *words++;
+    reader.next_word = words;
     mpsdec_read_bits_into(&reader, 16, &header->header_length);
     mpsdec_skip_bits(&reader, 1);
     mpsdec_read_bits_into(&reader, 22, &header->rate_bound);

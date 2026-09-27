@@ -60,13 +60,11 @@ void obj_hide_material_by_id(MkObj* object, int id);
 void mkobj_zero_bone_rots(MkObj* object);
 int get_player_number(MkObj* object);
 int build_bones_tbl(MkObj* object, const int* tags);
-void SetupShadowPlayerPipeline(RpClump* clump);
 void pull_bone_hierarchy_mkobj(MkObj* object);
 void obj_force_culling_off(MkObj* object);
 void start_cloth_bones(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);
 RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-RpMaterial* sobj_find_material_by_id(MkSobj* sobj, unsigned int material_id);
 void sobj_use_material_color(MkSobj* sobj);
 void obj_set_material_fade(
     MkObj* object, unsigned int material_id, signed char alpha);
@@ -86,12 +84,6 @@ WeaponTrailMap goro_gauntlets_trail_anchors[3] = {
 int goro_gauntlets_trail_tails[3] = {6, 12, 0};
 int goro_gauntlets_weapon_bones[2] = {1, 0};
 int goro_gauntlets_trail_bones[2] = {0x2001, 0};
-/*
- * Soft ceiling: these descriptors have retail-exact bytes, symbol order,
- * addresses, and relocation targets/addends. This MWCC invocation records the
- * initializer relocations in reverse field groups while retail records them in
- * ascending offset order; no source-level padding or relocation sink is used.
- */
 WeaponDefinition goro_gauntlets_weapon_desc_lr = {
     "WEAPON", goro_gauntlets_weapon_bones,
     0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {-1.5707964f, 0.0f, 0.0f},
@@ -209,10 +201,7 @@ static inline MkObj* load_goro_reflection_inline(
     return reflection;
 }
 
-/*
- * Soft ceiling: 93.27% -- both repeated inline load paths and exact size agree;
- * remaining differences are NV allocation and equivalent branch placement.
- */
+/* TODO: [near miss] 94.85%; repeated inline load paths and size agree; NV allocation and branch placement differ. */
 void mks_start_goro_xtra_weapons(void) {
     PlyrWeaponStyle* style;
     MkObj* weapon;
@@ -317,7 +306,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     ImpaleSecondaryObject* attachment;
     MkHdr* weapon_hdr;
 
-    definition = (WeaponDefinition*)weapon->field_5C;
+    definition = weapon->field_5C;
     if (definition == 0) {
         return;
     }
@@ -361,7 +350,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     }
 
     if (second_weapon != 0) {
-        definition = (WeaponDefinition*)second_weapon->field_5C;
+        definition = second_weapon->field_5C;
         impale = definition->impale_data;
         if (impale->bone_index > 0) {
             RESOLVE_WEAPON_LATCH(victim_object, &victim->tracked_obj_latch);
@@ -405,8 +394,6 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
 }
 
 void get_weapon_collision_def(MkObj* object, WeaponCollisionDef* collision) {
-    /* Retail 800B9900 reads radius and XYZ at +4C/+50/+54/+58.
-     * Use the canonical owner: pointer fields precede this scalar span. */
     collision->radius = ((const WeaponDefinition*)object->field_5C)->field_4c.x;
     collision->offset.x = ((const WeaponDefinition*)object->field_5C)->field_4c.y;
     collision->offset.y = ((const WeaponDefinition*)object->field_5C)->field_4c.z;
@@ -1004,10 +991,7 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/*
- * Soft ceiling: plyr_match_weapon_flip_to_obj_flip ~93.77% -
- * NV-register coloring and mirror-slot base reloads; stop.
- */
+/* TODO: [near miss] 93.76%; NV-register coloring and mirror-slot base reloads differ. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;
@@ -1041,10 +1025,7 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/*
- * Soft ceiling: the retail stack matrix is 16-byte aligned. Keep the matrix
- * portable instead of forcing the frame with a function-local attribute.
- */
+/* TODO: [breakthrough] 84.10%; aligned rotation matrix and weapon latch shape match; nonvolatile homes (retail trail_model r31) and loop register layout differ. */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
@@ -1058,12 +1039,17 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     Vec parent_to_child;
     Vec child_direction;
     Quat rotation;
-    MKMATRIX rotation_matrix;
+    MKMATRIX rotation_matrix __attribute__((aligned(16)));
     int* chain_root;
     int map_index;
 
     weapon = (MkObj*)trail_model->parent_hdr;
-    if (weapon != 0 && weapon->hdr.instance != trail_model->parent_inst) {
+    if (weapon != 0) {
+        if (weapon->hdr.instance == trail_model->parent_inst) {
+        } else {
+            weapon = 0;
+        }
+    } else {
         weapon = 0;
     }
     do {
@@ -1077,7 +1063,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                   &trail_matrix->pos_vec);
         trail_matrix->pos_vec = weapon_matrix->pos_vec;
 
-        definition = (WeaponDefinition*)trail_model->field_5C;
+        definition = trail_model->field_5C;
         for (map_index = 0;
             map_index < definition->trail_map_count;
              map_index++) {
@@ -1099,7 +1085,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                       &trail_bone->parent_matrix->pos_vec,
                       &trail_matrix->pos_vec);
             memcpy(trail_bone->parent_matrix, &parent_bone->matrix, 0x30);
-            definition = (WeaponDefinition*)trail_model->field_5C;
+            definition = trail_model->field_5C;
         }
         if (definition == 0) {
             break;
@@ -1118,7 +1104,6 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                 do {
                     child_bone = trail_bone;
                     trail_bone = trail_bone->transform_parent;
-                    /* Weapon trails reuse the contiguous +0xD0 block as a matrix. */
                     memcpy(child_bone->parent_matrix,
                            &trail_bone->rotation,
                            sizeof(*child_bone->parent_matrix));
@@ -1165,11 +1150,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     }
 }
 
-/*
- * Soft ceiling: start_weapon_trail ~94.27% - the remaining shared failure
- * edge and nonvolatile-register allocation differ; the recovered operations
- * and object/bone mutations agree with retail.
- */
+/* TODO: [near miss] 94.30%; shared failure edge and nonvolatile allocation differ; operations and mutations agree. */
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
     WeaponDefinition* definition;
     MkSobj* sobj;
@@ -1182,7 +1163,7 @@ static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
     }
 
     do {
-        definition = (WeaponDefinition*)weapon->field_5C;
+        definition = weapon->field_5C;
         if (definition == 0 || definition->secondary_model_name == 0) {
             break;
         }
@@ -1265,6 +1246,7 @@ void init_weapon_trails(void) {
     weapon_trail_mkobj_list = 0;
 }
 
+/* TODO: [near miss] 96.69%; retail threads the owner null test into the no-owner arm (no li 0/cmplwi); else-branch and helper forms regress. */
 MkObj* load_weapon(
     WeaponDefinition* definition, MkObj* player_object) {
     PlyrPdata* player;
@@ -1375,7 +1357,7 @@ MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
     if (definition->reflection_model_name == 0) {
         return 0;
     }
-    reflection = (MkObj*)load_named_model_for_bgnd(
+    reflection = load_named_model_for_bgnd(
         definition->reflection_model_name, 0x5013, 0);
     if (reflection == 0) {
         return 0;
@@ -1419,13 +1401,13 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
     unsigned int bone_index;
 
     trail_model = 0;
-    weapon = (MkObj*)load_named_model_from_slot(
+    weapon = load_named_model_from_slot(
         slot, definition->model_name, 0x1008, 1);
     if (weapon == 0 && definition->model_name != 0) {
         return 0;
     }
     if (definition->secondary_model_name != 0) {
-        trail_model = (MkObj*)load_named_model_from_slot(
+        trail_model = load_named_model_from_slot(
             slot, definition->secondary_model_name, 0x5004, 1);
         if (trail_model == 0) {
             return 0;

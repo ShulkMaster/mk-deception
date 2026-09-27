@@ -123,8 +123,8 @@ static inline int timed_out_10s(OSTime start) {
 }
 
 static inline int font_string_width(char* s) {
-    int maxW;
     int lineW;
+    int maxW;
     int charW;
 
     if (FontData == 0) {
@@ -1016,6 +1016,8 @@ static int gc_prompt_for_480P(PADStatus* pads) {
     return yes == 0;
 }
 
+/* TODO: [near miss] 98.15%; w (r31 vs r28) and first width-loop coloring, GXColor arg slots,
+ * two mask instructions and the TU pooled "YESNO" offset (unreferenced "Run 60Hz?") remain. */
 static void display_dragon_with_text(DragonTextPrompt* prompt) {
     GXColor black;
     int w;
@@ -1099,8 +1101,9 @@ static void display_dragon_with_text(DragonTextPrompt* prompt) {
 
     msgH = font_string_height(prompt->message);
     yesNoH = font_string_height("YESNO");
+    y = msgH + yesNoH / 2;
     yesW = font_string_width(prompt->yes_str);
-    y = msgH + yesNoH / 2 + 0x15E;
+    y += 0x15E;
     render_text_without_clear(prompt->yes_str, (screen_width / 2 - 100) - yesW / 2, y);
 
     noW = font_string_width(prompt->no_str);

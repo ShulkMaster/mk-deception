@@ -1254,120 +1254,118 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
     i_ARQCALLBACK_ReturnArq(request_address);
 }
 
-/* TODO: [near miss] 97.974655%; narrower secondary lifetime regressed to
- * 97.88499%; retain one-owner baseline; stop at extra zero and coloring. */
+/* TODO: [near miss] 98.26%; retail zeroes a separate secondary sound late (shared with
+ * format = 0) but that placement shrinks the frame 0x60->0x50; GPR coloring remains. */
 int SBPlayable_Stream::iPlayPrepped(void) {
-    SBPlayable_Stream* stream =
-        this;
     int result = -1;
 
-    if (stream->ready_to_play == 0 ||
-        stream->voices_started != 0) {
+    if (ready_to_play == 0 ||
+        voices_started != 0) {
         return result;
     }
 
-    if (stream->voices[0] == 0) {
+    if (voices[0] == 0) {
         int use_stream_loop;
         int use_loop_address;
 
-        stream->ring_play_block = 0;
-        stream->at_zero_buffer = 0;
-        stream->voices[0] = AXAcquireVoice(
+        ring_play_block = 0;
+        at_zero_buffer = 0;
+        voices[0] = AXAcquireVoice(
             0x14, AcquireVoiceCallback, (unsigned long)this);
-        if (stream->voices[0] == 0) {
+        if (voices[0] == 0) {
             return result;
         }
-        AXSetVoicePriority(stream->voices[0], 0x19);
+        AXSetVoicePriority(voices[0], 0x19);
 
         use_stream_loop = 1;
         use_loop_address = 1;
-        if (stream->source_blocks_remaining == -1) {
+        if (source_blocks_remaining == -1) {
             use_stream_loop = 0;
-            if ((stream->state & 1) == 0) {
+            if ((state & 1) == 0) {
                 use_loop_address = 0;
             }
         }
 
-        if (stream->file_entry->has_secondary != 0) {
-            stream->voices[1] = AXAcquireVoice(
+        if (file_entry->has_secondary != 0) {
+            voices[1] = AXAcquireVoice(
                 0x14, AcquireVoiceCallback, (unsigned long)this);
-            if (stream->voices[1] == 0) {
-                AXFreeVoice(stream->voices[0]);
-                stream->voices[0] = 0;
+            if (voices[1] == 0) {
+                AXFreeVoice(voices[0]);
+                voices[0] = 0;
                 return result;
             }
-            AXSetVoicePriority(stream->voices[1], 0x19);
-            SPSoundEntry* primary_sound = 0;
-            SPSoundEntry* secondary_sound = 0;
+            AXSetVoicePriority(voices[1], 0x19);
+            SPSoundEntry* sound = 0;
 
-            if (stream->file_entry->sound_table != 0) {
-                primary_sound = SPGetSoundEntry(
-                    stream->file_entry->sound_table, 0);
+            if (file_entry->sound_table != 0) {
+                sound = SPGetSoundEntry(
+                    file_entry->sound_table, 0);
             }
             SetStreamVoiceSource(
-                stream->voices[0], primary_sound,
-                stream->frequency, use_stream_loop,
+                voices[0], sound,
+                frequency, use_stream_loop,
                 use_loop_address);
-            if (stream->file_entry->secondary_sound_table != 0) {
-                secondary_sound = SPGetSoundEntry(
-                    stream->file_entry->secondary_sound_table, 0);
+            sound = 0;
+            if (file_entry->secondary_sound_table != 0) {
+                sound = SPGetSoundEntry(
+                    file_entry->secondary_sound_table, 0);
             }
             SetStreamVoiceSource(
-                stream->voices[1], secondary_sound,
-                stream->frequency, use_stream_loop,
+                voices[1], sound,
+                frequency, use_stream_loop,
                 use_loop_address);
             MIXInitChannel(
-                stream->voices[0], 0, 0, -960, -960,
-                0, 0x7F, stream->mix_fader);
+                voices[0], 0, 0, -960, -960,
+                0, 0x7F, mix_fader);
             MIXInitChannel(
-                stream->voices[1], 0, 0, -960, -960,
-                0x7F, 0x7F, stream->mix_fader);
+                voices[1], 0, 0, -960, -960,
+                0x7F, 0x7F, mix_fader);
         } else {
-            SPSoundEntry* primary_sound = 0;
+            SPSoundEntry* sound = 0;
 
-            if (stream->file_entry->sound_table != 0) {
-                primary_sound = SPGetSoundEntry(
-                    stream->file_entry->sound_table, 0);
+            if (file_entry->sound_table != 0) {
+                sound = SPGetSoundEntry(
+                    file_entry->sound_table, 0);
             }
             SetStreamVoiceSource(
-                stream->voices[0], primary_sound,
-                stream->frequency, use_stream_loop,
+                voices[0], sound,
+                frequency, use_stream_loop,
                 use_loop_address);
             MIXInitChannel(
-                stream->voices[0], 0, 0, -960, -960,
-                stream->pan, stream->volume, stream->mix_fader);
+                voices[0], 0, 0, -960, -960,
+                pan, volume, mix_fader);
         }
 
-        if (stream->source_blocks_remaining == -1) {
+        if (source_blocks_remaining == -1) {
             int channel;
 
-            stream->ring_play_block = 0;
-            if (stream->ring_write_block != 0) {
-                stream->ax_end_block =
-                    stream->ring_write_block - 1;
+            ring_play_block = 0;
+            if (ring_write_block != 0) {
+                ax_end_block =
+                    ring_write_block - 1;
             } else {
-                stream->ax_end_block =
-                    stream->ring_block_count - 1;
+                ax_end_block =
+                    ring_block_count - 1;
             }
             if (use_loop_address != 0) {
-                stream->pending_ax_block = 0;
+                pending_ax_block = 0;
             } else {
-                stream->pending_ax_block = -1;
+                pending_ax_block = -1;
             }
 
             for (channel = 0;
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
-                    stream->voices[channel];
+                    voices[channel];
                 unsigned long base =
-                    stream->cache_buffers[channel] << 1;
+                    cache_buffers[channel] << 1;
                 unsigned long address;
                 unsigned long sync;
 
                 address =
                     ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
                     voice->pb.addr.currentAddressLo;
-                address += base;
+                address = base + address;
                 sync = voice->sync | 0x10000;
                 voice->pb.addr.currentAddressLo = address;
                 voice->pb.addr.currentAddressHi = address >> 16;
@@ -1378,7 +1376,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 address =
                     ((unsigned long)voice->pb.addr.endAddressHi << 16) +
                     voice->pb.addr.endAddressLo;
-                address += base;
+                address = base + address;
                 sync = voice->sync | 0x8000;
                 voice->pb.addr.endAddressLo = address;
                 voice->pb.addr.endAddressHi = address >> 16;
@@ -1390,7 +1388,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                     address =
                         ((unsigned long)voice->pb.addr.loopAddressHi << 16) +
                         voice->pb.addr.loopAddressLo;
-                    address += base;
+                    address = base + address;
                     sync = voice->sync | 0x4000;
                     voice->pb.addr.loopAddressLo = address;
                     voice->pb.addr.loopAddressHi = address >> 16;
@@ -1402,15 +1400,15 @@ int SBPlayable_Stream::iPlayPrepped(void) {
         } else {
             int channel;
 
-            stream->ax_end_block =
-                stream->ring_play_block;
-            stream->pending_ax_block = -1;
+            ax_end_block =
+                ring_play_block;
+            pending_ax_block = -1;
             for (channel = 0;
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
-                    stream->voices[channel];
+                    voices[channel];
                 unsigned long base =
-                    stream->cache_buffers[channel] << 1;
+                    cache_buffers[channel] << 1;
                 unsigned long zero;
                 unsigned long address;
                 unsigned long sync;
@@ -1424,7 +1422,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 }
 
                 address =
-                    base + (stream->segment_size << 1) - 1;
+                    base + (segment_size << 1) - 1;
                 sync = voice->sync | 0x8000;
                 voice->pb.addr.endAddressLo = address;
                 voice->pb.addr.endAddressHi = address >> 16;
@@ -1460,14 +1458,14 @@ int SBPlayable_Stream::iPlayPrepped(void) {
         }
     }
 
-    if (stream->voices[0] != 0) {
-        stream->voices_started = 1;
-        stream->crossed_stream_end = 0;
-        stream->end_of_stream = 0;
-        if (stream->at_zero_buffer == 0) {
-            AXSetVoiceState(stream->voices[0], 1);
-            if (stream->voices[1] != 0) {
-                AXSetVoiceState(stream->voices[1], 1);
+    if (voices[0] != 0) {
+        voices_started = 1;
+        crossed_stream_end = 0;
+        end_of_stream = 0;
+        if (at_zero_buffer == 0) {
+            AXSetVoiceState(voices[0], 1);
+            if (voices[1] != 0) {
+                AXSetVoiceState(voices[1], 1);
             }
         }
         result = 0;

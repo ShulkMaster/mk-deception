@@ -159,12 +159,16 @@ static inline AdxSjeIirFilter* adxsje_alloc_iir(void)
     return index < ADXSJE_MAX_FILTERS ? filter : 0;
 }
 
-static inline AdxSjePredictorFilter* adxsje_alloc_predictor(
-    s32 sample_count, AdxSjeIirFilter* iir_filter)
+static inline AdxSjePredictorFilter* adxsje_create_filter(s32 sample_count)
 {
-    s32 index;
     AdxSjePredictorFilter* filter;
+    AdxSjeIirFilter* iir_filter;
+    s32 index;
 
+    iir_filter = adxsje_alloc_iir();
+    if (iir_filter == 0) {
+        return 0;
+    }
     for (index = 0; index < ADXSJE_MAX_FILTERS; index++) {
         filter = &adxsje_prdflt_obj[index];
         if (filter->used == 0) {
@@ -179,18 +183,6 @@ static inline AdxSjePredictorFilter* adxsje_alloc_predictor(
         filter = 0;
     }
     return filter;
-}
-
-static inline AdxSjePredictorFilter* adxsje_create_filter(s32 sample_count)
-{
-    AdxSjeIirFilter* iir_filter;
-    AdxSjePredictorFilter* filter;
-
-    iir_filter = adxsje_alloc_iir();
-    if (iir_filter == 0) {
-        return 0;
-    }
-    return adxsje_alloc_predictor(sample_count, iir_filter);
 }
 
 static inline void adxsje_destroy_filter(AdxSjePredictorFilter* filter)
@@ -378,8 +370,6 @@ void ADXSJE_Destroy(AdxSjeHandle* encoder)
     }
 }
 
-/* TODO: [near miss] 99.071240%; bookkeeping BSS owners align at
- * +0/+4/+8; predictor/IIR/handle order still needs real first-use evidence. */
 AdxSjeHandle* ADXSJE_Create(s32 input_count, SJ** input, SJ* output)
 {
     s32 index;
@@ -451,8 +441,6 @@ void ADXSJE_Init(void)
     memset(adxsje_obj, 0, sizeof(adxsje_obj));
 }
 
-/* TODO: [near miss] 96.431240%; padding failure joins retail's shared exit;
- * loop-record direct returns remain until a callback-safe shared exit is found. */
 s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
 {
     s32 signature_length;
@@ -474,128 +462,127 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
         return 0;
     }
 
-    do {
-        signature = 0x8000;
-        if (adxsje_write68(&signature, 2, 1, output) != 1) break;
-        header = (s16)encoder->header_length;
-        if (adxsje_write68(&header, 2, 1, output) != 1) break;
-        value8 = (s8)encoder->encoding_type;
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        value8 = (s8)encoder->block_size;
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        value8 = (s8)encoder->bits_per_sample;
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        value8 = (s8)encoder->channel_count;
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        value32 = encoder->sample_rate;
-        if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-        value32 = encoder->total_samples;
-        if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-        value16 = (s16)encoder->cutoff_frequency;
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-        value8 = 4;
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        if (encoder->random_seed == 0) {
-            value8 = 0;
-        } else {
-            value8 = 8;
-        }
-        if (adxsje_write68(&value8, 1, 1, output) != 1) break;
-        value32 = 0;
-        if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-        value16 = encoder->initial_previous0[0];
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-        value16 = encoder->initial_previous1[0];
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-        value16 = encoder->initial_previous0[1];
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-        value16 = encoder->initial_previous1[1];
-        if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-
-        written = 0x1C;
-        if (encoder->loop_count > 0) {
-            value16 = (s16)encoder->alignment_samples;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            value16 = (s16)encoder->loop_count;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            index = 0;
-            written = 0x20;
-            for (; index < encoder->loop_count; index++) {
-                value16 = (s16)index;
-                if (adxsje_write68(&value16, 2, 1, output) != 1) return 0;
-                value16 = 1;
-                if (adxsje_write68(&value16, 2, 1, output) != 1) return 0;
-                value32 = encoder->loop_start_sample;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) return 0;
-                value32 = encoder->loop_start_offset;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) return 0;
-                value32 = encoder->loop_end_sample;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) return 0;
-                value32 = encoder->loop_end_offset;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) return 0;
-                written += 0x14;
-            }
-        }
-
-        if (encoder->ainf_enabled == 1) {
-            if (encoder->loop_count == 0) {
-                value32 = 0;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-                written += 4;
-            }
-            value32 = 0x41494E46;
-            if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-            value32 = 0x18;
-            if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-            if (adxsje_write68(encoder->ainf, 1, sizeof(encoder->ainf), output) !=
-                sizeof(encoder->ainf)) break;
-            value16 = encoder->ainf_front;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            value16 = 0;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            value16 = encoder->ainf_center;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            value16 = encoder->ainf_surround;
-            if (adxsje_write68(&value16, 2, 1, output) != 1) break;
-            written += 0x20;
-        }
-
-        if (encoder->cinf_enabled == 1) {
-            if (encoder->loop_count == 0) {
-                value32 = 0;
-                if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-                written += 4;
-            }
-            value32 = 0x43494E46;
-            if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-            value32 = encoder->cinf_length;
-            if (adxsje_write68(&value32, 4, 1, output) != 1) break;
-            written += 8;
-            if (encoder->cinf_length != 0 && encoder->cinf != 0) {
-                if (adxsje_write68(encoder->cinf, 1, encoder->cinf_length,
-                                   output) != encoder->cinf_length) {
-                    break;
-                }
-                written += encoder->cinf_length;
-            }
-        }
-
+    signature = 0x8000;
+    if (adxsje_write68(&signature, 2, 1, output) != 1) goto fail;
+    header = (s16)encoder->header_length;
+    if (adxsje_write68(&header, 2, 1, output) != 1) goto fail;
+    value8 = (s8)encoder->encoding_type;
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    value8 = (s8)encoder->block_size;
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    value8 = (s8)encoder->bits_per_sample;
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    value8 = (s8)encoder->channel_count;
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    value32 = encoder->sample_rate;
+    if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+    value32 = encoder->total_samples;
+    if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+    value16 = (s16)encoder->cutoff_frequency;
+    if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+    value8 = 4;
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    if (encoder->random_seed == 0) {
         value8 = 0;
-        limit = encoder->header_length - signature_length;
-        while (written < limit) {
-            if (adxsje_write68(&value8, 1, 1, output) != 1) {
-                break;
+    } else {
+        value8 = 8;
+    }
+    if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
+    value32 = 0;
+    if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+    value16 = encoder->initial_previous0[0];
+    if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+    value16 = encoder->initial_previous1[0];
+    if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+    value16 = encoder->initial_previous0[1];
+    if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+    value16 = encoder->initial_previous1[1];
+    if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+
+    written = 0x1C;
+    if (encoder->loop_count > 0) {
+        value16 = (s16)encoder->alignment_samples;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        value16 = (s16)encoder->loop_count;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        index = 0;
+        written = 0x20;
+        for (; index < encoder->loop_count; index++) {
+            value16 = (s16)index;
+            if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+            value16 = 1;
+            if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+            value32 = encoder->loop_start_sample;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            value32 = encoder->loop_start_offset;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            value32 = encoder->loop_end_sample;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            value32 = encoder->loop_end_offset;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            written += 0x14;
+        }
+    }
+
+    if (encoder->ainf_enabled == 1) {
+        if (encoder->loop_count == 0) {
+            value32 = 0;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            written += 4;
+        }
+        value32 = 0x41494E46;
+        if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+        value32 = 0x18;
+        if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+        if (adxsje_write68(encoder->ainf, 1, sizeof(encoder->ainf), output) !=
+            sizeof(encoder->ainf)) goto fail;
+        value16 = encoder->ainf_front;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        value16 = 0;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        value16 = encoder->ainf_center;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        value16 = encoder->ainf_surround;
+        if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
+        written += 0x20;
+    }
+
+    if (encoder->cinf_enabled == 1) {
+        if (encoder->loop_count == 0) {
+            value32 = 0;
+            if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+            written += 4;
+        }
+        value32 = 0x43494E46;
+        if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+        value32 = encoder->cinf_length;
+        if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
+        written += 8;
+        if (encoder->cinf_length != 0 && encoder->cinf != 0) {
+            if (adxsje_write68(encoder->cinf, 1, encoder->cinf_length,
+                               output) != encoder->cinf_length) {
+                goto fail;
             }
-            written++;
+            written += encoder->cinf_length;
         }
-        if (written < limit) break;
-        if (adxsje_write68(cri_str, 1, signature_length, output) !=
-            signature_length) {
-            break;
+    }
+
+    value8 = 0;
+    limit = encoder->header_length - signature_length;
+    while (written < limit) {
+        if (adxsje_write68(&value8, 1, 1, output) != 1) {
+            goto fail;
         }
-        written += signature_length;
-        return written + 4;
-    } while (0);
+        written++;
+    }
+    if (adxsje_write68(cri_str, 1, signature_length, output) !=
+        signature_length) {
+        goto fail;
+    }
+    written += signature_length;
+    return written + 4;
+
+fail:
     return 0;
 }
 
@@ -899,35 +886,31 @@ static inline s16 adxsje_clamp_iir_s16(s32 value)
                      : 0x7FFF);
 }
 
-static inline void adxsje_iirflt_exec(AdxSjeIirFilter* filter, s16 sample)
+static inline void adxsje_iirflt_exec(AdxSjeIirFilter* filter, s32 sample)
 {
     s32 value;
-    s16 previous0;
     s16 output_sample;
 
     if (filter == 0) {
         return;
     }
-    previous0 = filter->previous0;
     value = sample +
-        ((filter->coefficient0 * previous0 +
+        ((filter->coefficient0 * filter->previous0 +
           filter->coefficient1 * filter->previous1) >> 12);
     output_sample = adxsje_clamp_iir_s16(value);
-    filter->previous1 = previous0;
+    filter->previous1 = filter->previous0;
     filter->previous0 = output_sample;
 }
 
-/* TODO: [near miss] 98.990200%; typed initial history and donor FP order
- * agree; entry address setup retains two insertions/three deletions. */
 s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
 {
+    s16 sample;
+    s16* samples;
     s32 index;
     s32 value;
     s32 code;
     s32 residual;
-    s16 sample;
     s16 clipped;
-    s16 reconstructed;
     s16 initial_previous0;
     s16 initial_previous1;
     AdxSjePredictorFilter* filter;
@@ -939,8 +922,9 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     iir_filter = filter->iir_filter;
     adxsje_prdflt_set_hist(
         filter, initial_previous0, initial_previous1);
+    samples = encoder->samples[channel];
     for (index = 0; index < encoder->block_samples; index++) {
-        sample = encoder->samples[channel][index];
+        sample = samples[index];
         adxsje_prdflt_exec(filter, sample, index);
     }
 
@@ -957,8 +941,9 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
 
     adxsje_iirflt_set_hist(
         filter->iir_filter, encoder->previous0[channel], encoder->previous1[channel]);
-    for (index = 0; index < encoder->block_samples; index++) {
-        sample = encoder->samples[channel][index];
+    samples = encoder->samples[channel];
+    for (index = 0; index < encoder->block_samples; samples++, index++) {
+        sample = *samples;
         adxsje_prdflt_set_hist(
             filter, iir_filter->previous0, iir_filter->previous1);
         adxsje_prdflt_exec(filter, sample, index);
@@ -973,8 +958,8 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
         }
         code = adxsje_clamp_code(code);
         filter->code[index] = (s8)code;
-        reconstructed = adxsje_clamp_to_s16(code * filter->scale);
-        adxsje_iirflt_exec(filter->iir_filter, reconstructed);
+        adxsje_iirflt_exec(filter->iir_filter,
+                           adxsje_clamp_to_s16(code * filter->scale));
     }
     return 0;
 }

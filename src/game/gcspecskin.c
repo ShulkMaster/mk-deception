@@ -151,7 +151,6 @@ RxPipeline* _rpDlAtomicPipelineCreate(
     RpSkinInstanceCallback reinstance_callback,
     RpSkinLightingCallback lighting_callback,
     RpSkinRenderCallback render_callback);
-void SpecularMaterialCalcMatrix(void*);
 void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
 void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
@@ -179,26 +178,22 @@ static float oldZFar;
 static float oldZNear;
 static float lastZOffset;
 
-/*
- * RenderWare plugin offsets are assigned at runtime. Centralize the portable
- * byte-based lookup so material/geometry/atomic consumers remain typed.
- */
 static inline void* rw_plugin_data(void* owner, int offset) {
     return (unsigned char*)owner + offset;
 }
 
 static inline SpecularMaterialPluginData* specular_data(RpMaterial* material) {
-    return (SpecularMaterialPluginData*)rw_plugin_data(
+    return rw_plugin_data(
         material, SpecularMaterialOffset);
 }
 
 static inline MkmaterialPluginData* mkmaterial_data(RpMaterial* material) {
-    return (MkmaterialPluginData*)rw_plugin_data(
+    return rw_plugin_data(
         material, MkmaterialLocalOffset);
 }
 
 static inline SpecularGeometryData* specular_geometry(RpGeometry* geometry) {
-    return (SpecularGeometryData*)rw_plugin_data(
+    return rw_plugin_data(
         geometry, SpecularGeometryOffset);
 }
 
@@ -207,16 +202,15 @@ static inline void* geometry_vertex_format(RpGeometry* geometry) {
 }
 
 static inline MksobjPluginData* mksobj_data(RpAtomic* atomic) {
-    return (MksobjPluginData*)rw_plugin_data(atomic, MksobjLocalOffset);
+    return rw_plugin_data(atomic, MksobjLocalOffset);
 }
 
 static inline SpecLight* light_from_link(RwLLLink* link) {
-    return (SpecLight*)((unsigned char*)link -
-        (sizeof(SpecLight) - sizeof(RwLLLink)));
+    return RW_CONTAINER_OF(link, SpecLight, in_world);
 }
 
 static inline signed char color_component(float value) {
-    return (signed char)value;
+    return value;
 }
 
 static inline GXColor scaled_light_color(
@@ -235,7 +229,7 @@ static inline GXColor scaled_light_color(
     return color;
 }
 
-/* Soft ceiling: 87.11% -- color-conversion FPR and aggregate scheduling remain. */
+/* TODO: [near miss] 87.11%; color conversion FPR and aggregate scheduling remains. */
 void ProcessSpecularity(
     RpMaterial* material,
     int has_texture,
@@ -271,7 +265,7 @@ void ProcessSpecularity(
     color.a = 0xFF;
     GXSetTevColor(3, color);
 
-    GXSetNumTexGens((unsigned char)(tex_coord + 1));
+    GXSetNumTexGens(tex_coord + 1);
     GXSetTexCoordGen2(tex_coord, 1, 1, 0x39, 0, 0x7D);
     {
         RwTexture* texture = specular->texture;
@@ -282,14 +276,14 @@ void ProcessSpecularity(
     GXSetTevOrder(tev_stage, tex_coord, specTexNum, 0xFF);
     GXSetTevSwapMode(tev_stage, 0, 0);
     GXSetNumTevStages(
-        (unsigned char)((unsigned char)tev_stage + 1));
+        (unsigned char)tev_stage + 1);
     GXSetTevColorIn(tev_stage, 0xF, 8, 6, 0);
     GXSetTevColorOp(tev_stage, 0, 0, 0, 1, 0);
     GXSetTevAlphaIn(tev_stage, 7, 7, 7, 0);
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* Soft ceiling: 71.08% -- GXBool narrowing also changes the frame and NV homes. */
+/* TODO: [breakthrough needed] 71.08%; GXBool narrowing changes frame and nonvolatile homes; inspect ABI. */
 void CleanupSpecularity(
     RpMaterial* material, int has_texture, unsigned int has_specularity) {
     SpecularMaterialPluginData* specular;
@@ -324,7 +318,7 @@ void SetupAtomicSpecularity(RpAtomic* atomic) {
     inverse.flags = 0x20003;
     RwMatrixInvert(&inverse, &SpecularMatrix);
     RwMatrixMultiply(
-        &combined, RwFrameGetLTM((RwFrame*)atomic->object.parent), &inverse);
+        &combined, RwFrameGetLTM(atomic->object.parent), &inverse);
 
     texture_matrix[0][0] = -0.5f * -combined.right.x;
     texture_matrix[0][1] = -0.5f * -combined.up.x;
@@ -368,7 +362,7 @@ static inline SpecSkinData* prepare_skin_render(
 
     resource->display_resource->header.token = _RwDlTokenCurrent;
     vertex_format = geometry_vertex_format(atomic->geometry);
-    atomic_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+    atomic_ltm = RwFrameGetLTM(atomic->object.parent);
     _rwDlVtxFmtSetup(vertex_format, resource);
 
     skin = (SpecSkinData*)RpSkinGeometryGetSkin(atomic->geometry);
@@ -395,14 +389,14 @@ static inline SpecSkinData* prepare_skin_render(
     return skin;
 }
 
-/* Soft ceiling: 97.74% -- callback nonvolatile allocation remains. */
+/* TODO: [near miss] 97.74%; callback nonvolatile register allocation remains. */
 static RpAtomic* MKReflectionRenderCallback(
     RpAtomic* atomic, SpecResourceEntry* resource) {
     prepare_skin_render(atomic, resource);
     return atomic;
 }
 
-/* Soft ceiling: 98.65% -- viewport/state scheduling remains. */
+/* TODO: [near miss] 98.65%; viewport and state scheduling remains. */
 static RpAtomic* MKSpecSkinRenderCallback(
     RpAtomic* atomic, SpecResourceEntry* resource) {
     SpecCamera* camera;
@@ -416,10 +410,10 @@ static RpAtomic* MKSpecSkinRenderCallback(
 
     prepare_skin_render(atomic, resource);
 
-    camera = (SpecCamera*)RwEngineInstance->curCamera;
+    camera = RwEngineInstance->curCamera;
     RwMatrixMultiply(
         &object_to_camera,
-        RwFrameGetLTM((RwFrame*)atomic->object.parent),
+        RwFrameGetLTM(atomic->object.parent),
         &camera->view_matrix);
     z_dist = object_to_camera.pos.z;
     z_near = camera->near_plane;
@@ -474,7 +468,7 @@ static inline void upload_material_transform(
                 bLastMatUploadedRoot = 1;
                 transform = &palette->matrix[material_number];
             } else {
-                transform = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+                transform = RwFrameGetLTM(atomic->object.parent);
                 bLastMatUploadedRoot = 0;
             }
             _rwDlTransformSetup(transform, 1);
@@ -497,7 +491,7 @@ static inline void draw_spec_mesh(
         GCSpecSkinMaterialNoSpecmap(mesh);
     }
 
-    display_index = (unsigned int)(mesh - first_mesh);
+    display_index = mesh - first_mesh;
     GXCallDisplayList(
         display_lists[display_index].data,
         display_lists[display_index].size);
@@ -513,10 +507,7 @@ static inline int* spec_priority_slot(
     return (int*)((unsigned char*)base + byte_offset);
 }
 
-/*
- * Soft ceiling: 94.21% -- retail pass/sort/loop CFG and accesses are aligned;
- * the residue is repeated inlined-helper register and load scheduling.
- */
+/* TODO: [near miss] 94.21%; inlined helper register and load scheduling remains. */
 static void SpecSkinProcessMaterialList(
     RpAtomic* atomic, SpecResourceEntry* resource) {
     SpecMesh* alpha_meshes[64];
@@ -674,7 +665,7 @@ static inline void setup_uv_transform(RwMatrix* base_transform) {
 }
 
 static inline signed char float_color_component(float value) {
-    return (signed char)(int)value;
+    return (int)value;
 }
 
 static inline void setup_material_channels(
@@ -715,7 +706,7 @@ static inline void setup_base_z_compare(RwTexture* texture) {
     }
 }
 
-/* Soft ceiling: 90.39% -- channel aggregates and specular-color scheduling remain. */
+/* TODO: [near miss] 90.96%; channel aggregate and specular color scheduling remains. */
 static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
     RpMaterial* material = mesh->material;
     SpecularMaterialPluginData* specular = specular_data(material);
@@ -771,7 +762,7 @@ static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
     GXSetTevAlphaIn(1, 7, 7, 7, 0);
 }
 
-/* Soft ceiling: 93.01% -- retail alpha-pass TEV programs are aligned; scheduling remains. */
+/* TODO: [near miss] 93.39%; alpha-pass TEV scheduling remains. */
 static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
     RpMaterial* material = mesh->material;
     SpecularMaterialPluginData* specular = specular_data(material);
@@ -865,7 +856,7 @@ static inline void find_spec_lights(RwGlobals* engine) {
     pDirLight1 = 0;
     pDirLight2 = 0;
     pAmbLight = 0;
-    world = (SpecWorld*)engine->curWorld;
+    world = engine->curWorld;
     if (world != 0) {
         for (link = world->directional_lights.next;
              link != &world->directional_lights;
@@ -896,7 +887,7 @@ static inline void find_spec_lights(RwGlobals* engine) {
 
     pPointLight1 = 0;
     pPointLight2 = 0;
-    world = (SpecWorld*)engine->curWorld;
+    world = engine->curWorld;
     if (world != 0) {
         for (link = world->point_lights.next;
              link != &world->point_lights;
@@ -992,9 +983,9 @@ static inline void upload_point_light(
         -1048576.0f * (delta->y * inverse_distance),
         -1048576.0f * -(delta->z * inverse_distance));
     color_scale = 255.0f * intensity;
-    red = (int)(light->color.red * color_scale);
-    green = (int)(light->color.green * color_scale);
-    blue = (int)(light->color.blue * color_scale);
+    red = (light->color.red * color_scale);
+    green = (light->color.green * color_scale);
+    blue = (light->color.blue * color_scale);
     color.r = (signed char)red;
     color.g = (signed char)green;
     color.b = (signed char)blue;
@@ -1031,9 +1022,9 @@ static inline void upload_directional_light(
         -1048576.0f * direction.y,
         -1048576.0f * -direction.z);
     color_scale = 255.0f * intensity;
-    red = (int)(light->color.red * color_scale);
-    green = (int)(light->color.green * color_scale);
-    blue = (int)(light->color.blue * color_scale);
+    red = (light->color.red * color_scale);
+    green = (light->color.green * color_scale);
+    blue = (light->color.blue * color_scale);
     color.r = (signed char)red;
     color.g = (signed char)green;
     color.b = (signed char)blue;
@@ -1044,7 +1035,7 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* Soft ceiling: 91.50% -- repeated light-upload FPR/GPR scheduling remains. */
+/* TODO: [near miss] 91.50%; light-upload register scheduling remains; check honest lifetimes. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, SpecLightingData* lighting) {
     RpMaterial* specular_material;
@@ -1073,9 +1064,9 @@ static RpAtomic* GCSpecSkinLighting(
 
     RwMatrixInvert(
         &cachedInverseAtomicLTM,
-        RwFrameGetLTM((RwFrame*)atomic->object.parent));
+        RwFrameGetLTM(atomic->object.parent));
     specular_material = atomic->geometry->matList.materials[0];
-    if (((unsigned int)atomic->geometry->flags | 0x20U) != 0) {
+    if ((atomic->geometry->flags | 0x20U) != 0) {
     find_spec_lights(RwEngineInstance);
 
     if (pAmbLight != 0) {
@@ -1089,7 +1080,7 @@ static RpAtomic* GCSpecSkinLighting(
     directional_intensity = 1.0f;
     point1 = pPointLight1;
     if (point1 != 0) {
-        atomic_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+        atomic_ltm = RwFrameGetLTM(atomic->object.parent);
         light_ltm = RwFrameGetLTM(point1->frame);
         point1_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
         point1_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
@@ -1155,7 +1146,7 @@ static RpAtomic* GCSpecSkinLighting(
         RwMatrixInvert(&inverse_specular, &SpecularMatrix);
         RwMatrixMultiply(
             &combined,
-            RwFrameGetLTM((RwFrame*)atomic->object.parent),
+            RwFrameGetLTM(atomic->object.parent),
             &inverse_specular);
         texture_matrix[0][0] = -0.5f * -combined.right.x;
         texture_matrix[0][1] = -0.5f * -combined.up.x;

@@ -34,10 +34,6 @@ typedef struct ConstrainObstacleVtable {
     void (*destroy)(ArenaObstacle*);
 } ConstrainObstacleVtable;
 
-MkHdr* not_mkproc(MkHdr* hdr);
-MkHdr* not_mkpdata(MkHdr* hdr);
-MkHdr* not_mksobj(MkHdr* hdr);
-int not_mkmaterial(void);
 void vdestroy_obstacle(ArenaObstacle* obstacle);
 
 MkVtable5 vtbl_obstacle = {
@@ -59,9 +55,9 @@ static ObstacleInfo obstacle_info_table[8] = {
     {7, 0x100, 0x1FF},
 };
 
-extern ConstrainState constrain_state;
-extern Vec tightrope_perp_uv;
-extern Vec tightrope_uv;
+ConstrainState constrain_state;
+Vec tightrope_perp_uv;
+Vec tightrope_uv;
 static int tightrope_set_this_tick;
 static float tightrope_dist;
 ConstrainInfo constrain_info;
@@ -84,8 +80,6 @@ static float dist_from_plyr_pos_to_arena_edge(
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius);
 CollisionObj* get_collision_obj(void);
-void collision_obj_set_shape(
-    CollisionObj* object, const CollisionShape* shape);
 float repel_check_plyrs(void);
 int player_is_stationary(PlyrPdata* player);
 void bgnd_clear_danger_zone_callback(PlyrPdata* player);
@@ -167,18 +161,14 @@ static inline int player_ignores_obstacles(const PlyrPdata* player) {
 #define CONSTRAIN_P1_PDATA (g_game_info.plyr0.slot.pdata)
 #define CONSTRAIN_P2_PDATA (g_game_info.plyr1.slot.pdata)
 
-/* TODO: [near miss] 99.166664%; stale-link and flag registers differ;
- * successor helper was neutral; stop at coloring. */
 void set_background_obstacle_disable_flag(
     int obstacle_id, int disabled) {
     MkPtr* link;
     MkPtr* next;
     ArenaObstacle* obstacle;
-    unsigned char disable_flag;
 
     if (&constrain_info != 0) {
         link = constrain_info.obstacles;
-        disable_flag = (unsigned char)disabled;
         while (link != 0) {
             obstacle = (ArenaObstacle*)link->hdr;
             if (link->instance != obstacle->hdr.instance) {
@@ -188,7 +178,7 @@ void set_background_obstacle_disable_flag(
                 link = next;
             } else {
                 if ((int)obstacle->obstacle_id == obstacle_id) {
-                    obstacle->flags.bits.disabled = disable_flag;
+                    obstacle->flags.bits.disabled = disabled;
                 }
                 link = link->next;
             }
@@ -354,7 +344,7 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     constrain_info.obstacles = 0;
 
     if (background->obstacle_data != 0) {
-        if ((int)mode_of_play == 10) {
+        if (mode_of_play == 10) {
             generate_obstacles(0x8003D, background->obstacle_data, &constrain_info);
         } else {
             generate_obstacles(0x2001E, background->obstacle_data, &constrain_info);
@@ -497,50 +487,40 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [breakthrough needed] 75.14286%; independently named BSS owners retain address-formation and repeated-clear differences. */
+/* TODO: [near miss] 96.32%; tightrope vectors now section-relative like retail; perp/uv .bss placement swapped and flags stack copy differ. */
 void start_constrain_proc(void) {
-    ConstrainState* state;
-    Vec* perpendicular;
-    Vec* axis;
-    int flags;
     int proc_flags;
 
-    flags = 0;
+    proc_flags = 0;
     if (find_mkproc_pid(0x1003) == 0) {
-        proc_flags = flags;
         create_mkproc(
             0x1A, get_mkproc_nostack(&proc_flags), 0x1003,
             p_constrain_players, 0);
 
-        state = &constrain_state;
-        perpendicular = &tightrope_perp_uv;
-        axis = &tightrope_uv;
-
-        perpendicular->z = 0.0f;
-        perpendicular->y = 0.0f;
-        perpendicular->x = 0.0f;
+        tightrope_perp_uv.z = 0.0f;
+        tightrope_perp_uv.y = 0.0f;
+        tightrope_perp_uv.x = 0.0f;
         tightrope_dist = 0.0f;
-        state->player[0].projection = 0.0f;
-        state->player[1].projection = 0.0f;
-        state->separated = 0;
+        constrain_state.player[0].projection = 0.0f;
+        constrain_state.player[1].projection = 0.0f;
+        constrain_state.separated = 0;
         p1_hit_side_of_arena = 0;
         p2_hit_side_of_arena = 0;
         update_tr_due_to_arena_edge = 0;
-        axis->z = 0.0f;
-        axis->y = 0.0f;
-        axis->x = 0.0f;
+        tightrope_uv.z = 0.0f;
+        tightrope_uv.y = 0.0f;
+        tightrope_uv.x = 0.0f;
 
-        /* Retail repeats this clear after initializing the tightrope axis. */
-        perpendicular->z = 0.0f;
-        perpendicular->y = 0.0f;
-        perpendicular->x = 0.0f;
+        tightrope_perp_uv.z = 0.0f;
+        tightrope_perp_uv.y = 0.0f;
+        tightrope_perp_uv.x = 0.0f;
 
-        state->player[0].position.z = 0.0f;
-        state->player[0].position.y = 0.0f;
-        state->player[0].position.x = 0.0f;
-        state->player[1].position.z = 0.0f;
-        state->player[1].position.y = 0.0f;
-        state->player[1].position.x = 0.0f;
+        constrain_state.player[0].position.z = 0.0f;
+        constrain_state.player[0].position.y = 0.0f;
+        constrain_state.player[0].position.x = 0.0f;
+        constrain_state.player[1].position.z = 0.0f;
+        constrain_state.player[1].position.y = 0.0f;
+        constrain_state.player[1].position.x = 0.0f;
         tightrope_set = 0;
     }
 }
@@ -674,11 +654,7 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: repel_players ~94.38% - the remaining differences are FPR
- * allocation, one equivalent absolute-value branch, and two instructions.
- * Retail intentionally remembers only negative wall penetration.
- */
+/* TODO: [near miss] 94.38%; FPR allocation, one absolute-value branch and two instructions differ. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;
@@ -733,7 +709,6 @@ static void repel_players(void) {
         projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
         distance = projection_1 - projection_2;
         if (distance >= 0.0f) {
-            /* Keep the positive distance. */
         } else {
             distance = -distance;
         }
@@ -856,11 +831,7 @@ static void repel_players(void) {
     }
 }
 
-/*
- * Soft ceiling: keep_players_on_tightrope ~90.37% - remaining differences
- * are the duplicated retail null checks and NV coloring around vector
- * publication and the adjustment calls.
- */
+/* TODO: [near miss] 90.36%; duplicated retail null checks and NV coloring around vector publication and the adjustment calls. */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;

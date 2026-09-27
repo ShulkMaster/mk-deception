@@ -155,14 +155,6 @@ typedef struct KonquestRoomSobj {
     const char* name;
 } KonquestRoomSobj;
 
-/*
- * Retail pools the ten zero-Vec literal templates in reverse function order
- * and shares one triple between two functions (10 objects vs our 13), and
- * orders two @stringBase0 strings ("standard_ir_exit" before "BACKGROUND")
- * against first-use order; neither is reproduced by this compiler invocation
- * from any source ordering tried, so .rodata is layout-off while every other
- * data section is byte-exact.
- */
 static KonquestRoomSobj room_sobj_list[] = {
     {0x01, 0},
     {0x05, 0},
@@ -286,12 +278,8 @@ void start_hero_collisions(void);
 void fade_to_black(int ticks, int flags);
 void fade_from_black(int ticks, int flags);
 void set_monk_position(float x, float y, float z, float angle);
-void destroy_list(MkPtr** list);
 void remove_fgnd_mkobj(void* object);
-void xfer_camera(MkProcEntryFn entry, int immediate);
 void resume_weather_effects(KonquestInteriorSaveData* save);
-unsigned int get_row_count_for_table_by_pointer(
-    ScriptSlot* script, void* table);
 KonquestNpcRecord* find_npc_by_data(int npc_data);
 void remove_npc(int npc_data);
 static void remove_interior_room_objects(void);
@@ -305,7 +293,6 @@ void pop_game_state(int state);
 void trigger_update(int force);
 void npc_update(int force);
 float p_konquest_loop(void);
-float p_idle(void);
 float konquest_camera_loop(void);
 
 extern MkPtr* special_light_list;
@@ -322,7 +309,7 @@ int is_pui_in_current_interior(const void* pui) {
     items = konq_interior_save_data.current_interior->items;
     if (items != 0 && items != 0) {
         count = get_row_count_for_table_by_pointer(
-            konquest_pdata->script_owner, (void*)items);
+            konquest_pdata->script_owner, items);
         for (index = 0; index < count; ++index) {
             if (items[index] == pui) {
                 return 1;
@@ -332,11 +319,7 @@ int is_pui_in_current_interior(const void* pui) {
     return 0;
 }
 
-/*
- * Soft ceiling: turn_to_face_interior_door ~97.6% -- FPR scratch rotation in
- * the delta/inv-sqrt block and one uncoalesced mr in the hero latch; ops,
- * branches, and size match retail; stop.
- */
+/* TODO: [near miss] 97.61%; FPR scratch rotation in the delta/inv-sqrt block and one uncoalesced mr in the hero latch. */
 void turn_to_face_interior_door(void) {
     Vec delta = {0.0f, 0.0f, 0.0f};
     Vec direction;
@@ -398,11 +381,7 @@ void turn_to_face_interior_door(void) {
     update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
 }
 
-/*
- * Soft ceiling: close_exterior_doors ~98.0% -- retail keeps an unfused
- * "bne +8; b exit" on the definition null test; every honest shape tried
- * fuses it to the inverted beq. 53/55 rows match; stop.
- */
+/* TODO: [near miss] 98.00%; retail keeps an unfused 'bne +8; b exit' on the definition null test; nested, ||, helper and size-opt shapes tried. */
 void close_exterior_doors(int building_id, int door_bits) {
     int door_enum;
     void* building;
@@ -486,11 +465,7 @@ int get_building_id_for_exterior(void) {
     return konq_interior_save_data.building_id;
 }
 
-/*
- * Soft ceiling: setup_interior_fighting_arena ~96.7% -- nonvolatile register
- * permutation (rec/object/entry homes) with identical operations and
- * structure; declaration-order changes only rotate it; stop.
- */
+/* TODO: [near miss] 96.72%; nonvolatile register permutation (rec/object/entry homes); declaration order only rotates it. */
 void setup_interior_fighting_arena(void) {
     KonquestRoomObject* rec;
     KonquestRoomSobj* entry;
@@ -698,7 +673,7 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
                     }
                     if (name != 0) {
                         artid = get_artid_of_named_item_in_slot(
-                            0xA002F, (char*)name, 1);
+                            0xA002F, name, 1);
                         generate_collision_objects(
                             0xA002F, artid, &position, &angle,
                             &rec->collision_list);
@@ -712,11 +687,7 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
     interior_object->flags_08_bits.bit7 = 1;
 }
 
-/*
- * Soft ceiling: remove_interior_room_objects ~96.8% -- nonvolatile register
- * permutation plus one uncoalesced entry-pointer mr; operations and CFG are
- * retail-exact; stop.
- */
+/* TODO: [near miss] 96.76%; nonvolatile register permutation plus one uncoalesced entry-pointer mr. */
 static void remove_interior_room_objects(void) {
     KonquestRoomObject* rec;
     MkObj* interior_object = konq_interior_save_data.interior_object;
@@ -850,10 +821,8 @@ static float p_konq_interior_exit_point(void) {
 
     destroy_list(&bgnd_light_list);
     destroy_list(&special_light_list);
-    bgnd_light_list =
-        (MkPtr*)konq_interior_save_data.background_lights;
-    special_light_list =
-        (MkPtr*)konq_interior_save_data.special_lights;
+    bgnd_light_list = konq_interior_save_data.background_lights;
+    special_light_list = konq_interior_save_data.special_lights;
 
     if (interior_object != 0) {
         remove_fgnd_mkobj(interior_object);
@@ -1000,7 +969,6 @@ static inline CameraObj* camera_live_node(CameraItem* owner) {
     return object;
 }
 
-/* The camera block expands set_interior_cam_pos_and_ang inline; retail has no call. */
 /* TODO: [near miss] 99.441500%; relocation offsets, register coloring; one-trial ceiling. */
 static float p_konq_interior_entry_point(void) {
     MkObj* hero = interior_live_hero_object(konquest_pdata);
@@ -1234,12 +1202,7 @@ static float p_konq_interior_entry_point(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: start_konquest_interior ~96.1% -- the found-flag init is not
- * sunk to the search-loop exit (retail shares the idp register for both) and
- * NV homes shift; structure, calls, and both id-list walks match retail;
- * stop.
- */
+/* TODO: [near miss] 96.08%; found-flag init is not sunk to the search-loop exit (retail shares the idp register) and NV homes shift. */
 void start_konquest_interior(
     KonquestInteriorRoom* interior, KonquestRoomObject* script_objects,
     const void** items, int* npc_data,

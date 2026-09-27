@@ -360,7 +360,7 @@ void set_konq_profile_value(int type, int index, int value) {
         if (value >= 0xFF) {
             return;
         }
-        p1_profile_konquest->trained_characters[index] = (unsigned char)value;
+        p1_profile_konquest->trained_characters[index] = value;
         return;
     case 6:
         if (index < 0) {
@@ -426,7 +426,7 @@ void set_konq_profile_value(int type, int index, int value) {
         if (value >= 0xFF) {
             return;
         }
-        p1_profile_konquest->konquest_bytes[index] = (unsigned char)value;
+        p1_profile_konquest->konquest_bytes[index] = value;
         return;
     }
 }

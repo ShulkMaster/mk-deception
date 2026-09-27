@@ -476,24 +476,14 @@ static inline void pz_fighter_begin_super_move(void) {
     pz_fighter_kill_global_projectile();
 }
 
-/*
- * Near match: 93.24%, retail 0x11A4/current 0x1178. All 26 retail event cases,
- * persistent board-spread state, repeated float-to-unsigned conversions,
- * individually updated start flags, vector initialization, model/effect setup,
- * super/fatality transitions, and immediate requests are recovered. Remaining
- * differences are stack/GPR allocation, typed queue/reaction-slot induction,
- * equivalent structured joins, and local relocation labels.
- */
-/* TODO: [near miss] 94.38884%; signed winner snapshot trial regressed; retain compact-save CFG and stop at queue/relocation lowering. */
+/* TODO: [near miss] 98.34%; case 11 round_running/pending stores order, case 1 constraint-axis constant loads, case 20 Vec stack slots remain. */
 void pz_fighter_event(PuzzleFighterEvent* event) {
-    PuzzleFightersEngine* engine;
     unsigned int block_count;
     unsigned int chain_count;
 
     switch (event->type) {
     case 15:
-        engine = &g_pz_fighters_engine;
-        engine->start_flag_bits.enabled = 0;
+        g_pz_fighters_engine.start_flag_bits.enabled = 0;
         pz_fighters_fatality_unload();
         break;
     case 1:
@@ -632,7 +622,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         set_ani_texture_framerate(g_pz_fighters_engine.texture_controls[0], 1.0f);
         pull_screen_obj(g_pz_fighters_engine.screen_objects[0]);
         pull_ani_texture_control(g_pz_fighters_engine.texture_controls[0]);
-        g_pz_fighters_engine.screen_objects[0]->flag_bits.hidden = 1;
+        g_pz_fighters_engine.screen_objects[0]->flag_bits.scaled = 1;
         g_pz_fighters_engine.screen_objects[0]->scale_x = 0.5f;
         g_pz_fighters_engine.screen_objects[0]->scale_y = 0.5f;
 
@@ -680,20 +670,18 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             (unsigned int)event->block_count);
         break;
     case 0:
-        engine = &g_pz_fighters_engine;
-        engine->round_running = 1;
-        engine->super_move_active = 0;
-        engine->balance_update_timer = 180;
+        g_pz_fighters_engine.round_running = 1;
+        g_pz_fighters_engine.super_move_active = 0;
+        g_pz_fighters_engine.balance_update_timer = 180;
         pz_fighters_fatality_normal_fighting(1);
-        engine->start_flag_bits.player0_started = 0;
-        engine->start_flag_bits.player1_started = 0;
-        engine->field_1B4 = 0;
-        engine->field_1D8 = 0;
-        engine->constraint_timer = 0;
+        g_pz_fighters_engine.start_flag_bits.player0_started = 0;
+        g_pz_fighters_engine.start_flag_bits.player1_started = 0;
+        g_pz_fighters_engine.field_1B4 = 0;
+        g_pz_fighters_engine.field_1D8 = 0;
+        g_pz_fighters_engine.constraint_timer = 0;
         break;
     case 2:
-        engine = &g_pz_fighters_engine;
-        engine->round_running = 0;
+        g_pz_fighters_engine.round_running = 0;
         pz_fighters_fatality_normal_fighting(0);
         break;
     case 3:
@@ -705,52 +693,48 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
     {
         PuzzleFighterMove pending;
 
-        engine = &g_pz_fighters_engine;
-        engine->round_running = 1;
-        engine->pending_move_count = 0;
-        pending.event_type = 2;
-        pending.block_count = 0.0f;
-        pending.chain_count = 0.0f;
-        pending.mode = 16;
-        pending.player = event->player;
-        if (engine->pending_move_count < 2) {
+        g_pz_fighters_engine.round_running = 1;
+        g_pz_fighters_engine.pending_move_count = 0;
+        if (g_pz_fighters_engine.pending_move_count < 2) {
+            pending.event_type = 2;
+            pending.block_count = 0.0f;
+            pending.chain_count = 0.0f;
+            pending.mode = 16;
+            pending.player = event->player;
             memcpy(
-                &engine->pending_moves[engine->pending_move_count],
+                &g_pz_fighters_engine.pending_moves[g_pz_fighters_engine.pending_move_count],
                 &pending, sizeof(pending));
-            engine->pending_move_count++;
+            g_pz_fighters_engine.pending_move_count++;
         }
         pz_fighter_begin_super_move();
         break;
     }
     case 14:
-        engine = &g_pz_fighters_engine;
-        engine->pending_move_count = 0;
+        g_pz_fighters_engine.pending_move_count = 0;
         pz_fighter_begin_super_move();
         if (event->player == 0) {
-            engine->fatality_attacker = 1;
+            g_pz_fighters_engine.fatality_attacker = 1;
             puzzle_player_pdata(1)->fatality_shove_active = 1;
         } else {
-            engine->fatality_attacker = 0;
+            g_pz_fighters_engine.fatality_attacker = 0;
             puzzle_player_pdata(0)->fatality_shove_active = 1;
         }
         break;
     case 10:
-        engine = &g_pz_fighters_engine;
         pz_fighter_breakout_of_random_fatality();
-        engine->round_running = 0;
-        engine->fatality_abort = 1;
-        engine->fatality_active = 0;
-        engine->fatality_victim = event->player;
-        engine->fatality_ready = 0;
+        g_pz_fighters_engine.round_running = 0;
+        g_pz_fighters_engine.fatality_abort = 1;
+        g_pz_fighters_engine.fatality_active = 0;
+        g_pz_fighters_engine.fatality_victim = event->player;
+        g_pz_fighters_engine.fatality_ready = 0;
         pz_fighters_fatality_start(
-            event->player, engine->fatality_attacker);
+            event->player, g_pz_fighters_engine.fatality_attacker);
         break;
     case 4:
-        engine = &g_pz_fighters_engine;
-        engine->pending_balance = event->block_count;
-        if (event->block_count - engine->balance > 0.05f ||
-            event->block_count - engine->balance < -0.05f) {
-            engine->balance_update_timer = 1;
+        g_pz_fighters_engine.pending_balance = event->block_count;
+        if (event->block_count - g_pz_fighters_engine.balance > 0.05f ||
+            event->block_count - g_pz_fighters_engine.balance < -0.05f) {
+            g_pz_fighters_engine.balance_update_timer = 1;
         }
         break;
     case 5:
@@ -772,7 +756,6 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighter_fight_request(event->player, 0, 0, 7);
         break;
     case 6:
-        engine = &g_pz_fighters_engine;
         block_count = (unsigned int)event->block_count;
         chain_count = (unsigned int)event->chain_count;
         pz_fighter_check_board_spread(
@@ -780,34 +763,35 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighter_fight_request(
             event->player, (unsigned int)event->block_count,
             (unsigned int)event->chain_count, 1);
-        engine->start_flag_bits.player0_started = 1;
-        engine->start_flag_bits.player1_started = 1;
+        g_pz_fighters_engine.start_flag_bits.player0_started = 1;
+        g_pz_fighters_engine.start_flag_bits.player1_started = 1;
         break;
     case 12:
-        engine = &g_pz_fighters_engine;
         if (event->block_count > 0.0f) {
             int winner;
 
             winner = puzzle_fighter_plyr_winning_big_based_on_points();
-            if (event->player == winner && event->player == 0 &&
-                engine->start_flag_bits.player0_scored == 0) {
-                pz_fighter_fight_request(event->player, 0, 0, 9);
-                engine->start_flag_bits.player0_scored = 1;
-                break;
-            }
-            if (event->player == winner && event->player == 1 &&
-                engine->start_flag_bits.player1_scored == 0) {
-                pz_fighter_fight_request(event->player, 0, 0, 9);
-                engine->start_flag_bits.player1_scored = 1;
-                break;
+            if (event->player == winner) {
+                if (event->player == 0 &&
+                    g_pz_fighters_engine.start_flag_bits.player0_scored == 0) {
+                    pz_fighter_fight_request(event->player, 0, 0, 9);
+                    g_pz_fighters_engine.start_flag_bits.player0_scored = 1;
+                    break;
+                }
+                if (event->player == 1 &&
+                    g_pz_fighters_engine.start_flag_bits.player1_scored == 0) {
+                    pz_fighter_fight_request(event->player, 0, 0, 9);
+                    g_pz_fighters_engine.start_flag_bits.player1_scored = 1;
+                    break;
+                }
             }
             block_count = (unsigned int)event->block_count;
             pz_fighter_check_board_spread(
                 event->player, block_count, 0, 0);
             pz_fighter_fight_request(
                 event->player, (unsigned int)event->block_count, 0, 0);
-            engine->start_flag_bits.player0_started = 1;
-            engine->start_flag_bits.player1_started = 1;
+            g_pz_fighters_engine.start_flag_bits.player0_started = 1;
+            g_pz_fighters_engine.start_flag_bits.player1_started = 1;
         }
         break;
     case 25:
@@ -823,15 +807,14 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighter_start_immediate_request(event->player, 5, 1);
         break;
     case 13:
-        engine = &g_pz_fighters_engine;
-        engine->fighter_state[0] = 8;
-        engine->fighter_state[1] = 8;
+        g_pz_fighters_engine.fighter_state[0] = 8;
+        g_pz_fighters_engine.fighter_state[1] = 8;
         puzzle_player_pdata(0)->state |= 0x4201;
         puzzle_player_pdata(1)->state |= 0x4201;
-        if (engine->event_block_count == 0) {
+        if (g_pz_fighters_engine.event_block_count == 0) {
             xfer_proc(g_game_info.plyr0.idle_proc, pz_fighter_bow_warmup);
             xfer_proc(g_game_info.plyr1.idle_proc, pz_fighter_bow_warmup);
-        } else if (engine->event_block_count == 1) {
+        } else if (g_pz_fighters_engine.event_block_count == 1) {
             if ((unsigned short)randu0(100) < 50) {
                 xfer_proc(
                     g_game_info.plyr0.idle_proc,
@@ -847,7 +830,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
                     g_game_info.plyr1.idle_proc,
                     pz_fighter_active_warmup1);
             }
-        } else if (engine->event_block_count == 2) {
+        } else if (g_pz_fighters_engine.event_block_count == 2) {
             if ((unsigned short)randu0(100) < 50) {
                 xfer_proc(
                     g_game_info.plyr0.idle_proc,
@@ -867,9 +850,8 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighters_fatality_preround_event();
         break;
     case 20:
-        engine = &g_pz_fighters_engine;
-        engine->event_block_count = (unsigned int)event->block_count;
-        if (engine->event_block_count != 0) {
+        g_pz_fighters_engine.event_block_count = (unsigned int)event->block_count;
+        if (g_pz_fighters_engine.event_block_count != 0) {
             Vec player1_position;
             Vec player2_position;
             const Vec separation = {0.46f, 0.0f, 0.0f};
@@ -890,13 +872,12 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighters_fatality_preround_event();
         break;
     case 24:
-        engine = &g_pz_fighters_engine;
-        if (engine->start_flag_groups.players_started == 0) {
+        if (g_pz_fighters_engine.start_flag_bits.player0_started == 0) {
             pz_fighter_first_block_has_been_placed(event->player);
         } else {
             pz_fighter_fight_request(event->player, 0, 0, 0);
         }
-        engine->start_flag_bits.player0_started = 1;
+        g_pz_fighters_engine.start_flag_bits.player0_started = 1;
         break;
     case 21:
         pz_fighter_start_immediate_request(event->player, 8, 1);
@@ -2403,13 +2384,12 @@ static float pz_fighters_handle_next_pending_move(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.06996%; direct script-field accesses recover engine base;
- * dequeue and reaction register/address scheduling remain. */
+/* TODO: [near miss] 99.75%; happy-reaction player/pointer register coloring remains. */
 static float pz_fighters_handle_next_pending_move_simplified(void) {
     PuzzleFighterMove* move;
 
-    move = &g_pz_fighters_engine.fighter_move;
     pz_fighter_pop_pending_event();
+    move = &g_pz_fighters_engine.fighter_move;
     switch (move->event_type) {
     case 3:
         {
@@ -2417,8 +2397,10 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
 
             script_move = g_pz_fighters_engine.fighter_move.script_move;
             g_pz_fighters_engine.random_fatality_active = 1;
-            if (script_move > 2 && script_move < 5) {
-                g_pz_fighters_engine.fighter_move.script_move = 5;
+            if (script_move > 2) {
+                if (script_move < 5) {
+                    g_pz_fighters_engine.fighter_move.script_move = 5;
+                }
             } else if (script_move == 6) {
                 g_pz_fighters_engine.fighter_move.script_move = script_move + 1;
             } else if (script_move == 8) {
@@ -2437,11 +2419,11 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
 
             g_pz_fighters_engine.random_fatality_active = 1;
             other_player = 0;
-            if (move->player == 0) {
+            if (g_pz_fighters_engine.fighter_move.player == 0) {
                 other_player = 1;
             }
             pz_fighter_perform_end_of_round_anims(
-                move->player, other_player);
+                g_pz_fighters_engine.fighter_move.player, other_player);
             g_pz_fighters_engine.balance = 0.0f;
             pz_fighters_fatality_round_over();
             pz_fighter_calculate_start_pos();
@@ -2451,7 +2433,6 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
     case 1:
         g_pz_fighters_engine.random_fatality_active = 1;
         pz_fighter_handle_special_move(move);
-        /* Retail intentionally also dispatches the relief reaction. */
     case 6:
         g_pz_fighters_engine.random_fatality_active = 1;
         pz_fighter_handle_relief_move(move);
@@ -2475,7 +2456,6 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
     case 8:
         g_pz_fighters_engine.random_fatality_active = 1;
         PZ_DISPATCH_BOMB_REACTION();
-        /* Retail intentionally continues into the paired happy reaction. */
     case 9:
         g_pz_fighters_engine.random_fatality_active = 1;
         PZ_DISPATCH_HAPPY_REACTION();
@@ -2539,10 +2519,12 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
         (move_ptr)->active_flags = 1;                                     \
     } while (0)
 
-/* TODO: [near miss] 97.81145%; random selection now has retail 16-bit narrowing;
- * middle-branch owner bases and saved-register allocation remain. */
 static void pz_fighter_perform_end_of_round_anims(
     unsigned int winner_player, unsigned int loser_player) {
+    PuzzleProcess* proc;
+    PlyrPdata* pdata;
+    PuzzleCmdScriptView* script;
+    PuzzleFightersEngine* engine;
     unsigned short selection;
 
     selection = randu0(100);
@@ -2553,10 +2535,7 @@ static void pz_fighter_perform_end_of_round_anims(
             loser_player, 7, pz_fighter_round_failure);
     } else if (selection < 65 &&
                xz_distance_between_players() < 1.2f) {
-        PlyrPdata* pdata;
-        PuzzleProcess* proc;
-        PuzzleCmdScriptView* script;
-
+        engine = &g_pz_fighters_engine;
         pdata = puzzle_player_pdata(winner_player);
         proc = g_game_info.plyr0.idle_proc;
         if (winner_player == 1) {
@@ -2568,8 +2547,8 @@ static void pz_fighter_perform_end_of_round_anims(
             g_pz_fighters_engine.fighter_state[1] = 6;
         }
         pdata->state |= 0x4201;
-        g_pz_fighters_engine.fighter_move.active_flags = 1;
-        g_pz_fighters_engine.fighter_move.player = winner_player;
+        engine->fighter_move.active_flags = 1;
+        engine->fighter_move.player = winner_player;
         script = get_cmdscript_for_proc(proc);
         script->function_index = 0x2E;
         xfer_player_proc(proc, r_pz_call_script_function);

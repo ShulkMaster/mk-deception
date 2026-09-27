@@ -21,8 +21,6 @@ typedef union NbFloatBits {
 
 extern AnimPdata* plyr_anim_pdata;
 extern MkObj* plyr_obj;
-extern MkProc* aproc;
-extern float _mkproc_sleep_ticks;
 
 void transition_to_anim_script(
     AnimPdata* pdata, void* script, int flags, float transition);
@@ -115,7 +113,6 @@ void bgnd_npc_add_collision_shape(
     int npc_id, int shape_id, int shape_type, float radius, float height,
     float offset_y, float offset_z);
 unsigned long random_hit(int group);
-void uv_from_angle_y(Vec* out, float angle);
 void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int message);
 void get_player_proc(MkObj* object);
@@ -155,23 +152,18 @@ extern unsigned int exec_tick_ctr;
 
 
 static void nb_npc_slave_hit_by_plyr(int npc_id);
-/* Soft ceiling: 91.44% -- inverse-sqrt FPR allocation and branch coloring. */
 static int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact);
-
-
-
 
 static inline float nb_sqrt(float value) {
     NbFloatBits input;
     NbFloatBits estimate;
     float refined;
 
+    input.f = value;
     if (value <= 0.0f) {
         return 0.0f;
     }
-    input.f = value;
-    /* The SDK masks a byte offset into its packed halfword lookup table. */
     estimate.u =
         (unsigned int)*(unsigned short*)((char*)GXMathSqrtTable +
                                         ((input.u >> 10) & 0x3FFE)) <<
@@ -201,7 +193,7 @@ static inline float nb_fast_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
-/* Soft ceiling: 91.70% -- equivalent FPR scheduling and fused arithmetic. */
+/* TODO: [near miss] 94.43%; nb_sqrt shape fixed; FPR scheduling and fused arithmetic differ. */
 void lower_mines_ani_to_point(
     void* script, int landing_sound, Vec* target, unsigned int frame_offset,
     float start_frame, float animation_step, float end_frame,
@@ -284,10 +276,7 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/*
- * Soft ceiling: 90.62% -- retail calls, CFG, stack frame, vector transforms,
- * and access widths agree; aggregate-copy scheduling and FPR coloring remain.
- */
+/* TODO: [near miss] 91.68%; calls, CFG, frame and access widths agree; aggregate-copy scheduling and FPR coloring differ. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     NbNpcState* npc;
@@ -333,7 +322,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
         momentum_z * momentum_z +
         (momentum_x * momentum_x + momentum_y * momentum_y));
     spad_set_vector(0, 0x1C);
-    attack_flags = (int)spad_get_pos(0, 0);
+    attack_flags = spad_get_pos(0, 0);
 
     if (speed < 0.03f) {
         spad_set_vector(0, 0x15);
@@ -398,13 +387,13 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     }
     play_impact_sound = 1;
     if ((attack_flags & 0x2000) != 0 || attack_flags == 0) {
-        int index = (int)player_index;
+        int index = player_index;
 
         if (is_pX_airborn(index) == 0 && speed > 0.11f) {
             impact_scale = 0.2f;
             play_impact_sound = 0;
             if (nb_npc_hurt_player(
-                    (NbNpcHitState*)npc, (unsigned int)index, speed) == 1) {
+                    (NbNpcHitState*)npc, index, speed) == 1) {
                 impact_scale = -0.05f;
             }
         }
@@ -470,7 +459,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* Soft ceiling: 93.70% -- weighted-vector FPR scheduling and NV coloring. */
+/* TODO: [near miss] 96.30%; weighted-vector FPR scheduling and NV coloring differ. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -508,12 +497,12 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     }
 
     spad_set_vector(0, 0x1B);
-    hit_id = (int)spad_get_pos(0, 0);
+    hit_id = spad_get_pos(0, 0);
     if ((float)hit_id != previous_hit) {
         if (player_side == 0.0f) {
-            npc->last_hit_id[0] = (float)hit_id;
+            npc->last_hit_id[0] = hit_id;
         } else {
-            npc->last_hit_id[1] = (float)hit_id;
+            npc->last_hit_id[1] = hit_id;
         }
 
         spad_set_vector(0, 0x15);
@@ -526,7 +515,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         old_y = npc->momentum.y;
         old_z = npc->momentum.z;
 
-        player_index = (int)player_side;
+        player_index = player_side;
         power = reaction_fetch_current_power_level(player_index);
         if (power > 3) {
             force = 0.095f + frand(0.08f);
@@ -676,11 +665,7 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/*
- * Soft ceiling: 89.82% -- retail calls, branches, rope constraint, projection,
- * and update order agree. The 96-byte residue is redundant aggregate stores,
- * reloads, float-rounding instructions, and FPR scheduling in the long loop.
- */
+/* TODO: [near miss] 91.29%; calls, branches and update order agree; redundant aggregate stores, reloads, frsp and FPR scheduling differ in the long loop. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     NbNpcState* npc = ((NbNpcProcPdata*)apdata)->npc;
@@ -909,10 +894,7 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/*
- * Soft ceiling: nb_get_desired_acceleration ~91.14% -- remaining differences
- * are FPR load/operand scheduling and fused tangent-plane projection math.
- */
+/* TODO: [near miss] 91.57%; FPR load/operand scheduling and fused tangent-plane projection math differ. */
 static void nb_get_desired_acceleration(
     NbPendulumState* state, Vec* acceleration, const Vec* surface_normal) {
     float force_z;
@@ -973,10 +955,7 @@ static void nb_get_desired_acceleration(
         state->acceleration_divisor;
 }
 
-/*
- * Soft ceiling: 97.77% -- integer-to-float conversion setup, zero-register
- * coloring, and matrix-call scheduling only.
- */
+/* TODO: [near miss] 97.79%; integer-to-float setup, zero-register coloring and matrix-call scheduling differ. */
 void nb_place_slave_in_bgnd(
     int npc_id, int rope_model_index, const char* model_name, int model_id,
     float anchor_x, float anchor_y, float anchor_z, float rope_length,
@@ -1046,7 +1025,7 @@ void nb_place_slave_in_bgnd(
         collision_offset_z);
 }
 
-/* Soft ceiling: 95.43% -- normalized-vector FPR scheduling only. */
+/* TODO: [near miss] 95.58%; retail rounds the normalized components with frsp before scaling (inlined float-parameter helper suspected). */
 void rd_set_impact_vector(float scale) {
     Vec impact = nb_impact_zero;
     float squared_length;

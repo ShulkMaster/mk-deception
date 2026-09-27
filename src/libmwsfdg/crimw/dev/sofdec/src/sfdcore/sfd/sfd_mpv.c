@@ -948,6 +948,7 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
 static inline void sfmpv_SetVofst(SfdHandle* handle)
 {
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    SfdMpvTimeCodeSnapshot* initial = &timer->initial;
     SfdMpvTimeCodeSnapshot* output_start = &timer->output_start;
     int mode;
     SfdMpvTimeCodeSnapshot* current = &timer->current;
@@ -982,7 +983,7 @@ static inline void sfmpv_SetVofst(SfdHandle* handle)
         }
         SFTIM_Tc2Time(&timecode, &value, &scale);
         output_start->timecode = timecode;
-        output_start->value = value - handle->timer_state.field_003C.value;
+        output_start->value = value - initial->value;
         output_start->scale = scale;
         output_start->valid = 1;
     }
@@ -1052,26 +1053,24 @@ static inline void sfmpv_AddRtot(SfdHandle* handle, int consumed)
     handle->playback_runtime.time_values[4] += consumed;
 }
 
-/* TODO: [near miss] 98.188270%; keep branch-local timecode and compact
- * snapshot overlay; one address instruction and coloring remain. */
 static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
 {
-    SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
-    MPVContext* decoder = work->decoder;
-    SfdMpvAuxWork* aux =
-        (SfdMpvAuxWork*)((unsigned char*)work + sizeof(*work));
-    MPVPictureInfo* picture = &work->picture_info;
+    int result;
+    int flow_before;
+    int consumed;
+    SfdMpvFrameWork* work;
+    MPVContext* decoder;
+    MPVPictureInfo* picture;
+    int decoded_base;
+    int skipped_base;
     MPVFrameBuffers buffers;
     SfdMpvFrame* frame;
     unsigned long long start;
-    int decoded_base;
-    int skipped_base;
-    int flow_before;
-    int consumed;
-    int result;
     int error;
 
+    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    picture = &work->picture_info;
+    decoder = work->decoder;
     if (sfmpv_SetFrmPara(handle, picture, &buffers, &frame) != 0) {
         return 0;
     }
@@ -1099,6 +1098,8 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
     }
 
     {
+        SfdMpvAuxWork* aux =
+            (SfdMpvAuxWork*)((unsigned char*)work + sizeof(*work));
         SfdMpvPictureUserData* user_data = frame->picture_user_buffer;
         memcpy(user_data->buffer, aux->picture_buffers.entries[0].buffer,
                aux->picture_buffers.entries[0].size);
@@ -1279,15 +1280,15 @@ static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
         target = SFTIM_GetNextItime((SfdTimerState*)skip_timer, target);
     }
     if (SFTIM_GetSpeed(handle) <= 1000 &&
-        work->field_084 >= handle->conditions_primary[36]) {
+        work->field_084 >= handle->conditions_primary[38]) {
         return 0;
     }
     SFTIM_GetTime(handle, &value, &current_scale);
     if (value < 0) {
         return 0;
     }
-    target -= scale * handle->conditions_primary[40] /
-              handle->conditions_primary[41];
+    target -= scale * handle->conditions_primary[42] /
+              handle->conditions_primary[43];
     if (UTY_CmpTime(value, current_scale, target, scale) != 0) {
         return 0;
     }
@@ -1335,8 +1336,7 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
     work->decode_state = decode_state;
 }
 
-/* TODO: [near miss] 98.477615%; typed decoder owner restores state join;
- * late-skip validity-load scheduling and register coloring remain. */
+/* TODO: [near miss] 98.49%; late-skip load scheduling and register coloring remain. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
@@ -1606,8 +1606,6 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
     }
 }
 
-/* TODO: [near miss] 98.649350%; bounded for/while clear forms are neutral;
- * retail-only fixed-clear pretest and tail coloring remain. */
 static void sfmpv_CalcRepeatField(SfdHandle* handle,
                                   MPVPictureInfo* picture,
                                   int group_changed)
@@ -1621,7 +1619,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     SfdMpvRepeatEntry* entries = repeat_timer->entries;
     int index;
     int entry_index;
-    int i;
+    long i;
 
     timer->current_timecode.frame_rate_code = picture->frame_rate_code;
     timer->current_timecode.drop_frame = picture->drop_frame_flag;
@@ -1634,8 +1632,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     timer->current_timecode.subframe = 0;
 
     if (group_changed != 0) {
-        for (i = 0; i < sizeof(repeat_timer->entries) /
-                            sizeof(repeat_timer->entries[0]); i++) {
+        for (i = 0; i < 64; i++) {
             entries[i].repeat = -1;
         }
         entries[0].accumulated = -1;
@@ -1675,20 +1672,14 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
 
     if (picture->picture_type == 3 && entries[index].repeat != 0) {
         SfdMpvTimeCodeSnapshot* frame_time;
-        int reference;
-        SfdMpvRepeatEntry* reference_entry;
         int scale;
         int value;
 
-        reference_frame = work->reference_frames[1];
-        reference = reference_frame->picture_info.temporal_reference;
-        entry_index = reference % 64;
-        reference_entry = &entries[entry_index];
-
-        reference_entry->accumulated =
+        entry_index = work->reference_frames[1]->picture_info.temporal_reference % 64;
+        entries[entry_index].accumulated =
             entries[index].repeat + entries[index].accumulated;
         ((SfdMpvTimeCodeSnapshot*)&work->reference_frames[1]->time_unit)
-            ->timecode.subframe = reference_entry->accumulated;
+            ->timecode.subframe = entries[entry_index].accumulated;
         reference_frame = work->reference_frames[1];
         frame_time = (SfdMpvTimeCodeSnapshot*)&reference_frame->time_unit;
         SFTIM_Tc2Time(&frame_time->timecode, &value, &scale);
@@ -1707,9 +1698,9 @@ static inline int sfmpv_ChkGopTc(SfdHandle* handle)
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvTimeCodeSnapshot* maximum = &timer->maximum;
     SfdTimeCode current_timecode;
-    int scale;
-    int stored_value;
     int value;
+    int stored_value;
+    int scale;
     int window;
     int result;
 
@@ -1739,16 +1730,9 @@ static inline void sfmpv_ReformTc(SfdHandle* handle, SfdMpvFrameWork* work,
     int mode = SFSET_GetCond(handle, 52);
 
     if (mode == 0) {
-        int reform = 1;
-
-        if (timestamp < 0 && picture->group_count != 0 &&
-            picture->field_57 == 0) {
-            reform = 0;
-            if (new_group != 0) {
-                reform = sfmpv_ChkGopTc(handle);
-            }
-        }
-        if (reform != 0) {
+        if (timestamp >= 0 || picture->group_count == 0 ||
+            picture->field_57 != 0 ||
+            (new_group != 0 && sfmpv_ChkGopTc(handle) != 0)) {
             SFSET_SetCond(handle, 52, 1);
             mode = 1;
         }
@@ -1758,8 +1742,6 @@ static inline void sfmpv_ReformTc(SfdHandle* handle, SfdMpvFrameWork* work,
     }
 }
 
-/* TODO: [near miss] 99.162390%; typed time/settings and pre/post-call work
- * owners align; PTS register web and output stack slots remain. */
 static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
                               SJ* stream, int delimiter_type,
                               int* decode_result)
@@ -1782,13 +1764,13 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     SfdPtsEntry pts_entry;
     long long timestamp;
     long long raw_pts;
+    int result;
     int flow_before;
     int consumed;
-    int result;
-    int bit_rate;
-    int vbv_buffer_size;
-    int vbv_delay;
     int byte_rate;
+    int vbv_delay;
+    int vbv_buffer_size;
+    int bit_rate;
     int cache_bit_rate;
     int published_bit_rate;
     int published_vbv_size;
@@ -1814,10 +1796,18 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         result = 0;
         break;
     case -2:
-        result = consumed > 0 ? 0 : SFLIB_SetErr(handle, -2);
+        if (consumed > 0) {
+            result = 0;
+        } else {
+            result = SFLIB_SetErr(handle, -2);
+        }
         break;
     case -3:
-        result = consumed > 0 ? 0 : SFLIB_SetErr(handle, -3);
+        if (consumed > 0) {
+            result = 0;
+        } else {
+            result = SFLIB_SetErr(handle, -3);
+        }
         break;
     default:
         result = SFLIB_SetErr(handle, 0xFF000F04);
@@ -1882,7 +1872,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     }
     MPV_GetPicUsr(decoder, 0,
                   &aux->picture_buffers.entries[0].size);
-    if (attributes->group_count != work->field_10C) {
+    if (work->field_10C != attributes->group_count) {
         work->field_10C = attributes->group_count;
         work->field_110 = 1;
     } else {
@@ -1914,8 +1904,8 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         SFPTS_ReadPtsQue(handle, pts_buffer_index,
                          (unsigned int)delimiter, &pts_entry);
         if (pts_entry.pts >= 0) {
-            int temporal_reference = attributes->temporal_reference;
             int rate = SFTIM_prate[attributes->frame_rate_code];
+            int temporal_reference = attributes->temporal_reference;
             int delta;
             long long computed_time;
 
@@ -2012,14 +2002,14 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     cache_work = handle->transports[2].context;
     {
         SfdMpvSeekCache* cache;
+        SfdSeeWork* seek_work = handle->seek_state.work;
 
-        if (handle->seek_state.work == 0) {
+        if (seek_work == 0) {
             cache = 0;
         } else if (cache_work->field_088 > 0) {
             cache = 0;
         } else {
-            cache = (SfdMpvSeekCache*)((unsigned char*)
-                handle->seek_state.work + 0xAD0);
+            cache = (SfdMpvSeekCache*)((unsigned char*)seek_work + 0xAD0);
         }
         if (cache != 0 && cache->valid == 0) {
             SfdMpvRawHeader* raw_header = &cache->raw_header;
@@ -2040,8 +2030,8 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         }
     }
 
-    published_bit_rate = bit_rate;
     published_vbv_size = vbv_buffer_size;
+    published_bit_rate = bit_rate;
     {
         settings->width = attributes->width;
         settings->height = attributes->height;
@@ -2214,12 +2204,11 @@ static inline int sfmpv_SkipPic(SfdHandle* handle, SJ* stream)
     return result;
 }
 
-/* TODO: [near miss] 99.651810%; only equivalent r29/r30/r31 coloring
- * remains across work, result, and snapshot owners; stop here. */
 static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
                                int delimiter_type, int has_data,
                                int* processed)
 {
+    int result;
     SfdMpvTimeCodeSnapshot* total;
     SfdMpvFrameWork* work;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
@@ -2229,7 +2218,6 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
     SJCK chunk;
     SfdBufferTransfer header_transfer;
     SfdBufferTransfer frame_transfer;
-    int result;
 
     *processed = 0;
     work = (SfdMpvFrameWork*)handle->transports[2].context;

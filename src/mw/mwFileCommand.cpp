@@ -1,7 +1,6 @@
-/* TODO: [blocked] link: retail's linker stripped mwFileCommand::getError() const (8 bytes,
- * UNUSED in orig/GQNE5D/files/mk6gc_release.MAP). Its codegen reference to
- * __vt__15mwFileQueryable is the likely reason retail emits the derived vtable before the base
- * one; find its consumers or genuine body, then restore it so the unit can link. */
+/* TODO: [review] layout stubs: mwFileCommand::getError() const reproduces a linker-stripped retail
+ * function only to recreate its .data layout; the body is NOT recovered source. Replace with a
+ * genuine body if a source turns up. */
 struct mwFileTypeInfo;
 struct mwFile;
 class mwFileCommand;
@@ -28,8 +27,21 @@ public:
     {
     }
 
-    virtual unsigned char isA(mwFileTypeInfo*, void*&);
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, void*& object)
+    {
+        const void* const_object;
+        if (isA(type, const_object)) {
+            object = const_cast<void*>(const_object);
+            return true;
+        }
+        return false;
+    }
+
+    virtual unsigned char isA(mwFileTypeInfo*, const void*& object) const
+    {
+        object = 0;
+        return 0;
+    }
 };
 
 class mwFileMultithreadedMemTraits {
@@ -61,6 +73,7 @@ public:
     void serviceCallbackAndPendingDelete();
     void wakeup();
     void handleCompletion(mwFileAsyncResult);
+    int getError() const;
 
     static unsigned short sRetries;
 
@@ -114,6 +127,12 @@ void mwFileCommand::handleCompletion(mwFileAsyncResult result)
     if (callback != 0) {
         callback(this, result, callback_data);
     }
+}
+
+int mwFileCommand::getError() const
+{
+    mwFileQueryable base;
+    return error;
 }
 
 mwFileCommand::~mwFileCommand()

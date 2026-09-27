@@ -1554,8 +1554,8 @@ static float p_repeat_button_input__Fv(void);
  * See SE_EVT_* / pad bit table in mwScreenEngineGlue.h.
  * D-Pad / C-stick edges spawn hold-repeat mkprocs (retail; port 2 skips).
  */
-/* TODO: [near miss] 99.23024%; retail stw -4 + lwzu; `*--slotBits` in the first test
- * (99.05%) and an indexed store before it (98.78%) both regress; stop at localized lowering. */
+/* TODO: [near miss] 99.60%; `*--slotBits` store gives retail stw -4 + lwzu; only the
+ * stick_bits addi scheduling and r0/r4 swap before the store remain. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;
@@ -1652,10 +1652,8 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
         }
     }
 
-    /* Retail: stick_bits + ((plyr+1)<<2) - 4, then lwzu for bit tests. */
     slotBits = &stick_bits[plyr_idx + 1];
-    slotBits[-1] = bits & ~s_nRepeatedStickBits;
-    slotBits -= 1;
+    *--slotBits = bits & ~s_nRepeatedStickBits;
 
     if ((*slotBits & 0x10000u) != 0) {
         FireEvent__9ScreenMgrFiiUi(screen_manager, SE_EVT_CSTICK_DOWN, plyr_idx + 1, 0);
@@ -1985,8 +1983,8 @@ int get_num_pselect_body_textures(void);
 int get_num_selectable_bgnds(void);
 int controller_get_num_adjustable_buttons(void);
 void cconfig_get_button_textures(GVTexturePair out);
-void create_left_mc_icon_list(McIconListArg* out);
-void create_right_mc_icon_list(McIconListArg* out);
+void create_left_mc_icon_list(GVTexturePair out);
+void create_right_mc_icon_list(GVTexturePair out);
 int get_number_kontent_items(void);
 void create_gallery_image_list(GVTexturePair out, int count);
 void create_fullscreen_gallery_image_list(GVTexturePair out, int count);
@@ -2010,6 +2008,7 @@ void ppv_view_profile_icon_list(GVTexturePair out);
         out->data = collection;                                                      \
     } while (0)
 
+/* TODO: [near miss] 97.74%; team selector (id != 0x1fdc hoisted before Malloc in retail) and mc icon calls pass li r4,7 (callee prototype lacks count); special-move scheduling. */
 int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
                                           unsigned int& columnsOut) {
     GVTextureCollection* collection;
@@ -2018,15 +2017,6 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
     unsigned long allocSize;
     unsigned long pointerBytes;
 
-    /*
-     * Runtime-complete retail dispatcher. The repeated allocation/setup in
-     * retail is represented by a typed allocation macro; each collection is
-     * one 0x30-byte header followed by parallel color/alpha pointer arrays.
-     * The image-list helpers take GVTexturePair by value. MWCC materializes
-     * one addressable argument copy per case, matching retail's 0xA0 frame.
-     * Soft ceiling: ~97.66% -- three equivalent arithmetic emit islands
-     * remain (gallery rounding, team selector, special-move selector).
-     */
     switch (id) {
     case 0x48:
         count = get_number_items_in_inventory();
@@ -2040,8 +2030,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         pair.alphas = out->data->alphas;
         create_inventory_image_list(pair, count);
         columnsOut = (count + 1) >> 1;
-        count = 2;
-        break;
+        return 2;
     case 0x1fe9:
         count = get_number_kontent_items();
         if (count < 12) {
@@ -2054,8 +2043,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         pair.alphas = out->data->alphas;
         create_gallery_image_list(pair, count);
         columnsOut = 6;
-        count = (count + (columnsOut - 1)) / columnsOut;
-        break;
+        return (count + columnsOut - 1) / columnsOut;
     case 0x1fea:
         count = 2;
         ALLOC_GV_TEXTURE_COLLECTION(count, count);
@@ -2064,8 +2052,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         pair.alphas = out->data->alphas;
         create_fullscreen_gallery_image_list(pair, 2);
         columnsOut = 2;
-        count = (count + (columnsOut - 1)) / columnsOut;
-        break;
+        return (count + (columnsOut - 1)) / columnsOut;
     case 0x1fda:
         count = 0x2c;
         ALLOC_GV_TEXTURE_COLLECTION(count, count);
@@ -2115,7 +2102,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_left_mc_icon_list((McIconListArg*)&pair);
+        create_left_mc_icon_list(pair);
         columnsOut = 1;
         break;
     case 0x1fe3:
@@ -2124,7 +2111,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_right_mc_icon_list((McIconListArg*)&pair);
+        create_right_mc_icon_list(pair);
         columnsOut = 1;
         break;
     case 0x1fe0:

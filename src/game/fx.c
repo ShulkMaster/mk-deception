@@ -162,7 +162,6 @@ typedef struct FxPfxDefinition {
 
 
 
-extern CameraObj* camera_obj;
 extern int screen_width;
 extern int screen_height;
 ScreenObj* player_fstyle_sign[2] = { 0, 0 };
@@ -199,7 +198,7 @@ extern void pfxvm_spawn_line_1f(
     PfxEmitter* emitter, int field, float minimum, float maximum);
 extern void pfxvm_kill_on_greater(
     void* behavior, int field, float value);
-extern double fabs(double value);
+double __fabs(double value);
 static RpMaterial* material_set_specular(RpMaterial* material,
                                          void* data);
 int FSTYLE_LFT_START_X;
@@ -320,14 +319,38 @@ static inline CameraObj* camera_item_live_node(CameraItem* owner) {
 
 
 
-/* TODO: [breakthrough needed] 60.189370%; call/inlining boundary needs recovery (bl fabs); no further evidence-backed source change. */
+static inline int lensflare_sun_blocked(
+    const FxRayPlane* const* planes, int count) {
+    CameraObj* camera;
+    Vec direction;
+    int blocked;
+    int index;
+
+    blocked = 0;
+    if (count == 0 || planes == 0) {
+        return 0;
+    }
+    camera = camera_item_live_node(&camera_item);
+    if (camera == 0) {
+        return 0;
+    }
+    uv_v3_to_v3(&direction, &camera->pos, &sun);
+    for (index = 0; index < count; index++) {
+        blocked = rayintersection(&camera->pos, &direction, &(*planes)[index]);
+        if (blocked) {
+            break;
+        }
+    }
+    return blocked;
+}
+
+/* TODO: [breakthrough] 71.14%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
 static float lensflare_proc2(void) {
     LensflarePdata* pdata;
     CameraObj* camera;
     LensFlareEntry* flare;
     Vec angles;
     Vec direction;
-    Vec obstruction_direction;
     float horizontal;
     float vertical;
     float horizontal_abs;
@@ -360,34 +383,16 @@ static float lensflare_proc2(void) {
     }
 
     blocked = 0;
-    if (fabs(angles.y) < 0.69813f &&
-        fabs(angles.x) < 0.69813f) {
-        if (pdata->obstruction_count != 0 && pdata->obstructions != 0) {
-            camera = camera_item_live_node(&camera_item);
-
-            if (camera != 0) {
-                uv_v3_to_v3(
-                    &obstruction_direction,
-                    &camera->pos, &sun);
-                for (index = 0;
-                     index < pdata->obstruction_count;
-                     index++) {
-                    if (rayintersection(
-                            &camera->pos,
-                            &obstruction_direction,
-                            &pdata->obstructions[index])) {
-                        blocked = 1;
-                        break;
-                    }
-                }
-            }
-        }
+    if (__fabs(angles.y) < 0.69813f &&
+        __fabs(angles.x) < 0.69813f) {
+        blocked = lensflare_sun_blocked(
+            &pdata->obstructions, pdata->obstruction_count);
 
         if (!blocked) {
             horizontal = angles.y / 0.69813f;
             vertical = angles.x / 0.69813f;
-            horizontal_abs = (float)fabs(horizontal);
-            vertical_abs = (float)fabs(vertical);
+            horizontal_abs = __fabs(horizontal);
+            vertical_abs = __fabs(vertical);
             for (index = 0; index < flare_data.count; index++) {
                 flare = &flare_data.entries[index];
                 screen_x =
@@ -448,32 +453,34 @@ static float lensflare_proc2(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 89.83%; member-wise sun copy, per-branch load calls and pdata_list_b match; argument materialization order and the transfer-sleep tail differ. */
 static float lensflare_proc(void) {
     LensflarePdata* pdata;
-    const LensFlareDefinition* definition;
-    LensFlareEntry* flare;
     ScreenObj* object;
-    int slot;
+    LensFlareEntry* flare;
+    const LensFlareDefinition* definition;
     int count;
 
+    pdata = (LensflarePdata*)apdata;
     if (!g_game_info.flag_bits.lens_flare_enabled) {
         return 1.0f;
     }
 
-    pdata = (LensflarePdata*)apdata;
-    sun = *pdata->sun_position;
     definition = pdata->lens_data;
+    sun.x = pdata->sun_position->x;
+    sun.y = pdata->sun_position->y;
+    sun.z = pdata->sun_position->z;
     count = 0;
     while (definition->texture_name != 0 && count < 10) {
         flare = &flare_data.entries[count];
         flare->line_position = definition->line_position;
         if (mode_of_play == 10 || mode_of_play == 9) {
-            slot = 0x8003D;
+            object = load_named_2d_pfxobj(
+                0x8003D, 0x301F, definition->texture_name, 0, 0xC);
         } else {
-            slot = 0x2001E;
+            object = load_named_2d_pfxobj(
+                0x2001E, 0x301F, definition->texture_name, 0, 0xC);
         }
-        object = load_named_2d_pfxobj(
-            slot, 0x301F, definition->texture_name, 0, 0xC);
         if (object != 0) {
             object->x = screen_width / 2 - object->pfx2d->tex_w / 2;
             object->y = screen_height / 2 - object->pfx2d->tex_h / 2;
@@ -482,9 +489,9 @@ static float lensflare_proc(void) {
             pull_screen_obj(object);
         }
         flare->object = object;
-        mk_insert((MkHdr*)flare->object, &aproc->pdata_list);
-        flare->half_height = (float)flare->object->pfx2d->tex_h * 0.5f;
-        flare->half_width = (float)flare->object->pfx2d->tex_w * 0.5f;
+        mk_insert((MkHdr*)flare->object, &aproc->pdata_list_b);
+        flare->half_height = flare->object->pfx2d->tex_h / 2.0f;
+        flare->half_width = flare->object->pfx2d->tex_w / 2.0f;
         definition++;
         count++;
     }
@@ -533,7 +540,7 @@ void yinyang_start_lensflare(void) {
 static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
     ScreenObj* object = owner->style_sign;
     if (object != 0) {
-        if ((unsigned int)object->instance == owner->style_sign_instance) {
+        if (object->instance == owner->style_sign_instance) {
             return object;
         }
         object = 0;
@@ -559,7 +566,7 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     if (moveset == 0) {
         return;
     }
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         return;
     }
     if (g_game_info.flag_bits.high_res_path == 1) {
@@ -625,7 +632,7 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
 static inline ScreenObj* fx_screen_obj_latch_live_object(FxScreenObjLatch* owner) {
     ScreenObj* object = owner->object;
     if (object != 0) {
-        if ((unsigned int)object->instance == owner->instance) {
+        if (object->instance == owner->instance) {
             return object;
         }
         object = 0;
@@ -782,12 +789,12 @@ static float fighting_style_sign_proc(void) {
 
             skewer = fx_screen_obj_latch_live_object(&p1_skewer_item);
 
-            if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
+            if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
             skewer = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
 
-            if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
+            if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
             _mkproc_sleep_ticks = 5.0f;
@@ -866,12 +873,12 @@ static float fighting_style_sign_proc(void) {
 
             skewer = fx_screen_obj_latch_live_object(&p2_skewer_item);
 
-            if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
+            if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
             skewer = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
 
-            if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
+            if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
             _mkproc_sleep_ticks = 5.0f;
@@ -1005,7 +1012,7 @@ void load_player_fstyle_signs(PlyrPdata* player) {
 static inline ScreenObj* moveset_live_style_sign(GlobalMoveset* owner) {
     ScreenObj* object = owner->style_sign;
     if (object != 0) {
-        if ((unsigned int)object->instance == owner->style_sign_instance) {
+        if (object->instance == owner->style_sign_instance) {
             return object;
         }
         object = 0;
@@ -1028,7 +1035,7 @@ void kill_all_fstyle_signs(void) {
             sign = moveset_live_style_sign(moveset);
 
             if (sign != 0) {
-                if ((unsigned int)sign->instance != 0) {
+                if (sign->instance != 0) {
                     sign->typed_vtbl->destroy(sign);
                 }
                 moveset->style_sign = 0;
@@ -1050,40 +1057,40 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
     }
 
     for (style_index = 0; style_index < 3; style_index++) {
-        moveset = (GlobalMoveset*)player->slot.pdata->weapon_styles[style_index];
+        moveset = player->slot.pdata->weapon_styles[style_index];
         sign = global_moveset_live_style_sign(moveset);
 
         if (sign != 0) {
-            if ((unsigned int)sign->instance != 0U) {
+            if (sign->instance != 0U) {
                 sign->typed_vtbl->destroy(sign);
             }
-            ((GlobalMoveset*)player->slot.pdata->weapon_styles[style_index])->style_sign = 0;
-            ((GlobalMoveset*)player->slot.pdata->weapon_styles[style_index])->style_sign_instance = 0;
+            player->slot.pdata->weapon_styles[style_index]->style_sign = 0;
+            player->slot.pdata->weapon_styles[style_index]->style_sign_instance = 0;
         }
     }
 
     if (player->controller_slot == 0) {
         sign = fx_screen_obj_latch_live_object(&p1_skewer_item);
 
-        if (sign != 0 && (unsigned int)sign->instance != 0U) {
+        if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
         sign = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
 
-        if (sign != 0 && (unsigned int)sign->instance != 0U) {
+        if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
     } else {
         sign = fx_screen_obj_latch_live_object(&p2_skewer_item);
 
-        if (sign != 0 && (unsigned int)sign->instance != 0U) {
+        if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
         sign = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
 
-        if (sign != 0 && (unsigned int)sign->instance != 0U) {
+        if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
     }
@@ -1412,7 +1419,7 @@ int can_i_do_fatality_now(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough] 93.31276%; canonical VM and emitter birth-rate fields recovered; remaining constructor register/call ordering. */
+/* TODO: [breakthrough] 94.07%; typed constructor/VM fields recovered; r27/r30/r31 homes and name-arg staging remain. */
 MkPfx* create_pfx(
     int bind_source, int process_id, MkProcEntryFn entry,
     MkPfx** effect_out, const FxPfxDefinition* definition,
@@ -1438,7 +1445,7 @@ MkPfx* create_pfx(
         build.behavior_count = 1;
     }
     build.emitter_count = 1;
-    effect = (MkPfx*)new_pfx_create_raw_userdata(
+    effect = new_pfx_create_raw_userdata(
         &build, 0, definition->field_90,
         definition->field_04, definition->field_08,
         definition->initialize, process_id, entry,
@@ -1457,7 +1464,7 @@ MkPfx* create_pfx(
     }
 
     vm = (PfxVm*)(*effect_out)->matrix;
-    origin = (Vec*)pfx_get_field(vm, 0, 0x200);
+    origin = pfx_get_field(vm, 0, 0x200);
     origin->x = definition->origin.x;
     origin->y = definition->origin.y;
     origin->z = definition->origin.z;
@@ -1473,7 +1480,7 @@ MkPfx* create_pfx(
         definition->blue, definition->alpha);
 
     emitter = pfx_get_emitter(vm, 0);
-    emitter->birth_rate = (float)definition->emitter_lifetime;
+    emitter->birth_rate = definition->emitter_lifetime;
     vm->particle_capacity = definition->field_90;
     emitter = pfx_get_emitter(vm, 0);
     emitter->field_40 = definition->emitter_field_40;
@@ -1515,14 +1522,14 @@ MkPfx* create_pfx(
         }
         emitter = pfx_get_emitter(vm, 0);
         pfxvm_spawn_line_1f(
-            emitter, 0x301, (float)definition->lifetime_minimum,
-            (float)definition->lifetime_maximum);
+            emitter, 0x301, definition->lifetime_minimum,
+            definition->lifetime_maximum);
         behavior = pfx_behavior(vm, 0);
         pfxvm_kill_on_greater(behavior, 0x301, lifetime);
     }
     if ((definition->flags & 2) != 0) {
         pfxvm_compile(vm);
     }
-    (*effect_out)->flags |= 0x10;
+    (*effect_out)->flag_bits.visible = 1;
     return effect;
 }

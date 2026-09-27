@@ -896,6 +896,10 @@ void configure_iceball(MkObj* iceball) {
     }
 }
 
+static inline int moves_his_state_is_not(int state) {
+    return !(his_pdata->state == state);
+}
+
 static inline void moves_jump(MovesEntryFn entry) {
     MovesProcVtable* vtable;
 
@@ -2057,7 +2061,6 @@ static float x_attack_5_remote(void) {
 }
 
 /* Scan the character-specific action sequence through the typed jump-table base. */
-/* TODO: [near miss] 96.95349%; five-attempt limit reached; compare remaining branch and literal differences. */
 float x_attack_4(void) {
     MovesActionRef* action;
     unsigned int* sequences;
@@ -2079,9 +2082,9 @@ float x_attack_4(void) {
     if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
         if (am_i_a_big_character() != 0) {
             moves_jump(j_flying_kick);
-        } else {
-            moves_jump(j_flying_kick2);
+            return 0.0f;
         }
+        moves_jump(j_flying_kick2);
         return 0.0f;
     }
 
@@ -2095,7 +2098,7 @@ float x_attack_4(void) {
 
     switch (plyr_pdata->character_id) {
     case 6:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x760 / 4]);
         }
         break;
@@ -2166,12 +2169,12 @@ float x_attack_4(void) {
         scan_switch_sequences(&sequences[0x1070 / 4]);
         break;
     case 25:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x13A0 / 4]);
         }
         break;
     case 26:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x13A0 / 4]);
         }
         break;

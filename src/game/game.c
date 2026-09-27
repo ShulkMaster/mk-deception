@@ -552,7 +552,7 @@ extern void mk_chess_advantage_hud(void);
 extern MkProc* get_player_proc(void* player);
 extern void big_boss_wait_for_intro(void);
 extern void konquest_transition_from_fight(void);
-extern void mk_chess_transition_from_fight(void);
+extern float mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
 extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;

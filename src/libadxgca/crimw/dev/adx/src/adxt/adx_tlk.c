@@ -92,7 +92,6 @@ static const char adxt_get_dec_data_length_error[] =
     "E04041901 ADXT_GetDecDtLen: parameter error";
 static const char adxt_get_dec_samples_error[] =
     "E02080818 ADXT_GetDecNumSmpl: parameter error";
-static const f64 adxt_signed_conversion_bias = 4503601774854144.0;
 static const char adxt_get_pause_error[] =
     "E02080847 ADXT_GetStatPause: parameter error";
 static const char adxt_pause_error[] =
@@ -530,16 +529,15 @@ static inline void adxt_GetTimeSfreq2(
     ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 decoded_samples;
-    s32 queued_samples;
 
     if (handle->status == ADXT_STATUS_PLAYING ||
         handle->status == ADXT_STATUS_DRAINING) {
         *scale = ADXSJD_GetSfreq(handle->decoder);
         decoded_samples = ADXSJD_GetDecNumSmpl(handle->decoder);
-        queued_samples = adxt_GetNumSmplObuf(handle, 0);
         *sample_count = decoded_samples -
-                        (ADXRNA_GetNumData(handle->rna) + queued_samples);
-        *sample_count += handle->linked_decoded_samples;
+                        (ADXRNA_GetNumData(handle->rna) +
+                         adxt_GetNumSmplObuf(handle, 0)) +
+                        handle->linked_decoded_samples;
     } else if (handle->status == ADXT_STATUS_PLAY_END) {
         *sample_count = ADXSJD_GetTotalNumSmpl(handle->decoder);
         *scale = ADXSJD_GetSfreq(handle->decoder);
@@ -552,7 +550,7 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [near miss] 96.52682%; donor-local f32 diff lifetime was measured with no codegen change; retained signed mode and direct FP path remain, with pool/FP residue. */
+/* TODO: [near miss] 99.95%; code matches; only TU string/float pool and adxt globals block offsets remain (TU data layout). */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;
@@ -582,7 +580,7 @@ void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
             1000.0f * ((f32)actual_count / (f32)actual_scale -
                        (f32)*sample_count / (f32)adxt_time_unit);
         if (adxt_diff_av > 60.0f || adxt_diff_av < -60.0f) {
-            if (adxt_time_adjust_sw == 1) {
+            if ((u32)adxt_time_adjust_sw == 1U) {
                 saved_time_mode = adxt_time_mode;
                 adxt_time_mode = 0;
                 ADXT_GetTime(handle, &actual_count, &actual_scale);
@@ -601,7 +599,7 @@ void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
         *sample_count =
             (s32)((f32)adxt_time_unit *
                   ((f32)actual_count / (f32)actual_scale));
-        *sample_count = handle->playback_time + *sample_count + 1;
+        *sample_count += handle->playback_time + 1;
     } else {
         *sample_count = 0;
     }
@@ -826,8 +824,8 @@ void ADXT_Destroy(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.912410%; code is instruction-exact; retail's anonymous literals
- * interleave with strings of absent functions, so inline literals drop .rodata to 56%. */
+/* TODO: [near miss] 99.99%; code identical; strings/floats pool in the wrong order (TU data layout:
+ * retail pools literals in parse order with stripped functions' strings; ours puts named arrays first). */
 ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
 {
     ADXTHandle* handle;
@@ -912,7 +910,7 @@ ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
     handle->stream_buffer_sectors =
         handle->input_buffer_size / ADXT_SECTOR_SIZE;
     handle->reload_threshold_sectors =
-        (s16)(0.85f * (f32)handle->stream_buffer_sectors);
+        (s16)(adxt_default_reload_ratio * (f32)handle->stream_buffer_sectors);
     handle->output_volume = 0;
     for (channel = 0; channel < maximum_channels; channel++) {
         handle->output_pan[channel] = ADXT_DEFAULT_PAN;
