@@ -48,16 +48,16 @@ typedef char TgaHeaderValuesSizeCheck[
  * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
  */
 
-/* TODO: [near miss] 96.67%; GPR coloring, one swapped header-byte extract, and
+/* TODO: [near miss] 96.91%; GPR coloring, one swapped header-byte extract, and
  * retail's mr-seeded column*3 IV (ours li) remain; permuter found nothing honest. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
+  RwImage *result;
   MkHwFileRequest *file;
   TgaHeader header;
   TgaHeaderValues values;
   TgaHeaderValues output_values;
   unsigned char *output;
   unsigned char *pixels;
-  RwImage *result;
   int row;
   int rows;
 
@@ -103,10 +103,14 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
     if (output == 0) {
       result = 0;
     } else {
-      int row_bytes = output_values.width * 3;
+      int width = output_values.width;
+      int row_bytes;
+      int block_bytes;
 
       pixels = image->pixels;
+      row_bytes = width * 3;
       row = output_values.height;
+      block_bytes = width * 12;
       while (row > 0) {
         unsigned char *destination = output;
 
@@ -127,7 +131,7 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
           rows++;
           destination += row_bytes;
         } while (rows < 4);
-        debug_file_write(file, output, output_values.width * 12);
+        debug_file_write(file, output, block_bytes);
       }
       result = image;
     }

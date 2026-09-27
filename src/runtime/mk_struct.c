@@ -301,59 +301,16 @@ void discard_mkptrs(MkPtr* head) {
     }
 }
 
+/* TODO: [near miss] 99.19%; structure matches via the UNLINK/DESTROY/RECYCLE macros; only the next/prev volatile register choice is swapped. */
 void destroy_mkptrs(MkPtr* head) {
-    /* Soft ceiling: ~97.98% -- clean typed next/cursor assignments coalesce;
-     * retail retains an extra load-result move between GPRs. */
-    /* tmp cast + cursor copy => lwz r5 / mr r31,r5; prev before list => r3/r4. */
     MkPtr* next;
-    MkPtr* cursor;
-    MkPtr* prev;
-    MkPtr** list;
-    MkHdr* hdr;
 
     while (head != 0) {
-        list = head->list;
         next = head->next;
-        cursor = next;
-        if (list != 0) {
-            if (list != 0) {
-                prev = head->prev;
-                if (prev != 0) {
-                    prev->next = next;
-                } else {
-                    *list = next;
-                }
-                if (next != 0) {
-                    next->prev = prev;
-                }
-                head->prev = 0;
-                head->next = 0;
-                head->list = 0;
-            }
-        }
-        hdr = head->hdr;
-        if (hdr != 0) {
-            if (head->f.no_own == 0) {
-                if (head->instance == hdr->instance) {
-                    if (hdr->instance != 0) {
-                        hdr->typed_vtbl->destroy(hdr);
-                    }
-                }
-            }
-        }
-        {
-            MkPtr* zero = 0;
-            head->instance = 0;
-            head->hdr = 0;
-            head->list = &free_mkptrs;
-            head->next = free_mkptrs;
-            head->prev = zero;
-            if (free_mkptrs != 0) {
-                free_mkptrs->prev = head;
-            }
-            free_mkptrs = head;
-        }
-        head = cursor;
+        UNLINK_MKPTR(head);
+        MAYBE_DESTROY_OWNED(head);
+        RECYCLE_MKPTR(head);
+        head = next;
     }
 }
 
@@ -595,20 +552,11 @@ MkPtr* get_mkptr_owns_mkhdr(MkHdr* hdr) {
     return ptr;
 }
 
-
-
 void init_free_mkptrs(void) {
     int count;
     int i;
     MkPtr* ptr;
-    MkPtr* previous_head;
 
-    /*
-     * Soft ceiling: init_free_mkptrs ~99.18% -- the remaining second-loop
-     * difference is only the computed node and previous-head GPRs swapped.
-     * Direct typed indexed clears reproduce retail's repeated global-base
-     * loads and indexed stores; do not replace them with a cached element.
-     */
     count = get_mkptr_count();
     for (i = 0; i < count; i++) {
         mkptr_list[i].hdr = 0;
@@ -620,12 +568,11 @@ void init_free_mkptrs(void) {
     free_mkptrs = 0;
     for (i = 0; i < count; i++) {
         ptr = &mkptr_list[i];
-        ptr->list = &free_mkptrs;
+        mkptr_list[i].list = &free_mkptrs;
         ptr->next = free_mkptrs;
         ptr->prev = 0;
-        previous_head = free_mkptrs;
-        if (previous_head != 0) {
-            previous_head->prev = ptr;
+        if (free_mkptrs != 0) {
+            free_mkptrs->prev = ptr;
         }
         free_mkptrs = ptr;
     }

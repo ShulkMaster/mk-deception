@@ -178,6 +178,7 @@ float joy_duck_remote_end(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.77%; code matches; only the .sdata2 literal symbols differ (retail pools anonymous @N constants). */
 float joy_duck_remote_start(void) {
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     plyr_pdata->duck_loop_counter = 10;
@@ -192,7 +193,10 @@ float joy_duck_remote_start(void) {
         }
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 0x11, 0);
-    while (round_winner == 0 || f_fatality_available != 0) {
+    for (;;) {
+        if (round_winner != 0 && f_fatality_available == 0) {
+            break;
+        }
         plyr_pdata->duck_loop_counter++;
         if (his_pdata->state & 0x1000) {
             plyr_pdata->duck_loop_counter += 3;

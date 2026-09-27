@@ -7,8 +7,6 @@ extern void pfxfont_release_delayed_vertex_buffers(void);
 
 MkPtr *delayed_free_list;
 
-/* TODO: [near miss] 99.6875%; decrement-result GPR coloring remains;
- * permuter's zero-score inert mask is not an honest source expression. */
 void purge_delayed_mem_frees(void) {
     MkPtr *next;
     MkPtr *entry;
@@ -17,8 +15,8 @@ void purge_delayed_mem_frees(void) {
     while ((entry = delayed_free_list) != 0) {
         while (entry != 0) {
             next = entry->next;
-            delay = (int)entry->instance - 1;
-            if (delay <= 0) {
+            delay = (int)entry->instance;
+            if (--delay <= 0) {
                 _mwMemFree(entry->hdr, 0, 0);
                 entry->hdr = 0;
                 destroy_mkptr(entry);
@@ -31,8 +29,6 @@ void purge_delayed_mem_frees(void) {
     }
 }
 
-/* TODO: [near miss] 99.655174%; decrement-result GPR coloring remains;
- * permuter's zero-score inert mask is not an honest source expression. */
 void do_delayed_mem_frees(void) {
     MkPtr *entry;
     MkPtr *next;
@@ -41,8 +37,8 @@ void do_delayed_mem_frees(void) {
     entry = delayed_free_list;
     while (entry != 0) {
         next = entry->next;
-        delay = (int)entry->instance - 1;
-        if (delay <= 0) {
+        delay = (int)entry->instance;
+        if (--delay <= 0) {
             _mwMemFree(entry->hdr, 0, 0);
             entry->hdr = 0;
             destroy_mkptr(entry);

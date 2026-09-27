@@ -385,11 +385,12 @@ extern "C" mwFileCommand* mwFileWriteAsync(
 }
 
 extern "C" mwFileCommand* mwFileReadAsync(
-    mwFile* file, long long offset, void* buffer, unsigned long length,
+    mwFile* file, unsigned long long offset, void* buffer, unsigned long length,
     int priority, mwFileCallback completion_callback, void* completion_data)
 {
     mwFileCommand* command;
     int result;
+    unsigned long long file_size;
 
     if (file == 0) {
         _mwFileNoOp(&stringBase0[NULL_FILE_MESSAGE]);
@@ -400,8 +401,8 @@ extern "C" mwFileCommand* mwFileReadAsync(
         return 0;
     }
 
-    unsigned long long file_size = file->getSize();
-    if (file_size < (unsigned long long)offset) {
+    file_size = file->getSize();
+    if (file_size < offset) {
         _mwFileNoOp(
             &stringBase0[READ_RANGE_MESSAGE], file->getDebugName(),
             (int)offset, file_size);
@@ -416,7 +417,7 @@ extern "C" mwFileCommand* mwFileReadAsync(
                 command, priority & 3);
         }
     } else {
-        if (file_size < (unsigned long long)offset + length) {
+        if (file_size < offset + length) {
             unsigned long truncated_length =
                 (unsigned long)(file_size - offset);
             _mwFileNoOp(

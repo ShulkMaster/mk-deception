@@ -148,6 +148,7 @@ RpGeometry* inplaceGeometryNativeRead(RwStream* stream, RpGeometry* geometry) {
 }
 
 #pragma dont_inline on
+/* TODO: [near miss] 96.86%; stack layout matches; stream/owner/entry/mesh_count coloring differs, and retail forms the extra-mesh base as base + (numMeshes - 1) * 8 then adds 0x14. */
 static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
                            unsigned int mesh_count) {
     unsigned int version;
@@ -155,7 +156,6 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
     int resource_size;
     int display_list_size;
     int platform;
-    int error[2];
     GameCubeNativeMeshHeader* native_header;
     unsigned char* stream_data;
     unsigned int padding;
@@ -166,12 +166,16 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
+        int error[2];
+
         error[0] = 0x116;
         error[1] = _rwerror(0x80000004);
         RwErrorSet(error);
         return 0;
     }
     if (version <= 0x34004) {
+        int error[2];
+
         error[0] = 0x116;
         error[1] = _rwerror(0x80000004);
         RwErrorSet(error);
@@ -232,6 +236,7 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
  */
 
 int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
+    RwTexture* result;
     unsigned int chunk_length;
     unsigned int version;
     GameCubeNativeTextureHeader texture_header;
@@ -242,7 +247,6 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     unsigned char* stream_data;
     RwRaster* raster;
     RwGameCubeRasterExt* extension;
-    RwTexture* result;
 
     if (!RwStreamFindChunk(stream, 1, &chunk_length, &version)) {
         return 0;
@@ -306,9 +310,9 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         RwRasterDestroy(raster);
         return 0;
     }
-    result->filter_flags =
-        (result->filter_flags & ~0xff) |
-        (unsigned char)texture_header.filterAddressing;
+    /* RwTextureSetFilterMode/SetAddressingU/SetAddressingV, expanded. */
+    result->filter_flags = (result->filter_flags & ~0xff) |
+                           ((unsigned char)texture_header.filterAddressing & 0xff);
     result->filter_flags = (result->filter_flags & ~0xf00) |
                            (texture_header.filterAddressing & 0xf00);
     result->filter_flags = (result->filter_flags & ~0xf000) |

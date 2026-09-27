@@ -35,8 +35,7 @@ int privGetLoadHighFromFlags(u32 flags) {
     return (flags >> 5) & 1;
 }
 
-/* Soft ceiling: 96.59091% - switch values, branches, and returns agree except
- * for one redundant retail range branch and masked-selector GPR coloring. */
+/* TODO: [near miss] 96.59%; switch uses r0 for masked flags where retail uses r4 and retains an extra upper-range branch. */
 int privGetAlignFromMwMemFlags(u32 flags) {
     int alignment_flags;
 
@@ -66,8 +65,7 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* Soft ceiling: 94.166664% - identical header, flag, alignment, and pointer
- * operations; only leaf-register allocation differs. */
+/* TODO: [near miss] 94.17%; alignment and pointer operations agree, but leaf register allocation differs from retail. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     u8* block;
     u32 alignment_mask;
@@ -97,7 +95,8 @@ u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header) {
 u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
     u32 size = 0;
     if (header != 0) {
-        size = header->allocationSize - header->prefixSize - header->alignmentPadding;
+        size = header->allocationSize - header->prefixSize;
+        size = size - header->alignmentPadding;
     }
     return size;
 }

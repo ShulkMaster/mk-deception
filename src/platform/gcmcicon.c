@@ -24,7 +24,7 @@ void unload_memorycard_write_buffer(void) {
     }
 }
 
-/* TODO: [near miss] 95.888885%; retail copy extent restored; compiler folds initial size publication. */
+/* TODO: [near miss] 96.50%; size round-up still stores at different offsets and icon destination uses reversed add operands. */
 int create_memorycard_write_buffer(const void* data, unsigned int size) {
     if (gc_seek_position == 0) {
         if (mc_icon_file_size == 0) {
@@ -43,10 +43,11 @@ int create_memorycard_write_buffer(const void* data, unsigned int size) {
         strcpy(mc_data_buffer + 0x20, "profiles and game settings");
         memcpy(mc_data_buffer + 0x40, icon_buffer, mc_icon_file_size);
         memcpy(mc_data_buffer + 0x40, mc_data_buffer + 0x80, mc_icon_file_size - 0x40);
-        memcpy(mc_icon_file_size + mc_data_buffer, data, size);
+        memcpy(&mc_data_buffer[mc_icon_file_size], data, size);
     } else {
         mc_data_buffer_size = size;
-        mc_data_buffer_size = (mc_data_buffer_size + 0x1fff) & ~0x1fff;
+        mc_data_buffer_size += 0x1fff;
+        mc_data_buffer_size &= ~0x1fff;
         mc_data_buffer = _mwMemMalloc(wave_heap, mc_data_buffer_size, 5, 0, 0, 0);
         if (mc_data_buffer == 0) {
             return 0;
@@ -81,11 +82,8 @@ void load_icon_data(void) {
 
 int update_memory_card_status(const CARDFileInfo* file) {
     int result;
-    CARDStat* status;
-    long file_no;
     long chan;
-    unsigned char banner_format;
-    unsigned short icon_speed;
+    long file_no;
 
     chan = file->chan;
     file_no = file->fileNo;
@@ -97,19 +95,16 @@ int update_memory_card_status(const CARDFileInfo* file) {
         return 0;
     }
 
-    status = &cardstat;
-    banner_format = status->bannerFormat;
-    icon_speed = (status->iconSpeed & ~3) | 3;
-    status->bannerFormat = banner_format & ~3;
-    status->iconSpeed = icon_speed;
-    status->commentAddr = 0;
-    status->iconAddr = 0x40;
-    status->bannerFormat = banner_format & ~7;
-    status->iconFormat = (status->iconFormat & ~3) | 2;
-    status->iconSpeed = icon_speed & ~0xc;
+    CARDSetCommentAddress(&cardstat, 0);
+    CARDSetIconAddress(&cardstat, 0x40);
+    CARDSetBannerFormat(&cardstat, CARD_STAT_BANNER_NONE);
+    CARDSetIconAnim(&cardstat, CARD_STAT_ANIM_LOOP);
+    CARDSetIconFormat(&cardstat, 0, CARD_STAT_ICON_RGB5A3);
+    CARDSetIconSpeed(&cardstat, 0, CARD_STAT_SPEED_SLOW);
+    CARDSetIconSpeed(&cardstat, 1, CARD_STAT_SPEED_END);
 
     do {
-        result = CARDSetStatus(chan, file_no, status);
+        result = CARDSetStatus(chan, file_no, &cardstat);
     } while (result == -1);
 
     return result == 0;
