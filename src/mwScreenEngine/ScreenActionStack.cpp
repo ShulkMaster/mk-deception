@@ -238,10 +238,8 @@ void ScreenActionStack::Process(ScreenMgr* mgr, int dt) {
     m_processing = 0;
 }
 
-/*
- * Soft ceiling: CreateAction ~80% -- switch factory complete (incl. anim FX);
- * leaf new/ctor schedule vs retail inlined vtbl poke / leaf block order; stop.
- */
+/* TODO: [breakthrough] 95.09%; case grouping matches; retail sets Else/PlayUntil/BlockUntil fields inside
+ * inline ctors (no second null check; needs ctors declared in the headers) and the Transition/Replace arm at 0x2f8 still sits after Exit. */
 ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
     int id;
     ScreenAction* action;
@@ -251,119 +249,111 @@ ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
 
     id = (int)type;
     action = ScreenUtil::CreateAction(id);
-    if (action != 0) {
-        return action;
+    if (action == 0) {
+        switch (id) {
+        case SCREEN_ACTION_ELSE:
+            elseAction = new ScreenElseAction();
+            if (elseAction != 0) {
+                elseAction->m_takeElse = 1;
+            }
+            action = elseAction;
+            break;
+        case 0x41a:
+        case 0x41b:
+        case 0x41c:
+        case 0x41d:
+        case 0x41e:
+        case 0x41f:
+        case 0x2af9:
+            action = new ScreenQuestionAction();
+            break;
+        case 0x403:
+        case 0x431:
+            action = new ScreenEnableAction();
+            break;
+        case 0x3ef:
+        case 0x430:
+            action = new SetScreenVisibleAction();
+            break;
+        case 0x3ea:
+        case 0x3f0:
+        case 0x3f1:
+            action = new ScreenVisibleAction();
+            break;
+        case 0x402:
+            action = new ScreenSetForwardAction();
+            break;
+        case 0x3e8:
+        case 0x3f6:
+        case 0x42f:
+            action = new ScreenSetFocusAction();
+            break;
+        case 0x3eb:
+        case 0x3ee:
+            action = new ScreenExitScreenAction();
+            break;
+        case 0x3f2:
+            action = new ScreenOpenScreenAction();
+            break;
+        case 0x3f3:
+            action = new ScreenCloseScreenAction();
+            break;
+        case 0x3f5:
+            action = new ScreenTransitionScreenAction();
+            break;
+        case 0x3f4:
+            action = new ScreenReplaceScreenAction();
+            break;
+        case 0x3f8:
+            action = new ScreenPlayAnimAction(kAnimDirectionForward);
+            break;
+        case 0x3fb:
+            action = new ScreenPlayAnimAction(kAnimDirectionReverse);
+            break;
+        case 0x400:
+        case 0x420:
+            action = new ScreenWaitAnimAction();
+            break;
+        case 0x3fc:
+            action = new ScreenSetAnimSpeedAction();
+            break;
+        case 0x3f9:
+            action = new ScreenStopAnimAction();
+            break;
+        case SCREEN_ACTION_PLAY_UNTIL:
+            untilAction = new ScreenPlayAnimUntilAction();
+            if (untilAction != 0) {
+                untilAction->field_0x3C = 0;
+                untilAction->field_0x40 = 0;
+            }
+            action = untilAction;
+            break;
+        case 0x3fe:
+            action = new ScreenSnapAnimAction();
+            break;
+        case SCREEN_ACTION_BLOCK_UNTIL:
+            blockAction = new ScreenBlockEventsUntilAction();
+            if (blockAction != 0) {
+                blockAction->m_elapsed = 0;
+            }
+            action = blockAction;
+            break;
+        case 0x3fa:
+        case 0x404:
+        case 0x405:
+        case 0x406:
+        case 0x407:
+            action = new ScreenUserConfirmAction();
+            break;
+        case 0x401:
+            action = new ScreenInsertScreenAction();
+            break;
+        case 0x3ec:
+        case 0x408:
+            action = new ScreenSendObjectEventAction();
+            break;
+        }
     }
-
-    switch (id) {
-    case 0x3e8:
-    case 0x3f6:
-    case 0x42f:
-        action = new ScreenSetFocusAction();
-        break;
-    case 0x3ea:
-        action = new ScreenVisibleAction();
-        break;
-    case 0x3eb:
-    case 0x3ee:
-        action = new ScreenExitScreenAction();
-        break;
-    case 0x3ec:
-    case 0x408:
-        action = new ScreenSendObjectEventAction();
-        break;
-    case 0x3ef:
-    case 0x430:
-        action = new SetScreenVisibleAction();
-        break;
-    case 0x3f0:
-    case 0x3f1:
-        action = new ScreenVisibleAction();
-        break;
-    case 0x3f2:
-        action = new ScreenOpenScreenAction();
-        break;
-    case 0x3f3:
-        action = new ScreenCloseScreenAction();
-        break;
-    case 0x3f4:
-        action = new ScreenReplaceScreenAction();
-        break;
-    case 0x3f5:
-        action = new ScreenTransitionScreenAction();
-        break;
-    case 0x3f8:
-        action = new ScreenPlayAnimAction(kAnimDirectionForward);
-        break;
-    case 0x3f9:
-        action = new ScreenStopAnimAction();
-        break;
-    case 0x3fa:
-    case 0x404:
-    case 0x405:
-    case 0x406:
-    case 0x407:
-        action = new ScreenUserConfirmAction();
-        break;
-    case 0x3fb:
-        action = new ScreenPlayAnimAction(kAnimDirectionReverse);
-        break;
-    case 0x3fc:
-        action = new ScreenSetAnimSpeedAction();
-        break;
-    case SCREEN_ACTION_PLAY_UNTIL:
-        untilAction = new ScreenPlayAnimUntilAction();
-        if (untilAction != 0) {
-            untilAction->field_0x3C = 0;
-            untilAction->field_0x40 = 0;
-        }
-        action = untilAction;
-        break;
-    case 0x3fe:
-        action = new ScreenSnapAnimAction();
-        break;
-    case SCREEN_ACTION_BLOCK_UNTIL:
-        blockAction = new ScreenBlockEventsUntilAction();
-        if (blockAction != 0) {
-            blockAction->m_elapsed = 0;
-        }
-        action = blockAction;
-        break;
-    case 0x400:
-    case 0x420:
-        action = new ScreenWaitAnimAction();
-        break;
-    case 0x401:
-        action = new ScreenInsertScreenAction();
-        break;
-    case 0x402:
-        action = new ScreenSetForwardAction();
-        break;
-    case 0x403:
-    case 0x431:
-        action = new ScreenEnableAction();
-        break;
-    case 0x41a:
-    case 0x41b:
-    case 0x41c:
-    case 0x41d:
-    case 0x41e:
-    case 0x41f:
-    case 0x2af9:
-        action = new ScreenQuestionAction();
-        break;
-    case SCREEN_ACTION_ELSE:
-        elseAction = new ScreenElseAction();
-        if (elseAction != 0) {
-            elseAction->m_takeElse = 1;
-        }
-        action = elseAction;
-        break;
-    default:
-        action = 0;
-        break;
-    }
-
     if (action == 0) {
         action = new ScreenAction();
     }

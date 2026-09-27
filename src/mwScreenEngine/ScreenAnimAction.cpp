@@ -98,11 +98,11 @@ int ScreenStopAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
  * byte-local and declaration-order forms neutral/worse; stop at coloring. */
 int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                  int /*dt*/) {
+    unsigned char playingFlag;
     ScreenParams* params;
     ScreenAnimScene* scene;
     int playing;
     Screen* screen;
-    unsigned int playingFlag;
 
     params = m_params;
     if (params != 0) {
@@ -120,7 +120,7 @@ int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                 playing = 1;
             }
         }
-        playingFlag = (unsigned int)(unsigned char)playing;
+        playingFlag = playing;
 
         if (m_arg == kArgWaitAnimCond) {
             m_alive = 0;

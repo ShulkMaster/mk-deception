@@ -12,6 +12,7 @@
 #include "rw/rtquat.h"
 #include "rw/rwengine.h"
 #include <math.h>
+#include "fdlibm.h"
 
 static PfxColor rgba_white = {255, 255, 255, 255};
 static GXColor opaque_white = {255, 255, 255, 255};
@@ -81,10 +82,11 @@ static void gc_set_render_state(BOOL use_alpha_map)
     *(volatile float*)GXFIFO_ADDR = (v); \
 } while (0)
 
-/* TODO: [breakthrough needed] 66.09151%; behavior recovered; aggregate spills and FIFO color-load ordering differ from retail. */
+/* TODO: [blocked] 91.08%; retail writes colors through an inlined GXColor4u8-style helper
+ * (clrlwi per component), which this object's `-inline off` prevents; needs a flag decision. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
-    PfxVec3 base0, base1, base_corner;
+    PfxVec3 base1, base0, base_corner;
     PfxVec3 corner, point;
     PfxVec3* positions;
     PfxColor* colors;
@@ -115,7 +117,15 @@ static void gc_generic_render(PfxVm* vm) {
     scales = (vm->flags_0x1D4 & 0x20) ? pfx_get_field(vm, -2, 0x102) : 0;
     angles = (vm->flags_0x1D4 & 0x40) ? pfx_get_field(vm, -2, 0x103) : 0;
     if (scales || angles) {
-        base0 = axis0; base1 = axis1; base_corner = corner;
+        base1.x = axis1.x;
+        base1.y = axis1.y;
+        base1.z = axis1.z;
+        base0.x = axis0.x;
+        base0.y = axis0.y;
+        base0.z = axis0.z;
+        base_corner.x = corner.x;
+        base_corner.y = corner.y;
+        base_corner.z = corner.z;
     }
     colors = vm->flag150_80 ? &vm->color1B4 : &rgba_white;
     color_stride = 0;
@@ -128,29 +138,47 @@ static void gc_generic_render(PfxVm* vm) {
         color_stride = position_stride;
     }
     if (vm->texture_frame_count != 0) {
-        uv_mode = (vm->flags_0x1D4 & 0x100) ? 1 : 0;
-        du = vm->texture_u_step;
-        dv = vm->texture_v_step;
-        if (uv_mode == 1) uv_stream = pfx_get_field(vm, -2, 0x104);
+        if (vm->flags_0x1D4 & 0x100) {
+            uv_mode = 1;
+            du = vm->texture_u_step;
+            dv = vm->texture_v_step;
+            uv_stream = pfx_get_field(vm, -2, 0x104);
+        } else {
+            uv_mode = 0;
+            du = vm->texture_u_step;
+            dv = vm->texture_v_step;
+        }
     } else {
         uv_mode = 2;
-        du = dv = right = bottom = 1.0f;
-        u = v = 0.0f;
+        bottom = right = dv = du = 1.0f;
+        v = u = 0.0f;
     }
     GXBegin(0x80, 0, (unsigned short)(count * 4));
     for (i = 0; i < count; i++) {
-        if (uv_mode == 0) {
+        switch (uv_mode) {
+        case 0: {
             const PfxTextureFrame* frame = vm->texture_frames +
                 pfx_texture_getframe((const PfxTextureAnim*)&vm->texture_frame_count, *ages);
             u = frame->u; v = frame->v;
             right = u + du; bottom = v + dv;
-        } else if (uv_mode == 1) {
+            break;
+        }
+        case 1:
             u = uv_stream->u; v = uv_stream->v;
             uv_stream = (PfxTextureFrame*)((unsigned char*)uv_stream + position_stride);
             right = u + du; bottom = v + dv;
+            break;
         }
         if (scales) {
-            axis0 = base0; axis1 = base1; corner = base_corner;
+            axis0.x = base0.x;
+            axis0.y = base0.y;
+            axis0.z = base0.z;
+            axis1.x = base1.x;
+            axis1.y = base1.y;
+            axis1.z = base1.z;
+            corner.x = base_corner.x;
+            corner.y = base_corner.y;
+            corner.z = base_corner.z;
         }
         if (angles) {
             float sine = (float)sin(-*angles);

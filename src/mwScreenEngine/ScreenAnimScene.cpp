@@ -7,13 +7,13 @@
 #define ANIM_SCENE_UNTIL_TIME 0x40
 
 int ScreenAnimScene::CalculateMaxTime() {
+    int trackOffset;
+    int effectOffset;
     int effectCount;
     int timeOffset;
     SEAnimSceneData_t* data;
     int trackIdx;
-    int trackOffset;
     int effectIdx;
-    int effectOffset;
     SEAnimTrack_t* track;
     int maxTime;
     SEAnimEffects_t* effects;
@@ -31,11 +31,12 @@ int ScreenAnimScene::CalculateMaxTime() {
         effects = track->effects;
         effectCount = effects->count;
         while (effectIdx < effectCount) {
-            /* Retail reloads effects + timeOffset each iter before bl. */
+            /* The effects table and time offset are re-read every iteration. */
             effects = track->effects;
             timeOffset = track->timeOffset;
             effect = SEAnimEffectAtOffset(effects, effectOffset);
-            t = effect->GetMaxTime() + timeOffset;
+            t = effect->GetMaxTime();
+            t += timeOffset;
             if (t > maxTime) {
                 maxTime = t;
             }
@@ -70,22 +71,23 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
+/* TODO: [breakthrough] 99.35%; joined || time-limit test, typed effect array, and signed m_flags match;
+ * retail's flag tests branch ble/bgt (signed > 0 form) where ours use beq/bne; track/dir registers differ. */
 void ScreenAnimScene::Process(int dt) {
-    SEAnimSceneData_t* data;
-    AnimDirectionE dir;
     int processed;
     int finished;
-    int trackIdx;
+    SEAnimSceneData_t* data;
     SEAnimTrack_t* track;
     SEAnimEffects_t* effects;
+    int trackIdx;
     int effectIdx;
     int effectCount;
+    AnimDirectionE dir;
     int localTime;
     int timeOffset;
     ScreenAnimEffect* effect;
     int done;
 
-    /* Retail loads m_data before the playing check. */
     data = m_data;
     if ((m_flags & ANIM_SCENE_PLAYING) == 0) {
         return;
@@ -120,9 +122,8 @@ void ScreenAnimScene::Process(int dt) {
         localTime = m_time - timeOffset;
         effectIdx = 0;
         while (effectIdx < effectCount) {
-            /* Retail reloads effects each iter then lwzx. */
             effects = track->effects;
-            effect = *SEAnimEffectPtrSlot(effects, effectIdx);
+            effect = effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
                 done = (int)effect->Process(localTime, (int)dir, m_elements);
@@ -136,16 +137,10 @@ void ScreenAnimScene::Process(int dt) {
     }
 
     if ((m_flags & ANIM_SCENE_UNTIL_TIME) != 0) {
-        if ((m_flags & ANIM_SCENE_FORWARD) != 0) {
-            if ((float)m_time >= m_untilTime) {
-                m_flags &= ~ANIM_SCENE_PLAYING;
-                m_flags &= ~ANIM_SCENE_UNTIL_TIME;
-            }
-        } else {
-            if ((float)m_time <= m_untilTime) {
-                m_flags &= ~ANIM_SCENE_PLAYING;
-                m_flags &= ~ANIM_SCENE_UNTIL_TIME;
-            }
+        if (((m_flags & ANIM_SCENE_FORWARD) != 0 && (float)m_time >= m_untilTime) ||
+            ((m_flags & ANIM_SCENE_FORWARD) == 0 && (float)m_time <= m_untilTime)) {
+            m_flags &= ~ANIM_SCENE_PLAYING;
+            m_flags &= ~ANIM_SCENE_UNTIL_TIME;
         }
     }
 

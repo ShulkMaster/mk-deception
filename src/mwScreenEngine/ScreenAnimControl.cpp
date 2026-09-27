@@ -6,42 +6,38 @@
 #define ANIM_KEY_LINEAR 2
 #define ANIM_KEY_HOLD 8
 
+/* TODO: [near miss] 97.73%; key accesses and stack layout match (retail reloads m_keys->refs at each use);
+ * residual is nonvolatile numbering (n r31 vs r30, offset r30 vs r31) and the blend-time scheduling. */
 void ScreenAnimControl::GetValue(float* out, int time) {
-    SERefTable* keys;
+    int n;
     unsigned int count;
     ScreenAnimKey* first;
     ScreenAnimKey* keyA;
-    ScreenAnimKey* keyB;
-    int n;
     int minT;
     int maxT;
-    int span;
     unsigned int i;
     float t;
     float easeT;
-    /* Retail stack (low->high): basis@+8, outTan@+0x18, inTan@+0x28, valA@+0x38,
-     * valB@+0x48. Decl order nudges MWCC toward that layout. */
-    float basis[4];
-    float outTan[4];
-    float inTan[4];
-    float valA[4];
     float valB[4];
+    float valA[4];
+    float inTan[4];
+    float outTan[4];
+    float basis[4];
     int tA;
     int tB;
     int j;
 
-    keys = m_keys;
-    count = keys->count;
+    count = m_keys->count;
     if (count == 0) {
         return;
     }
 
-    first = ScreenAnimKeyAt(keys, 0);
+    first = ScreenAnimKeyAt(m_keys, 0);
     n = first->m_count / 3;
 
     if (count == 1) {
-        first->GetValue(valA);
-        CopyValue(out, valA, (unsigned int)n);
+        first->GetValue(valB);
+        CopyValue(out, valB, (unsigned int)n);
         return;
     }
 
@@ -51,77 +47,69 @@ void ScreenAnimControl::GetValue(float* out, int time) {
     if (time < minT) {
         if (m_preMode == ANIM_EXTRAPOLATE_LOOP ||
             m_preMode == ANIM_EXTRAPOLATE_PING_PONG) {
-            span = maxT - minT;
-            time = maxT + ((time - minT) - ((time - minT) / span) * span);
+            time = maxT + ((time - minT) % (maxT - minT));
         } else {
-            ScreenAnimKeyAt(keys, 0)->GetValue(valA);
-            CopyValue(out, valA, (unsigned int)n);
+            ScreenAnimKeyAt(m_keys, 0)->GetValue(valB);
+            CopyValue(out, valB, (unsigned int)n);
             return;
         }
     } else if (time >= maxT) {
         if (m_postMode == ANIM_EXTRAPOLATE_LOOP ||
             m_postMode == ANIM_EXTRAPOLATE_PING_PONG) {
-            span = maxT - minT;
-            time = minT + ((time - minT) - ((time - minT) / span) * span);
+            time = minT + ((time - minT) % (maxT - minT));
         } else {
-            ScreenAnimKeyAt(keys, count - 1)->GetValue(valA);
-            CopyValue(out, valA, (unsigned int)n);
+            ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetValue(valB);
+            CopyValue(out, valB, (unsigned int)n);
             return;
         }
     }
 
-    first = ScreenAnimKeyAt(keys, 0);
-    if (first->GetTime() >= time) {
-        first->GetValue(valA);
-        CopyValue(out, valA, (unsigned int)n);
+    if (ScreenAnimKeyAt(m_keys, 0)->GetTime() >= time) {
+        ScreenAnimKeyAt(m_keys, 0)->GetValue(valB);
+        CopyValue(out, valB, (unsigned int)n);
         return;
     }
-    if (ScreenAnimKeyAt(keys, count - 1)->GetTime() <= time) {
-        ScreenAnimKeyAt(keys, count - 1)->GetValue(valA);
-        CopyValue(out, valA, (unsigned int)n);
+    if (ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetTime() <= time) {
+        ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetValue(valB);
+        CopyValue(out, valB, (unsigned int)n);
         return;
     }
 
-    for (i = 1; i < count; i++) {
-        keyB = ScreenAnimKeyAt(keys, i);
-        if (keyB->GetTime() <= time) {
+    for (i = 1; i < m_keys->count; i++) {
+        if (ScreenAnimKeyAt(m_keys, i)->GetTime() <= time) {
             continue;
         }
-        keyA = ScreenAnimKeyAt(keys, i - 1);
-        if ((keyA->GetFlags() & ANIM_KEY_HOLD) != 0) {
-            keyA->GetValue(valA);
-            CopyValue(out, valA, (unsigned int)n);
+        if ((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_HOLD) != 0) {
+            ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valB);
+            CopyValue(out, valB, (unsigned int)n);
             return;
         }
 
-        /* Retail: tB, tA, span, re-GetTime(tA), t, EaseIn(B), EaseOut(A). */
-        tB = keyB->GetTime();
+        keyA = ScreenAnimKeyAt(m_keys, i - 1);
+        tB = ScreenAnimKeyAt(m_keys, i)->GetTime();
         tA = keyA->GetTime();
         t = (float)(tB - tA);
         tA = keyA->GetTime();
         t = (float)(time - tA) / t;
-        /* Arg eval: EaseIn(B) then EaseOut(A) matches retail. */
-        easeT = Ease(t, keyA->GetEaseOut(), keyB->GetEaseIn());
+        easeT = Ease(t, ScreenAnimKeyAt(m_keys, i - 1)->GetEaseOut(),
+                     ScreenAnimKeyAt(m_keys, i)->GetEaseIn());
 
-        keyB->GetValue(valB);
-        keyA->GetValue(valA);
+        ScreenAnimKeyAt(m_keys, i)->GetValue(valB);
+        ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valA);
 
-        /*
-         * Retail re-calls GetFlags (no cache). Shared linear block when:
-         *   (A&2 && B&2) or (A&2 && B&8); else Hermite.
-         */
-        if (((keyA->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
-             (keyB->GetFlags() & ANIM_KEY_LINEAR) != 0) ||
-            ((keyA->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
-             (keyB->GetFlags() & ANIM_KEY_HOLD) != 0)) {
+        /* Linear blend when A is linear and B is linear or hold; else Hermite. */
+        if (((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
+             (ScreenAnimKeyAt(m_keys, i)->GetFlags() & ANIM_KEY_LINEAR) != 0) ||
+            ((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
+             (ScreenAnimKeyAt(m_keys, i)->GetFlags() & ANIM_KEY_HOLD) != 0)) {
             for (j = 0; j < n; j++) {
                 out[j] = easeT * (valB[j] - valA[j]) + valA[j];
             }
             return;
         }
 
-        keyB->GetInTan(inTan);
-        keyA->GetOutTan(outTan);
+        ScreenAnimKeyAt(m_keys, i)->GetInTan(inTan);
+        ScreenAnimKeyAt(m_keys, i - 1)->GetOutTan(outTan);
         ComputeHermiteBasis(easeT, basis);
         for (j = 0; j < n; j++) {
             out[j] = basis[0] * valA[j] + basis[1] * valB[j] +
@@ -138,13 +126,8 @@ float ScreenAnimControl::Ease(float t, float easeOut, float easeIn) {
     float k;
     float s;
 
-    /* sum before early-outs matches retail fadds schedule. */
     sum = easeOut + easeIn;
-    if (t == 0.0f) {
-        return t;
-    }
-    /* Soft ceiling: Ease ~97% -- t==1 beqlr vs retail bne+blr; stop. */
-    if (t == 1.0f) {
+    if (t == 0.0f || t == 1.0f) {
         return t;
     }
     if (sum == 0.0f) {
