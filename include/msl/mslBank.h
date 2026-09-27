@@ -155,7 +155,7 @@ struct mslRuntimeSound {
     unsigned long flags;          /* +0x44 */
     int bank_ref_count;           /* +0x48 */
     unsigned char pad4C[4];
-    void* callback_data;          /* +0x50 */
+    int callback_data;            /* +0x50 */
 };
 
 struct mslWave {

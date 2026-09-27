@@ -32,7 +32,7 @@ public:
     float m_speed; /* +0x00 */
     int m_time; /* +0x04 */
     float m_untilTime; /* +0x08 */
-    unsigned int m_flags; /* +0x0C */
+    int m_flags; /* +0x0C */
     SEElements_t* m_elements; /* +0x10 -- object table for effects */
     SEAnimSceneData_t* m_data; /* +0x14 */
 

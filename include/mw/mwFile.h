@@ -55,7 +55,7 @@ mwFileCommand* mwFileOpenAsync(const char* path, int flags,
                                mwFileCallback callback, void* arg);
 mwFileCommand* mwFileCloseAsync(_mwFile* file, int flags,
                                 mwFileCallback callback);
-mwFileCommand* mwFileReadAsync(_mwFile* file, long long offset, void* buffer,
+mwFileCommand* mwFileReadAsync(_mwFile* file, unsigned long long offset, void* buffer,
                                unsigned int length, int count,
                                mwFileCallback callback, void* arg);
 mwFileCommand* mwFileWriteAsync(_mwFile* file, long long offset, void* buffer,
