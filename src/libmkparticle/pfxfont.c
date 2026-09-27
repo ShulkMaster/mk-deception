@@ -14,9 +14,9 @@ static const float s_one = 1.0f;
 /* Font colors use byte-range float channels. */
 static const float s_255 = 255.0f;
 
-static PfxFontAllocFn font_memory_alloc;
-static PfxFontFreeFn font_memory_free;
 static int cull_mode;
+static PfxFontFreeFn font_memory_free;
+static PfxFontAllocFn font_memory_alloc;
 
 void pfxfont_system_init(PfxFontAllocFn alloc_fn, PfxFontFreeFn free_fn) {
     font_memory_alloc = alloc_fn;

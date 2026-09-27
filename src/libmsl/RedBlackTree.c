@@ -88,10 +88,8 @@ int RBTK_GetPrevNextToKey(
     return 1;
 }
 
-/* TODO: [near miss] 93.82%; search loop and exits agree; retail returns both the found node and the
- * null exit through r31 (li r31,0, one final mr r3), ours writes r3 on each exit. */
-RedBlackNode* RBTK_FindQuickNodeEqualToKey(
-    RedBlackTree* tree, const void* key) {
+static inline RedBlackNode* rbtk_FindQuickNode(RedBlackTree* tree,
+                                               const void* key) {
     RedBlackNode* node = tree->root;
 
     while (node != 0) {
@@ -106,6 +104,11 @@ RedBlackNode* RBTK_FindQuickNodeEqualToKey(
         }
     }
     return 0;
+}
+
+RedBlackNode* RBTK_FindQuickNodeEqualToKey(
+    RedBlackTree* tree, const void* key) {
+    return rbtk_FindQuickNode(tree, key);
 }
 
 RedBlackNode* RBT_RemoveNode(

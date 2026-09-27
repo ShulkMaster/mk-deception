@@ -234,6 +234,28 @@ void __DSP_insert_task(DSPTaskInfo* task)
     }
 }
 
+/*
+ * Unreferenced in retail (linker-stripped); kept because its format string
+ * survives at the end of dsp_task.o's .data. Body from the 2004 Dolphin SDK.
+ */
+void __DSP_add_task(DSPTaskInfo* task)
+{
+    if (!__DSP_last_task) {
+        __DSP_curr_task = task;
+        __DSP_last_task = task;
+        __DSP_first_task = task;
+        task->next = task->previous = 0;
+    } else {
+        __DSP_last_task->next = task;
+        task->next = 0;
+        task->previous = __DSP_last_task;
+        __DSP_last_task = task;
+    }
+
+    task->state = 0;
+    __DSP_debug_printf("__DSP_add_task() : Added task    : 0x%08X\n", (unsigned long)task);
+}
+
 void __DSP_remove_task(DSPTaskInfo* task)
 {
     task->flags = 0;

@@ -1,7 +1,7 @@
+/* TODO: [review] _rwGCNVertexBufferFill matches only with the discarded `(void)(positionPresent == 0);` read as a
+ * stripped RenderWare assertion; earlier passes rejected it as a dead expression. */
 #include "rw/gamecube.h"
 
-/* TODO: [review] matches only with the discarded `(void)(positionPresent == 0);` read as a
- * stripped RW assertion; earlier passes rejected it as a dead expression. */
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                             const RwGameCubeVertexBuffer* vertexBuffer,
                             const RwGameCubeVertexData* data,

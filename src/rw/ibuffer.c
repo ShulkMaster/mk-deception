@@ -1,3 +1,5 @@
+/* TODO: [review] _rwGCNDisplayListGetSize matches only with the discarded `(void)(numIndices == 1);` read as a
+ * stripped RenderWare assertion; earlier passes rejected it as a dead expression. */
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
@@ -159,8 +161,6 @@ unsigned int _rwGCNDisplayListGetStride(
     return stride;
 }
 
-/* TODO: [review] matches only with the discarded `(void)(numIndices == 1);` read as a
- * stripped RW assertion; earlier passes rejected it as a dead expression. */
 unsigned int _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
                                   unsigned int numIndices,
                                   unsigned int numVertices)

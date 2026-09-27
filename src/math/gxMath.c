@@ -1,3 +1,9 @@
+/* TODO: [blocked] link: retail's linker stripped gxMathTan2 (0x17C), gxMathSin2 (0x198),
+ * gxMathCosSin2 (0x278), gxMathCos2 (0x17C), gxMathArcSin (0x208), sinCosTable (0x80) and
+ * ~30 unused .sdata2 constants (UNUSED in orig/GQNE5D/files/mk6gc_release.MAP), but their
+ * constants still lead this object's pools, so the unit cannot link without them. No source
+ * is known: find their consumers (callers in other builds or games, headers, debug code) or
+ * a genuine donor body, then restore them so the unit can link. */
 #include "math/gxMath.h"
 
 /* Angle scale: 2^20 / (2*pi) and reciprocal 2*pi / 2^20 */

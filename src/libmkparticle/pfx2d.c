@@ -4,35 +4,27 @@
 #include "rw/rwengine.h"
 #include "platform/fast_rw.h"
 
+#pragma scheduling off
+#pragma peephole off
+
 /* Retail keeps these explicitly zero-initialized pools in .data. */
 static unsigned char is_allocated[PFX2D_POOL_SIZE] = {0};
 static Pfx2dObj pfx_2d_buffer[PFX2D_POOL_SIZE] = {0};
 static int must_draw[PFX2D_POOL_SIZE] = {0};
 
-static int first_potentially_available_location;
 static int num_visible_objects;
+static int first_potentially_available_location;
 
 /* Retail order: pfx2d_init, then local get_initialized, then alloc... */
-#if !defined(TARGET_PC)
 #pragma dont_inline on
-#pragma scheduling off
-#endif
 void pfx2d_init(void) {
-    /* Retail: stw lr then li r3,0x1F4 (scheduling off). */
     native2d_init(0x1F4);
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
 static Pfx2dObj* get_initialized_2d_object_by_index(int index) {
     Pfx2dObj* obj;
 
     is_allocated[index] = 1;
-    /* Soft ceiling: mulli index*0xD0 vs &buf[index] (same stride sizeof==0xD0). */
     obj = &pfx_2d_buffer[index];
     obj->pool_index = index;
     obj->src_blend = 5;
@@ -40,16 +32,9 @@ static Pfx2dObj* get_initialized_2d_object_by_index(int index) {
     native2d_init_object(obj);
     return obj;
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
 #pragma dont_inline reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
 Pfx2dObj* pfx2d_alloc_obj(void) {
-    /* Decl order: start before i so MWCC maps start->r6, i->r7 (retail). */
     int start;
     int i;
     int limit;
@@ -68,29 +53,11 @@ Pfx2dObj* pfx2d_alloc_obj(void) {
     }
     return 0;
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
 void pfx2d_free_obj(Pfx2dObj* obj) {
-    /*
-     * Retail leaf: li r4,0 ; lwz index ; lis/addi is_allocated->r3 ; stbx.
-     * Zero must be materialized before the table address clobbers r3.
-     */
-    int zero = 0;
-    int index = obj->pool_index;
-    is_allocated[index] = (unsigned char)zero;
+    is_allocated[obj->pool_index] = 0;
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
 void pfx2d_build_default_geometry(Pfx2dObj* obj) {
     float uvs[8] = {
         0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
@@ -121,9 +88,6 @@ void pfx2d_build_default_geometry(Pfx2dObj* obj) {
     obj->scale_y = 1.0f;
     obj->mirror = 1;
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
 
 void pfx2d_begin_render(void) {
     pfx2d_init();
@@ -131,11 +95,6 @@ void pfx2d_begin_render(void) {
     num_visible_objects = 0;
 }
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
-/* TODO: [near miss] 97.89%; direct global indexing and loop registers match; retail materializes the
- * must_draw address (addi + lwz 0) for the seed lookup where ours folds it into the load. */
 void pfx2d_end_render(void) {
     int saved_cull;
     int i;
@@ -171,13 +130,7 @@ void pfx2d_end_render(void) {
     RwRenderStateSet_SRCBLEND_DESTBLEND(5, 6);
     native2d_end_render();
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma scheduling off
-#endif
 void pfx2d_render(Pfx2dObj* obj) {
     int index;
     int n;
@@ -188,10 +141,3 @@ void pfx2d_render(Pfx2dObj* obj) {
     num_visible_objects = n + 1;
     must_draw[n] = index;
 }
-#if !defined(TARGET_PC)
-#pragma scheduling reset
-#endif
-
-/* Soft ceilings: end_render ~93.75% (seed/base NV allocation); build_default
- * ~98.26% (offset/view GPR coloring; add-after-fmuls is exact).
- * Matched: init/free/alloc/begin/render/get_initialized; pool .data is 100%. */

@@ -1,3 +1,9 @@
+/* TODO: [review] header ownership: include mw/mwFile.h instead of the local copies of
+ * mwFileAsyncValue, mwFileAsyncResult (retail tag _mwFileAsyncResult, not mwFileAsyncResult),
+ * mwFileCallback, _mwFileInitParam and the extern "C" prototypes. Blockers: mwFileGetSize and
+ * mwFileTell return unsigned long long here but long long in the header (check caller
+ * comparisons), and the extern "C" definitions may reorder once the header prototypes precede
+ * them (playbook M17). */
 class mwFile;
 class mwFileCommand;
 class mwFileServer;

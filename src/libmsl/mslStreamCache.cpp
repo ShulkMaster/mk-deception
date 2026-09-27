@@ -169,12 +169,10 @@ extern "C" void mslStreamCache_ReleaseBuffer(int address) {
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 91.57% objdiff (92.65% report); retail seeds two zero
- * homes via mr from i, ours shares one li; permuter found no honest form. */
-extern "C" void mslStreamCache_Initialize_A(int base_address) {
+static inline void StreamCache_Initialize(int base_address) {
     if (s_StreamCache_pBuffers == 0) {
-        int i;
         StreamCacheBuffer* buffer;
+        int i;
 
         s_StreamCache_pBuffers = s_StreamCache_ArrayBuffers;
         s_StreamCache_BaseAddress = base_address;
@@ -190,4 +188,8 @@ extern "C" void mslStreamCache_Initialize_A(int base_address) {
             base_address += 0x20000;
         }
     }
+}
+
+extern "C" void mslStreamCache_Initialize_A(int base_address) {
+    StreamCache_Initialize(base_address);
 }
