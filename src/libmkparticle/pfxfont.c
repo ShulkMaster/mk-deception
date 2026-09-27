@@ -1,3 +1,7 @@
+/* BUILD: No -use_lmw_stmw: retail uses _savegpr_19/_restgpr_19 in string_set. Scheduling and
+ * peephole settings are uniform; no-inline remains local. -str pool: retail .data holds the
+ * COLOR tag as @stringBase0. */
+
 #include "libmkparticle/pfxfont.h"
 
 #include "libmkparticle/gc_font.h"

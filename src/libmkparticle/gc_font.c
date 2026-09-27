@@ -1,3 +1,7 @@
+/* BUILD: No -use_lmw_stmw: retail uses _savegpr_29 in nativefont_string_render. -schedule off:
+ * Y-then-X fctiwz / UV load order closer to retail. Retail nativefont_instance_unlock requires
+ * peephole optimization off. */
+
 /* TODO: [blocked] link: retail's linker stripped get_num_newlines (0x34), render_string (0x270)
  * and nativefont_instance_geometry (0xA8) plus the unused constant @291 (UNUSED in
  * orig/GQNE5D/files/mk6gc_release.MAP). They were compiled before nativefont_string_render and

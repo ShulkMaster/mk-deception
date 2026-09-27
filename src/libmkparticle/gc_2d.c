@@ -1,3 +1,6 @@
+/* BUILD: -schedule off: keep source-order i2f/fctiwz closer to retail. -fp_contract off: retail
+ * uses fmuls+fadds (not fmadds) in geometry. */
+
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/pfx_rw_types.h"

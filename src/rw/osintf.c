@@ -1,3 +1,5 @@
+/* BUILD: -opt off clears inherited -O4,p from cflags_base before per-TU level */
+
 #include "rw/rwplcore.h"
 
 int _rwpathisabsolute(const char* path) {

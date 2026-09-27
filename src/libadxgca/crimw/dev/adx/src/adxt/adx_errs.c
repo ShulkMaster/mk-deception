@@ -1,3 +1,5 @@
+/* BUILD: Retail keeps the " " literal in .rodata (read-only strings, no .sdata2). */
+
 #include "runtime/cstring.h"
 
 typedef void (*ADXErrorCallback)(void* object, const char* message);

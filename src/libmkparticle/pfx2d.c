@@ -1,3 +1,5 @@
+/* BUILD: No -use_lmw_stmw: retail uses _savegpr_25/_restgpr_25 in end_render. */
+
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/pfx_rw_types.h"

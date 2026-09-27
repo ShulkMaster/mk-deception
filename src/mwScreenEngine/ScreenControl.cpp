@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep recursive _RefreshData as bl (else MWCC inlines). */
+
 #include "mwScreenEngine/ScreenControl.h"
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/Screen.h"

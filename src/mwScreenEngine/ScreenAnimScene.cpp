@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep bl GetDirection/Process/GetMaxTime. */
+
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAnimScene.h"
 #include "mwScreenEngine/ScreenAnimEffect.h"

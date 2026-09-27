@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep bl ScreenIntegerCompare from Question Update. */
+
 #include "mwScreenEngine/ScreenMiscAction.h"
 #include "mwScreenEngine/ScreenActionStack.h"
 #include "mwScreenEngine/ScreenControl.h"

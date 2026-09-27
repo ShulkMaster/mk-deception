@@ -1,3 +1,6 @@
+/* BUILD: TU-wide CSE disable replaces create_pebble_userdata pragmas and also improves
+ * pebble_render_callback. */
+
 #include "runtime/mk_pebble.h"
 
 #include "game/collision.h"

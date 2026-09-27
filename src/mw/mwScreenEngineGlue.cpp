@@ -1,3 +1,6 @@
+/* BUILD: -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
+ * __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off). */
+
 #include "game/pselect_textures.h"
 /* Game-specific ScreenEngine controls, resource ownership, menu actions,
  * and particle/font composition. Retail source: mwScreenEngineGlue.cpp.

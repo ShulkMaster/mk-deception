@@ -1,3 +1,5 @@
+/* BUILD: Retail pfxmetrics_estimate_size requires peephole optimization off. */
+
 #include "libmkparticle/metrics.h"
 #include "runtime/cstring.h"
 

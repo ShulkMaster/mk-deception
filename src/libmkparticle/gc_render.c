@@ -1,3 +1,5 @@
+/* BUILD: Retail calls helper boundaries and separates multiply/add operations. */
+
 #include "dolphin/gx.h"
 #include "dolphin/mtx.h"
 #include "dolphin/types.h"

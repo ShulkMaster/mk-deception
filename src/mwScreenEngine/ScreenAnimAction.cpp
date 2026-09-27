@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep bl _GetAnimAction. */
+
 #include "mwScreenEngine/ScreenAnimAction.h"
 #include "mwScreenEngine/ScreenActionStack.h"
 #include "mwScreenEngine/Screen.h"

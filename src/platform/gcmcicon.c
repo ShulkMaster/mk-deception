@@ -1,3 +1,6 @@
+/* BUILD: -inline deferred: retail emits the four functions in reverse source order and places
+ * cardstat below icon_buffer in .bss. */
+
 #include "platform/gcmcicon.h"
 #include "runtime/cstring.h"
 

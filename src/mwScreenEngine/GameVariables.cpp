@@ -1,3 +1,5 @@
+/* BUILD: -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction). */
+
 /*
  * GameVariables.o -- option/collection dispatcher (mwScreenEngine).
  *

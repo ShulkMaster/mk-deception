@@ -1,3 +1,6 @@
+/* BUILD: -inline off: retail bl apply_single_texture from alphamap (no inline). -use_lmw_stmw +
+ * scheduling off: xoris i2f / thin GX wrappers. */
+
 #include "libmkparticle/gc_state.h"
 #include "dolphin/gx.h"
 #include "dolphin/mtx.h"

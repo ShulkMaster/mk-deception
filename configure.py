@@ -559,8 +559,6 @@ config.libs = [
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Export/mslsupp.o",
                 source="dolphin/trk_minnow_dolphin/mslsupp.c",
-                # Retail emits in source order (no -inline deferred) and sizes
-                # the open-mode enum to a byte (-enum min, as mainloop.o).
                 cflags=[*cflags_runtime, "-sdata 0", "-sdata2 0", "-enum min"],
             ),
             Object(
@@ -1083,8 +1081,6 @@ config.libs = [
             Object(NonMatching, "mk_proc.o", source="runtime/mk_proc.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_pebble.o", source="runtime/mk_pebble.c",
-                   # TU-wide CSE disable replaces create_pebble_userdata pragmas
-                   # and also improves pebble_render_callback.
                    extra_cflags=[
                        "-opt", "off", "-O4,s", "-opt", "nocse",
                        "-use_lmw_stmw on",
@@ -1134,12 +1130,8 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "gcmcicon.o", source="platform/gcmcicon.c",
-                   # -inline deferred: retail emits the four functions in reverse
-                   # source order and places cardstat below icon_buffer in .bss.
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly", "-inline deferred"]),
-            # -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in
-            # .rodata (far lis/addi); plain -str reuse emits @sda21 loads.
             Object(NonMatching, "gcmcard.o", source="platform/gcmcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -1167,8 +1159,6 @@ config.libs = [
             Object(NonMatching, "ladder.o", source="game/ladder.c",
                    extra_cflags=["-O4,s"]),
             Object(NonMatching, "ending.o", source="game/ending.c", extra_cflags=["-O4,s"]),
-            # -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
-            # __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off).
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
@@ -1404,7 +1394,6 @@ config.libs = [
                 Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_errs.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_errs.c",
-                # Retail keeps the " " literal in .rodata (read-only strings, no .sdata2).
                 extra_cflags=["-O4,p", "-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly"],
             ),
             Object(
@@ -1505,9 +1494,6 @@ config.libs = [
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc_err.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc_err.c",
                 extra_cflags=["-O4,p", "-sdata", "0"],
-                # Link ceiling: normalized code and BSS are 100%, but the
-                # variadic function relocates through the local BSS anchor
-                # instead of the retail lsc_err_func symbol.
             ),
             Object(
                 Matching,
@@ -2204,12 +2190,6 @@ config.libs = [
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileCommand.o",
                 source="mw/mwFileCommand.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
-                # Link ceiling: code is 100%, but retail .data is __vt__13mwFileCommand
-                # then the weak __vt__15mwFileQueryable. MWCC emits vtables in reverse
-                # creation order (global vtable at its key function, weak vtable at
-                # its first codegen reference); with the ctor compiled last we get
-                # the base vtable first. The MAP shows only a stripped 8-byte
-                # getError() between handleCompletion and the dtor.
             ),
             Object(
                 Matching,
@@ -2393,7 +2373,6 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimControl.o",
                 source="mwScreenEngine/ScreenAnimControl.cpp",
-                # -inline off: keep bl GetTime/GetEase*/GetValue on keys.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2406,14 +2385,12 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimScene.o",
                 source="mwScreenEngine/ScreenAnimScene.cpp",
-                # -inline off: keep bl GetDirection/Process/GetMaxTime.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimAction.o",
                 source="mwScreenEngine/ScreenAnimAction.cpp",
-                # -inline off: keep bl _GetAnimAction.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2441,15 +2418,12 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenUtil.o",
                 source="mwScreenEngine/ScreenUtil.cpp",
-                # -O4,s: prefer mtctr on ReadHexInt digit loop (still soft-ceiling).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/Screen.o",
                 source="mwScreenEngine/Screen.cpp",
-                # -inline off: keep GetRoot as bl in FireEvent (else inlined -> ~37%).
-                # -O4,s: prefer mtctr dword-pair copy of RenderAll @120 init.
                 extra_cflags=[
                     "-O4,s",
                     "-use_lmw_stmw on",
@@ -2462,7 +2436,6 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenSet.o",
                 source="mwScreenEngine/ScreenSet.cpp",
-                # -inline off: GetChild(char*) must bl GetChild(int); GetScreen stmw.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2487,9 +2460,6 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenObject.o",
                 source="mwScreenEngine/ScreenObject.cpp",
-                # -inline off: keep GetFocus/FireEvent/ProcessEvent as bl (MWCC otherwise
-                # inlines them into FireEvent/BroadcastEvent/SetComponent -> 0% / 3-5x size).
-                # -O4,s: mtctr/bdnz + stmw for ctor/HasEvent/SetLast/SetComponent loops.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2514,21 +2484,18 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenMiscAction.o",
                 source="mwScreenEngine/ScreenMiscAction.cpp",
-                # -inline off: keep bl ScreenIntegerCompare from Question Update.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
                 source="mwScreenEngine/GameVariables.cpp",
-                # -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenControl.o",
                 source="mwScreenEngine/ScreenControl.cpp",
-                # -inline off: keep recursive _RefreshData as bl (else MWCC inlines).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
@@ -2689,60 +2656,42 @@ config.libs = [
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/metrics.o",
                 source="libmkparticle/metrics.c",
-                # Retail pfxmetrics_estimate_size requires peephole optimization off.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole", "-pooldata off"],
             ),
             Object(
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_state.o",
                 source="libmkparticle/gc_state.c",
-                # -inline off: retail bl apply_single_texture from alphamap (no inline).
-                # -use_lmw_stmw + scheduling off: xoris i2f / thin GX wrappers.
                 extra_cflags=["-use_lmw_stmw on", "-inline off"],
             ),
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_render.o",
                 source="libmkparticle/gc_render.c",
-                # Retail calls helper boundaries and separates multiply/add operations.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-fp_contract off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_2d.o",
                 source="libmkparticle/gc_2d.c",
-                # -schedule off: keep source-order i2f/fctiwz closer to retail.
-                # -fp_contract off: retail uses fmuls+fadds (not fmadds) in geometry.
                 extra_cflags=["-use_lmw_stmw on", "-schedule off", "-fp_contract off"],
             ),
             Object(
-                # Report-exact; link blocked: the MAP shows linker-stripped
-                # get_num_newlines/render_string/nativefont_instance_geometry (and an
-                # unused @291 constant) compiled before alignment_mask; they created
-                # the 0.5f and int-to-float pool constants, so retail's 0.0f (@334)
-                # follows alignment_mask. Their bodies are unknown.
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_font.o",
                 source="libmkparticle/gc_font.c",
-                # No -use_lmw_stmw: retail uses _savegpr_29 in nativefont_string_render.
-                # -schedule off: Y-then-X fctiwz / UV load order closer to retail.
-                # Retail nativefont_instance_unlock requires peephole optimization off.
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx2d.o",
                 source="libmkparticle/pfx2d.c",
-                # No -use_lmw_stmw: retail uses _savegpr_25/_restgpr_25 in end_render.
                 extra_cflags=["-O4,s"],
             ),
             Object(
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfxfont.o",
                 source="libmkparticle/pfxfont.c",
-                # No -use_lmw_stmw: retail uses _savegpr_19/_restgpr_19 in string_set.
-                # Scheduling and peephole settings are uniform; no-inline remains local.
-                # -str pool: retail .data holds the COLOR tag as @stringBase0.
                 extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole", "-str pool"],
             ),
             Object(
@@ -3089,8 +3038,6 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/dlsprite.obj", source="rw/dlsprite.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
-            # Report-exact; link blocked: retail emits the non-inlined GX helpers in
-            # separate .text sections (as dlsprite/dl2drend), ours in the main .text.
             Object(NonMatching, "rwcore.a/nodeDolphinSubmitNoLight.obj",
                    source="rw/nodeDolphinSubmitNoLight.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
@@ -3163,7 +3110,6 @@ config.libs = [
                 source="rw/batextur.c",
                 extra_cflags=["-opt", "off", "-O0"],
             ),
-            # -opt off clears inherited -O4,p from cflags_base before per-TU level
             Object(Matching, "rwcore.a/osintf.obj", source="rw/osintf.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/babbox.obj", source="rw/babbox.c",

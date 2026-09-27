@@ -1,3 +1,5 @@
+/* BUILD: -inline off: keep bl GetTime, GetEase and GetValue on keys. */
+
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAnimControl.h"
 
