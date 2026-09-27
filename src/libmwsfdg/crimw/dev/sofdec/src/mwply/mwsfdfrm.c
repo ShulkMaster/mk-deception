@@ -199,28 +199,26 @@ static inline int mwsffrm_GetCurFxType(MwsPlayer* player)
 
 static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
 {
-    return player->picture_user_data != 0;
+    return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.330505%; typed slot indexing matches the body;
- * residual prologue/register coloring is a clean-source soft ceiling. */
+/* TODO: [near miss] 97.67%; typed slot indexing matches the body; player/header r31/r30 coloring
+ * is swapped, which RE4 reaches only with a dead conditional; soft ceiling. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
-    MwsPlayer* p;
+    SFHHandle* header;
+    int effect_type;
     int color_adjustment;
     int maximum_frames;
-    int effect_type;
     int is_header;
     int color_type;
     int stream_exists;
     int frame_count;
     int wr;
     int source_effect;
-    SFHHandle* header;
 
-    p = player;
-    p->header_count++;
+    player->header_count++;
     if (size < 0x800 || data == 0) {
         return;
     }
@@ -272,14 +270,14 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
         }
     }
 
-    wr = p->next_header;
-    p->headers[wr].header_number = p->header_count - 1;
-    p->headers[wr].color_adjustment = color_adjustment;
-    p->headers[wr].maximum_frames = maximum_frames;
-    p->headers[wr].effect_type = effect_type;
-    p->headers[wr].valid = 1;
-    p->next_header++;
-    p->next_header %= 8;
+    wr = player->next_header;
+    player->headers[wr].header_number = player->header_count - 1;
+    player->headers[wr].color_adjustment = color_adjustment;
+    player->headers[wr].maximum_frames = maximum_frames;
+    player->headers[wr].effect_type = effect_type;
+    player->headers[wr].valid = 1;
+    player->next_header++;
+    player->next_header %= 8;
     SFH_Destroy(header);
 }
 
@@ -485,23 +483,22 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
            sizeof(output->transport_fields));
 }
 
-/* TODO: [near miss] 96.68777%; donor frame-present CFG and typed metadata
- * owner retained; picture-data Boolean lowering and coloring remain. */
-void mwPlyGetCurFrm(MwsPlayer* player, void* output)
+void mwPlyGetCurFrm(void* object, void* output)
 {
+    MwsPlayer* player = object;
     MwsFrameOutput* frame_output = output;
-    SfdVideoFrameInfo* frame;
-    SfdVideoFrameInfo* metadata_frame;
+    int index;
     SfdHandle* sfd;
-    MwsPictureUserData* picture_user;
     void* user_data;
     int user_size;
-    void* found_data;
-    int found_size;
-    int index;
-    int skip_limit;
-    int color_adjustment;
     int display_mode;
+    int skip_limit;
+    SfdVideoFrameInfo* frame;
+    int found_size;
+    void* found_data;
+    MwsPictureUserData* picture_user;
+    int color_adjustment;
+    SfdVideoFrameInfo* metadata_frame;
     int effect_type;
 
     if (MWSFD_IsEnableHndl(player) == 0) {

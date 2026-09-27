@@ -419,8 +419,8 @@ static inline void adxsjd_skip_out(AdxSjdHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.648830%; raw-format member is named from retail/RE4
- * evidence; retained pad/decode/skip CFG differs by one clean-C r28/r23 copy. */
+/* TODO: [near miss] 99.65%; RE4 pad/decode/skip CFG agrees; one r28/r23 copy in the inlined
+ * pad_out remains, reachable only with a steering unsigned size local; stop. */
 void ADXSJD_ExecHndl(AdxSjdHandle* handle)
 {
     adxsjd_pad_out(handle);
@@ -472,9 +472,9 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
             input->interface->unget_chunk(input, 1, &remainder);
         }
 
-    if (handle->link_switch != 0) {
-        for (;;) {
-            input->interface->get_chunk(
+        if (handle->link_switch != 0) {
+            for (;;) {
+                input->interface->get_chunk(
                     input, 1, 0x7FFFFFFF, &handle->input_chunk);
                 length = handle->input_chunk.len;
                 if (length == 0) {

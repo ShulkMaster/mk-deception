@@ -18,6 +18,7 @@ extern void MPVUMC_EndOfFrame(MPVContext* context);
 extern void UTY_PushGqr(u32 saved[8]);
 extern void UTY_PopGqr(u32 saved[8]);
 
+/* TODO: [near miss] 94.17%; CFG matches; context, stream, and error use different saved registers. */
 int MPV_SkipFrmSj(MPVContext* context, SJ* stream)
 {
     int delimiter_type;

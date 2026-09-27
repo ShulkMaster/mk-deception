@@ -8,7 +8,7 @@ typedef struct SfdSeeSourcePrefix {
     int field_08;
     int field_0C;
     int fields_10[2];
-    int field_18;
+    long field_18;
     unsigned char unknown_001C[0x24];
     int field_40;
 } SfdSeeSourcePrefix;
@@ -175,8 +175,6 @@ int SFD_SetFileSize(SfdHandle* handle, int file_size)
     return 0;
 }
 
-/* TODO: [near miss] 99.625000%; retail reloads field_18 in the fallback arm; only an invented
- * `int*` field pointer (permuter) reproduces it; sub-struct pointer/else-first/ternary do not. */
 static void sfsee_ExecHeadAnaly(SfdHandle* handle)
 {
     SfdSeeWork* source = sfsee_GetSource(handle);

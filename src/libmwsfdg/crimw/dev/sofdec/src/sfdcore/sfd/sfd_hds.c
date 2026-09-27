@@ -433,19 +433,19 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
 /* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
  * preserves both the exact helper and the retail call; helper-only scope does not. */
 #pragma dont_inline on
-/* TODO: [blocked] 98.557144%; retail keeps a `mr r30, r7` copy of header_flag; RE4 needs an asm
+/* TODO: [blocked] 99.14%; retail keeps a `mr r30, r7` copy of header_flag; RE4 needs an asm
  * register pin for it and a plain typed copy is propagated away (measured neutral). */
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag)
 {
-    const unsigned char* header;
-    unsigned int start_byte_0;
+    SFHHandle* decoder;
     unsigned int start_byte_1;
+    unsigned int start_byte_0;
     unsigned char prefix_byte_0;
     unsigned char prefix_byte_1;
-    SFHHandle* decoder;
     int is_sfd_header;
     int header_valid;
+    const unsigned char* header;
     int header_size;
     unsigned int start_code;
 
@@ -478,9 +478,7 @@ int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
             return 0;
         }
     }
-    header -= 12;
-    header_size += 12;
-    decoder = SFH_Create(header, header_size);
+    decoder = SFH_Create(header - 12, header_size + 12);
     if (decoder == 0) {
         header_valid = 0;
     } else {
@@ -493,7 +491,7 @@ int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
     if (header_valid == 0) {
         return 0;
     }
-    *header_flag = sfhds_SetHdrRaw(handle, header, header_size);
+    *header_flag = sfhds_SetHdrRaw(handle, header - 12, header_size + 12);
     return 1;
 }
 #pragma dont_inline reset
