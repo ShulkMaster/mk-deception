@@ -401,11 +401,7 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/*
- * Soft ceiling: unit_vector_to_area ~91.67% -- boundary traversal, extrema,
- * normals, and packed next-area address match retail. Residue is register
- * coloring plus MWCC's joined return versus retail's split returns.
- */
+/* TODO: [near miss] 91.67%; FPR coloring plus a joined return where retail splits the returns. */
 static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -446,7 +442,6 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
             }
         }
     }
-    /* Step across the packed portal tail to the next variable-size area. */
     count = ((NavPortalList*)boundary)->count;
     boundary = (NavBoundary*)((NavPortalList*)boundary)->entries;
     boundary = (NavBoundary*)((NavPortalEntry*)boundary + count);

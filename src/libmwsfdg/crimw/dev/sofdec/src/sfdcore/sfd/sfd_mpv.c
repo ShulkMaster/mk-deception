@@ -1765,7 +1765,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
                               int* decode_result)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     MPVContext* decoder = work->decoder;
     SfdMpvAuxWork* aux =
         (SfdMpvAuxWork*)((unsigned char*)work + sizeof(*work));
@@ -1906,7 +1906,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
 
     delimiter = MPV_SearchDelim(header->data, header->len, 4);
     new_group = work->field_110;
-    pts_work = (SfdMpvFrameWork*)handle->transports[2].context;
+    pts_work = handle->transports[2].context;
     pts_buffer_index = handle->transports[2].parameter_10;
     timestamp = -1;
     raw_pts = -1;
@@ -1988,7 +1988,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     }
 
     settings = (SfdMpvPlaybackSettings*)&handle->playback_settings;
-    output_work = (SfdMpvFrameWork*)handle->transports[2].context;
+    output_work = handle->transports[2].context;
     if (settings->bit_rate != 0) {
         return 0;
     }
@@ -2009,7 +2009,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     }
 
     cache_bit_rate = bit_rate;
-    cache_work = (SfdMpvFrameWork*)handle->transports[2].context;
+    cache_work = handle->transports[2].context;
     {
         SfdMpvSeekCache* cache;
 

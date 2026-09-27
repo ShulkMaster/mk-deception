@@ -135,7 +135,7 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
             index = work->average_index;
             work->average_index = index + 1;
             work->errors[index % work->average_count] =
-                (int)difference;
+                difference;
             average = sum_history(work) / work->average_count;
             work->average = (int)average;
             work->adjusted_average = (int)average;

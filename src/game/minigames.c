@@ -1890,8 +1890,8 @@ static float p_pz_mode_exit(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.67311%; localization bases now precede language queries;
- * only fade-loop coloring/shared BSS references remain after five trials. */
+/* TODO: [near miss] 99.79%; fade-loop alpha/index GPR coloring and one shared
+ * BSS base (r30+0x58 vs +0x10) remain. */
 static float p_pz_mode_endofgame(void) {
     PuzzleLocalizedImagePlacement* winner_placement;
     PuzzleLocalizedImagePlacement* loser_placement;
@@ -1940,20 +1940,16 @@ static float p_pz_mode_endofgame(void) {
                 }
             }
             if (puzzle_ctrl->score_text[0] != 0) {
-                set_string_obj_alpha(puzzle_ctrl->score_text[0],
-                                     (float)alpha);
+                set_string_obj_alpha(puzzle_ctrl->score_text[0], alpha);
             }
             if (puzzle_ctrl->score_text[1] != 0) {
-                set_string_obj_alpha(puzzle_ctrl->score_text[1],
-                                     (float)alpha);
+                set_string_obj_alpha(puzzle_ctrl->score_text[1], alpha);
             }
             if (puzzle_ctrl->result_text[0] != 0) {
-                set_string_obj_alpha(puzzle_ctrl->result_text[0],
-                                     (float)alpha);
+                set_string_obj_alpha(puzzle_ctrl->result_text[0], alpha);
             }
             if (puzzle_ctrl->result_text[1] != 0) {
-                set_string_obj_alpha(puzzle_ctrl->result_text[1],
-                                     (float)alpha);
+                set_string_obj_alpha(puzzle_ctrl->result_text[1], alpha);
             }
             _mkproc_sleep_ticks = 1.0f;
             ((PuzzleProcVtable*)aproc->vtbl)->sleep();
@@ -4666,12 +4662,8 @@ static int puzzle_fighter_match_above_below__ai(
     return matched;
 }
 
-/* Emission-only near match (92.38%, retail 0x708/current 0x748). m2c and retail
- * CFG confirm all candidate tables, signed scans, breaker cases, candidate-
- * relative neighbor priorities, rotations, and column updates. Remaining
- * emission is duplicated outcome-tail layout and vertical-scan pointer/register
- * lifetime; a typed outcome helper inlines to the identical object. */
-/* TODO: [near miss] 92.37778%; mask flattening regressed; retain confirmed bitfield union and stop at outcome-tail coloring. */
+/* TODO: [near miss] 92.38%; bitfield union is confirmed (mask flattening regressed);
+ * duplicated outcome-tail layout and vertical-scan register lifetime remain. */
 static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
     PuzzleAiData data;
     int move0_columns[] = {3, 4, 2, 5, -1};
@@ -4740,124 +4732,181 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
             }
         }
     } else {
-    type = player->current_pair[0].type;
-    if (type >= 4 && type <= 7) {
-        flags.bits.piece0_is_color_breaker = 1;
-    }
-    type = player->current_pair[1].type;
-    if (type >= 4 && type <= 7) {
-        flags.bits.piece1_is_color_breaker = 1;
-    }
-
-    if (flags.bits.piece0_is_color_breaker == 0 &&
-        flags.bits.piece1_is_color_breaker == 0) {
-        for (candidate = 0; alternate_columns[candidate] >= 0; candidate++) {
-            column = alternate_columns[candidate];
-            if (player->board_rows[rows[candidate]][column].type == 0) {
-                player->ai_target_column = column;
-                return;
-            }
+        type = player->current_pair[0].type;
+        if (type >= 4 && type <= 7) {
+            flags.bits.piece0_is_color_breaker = 1;
         }
-    } else {
-    data.player = player;
-    pzsm_ai_get_data(&data);
-    if (data.normal_block_count <= 32) {
-    for (candidate = 0; columns[candidate] >= 0; candidate++) {
-        PuzzleBoardCell* below_cell;
-
-        column = columns[candidate];
-        row = rows[candidate];
-        if (player->board_rows[row][column].type != 0) {
-            continue;
+        type = player->current_pair[1].type;
+        if (type >= 4 && type <= 7) {
+            flags.bits.piece1_is_color_breaker = 1;
         }
-        player->ai_target_column = column;
 
-        row = rows[candidate];
-        for (; row >= 0; row--) {
-            below_cell = &player->board_rows[row][column];
-            if (below_cell->type != 0) {
-                break;
-            }
-        }
-        if (row < 0) {
-            below_type = (unsigned int)-1;
-        } else {
-            below_type = below_cell->type;
-            if (below_type >= 4) {
-                if (below_type != PUZZLE_BLOCK_WILDCARD) {
-                    below_type -= 4;
-                } else {
-                    below_type = 0;
+        if (flags.bits.piece0_is_color_breaker == 0 &&
+            flags.bits.piece1_is_color_breaker == 0) {
+            for (candidate = 0; alternate_columns[candidate] >= 0; candidate++) {
+                column = alternate_columns[candidate];
+                if (player->board_rows[rows[candidate]][column].type == 0) {
+                    player->ai_target_column = column;
+                    return;
                 }
             }
-        }
-
-        for (row = player->active_row; row >= 0; row--) {
-            left_cell = &player->board_rows[row][candidate - 1];
-            if (left_cell->type != 0) {
-                break;
-            }
-        }
-        if (row == player->active_row) {
-            left_type = (unsigned int)-16;
-        } else if (row < 0) {
-            left_type = (unsigned int)-1;
         } else {
-            left_type = left_cell->type;
-            if (left_type >= 4) {
-                if (left_type != PUZZLE_BLOCK_WILDCARD) {
-                    left_type -= 4;
-                } else {
-                    left_type = 0;
-                }
-            }
-        }
+            data.player = player;
+            pzsm_ai_get_data(&data);
+            if (data.normal_block_count <= 32) {
+                for (candidate = 0; columns[candidate] >= 0; candidate++) {
+                    PuzzleBoardCell* below_cell;
 
-        for (row = player->active_row; row >= 0; row--) {
-            right_cell = &player->board_rows[row][candidate + 1];
-            if (right_cell->type != 0) {
-                break;
-            }
-        }
-        if (row == player->active_row) {
-            right_type = (unsigned int)-16;
-        } else if (row < 0) {
-            right_type = (unsigned int)-1;
-        } else {
-            right_type = right_cell->type;
-            if (right_type >= 4) {
-                if (right_type != PUZZLE_BLOCK_WILDCARD) {
-                    right_type -= 4;
-                } else {
-                    right_type = 0;
-                }
-            }
-        }
-
-        if (flags.bits.piece0_is_color_breaker != 0 &&
-            flags.bits.piece1_is_color_breaker != 0) {
-            if (below_type == (unsigned int)-1) {
-                return;
-            }
-            if (player->current_pair[0].type == player->current_pair[1].type) {
-                type = player->current_pair[0].type;
-                if (type >= 4) {
-                    if (type != PUZZLE_BLOCK_WILDCARD) {
-                        type -= 4;
-                    } else {
-                        type = 0;
+                    column = columns[candidate];
+                    row = rows[candidate];
+                    if (player->board_rows[row][column].type != 0) {
+                        continue;
                     }
-                }
-                if (below_type == type) {
-                    continue;
-                }
-                if (left_type == (unsigned int)-1 ||
-                    right_type == (unsigned int)-16) {
-                    player->ai_target_rotation = 3;
-                } else if (right_type == (unsigned int)-1 ||
-                           left_type == (unsigned int)-16) {
-                    player->ai_target_rotation = 1;
-                } else {
+                    player->ai_target_column = column;
+
+                    row = rows[candidate];
+                    for (; row >= 0; row--) {
+                        below_cell = &player->board_rows[row][column];
+                        if (below_cell->type != 0) {
+                            break;
+                        }
+                    }
+                    if (row < 0) {
+                        below_type = (unsigned int)-1;
+                    } else {
+                        below_type = below_cell->type;
+                        if (below_type >= 4) {
+                            if (below_type != PUZZLE_BLOCK_WILDCARD) {
+                                below_type -= 4;
+                            } else {
+                                below_type = 0;
+                            }
+                        }
+                    }
+
+                    for (row = player->active_row; row >= 0; row--) {
+                        left_cell = &player->board_rows[row][candidate - 1];
+                        if (left_cell->type != 0) {
+                            break;
+                        }
+                    }
+                    if (row == player->active_row) {
+                        left_type = (unsigned int)-16;
+                    } else if (row < 0) {
+                        left_type = (unsigned int)-1;
+                    } else {
+                        left_type = left_cell->type;
+                        if (left_type >= 4) {
+                            if (left_type != PUZZLE_BLOCK_WILDCARD) {
+                                left_type -= 4;
+                            } else {
+                                left_type = 0;
+                            }
+                        }
+                    }
+
+                    for (row = player->active_row; row >= 0; row--) {
+                        right_cell = &player->board_rows[row][candidate + 1];
+                        if (right_cell->type != 0) {
+                            break;
+                        }
+                    }
+                    if (row == player->active_row) {
+                        right_type = (unsigned int)-16;
+                    } else if (row < 0) {
+                        right_type = (unsigned int)-1;
+                    } else {
+                        right_type = right_cell->type;
+                        if (right_type >= 4) {
+                            if (right_type != PUZZLE_BLOCK_WILDCARD) {
+                                right_type -= 4;
+                            } else {
+                                right_type = 0;
+                            }
+                        }
+                    }
+
+                    if (flags.bits.piece0_is_color_breaker != 0 &&
+                        flags.bits.piece1_is_color_breaker != 0) {
+                        if (below_type == (unsigned int)-1) {
+                            return;
+                        }
+                        if (player->current_pair[0].type == player->current_pair[1].type) {
+                            type = player->current_pair[0].type;
+                            if (type >= 4) {
+                                if (type != PUZZLE_BLOCK_WILDCARD) {
+                                    type -= 4;
+                                } else {
+                                    type = 0;
+                                }
+                            }
+                            if (below_type == type) {
+                                continue;
+                            }
+                            if (left_type == (unsigned int)-1 ||
+                                right_type == (unsigned int)-16) {
+                                player->ai_target_rotation = 3;
+                            } else if (right_type == (unsigned int)-1 ||
+                                       left_type == (unsigned int)-16) {
+                                player->ai_target_rotation = 1;
+                            } else {
+                                type = player->current_pair[1].type;
+                                if (type >= 4) {
+                                    if (type != PUZZLE_BLOCK_WILDCARD) {
+                                        type -= 4;
+                                    } else {
+                                        type = 0;
+                                    }
+                                }
+                                if (left_type == type) {
+                                    player->ai_target_rotation = 1;
+                                } else {
+                                    player->ai_target_rotation = 3;
+                                }
+                            }
+                            return;
+                        }
+
+                        type = player->current_pair[0].type;
+                        if (type >= 4) {
+                            if (type != PUZZLE_BLOCK_WILDCARD) {
+                                type -= 4;
+                            } else {
+                                type = 0;
+                            }
+                        }
+                        if (below_type != type) {
+                            continue;
+                        }
+                        player->ai_target_rotation = 2;
+                        return;
+                    }
+
+                    if (flags.bits.piece0_is_color_breaker != 0) {
+                        type = player->current_pair[0].type;
+                        if (type >= 4) {
+                            if (type != PUZZLE_BLOCK_WILDCARD) {
+                                type -= 4;
+                            } else {
+                                type = 0;
+                            }
+                        }
+                        if (below_type == type) {
+                            continue;
+                        }
+                        type = player->current_pair[1].type;
+                        if (left_type == type || right_type == (unsigned int)-16) {
+                            player->ai_target_rotation = 3;
+                        } else if (right_type == type || left_type == (unsigned int)-16) {
+                            player->ai_target_rotation = 1;
+                        } else if (left_type == (unsigned int)-1) {
+                            player->ai_target_rotation = 3;
+                        } else {
+                            player->ai_target_rotation = 1;
+                        }
+                        return;
+                    }
+
                     type = player->current_pair[1].type;
                     if (type >= 4) {
                         if (type != PUZZLE_BLOCK_WILDCARD) {
@@ -4866,85 +4915,28 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
                             type = 0;
                         }
                     }
-                    if (left_type == type) {
+                    if (below_type == type) {
+                        continue;
+                    }
+                    type = player->current_pair[0].type;
+                    if (left_type == type || right_type == (unsigned int)-16) {
                         player->ai_target_rotation = 1;
+                        player->ai_target_column--;
+                    } else if (right_type == type ||
+                               left_type == (unsigned int)-16) {
+                        player->ai_target_rotation = 3;
+                        player->ai_target_column++;
+                    } else if (left_type == (unsigned int)-1) {
+                        player->ai_target_rotation = 1;
+                        player->ai_target_column--;
                     } else {
                         player->ai_target_rotation = 3;
+                        player->ai_target_column++;
                     }
-                }
-                return;
-            }
-
-            type = player->current_pair[0].type;
-            if (type >= 4) {
-                if (type != PUZZLE_BLOCK_WILDCARD) {
-                    type -= 4;
-                } else {
-                    type = 0;
+                    return;
                 }
             }
-            if (below_type != type) {
-                continue;
-            }
-            player->ai_target_rotation = 2;
-            return;
         }
-
-        if (flags.bits.piece0_is_color_breaker != 0) {
-            type = player->current_pair[0].type;
-            if (type >= 4) {
-                if (type != PUZZLE_BLOCK_WILDCARD) {
-                    type -= 4;
-                } else {
-                    type = 0;
-                }
-            }
-            if (below_type == type) {
-                continue;
-            }
-            type = player->current_pair[1].type;
-            if (left_type == type || right_type == (unsigned int)-16) {
-                player->ai_target_rotation = 3;
-            } else if (right_type == type || left_type == (unsigned int)-16) {
-                player->ai_target_rotation = 1;
-            } else if (left_type == (unsigned int)-1) {
-                player->ai_target_rotation = 3;
-            } else {
-                player->ai_target_rotation = 1;
-            }
-            return;
-        }
-
-        type = player->current_pair[1].type;
-        if (type >= 4) {
-            if (type != PUZZLE_BLOCK_WILDCARD) {
-                type -= 4;
-            } else {
-                type = 0;
-            }
-        }
-        if (below_type == type) {
-            continue;
-        }
-        type = player->current_pair[0].type;
-        if (left_type == type || right_type == (unsigned int)-16) {
-            player->ai_target_rotation = 1;
-            player->ai_target_column--;
-        } else if (right_type == type ||
-                   left_type == (unsigned int)-16) {
-            player->ai_target_rotation = 3;
-            player->ai_target_column++;
-        } else if (left_type == (unsigned int)-1) {
-            player->ai_target_rotation = 1;
-            player->ai_target_column--;
-        } else {
-            player->ai_target_rotation = 3;
-            player->ai_target_column++;
-        }
-        return;
-    }
-    }
-    }
     }
 
     player->ai_move = 3;
@@ -7957,7 +7949,7 @@ static int puzzle_fighter_mode_start(int message) {
     return 120;
 }
 
-/* TODO: [near miss] 98.49%; frame_time-last pfx_texture_animate call order fixed; NV allocation and pool labels remain. */
+/* TODO: [near miss] 98.83%; ice-block create args fixed; register coloring around build.name/emitter stores remains. */
 static int init_pz_pfx_2d(void) {
     PfxBuildInfo build;
     MkPfx* puzzle_effect = 0;
@@ -7985,7 +7977,7 @@ static int init_pz_pfx_2d(void) {
     if (ice_count != 0) {
         build.name = (char*)(PUZZLE_STRINGS + PUZZLE_ICE_BLOCKS_STRING);
         proc = new_pfx_create_raw_userdata(
-            &build, ice_count * 0x68, pfx_2d_elements_tbl.particle_capacity,
+            &build, 0, ice_count * 0x68,
             pfx_2d_elements_tbl.field_214, pfx_2d_elements_tbl.field_A0, 0,
             0x6012, p_pzpfx_copy_iceblock_data, (void**)&ice_effect);
         if (proc == 0) {
@@ -8002,9 +7994,8 @@ static int init_pz_pfx_2d(void) {
         pfx_2d_elements_tbl.texture_width, pfx_2d_elements_tbl.frame_width,
         pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
         1.0f);
-    puzzle_effect->emitter_enabled =
-        (unsigned short)pfx_2d_elements_tbl.emitter_enabled;
-    emitter_lifetime = (float)pfx_2d_elements_tbl.emitter_lifetime;
+    puzzle_effect->emitter_enabled = pfx_2d_elements_tbl.emitter_enabled;
+    emitter_lifetime = pfx_2d_elements_tbl.emitter_lifetime;
     ((PfxVm*)puzzle_effect->matrix)->flag150_20 = 1;
     ((PfxVm*)puzzle_effect->matrix)->flag150_02 = 1;
     ((PfxVm*)puzzle_effect->matrix)->billboard_size =
@@ -8017,11 +8008,11 @@ static int init_pz_pfx_2d(void) {
     puzzle_effect->effect_state = 0;
     puzzle_ctrl->puzzle_pfx = (PfxVm*)puzzle_effect->matrix;
     puzzle_ctrl->puzzle_particle_capacity =
-        &((PfxVm*)puzzle_ctrl->puzzle_pfx)->particle_capacity;
+        &puzzle_ctrl->puzzle_pfx->particle_capacity;
     puzzle_ctrl->particle_position_stride =
-        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x100);
+        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x100);
     puzzle_ctrl->particle_timer_stride =
-        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x301);
+        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x301);
 
     if (ice_count == 0) {
         return 1;
@@ -8034,9 +8025,8 @@ static int init_pz_pfx_2d(void) {
         pfx_2d_elements_tbl.texture_width, pfx_2d_elements_tbl.frame_width,
         pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
         1.0f);
-    ice_effect->emitter_enabled =
-        (unsigned short)pfx_2d_elements_tbl.emitter_enabled;
-    emitter_lifetime = (float)pfx_2d_elements_tbl.emitter_lifetime;
+    ice_effect->emitter_enabled = pfx_2d_elements_tbl.emitter_enabled;
+    emitter_lifetime = pfx_2d_elements_tbl.emitter_lifetime;
     ((PfxVm*)ice_effect->matrix)->flag150_20 = 1;
     ((PfxVm*)ice_effect->matrix)->flag150_02 = 1;
     ((PfxVm*)ice_effect->matrix)->billboard_size =
@@ -8049,11 +8039,11 @@ static int init_pz_pfx_2d(void) {
     ice_effect->effect_state = 0;
     puzzle_ctrl->ice_pfx = (PfxVm*)ice_effect->matrix;
     puzzle_ctrl->ice_particle_capacity =
-        &((PfxVm*)puzzle_ctrl->ice_pfx)->particle_capacity;
+        &puzzle_ctrl->ice_pfx->particle_capacity;
     puzzle_ctrl->ice_position_stride =
-        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x100);
+        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x100);
     puzzle_ctrl->ice_timer_stride =
-        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x301);
+        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x301);
     return 1;
 }
 
@@ -8135,7 +8125,7 @@ static float p_pzpfx_copy_data(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.426865%; typed pair indexing preserves retail stride;
+/* TODO: [near miss] 97.55%; typed pair indexing preserves retail stride;
  * placement-base formation and integer-to-float/register scheduling remain. */
 static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
     const PuzzleArtPlacement* preview_placement;
@@ -8183,11 +8173,8 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
 
         next_piece = &player->next_pair[piece];
         puzzle_ctrl->particle_positions->x = (float)(*preview_x + 4);
-        {
-            int preview_y_position = *preview_y + preview_y_offset;
-            preview_y_position += 3;
-            puzzle_ctrl->particle_positions->y = (float)preview_y_position;
-        }
+        puzzle_ctrl->particle_positions->y =
+            (float)(*preview_y + preview_y_offset + 3);
         puzzle_ctrl->particle_positions->z = 100.0f;
         type = next_piece->type;
         if (type < 15) {
@@ -8279,15 +8266,13 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
             } else {
                 continue;
             }
-            {
-                puzzle_ctrl->puzzle_pfx->particle_cursor++;
-                puzzle_ctrl->particle_positions =
-                    (Vec*)((char*)puzzle_ctrl->particle_positions +
-                           puzzle_ctrl->particle_position_stride);
-                puzzle_ctrl->particle_timers =
-                    (float*)((char*)puzzle_ctrl->particle_timers +
-                             puzzle_ctrl->particle_timer_stride);
-            }
+            puzzle_ctrl->puzzle_pfx->particle_cursor++;
+            puzzle_ctrl->particle_positions =
+                (Vec*)((char*)puzzle_ctrl->particle_positions +
+                       puzzle_ctrl->particle_position_stride);
+            puzzle_ctrl->particle_timers =
+                (float*)((char*)puzzle_ctrl->particle_timers +
+                         puzzle_ctrl->particle_timer_stride);
         }
     }
 }

@@ -254,7 +254,7 @@ void CFT_MakeArgb8888AlpLumiTbl(
     }
 }
 
-/* TODO: [breakthrough] 31.522167%; chroma count/cursors and row setup agree better; cache/update lowering remains. */
+/* TODO: [breakthrough] Retail cache and update lowering remain unmatched. */
 void CFT_Ycc420plnToY84C44(
     const CFTYcc420Planar* src,
     u8* dst_y,
@@ -264,7 +264,6 @@ void CFT_Ycc420plnToY84C44(
 {
     s32 tile_y;
     s32 tile_x;
-    /* The retail GameCube copy treats aligned Y plane words as FP storage. */
     f64* y_output = (f64*)dst_y;
     u32* c_output = (u32*)dst_c;
     const f64* y_row0 = (const f64*)src->y;

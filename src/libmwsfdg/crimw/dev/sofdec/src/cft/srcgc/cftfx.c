@@ -321,8 +321,7 @@ static inline void cftStorePixelQuad(
     second_output[0] = cftPackEvenPixels(second_luma, second_chroma);
 }
 
-/* TODO: [near miss] 96.589470%; typed output cursors and aligned row rewind
- * preserve retail behavior; two setup copies and register coloring remain. */
+/* TODO: [near miss] Retail setup still differs. */
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {
@@ -346,7 +345,7 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     y1 = y0 + ((((unsigned long)planes.cb - (unsigned long)y0) >> 1) & ~3UL);
     cb = planes.cb;
     cr = planes.cr;
-    output0 = (u32*)destination;
+    output0 = destination;
     output1 = output0 + 8;
     y_step = planes.y_pitch & ~3;
     c_step = planes.c_pitch & ~1;

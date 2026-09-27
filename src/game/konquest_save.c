@@ -199,7 +199,7 @@ int get_row_count_for_table(void* table, int row);
 struct KonquestPuiRuntime;
 struct MkSobj;
 int should_this_pui_be_saved(const struct KonquestPuiRuntime* pui);
-int get_konquest_pui_inventory_bit_index(const int* pui);
+int get_konquest_pui_inventory_bit_index(const struct KonquestPuiRuntime* pui);
 void get_konquest_pui_object_pos(Vec* position, const struct MkSobj* pui);
 const char* nbc_find_text(int index, int table);
 int save_konquest_region_to_memcard_w_error(
@@ -562,11 +562,7 @@ int load_konq_memory_from_krd_buffer(void) {
     return 1;
 }
 
-/*
- * Soft ceiling: save_konq_memory_to_krd_buffer ~87.44% (4 bytes smaller) --
- * algorithms, CFG, record advancement, layouts, and store order match; residue
- * is fixed-base versus cursor addressing, coloring, booleans, and CTR lowering.
- */
+/* TODO: [near miss] 87.44%; CFG, layouts and store order agree; fixed-base vs cursor addressing, booleans and CTR lowering remain. */
 int save_konq_memory_to_krd_buffer(int region) {
     KonquestRegionBuffer* buffer;
     MkPtr** trigger_list;
@@ -641,7 +637,7 @@ int save_konq_memory_to_krd_buffer(int region) {
                 }
                 pui_save = get_pui_save_entry(buffer, pui_offset);
                 pui_save->inventory_bit =
-                    get_konquest_pui_inventory_bit_index((const int*)pui);
+                    get_konquest_pui_inventory_bit_index(pui);
                 get_konquest_pui_object_pos(&pui_position,
                                             (const struct MkSobj*)pui);
                 pui_save->pos_x = pui_position.x;

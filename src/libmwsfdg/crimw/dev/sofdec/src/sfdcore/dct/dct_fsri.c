@@ -56,14 +56,7 @@ static inline void dctFsriStoreSparseCoefficient(int coefficient, int index,
     PreIDCT[dctFsriScanIndex(coefficient)][index] = (float)*value;
 }
 
-/*
- * Soft ceiling: retail performs both inverse-transform passes with paired-
- * single operations and quantized paired stores. The compiler exposes no
- * portable C intrinsic for that kernel, so this preserves its scalar lanes,
- * arithmetic order, output permutation, and rounding behavior.
- */
-/* TODO: [breakthrough needed] 19.039824%; descending DC word stores agree
- * with retail; paired-single transform kernel remains outside portable C codegen. */
+/* TODO: [breakthrough needed] Paired-single transform kernel remains unmatched. */
 static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
 {
     float* coefficients = params->coefficients;
@@ -76,7 +69,6 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
             DctFsriBlock* output = output_blocks[block];
 
             if (params->block_nonzero[block] == 0) {
-                /* Retail and RE4 fill this 4-byte-aligned block as 32 words. */
                 u32* words = (u32*)output->samples + 32;
                 float dc = coefficients[0];
                 signed short value;
@@ -97,7 +89,6 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
                 int row_pair;
                 int column;
 
-                /* The input interleaves each pair of rows. */
                 for (row_pair = 0; row_pair < 4; row_pair++) {
                     int lane;
                     for (lane = 0; lane < 2; lane++) {
@@ -145,8 +136,6 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
                         odd_outer -= odd_inner;
                         odd_low = odd_delta_53 - odd_outer;
 
-                        /* Paired-single merges leave each row in the order
-                         * consumed by the column pass. */
                         destination[0] = even_high + odd_high;
                         destination[2] = even_mid_low + odd_outer;
                         destination[4] = even_low - odd_low;

@@ -440,9 +440,8 @@ void pselect_random_select(int player) {
     PlyrInfo* plyr;
     int pad;
 
-    pdata = 0;
     if (_create_mkproc_generic_nostack(0x902C, 0x1F,
-                                       p_random_player_select, 0x18,
+                                       p_random_player_select, sizeof(RandomSelectPdata),
                                        (MkHdr**)&pdata) == 0) {
         return;
     }
@@ -451,7 +450,7 @@ void pselect_random_select(int player) {
     pdata->step = 0;
     pdata->field_14 = 0;
 
-    if ((int)mode_of_play == 4 &&
+    if (mode_of_play == 4 &&
         (&g_game_info.plyr0)[menu_player].player_state != 1) {
         pdata->player = menu_player == 0;
     }
@@ -464,9 +463,11 @@ void pselect_random_select(int player) {
 
     plyr = &(&g_game_info.plyr0)[player];
     pad = plyr->pad_index;
-    g_game_info.pads[pad].flags |= 0x80;
+    g_game_info.pads[pad].flag_bits.disabled = 1;
 }
 
+/* TODO: [breakthrough needed] 54.48%; retail frame is 0x40 with r23-r31 saved: the
+ * is_char_locked bit test (__shl2i on gp_data unlock words) and table lookup are inline. */
 static float p_random_player_select(void) {
     RandomSelectPdata* pdata;
     int slot;
@@ -478,15 +479,15 @@ static float p_random_player_select(void) {
     if (rnd_sleep_tbl[pdata->step] == -1) {
         fire_screen_studio_event(0x1FB3, pdata->player + 1);
         pad = (&g_game_info.plyr0)[pdata->player].pad_index;
-        g_game_info.pads[pad].flags &= 0x7F;
+        g_game_info.pads[pad].flag_bits.disabled = 0;
         return sleep_ticks_neg_one;
     }
 
     attempts = 0;
-    slot = randu0((unsigned int)pdata->num_chars & 0xFFFF) & 0xFFFF;
+    slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
     char_id = pselect_char_at(slot)->char_id;
     while (is_char_locked(char_id, 0) || char_id == 0x20) {
-        slot = randu0((unsigned int)pdata->num_chars & 0xFFFF) & 0xFFFF;
+        slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
         char_id = pselect_char_at(slot)->char_id;
         attempts += 1;
         if (attempts > 0x32) {
@@ -1728,7 +1729,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
 
 /* Publishes player selection, alternate costume, name sound and model load. */
 
-/* TODO: [breakthrough needed] 62.110497%; retained validity join; explicit-return trials regress shared consumers. */
+/* TODO: [breakthrough needed] 62.51%; retail has the lock-bit and palette logic inline;
+ * check how is_char_locked/resolve_alternate_palettes expand, then the early-return CFG. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1747,7 +1749,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
     }
 
     if (pselect_mode != 1) {
-        if ((int)mode_of_play == 4) {
+        if (mode_of_play == 4) {
             if (plyr->field_04 == menu_player) {
                 set_player_state(plyr, 2);
                 other = &g_game_info.plyr0;
@@ -1778,7 +1780,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
     flags = (PselectPlyrFlags*)&plyr->field_14;
     flags->alt = 0;
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         pad = (&g_game_info.plyr0)[menu_player].pad_index;
     } else {
         pad = plyr->pad_index;
@@ -1786,7 +1788,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
 
     if (pselect_mode == 0 && check_switch(pad, 0xB) != 0) {
         locked = is_char_locked(plyr->player_index, 1);
-            if (locked == 0) {
+        if (locked == 0) {
             flags->alt = 1;
             if (pselect_mode == 0) {
                 player = plyr->field_04;
@@ -1804,7 +1806,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
 
     resolve_alternate_palettes(plyr);
 
-    if ((int)mode_of_play != 9) {
+    if (mode_of_play != 9) {
         flag_word = plyr->field_14;
         load_plyr_model_async(plyr->field_04, plyr->player_index, &flag_word);
     }
@@ -1834,11 +1836,11 @@ void pselect_player_selected(PlyrInfo* plyr) {
 
     if (pselect_mode == 1) {
         char_id = pselect_char_tbl[*sel_pos].char_id;
-        focus = bg_team_focus_of((BgPselectPdata*)get_screen_pdata(),
+        focus = bg_team_focus_of(get_screen_pdata(),
                                  plyr->field_04, char_id);
         if (focus >= 0) {
             fire_screen_studio_event(studio_ev, plyr->field_04);
-            bg_team_view((BgPselectPdata*)get_screen_pdata(), plyr->field_04)
+            bg_team_view(get_screen_pdata(), plyr->field_04)
                 ->focus = focus;
         }
     }
@@ -2471,10 +2473,8 @@ typedef struct PselectPadConnFlags {
     unsigned char lo : 6;
 } PselectPadConnFlags;
 
-/*
- * Soft ceiling: p_pselect ~97.9% -- indirect sleep-call scheduling and
- * wager-refund scratch-register coloring; stop.
- */
+/* TODO: [near miss] 98.01%; indirect sleep-call bctrl slot, unassign_player branch
+ * layout and wager-refund scratch-register coloring remain. */
 float p_pselect(void) {
     GameInfo* gi;
     PlyrInfo* plyr1;
@@ -2493,14 +2493,14 @@ float p_pselect(void) {
     pselect_init();
     push_game_state(4);
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         disable_all_ports_but_me((&g_game_info.plyr0)[menu_player].pad_index);
     }
 
     load_ssf((MkFileEntry*)pselect_file_table);
     load_art_section_by_name(PSELECT_SEC_SLOT, STR_PSELECT_ART);
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         load_screen(STR_P_PRACTICE, PSELECT_SEC_SLOT, 0, 0);
     } else {
         load_screen(STR_P_SELECT, PSELECT_SEC_SLOT, 0, 0);
@@ -2512,7 +2512,6 @@ float p_pselect(void) {
         ck_for_controller_removed();
     }
 
-    /* Retail loop caches plyr1 @ r30 / plyr0 @ r29. */
     gi = &g_game_info;
     plyr1 = &gi->plyr1;
     plyr0 = &gi->plyr0;
@@ -2529,13 +2528,13 @@ float p_pselect(void) {
 
         if (n_selecting == 0) {
             gi->bgnd_id = get_next_bgnd();
-            if ((int)mode_of_play == 0) {
+            if (mode_of_play == 0) {
                 turn_controllers_off();
             }
 
             wait = 0xB4;
             n_done = 0;
-            if ((int)mode_of_play != 9) {
+            if (mode_of_play != 9) {
                 mkproc_sleep_one();
                 if (gi->plyr0.player_state == 2 || gi->plyr0.player_state == 3) {
                     n_done = 1;
@@ -2558,7 +2557,7 @@ float p_pselect(void) {
                 gi->plyr0.field_10 = (float)psel_p1_handicap / 100.0f;
                 gi->plyr1.field_10 = (float)psel_p2_handicap / 100.0f;
 
-                switch ((int)mode_of_play) {
+                switch (mode_of_play) {
                 case 0:
                 case 1:
                     if (gi->plyr0.player_state == 0) {
@@ -2586,7 +2585,6 @@ float p_pselect(void) {
             }
         }
 
-        /* Back: target_game_mode 5 -> wager refund -> menu. */
         if (target_game_mode == 5) {
             wait_for_screen_close();
             amount = gi->pselect.field_1d8;

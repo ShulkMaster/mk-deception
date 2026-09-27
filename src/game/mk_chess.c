@@ -3178,12 +3178,12 @@ void mk_chess_ani_idle(void) {
 
 /* TODO: [near miss] 99.76%; data-value exact; anonymous relocation identity remains. */
 void mk_chess_ani_loop_more_frames(float frames) {
-    ChessAnimPdata* animation;
+    AnimPdata* animation;
 
     animation = g_active_piece->animation;
     while (frames > 0.0f) {
-        advance_anim((AnimPdata*)animation);
-        pose_anim((AnimPdata*)animation, 1);
+        advance_anim(animation);
+        pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
         frames -= 1.0f;
@@ -3193,15 +3193,15 @@ void mk_chess_ani_loop_more_frames(float frames) {
 
 /* TODO: [breakthrough needed] 99.11%; resolve retail lwz r30, 0x5c(r3) and its surrounding ownership/CFG before further tuning. */
 void mk_chess_ani_to_frame_x(float target) {
-    ChessAnimPdata* animation = g_active_piece->animation;
+    AnimPdata* animation = g_active_piece->animation;
 
     while (animation->frame <= target) {
-        ChessAnimPdata* current = g_active_piece->animation;
-        advance_anim((AnimPdata*)current);
-        pose_anim((AnimPdata*)current, 1);
+        AnimPdata* current = g_active_piece->animation;
+        advance_anim(current);
+        pose_anim(current, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
-        if (animation->frame + animation->speed * game_speed > target) {
+        if (animation->frame + animation->step * game_speed > target) {
             break;
         }
     }
@@ -3210,14 +3210,14 @@ void mk_chess_ani_to_frame_x(float target) {
 
 /* TODO: [near miss] 99.89%; data-value exact; anonymous relocation identity remains. */
 void mk_chess_ani_to_end(void) {
-    mk_chess_ani_to_frame_x(g_active_piece->animation->end_frame);
+    mk_chess_ani_to_frame_x(g_active_piece->animation->high_frame);
 }
 
 
 /* TODO: [near miss] 99.89%; data-value exact; anonymous relocation identity remains. */
 void mk_chess_ani_to_blend_frame(float blend_frames) {
     mk_chess_ani_to_frame_x(
-        g_active_piece->animation->end_frame - blend_frames);
+        g_active_piece->animation->high_frame - blend_frames);
 }
 
 void mk_chess_random_specials_positive_reaction(void) {
@@ -3473,9 +3473,9 @@ void mk_chess_wait_until_attack_cam_closes_in(void) {
     int timeout = 0x4AF;
 
     do {
-        ChessAnimPdata* animation = g_active_piece->animation;
-        advance_anim((AnimPdata*)animation);
-        pose_anim((AnimPdata*)animation, 1);
+        AnimPdata* animation = g_active_piece->animation;
+        advance_anim(animation);
+        pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
     } while (!(g_bezier_cam.progress > 0.8f) && timeout-- > 0);
@@ -5178,10 +5178,10 @@ float p_mk_chess_piece_proc(void) {
 }
 
 void mk_chess_ani_1_frame(void) {
-    ChessAnimPdata* animation = g_active_piece->animation;
+    AnimPdata* animation = g_active_piece->animation;
 
-    advance_anim((AnimPdata*)animation);
-    pose_anim((AnimPdata*)animation, 1);
+    advance_anim(animation);
+    pose_anim(animation, 1);
 }
 
 void mk_chess_piece_match_y_ang_to_anim(void) {
@@ -5190,13 +5190,13 @@ void mk_chess_piece_match_y_ang_to_anim(void) {
 
 void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
                                   float frame) {
-    ChessAnimPdata* anim = g_active_piece->animation;
+    AnimPdata* anim = g_active_piece->animation;
 
     g_active_piece->flags.glitch_into_stance = 0;
     g_active_piece->object->hide_flag_bits.pin_animation = 0;
-    anim->speed = speed;
+    anim->step = speed;
     set_anim_script_frame(
-        frame, (AnimPdata*)anim, (AniData*)mkc_animations[animation],
+        frame, anim, (AniData*)mkc_animations[animation],
         flags);
 }
 
@@ -5204,12 +5204,12 @@ void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
 /* TODO: [near miss] 99.83%; data-value exact; anonymous relocation identity remains. */
 void mk_chess_blend_to_ani_frame(int animation, int flags, float blend,
                                  float speed, float frame) {
-    ChessAnimPdata* anim = g_active_piece->animation;
+    AnimPdata* anim = g_active_piece->animation;
 
     g_active_piece->object->hide_flag_bits.pin_animation = 0;
-    anim->speed = speed;
+    anim->step = speed;
     transition_to_anim_script_frame(
-        blend, frame, (AnimPdata*)anim,
+        blend, frame, anim,
         (AniData*)mkc_animations[animation], flags);
     _mkproc_sleep_ticks = 1.0f;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
@@ -5217,13 +5217,13 @@ void mk_chess_blend_to_ani_frame(int animation, int flags, float blend,
 
 /* TODO: [near miss] 97.35%; same operations; redundant animation-pointer move remains; stop at coloring. */
 void mk_chess_blend_to_ani(int animation, int flags, float blend, float speed) {
-    ChessAnimPdata* anim = g_active_piece->animation;
+    AnimPdata* anim = g_active_piece->animation;
 
-    set_root_and_obj_movement_weights(0.0f, 1.0f, (AnimPdata*)anim);
+    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
     g_active_piece->object->hide_flag_bits.pin_animation = 0;
-    anim->speed = speed;
+    anim->step = speed;
     transition_to_anim_script(
-        blend, (AnimPdata*)anim, (AniData*)mkc_animations[animation], flags);
+        blend, anim, (AniData*)mkc_animations[animation], flags);
     _mkproc_sleep_ticks = 1.0f;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
 }
@@ -5234,14 +5234,14 @@ void mk_chess_air_move(void) {
 }
 
 void mk_chess_set_ani_speed(float speed) {
-    g_active_piece->animation->speed = speed;
+    g_active_piece->animation->step = speed;
 }
 
 
 /* TODO: [near miss] 99.58%; data-value exact; anonymous relocation identity remains. */
 void mk_chess_set_obj_move_weight(float weight) {
     set_root_and_obj_movement_weights(
-        0.0f, weight, (AnimPdata*)g_active_piece->animation);
+        0.0f, weight, g_active_piece->animation);
 }
 
 void mk_chess_blend_to_desired_cell_position_setting(float blend) {
@@ -5319,7 +5319,7 @@ void mk_chess_snap_into_cell_orgin_over_x_frames(float frames) {
     while (frames-- > 0.0f) {
         ChessCell* cell = &mk_chess_pdata->board[g_active_piece->cell_x]
                               .cells[g_active_piece->cell_y];
-        ChessAnimPdata* animation;
+        AnimPdata* animation;
 
         g_active_piece->object->pos.value.x =
             cell->position.x + g_active_piece->runtime.fields.cell_offset.x;
@@ -5328,8 +5328,8 @@ void mk_chess_snap_into_cell_orgin_over_x_frames(float frames) {
         update_obj_pos(g_active_piece->object);
         g_active_piece->object->hide_flag_bits.pin_animation = 0;
         animation = g_active_piece->animation;
-        advance_anim((AnimPdata*)animation);
-        pose_anim((AnimPdata*)animation, 1);
+        advance_anim(animation);
+        pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
     }
@@ -5344,7 +5344,7 @@ static inline void mk_chess_blend_piece_to_cell(float frames) {
         (cell->position.x + piece->runtime.fields.cell_offset.x)) * inverse_frames;
     float step_z = (object->pos.value.z -
         (cell->position.z + piece->runtime.fields.cell_offset.z)) * inverse_frames;
-    ChessAnimPdata* animation;
+    AnimPdata* animation;
 
     while (frames-- > 0.0f) {
         g_active_piece->object->pos.value.x -= step_x;
@@ -5352,8 +5352,8 @@ static inline void mk_chess_blend_piece_to_cell(float frames) {
         update_obj_pos(g_active_piece->object);
         g_active_piece->object->hide_flag_bits.pin_animation = 0;
         animation = g_active_piece->animation;
-        advance_anim((AnimPdata*)animation);
-        pose_anim((AnimPdata*)animation, 1);
+        advance_anim(animation);
+        pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
     }
@@ -9590,7 +9590,7 @@ void mk_chess_create_piece_obj(ChessPiece* piece, unsigned char side, ChessLibra
 void mk_chess_shifter_switch(int animation_index, int flags, float speed, float frame) {
     ChessPiece* other = mk_chess_pdata->manager.event_data.other_piece;
     MkObj* object;
-    ChessAnimPdata* animation;
+    AnimPdata* animation;
     float x, y, z, ax, ay, az;
 
     if (other == g_active_piece) {
@@ -9606,13 +9606,13 @@ void mk_chess_shifter_switch(int animation_index, int flags, float speed, float 
     az = object->ang.z;
     mk_chess_create_piece_obj(g_active_piece, g_active_piece->side,
         &g_board_game_controller.piece_libraries[other->library_index]);
-    g_active_piece->animation->object = g_active_piece->object;
-    g_active_piece->animation->object_instance = g_active_piece->object->hdr.instance;
+    g_active_piece->animation->obj = g_active_piece->object;
+    g_active_piece->animation->obj_instance = g_active_piece->object->hdr.instance;
     animation = g_active_piece->animation;
     g_active_piece->flags.glitch_into_stance = 0;
     g_active_piece->object->hide_flag_bits.pin_animation = 0;
-    animation->speed = speed;
-    set_anim_script_frame(frame, (AnimPdata*)animation,
+    animation->step = speed;
+    set_anim_script_frame(frame, animation,
         (AniData*)mkc_animations[animation_index], flags);
     g_active_piece->object->pos.value.x = x;
     g_active_piece->object->pos.value.y = y;
@@ -9686,13 +9686,13 @@ static void mk_chess_create_piece(
         update_mkobj(&piece->object->hdr);
         hide_obj(piece->object);
     }
-    piece->animation = (ChessAnimPdata*)get_mkpdata_anim();
-    piece->animation->object = piece->object;
-    piece->animation->object_instance = piece->object->hdr.instance;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, (AnimPdata*)piece->animation);
+    piece->animation = get_mkpdata_anim();
+    piece->animation->obj = piece->object;
+    piece->animation->obj_instance = piece->object->hdr.instance;
+    set_root_and_obj_movement_weights(0.0f, 1.0f, piece->animation);
     set_anim_script_frame((float)(unsigned short)randu0(45),
-        (AnimPdata*)piece->animation, (AniData*)mkc_animations[0], 0);
-    piece->animation->speed = 1.0f;
+        piece->animation, (AniData*)mkc_animations[0], 0);
+    piece->animation->step = 1.0f;
     piece->proc_state = 0;
     piece->movement = (ChessPieceMovement*)get_mkpdata_generic(sizeof(*piece->movement));
     piece->movement->animation = piece->animation;
@@ -12495,7 +12495,7 @@ void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step,
     float other_desired = 0.0f;
     float other_difference = 0.0f;
     MkObj* object;
-    ChessAnimPdata* animation;
+    AnimPdata* animation;
     object = g_active_piece->object;
     desired = ang_sub_ang(gxMathArcTanYX(target_cell->position.x - object->pos.value.x,
         target_cell->position.z - object->pos.value.z), offset);
@@ -12519,8 +12519,8 @@ void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step,
             other->object->ang.y += step;
         }
         animation = g_active_piece->animation;
-        advance_anim((AnimPdata*)animation);
-        pose_anim((AnimPdata*)animation, 1);
+        advance_anim(animation);
+        pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
         object = g_active_piece->object;
@@ -12543,8 +12543,8 @@ void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step,
                 other->object->ang.y += step;
             }
             animation = g_active_piece->animation;
-            advance_anim((AnimPdata*)animation);
-            pose_anim((AnimPdata*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
             _mkproc_sleep_ticks = 1.0f;
             ((ChessProcVtable*)aproc->vtbl)->sleep();
             object = other->object;
@@ -12556,16 +12556,16 @@ void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step,
     other->object->ang.y = other_desired;
 }
 
-/* TODO: [breakthrough needed] 93.140495%; movement phases recovered; coordinate conversion and FP scheduling remain. */
+/* TODO: [breakthrough needed] 95.35%; movement phases and board load order recovered;
+ * callee-saved GPR assignment and pos_vel store scheduling remain. */
 void mk_chess_ani_until_reached_destination(int airborne, float start_x, float start_y,
     float target_x, float target_y, float frames) {
-    ChessBoardRow* board = mk_chess_pdata->board;
-    ChessCell* target = &board[(unsigned int)target_x].cells[(unsigned int)target_y];
-    ChessCell* start = &board[(unsigned int)start_x].cells[(unsigned int)start_y];
+    ChessCell* target = &mk_chess_pdata->board[(unsigned int)target_x].cells[(unsigned int)target_y];
+    ChessCell* start = &mk_chess_pdata->board[(unsigned int)start_x].cells[(unsigned int)start_y];
     float start_height = g_active_piece->object->pos.value.y;
     unsigned int descending = 0;
     unsigned int bob_ticks = 20;
-    ChessAnimPdata* animation;
+    AnimPdata* animation;
 
     g_active_piece->object->pos_vel.z = 0.0f;
     g_active_piece->object->pos_vel.y = 0.0f;
@@ -12579,10 +12579,10 @@ void mk_chess_ani_until_reached_destination(int airborne, float start_x, float s
         g_active_piece->object->pos_vel.y = 0.02f;
         do {
             animation = g_active_piece->animation;
-            advance_anim((AnimPdata*)animation);
-            pose_anim((AnimPdata*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
             _mkproc_sleep_ticks = 1.0f;
-            ((ChessProcVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } while (bob_ticks-- != 0);
         bob_ticks = 20;
     }
@@ -12592,10 +12592,10 @@ void mk_chess_ani_until_reached_destination(int airborne, float start_x, float s
         g_active_piece->object->pos_vel.y = 0.013f;
         while (frames-- > 0.0f) {
             animation = g_active_piece->animation;
-            advance_anim((AnimPdata*)animation);
-            pose_anim((AnimPdata*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
             _mkproc_sleep_ticks = 1.0f;
-            ((ChessProcVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             if (bob_ticks-- == 0) {
                 if (descending == 0) {
                     bob_ticks = 8;
@@ -12614,19 +12614,19 @@ void mk_chess_ani_until_reached_destination(int airborne, float start_x, float s
         g_active_piece->object->pos_vel.y = -0.02f;
         while (g_active_piece->object->pos.value.y > start_height) {
             animation = g_active_piece->animation;
-            advance_anim((AnimPdata*)animation);
-            pose_anim((AnimPdata*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
             _mkproc_sleep_ticks = 1.0f;
-            ((ChessProcVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
         g_active_piece->object->pos.value.y = start_height;
     } else {
         animation = g_active_piece->animation;
         while (frames > 0.0f) {
-            advance_anim((AnimPdata*)animation);
-            pose_anim((AnimPdata*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
             _mkproc_sleep_ticks = 1.0f;
-            ((ChessProcVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             frames -= 1.0f;
         }
     }
@@ -13771,37 +13771,37 @@ void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int
     float launch_frame, float initial_speed, float landing_frame, float vertical_speed,
     float gravity, float blend, float start_x, float start_y, float target_x, float target_y)
 {
-    ChessAnimPdata* animation = g_active_piece->animation;
+    AnimPdata* animation = g_active_piece->animation;
     ChessBoardRow* board = mk_chess_pdata->board;
     ChessCell* target = &board[(unsigned int)target_x].cells[(unsigned int)target_y];
     ChessCell* start = &board[(unsigned int)start_x].cells[(unsigned int)start_y];
-    ChessAnimPdata* current;
+    AnimPdata* current;
     float discriminant, root, flight_time, other_time;
     float rotation = 0.0f;
 
     animation->flags |= 0x40;
     current = g_active_piece->animation;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, (AnimPdata*)current);
+    set_root_and_obj_movement_weights(0.0f, 1.0f, current);
     g_active_piece->object->hide_flag_bits.pin_animation = 0;
-    current->speed = initial_speed;
-    transition_to_anim_script(blend, (AnimPdata*)current, (AniData*)mkc_animations[animation_id], 0x43);
+    current->step = initial_speed;
+    transition_to_anim_script(blend, current, (AniData*)mkc_animations[animation_id], 0x43);
     _mkproc_sleep_ticks = 1.0f;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
     _mkproc_sleep_ticks = 1.0f;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
     if (launch_frame != 0.0f) {
-        ChessAnimPdata* waiting;
-        animation->speed = initial_speed;
+        AnimPdata* waiting;
+        animation->step = initial_speed;
         waiting = g_active_piece->animation;
         while (waiting->frame <= launch_frame) {
             current = g_active_piece->animation;
-            advance_anim((AnimPdata*)current);
-            pose_anim((AnimPdata*)current, 1);
+            advance_anim(current);
+            pose_anim(current, 1);
             _mkproc_sleep_ticks = 1.0f;
             ((ChessProcVtable*)aproc->vtbl)->sleep();
-            if (waiting->speed * game_speed + waiting->frame > launch_frame) break;
+            if (waiting->step * game_speed + waiting->frame > launch_frame) break;
         }
-        animation->speed = 1.0f;
+        animation->step = 1.0f;
     }
     if (sound != 0) mk_chess_snd_request(sound);
     g_active_piece->object->pos_vel.y = vertical_speed;
@@ -13822,7 +13822,7 @@ void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int
         g_active_piece->object->pos_vel.x = (target->position.x - start->position.x) / flight_time;
         g_active_piece->object->pos_vel.z = (target->position.z - start->position.z) / flight_time;
     }
-    animation->speed = (landing_frame - launch_frame) / flight_time;
+    animation->step = (landing_frame - launch_frame) / flight_time;
     if (turn != 0) {
         MkObj* object = g_active_piece->object;
         float desired = gxMathArcTanYX(target->position.x - object->pos.value.x,
@@ -13832,12 +13832,12 @@ void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int
     rotation /= flight_time;
     while (animation->frame <= landing_frame) {
         current = g_active_piece->animation;
-        advance_anim((AnimPdata*)current);
-        pose_anim((AnimPdata*)current, 1);
+        advance_anim(current);
+        pose_anim(current, 1);
         g_active_piece->object->ang.y += rotation;
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
-        if (animation->speed * game_speed + animation->frame > landing_frame) break;
+        if (animation->step * game_speed + animation->frame > landing_frame) break;
     }
     g_active_piece->object->flags_08_bits.moving = 0;
     g_active_piece->object->flags_09_bits.launched = 1;
@@ -14689,8 +14689,8 @@ static float p_team_monitor(void)
         piece = team->pieces[index];
         cell = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
         if (piece->flags.unknown_bit4) {
-            advance_anim((AnimPdata*)piece->animation);
-            pose_anim((AnimPdata*)team->pieces[index]->animation, 1);
+            advance_anim(piece->animation);
+            pose_anim(team->pieces[index]->animation, 1);
         }
         link = team->pieces[index]->effects;
         while (link != 0) {
@@ -14754,7 +14754,8 @@ static inline void mk_chess_schedule_bonus_row(ScreenObj* image, int start_x,
     fade->initial_delay = lifetime;
 }
 
-/* TODO: [breakthrough needed] 69.88411%; runtime cases agree; payload ownership and scheduling codegen remain nonexact. */
+/* TODO: [breakthrough needed] 73.14%; runtime cases agree; retail tests the power-cell flag
+ * as a 1-bit field (extrwi/cmplwi 1), and frame size and payload scheduling differ. */
 void mk_chess_advantage_hud(void)
 {
     int count = 1;
@@ -14776,7 +14777,7 @@ void mk_chess_advantage_hud(void)
     }
     lifetime = (count - 1) * 8 + 125;
     _mkproc_sleep_ticks = 40.0f;
-    ((ChessProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     if (board_game_save_data.input_flags.pad_bits2_1 & 2) {
         image = load_named_2d_pfxobj(0xE003E, 0xC020, "ON_POWER_CELL", 0, 23);
         mk_chess_schedule_bonus_row(image, -201, screen_width / 2 - 236,
@@ -14829,7 +14830,7 @@ void mk_chess_advantage_hud(void)
         }
     }
     _mkproc_sleep_ticks = (float)lifetime;
-    ((ChessProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     image = load_named_2d_pfxobj(0xE003E, 0xC020, "MKC_IN_GAME_FIGHT", 0, 23);
     center_y = screen_height / 2;
     width = image->pfx2d->tex_w;
@@ -14862,7 +14863,7 @@ void mk_chess_advantage_hud(void)
     fade->initial_delay = 60;
     snd_req_delay(0, 10);
     _mkproc_sleep_ticks = 65.0f;
-    ((ChessProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     board_game_save_data.knowledge_health[0] = g_game_info.plyr0.field_0C;
     board_game_save_data.knowledge_health[1] = g_game_info.plyr1.field_0C;
 }

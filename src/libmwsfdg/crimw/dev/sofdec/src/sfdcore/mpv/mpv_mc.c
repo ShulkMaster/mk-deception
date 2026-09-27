@@ -183,7 +183,7 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
     int row;
     int alignment = (unsigned long)context->reference0 & 3;
     u32 stride = context->reference_stride;
-    u8* destination = context->destination;
+    u32* destination = (u32*)context->destination;
     const u8* reference0 = context->reference0 - alignment;
     const u8* reference1 = context->reference1 - alignment;
 
@@ -192,17 +192,17 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 4; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            ((u32*)destination)[0] = mpvmc_avg_words(words0[0], words1[0]);
-            ((u32*)destination)[1] = mpvmc_avg_words(words0[1], words1[1]);
+            destination[0] = mpvmc_avg_words(words0[0], words1[0]);
+            destination[1] = mpvmc_avg_words(words0[1], words1[1]);
             reference0 += stride;
             reference1 += stride;
             words0 = (const u32*)reference0;
             words1 = (const u32*)reference1;
-            ((u32*)destination)[2] = mpvmc_avg_words(words0[0], words1[0]);
-            ((u32*)destination)[3] = mpvmc_avg_words(words0[1], words1[1]);
+            destination[2] = mpvmc_avg_words(words0[0], words1[0]);
+            destination[3] = mpvmc_avg_words(words0[1], words1[1]);
             reference0 += stride;
             reference1 += stride;
-            destination += 16;
+            destination += 4;
         }
         break;
     case 1:
@@ -213,11 +213,11 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
             u32 a1 = (words0[1] << 8) | reference0[8];
             u32 b0 = (words1[0] << 8) | (words1[1] >> 24);
             u32 b1 = (words1[1] << 8) | reference1[8];
-            ((u32*)destination)[0] = mpvmc_avg_words(a0, b0);
-            ((u32*)destination)[1] = mpvmc_avg_words(a1, b1);
+            destination[0] = mpvmc_avg_words(a0, b0);
+            destination[1] = mpvmc_avg_words(a1, b1);
             reference0 += stride;
             reference1 += stride;
-            destination += 8;
+            destination += 2;
         }
         break;
     case 2:
@@ -228,11 +228,11 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
             u32 a1 = (words0[1] << 16) | *(const unsigned short*)(reference0 + 8);
             u32 b0 = (words1[0] << 16) | (words1[1] >> 16);
             u32 b1 = (words1[1] << 16) | *(const unsigned short*)(reference1 + 8);
-            ((u32*)destination)[0] = mpvmc_avg_words(a0, b0);
-            ((u32*)destination)[1] = mpvmc_avg_words(a1, b1);
+            destination[0] = mpvmc_avg_words(a0, b0);
+            destination[1] = mpvmc_avg_words(a1, b1);
             reference0 += stride;
             reference1 += stride;
-            destination += 8;
+            destination += 2;
         }
         break;
     default:
@@ -243,11 +243,11 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
             u32 a1 = (words0[1] << 24) | (words0[2] >> 8);
             u32 b0 = (words1[0] << 24) | (words1[1] >> 8);
             u32 b1 = (words1[1] << 24) | (words1[2] >> 8);
-            ((u32*)destination)[0] = mpvmc_avg_words(a0, b0);
-            ((u32*)destination)[1] = mpvmc_avg_words(a1, b1);
+            destination[0] = mpvmc_avg_words(a0, b0);
+            destination[1] = mpvmc_avg_words(a1, b1);
             reference0 += stride;
             reference1 += stride;
-            destination += 8;
+            destination += 2;
         }
         break;
     }
@@ -263,6 +263,7 @@ void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 
     switch (alignment) {
     case 0: {
+        double* double_destination = (double*)destination;
         double row0;
         double row1;
         double row2;
@@ -287,24 +288,26 @@ void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
         row6 = *(const double*)reference;
         reference += stride;
         row7 = *(const double*)reference;
-        ((double*)destination)[0] = row0;
-        ((double*)destination)[1] = row1;
-        ((double*)destination)[2] = row2;
-        ((double*)destination)[3] = row3;
-        ((double*)destination)[4] = row4;
-        ((double*)destination)[5] = row5;
-        ((double*)destination)[6] = row6;
-        ((double*)destination)[7] = row7;
+        double_destination[0] = row0;
+        double_destination[1] = row1;
+        double_destination[2] = row2;
+        double_destination[3] = row3;
+        double_destination[4] = row4;
+        double_destination[5] = row5;
+        double_destination[6] = row6;
+        double_destination[7] = row7;
         break;
     }
-    case 4:
+    case 4: {
+        u32* word_destination = (u32*)destination;
         for (row = 0; row < 8; row++) {
-            ((u32*)destination)[0] = ((const u32*)reference)[0];
-            ((u32*)destination)[1] = ((const u32*)reference)[1];
+            word_destination[0] = ((const u32*)reference)[0];
+            word_destination[1] = ((const u32*)reference)[1];
             reference += stride;
-            destination += 8;
+            word_destination += 2;
         }
         break;
+    }
     case 2:
     case 6: {
         const u16* source = (const u16*)reference;
