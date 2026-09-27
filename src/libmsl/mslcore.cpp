@@ -141,16 +141,16 @@ static inline void updateWaveValues(
 static inline int FindPreviousMarker(
     mslCmdItem* commands, int search_index) {
     int marker_index = search_index - 1;
+    mslCmdItem* marker = commands + marker_index;
 
     while (marker_index >= 0) {
-        mslCmdItem* marker = commands + marker_index;
-
         if (marker->type == 5) {
-            break;
+            return marker_index;
         }
         marker_index--;
+        marker--;
     }
-    return marker_index;
+    return -1;
 }
 
 extern "C" int mslUpdate(_mslSystem* system) {
@@ -195,8 +195,38 @@ extern "C" int mslUpdate(_mslSystem* system) {
     return 0;
 }
 
-/* TODO: [near miss] 92.10%; equivalent callback/marker-loop lowering and GPR
- * scheduling; 1276/1288 bytes, with switch relocations following block offsets. */
+static inline void mslRunCallback(
+    _mslSystem* system, const char* name, const char* argument) {
+    mslCallback* callback;
+
+    for (callback = system->callbacks;
+         callback != 0; callback = callback->next) {
+        if (stricmp(name, callback->name) == 0) {
+            if (callback->function != 0)
+                callback->function(argument);
+            else
+                mslDebugPrintf("NULL Callback: %s(%s)\n", name, argument);
+            return;
+        }
+    }
+    mslDebugPrintf("Unregistered Callback: %s(%s)\n", name, argument);
+}
+
+static inline int mslSameCommandName(
+    unsigned long marker_name, unsigned long command_name) {
+    if (marker_name != 0 && command_name != 0) {
+        if ((marker_name & 0xF0000000) == 0x20000000 ||
+            (command_name & 0xF0000000) == 0x20000000) {
+            if (marker_name == command_name)
+                return 1;
+        } else if (stricmp((const char*)marker_name,
+                           (const char*)command_name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 _ListNode* mslUpdateSound(
     _mslSystem* system, _ListNode* node, float now) {
     _ListNode* next = node;
@@ -205,130 +235,96 @@ _ListNode* mslUpdateSound(
 
     if (node->state == 0) {
         ListNext(&next);
-        return next;
-    }
-    sound = (mslRuntimeSound*)ListNodeData(0, node);
-    ListNext(&next);
-    currentUpdateSound = sound;
+    } else {
+        sound = (mslRuntimeSound*)ListNodeData(0, node);
+        ListNext(&next);
+        currentUpdateSound = sound;
 
-    if (sound->update_time == 0.0f && sound->callback_data != 0) {
-        if (mslSoundIsReady((_mslSound*)sound)) {
-            sound->end_time = now;
-            sound->callback_data = 0;
-        } else
-            sound->end_time = now + 0.01f;
-    }
-
-    while (sound->current_command != 0 &&
-           sound->update_time == 0.0f &&
-           (now >= sound->end_time ||
-            (sound->current_command->type & 0x80))) {
-        mslCmdItem* command = sound->current_command;
-        switch (command->type) {
-        case 1:
-            if (command->attached_wave == 0) {
-                mslDebugPrintf(
-                    "mslDoPlay: Sound %x had NULL wave (mi->mw), ignored\n",
-                    sound);
-            } else {
-                mslRuntimeWave* wave = command->attached_wave;
-
-                wave->volume = command->unknown20;
-                wave->pan = command->unknown24;
-                wave->pitch = command->unknown28;
-                wave->unknown34 = command->command_state;
-                wave->command_value = command->wave_value;
-                if (command->wave_value != 1)
-                    wave->flags |= 1;
-                if (command->pad09 & 1)
-                    wave->flags |= 4;
-                mslWavePlay(
-                    sound->system, sound, wave, command->unknown0C);
-            }
-            break;
-        case 8:
-            if (command->unknown0C <
-                sound->definition->command_count) {
-                mslCmdItem* target =
-                    &sound->definition->commands[command->unknown0C];
-                if (!(target->type & 0x80) &&
-                    target->attached_wave != 0)
-                    mslWaveStop(sound->system, target->attached_wave);
-            }
-            break;
-        case 2:
-            mslDoAdjust(
-                (_mslSound*)sound, (_mslCmdItem*)command, now);
-            break;
-        case 3: {
-            const char* name = (const char*)command->source.pointer;
-            const char* argument = (const char*)command->target.pointer;
-            system->sound_list_guard = 0;
-            if (name != 0) {
-                mslCallback* callback;
-                for (callback = system->callbacks;
-                     callback != 0; callback = callback->next) {
-                    if (stricmp(name, callback->name) == 0) {
-                        if (callback->function == 0)
-                            mslDebugPrintf(
-                                "NULL Callback: %s(%s)\n", name, argument);
-                        else
-                            callback->function(argument);
-                        break;
-                    }
-                }
-                if (callback == 0)
-                        mslDebugPrintf(
-                            "Unregistered Callback: %s(%s)\n", name, argument);
-            }
-            system->sound_list_guard = 1;
-            break;
+        if (sound->update_time == 0.0f && sound->callback_data != 0) {
+            if (mslSoundIsReady((_mslSound*)sound)) {
+                sound->end_time = now;
+                sound->callback_data = 0;
+            } else
+                sound->end_time = now + 0.01f;
         }
-        case 6:
-            if (command->wave_value == 0 ||
-                ++command->command_state < command->wave_value) {
-                int search_index =
-                    sound->current_command -
-                    sound->definition->commands;
 
-                while ((search_index = FindPreviousMarker(
-                            sound->definition->commands,
-                            search_index)) >= 0) {
-                    int marker_index = search_index;
-                    mslCmdItem* marker =
-                        sound->definition->commands + marker_index;
+        while (sound->current_command != 0 &&
+               sound->update_time == 0.0f &&
+               (now >= sound->end_time ||
+                (sound->current_command->type & 0x80))) {
+            mslCmdItem* command = sound->current_command;
+            switch (command->type) {
+            case 1:
+                if (command->attached_wave == 0) {
+                    mslDebugPrintf(
+                        "mslDoPlay: Sound %x had NULL wave (mi->mw), ignored\n",
+                        sound);
+                } else {
+                    mslRuntimeWave* wave = command->attached_wave;
 
-                    {
-                        unsigned long marker_name =
-                            marker->source.offset;
-                        unsigned long command_name =
-                            sound->current_command->source.offset;
-                        int same_name = 0;
+                    wave->volume = command->unknown20;
+                    wave->pan = command->unknown24;
+                    wave->pitch = command->unknown28;
+                    wave->unknown34 = command->command_state;
+                    wave->command_value = command->wave_value;
+                    if (command->wave_value != 1)
+                        wave->flags |= 1;
+                    if (command->pad09 & 1)
+                        wave->flags |= 4;
+                    mslWavePlay(
+                        sound->system, sound, wave, command->unknown0C);
+                }
+                break;
+            case 8:
+                if (command->unknown0C <
+                    sound->definition->command_count) {
+                    mslCmdItem* target =
+                        &sound->definition->commands[command->unknown0C];
+                    if (!(target->type & 0x80) &&
+                        target->attached_wave != 0)
+                        mslWaveStop(sound->system, target->attached_wave);
+                }
+                break;
+            case 2:
+                mslDoAdjust(
+                    (_mslSound*)sound, (_mslCmdItem*)command, now);
+                break;
+            case 3: {
+                const char* name;
+                const char* argument;
 
-                        if (marker_name != 0 && command_name != 0) {
-                            if ((marker_name & 0xF0000000) ==
-                                    0x20000000 ||
-                                (command_name & 0xF0000000) ==
-                                    0x20000000) {
-                                if (marker_name == command_name)
-                                    same_name = 1;
-                            } else if (stricmp(
-                                           (const char*)marker_name,
-                                           (const char*)command_name) == 0) {
-                                same_name = 1;
-                            }
-                        }
+                system->sound_list_guard = 0;
+                name = (const char*)sound->current_command->source.pointer;
+                argument =
+                    (const char*)sound->current_command->target.pointer;
+                if (name != 0)
+                    mslRunCallback(system, name, argument);
+                system->sound_list_guard = 1;
+                break;
+            }
+            case 6:
+                if (command->wave_value == 0 ||
+                    ++command->command_state < command->wave_value) {
+                    int search_index =
+                        sound->current_command -
+                        sound->definition->commands;
 
-                        if (same_name) {
-                            if (sound->current_command->value <=
-                                    0.0f &&
+                    while ((search_index = FindPreviousMarker(
+                                sound->definition->commands,
+                                search_index)) >= 0) {
+                        mslCmdItem* marker =
+                            sound->definition->commands + search_index;
+
+                        if (mslSameCommandName(
+                                marker->source.offset,
+                                sound->current_command->source.offset)) {
+                            if (sound->current_command->value <= 0.0f &&
                                 marker->value <= 0.0f) {
                                 mslCmdItem* item;
 
                                 skip_wait = 1;
                                 for (item = marker;
-                                     item !=
-                                        sound->current_command;
+                                     item != sound->current_command;
                                      item++) {
                                     if (item->value >= 0.1f) {
                                         skip_wait = 0;
@@ -339,39 +335,43 @@ _ListNode* mslUpdateSound(
                             sound->current_command = marker;
                         }
                     }
+                    if (search_index < 0)
+                        sound->current_command->command_state = 0;
+                } else {
+                    sound->current_command->command_state = 0;
                 }
-                sound->current_command->command_state = 0;
-            } else {
-                command->command_state = 0;
-            }
-            break;
-        case 7:
-            system->sound_list_guard = 0;
-            sound->current_command = 0;
-            mslSoundEnd((_mslSound*)sound);
-            system->sound_list_guard = 1;
-            sound = 0;
-            break;
-        }
-        if (sound == 0)
-            break;
-        if (currentUpdateSound == 0)
-            break;
-        if (sound->current_command != 0) {
-            sound->current_command++;
-            if (sound->current_command >=
-                sound->definition->commands +
-                sound->definition->command_count)
+                break;
+            case 7:
+                system->sound_list_guard = 0;
                 sound->current_command = 0;
-            else if (!(sound->current_command->type & 0x80)) {
-                if (sound->current_command->value < 0.0f)
-                    sound->end_time = 9999999.0f;
-                else
-                    sound->end_time += sound->current_command->value;
+                mslSoundEnd((_mslSound*)sound);
+                system->sound_list_guard = 1;
+                sound = 0;
+                break;
+            }
+            if (sound == 0)
+                break;
+            if (currentUpdateSound == 0)
+                break;
+            if (sound->current_command != 0) {
+                sound->current_command++;
+                if (sound->current_command >=
+                    sound->definition->commands +
+                    sound->definition->command_count) {
+                    sound->current_command = 0;
+                } else {
+                    if (!(sound->current_command->type & 0x80)) {
+                        if (sound->current_command->value < 0.0f)
+                            sound->end_time = 9999999.0f;
+                        else
+                            sound->end_time +=
+                                sound->current_command->value;
+                    }
+                    if (skip_wait)
+                        break;
+                }
             }
         }
-        if (skip_wait)
-            break;
     }
     return next;
 }
@@ -382,14 +382,11 @@ extern "C" void mslWaveUpdateVolPanPitch(
     updateWaveValues(system, sound, wave);
 }
 
-/* TODO: [near miss] 99.28%; identical interpolation and stores; FPR scheduling. */
 _ListNode* mslUpdateAdjust(
     _mslSystem* system, _ListNode* node, float now) {
     _ListNode* next = node;
     mslAdjustment* adjustment =
         (mslAdjustment*)ListNodeData(0, node);
-    float elapsed;
-    float duration;
     float volume;
     float pan;
     float pitch;
@@ -402,17 +399,18 @@ _ListNode* mslUpdateAdjust(
         pan = adjustment->end_pan;
         pitch = adjustment->end_pitch;
     } else {
-        elapsed = now - adjustment->start_time;
-        duration = adjustment->end_time - adjustment->start_time;
         volume = adjustment->start_volume +
-            elapsed * (adjustment->end_volume -
-                       adjustment->start_volume) / duration;
+            (now - adjustment->start_time) * (adjustment->end_volume -
+                       adjustment->start_volume) /
+            (adjustment->end_time - adjustment->start_time);
         pan = adjustment->start_pan +
-            elapsed * (adjustment->end_pan -
-                       adjustment->start_pan) / duration;
+            (now - adjustment->start_time) * (adjustment->end_pan -
+                       adjustment->start_pan) /
+            (adjustment->end_time - adjustment->start_time);
         pitch = adjustment->start_pitch +
-            elapsed * (adjustment->end_pitch -
-                       adjustment->start_pitch) / duration;
+            (now - adjustment->start_time) * (adjustment->end_pitch -
+                       adjustment->start_pitch) /
+            (adjustment->end_time - adjustment->start_time);
     }
 
     if (adjustment->flags & 1) {
