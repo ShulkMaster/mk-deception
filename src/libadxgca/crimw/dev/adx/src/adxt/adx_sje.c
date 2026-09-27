@@ -116,6 +116,12 @@ AdxSjePredictorFilter adxsje_prdflt_obj[ADXSJE_MAX_FILTERS];
 AdxSjeIirFilter adxsje_iirflt_obj[ADXSJE_MAX_FILTERS];
 AdxSjeHandle adxsje_obj[ADXSJE_MAX_HANDLES];
 
+static void adxsje_flt_init(void)
+{
+    memset(adxsje_prdflt_obj, 0, sizeof(adxsje_prdflt_obj));
+    memset(adxsje_iirflt_obj, 0, sizeof(adxsje_iirflt_obj));
+}
+
 void ADXSJE_ExecHndl(AdxSjeHandle* encoder);
 void adxsje_encode_exec(AdxSjeHandle* encoder);
 s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output);

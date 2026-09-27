@@ -33,8 +33,11 @@ static short adxb_def_km = 0;
 static short adxb_def_ka = 0;
 AdxBasicDecoderExt adxb_obj[16];
 
-static const char skg_version[] =
-    "\nSKG/GC Ver.0.64 Build:Sep  3 2004 17:49:16\n";
+static const char* SKG_GetVersion(void)
+{
+    return "\nSKG/GC Ver.0.64 Build:Sep  3 2004 17:49:16\n";
+}
+
 const short skg_prim_tbl[1024] = {
     0x401B, 0x4021, 0x4025, 0x402B, 0x4031, 0x403F, 0x4043, 0x4045,
     0x405D, 0x4061, 0x4067, 0x406D, 0x4087, 0x4091, 0x40A3, 0x40A9,
@@ -704,6 +707,11 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
     base->decode.pcm_distance = base->pcm_distance;
     base->current_write_position = 0;
     return data_length;
+}
+
+static const char* ADXB_GetSignature(void)
+{
+    return "CRI-MW";
 }
 
 void ADXB_Destroy(AdxBasicDecoderExt* decoder)
