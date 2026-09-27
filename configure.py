@@ -615,7 +615,7 @@ config.libs = [
         "OdemuExi2",
         [
             Object(
-                NonMatching,
+                Matching,
                 "OdemuExi2.a/OdemuExi2Lib/DebuggerDriver.o",
                 source="dolphin/odemuexi2/DebuggerDriver.c",
             ),
@@ -783,7 +783,7 @@ config.libs = [
                 source="runtime/s_cos.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/char_io.o",
                 source="runtime/char_io.c",
             ),
@@ -1073,7 +1073,7 @@ config.libs = [
             Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
             Object(NonMatching, "utils.o", source="runtime/utils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "mk_mem.o", source="runtime/mk_mem.c",
+            Object(Matching, "mk_mem.o", source="runtime/mk_mem.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_struct.o", source="runtime/mk_struct.c",
                    extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s",
@@ -1691,7 +1691,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsl.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsl.c",
                 extra_cflags=["-sdata", "0", "-str", "reuse,readonly"],
@@ -1892,7 +1892,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.c",
             ),
@@ -2034,7 +2034,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.c",
             ),
@@ -2270,7 +2270,7 @@ config.libs = [
                 source="libmsl/mslmem.cpp",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslcore.o",
                 source="libmsl/mslcore.cpp",
                 extra_cflags=[
@@ -2391,7 +2391,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimEffect.o",
                 source="mwScreenEngine/ScreenAnimEffect.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
@@ -3021,7 +3021,7 @@ config.libs = [
         "objects": [
             Object(Matching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
             Object(Matching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
-            Object(NonMatching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
+            Object(Matching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
             Object(Matching, "card.a/CARDDir.o", source="dolphin/card/CARDDir.c"),
             Object(Matching, "card.a/CARDCheck.o", source="dolphin/card/CARDCheck.c"),
@@ -3049,7 +3049,7 @@ config.libs = [
             Object(Matching, "gx.a/GXFifo.o", source="dolphin/gx/GXFifo.c",
                    extra_cflags=["-DSDK_REVISION=1"]),
             Object(Matching, "gx.a/GXMisc.o", source="dolphin/gx/GXMisc.c"),
-            Object(NonMatching, "gx.a/GXAttr.o", source="dolphin/gx/GXAttr.c"),
+            Object(Matching, "gx.a/GXAttr.o", source="dolphin/gx/GXAttr.c"),
             Object(Matching, "gx.a/GXBump.o", source="dolphin/gx/GXBump.c"),
             Object(Matching, "gx.a/GXGeometry.o", source="dolphin/gx/GXGeometry.c"),
             Object(Matching, "gx.a/GXFrameBuf.o", source="dolphin/gx/GXFrameBuf.c"),
@@ -3058,7 +3058,7 @@ config.libs = [
             Object(Matching, "gx.a/GXTev.o", source="dolphin/gx/GXTev.c"),
             Object(NonMatching, "gx.a/GXTransform.o", source="dolphin/gx/GXTransform.c",
                    extra_cflags=["-fp_contract off"]),
-            Object(NonMatching, "gx.a/GXTexture.o", source="dolphin/gx/GXTexture.c"),
+            Object(Matching, "gx.a/GXTexture.o", source="dolphin/gx/GXTexture.c"),
             Object(Matching, "gx.a/GXPerf.o", source="dolphin/gx/GXPerf.c"),
             Object(NonMatching, "gx.a/GXPixel.o", source="dolphin/gx/GXPixel.c"),
             Object(Matching, "gx.a/GXDisplayList.o", source="dolphin/gx/GXDisplayList.c"),
