@@ -841,9 +841,9 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
         SfdBufferRingWork* ring = &input->work.ring;
         int at_end;
 
-        if (input->terminated == 0 &&
-            (ring->supply.buffer_size != 0 ||
-             ring->supply.extra_size != 0)) {
+        if (ring->supply.kind == 0 &&
+            (ring->supply.extra_size != 0 ||
+             ring->supply.field_14 != 0)) {
             at_end = 0;
         } else if (cursor + size ==
                    ring->supply.buffer + ring->supply.buffer_size) {
@@ -858,8 +858,8 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
     *copied = amount;
 }
 
-/* TODO: [near miss] 98.723970%; header stack slots and +0x28 scan unit now
- * match retail; scan pointer materialization and register coloring remain. */
+/* TODO: [near miss] 98.74%; supply fields and stack slots match retail; ring base is
+ * materialized (retail folds handle+i*0x74), scan cursor/amount and work/result coloring remain. */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
@@ -870,6 +870,8 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
     int delimiter;
     int header_flags;
     int decoded_size;
+    int packet_consumed;
+    int packet_copied;
     int result = 0;
     int proceed;
 
@@ -981,9 +983,6 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
             }
         }
     } else {
-        int packet_consumed;
-        int packet_copied;
-
         data += decoded_size;
         size -= decoded_size;
         result = sfmps_CopyPketData(handle, data, size, &packet_consumed,

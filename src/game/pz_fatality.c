@@ -749,9 +749,9 @@ static inline void pz_snake_bite(unsigned int snake) {
     PuzzleParticleEffect* burst;
 
     pan_snd_req(0x1AC2, snake == 0 ? -0.7f : 0.7f);
-    saliva = (PuzzleParticleEffect*)fx_by_owner(
+    saliva = fx_by_owner(
         snake == 0 ? "saliva1" : "saliva2", 4);
-    burst = (PuzzleParticleEffect*)fx_by_owner(
+    burst = fx_by_owner(
         snake == 0 ? "saliva_burst1" : "saliva_burst2", 4);
     fx_pause_emit(saliva);
     transition_to_anim_script_frame(
@@ -785,7 +785,7 @@ static inline void pz_snake_bite(unsigned int snake) {
 static inline void pz_snake_lunge(unsigned int snake) {
     PuzzleParticleEffect* saliva;
 
-    saliva = (PuzzleParticleEffect*)fx_by_owner(
+    saliva = fx_by_owner(
         snake == 0 ? "saliva1" : "saliva2", 4);
     pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
     fx_pause_emit(saliva);
@@ -910,30 +910,30 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
 
 static inline void pz_chomper_apply_motion(
     int side, int object_count, int fighting) {
-    PuzzleFatalityHazardObject* object;
-    float target;
     int object_index;
 
     for (object_index = 0; object_index < object_count; object_index++) {
-        object = g_pz_fighter_fatality_engine
-                     .hazard_groups[side].objects[object_index];
-        target = g_pz_fighter_fatality_engine.controller
-                     ->chomper_position[side][object_index];
-        if ((object->y > target + 0.13f &&
+        float target = g_pz_fighter_fatality_engine.controller
+                           ->chomper_position[side][object_index];
+        if ((g_pz_fighter_fatality_engine.hazard_groups[side].objects[object_index]->y >
+                 target + 0.13f &&
              g_pz_fighter_fatality_engine.controller
                      ->hazard_motion[side][object_index] < 0.0f) ||
-            (object->y < target - 0.13f &&
+            (g_pz_fighter_fatality_engine.hazard_groups[side].objects[object_index]->y <
+                 target - 0.13f &&
              g_pz_fighter_fatality_engine.controller
                      ->hazard_motion[side][object_index] > 0.0f)) {
-            object->motion = g_pz_fighter_fatality_engine.controller
-                                 ->hazard_motion[side][object_index];
+            g_pz_fighter_fatality_engine.hazard_groups[side].objects[object_index]->motion =
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[side][object_index];
         } else if (fighting == 0) {
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[side][object_index] = 0.0f;
             g_pz_fighter_fatality_engine.hazard_groups[side]
                 .objects[object_index]->motion = 0.0f;
         } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
-            object->motion = 0.0f;
+            g_pz_fighter_fatality_engine.hazard_groups[side]
+                .objects[object_index]->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[side][object_index] = 0.0f;
         }
@@ -1090,7 +1090,6 @@ static inline PuzzleFighterRenderObject* fleshchunk_live_object(
     }
     return object;
 }
-void cleanup_pz_fatality_stuff(void);
 
 /*
  * Retail builds this unit with -inline noauto,deferred, which emits functions
@@ -1110,7 +1109,7 @@ void cleanup_pz_fatality_stuff(void) {
 static void ft_fleshchunk_prewake(void) {
     PuzzleFighterRenderObject* object;
 
-    pdata_fleshchunk = (PuzzleFleshchunkPdata*)apdata;
+    pdata_fleshchunk = apdata;
     if (pdata_fleshchunk == 0) {
         mkproc_die();
     }
@@ -1139,18 +1138,18 @@ static float p_ft_bounce_path(void) {
         fleshchunk_obj->external_force_x =
             pdata_fleshchunk->initial_velocity.x *
             (float)pow(
-                (double)pdata_fleshchunk->bounce_decay,
-                (double)pdata_fleshchunk->bounce_count);
+                pdata_fleshchunk->bounce_decay,
+                pdata_fleshchunk->bounce_count);
         fleshchunk_obj->external_force_y =
             pdata_fleshchunk->initial_velocity.y *
             (float)pow(
-                (double)pdata_fleshchunk->bounce_decay,
-                (double)pdata_fleshchunk->bounce_count);
+                pdata_fleshchunk->bounce_decay,
+                pdata_fleshchunk->bounce_count);
         fleshchunk_obj->external_force_z =
             pdata_fleshchunk->initial_velocity.z *
             (float)pow(
-                (double)pdata_fleshchunk->bounce_decay,
-                (double)pdata_fleshchunk->bounce_count);
+                pdata_fleshchunk->bounce_decay,
+                pdata_fleshchunk->bounce_count);
         if (pdata_fleshchunk->completion_callback != 0) {
             complete = pdata_fleshchunk->completion_callback();
         }
@@ -1234,7 +1233,7 @@ static RpMaterial* material_set_texture(
 }
 
 static float p_face_bleeding(void) {
-    PuzzleFaceBleedPdata* bleed_data = (PuzzleFaceBleedPdata*)apdata;
+    PuzzleFaceBleedPdata* bleed_data = apdata;
     unsigned int state;
 
     state = bleed_data->state + 1;
@@ -1250,7 +1249,7 @@ static float p_face_bleeding(void) {
 }
 
 static void pw_face_bleeding(void) {
-    PuzzleFaceBleedPdata* bleed_data = (PuzzleFaceBleedPdata*)apdata;
+    PuzzleFaceBleedPdata* bleed_data = apdata;
 
     plyr_pdata = bleed_data->player_data;
     plyr_obj = bleed_data->object;
@@ -1391,7 +1390,7 @@ void pz_fighter_get_grinder_post(int player, Vec* post) {
  * object GPR coloring and automatic-vector relocations remain. */
 static float p_grinder_meat_throw_controller(void) {
     PuzzleGrinderMeatController* meat =
-        (PuzzleGrinderMeatController*)apdata;
+        apdata;
     PuzzleFighterRenderObject* object;
     Vec throw_velocity;
     Vec drift_velocity;
@@ -1637,7 +1636,7 @@ static float p_grinder_controller(void) {
 }
 
 static float p_grinder_noise(void) {
-    PuzzleGrinderNoisePdata* noise = (PuzzleGrinderNoisePdata*)apdata;
+    PuzzleGrinderNoisePdata* noise = apdata;
     unsigned int timer;
 
     timer = noise->timer + 1;
@@ -1894,7 +1893,6 @@ static float pz_fighters_grinder_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Both random draws use 16-bit results; the delay is sampled first. */
 static float pz_fighters_grinder_fatality_preround(void) {
     PuzzleGrinderMeatController* meat_controller;
     unsigned short direction_random;
@@ -2046,8 +2044,6 @@ static int dropped_heart_snd_cb(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.767555%; single shared `return 1.0f` restored (retail loads the
- * constant once at the join); inlined loop induction r3/r4 coloring remains. */
 static float p_chomper_controller(void) {
     Vec bird_target_right;
     Vec bird_start_right;
@@ -2220,7 +2216,6 @@ static float pz_fighter_chomper_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* Success and abort paths retain separate event guards, as retail does. */
 /* TODO: [near miss] 99.40252%; positioning arithmetic agrees; only register
  * allocation and constant labels remain. */
 static float pz_fighters_chomper_fatality_prep(void) {
@@ -2397,8 +2392,8 @@ static float pz_fighters_chomper_fatality_prep(void) {
   return 0.0f;
 }
 
-/* TODO: [near miss] 99.36069%; aggregate stack slots and relocations remain;
- * five-attempt budget exhausted after spike/flag/compare recovery. */
+/* TODO: [near miss] 99.72%; TU data layout: Vec initializers sit at pool @503+0x354 in retail
+ * (ours +0x180), plus later vector stack slots and one face-bleed result copy. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -2407,15 +2402,15 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
     PuzzleFighterRenderObject* attacker_object;
     PuzzlePlayerData* attacker_data;
     PuzzlePlayerData* victim_data;
-    PuzzlePlayerData* saved_pdata;
     PuzzleFighterRenderObject* saved_object;
+    PuzzlePlayerData* saved_pdata;
     PuzzleFaceBleedPdata* bleed_data;
     PuzzleFaceBleedProcess* bleed_process;
-    Vec impact_position;
     RpMaterial* material;
 
     switch (g_pz_fighter_fatality_engine.active_effect) {
     case 2: {
+        Vec impact_position;
         Vec head_offset = {0.0f, 0.6f, 0.0f};
         attacker_object =
             pz_fighter_get_player_obj(
@@ -2473,7 +2468,8 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
         break;
     }
 
-    case 3:
+    case 3: {
+        Vec impact_position;
         attacker_object =
             pz_fighter_get_player_obj(
                 g_pz_fighters_engine.fatality_attacker);
@@ -2519,6 +2515,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
             mode_timer--;
         }
         break;
+    }
 
     case 4:
         attacker_object =
@@ -2817,8 +2814,6 @@ static float pz_fighters_chomper2_preround(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.78662%; single shared `return 1.0f` restored (retail loads the
- * constant once at the join); inlined loop induction r3/r4 coloring remains. */
 static float p_chomper2_controller(void) {
     const int object_count = 1;
     const unsigned int bird_chance = 20;
@@ -3022,7 +3017,6 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
 }
 #pragma opt_propagation reset
 
-/* Retail uses the old timer value and reloads the attacker for each access. */
 /* TODO: [near miss] 99.397995%; positioning arithmetic agrees; only register
  * allocation and constant labels remain. */
 static float pz_fighters_chomper2_fatality_prep(void) {
@@ -3525,14 +3519,11 @@ static float pz_fighters_objects_falling_preround(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.95364%; three typed slots recover retained addresses;
- * branch and remaining register/constant differences persist. */
 static float p_objects_falling_controller2(void) {
-    PuzzleFatalityHazardGroup* group;
-    unsigned int i;
     PuzzleFatalityHazardObject** first;
     PuzzleFatalityHazardObject** second;
     PuzzleFatalityHazardObject** third;
+    unsigned int i;
 
     if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
@@ -3540,8 +3531,9 @@ static float p_objects_falling_controller2(void) {
 
     if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         for (i = 0; i < 2; i++) {
-            if ((int)g_pz_fighter_fatality_engine.controller
-                    ->hazard_initialized[i] == 1) {
+            switch (g_pz_fighter_fatality_engine.controller
+                        ->hazard_initialized[i]) {
+            case 1:
                 first = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[0];
                 second = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[1];
                 third = &g_pz_fighter_fatality_engine.hazard_groups[i].objects[2];
@@ -3567,13 +3559,13 @@ static float p_objects_falling_controller2(void) {
                     ->hazard_initialized[i] = 0;
                 (*first)->motion = 0.02f;
                 (*second)->motion = 0.02f;
+                break;
             }
             if (g_pz_fighter_fatality_engine.controller
                     ->hazard_initialized[i] == 0) {
-                group = &g_pz_fighter_fatality_engine.hazard_groups[i];
-                if (group->objects[0]->y > 4.0f) {
-                    group->objects[0]->motion = 0.0f;
-                    group->objects[1]->motion = 0.0f;
+                if (g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->y > 4.0f) {
+                    g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion = 0.0f;
+                    g_pz_fighter_fatality_engine.hazard_groups[i].objects[1]->motion = 0.0f;
                     g_pz_fighter_fatality_engine.controller
                         ->hazard_initialized[i] = 2;
                 }
@@ -3734,9 +3726,9 @@ static void pz_fighter_fatality_launch_eyes(void) {
 
     left_eye = g_pz_fighters_engine.left_eye;
     right_eye = g_pz_fighters_engine.right_eye;
-    fighter = (PuzzleFighterPhysics*)g_game_info.player1_physics;
+    fighter = g_game_info.player1_physics;
     if ((unsigned int)g_pz_fighters_engine.fatality_attacker == 1) {
-        fighter = (PuzzleFighterPhysics*)g_game_info.player2_physics;
+        fighter = g_game_info.player2_physics;
     }
 
     if (((fighter->flags_0A >> 6) & 1) != 0) {
@@ -4080,8 +4072,8 @@ static float pz_fighters_lightning_preround(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.41292%; bolt/effect ownership and stale-instance checks
- * agree; inlined helper register coloring and constant labels remain. */
+/* TODO: [near miss] 99.46%; bolt/effect ownership and stale-instance checks agree;
+ * inlined helper GPR coloring remains; stop at this soft ceiling. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -4400,7 +4392,6 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     return 0.0f;
 }
 
-/* Exact match: lightning victim transfer and victory gate. */
 static float pz_fighters_lightning_fatality_in_progress(void) {
     PuzzleFightersEngine* fighters;
     PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
@@ -4428,7 +4419,6 @@ static float pz_fighters_lightning_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/* Load the lightning effects and initialize their controller. */
 static float pz_fighter_load_and_place_initial_lightning(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFatalityController* controller;
@@ -4541,7 +4531,7 @@ static float r_pz_fighter_eaten(void) {
     snd_req(0x1AC4);
 
     blood_burst =
-        (PuzzleParticleEffect*)fx_by_owner("pz_blood_burst", 4);
+        fx_by_owner("pz_blood_burst", 4);
     fx_reset(blood_burst);
     fx_resume_emit(blood_burst);
     blood_burst = find_pfx_by_name("pz_blood_burst");
@@ -4572,7 +4562,7 @@ static float r_pz_fighter_eaten(void) {
     random_hit(11);
     snd_req(0x1AC6);
 
-    neck_blood = (PuzzleParticleEffect*)fx_by_owner("neck_blood", 4);
+    neck_blood = fx_by_owner("neck_blood", 4);
     fx_reset(neck_blood);
     fx_resume_emit(neck_blood);
     neck_blood = find_pfx_by_name("neck_blood");
@@ -5039,7 +5029,6 @@ static float pz_fighter_burn_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* Exact match: victim ignition, looping burn, and bound limb effects. */
 static float r_pz_fighter_burn(void) {
     int animation_flags = 0;
 
@@ -5440,7 +5429,6 @@ int pz_fighter_fatality_during_round_stuff_over(void) {
     return 1;
 }
 
-/* Callers pass engine/mode, but retail reads the canonical global. */
 /* TODO: [near miss] 98.57143%; nested fatality-index guard was neutral; retail's
  * positive/shared-return branches remain an equivalent structured condition. */
 int pz_fighter_check_fatality_random_event(void) {

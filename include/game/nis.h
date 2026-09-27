@@ -6,7 +6,7 @@ typedef struct ScriptSlot ScriptSlot;
 
 void show_shujinko_unlock_screen(int string_id);
 void release_kamidogu(MkObj* owner, void* bonematcher);
-void p_konquest_ending(void);
+float p_konquest_ending(void);
 void nis_set_wait_override(int value);
 void nis_clear_event_list(void);
 void nis_show_cancel_message(void);

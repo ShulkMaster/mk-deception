@@ -23,8 +23,7 @@ static inline unsigned int event_time_specificity(const KonquestTime* time) {
            (time->day_of_month == -1 ? 0 : 8);
 }
 
-/* TODO: [near miss] 90.382355%; canonical specificity helper preserves operations;
- * mask load/register schedule remains; stop at coloring. */
+/* TODO: [near miss] 90.38%; retail loads year, month, day_of_week, day_of_month in that order; ours starts at day_of_week. */
 int is_valid_event_time(const KonquestTime* time) {
     unsigned int specified = event_time_specificity(time);
 
@@ -61,7 +60,7 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* Soft ceiling: exact CFG/size; specificity-mask GPR allocation and schedule. */
+/* TODO: [near miss] 86.91%; exact CFG/size; specificity-mask load order and GPR allocation remain. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {
@@ -137,14 +136,7 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/*
- * Soft ceiling: does_event_a_trump_event_b ~57.88% at the exact 236-byte
- * retail size. Both specificity masks have the same field loads,
- * booleanization, combination, unsigned compare, and returns; the low fuzzy
- * score is a whole-function GPR/scheduling cascade. A bounded 12,650-variant
- * permutation search improved scores only with artificial wrappers or dead
- * branches, which were rejected.
- */
+/* TODO: [near miss] 57.88%; exact size and operations; specificity-mask load order (retail starts with year) cascades into GPR/scheduling differences. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
     int month_a;
@@ -244,10 +236,7 @@ static inline void advance_months(KonquestTime* time, int months) {
     }
 }
 
-/*
- * Soft ceiling: complete 16-case algorithm; eight-byte emission delta plus
- * register/scheduling residue and one equivalent CR-setting subtract.
- */
+/* TODO: [near miss] 87.71%; complete 16-case algorithm; eight-byte size delta, scheduling and one CR-setting subtract remain. */
 int calc_next_occurrence_of_event(
     KonquestTime* result, const KonquestTime* event_time,
     const KonquestTime* current) {
@@ -540,10 +529,7 @@ static int find_month_in_a_year(
     return 1;
 }
 
-/*
- * Soft ceiling: stack-frame and temporary GPR allocation remain
- * in the first-day construction branch.
- */
+/* TODO: [near miss] 94.71%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
 static int find_next_day_of_week_and_month_in_a_year(
     int day_of_week, int month, int year,
     const KonquestTime* current, KonquestTime* result) {
@@ -644,10 +630,7 @@ static int find_next_day_of_week_and_month_in_a_year(
     return 1;
 }
 
-/*
- * Soft ceiling: stack-frame and temporary GPR allocation remain
- * in the first-day construction branch.
- */
+/* TODO: [near miss] 94.71%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
 static int find_next_day_of_month_and_month_in_a_year(
     int day_of_month, int month, int year,
     const KonquestTime* current, KonquestTime* result) {
@@ -729,10 +712,7 @@ static int find_next_day_of_month_and_month_in_a_year(
     return 1;
 }
 
-/*
- * Soft ceiling: stack-frame and temporary GPR allocation remain
- * in the first-day construction branch.
- */
+/* TODO: [near miss] 95.12%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
 static int find_next_day_of_week_and_day_of_month_in_a_year(
     int day_of_week, int day_of_month, int year,
     const KonquestTime* current, KonquestTime* result) {

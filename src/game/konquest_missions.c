@@ -995,6 +995,8 @@ int trial_get_background_root(void) {
     return (int)konquest_save_data.background_and_flags >> 16;
 }
 
+/* TODO: [near miss] 97.76%; alpha argument gets clrlwi (retail passes it unmasked,
+ * so check the pfx_2d_obj_set_alpha_by_id parameter type); sign/koin coloring swaps. */
 void give_koin_award(int amount, int type) {
     static const char* mission_complete[6] = {
         "MISSION COMPLETE", "MISI\323N COMPLETA", "AUFTRAG ERFOLGREICH",
@@ -1059,16 +1061,16 @@ void give_koin_award(int amount, int type) {
             alpha -= 8;
         }
         if (sign->instance != 0) {
-            ((int (*)(ScreenObj*))sign->vtbl->destroy)(sign);
+            sign->typed_vtbl->destroy(sign);
         }
         if (koin->instance != 0) {
-            ((int (*)(ScreenObj*))koin->vtbl->destroy)(koin);
+            koin->typed_vtbl->destroy(koin);
         }
         if (amount_string->instance != 0) {
-            ((int (*)(StringObj*))amount_string->vtbl->destroy)(amount_string);
+            amount_string->typed_vtbl->destroy(amount_string);
         }
         if (title->instance != 0) {
-            ((int (*)(StringObj*))title->vtbl->destroy)(title);
+            title->typed_vtbl->destroy(title);
         }
     }
     duck_sounds(1.0f);
@@ -1537,6 +1539,8 @@ static void text_window_fade_out(unsigned char ticks) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
+/* TODO: [near miss] 92.81%; frame loop hoists frame_flags.word (retail reloads it from
+ * the stack) and the JNY_WINDOW01 string-pool offset differs (0x6c vs 0xa2). */
 float p_show_text_window(void) {
     KonquestTrialWindowPdata* pdata =
         (KonquestTrialWindowPdata*)apdata;
@@ -2413,6 +2417,8 @@ static void trial_show_move_message(void) {
     }
 }
 
+/* TODO: [near miss] 99.51%; first inlined get_screen_latch swaps r3/r4 and adds one mr;
+ * the other four latches match. */
 static void show_background_box(
     int style, int x, int y, int priority, int width, int height) {
     KonquestBackgroundBox* box =

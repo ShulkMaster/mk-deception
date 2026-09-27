@@ -2750,7 +2750,8 @@ void npc_shadow_set_light_angle(const Vec* angles) {
 
 
 
-/* TODO: [breakthrough needed] 91.29348%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 91.53%; retail calls obj_first_sobj before the projection
+ * (one more call); ours saves an extra FPR (f29); stack layout and ordering need recovery. */
 void npc_shadow_update(void) {
     KonquestCameraPositionView* camera =
         ((KonquestCameraView*)Camera)->position;
@@ -2772,7 +2773,6 @@ void npc_shadow_update(void) {
         shadow->hide_flag_bits.hidden = 1;
         if (npc != 0) {
             KonquestNpc* monk = konquest_npc_pdata_live_monk_npc(konquest_pdata);
-
 
             if (npc->data != monk->data) {
                 int active = npc_event_has_active_animation(npc);
@@ -2810,15 +2810,15 @@ void npc_shadow_update(void) {
                                 scale = 1.0f;
                             }
                             alpha = (int)(scale * npc_shadows.alpha);
-                            color.red = (unsigned char)alpha;
-                            color.blue = (unsigned char)alpha;
-                            color.green = (unsigned char)alpha;
-                            color.alpha = (unsigned char)alpha;
+                            color.red = alpha;
+                            color.blue = alpha;
+                            color.green = alpha;
+                            color.alpha = alpha;
                             npc_shadows.materials[index]->color = color;
-                            if ((((MkSobj*)obj_first_sobj(shadow))
+                            if ((obj_first_sobj(shadow)
                                      ->atomic->interpolator.flags & 2) != 0) {
                                 _rpAtomicResyncInterpolatedSphere(
-                                    ((MkSobj*)obj_first_sobj(shadow))->atomic);
+                                    obj_first_sobj(shadow)->atomic);
                             }
                             projected_x = object->pos.value.x *
                                 npc_shadows.projection.right.x +
@@ -2842,7 +2842,7 @@ void npc_shadow_update(void) {
                                 projected_z * projected_z +
                                 (projected_x * projected_x +
                                  projected_y * projected_y));
-                            ((MkSobj*)obj_first_sobj(shadow))
+                            obj_first_sobj(shadow)
                                 ->atomic->boundingSphere.radius = radius;
                             {
                                 float delta_x = camera_x - object->pos.value.x;
@@ -6207,13 +6207,8 @@ void npc_stop_goro_bone_match(void) {
     }
 }
 
-/*
- * Soft ceiling: 99.85294% - instructions are exact; only the signed-int to
- * float conversion constant relocation differs.
- */
-/* Near match: 89.741936%, four bytes from retail. Sequence timing, animation
- * playback/restoration, dialog cancellation, and lip-sync shutdown are exact;
- * the remaining difference is save/scheduling emission. */
+/* TODO: [near miss] 89.74%; sequence setup loads (row count, saved animation/flags) and
+ * callee-saved register assignment differ; control flow and calls match. */
 float p_wait_for_dialog(void) {
     KonquestNpc* npc = (KonquestNpc*)apdata;
     KonquestAnimPdata* animation;
@@ -6240,17 +6235,17 @@ float p_wait_for_dialog(void) {
                 0x20003, 0.05f);
             animation->step = sequence->speed;
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             if (remaining > 0.0f) {
                 remaining -= 1.0f;
             }
             while ((npc->flags_1C & 4) != 0 &&
                    (sequence->duration == 0 || remaining > 0.0f) &&
                    animation->frame < animation->high_frame - 10.0f) {
-                advance_anim((AnimState*)animation);
-                pose_anim((AnimState*)animation, 1);
+                advance_anim(animation);
+                pose_anim(animation, 1);
                 _mkproc_sleep_ticks = 1.0f;
-                ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
                 if (remaining > 0.0f) {
                     remaining -= 1.0f;
                 }
@@ -6259,7 +6254,7 @@ float p_wait_for_dialog(void) {
                 while (sequence->duration != 0 && remaining > 0.0f) {
                     _mkproc_sleep_ticks = 1.0f;
                     remaining -= 1.0f;
-                    ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+                    aproc->vtbl->sleep();
                 }
                 index++;
                 sequence++;
@@ -6273,16 +6268,16 @@ float p_wait_for_dialog(void) {
             transition_to_anim_script(
                 animation, saved_animation, saved_flags, 0.05f);
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
     }
     npc->animation->dialog_sequence = 0;
     while ((npc->flags_1C & 4) != 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
         if (animation->animation != 0) {
-            advance_anim((AnimState*)animation);
-            pose_anim((AnimState*)animation, 1);
+            advance_anim(animation);
+            pose_anim(animation, 1);
         }
     }
     {

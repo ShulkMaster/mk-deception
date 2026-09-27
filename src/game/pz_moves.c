@@ -2790,8 +2790,8 @@ static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 
 
 
-/* TODO: [near miss] 94.857956%; typed dispatch copy/indexing preserve table bytes;
- * engine/table reload placement and GPR allocation remain; stop at coloring. */
+/* TODO: [near miss] 95.16%; compiler CSEs the table entry (r30) where retail keeps
+ * the scaled index and rematerializes tbl_xfer_addresses; GPR allocation remains. */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;
     PuzzleReactionTransferData* reaction_data = (PuzzleReactionTransferData*)apdata;
@@ -2804,13 +2804,12 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         return;
     }
 
-    transfer = &tbl_xfer_addresses[reaction];
-    dispatch = transfer->dispatch;
+    dispatch = tbl_xfer_addresses[reaction].dispatch;
     opponent_proc = puzzle_reaction_transfer_data_live_opponent_proc(reaction_data);
 
     his_obj = reaction_data->opponent_obj;
     his_pdata = reaction_data->opponent_pdata;
-    script = (PuzzleCmdScript*)get_cmdscript_for_proc(opponent_proc);
+    script = get_cmdscript_for_proc(opponent_proc);
     his_pdata->state = 0x600;
     swap_active_plyr_proc();
 
@@ -2823,12 +2822,10 @@ void pz_fighter_reaction_xfer_him(int reaction) {
 
     if (hold_proc != 0) {
         release_other_player();
-        if (plyr_pdata == (PlyrPdata*)g_game_info.plyr0.slot.fighter) {
-            xfer_player_proc(
-                (PuzzleProcess*)g_game_info.plyr1.idle_proc, j_exit);
+        if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+            xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
         } else {
-            xfer_player_proc(
-                (PuzzleProcess*)g_game_info.plyr0.idle_proc, j_exit);
+            xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
         }
     }
 

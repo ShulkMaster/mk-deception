@@ -18,7 +18,6 @@
 
 #pragma use_lmw_stmw on
 
-extern MkVtable5 vtbl_mkpdata_string_obj;
 extern int screen_width;
 extern int text_window_state;
 extern float p_show_text_window(void);
@@ -141,10 +140,19 @@ extern EndingDataEntry ending_data_table[26];
 extern int ending_speech;
 extern int f_ending_speech_paused;
 
-#define ENDING_SCREEN_ITEM_OBJECT(item)                                      \
-    (((item)->object != 0 && (item)->object->instance == (item)->instance) ? \
-         (item)->object :                                                    \
-         0)
+static inline ScreenObj* ending_item_live_object(EndingScreenObjItem* item) {
+    ScreenObj* object = item->object;
+
+    if (object != 0) {
+        if (object->instance == item->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 
 static int scrolling_text_string_count;
 
@@ -153,17 +161,14 @@ static float p_early_out_monitor(void);
 static void count_scrolling_text_strings(MkHdr* object);
 static float p_scrolling_text(void);
 
-/*
- * TODO: [breakthrough] ending_show_text 73.166664% - the typed 0x560-byte text-window
- * pdata contract is complete; remaining differences are allocation/FP shape.
- */
+/* TODO: [breakthrough] 73.30%; typed 0x560-byte text-window pdata complete; allocation/FP shape differs. */
 void ending_show_text(int string_id, int duration) {
     EndingTextWindowPdataOut pdata;
     const char* text;
     int width;
 
     if (refresh_rate() == 50) {
-        duration = (int)(0.799 * (double)duration);
+        duration = 0.799 * (double)duration;
     }
 
     text = get_string_by_id(string_id | 0x20000);
@@ -175,10 +180,10 @@ void ending_show_text(int string_id, int duration) {
         pdata.pdata->field_4E8 = 0;
         pdata.pdata->field_018 = 0;
         width = screen_width;
-        pdata.pdata->x = (int)((float)width * 0.08f);
+        pdata.pdata->x = (float)width * 0.08f;
         pdata.pdata->y = 0x56;
         pdata.pdata->font = 0x1D;
-        pdata.pdata->wrap_width = (int)((float)width * 0.85f);
+        pdata.pdata->wrap_width = (float)width * 0.85f;
         pdata.pdata->oid = 0x860;
         pdata.pdata->alignment = 8;
         pdata.pdata->duration = duration;
@@ -191,10 +196,7 @@ void ending_show_text(int string_id, int duration) {
     }
 }
 
-/*
- * TODO: [breakthrough] 79.21528% - the credits lifecycle is recovered; residual
- * differences are repeated state stores and process-pdata allocation shape.
- */
+/* TODO: [breakthrough] 79.94%; credits lifecycle recovered; repeated state stores and process-pdata allocation shape differ. */
 float p_credits_screen(void) {
     EndingScrollPdata* scroll_pdata;
     ScriptSlot* credits_script;
@@ -225,7 +227,7 @@ float p_credits_screen(void) {
     load_string_bank(0x20000, "bio_strings_eng.mko");
     load_ssf(&endings_file_table);
     load_font(8);
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         load_puzzle_champion_screen();
     }
     snd_req(0x1C06);
@@ -270,7 +272,6 @@ float p_credits_screen(void) {
     return -1.0f;
 }
 
-/* Soft ceiling: p_early_out_monitor ~99.83% -- residual branch/NV emit. */
 static float p_early_out_monitor(void) {
     if (check_switch(g_game_info.plyr0.pad_index, 6) != 0 ||
         check_switch(g_game_info.plyr1.pad_index, 6) != 0) {
@@ -322,7 +323,6 @@ static void count_scrolling_text_strings(MkHdr* object) {
 
 static void scroll_text_strings(MkHdr* object);
 
-/* Soft ceiling: p_scrolling_text ~99.58% -- residual local/NV emit. */
 static float p_scrolling_text(void) {
     EndingScrollPdata* scroll;
 
@@ -352,7 +352,6 @@ static void scroll_text_strings(MkHdr* object) {
     }
 }
 
-/* Soft ceiling: p_ending_script_in_proc ~99.55% -- local -1.0f pool label only. */
 static float p_ending_script_in_proc(void) {
     EndingScriptPdata* pdata;
 
@@ -365,11 +364,7 @@ static float p_ending_script_in_proc(void) {
     return -1.0f;
 }
 
-/*
- * TODO: [breakthrough] 90.490326%; compact profile improves presentation; the duplicated
- * retail good/bad selection is retained because both routes name the same two
- * champion panes in this build.
- */
+/* TODO: [breakthrough] 91.00%; duplicated retail good/bad selection retained (both routes name the same two champion panes). */
 float p_champion_screen(void) {
     const char* image_a;
     const char* image_b;
@@ -486,30 +481,31 @@ void ending_show_image(int image) {
     fade_to_black(8, 1);
 }
 
+/* TODO: [near miss] 96.03%; lookups and flag bits match; parameter homes differ (retail image r23/ticks r30, ours r30/r31) and shift the nonvolatile set. */
 static void fade_ending_screen_images(int image, int ticks) {
+    unsigned char current_alpha;
     ScreenObj* image_1a;
     ScreenObj* image_1b;
     ScreenObj* image_2a;
     ScreenObj* image_2b;
     ScreenObj* image_3a;
     ScreenObj* image_3b;
-    unsigned char current_alpha;
-    unsigned char next_alpha;
     unsigned char current_step;
     unsigned char next_step;
+    unsigned char next_alpha;
     unsigned char current_final;
     unsigned char next_final;
 
-    image_1a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1a_item);
-    image_1b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1b_item);
-    image_2a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_2a_item);
-    image_2b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_2b_item);
-    image_3a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_3a_item);
-    image_3b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_3b_item);
+    image_1a = ending_item_live_object(&ending_image_1a_item);
+    image_1b = ending_item_live_object(&ending_image_1b_item);
+    image_2a = ending_item_live_object(&ending_image_2a_item);
+    image_2b = ending_item_live_object(&ending_image_2b_item);
+    image_3a = ending_item_live_object(&ending_image_3a_item);
+    image_3b = ending_item_live_object(&ending_image_3b_item);
 
     if (image == 1) {
-        image_1a->flags &= ~0x10;
-        image_1b->flags &= ~0x10;
+        image_1a->flag_bits.hidden = 0;
+        image_1b->flag_bits.hidden = 0;
         current_alpha = 0;
         current_step = 0xFF / (ticks + 1);
         next_alpha = 0;
@@ -517,21 +513,21 @@ static void fade_ending_screen_images(int image, int ticks) {
         current_final = 0xFF;
         next_final = 0;
     } else if (image == 2) {
-        image_2a->flags &= ~0x10;
-        image_2b->flags &= ~0x10;
+        image_2a->flag_bits.hidden = 0;
+        image_2b->flag_bits.hidden = 0;
         current_alpha = 0xFF;
-        current_step = (unsigned char)-(unsigned char)(0xFF / (ticks + 1));
+        current_step = -(unsigned char)(0xFF / (ticks + 1));
         next_alpha = 0;
-        next_step = (unsigned char)-current_step;
+        next_step = -current_step;
         current_final = 0;
         next_final = 0xFF;
     } else {
-        image_3a->flags &= ~0x10;
-        image_3b->flags &= ~0x10;
+        image_3a->flag_bits.hidden = 0;
+        image_3b->flag_bits.hidden = 0;
         current_alpha = 0xFF;
-        current_step = (unsigned char)-(unsigned char)(0xFF / (ticks + 1));
+        current_step = -(unsigned char)(0xFF / (ticks + 1));
         next_alpha = 0;
-        next_step = (unsigned char)-current_step;
+        next_step = -current_step;
         current_final = 0;
         next_final = 0xFF;
     }
@@ -571,12 +567,12 @@ static void fade_ending_screen_images(int image, int ticks) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
 
-        image_1a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1a_item);
-        image_1b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1b_item);
-        image_2a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_2a_item);
-        image_2b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_2b_item);
-        image_3a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_3a_item);
-        image_3b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_3b_item);
+        image_1a = ending_item_live_object(&ending_image_1a_item);
+        image_1b = ending_item_live_object(&ending_image_1b_item);
+        image_2a = ending_item_live_object(&ending_image_2a_item);
+        image_2b = ending_item_live_object(&ending_image_2b_item);
+        image_3a = ending_item_live_object(&ending_image_3a_item);
+        image_3b = ending_item_live_object(&ending_image_3b_item);
         ticks--;
     }
 
@@ -609,15 +605,14 @@ static void fade_ending_screen_images(int image, int ticks) {
     }
 
     if (image == 2) {
-        image_1a->flags |= 0x10;
-        image_1b->flags |= 0x10;
+        image_1a->flag_bits.hidden = 1;
+        image_1b->flag_bits.hidden = 1;
     } else if (image == 3) {
-        image_2a->flags |= 0x10;
-        image_2b->flags |= 0x10;
+        image_2a->flag_bits.hidden = 1;
+        image_2b->flag_bits.hidden = 1;
     }
 }
 
-/* Soft ceiling: p_character_ending_sequence ~99.76% -- residual call/return emit. */
 float p_character_ending_sequence(void) {
     set_section_memory_scheme(7);
     if (char_for_ending != 0x2C) {
@@ -639,13 +634,7 @@ static inline int find_ending_index(int fighter) {
     return -1;
 }
 
-/*
- * Runs the selected fighter's scripted ending. All table fields are named so
- * the six ending panes and script/audio assets remain independent of pointer
- * width assumptions in the control flow.
- * TODO: [near miss] 99.39%; retail pools ending_data_table's initializer strings at the
- * head of @stringBase0 (bio_strings_eng.mko at +0xb0a); our build keeps them out of it.
- */
+/* TODO: [near miss] 99.39%; retail pools ending_data_table's initializer strings at the head of @stringBase0; ours keeps them out (TU data layout). */
 void run_ending(int fighter) {
     ScreenObj* image;
     ScriptSlot* script;
@@ -770,7 +759,7 @@ void run_ending(int fighter) {
         if (switch_pressed) {
             turn_controllers_off();
             fade_to_black(8, 1);
-            if ((int)mode_of_play == 5) {
+            if (mode_of_play == 5) {
                 turn_controllers_on();
                 destroy_mkprocs_pid(0x20A0);
                 destroy_mkprocs_pid(0x9002);

@@ -476,7 +476,6 @@ static inline MkObj* fighter_live_shadow_obj(FighterMirror* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.709680%; register coloring; one-trial ceiling. */
 void Render(void) {
     MkProc* capture_proc;
     MkProc* halt_proc;
@@ -516,41 +515,47 @@ void Render(void) {
             if (get_bgnd_flags() & 1) {
                 FighterMirror* fighter = g_game_info.plyr0.slot.fighter;
                 if (fighter != 0 && g_game_info.plyr0.slot.mirror_a != 0 &&
-                    g_game_info.plyr0.slot.mirror_b != 0 &&
-                    fighter->flag_obj != 0) {
-                    MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+                    g_game_info.plyr0.slot.mirror_b != 0) {
+                    MkObj* flag_obj = fighter->flag_obj;
 
-                    if (shadow_obj == 0) {
-                        plyr_turn_off_mirrorguy(&g_game_info.plyr0);
-                    } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
-                               !fighter->flag_obj->hide_flag_bits.hidden) {
-                        UpdateShadow(g_game_info.plyr0.slot.mirror_a,
-                                     (ShadowObject*)fighter,
-                                     g_game_info.plyr0.slot.mirror_b);
-                        if (g_game_info.section->flags70 & 8) {
-                            mirror_guy(g_game_info.plyr0.slot.mirror_a,
-                                       g_game_info.plyr0.slot.mirror_b,
-                                       g_game_info.plyr0.slot.pdata);
+                    if (flag_obj != 0) {
+                        MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+
+                        if (shadow_obj == 0) {
+                            plyr_turn_off_mirrorguy(&g_game_info.plyr0);
+                        } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
+                                   !flag_obj->hide_flag_bits.hidden) {
+                            UpdateShadow(g_game_info.plyr0.slot.mirror_a,
+                                         (ShadowObject*)fighter,
+                                         g_game_info.plyr0.slot.mirror_b);
+                            if (g_game_info.section->flags70 & 8) {
+                                mirror_guy(g_game_info.plyr0.slot.mirror_a,
+                                           g_game_info.plyr0.slot.mirror_b,
+                                           g_game_info.plyr0.slot.pdata);
+                            }
                         }
                     }
                 }
                 fighter = g_game_info.plyr1.slot.fighter;
                 if (fighter != 0 && g_game_info.plyr1.slot.mirror_a != 0 &&
-                    g_game_info.plyr1.slot.mirror_b != 0 &&
-                    fighter->flag_obj != 0) {
-                    MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+                    g_game_info.plyr1.slot.mirror_b != 0) {
+                    MkObj* flag_obj = fighter->flag_obj;
 
-                    if (shadow_obj == 0) {
-                        plyr_turn_off_mirrorguy(&g_game_info.plyr1);
-                    } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
-                               !fighter->flag_obj->hide_flag_bits.hidden) {
-                        UpdateShadow(g_game_info.plyr1.slot.mirror_a,
-                                     (ShadowObject*)fighter,
-                                     g_game_info.plyr1.slot.mirror_b);
-                        if (g_game_info.section->flags70 & 8) {
-                            mirror_guy(g_game_info.plyr1.slot.mirror_a,
-                                       g_game_info.plyr1.slot.mirror_b,
-                                       g_game_info.plyr1.slot.pdata);
+                    if (flag_obj != 0) {
+                        MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+
+                        if (shadow_obj == 0) {
+                            plyr_turn_off_mirrorguy(&g_game_info.plyr1);
+                        } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
+                                   !flag_obj->hide_flag_bits.hidden) {
+                            UpdateShadow(g_game_info.plyr1.slot.mirror_a,
+                                         (ShadowObject*)fighter,
+                                         g_game_info.plyr1.slot.mirror_b);
+                            if (g_game_info.section->flags70 & 8) {
+                                mirror_guy(g_game_info.plyr1.slot.mirror_a,
+                                           g_game_info.plyr1.slot.mirror_b,
+                                           g_game_info.plyr1.slot.pdata);
+                            }
                         }
                     }
                 }

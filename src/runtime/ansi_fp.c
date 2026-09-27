@@ -533,13 +533,11 @@ static void __minus_dec(decimal* z, const decimal* x, const decimal* y)
 
 			for (j = jn + 1; j < ibPtr; j++) {
 				if (*j != 0)
-					break;
+					goto done;
 			}
-			if (j == ibPtr) {
-				i = ib + (jn - jb) + dexp - 1;
-				if (*i & 1)
-					round_down = TRUE;
-			}
+			i = ib + (jn - jb) + dexp - 1;
+			if (*i & 1)
+				round_down = TRUE;
 		}
 		if (round_down) {
 			if (*i < 1) {
@@ -554,6 +552,7 @@ static void __minus_dec(decimal* z, const decimal* x, const decimal* y)
 			*i -= 1;
 		}
 	}
+done:
 	for (i = ib; *i == 0; ++i) { }
 
 	if (i > ib) {
@@ -759,14 +758,16 @@ static void __timesdec(decimal* result, const decimal* x, const decimal* y)
 
 	if (ip < ep && *ip >= 5) {
 		if (*ip == 5) {
-			u8* jp = ip + 1;
+			u8* jp;
 
-			while (jp < ep && *jp == 0) {
-				jp++;
+			for (jp = ip + 1; jp < ep; jp++) {
+				if (*jp != 0)
+					goto round;
 			}
-			if (jp == ep && (ip[-1] & 1) == 0)
+			if ((ip[-1] & 1) == 0)
 				return;
 		}
+	round:
 		__dorounddecup(result, result->sig.length);
 	}
 }

@@ -566,11 +566,10 @@ void cvFsClose(CvFsObject* handle)
     }
 }
 
-/* TODO: [near miss] 99.01%; path split, handle lifetime, device resolution, open/error CFG, and release paths match retail; residual is global/register coloring. */
+/* TODO: [near miss] 99.28%; stored-interface reload now matches; filename/device-table coloring and splitPath increment order remain. */
 CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
 {
     CvFsObject* handle;
-    CvFsInterface* interface;
     char device[297];
     char file[297];
 
@@ -591,20 +590,19 @@ CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
         return NULL;
     }
 
-    interface = resolveDevice(device, file, filename);
-    handle->interface = interface;
+    handle->interface = resolveDevice(device, file, filename);
     if (device == NULL) {
         releaseHandle(handle);
         cvFsError(open_bad_device);
         return NULL;
     }
-    if (interface == NULL) {
+    if (handle->interface == NULL) {
         releaseHandle(handle);
         cvFsError(open_no_device);
         return NULL;
     }
-    if (interface->Open != NULL) {
-        handle->object = interface->Open(file, parameter, mode);
+    if (handle->interface->Open != NULL) {
+        handle->object = handle->interface->Open(file, parameter, mode);
     } else {
         releaseHandle(handle);
         cvFsError(open_bad_interface);

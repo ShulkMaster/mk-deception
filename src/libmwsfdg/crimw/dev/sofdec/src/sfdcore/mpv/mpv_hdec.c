@@ -79,37 +79,37 @@ static const MPVMacroblockDecodeFunction dec_mbs_func[5] = {
     MPVDEC_DecDpicMb,
 };
 
-static MPVMotionFunction mc_bidirect_func[10];
-static MPVMotionFunction mc_backward_func[10];
-static MPVMotionFunction mc_forward_func[10];
-static MPVMotionFunction mc_intra_func[20];
-static MPVSkipFunction skip_func[10];
+static MPVMotionFunction mc_bidirect_func[2][5];
+static MPVMotionFunction mc_backward_func[2][5];
+static MPVMotionFunction mc_forward_func[2][5];
+static MPVMotionFunction mc_intra_func[2][2][5];
+static MPVSkipFunction skip_func[2][5];
 
-/* TODO: [near miss] 94.060150%; retail/donor slice parser agrees; residual register
- * allocation/lifetime coloring remains after the bounded source audit. */
 static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    const u32* words;
     u32 bits;
     u32 next_bits;
-    u32 first_bits;
-    u32 value;
     int bit_offset;
+    const u32* words;
+    u32 first_bits;
+    u32 second_word;
+    u32 value;
     int consumed;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
     words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
-    first_bits = words[0] << bit_offset;
-    next_bits = words[1];
+    second_word = words[1];
+    first_bits = words[0];
+    first_bits <<= bit_offset;
     if (bit_offset != 0) {
-        bits = next_bits << bit_offset;
-        value = first_bits | (next_bits >> (32 - bit_offset));
+        bits = second_word << bit_offset;
+        value = first_bits | (second_word >> (32 - bit_offset));
     } else {
-        bits = next_bits;
         value = first_bits;
+        bits = second_word;
     }
     next_bits = words[2];
     words += 3;
@@ -142,7 +142,7 @@ static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
         } else {
             bits <<= 9;
         }
-        consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len <= consumed) {
             return;
@@ -150,8 +150,8 @@ static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
     }
 
     context->field_1310 = bit_offset & 7;
-    consumed = ((const u8*)words +
-                ((bit_offset - context->field_1310 + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) +
+                ((bit_offset - context->field_1310 + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);
@@ -208,41 +208,109 @@ static inline int mpvhdec_SeekDelimSj(SJ* stream, int wanted_mask)
     }
 }
 
-int MPVHDEC_DecPicture(MPVContext* context, SJ* stream)
+static inline int mpvhdec_ReadDelimSj(SJ* stream)
 {
     SJCK chunk;
+    SJCK remainder;
+    const u8* delimiter;
     int delimiter_type;
+
+    for (;;) {
+        stream->interface->get_chunk(stream, 1, 0x7FFFFFFF, &chunk);
+        if (chunk.len < 4) {
+            stream->interface->unget_chunk(stream, 1, &chunk);
+            return 0;
+        }
+        delimiter = MPV_SearchDelim(chunk.data, chunk.len, -1);
+        if (delimiter != 0) {
+            break;
+        }
+        SJ_SplitChunk(&chunk, chunk.len - 3, &chunk, &remainder);
+        stream->interface->put_chunk(stream, 0, &chunk);
+        stream->interface->unget_chunk(stream, 1, &remainder);
+    }
+    delimiter_type = MPV_CheckDelim(delimiter);
+    SJ_SplitChunk(&chunk, delimiter - chunk.data, &chunk, &remainder);
+    stream->interface->put_chunk(stream, 0, &chunk);
+    stream->interface->unget_chunk(stream, 1, &remainder);
+    return delimiter_type;
+}
+
+static inline int mpvhdec_DetectDecoderMode(
+    MPVContext* context, const u8* data, int length)
+{
+    const u8* delimiter;
+    int delimiter_type;
+
+    if (context->field_358 != 0) {
+        return context->field_358;
+    }
+    delimiter = MPV_SearchDelim(data, length, 0x40);
+    if (delimiter == 0) {
+        return context->field_358;
+    }
+    delimiter += 4;
+    delimiter = MPV_SearchDelim(delimiter, length - (delimiter - data), -1);
+    if (delimiter == 0) {
+        return context->field_358;
+    }
+    delimiter_type = MPV_CheckDelim(delimiter);
+    if (delimiter_type & 0x10) {
+        context->field_358 = 2;
+    } else if (delimiter_type != 0) {
+        context->field_358 = 1;
+    }
+    return context->field_358;
+}
+
+static inline int mpvhdec_SeekPictureData(
+    MPVContext* context, SJ* stream, int wanted_mask)
+{
+    int condition;
     int error;
-    int picture_state;
+    int delimiter_type;
+
+    condition = context->condition_state.conditions[1];
+    if (context->field_1300 != 0) {
+        context->field_1300 = 0;
+        context->field_1304++;
+        context->error_info.field_0C++;
+        if (condition == 0) {
+            return -2;
+        }
+        context->error_info.field_10++;
+    }
+
+    if (condition == 0) {
+        error = -2;
+    } else {
+        error = -3;
+    }
+    for (;;) {
+        delimiter_type = mpvhdec_ReadDelimSj(stream);
+        if (delimiter_type == 0) {
+            break;
+        }
+        if ((delimiter_type & wanted_mask) != 0) {
+            error = 0;
+            break;
+        }
+        if (MPV_MoveChunk(stream, 1, 4) != 4) {
+            break;
+        }
+    }
+    return error;
+}
+
+int MPVHDEC_DecPicture(MPVContext* context, SJ* stream)
+{
+    int error;
 
     context->field_1324 = context->condition_state.conditions[7];
     for (;;) {
-        do {
-            picture_state = context->condition_state.conditions[1];
-            if (context->field_1300 != 0) {
-                context->field_1300 = 0;
-                context->field_1304++;
-                context->error_info.field_0C++;
-                if (picture_state == 0) {
-                    error = -2;
-                    break;
-                }
-                context->error_info.field_10++;
-            }
+        SJCK chunk;
 
-            if (picture_state == 0) {
-                error = -2;
-            } else {
-                error = -3;
-            }
-
-            delimiter_type = mpvhdec_SeekDelimSj(stream, -1);
-
-            if (delimiter_type != 0) {
-                error = 0;
-            }
-        } while (0);
-
+        error = mpvhdec_SeekPictureData(context, stream, -1);
         if (error != 0) {
             return MPVERR_SetCode(context, error);
         }
@@ -308,29 +376,31 @@ static inline void mpvhdec_ConsumeDelim(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
+/* TODO: [near miss] 95.91%; retail forms (data + offset) then adds 4 for the entry name;
+ * MWCC reassociates every source form tried to data + (offset + 4). */
 static int mpvhdec_DecSeqUdsc(MPVContext* context, const u8* data, int length)
 {
-    const u8* current;
+    const char* current;
     int offset;
     int result;
 
     result = 0;
     offset = 0;
     while (offset < length - 4) {
-        current = data + offset + 4;
-        if (strncmp((const char*)current, "IDCPREC", 7) == 0) {
-            if (atoi((const char*)current + 0x10) == 0) {
+        current = (const char*)(data + offset) + 4;
+        if (strncmp(current, "IDCPREC", 7) == 0) {
+            if (atoi(current + 0x10) == 0) {
                 context->field_1314 = 0;
             } else {
                 context->field_1314 = 3;
             }
         }
-        if (strncmp((const char*)current, "STCCODE", 7) == 0) {
-            context->stc_code_0 = atoi((const char*)current + 0x10);
-            context->stc_code_1 = atoi((const char*)current + 0x18);
-            context->stc_code_2 = atoi((const char*)current + 0x20);
+        if (strncmp(current, "STCCODE", 7) == 0) {
+            context->stc_code_0 = atoi(current + 0x10);
+            context->stc_code_1 = atoi(current + 0x18);
+            context->stc_code_2 = atoi(current + 0x20);
         }
-        if (MPV_CheckDelim(current) != 0) {
+        if (MPV_CheckDelim((const u8*)current) != 0) {
             break;
         }
         offset++;
@@ -359,17 +429,17 @@ static int mpvhdec_DecSeqUdsc(MPVContext* context, const u8* data, int length)
     return result;
 }
 
-static int mpvhdec_AnalyUd(MPVContext* context, const u8* data, int length)
+static int mpvhdec_AnalyUd(MPVContext* context, const u8* data, long length)
 {
-    SJ* user_sj;
-    SJCK first;
-    SJCK second;
-    int delimiter_offset;
     int delimiter_result;
     int sequence_result;
     int index;
-    int copy_size;
+    long copy_size;
+    SJ* user_sj;
+    SJCK first;
+    SJCK second;
     int picture_copy_size;
+    int delimiter_offset;
 
     sequence_result = 0;
     delimiter_result = 0;
@@ -413,7 +483,7 @@ static int mpvhdec_AnalyUd(MPVContext* context, const u8* data, int length)
             picture_copy_size = copy_size;
         }
         context->picture_user.size = picture_copy_size;
-        memcpy(context->picture_user.buffer, data, picture_copy_size);
+        memcpy(context->picture_user.buffer, data, context->picture_user.size);
     }
 
     if (sequence_result != 0) {
@@ -422,18 +492,48 @@ static int mpvhdec_AnalyUd(MPVContext* context, const u8* data, int length)
     return delimiter_result;
 }
 
+static inline void mpvhdec_ConsumeUserData(MPVContext* context, SJ* stream)
+{
+    SJCK remainder;
+    u8* aligned;
+    int bit_offset;
+    int consumed;
+
+    stream->interface->get_chunk(
+        stream, 1, 0x7FFFFFFF, &context->header_chunk);
+    aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
+    bit_offset = (context->header_chunk.data - aligned) * 8;
+    mpvhdec_AnalyUd(
+        context, context->header_chunk.data, context->header_chunk.len);
+    consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
+               context->header_chunk.data;
+    SJ_SplitChunk(&context->header_chunk, consumed,
+                  &context->header_chunk, &remainder);
+    stream->interface->put_chunk(stream, 0, &context->header_chunk);
+    stream->interface->unget_chunk(stream, 1, &remainder);
+    MPV_GoNextDelimSj(stream);
+}
+
+static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
+{
+    if (bit_offset != 0) {
+        bits <<= bit_offset;
+    }
+    return bits;
+}
+
+/* TODO: [near miss] 99.26%; 2-D motion tables match; initial window copy (retail mr r7,r4),
+ * 3-bit value r9/r7 and table-address scheduling residue remain. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    const u32* aligned;
-    const u32* words;
-    u32 bits;
     u32 next_bits;
-    u32 value;
     int bit_offset;
+    u32 bits;
+    const u32* words;
+    u32 value;
     int f_code;
     int picture_type;
-    int table_index;
     int condition_index;
     int motion_mode;
     int consumed;
@@ -442,51 +542,49 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = aligned[1];
-    if (bit_offset != 0) {
-        bits <<= bit_offset;
-    }
-    next_bits = aligned[2];
-    words = aligned + 3;
+    words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
+    bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
+    bits = mpvhdec_AlignSequenceWindow(words[1], bit_offset);
+    next_bits = words[2];
+    words += 3;
 
     MPVHDEC_READ_BITS(
         context->condition_state.picture.temporal_reference, 10);
-    MPVHDEC_READ_BITS(
-        context->condition_state.picture.picture_type, 3);
-    picture_type = context->condition_state.picture.picture_type;
+    MPVHDEC_READ_BITS(value, 3);
+    context->condition_state.picture.picture_type = value;
     MPVHDEC_READ_BITS(context->vbv_delay, 16);
+    picture_type = context->condition_state.picture.picture_type;
 
     if (picture_type == 2 || picture_type == 3) {
         MPVHDEC_READ_FLAG(context->forward_motion.full_pel);
-        MPVHDEC_READ_BITS(value, 3);
-        f_code = value - 1;
+        MPVHDEC_READ_BITS(f_code, 3);
+        f_code--;
         context->forward_motion.r_size = f_code;
         context->forward_motion.shift = 27 - f_code;
         context->forward_motion.limit = 1 << f_code;
     }
     if (picture_type == 3) {
         MPVHDEC_READ_FLAG(context->backward_motion.full_pel);
-        MPVHDEC_READ_BITS(value, 3);
-        f_code = value - 1;
+        MPVHDEC_READ_BITS(f_code, 3);
+        f_code--;
         context->backward_motion.r_size = f_code;
         context->backward_motion.shift = 27 - f_code;
         context->backward_motion.limit = 1 << f_code;
     }
 
-    condition_index = context->condition_state.conditions[6] != 3;
-    table_index = condition_index * 5 + picture_type;
     motion_mode = context->condition_state.conditions[4];
+    condition_index = context->condition_state.conditions[6] != 3;
     context->decode_intra_blocks = MPVCDEC_IntraBlocks;
     context->decode_nonintra_blocks = MPVCDEC_NintraBlocks;
     context->decode_macroblock = dec_mbs_func[picture_type];
-    context->skip_macroblocks = skip_func[table_index];
+    context->skip_macroblocks = skip_func[condition_index][picture_type];
     context->motion_intra =
-        mc_intra_func[motion_mode * 10 + table_index];
-    context->motion_backward = mc_backward_func[table_index];
-    context->motion_forward = mc_forward_func[table_index];
-    context->motion_bidirect = mc_bidirect_func[table_index];
+        mc_intra_func[motion_mode][condition_index][picture_type];
+    context->motion_backward =
+        mc_backward_func[condition_index][picture_type];
+    context->motion_forward = mc_forward_func[condition_index][picture_type];
+    context->motion_bidirect =
+        mc_bidirect_func[condition_index][picture_type];
     context->motion_skipped = context->motion_forward;
 
     for (;;) {
@@ -507,14 +605,14 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
         } else {
             bits <<= 9;
         }
-        consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len <= consumed) {
             return -3;
         }
     }
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);
@@ -523,16 +621,15 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
+
 static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    const u32* aligned;
-    const u32* words;
-    u32 bits;
     u32 next_bits;
-    u32 value;
     int bit_offset;
-    int split;
+    u32 bits;
+    const u32* words;
+    u32 value;
     int consumed;
 
     context->user_data_index = 2;
@@ -540,14 +637,11 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = aligned[1];
-    if (bit_offset != 0) {
-        bits <<= bit_offset;
-    }
-    next_bits = aligned[2];
-    words = aligned + 3;
+    words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
+    bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
+    bits = mpvhdec_AlignSequenceWindow(words[1], bit_offset);
+    next_bits = words[2];
+    words += 3;
 
     if (bit_offset >= 7) {
         bit_offset -= 7;
@@ -594,8 +688,8 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
         bit_offset++;
     }
 
-    split = (bit_offset + 7) >> 3;
-    consumed = ((const u8*)words + split - 8) - context->header_chunk.data;
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
+               context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);
     stream->interface->put_chunk(stream, 0, &context->header_chunk);
@@ -603,25 +697,15 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
-static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
-{
-    if (bit_offset != 0) {
-        bits <<= bit_offset;
-    }
-    return bits;
-}
 
-/* TODO: [near miss] 96.038250%; sequence-header parser and member offsets
- * agree; residual register/lifetime coloring remains. */
 static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    const u32* aligned;
-    const u32* words;
-    u32 bits;
     u32 next_bits;
-    u32 value;
     int bit_offset;
+    u32 bits;
+    const u32* words;
+    u32 value;
     int index;
     int consumed;
 
@@ -630,11 +714,11 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = mpvhdec_AlignSequenceWindow(aligned[1], bit_offset);
-    next_bits = aligned[2];
-    words = aligned + 3;
+    words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
+    bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
+    bits = mpvhdec_AlignSequenceWindow(words[1], bit_offset);
+    next_bits = words[2];
+    words += 3;
 
     MPVHDEC_READ_BITS(context->condition_state.picture.width, 12);
     MPVHDEC_READ_BITS(context->condition_state.picture.height, 12);
@@ -716,66 +800,32 @@ int MPV_DecodePicAtr(MPVContext* context, const SJCK* input,
     return result;
 }
 
+/* TODO: [near miss] 97.19%; context/stream r28/r27 swap and ConsumeDelim/UserData offset arithmetic order remain. */
 int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream)
 {
+    SJCK initial_chunk;
     SJCK chunk;
-    SJCK remainder;
-    const u8* delimiter;
-    const u8* next;
     const u8* chunk_data;
-    u8* aligned;
     int chunk_len;
-    int bit_offset;
-    int consumed;
     int delimiter_type;
     int error;
-    int decoder_mode;
 
     if (MPVLIB_CheckHn(context) != 0) {
         return MPVERR_SetCode(0, 0xFF03020C);
     }
     context->picture_user.size = 0;
 
-    stream->interface->get_chunk(stream, 1, 0x7FFFFFFF, &chunk);
-    stream->interface->unget_chunk(stream, 1, &chunk);
-    chunk_data = chunk.data;
-    chunk_len = chunk.len;
-    decoder_mode = context->field_358;
-    if (decoder_mode == 0) {
-        delimiter = MPV_SearchDelim(chunk_data, chunk_len, 0x40);
-        if (delimiter != 0) {
-            next = MPV_SearchDelim(
-                delimiter + 4,
-                chunk_len - ((delimiter + 4) - chunk_data), -1);
-            if (next != 0) {
-                delimiter_type = MPV_CheckDelim(next);
-                if (delimiter_type & 0x10) {
-                    context->field_358 = 2;
-                } else if (delimiter_type != 0) {
-                    context->field_358 = 1;
-                }
-            }
-        }
-        decoder_mode = context->field_358;
-    }
-    if (decoder_mode == 2) {
+    stream->interface->get_chunk(stream, 1, 0x7FFFFFFF, &initial_chunk);
+    stream->interface->unget_chunk(stream, 1, &initial_chunk);
+    chunk_data = initial_chunk.data;
+    chunk_len = initial_chunk.len;
+    if (mpvhdec_DetectDecoderMode(context, chunk_data, chunk_len) == 2) {
         return MPVM2V_DecodePicAtr(context, stream);
     }
 
     for (;;) {
-        error = context->condition_state.conditions[1] == 0 ? -2 : -3;
-        if (context->field_1300 != 0) {
-            context->field_1300 = 0;
-            context->field_1304++;
-            context->error_info.field_0C++;
-            if (context->condition_state.conditions[1] == 0) {
-                return MPVERR_SetCode(context, -2);
-            }
-            context->error_info.field_10++;
-        }
-
-        delimiter_type = mpvhdec_SeekDelimSj(stream, -1);
-        if (delimiter_type == 0) {
+        error = mpvhdec_SeekPictureData(context, stream, -1);
+        if (error != 0) {
             return MPVERR_SetCode(context, error);
         }
 
@@ -783,7 +833,7 @@ int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream)
         stream->interface->unget_chunk(stream, 1, &chunk);
         delimiter_type = chunk.len < 4 ? 0 : MPV_CheckDelim(chunk.data);
         if (delimiter_type == 0 || (delimiter_type & 3) != 0) {
-            return 0;
+            break;
         }
 
         switch (delimiter_type) {
@@ -800,22 +850,11 @@ int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream)
             mpvhdec_ConsumeDelim(context, stream);
             break;
         case 0x20:
-            stream->interface->get_chunk(
-                stream, 1, 0x7FFFFFFF, &context->header_chunk);
-            mpvhdec_AnalyUd(
-                context, context->header_chunk.data, context->header_chunk.len);
-            aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
-            bit_offset = (context->header_chunk.data - aligned) * 8;
-            consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
-                       context->header_chunk.data;
-            SJ_SplitChunk(&context->header_chunk, consumed,
-                          &context->header_chunk, &remainder);
-            stream->interface->put_chunk(stream, 0, &context->header_chunk);
-            stream->interface->unget_chunk(stream, 1, &remainder);
-            MPV_GoNextDelimSj(stream);
+            mpvhdec_ConsumeUserData(context, stream);
             break;
         }
     }
+    return error;
 }
 
 void MPV_GetPicUsr(MPVContext* context, void** buffer, int* size)
@@ -855,18 +894,18 @@ void MPVHDEC_Init(void)
     memset(mc_backward_func, 0, sizeof(mc_backward_func));
     memset(mc_bidirect_func, 0, sizeof(mc_bidirect_func));
 
-    skip_func[2] = MPVUMC_PpicSkipped;
-    skip_func[3] = MPVUMC_BpicSkipped;
-    mc_intra_func[1] = MPVUMC_Intra;
-    mc_intra_func[2] = MPVUMC_Intra;
-    mc_intra_func[3] = MPVUMC_Intra;
-    mc_intra_func[4] = MPVUMC_Intra;
-    mc_intra_func[11] = MPVUMC_Intra;
-    mc_intra_func[12] = MPVUMC_Intra;
-    mc_intra_func[13] = MPVUMC_Intra;
-    mc_intra_func[14] = MPVUMC_Intra;
-    mc_forward_func[2] = MPVUMC_Forward;
-    mc_forward_func[3] = MPVUMC_Forward;
-    mc_backward_func[3] = MPVUMC_Backward;
-    mc_bidirect_func[3] = MPVUMC_BiDirect;
+    skip_func[0][2] = MPVUMC_PpicSkipped;
+    skip_func[0][3] = MPVUMC_BpicSkipped;
+    mc_intra_func[0][0][1] = MPVUMC_Intra;
+    mc_intra_func[0][0][2] = MPVUMC_Intra;
+    mc_intra_func[0][0][3] = MPVUMC_Intra;
+    mc_intra_func[0][0][4] = MPVUMC_Intra;
+    mc_intra_func[1][0][1] = MPVUMC_Intra;
+    mc_intra_func[1][0][2] = MPVUMC_Intra;
+    mc_intra_func[1][0][3] = MPVUMC_Intra;
+    mc_intra_func[1][0][4] = MPVUMC_Intra;
+    mc_forward_func[0][2] = MPVUMC_Forward;
+    mc_forward_func[0][3] = MPVUMC_Forward;
+    mc_backward_func[0][3] = MPVUMC_Backward;
+    mc_bidirect_func[0][3] = MPVUMC_BiDirect;
 }

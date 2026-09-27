@@ -70,7 +70,7 @@ typedef struct JmtDecoyPdata {
     int flash_toggle;
     float flash_timer;
     int flash_count;
-    unsigned int effect_handles[9];
+    int effect_handles[9];
 } JmtDecoyPdata;
 
 int subzero_clone_bones[20][2] = {
@@ -94,7 +94,7 @@ typedef struct JmtKabalSmokePdata {
     MkObj* owner;
     Vec origin;
     float duration;
-    unsigned int emitters[10];
+    int emitters[10];
 } JmtKabalSmokePdata;
 
 typedef struct JmtBowPdata {
@@ -144,8 +144,6 @@ int build_bones_tbl(MkObj* object, const int* tags);
 void pull_bone_hierarchy_mkobj(MkObj* object);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 int pfx_plyr_bankowner(PlyrInfo* player);
-unsigned int fx_by_owner(const char* name, unsigned int owner);
-void fx_reset(unsigned int effect);
 void fx_pause_emit(unsigned int effect);
 unsigned int pfxhandle_spawn_at_bid_next(
     unsigned int effect, MkObj* object, int bone);
@@ -156,7 +154,6 @@ int collide_cylinder_vs_plyr(
     PlyrInfo* player, const Vec* center, const Vec* angles,
     float radius, float height);
 void trial_state_collision_check(int collision_result, int player);
-int is_big_boss(PlyrPdata* player);
 
 int local_collision_allowed(PlyrPdata* player);
 int player_area_collision_check(
@@ -185,7 +182,6 @@ void blend_to_stance(float blend);
 float j_exit(void);
 void idle_victim(void);
 void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
-int get_blood_level(void);
 static float p_decoy_shrink(void);
 static float p_bow_ctrl(void);
 static float p_bow_retract(void);
@@ -408,21 +404,21 @@ void kabal_collision_control_victim(int falldown) {
     if (falldown == 0) {
         if (plyr_pdata->plyr_num == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc,
+                g_game_info.plyr1.idle_proc,
                 kabal_collide_victim);
         } else {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc,
+                g_game_info.plyr0.idle_proc,
                 kabal_collide_victim);
         }
     } else {
         if (plyr_pdata->plyr_num == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc,
+                g_game_info.plyr1.idle_proc,
                 kabal_collide_victim_falldown);
         } else {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc,
+                g_game_info.plyr0.idle_proc,
                 kabal_collide_victim_falldown);
         }
     }
@@ -491,7 +487,7 @@ void jmt_debug_script(int command, int value, const void* args, float scalar) {
 void start_kabal_smoke(void* script_args, float duration) {
     JmtKabalSmokePdata* pdata;
     MkProc* proc;
-    unsigned int* emitter;
+    int* emitter;
     int index;
 
     (void)script_args;
@@ -629,7 +625,6 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     }
 }
 
-/* TODO: [near miss] 99.05%; equivalent null comparison lowering remains; stop at local codegen. */
 void destroy_kabal_smoke(void) {
     JmtKabalSmokePdata* pdata;
     MkProc* proc;
@@ -661,7 +656,7 @@ void destroy_kabal_smoke(void) {
         drone_ai_clear_avoidance_area_duration(0);
     }
     if (proc->instance != 0) {
-        ((MkHdr*)proc)->typed_vtbl->destroy((MkHdr*)proc);
+        proc->hdr.typed_vtbl->destroy(&proc->hdr);
     }
 }
 
@@ -707,14 +702,13 @@ static float p_kabal_smoke(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 96.25%; string addressing and creation-output load scheduling remain. */
+/* TODO: [near miss] 96.34%; retail copies player_proc/instance as one two-word aggregate (both loads before the stores); string pool naming is TU-wide. */
 void start_subzero_decoy(void* script_args, float duration) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
     MkProc* proc;
     int art_slot;
 
-    (void)script_args;
     pdata = 0;
     if (plyr_pdata == 0) {
         return;
@@ -735,14 +729,14 @@ void start_subzero_decoy(void* script_args, float duration) {
     if (plyr_pdata->plyr_num == 0) {
         art_slot = 0x3000A;
     }
-    decoy = (MkObj*)load_named_model_from_slot(
+    decoy = load_named_model_from_slot(
         art_slot, jmt_effect_names.decoy_model, 0xD003, 0);
     if (decoy == 0) {
         return;
     }
     if (build_bones_tbl(decoy, clone_bones) == 0) {
         if (decoy->hdr.instance != 0) {
-            ((MkHdr*)decoy)->typed_vtbl->destroy((MkHdr*)decoy);
+            decoy->hdr.typed_vtbl->destroy(&decoy->hdr);
         }
         return;
     }
@@ -769,7 +763,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     }
     if (proc == 0) {
         if (decoy->hdr.instance != 0) {
-            ((MkHdr*)decoy)->typed_vtbl->destroy((MkHdr*)decoy);
+            decoy->hdr.typed_vtbl->destroy(&decoy->hdr);
         }
         return;
     }
@@ -777,7 +771,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
     pdata->decoy_object = decoy;
     pdata->decoy_instance = decoy->hdr.instance;
-    mk_insert(&decoy->hdr, &proc->pdata_list);
+    mk_insert(&decoy->hdr, &proc->pdata_list_b);
     pdata->player_proc = plyr_pdata->player_proc;
     pdata->player_proc_instance = plyr_pdata->player_proc_instance;
     pdata->his_plyr_pdata = plyr_pdata->his_plyr_pdata;
@@ -1029,7 +1023,6 @@ static float p_decoy(void) {
 
 
 
-/* TODO: [near miss] 97.33%; equivalent null/return join lowering remains. */
 static float p_decoy_shrink(void) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -1046,12 +1039,15 @@ static float p_decoy_shrink(void) {
     while (pdata->lifetime > 0.0f) {
         decoy = jmt_decoy_pdata_live_decoy_object(pdata);
 
-        if (decoy == 0 || pdata->source_object == 0) {
+        if (decoy == 0) {
+            return -1.0f;
+        }
+        if (pdata->source_object == 0) {
             return -1.0f;
         }
         pdata->lifetime -= game_speed;
         obj_for_all_atomics_set_material_alpha(
-            decoy, (unsigned int)(200.0f * (pdata->lifetime / 15.0f)));
+            decoy, 200.0f * (pdata->lifetime / 15.0f));
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
@@ -1064,7 +1060,6 @@ static float p_decoy_shrink(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough needed] 95.87%; flag publication and string-pool addressing remain. */
 void start_bow(int bone, float duration) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1079,9 +1074,9 @@ void start_bow(int bone, float duration) {
     if (bow == 0) {
         return;
     }
-    bow->flags_08 |= 0x40;
-    bow->flags_08 |= 8;
-    bow->flags_08 |= 2;
+    bow->flags_08_bits.airborne = 1;
+    bow->flags_08_bits.angular_velocity_enabled = 1;
+    bow->flags_08_bits.scale_active = 1;
     bow->scale.x = 1.0f;
     bow->scale.y = 0.0f;
     bow->scale.z = 1.0f;
@@ -1091,13 +1086,13 @@ void start_bow(int bone, float duration) {
         0xB009, 0x1F, p_bow_ctrl, sizeof(*pdata), (MkHdr**)&pdata);
     if (proc == 0) {
         if (bow->hdr.instance != 0) {
-            ((MkHdr*)bow)->typed_vtbl->destroy((MkHdr*)bow);
+            bow->hdr.typed_vtbl->destroy(&bow->hdr);
         }
         return;
     }
     pdata->bow = bow;
     pdata->bow_instance = bow->hdr.instance;
-    mk_insert(&bow->hdr, &proc->pdata_list);
+    mk_insert(&bow->hdr, &proc->pdata_list_b);
     pdata->owner = plyr_obj;
     pdata->bone = bone;
     pdata->duration = duration;
@@ -1142,7 +1137,6 @@ static inline MkObj* jmt_bow_pdata_live_bow(JmtBowPdata* owner) {
 
 
 
-/* TODO: [near miss] 97.24%; equivalent return-join branch lowering remains. */
 static float p_bow_ctrl(void) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1151,7 +1145,10 @@ static float p_bow_ctrl(void) {
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
     bow = jmt_bow_pdata_live_bow(pdata);
 
-    if (bow == 0 || pdata->owner == 0) {
+    if (bow == 0) {
+        return -1.0f;
+    }
+    if (pdata->owner == 0) {
         return -1.0f;
     }
     pdata->duration -= game_speed;
@@ -1178,7 +1175,6 @@ static float p_bow_ctrl(void) {
 
 
 
-/* TODO: [near miss] 96.44%; equivalent return-join branch lowering remains. */
 static float p_bow_retract(void) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1187,7 +1183,10 @@ static float p_bow_retract(void) {
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
     bow = jmt_bow_pdata_live_bow(pdata);
 
-    if (bow == 0 || pdata->owner == 0) {
+    if (bow == 0) {
+        return -1.0f;
+    }
+    if (pdata->owner == 0) {
         return -1.0f;
     }
     get_bone_world_pos(pdata->owner, pdata->bone, &position);
@@ -1455,7 +1454,7 @@ void mks_set_plyr_to_center_ang_offset(
     if (length != 0.0f) {
         normalized_x = -object->pos.value.x * inverse_length;
         normalized_z = -object->pos.value.z * inverse_length;
-        angle_bits = (int)(166886.1f *
+        angle_bits = (166886.1f *
             (angle_offset + gxMathArcTanYX(normalized_x, normalized_z)));
         angle_bits &= 0xFFFFF;
         object->ang.y = 0.000005992112f * (float)angle_bits;
@@ -1471,7 +1470,7 @@ void mks_bgnd_cam_offset_away(
     float inverse_length;
 
     (void)script_args;
-    victim = (MkObj*)camera_get_victim();
+    victim = camera_get_victim();
     if (victim == 0) {
         return;
     }
@@ -1500,12 +1499,12 @@ void mks_bgnd_pfx_bind_to_sobj(
     MkPfx* pfx;
     PfxEmitterFlagsView* emitter;
 
-    sobj = (MkSobj*)obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
     if (sobj != 0) {
         effect = find_pfx_by_name(effect_name);
         if (effect != 0) {
             restart_effect_ppfx(effect);
-            pfx = (MkPfx*)effect;
+            pfx = effect;
             pfx_bind_emitter_to_sobj(pfx, sobj, 0);
             emitter = (PfxEmitterFlagsView*)pfx_get_emitter(
                 (PfxEmitterTableView*)pfx->matrix, 0);
@@ -1523,10 +1522,9 @@ void mks_npc_build_bones_tbl(int model_index, const int* bone_tags) {
     }
 }
 
-/* TODO: [near miss] 99.05%; saved script-owner coloring remains; stop at allocation. */
 void check_bgnd_effect(void) {
-    CmdScript* script;
     CmdScript* saved_script;
+    CmdScript* script;
 
     if (g_game_info.bgnd_id == 6 && mode_of_play != 6) {
         script = alloc_cmdscript();

@@ -257,7 +257,7 @@ typedef struct PlyrPdata {
     char pad27C[4];
     unsigned int charge_up_disabled_until; /* +0x280 */
     unsigned int damage_boost_until; /* +0x284 */
-    float charge_scale; /* +0x288 */
+    float damage_boost; /* +0x288 */
     float taunt_life_scale; /* +0x28C */
     float postround_value; /* +0x290 */
     float combo_damage; /* +0x294 */

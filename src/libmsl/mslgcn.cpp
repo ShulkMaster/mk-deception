@@ -344,9 +344,6 @@ extern "C" mslRuntimeWave* CopyStaticWave(
         (mslRuntimeWave*)_mwMemMalloc(
             MWSOUND_HEAP, sizeof(mslRuntimeWave), 3, 0, 0, 0);
 
-    /* Soft ceiling: ~92.93% -- retail-exact size, fields, frame, calls, and
-     * branches; remaining differences are copy scheduling and GPR coloring. */
-
     if (copy == 0) {
         return 0;
     }
@@ -598,7 +595,7 @@ extern "C" _mslSystem* mslInit(
         g_MSL_GCN_ARAM_ZeroBase_ADPCM_End =
             (g_MSL_GCN_ARAM_ZeroBase + 0x400) * 2 - 1;
         g_MSL_volatile_flag = 1;
-        memset(zero_storage, 0, 0x420);
+        memset(zero_storage, 0, sizeof(zero_storage));
         ARQPostRequest(
             &request, 0, 0, 1, (unsigned long)zero_buffer,
             g_MSL_GCN_ARAM_ZeroBase, 0x400,

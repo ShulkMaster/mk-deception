@@ -552,7 +552,7 @@ extern void mk_chess_advantage_hud(void);
 extern MkProc* get_player_proc(void* player);
 extern void big_boss_wait_for_intro(void);
 extern void konquest_transition_from_fight(void);
-extern void mk_chess_transition_from_fight(void);
+extern float mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
 extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
@@ -1239,7 +1239,7 @@ void do_win_effect(void) {
         draw_text = get_string_by_id(0x10005);
         sprintf(message, draw_text);
     } else {
-        if ((int)mode_of_play == 8 && round_winner == 0) {
+        if (mode_of_play == 8 && round_winner == 0) {
             sound_id = 0x7D;
             player_name = global_player_data[25].name;
         } else {
@@ -1404,7 +1404,7 @@ void do_win_effect(void) {
         }
     }
     if (g_game_info.pause_flag_bits.fatality_window != 0 &&
-        (int)mode_of_play == 0) {
+        mode_of_play == 0) {
         active_profiles = game_count_active_players();
         if (active_profiles == 1 &&
             ((round_winner == 1 && g_game_info.plyr0.player_state == 2) ||
@@ -2174,6 +2174,7 @@ static LoadingScreenEntry* get_loading_table(void) {
     }
 }
 
+/* TODO: [near miss] 98.15%; pdata and meter nonvolatiles swap (r29/r30); stop at coloring. */
 static float p_load_screen(void) {
     LoadScreenPdata* pdata;
     ScreenObj* meter;
@@ -2672,8 +2673,6 @@ static float p_do_ending(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.80695%; switch cases 0/8/10 and case-8 fallthrough match; CSE'd
- * g_game_info base temps rotate r29/r30/r31 (flag-bits temp needs highest priority). */
 float p_game_loop(void) {
     int timeout;
     int active_players;
@@ -2681,7 +2680,7 @@ float p_game_loop(void) {
     BgndAnimationsView* animations;
 
     set_game_switch_maps();
-    if (get_game_state() == 7 && (int)mode_of_play != 8) {
+    if (get_game_state() == 7 && mode_of_play != 8) {
         show_wins_in_a_row();
     }
     round_init();
@@ -2695,7 +2694,7 @@ float p_game_loop(void) {
         xfer_proc(proc, p_animate);
     }
 
-    if (((int)mode_of_play == 0 || (int)mode_of_play == 10) &&
+    if ((mode_of_play == 0 || mode_of_play == 10) &&
         g_game_info.feature_flags.bits.powerbars_locked) {
         load_ssf((MkFileEntry*)attract_file_table);
         load_art_section(0x50014, &sec_demo_logo);
@@ -2711,15 +2710,15 @@ float p_game_loop(void) {
     }
 
     _mkproc_sleep_ticks = 4.0f;
-    ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         trial_start_new_round();
         trial_round_init();
     } else if (g_game_info.pselect.field_1f4 == 1) {
         sidekick_intro_check();
         animations = (BgndAnimationsView*)bgnd_animations;
-        if (animations->intro_path != 0 && (int)mode_of_play != 4) {
+        if (animations->intro_path != 0 && mode_of_play != 4) {
             set_intro_camera_path((void*)1);
             bgnd_anim_camera_setup();
             camera_init_animation(
@@ -2735,7 +2734,7 @@ float p_game_loop(void) {
             skip_camera_intro();
             fade_from_black(20, 1);
         }
-        if ((int)mode_of_play == 0 || (int)mode_of_play == 10) {
+        if (mode_of_play == 0 || mode_of_play == 10) {
             if (!g_game_info.feature_flags.bits.powerbars_locked) {
                 extend_powerbars();
             }
@@ -2752,13 +2751,13 @@ float p_game_loop(void) {
         }
         if (!g_game_info.flag_bits.level_fatality_done) {
             _mkproc_sleep_ticks = 90.0f;
-            ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         } else {
             fade_from_black(20, 0);
         }
     }
 
-    if ((int)mode_of_play == 10) {
+    if (mode_of_play == 10) {
         mk_chess_advantage_hud();
     }
     if (g_game_info.feature_flags.bits.powerbars_locked) {
@@ -2787,7 +2786,7 @@ float p_game_loop(void) {
         big_boss_wait_for_intro();
     }
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 4:
     case 10:
         break;
@@ -2806,7 +2805,7 @@ float p_game_loop(void) {
     set_level_fatality_done_flag_state(0);
     while (update_game_timer() != 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 
     timeout = 420;
@@ -2817,7 +2816,7 @@ float p_game_loop(void) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
     g_game_info.flag_bits.lens_flare_enabled = 0;
 
@@ -2856,7 +2855,7 @@ float p_game_loop(void) {
             gamelogic_jump(0, p_atm_loop);
         }
 
-        switch ((int)mode_of_play) {
+        switch (mode_of_play) {
         case 0:
             break;
         case 8:
@@ -2882,14 +2881,12 @@ float p_game_loop(void) {
                     fade_to_black(12, 1);
                 }
                 if (g_game_info.pause_flag_bits.ladder_complete) {
-                    ((GameLoopProcVtable*)aproc->vtbl)->jump_sleep(
-                        p_do_ending, aproc->vtbl, 0.0f);
+                    aproc->vtbl->jump_sleep(p_do_ending, 0.0f);
                     return 0.0f;
                 }
                 gamelogic_jump(1, p_ladder_select);
             }
-            ((GameLoopProcVtable*)aproc->vtbl)->jump_sleep(
-                (MkProcEntryFn)do_continue, aproc->vtbl, 0.0f);
+            aproc->vtbl->jump_sleep(do_continue, 0.0f);
             return 0.0f;
         }
 

@@ -166,6 +166,20 @@ static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
     return &player->fighting_lights;
 }
 
+static inline int pbar_green_triggered(PlyrInfo* player,
+    FightingLightState* slot_0_state, FightingLightState* slot_1_state) {
+    if (player->controller_slot == 0) {
+        if (slot_0_state->green_trigger) {
+            return 1;
+        }
+    } else if (player->controller_slot == 1) {
+        if (slot_1_state->green_trigger) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static inline StringObj* string_latch_object(ScreenLatch* latch) {
     StringObj* object = (StringObj*)latch->object;
 
@@ -348,10 +362,34 @@ static inline ScreenObj* ensure_combo_bolt(
     return object;
 }
 
-static inline void update_plyr_medals_impl(void) {
-    int object_index;
+static inline void clear_medal_objs(void) {
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        medal_objs[i] = 0;
+    }
+}
+
+static inline void place_plyr_medals(PlyrInfo* plyr, int object_index, int x) {
     int medal_index;
-    int x;
+
+    for (medal_index = 0; medal_index < plyr->field_40; medal_index++) {
+        medal_objs[object_index] = load_2d_pfxobj(
+            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
+        if (medal_objs[object_index] != 0) {
+            medal_objs[object_index]->x = x;
+            medal_objs[object_index]->y = 0x177;
+            if (plyr->controller_slot == 0) {
+                x -= 0x18;
+            } else {
+                x += 0x18;
+            }
+            object_index++;
+        }
+    }
+}
+
+static inline void update_plyr_medals_impl(void) {
     int i;
 
     if (mode_of_play == 8 && trial_show_standard_fight_messages() == 0) {
@@ -364,41 +402,9 @@ static inline void update_plyr_medals_impl(void) {
         }
     }
 
-    x = BAR_BACK_X + 0x100;
-    object_index = 0;
-    for (medal_index = 0;
-         medal_index < g_game_info.plyr0.field_40; medal_index++) {
-        medal_objs[object_index] = load_2d_pfxobj(
-            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        if (medal_objs[object_index] != 0) {
-            medal_objs[object_index]->x = x;
-            medal_objs[object_index]->y = 0x177;
-            if (g_game_info.plyr0.controller_slot == 0) {
-                x -= 0x18;
-            } else {
-                x += 0x18;
-            }
-            object_index++;
-        }
-    }
-
-    x = screen_width - (BAR_BACK_X + 0x120);
-    object_index = 3;
-    for (medal_index = 0;
-         medal_index < g_game_info.plyr1.field_40; medal_index++) {
-        medal_objs[object_index] = load_2d_pfxobj(
-            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        if (medal_objs[object_index] != 0) {
-            medal_objs[object_index]->x = x;
-            medal_objs[object_index]->y = 0x177;
-            if (g_game_info.plyr1.controller_slot == 0) {
-                x -= 0x18;
-            } else {
-                x += 0x18;
-            }
-            object_index++;
-        }
-    }
+    place_plyr_medals(&g_game_info.plyr0, 0, BAR_BACK_X + 0x100);
+    place_plyr_medals(&g_game_info.plyr1, 3,
+                      screen_width - (BAR_BACK_X + 0x120));
 }
 
 static inline void clear_screen_latch(ScreenLatch* latch) {
@@ -449,20 +455,20 @@ int check_for_green_light(PlyrInfo* player) {
     return airborne_light_active(player);
 }
 
-/* TODO: [near miss] 96.86803%; five attempts reached; remaining owner/state register allocation and latch/return branch lowering */
 static float p_update_fighting_state_lights(void) {
+    int player_index = 0;
     PlyrInfo* player_1 = &g_game_info.plyr0;
     PlyrInfo* player_2 = &g_game_info.plyr1;
-    FightingLightState* player_1_state = fighting_light_state(player_1);
-    FightingLightState* player_2_state = fighting_light_state(player_2);
+    FightingLightState* player_1_state = &g_game_info.plyr0.fighting_lights;
+    FightingLightState* player_2_state = &g_game_info.plyr1.fighting_lights;
+    int i;
     FightingLightState* state;
     ScreenObj* light;
     PlyrInfo* player;
     PlyrPdata* pdata;
     int active;
-    int player_index;
 
-    for (player_index = 0; player_index <= 1; player_index++) {
+    for (; player_index <= 1; player_index++) {
         player = player_index == 0 ? player_1 : player_2;
 
         if (player->slot.mirror_a == 0) {
@@ -481,12 +487,7 @@ static float p_update_fighting_state_lights(void) {
         } else {
             fighting_light_state(player)->red_active = 0;
         }
-        if ((player->controller_slot == 0 && player_1_state->green_trigger) ||
-            (player->controller_slot == 1 && player_2_state->green_trigger)) {
-            active = 1;
-        } else {
-            active = 0;
-        }
+        active = pbar_green_triggered(player, player_1_state, player_2_state);
         if (active != 0) {
             fighting_light_state(player)->green_active = 1;
         } else {
@@ -509,8 +510,12 @@ static float p_update_fighting_state_lights(void) {
         }
     }
 
-    for (player_index = 0; player_index < 2; player_index++) {
-        state = player_index == 0 ? player_1_state : player_2_state;
+    for (i = 0; i < 2; i++) {
+        if (i == 0) {
+            state = player_1_state;
+        } else {
+            state = player_2_state;
+        }
 
         light = pbar_live_screen(&state->red);
         if (light != 0) {
@@ -1193,7 +1198,7 @@ int adjust_player_life(int player_index, float amount) {
     }
 }
 
-/* Soft ceiling: 98.16% -- loop-local register allocation only. */
+/* TODO: [near miss] 99.13%; shares place_plyr_medals with init_pwr_bars (exact); destroy-loop and medal-row index/x coloring remain. */
 void update_plyr_medals(void) {
     update_plyr_medals_impl();
 }
@@ -1307,7 +1312,6 @@ int are_powerbars_retracted(void) {
     return f_powerbars_retracted;
 }
 
-/* TODO: [near miss] 99.82549%; 24 helper-declaration permutations found no exact form; retained GPR/zero-argument lowering. */
 void init_pwr_bars(void) {
     ScreenObj* object;
     ScreenObj* back;
@@ -1317,7 +1321,6 @@ void init_pwr_bars(void) {
         int word;
         ScreenObjDrawFlags bits;
     } p2_flags;
-    int i;
 
     clear_screen_latch(&p1_name_item);
     clear_screen_latch(&p2_name_item);
@@ -1513,9 +1516,7 @@ void init_pwr_bars(void) {
         }
     }
 
-    for (i = 0; i < 8; i++) {
-        medal_objs[i] = 0;
-    }
+    clear_medal_objs();
     update_plyr_medals_impl();
     start_powerbar_monitor_impl();
     init_fighting_state_lights();

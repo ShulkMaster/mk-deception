@@ -43,17 +43,6 @@ typedef struct MovesWeaponWatchPdata {
     int timeout;
 } MovesWeaponWatchPdata;
 
-typedef struct MovesWeaponStyleData {
-    char pad00[4];
-    void* primary_weapon;
-    void* secondary_weapon;
-} MovesWeaponStyleData;
-
-typedef struct MovesStyle {
-    char pad00[4];
-    MovesWeaponStyleData* weapon_data;
-} MovesStyle;
-
 typedef struct MovesSharedAnimations {
     char pad00[0x1C];
     AniData* flying_land;
@@ -206,18 +195,14 @@ typedef struct MovesSwitchLogEntry {
 
 
 
-typedef struct MovesPickupTransform {
-    char pad00[0x30];
-    Vec position;
-} MovesPickupTransform;
 
 typedef struct MovesPickup {
     MkHdr hdr;
     int type;
     MkObj* primary_object;
     MkObj* secondary_object;
-    MovesPickupTransform* transform_a;
-    MovesPickupTransform* transform_b;
+    MkSobj* transform_a;
+    MkSobj* transform_b;
     int background_moveset;
     char pad20[4];
     int background_sobj_id;
@@ -465,7 +450,7 @@ int my_joypad_state_5(void);
 void weapon_trail_on(void);
 void plyr_going_to_attack_with(const MovesActionRef* action);
 float call_player_script_function(ScriptSlot* script);
-int is_weapon_style(MovesStyle* style);
+int is_weapon_style(PlyrFighterDefinition* style);
 float r_call_player_char_script_function(void);
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 void tag_team_activate_player(MkObj* sidekick, int active);
@@ -911,6 +896,10 @@ void configure_iceball(MkObj* iceball) {
     }
 }
 
+static inline int moves_his_state_is_not(int state) {
+    return !(his_pdata->state == state);
+}
+
 static inline void moves_jump(MovesEntryFn entry) {
     MovesProcVtable* vtable;
 
@@ -937,13 +926,13 @@ static inline MkObj* moves_resolve_weapon_latch(
     return 0;
 }
 
-static inline int moves_is_weapon_style(MovesStyle* style) {
-    MovesWeaponStyleData* weapon_data;
+static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {
+    PlyrStyleDefinition* weapon_data;
 
     if (style == 0) {
         return 0;
     }
-    weapon_data = style->weapon_data;
+    weapon_data = style->definition;
     return weapon_data != 0 &&
            (weapon_data->primary_weapon != 0 ||
             weapon_data->secondary_weapon != 0);
@@ -965,7 +954,7 @@ void start_special_weapon_monitor(void) {
 
     for (style_index = 0; style_index < 3; style_index++) {
         style = plyr_pdata->weapon_styles[style_index];
-        if (is_weapon_style((MovesStyle*)style) != 0) {
+        if (is_weapon_style(style) != 0) {
             plyr_pdata->mirror_slots = &style->mirror_slots;
             break;
         }
@@ -982,8 +971,7 @@ void start_special_weapon_monitor(void) {
         (MkHdr**)&pdata);
     if (monitor != 0 && pdata != 0) {
         if (plyr_pdata->player_slot >= 0 &&
-            is_weapon_style(
-                (MovesStyle*)plyr_pdata->fighter_definition) != 0) {
+            is_weapon_style(plyr_pdata->fighter_definition) != 0) {
             plyr_weapon_hide(plyr_pdata, 0, default_slots);
         }
 
@@ -1094,8 +1082,7 @@ static float p_hide_and_die(void) {
         plyr_weapon_trail_hide(player->mirror_slots);
         player->mirror_slots = slots;
         if (slots != 0) {
-            if (moves_is_weapon_style(
-                    (MovesStyle*)player->fighter_definition) != 0) {
+            if (moves_is_weapon_style(player->fighter_definition) != 0) {
                 if (moves_resolve_weapon_latch(
                         &slots->weapon[0].primary) != 0) {
                     plyr_weapon_grab(
@@ -1198,7 +1185,7 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
         return;
     }
 
-    game = (GameInfo*)&g_game_info;
+    game = &g_game_info;
     mk_pull_discard(&pickup->hdr, &player->active_weapon_links);
     mk_insert(&pickup->hdr, &game->field_64);
     enable_bgnd_obj_repel(&pickup->hdr);
@@ -1217,12 +1204,12 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
         update_mkobj(pickup->primary_object);
         hide_obj(pickup->primary_object);
 
-        pickup->transform_a->position.x = pickup->primary_position.x;
-        pickup->transform_a->position.y = pickup->primary_position.y;
-        pickup->transform_a->position.z = pickup->primary_position.z;
-        ((MkSobj*)pickup->transform_a)->ang.x = pickup->primary_angle.x;
-        ((MkSobj*)pickup->transform_a)->ang.y = pickup->primary_angle.y;
-        ((MkSobj*)pickup->transform_a)->ang.z = pickup->primary_angle.z;
+        pickup->transform_a->pos.x = pickup->primary_position.x;
+        pickup->transform_a->pos.y = pickup->primary_position.y;
+        pickup->transform_a->pos.z = pickup->primary_position.z;
+        pickup->transform_a->ang.x = pickup->primary_angle.x;
+        pickup->transform_a->ang.y = pickup->primary_angle.y;
+        pickup->transform_a->ang.z = pickup->primary_angle.z;
         update_mkobj(pickup->primary_object);
         if (pickup->transform_a != 0) {
             unhide_sobj(pickup->transform_a);
@@ -1242,12 +1229,12 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
         update_mkobj(pickup->secondary_object);
         hide_obj(pickup->secondary_object);
 
-        pickup->transform_b->position.x = pickup->primary_position.x;
-        pickup->transform_b->position.y = pickup->primary_position.y;
-        pickup->transform_b->position.z = pickup->primary_position.z;
-        ((MkSobj*)pickup->transform_b)->ang.x = pickup->primary_angle.x;
-        ((MkSobj*)pickup->transform_b)->ang.y = pickup->primary_angle.y;
-        ((MkSobj*)pickup->transform_b)->ang.z = pickup->primary_angle.z;
+        pickup->transform_b->pos.x = pickup->primary_position.x;
+        pickup->transform_b->pos.y = pickup->primary_position.y;
+        pickup->transform_b->pos.z = pickup->primary_position.z;
+        pickup->transform_b->ang.x = pickup->primary_angle.x;
+        pickup->transform_b->ang.y = pickup->primary_angle.y;
+        pickup->transform_b->ang.z = pickup->primary_angle.z;
         update_mkobj(pickup->secondary_object);
         if (pickup->transform_b != 0) {
             unhide_sobj(pickup->transform_b);
@@ -1263,7 +1250,7 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
 
 static inline int moves_find_nearby_pickup(
     MkObj* object, MkPtr** pickup_list, MovesPickup** result, Vec* offset) {
-    MovesPickupTransform* transform;
+    MkSobj* transform;
     MovesPickup* pickup;
     MkPtr* link;
     MkPtr* next;
@@ -1285,9 +1272,9 @@ static inline int moves_find_nearby_pickup(
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            offset->x = object->pos.value.x - transform->position.x;
-            offset->y = object->pos.value.y - transform->position.y;
-            offset->z = object->pos.value.z - transform->position.z;
+            offset->x = object->pos.value.x - transform->pos.x;
+            offset->y = object->pos.value.y - transform->pos.y;
+            offset->z = object->pos.value.z - transform->pos.z;
             if (offset->x * offset->x + offset->z * offset->z < 2.9f) {
                 vertical_distance = offset->y;
                 vertical_distance = vertical_distance >= 0.0f
@@ -2074,7 +2061,6 @@ static float x_attack_5_remote(void) {
 }
 
 /* Scan the character-specific action sequence through the typed jump-table base. */
-/* TODO: [near miss] 96.95349%; five-attempt limit reached; compare remaining branch and literal differences. */
 float x_attack_4(void) {
     MovesActionRef* action;
     unsigned int* sequences;
@@ -2096,9 +2082,9 @@ float x_attack_4(void) {
     if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
         if (am_i_a_big_character() != 0) {
             moves_jump(j_flying_kick);
-        } else {
-            moves_jump(j_flying_kick2);
+            return 0.0f;
         }
+        moves_jump(j_flying_kick2);
         return 0.0f;
     }
 
@@ -2112,7 +2098,7 @@ float x_attack_4(void) {
 
     switch (plyr_pdata->character_id) {
     case 6:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x760 / 4]);
         }
         break;
@@ -2183,12 +2169,12 @@ float x_attack_4(void) {
         scan_switch_sequences(&sequences[0x1070 / 4]);
         break;
     case 25:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x13A0 / 4]);
         }
         break;
     case 26:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+        if (his_pdata->hit_count < 5 && moves_his_state_is_not(0x3203) == 1) {
             scan_switch_sequences(&sequences[0x13A0 / 4]);
         }
         break;
@@ -2758,7 +2744,7 @@ void advance_active_moveset(PlyrPdata* player) {
         player->plyr_num, (unsigned char)player->player_slot, 0x63);
     drop_active_weapon_to_original_position(player);
     if (player->player_slot >= 0 &&
-        moves_is_weapon_style((MovesStyle*)player->fighter_definition) != 0) {
+        moves_is_weapon_style(player->fighter_definition) != 0) {
         plyr_weapon_hide(player, 0, player->mirror_slots);
     }
 
@@ -2789,29 +2775,25 @@ void advance_active_moveset(PlyrPdata* player) {
         player->player_slot = 0;
     }
 
-    player->fighter_definition = (PlyrFighterDefinition*)
-        player->weapon_styles[player->player_slot];
+    player->fighter_definition = player->weapon_styles[player->player_slot];
     if (player->fighter_definition->move_blend_data == 0) {
         player->player_slot++;
         if (player->player_slot >= 3) {
             player->player_slot = 0;
         }
-        player->fighter_definition = (PlyrFighterDefinition*)
-            player->weapon_styles[player->player_slot];
+        player->fighter_definition = player->weapon_styles[player->player_slot];
         if (player->fighter_definition->move_blend_data == 0) {
             player->player_slot = 0;
-            player->fighter_definition =
-                (PlyrFighterDefinition*)player->weapon_styles[0];
+            player->fighter_definition = player->weapon_styles[0];
         }
     }
 
     player->active_move_display =
         (PlyrMoveDisplayData*)player->fighter_definition->move_blend_data;
-    player->mirror_slots =
-        &((PlyrWeaponStyle*)player->fighter_definition)->mirror_slots;
+    player->mirror_slots = &player->fighter_definition->mirror_slots;
     slots = player->mirror_slots;
     if (slots != 0) {
-        if (moves_is_weapon_style((MovesStyle*)player->fighter_definition) != 0) {
+        if (moves_is_weapon_style(player->fighter_definition) != 0) {
             if (moves_resolve_weapon_latch(&slots->weapon[0].primary) != 0) {
                 plyr_weapon_grab(
                     player, moves_resolve_weapon_latch(
@@ -2841,8 +2823,7 @@ void advance_active_moveset(PlyrPdata* player) {
             player->baraka_moveset_callback(player, slots);
         }
     }
-    show_fighting_style(
-        (GlobalMoveset*)player->fighter_definition, player->plyr_num);
+    show_fighting_style(player->fighter_definition, player->plyr_num);
 }
 
 void sidekick_intro_check(void) {
@@ -3565,17 +3546,13 @@ static float p_plyr_sidekick_switch(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 78.42432%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 78.96%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 static float p_plyr_sidekick_projectile(void) {
     union {
         float f;
         unsigned int u;
-    } bits, guess;
-    union {
-        float f;
-        unsigned int u;
-    } inverse_bits;
+    } bits, guess, inverse_bits;
     MovesSidekickPdata* pdata;
     PlyrPdata* player;
     MovesSidekickActionView* actions;
@@ -4070,11 +4047,11 @@ PlyrFighterDefinition* get_active_moveset_from_pdata(PlyrPdata* player) {
     return player->fighter_definition;
 }
 
-int is_weapon_style(MovesStyle* style) {
-    MovesWeaponStyleData* weapon_data;
+int is_weapon_style(PlyrFighterDefinition* style) {
+    PlyrStyleDefinition* weapon_data;
 
     if (style != 0) {
-        weapon_data = style->weapon_data;
+        weapon_data = style->definition;
         if (weapon_data != 0 &&
             (weapon_data->primary_weapon != 0 ||
              weapon_data->secondary_weapon != 0)) {
@@ -4859,7 +4836,7 @@ static void check_for_suicide(void) {
 }
 
 static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
-    MovesPickupTransform* transform;
+    MkSobj* transform;
     MovesPickup* pickup;
     MkPtr* link;
     MkPtr* next;
@@ -4882,9 +4859,9 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            delta_x = object->pos.value.x - transform->position.x;
-            delta_z = object->pos.value.z - transform->position.z;
-            delta_y = object->pos.value.y - transform->position.y;
+            delta_x = object->pos.value.x - transform->pos.x;
+            delta_z = object->pos.value.z - transform->pos.z;
+            delta_y = object->pos.value.y - transform->pos.y;
             if (delta_x * delta_x + delta_z * delta_z < 2.9f) {
                 delta_y = delta_y >= 0.0f ? delta_y : -delta_y;
                 if (delta_y < 1.5f) {

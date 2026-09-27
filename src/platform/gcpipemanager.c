@@ -25,16 +25,16 @@ RpGameCubeVtxFmt gamecube_vtxfmt_skinned2;
 RpGameCubeVtxFmt gamecube_vtxfmt_generic;
 static int bInitVtxFmts;
 
-/* TODO: [near miss] 99.315216%; material call and GXBool ABI recovered; stop at local GPR coloring. */
+/* TODO: [near miss] 99.34%; material call and GXBool ABI agree; only local GPR coloring remains. */
 DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                                        int use_matfx, int use_alpha) {
     DpMaterialCallback callback = 0;
     GXBool color_enable;
-    int alpha_material_source;
     int color_material_source;
     int color_ambient_source;
-    int alpha_ambient_source;
     GXBool alpha_enable;
+    int alpha_material_source;
+    int alpha_ambient_source;
     unsigned char tev_stages;
     GXColor color;
 

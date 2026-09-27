@@ -20,12 +20,9 @@ asm void PSVECSubtract(const Vec* a, const Vec* b, Vec* difference)
     SEQ_PSVECSubtract();
 }
 
-/* TODO: [blocked] 5.71%; retail uses paired-single loads, multiplies, and stores; matching requires an authorized assembly sequence. */
-void PSVECScale(const Vec* source, Vec* scaled, float scale)
+asm void PSVECScale(const Vec* source, Vec* scaled, float scale)
 {
-    scaled->x = source->x * scale;
-    scaled->y = source->y * scale;
-    scaled->z = source->z * scale;
+    SEQ_PSVECScale();
 }
 
 asm void PSVECNormalize(const Vec* source, Vec* unit)
@@ -38,10 +35,9 @@ asm float PSVECMag(const Vec* vector)
     SEQ_PSVECMag();
 }
 
-/* TODO: [blocked] 22.5%; clean scalar C is structurally complete, but retail uses paired-single lowering. */
-float PSVECDotProduct(const Vec* a, const Vec* b)
+asm float PSVECDotProduct(const Vec* a, const Vec* b)
 {
-    return a->x * b->x + a->y * b->y + a->z * b->z;
+    SEQ_PSVECDotProduct();
 }
 
 asm void PSVECCrossProduct(const Vec* a, const Vec* b, Vec* product)

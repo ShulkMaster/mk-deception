@@ -162,16 +162,6 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/*
- * Convert the v11 bank body's ILP32 offsets into live pointers, publish each
- * sound definition's command list, then relocate command string references.
- * The operations, layouts, and relocation loops are
- * recovered. The sole caller rejects banks whose flags do not mark sound names
- * as omitted, corroborating that the retail count-driven sound-name loop had
- * its MSL_SKIP_SOUND_NAMES body compiled out while MWCC retained its unrolled
- * trip-count shell. Preserve clean C rather than adding that empty loop; the
- * other residue is GPR coloring and scheduling.
- */
 /* TODO: [breakthrough needed] 86.93%; empty retail name loop is omitted;
  * direct cursor trial scores76.22%; recover the command-slot abstraction. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
@@ -1021,24 +1011,12 @@ static inline void mslBankFinishPlayInline(
     }
 }
 
-/*
- * Resolve the facade's bank-local ID through the serialized +1 index table,
- * acquire a live sound node, lazily construct LOD sounds, attach the command
- * graph, and start playback. This is the vertical shell-FX contract; the
- * retail function inlines the ID lookup and use/unuse helpers below. Near
- * miss: ~97.84%, retail/current size 0x6a4/0x6a0, with exact operations and
- * control flow.
- * Remaining differences are pooled-string address instructions, GPR coloring,
- * and two scheduled instructions.
- */
-/* TODO: [breakthrough needed] 97.84% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.12%; pooled string layout and an early gMsi load differ; resolve across the TU. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
     mslBankSoundEntry* bank_sound;
     _ListNode* node;
-    unsigned long handle;
 
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayVol: NULL bank pointer.\n");
@@ -1053,7 +1031,7 @@ extern "C" unsigned long mslBankPlayVol(
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
 
-            handle = ListNodeID(&g_listPoolSound, node);
+            unsigned long handle = ListNodeID(&g_listPoolSound, node);
             copy->flags |= play_flags;
             copy->priority = play_arg1;
             copy->track = play_arg0;
@@ -1062,8 +1040,8 @@ extern "C" unsigned long mslBankPlayVol(
             if (bank_sound->sound != 0) {
                 mslBankFinishPlayInline(true, node, bank_sound);
                 return handle;
-            } else {
-                _mslSound* loaded_sound = mslSoundLoad(
+            }
+            _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
                 if (loaded_sound != 0) {
                     mslRuntimeSound* runtime =
@@ -1077,8 +1055,7 @@ extern "C" unsigned long mslBankPlayVol(
                 }
                 mslBankFinishPlayInline(
                     bank_sound->sound != 0, node, bank_sound);
-                return handle;
-            }
+            return handle;
         }
     }
 
@@ -1086,16 +1063,7 @@ extern "C" unsigned long mslBankPlayVol(
     return 0;
 }
 
-/*
- * Resolve and play a bank sound with the full runtime volume, pan, and pitch
- * overlay. Retail inlines the ID lookup and bank-sound use/unuse helpers into
- * this path. Near miss: ~97.88%, retail/current size 0x6c4/0x6c0. Retail
- * loaded-first order, sound publication, inlined helper CFG, and all
- * operations are exact; pooled-string addressing, GPR coloring, and two
- * scheduled instructions remain.
- */
-/* TODO: [breakthrough needed] 97.88% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.90%; pooled string offsets and GPR coloring remain; check TU data layout. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
@@ -1127,24 +1095,20 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
 
             if (bank_sound->sound != 0) {
                 mslBankFinishPlayInline(true, node, bank_sound);
-                return handle;
             } else {
                 _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
                 if (loaded_sound != 0) {
-                    mslRuntimeSound* runtime =
-                        (mslRuntimeSound*)loaded_sound;
-
                     bank_sound->sound = loaded_sound;
-                    runtime->bank_ref_count = 1;
-                    runtime->owner_bank = bank;
+                    ((mslRuntimeSound*)bank_sound->sound)->bank_ref_count = 1;
+                    ((mslRuntimeSound*)bank_sound->sound)->owner_bank = bank;
                 } else {
                     mslDebugPrintf("Unable to load async sound.\n");
                 }
                 mslBankFinishPlayInline(
                     bank_sound->sound != 0, node, bank_sound);
-                return handle;
             }
+            return handle;
         }
     }
 
@@ -1191,15 +1155,7 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     return unloaded;
 }
 
-/*
- * Allocate a live sound-list node and carry the bank definition flags into
- * its runtime overlay. An already-loaded bank sound gains one reference;
- * an unloaded non-LOD sound is an error.
- * Soft ceiling: ~97.63% -- shared-pool offsets plus one source-equivalent
- * flags/base-sound load-order island remain.
- */
-/* TODO: [breakthrough needed] 97.63% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 97.92%; pooled string offsets and one load-order island remain. */
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
@@ -1300,13 +1256,7 @@ extern "C" int mslBankUse(
     return 0;
 }
 
-/*
- * Recovered callback ownership path.
- * The runtime command owner and inlined bank reference release are recovered;
- * retain field reloads at their retail ownership sites.
- */
-/* TODO: [breakthrough needed] 98.13% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.37%; pooled string offsets and one zero-register schedule remain. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =

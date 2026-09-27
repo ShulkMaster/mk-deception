@@ -29,8 +29,7 @@
 
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block);
 
-/* Soft ceiling: exact-size coalescing CFG; residue is GPR coloring and three
- * localized unlink scheduling choices. */
+/* TODO: [near miss] 93.46%; coalescing matches structurally; GPR coloring and unlink scheduling remain. */
 static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
                                                             MwMemUsedHeader* block) {
     u8 flags;
@@ -80,8 +79,7 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
     return result;
 }
 
-/* Soft ceiling: exact-size ownership traversal and unlink CFG; residue is GPR
- * coloring plus a localized branch/load schedule. */
+/* TODO: [near miss] 91.47%; ownership traversal agrees; coloring and branch/load scheduling remain. */
 static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     _mwMemHeap* heap;
     _mwMemHeap* fallback;
@@ -202,9 +200,7 @@ void normHeapFreeMemFromBlock(void* block) {
     privFreeMemFromUsed(privGetUsedHdrFromBlock(block));
 }
 
-/* Soft ceiling: best/first-fit algorithms, boundary tags, and list updates
- * agree; residue is allocator-wide GPR coloring and localized address/add
- * scheduling. */
+/* TODO: [breakthrough needed] 86.04%; allocator-wide coloring and address scheduling remain. */
 void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     u32 requested_size = size == 0 ? 0x10 : size;
     int alignment = privGetAlignFromMwMemFlags(flags);
@@ -286,7 +282,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     } else if (load_high != 0) {
         used = candidate;
         used_size = needed_size;
-        remainder = (MwMemUsedHeader*)((u8*)candidate + needed_size + sizeof(MwMemUsedHeader));
+        remainder = mwMemHeaderAt(candidate, needed_size + sizeof(MwMemUsedHeader));
         if (candidate->previous == 0 && candidate->next == 0) {
             remainder->next = 0;
             remainder->previous = 0;

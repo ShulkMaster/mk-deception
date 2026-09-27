@@ -46,7 +46,7 @@ typedef struct SpecularMaterialExt {
 typedef struct MkMaterialExt {
     unsigned int flags;
     float shininess;
-    unsigned int tint;
+    SpecularTint tint;
     int field_0xC;
     float gloss;
 } MkMaterialExt;
@@ -246,7 +246,7 @@ RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,
     return atomic;
 }
 
-/* Soft ceiling: 90.03% -- FPR scheduling and matrix-copy addressing remain. */
+/* TODO: [near miss] 90.02%; FPR scheduling and matrix-copy addressing remain. */
 void SpecularMaterialCalcMatrix(void* material) {
     SpecularMaterialExt* spec;
     RwMatrix* light_matrix;
@@ -328,7 +328,7 @@ void specskin_initialize_clump(void* clump) {
     RpClumpForAllAtomics(clump, specskin_atomic_setup, 0);
 }
 
-/* Soft ceiling: 99.19% -- the list cursor occupies r4 instead of retail r5. */
+/* TODO: [near miss] 99.19%; the list cursor occupies r4 instead of retail r5. */
 void specskin_force_clipping_clump(void* clump, int value) {
     int clip_value;
     RpClump* clump_ptr;
@@ -497,7 +497,7 @@ RpMaterial* specskin_material_setup(RpMaterial* material,
     return material;
 }
 
-/* Soft ceiling: 91.71% -- flag extraction and adjacent store scheduling differ. */
+/* TODO: [near miss] 93.88%; tint copied through the union like retail; flags/offset registers (r0/r5 vs r7/r4) and one extract placement differ. */
 void specular_condition_clump(void* clump) {
     RpClump* clump_ptr;
     RwLLLink* link;
@@ -510,13 +510,9 @@ void specular_condition_clump(void* clump) {
     MkMaterialExt* mkmat;
     SpecularMaterialExt* spec;
     void* material;
-    signed char reflective;
-    signed char flag_5;
-    signed char flag_4;
-    signed char flag_3;
     unsigned int flags;
     float material_shininess;
-    unsigned int material_tint;
+    SpecularTint material_tint;
     float material_gloss;
 
     clump_ptr = clump;
@@ -537,17 +533,13 @@ void specular_condition_clump(void* clump) {
             material_tint = mkmat->tint;
             material_gloss = mkmat->gloss;
             spec = specular_material_ext(material);
-            reflective = (signed char)(flags >> 31);
-            flag_5 = (signed char)((flags >> 27) & 1);
-            flag_4 = (signed char)((flags >> 29) & 1);
-            flag_3 = (signed char)((flags >> 30) & 1);
             spec->shininess = material_shininess;
-            spec->tint.value = material_tint;
+            spec->tint = material_tint;
             spec->gloss = material_gloss;
-            spec->flags.reflective = reflective;
-            spec->flags.flag_5 = flag_5;
-            spec->flags.flag_4 = flag_4;
-            spec->flags.flag_3 = flag_3;
+            spec->flags.reflective = flags >> 31;
+            spec->flags.flag_5 = (flags >> 27) & 1;
+            spec->flags.flag_4 = (flags >> 29) & 1;
+            spec->flags.flag_3 = (flags >> 30) & 1;
             if (material_shininess > kZero) {
                 specular_geometry_ext(geometry)->material_index =
                     material_index;
@@ -564,9 +556,8 @@ void specular_condition_clump(void* clump) {
 int specskin_plugin_attach(void) {
     unsigned int result;
 
-    /* Unsigned >> so MWCC emits srwi (retail), not srawi. */
-    result = (unsigned int)RwEngineRegisterPlugin(0, 0xDC, MKSpecularOpen, MKSpecularClose);
-    return (int)((result >> 31) ^ 1);
+    result = RwEngineRegisterPlugin(0, 0xDC, MKSpecularOpen, MKSpecularClose);
+    return (result >> 31) ^ 1;
 }
 
 static void* MKSpecularOpen(void* instance, int offset, int size) {

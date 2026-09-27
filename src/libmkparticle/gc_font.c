@@ -2,12 +2,9 @@
  * Y-then-X fctiwz / UV load order closer to retail. Retail nativefont_instance_unlock requires
  * peephole optimization off. */
 
-/* TODO: [blocked] link: retail's linker stripped get_num_newlines (0x34), render_string (0x270)
- * and nativefont_instance_geometry (0xA8) plus the unused constant @291 (UNUSED in
- * orig/GQNE5D/files/mk6gc_release.MAP). They were compiled before nativefont_string_render and
- * created the 0.5f and int-to-float constants ahead of alignment_mask, so the unit cannot link
- * without them. Find their consumers or a genuine donor body, then restore them so the unit
- * can link. */
+/* TODO: [review] layout stubs: get_num_newlines, render_string and nativefont_instance_geometry
+ * reproduce linker-stripped retail functions only to recreate their pool layout; the bodies are
+ * NOT recovered source. Replace with genuine bodies if a source turns up. */
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/texture_bridge.h"
@@ -35,6 +32,22 @@ int nativefont_estimate_geometry_size(int glyph_count) {
     size += glyph_count * 3;
     return size + 0x80;
 }
+
+static int get_num_newlines(const char* text) {
+    (void)text;
+    return 0;
+}
+
+static float render_string(float x) {
+    return (float)(int)(0.5f + x);
+}
+
+int nativefont_instance_geometry(NativeFontInstance* inst) {
+    (void)inst;
+    return 0;
+}
+
+__declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
 
 /*
  * Soft ceiling: nativefont_string_render ~99.83% -- upload texture lwz uses
@@ -88,8 +101,6 @@ static void set_vertex_format(void) {
     GXSetVtxDesc(9, 1);
     GXSetVtxDesc(0xD, 1);
 }
-
-__declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
 
 void nativefont_instance_lock(NativeFontInstance* inst) {
     if (inst == 0) {

@@ -148,7 +148,6 @@ void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 
 void ppv_get_current_profile_koins(char* dest, int index);
 void ppv_get_current_profile_arcade_finishes(char* dest);
-struct McIconListArg;
 void ppv_view_profile_icon_list(GVTexturePair out);
 void ppv_update_profile_cursor(int delta);
 void get_profile_stats(char** outs);

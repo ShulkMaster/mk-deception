@@ -16,11 +16,10 @@ typedef struct LightningAlphaStep {
     unsigned int ticks;
 } LightningAlphaStep;
 
-/* pdata for mkproc 0x2099 (lightning strike). */
 typedef struct LightningPdata {
     MkHdr hdr;        /* +0x00 */
     Vec position;     /* +0x08 */
-    PlyrInfo* owner;  /* +0x14 - field_04 selects art slot */
+    PlyrInfo* owner;  /* +0x14 */
 } LightningPdata;
 
 typedef char LightningAlphaStepSizeCheck[
@@ -45,8 +44,6 @@ LightningAlphaStep lightning_alpha[] = {
     {-1, 0xFFFFFFFF},
 };
 
-extern float _mkproc_sleep_ticks;
-
 void shake_camera(int frames, float amount);
 void kill_all_fstyle_signs(void);
 extern float p_move_pbars_off_screen(void);
@@ -55,7 +52,6 @@ static inline void mkproc_sleep(void) {
     aproc->vtbl->sleep();
 }
 
-/* mkproc 0x2099: spawn BOLT_OBJECT, run alpha table, fade out, destroy. */
 static float p_lightning_strike_effect(void) {
     LightningAlphaStep* step;
     LightningPdata* pdata;
@@ -78,7 +74,7 @@ static float p_lightning_strike_effect(void) {
         art_slot = 0x3000B;
     }
 
-    bolt = (MkObj*)load_named_model_from_slot(art_slot, STR_BOLT_OBJECT, 0x2099, 0);
+    bolt = load_named_model_from_slot(art_slot, STR_BOLT_OBJECT, 0x2099, 0);
     if (bolt != 0) {
         snd_req(0x2B3);
         insert_fgnd_mkobj(bolt);
@@ -98,7 +94,7 @@ static float p_lightning_strike_effect(void) {
             while (step_alpha > -1) {
                 step = &steps[step_index];
                 obj_set_sobj_alpha(bolt, 1, step->alpha);
-                _mkproc_sleep_ticks = (float)step->ticks;
+                _mkproc_sleep_ticks = step->ticks;
                 mkproc_sleep();
                 step_index++;
                 step_alpha = steps[step_index].alpha;
@@ -123,7 +119,7 @@ static float p_lightning_strike_effect(void) {
 void do_lightning_strike(PlyrInfo* owner, Vec* position) {
     LightningPdata* pdata;
 
-    if (_create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, 0x18,
+    if (_create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, sizeof(LightningPdata),
                                          (MkHdr**)&pdata) == 0) {
         return;
     }

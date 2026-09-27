@@ -1,5 +1,6 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 typedef struct OSAlarmQueue {
     OSAlarm* head;
@@ -180,11 +181,10 @@ static void DecrementerExceptionCallback(__OSException exception,
     OSLoadContext(context);
 }
 
-/* Retail's leaf saves volatile exception registers before entering this C path. */
-static void DecrementerExceptionHandler(__OSException exception,
-                                        OSContext* context)
+static asm void DecrementerExceptionHandler(__OSException exception,
+                                            OSContext* context)
 {
-    DecrementerExceptionCallback(exception, context);
+    SEQ_DecrementerExceptionHandler();
 }
 
 #pragma peephole off

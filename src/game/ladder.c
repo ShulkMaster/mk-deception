@@ -331,13 +331,8 @@ void one_player_ladder_init(void) {
     }
 }
 
-/*
- * Builds the ladder screen's arena, elapsed-time, difficulty, and coin-award
- * strings. The local difficulty ranges intentionally remain an initialized
- * array: retail copies the ten-float table to the stack before interpolation.
- * Soft ceiling: ~89.09% - the recovered algorithm is complete; remaining
- * differences are nonvolatile allocation and structured award-tail branching.
- */
+/* TODO: [near miss] 89.73%; algorithm complete; frame is 0x10 larger than retail and
+ * nonvolatile allocation plus award-tail branching differ. */
 static void build_ladder_hud_data(void) {
     char text_buffer[120];
     LadderDataRegion* ladder_data;
@@ -354,7 +349,7 @@ static void build_ladder_hud_data(void) {
     int ladder_position;
     int coin_type;
 
-    ladder_data = (LadderDataRegion*)coin_offset_tbl;
+    ladder_data = LADDER_DATA_REGION;
     ladder_position = curr_ladder_pos;
     if (is_bgnd_locked(
             current_ladder_tbl[ladder_position].background_id)) {
@@ -367,13 +362,13 @@ static void build_ladder_hud_data(void) {
 
     arena_name = 0;
     text = get_string_by_id(
-        (unsigned int)global_background_data[background_id].field8 |
+        global_background_data[background_id].field8 |
         0x10000u);
     if (text != 0) {
         int y;
 
         y = ladder_data->ladder_hud[background_id].y;
-        if ((int)mode_of_play == 6) {
+        if (mode_of_play == 6) {
             y += 60;
         }
         arena_name = string_center_xy(
@@ -388,7 +383,7 @@ static void build_ladder_hud_data(void) {
             bgnd_name_item.instance = arena_name->instance;
         }
     }
-    ((void (*)(void*, float))set_string_obj_alpha)(arena_name, 0.0f);
+    set_string_obj_alpha(arena_name, 0.0f);
 
     hours = g_game_info.field_20C / 3600;
     minutes = g_game_info.field_20C / 60 - hours * 60;
@@ -422,7 +417,7 @@ static void build_ladder_hud_data(void) {
         };
         int display_difficulty;
 
-        display_difficulty = (int)mode_of_play == 6
+        display_difficulty = mode_of_play == 6
             ? game_settings.rounds_to_win
             : game_settings.kombat_difficulty;
         if (display_difficulty > 4) {
@@ -454,7 +449,7 @@ static void build_ladder_hud_data(void) {
 
     if (curr_ladder_pos < 0 || curr_ladder_pos > 8) {
         award = 0;
-    } else if ((int)mode_of_play == 6) {
+    } else if (mode_of_play == 6) {
         if (curr_ladder_pos > 6) {
             award = 0;
         } else {
@@ -480,7 +475,7 @@ static void build_ladder_hud_data(void) {
     }
     g_game_info.pselect.field_1e8 = award;
 
-    if ((int)mode_of_play != 6) {
+    if (mode_of_play != 6) {
         coin =
             ladder_data->ladder_koins[
                 randu0(n_ladder_koins) & 0xFFFF];
@@ -495,7 +490,7 @@ static void build_ladder_hud_data(void) {
             coin_type = 0;
         }
         g_game_info.pselect.field_1e4 = coin_type;
-        ((void (*)(int, int, int, int))show_koin_award)(
+        show_koin_award(
             0,
             g_game_info.pselect.field_1e8,
             g_game_info.pselect.field_1e4,
@@ -679,11 +674,8 @@ static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;
     ((LadderProcessVtable*)aproc->vtbl)->sleep();
 }
-/* Recovered p_ladder_select (0x8008E6F4, retail size0xDD8).
- * Both ladder presentations retain their
- * authored camera, opponent-selection, award and game-state transitions. */
-/* TODO: [breakthrough needed] 82.87133%; canonical script fields improve
- * matching; remaining reconstruction differences require localized recovery. */
+/* TODO: [breakthrough needed] 83.60%; canonical script fields improve
+ * matching; frame is 0x10 smaller than retail; remaining differences need localized recovery. */
 float p_ladder_select(void) {
     PlyrInfo* opponent;
     PlyrInfo* player;
@@ -711,7 +703,7 @@ float p_ladder_select(void) {
 
     data = LADDER_DATA_REGION;
     tracking = 0;
-    set_section_memory_scheme((int)mode_of_play == 6 ? 0 : 11);
+    set_section_memory_scheme(mode_of_play == 6 ? 0 : 11);
     push_game_state(5);
     turn_controllers_off();
     if (g_game_info.plyr0.player_state == 0) {
@@ -737,8 +729,8 @@ float p_ladder_select(void) {
     setup_sound_banks(11);
     wait_for_sound_banks_to_load();
     set_process_as_scriptable(aproc);
-    load_background((int)mode_of_play == 6 ? 23 : 22);
-    if ((int)mode_of_play == 6) {
+    load_background(mode_of_play == 6 ? 23 : 22);
+    if (mode_of_play == 6) {
         for (i = 0; i < 6; i++) {
             for (j = 0; j < 6; j++) {
                 if (current_ladder_tbl[i].background_id ==
@@ -790,15 +782,15 @@ float p_ladder_select(void) {
     set_intro_camera_path((void*)1);
     bgnd_anim_camera_setup();
     if (curr_ladder_pos == 0) {
-        if ((int)mode_of_play == 6) snd_req(0x1AA1);
+        if (mode_of_play == 6) snd_req(0x1AA1);
         camera = get_pdata_of_camera();
         camera->speed = 1.5f * game_speed;
         camera_init_animation(bgnd_animations.intro_camera, p_animated_intro_done);
-        if ((int)mode_of_play != 6) camera->speed = 0.5f * game_speed;
+        if (mode_of_play != 6) camera->speed = 0.5f * game_speed;
         camera_run_animation(0);
     } else {
-        snd_req((int)mode_of_play == 6 ? 0x1AA2 : 0x1AA0);
-        if ((int)mode_of_play == 6) {
+        snd_req(mode_of_play == 6 ? 0x1AA2 : 0x1AA0);
+        if (mode_of_play == 6) {
             position.x = 0.0f;
             position.y = 3.571f * (float)(curr_ladder_pos-1) + -26.283203f;
             position.z = 7.376953f;
@@ -814,7 +806,7 @@ float p_ladder_select(void) {
     fade_from_black(20, 0);
     camera = get_pdata_of_camera();
     camera->speed = 1.5f * game_speed;
-    if (curr_ladder_pos == 0 && (int)mode_of_play != 6) {
+    if (curr_ladder_pos == 0 && mode_of_play != 6) {
         frames = (int)(72.0f * inverse_game_speed);
         ladder_sleep((float)frames);
         snd_req(0x1A9F);
@@ -836,7 +828,7 @@ float p_ladder_select(void) {
             camera->speed += 2.0f / (float)frames;
             ladder_sleep(1.0f);
         }
-    } else if ((int)mode_of_play == 6) {
+    } else if (mode_of_play == 6) {
         initial_speed = 0.0f;
         final_speed = 0.0f;
         position.x = 0.0f;
@@ -845,7 +837,7 @@ float p_ladder_select(void) {
         while (!move_to_end_point((const Vec*)&position, &initial_speed,
                                  &final_speed, 0, 2.0f)) ladder_sleep(1.0f);
     }
-    if ((int)mode_of_play == 0) {
+    if (mode_of_play == 0) {
         MkObj* object;
         MkProc* animation_proc;
         AnimPdata* animation;
@@ -918,7 +910,6 @@ float p_ladder_select(void) {
         arena_name = bgnd_name_item.object;
         if (arena_name == 0 || arena_name->instance != bgnd_name_item.instance)
             arena_name = 0;
-        /* Retail advances alpha only while its string remains valid. */
         if (arena_name != 0) {
             set_string_obj_alpha(arena_name, (float)(unsigned char)alpha);
             alpha += (signed char)(8.0f * game_speed);
@@ -926,7 +917,7 @@ float p_ladder_select(void) {
         }
     }
     set_string_obj_alpha(arena_name, 255.0f);
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         if ((g_game_info.plyr0.player_state == 2 && p1_profile_status == 1) ||
             (g_game_info.plyr1.player_state == 2 && p2_profile_status == 1)) {
             award = 0;
@@ -956,7 +947,7 @@ float p_ladder_select(void) {
     fade_to_black(10, 1);
     if (tracking != 0 && tracking->hdr.instance != 0)
         ((LadderProcessVtable*)tracking->hdr.vtbl)->destroy(tracking);
-    if ((int)mode_of_play == 6) gamelogic_jump(3, p_puzzle_fighter);
+    if (mode_of_play == 6) gamelogic_jump(3, p_puzzle_fighter);
     gamelogic_jump(2, p_gamelogic);
     return -1.0f;
 }

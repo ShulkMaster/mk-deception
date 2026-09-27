@@ -1,81 +1,107 @@
-/* TODO: [blocked] link: retail's linker stripped gxMathTan2 (0x17C), gxMathSin2 (0x198),
- * gxMathCosSin2 (0x278), gxMathCos2 (0x17C), gxMathArcSin (0x208), sinCosTable (0x80) and
- * ~30 unused .sdata2 constants (UNUSED in orig/GQNE5D/files/mk6gc_release.MAP), but their
- * constants still lead this object's pools, so the unit cannot link without them. No source
- * is known: find their consumers (callers in other builds or games, headers, debug code) or
- * a genuine donor body, then restore them so the unit can link. */
+/* TODO: [review] layout stubs: gxMathTan2, gxMathSin2, gxMathCosSin2, gxMathCos2, gxMathArcSin and
+ * sinCosTable reproduce linker-stripped retail functions/data only to recreate their pool/data
+ * layout; the bodies are NOT recovered source. Replace with genuine bodies if a source turns up. */
 #include "math/gxMath.h"
 
 /* Angle scale: 2^20 / (2*pi) and reciprocal 2*pi / 2^20 */
-static const float kAngleToIndex = 166886.05f;
-static const float kIndexToRad = 0.0000059921126f;
-static const float kNegIndexToRad = -0.0000059921126f;
+#define kAngleToIndex 166886.05f
+#define kIndexToRad 0.0000059921126f
+#define kNegIndexToRad -0.0000059921126f
 
-static const float kZero = 0.0f;
-static const float kOne = 1.0f;
-static const float kNegOne = -1.0f;
-static const float kHalfPi = 1.5707964f;
-static const float kPi = 3.1415927f;
-static const float kNegHalfPi = -1.5707964f;
+#define kZero 0.0f
+#define kOne 1.0f
+#define kNegOne -1.0f
+#define kHalfPi 1.5707964f
+#define kPi 3.1415927f
+#define kNegHalfPi -1.5707964f
 
 /* sin Taylor extras */
-static const float kSinC6 = -0.00019176333f;
-static const float kSinC4 = 0.008333334f;
-static const float kSinC2 = -0.16666667f;
+#define kSinC6 -0.00019176333f
+#define kSinC4 0.008333334f
+#define kSinC2 -0.16666667f
 
 /* cos Taylor extras */
-static const float kCosC6 = -0.0013293402f;
-static const float kCosC4 = 0.041666668f;
-static const float kCosC2 = -0.5f;
+#define kCosC6 -0.0013293402f
+#define kCosC4 0.041666668f
+#define kCosC2 -0.5f
 
 /* atan series odd-reciprocal coeffs (1/3 .. 1/27) */
-static const float kAtan3 = 0.33333334f;
-static const float kAtan5 = 0.2f;
-static const float kAtan7 = 0.14285715f;
-static const float kAtan9 = 0.11111111f;
-static const float kAtan11 = 0.09090909f;
-static const float kAtan13 = 0.07692308f;
-static const float kAtan15 = 0.06666667f;
-static const float kAtan17 = 0.05882353f;
-static const float kAtan19 = 0.05263158f;
-static const float kAtan21 = 0.04761905f;
-static const float kAtan23 = 0.04347826f;
-static const float kAtan25 = 0.04f;
-static const float kAtan27 = 0.037037037f;
+#define kAtan3 0.33333334f
+#define kAtan5 0.2f
+#define kAtan7 0.14285715f
+#define kAtan9 0.11111111f
+#define kAtan11 0.09090909f
+#define kAtan13 0.07692308f
+#define kAtan15 0.06666667f
+#define kAtan17 0.05882353f
+#define kAtan19 0.05263158f
+#define kAtan21 0.04761905f
+#define kAtan23 0.04347826f
+#define kAtan25 0.04f
+#define kAtan27 0.037037037f
 
 /* acos piecewise thresholds / linear fits / mid poly */
-static const float kAcosLo0 = -0.825f;
-static const float kAcosLo1 = -0.911f;
-static const float kAcosLo2 = -0.95f;
-static const float kAcosLo3 = -0.986f;
-static const float kAcosHi0 = 0.825f;
-static const float kAcosHi1 = 0.911f;
-static const float kAcosHi2 = 0.95f;
-static const float kAcosHi3 = 0.986f;
+#define kAcosLo0 -0.825f
+#define kAcosLo1 -0.911f
+#define kAcosLo2 -0.95f
+#define kAcosLo3 -0.986f
+#define kAcosHi0 0.825f
+#define kAcosHi1 0.911f
+#define kAcosHi2 0.95f
+#define kAcosHi3 0.986f
 
-static const float kAcosMidC6 = -0.017352764f;
-static const float kAcosMidC5 = -0.022372158f;
-static const float kAcosMidC4 = -0.030381944f;
-static const float kAcosMidC3 = -0.04464286f;
-static const float kAcosMidC2 = -0.075f;
+#define kAcosMidC6 -0.017352764f
+#define kAcosMidC5 -0.022372158f
+#define kAcosMidC4 -0.030381944f
+#define kAcosMidC3 -0.04464286f
+#define kAcosMidC2 -0.075f
 
-static const float kAcosLinA0 = 0.8574234f;
-static const float kAcosLinB0 = -2.0406988f;
-static const float kAcosLinA1 = 0.20541239f;
-static const float kAcosLinB1 = -2.756408f;
-static const float kAcosLinA2 = -1.1369767f;
-static const float kAcosLinB2 = -4.1694493f;
-static const float kAcosLinA3 = -8.822167f;
-static const float kAcosLinB3 = -11.96376f;
+#define kAcosLinA0 0.8574234f
+#define kAcosLinB0 -2.0406988f
+#define kAcosLinA1 0.20541239f
+#define kAcosLinB1 -2.756408f
+#define kAcosLinA2 -1.1369767f
+#define kAcosLinB2 -4.1694493f
+#define kAcosLinA3 -8.822167f
+#define kAcosLinB3 -11.96376f
 
-static const float kAcosLinA4 = 2.284175f;
-static const float kAcosLinB4 = -2.040697f;
-static const float kAcosLinA5 = 2.9361913f;
-static const float kAcosLinB5 = -2.7564118f;
-static const float kAcosLinA6 = 4.278571f;
-static const float kAcosLinB6 = -4.169443f;
-static const float kAcosLinA7 = 11.964287f;
-static const float kAcosLinB7 = -11.964287f;
+#define kAcosLinA4 2.284175f
+#define kAcosLinB4 -2.040697f
+#define kAcosLinA5 2.9361913f
+#define kAcosLinB5 -2.7564118f
+#define kAcosLinA6 4.278571f
+#define kAcosLinB6 -4.169443f
+#define kAcosLinA7 11.964287f
+#define kAcosLinB7 -11.964287f
+
+float gxMathTan2(float angle) {
+    float x;
+    float x2;
+    float sinV;
+    float cosV;
+
+    if (angle == kZero) {
+        return kZero;
+    }
+    x = angle;
+    x2 = x * x;
+    cosV = kOne;
+    cosV = cosV + kCosC2 * x2;
+    cosV = cosV + kCosC4 * x2 * x2;
+    sinV = x;
+    sinV = sinV + kSinC2 * x2 * x;
+    sinV = sinV + kSinC4 * x2 * x2 * x;
+    if (x > kHalfPi) {
+        sinV = -sinV;
+    }
+    if (x > kPi) {
+        cosV = -cosV;
+    }
+    if (x < kNegHalfPi) {
+        sinV = -sinV;
+    }
+    return sinV / cosV;
+}
 
 float gxMathTan(float angle) {
     float cosV;
@@ -83,6 +109,10 @@ float gxMathTan(float angle) {
 
     gxMathCosSin(&cosV, &sinV, angle);
     return sinV / cosV;
+}
+
+float gxMathSin2(float angle) {
+    return gxMathSin(angle);
 }
 
 float gxMathSin(float angle) {
@@ -111,6 +141,10 @@ float gxMathSin(float angle) {
     t = t * x2 + kSinC2;
     t = x2 * t + kOne;
     return x * t;
+}
+
+void gxMathCosSin2(float* cosOut, float* sinOut, float angle) {
+    gxMathCosSin(cosOut, sinOut, angle);
 }
 
 void gxMathCosSin(float* cosOut, float* sinOut, float angle) {
@@ -157,6 +191,10 @@ void gxMathCosSin(float* cosOut, float* sinOut, float angle) {
     *cosOut = cosV;
 }
 
+float gxMathCos2(float angle) {
+    return gxMathCos(angle);
+}
+
 float gxMathCos(float angle) {
     unsigned int bits;
     int folded;
@@ -181,7 +219,6 @@ float gxMathCos(float angle) {
     return t;
 }
 
-/* TODO: [near miss] 99.40%; code matches; only the literal symbols differ (retail pools anonymous @N constants, ours are named statics). */
 float gxMathArcTanYX(float y, float x) {
     float result;
     float ratio;
@@ -273,7 +310,6 @@ float gxMathArcTanYX(float y, float x) {
     return result;
 }
 
-/* TODO: [near miss] 99.48%; code matches; only the literal symbols differ (retail pools anonymous @N constants, ours are named statics). */
 float gxMathArcTan(float x) {
     float result;
     float x2;
@@ -336,6 +372,27 @@ float gxMathArcTan(float x) {
     return result;
 }
 
+float gxMathArcSin(float x) {
+    float x2;
+    float p;
+
+    if (x < kAcosLo0) {
+        if (x >= kAcosLo1 || x >= kAcosLo2 || x >= kAcosLo3) {
+            return kHalfPi - gxMathArcCos(x);
+        }
+        return kNegHalfPi;
+    }
+    if (x > kAcosHi0) {
+        if (x <= kAcosHi1 || x <= kAcosHi2 || x <= kAcosHi3) {
+            return kHalfPi - gxMathArcCos(x);
+        }
+        return kHalfPi;
+    }
+    x2 = x * x;
+    p = kAcosMidC2 + x2 * (kAcosMidC3 + x2 * (kAcosMidC4 + x2 * (kAcosMidC5 + x2 * kAcosMidC6)));
+    return -x * (kNegOne + x2 * (kSinC2 + x2 * p));
+}
+
 float gxMathArcCos(float x) {
     float x2;
     float p;
@@ -393,3 +450,22 @@ float gxMathArcCos(float x) {
 }
 
 #include "src/math/gxmath_sqrt_table.inc"
+
+static float sinCosTable[16][2] = {
+    { 0.00000000f, 1.00000000f },
+    { 0.38268343f, 0.92387953f },
+    { 0.70710678f, 0.70710678f },
+    { 0.92387953f, 0.38268343f },
+    { 1.00000000f, 0.00000000f },
+    { 0.92387953f, -0.38268343f },
+    { 0.70710678f, -0.70710678f },
+    { 0.38268343f, -0.92387953f },
+    { 0.00000000f, -1.00000000f },
+    { -0.38268343f, -0.92387953f },
+    { -0.70710678f, -0.70710678f },
+    { -0.92387953f, -0.38268343f },
+    { -1.00000000f, -0.00000000f },
+    { -0.92387953f, 0.38268343f },
+    { -0.70710678f, 0.70710678f },
+    { -0.38268343f, 0.92387953f }
+};

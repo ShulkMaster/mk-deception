@@ -43,7 +43,6 @@ extern int screen_height;
 extern unsigned char p1_profile_switch_map[];
 
 void* get_screen_pdata(void);
-void destroy_mkprocs_pid(int proc_id);
 void set_game_switch_map(void* map);
 void set_default_switch_map(void* map);
 void screen_share_pdata(void* pdata);
@@ -119,7 +118,7 @@ void* movelist_get_character_name(void) {
 void* movelist_get_counter(void) {
     MovelistPdata* screen_pdata;
 
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     if (screen_pdata != 0) {
         return screen_pdata->counter_buf;
     }
@@ -134,7 +133,7 @@ void movelist_change_move(int delta) {
     int max_move;
     int display_move;
 
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     if (screen_pdata == 0) {
         return;
     }
@@ -171,7 +170,7 @@ void movelist_change_style(int delta) {
     int move_count;
     MovelistPfxObj* pfx_obj;
 
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     zero = 0;
     if (screen_pdata == 0) {
         return;
@@ -203,7 +202,7 @@ void movelist_change_style(int delta) {
 void* get_movelist_strings(int* out_max) {
     MovelistPdata* screen_pdata;
 
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     if (screen_pdata != 0) {
         int style_index = screen_pdata->style_idx;
         MovelistStyleSlot* style = movelist_style_slot(screen_pdata, style_index);
@@ -258,11 +257,11 @@ void start_movelist(void) {
 static int vdestroy_movelist(void* self) {
     MovelistPdata* pdata;
 
-    pdata = (MovelistPdata*)self;
+    pdata = self;
     destroy_list(&pdata->obj_list);
     toggle_normal_2d_rendering(1);
     pdata->field_04 = 0;
-    mkhdr_memfree((MkHdr*)self);
+    mkhdr_memfree(self);
 }
 
 static inline FighterStyleScreen* fighter_style_obj_live_screen(FighterStyleObj* owner) {
@@ -325,7 +324,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
             row_button_text = row->button_text;
             row_style_index = row->style_index;
             row_special_arg = row->special_arg;
-            screen_pdata = (MovelistPdata*)get_screen_pdata();
+            screen_pdata = get_screen_pdata();
             if (screen_pdata != 0) {
                 style = movelist_style_slot(screen_pdata, row_style_index);
                 move_slot = style->max_move;
@@ -364,8 +363,8 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         screen = fighter_style_obj_live_screen(style_obj);
 
         if (screen != 0) {
-            pfx2d = (Pfx2dObj*)screen->pfx2d;
-            pfx_obj = (MovelistPfxObj*)load_2d_pfxobj_with_texture(0x9012, pfx2d->texture, 0, 5);
+            pfx2d = screen->pfx2d;
+            pfx_obj = load_2d_pfxobj_with_texture(0x9012, pfx2d->texture, 0, 5);
             if (pfx_obj != 0) {
                 style = movelist_style_slot(movelist_pdata, style_slot);
                 movelist_set_pfx_byte_flags(pfx_obj, 1, 1);
@@ -380,7 +379,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         }
     }
     if (movelist_pdata->style_count > 3) {
-        named_pfx = (MovelistPfxObj*)load_named_2d_pfxobj(
+        named_pfx = load_named_2d_pfxobj(
             0x10005, 0x9012, STR_STYLE_SPECIAL, 0, 5);
         if (named_pfx != 0) {
             movelist_set_pfx_byte_flags(named_pfx, 1, 1);
@@ -394,11 +393,11 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
             named_pfx->y = screen_height - 0x188;
         }
     }
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     if (screen_pdata != 0) {
         movelist_show_valid_style(screen_pdata);
     }
-    screen_pdata = (MovelistPdata*)get_screen_pdata();
+    screen_pdata = get_screen_pdata();
     if (screen_pdata != 0) {
         style_index = screen_pdata->style_idx;
         style = movelist_style_slot(screen_pdata, style_index);
@@ -416,10 +415,8 @@ static float p_loop_movelist(void) {
     char* screen_name;
 
     screen_name = get_current_screen_name();
-    if (screen_name != 0) {
-        if (strcmp(screen_name, STR_PAUSE_MOVELIST) == 0) {
-            return movelist_loop_pos_one;
-        }
+    if (screen_name == 0 || strcmp(screen_name, STR_PAUSE_MOVELIST) != 0) {
+        return movelist_loop_pos_one;
     }
     return movelist_loop_neg_one;
 }

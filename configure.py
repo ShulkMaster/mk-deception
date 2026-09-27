@@ -646,7 +646,7 @@ config.libs = [
                 source="runtime/ansi_files.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Src/ansi_fp.o",
                 source="runtime/ansi_fp.c",
             ),
@@ -923,7 +923,7 @@ config.libs = [
                 source="math/gxMat.c",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
-            Object(NonMatching, "gxMath.o", source="math/gxMath.c"),
+            Object(Matching, "gxMath.o", source="math/gxMath.c"),
             Object(NonMatching, "mk_math.o", source="math/mk_math.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "MovieSubtitle_GC.o", source="movie/MovieSubtitle_GC.cpp",
@@ -1144,7 +1144,7 @@ config.libs = [
             Object(NonMatching, "gcutils.o", source="platform/gcutils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-common off",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "settings.o", source="game/settings.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(Matching, "settings.o", source="game/settings.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "menu.o", source="game/menu.c",
@@ -2141,7 +2141,7 @@ config.libs = [
                 extra_cflags=["-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/uty_ppc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/uty_ppc.c",
             ),
@@ -2186,7 +2186,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileCommand.o",
                 source="mw/mwFileCommand.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2677,7 +2677,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-schedule off", "-fp_contract off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_font.o",
                 source="libmkparticle/gc_font.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -2724,7 +2724,7 @@ config.libs = [
             Object(NonMatching, "os.a/OS.o", source="dolphin/os/OS.c"),
             Object(Matching, "os.a/OSAlloc.o", source="dolphin/os/OSAlloc.c"),
             Object(Matching, "os.a/OSError.o", source="dolphin/os/OSError.c"),
-            Object(NonMatching, "os.a/OSAlarm.o", source="dolphin/os/OSAlarm.c"),
+            Object(Matching, "os.a/OSAlarm.o", source="dolphin/os/OSAlarm.c"),
             Object(
                 NonMatching,
                 "os.a/OSInterrupt.o",
@@ -2739,7 +2739,7 @@ config.libs = [
             Object(Matching, "os.a/OSArena.o", source="dolphin/os/OSArena.c"),
             Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c"),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/OSAudioSystem.o",
                 source="dolphin/os/OSAudioSystem.c",
             ),
@@ -2749,7 +2749,7 @@ config.libs = [
                 source="dolphin/os/OSLink.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/OSSync.o",
                 source="dolphin/os/OSSync.c",
                 extra_cflags=["-opt nopeephole"],
@@ -2762,7 +2762,7 @@ config.libs = [
                 extra_cflags=["-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/OSMemory.o",
                 source="dolphin/os/OSMemory.c",
                 extra_cflags=["-inline noauto"],
@@ -2773,7 +2773,7 @@ config.libs = [
             Object(Matching, "os.a/OSMutex.o", source="dolphin/os/OSMutex.c"),
             Object(NonMatching, "os.a/__start.o", source="dolphin/__start.c"),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/__ppc_eabi_init.o",
                 source="dolphin/os/__ppc_eabi_init.cpp",
                 extra_cflags=["-lang=c"],
@@ -2849,7 +2849,7 @@ config.libs = [
     DolphinLib(
         "db",
         [
-            Object(NonMatching, "db.a/db.o", source="dolphin/db/db.c"),
+            Object(Matching, "db.a/db.o", source="dolphin/db/db.c"),
         ],
     ),
     DolphinLib(
@@ -2927,7 +2927,7 @@ config.libs = [
             ),
             Object(Matching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
             Object(Matching, "mtx.a/mtx44.o", source="dolphin/mtx/mtx44.c"),
-            Object(NonMatching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
+            Object(Matching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
             Object(
                 Matching,
                 "mtx.a/mtx.o",

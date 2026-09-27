@@ -142,7 +142,6 @@ static float drone_ai_perform_block(void);
 float drone_ai_perform_reversal(void);
 static float jump_towards_opponent_with_attack(void);
 static float jump_away_opponent_with_jexit(void);
-float p_idle(void);
 float p_plyr_aux2(void);
 void set_my_secondary_state(int state);
 int drone_ai_attacker_reacting_watcher(void);
@@ -440,7 +439,6 @@ int go_into_major_pain_please;
 int go_into_twitch_death_please;
 int g_fatality_game_number;
 DroneOverrideInfo g_DroneOverrideInfo;
-extern int force_midpoint_calculation_update;
 extern ConstrainInfo constrain_info;
 extern unsigned int randu0(unsigned int max);
 extern void snd_req(int sound_id);
@@ -453,14 +451,10 @@ float frand(float range);
 MslSoundHandle pan_vol_pitch_snd_req(
     int sound_id, float pan, float volume, float pitch);
 float dist_behind_me(void);
-void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 void run_reaction_cleanup_function(PlyrPdata* player);
 float r_call_script_function(void);
-float joy_duck_loop(void);
 int get_his_attack_counter(void);
-float j_exit_blend_stance(void);
 void init_air_move(void);
-int am_i_flipped(void);
 void plyr_bleed_large_ext(
     PlyrPdata* player, unsigned int bone, PlyrPdata* source);
 void start_blood_particles(
@@ -474,7 +468,6 @@ void add_facial_damage(float amount);
 
 int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);
-float xz_distance_between_players(void);
 static int drone_ai_im_dizzy(void);
 int drone_ai_check_for_berserker_movement(DroneAI* drone);
 int drone_ai_fetch_next_AIState(DroneAI* drone);
@@ -491,7 +484,6 @@ static int InAttackRange_close(void);
 static int always_false(void);
 void advance_cur_cmd_idx(void);
 void drone_ai_reset_ai_cmd(void);
-float j_exit(void);
 float x_block(void);
 float side_step_to_center_with_jexit(void);
 void step_forward(void);
@@ -528,7 +520,6 @@ int drone_ai_taunt_watcher_defense(DroneAI* drone);
 int is_big_boss(PlyrPdata* player);
 float joy_dash_back(void);
 float drone_ai_perform_attack(void);
-void set_my_state(int state);
 static float side_step_to_center_attack_with_jexit(void);
 static float drone_ai_perform_push(void);
 static float drone_ai_perform_low_attack(void);
@@ -561,7 +552,6 @@ void ck_rumble_controller(int pad, int strength, int duration);
 void uv_to_opponent(Vec* direction);
 void snd_req_delay(int sound, int delay);
 void pre_attack_chores(void);
-void plyr_going_to_attack_with_action(unsigned int action);
 void share_my_attack_info(float duration, float divisor);
 void init_ground_move_no_aniproc(void);
 void face_opponent_now(void);
@@ -573,28 +563,21 @@ void set_root_and_obj_movement_weights(
     AnimPdata* animation, float root_weight, float object_weight);
 void ani_to_frame_x(float frame);
 float p_animate(void);
-float p_camera_proc(void);
 float j_stay_down_dead(void);
 static float dk_screen_taunt(void);
 float drone_ai_perform_script_attack(void);
 static float drone_ai_scripted_attack(void);
-void back_to_normal(void);
-void init_ground_move(void);
 int do_i_have_life_left(void);
 float r_call_player_char_script_function(void);
 float p_blend_to_stance_in_10(void);
-void rotate_towards_him(float rate);
-float end_of_round_check(void);
 static int handicap_likelihood_for_combo_breaker(DroneAI* drone);
 float drone_ai_change_style(void);
 void bgnd_restore_player(void);
 void enable_all_my_blocking(void);
 int is_my_chest_to_screen(void);
-void blend_to_ani(AniData* animation, int transition, float blend);
 void set_ani_speed(float speed);
 void ani_loop_more_frames(float frames);
 void blend_to_fstance(float blend);
-int blend_to_stance(float blend);
 void ani_to_blend_frame(float frame);
 void advance_active_moveset(PlyrPdata* player);
 void advance_sidekick_with_moveset(PlyrPdata* player);
@@ -617,8 +600,6 @@ ScreenObj* display_image_by_plyr(
 void fight_fx_im_hit_with_breaker_flash(
     int player, MkObj* object, int bone, int use_bone, float y_offset);
 extern int f_fatality_was_done;
-extern int mode_of_play;
-extern float game_speed;
 extern AiFightStyleRestrictionTable fight_style_restriction_table;
 int get_game_state(void);
 int get_fatality_available_flag(void);
@@ -654,7 +635,6 @@ int get_ladder_position(void);
 int trial_get_drone_difficulty(void);
 int mk_chess_get_current_difficulty_for_ai(int side);
 extern int g_GameLossesInARow;
-extern float inverse_game_speed;
 int am_i_on_the_left(void);
 void init_3d_move_no_aniproc(void);
 static float p_lookat_cam(void);
@@ -672,7 +652,6 @@ static int drone_ai_victim_dizzy_3(void);
 static int drone_ai_victim_throw_attempt(void);
 float do_my_fatality(void);
 float do_my_2nd_fatality(void);
-void look_at_target(const Vec* target);
 void show_player(PlyrPdata* player);
 
 #define AI_TRANSFER(entry) aproc->vtbl->jump_sleep((entry), 0.0f)
@@ -683,8 +662,7 @@ void show_player(PlyrPdata* player);
         aproc->vtbl->sleep();                                                \
     } while (0)
 
-/* Probe both horizontal perpendicular directions. Keep displacement independent
- * of unit, which the distance routine overwrites through its output argument. */
+
 static inline void ai_side_clearances(float* right, float* left) {
     Vec origin;
     Vec end;
@@ -916,7 +894,7 @@ float big_boss_taunt_cam_cut(void) {
     }
 
     ani_to_frame_x(15.0f);
-    sound_roll = (unsigned short)randu0(100);
+    sound_roll = randu0(100);
     if (sound_roll < 33) {
         snd_req(0x1B0);
     } else if (sound_roll < 66) {
@@ -927,7 +905,7 @@ float big_boss_taunt_cam_cut(void) {
     shake_camera(1, 0.01f);
 
     ani_to_frame_x(32.0f);
-    sound_roll = (unsigned short)randu0(100);
+    sound_roll = randu0(100);
     if (sound_roll < 33) {
         snd_req(0x1B0);
     } else if (sound_roll < 66) {
@@ -1624,11 +1602,11 @@ void got_hit_fx(
             case 12:
             case 15:
                 blood_size = 1;
-                /* fall through */
+
             case 11:
             case 14:
                 blood_size++;
-                /* fall through */
+
             case 10:
             case 13:
             case 16:
@@ -1658,12 +1636,12 @@ void got_hit_fx(
             case 6:
             case 9:
                 blood_size = 1;
-                /* fall through */
+
             case 2:
             case 5:
             case 8:
                 blood_size++;
-                /* fall through */
+
             case 1:
             case 4:
             case 7:
@@ -1690,12 +1668,12 @@ void got_hit_fx(
             case 6:
             case 9:
                 blood_size = 1;
-                /* fall through */
+
             case 2:
             case 5:
             case 8:
                 blood_size++;
-                /* fall through */
+
             case 1:
             case 4:
             case 7:
@@ -2492,14 +2470,14 @@ float drone_ai_watcher(void) {
                 drone->decision_ready = 0;
                 return 1.0f;
             }
-            /* fall through */
+
         case 8:
         case 10:
             if (ai_watcher_victim_slip() != 0) {
                 drone->decision_ready = 0;
                 return 1.0f;
             }
-            /* fall through */
+
         default:
             if (drone_ai_beating_the_snot_out_of_him_watcher() == 1) {
                 drone->decision_ready = 0;
@@ -3564,7 +3542,7 @@ int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
             ai_transfer_active(side_step_to_center_with_jexit);
             return 1;
         }
-        /* Retail retains this second retry path after the side-step test. */
+
         if (retry == 1) {
             ai_transfer_active(walk_forward_attackdist_with_jexit);
         }
@@ -3634,7 +3612,7 @@ static int drone_ai_check_obstacles(DroneAI* request) {
     float normalization_squared;
     float inverse_length;
 
-    /* Retail guards the list-head address; obstacles is at offset zero. */
+
     if (&constrain_info.obstacles != 0) {
         obstacle_item = constrain_info.obstacles;
         while (obstacle_item != 0) {
@@ -4247,7 +4225,7 @@ int drone_ai_check_all_over_ground(DroneAI* drone) {
             return 1;
         }
     }
-    /* Retail retains both sides of this non-NaN exhaustive test. */
+
     if (drone->opponent_distance >= 2.8103173f ||
         drone->opponent_distance < 5.9457946f) {
         if ((unsigned short)randu0(100) < 50) {
@@ -4323,10 +4301,7 @@ int drone_ai_check_avoid_danger_area(DroneAI* drone) {
     }
 }
 
-/*
- * Retail repeats this decision in ten callers and branches to explicit 1/0
- * results for the final likelihood test. The helper emits no ELF symbol.
- */
+
 static inline int ai_should_block_super_move(DroneAI* drone) {
     unsigned int likelihood;
 
@@ -4865,9 +4840,7 @@ static inline int ai_find_reversal_style(void) {
 }
 
 
-/* TODO: [near miss] 99.85372%; reversal-count result move remains; focused integer-Boolean search found no improvement. */
 int drone_ai_check_for_normal_blocking(DroneAI* drone) {
-    PlyrMoveBlendData* move_data;
     unsigned int reversal_likelihood;
     unsigned int roll;
     unsigned short random_roll;
@@ -4907,11 +4880,8 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
         do_reversal =
             (unsigned short)randu0(100) < reversal_likelihood;
         if (do_reversal == 1) {
-            move_data =
-                plyr_pdata->fighter_definition->move_blend_data;
-            reversal_count = move_data != 0
-                                 ? move_data->ai_tables[5].usable_row_count
-                                 : 0;
+            reversal_count =
+                ai_weapon_style_move_count(plyr_pdata->fighter_definition, 5);
             if ((unsigned short)randu0(100) < 20 ||
                 (drone->difficulty_index > 4 && (unsigned short)randu0(100) < 60)) {
                 if (ai_find_reversal_style() >= 0) {
@@ -7079,7 +7049,7 @@ static float drone_ai_avoid_position_now(void) {
     return 0.0f;
 }
 
-/* Retail shares the final j_exit transfer between both jump paths. */
+
 static float drone_ai_avoid_danger_area_now(void) {
     DroneAI* drone;
 
@@ -7944,7 +7914,7 @@ static int drone_ai_change_attack_to_low(DroneAI* drone) {
 int drone_ai_check_escape_restrictions(void) {
     int has_clearance;
 
-    /* Retail performs this lookup before evaluating the clearance helper. */
+
     get_player_number(plyr_obj);
     if (ai_backward_clearance() > 2.1336f) {
         has_clearance = 1;

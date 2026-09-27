@@ -135,7 +135,7 @@ static inline void mab_copy_vec_components(Vec* destination, const Vec* source) 
     destination->z = source->z;
 }
 
-double fabs(double value);
+double __fabs(double value);
 
 typedef struct FenceSection {
     float offset_z;
@@ -153,15 +153,10 @@ typedef struct SkyTempleBodysplatPdata {
     Vec position;
 } SkyTempleBodysplatPdata;
 
-typedef union ObjectMonitorScalar {
-    float value;
-    unsigned int bits;
-} ObjectMonitorScalar;
-
 typedef struct ObjectMonitorThresholdTriplet {
-    ObjectMonitorScalar x;
-    ObjectMonitorScalar y;
-    ObjectMonitorScalar z;
+    float x;
+    float y;
+    float z;
 } ObjectMonitorThresholdTriplet;
 
 typedef struct ObjectMonitorThresholds {
@@ -190,10 +185,6 @@ typedef struct ObjectMonitorConfig {
     void (*callback)(MkSobj* object);
 } ObjectMonitorConfig;
 
-typedef MkProc* (*CreateObjectMonitorProcFn)(
-    int proc_id, int priority, MkProcEntryFn proc_fn, int pdata_size,
-    void* pdata_out, float vertical_step, float min_pos_y, float min_pos_x,
-    float velocity_scale);
 
 typedef struct ObjectMonitorSpawnLocals {
     ObjectMonitorPdata* pdata;
@@ -250,14 +241,12 @@ void mkobj_zero_bone_rots(MkObj* object);
 void add_facial_damage(FighterMirror* fighter, float amount);
 void shake_camera(int strength, MkHdr* pdata, float duration);
 extern MkPtr* gusher_list;
-float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
 static float p_monitor_objs_sobjs(void);
 void p_statue_xpd_callback(MkSobj* object);
 float p_fish_attack_sounds(void);
 float p_fish_attack(void);
 static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
-extern CameraObj* camera_obj;
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
 void obj_change_to_skinned_obj_light_list(MkObj* object, LightDef* light);
@@ -360,22 +349,21 @@ void yinyang_play_good_tune(void) {
     }
 }
 
-/* Soft ceiling: yinyang_finish_music ~99.53% -- SDA relocation only. */
 void yinyang_finish_music(void) {
     if (yinyang_current_music != 0) {
         snd_stop(yinyang_current_music);
         yinyang_current_music = 0;
     }
 
-    if (yy_evil_time_active == 0) {
-        snd_req(0x1BF1);
-    } else {
+    if (yy_evil_time_active != 0) {
         snd_req(0x1BF7);
-    }
-    if (yy_evil_time_active == 0) {
-        yinyang_current_music = snd_req(0x1BF0);
     } else {
+        snd_req(0x1BF1);
+    }
+    if (yy_evil_time_active != 0) {
         yinyang_current_music = snd_req(0x1BF6);
+    } else {
+        yinyang_current_music = snd_req(0x1BF0);
     }
 }
 
@@ -514,20 +502,14 @@ static inline MkObj* mk_obj_ref_live_object(MkObjRef* owner) {
 
 
 
-/* TODO: [near miss] 97.289474%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 97.29%; position copy load scheduling (z load hoisted above the x store) remains. */
 void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     MkObj* object;
 
     if (player->controller_slot == 0) {
-        MkObj* latched_object = mk_obj_ref_live_object(&debug_p1_axis_item);
-
-
-        object = latched_object;
+        object = mk_obj_ref_live_object(&debug_p1_axis_item);
     } else {
-        MkObj* latched_object = mk_obj_ref_live_object(&debug_p2_axis_item);
-
-
-        object = latched_object;
+        object = mk_obj_ref_live_object(&debug_p2_axis_item);
     }
 
     if (object == 0) {
@@ -552,52 +534,45 @@ void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     }
 }
 
+/* TODO: [near miss] 98.00%; body matches; retail has two unreachable branches (b epilogue; b e4) after the return that no loop shape tried reproduces. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
+    MkObjRef splat;
     MkObj* object;
-    unsigned int object_instance;
-    MkObj* loaded_object;
     MabGenericPositionPdata* pdata;
     Vec direction;
     float scale;
 
-    object = 0;
-    object_instance = 0;
+    splat.object = 0;
+    splat.instance = 0;
     scale = 0.5f;
     pdata = (MabGenericPositionPdata*)apdata;
-    loaded_object = load_named_model_from_slot(
-        0x2001E, "BODYSPLAT", 0x2094, 0);
-    if (loaded_object != 0) {
-        insert_fgnd_mkobj(loaded_object);
-        loaded_object->pos.value.x = pdata->position.x;
-        loaded_object->pos.value.y = pdata->position.y;
-        loaded_object->pos.value.z = pdata->position.z;
-        loaded_object->flags_08_bits.scale_active = 1;
-        loaded_object->scale.x = 0.5f;
-        loaded_object->scale.z = 0.5f;
-        uv_v3_to_v3(&direction, &effect_origin, &loaded_object->pos.value);
-        v3_to_xy_ang(&loaded_object->ang, &direction);
-        object_instance = loaded_object->hdr.instance;
-        object = loaded_object;
+    object = load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
+    if (object != 0) {
+        insert_fgnd_mkobj(object);
+        object->pos.value.x = pdata->position.x;
+        object->pos.value.y = pdata->position.y;
+        object->pos.value.z = pdata->position.z;
+        object->flags_08_bits.scale_active = 1;
+        object->scale.x = 0.5f;
+        object->scale.z = 0.5f;
+        uv_v3_to_v3(&direction, &effect_origin, &object->pos.value);
+        v3_to_xy_ang(&object->ang, &direction);
+        splat.instance = object->hdr.instance;
+        splat.object = object;
     }
 
-    for (;;) {
-        while (scale < 0.75f) {
-            MkObj* live_object;
-
-            live_object = object != 0
-                              ? (object->hdr.instance == object_instance ? object : 0)
-                              : 0;
-            if (live_object != 0) {
-                live_object->scale.x = scale;
-                live_object->scale.z = scale;
-                scale += 0.05f;
-            }
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
+    while (scale < 0.75f) {
+        object = mk_obj_ref_live_object(&splat);
+        if (object != 0) {
+            object->scale.x = scale;
+            object->scale.z = scale;
+            scale += 0.05f;
         }
-        return -1.0f;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
     }
+    return -1.0f;
 }
 
 static inline MkObj* fighter_severed_limb_live_object(
@@ -638,8 +613,8 @@ static inline MkObj* fish_attack_live_target(FishAttackPdata* pdata) {
     return 0;
 }
 
-/* TODO: [near miss] 99.472404%; typed target latch with direct failure returns fixed its CFG;
- * the fish latch keeps the in-place macro (helper forms regress); GPR coloring remains. */
+/* TODO: [near miss] 99.83%; only the else-branch fish web colors r25 vs retail r24
+ * (fish helper/macro reshapes regress; 120s permuter found nothing). */
 float p_fish_attack(void) {
     FishAttackPdata* pdata;
     MkObj* fish;
@@ -722,6 +697,7 @@ float p_fish_attack(void) {
 
     while (pdata->lifetime > 0) {
         PlyrInfo* player;
+        FighterMirror* fighter;
         MkObj* severed_object;
 
         target = fish_attack_live_target(pdata);
@@ -733,8 +709,11 @@ float p_fish_attack(void) {
         }
 
         pdata->lifetime--;
-        player = plyr_obj == g_game_info.plyr0.slot.mirror_a
-            ? &g_game_info.plyr0 : &g_game_info.plyr1;
+        if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+            player = &g_game_info.plyr0;
+        } else {
+            player = &g_game_info.plyr1;
+        }
 
         if (pdata->state_ticks <= 0) {
             if (pdata->lifetime < 15 && pdata->state < 4) {
@@ -767,7 +746,7 @@ float p_fish_attack(void) {
                 continue;
             case 2:
                 get_bone_world_pos(
-                    target, fish_data_tbl[fish_index].target_bone,
+                    plyr_obj, fish_data_tbl[fish_index].target_bone,
                     &target_position);
                 distance = uv_v3_to_v3_dist(
                     &direction, &fish->pos.value, &target_position);
@@ -803,7 +782,7 @@ float p_fish_attack(void) {
             }
             case 5:
                 distance = uv_v3_to_v3_dist(
-                    &direction, &arena_center, &target->pos.value);
+                    &direction, &arena_center, &plyr_obj->pos.value);
                 pdata->state_ticks = 110;
                 pdata->lifetime = pdata->state_ticks + 2;
                 scale_v3(&direction, &direction,
@@ -863,8 +842,9 @@ float p_fish_attack(void) {
                     }
                 }
                 v3_to_xy_ang(&fish->ang, &fish->pos_vel);
-                severed_object = fighter_severed_limb_live_object(
-                    player->slot.fighter, fish_index);
+                fighter = player->slot.fighter;
+                severed_object =
+                    fighter_severed_limb_live_object(fighter, fish_index);
                 if (severed_object != 0 && pdata->state_ticks < 20) {
                     fish->pos.value.y -= 0.1f;
                 }
@@ -884,11 +864,13 @@ float p_fish_attack(void) {
 }
 
 float p_fish_attack_scream_sounds(void) {
-    PlyrInfo* player = &g_game_info.plyr1;
     FishScreamPdata* pdata = (FishScreamPdata*)apdata;
+    PlyrInfo* player;
 
     if (pdata->player_index == 0) {
         player = &g_game_info.plyr0;
+    } else {
+        player = &g_game_info.plyr1;
     }
 
     plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x23);
@@ -931,7 +913,7 @@ float p_fish_attack_sounds(void) {
         } else {
             snd_req(0x14E);
         }
-        _mkproc_sleep_ticks = (float)delay;
+        _mkproc_sleep_ticks = delay;
         aproc->vtbl->sleep();
     }
     return -1.0f;
@@ -990,7 +972,7 @@ static inline MkProc* player_info_live_slot_fighter_anim_proc_direct(PlyrInfo* o
     return object;
 }
 
-/* TODO: [near miss] 98.653850%; register coloring, instruction lowering; one-trial ceiling. */
+/* TODO: [near miss] 99.54%; one row: retail seeds the limb offset with mr r29,r28 (as when init_plyr_severed_limb_list is inlined); a direct call does not inline here. */
 static float p_player_body_explode(void) {
     PlyrInfo* player;
     PlayerBodyExplodePdata* pdata;
@@ -1009,11 +991,7 @@ static float p_player_body_explode(void) {
         FighterMirror* fighter;
 
         fighter = player->slot.fighter;
-        object = fighter->severed_limbs[limb].object;
-        object = object != 0
-            ? (object->hdr.instance == fighter->severed_limbs[limb].instance
-                ? object : 0)
-            : 0;
+        object = fighter_severed_limb_live_object(fighter, limb);
         if (object == 0) {
             object = obj_sever_limb(
                 player->slot.mirror_a, limb,
@@ -1065,7 +1043,7 @@ void player_body_explode(
     PlayerBodyExplodePdata* pdata;
 
     if (_create_mkproc_generic_nostack(
-            0x2097, 0x1F, (MkProcEntryFn)p_player_body_explode,
+            0x2097, 0x1F, p_player_body_explode,
             sizeof(PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
         pdata->player = player;
         pdata->direction.x = direction->x;
@@ -1079,30 +1057,22 @@ void reset_collision_system(void) {
     init_collision_system();
 }
 
-/* Soft ceiling: 93.50% -- register allocation and one latch branch direction. */
 void init_plyr_severed_limb_list(PlyrInfo* player) {
-    FighterMirror* fighter = player->slot.fighter;
-    int limb;
+    int limb_index;
 
-    for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed = &fighter->severed_limbs[limb];
-        MkObj* object = severed->object;
+    for (limb_index = 0; limb_index < 15; limb_index++) {
+        FighterMirror* fighter = player->slot.fighter;
+        MkObj* limb = fighter_severed_limb_live_object(fighter, limb_index);
 
-        if (object != 0) {
-            if (object->hdr.instance != severed->instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        if (object == 0) {
-            object = obj_sever_limb(
-                player->slot.mirror_a, limb,
+        if (limb == 0) {
+            limb = obj_sever_limb(
+                player->slot.mirror_a, limb_index,
                 fighter->runtime_data->half_sever_velocities, 1);
-            if (object != 0) {
-                player->slot.fighter->severed_limbs[limb].object = object;
-                player->slot.fighter->severed_limbs[limb].instance =
-                    object->hdr.instance;
+            if (limb != 0) {
+                player->slot.fighter->severed_limbs[limb_index].object =
+                    limb;
+                player->slot.fighter->severed_limbs[limb_index].instance =
+                    limb->hdr.instance;
             }
         }
     }
@@ -1154,11 +1124,7 @@ void obj_setup_for_animation(
     object->ground_colls = ground_colls;
 }
 
-/*
- * Soft ceiling: retail retains an otherwise dead `2.0f` stack temporary after
- * copying the fish transforms. The effective algorithm and all observable
- * accesses match; portable C intentionally does not recreate the dead store.
- */
+/* TODO: [near miss] 93.05%; algorithm matches; Vec initializer pool (@511) layout and a dead 2.0f stack temporary differ. */
 void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
     Vec cylinder_axis = {0.0f, 1.0f, 0.0f};
@@ -1201,7 +1167,6 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         float angle;
         int wrapped_angle;
 
-        /* Retail only advances the pair while the camera latch is live. */
         if (camera_obj == 0) {
             continue;
         }
@@ -1226,21 +1191,15 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         current->active_fish->flags |= 3;
         current->bad_fish->pos.value = current->good_fish->pos.value;
         current->bad_fish->ang = current->good_fish->ang;
-        bad_hidden = current->bad_fish->hide_flags & 0x20;
+        bad_hidden = current->bad_fish->hide_flag_bits.hidden;
         current->bad_fish->flags_word_08 =
             current->good_fish->flags_word_08;
-        current->bad_fish->hide_flags = (unsigned char)(
-            (current->bad_fish->hide_flags & ~0x20) | bad_hidden);
+        current->bad_fish->hide_flag_bits.hidden = bad_hidden;
         current->active_fish->field_38 = 0.0f;
     }
 }
 
-/*
- * Soft ceiling: 90.32%, exact retail size and recovered monitor algorithm.
- * Standard fabs emits six calls in this TU configuration where retail folds
- * floating absolute instructions; keep the portable library operation rather
- * than an intrinsic. Remaining differences are scheduling and register color.
- */
+/* TODO: [near miss] 97.50%; __fabs folds like retail; nonvolatile register coloring (r27-r31 rotated) remains. */
 static float p_monitor_objs_sobjs(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     ObjectMonitorPdata* pdata;
@@ -1286,22 +1245,22 @@ static float p_monitor_objs_sobjs(void) {
                         &object->pos_vel, &object->pos_vel,
                         pdata->velocity_scale);
 
-                    if (fabs(object->pos_vel.x) < pdata->thresholds.min_pos.x.value) {
+                    if (__fabs(object->pos_vel.x) < pdata->thresholds.min_pos.x) {
                         object->pos_vel.x = 0.0f;
                     }
-                    if (fabs(object->pos_vel.y) < pdata->thresholds.min_pos.y.value) {
+                    if (__fabs(object->pos_vel.y) < pdata->thresholds.min_pos.y) {
                         object->pos_vel.y = 0.0f;
                     }
-                    if (fabs(object->pos_vel.z) < pdata->thresholds.min_pos.z.value) {
+                    if (__fabs(object->pos_vel.z) < pdata->thresholds.min_pos.z) {
                         object->pos_vel.z = 0.0f;
                     }
-                    if (fabs(object->ang_vel.x) < pdata->thresholds.min_vel.x.value) {
+                    if (__fabs(object->ang_vel.x) < pdata->thresholds.min_vel.x) {
                         object->ang_vel.x = 0.0f;
                     }
-                    if (fabs(object->ang_vel.y) < pdata->thresholds.min_vel.y.value) {
+                    if (__fabs(object->ang_vel.y) < pdata->thresholds.min_vel.y) {
                         object->ang_vel.y = 0.0f;
                     }
-                    if (fabs(object->ang_vel.z) < pdata->thresholds.min_vel.z.value) {
+                    if (__fabs(object->ang_vel.z) < pdata->thresholds.min_vel.z) {
                         object->ang_vel.z = 0.0f;
                     }
                 }
@@ -1326,11 +1285,7 @@ static float p_monitor_objs_sobjs(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: 82.75%, exact retail size and recovered spawn/configuration
- * algorithm. Differences are confined to scheduling and register allocation
- * in the post-create target latch and six-word aggregate copy.
- */
+/* TODO: [near miss] 83.97%; spawn/config algorithm recovered; retail batches the six threshold words before storing (one aggregate assignment regresses to 71.99). */
 void do_yinyang_statue_explosion(MkHdr* statue) {
     ObjectMonitorSpawnLocals locals;
 
@@ -1340,23 +1295,19 @@ void do_yinyang_statue_explosion(MkHdr* statue) {
 
     locals.config.target = statue;
     locals.config.velocity_scale = 0.45f;
-    locals.config.thresholds.min_pos.x.value = 0.01f;
-    locals.config.thresholds.min_pos.y.value = 0.03f;
-    locals.config.thresholds.min_pos.z.value = 0.01f;
-    locals.config.thresholds.min_vel.x.value = 0.01f;
-    locals.config.thresholds.min_vel.y.value = 0.01f;
-    locals.config.thresholds.min_vel.z.value = 0.01f;
+    locals.config.thresholds.min_pos.x = 0.01f;
+    locals.config.thresholds.min_pos.y = 0.03f;
+    locals.config.thresholds.min_pos.z = 0.01f;
+    locals.config.thresholds.min_vel.x = 0.01f;
+    locals.config.thresholds.min_vel.y = 0.01f;
+    locals.config.thresholds.min_vel.z = 0.01f;
     locals.config.vertical_step = 0.003f;
     locals.config.settle_height = 0.15f;
     locals.config.callback = p_statue_xpd_callback;
 
-    if (((CreateObjectMonitorProcFn)_create_mkproc_generic_nostack)(
+    if (_create_mkproc_generic_nostack(
             0x2095, 0x1F, p_monitor_objs_sobjs,
-            sizeof(ObjectMonitorPdata), &locals.pdata,
-            locals.config.vertical_step,
-            locals.config.thresholds.min_pos.y.value,
-            locals.config.thresholds.min_pos.x.value,
-            locals.config.velocity_scale) != 0) {
+            sizeof(ObjectMonitorPdata), (MkHdr**)&locals.pdata) != 0) {
         locals.pdata->velocity_scale = locals.config.velocity_scale;
         locals.pdata->target = locals.config.target;
         locals.pdata->target_instance = locals.config.target->instance;
@@ -1397,7 +1348,7 @@ void p_statue_xpd_callback(MkSobj* object) {
 
 
 
-/* TODO: [breakthrough needed] 89.932590%; call/inlining boundary needs recovery (bl fabs); no further evidence-backed source change. */
+/* TODO: [near miss] 98.71%; structure matches; float register coloring in the ground bounce and pool constant naming remain. */
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     int frame;
@@ -1412,33 +1363,35 @@ static float p_xpd_obj_monitor(void) {
         int limb;
 
         for (limb = 0; limb < 15; limb++) {
-            FighterObjectRef* severed;
             MkObj* object;
 
-            severed = &pdata->player->slot.fighter->severed_limbs[limb];
-            object = fighter_object_ref_live_object(severed);
+            object = fighter_severed_limb_live_object(
+                pdata->player->slot.fighter, limb);
 
             if (object != 0) {
-                float ground_y;
+                float ground_y = g_game_info.field_34 + 0.35f;
 
-                ground_y = g_game_info.field_34 + 0.35f;
                 if (object->pos.value.y < ground_y) {
                     float reflection;
+                    Vec bounce;
 
                     object->pos.value.y = ground_y;
                     reflection = 2.0f *
                         (object->pos_vel.x * ground_normal.x +
                          object->pos_vel.y * ground_normal.y +
                          object->pos_vel.z * ground_normal.z);
-                    object->pos_vel.x -= ground_normal.x * reflection;
-                    object->pos_vel.y -= ground_normal.y * reflection;
-                    object->pos_vel.z -= ground_normal.z * reflection;
+                    bounce.x = ground_normal.x * reflection;
+                    bounce.y = ground_normal.y * reflection;
+                    bounce.z = ground_normal.z * reflection;
+                    object->pos_vel.x -= bounce.x;
+                    object->pos_vel.y -= bounce.y;
+                    object->pos_vel.z -= bounce.z;
                     scale_v3(
                         &object->pos_vel, &object->pos_vel, 0.45f);
 
-                    if (fabs(object->pos_vel.x) < 0.004f &&
-                        fabs(object->pos_vel.y) < 0.004f &&
-                        fabs(object->pos_vel.z) < 0.004f) {
+                    if (__fabs(object->pos_vel.x) < 0.004f &&
+                        __fabs(object->pos_vel.y) < 0.004f &&
+                        __fabs(object->pos_vel.z) < 0.004f) {
                         zero_v3(&object->pos_vel);
                         object->gravity = 0.0f;
                         zero_v3(&object->ang_vel);
@@ -1463,10 +1416,10 @@ static float p_xpd_obj_monitor(void) {
         if (frame > 10 && frame < 100) {
             sound_delay--;
             if (sound_delay < 0) {
-                unsigned short sound;
+                int sound;
 
-                sound_delay = (int)randu0(30);
-                sound = randu0(4);
+                sound_delay = (unsigned short)randu0(30);
+                sound = (unsigned short)randu0(4);
                 if (sound == 0) {
                     snd_req(0x12C);
                 } else if (sound == 1) {
@@ -1486,26 +1439,19 @@ static float p_xpd_obj_monitor(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 90.00%, exact retail size and recovered scale loop. The
- * remaining differences are initialization scheduling and constant-pool
- * relocations; the validated object-instance latch now matches structurally.
- */
 float p_skytemple_bodysplat(void) {
+    MkObjRef splat;
     MkObj* object;
-    unsigned int object_instance;
-    MkObj* loaded_object;
     SkyTempleBodysplatPdata* pdata;
     float scale;
 
-    object = 0;
+    splat.object = 0;
+    splat.instance = 0;
     pdata = (SkyTempleBodysplatPdata*)apdata;
-    object_instance = 0;
-    loaded_object =
-        load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
-    if (loaded_object != 0) {
-        insert_fgnd_mkobj(loaded_object);
-        object = loaded_object;
+    object = load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
+    if (object != 0) {
+        insert_fgnd_mkobj(object);
+        splat.object = object;
         object->pos.value.x = pdata->position.x;
         object->pos.value.y = pdata->position.y;
         object->pos.value.z = pdata->position.z;
@@ -1513,19 +1459,15 @@ float p_skytemple_bodysplat(void) {
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
         object->scale.z = 1.0f;
-        object_instance = object->hdr.instance;
+        splat.instance = object->hdr.instance;
     }
 
     scale = 1.0f;
     while (scale < 2.5f) {
-        MkObj* live_object;
-
-        live_object = object != 0
-                          ? (object->hdr.instance == object_instance ? object : 0)
-                          : 0;
-        if (live_object != 0) {
-            live_object->scale.x = scale;
-            live_object->scale.z = scale;
+        object = mk_obj_ref_live_object(&splat);
+        if (object != 0) {
+            object->scale.x = scale;
+            object->scale.z = scale;
             scale += 0.2f;
         }
         _mkproc_sleep_ticks = 1.0f;
@@ -1534,18 +1476,13 @@ float p_skytemple_bodysplat(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 94.01%, exact retail size and recovered bounce algorithm.
- * Remaining differences are validated-object register coloring, equivalent
- * reflection scheduling, and the external fabs call versus retail's folded
- * floating absolute instruction. The TU's authentic prototype is retained
- * because changing it regresses an existing exact function.
- */
+/* TODO: [near miss] 99.38%; camera at-vector reflection matches; only f1-f6 float register coloring in the dot product remains. */
 static float p_cam_bounce_monitor(void) {
     CameraBouncePdata* pdata;
     MkObj* object;
     Vec saved_velocity;
     Vec saved_angular_velocity;
+    Vec bounce;
     Vec* camera_normal;
     float distance;
     float reflection;
@@ -1561,7 +1498,7 @@ static float p_cam_bounce_monitor(void) {
 
     distance = dist_v3_to_v3(
         &camera_obj->pos, &object->pos.value);
-    while (fabs(distance) > pdata->trigger_distance) {
+    while (__fabs(distance) > pdata->trigger_distance) {
         object = pdata->object != 0
                      ? (pdata->object->hdr.instance == pdata->object_instance
                             ? pdata->object : 0)
@@ -1594,15 +1531,18 @@ static float p_cam_bounce_monitor(void) {
     object->ang_vel = saved_angular_velocity;
 
     camera_normal =
-        (Vec*)&((RwFrame*)Camera->object.object.parent)->modelling.pos;
+        (Vec*)&((RwFrame*)Camera->object.object.parent)->modelling.at;
     normalize_v3(camera_normal);
     reflection = 2.0f *
         (object->pos_vel.x * camera_normal->x +
          object->pos_vel.y * camera_normal->y +
          object->pos_vel.z * camera_normal->z);
-    object->pos_vel.x -= camera_normal->x * reflection;
-    object->pos_vel.y -= camera_normal->y * reflection;
-    object->pos_vel.z -= camera_normal->z * reflection;
+    bounce.x = camera_normal->x * reflection;
+    bounce.y = camera_normal->y * reflection;
+    bounce.z = camera_normal->z * reflection;
+    object->pos_vel.x -= bounce.x;
+    object->pos_vel.y -= bounce.y;
+    object->pos_vel.z -= bounce.z;
     v3_add_v3(&object->pos.value, &object->pos.value, &object->pos_vel);
     scale_v3(
         &object->pos_vel, &object->pos_vel, pdata->velocity_scale);
@@ -1622,7 +1562,7 @@ static inline MkProc* player_info_live_slot_fighter_anim_proc(PlyrInfo* owner) {
     return object;
 }
 
-/* TODO: [near miss] 96.704544%; register coloring, relocation offsets; one-trial ceiling. */
+/* TODO: [near miss] 98.23%; first loop is inlined init_plyr_severed_limb_list; volatile temp coloring in it and f29-f31 float coloring remain. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;
@@ -1647,24 +1587,7 @@ void skytemple_player_explode(
     bgnd_launch_fx_at_position("meat_chunk_explode", x, y, z);
     bgnd_hide_mirror_guys();
 
-    for (limb_index = 0; limb_index < 15; limb_index++) {
-        RESOLVE_MAB_OBJECT(
-            limb,
-            player->slot.fighter->severed_limbs[limb_index].object,
-            player->slot.fighter->severed_limbs[limb_index].instance);
-        if (limb == 0) {
-            limb = obj_sever_limb(
-                player->slot.mirror_a, limb_index,
-                player->slot.fighter->runtime_data->half_sever_velocities,
-                1);
-            if (limb != 0) {
-                player->slot.fighter->severed_limbs[limb_index].object =
-                    limb;
-                player->slot.fighter->severed_limbs[limb_index].instance =
-                    limb->hdr.instance;
-            }
-        }
-    }
+    init_plyr_severed_limb_list(player);
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
     anim_proc = player_info_live_slot_fighter_anim_proc(player);
@@ -1675,10 +1598,14 @@ void skytemple_player_explode(
     add_facial_damage(player->slot.fighter, 1.0f);
 
     for (limb_index = 0; limb_index < 15; limb_index++) {
-        RESOLVE_MAB_OBJECT(
-            limb,
-            player->slot.fighter->severed_limbs[limb_index].object,
-            player->slot.fighter->severed_limbs[limb_index].instance);
+        limb = player->slot.fighter->severed_limbs[limb_index].object;
+        if (limb != 0) {
+            if (limb->hdr.instance != player->slot.fighter->severed_limbs[limb_index].instance) {
+                limb = 0;
+            }
+        } else {
+            limb = 0;
+        }
         if (limb == 0) {
             continue;
         }
@@ -1785,7 +1712,7 @@ void skytemple_player_explode(
         if (effect != 0) {
             effect->x = 0;
             effect->y = 0x48;
-            effect->flags |= 8;
+            effect->flag_bits.scaled = 1;
             effect->scale_x = 2.0f;
             effect->scale_y = 2.0f;
         }
@@ -1825,10 +1752,10 @@ void skytemple_player_explode(
         if (effect != 0) {
             effect->x = 0xA0;
             effect->y = 0x5A;
-            effect->flags |= 8;
+            effect->flag_bits.scaled = 1;
             effect->scale_x = 2.0f;
             effect->scale_y = 2.0f;
-            effect->flags |= 0x20;
+            effect->flag_bits.bit5 = 1;
         }
     }
 
@@ -1853,7 +1780,6 @@ void mab_script_trace_func(void) {
     debug_print_message();
 }
 
-/* Soft ceiling: misc_data_set_test_float ~92.72% -- pooled string address only. */
 void misc_data_set_test_float(float value) {
     char message[112];
 
@@ -1862,7 +1788,6 @@ void misc_data_set_test_float(float value) {
     debug_print_message(message);
 }
 
-/* Soft ceiling: misc_data_set_test_u32 ~90.74% -- pooled string address only. */
 void misc_data_set_test_u32(unsigned int value) {
     char message[112];
 

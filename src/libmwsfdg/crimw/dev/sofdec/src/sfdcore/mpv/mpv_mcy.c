@@ -53,20 +53,18 @@ void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [breakthrough needed] 29.235916%; donor per-case alignment subtraction
- * improves the switch CFG; the tuned SWAR schedule remains unresolved. */
+/* TODO: [breakthrough needed] Tuned SWAR schedule remains unmatched. */
 void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
 {
     s32 row;
     const u8* reference = context->reference0;
-    u8* destination = context->destination;
+    u32* output = (u32*)context->destination;
     u32 alignment = (unsigned long)reference & 3;
 
     switch (alignment) {
     case 0:
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 words[0], (words[0] << 8) | (words[1] >> 24));
             output[1] = mpvmc16_avg_words(
@@ -76,9 +74,9 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
             output[17] = mpvmc16_avg_words(
                 words[3], (words[3] << 8) | (words[4] >> 24));
             reference += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -86,7 +84,6 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 1;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words[0] << 8) | (words[1] >> 24),
                 (words[0] << 16) | (words[1] >> 16));
@@ -100,9 +97,9 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
                 (words[3] << 8) | (words[4] >> 24),
                 (words[3] << 16) | (words[4] >> 16));
             reference += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -110,7 +107,6 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 2;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words[0] << 16) | (words[1] >> 16),
                 (words[0] << 24) | (words[1] >> 8));
@@ -124,9 +120,9 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
                 (words[3] << 16) | (words[4] >> 16),
                 (words[3] << 24) | (words[4] >> 8));
             reference += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -134,7 +130,6 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 3;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words[0] << 24) | (words[1] >> 8), words[1]);
             output[1] = mpvmc16_avg_words(
@@ -144,9 +139,9 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
             output[17] = mpvmc16_avg_words(
                 (words[3] << 24) | (words[4] >> 8), words[4]);
             reference += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -158,7 +153,7 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
     s32 row;
     const u8* reference0 = context->reference0;
     const u8* reference1 = context->reference1;
-    u8* destination = context->destination;
+    u32* output = (u32*)context->destination;
     u32 alignment = (unsigned long)reference0 & 3;
 
     reference0 -= alignment;
@@ -168,16 +163,15 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(words0[0], words1[0]);
             output[1] = mpvmc16_avg_words(words0[1], words1[1]);
             output[16] = mpvmc16_avg_words(words0[2], words1[2]);
             output[17] = mpvmc16_avg_words(words0[3], words1[3]);
             reference0 += context->reference_stride;
             reference1 += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -185,7 +179,6 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words0[0] << 8) | (words0[1] >> 24),
                 (words1[0] << 8) | (words1[1] >> 24));
@@ -200,9 +193,9 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
                 (words1[3] << 8) | reference1[16]);
             reference0 += context->reference_stride;
             reference1 += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -210,7 +203,6 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words0[0] << 16) | (words0[1] >> 16),
                 (words1[0] << 16) | (words1[1] >> 16));
@@ -227,9 +219,9 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
                     *(const unsigned short*)(reference1 + 16));
             reference0 += context->reference_stride;
             reference1 += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -237,7 +229,6 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            u32* output = (u32*)destination;
             output[0] = mpvmc16_avg_words(
                 (words0[0] << 24) | (words0[1] >> 8),
                 (words1[0] << 24) | (words1[1] >> 8));
@@ -252,9 +243,9 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
                 (words1[3] << 24) | (words1[4] >> 8));
             reference0 += context->reference_stride;
             reference1 += context->reference_stride;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
@@ -335,7 +326,7 @@ void MPVMC16_OneRef1p_TuneC(MPVMCContext* context)
     }
     case 1:
     case 5: {
-        u8* destination = context->destination;
+        u32* output = (u32*)context->destination;
         s32 pitch = context->reference_stride;
 
         for (row = 0; row < 16; row++) {
@@ -343,22 +334,21 @@ void MPVMC16_OneRef1p_TuneC(MPVMCContext* context)
             u32 word1 = *(const u32*)(reference + 3);
             u32 word2 = *(const u32*)(reference + 7);
             u32 word3 = *(const u32*)(reference + 11);
-            u32* output = (u32*)destination;
             output[0] = (word0 << 8) | (word1 >> 24);
             output[1] = (word1 << 8) | (word2 >> 24);
             output[16] = (word2 << 8) | (word3 >> 24);
             output[17] = (word3 << 8) | reference[15];
             reference += pitch;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;
     }
     case 3:
     case 7: {
-        u8* destination = context->destination;
+        u32* output = (u32*)context->destination;
         s32 pitch = context->reference_stride;
 
         for (row = 0; row < 16; row++) {
@@ -367,15 +357,14 @@ void MPVMC16_OneRef1p_TuneC(MPVMCContext* context)
             u32 word2 = *(const u32*)(reference + 5);
             u32 word3 = *(const u32*)(reference + 9);
             u32 word4 = *(const u32*)(reference + 13);
-            u32* output = (u32*)destination;
             output[0] = (word0 << 24) | (word1 >> 8);
             output[1] = (word1 << 24) | (word2 >> 8);
             output[16] = (word2 << 24) | (word3 >> 8);
             output[17] = (word3 << 24) | (word4 >> 8);
             reference += pitch;
-            destination += 8;
+            output += 2;
             if (row == 7) {
-                destination += 0x40;
+                output += 16;
             }
         }
         break;

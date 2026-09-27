@@ -42,14 +42,10 @@ extern RwCamera* Camera;
 
 #define KONQUEST_RESOLVE_LATCH(latch, resolved)            \
     do {                                                    \
-        (resolved) = (latch).object;                        \
-        if ((resolved) != 0) {                              \
-            if ((resolved)->instance != (latch).instance) { \
-                (resolved) = 0;                             \
-            }                                               \
-        } else {                                            \
-            (resolved) = 0;                                 \
-        }                                                   \
+        (resolved) = (latch).object != 0                    \
+            ? ((latch).object->instance == (latch).instance \
+                   ? (latch).object : 0)                    \
+            : 0;                                            \
     } while (0)
 
 
@@ -4146,7 +4142,7 @@ static inline MkProc* konquest_trigger_struct_live_script_proc(KonquestTriggerSt
     }
     return object;
 }
-int get_konquest_pui_inventory_bit_index(const int* pui);
+int get_konquest_pui_inventory_bit_index(const KonquestPuiRuntime* pui);
 
 static inline MkObj* konquest_pui_live_bound_object(const MkSobj* owner) {
     MkObj* object = (MkObj*)owner->bound_hdr;
@@ -4324,11 +4320,7 @@ MkHdr* get_konquest_tile_objects_obj(void) {
     return object;
 }
 
-/*
- * Soft ceiling: get_tile_sobj_by_id 90.754715% -- the lookup algorithms and
- * frame are complete; residue is latch-temporary GPR allocation, one join,
- * and placement of the final special-case return move.
- */
+/* TODO: [near miss] 92.83%; latch-temporary GPR allocation, one join and the final special-case return move remain. */
 MkSobj* get_tile_sobj_by_id(int id) {
     MkObj* model;
     MkHdr* candidate;
@@ -5007,9 +4999,9 @@ void get_konquest_pui_object_pos(Vec* position, const MkSobj* sobj) {
     }
 }
 
-int get_konquest_pui_inventory_bit_index(const int* pui) {
+int get_konquest_pui_inventory_bit_index(const KonquestPuiRuntime* pui) {
     if (pui != 0) {
-        return pui[6];
+        return pui->inventory_index;
     }
     return -1;
 }
@@ -6047,12 +6039,7 @@ static float p_fade_ambient_sounds(void) {
     return -1.0f;
 }
 
-/*
- * Near match: all HUD latches, identifiers, labels, coordinates, process
- * creation, and optional region art agree with retail. The remaining 99.89011%
- * difference is limited to signed division-by-two lowering, register
- * scheduling, and pooled constant/string relocation labels.
- */
+/* TODO: [near miss] 99.98%; only pooled string relocation offsets differ (string pool order). */
 static void init_heads_up_display(void) {
     MkHdr* compass_pdata;
     ScreenObj* object;
@@ -18472,7 +18459,6 @@ static float p_hero_portal_in(void) {
         tile_offset += sizeof(*tile);
     }
 
-    /* The region portal table guarantees a live render record here. */
     record = (KonquestRenderRecord*)first_mkhdr(&portal->list_4C);
     position.z = 0.0f;
     position.y = 0.0f;

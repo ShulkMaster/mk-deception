@@ -9,15 +9,8 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 
-/*
- * memcard.o - Midway game memcard (B20 APIs + B21 PPWLS chrome).
- * See docs/campaigns/index.md (B20-B22; card.a out).
- */
-
 #pragma use_lmw_stmw on
 
-MkProc* find_mkproc_pid(int pid);
-void destroy_mkprocs_pid(int pid);
 void pause_all_game_sounds(void);
 void unpause_all_game_sounds(void);
 void fire_screen_studio_event(int id, int arg);
@@ -37,11 +30,8 @@ void mcard_msg_delete_successful_generic(void);
 void mcard_msg_delete_failed_generic(void);
 void mcard_msg_profile_reset_confirmation(void);
 void mcard_msg_cant_enter_konquest(int device, const char* profileName);
-int save_gsettings(int device);
 void update_storage_status_for_one_device(int device);
 
-extern MkProc* aproc;
-extern float _mkproc_sleep_ticks;
 extern int f_writing_to_memcard;
 extern char konq_region_data_buffer[0x1F54];
 extern PlayerProfile p1_profile;
@@ -50,27 +40,24 @@ extern int p1_profile_slot;
 extern int msg_cant_enter_konquest_answer;
 extern int msg_profile_reset_confirmation_answer;
 
-/* Contiguous retail string pool. */
 static const char stringBase0[] = " \0%d %s\0\0MKD";
 
 #define STR_SPACE (&stringBase0[0])
+#define STR_COUNT_UNIT (&stringBase0[2])
 #define STR_EMPTY_NAME (&stringBase0[8])
 
-static const int states_when_device_present[7] = {0, 2, 5, 4, 6, 7, 3};
-static const int states_when_device_error[4] = {3, 4, 6, 7};
+static int states_when_device_present[7] = {0, 2, 5, 4, 6, 7, 3};
+static int states_when_device_error[4] = {3, 4, 6, 7};
 
-/* Local BSS working buffers (retail sizes). */
 static char right_full_card_space_string[0x32];
 static char left_full_card_space_string[0x32];
 ProfileUnlockSummary gp_data;
 StorageDevice storage_status[STORAGE_MAX_DEVICES];
 
-/* .sdata */
 static int format_request_flag[2];
-static int states_when_device_full = STORAGE_STATUS_FULL;
-static int states_when_device_unformatted = STORAGE_STATUS_UNFORMATTED;
+static int states_when_device_full[1] = {STORAGE_STATUS_FULL};
+static int states_when_device_unformatted[1] = {STORAGE_STATUS_UNFORMATTED};
 
-/* .sbss - MWCC often reverses decl order; keep retail map order for clarity. */
 void* p1_profile_common;
 void* p2_profile_common;
 void* p1_profile_konquest;
@@ -84,7 +71,7 @@ static const float kOne = 1.0f;
 static const float kThree = 3.0f;
 
 #define SAVE_CHUNK_SIZE 0x1F54
-#define SAVE_PROFILE_STRIDE 0xFAA0 /* 0x10000 - 0x560 */
+#define SAVE_PROFILE_STRIDE 0xFAA0
 #define SAVE_EVENT_PROGRESS 0x1FBB
 
 typedef struct KonquestRegionStateView {
@@ -92,19 +79,23 @@ typedef struct KonquestRegionStateView {
     unsigned char field_0x5D;
 } KonquestRegionStateView;
 
+static inline char* storage_device_name(int device) {
+    char* name = (char*)STR_SPACE;
+
+    if (device < 0 || device >= 2) {
+        return name;
+    }
+    name = DEVICE_AT(device)->name;
+    return name;
+}
+
 void get_storage_device_name_list(char** out) {
     int i;
     char* name;
-    unsigned long len;
 
     for (i = 0; i < STORAGE_MAX_DEVICES; i++) {
-        if (i < 0 || i >= STORAGE_MAX_DEVICES) {
-            name = (char*)STR_SPACE;
-        } else {
-            name = DEVICE_AT(i)->name;
-        }
-        len = strlen(name);
-        if (len == 0) {
+        name = storage_device_name(i);
+        if (strlen(name) == 0) {
             name = (char*)get_device_reference_name(i);
         }
         out[i] = name;
@@ -114,7 +105,6 @@ void get_storage_device_name_list(char** out) {
 void check_format_or_recreate(void) {
     int device;
     int flag;
-    int status;
     MkVtableMkproc* vtbl;
 
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
@@ -126,25 +116,25 @@ void check_format_or_recreate(void) {
             continue;
         }
         update_storage_status(0);
-        status = DEVICE_AT(device)->status;
-        if (status == STORAGE_STATUS_UNFORMATTED || status == STORAGE_STATUS_BROKEN_FILE ||
-            status == STORAGE_STATUS_FORMAT_NEEDED || status == STORAGE_STATUS_FORMAT_ALT ||
-            status == STORAGE_STATUS_NO_FILE) {
-            format_or_recreate_a_device(device);
-            if (device >= 0 && device < STORAGE_MAX_DEVICES) {
-                format_request_flag[device] = 0;
-            }
-            _mkproc_sleep_ticks = kOne;
-            vtbl = (MkVtableMkproc*)aproc->vtbl;
-            vtbl->sleep();
+        if (DEVICE_AT(device)->status != STORAGE_STATUS_UNFORMATTED &&
+            DEVICE_AT(device)->status != STORAGE_STATUS_BROKEN_FILE &&
+            DEVICE_AT(device)->status != STORAGE_STATUS_FORMAT_NEEDED &&
+            DEVICE_AT(device)->status != STORAGE_STATUS_FORMAT_ALT &&
+            DEVICE_AT(device)->status != STORAGE_STATUS_NO_FILE) {
             fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-        } else {
-            fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+            continue;
         }
+        format_or_recreate_a_device(device);
+        if (device >= 0 && device < STORAGE_MAX_DEVICES) {
+            format_request_flag[device] = 0;
+        }
+        _mkproc_sleep_ticks = kOne;
+        vtbl = aproc->vtbl;
+        vtbl->sleep();
+        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
     }
 }
 
-/* Soft ceiling: reset_format_or_recreate_flags ~99.7% -- SDA reloc / bdnz dest; stop. */
 void reset_format_or_recreate_flags(void) {
     int i;
 
@@ -155,74 +145,59 @@ void reset_format_or_recreate_flags(void) {
     }
 }
 
-/* TODO: [near miss] 89.00%; device bounds agree; early-return branch layout remains. */
 void format_or_recreate_right_device(void) {
     int device;
 
     device = wls_device_cursor + 1;
-    if (device < 0 || device >= 2) {
-        return;
+    if (device >= 0 && device < 2) {
+        format_request_flag[device] = 1;
     }
-    format_request_flag[device] = 1;
 }
 
-/* TODO: [near miss] 89.00%; device bounds agree; early-return branch layout remains. */
 void format_or_recreate_left_device(void) {
-    if (wls_device_cursor < 0 || wls_device_cursor >= 2) {
-        return;
+    if (wls_device_cursor >= 0 && wls_device_cursor < 2) {
+        format_request_flag[wls_device_cursor] = 1;
     }
-    format_request_flag[wls_device_cursor] = 1;
 }
 
-void create_right_mc_icon_list(McIconListArg* arg) {
-    RwTexture** out;
+static inline void load_mc_icon_list(GVTexturePair out, int device) {
     int i;
-    int device;
     unsigned char icon;
 
-    out = arg->textures;
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        out[i] = 0;
+        out.colors[i] = 0;
     }
-    device = wls_device_cursor + 1;
     if (device < 0 || device >= STORAGE_MAX_DEVICES) {
         return;
     }
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         icon = DEVICE_AT(device)->profiles[i].icon;
-        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon].color);
+        out.colors[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon].color);
     }
 }
 
-void create_left_mc_icon_list(McIconListArg* arg) {
-    RwTexture** out;
-    int i;
-    int device;
-    unsigned char icon;
+void create_right_mc_icon_list(GVTexturePair out) {
+    load_mc_icon_list(out, wls_device_cursor + 1);
+}
 
-    out = arg->textures;
+void create_left_mc_icon_list(GVTexturePair out) {
+    load_mc_icon_list(out, wls_device_cursor);
+}
+
+static inline void clear_mcard_text_matrix(char** out) {
+    int i;
+
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         out[i] = 0;
     }
-    device = wls_device_cursor;
-    if (device < 0 || device >= STORAGE_MAX_DEVICES) {
-        return;
-    }
-    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        icon = DEVICE_AT(device)->profiles[i].icon;
-        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon].color);
-    }
 }
 
-/* Soft ceiling: get_right_mcard_text_matrix ~98.21% - zero/index GPR coloring; stop. */
 void get_right_mcard_text_matrix(char** out) {
     int i;
     int device;
 
     device = wls_device_cursor + 1;
-    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        out[i] = 0;
-    }
+    clear_mcard_text_matrix(out);
     if (device < 0) {
         return;
     }
@@ -234,15 +209,12 @@ void get_right_mcard_text_matrix(char** out) {
     }
 }
 
-/* Soft ceiling: get_left_mcard_text_matrix ~99.44% - zero-copy GPR coloring; stop. */
 void get_left_mcard_text_matrix(char** out) {
     int i;
     int device;
 
     device = wls_device_cursor;
-    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        out[i] = 0;
-    }
+    clear_mcard_text_matrix(out);
     if (device < 0) {
         return;
     }
@@ -271,12 +243,12 @@ char* get_right_storage_device_space_needed(void) {
     }
     if (needed == 1) {
         unit = nbc_find_text(0x1e, 1);
-        sprintf(result, "%d %s", 1, unit);
+        sprintf(result, STR_COUNT_UNIT, needed, unit);
     } else {
         unit = nbc_find_text(0x1f, 1);
-        sprintf(result, "%d %s", needed, unit);
+        sprintf(result, STR_COUNT_UNIT, needed, unit);
     }
-    return result;
+    return right_full_card_space_string;
 }
 
 int get_right_storage_device_display_status(void) {
@@ -289,21 +261,25 @@ int get_right_storage_device_display_status(void) {
     return find_device_display_status(device);
 }
 
-char* get_right_storage_device_name(void) {
-    char* name;
-    int device;
-    unsigned long len;
+static inline char* storage_device_display_name(int device) {
+    char* name = (char*)STR_EMPTY_NAME;
 
-    device = wls_device_cursor + 1;
-    name = (char*)STR_SPACE;
-    if (device >= 0 && device < 2) {
-        name = DEVICE_AT(device)->name;
-        len = strlen(name);
-        if (len == 0) {
-            name = (char*)get_device_reference_name(device);
-        }
+    if (device < 0 || device >= 2) {
+        return name;
+    }
+    name = storage_device_name(device);
+    if (strlen(name) == 0) {
+        name = (char*)get_device_reference_name(device);
     }
     return name;
+}
+
+/* TODO: [near miss] 93.89%; empty-name pool address is scheduled before the
+ * cursor load; likely needs the anonymous readonly string pool. */
+char* get_right_storage_device_name(void) {
+    int device = wls_device_cursor + 1;
+
+    return storage_device_display_name(device);
 }
 
 char* get_left_storage_device_space_needed(void) {
@@ -312,7 +288,7 @@ char* get_left_storage_device_space_needed(void) {
     const char* unit;
 
     result = left_full_card_space_string;
-    if (wls_device_cursor < 0 || wls_device_cursor > 1) {
+    if (wls_device_cursor < 0 || wls_device_cursor >= 2) {
         return result;
     }
     needed = STORAGE_BLOCKS_REQUIRED - (int)DEVICE_AT(wls_device_cursor)->freeBlocks;
@@ -321,12 +297,12 @@ char* get_left_storage_device_space_needed(void) {
     }
     if (needed == 1) {
         unit = nbc_find_text(0x1e, 1);
-        sprintf(result, "%d %s", 1, unit);
+        sprintf(result, STR_COUNT_UNIT, needed, unit);
     } else {
         unit = nbc_find_text(0x1f, 1);
-        sprintf(result, "%d %s", needed, unit);
+        sprintf(result, STR_COUNT_UNIT, needed, unit);
     }
-    return result;
+    return left_full_card_space_string;
 }
 
 int get_left_storage_device_status(void) {
@@ -337,22 +313,9 @@ int get_left_storage_device_status(void) {
 }
 
 char* get_left_storage_device_name(void) {
-    char* name;
-    int device;
-    unsigned long len;
+    int device = wls_device_cursor;
 
-    device = wls_device_cursor;
-    name = (char*)STR_SPACE;
-    if (device >= 0 && device < 2) {
-        if (device >= 0 && device < 2) {
-            name = DEVICE_AT(device)->name;
-        }
-        len = strlen(name);
-        if (len == 0) {
-            name = (char*)get_device_reference_name(device);
-        }
-    }
-    return name;
+    return storage_device_display_name(device);
 }
 
 void set_memcard_cursor_for(int delta) {
@@ -370,22 +333,19 @@ void set_memcard_cursor_for(int delta) {
     wls_device_cursor = 1;
 }
 
-/* Soft ceiling: add_to_wls_left_cursor ~93% -- delta>1 as ble+blr vs bgtlr; stop. */
 void add_to_wls_left_cursor(int delta) {
-    if (delta < -1) {
+    if (delta < -1 || delta > 1) {
         return;
     }
-    if (delta <= 1) {
-        wls_device_cursor += delta;
-        if (wls_device_cursor < 0) {
-            wls_device_cursor = 0;
-            return;
-        }
-        if (wls_device_cursor <= 0) {
-            return;
-        }
+    wls_device_cursor += delta;
+    if (wls_device_cursor < 0) {
         wls_device_cursor = 0;
+        return;
     }
+    if (wls_device_cursor <= 0) {
+        return;
+    }
+    wls_device_cursor = 0;
 }
 
 int get_wls_left_cursor(void) {
@@ -409,9 +369,19 @@ void set_wls_left_cursor(int device) {
 }
 
 int is_device_unformatted(int device) {
-    return DEVICE_AT(device)->status == states_when_device_unformatted;
+    int i;
+    int status;
+
+    status = DEVICE_AT(device)->status;
+    for (i = 0; i < 1; i++) {
+        if (status == states_when_device_unformatted[i]) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
+/* TODO: [near miss] 79.11%; same table-scan register residue as is_device_present. */
 int is_device_error(int device) {
     int i;
     int status;
@@ -426,9 +396,20 @@ int is_device_error(int device) {
 }
 
 int is_device_full(int device) {
-    return DEVICE_AT(device)->status == states_when_device_full;
+    int i;
+    int status;
+
+    status = DEVICE_AT(device)->status;
+    for (i = 0; i < 1; i++) {
+        if (status == states_when_device_full[i]) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
+/* TODO: [near miss] 79.11%; table scan agrees; table base/offset registers and
+ * the status load schedule remain (int/unsigned/break forms measured). */
 int is_device_present(int device) {
     int i;
     int status;
@@ -442,7 +423,6 @@ int is_device_present(int device) {
     return 0;
 }
 
-/* Soft ceiling: is_storage_device_full ~99% -- freeBytes bge vs blt return-path invert; stop. */
 int is_storage_device_full(int device) {
     StorageDevice* dev;
 
@@ -467,22 +447,23 @@ void reset_sg_status(StorageDevice* device, int slot) {
     set_profile_to_default((PlayerProfile*)&device->profiles[slot]);
 }
 
+/* TODO: [near miss] 82.51%; stores/calls agree; loop counter and zero-copy
+ * registers are allocated in a different order. */
 void reset_storage_device_status_structure(int device) {
     StorageDevice* base;
     int i;
 
-    if (device < 0 || device >= STORAGE_MAX_DEVICES) {
-        return;
-    }
-    base = DEVICE_AT(device);
+    if (device >= 0 && device < STORAGE_MAX_DEVICES) {
+        base = DEVICE_AT(device);
     base->status = -1;
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         base->inUse[i] = 0;
         set_profile_to_default((PlayerProfile*)&base->profiles[i]);
     }
-    base->profileCount = 0;
+    DEVICE_AT(device)->profileCount = 0;
     summarize_unlocked_items();
     set_gsettings_to_default(&base->settings);
+    }
 }
 
 void reset_all_storage_devices_status_structure(void) {
@@ -539,8 +520,8 @@ void move_player_name(unsigned char* src, unsigned char* dest) {
     }
 }
 
+/* TODO: [near miss] 97.10%; base/index GPR coloring remains; stop at coloring. */
 void storage_status_change_calculations(int device) {
-    /* Soft ceiling: ~97.11% -- base/index GPR coloring only; stop. */
     int i;
     StorageDevice* base;
     unsigned char* profileCount;
@@ -550,7 +531,7 @@ void storage_status_change_calculations(int device) {
     *profileCount = 0;
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         if (base->profiles[i].present != 0) {
-            *profileCount = (unsigned char)(*profileCount + 1);
+            *profileCount = *profileCount + 1;
         }
     }
 }
@@ -614,11 +595,9 @@ void region_data_corruption_message_handler(void) {
     quit_from_konquest();
 }
 
-/*
- * Soft ceiling: load_from_memcard_w_error ~71.95% - NV color (r21/r22/r31
- * strs vs storage vs &scratch) + region-result call schedule; stop.
- */
 #pragma dont_inline on
+/* TODO: [near miss] 72.10%; nonvolatile homes for strs/storage/scratch and the
+ * region-result call schedule remain. */
 int load_from_memcard_w_error(int device, int mode, void* settings, char* cardName, int nameLen,
                               unsigned int* freeBlocks, int* freeBytes) {
     char* strs;
@@ -675,13 +654,8 @@ int load_from_memcard_w_error(int device, int mode, void* settings, char* cardNa
 }
 #pragma dont_inline reset
 
-/*
- * Soft ceiling: end_save_message ~98% - dispatcher dead `b` after mode6
- * fallthrough (switch emit); algo OK, stop.
- * Retail .text order: create -> save(1/2/6) -> delete -> mode7/8; mode5 no msg_end.
- */
+/* TODO: [near miss] 98.18%; switch emits a dead branch after the mode-6 fallthrough. */
 void end_save_message(int mode, int result, int device, int flag) {
-    /* Case order = retail block order (Q20). */
     switch (mode) {
     case 5:
         return;
@@ -800,6 +774,8 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
     return 0;
 }
 
+/* TODO: [near miss] 79.08%; prologue homes, retry-loop, switch and vtable
+ * scheduling remain. */
 int save_settings_to_memcard_w_error(int device, int mode, const char* title,
                                      GameSettings* settings, int flag,
                                      unsigned int* freeBlocks, int* freeBytes) {
@@ -837,7 +813,7 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
         }
 
         _mkproc_sleep_ticks = kThree;
-        vtbl = (MkVtableMkproc*)aproc->vtbl;
+        vtbl = aproc->vtbl;
         vtbl->sleep();
 
         tries = 2;
@@ -859,15 +835,9 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
     return result == 0;
 }
 
-/* Soft ceiling: save_settings_to_memcard_w_error ~77.98% -- full retail
- * algorithm; remaining prologue NV, retry-loop, switch, and vtable scheduling.
- */
-
-/*
- * Soft ceiling: save_to_memcard_w_error ~90.76% - retry subi schedule, progress
- * add order, mode-4/result branch sense, prologue NV; algo OK, stop.
- */
 #pragma dont_inline on
+/* TODO: [near miss] 90.93%; retry subi schedule, progress add order, mode-4
+ * branch sense and prologue homes remain. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -888,8 +858,8 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     dev = DEVICE_AT(device);
     deviceFreeBytes = &dev->freeBytes;
     deviceFreeBlocks = &dev->freeBlocks;
-    modeMinus1 = (unsigned int)(mode - 1);
-    modeMinus6 = (unsigned int)(mode - 6);
+    modeMinus1 = mode - 1;
+    modeMinus6 = mode - 6;
 
     do {
         result = 0;
@@ -899,11 +869,10 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
             mu_access_progress = 0;
             fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
             _mkproc_sleep_ticks = kThree;
-            vtbl = (MkVtableMkproc*)aproc->vtbl;
+            vtbl = aproc->vtbl;
             vtbl->sleep();
         }
         while (cont == 0) {
-            /* Dense 0..8 switch -> retail jumptable @1622. */
             switch (mode) {
             case 0:
                 break;
@@ -927,14 +896,14 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 break;
             }
             _mkproc_sleep_ticks = kOne;
-            vtbl = (MkVtableMkproc*)aproc->vtbl;
+            vtbl = aproc->vtbl;
             vtbl->sleep();
 
             if (mode == 3) {
                 mu_access_progress = 9;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkproc*)aproc->vtbl;
+                vtbl = aproc->vtbl;
                 vtbl->sleep();
                 strs = (char*)stringBase0;
                 tries = 2;
@@ -948,7 +917,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 mu_access_progress = 0x12;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkproc*)aproc->vtbl;
+                vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
                     memset(konq_region_data_buffer, 0, SAVE_CHUNK_SIZE);
@@ -974,7 +943,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                         mu_access_progress = (chunk + progressBase) + 0x13;
                         fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                         _mkproc_sleep_ticks = kThree;
-                        vtbl = (MkVtableMkproc*)aproc->vtbl;
+                        vtbl = aproc->vtbl;
                         vtbl->sleep();
                         profile += 1;
                         progressBase += 7;
@@ -998,7 +967,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 mu_access_progress = 100;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkproc*)aproc->vtbl;
+                vtbl = aproc->vtbl;
                 vtbl->sleep();
             }
 
@@ -1031,8 +1000,8 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 }
 #pragma dont_inline reset
 
+/* TODO: [near miss] 98.24%; loop base/index coloring remains; stop at coloring. */
 void insert_mu(int device, int arg1, int arg2) {
-    /* Soft ceiling: insert_mu ~98.13% - loop base/index coloring; stop. */
     StorageDevice* base;
     int i;
 
@@ -1055,21 +1024,16 @@ void insert_mu(int device, int arg1, int arg2) {
     }
 }
 
-#pragma opt_common_subs off
 void remove_mu(int device, int arg1, int arg2) {
-    StorageDevice* storage;
-
     if (device < 0 || device >= STORAGE_MAX_DEVICES) {
         return;
     }
     reset_storage_device_status_structure(device);
-    storage = DEVICE_AT(device);
-    storage->status = 1;
-    strcpy(storage->name, STR_EMPTY_NAME);
-    storage->freeBlocks = 0;
-    storage->freeBytes = 0;
+    DEVICE_AT(device)->status = 1;
+    strcpy(DEVICE_AT(device)->name, STR_EMPTY_NAME);
+    DEVICE_AT(device)->freeBlocks = 0;
+    DEVICE_AT(device)->freeBytes = 0;
 }
-#pragma opt_common_subs reset
 
 int init_memcard(void) {
     int ok;

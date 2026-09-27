@@ -526,23 +526,26 @@ void ppv_get_current_profile_koins(char* dest, int index) {
     format_value_to_display(dest, value);
 }
 
-/* outs[0..8] string buffers for the nine retail win/loss stat pairs. */
-void get_profile_stats(char** outs) {
-    StorageProfileSlot* slot;
-    char result[12];
-    char second_1[12], first_1[12];
-    char second_2[12], first_2[12];
-    char second_3[12], first_3[12];
-    char second_4[12], first_4[12];
-    char second_5[12], first_5[12];
-    char second_6[12], first_6[12];
-    char second_7[12], first_7[12];
-    char second_8[12], first_8[12];
-    char second_9[12], first_9[12];
-    unsigned int raw_first;
-    unsigned int raw_second;
+static void format_profile_stat_pair(char* result, unsigned int raw_first,
+                                            unsigned int raw_second) {
+    char first_text[12];
+    char second_text[12];
     unsigned int first;
     unsigned int second;
+
+    first = 999999U;
+    if (raw_first < 1000000U) first = raw_first;
+    second = 999999U;
+    if (raw_second < 1000000U) second = raw_second;
+    format_value_to_display(first_text, first);
+    format_value_to_display(second_text, second);
+    sprintf(result, "%s / %s", first_text, second_text);
+}
+
+/* TODO: [near miss] 99.95%; only the last expansion's second-clamp register (retail r31, ours r29) remains. */
+void get_profile_stats(char** outs) {
+    StorageProfileSlot* slot;
+    char result[24];
     int out_index;
 
     for (out_index = 0; out_index < 9; out_index++) {
@@ -556,103 +559,32 @@ void get_profile_stats(char** outs) {
         slot = 0;
     }
     if (slot != 0) {
-        raw_first = slot->view_stats_early[0][0];
-        raw_second = slot->view_stats_early[0][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_1, first);
-        format_value_to_display(second_1, second);
-        sprintf(result, "%s / %s", first_1, second_1);
+        format_profile_stat_pair(result, slot->view_stats_early[0][0],
+                                 slot->view_stats_early[0][1]);
         strcpy(outs[0], result);
-
-        raw_first = slot->view_stats_early[1][0];
-        raw_second = slot->view_stats_early[1][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_2, first);
-        format_value_to_display(second_2, second);
-        sprintf(result, "%s / %s", first_2, second_2);
+        format_profile_stat_pair(result, slot->view_stats_early[1][0],
+                                 slot->view_stats_early[1][1]);
         strcpy(outs[1], result);
-
-        raw_first = slot->view_stats_early[2][0];
-        raw_second = slot->view_stats_early[2][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_3, first);
-        format_value_to_display(second_3, second);
-        sprintf(result, "%s / %s", first_3, second_3);
+        format_profile_stat_pair(result, slot->view_stats_early[2][0],
+                                 slot->view_stats_early[2][1]);
         strcpy(outs[2], result);
-
-        raw_first = slot->view_stats_mid[0][0];
-        raw_second = slot->view_stats_mid[0][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_4, first);
-        format_value_to_display(second_4, second);
-        sprintf(result, "%s / %s", first_4, second_4);
+        format_profile_stat_pair(result, slot->view_stats_mid[0][0],
+                                 slot->view_stats_mid[0][1]);
         strcpy(outs[3], result);
-
-        raw_first = slot->view_stats_mid[1][0];
-        raw_second = slot->view_stats_mid[1][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_5, first);
-        format_value_to_display(second_5, second);
-        sprintf(result, "%s / %s", first_5, second_5);
+        format_profile_stat_pair(result, slot->view_stats_mid[1][0],
+                                 slot->view_stats_mid[1][1]);
         strcpy(outs[4], result);
-
-        raw_first = slot->view_stats_mid[2][0];
-        raw_second = slot->view_stats_mid[2][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_6, first);
-        format_value_to_display(second_6, second);
-        sprintf(result, "%s / %s", first_6, second_6);
+        format_profile_stat_pair(result, slot->view_stats_mid[2][0],
+                                 slot->view_stats_mid[2][1]);
         strcpy(outs[5], result);
-
-        raw_first = slot->view_stats_late[0][0];
-        raw_second = slot->view_stats_late[0][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_7, first);
-        format_value_to_display(second_7, second);
-        sprintf(result, "%s / %s", first_7, second_7);
+        format_profile_stat_pair(result, slot->view_stats_late[0][0],
+                                 slot->view_stats_late[0][1]);
         strcpy(outs[6], result);
-
-        raw_first = slot->view_stats_late[1][0];
-        raw_second = slot->view_stats_late[1][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_8, first);
-        format_value_to_display(second_8, second);
-        sprintf(result, "%s / %s", first_8, second_8);
+        format_profile_stat_pair(result, slot->view_stats_late[1][0],
+                                 slot->view_stats_late[1][1]);
         strcpy(outs[7], result);
-
-        raw_first = slot->view_stats_late[2][0];
-        raw_second = slot->view_stats_late[2][1];
-        first = 999999U;
-        if (raw_first < 1000000U) first = raw_first;
-        second = 999999U;
-        if (raw_second < 1000000U) second = raw_second;
-        format_value_to_display(first_9, first);
-        format_value_to_display(second_9, second);
-        sprintf(result, "%s / %s", first_9, second_9);
+        format_profile_stat_pair(result, slot->view_stats_late[2][0],
+                                 slot->view_stats_late[2][1]);
         strcpy(outs[8], result);
     }
 }

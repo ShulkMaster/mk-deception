@@ -29,7 +29,8 @@ typedef struct ScreenObjVtable {
 
 /* ScreenObj +0x0C flags; the hide bit is 0x10. */
 typedef struct ScreenObjFlags {
-    unsigned char pad0 : 3;
+    unsigned char pad0 : 2;
+    unsigned char bit5 : 1;
     unsigned char hidden : 1;
     unsigned char scaled : 1;
     unsigned char bit2 : 1;

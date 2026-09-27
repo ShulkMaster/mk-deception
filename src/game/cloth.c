@@ -14,21 +14,10 @@
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
 
-/*
- * Soft ceiling: retail gives several automatic Vec/Quat temporaries 16-byte
- * stack alignment for paired-single scheduling. Portable C has no automatic
- * object-alignment syntax, so compiler-specific alignment attributes are
- * intentionally avoided; the remaining residue is stack layout, register
- * allocation, and scheduling rather than cloth behavior or data layout.
- */
-
 static float p_cloth(void);
 static float p_wind(void);
 static float p_wind_lp(void);
 typedef struct ClothInitEntry ClothInitEntry;
-void cloth_bones_init_by_tbl(
-    MkObj* obj, ClothInitEntry* table, int count);
-void start_cloth_bones(MkObj* obj);
 float p_axis_track_bone_world_mat(void);
 struct ClothForcePdata;
 static void do_cloth_force(struct ClothForcePdata* force);
@@ -119,11 +108,6 @@ int shadow_bones[37] = {
     0x000F, 0x0010, 0x0018, 0x0019, 0x001A, 0x001B, 0x001C,
     0x001D, 0,
 };
-/*
- * Soft ceiling: retail keeps a zero word at .data+0x94. MWCC moves an
- * ordinary zero-initialized C object to BSS, so the split-assembly label is
- * retained instead of forcing section placement with a compiler extension.
- */
 extern int gap_05_8033EDA4_data;
 
 static void cloth_coll_vector_cyl(void);
@@ -131,7 +115,6 @@ static void cloth_coll_point_cyl_abs(void);
 static void cloth_coll_point_cyl_inside(void);
 static void cloth_coll_point_cyl_rel(void);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
-void PSVECAdd(const Vec* first, const Vec* second, Vec* output);
 
 typedef struct ClothWindPdata {
     MkHdr hdr;
@@ -146,11 +129,6 @@ typedef struct ClothWindPdata {
 } ClothWindPdata;
 
 
-/*
- * Soft ceiling: MWCC inlines this approximation at all three callers but
- * also emits an unused local copy. Declaring it inline or expanding it as a
- * macro crashes mwcceppc 2.7 at -O4,s, so the clean typed function is kept.
- */
 static float cloth_sqrt(float value) {
     union {
         float f;
@@ -158,11 +136,10 @@ static float cloth_sqrt(float value) {
     } input, guess;
     float refined;
 
-    if (!(value > 0.0f)) {
+    input.f = value;
+    if (value <= 0.0f) {
         return 0.0f;
     }
-    input.f = value;
-    /* Retail lhzx uses a byte offset; this array index counts halfwords. */
     guess.u =
         (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     guess.u |=
@@ -188,8 +165,8 @@ static inline ClothBone* find_cloth_bone_by_tag(MkObj* obj, int bone_id) {
     unsigned int index;
 
     bone_id &= 0xFFF;
-    count = obj->cloth_bone_count;
     bone = obj->cloth_bones;
+    count = obj->cloth_bone_count;
     for (index = 0; index < count; index++) {
         if ((bone->bone->tag & 0xFFF) == bone_id) {
             return bone;
@@ -275,12 +252,11 @@ void mks_npc_cb1_eq_cloth_bone(int model_index, int bone_id) {
     mks_cb1 = find_cloth_bone_by_tag(obj, bone_id);
 }
 
-/* TODO: [near miss] 99.34426%; object/bone register coloring and literal identity remain; declaration control rejected; stop at coloring */
 void mks_npc_cc1_eq_insert_cloth_coll(
     int model_index, int bone_index, float radius) {
     ClothCollisionVolume* volume;
-    MkObj* object;
     MkBone* bone;
+    MkObj* object;
 
     object = g_bgnd_preloaded_models[model_index];
     if (object != 0) {
@@ -306,6 +282,16 @@ void mks_npc_cc1_eq_insert_cloth_coll(
     }
 }
 
+static inline void cloth_bone_set_target(ClothBone* bone, ClothBone* target) {
+    if (bone != 0 && target != 0) {
+        bone->target_bone = target;
+        gxVectUVV3ToV3(
+            &bone->target_vector,
+            &bone->bone->parent_matrix->pos_vec,
+            &target->bone->parent_matrix->pos_vec);
+    }
+}
+
 void mks_npc_set_target(
     int model_index, int source_bone_id, int target_bone_id) {
     MkObj* object;
@@ -324,12 +310,7 @@ void mks_npc_set_target(
     if (target == 0) {
         return;
     }
-
-    source->target_bone = target;
-    gxVectUVV3ToV3(
-        &source->target_vector,
-        &source->bone->parent_matrix->pos_vec,
-        &target->bone->parent_matrix->pos_vec);
+    cloth_bone_set_target(source, target);
 }
 
 void mks_npc_cloth_bones_init_by_tbl(
@@ -354,58 +335,63 @@ void mks_npc_start_cloth_bones(int model_index) {
     }
 }
 
+static inline MkObj* start_axis_indicator(
+    MkObj* target, int bone_index, float scale, MkProcEntryFn track) {
+    AxisPdata* pdata;
+    MkProc* proc;
+    MkObj* axis;
+
+    axis = load_model_from_slot(0, 0x1000C, 0x5001);
+    if (axis != 0) {
+        axis->pos.value.z = 0.0f;
+        axis->pos.value.y = 0.025f;
+        axis->flags_08_bits.bit7 = 1;
+        if (track != 0) {
+            axis->hide_flag_bits.hidden = 1;
+        }
+        axis->light_flags = 4;
+        insert_fgnd_mkobj(axis);
+
+        if (track != 0) {
+            proc = _create_mkproc_generic_nostack(
+                0x5004, 0x17, track, sizeof(AxisPdata), (MkHdr**)&pdata);
+            if (pdata != 0) {
+                proc->pre_destroy = pw_axis;
+                proc->destroy_cb = ps_axis;
+                pdata->axis = axis;
+                pdata->axis_instance = axis->hdr.instance;
+                pdata->target = target;
+                if (target != 0) {
+                    target_obj_item.object = target;
+                    target_obj_item.instance = target->hdr.instance;
+                }
+                pdata->state = 0;
+                pdata->bone_index = bone_index;
+            }
+        }
+    }
+
+    if (axis != 0) {
+        if (scale == 1.0f) {
+            axis->flags_08_bits.scale_active = 0;
+        } else {
+            axis->flags_08_bits.scale_active = 1;
+            axis->scale.x = axis->scale.y = axis->scale.z = scale;
+        }
+    }
+    return axis;
+}
+
 void mks_start_axis_indicator_p_axis_track_bone_world_mat(
     int bone_tag,
     float scale) {
-    AxisPdata* pdata;
-    MkProc* proc;
-    MkObj* target;
-    MkObj* axis;
     int bone_index;
 
     bone_index = obj_get_bid_for_tid(plyr_obj, bone_tag);
     if (bone_index < 0) {
         return;
     }
-
-    target = plyr_obj;
-    axis = load_model_from_slot(0, 0x1000C, 0x5001);
-    if (axis == 0) {
-        return;
-    }
-
-    axis->pos.value.z = 0.0f;
-    axis->pos.value.y = 0.025f;
-    axis->flags_08 |= 0x80;
-    axis->hide_flags |= 0x20;
-    axis->light_flags = 4;
-    insert_fgnd_mkobj(axis);
-
-    proc = _create_mkproc_generic_nostack(
-        0x5004, 0x17, p_axis_track_bone_world_mat, sizeof(AxisPdata),
-        (MkHdr**)&pdata);
-    if (pdata != 0) {
-        proc->pre_destroy = pw_axis;
-        proc->destroy_cb = ps_axis;
-        pdata->axis = axis;
-        pdata->axis_instance = axis->hdr.instance;
-        pdata->target = target;
-        if (target != 0) {
-            target_obj_item.object = target;
-            target_obj_item.instance = target->hdr.instance;
-        }
-        pdata->state = 0;
-        pdata->bone_index = bone_index;
-    }
-
-    if (scale == 1.0f) {
-        axis->flags_08 &= ~2;
-    } else {
-        axis->flags_08 |= 2;
-        axis->scale.x = scale;
-        axis->scale.y = scale;
-        axis->scale.z = scale;
-    }
+    start_axis_indicator(plyr_obj, bone_index, scale, p_axis_track_bone_world_mat);
 }
 
 void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(
@@ -457,14 +443,9 @@ void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void) {
     }
 }
 
-/* TODO: [near miss] 97.00000%; owner/index GPR coloring remains; declaration control regressed and was reverted. */
-void mks_ccp1_insert_cb1(void) {
-    ClothCollisionPlane* plane;
-    ClothBone* bone;
+static inline void cloth_plane_add_bone(ClothCollisionPlane* plane, ClothBone* bone) {
     unsigned int index;
 
-    plane = mks_ccp1;
-    bone = mks_cb1;
     if (plane == 0) {
         return;
     }
@@ -472,11 +453,14 @@ void mks_ccp1_insert_cb1(void) {
         return;
     }
     index = plane->bone_count;
-    if (index >= 12) {
-        return;
+    if (index < 12) {
+        plane->bone_count = index + 1;
+        plane->bones[index] = bone;
     }
-    plane->bone_count = index + 1;
-    plane->bones[index] = bone;
+}
+
+void mks_ccp1_insert_cb1(void) {
+    cloth_plane_add_bone(mks_ccp1, mks_cb1);
 }
 
 void mks_cc1_expand_cyl(float top, float bottom) {
@@ -486,14 +470,9 @@ void mks_cc1_expand_cyl(float top, float bottom) {
     }
 }
 
-/* TODO: [near miss] 97.50000%; owner/bone GPR coloring remains; declaration control was neutral. */
-void mks_cc1_insert_cb1(void) {
-    ClothCollisionVolume* volume;
-    ClothBone* bone;
+static inline void cloth_volume_add_bone(ClothCollisionVolume* volume, ClothBone* bone) {
     unsigned int index;
 
-    volume = mks_cc1;
-    bone = mks_cb1;
     if (volume == 0) {
         return;
     }
@@ -501,12 +480,15 @@ void mks_cc1_insert_cb1(void) {
         return;
     }
     index = volume->bone_count;
-    if (index >= 12) {
-        return;
+    if (index < 12) {
+        volume->bone_count = index + 1;
+        volume->bones[index] = bone;
+        volume->bone_settings[volume->bone_count] = 0;
     }
-    volume->bone_count = index + 1;
-    volume->bones[index] = bone;
-    volume->bone_settings[volume->bone_count] = 0;
+}
+
+void mks_cc1_insert_cb1(void) {
+    cloth_volume_add_bone(mks_cc1, mks_cb1);
 }
 
 /* TODO: [near miss] 97.55102%; only independent constant/address preparation order differs; retail allocation, flags and normalization agree; stop at scheduling */
@@ -534,14 +516,11 @@ void mks_ccp1_eq_insert_cloth_coll_plane(
     mks_ccp1 = plane;
 }
 
-/* TODO: [near miss] 98.57143%; retail allocation and owner reads restored;
- * owner/volume GPR coloring and literal identity remain; stop after declaration control. */
-void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius) {
-    MkObj* object;
+static inline ClothCollisionVolume* create_cloth_coll_on_obj(
+    MkObj* object, int bone_index, float radius) {
     MkBone* bone;
     ClothCollisionVolume* volume;
 
-    object = plyr_obj;
     bone = object->bones[bone_index];
     volume = (ClothCollisionVolume*)get_mkhdr(
         &vtbl_cloth_coll, sizeof(*volume));
@@ -560,11 +539,13 @@ void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius) {
     if (volume != 0) {
         mk_insert((MkHdr*)volume, &object->list_80);
     }
-    mks_cc1 = volume;
+    return volume;
 }
 
-/* TODO: [near miss] 99.92958%; instructions and literal values agree;
- * generated literal relocation identity remains; stop at pool layout. */
+void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius) {
+    mks_cc1 = create_cloth_coll_on_obj(plyr_obj, bone_index, radius);
+}
+
 void mks_cb1_set_scale(
     int include_children, float scale_x, float scale_y, float scale_z) {
     MkBone* bone;
@@ -601,23 +582,8 @@ void mks_cb1_set_scale(
     }
 }
 
-/*
- * Soft ceiling: ~97.95% -- exact control flow and size; the two typed cloth
- * pointers color to r4/r6 instead of retail r5/r4.
- */
 void mks_set_cb1_target_bone_cb2(void) {
-    ClothBone* bone;
-    ClothBone* target;
-
-    bone = mks_cb1;
-    target = mks_cb2;
-    if (bone != 0 && target != 0) {
-        bone->target_bone = target;
-        gxVectUVV3ToV3(
-            &bone->target_vector,
-            &bone->bone->parent_matrix->pos_vec,
-            &target->bone->parent_matrix->pos_vec);
-    }
+    cloth_bone_set_target(mks_cb1, mks_cb2);
 }
 
 void mks_cb1_set_coll_offset(float x, float y, float z) {
@@ -687,16 +653,14 @@ void mks_set_ground_y_all_cloth_bones(float ground_y) {
     }
 }
 
-void mks_insert_cloth_force_bones(float rest_length, float stiffness) {
+static inline void insert_cloth_force(
+    MkObj* obj, ClothBone* first, ClothBone* second,
+    float rest_length, float stiffness) {
     ClothForcePdata* pdata;
-    ClothBone* first;
-    ClothBone* second;
-    MkObj* obj;
 
-    first = mks_cb1;
-    second = mks_cb2;
-    obj = plyr_obj;
-    if (first == 0 || second == 0) {
+    if (first == 0) {
+        pdata = 0;
+    } else if (second == 0) {
         pdata = 0;
     } else {
         pdata = (ClothForcePdata*)get_mkpdata_generic(sizeof(ClothForcePdata));
@@ -710,6 +674,10 @@ void mks_insert_cloth_force_bones(float rest_length, float stiffness) {
     if (pdata != 0) {
         mk_insert((MkHdr*)pdata, &obj->list_7C);
     }
+}
+
+void mks_insert_cloth_force_bones(float rest_length, float stiffness) {
+    insert_cloth_force(plyr_obj, mks_cb1, mks_cb2, rest_length, stiffness);
 }
 
 void mks_cb2_eq_cloth_bone(int bone_id) {
@@ -733,36 +701,30 @@ void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags) {
     cloth_bones_init_by_tbl(plyr_obj, table, flags);
 }
 
-/* Soft ceiling: mks_bgnd_start_wind ~90.20% -- emit coloring/reloads only. */
+/* TODO: [near miss] 98.50%; retail stores base_wind_v3 from the raw double arguments and wind_v3 from frsp copies; ours reuses the frsp values for both. */
 void mks_bgnd_start_wind(double x, double y, double z) {
-    MkHdr* pdata_hdr;
     ClothWindPdata* pdata;
     MkProc* proc;
-    float wind_x;
-    float wind_y;
 
-    wind_x = (float)x;
-    wind_y = (float)y;
-    base_wind_v3.x = (float)x;
-    base_wind_v3.y = (float)y;
-    base_wind_v3.z = (float)z;
-    wind_v3.x = wind_x;
-    wind_v3.y = wind_y;
-    wind_v3.z = (float)z;
+    base_wind_v3.x = x;
+    base_wind_v3.y = y;
+    base_wind_v3.z = z;
+    wind_v3.x = x;
+    wind_v3.y = y;
+    wind_v3.z = z;
 
     proc = _create_mkproc_generic_nostack(
         0x500D,
         0x2B,
         p_wind,
         sizeof(ClothWindPdata),
-        &pdata_hdr);
+        (MkHdr**)&pdata);
     if (proc != 0) {
         if (g_game_info.bgnd_obj != 0) {
             mk_insert((MkHdr*)proc, &g_game_info.bgnd_obj->child_list);
         }
-        if (pdata_hdr != 0) {
-            zero_pdata_payload(sizeof(ClothWindPdata), pdata_hdr);
-            pdata = (ClothWindPdata*)pdata_hdr;
+        if (pdata != 0) {
+            zero_pdata_payload(sizeof(ClothWindPdata), &pdata->hdr);
             pdata->amplitude = 0.3f;
             pdata->acceleration = 0.06f;
             pdata->random_scale = 0.01f;
@@ -784,7 +746,6 @@ static float p_wind(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: p_wind_lp ~99.76% -- shared 1.0f pool label only. */
 static float p_wind_lp(void) {
     ClothWindPdata* pdata;
     ClothProcVtable* vtable;
@@ -866,7 +827,6 @@ static void mkobj_update_cloth(MkHdr* header) {
             cloth_obj_mat = &object->frame->modelling;
             RwMatrixInvert(&cloth_obj_mat_inv, cloth_obj_mat);
 
-            bone = cloth_obj->cloth_bones;
             for (index = 0; index < cloth_obj->cloth_bone_count; index++) {
                 if (bone->active == 1) {
                     calc_cloth_dwp(bone);
@@ -901,19 +861,13 @@ static void mkobj_update_cloth(MkHdr* header) {
     }
 }
 
-/* TODO: [breakthrough] 85.56198%; sqrt halfword indexing restored;
- * vector stack alignment and register allocation remain. */
 static void do_cloth_force(ClothForcePdata* force) {
     ClothBone* first;
     ClothBone* second;
     Vec* first_position;
     Vec* second_position;
-    Vec difference;
-    Vec direction;
-    Vec second_compression;
-    Vec first_compression;
-    Vec second_extension;
-    Vec first_extension;
+    Vec difference __attribute__((aligned(16)));
+    Vec direction __attribute__((aligned(16)));
     float distance_squared;
     float distance;
     float inverse_distance;
@@ -927,7 +881,7 @@ static void do_cloth_force(ClothForcePdata* force) {
     PSVECSubtract(second_position, first_position, &difference);
     distance_squared = PSVECDotProduct(&difference, &difference);
     distance = cloth_sqrt(distance_squared);
-    if (distance != 0.0f) {
+    if (distance) {
         inverse_distance = 1.0f / distance;
     } else {
         inverse_distance = 1.0f;
@@ -935,6 +889,9 @@ static void do_cloth_force(ClothForcePdata* force) {
     PSVECScale(&difference, &direction, inverse_distance);
 
     if (distance < force->rest_length) {
+        Vec second_compression;
+        Vec first_compression;
+
         force_amount =
             force->stiffness * (force->rest_length - distance);
         first_adjustment =
@@ -949,6 +906,9 @@ static void do_cloth_force(ClothForcePdata* force) {
         PSVECAdd(
             first_position, &first_compression, first_position);
     } else {
+        Vec second_extension;
+        Vec first_extension;
+
         force_amount = force->stiffness * (distance - force->rest_length);
         first_adjustment =
             force_amount * first->table_weight /
@@ -995,7 +955,6 @@ static void do_cloth_colls(MkHdr* collision) {
             if (cloth_coll_bone->flags_55_bits.collision_deferred) {
                 return;
             }
-            /* Retail 8008BC98 reads radius (+0x0C), not the axial bottom. */
             cloth_coll_radius_sq = cloth_coll->radius;
             cloth_coll_radius_sq *= cloth_coll_radius_sq;
             PSVECSubtract(
@@ -1106,21 +1065,20 @@ static void do_cloth_colls(MkHdr* collision) {
             }
         }
     } else if (collision->vtbl == &vtbl_cloth_coll_volume) {
-        /* Retail reserves this collision object type without an update path. */
     }
 }
 
-/* TODO: [near miss] 88.31868%; Retail predicates, signed loop bounds and owner reloads agree; remaining 16-byte automatic vector stack, scratch-base materialization and register allocation. Stop pending recovered aligned type. */
+/* TODO: [near miss] 93.13%; world_point aligned and slots ordered like retail; frame size (0xa0) and the scratch-base CSE (retail keeps only r31) still differ. */
 static void cloth_coll_point_cyl_inside(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec axis_offset_0;
-    Vec axis_point_0;
+    Vec world_point __attribute__((aligned(16)));
     Vec radial_direction_0;
-    Vec axis_offset_1;
-    Vec axis_point_1;
+    Vec axis_point_0;
     Vec radial_direction_1;
-    Vec world_point;
+    Vec axis_point_1;
+    Vec axis_offset_0;
+    Vec axis_offset_1;
     int index;
     int collided;
     float position_weight;
@@ -1435,17 +1393,17 @@ static void cloth_coll_point_cyl_abs(void) {
     }
 }
 
-/* TODO: [near miss] 89.52381%; Retail predicates, signed loop bounds and owner reloads agree; remaining 16-byte automatic vector stack, scratch-base materialization and register allocation. Stop pending recovered aligned type. */
+/* TODO: [near miss] 94.13%; aligned vector slots match retail; retail keeps only the scratch base in r31 (no CSE of its field addresses) and force_position in r29. */
 static void cloth_coll_point_cyl_rel(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec axis_point_0;
-    Vec offset_point_0;
-    Vec radial_direction_0;
-    Vec axis_point_1;
-    Vec offset_point_1;
-    Vec radial_direction_1;
-    Vec world_point;
+    Vec world_point __attribute__((aligned(16)));
+    Vec offset_point_0 __attribute__((aligned(16)));
+    Vec radial_direction_0 __attribute__((aligned(16)));
+    Vec axis_point_0 __attribute__((aligned(16)));
+    Vec offset_point_1 __attribute__((aligned(16)));
+    Vec radial_direction_1 __attribute__((aligned(16)));
+    Vec axis_point_1 __attribute__((aligned(16)));
     int index;
     int collided;
     float position_weight;
@@ -1550,15 +1508,16 @@ static void cloth_coll_point_cyl_rel(void) {
     }
 }
 
-/* TODO: [near miss] 93.40909%; Aligned local stack and retail unwritten identity flags remain; stop at evidence limit. */
 static void set_cloth_pos(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
-    Vec object_position;
-    Vec direction;
-    Vec normalized_direction;
+    RwMatrix inverse_parent __attribute__((aligned(16)));
+    Vec direction __attribute__((aligned(16)));
+    Vec normalized_direction __attribute__((aligned(16)));
+    Vec object_position __attribute__((aligned(16)));
+    Vec target_direction __attribute__((aligned(16)));
     Quat rotation;
-    RwMatrix inverse_parent;
+    Vec zero_scale;
     float interpolation;
 
     render_bone = bone->bone;
@@ -1582,15 +1541,15 @@ static void set_cloth_pos(ClothBone* bone) {
                 &bone->target_bone->force_position,
                 &bone->force_position, &object_position);
             gxMat33Tx31(
-                &direction, &object_position,
+                &target_direction, &object_position,
                 (Mat33*)&cloth_obj_mat_inv);
             RwMatrixInvert(&inverse_parent, parent_bone->parent_matrix);
             gxMat33Tx31(
-                &object_position, &direction,
+                &object_position, &target_direction,
                 (Mat33*)&inverse_parent);
-            PSVECNormalize(&object_position, &direction);
+            PSVECNormalize(&object_position, &target_direction);
             gxVectV3V3ToQuat(
-                &rotation, &bone->target_vector, &direction);
+                &rotation, &bone->target_vector, &target_direction);
             if (render_bone->update_tick == (unsigned int)exec_tick_ctr &&
                 render_bone->field_60 > 0.0f) {
                 interpolation = render_bone->field_60 > 1.0f
@@ -1618,25 +1577,21 @@ static void set_cloth_pos(ClothBone* bone) {
         if (render_bone->flags_55_bits.scale_controlled &&
             !parent_bone->flags_54_bits.hierarchy_driven &&
             parent_bone->flags_55_bits.scale_controlled) {
-            Vec zero_scale;
             zero_scale.x = zero_scale.y = zero_scale.z = 0.0f;
             inverse_parent.right.x = inverse_parent.up.y =
                 inverse_parent.at.z = 1.0f;
-            inverse_parent.up.x = inverse_parent.right.z =
-                inverse_parent.right.y = 0.0f;
-            inverse_parent.at.y = inverse_parent.at.x =
-                inverse_parent.up.z = 0.0f;
-            inverse_parent.pos.z = inverse_parent.pos.y =
-                inverse_parent.pos.x = 0.0f;
-            inverse_parent.flags = 0x20003;
-            RwMatrixScale(
-                &inverse_parent, (const RwV3d*)&zero_scale, 0);
+            inverse_parent.right.y = inverse_parent.right.z =
+                inverse_parent.up.x = 0.0f;
+            inverse_parent.up.z = inverse_parent.at.x =
+                inverse_parent.at.y = 0.0f;
+            inverse_parent.pos.x = inverse_parent.pos.y =
+                inverse_parent.pos.z = 0.0f;
+            inverse_parent.flags |= 0x20003;
+            RwMatrixScale(&inverse_parent, (const RwV3d*)&zero_scale, 0);
         } else {
             RwMatrixInvert(&inverse_parent, parent_bone->parent_matrix);
         }
-        gxMat33Tx31(
-            &direction, &object_position,
-            (Mat33*)&inverse_parent);
+        gxMat33Tx31(&direction, &object_position, (Mat33*)&inverse_parent);
         if (direction.x == 0.0f && direction.y == 0.0f &&
             direction.z == 0.0f) {
             direction.z = 0.00001f;
@@ -1665,15 +1620,12 @@ static void set_cloth_pos(ClothBone* bone) {
     }
 }
 
-/* TODO: [breakthrough] 90.89697%; sqrt halfword indexing restored;
- * vector stack alignment and register allocation remain. */
 static void calc_cloth_stretch(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
     ClothBone* parent_cloth;
-    Vec difference;
-    Vec direction;
-    Vec adjustment;
+    Vec difference __attribute__((aligned(16)));
+    Vec direction __attribute__((aligned(16)));
     float distance_squared;
     float distance;
     float inverse_distance;
@@ -1699,67 +1651,62 @@ static void calc_cloth_stretch(ClothBone* bone) {
             }
             distance_squared = PSVECDotProduct(&difference, &difference);
             distance = cloth_sqrt(distance_squared);
-            if (distance != 0.0f) {
+            if (distance) {
                 inverse_distance = 1.0f / distance;
             } else {
                 inverse_distance = 1.0f;
             }
             PSVECScale(&difference, &direction, inverse_distance);
             if (distance < bone->rest_length) {
+                Vec parent_push;
+                Vec push;
+
                 correction =
                     -(0.1f * bone->stretch_weight - 1.0f) *
                     (bone->rest_length - distance);
                 bone->current_length = distance + correction;
-                if (parent_cloth != 0 &&
-                    parent_cloth->stretch_weight != 0.0f) {
+                if (parent_cloth != 0 && parent_cloth->stretch_weight) {
                     parent_adjustment =
                         correction * parent_cloth->stretch_weight /
                         (bone->stretch_weight +
                          parent_cloth->stretch_weight);
-                    PSVECScale(
-                        &direction, &adjustment, -parent_adjustment);
+                    PSVECScale(&direction, &parent_push, -parent_adjustment);
                     PSVECAdd(
-                        &parent_cloth->force_position, &adjustment,
+                        &parent_cloth->force_position, &parent_push,
                         &parent_cloth->force_position);
                 } else {
                     parent_adjustment = 0.0f;
                 }
-                PSVECScale(
-                    &direction, &adjustment,
-                    correction - parent_adjustment);
-                PSVECAdd(
-                    &bone->force_position, &adjustment,
-                    &bone->force_position);
+                PSVECScale(&direction, &push, correction - parent_adjustment);
+                PSVECAdd(&bone->force_position, &push, &bone->force_position);
             } else {
+                Vec parent_pull;
+                Vec pull;
+
                 correction =
                     -(0.1f * bone->stretch_weight - 1.0f) *
                     (distance - bone->rest_length);
                 bone->current_length = distance - correction;
-                if (parent_cloth != 0 &&
-                    parent_cloth->stretch_weight != 0.0f) {
+                if (parent_cloth != 0 && parent_cloth->stretch_weight) {
                     parent_adjustment =
                         correction * parent_cloth->stretch_weight /
                         (bone->stretch_weight +
                          parent_cloth->stretch_weight);
-                    PSVECScale(
-                        &direction, &adjustment, parent_adjustment);
+                    PSVECScale(&direction, &parent_pull, parent_adjustment);
                     PSVECAdd(
-                        &parent_cloth->force_position, &adjustment,
+                        &parent_cloth->force_position, &parent_pull,
                         &parent_cloth->force_position);
                 } else {
                     parent_adjustment = 0.0f;
                 }
-                PSVECScale(
-                    &direction, &adjustment,
-                    parent_adjustment - correction);
-                PSVECAdd(
-                    &bone->force_position, &adjustment,
-                    &bone->force_position);
+                PSVECScale(&direction, &pull, parent_adjustment - correction);
+                PSVECAdd(&bone->force_position, &pull, &bone->force_position);
             }
         }
     }
 }
 
+/* TODO: [near miss] 99.16%; aligned vector slots, FMA split and float tests match; grandparent/cloth-link volatile registers and wind-scale load order differ. */
 static void calc_cloth_dwp(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
@@ -1767,10 +1714,10 @@ static void calc_cloth_dwp(ClothBone* bone) {
     ClothBone* parent_cloth;
     const RwMatrix* target_matrix;
     const Vec* target_origin;
-    Vec velocity;
-    Vec adjustment;
-    Vec spring_velocity;
-    Vec transformed_normal;
+    Vec velocity __attribute__((aligned(16)));
+    Vec adjustment __attribute__((aligned(16)));
+    Vec transformed_normal __attribute__((aligned(16)));
+    Vec spring_velocity __attribute__((aligned(16)));
     float collision_scale;
     float spring_scale;
     float wind_dot;
@@ -1784,7 +1731,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
         PSVECScale(
             &bone->velocity, &velocity,
             -(((1.0f - bone->segment_length) * sqrt_game_speed) - 1.0f));
-        if (bone->collision_amount != 0.0f) {
+        if (bone->collision_amount) {
             collision_scale =
                 bone->collision_amount * (50.0f * sqrt_game_speed);
             if (collision_scale > 1.0f) {
@@ -1830,7 +1777,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
         PSVECScale(&adjustment, &spring_velocity, spring_scale);
         PSVECAdd(&velocity, &spring_velocity, &velocity);
 
-        if (bone->initial_z != 0.0f) {
+        if (bone->initial_z) {
             transformed_normal.x =
                 bone->wind_normal.z * render_bone->parent_matrix->at.x +
                 (bone->wind_normal.x * render_bone->parent_matrix->right.x +
@@ -1863,7 +1810,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
             if (wind_dot < 0.0f) {
                 wind_dot *= -1.0f;
             }
-            wind_scale = wind_dot * bone->initial_z + bone->initial_x;
+            wind_scale = (float)(wind_dot * bone->initial_z) + bone->initial_x;
             adjustment.x = wind_v3.x * wind_scale;
             adjustment.y = wind_v3.y * wind_scale;
             adjustment.z = wind_v3.z * wind_scale;
@@ -1885,9 +1832,9 @@ void start_cloth_bones(MkObj* obj) {
     MkBone* render_bone;
     MkBone* parent_bone;
     ClothBone* bone;
-    unsigned int cloth_count;
-    unsigned int bone_index;
     unsigned int cloth_index;
+    unsigned int bone_index;
+    unsigned int cloth_count;
     float rest_length;
 
     if (obj->pos.value.x != obj->pos.value.x) {
@@ -1931,13 +1878,9 @@ void start_cloth_bones(MkObj* obj) {
                     }
                     bone_index++;
                 }
-                for (;;) {
-                    parent_bone = render_bone->transform_parent;
-                    if (parent_bone == 0 ||
-                        !parent_bone->flags_54_bits.cloth_candidate ||
-                        parent_bone->cloth_link != 0) {
-                        break;
-                    }
+                while ((parent_bone = render_bone->transform_parent) != 0 &&
+                       parent_bone->flags_54_bits.cloth_candidate &&
+                       parent_bone->cloth_link == 0) {
                     render_bone = parent_bone;
                 }
                 bone->bone = render_bone;
@@ -1967,7 +1910,7 @@ void start_cloth_bones(MkObj* obj) {
                 bone->flags_30 = 0;
                 bone->flags_30_bits.use_ground_y = 1;
                 bone->ground_y = 0.1f;
-                bone->local_cloth_position = render_bone->translation.value;
+                bone->local_cloth_position = bone->bone->translation.value;
                 rest_length = PSVECMag(&bone->local_cloth_position);
                 bone->rest_length = rest_length;
                 bone->current_length = rest_length;
@@ -1993,40 +1936,39 @@ void start_cloth_bones(MkObj* obj) {
     }
 }
 
-/* TODO: [breakthrough] 82.78302%; scalar row and sqrt indexing agree;
- * loop/register layout remains. */
+/* TODO: [near miss] 98.68%; indexed rows and mirror_a compares match; inlined bone-search registers (r12/r11 vs r31/r12) differ. */
 void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count) {
     ClothBone* cloth_bone;
     MkBone* bone;
     int index;
 
-    for (index = 0; index < count; index++, table++) {
-        cloth_bone = find_cloth_bone_by_tag(object, table->bone_tag);
+    for (index = 0; index < count; index++) {
+        cloth_bone = find_cloth_bone_by_tag(object, table[index].bone_tag);
         if (cloth_bone != 0) {
             cloth_bone->active = 1;
             bone = cloth_bone->bone;
             bone->flags_54_bits.hierarchy_driven = 1;
-            if (object == g_game_info.player_objects[0] ||
-                object == g_game_info.player_objects[1]) {
-                if (table->initial_x != 0.0f) {
-                    table->initial_x = 0.0f;
+            if (object == g_game_info.plyr0.slot.mirror_a ||
+                object == g_game_info.plyr1.slot.mirror_a) {
+                if (table[index].initial_x != 0.0f) {
+                    table[index].initial_x = 0.0f;
                 }
-                if (table->initial_z != 0.0f) {
-                    table->initial_z = 0.0f;
+                if (table[index].initial_z != 0.0f) {
+                    table[index].initial_z = 0.0f;
                 }
             }
             cloth_bone->stiffness_squared =
-                table->stiffness * table->stiffness;
-            cloth_bone->table_weight = table->segment_length;
-            cloth_bone->segment_length = cloth_sqrt(table->segment_length);
-            cloth_bone->force_step = -table->force / 50.0f;
+                table[index].stiffness * table[index].stiffness;
+            cloth_bone->table_weight = table[index].segment_length;
+            cloth_bone->segment_length = cloth_sqrt(table[index].segment_length);
+            cloth_bone->force_step = -table[index].force / 50.0f;
             cloth_bone->stretch_weight = 0.0f;
             cloth_bone->damping_factor =
-                1.0f - table->damping * table->damping;
-            cloth_bone->initial_x = table->initial_x;
-            cloth_bone->initial_z = table->initial_z;
-            cloth_bone->table_scale = table->table_scale;
+                1.0f - table[index].damping * table[index].damping;
+            cloth_bone->initial_x = table[index].initial_x;
+            cloth_bone->initial_z = table[index].initial_z;
+            cloth_bone->table_scale = table[index].table_scale;
         }
     }
 }
@@ -2089,18 +2031,25 @@ static void ps_axis(void) {
     axis_sobj = 0;
 }
 
-static void pw_axis(void) {
-    MkObj* object;
+static inline MkObj* axis_pdata_live_axis(AxisPdata* pdata) {
+    MkObj* object = pdata->axis;
 
+    if (object != 0) {
+        if (object->hdr.instance == pdata->axis_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static void pw_axis(void) {
     axis_pdata = (AxisPdata*)apdata;
     if (axis_pdata != 0) {
-        object = axis_pdata->axis;
-        if (object != 0 &&
-            object->hdr.instance != axis_pdata->axis_instance) {
-            object = 0;
-        }
-        axis_obj = object;
-        if (object == 0) {
+        axis_obj = axis_pdata_live_axis(axis_pdata);
+        if (axis_obj == 0) {
             mkproc_die();
         }
     }

@@ -67,9 +67,9 @@ static asm void Config24MB(void) { SEQ_Config24MB(); }
 
 static asm void Config48MB(void) { SEQ_Config48MB(); }
 
-/* TODO: [blocked] 6.67%; retail uses privileged SRR/rfi assembly; an authorized assembly sequence or supported intrinsic is required. */
-static void RealMode(unsigned long address) {
-    (void)address;
+static asm void RealMode(unsigned long address)
+{
+    SEQ_RealMode();
 }
 
 void __OSInitMemoryProtection(void) {

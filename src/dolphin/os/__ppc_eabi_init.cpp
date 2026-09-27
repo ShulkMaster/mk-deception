@@ -1,4 +1,16 @@
 #include "dolphin/base/PPCArch.h"
+#include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
+
+__declspec(section ".init") asm void __init_hardware(void)
+{
+    SEQ___init_hardware();
+}
+
+__declspec(section ".init") asm void __flush_cache(void* address, unsigned int size)
+{
+    SEQ___flush_cache();
+}
 
 typedef void (*Ctor)(void);
 
@@ -10,7 +22,6 @@ void __init_user(void) {
     __init_cpp();
 }
 
-/* TODO: [breakthrough needed] 71.190475%; retail has redundant loop-entry branches that readable loop forms do not recover. */
 static void __init_cpp(void) {
     Ctor* ctor;
 

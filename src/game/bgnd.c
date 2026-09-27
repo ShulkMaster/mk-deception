@@ -318,8 +318,8 @@ static void bl_process_beetle_track_plyr(BlBeetleControl* beetle);
 static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle);
 static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
-    int surface, float distance_limit_sq, float heading_offset,
-    float heading_divisor, float movement_scale_a, float movement_scale_b);
+    float distance_limit_sq, float heading_offset, float heading_divisor,
+    float movement_scale_a, float movement_scale_b, int surface);
 
 static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
     MkProc* object = owner->own_player_proc;
@@ -581,7 +581,6 @@ typedef struct BgndCollisionItem {
 } BgndCollisionItem;
 
 float p_animate(void);
-void destroy_mkprocs_pid(int pid);
 int is_sobj_hidden(void* sobj);
 void update_mksobj(MkSobj* sobj);
 void set_arena_obstacle_callback(BgndArenaObstacleCallback callback);
@@ -616,7 +615,6 @@ int fx_by_owner(const char* name, int owner);
 int fx_next_emitter(int effect);
 void fx_restart_emit(unsigned int effect);
 void fx_resume_emit(unsigned int effect);
-MkHdr* pfx_get_emitter_obj(MkPfx* effect, int emitter);
 int emitter_id_from_handle(unsigned int handle);
 void resume_effect(const char* name);
 void reset_effect(const char* name);
@@ -636,7 +634,6 @@ double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
 void move_player(MkObj* object, const Vec* position, const Vec* angles);
 MkProc* get_player_proc(void* object);
-void xfer_player_proc(MkProc* process, MkProcEntryFn entry);
 void run_reaction_cleanup_function(PlyrPdata* player);
 static float bgnd_call_script_function(void);
 static int launch_sobj_watch_dist_from_orgin(BgndSobjLaunchEntry* entry,
@@ -646,12 +643,10 @@ static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
 static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
                                              unsigned int unused);
 
-extern int mode_of_play;
 extern int nb_slave_bones[];
 extern int konquest_npc_bones[];
 extern MkFlippedBoneMap flipped_nb_slave_bones;
 extern RwCamera* Camera;
-extern float ShadowStrength;
 extern float fog_density;
 extern float fog_distance;
 extern float fog_color_real[4];
@@ -673,7 +668,6 @@ extern BgndCollisionItem* g_active_bgnd_col_item;
 extern MkPtr* weapon_trail_light_list;
 extern ProfileUnlockBits64 default_bgnd_bits;
 extern ProfileUnlockBits64 default_pz_bgnd_bits;
-extern int exec_tick_ctr;
 extern PebbleData* g_bl_beetles;
 extern BlBeetlePdata* g_bl_beetles_pdata;
 extern SlaughterhouseData* g_slaughterhouse_pdata;
@@ -693,7 +687,6 @@ extern MkObj* plyr_obj;
 extern void stop_me(void);
 extern float r_call_script_function(void);
 extern int intro_done(void);
-extern PlyrPdata* plyr_pdata;
 extern Vec g_bgnd_scratch_pad_vectors[9];
 extern MkObj* g_latest_obj_pfx;
 extern BgndSobjLaunchEntry* g_launched_sobj_crossing_plane_pdata;
@@ -702,7 +695,6 @@ extern BgndSobjLaunchMonitor* g_sobj_launch_monitor_pdata;
 extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
 extern PebbleData* g_bgnd_cracks;
 extern unsigned int g_bgnd_last_crack_overwritten;
-extern int force_midpoint_calculation_update;
 extern void* obj_start_morph(MkObj* object, unsigned int sobj_id,
                              MorphScript* script, unsigned int flags);
 float bgnd_process_collision_info(
@@ -796,7 +788,6 @@ void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
 void load_background_anims(void* anims, int bgnd_id);
 void init_weapon_trail_light_list(void);
-void insert_fgnd_mkobj(void* bgnd_obj);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
 extern MkVtable5 vtbl_slaughterhouse_pdata;
@@ -816,7 +807,6 @@ void bgnd_level_fatality_end(void) {
     g_game_info.plyr1.slot.pdata->collision_disabled = 0;
     drone_ai_ok_to_think();
 }
-/* Soft ceiling 82.47%: exact body; GPR save/restore emission differs. */
 void bgnd_level_fatality_start(int player) {
     drone_ai_dont_think();
     turn_controllers_off();
@@ -2711,17 +2701,17 @@ static unsigned int next_beetle_exec_tick_counter;
 
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-/* TODO: [near miss] 96.03188%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [near miss] 99.97%; only the Vec initializer .rodata offsets (+0x204 retail vs +0x6c) remain: TU data layout. */
 static float p_bl_beetle_brains(void) {
     BlBeetlePdata* pdata;
+    BlBeetleControl* beetle;
     PebbleData* pebble_data;
     BlBeetleControl* beetles;
-    BlBeetleControl* beetle;
     PlyrInfo* squashing_player;
     Vec x_axis;
     Vec z_axis;
     Vec y_axis;
-    unsigned int index;
+    int index;
 
     pdata = (BlBeetlePdata*)pdata_of_proc(aproc);
     pebble_data = pdata->pebble_data;
@@ -2737,7 +2727,7 @@ static float p_bl_beetle_brains(void) {
         return 1.0f;
     }
 
-    for (index = 0; index < (unsigned int)pdata->pebble_data->count; index++) {
+    for (index = 0; index < pdata->pebble_data->count; index++) {
         beetle = &beetles[index];
 
         switch (beetle->personality) {
@@ -2763,7 +2753,7 @@ static float p_bl_beetle_brains(void) {
         }
 
         if (beetle_squashed(beetle, &squashing_player) == 1) {
-            beetle->position.y += 0.005f;
+            beetle->position.y = 0.005f + g_game_info.field_34;
             spawn_bld_splat("beetlesplat", 0, &beetle->position);
             if (exec_tick_ctr >= next_beetle_exec_tick_counter) {
                 snd_req(0x94);
@@ -2784,8 +2774,8 @@ static float p_bl_beetle_brains(void) {
             float movement_scale = -0.05f * beetle->speed_scale;
             bl_process_general_movement(
                 beetle, &g_game_info.misc->beetle_target, 20,
-                beetle->surface, 100.0f, 0.0f, 20.0f,
-                movement_scale, movement_scale);
+                100.0f, 0.0f, 20.0f,
+                movement_scale, movement_scale, beetle->surface);
             break;
         }
         case 2:
@@ -2798,9 +2788,8 @@ static float p_bl_beetle_brains(void) {
         case 5:
             beetle->fast_motion = 0;
             bl_process_general_movement(
-                beetle, &beetle->movement_target, 25, beetle->surface,
-                beetle->distance_limit_sq, -1.5707964f, 25.0f,
-                -0.02f, 0.02f);
+                beetle, &beetle->movement_target, 25, beetle->distance_limit_sq, -1.5707964f, 25.0f,
+                -0.02f, 0.02f, beetle->surface);
             break;
         case 6: {
             float movement_scale;
@@ -2811,23 +2800,20 @@ static float p_bl_beetle_brains(void) {
             }
             movement_scale = -0.05f * beetle->speed_scale;
             bl_process_general_movement(
-                beetle, &beetle->movement_target, 20, beetle->surface,
-                beetle->distance_limit_sq, 0.0f, 20.0f,
-                movement_scale, movement_scale);
+                beetle, &beetle->movement_target, 20, beetle->distance_limit_sq, 0.0f, 20.0f,
+                movement_scale, movement_scale, beetle->surface);
             break;
         }
         case 7:
             beetle->fast_motion = 0;
             if (beetle->surface == 3) {
                 bl_process_general_movement(
-                    beetle, &beetle->movement_target, 25, beetle->surface,
-                    beetle->distance_limit_sq, 1.5707964f, 25.0f,
-                    0.02f, -0.02f);
+                    beetle, &beetle->movement_target, 25, beetle->distance_limit_sq, 1.5707964f, 25.0f,
+                    0.02f, -0.02f, beetle->surface);
             } else {
                 bl_process_general_movement(
-                    beetle, &beetle->movement_target, 25, beetle->surface,
-                    beetle->distance_limit_sq, 0.0f, 25.0f,
-                    0.02f, -0.02f);
+                    beetle, &beetle->movement_target, 25, beetle->distance_limit_sq, 0.0f, 25.0f,
+                    0.02f, -0.02f, beetle->surface);
             }
             break;
         }
@@ -2882,7 +2868,7 @@ static float p_bl_beetle_brains(void) {
                 beetle->bounce_ticks = bounce_ticks;
             }
             beetle->position.y += beetle->vertical_velocity;
-            if (beetle->position.y < g_game_info.field_34 - 0.01f ||
+            if (beetle->position.y < -0.01f + g_game_info.field_34 ||
                 beetle->position.y > 0.03f) {
                 beetle->position.y = g_game_info.field_34;
                 beetle->vertical_velocity = -1.0f;
@@ -3433,11 +3419,7 @@ static inline void bl_move_beetle_on_surface(
     }
 }
 
-/*
- * Exact-size 98.97% near match. Retail and local agree on all wall-state CFG,
- * calls, stores, thresholds, and surface movement. Residue is float-register
- * coloring, constant-pool labels, and equivalent final-call load scheduling.
- */
+/* TODO: [near miss] 99.84%; float-register coloring in the heading atan/pi expressions remains. */
 static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
     float heading_step;
     float x;
@@ -3532,9 +3514,8 @@ static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
             return;
         }
         bl_process_general_movement(
-            beetle, &beetle->movement_target, 25, beetle->surface,
-            beetle->distance_limit_sq, -1.5707964f, 25.0f,
-            -0.02f, 0.02f);
+            beetle, &beetle->movement_target, 25, beetle->distance_limit_sq, -1.5707964f, 25.0f,
+            -0.02f, 0.02f, beetle->surface);
         break;
     }
 }
@@ -3545,8 +3526,8 @@ static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
  */
 static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
-    int surface, float distance_limit_sq, float heading_offset,
-    float heading_divisor, float movement_scale_a, float movement_scale_b) {
+    float distance_limit_sq, float heading_offset, float heading_divisor,
+    float movement_scale_a, float movement_scale_b, int surface) {
     unsigned int direction_roll;
     float heading;
     float heading_step;
@@ -8636,12 +8617,12 @@ static float p_pebble_burst_monitor(void) {
     }
     return -1.0f;
 }
-/* Soft ceiling 97.55%: typed array induction and register coloring. */
+/* TODO: [near miss] 98.84%; state-13 float coloring and one call argument load remain. */
 static float p_pebble_path_monitor(void) {
     BgndPebbleMonitor* monitor;
+    BgndPebbleControl* pebble;
     BgndPebbleCollection* collection;
     BgndPebbleControl* pebbles;
-    BgndPebbleControl* pebble;
     unsigned int i;
     int any_active;
     float dx;
@@ -8729,7 +8710,7 @@ static float p_pebble_path_monitor(void) {
             pebble->angles.x = step_x + pebble->angles.x;
             pebble->angles.y = step_y + pebble->angles.y;
             pebble->angles.z = step_z + pebble->angles.z;
-            if (dx * dx + dy * dy + dz * dz < 50.0f) {
+            if (dz * dz + (dx * dx + dy * dy) < 50.0f) {
                 pebble->angles.x = pebble->target_position.x;
                 pebble->angles.y = pebble->target_position.y;
                 pebble->angles.z = pebble->target_position.z;

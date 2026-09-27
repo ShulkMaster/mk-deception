@@ -1397,10 +1397,10 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
 
 void ground_me(void* obj) {
     MkObj* mkobj;
+    RwMatrix* matrix;
     GroundCollisionEntry* collision;
     MkBone* bone;
     RwMatrix* parent;
-    RwMatrix* matrix;
     RwFrame* frame;
     MkSobj* sobj;
     RwMatrix* matrices;
@@ -1434,8 +1434,7 @@ void ground_me(void* obj) {
     }
     min_height = 1000.0f;
 
-    while (collision->bone >= 0) {
-        bone_index = collision->bone;
+    while ((bone_index = collision->bone) >= 0) {
         if (mode_of_play != 6 || bone_index < 0x16 ||
             bone_index > 0x2F) {
             bone = mkobj->bones[bone_index];
@@ -1444,58 +1443,59 @@ void ground_me(void* obj) {
                 parent = bone->parent_matrix;
                 if (bone->flags_54_bits.calculation_locked == 0) {
                     bone->matrix.right.x =
-                        parent->up.x * matrix->up.x +
                         parent->right.x * matrix->right.x +
-                        parent->at.x * matrix->at.x;
+                        parent->right.y * matrix->up.x +
+                        parent->right.z * matrix->at.x;
                     bone->matrix.right.y =
-                        parent->up.x * matrix->up.y +
                         parent->right.x * matrix->right.y +
-                        parent->at.x * matrix->at.y;
+                        parent->right.y * matrix->up.y +
+                        parent->right.z * matrix->at.y;
                     bone->matrix.right.z =
-                        parent->up.x * matrix->up.z +
                         parent->right.x * matrix->right.z +
-                        parent->at.x * matrix->at.z;
+                        parent->right.y * matrix->up.z +
+                        parent->right.z * matrix->at.z;
                     bone->matrix.up.x =
+                        parent->up.x * matrix->right.x +
                         parent->up.y * matrix->up.x +
-                        parent->right.y * matrix->right.x +
-                        parent->at.y * matrix->at.x;
+                        parent->up.z * matrix->at.x;
                     bone->matrix.up.y =
+                        parent->up.x * matrix->right.y +
                         parent->up.y * matrix->up.y +
-                        parent->right.y * matrix->right.y +
-                        parent->at.y * matrix->at.y;
+                        parent->up.z * matrix->at.y;
                     bone->matrix.up.z =
+                        parent->up.x * matrix->right.z +
                         parent->up.y * matrix->up.z +
-                        parent->right.y * matrix->right.z +
-                        parent->at.y * matrix->at.z;
+                        parent->up.z * matrix->at.z;
                     bone->matrix.at.x =
-                        parent->up.z * matrix->up.x +
-                        parent->right.z * matrix->right.x +
+                        parent->at.x * matrix->right.x +
+                        parent->at.y * matrix->up.x +
                         parent->at.z * matrix->at.x;
                     bone->matrix.at.y =
-                        parent->up.z * matrix->up.y +
-                        parent->right.z * matrix->right.y +
+                        parent->at.x * matrix->right.y +
+                        parent->at.y * matrix->up.y +
                         parent->at.z * matrix->at.y;
                     bone->matrix.at.z =
-                        parent->up.z * matrix->up.z +
-                        parent->right.z * matrix->right.z +
+                        parent->at.x * matrix->right.z +
+                        parent->at.y * matrix->up.z +
                         parent->at.z * matrix->at.z;
                     bone->matrix.flags =
                         parent->flags & matrix->flags;
+                    parent = bone->parent_matrix;
                     bone->matrix.pos.x =
-                        parent->pos.y * matrix->up.x +
                         parent->pos.x * matrix->right.x +
+                        parent->pos.y * matrix->up.x +
                         parent->pos.z * matrix->at.x + mkobj->pos.value.x;
                     bone->matrix.pos.y =
-                        parent->pos.y * matrix->up.y +
                         parent->pos.x * matrix->right.y +
+                        parent->pos.y * matrix->up.y +
                         parent->pos.z * matrix->at.y + mkobj->pos.value.y;
                     bone->matrix.pos.z =
-                        parent->pos.y * matrix->up.z +
                         parent->pos.x * matrix->right.z +
+                        parent->pos.y * matrix->up.z +
                         parent->pos.z * matrix->at.z + mkobj->pos.value.z;
                 }
-                height = collision->offset.y * bone->matrix.up.y +
-                         collision->offset.x * bone->matrix.right.y +
+                height = collision->offset.x * bone->matrix.right.y +
+                         collision->offset.y * bone->matrix.up.y +
                          collision->offset.z * bone->matrix.at.y +
                          bone->matrix.pos.y - collision->radius;
                 if (height < min_height) {
@@ -1509,9 +1509,10 @@ void ground_me(void* obj) {
     if (min_height != 1000.0f) {
         if (min_height < mkobj->ground_colls_y) {
             mkobj->pos.value.y -= min_height - mkobj->ground_colls_y;
+            matrix = mkobj->field_24;
             *(Vec*)&matrix->pos = mkobj->pos.value;
             matrix->flags &= ~0x20000;
-            if ((mkobj->hide_flags & 0x10) == 0) {
+            if (mkobj->hide_flag_bits.bit4 == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
                 for (i = 1; i < mkobj->clump_count; i++) {
                     frame = mkobj->clumps[i]->object.parent;
@@ -1535,9 +1536,10 @@ void ground_me(void* obj) {
             }
         } else if (mkobj->flags_09_bits.bit6 != 0) {
             mkobj->pos.value.y -= min_height - mkobj->ground_colls_y;
+            matrix = mkobj->field_24;
             *(Vec*)&matrix->pos = mkobj->pos.value;
             matrix->flags &= ~0x20000;
-            if ((mkobj->hide_flags & 0x10) == 0) {
+            if (mkobj->hide_flag_bits.bit4 == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
                 for (i = 1; i < mkobj->clump_count; i++) {
                     frame = mkobj->clumps[i]->object.parent;
@@ -3662,8 +3664,8 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children);
 
-/* TODO: [near miss] 99.758064%; pooled eye/chain strings, chain-matrix local and bit6 copy fixed;
- * sobj/root/source-matrix web colors r21 vs retail r23; stop at coloring. */
+/* TODO: [near miss] 99.93%; saved fallback (r25), pivot matrix (r23) and second chain matrix (r22)
+ * color differently; split locals and a shared chain helper measured neutral/regressing. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
@@ -3703,7 +3705,7 @@ MkObj* obj_sever_limb(
     } else {
         severed_type = 0x1007;
     }
-    sobj = (MkSobj*)first_mkhdr(&source->sobj_list);
+    sobj = obj_first_sobj(source);
     if (sobj == 0) {
         return 0;
     }
@@ -3757,8 +3759,9 @@ MkObj* obj_sever_limb(
 
     root_index = limb_root_bids[limb];
     severed->fallback_bone_index = root_index;
-    root = severed->bones[root_index];
-    if (root != 0 && root->parent_matrix != 0) {
+    if (severed->bones[root_index] != 0 &&
+        severed->bones[root_index]->parent_matrix != 0) {
+        root = severed->bones[root_index];
         bone_make_parents_my_children(root);
         v3_x_mat(
             &root_offset, (Vec*)&root->parent_matrix->pos,

@@ -33,8 +33,11 @@ static short adxb_def_km = 0;
 static short adxb_def_ka = 0;
 AdxBasicDecoderExt adxb_obj[16];
 
-static const char skg_version[] =
-    "\nSKG/GC Ver.0.64 Build:Sep  3 2004 17:49:16\n";
+static const char* SKG_GetVersion(void)
+{
+    return "\nSKG/GC Ver.0.64 Build:Sep  3 2004 17:49:16\n";
+}
+
 const short skg_prim_tbl[1024] = {
     0x401B, 0x4021, 0x4025, 0x402B, 0x4031, 0x403F, 0x4043, 0x4045,
     0x405D, 0x4061, 0x4067, 0x406D, 0x4087, 0x4091, 0x40A3, 0x40A9,
@@ -165,11 +168,6 @@ const short skg_prim_tbl[1024] = {
     0x6779, 0x6781, 0x6785, 0x6791, 0x67AB, 0x67BD, 0x67C1, 0x67CD,
     0x67DF, 0x67E5, 0x6803, 0x6809, 0x6811, 0x6817, 0x682D, 0x6839
 };
-static const char skg_hex_format[8] = "%08X";
-static const char adxb_ahx_error[32] = "E1060101 ADXB_DecodeHeaderAdx: ";
-static const char adxb_ahx_detail[36] =
-    "can't play AHX data by this handle";
-static const char skg_signature[12] = "CRI-MW";
 
 static inline void ADXB_CopySamples(short* output, const short* extra,
                                     int count)
@@ -562,7 +560,7 @@ static inline void adxb_InitKeyGenerator(void)
 /* One step of the key chain: mix a hex digit of the sample count through the prime table. */
 #define ADXB_SKG_MIX(k, c) (skg_prim_tbl[((k) * skg_prim_tbl[0x80 + (c)]) % 1024])
 
-static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
+static int adxb_MakeEncryptionKey(int sample_count, short* state,
                                           short* multiplier, short* increment)
 {
     char key_text[16];
@@ -571,7 +569,7 @@ static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
     short multiplier_key;
     int i;
 
-    sprintf(key_text, skg_hex_format, sample_count);
+    sprintf(key_text, "%08X", sample_count);
     if (skg_init_count == 0) {
         adxb_InitKeyGenerator();
     }
@@ -595,9 +593,10 @@ static inline void adxb_MakeEncryptionKey(int sample_count, short* state,
         key = ADXB_SKG_MIX(key, (signed char)key_text[i]);
     }
     *increment = key;
+    return 0;
 }
 
-static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
+static int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
                                             unsigned char version,
                                             unsigned char revision,
                                             int sample_count,
@@ -632,8 +631,8 @@ static inline int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
 #pragma inline_max_size reset
 #pragma inline_max_total_size reset
 
-/* TODO: [near miss] 99.34%; key selector and both unfolded `status < 0` checks match;
- * string/data pool base registers (r27/r28) are swapped. */
+/* TODO: [near miss] 99.84%; pool bases and rodata literals match; 5 rows remain: retail sets
+ * the key status once at a join shared by all four selector paths (r0), ours per return. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
@@ -656,7 +655,8 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                        &base->total_samples, &base->samples_per_block) < 0) return 0;
     if (base->encoding > 4) {
         if (decoder->ahx_decoder == 0) {
-            ADXERR_CallErrFunc2(adxb_ahx_error, adxb_ahx_detail);
+            ADXERR_CallErrFunc2("E1060101 ADXB_DecodeHeaderAdx: ",
+                                "can't play AHX data by this handle");
             return -1;
         }
         base->bits_per_sample = 8;
@@ -707,6 +707,11 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
     base->decode.pcm_distance = base->pcm_distance;
     base->current_write_position = 0;
     return data_length;
+}
+
+static const char* ADXB_GetSignature(void)
+{
+    return "CRI-MW";
 }
 
 void ADXB_Destroy(AdxBasicDecoderExt* decoder)

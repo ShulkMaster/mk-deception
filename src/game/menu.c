@@ -803,7 +803,6 @@ float p_controller_config(void) {
     ControllerConfigPdata* pdata;
     ControllerConfigPdata* live_pdata;
     MkProc* proc;
-    MkVtableMkprocLocal* vtbl;
     PlyrInfo* p1;
     PlyrInfo* p2;
     MenuPlayerWalkView* players;
@@ -864,7 +863,6 @@ float p_controller_config(void) {
         player = 0;
         player_offset = 0;
         do {
-            /* Retail reloads the GameInfo base and advances by PlyrInfo stride. */
             player_view = (MenuPlayerWalkView*)((char*)players + player_offset);
             if (player_view->player.player_state == 1) {
                 int pad;
@@ -890,8 +888,7 @@ float p_controller_config(void) {
             player_offset += sizeof(PlyrInfo);
         } while (player < 2);
         _mkproc_sleep_ticks = sleep_ticks_one;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
-        vtbl->sleep();
+        aproc->vtbl->sleep();
     }
 
     wait_for_screen_close();
@@ -1207,19 +1204,8 @@ float p_pause_menu_switch(void) {
     return sleep_ticks_neg_one;
 }
 
-/*
- * Main title menu proc -- attract PRESS START lands here via gamelogic_jump(6).
- *
- * target_game_mode jump table (@1297), not a dense 0..15 enum:
- *   2=Konquest, 4/5=reenter main, 6/7/11=pselect modes, 8=bg, 9=puzzle,
- *   14=cconfig, 15=options, 16=kontent, 17=krypt, 18..20=profile,
- *   21/22=soundtrack, 23=credits; other <=0x17 and >0x17 -> attract.
- * Idle sentinel: 0x18 -- stay in menu until a real mode exit (do not gate-exit).
- * Handoff to character select (B19): modes 6/7/11 -> p_pselect,
- *   8 -> p_bg_pselect, 9 -> p_pz_pselect (see game/pselect.h).
- *
- * Soft ceiling: ~92.7% -- profile-pointer/string-pool scheduling; stop.
- */
+/* TODO: [near miss] 92.97%; we hoist g_game_info+0x110 where retail rematerializes it;
+ * retail names portrait_list$0000 (function-local static?), check before coloring. */
 float p_main_menu(void) {
     PlyrInfo* p1;
     PlyrInfo* p2;
@@ -1238,12 +1224,10 @@ float p_main_menu(void) {
     lan_networking_selected = 0;
     switchTime = 0;
 
-    /* MUST: section scheme for msel art / screen load. */
     set_section_memory_scheme(4);
 
-    mode = (unsigned int)get_mode_of_play();
+    mode = get_mode_of_play();
     if (mode <= 0xC) {
-        /* Retail @1296: unload both profiles for modes 0,1,6,9,10,12. */
         switch (mode) {
         case 0:
         case 1:
@@ -1252,7 +1236,6 @@ float p_main_menu(void) {
         case 10:
         case 12:
             if (p1_profile_status == 1 && p2_profile_status == 1) {
-                /* Deferred: deep profile unload. */
                 unload_player_profiles();
             }
             break;
@@ -1263,11 +1246,9 @@ float p_main_menu(void) {
 
     if (p1_profile_status == 1) {
         if (p2_profile_status == 1) {
-            /* Deferred: deep profile unload. */
             unload_p2_player_profile();
         }
     } else if (p2_profile_status == 1) {
-        /* Deferred: deep profile move. */
         move_profile_p2_to_p1();
     }
 
@@ -1281,17 +1262,11 @@ float p_main_menu(void) {
     unassign_player(p2);
     set_player_state(p1, 0);
     set_player_state(p2, 0);
-    /* Clear versus bit7 on game_info+4 (retail lbz/rlwimi/stb with 0). */
-    {
-        unsigned char zero = 0;
-
-        g_game_info.feature_flags.bits.high_bit = zero;
-    }
+    g_game_info.feature_flags.bits.high_bit = 0;
     init_plyr_info_struct(p1);
     init_plyr_info_struct(p2);
     init_bet_info_struct();
 
-    /* Deferred: sound banks (audio deferred). */
     setup_sound_banks(1);
     wait_for_sound_banks_to_load();
     unload_section_slot(0x90046);
@@ -1302,11 +1277,10 @@ float p_main_menu(void) {
         int lockedFlags;
         int alternate;
 
-        portrait = (int)randu0(0x34);
-        /* Retail clrlslwi: halfword-mask index before stride-8 lookup. */
+        portrait = randu0(0x34);
         flags = portrait_list[portrait & 0xFFFF].flags;
-        lockedFlags = (int)(flags & 0xFFFEFFFF);
-        alternate = (int)((flags >> 16) & 1);
+        lockedFlags = flags & 0xFFFEFFFF;
+        alternate = (flags >> 16) & 1;
         if (is_char_locked(lockedFlags, alternate) == 0) {
             break;
         }
@@ -1316,33 +1290,27 @@ float p_main_menu(void) {
         portrait = 0;
     }
 
-    /* MUST: msel SSF + portrait SEC into slot 0x90046 (Wave A P1). */
     load_ssf((MkFileEntry*)msel_art_file_table);
     add_art_section_by_name_async(0x90046, portrait_list[portrait & 0xFFFF].sec_name);
 
     watcherPdata = 0;
-    /* Deferred: pad polish watcher (get_num_controllers / fire event). */
     _create_mkproc_generic_nostack(0x902F, 0x1F, (MkProcEntryFn)p_controller_watcher, 0xC,
                                    (MkHdr**)&watcherPdata);
     if (watcherPdata != 0) {
         watcherPdata->last_num_controllers = get_num_controllers();
     }
 
-    /* MUST: Glue load_screen path (mode-select ScreenEngine). */
     preload_screen_data(STR_MAIN_MENU_SCREEN, 0x90046);
     load_screen(STR_MAIN_MENU_SCREEN, 0x90046, 0, 0);
-    /* MUST: camera on for menu view. */
     turn_camera_on();
-    /* Deferred: pad enable. */
     turn_controllers_on();
 
     main_menu_timeout_ticks = 0xE10;
     do_main_menu_timeout = 1;
-    /* MUST: idle sentinel -- stay here; do not gate-exit on MAIN_MENU. */
     target_game_mode = MENU_TARGET_IDLE;
 
     for (;;) {
-        mode = (unsigned int)target_game_mode;
+        mode = target_game_mode;
         if (mode != MENU_TARGET_IDLE) {
             pop_game_state();
             push_game_state(0x1C);
@@ -1353,7 +1321,6 @@ float p_main_menu(void) {
             } else {
                 switch (mode) {
                 case 2:
-                    /* Konquest -- clear latch, mode 7, rebind profile from menu_player. */
                     game_settings.konquest_latch = 0;
                     set_mode_of_play(7);
                     clear_region_buffer();
@@ -1362,7 +1329,6 @@ float p_main_menu(void) {
                     unassign_player(p1);
                     unassign_player(p2);
                     assign_player(konquestPort);
-                    /* Deferred: memcard (Konquest exit only). */
                     load_krd_buffer_from_memcard(0, 1);
                     gamelogic_jump(4, p_konquest_mode);
                     break;
@@ -1437,7 +1403,6 @@ float p_main_menu(void) {
                     gamelogic_jump(6, p_main_menu);
                     break;
                 default:
-                    /* Modes 0,1,3,10,12,13 in @1297 -> attract. */
                     gamelogic_jump(0, p_attract_mode);
                     break;
                 }

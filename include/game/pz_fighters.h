@@ -55,8 +55,8 @@ typedef struct PuzzleFighterMove {
 
 typedef struct PuzzleFighterStartFlags {
     signed char enabled : 1; /* bit7 */
-    unsigned char player0_started : 1; /* bit6 */
-    unsigned char player1_started : 1; /* bit5 */
+    signed char player0_started : 1; /* bit6 */
+    signed char player1_started : 1; /* bit5 */
     signed char player0_scored : 1; /* bit4 */
     signed char player1_scored : 1; /* bit3 */
     unsigned char unused : 3;
