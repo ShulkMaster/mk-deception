@@ -23,19 +23,7 @@ struct ScriptSlot;
 struct ChessDirectionState;
 struct ChessSpellDefinition;
 struct ChessLibraryEntry;
-
-typedef struct ChessAnimPdata {
-    char pad00[0x10];
-    MkObj* object;
-    unsigned int object_instance;
-    char pad18[0x18];
-    unsigned int flags; /* +0x30 - animation control flags */
-    char pad34[4];
-    float frame; /* +0x38 */
-    char pad3C[4];
-    float end_frame; /* +0x40 */
-    float speed; /* +0x44 */
-} ChessAnimPdata;
+struct AnimPdata;
 
 typedef struct ChessScreenRef {
     ScreenObj* screen;
@@ -100,7 +88,7 @@ typedef struct ChessMovementEvent {
 
 typedef struct ChessPieceMovement {
     MkHdr hdr;
-    ChessAnimPdata* animation;
+    struct AnimPdata* animation;
     struct ChessPiece* piece;
     union {
         struct {
@@ -157,7 +145,7 @@ typedef struct ChessPiece {
     AniScript* normal_stance_script; /* +0x50 */
     AniScript* initial_stance_script; /* +0x54 - piece definition default */
     AniScript* requested_script; /* +0x58 */
-    ChessAnimPdata* animation; /* +0x5C */
+    struct AnimPdata* animation; /* +0x5C */
     union { int proc_state; struct MkProc* proc; }; /* +0x60 */
     unsigned int field_64;
     ChessPieceMovement* movement; /* +0x68 */

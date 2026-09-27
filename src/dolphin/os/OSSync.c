@@ -1,15 +1,16 @@
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"
+#include "runtime/asm_sequences.inc"
 
 void __OSSystemCallVectorStart(void);
 void __OSSystemCallVectorEnd(void);
 
-/*
- * The preceding retail SystemCallVector is an authentic privileged assembly
- * leaf (HID0, sync/isync, and rfi). It remains supplied by the retail object;
- * portable C cannot represent that exception-vector contract honestly.
- */
+static asm void SystemCallVector(void)
+{
+    SEQ_SystemCallVector();
+}
+
 void __OSInitSystemCall(void)
 {
     void* address = OSPhysicalToCached(0xC00);

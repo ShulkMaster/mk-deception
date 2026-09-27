@@ -590,7 +590,6 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     priv_mwMem_CritSecExit();
 }
 
-/* Clear the allocation request and preserve callback, overflow and statistics ordering. */
 /* TODO: [near miss] 92.43%; equivalent irregular strategy comparison trees remain. */
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     static u32 StrategyAllocationActive;
@@ -627,7 +626,7 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
             break;
         case MW_MEM_STRATEGY_NORMAL:
         case MW_MEM_STRATEGY_VIRTUAL:
-        case 3: /* unnamed retail normal-block strategy */
+        case 3:
         case MW_MEM_STRATEGY_OVERFLOW:
             result = normHeapMallocMem(request->size, heap, request->flags, request);
             break;
@@ -780,8 +779,7 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     return heap;
 }
 
-/* Preserve the request layout and copy bounds across null, reallocate and free paths. */
-/* TODO: [breakthrough needed] 97.30%; request stack stores and owner/copy scheduling remain. */
+/* TODO: [near miss] 97.51%; request stack stores and owner/copy scheduling remain. */
 void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
                     const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
@@ -1063,7 +1061,6 @@ int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
 
 /* TODO: [near miss] 99.25%; first two independent field loads are scheduled in reverse order. */
 int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
-    MwMemStrategyCallback strategy_callback;
     u32 field_0x68;
     u8 field_0x2E;
     u8 field_0x2F;
@@ -1071,9 +1068,8 @@ int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     u32 diagnostic_value;
     u32 field_0x44;
 
-    strategy_callback = heap->strategyCallback;
     field_0x68 = heap->field_0x68;
-    params->strategyCallback = strategy_callback;
+    params->strategyCallback = heap->strategyCallback;
     field_0x2E = heap->paramByte0;
     params->field_0x04 = field_0x68;
     field_0x2F = heap->paramByte1;

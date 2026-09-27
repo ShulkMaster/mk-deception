@@ -230,7 +230,6 @@ unsigned long ExternalHeap_AlignAlloc(
                         prefix_block->size += candidate->size;
                         RBT_InsertNode(
                             &heap->size_tree, &prefix_block->size_node);
-                        /* Non-null state records a rolled-back candidate. */
                         prefix_block =
                             (ExternalHeapBlock*)sizeof(RedBlackNode);
                         candidate->link.next_free = heap->free_blocks;

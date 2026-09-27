@@ -19,6 +19,7 @@ from pathlib import Path
 
 FUNCTION_RE = re.compile(r"^\.fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*,")
 END_FUNCTION_RE = re.compile(r"^\.endfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
+LABEL_RE = re.compile(r"^\.sym\s+([A-Za-z_][A-Za-z0-9_]*)\s*,")
 INSTRUCTION_RE = re.compile(
     r"^/\*\s*([0-9A-Fa-f]{8})\s+[0-9A-Fa-f]{8}\s+"
     r"((?:[0-9A-Fa-f]{2}\s+){3}[0-9A-Fa-f]{2})\s*\*/\s*(.+?)\s*$"
@@ -41,6 +42,7 @@ class Sequence:
     name: str
     address: int
     instructions: tuple[tuple[int, str], ...]
+    labels: tuple[tuple[str, int], ...] = ()  # retail `.sym` labels: (name, byte offset)
 
 
 def parse_int(value: object, field: str) -> int:
@@ -56,6 +58,7 @@ def read_functions(path: Path) -> dict[str, Sequence]:
     active_name: str | None = None
     active_address: int | None = None
     active_instructions: list[tuple[int, str]] = []
+    active_labels: list[tuple[str, int]] = []
 
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         start = FUNCTION_RE.match(line)
@@ -65,6 +68,12 @@ def read_functions(path: Path) -> dict[str, Sequence]:
             active_name = start.group(1)
             active_address = None
             active_instructions = []
+            active_labels = []
+            continue
+
+        label = LABEL_RE.match(line)
+        if label and active_name is not None:
+            active_labels.append((label.group(1), 4 * len(active_instructions)))
             continue
 
         end = END_FUNCTION_RE.match(line)
@@ -76,7 +85,7 @@ def read_functions(path: Path) -> dict[str, Sequence]:
             if active_name in functions:
                 raise ValueError(f"{path}:{line_number}: duplicate function {active_name}")
             functions[active_name] = Sequence(
-                active_name, active_address, tuple(active_instructions)
+                active_name, active_address, tuple(active_instructions), tuple(active_labels)
             )
             active_name = None
             continue
@@ -117,9 +126,18 @@ def load_manifest(path: Path, version: str) -> tuple[Path, Path, list[dict[str, 
     return Path(assembly), Path(output), functions
 
 
-def emit_macro(sequence: Sequence, sda_symbols: dict[str, str]) -> list[str]:
+def emit_macro(
+    sequence: Sequence, sda_symbols: dict[str, str], entries: tuple[str, ...] = ()
+) -> list[str]:
     lines = [f"#define SEQ_{sequence.name}() \\", "    nofralloc; \\"]
+    # Exported entry labels inside the sequence, at their retail offsets.
+    entry_at: dict[int, list[str]] = {}
+    for label, offset in sequence.labels:
+        if label in entries:
+            entry_at.setdefault(offset, []).append(label)
     for index, (word, assembly) in enumerate(sequence.instructions):
+        for label in entry_at.get(4 * index, []):
+            lines.append(f"    entry {label}; \\")
         suffix = " \\" if index + 1 < len(sequence.instructions) else ""
         if "@sda21" in assembly:
             for retail_symbol, source_symbol in sda_symbols.items():
@@ -207,7 +225,16 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             raise ValueError(
                 f"{name}: retail size 0x{len(sequence.instructions) * 4:X}, expected 0x{size:X}"
             )
-        lines.extend(emit_macro(sequence, sda_symbols))
+        raw_entries = entry.get("entries", [])
+        if not isinstance(raw_entries, list) or not all(isinstance(e, str) for e in raw_entries):
+            raise ValueError(f"{name}.entries: expected a list of label names")
+        retail_labels = {label for label, _ in sequence.labels}
+        for label in raw_entries:
+            if label not in retail_labels:
+                raise ValueError(f"{name}.entries: {label} is not a retail label inside {name}")
+            if not SYMBOL_RE.fullmatch(label):
+                raise ValueError(f"{name}.entries: invalid label {label!r}")
+        lines.extend(emit_macro(sequence, sda_symbols, tuple(raw_entries)))
         lines.append("")
 
     return build_root / version / "include" / output_relative, "\n".join(lines)

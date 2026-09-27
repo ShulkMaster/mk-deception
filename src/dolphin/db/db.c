@@ -1,10 +1,10 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/db.h"
+#include "runtime/asm_sequences.inc"
 
-DBInterface* __DBInterface;
 int DBVerbose;
+DBInterface* __DBInterface;
 
-/* TODO: [near miss] 94.000000%; retail and current DBInit opcodes/data agree; only the local exception-symbol relocation metadata differs, with no honest source-only correction available. */
 void DBInit(void)
 {
     __DBInterface = (DBInterface*)OSPhysicalToCached(0x40);
@@ -23,7 +23,10 @@ void __DBExceptionDestinationAux(void)
     PPCHalt();
 }
 
-/* __DBExceptionDestination is a retail MSR-control assembly boundary. */
+asm void __DBExceptionDestination(void)
+{
+    SEQ___DBExceptionDestination();
+}
 
 int __DBIsExceptionMarked(__OSException exception)
 {

@@ -85,15 +85,13 @@ static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
     return is_playing;
 }
 
-/* TODO: [breakthrough needed] 97.22%; writable diagnostics violate retail
- * placement; late pool definition still scores83.08% through base hoisting. */
+/* TODO: [near miss] 97.47%; diagnostic string addressing remains; retry pool layout with whole-TU evidence. */
 extern "C" void mslUpdateTracks(_mslSystem* system) {
     unsigned long track_index;
     int saved_guard;
     int priority;
 
     priority = 0;
-    track_index = 0;
     saved_guard = system->sound_list_guard;
     system->sound_list_guard = 0;
     for (track_index = 0; track_index < system->track_count;

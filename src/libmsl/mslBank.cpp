@@ -162,16 +162,6 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/*
- * Convert the v11 bank body's ILP32 offsets into live pointers, publish each
- * sound definition's command list, then relocate command string references.
- * The operations, layouts, and relocation loops are
- * recovered. The sole caller rejects banks whose flags do not mark sound names
- * as omitted, corroborating that the retail count-driven sound-name loop had
- * its MSL_SKIP_SOUND_NAMES body compiled out while MWCC retained its unrolled
- * trip-count shell. Preserve clean C rather than adding that empty loop; the
- * other residue is GPR coloring and scheduling.
- */
 /* TODO: [breakthrough needed] 86.93%; empty retail name loop is omitted;
  * direct cursor trial scores76.22%; recover the command-slot abstraction. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
@@ -1191,15 +1181,7 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     return unloaded;
 }
 
-/*
- * Allocate a live sound-list node and carry the bank definition flags into
- * its runtime overlay. An already-loaded bank sound gains one reference;
- * an unloaded non-LOD sound is an error.
- * Soft ceiling: ~97.63% -- shared-pool offsets plus one source-equivalent
- * flags/base-sound load-order island remain.
- */
-/* TODO: [breakthrough needed] 97.63% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 97.92%; pooled string offsets and one load-order island remain. */
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
@@ -1300,13 +1282,7 @@ extern "C" int mslBankUse(
     return 0;
 }
 
-/*
- * Recovered callback ownership path.
- * The runtime command owner and inlined bank reference release are recovered;
- * retain field reloads at their retail ownership sites.
- */
-/* TODO: [breakthrough needed] 98.13% retained; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.37%; pooled string offsets and one zero-register schedule remain. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =

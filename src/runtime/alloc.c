@@ -438,6 +438,7 @@ void deallocate_from_fixed_pools(MemPoolObj* pool, void* ptr, unsigned long size
     }
 }
 
+/* TODO: [breakthrough needed] 90.78%; fixed-pool count and subblock scheduling remain. */
 void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     unsigned long index = 0;
     unsigned long count;
@@ -500,7 +501,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
         block->client_size = fix_pool_sizes[index];
         stride = fix_pool_sizes[index] + 4;
         count = (available - 0x14) / stride;
-        subblock = (FixSubBlock*)((unsigned char*)block + 0x14);
+        subblock = (FixSubBlock*)((unsigned char*)block + sizeof(FixBlock));
         for (i = 0; i < count - 1; i++) {
             next = (FixSubBlock*)((unsigned char*)subblock + stride);
             subblock->block = block;
@@ -524,6 +525,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     return (unsigned char*)subblock + 4;
 }
 
+/* TODO: [breakthrough needed] 79.75%; variable-pool coalescing and field scheduling remain. */
 static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
     Block* block = (Block*)((unsigned long)subblock->block & ~1UL);
@@ -552,7 +554,7 @@ static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     if (block->max_size < subblock_size(*start)) {
         block->max_size = subblock_size(*start);
     }
-    first = (SubBlock*)((unsigned char*)block + 16);
+    first = (SubBlock*)((unsigned char*)block + sizeof(Block));
     if ((first->size & 2) == 0 && subblock_size(first) == (block->size & ~7UL) - 24) {
         unlink_block(pool, block);
         __sys_free(block);

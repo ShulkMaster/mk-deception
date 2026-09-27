@@ -332,7 +332,7 @@ int ListPoolAttach(
     previous = 0;
     pool->element_count = element_count;
     pool->element_size = element_size;
-    pool->elements = (char*)memory;
+    pool->elements = memory;
     pool->nodes = (_ListNode*)(
         (char*)memory + element_count * element_size);
 
