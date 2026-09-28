@@ -5445,7 +5445,8 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.46932%; argument/indexed-table GPR residue remains; focused integer-Boolean search found no improvement. */
+/* TODO: [near miss] 99.47%; drone/immediate and category-index GPR coloring;
+ * shared count-helper and direct-access forms regress; signed helper types are neutral. */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     PlyrMoveBlendData* move_data;
     AiFightstyleAttack* script;
@@ -8169,7 +8170,8 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.15%; character-search preheader placement remains; preserve distinct match/sentinel returns. */
+/* TODO: [near miss] 97.15%; character search needs a tail LICM preheader;
+ * recover its loop-entry CFG while preserving distinct match/sentinel returns. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
