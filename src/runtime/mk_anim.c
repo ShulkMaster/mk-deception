@@ -201,16 +201,7 @@ int set_anim_script_frame(
 AnimPdata* get_mkpdata_anim(void);
 
 static inline MkObj* transition_anim_object(AnimPdata* anim) {
-    MkObj* object = anim->obj;
-    if (object != 0) {
-        if (object->hdr.instance == anim->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(anim->obj, anim->obj_instance);
 }
 
 int transition_to_anim_script_frame(
@@ -358,46 +349,17 @@ static inline int mkptr_list_exists(MkPtr** list) {
 }
 
 static inline MkObj* live_anim_object(const PlyrMirrorObjLatch* latch) {
-    MkObj* obj = latch->obj;
-
-    if (obj != 0) {
-        if (obj->hdr.instance == latch->instance) {
-            return obj;
-        }
-        obj = 0;
-    } else {
-        obj = 0;
-    }
-    return obj;
+    return MK_HDR_LIVE(latch->obj, latch->instance);
 }
 
 static inline MkProc* live_anim_proc(const PlyrProcLatch* latch) {
-    MkProc* proc = latch->proc;
-
-    if (proc != 0) {
-        if (proc->instance == latch->instance) {
-            return proc;
-        }
-        proc = 0;
-    } else {
-        proc = 0;
-    }
-    return proc;
+    return MK_LIVE(latch->proc, latch->instance);
 }
 
 static inline BoneMatcherState* live_anim_pose_state(
     const MkHdrLatch* latch) {
     BoneMatcherState* state = (BoneMatcherState*)latch->hdr;
-
-    if (state != 0) {
-        if (state->hdr.instance == latch->instance) {
-            return state;
-        }
-        state = 0;
-    } else {
-        state = 0;
-    }
-    return state;
+    return MK_HDR_LIVE(state, latch->instance);
 }
 
 static inline int anim_selection_is_none(
@@ -833,16 +795,7 @@ static inline MkObj* bone_matcher_state_live_parent_obj(BoneMatcherState* owner)
 }
 
 static inline MkObj* bone_matcher_state_live_child_obj(BoneMatcherState* owner) {
-    MkObj* object = owner->child_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->child_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->child_obj, owner->child_instance);
 }
 
 static inline MkSobj* bone_matcher_state_live_clone_obj(BoneMatcherState* owner) {
@@ -862,7 +815,7 @@ static inline MkSobj* bone_matcher_state_live_clone_obj(BoneMatcherState* owner)
 
 
 
-/* TODO: [near miss] 97.11%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
+/* TODO: [near miss] 97.18%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -1295,30 +1248,12 @@ int advance_anim(AnimPdata* anim) {
 }
 
 static inline PlyrPdata* anim_pdata_live_owner(AnimPdata* owner) {
-    PlyrPdata* object = owner->owner;
-    if (object != 0) {
-        if (object->instance == owner->owner_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->owner, owner->owner_instance);
 }
 
 /* TODO: [breakthrough needed] 76.517290%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
 static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 
@@ -2633,16 +2568,7 @@ static void apply_anim_offset(
 }
 
 static inline MkObj* animation_live_object(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 void set_root_and_obj_movement_weights(
@@ -3184,16 +3110,7 @@ void transition_to_anim_script(
 }
 
 static inline MkObj* animation_live_obj(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 /* TODO: [near miss] 99.41%; frame span matches; first live obj/root bone/rotation take r26/r27/r29 (retail r31/r26/r27). */

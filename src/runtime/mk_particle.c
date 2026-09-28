@@ -84,9 +84,6 @@ static const float kDefaultPfxScale = -10000.0f; /* retail @1400 */
 #define MKPFX_VTBL_GET_SOBJ(vtbl_, hdr_)                                  \
     (((MkSobj* (*)(MkHdr*))(vtbl_)->fn2)(hdr_))
 
-#define MKPFX_LIVE_HDR(hdr_, instance_)                                   \
-    ((hdr_) != 0 ? ((hdr_)->instance == (instance_) ? (hdr_) : 0) : 0)
-
 static inline MkObj* as_mkobj(MkHdr* hdr) {
     if (hdr == 0) {
         return 0;
@@ -130,16 +127,7 @@ static inline PfxVm* pfx_vm(MkPfx* pfx) {
 /* ======================================================================== */
 
 static inline MkHdr* pfx_slot_live_hdr(PfxSlot* owner) {
-    MkHdr* object = owner->hdr;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->hdr, owner->instance);
 }
 
 
@@ -221,7 +209,7 @@ MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index) {
         return 0;
     }
     table = pfx->slot_table;
-    return MKPFX_LIVE_HDR(table[index].hdr, table[index].instance);
+    return MK_LIVE(table[index].hdr, table[index].instance);
 }
 
 void vdestroy_pfx_clone(PfxClone* clone) {
@@ -235,11 +223,11 @@ void vdestroy_pfx_clone(PfxClone* clone) {
     clone->flag_bits.destroyed = 1;
 
     if (clone->flag_bits.owns_bind) {
-        hdr = MKPFX_LIVE_HDR(clone->bind_hdr, clone->bind_inst);
+        hdr = MK_LIVE(clone->bind_hdr, clone->bind_inst);
         vtbl_call_destroy(hdr);
     }
     if (clone->flag_bits.owns_bind2) {
-        hdr = MKPFX_LIVE_HDR(clone->bind2_hdr, clone->bind2_inst);
+        hdr = MK_LIVE(clone->bind2_hdr, clone->bind2_inst);
         vtbl_call_destroy(hdr);
     }
 
@@ -259,14 +247,14 @@ void vdestroy_pfx(MkPfx* pfx) {
     pfx->flag_bits.destroyed = 1;
 
     if (pfx->flag_bits.owns_bind) {
-        hdr = MKPFX_LIVE_HDR(pfx->bind_hdr, pfx->bind_inst);
+        hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
         vtbl_call_destroy(hdr);
     }
 
     if (pfx->slot_table != 0) {
         for (i = 0; i < pfx->slot_count; i++) {
             if (pfx->slot_table[i].flag_bits.owns_bind) {
-                hdr = MKPFX_LIVE_HDR(pfx->slot_table[i].hdr, pfx->slot_table[i].instance);
+                hdr = MK_LIVE(pfx->slot_table[i].hdr, pfx->slot_table[i].instance);
                 vtbl_call_destroy(hdr);
             }
         }
@@ -343,14 +331,14 @@ void render_pfx(MkPfx* pfx) {
     float one;
     PfxTransformCb cb;
 
-    bound = MKPFX_LIVE_HDR(pfx->slot_table->hdr, pfx->slot_table->instance);
+    bound = MK_LIVE(pfx->slot_table->hdr, pfx->slot_table->instance);
     if (bound != 0) {
         mkobj = as_mkobj(bound);
         if (mkobj != 0) {
             if (((mkobj->flags_0C >> 1) & 1) == 0) {
                 hide_byte = mkobj->hide_flags;
             } else {
-                parent = MKPFX_LIVE_HDR(mkobj->parent_hdr, mkobj->parent_inst);
+                parent = MK_LIVE(mkobj->parent_hdr, mkobj->parent_inst);
                 if (parent == 0) {
                     return;
                 }
@@ -557,7 +545,7 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
 
     slot = pfx->slot_table;
     if (flag_msb(slot->flags) < 0) {
-        existing = MKPFX_LIVE_HDR(slot->hdr, slot->instance);
+        existing = MK_LIVE(slot->hdr, slot->instance);
         if (existing != 0) {
             return (MkObj*)existing;
         }
@@ -593,7 +581,7 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter)
 
     slot = &pfx->slot_table[emitter];
     if (flag_msb(slot->flags) < 0) {
-        existing = MKPFX_LIVE_HDR(slot->hdr, slot->instance);
+        existing = MK_LIVE(slot->hdr, slot->instance);
         if (existing != 0) {
             return (MkObj*)existing;
         }
@@ -926,7 +914,7 @@ void pfx_pre_wake(void) {
     apfx_render_obj = 0;
     apfx_render_sobj = 0;
 
-    render_hdr = MKPFX_LIVE_HDR(pfx->bind_hdr, pfx->bind_inst);
+    render_hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
     if (pfx->bind_hdr != 0 && render_hdr == 0) {
         mkproc_die();
     }
@@ -937,7 +925,7 @@ void pfx_pre_wake(void) {
 
     emitter_slot = pfx->slot_table;
     if (emitter_slot != 0) {
-        emitter_hdr = MKPFX_LIVE_HDR(emitter_slot->hdr, emitter_slot->instance);
+        emitter_hdr = MK_LIVE(emitter_slot->hdr, emitter_slot->instance);
         if (emitter_hdr != 0) {
             apfx_emitter_obj = as_mkobj(emitter_hdr);
             apfx_emitter_sobj = vtbl_call_get_sobj(emitter_hdr);
@@ -947,7 +935,7 @@ void pfx_pre_wake(void) {
     begin_rc = pfx_frame_begin(pfx_vm(pfx));
     if (begin_rc != 0) {
         pfx_frame_end(pfx_vm(pfx));
-        proc_hdr = MKPFX_LIVE_HDR(pfx->proc, pfx->proc_inst);
+        proc_hdr = MK_LIVE(pfx->proc, pfx->proc_inst);
         if (pfx->hdr.instance != 0) {
             vtbl_call_destroy(&pfx->hdr);
         }

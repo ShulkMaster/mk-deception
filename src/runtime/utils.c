@@ -710,16 +710,7 @@ void setup_fixed_block_heaps(void) {
 }
 
 static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->instance);
 }
 
 void load_and_set_refl_on_weapon(void) {

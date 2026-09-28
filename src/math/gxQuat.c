@@ -15,16 +15,16 @@ static const float kInvSqrtScale = 0.0625f;
 static const float kNewtonIter12 = 12.0f;
 static const float kHalf = 0.5f;
 
-/* TODO: [near miss] 88.70%; built for size the prologue matches; FPR ranking (retail t f28, sign f29,
- * oneMinusT f30, absDot f31) and the output store interleave remain. */
+/* TODO: [near miss] 89.40%; oneMinusT/absDot FPRs and scaled-q2-first order match; retail ranks
+ * t f28, sign f29, theta f27 (ours f29/f27/f28); declaration order and a t copy do not move it. */
 void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
-    float sign;
-    float oneMinusT;
-    float dot;
     float absDot;
-    float invSin;
+    float oneMinusT;
+    float sign;
     float theta;
-    float signedWeight;
+    float invSin;
+    float dot;
+    Quat scaled;
 
     if (t < kZero) {
         t = kZero;
@@ -34,8 +34,8 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
     oneMinusT = kOne - t;
     dot = q1->w * q2->w + (q1->z * q2->z + (q1->x * q2->x + q1->y * q2->y));
-    absDot = dot;
     sign = kOne;
+    absDot = dot;
     if (dot < kZero) {
         absDot = -dot;
         sign = kNegOne;
@@ -46,11 +46,15 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
         t = invSin * gxMathSin(t * theta);
         oneMinusT = invSin * gxMathSin(oneMinusT * theta);
     }
-    signedWeight = oneMinusT * sign;
-    out->x = t * q1->x + q2->x * signedWeight;
-    out->y = t * q1->y + q2->y * signedWeight;
-    out->z = t * q1->z + q2->z * signedWeight;
-    out->w = t * q1->w + q2->w * signedWeight;
+    oneMinusT *= sign;
+    scaled.x = q2->x * oneMinusT;
+    scaled.y = q2->y * oneMinusT;
+    scaled.z = q2->z * oneMinusT;
+    scaled.w = q2->w * oneMinusT;
+    out->x = t * q1->x + scaled.x;
+    out->y = t * q1->y + scaled.y;
+    out->z = t * q1->z + scaled.z;
+    out->w = t * q1->w + scaled.w;
     if (absDot > kSlerpNormDotThresh) {
         PSQUATNormalize(out, out);
     }
@@ -72,7 +76,7 @@ static inline float gxQuatInvSqrt(float value) {
     in.f = value;
     out.u = 0x5F375A00U - (in.u >> 1);
     guess = out.f;
-    t1 = value * guess;
+    t1 = guess * (value * guess);
     t3 = kNewtonIter3 - t1;
     result = kInvSqrtScale * guess;
     result = result * t3 * (kNewtonIter12 - (t1 * t3 * t3));
@@ -96,8 +100,8 @@ static inline float gxQuatHalfSqrt(float value) {
     return kHalf * (guess * (kNewtonIter3 - (guess * guess) / value));
 }
 
-/* TODO: [near miss] 98.35%; built for size the prologue and most slots match; remaining rows are sqrt-helper
- * stack-slot pairing and the separate 0.5f pool entry. */
+/* TODO: [near miss] 99.50%; Newton step matches; remaining: 180-deg axis x/z store order, inlined
+ * sqrt-union stack slots (retail InvSqrt outputs at 0x14/0x10), and the separate 0.5f pool entry. */
 void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     Vec axis __attribute__((aligned(16)));
     float dot;

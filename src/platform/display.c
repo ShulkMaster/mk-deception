@@ -126,16 +126,7 @@ void end_first_pass_render(void) {
 }
 
 static inline MkObj* display_camera_live_object(DisplayCameraItem* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->object, owner->instance);
 }
 
 void start_first_pass_render(void) {
@@ -457,16 +448,7 @@ void turn_display_off(void) {
 }
 
 static inline MkObj* fighter_live_shadow_obj(FighterMirror* owner) {
-    MkObj* object = owner->shadow_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->shadow_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->shadow_obj, owner->shadow_obj_instance);
 }
 
 void Render(void) {

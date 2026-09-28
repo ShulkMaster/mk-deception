@@ -154,9 +154,6 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj);
 void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
 int get_player_number(void* obj);
 
-extern int limb_meat_chunk_list[];
-extern int* limb_meats_mat_id_tbl[];
-extern int* limb_children_table[];
 
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
@@ -211,6 +208,42 @@ LightMkList light_mklists[13] = {
     {0, 0, 0}
 };
 
+static int head_child_limbs[1] = { -1 };
+static int hand_right_child_limbs[1] = { -1 };
+static int forearm_right_child_limbs[2] = { 1, -1 };
+static int arm_right_child_limbs[2] = { 2, -1 };
+static int hand_left_child_limbs[1] = { -1 };
+static int forearm_left_child_limbs[2] = { 4, -1 };
+static int arm_left_child_limbs[2] = { 5, -1 };
+static int foot_right_child_limbs[1] = { -1 };
+static int calf_right_child_limbs[2] = { 7, -1 };
+static int thigh_right_child_limbs[2] = { 8, -1 };
+static int foot_left_child_limbs[1] = { -1 };
+static int calf_left_child_limbs[2] = { 10, -1 };
+static int thigh_left_child_limbs[2] = { 11, -1 };
+
+static int limb_root_bids[15] = { 16, 25, 21, 17, 24, 20, 15, 8, 5, 2, 7, 4, 1, 0, 3 };
+static int pelvis_child_limbs[3] = { 9, 12, -1 };
+static int torso_child_limbs[4] = { 0, 3, 6, -1 };
+static int* limb_children_table[15] = { head_child_limbs, hand_right_child_limbs, forearm_right_child_limbs, arm_right_child_limbs, hand_left_child_limbs, forearm_left_child_limbs, arm_left_child_limbs, foot_right_child_limbs, calf_right_child_limbs, thigh_right_child_limbs, foot_left_child_limbs, calf_left_child_limbs, thigh_left_child_limbs, pelvis_child_limbs, torso_child_limbs };
+int limb_meat_chunk_list[29] = { 19, 29, 38, 39, 48, 49, 59, 68, 69, 78, 79, 89, 98, 99, 108, 109, 119, 128, 129, 138, 139, 147, 148, 149, 156, 157, 158, 159, -1 };
+static int limb_meats_mat_id__head[3] = { 19, 156, -1 };
+static int limb_meats_mat_id__hand_r[3] = { 29, 39, -1 };
+static int limb_meats_mat_id__forearm_r[5] = { 38, 49, 29, 39, -1 };
+static int limb_meats_mat_id__arm_r[5] = { 48, 158, 68, 49, -1 };
+static int limb_meats_mat_id__hand_l[3] = { 59, 69, -1 };
+static int limb_meats_mat_id__forearm_l[5] = { 68, 79, 59, 69, -1 };
+static int limb_meats_mat_id__arm_l[5] = { 78, 157, 68, 79, -1 };
+static int limb_meats_mat_id__foot_r[3] = { 89, 99, -1 };
+static int limb_meats_mat_id__calf_r[5] = { 98, 109, 89, 99, -1 };
+static int limb_meats_mat_id__thigh_r[5] = { 108, 149, 98, 109, -1 };
+static int limb_meats_mat_id__foot_l[3] = { 119, 129, -1 };
+static int limb_meats_mat_id__calf_l[5] = { 128, 139, 119, 129, -1 };
+static int limb_meats_mat_id__thigh_l[5] = { 138, 148, 128, 139, -1 };
+static int limb_meats_mat_id__pelvis[7] = { 147, 159, 108, 149, 138, 148, -1 };
+static int limb_meats_mat_id__torso[9] = { 159, 147, 19, 156, 48, 158, 78, 157, -1 };
+int* limb_meats_mat_id_tbl[15] = { limb_meats_mat_id__head, limb_meats_mat_id__hand_r, limb_meats_mat_id__forearm_r, limb_meats_mat_id__arm_r, limb_meats_mat_id__hand_l, limb_meats_mat_id__forearm_l, limb_meats_mat_id__arm_l, limb_meats_mat_id__foot_r, limb_meats_mat_id__calf_r, limb_meats_mat_id__thigh_r, limb_meats_mat_id__foot_l, limb_meats_mat_id__calf_l, limb_meats_mat_id__thigh_l, limb_meats_mat_id__pelvis, limb_meats_mat_id__torso };
+
 typedef struct GoroArmsFixupEntry {
     int source_bone;
     int target_bone;
@@ -227,8 +260,6 @@ GoroArmsFixupEntry goro_arms_fixup_map[12] = {
     {0x16, 0x47}, {0x18, 0x48}, {0x0E, 0x50}, {0x11, 0x51},
     {0x13, 0x52}, {0x15, 0x53}, {0x17, 0x54}, {0x19, 0x55}
 };
-
-extern int limb_root_bids[15];
 
 int build_bones_tbl(MkObj* obj, const int* tags);
 void* ft_fake_bone_matcher(
@@ -1069,16 +1100,7 @@ static float p_goro_arms_fixup(void) {
 }
 
 static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->instance);
 }
 
 /* TODO: [near miss] 96.830986%; relocation offsets, register coloring; one-trial ceiling. */
@@ -1322,16 +1344,7 @@ void auto_calc_limbobj_bone_world_pos(MkObj* obj, int bone) {
 }
 
 static inline MkObj* limb_live_object(LimbBonePdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 static void limb_bone_calc_world_pos(MkHdr* data) {
@@ -2094,16 +2107,7 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
 }
 
 static inline MkObj* material_fade_live_obj(FadeMaterialPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 /* TODO: [near miss] 97.970300%; register coloring, relocation offsets; one-trial ceiling. */
@@ -3053,16 +3057,7 @@ void bind_rplight_to_obj(RpLight* light, MkObj* obj) {
 }
 
 static inline MkObj* light_live_object(MkxRpLight* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 void vdestroy_mkx_rplight(MkxRpLight* link) {
@@ -3396,15 +3391,7 @@ void* limb_sever_find_limbset(void* obj, int id) {
 
 static inline MkHdr* fighter_live_limb_update_proc(FighterMirror* owner) {
     MkHdr* object = (MkHdr*) owner->limb_update_proc;
-    if (object != 0) {
-        if (object->instance == owner->limb_update_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(object, owner->limb_update_proc_instance);
 }
 
 /* TODO: [near miss] 96.646706%; null-safe header cast restores retail branch;
