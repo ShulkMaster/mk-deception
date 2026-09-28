@@ -488,7 +488,7 @@ float x_block(void);
 float side_step_to_center_with_jexit(void);
 void step_forward(void);
 void step_backward(void);
-void jump_towards_opponent(void);
+float jump_towards_opponent(void);
 void drone_walk_FB_true(int (*test)(void), unsigned int ticks, int forward,
                         int allow_exit);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
@@ -588,7 +588,7 @@ static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags);
 int drone_ai_enemy_inair_attack(DroneAI* drone);
 static AiFightstyleAttack* drone_ai_choose_move_from_category(
-    int category, unsigned int likelihood, int* is_script);
+    unsigned int category, unsigned int likelihood, int* is_script);
 static float drone_ai_special_attack_now(void);
 int segment_against_obstacle_list(
     const Vec* start, const Vec* end, Vec* hit, ConstrainInfo* info);
@@ -673,20 +673,22 @@ static inline void ai_side_clearances(float* right, float* left) {
     float delta_z;
     float right_distance;
     float left_distance;
+    float probe_length;
 
     if (plyr_obj == 0) {
         right_distance = 100.0f;
         left_distance = 100.0f;
     } else {
+        probe_length = 100.0f;
         origin.x = plyr_obj->pos.value.x;
         origin.y = plyr_obj->pos.value.y;
         origin.z = plyr_obj->pos.value.z;
         unit.x = gxMathSin(plyr_obj->ang.y);
         unit.y = 0.0f;
         unit.z = gxMathCos(plyr_obj->ang.y);
-        delta_x = 100.0f * unit.z;
+        delta_x = probe_length * unit.z;
         delta_y = 0.0f;
-        delta_z = 100.0f * -unit.x;
+        delta_z = -unit.x * probe_length;
 
         end.x = origin.x + delta_x;
         end.y = origin.y + delta_y;
@@ -934,11 +936,9 @@ static inline CameraObj* camera_live_node(CameraItem* owner) {
         if (object->hdr.instance == owner->instance) {
             return object;
         }
-        object = 0;
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
 static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
@@ -947,14 +947,11 @@ static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
         if (object->hdr.instance == owner->object_instance) {
             return object;
         }
-        object = 0;
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
-/* TODO: [near miss] 98.89706%; pointer coloring remains; caller camera initializer is neutral; retain validated owner paths. */
 static float p_lookat_cam(void) {
     CameraObj* camera;
     MkObj* target;
@@ -1145,7 +1142,7 @@ float go_into_twitch_death(void) {
 }
 
 
-/* TODO: [breakthrough needed] 98.870056%; two retail dispatch branches need source evidence; a direct default-arm transfer regresses; retain common exit. */
+/* TODO: [near miss] 98.87%; retail retains two equivalent case-1 default-dispatch branches. */
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1188,9 +1185,9 @@ float go_into_major_pain(void) {
                 MkProc* opponent_proc;
 
                 if (get_player_number(his_obj) == 0) {
-                    opponent_proc = (MkProc*)g_game_info.plyr0.idle_proc;
+                    opponent_proc = g_game_info.plyr0.idle_proc;
                 } else {
-                    opponent_proc = (MkProc*)g_game_info.plyr1.idle_proc;
+                    opponent_proc = g_game_info.plyr1.idle_proc;
                 }
                 xfer_player_proc(opponent_proc, force_some_distance);
             }
@@ -1417,7 +1414,7 @@ void whoosh_fx(int hit_type) {
     region = ai_resolve_attack_region(player);
     fighter = player->fighter_definition;
     if (fighter->move_blend_data->primary_weapon != 0) {
-        move_flags = ((WeaponDefinition*)fighter->move_blend_data->primary_weapon)->field_5c;
+        move_flags = (fighter->move_blend_data->primary_weapon)->field_5c;
     } else {
         move_flags = 0;
     }
@@ -2048,8 +2045,8 @@ static inline void ai_transfer_active(MkProcEntryFn entry) {
     active_drone = get_player_number(plyr_obj) == 0
                        ? &g_DroneAI1 : &g_DroneAI2;
     player_proc = get_player_number(plyr_obj) == 0
-                      ? (MkProc*)g_game_info.plyr0.idle_proc
-                      : (MkProc*)g_game_info.plyr1.idle_proc;
+                      ? g_game_info.plyr0.idle_proc
+                      : g_game_info.plyr1.idle_proc;
     xfer_proc(player_proc, entry);
     active_drone->request_active = 1;
 }
@@ -2298,8 +2295,8 @@ float drone_ai_watcher(void) {
         return 1.0f;
     }
     player_proc = get_player_number(plyr_obj) == 0
-                      ? (MkProc*)g_game_info.plyr0.idle_proc
-                      : (MkProc*)g_game_info.plyr1.idle_proc;
+                      ? g_game_info.plyr0.idle_proc
+                      : g_game_info.plyr1.idle_proc;
     if (player_proc->entry == p_idle) {
         return 1.0f;
     }
@@ -2853,7 +2850,7 @@ int drone_ai_check_block_at_reactions(void) {
         return 0;
     }
     if (his_pdata->repeated_action_count >
-        (int)((unsigned short)randu0(3) + 2)) {
+        ((unsigned short)randu0(3) + 2)) {
         if (drone->big_boss_stage == 0) {
             if (drone->match_stage > 4 && (unsigned short)randu0(100) < 40) {
                 return 1;
@@ -3147,7 +3144,7 @@ int drone_ai_check_for_throw(DroneAI* drone) {
     } else if (drone->block_hold_ticks > minimum_ticks) {
         can_throw = 1;
     } else if ((unsigned short)randu0(100) <
-               (unsigned int)g_likelihoodToThrow[drone->difficulty_index]) {
+               g_likelihoodToThrow[drone->difficulty_index]) {
         can_throw = 1;
     } else {
         can_throw = 0;
@@ -3398,8 +3395,8 @@ int drone_ai_check_for_side_step_counter_attack(DroneAI* drone) {
     active_drone = get_player_number(plyr_obj) == 0
                        ? &g_DroneAI1 : &g_DroneAI2;
     player_proc = get_player_number(plyr_obj) == 0
-                      ? (MkProc*)g_game_info.plyr0.idle_proc
-                      : (MkProc*)g_game_info.plyr1.idle_proc;
+                      ? g_game_info.plyr0.idle_proc
+                      : g_game_info.plyr1.idle_proc;
     xfer_proc(player_proc, side_step_to_center_attack_with_jexit);
     active_drone->request_active = 1;
 
@@ -3863,8 +3860,8 @@ int drone_ai_check_for_dodge_movement(DroneAI* request) {
         drone = get_player_number(plyr_obj) == 0
                     ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         xfer_proc(player_proc, walk_forward_attackdist_with_jexit);
         drone->request_active = 1;
         return 1;
@@ -3873,8 +3870,8 @@ int drone_ai_check_for_dodge_movement(DroneAI* request) {
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     player_proc = get_player_number(plyr_obj) == 0
-                      ? (MkProc*)g_game_info.plyr0.idle_proc
-                      : (MkProc*)g_game_info.plyr1.idle_proc;
+                      ? g_game_info.plyr0.idle_proc
+                      : g_game_info.plyr1.idle_proc;
     xfer_proc(player_proc, side_step_to_center_attack_with_jexit);
     drone->request_active = 1;
     return 1;
@@ -4177,10 +4174,10 @@ int drone_ai_check_for_special_move_reaction(DroneAI* drone) {
     } else if (opponent_state == 0x104) {
         result = 0;
     } else if (opponent_state == 0x105 &&
-               (unsigned int)drone->block_subtype != 0x107U) {
+               drone->block_subtype != 0x107U) {
         result = drone_ai_check_from_ground_attack_phase1(drone);
     } else if (opponent_state == 0x106 &&
-               (unsigned int)drone->block_subtype == 0x107U) {
+               drone->block_subtype == 0x107U) {
         result = drone_ai_check_from_ground_attack_phase2(drone);
     } else if (opponent_state == 0x109) {
         result = drone_ai_check_all_over_ground(drone);
@@ -4238,7 +4235,7 @@ int drone_ai_check_all_over_ground(DroneAI* drone) {
     }
 
     if (drone->opponent_distance >= 5.9457946f) {
-        roll = (unsigned short)randu0(100);
+        roll = randu0(100);
         if (roll < 50 ||
             (roll < 75 && drone->difficulty_index < 3)) {
             ai_transfer_active(jump_away_opponent_with_j_exit);
@@ -4316,7 +4313,7 @@ static inline int ai_should_block_super_move(DroneAI* drone) {
         return 0;
     }
     if (his_pdata->repeated_action_count >
-        (int)((unsigned short)randu0(3) + 2)) {
+        ((unsigned short)randu0(3) + 2)) {
         return 1;
     }
 
@@ -4670,7 +4667,7 @@ int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
 
     taunt_count = ai_count_taunt_moves();
     charge_count = ai_count_charge_moves();
-    roll = (unsigned short)randu0(100);
+    roll = randu0(100);
     his_pdata->secondary_state = 0x10B;
 
     if ((int)roll < 10) {
@@ -5900,7 +5897,7 @@ static int drone_ai_victim_throw_attempt(void) {
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
-    roll = (unsigned short)randu0(100);
+    roll = randu0(100);
     if (his_pdata->state != 0x120C) {
         drone->decision_ready = 1;
         drone->reaction_watcher = 0;
@@ -6195,7 +6192,7 @@ static int drone_ai_victim_dizzy_3(void) {
         drone_ai_choose_move_from_category(11, 75, &is_script);
     script = 0;
     roll_value = randu0(100);
-    roll = (unsigned short)roll_value;
+    roll = roll_value;
     if (his_pdata->state != 0x4203 || f_fatality_was_done != 0) {
         drone->reaction_watcher = 0;
         return 0;
@@ -6438,7 +6435,7 @@ float drone_ai_perform_script_attack(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.86842%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.92105%; clearance constant-pool identity and FPR coloring remain. */
 float jump_away_opponent_with_j_exit(void) {
     DroneAI* drone;
     float right_clearance;
@@ -6757,7 +6754,7 @@ static float walk_backward_walk_ticks_jexit(void) {
     int ticks;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
-    ticks = (int)drone->walk_ticks;
+    ticks = drone->walk_ticks;
     if (ticks > 0) {
         if (ticks > 200) {
             ticks = 200;
@@ -6793,7 +6790,7 @@ static float jump_away_opponent_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_long_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6810,7 +6807,7 @@ static float side_step_to_center_long_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_attack_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6827,7 +6824,7 @@ static float side_step_to_center_attack_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 float side_step_to_center_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6979,7 +6976,7 @@ static float drone_ai_attack_obstacle_now(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.88095%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
+/* TODO: [near miss] 99.92857%; clearance constant-pool identity and FPR coloring remain. */
 static float drone_ai_dodge_3d_with_counter(void) {
     DroneAI* drone;
     Vec facing;
@@ -7128,7 +7125,7 @@ static inline float ai_finish_duck_throw_reaction(DroneAI* drone) {
         plyr_pdata->duck_wait_ticks--;
     }
 
-    while ((((int)(his_pdata->state & 0x1000) > 0) ||
+    while ((((his_pdata->state & 0x1000) > 0) ||
             his_pdata->throw_restriction == 3 ||
             his_pdata->duck_reaction_active == 1) &&
            exposed_ticks++ < 25) {
@@ -7192,7 +7189,7 @@ static float drone_ai_duck_attack(void) {
         plyr_pdata->duck_wait_ticks--;
     }
 
-    while ((((int)(his_pdata->state & 0x1000) > 0) ||
+    while ((((his_pdata->state & 0x1000) > 0) ||
             his_pdata->throw_restriction == 3 ||
             his_pdata->duck_reaction_active == 1) &&
            exposed_ticks++ < 25) {
@@ -7417,7 +7414,7 @@ void drone_ai_initialize(DroneAI* drone) {
 
     if (ladder_position < 3) {
         drone->movement_state = 0;
-        random_ticks = (unsigned short)randu0(60);
+        random_ticks = randu0(60);
         deadline = random_ticks;
         deadline = exec_tick_ctr + deadline;
         deadline += 120;
@@ -7429,7 +7426,7 @@ void drone_ai_initialize(DroneAI* drone) {
         drone->movement_state = 1;
     }
 
-    random_ticks = (unsigned short)randu0(120);
+    random_ticks = randu0(120);
     deadline = random_ticks;
     deadline = exec_tick_ctr + deadline;
     deadline += 180;
@@ -7603,7 +7600,7 @@ static float drone_loop(void) {
     random_range = g_randomDecisionBaseWaitTime[difficulty];
     ticks = g_minDecisionBaseWaitTime[difficulty];
     ticks += (unsigned short)randu0(random_range);
-    return (float)ticks;
+    return ticks;
 }
 #pragma opt_propagation reset
 
@@ -7873,7 +7870,7 @@ static int drone_ai_change_attack_to_low(DroneAI* drone) {
     unsigned short roll;
 
     random_value = randu0(100);
-    roll = (unsigned short)random_value;
+    roll = random_value;
     if (drone->movement_state == 8 &&
         (drone->player->state & 0x100) != 0 &&
         (unsigned short)randu0(100) < 80) {
@@ -8027,10 +8024,10 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
         attack_chance += 10;
     }
     if ((unsigned short)randu0(100) < 50) {
-        unsigned short adjustment = (unsigned short)randu0(10);
+        unsigned short adjustment = randu0(10);
         attack_chance += adjustment;
     } else {
-        unsigned short adjustment = (unsigned short)randu0(5);
+        unsigned short adjustment = randu0(5);
         attack_chance -= adjustment;
     }
     if (drone->match_stage == 0) {
@@ -8058,10 +8055,10 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
                 }
             }
             if ((unsigned short)randu0(100) < 50) {
-                unsigned short adjustment = (unsigned short)randu0(2);
+                unsigned short adjustment = randu0(2);
                 combo_chance += adjustment;
             } else {
-                unsigned short adjustment = (unsigned short)randu0(2);
+                unsigned short adjustment = randu0(2);
                 combo_chance -= adjustment;
             }
             if (drone->match_stage > 2 && drone->start_state_a == 1) {
@@ -8100,10 +8097,10 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
                 }
             }
             if ((unsigned short)randu0(100) < 50) {
-                unsigned short adjustment = (unsigned short)randu0(2);
+                unsigned short adjustment = randu0(2);
                 popup_chance += adjustment;
             } else {
-                unsigned short adjustment = (unsigned short)randu0(2);
+                unsigned short adjustment = randu0(2);
                 popup_chance -= adjustment;
             }
             if (drone->match_stage > 2 && drone->start_state_a == 1) {
@@ -8135,10 +8132,10 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
                 special_chance = 1;
             }
             if ((unsigned short)randu0(100) < 50) {
-                unsigned short adjustment = (unsigned short)randu0(3);
+                unsigned short adjustment = randu0(3);
                 special_chance += adjustment;
             } else {
-                unsigned short adjustment = (unsigned short)randu0(3);
+                unsigned short adjustment = randu0(3);
                 special_chance -= adjustment;
             }
             if (special_chance < 0) {
@@ -8227,7 +8224,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.14646%; displaced character-search preheader remains; constant-true do-loop is neutral; retain both search returns. */
+/* TODO: [near miss] 97.15%; character-search preheader placement remains; preserve distinct match/sentinel returns. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
@@ -8249,7 +8246,7 @@ int drone_ai_fetch_next_AIState(DroneAI* drone) {
         return drone->movement_state;
     }
 
-    roll = (unsigned short)randu0(100);
+    roll = randu0(100);
     for (state = 0; state < 9; state++) {
         total += ai_state_weight(drone, state);
         if (roll < total) {
@@ -8335,7 +8332,7 @@ int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
                 return 1;
             }
             if (his_pdata->repeated_action_count >
-                (int)((unsigned short)randu0(3) + 2)) {
+                ((unsigned short)randu0(3) + 2)) {
                 if (drone->big_boss_stage == 0) {
                     if (drone->match_stage > 5 && (unsigned short)randu0(100) < 50) {
                         return 1;
@@ -8390,12 +8387,12 @@ int drone_ai_should_roll(int aggressive) {
     if ((unsigned short)randu0(100) < 50) {
         unsigned short adjustment;
 
-        adjustment = (unsigned short)randu0(10);
+        adjustment = randu0(10);
         likelihood += adjustment;
     } else {
         unsigned short adjustment;
 
-        adjustment = (unsigned short)randu0(20);
+        adjustment = randu0(20);
         likelihood -= adjustment;
     }
     if (likelihood < 0) {
@@ -8453,25 +8450,25 @@ static int drone_ai_process_scripted_cmd(void) {
         active_drone->command_active = 0;
         return 0;
     case 0x02000000:
-        drone->ai_command_value = (float)(command & 0xFFFFF);
+        drone->ai_command_value = command & 0xFFFFF;
         break;
     case 0x08000000:
-        drone->walk_ticks = (float)(command & 0xFFFFF);
+        drone->walk_ticks = command & 0xFFFFF;
         active_drone = get_player_number(plyr_obj) == 0
                            ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         xfer_proc(player_proc, walk_forward_attackdist_close_with_jexit);
         active_drone->request_active = 1;
         break;
     case 0x10000000:
-        drone->walk_ticks = (float)(command & 0xFFFFF);
+        drone->walk_ticks = command & 0xFFFFF;
         active_drone = get_player_number(plyr_obj) == 0
                            ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         xfer_proc(player_proc, walk_backward_walk_ticks_jexit);
         active_drone->request_active = 1;
         break;
@@ -8479,8 +8476,8 @@ static int drone_ai_process_scripted_cmd(void) {
         active_drone = get_player_number(plyr_obj) == 0
                            ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         xfer_proc(player_proc, drone_ai_scripted_change_style);
         active_drone->request_active = 1;
         break;
@@ -8498,8 +8495,8 @@ static int drone_ai_process_scripted_cmd(void) {
         return 1;
     case 0x04000000:
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         script = get_cmdscript_for_proc(player_proc);
         if (script == 0) {
             active_drone = get_player_number(plyr_obj) == 0
@@ -8542,8 +8539,8 @@ static int drone_ai_process_scripted_cmd(void) {
             active_drone = get_player_number(plyr_obj) == 0
                                ? &g_DroneAI1 : &g_DroneAI2;
             player_proc = get_player_number(plyr_obj) == 0
-                              ? (MkProc*)g_game_info.plyr0.idle_proc
-                              : (MkProc*)g_game_info.plyr1.idle_proc;
+                              ? g_game_info.plyr0.idle_proc
+                              : g_game_info.plyr1.idle_proc;
             xfer_proc(player_proc, drone_ai_scripted_special_attack);
             active_drone->request_active = 1;
         }
@@ -8583,8 +8580,8 @@ static int drone_ai_process_scripted_cmd(void) {
         active_drone = get_player_number(plyr_obj) == 0
                            ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
-                          ? (MkProc*)g_game_info.plyr0.idle_proc
-                          : (MkProc*)g_game_info.plyr1.idle_proc;
+                          ? g_game_info.plyr0.idle_proc
+                          : g_game_info.plyr1.idle_proc;
         xfer_proc(player_proc, drone_ai_scripted_attack);
         active_drone->request_active = 1;
         break;
@@ -8754,7 +8751,7 @@ int drone_ai_check_switching_to(int command) {
         int script_command;
 
         script_command =
-            (int)(drone->ai_command[drone->ai_command_arg] & 0xFEFFFFFF);
+            (drone->ai_command[drone->ai_command_arg] & 0xFEFFFFFF);
         if (script_command == command) {
             drone->super_combo_active = 0;
             advance_cur_cmd_idx();
@@ -9239,15 +9236,15 @@ void drone_ai_increase_big_boss_stage(PlyrPdata* victim) {
 
     if (g_game_info.plyr1.slot.pdata == victim) {
         opponent_proc = get_player_number(g_game_info.plyr0.slot.mirror_a) == 0
-                            ? (MkProc*)g_game_info.plyr0.idle_proc
-                            : (MkProc*)g_game_info.plyr1.idle_proc;
+                            ? g_game_info.plyr0.idle_proc
+                            : g_game_info.plyr1.idle_proc;
         script = get_cmdscript_for_proc(opponent_proc);
         g_game_info.plyr0.slot.pdata->blocking_disabled = 1;
         g_game_info.plyr0.slot.pdata->blocking_disabled_2 = 1;
     } else if (g_game_info.plyr0.slot.pdata == victim) {
         opponent_proc = get_player_number(g_game_info.plyr1.slot.mirror_a) == 0
-                            ? (MkProc*)g_game_info.plyr0.idle_proc
-                            : (MkProc*)g_game_info.plyr1.idle_proc;
+                            ? g_game_info.plyr0.idle_proc
+                            : g_game_info.plyr1.idle_proc;
         script = get_cmdscript_for_proc(opponent_proc);
         g_game_info.plyr1.slot.pdata->blocking_disabled = 1;
         g_game_info.plyr1.slot.pdata->blocking_disabled_2 = 1;
@@ -9654,7 +9651,7 @@ int handicap_get_current_difficulty(DroneAI* drone) {
     unsigned short random_roll;
 
     random_value = randu0(100);
-    random_roll = (unsigned short)random_value;
+    random_roll = random_value;
     score = ((int)drone->handicap_stage + 4) * 5;
     if (score > 90) {
         score = 90;
@@ -9778,7 +9775,7 @@ int handicap_get_current_difficulty(DroneAI* drone) {
 static inline void ai_big_boss_walk_footstep(void) {
     unsigned short sound;
 
-    sound = (unsigned short)randu0(100);
+    sound = randu0(100);
     if (sound < 33) {
         snd_req(0x1B0);
     } else if (sound < 66) {
@@ -9804,7 +9801,7 @@ void drone_walk_FB_true(
     int walk_voice_eligible;
 
     elapsed = 0.0f;
-    duration = (float)ticks;
+    duration = ticks;
     init_ground_move_no_aniproc();
     rotate_towards_him(0.2f);
     if (plyr_pdata->character_id == 0x10 &&
@@ -9898,7 +9895,7 @@ void drone_walk_FB_true(
 static inline void ai_big_boss_strafe_footstep(void) {
     unsigned short sound;
 
-    sound = (unsigned short)randu0(100);
+    sound = randu0(100);
     if (sound < 33) {
         snd_req(0x1B0);
     } else if (sound < 66) {
@@ -9925,7 +9922,7 @@ void drone_step_LR_true(
     if (walk_voice_eligible && (unsigned short)randu0(100) < 15) {
         unsigned int delay;
 
-        delay = (unsigned short)(unsigned short)randu0(20);
+        delay = (unsigned short)randu0(20);
         snd_req_delay((unsigned short)randu0(5) + 0x27B, delay + 1);
     }
 
@@ -10027,7 +10024,7 @@ void drone_step_LR_true(
 void random_dk_foot(void) {
     unsigned short sound_roll;
 
-    sound_roll = (unsigned short)randu0(100);
+    sound_roll = randu0(100);
     if (sound_roll < 33) {
         snd_req(0x1B0);
     } else if (sound_roll < 66) {
@@ -10071,9 +10068,9 @@ static int InAttackRange_close(void) {
 
 MkProc* get_player_proc(MkObj* player) {
     if (get_player_number(player) == 0) {
-        return (MkProc*)g_game_info.plyr0.idle_proc;
+        return g_game_info.plyr0.idle_proc;
     }
-    return (MkProc*)g_game_info.plyr1.idle_proc;
+    return g_game_info.plyr1.idle_proc;
 }
 
 void force_ai_style(int style) {
@@ -10106,37 +10103,37 @@ void drone_ai_clear_avoidance_area_duration(int player) {
 }
 #pragma opt_propagation reset
 
-/* TODO: [near miss] 97.98508%; category-preservation move/GPR residue remains; fightstyle-fallback helper regresses; retain inline body. */
-static AiFightstyleAttack* drone_ai_choose_move_from_category(
-    int category, unsigned int likelihood, int* is_script) {
+static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     DroneAI* drone;
     FighterAiTable* table;
-    AiFightstyleAttack* script;
-    AiFightstyleAttack* selected_script;
-    AiFightstyleAttack* fightstyle_script;
+    unsigned short row_index;
+    FighterAiMoveRow* row;
 
-    *is_script = 1;
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     table = plyr_pdata->ai_tables->tables;
     table += category;
     if (table->usable_row_count == 0) {
-        selected_script = 0;
-    } else {
-        unsigned short row_index;
-        FighterAiMoveRow* row;
-
-        row_index = randu0((unsigned short)table->usable_row_count);
-        row = table->rows;
-        row += row_index;
-        drone->ai_command = row->commands;
-        drone->ai_command_arg = 0;
-        drone->ai_command_target = drone->player->character_id;
-        drone->ai_command_flag0 = 0;
-        drone->ai_command_flag1 = 0;
-        drone->ai_command_flag2 = 0;
-        selected_script = get_special_move();
+        return 0;
     }
-    script = selected_script;
+    row_index = randu0((unsigned short)table->usable_row_count);
+    row = table->rows;
+    row += row_index;
+    drone->ai_command = row->commands;
+    drone->ai_command_arg = 0;
+    drone->ai_command_target = drone->player->character_id;
+    drone->ai_command_flag0 = 0;
+    drone->ai_command_flag1 = 0;
+    drone->ai_command_flag2 = 0;
+    return get_special_move();
+}
+
+static AiFightstyleAttack* drone_ai_choose_move_from_category(
+    unsigned int category, unsigned int likelihood, int* is_script) {
+    AiFightstyleAttack* script;
+    AiFightstyleAttack* fightstyle_script;
+
+    *is_script = 1;
+    script = drone_ai_choose_table_move(category);
     if (script == 0 || (unsigned short)randu0(100) < likelihood) {
         fightstyle_script = get_random_fightstyle_attack(
             plyr_pdata->fighter_definition, category, 0);
