@@ -885,13 +885,7 @@ static inline MkObj* moves_resolve_weapon_latch(
     MkObj* object;
 
     object = latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_HDR_LIVE(object, latch->instance);
 }
 
 static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {

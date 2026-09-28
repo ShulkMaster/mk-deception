@@ -808,7 +808,7 @@ void destroy_subzero_decoy(void) {
     if (pdata == 0) {
         return;
     }
-    object = jmt_decoy_pdata_live_decoy_object(pdata);
+    object = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
 
     if (object == 0) {
         if (proc->instance != 0) {
@@ -940,7 +940,7 @@ static float p_decoy(void) {
 
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
-    decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+    decoy = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
 
     if (decoy == 0) {
         return -1.0f;
@@ -1024,7 +1024,7 @@ static float p_decoy_shrink(void) {
     }
 
     while (pdata->lifetime > 0.0f) {
-        decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+        decoy = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
 
         if (decoy == 0) {
             return -1.0f;

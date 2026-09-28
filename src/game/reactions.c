@@ -381,12 +381,7 @@ static float p_image_fader(void) {
 
     if (pdata->delay > 0) {
         object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(object, pdata->object_instance);
         if (object != 0) {
             if (pdata->direction == 0) {
                 object->x--;
@@ -403,12 +398,7 @@ static float p_image_fader(void) {
     if (pdata->alpha > 0) {
         pdata->alpha -= 8;
         object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(object, pdata->object_instance);
         if (object != 0) {
             pfx_2d_obj_set_alpha(object, pdata->alpha);
             if (pdata->direction == 0) {
@@ -426,12 +416,7 @@ static float p_image_fader(void) {
     }
 
     object = pdata->object;
-    if (object != 0) {
-        object = (object->instance == pdata->object_instance)
-            ? object : 0;
-    } else {
-        object = 0;
-    }
+    object = MK_LIVE(object, pdata->object_instance);
     if (object != 0 && object->instance != 0) {
         object->vtbl->destroy();
     }
@@ -711,16 +696,6 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 
 
 
-static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    MkProc* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->hold_proc_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 /* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
 
@@ -728,7 +703,7 @@ static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 
 
 
-/* TODO: [near miss] 97.82%; retail keeps one fewer GPR live (stmw r15) and spills
+/* TODO: [near miss] 97.87%; retail keeps one fewer GPR live (stmw r15) and spills
  * saved_state where MWCC spills reaction; the inlined cleanup block is
  * run_reaction_cleanup_function's body. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
@@ -897,7 +872,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     original_previous_state = plyr_pdata->previous_state;
     saved_state = plyr_pdata->state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_HDR_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         release_other_player();

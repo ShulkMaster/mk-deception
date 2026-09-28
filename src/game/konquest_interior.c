@@ -905,11 +905,7 @@ void set_interior_cam_pos_and_ang(void) {
     CameraObj* camera;
 
     camera = camera_item.node;
-    if (camera != 0) {
-        camera = (camera->hdr.instance == camera_item.instance) ? camera : 0;
-    } else {
-        camera = 0;
-    }
+    camera = MK_HDR_LIVE(camera, camera_item.instance);
 
     if (camera != 0) {
         position.x = konquest_pdata->camera_offset_x +

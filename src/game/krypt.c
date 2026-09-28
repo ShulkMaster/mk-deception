@@ -366,15 +366,7 @@ static inline StringObj* kontent_bio_text_live(void) {
     StringObj* live;
 
     raw = kontent_pdata->bio_text;
-    if (raw != 0) {
-        if (raw->instance == kontent_pdata->bio_text_instance) {
-            live = raw;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(raw, kontent_pdata->bio_text_instance);
     return live;
 }
 
@@ -824,19 +816,6 @@ void set_krypt_character_pos(Vec* position) {
     }
 }
 
-static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 
 
 
@@ -856,7 +835,7 @@ static float p_run_character_animation(void) {
     obj = MK_LIVE(pdata->obj, pdata->obj_instance);
 
     if (obj != 0) {
-        if (anim_pdata_live_proc(krypt_pdata->anim_pdata) != 0) {
+        if (MK_LIVE(krypt_pdata->anim_pdata->proc, krypt_pdata->anim_pdata->proc_instance) != 0) {
             animation = krypt_pdata->anim_pdata;
             if (animation->proc->instance != 0) {
                 animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
@@ -1459,32 +1438,6 @@ static void set_koin_positions_and_colors(void* pfx) {
     }
 }
 
-static inline ScreenObj* krypt_live_wallet_back_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_back.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_back.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline ScreenObj* krypt_live_wallet_front_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_front.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_front.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 
 
 
@@ -1512,9 +1465,9 @@ void force_wallet_to_open_position(void) {
     char value[8];
     int i;
 
-    wallet_back = krypt_live_wallet_back_obj(krypt_pdata);
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-    wallet_front = krypt_live_wallet_front_obj(krypt_pdata);
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
     if (wallet_back != 0 && wallet_front != 0) {
         wallet_back->y = 0;
@@ -1540,32 +1493,6 @@ void force_wallet_to_open_position(void) {
     krypt_pdata->wallet_open = 1;
 }
 #pragma auto_inline reset
-
-static inline ScreenObj* krypt_pdata_live_wallet_back_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_back.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_back.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline ScreenObj* krypt_pdata_live_wallet_front_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_front.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_front.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline ScreenObj* krypt_pdata_live_open_button_obj(KryptPdata* owner) {
     ScreenObj* object = owner->open_button.obj;
@@ -1603,7 +1530,7 @@ static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
 
 
 
-/* TODO: [near miss] 97.85%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
+/* TODO: [near miss] 99.69%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1616,13 +1543,13 @@ void heads_up_display_visible(int visible) {
     StringObj* wallet_text;
     int i;
 
-    wallet_back = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-    wallet_front = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
-    icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
+    icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
 
-    icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+    icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
 
     label_a = MK_LIVE(krypt_pdata->hud_label_l.obj, krypt_pdata->hud_label_l.obj_instance);
 
@@ -2446,9 +2373,9 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 1;
             snd_req(0x3B8);
         }
-        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+        open_button = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+        exit_button = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y + 6 < 0) {
@@ -2475,9 +2402,9 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 0;
             snd_req(0x3B9);
         }
-        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+        open_button = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+        exit_button = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y - 6 > -100) {
@@ -2515,7 +2442,7 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.52%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
+/* TODO: [near miss] 99.56%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
 static int do_dialog(int dialog_type) {
     int result;
     ScreenObj* dialog_left;
@@ -2531,7 +2458,7 @@ static int do_dialog(int dialog_type) {
 
     yes_button = 0;
     ok_button = 0;
-    hud_icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
+    hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
     hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
     message = 0;
     dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);

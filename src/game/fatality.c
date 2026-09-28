@@ -1092,18 +1092,6 @@ MkObj* subzero_start_iceblock(void) {
     return iceblock;
 }
 
-static inline MkObj* fatality_live_object(
-    MkObj* object, const unsigned int* instance) {
-    if (object != 0) {
-        if (object->hdr.instance == *instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_sz2_iceblock_scalar(void) {
     FatalityScalePdata* data;
@@ -1113,7 +1101,7 @@ static float p_sz2_iceblock_scalar(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_live_object(data->object, &data->object_instance);
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -2211,7 +2199,7 @@ float p_bodyslam_bodysplat(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_live_object(data->object, &data->object_instance);
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -3029,12 +3017,11 @@ static float p_obj_pos_matcher(void) {
     if (data == 0) {
         return -1.0f;
     }
-    source = fatality_live_object(data->source, &data->source_instance);
+    source = MK_HDR_LIVE(data->source, data->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    destination = fatality_live_object(data->destination,
-        &data->destination_instance);
+    destination = MK_HDR_LIVE(data->destination, data->destination_instance);
     if (destination == 0) {
         return -1.0f;
     }
@@ -3109,14 +3096,14 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
 
     if (weapon == 0) {
         latch = &plyr_pdata->mirror_slots->weapon[0].secondary;
-        object = fatality_live_object(latch->obj, &latch->instance);
+        object = MK_HDR_LIVE(latch->obj, latch->instance);
         if (object != 0) {
             object->flags_08_bits.bit7 = ignored;
             return object;
         }
     }
     latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
-    object = fatality_live_object(latch->obj, &latch->instance);
+    object = MK_HDR_LIVE(latch->obj, latch->instance);
     if (object != 0) {
         object->flags_08_bits.bit7 = ignored;
     }
@@ -3180,15 +3167,13 @@ void weapon_reflection_show_hide(
     MkObj* object;
 
     if (secondary == 0) {
-        object = fatality_live_object(player->weapon_reflections->primary,
-            &player->weapon_reflections->primary_instance);
+        object = MK_HDR_LIVE(player->weapon_reflections->primary, player->weapon_reflections->primary_instance);
         if (object != 0) {
             object->hide_flag_bits.hidden = hidden;
             return;
         }
     }
-    object = fatality_live_object(player->weapon_reflections->secondary,
-        &player->weapon_reflections->secondary_instance);
+    object = MK_HDR_LIVE(player->weapon_reflections->secondary, player->weapon_reflections->secondary_instance);
     if (object != 0) {
         object->hide_flag_bits.hidden = hidden;
     }

@@ -6891,31 +6891,7 @@ static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
 
 
 
-static inline ScreenObj* puzzle_message_pdata_live_secondary_image(PuzzleMessagePdata* owner) {
-    ScreenObj* object = owner->secondary_image;
-    if (object != 0) {
-        if (object->instance == owner->secondary_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline ScreenObj* puzzle_message_pdata_live_primary_image(PuzzleMessagePdata* owner) {
-    ScreenObj* object = owner->primary_image;
-    if (object != 0) {
-        if (object->instance == owner->primary_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void puzzle_message_release_player(PuzzleMessagePdata* pdata) {
     if (pdata->player != 0) {
@@ -6936,9 +6912,9 @@ static float p_puzzle_fighter_chain_msg(void) {
 
     text = MK_LIVE(pdata->text, pdata->text_instance);
 
-    secondary = puzzle_message_pdata_live_secondary_image(pdata);
+    secondary = MK_LIVE(pdata->secondary_image, pdata->secondary_instance);
 
-    primary = puzzle_message_pdata_live_primary_image(pdata);
+    primary = MK_LIVE(pdata->primary_image, pdata->primary_instance);
 
 
     if ((primary != 0 || text != 0) && pdata->lifetime_ticks != 0 &&

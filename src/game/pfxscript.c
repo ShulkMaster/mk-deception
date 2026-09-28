@@ -473,19 +473,6 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-static inline PfxScriptEffect* pfx_live_effect(const PfxEffectLatch* latch) {
-    PfxScriptEffect* effect = latch->effect;
-
-    if (effect != 0) {
-        if (effect->hdr.instance == latch->effect_instance) {
-            return effect;
-        }
-        effect = 0;
-    } else {
-        effect = 0;
-    }
-    return effect;
-}
 
 /* TODO: [near miss] 96.36364%; effect/latch coloring and handle packing remain. */
 #pragma optimize_for_size on
@@ -507,7 +494,7 @@ unsigned int fx_by_id(int effect_id, unsigned int owner) {
                  effect_index < bank->effect_count;
                  effect_index++) {
                 effect_latch = &bank->effects[effect_index];
-                effect = pfx_live_effect(effect_latch);
+                effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
 
                 if (effect != 0 && effect->effect_id == effect_id) {
                     return (bank->handle_bank & 0xF) |
@@ -3169,7 +3156,7 @@ static inline PfxScriptEffect* pfx_checked_effect_type(PfxScriptEffect* effect) 
     return effect;
 }
 
-/* TODO: [breakthrough needed] 89.31035%; validator joins and loop-zero lifetimes remain. */
+/* TODO: [breakthrough needed] 92.84%; validator joins and loop-zero lifetimes remain. */
 #pragma optimize_for_size on
 #pragma use_lmw_stmw on
 static void vdestroy_effectbank(PfxBank* bank) {
@@ -3180,7 +3167,7 @@ static void vdestroy_effectbank(PfxBank* bank) {
     for (effect_index = 0; effect_index < bank->effect_count; effect_index++) {
         bank->effect_owners[effect_index] = 0;
         effect_latch = &bank->effects[effect_index];
-        effect = pfx_live_effect(effect_latch);
+        effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
         effect = pfx_checked_effect_type(effect);
         if (effect != 0 && effect->hdr.instance != 0) {
             effect->hdr.typed_vtbl->destroy(&effect->hdr);

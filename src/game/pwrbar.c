@@ -135,25 +135,13 @@ static float bar_speed = 0.01f;
 static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
@@ -177,27 +165,13 @@ static inline int pbar_green_triggered(PlyrInfo* player,
 static inline StringObj* string_latch_object(ScreenLatch* latch) {
     StringObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline ScreenObj* owned_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline void owned_set_quad_alpha(

@@ -1606,19 +1606,6 @@ void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc) {
     }
 }
 
-static inline MkObj* ncs_live_spear_object(SpearProcPdata* pdata) {
-    MkObj* object = pdata->spear_object;
-
-    if (object != 0) {
-        if (object->hdr.instance == pdata->spear_object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 MkObj* get_spearobj_from_spearproc(MkProc* proc) {
     SpearProcPdata* pdata = (SpearProcPdata*)pdata_of_proc(proc);
@@ -1626,7 +1613,7 @@ MkObj* get_spearobj_from_spearproc(MkProc* proc) {
     if (pdata == 0) {
         return 0;
     }
-    return ncs_live_spear_object(pdata);
+    return MK_HDR_LIVE(pdata->spear_object, pdata->spear_object_instance);
 }
 
 void sc_spear_postsleep(void) {
@@ -1646,7 +1633,7 @@ static void sc_spear_prewake(void) {
     if (pdata_sc_spear == 0) {
         mkproc_die();
     }
-    object = ncs_live_spear_object(pdata_sc_spear);
+    object = MK_HDR_LIVE(pdata_sc_spear->spear_object, pdata_sc_spear->spear_object_instance);
     sc_spear_obj = object;
     if (object == 0) {
         mkproc_die();

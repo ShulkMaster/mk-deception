@@ -564,16 +564,6 @@ static inline MkObj* fighter_severed_limb_live_object(
 }
 
 
-static inline MkObj* fish_attack_live_target(FishAttackPdata* pdata) {
-    MkObj* object = pdata->target;
-    if (object != 0) {
-        if (object->hdr.instance == pdata->target_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 /* TODO: [near miss] 99.83%; only the else-branch fish web colors r25 vs retail r24
  * (fish helper/macro reshapes regress; 120s permuter found nothing). */
@@ -620,7 +610,7 @@ float p_fish_attack(void) {
             return -1.0f;
         }
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         if (target == 0) {
             return -1.0f;
@@ -639,7 +629,7 @@ float p_fish_attack(void) {
         pdata->turn_limit = (unsigned short)randu0(10) + 5;
         pdata->turning_left = 1;
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -662,7 +652,7 @@ float p_fish_attack(void) {
         FighterMirror* fighter;
         MkObj* severed_object;
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -680,7 +670,7 @@ float p_fish_attack(void) {
         if (pdata->state_ticks <= 0) {
             if (pdata->lifetime < 15 && pdata->state < 4) {
                 pdata->state = 4;
-                target = fish_attack_live_target(pdata);
+                target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -722,7 +712,7 @@ float p_fish_attack(void) {
             {
                 Vec* forward;
 
-                target = fish_attack_live_target(pdata);
+                target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -757,7 +747,7 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
-            target = fish_attack_live_target(pdata);
+            target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
             plyr_obj = target;
             RESOLVE_MAB_OBJECT_IN_PLACE(
                 fish, pdata->fish, pdata->fish_instance);

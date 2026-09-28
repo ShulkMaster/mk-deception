@@ -34,11 +34,7 @@ float bgnd_get_camera_z_pos(void) {
     CameraObj* cam;
 
     cam = camera_item.node;
-    if (cam != 0) {
-        cam = (cam->hdr.instance == camera_item.instance) ? cam : 0;
-    } else {
-        cam = 0;
-    }
+    cam = MK_HDR_LIVE(cam, camera_item.instance);
     if (cam != 0) {
         return cam->pos.z;
     }
@@ -49,11 +45,7 @@ float bgnd_get_camera_y_angle(void) {
     CameraObj* cam;
 
     cam = camera_item.node;
-    if (cam != 0) {
-        cam = (cam->hdr.instance == camera_item.instance) ? cam : 0;
-    } else {
-        cam = 0;
-    }
+    cam = MK_HDR_LIVE(cam, camera_item.instance);
     if (cam != 0) {
         return cam->ang.y;
     }

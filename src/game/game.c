@@ -575,50 +575,16 @@ extern float p_champion_screen(void);
 
 static void ck_do_fatality(void);
 
-static inline StringObj* validated_game_string(GameObjectLatch* latch) {
-    StringObj* string = (StringObj*)latch->obj;
 
-    if (string != 0) {
-        if (string->instance == latch->obj_instance) {
-            return string;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-static inline ScreenObj* validated_game_screen(GameObjectLatch* latch) {
-    ScreenObj* object = (ScreenObj*)latch->obj;
-
-    if (object != 0) {
-        if (object->instance == latch->obj_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 static inline StringObj* validated_string_instance(
     StringObj* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->instance == instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, instance);
 }
 
 static inline ScreenObj* validated_screen_instance(
     ScreenObj* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->instance == instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, instance);
 }
 
 static inline MkHdr* validated_plyr_screen(PlyrScreenLatch* latch) {
@@ -633,17 +599,6 @@ static inline MkHdr* validated_plyr_screen(PlyrScreenLatch* latch) {
     return 0;
 }
 
-static inline MkProc* validated_anim_proc(PlyrPdata* player) {
-    MkProc* proc = player->anim_proc;
-
-    if (proc != 0) {
-        if (proc->instance == player->anim_proc_instance) {
-            return proc;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 static inline void center_fight_effect(ScreenObj* object) {
     object->x = (int)((float)(screen_width / 2) -
@@ -965,7 +920,7 @@ int ok_to_join_in(void) {
 float p_flash_demo_fight_text(void) {
     ScreenObj* text;
 
-    text = validated_game_screen(&df_press_start_item);
+    text = MK_LIVE((ScreenObj*)df_press_start_item.obj, df_press_start_item.obj_instance);
     if (text != 0) {
         text->draw_flags.on = 0;
     }
@@ -973,7 +928,7 @@ float p_flash_demo_fight_text(void) {
     _mkproc_sleep_ticks = 20.0f;
     ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
 
-    text = validated_game_screen(&df_press_start_item);
+    text = MK_LIVE((ScreenObj*)df_press_start_item.obj, df_press_start_item.obj_instance);
     if (text != 0) {
         text->draw_flags.on = 1;
     }
@@ -1113,7 +1068,7 @@ void destroy_onscreen_fight_2d_objects(void) {
     delete_screen_obj_oid(0x2013);
     destroy_pwr_bars();
 
-    timer = validated_game_string(&game_timer_item);
+    timer = MK_LIVE((StringObj*)game_timer_item.obj, game_timer_item.obj_instance);
     if (timer != 0) {
         destroy_string_obj(timer);
     }
@@ -1823,7 +1778,7 @@ int round_over(void) {
 void reset_game_timer(void) {
     StringObj* timer;
 
-    timer = validated_game_string(&game_timer_item);
+    timer = MK_LIVE((StringObj*)game_timer_item.obj, game_timer_item.obj_instance);
     if (timer != 0 && timer->instance != 0) {
         timer->typed_vtbl->destroy(timer);
     }
@@ -2078,7 +2033,7 @@ int update_game_timer(void) {
         last_timer_sec = g_game_info.field_204;
         sprintf(timer_string, "%02d", g_game_info.field_204);
 
-        timer = validated_game_string(&game_timer_item);
+        timer = MK_LIVE((StringObj*)game_timer_item.obj, game_timer_item.obj_instance);
         if (timer != 0 && timer->instance != 0) {
             timer->typed_vtbl->destroy(timer);
         }
@@ -2675,11 +2630,11 @@ float p_game_loop(void) {
     }
     round_init();
 
-    proc = validated_anim_proc(g_game_info.plyr0.slot.pdata);
+    proc = MK_LIVE(g_game_info.plyr0.slot.pdata->anim_proc, g_game_info.plyr0.slot.pdata->anim_proc_instance);
     if (proc != 0) {
         xfer_proc(proc, p_animate);
     }
-    proc = validated_anim_proc(g_game_info.plyr1.slot.pdata);
+    proc = MK_LIVE(g_game_info.plyr1.slot.pdata->anim_proc, g_game_info.plyr1.slot.pdata->anim_proc_instance);
     if (proc != 0) {
         xfer_proc(proc, p_animate);
     }

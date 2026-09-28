@@ -617,17 +617,6 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
 
 /* The screen-object latches retain both pointer and instance for validation. */
 
-static inline ScreenObj* fx_screen_obj_latch_live_object(FxScreenObjLatch* owner) {
-    ScreenObj* object = owner->object;
-
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 
 
@@ -644,7 +633,7 @@ static void update_skewer_positions(int player) {
 
     flags.value = 0;
     if (player == 0) {
-        p1_body = fx_screen_obj_latch_live_object(&p1_skewer_item);
+        p1_body = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
         if (p1_body == 0) {
             flags.bits.reverse = 0;
@@ -662,7 +651,7 @@ static void update_skewer_positions(int player) {
                 }
             }
         } else {
-            p1_tip = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+            p1_tip = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
         }
 
         sign = player_fstyle_sign[0];
@@ -689,7 +678,7 @@ static void update_skewer_positions(int player) {
     }
 
     if (player == 1) {
-        p2_body = fx_screen_obj_latch_live_object(&p2_skewer_item);
+        p2_body = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
         if (p2_body == 0) {
             flags.bits.reverse = 0;
@@ -710,7 +699,7 @@ static void update_skewer_positions(int player) {
                 }
             }
         } else {
-            p2_tip = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+            p2_tip = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
         }
 
         sign = player_fstyle_sign[1];
@@ -780,12 +769,12 @@ static float fighting_style_sign_proc(void) {
             pull_screen_obj(player_fstyle_sign[0]);
             player_fstyle_sign[0] = 0;
 
-            skewer = fx_screen_obj_latch_live_object(&p1_skewer_item);
+            skewer = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
-            skewer = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+            skewer = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
@@ -794,7 +783,7 @@ static float fighting_style_sign_proc(void) {
             aproc->vtbl->sleep();
         }
 
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         player_fstyle_sign[0] = sign;
         if (sign == 0) {
@@ -857,12 +846,12 @@ static float fighting_style_sign_proc(void) {
             pull_screen_obj(player_fstyle_sign[1]);
             player_fstyle_sign[1] = 0;
 
-            skewer = fx_screen_obj_latch_live_object(&p2_skewer_item);
+            skewer = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
-            skewer = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+            skewer = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
@@ -871,7 +860,7 @@ static float fighting_style_sign_proc(void) {
             aproc->vtbl->sleep();
         }
 
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         player_fstyle_sign[1] = sign;
         if (sign == 0) {
@@ -1028,7 +1017,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
 
     for (style_index = 0; style_index < 3; style_index++) {
         moveset = player->slot.pdata->weapon_styles[style_index];
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         if (sign != 0) {
             if (sign->instance != 0U) {
@@ -1040,25 +1029,25 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
     }
 
     if (player->controller_slot == 0) {
-        sign = fx_screen_obj_latch_live_object(&p1_skewer_item);
+        sign = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
-        sign = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+        sign = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
     } else {
-        sign = fx_screen_obj_latch_live_object(&p2_skewer_item);
+        sign = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
-        sign = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+        sign = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);

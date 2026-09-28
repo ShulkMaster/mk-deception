@@ -2551,18 +2551,6 @@ static inline BoneMatcherState* prepare_two_player_animation(
     return matcher;
 }
 
-static inline MkProc* ejb_live_process(
-    MkProc* process, const unsigned int* instance) {
-    if (process != 0) {
-        if (process->instance == *instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 
 /* TODO: [near miss] 99.73%; held-object latch arms now match; only its base/object registers swap (r5/r6). */
@@ -2573,23 +2561,20 @@ float two_player_animation_match_attacker(
     MkProc* process;
     AnimPdata* opponent_anim;
 
-    process = ejb_live_process(plyr_pdata->player_proc,
-                               &plyr_pdata->player_proc_instance);
+    process = MK_LIVE(plyr_pdata->player_proc, plyr_pdata->player_proc_instance);
     if (process != 0) {
         xfer_proc(process, p_idle);
         his_pdata->previous_state = his_pdata->state;
         his_pdata->state = 0xC603;
     }
     opponent = plyr_pdata->his_plyr_pdata;
-    process = ejb_live_process(plyr_pdata->his_plyr_pdata->anim_proc,
-                               &plyr_pdata->his_plyr_pdata->anim_proc_instance);
+    process = MK_LIVE(plyr_pdata->his_plyr_pdata->anim_proc, plyr_pdata->his_plyr_pdata->anim_proc_instance);
     if (process != 0) {
         xfer_proc(process, p_anim_idle);
     }
     tracked_object = MK_HDR_LIVE(opponent->tracked_obj, opponent->tracked_obj_instance);
     if (tracked_object != 0) {
-        process = ejb_live_process(opponent->transient_proc,
-                                   &opponent->transient_proc_instance);
+        process = MK_LIVE(opponent->transient_proc, opponent->transient_proc_instance);
         if (process != 0 && process != aproc && process->instance != 0) {
             process->vtbl->destroy(process);
         }
@@ -2611,7 +2596,7 @@ float two_player_animation_match_attacker(
             plyr_obj->hdr.instance;
     }
     opponent = plyr_pdata->his_plyr_pdata;
-    process = ejb_live_process(opponent->anim_proc, &opponent->anim_proc_instance);
+    process = MK_LIVE(opponent->anim_proc, opponent->anim_proc_instance);
     if (process != 0) {
         opponent_anim = (AnimPdata*)pdata_of_proc(process);
         if (opponent_anim != 0) {

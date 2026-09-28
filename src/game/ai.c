@@ -902,27 +902,7 @@ float big_boss_taunt_cam_cut(void) {
     return 0.0f;
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
-static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 static float p_lookat_cam(void) {
     CameraObj* camera;
@@ -937,14 +917,14 @@ static float p_lookat_cam(void) {
     float sine;
     float cosine;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
         AI_TRANSFER(p_camera_proc);
         return 0.0f;
     }
 
-    target = taunt_camera_live_object(&at_cam_data);
+    target = MK_HDR_LIVE(at_cam_data.object, at_cam_data.object_instance);
 
     if (target == 0) {
         AI_TRANSFER(p_camera_proc);

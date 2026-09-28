@@ -2729,18 +2729,6 @@ static float p_force_reaction(void) {
 
 
 
-static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    PuzzleProcess* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->instance == owner->hold_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* Preserve the reaction opponent across hold cleanup for the final dispatch. */
 
@@ -2775,7 +2763,7 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         plyr_pdata->scream_sound_handle = 0;
     }
 
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         release_other_player();

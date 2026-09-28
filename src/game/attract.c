@@ -274,15 +274,7 @@ static StringObj* press_start_item_live(void) {
     StringObj* live;
 
     item = (StringObj*)press_start_item.obj;
-    if (item != 0) {
-        if (item->instance == press_start_item.instance) {
-            live = item;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(item, press_start_item.instance);
     return live;
 }
 
@@ -586,30 +578,14 @@ static float p_bio_press_start_flasher(void) {
     pdata = (BioFlasherPdata*)apdata;
 
     raw = pdata->press_start_obj;
-    if (raw != 0) {
-        if (raw->instance == pdata->press_start_inst) {
-            obj = raw;
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(raw, pdata->press_start_inst);
     if (obj != 0) {
         bits = (StringObjVisBits*)&obj->flags;
         bits->hidden = 0;
     }
 
     raw = pdata->bio_text_obj;
-    if (raw != 0) {
-        if (raw->instance == pdata->bio_text_inst) {
-            obj = raw;
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(raw, pdata->bio_text_inst);
     if (obj != 0) {
         bits = (StringObjVisBits*)&obj->flags;
         bits->hidden = 0;
@@ -619,30 +595,14 @@ static float p_bio_press_start_flasher(void) {
     mkproc_sleep();
 
     raw = pdata->press_start_obj;
-    if (raw != 0) {
-        if (raw->instance == pdata->press_start_inst) {
-            obj = raw;
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(raw, pdata->press_start_inst);
     if (obj != 0) {
         bits = (StringObjVisBits*)&obj->flags;
         bits->hidden = 1;
     }
 
     raw = pdata->bio_text_obj;
-    if (raw != 0) {
-        if (raw->instance == pdata->bio_text_inst) {
-            obj = raw;
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(raw, pdata->bio_text_inst);
     if (obj != 0) {
         bits = (StringObjVisBits*)&obj->flags;
         bits->hidden = 1;
@@ -675,15 +635,7 @@ static float p_flash_atm_text(void) {
     mkproc_sleep();
 
     raw = (StringObj*)press_start_item.obj;
-    if (raw != 0) {
-        if (raw->instance == press_start_item.instance) {
-            item = raw;
-        } else {
-            item = 0;
-        }
-    } else {
-        item = 0;
-    }
+    item = MK_LIVE(raw, press_start_item.instance);
     if (item != 0) {
         bits = (StringObjVisBits*)&item->flags;
         bits->hidden = 0;
@@ -693,15 +645,7 @@ static float p_flash_atm_text(void) {
     mkproc_sleep();
 
     raw = (StringObj*)press_start_item.obj;
-    if (raw != 0) {
-        if (raw->instance == press_start_item.instance) {
-            item = raw;
-        } else {
-            item = 0;
-        }
-    } else {
-        item = 0;
-    }
+    item = MK_LIVE(raw, press_start_item.instance);
     if (item != 0) {
         bits = (StringObjVisBits*)&item->flags;
         bits->hidden = 1;
