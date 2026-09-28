@@ -1268,17 +1268,7 @@ float subzero_rx_freeze(void) {
 }
 
 static inline MkHdr* fatality_live_sound_object(FatalityObjectLatch* sound) {
-    MkHdr* object = sound->object;
-
-    if (object != 0) {
-        if (object->instance == sound->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(sound->object, sound->object_instance);
 }
 
 void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
@@ -2784,17 +2774,7 @@ static float p_fake_bone_matcher_proc(void) {
 }
 
 static inline MkProc* fatality_live_matcher_process(FatalityFakeBoneMatcher* matcher) {
-    MkProc* process = matcher->process;
-
-    if (process != 0) {
-        if (process->instance == matcher->process_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
+    return MK_LIVE(matcher->process, matcher->process_instance);
 }
 
 MkProc* get_fake_bone_matcher_proc(FatalityFakeBoneMatcher* matcher) {
@@ -2921,16 +2901,7 @@ void start_obj_scalar_proc(
 }
 
 static inline MkObj* obj_scalar_live_object(FatalityObjectScalarPdata* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->object, owner->object_instance);
 }
 
 float p_obj_scalar_proc(void) {

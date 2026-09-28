@@ -559,16 +559,7 @@ int is_he_blocking_throw(void) {
 }
 
 static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
 }
 
 /* TODO: [near miss] 99.29%; only state/object volatile coloring (r4/r5 swapped) remains. */
@@ -1047,19 +1038,9 @@ float aniproc_land(void) {
 }
 
 static inline MkProc* player_live_transient_proc_direct(PlyrPdata* owner) {
-    MkProc* object = owner->transient_proc;
-    if (object != 0) {
-        if (object->instance == owner->transient_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
 }
 
-/* TODO: [near miss] 99.044120%; register coloring, relocation offsets; one-trial ceiling. */
 void hit_START_chores(
     int first_sound, int second_sound,
     float shake_ticks, float shake_strength) {
@@ -1115,16 +1096,7 @@ static inline void check_for_combo_message_impl(void) {
 }
 
 static inline MkProc* player_live_transient_proc(PlyrPdata* owner) {
-    MkProc* object = owner->transient_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->transient_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->transient_proc, (int)owner->transient_proc_instance);
 }
 
 void land_chores(
@@ -1159,30 +1131,7 @@ void land_chores(
     check_for_combo_message_impl();
 }
 
-static inline float ejb_sqrt_table(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } bits;
-    unsigned int estimate_bits;
-    float estimate;
-
-    if (!(0.0f < value)) {
-        return 0.0f;
-    }
-    bits.f = value;
-    estimate_bits =
-        (unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8;
-    estimate_bits |=
-        (((bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-        0x7F800000U;
-    bits.u = estimate_bits;
-    estimate = bits.f;
-    return 0.5f * estimate *
-        (3.0f - (estimate * estimate) / value);
-}
-
-/* TODO: [breakthrough needed] 89.47%; flag bitfields fixed; discriminant still
+/* TODO: [breakthrough needed] 93.12%; flag bitfields fixed; discriminant still
  * fuses to fnmsubs (retail fmuls+fsubs) and frame advancement homes differ. */
 void launch_n_land_ani(
     AniData* animation, int landing_animation, float launch_frame,
@@ -1221,7 +1170,7 @@ void launch_n_land_ani(
     if (discriminant < 0.001f) {
         discriminant = 0.001f;
     }
-    square_root = ejb_sqrt_table(discriminant);
+    square_root = gxMathFastSqrt(discriminant);
     flight_ticks = (square_root - velocity_y) / gravity;
     alternate_ticks = (-square_root - velocity_y) / gravity;
     if (flight_ticks < 0.0f ||
@@ -1560,16 +1509,7 @@ void init_3d_move(void) {
 }
 
 static inline MkProc* player_live_transient(PlyrPdata* owner) {
-    MkProc* object = owner->transient_proc;
-    if (object != 0) {
-        if (object->instance == owner->transient_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
 }
 
 void end_air_move(void) {
@@ -1643,23 +1583,13 @@ void init_ground_move_no_aniproc(void) {
 }
 
 static inline MkProc* plyr_pdata_live_transient_proc(PlyrPdata* owner) {
-    MkProc* object = owner->transient_proc;
-    if (object != 0) {
-        if (object->instance == owner->transient_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
 }
 
 
 
 
 
-/* TODO: [near miss] 96.987180%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void init_ground_move(void) {
     MkObj* object;
     MkProc* process;
@@ -2649,18 +2579,10 @@ static inline MkProc* ejb_live_process(
 
 static inline MkObj* ejb_live_object(
     MkObj* object, const unsigned int* instance) {
-    if (object != 0) {
-        if (object->hdr.instance == *instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, *instance);
 }
 
-/* TODO: [near miss] 98.68%; held-object latch keeps the zero in r6 and merges its null arms (retail r4, two arms). */
+/* TODO: [near miss] 99.27%; held-object latch keeps the zero in r6 and merges its null arms (retail r4, two arms). */
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step) {
     PlyrPdata* opponent;
@@ -2773,29 +2695,11 @@ void two_player_animation(
 }
 
 static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
-    MkProc* object = owner->player_proc;
-    if (object != 0) {
-        if (object->instance == owner->player_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->player_proc, owner->player_proc_instance);
 }
 
 static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->anim_proc;
-    if (object != 0) {
-        if (object->instance == owner->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->anim_proc, owner->anim_proc_instance);
 }
 
 
@@ -3242,7 +3146,7 @@ float ani_to_frame_x_col(
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.17391%; retained object agrees; FP/GPR coloring, merged null arms and known animation-owner move remain; stop at lowering */
+/* TODO: [near miss] 98.88%; retained object agrees; FP/GPR coloring, merged null arms and known animation-owner move remain; stop at lowering */
 void air_collision_pause(
     int pause_ticks, float target_frame, float gravity) {
     MkProc* process;
@@ -3547,16 +3451,7 @@ void ps_plyr_force(void) {
 }
 
 static inline PlyrPdata* force_live_player(EjbPlyrForcePdata* force) {
-    PlyrPdata* player = force->player;
-    if (player != 0) {
-        if (player->instance == force->player_instance) {
-            return player;
-        }
-        player = 0;
-    } else {
-        player = 0;
-    }
-    return player;
+    return MK_LIVE(force->player, force->player_instance);
 }
 
 /* TODO: [near miss] 96.666664%; validation agrees; stop at owner/result coloring. */
@@ -3758,16 +3653,7 @@ void uv_my_angle_y(Vec* direction, float angle_offset) {
 }
 
 static inline ScalePdata* plyr_live_scale_pdata(PlyrPdata* owner) {
-    ScalePdata* object = owner->scale_pdata;
-    if (object != 0) {
-        if (object->hdr.instance == owner->scale_pdata_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->scale_pdata, owner->scale_pdata_instance);
 }
 
 

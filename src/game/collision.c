@@ -443,7 +443,7 @@ static inline void insert_player_attack_node_unshifted(
     }
 }
 
-static inline void transform_player_attack_node(
+static inline void transform_collision_node(
     PlayerCollisionNode* node) {
     CollisionShape* source;
     CollisionShape* destination;
@@ -563,68 +563,6 @@ static inline void update_all_collision_flags(
             object.object->flags |= flags;
             item = item->next;
         }
-    }
-}
-
-static inline void update_collision_region_node(
-    PlayerCollisionNode* node) {
-    CollisionShape* source;
-    CollisionShape* destination;
-    MKMATRIX* matrix;
-    float translation;
-
-    source = &node->local_shape;
-    destination = &node->world_shape;
-    matrix = (MKMATRIX*)node->bone;
-    switch (source->type & 7) {
-    case 1:
-        p3_x_mat(
-            &destination->sphere_center, &source->sphere_center,
-            matrix);
-        break;
-    case 2:
-        v3_x_mat(
-            &destination->cylinder_axis, &source->cylinder_axis,
-            matrix);
-        p3_x_mat(
-            &destination->cylinder_center, &source->cylinder_center,
-            matrix);
-        break;
-    case 3:
-        v3_x_mat(
-            &destination->box_axis_2, &source->box_axis_2, matrix);
-        v3_x_mat(
-            &destination->box_axis_1, &source->box_axis_1, matrix);
-        v3_x_mat(
-            &destination->box_axis_0, &source->box_axis_0, matrix);
-
-        translation =
-            destination->box_axis_2.z * matrix->pos.z +
-            (destination->box_axis_2.x * matrix->pos.x +
-             destination->box_axis_2.y * matrix->pos.y);
-        destination->box_axis_2_min =
-            source->box_axis_2_min + translation;
-        destination->box_axis_2_max =
-            source->box_axis_2_max + translation;
-
-        translation =
-            destination->box_axis_1.z * matrix->pos.z +
-            (destination->box_axis_1.x * matrix->pos.x +
-             destination->box_axis_1.y * matrix->pos.y);
-        destination->box_axis_1_max =
-            source->box_axis_1_max + translation;
-        destination->box_axis_1_min =
-            source->box_axis_1_min + translation;
-
-        translation =
-            destination->box_axis_0.z * matrix->pos.z +
-            (destination->box_axis_0.x * matrix->pos.x +
-             destination->box_axis_0.y * matrix->pos.y);
-        destination->box_axis_0_min =
-            source->box_axis_0_min + translation;
-        destination->box_axis_0_max =
-            source->box_axis_0_max + translation;
-        break;
     }
 }
 
@@ -4137,7 +4075,7 @@ static void add_plyr_body_attack_nodes(
             radius * definition->attack_radius_scale;
         node.bone = object->bones[definition->node_id & 0xFFF];
         node.world_shape = node.local_shape;
-        transform_player_attack_node(&node);
+        transform_collision_node(&node);
 
         inserted[inserted_count] =
             insert_player_attack_node(storage, &node, &movement);
@@ -4215,7 +4153,7 @@ static void generate_weapon_collision_nodes(
         bone = weapon->bones[index];
         node.bone = bone;
         node.world_shape = node.local_shape;
-        transform_player_attack_node(&node);
+        transform_collision_node(&node);
         insert_player_attack_node(storage, &node, &movement);
     }
 
@@ -4226,7 +4164,7 @@ static void generate_weapon_collision_nodes(
     node.local_shape.sphere_center.z = definition.offset.z;
     node.bone = bone;
     node.world_shape = node.local_shape;
-    transform_player_attack_node(&node);
+    transform_collision_node(&node);
     insert_player_attack_node(storage, &node, &movement);
 
     index = first_index;
@@ -4395,11 +4333,11 @@ static void update_player_collision_nodes(PlayerCollisionData* collision) {
     if (storage->joint_count != 0U) {
         for (index = 0; index < storage->joint_count; index++) {
             node = &storage->joints[index];
-            update_collision_region_node(node);
+            transform_collision_node(node);
         }
         for (index = 0; index < storage->active_count; index++) {
             node = &storage->active_nodes[index];
-            update_collision_region_node(node);
+            transform_collision_node(node);
         }
     }
 

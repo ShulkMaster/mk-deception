@@ -68,16 +68,7 @@ static inline void movelist_set_pfx_byte_flags(
 }
 
 static inline MovelistPfxObj* movelist_style_live_pfx_obj(MovelistPdata* pdata, int style_index) {
-    MovelistPfxObj* object = pdata->styles[style_index].pfx_obj;
-    if (object != 0) {
-        if (object->instance == pdata->styles[style_index].pfx_inst) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(pdata->styles[style_index].pfx_obj, pdata->styles[style_index].pfx_inst);
 }
 
 static inline void movelist_show_valid_style(MovelistPdata* screen_pdata) {
@@ -250,16 +241,7 @@ static int vdestroy_movelist(void* self) {
 }
 
 static inline FighterStyleScreen* fighter_style_obj_live_screen(FighterStyleObj* owner) {
-    FighterStyleScreen* object = owner->screen;
-    if (object != 0) {
-        if (object->instance == owner->screen_inst) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->screen, owner->screen_inst);
 }
 
 

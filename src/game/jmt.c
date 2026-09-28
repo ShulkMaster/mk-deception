@@ -218,24 +218,6 @@ static inline float jmt_fast_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
-static inline float jmt_fast_sqrt(float squared) {
-    JmtFloatBits input;
-    JmtFloatBits estimate;
-    float refined;
-
-    if (!(squared > 0.0f)) {
-        return 0.0f;
-    }
-    input.f = squared;
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    refined = estimate.f *
-        (3.0f - (estimate.f * estimate.f) / squared);
-    return 0.5f * refined;
-}
-
 static inline int jmt_is_local_plyr(void) {
     if (plyr_pdata == 0) {
         return 1;
@@ -1125,16 +1107,7 @@ void start_bow(int bone, float duration) {
 }
 
 static inline MkObj* jmt_bow_pdata_live_bow(JmtBowPdata* owner) {
-    MkObj* object = owner->bow;
-    if (object != 0) {
-        if (object->hdr.instance == owner->bow_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->bow, owner->bow_instance);
 }
 
 
@@ -1428,7 +1401,7 @@ void mks_plyr_stop(int player) {
     }
 }
 
-/* TODO: [breakthrough] 80.96591%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 87.78%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 void mks_set_plyr_to_center_ang_offset(
     int player, void* script_args, float angle_offset) {
@@ -1448,7 +1421,7 @@ void mks_set_plyr_to_center_ang_offset(
         return;
     }
 
-    length = jmt_fast_sqrt(
+    length = gxMathFastSqrt(
         object->pos.value.x * object->pos.value.x +
         object->pos.value.z * object->pos.value.z);
     if (length <= 0.0f) {
@@ -1466,7 +1439,7 @@ void mks_set_plyr_to_center_ang_offset(
     }
 }
 
-/* TODO: [breakthrough] 69.565216%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 82.75%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 void mks_bgnd_cam_offset_away(
     void* script_args, float distance, float height) {
@@ -1480,7 +1453,7 @@ void mks_bgnd_cam_offset_away(
         return;
     }
 
-    length = jmt_fast_sqrt(
+    length = gxMathFastSqrt(
         victim->pos.value.x * victim->pos.value.x +
         victim->pos.value.z * victim->pos.value.z);
     if (length <= 0.0f) {

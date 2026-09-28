@@ -141,17 +141,7 @@ extern int ending_speech;
 extern int f_ending_speech_paused;
 
 static inline ScreenObj* ending_item_live_object(EndingScreenObjItem* item) {
-    ScreenObj* object = item->object;
-
-    if (object != 0) {
-        if (object->instance == item->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(item->object, item->instance);
 }
 
 static int scrolling_text_string_count;

@@ -106,15 +106,7 @@ typedef struct SkyTempleExplodeMonitorPdata {
 } SkyTempleExplodeMonitorPdata;
 
 static inline MkObj* mab_live_object(MkObj* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->hdr.instance == instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, instance);
 }
 
 #define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
@@ -483,16 +475,7 @@ int get_offset_of_closest_fence_section(
 
 
 static inline MkObj* mk_obj_ref_live_object(MkObjRef* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->object, owner->instance);
 }
 
 
@@ -587,16 +570,7 @@ static inline MkObj* fighter_severed_limb_live_object(
 }
 
 static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->object, owner->instance);
 }
 
 static inline MkObj* fish_attack_live_target(FishAttackPdata* pdata) {
@@ -957,16 +931,7 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
 }
 
 static inline MkProc* player_info_live_slot_fighter_anim_proc_direct(PlyrInfo* owner) {
-    MkProc* object = owner->slot.fighter->anim_proc;
-    if (object != 0) {
-        if (object->instance == owner->slot.fighter->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->slot.fighter->anim_proc, owner->slot.fighter->anim_proc_instance);
 }
 
 /* TODO: [near miss] 99.54%; one row: retail seeds the limb offset with mr r29,r28 (as when init_plyr_severed_limb_list is inlined); a direct call does not inline here. */
@@ -1539,16 +1504,7 @@ static float p_cam_bounce_monitor(void) {
 }
 
 static inline MkProc* player_info_live_slot_fighter_anim_proc(PlyrInfo* owner) {
-    MkProc* object = owner->slot.fighter->anim_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->slot.fighter->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->slot.fighter->anim_proc, owner->slot.fighter->anim_proc_instance);
 }
 
 /* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */

@@ -659,15 +659,7 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
 
 static inline MkProc* jab_ref_live_object(JabObjectRef* owner) {
     MkProc* object = (MkProc*) owner->object;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(object, owner->instance);
 }
 
 /* TODO: [near miss] 97.586205%; register coloring, instruction scheduling; one-trial ceiling. */

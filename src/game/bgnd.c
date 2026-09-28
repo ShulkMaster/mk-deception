@@ -322,55 +322,19 @@ static void bl_process_general_movement(
     float movement_scale_a, float movement_scale_b, int surface);
 
 static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
-    MkProc* object = owner->own_player_proc;
-    if (object != 0) {
-        if (object->instance == owner->own_player_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->own_player_proc, owner->own_player_proc_instance);
 }
 
 static inline MkProc* bgnd_live_transient_process(PlyrPdata* owner) {
-    MkProc* process = owner->transient_proc;
-    if (process != 0) {
-        if (process->instance == owner->transient_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
+    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
 }
 
 static inline MkObj* bgnd_live_light_object(MkxRpLight* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
 }
 
 static inline UvScrollControl* bgnd_live_uv_control(BgndUvScrollControlItem* owner) {
-    UvScrollControl* object = owner->control;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->control, owner->instance);
 }
 
 static inline void set_subobject_transl(MkSobj* object) {
@@ -1763,43 +1727,19 @@ extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_1_hdr(
     SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[1].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[1].instance);
 }
 
 static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_0_hdr(
     SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[0].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[0].instance);
 }
 
 static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_2_hdr(
     SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[2].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[2].instance);
 }
 
 static float p_sh_bottom_floor_blood_fall(void) {
@@ -2040,28 +1980,12 @@ static void sh_update_blood_fall_pebbles(
 
 static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_1_hdr(SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[1].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[1].instance);
 }
 
 static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_0_hdr(SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[0].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[0].instance);
 }
 
 static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_2_hdr(SlaughterhouseData* owner) {
@@ -2101,7 +2025,7 @@ static inline float sh_random_blood_pebble_direction(Vec* rotated_direction) {
     return angle;
 }
 
-/* TODO: [near miss] 99.16%; GPR assignment rotated (data retail r25, ours r31; pebble sets r30-r28). */
+/* TODO: [near miss] 99.62%; GPR assignment rotated (data retail r25, ours r31; pebble sets r30-r28). */
 static void sh_init_bottom_floor_blood_fall_pebbles(
     ShBloodFallProcessData* data) {
     PebbleData* large;
@@ -2256,41 +2180,17 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
 }
 static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_0_hdr(SlaughterhouseData* owner) {
     MkObj* object = (MkObj*) owner->lower_level_pebbles[0].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->lower_level_pebbles[0].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->lower_level_pebbles[0].instance);
 }
 
 static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_1_hdr(SlaughterhouseData* owner) {
     MkObj* object = (MkObj*) owner->lower_level_pebbles[1].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->lower_level_pebbles[1].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->lower_level_pebbles[1].instance);
 }
 
 static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_2_hdr(SlaughterhouseData* owner) {
     MkObj* object = (MkObj*) owner->lower_level_pebbles[2].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->lower_level_pebbles[2].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->lower_level_pebbles[2].instance);
 }
 
 void sh_lower_level_pebble_unhide(void) {
@@ -2479,17 +2379,7 @@ static void sh_load_objs(void) {
 }
 
 static inline MkHdr* sh_live_latched_object(MkHdrLatch* latch) {
-    MkHdr* object = latch->hdr;
-
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(latch->hdr, latch->instance);
 }
 
 static inline void sh_hide_latched_object(MkHdrLatch* latch) {
@@ -4914,16 +4804,7 @@ static float victim_fall_down_a_level(void) {
 
 
 static inline CameraObj* camera_item_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->node, owner->instance);
 }
 
 
@@ -5002,16 +4883,7 @@ extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
 extern void get_current_target(Vec* target);
 
 static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->node, owner->instance);
 }
 
 /* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x180 higher than retail (TU data layout). */
@@ -5219,29 +5091,11 @@ static inline void bl_column_normalize_vector(Vec* vector) {
 }
 
 static inline MkObj* bl_column_break_data_live_player_tracked_obj(BlColumnBreakData* owner) {
-    MkObj* object = owner->player->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->player->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->player->tracked_obj, owner->player->tracked_obj_instance);
 }
 
 static inline MkObj* bl_column_break_data_live_player_his_plyr_pdata_tracked_obj(BlColumnBreakData* owner) {
-    MkObj* object = owner->player->his_plyr_pdata->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->player->his_plyr_pdata->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->player->his_plyr_pdata->tracked_obj, owner->player->his_plyr_pdata->tracked_obj_instance);
 }
 
 
@@ -10185,26 +10039,10 @@ void spad_set_vector(int index, unsigned int source) {
     }
 }
 float spad_xz_length_vector(int index) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate, input;
-    float squared;
     Vec* vector;
 
     vector = &g_bgnd_scratch_pad_vectors[index];
-    squared = vector->x * vector->x + vector->z * vector->z;
-    input.f = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    return 0.5f *
-           (estimate.f * (3.0f - (estimate.f * estimate.f) / squared));
+    return gxMathFastSqrt(vector->x * vector->x + vector->z * vector->z);
 }
 float spad_get_pos(int index, unsigned int component) {
     Vec* vector;
@@ -10321,15 +10159,7 @@ void bgnd_xfer_attacker(int script_function) {
 }
 
 static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem* owner) {
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->instance);
 }
 
 
@@ -11584,16 +11414,7 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
 }
 
 static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
-    MkProc* object = owner->player_proc;
-    if (object != 0) {
-        if (object->instance == owner->player_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->player_proc, owner->player_proc_instance);
 }
 
 static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {

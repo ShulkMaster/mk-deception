@@ -303,16 +303,7 @@ static const char fx_string_base[228] =
     "TELE_ENERGY\0FX.C-created";
 
 static inline CameraObj* camera_item_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->node, owner->instance);
 }
 
 
@@ -344,7 +335,7 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [breakthrough] 71.14%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
+/* TODO: [breakthrough] 71.72%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
 static float lensflare_proc2(void) {
     LensflarePdata* pdata;
     CameraObj* camera;
@@ -1004,16 +995,7 @@ void load_player_fstyle_signs(PlyrPdata* player) {
 }
 
 static inline ScreenObj* moveset_live_style_sign(GlobalMoveset* owner) {
-    ScreenObj* object = owner->style_sign;
-    if (object != 0) {
-        if (object->instance == owner->style_sign_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->style_sign, owner->style_sign_instance);
 }
 
 void kill_all_fstyle_signs(void) {
@@ -1138,16 +1120,7 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
 }
 
 static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->instance);
 }
 
 static float p_freeze_light(void) {
@@ -1175,29 +1148,11 @@ static float p_freeze_light(void) {
 }
 
 static inline MkObj* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->obj, owner->instance);
 }
 
 static inline MkHdr* fx_hdr_latch_live_object(FxHdrLatch* owner) {
-    MkHdr* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->object, owner->instance);
 }
 
 

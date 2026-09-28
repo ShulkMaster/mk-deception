@@ -129,26 +129,6 @@ typedef struct ClothWindPdata {
 } ClothWindPdata;
 
 
-static float cloth_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } input, guess;
-    float refined;
-
-    input.f = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    guess.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-        0x7F800000U;
-    refined = guess.f * (3.0f - (guess.f * guess.f) / value);
-    return 0.5f * refined;
-}
-
 typedef float (*ClothJumpSleepFn)(
     MkProcEntryFn entry,
     MkVtableMkproc* vtable,
@@ -880,7 +860,7 @@ static void do_cloth_force(ClothForcePdata* force) {
     second_position = &second->force_position;
     PSVECSubtract(second_position, first_position, &difference);
     distance_squared = PSVECDotProduct(&difference, &difference);
-    distance = cloth_sqrt(distance_squared);
+    distance = gxMathFastSqrt(distance_squared);
     if (distance) {
         inverse_distance = 1.0f / distance;
     } else {
@@ -1660,7 +1640,7 @@ static void calc_cloth_stretch(ClothBone* bone) {
                     &parent_bone->matrix.pos_vec, &difference);
             }
             distance_squared = PSVECDotProduct(&difference, &difference);
-            distance = cloth_sqrt(distance_squared);
+            distance = gxMathFastSqrt(distance_squared);
             if (distance) {
                 inverse_distance = 1.0f / distance;
             } else {
@@ -1971,7 +1951,7 @@ void cloth_bones_init_by_tbl(
             cloth_bone->stiffness_squared =
                 table[index].stiffness * table[index].stiffness;
             cloth_bone->table_weight = table[index].segment_length;
-            cloth_bone->segment_length = cloth_sqrt(table[index].segment_length);
+            cloth_bone->segment_length = gxMathFastSqrt(table[index].segment_length);
             cloth_bone->force_step = -table[index].force / 50.0f;
             cloth_bone->stretch_weight = 0.0f;
             cloth_bone->damping_factor =
@@ -2042,17 +2022,7 @@ static void ps_axis(void) {
 }
 
 static inline MkObj* axis_pdata_live_axis(AxisPdata* pdata) {
-    MkObj* object = pdata->axis;
-
-    if (object != 0) {
-        if (object->hdr.instance == pdata->axis_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(pdata->axis, pdata->axis_instance);
 }
 
 static void pw_axis(void) {

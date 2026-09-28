@@ -1291,16 +1291,7 @@ static float p_foot_print(void);
 static float p_foot_print_wait(void);
 
 static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->proc, owner->instance);
 }
 static float p_bleed(void);
 static float p_pfx_bleed(void);
@@ -1353,24 +1344,6 @@ static inline void queue_blood_spawn(
             mk_insert(&pdata->hdr, &proc->pdata_list);
         }
     }
-}
-
-static inline float blood_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } input, guess;
-
-    if (!(value > 0.0f)) {
-        return 0.0f;
-    }
-    input.f = value;
-    guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    guess.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    return 0.5f * guess.f *
-        (3.0f - (guess.f * guess.f) / value);
 }
 
 static inline void prepare_blood_path(
@@ -1570,7 +1543,7 @@ static float p_gusher(void) {
     return time;
 }
 
-/* TODO: [breakthrough] 77.66779%; canonical player-info owner and sqrt index;
+/* TODO: [breakthrough] 80.76%; canonical player-info owner and sqrt index;
  * remaining consumer CFG/register differences need separate recovery. */
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, const Vec* position,
@@ -1663,7 +1636,7 @@ void spawn_bld_fall(
                             object->pos.value.y;
                         z = ncs_blood_splat_list[index].position.z -
                             object->pos.value.z;
-                        if (blood_sqrt(x * x + y * y + z * z) <
+                        if (gxMathFastSqrt(x * x + y * y + z * z) <
                             nearby_radius) {
                             nearby_index = index;
                         }
@@ -2246,16 +2219,7 @@ void plyr_obj_load_bld_data(
 }
 
 static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
 }
 
 
@@ -2445,7 +2409,7 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
 
 
 
-/* TODO: [breakthrough needed] 89.657080%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 89.97%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
     static int cycle_index;
@@ -2556,23 +2520,14 @@ static inline int blood_bone_is_compatible(int requested, int candidate) {
 }
 
 static inline MkObj* bleed_pdata_live_object(BleedPdata* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->object, owner->object_instance);
 }
 
 
 
 
 
-/* TODO: [breakthrough needed] 63.632183%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 63.86%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static float p_bleed(void) {
     BloodProcVtableRef vtbl;
     BloodSpawnTarget* target;

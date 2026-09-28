@@ -951,27 +951,6 @@ static inline void find_spec_lights(RwGlobals* engine) {
     }
 }
 
-static inline float spec_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } input, guess;
-    float result;
-
-    if (value <= 0.0f) {
-        result = 0.0f;
-    } else {
-        input.f = value;
-        guess.u =
-            (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-        guess.u |=
-            (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-        result = 0.5f * guess.f *
-            (3.0f - (guess.f * guess.f) / value);
-    }
-    return result;
-}
-
 static inline float spec_inv_sqrt(float value) {
     union {
         float f;
@@ -1069,7 +1048,7 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* TODO: [near miss] 91.50%; light-upload register scheduling remains; check honest lifetimes. */
+/* TODO: [near miss] 94.06%; light-upload register scheduling remains; check honest lifetimes. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, SpecLightingData* lighting) {
     RpMaterial* specular_material;
@@ -1134,13 +1113,13 @@ static RpAtomic* GCSpecSkinLighting(
                 point2_delta.y * point2_delta.y +
                 point2_delta.z * point2_delta.z;
             point1_intensity =
-                1.0f - spec_sqrt(point1_distance_sq) /
+                1.0f - gxMathFastSqrt(point1_distance_sq) /
                     point1->radius;
             if (point1_intensity < 0.0f) {
                 point1_intensity = 0.0f;
             }
             point2_intensity =
-                1.0f - spec_sqrt(point2_distance_sq) / point2->radius;
+                1.0f - gxMathFastSqrt(point2_distance_sq) / point2->radius;
             if (point2_intensity < 0.0f) {
                 point2_intensity = 0.0f;
             }
@@ -1152,7 +1131,7 @@ static RpAtomic* GCSpecSkinLighting(
                 spec_inv_sqrt(point2_distance_sq), point2_intensity);
         } else {
             point1_intensity =
-                1.0f - spec_sqrt(point1_distance_sq) /
+                1.0f - gxMathFastSqrt(point1_distance_sq) /
                     point1->radius;
             if (point1_intensity < 0.0f) {
                 point1_intensity = 0.0f;

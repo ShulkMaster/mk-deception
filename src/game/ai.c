@@ -714,22 +714,6 @@ static inline void ai_side_clearances(float* right, float* left) {
     *left = left_distance;
 }
 
-static inline float ai_sqrt_table(float squared) {
-    AiFloatBits input;
-    AiFloatBits estimate;
-
-    input.f = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000;
-    return 0.5f * (estimate.f *
-                   (3.0f - (estimate.f * estimate.f) / squared));
-}
-
 static inline float ai_backward_clearance(void) {
     Vec origin;
     Vec direction;
@@ -766,16 +750,7 @@ void liukang_in_fight_random_snd_check(void) {
 }
 
 static inline MkProc* ai_live_player_process(PlyrPdata* player) {
-    MkProc* proc = player->player_proc;
-    if (proc != 0) {
-        if (proc->instance == player->player_proc_instance) {
-            return proc;
-        }
-        proc = 0;
-    } else {
-        proc = 0;
-    }
-    return proc;
+    return MK_LIVE(player->player_proc, player->player_proc_instance);
 }
 
 void dk_taunt_at_screen(void) {
@@ -6012,14 +5987,14 @@ static int drone_ai_victim_avoid(void) {
         target_z =
             drone->avoidance_position[2] - player->pos.value.z;
         target_squared_distance = target_x * target_x + target_z * target_z;
-        target_distance = ai_sqrt_table(target_squared_distance);
+        target_distance = gxMathFastSqrt(target_squared_distance);
         if (target_distance == 0.0f) {
             return 0;
         }
         enemy_x = opponent->pos.value.x - player->pos.value.x;
         enemy_z = opponent->pos.value.z - player->pos.value.z;
         enemy_squared_distance = enemy_x * enemy_x + enemy_z * enemy_z;
-        enemy_distance = ai_sqrt_table(enemy_squared_distance);
+        enemy_distance = gxMathFastSqrt(enemy_squared_distance);
         inverse_distance = enemy_distance > 0.0f
                                ? 1.0f / enemy_distance
                                : enemy_distance;
