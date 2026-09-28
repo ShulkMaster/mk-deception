@@ -1175,12 +1175,10 @@ static void cloth_coll_point_cyl_inside(void) {
 }
 
 static inline int cloth_vector_cylinder_displacement(const Vec* point) {
-    Vec midpoint;
-    Vec radial_direction;
-    Vec target_position;
-    Vec local_displacement;
-    Vec world_displacement;
-    Vec world_position;
+    RwMatrixPosition world_position;
+    RwMatrixPosition target_position;
+    RwMatrixPosition direction;
+    RwMatrixPosition displacement;
     float along_axis;
     float previous_y;
 
@@ -1190,32 +1188,32 @@ static inline int cloth_vector_cylinder_displacement(const Vec* point) {
         along_axis <= cloth_coll->cylinder_top) {
         PSVECSubtract(
             point, &cloth_bone->previous_collision_local_position,
-            &midpoint);
-        PSVECScale(&midpoint, &midpoint, 0.5f);
+            &displacement.value);
+        PSVECScale(&displacement.value, &direction.value, 0.5f);
         PSVECAdd(
-            &midpoint, &cloth_bone->previous_collision_local_position,
-            &midpoint);
-        midpoint.y = 0.0f;
-        PSVECAdd(&midpoint, &cloth_bone->collision_offset, &midpoint);
-        PSVECNormalize(&midpoint, &radial_direction);
+            &direction.value, &cloth_bone->previous_collision_local_position,
+            &direction.value);
+        direction.value.y = 0.0f;
+        PSVECAdd(&direction.value, &cloth_bone->collision_offset, &direction.value);
+        PSVECNormalize(&direction.value, &direction.value);
         previous_y = cloth_bone->previous_collision_local_position.y;
         PSVECScale(
-            &radial_direction, &target_position,
+            &direction.value, &target_position.value,
             cloth_coll->radius + 0.01f);
-        target_position.y = previous_y;
-        PSVECSubtract(&target_position, point, &local_displacement);
+        target_position.value.y = previous_y;
+        PSVECSubtract(&target_position.value, point, &displacement.value);
         PSVECAdd(
-            &cloth_bone->collision_local_position, &local_displacement,
+            &cloth_bone->collision_local_position, &displacement.value,
             &cloth_bone->collision_local_position);
         gxMat33Tx31(
-            &world_displacement, &cloth_bone->collision_local_position,
+            &displacement.value, &cloth_bone->collision_local_position,
             (Mat33*)&cloth_coll_bone->transform_parent->matrix);
         PSVECAdd(
-            &world_displacement,
+            &displacement.value,
             &cloth_coll_bone->transform_parent->matrix.pos_vec,
-            &world_position);
+            &world_position.value);
         PSVECSubtract(
-            &world_position, &cloth_bone->force_position,
+            &world_position.value, &cloth_bone->force_position,
             &cloth_displacement_v);
         return 1;
     }

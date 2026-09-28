@@ -87,7 +87,6 @@ int check_load_region_data_result(int* result, int device, int scratch, int flag
         } else {
             region_data_corruption_message_handler();
         }
-        /* Fall through to the removable-storage prompt. */
     case 1:
     case 2:
     case 5:
@@ -643,7 +642,6 @@ int gc_format_procedure(int device) {
             }
         }
 
-        /* Accept 0 or Midway -0x34 (card needs format). */
         if (rc != 0 && (unsigned int)(rc + 0x34) > 1) {
             f_writing_to_memcard = 0;
             return 0;
@@ -653,7 +651,6 @@ int gc_format_procedure(int device) {
             rc = CARDFormat(device);
         } while (rc == -1);
 
-        /* Map CARDFormat result: 0 ok, -3 -> -10, else -99. */
         if (rc == -4 || rc < -4) {
             chan = -99;
         } else if (rc == 0) {

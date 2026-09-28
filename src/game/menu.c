@@ -153,7 +153,6 @@ void init_temp_switch_map(int player, int use_profile);
 int find_bit(const SwitchMapEntry* map, unsigned int bit);
 int is_rumble_available(int port);
 void ck_rumble_controller(int player, int strength, int ticks);
-void vdebug_print_message(const char* format, ...);
 
 extern float p_konquest_mode(void);
 extern float p_kontent(void);
@@ -939,11 +938,10 @@ float p_game_options(void) {
     return sleep_ticks_neg_one;
 }
 
-/* TODO: [near miss] 96.17073%; shared screen load restored; string-address scheduling and pdata/next-process coloring remain; stop at lowering */
 float p_pause_menu(void) {
+    MkProcEntryFn next_proc;
     PauseMenuPdata* pdata;
     MkVtableMkprocLocal* vtbl;
-    MkProcEntryFn next_proc;
     unsigned int scheme;
     int screen_slot;
     const char* screen_name;
@@ -958,7 +956,7 @@ float p_pause_menu(void) {
     pause_player = g_game_info.pads[pdata->player].player->field_04;
     set_default_switch_maps();
 
-    scheme = (unsigned int)get_current_section_memory_scheme();
+    scheme = get_current_section_memory_scheme();
     switch (scheme) {
     case 1:
         screen_slot = 0x60026;
@@ -991,10 +989,13 @@ float p_pause_menu(void) {
         break;
     }
 
-    if (mode_of_play != 7) {
-        screen_name = &stringBase0[0x4BB];
-    } else {
+    switch (mode_of_play) {
+    case 7:
         screen_name = &stringBase0[0x49E];
+        break;
+    default:
+        screen_name = &stringBase0[0x4BB];
+        break;
     }
     load_screen(screen_name, screen_slot, 0, 0);
     pause_all_game_sounds();
@@ -1283,7 +1284,7 @@ float p_main_menu(void) {
             } else {
                 switch (mode) {
                 case 2:
-                    game_settings.konquest_latch = 0;
+                    game_settings.konquest_loading_image = 0;
                     set_mode_of_play(7);
                     clear_region_buffer();
                     konquestPlyr = (menu_player == 0) ? &g_game_info.plyr0 : &g_game_info.plyr1;

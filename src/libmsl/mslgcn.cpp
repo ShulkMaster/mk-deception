@@ -168,13 +168,6 @@ extern "C" void UnCopyStreamWave(
     _mwMemFree(wave, 0, 0);
 }
 
-/*
- * Clone the complete retail runtime-wave overlay, optionally attach a new
- * streamed playable, then replace the copied playable owner.
- * Soft ceiling: ~92.74% -- all field accesses and control flow are recovered;
- * the residue is alternating-load scheduling and GPR coloring around the
- * factory call and counters.
- */
 extern "C" mslRuntimeWave* CopyStreamWave(
     _mslSystem* system, mslLoadedBank* bank, const char* name,
     const mslRuntimeWave* source, int create_playable) {

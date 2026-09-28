@@ -198,7 +198,7 @@ void feedback_effect(void) {
 
     amb = color;
     GXSetChanAmbColor(4, amb);
-    color.a = (unsigned char)feedback_blendrate;
+    color.a = feedback_blendrate;
     mat = color;
     GXSetChanMatColor(4, mat);
     GXSetChanCtrl(4, 0, 0, 0, 0, 0, 2);
@@ -209,8 +209,8 @@ void feedback_effect(void) {
     if (old_use_feedback_effect == use_feedback_effect) {
         full_w = screen_width;
         full_h = screen_height;
-        w = (short)full_w;
-        h = (short)full_h;
+        w = full_w;
+        h = full_h;
         GXClearVtxDesc();
         GXSetVtxDesc(9, 1);
         GXSetVtxDesc(0xD, 1);
@@ -235,8 +235,8 @@ void feedback_effect(void) {
         wgPipe[0] = (unsigned short)full_h;
     }
 
-    GXSetTexCopySrc(0, 0, (unsigned short)screen_width, (unsigned short)screen_height);
-    GXSetTexCopyDst((unsigned short)screen_width, (unsigned short)screen_height, 4, 0);
+    GXSetTexCopySrc(0, 0, screen_width, screen_height);
+    GXSetTexCopyDst(screen_width, screen_height, 4, 0);
     GXCopyTex(feedbackTexPixels, 0);
     restore_projection_matrix();
 
@@ -248,11 +248,11 @@ void feedback_effect(void) {
 
 void gc_setup_feedback_buffer_for_konquest(void) {
     feedbackTexPixels =
-        _mwMemMalloc(permanent_heap, (unsigned long)(screen_width * screen_height * 2), 5, 0, 0, 0);
+        _mwMemMalloc(permanent_heap, screen_width * screen_height * 2, 5, 0, 0, 0);
     mk_insert(get_mkx_mem(feedbackTexPixels), &aproc->pdata_list_b);
     if (feedbackTexPixels != 0) {
-        GXInitTexObj(&feedbackTex, feedbackTexPixels, (unsigned short)screen_width,
-                     (unsigned short)screen_height, 4, 0, 0, 0);
+        GXInitTexObj(&feedbackTex, feedbackTexPixels, screen_width, screen_height, 4, 0, 0,
+                     0);
         GXInitTexObjLOD(&feedbackTex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
     }
 }
@@ -314,14 +314,14 @@ int romfont_puts(int x, int y, char* text) {
         }
 
         cellW = FontData->cellWidth;
-        x0 = (short)(x + penX);
-        x1 = (short)(x0 + FontSize);
+        x0 = x + penX;
+        x1 = x0 + FontSize;
         u0 = sheetX;
         u1 = sheetX + cellW;
         v0 = sheetY;
-        v1 = (short)(sheetY + FontData->cellHeight);
-        y0 = (short)((short)y - ((int)FontData->ascent * (int)FontSize) / (int)cellW);
-        y1 = (short)((short)y + ((int)FontData->descent * (int)FontSize) / (int)cellW);
+        v1 = sheetY + FontData->cellHeight;
+        y0 = (short)y - (FontData->ascent * FontSize) / (int)cellW;
+        y1 = (short)y + (FontData->descent * FontSize) / (int)cellW;
 
         GXBegin(0x80, 0, 4);
         wgPipe[0] = (unsigned short)x0;
@@ -359,7 +359,7 @@ void gc_native_display_render_text(char* text) {
     if (OSInitFont(FontData) == 0) {
         OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
     }
-    FontSize = (short)(FontData->cellWidth << 4);
+    FontSize = FontData->cellWidth << 4;
     FontSpace = -0x10;
     gc_native_display_render(render_text, text);
     if (FontData != 0) {
@@ -460,10 +460,10 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     for (i = 0; i < uFrameBlastCount; i++) {
         mode = gc_native_display.rmode;
         if (mode->field_rendering != 0) {
-            GXSetViewportJitter(0.0f, 0.0f, (float)mode->fbWidth, (float)mode->efbHeight, 0.0f,
-                                1.0f, VIGetNextField());
+            GXSetViewportJitter(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f,
+                                VIGetNextField());
         } else {
-            GXSetViewport(0.0f, 0.0f, (float)mode->fbWidth, (float)mode->efbHeight, 0.0f, 1.0f);
+            GXSetViewport(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f);
         }
 
         if (cb != 0) {
@@ -1073,7 +1073,7 @@ static void display_dragon_with_text(DragonTextPrompt* prompt) {
         OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
     }
 
-    FontSize = (short)(FontData->cellWidth << 4);
+    FontSize = FontData->cellWidth << 4;
     FontSpace = -0x10;
 
     msgW = font_string_width(prompt->message);
@@ -1081,17 +1081,17 @@ static void display_dragon_with_text(DragonTextPrompt* prompt) {
 
     if (prompt->yes_hi != 0) {
         for (i = 0; i < strlen(prompt->no_str); i++) {
-            prompt->no_str[i] = (char)(prompt->no_str[i] | 0x20);
+            prompt->no_str[i] |= 0x20;
         }
         for (i = 0; i < strlen(prompt->yes_str); i++) {
-            prompt->yes_str[i] = (char)(prompt->yes_str[i] & 0xDF);
+            prompt->yes_str[i] &= 0xDF;
         }
     } else {
         for (i = 0; i < strlen(prompt->yes_str); i++) {
-            prompt->yes_str[i] = (char)(prompt->yes_str[i] | 0x20);
+            prompt->yes_str[i] |= 0x20;
         }
         for (i = 0; i < strlen(prompt->no_str); i++) {
-            prompt->no_str[i] = (char)(prompt->no_str[i] & 0xDF);
+            prompt->no_str[i] &= 0xDF;
         }
     }
 
@@ -1130,7 +1130,7 @@ static void display_image(void) {
         pal_565 = palette;
         for (i = 0; i < 0x100; i++) {
             src = loading_palette[i];
-            dst = (unsigned short)(((src >> 10) & 0x1F) | (src << 11) | ((src & 0x3E0) << 1));
+            dst = ((src >> 10) & 0x1F) | (src << 11) | ((src & 0x3E0) << 1);
             pal_565[i] = dst;
         }
     }
@@ -1149,7 +1149,7 @@ static void display_image(void) {
     GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
     GXSetTevOrder(0, 0, 1, 0xFF);
 
-    left = (short)((screen_width / 2) - 0x80);
+    left = screen_width / 2 - 0x80;
 
     GXClearVtxDesc();
     GXSetVtxDesc(9, 1);

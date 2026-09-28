@@ -2,61 +2,42 @@
 
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
+#include "game/plyr.h"
+#include "game/settings.h"
+#include "game/attract.h"
+#include "game/cloth.h"
+#include "game/controller.h"
+#include "runtime/fonts.h"
+#include "runtime/image.h"
+#include "runtime/mk_cmdscript.h"
+#include "runtime/utils.h"
 #include "runtime/mk_mem.h"
-
-typedef struct PlyrInfoInitView {
-    unsigned char data[0x6C];
-} PlyrInfoInitView;
 
 typedef struct GameInfoInitView {
     unsigned int field_00;
     unsigned int field_04;
     unsigned char pad_008[0x9C];
-    PlyrInfoInitView plyr0;
-    PlyrInfoInitView plyr1;
+    PlyrInfo plyr0;
+    PlyrInfo plyr1;
     unsigned char pad_17C[0x8C];
     unsigned int field_208;
     unsigned int field_20C;
 } GameInfoInitView;
 
-typedef struct GameSettingsInitView {
-    unsigned char pad_00[0x4C];
-    unsigned int field_4C;
-    unsigned int field_50;
-} GameSettingsInitView;
-
-typedef char PlyrInfoInitViewSize[(sizeof(PlyrInfoInitView) == 0x6C) ? 1 : -1];
 typedef char GameInfoInitViewSize[(sizeof(GameInfoInitView) == 0x210) ? 1 : -1];
-typedef char GameSettingsInitViewSize[(sizeof(GameSettingsInitView) == 0x54) ? 1 : -1];
 
-/* Retail .rodata adds two alignment bytes and a four-byte linker gap. */
 static const char stringBase0[0xA] = "get_mkhdr";
 
-void setup_fixed_block_heaps(void);
-void init_global_vars(void);
 void reset_ani_data_space(void);
-void init_mkproc(void);
 void init_weapon_trails(void);
 void start_obj_proc(void);
-void init_2d_obj_lists(void);
 void start_bone_hierarchy_proc(void);
-void start_cloth_proc(void);
 void start_morph_proc(void);
 void set_background_color(int r, int g, int b, int a);
-void init_font_system(void);
-void set_mode_of_play(int mode);
-void init_port_info_struct(void);
-void init_cmdscript_system(void);
-void atm_reset_current_page(int unused);
-void reset_game_state(void);
-void push_game_state(int state);
-void init_player_switch_maps(void);
-void init_plyr_info_struct(PlyrInfoInitView* info);
 void init_bet_info_struct(void);
 
 extern int force_bgnd_num;
 extern GameInfoInitView g_game_info;
-extern GameSettingsInitView game_settings;
 
 MkPtr* mkptr_list = 0;
 MkPtr* free_mkptrs = 0;
@@ -67,7 +48,6 @@ int global_instance_ctr = 0;
 
 static void discard_mkptr(MkPtr* ptr);
 
-/* Pop a node from free_mkptrs. Clears flags as a word at +0x14 (retail). */
 #define POP_FREE_MKPTR(ptr_)                                                       \
     do {                                                                           \
         (ptr_) = free_mkptrs;                                                      \
@@ -93,7 +73,6 @@ static void discard_mkptr(MkPtr* ptr);
         (ptr_)->f.no_own = 1;                                                      \
     } while (0)
 
-/* Unlink: load list+next first; clear prev, then next, then list (retail order). */
 #define UNLINK_MKPTR(ptr_)                                                         \
     do {                                                                           \
         MkPtr** list_ = (ptr_)->list;                                              \
@@ -116,7 +95,6 @@ static void discard_mkptr(MkPtr* ptr);
         }                                                                          \
     } while (0)
 
-/* Bitfield no_own test -> lbz + extrwi. */
 #define MAYBE_DESTROY_OWNED(ptr_)                                                  \
     do {                                                                           \
         MkHdr* hdr_ = (ptr_)->hdr;                                                 \
@@ -172,19 +150,19 @@ MkHdr* get_mkhdr_generic(unsigned int size) {
     MkHdr* hdr;
 
     if (size <= 0x40U) {
-        hdr = _mwMemMalloc(fixed_block_16_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x80U) {
-        hdr = _mwMemMalloc(fixed_block_32_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x100U) {
-        hdr = _mwMemMalloc(fixed_block_64_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x200U) {
-        hdr = _mwMemMalloc(fixed_block_128_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x800U) {
-        hdr = _mwMemMalloc(fixed_block_512_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x1000U) {
-        hdr = _mwMemMalloc(fixed_block_1024_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, (void *)stringBase0, 0, 0);
     } else {
-        hdr = _mwMemMalloc(wave_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(wave_heap, size, 4, (void *)stringBase0, 0, 0);
     }
     if (hdr == 0) {
         return 0;
@@ -703,13 +681,13 @@ MkHdr* first_mkhdr(MkPtr** list) {
 
 void mk_set_instance(unsigned int* instance_out) {
     if (net_override_instance != 0) {
-        unsigned int value = (unsigned int)net_instance_value;
+        unsigned int value = net_instance_value;
         net_override_instance = 0;
         *instance_out = value;
         return;
     }
     global_instance_ctr--;
-    *instance_out = (unsigned int)global_instance_ctr;
+    *instance_out = global_instance_ctr;
 }
 
 void destroy_list(MkPtr** list) {
@@ -729,19 +707,19 @@ MkHdr* get_mkhdr(MkVtable5* vtbl, unsigned int size) {
     MkHdr* hdr;
 
     if (size <= 0x40U) {
-        hdr = _mwMemMalloc(fixed_block_16_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x80U) {
-        hdr = _mwMemMalloc(fixed_block_32_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x100U) {
-        hdr = _mwMemMalloc(fixed_block_64_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x200U) {
-        hdr = _mwMemMalloc(fixed_block_128_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x800U) {
-        hdr = _mwMemMalloc(fixed_block_512_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, (void *)stringBase0, 0, 0);
     } else if (size <= 0x1000U) {
-        hdr = _mwMemMalloc(fixed_block_1024_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, (void *)stringBase0, 0, 0);
     } else {
-        hdr = _mwMemMalloc(wave_heap, (unsigned long)size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(wave_heap, size, 4, (void *)stringBase0, 0, 0);
     }
     if (hdr == 0) {
         return 0;

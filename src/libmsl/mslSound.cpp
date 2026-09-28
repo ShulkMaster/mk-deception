@@ -149,10 +149,7 @@ void _mslSoundStop(_mslSound* sound) {
     mslSoundDeactivate(sound, 1);
 }
 
-/*
- * Soft ceiling: mslSoundDeactivate ~99.27% -- exact retail lifecycle, size,
- * and diagnostic relocation; remaining deltas are pure NV/zero coloring.
- */
+/* TODO: [near miss] 99.26%; lifecycle, size and diagnostic relocation match; only nonvolatile/zero register coloring differs. */
 static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     _ListNode* sound_node = 0;
@@ -715,14 +712,11 @@ static inline void mslCmdsRollback(
                         "MSL: wave %s not found in sound unload\n",
                         command->source.pointer);
                 } else if (bank_wave->wave != 0) {
-                    mslRuntimeWave* runtime_wave =
-                        bank_wave->wave;
-
-                    runtime_wave->use_count--;
-                    if (runtime_wave->use_count == 0) {
+                    bank_wave->wave->use_count--;
+                    if (bank_wave->wave->use_count == 0) {
                         mslWaveUnLoad(system, bank_wave->wave);
                         bank_wave->wave = 0;
-                    } else if (runtime_wave->use_count < 0) {
+                    } else if (bank_wave->wave->use_count < 0) {
                         mslDebugPrintf(
                             "Problem!  wave use count < 0\n");
                     }
@@ -774,8 +768,8 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
  * wave, create the per-command runtime copy, and unwind all prior copies on
  * any failure.
  */
-/* TODO: [breakthrough needed] 94.72%; writable rollback diagnostic violates
- * retail placement; late pool scored86.80%; owner reloads also remain. */
+/* TODO: [near miss] 97.78%; rollback diagnostics need pooled stringBase0
+ * literals (TU data layout); release_base colors r25 vs retail r26. */
 extern "C" int mslCmdsLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {

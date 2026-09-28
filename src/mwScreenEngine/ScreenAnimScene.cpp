@@ -120,7 +120,7 @@ void ScreenAnimScene::Process(int dt) {
             ScreenAnimEffect* effect = track->effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
-                done = (int)effect->Process(localTime, (int)dir, m_elements);
+                done = (int)effect->Process(localTime, dir, m_elements);
                 if (done != 0) {
                     finished += 1;
                 }

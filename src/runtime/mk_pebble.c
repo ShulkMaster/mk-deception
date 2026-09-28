@@ -13,7 +13,6 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
-extern int MksobjLocalOffset;
 extern RwCamera* Camera;
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);

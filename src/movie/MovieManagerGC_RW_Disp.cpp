@@ -18,8 +18,6 @@ void MovieManager_RW_Set_Target_Raster(RwRaster* raster) {
     TargetRaster = raster;
 }
 
-/* Soft ceiling: MovieManager_RW_ProcessFrame ~72% -- retail stmw/lmw scheduling;
- * enabling the required flag crashes MWCC when small-data placement is active. */
 void MovieManager_RW_ProcessFrame(void* context, int unused, int width, int height) {
     RwMovieProcessCtx* ctx;
     void* pixels;

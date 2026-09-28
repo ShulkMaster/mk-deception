@@ -2,12 +2,7 @@
  * __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off). */
 
 #include "game/pselect_textures.h"
-/* Game-specific ScreenEngine controls, resource ownership, menu actions,
- * and particle/font composition. Retail source: mwScreenEngineGlue.cpp.
- */
 
-/* These game/process functions are emitted by C translation units. Establish
- * their linkage before legacy headers redeclare them in this C++ unit. */
 extern "C" {
 struct MkProc;
 struct MkHdr;
@@ -65,10 +60,8 @@ extern "C" {
 
 #include "rw/rwframe.h"
 
-/* MWCC 2.7 O4 workaround: removing this duplicate triggers optimizer code 159. */
 #pragma use_lmw_stmw on
 
-/* C view of ScreenAction fields used by the game-specific action handlers. */
 typedef struct ScreenActionView {
     void* vtbl;                 /* +0x00 */
     int state_04;               /* +0x04 */
@@ -79,7 +72,7 @@ typedef struct ScreenActionView {
     unsigned int event_index;   /* +0x20 */
     unsigned char pad_24[4];    /* +0x24 */
     int eventUser;              /* +0x28 */
-    void* owner;                /* +0x2C */
+    ScreenObject* owner;        /* +0x2C */
     void* params;               /* +0x30 */
 } ScreenActionView;
 
@@ -134,20 +127,8 @@ extern void* __vt__32ScreenActionOnlinePickChallenger[];
 extern void* __vt__33ScreenActionOnlineChallengeCancel[];
 extern void* __vt__37ScreenActionOnlineResetChallengeState[];
 extern void* __vt__20mkScreenEngineClient[];
-/* Defined by the compiler as mkGameVariables' vtable (below); this C-linkage
- * declaration names the same symbol so __sinit can store it by hand, the way
- * retail's inlined constructor does. */
 extern void* __vt__15mkGameVariables[];
 
-/*
- * The game's GameVariables subclass. Slot order is inherited from the base
- * (see mwScreenEngine/GameVariables.h); the destructor is the only NEW
- * virtual, so it lands in the extra trailing slot -- retail's
- * __vt__15mkGameVariables is 0x6C where the base's is 0x68.
- *
- * Lives here rather than in mwScreenEngineGlue.h because that header is
- * included by C translation units.
- */
 class mkGameVariables : public GameVariables {
 public:
     virtual ~mkGameVariables();
@@ -175,11 +156,6 @@ public:
     virtual void FreeTextureCollection(int id, GMTextureInfo_t* info);
 };
 
-/*
- * Overlay for init_screen_engine: retail addi from paused_event_queue base.
- * Linker still emits separate symbols (queue / mgr / client / vars + @814..@816);
- * the 0xC pads are MWCC's static-destructor chain nodes.
- */
 typedef struct ScreenEngineBssIsland {
     PausedStudioEvent queue[12]; /* +0x00 size 0x60 */
     unsigned char pad_814[0xC]; /* +0x60 -- symbols.txt @814 */
@@ -190,13 +166,11 @@ typedef struct ScreenEngineBssIsland {
     mkGameVariables game_variables; /* +0x368 */
 } ScreenEngineBssIsland;
 
-/* Retail leaves create_mkproc's MkProc* in r3. */
 MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, void* proc_fn, int pdata_size,
                                         void** pdata_out);
 MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, void* proc_fn, int pdata_size,
                                        void** pdata_out);
 
-/* ScreenMgr methods use their typed declaration in ScreenMgr.h. */
 void BroadcastEvent__9ScreenMgrFiii(void* mgr, int event, int a, int b);
 void FireEvent__9ScreenMgrFiiUi(void* mgr, int event, int a, unsigned int b);
 void Render__9ScreenMgrFv(void* mgr);
@@ -227,7 +201,6 @@ void __register_global_object(
 int get_stick_pos(int port, int which, float* out_x, float* out_y);
 int check_allow_screen_engine_control__Fv(void);
 void set_player_state(PlyrInfo* plyr, int state);
-void destroy_mkprocs_pid(int pid);
 int check_switch(int port, int switch_index);
 void bg_pselect_set_stage(int player, int stage);
 void bg_pselect_set_character(int character);
@@ -244,23 +217,17 @@ int bg_pselect_get_offender_class(int player);
 int pselect_get_arena_index(void);
 void cconfig_set_current_cell(int player, int cell);
 void add_to_wls_left_cursor(int value);
-void set_volume(int channel, int value);
 void set_memcard_cursor_for(int value);
-void ppc_set_button_answer(int value);
-void ppc_set_current_icon_selection(unsigned char value);
-void ppv_update_profile_cursor(int value);
+void ppc_set_current_icon_selection(int value);
 void controller_setup_save_to_profile(int player, int value);
-void ppc_transition_pause(int value);
 void controller_setup_p1_state(int value);
 void controller_setup_p2_state(int value);
 void adjust_brightness(int value);
 void set_save_progress_flag(int value);
-void set_language(int value);
 int controller_get_texture_index_for_button(int player, int button);
 int get_left_storage_device_status(void);
 int controller_get_player_last_button(int player);
 int get_right_storage_device_display_status(void);
-int ppc_get_code_state(void);
 int ok_to_bring_out_wager_screen(void);
 int pselect_bgnd_has_deathtrap(void);
 int pselect_bgnd_has_level_transition(void);
@@ -279,7 +246,6 @@ int get_color_green_value(void);
 int get_color_blue_value(void);
 
 extern MkFileEntry screen_engine_file_table[];
-extern MkVtable5 vtbl_screen_engine;
 extern ScreenEngineClient screen_engine_client;
 extern char screen_manager[];
 extern mkGameVariables game_variables;
@@ -291,18 +257,14 @@ extern int menu_mode_sub_var;
 extern int gameoption_exitwithsave;
 extern int multi_profile_cursor_p1;
 extern int multi_profile_cursor_p2;
-void fade_to_black(int ticks, int freeze);
 char* GetName__6ScreenFv(void* screen);
 
-/* Retail .sdata starts hold-repeat delays at 15 ticks before any setter. */
 static int button_repeat_time = 15;
 
-/* Sleep 1.0f; full-TU retail labels this @4240 after a leading -1.0f in .sdata2. */
 static const float kSleepNegOne = -1.0f;
 static const float kSleepOne = 1.0f;
 static const float kMsPerSec = 1000.0f;
 
-/* ScreenMgr.m_activeCount @ +0x1A4 (C view of ScreenMgr layout). */
 typedef struct ScreenMgrActive {
     char pad00[0x1A4];
     int active_count; /* +0x1A4 */
@@ -342,7 +304,6 @@ void __sinit_mwScreenEngineGlue_cpp(void) {
 }
 int pprofile_stage_var;
 int popup_type;
-/* Per-player filtered stick edge bits (plyr_idx index; size 0x10). */
 static unsigned int stick_bits[4];
 
 int get_menu_mode_sub_var(void) {
@@ -704,22 +665,16 @@ void RefreshOption__13ScreenControlFv(void* self) {
     (void)self;
 }
 
-void SetVisible__12ScreenObjectFUi(void* self, unsigned int visible) {
-    unsigned int* flags;
-
-    flags = (unsigned int*)((char*)*(void**)((char*)self + 0x1C) + 0x0C);
+void SetVisible__12ScreenObjectFUi(ScreenObject* self, unsigned int visible) {
     if (visible != 0) {
-        *flags |= 1;
+        self->m_ext->flags |= 1;
     } else {
-        *flags &= ~1U;
+        self->m_ext->flags &= ~1U;
     }
 }
 
-unsigned int IsVisible__12ScreenObjectFv(void* self) {
-    unsigned int* flags;
-
-    flags = (unsigned int*)((char*)*(void**)((char*)self + 0x1C) + 0x0C);
-    return *flags & 1;
+unsigned int IsVisible__12ScreenObjectFv(ScreenObject* self) {
+    return self->m_ext->flags & 1;
 }
 
 void ProcessEngineEvent__10ScreenNodeFP9ScreenMgri(void* self, void* mgr,
@@ -1008,18 +963,6 @@ void set_popup_message_text(const char* text) {
     }
 }
 
-
-/*
- * Queue / fire a studio event through ScreenMgr.
- * When paused or a controller is removed, events are deferred into
- * paused_event_queue (except a reserved id band) and drained on the next
- * non-deferred call.
- *
- * Retail order: process_events -> broadcast -> fire -> vdestroy.
- * process_events drains then Idle(0). fire queues with raw flag pack;
- * broadcast ends in BroadcastEvent; fire ends in FireEvent.
- */
-
 /* TODO: [near miss] 95.56%; offset IV init is li versus retail mr (same residue as
  * ncs_bgnd_nuke_collision_to_script_interface); whole-unit function order differs. */
 void screen_engine_process_events(void) {
@@ -1036,11 +979,11 @@ void screen_engine_process_events(void) {
         }
         int& flags = entry->flags;
         if (flags < 0) {
-            BroadcastEvent__9ScreenMgrFiii(screen_manager, (int)entry->event,
+            BroadcastEvent__9ScreenMgrFiii(screen_manager, entry->event,
                                            flags == -1, 0);
         } else {
-            FireEvent__9ScreenMgrFiiUi(screen_manager, (int)entry->event, flags & 0xFF,
-                                       (unsigned int)((flags >> 8) & 0xFF));
+            FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event, flags & 0xFF,
+                                       ((flags >> 8) & 0xFF));
         }
         i += 1;
         entry->event = 0;
@@ -1050,6 +993,7 @@ void screen_engine_process_events(void) {
     Idle__9ScreenMgrFi(screen_manager, 0);
 }
 
+/* TODO: [breakthrough needed] 81.39%; drain-loop register setup and the deferred flag packing (retail subic/subfe + add.) differ. */
 int broadcast_screen_studio_event(int event, int flag) {
     int deferred;
     int i;
@@ -1076,11 +1020,11 @@ int broadcast_screen_studio_event(int event, int flag) {
             flags = *flags_ptr;
             if (flags < 0) {
                 BroadcastEvent__9ScreenMgrFiii(
-                    screen_manager, (int)entry->event,
-                    (int)(__cntlzw(-1 - flags) >> 5), 0);
+                    screen_manager, entry->event,
+                    __cntlzw(-1 - flags) >> 5, 0);
             } else {
-                FireEvent__9ScreenMgrFiiUi(screen_manager, (int)entry->event, flags & 0xFF,
-                                           (unsigned int)((flags >> 8) & 0xFF));
+                FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event, flags & 0xFF,
+                                           ((flags >> 8) & 0xFF));
             }
             i += 1;
             entry->event = 0;
@@ -1098,13 +1042,11 @@ int broadcast_screen_studio_event(int event, int flag) {
             do {
                 entry = &base[i];
                 if (entry->event == 0) {
-                    /* Keep both arms (retail subic/subfe + add. path). */
-                    entry->event = (unsigned int)event;
-                    if ((int)((flag != 0) - 2) < 0) {
+                    entry->event = event;
+                    if ((flag != 0) - 2 < 0) {
                         entry->flags = -1 - (flag == 0);
                     } else {
-                        entry->flags =
-                            (int)((0xFFFFFFFFu - (unsigned int)(flag == 0)) & 0xFFu);
+                        entry->flags = (0xFFFFFFFFu - (unsigned int)(flag == 0)) & 0xFFu;
                     }
                     break;
                 }
@@ -1122,24 +1064,12 @@ int broadcast_screen_studio_event(int event, int flag) {
     return 1;
 }
 
-/*
- * Same pause/controller deferral as broadcast, but live path is FireEvent
- * (not BroadcastEvent). Deferred flags: if flag>=0 store flag&0xff else raw.
- * Callers: menu / mcardmsg / pselect / settings refresh ids.
- * Soft ceiling: fire ~83% -- deferred queue mtctr vs do/while + -sdata 0; stop.
- */
+/* TODO: [near miss] 94.04%; retail keeps &entry->flags in a saved register (r24) across the event calls; ours stores via entry+4. */
 void fire_screen_studio_event(int event, int flag) {
     int deferred;
     int i;
-    PausedStudioEvent* base;
     PausedStudioEvent* entry;
-    int* flags_ptr;
-    int flags;
-    unsigned int uevent;
-    int left;
-    int off;
 
-    uevent = (unsigned int)event;
     deferred = 0;
     if ((((g_game_info.field_04 >> 7) & 1) == 0 && is_controller_removed() != 0) ||
         pause_screen_engine_proc != 0) {
@@ -1147,52 +1077,40 @@ void fire_screen_studio_event(int event, int flag) {
     }
 
     if (deferred == 0) {
-        i = 0;
-        base = paused_event_queue;
-        off = 0;
-        do {
-            entry = (PausedStudioEvent*)((char*)base + off);
+        for (i = 0; i < 12; i++) {
+            entry = &paused_event_queue[i];
             if (entry->event == 0) {
                 break;
             }
-            flags_ptr = &entry->flags;
-            flags = *flags_ptr;
-            if (flags < 0) {
-                BroadcastEvent__9ScreenMgrFiii(screen_manager, (int)entry->event,
-                                               (flags == -1) ? 1 : 0, 0);
+            if (entry->flags < 0) {
+                BroadcastEvent__9ScreenMgrFiii(screen_manager, entry->event,
+                                               entry->flags == -1, 0);
             } else {
-                FireEvent__9ScreenMgrFiiUi(screen_manager, (int)entry->event, flags & 0xFF,
-                                           (unsigned int)((flags >> 8) & 0xFF));
+                FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event,
+                                           entry->flags & 0xFF,
+                                           (entry->flags >> 8) & 0xFF);
             }
-            i += 1;
             entry->event = 0;
-            *flags_ptr = 0;
-            off += 8;
-        } while (i < 12);
+            entry->flags = 0;
+        }
     }
 
     if (deferred != 0) {
-        if (uevent < 0x3EEu || uevent > 0x405u) {
-            base = paused_event_queue;
-            off = 0;
-            left = 12;
-            do {
-                entry = (PausedStudioEvent*)((char*)base + off);
-                if (entry->event == 0) {
-                    entry->event = uevent;
+        if ((unsigned int)event < 0x3EE || (unsigned int)event > 0x405) {
+            for (i = 0; i < 12; i++) {
+                if (paused_event_queue[i].event == 0) {
+                    paused_event_queue[i].event = event;
                     if (flag >= 0) {
-                        entry->flags = flag & 0xFF;
+                        paused_event_queue[i].flags = flag & 0xFF;
                     } else {
-                        entry->flags = flag;
+                        paused_event_queue[i].flags = flag;
                     }
                     return;
                 }
-                if (uevent == entry->event) {
+                if ((unsigned int)event == paused_event_queue[i].event) {
                     return;
                 }
-                off += 8;
-                left -= 1;
-            } while (left != 0);
+            }
         }
         return;
     }
@@ -1202,7 +1120,6 @@ void fire_screen_studio_event(int event, int flag) {
 
 
 
-/* Sleep current proc until screen-engine tick pid 0x9011 is gone. */
 /* TODO: [near miss] 99.80769%; instructions and literal values agree;
  * generated literal relocation identity remains; stop at pool layout. */
 void wait_for_screen_close(void) {
@@ -1211,7 +1128,6 @@ void wait_for_screen_close(void) {
     MkVtableMkproc* vtbl;
 
     sleep = kSleepOne;
-    /* Retail: lis r31,1; subi r3,r31,0x6fef -> 0x9011. */
     pid_base = 0x10000;
     while (find_mkproc_pid(pid_base - 0x6FEF) != 0) {
         _mkproc_sleep_ticks = sleep;
@@ -1220,8 +1136,6 @@ void wait_for_screen_close(void) {
     }
 }
 
-/* Load screen SSF, then async-load each slash-separated name as scr_<part>.sec
- * into the given section slot (language-aware). */
 /* TODO: [near miss] 99.555557%; pooled string base and zero use r30/r31 in reverse. */
 void preload_screen_data(const char* name, int slot) {
     char name_buf[0x100];
@@ -1281,7 +1195,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
 
     if ((share_pdata == 0 || current == 0 || share_pdata == current) && share_pdata != 0) {
         screen_engine_client.share_pdata = share_pdata;
-        screen_engine_client.share_instance = (int)share_pdata->instance;
+        screen_engine_client.share_instance = share_pdata->instance;
     }
 
     loaded = (unsigned int)((ScreenMgr*)screen_manager)->LoadScreen((char*)name, 1);
@@ -1328,8 +1242,6 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
     }
 }
 
-/* ---- B18d Midway 2D: destroy / render / tick / nav ---- */
-
 static int screen_engine_is_deferred(void) {
     int deferred;
 
@@ -1358,11 +1270,11 @@ static void drain_paused_studio_events(void) {
         flags_ptr = &entry->flags;
         flags = *flags_ptr;
         if (flags < 0) {
-            BroadcastEvent__9ScreenMgrFiii(screen_manager, (int)entry->event,
+            BroadcastEvent__9ScreenMgrFiii(screen_manager, entry->event,
                                            (flags == -1) ? 1 : 0, 0);
         } else {
-            FireEvent__9ScreenMgrFiiUi(screen_manager, (int)entry->event, flags & 0xFF,
-                                       (unsigned int)((flags >> 8) & 0xFF));
+            FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event, flags & 0xFF,
+                                       ((flags >> 8) & 0xFF));
         }
         i += 1;
         entry->event = 0;
@@ -1370,17 +1282,11 @@ static void drain_paused_studio_events(void) {
     } while (i < 12);
 }
 
-/* Retail leaves r3 untouched after memfree (int slot, no explicit return). */
 int vdestroy_screen_engine(MkHdr* hdr) {
     hdr->instance = 0;
     mkhdr_memfree(hdr);
 }
 
-/*
- * Bridge from image.render_2d_objs (vtbl_screen_engine latch) -> ScreenMgr::Render.
- * PreRender/PostRender / CreateElement supply the actual quads.
- * Soft ceiling: screen_engine_render ~79% -- -sdata 0 pause/state ha/l; stop.
- */
 void screen_engine_render(void) {
     int saved_x;
     int saved_y;
@@ -1411,7 +1317,6 @@ void screen_engine_render(void) {
 void* get_screen_pdata(void) {
     MkHdr* share;
 
-    /* Retail: beq-to-null epilogue + beqlr on instance match. */
     share = screen_engine_client.share_pdata;
     if (share != 0) {
         if (share->instance == (unsigned int)screen_engine_client.share_instance) {
@@ -1422,50 +1327,40 @@ void* get_screen_pdata(void) {
     return 0;
 }
 
+static inline MkHdr* screen_live_share(ScreenEngineClient* client) {
+    MkHdr* current = client->share_pdata;
+
+    if (current != 0) {
+        if (current->instance == (unsigned int)client->share_instance) {
+            return current;
+        }
+        current = 0;
+    } else {
+        current = 0;
+    }
+    return current;
+}
+
 void screen_share_pdata(MkHdr* share) {
     ScreenEngineClient* client;
     MkHdr* current;
 
-    /*
-     * Retail (asm): empty-keep diamond on latch ? bnelr if both live & distinct
-     * ? beqlr if share null ? stw pdata via client ? reload client ha/l ? stw instance.
-     * Soft: ~95.9% if MWCC won't emit bnelr/beqlr + dual lis; algo OK.
-     */
     client = &screen_engine_client;
-    current = client->share_pdata;
-    if (current != 0) {
-        if (current->instance == (unsigned int)client->share_instance) {
-            /* keep */
-        } else {
-            current = 0;
-        }
-    } else {
-        current = 0;
-    }
-    if (share != 0) {
-        if (current != 0) {
-            if (share != current) {
-                return;
-            }
-        }
+    current = screen_live_share(client);
+    if (share != 0 && current != 0 && share != current) {
+        return;
     }
     if (share == 0) {
         return;
     }
     client->share_pdata = share;
-    client = &screen_engine_client;
-    client->share_instance = (int)share->instance;
+    screen_engine_client.share_instance = share->instance;
 }
 
 void pause_screen_engine(int paused) {
     pause_screen_engine_proc = paused;
 }
 
-/*
- * Hold-repeat pdata for p_repeat_* (size 0x1C).
- * D-Pad -> p_repeat_button_input; C-stick -> p_repeat_analog_stick_input.
- * switchIndex for C-stick is bit number (0x10..0x13 -> 1<<n in stick mask).
- */
 typedef struct RepeatButtonPdata {
     MkHdr hdr;           /* +0x00 */
     int port;            /* +0x08 */
@@ -1478,8 +1373,6 @@ typedef struct RepeatButtonPdata {
 static float p_repeat_analog_stick_input__Fv(void);
 static float p_repeat_button_input__Fv(void);
 
-/* Retail: destroy pid 0x9021+plyr, spawn repeat proc, fill pdata.
- * fire_switches inlines this 8x (no shared helper call). */
 #define SPAWN_REPEAT_INPUT(port_, plyr_, swIdx_, evt_, fn_)                    \
     do {                                                                       \
         MkProc* _proc;                                                         \
@@ -1494,8 +1387,7 @@ static float p_repeat_button_input__Fv(void);
                 _pdata->eventId = (evt_);                                      \
                 _pdata->repeating = 0;                                         \
                 _pdata->delayLeft = 0x1E;                                      \
-                _proc->sleep_ticks = (float)button_repeat_time;                \
-                /* Retail: lbz/rlwimi/stb on flags low byte @+0xa8. */          \
+                _proc->sleep_ticks = button_repeat_time;                \
                 _proc->flags_bits.skip_if_paused = 1;         \
             }                                                                  \
         } else {                                                               \
@@ -1519,18 +1411,13 @@ static float p_repeat_button_input__Fv(void);
                 _pdata->eventId = (evt_);                                      \
                 _pdata->repeating = 0;                                         \
                 _pdata->delayLeft = 0x1E;                                      \
-                _proc->sleep_ticks = (float)button_repeat_time;                \
+                _proc->sleep_ticks = button_repeat_time;                \
                 _proc->flags_bits.skip_if_paused = 1;         \
                 s_nRepeatedStickBits |= (bit_);                                \
             }                                                                  \
         }                                                                      \
     } while (0)
 
-/*
- * Map pad edge bits + stick dirs to ScreenMgr::FireEvent studio ids.
- * See SE_EVT_* / pad bit table in mwScreenEngineGlue.h.
- * D-Pad / C-stick edges spawn hold-repeat mkprocs (retail; port 2 skips).
- */
 /* TODO: [near miss] 99.60%; `*--slotBits` store gives retail stw -4 + lwzu; only the
  * stick_bits addi scheduling and r0/r4 swap before the store remain. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
@@ -1618,7 +1505,6 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
         if (sy > 0.0f) {
             bits |= 0x400000u;
         }
-        /* Retail: two rlwinm clears (not a single ~0xA00000 / ~0x500000). */
         if (sx == 0.0f) {
             s_nRepeatedStickBits &= ~0x800000u;
             s_nRepeatedStickBits &= ~0x200000u;
@@ -1650,9 +1536,6 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
     }
 }
 
-/*
- * C-stick hold-repeat: re-sample sticks; FireEvent while bit still held.
- */
 /* TODO: [near miss] 91.016%; repeat delay initialization restored; repeat scheduling remains. */
 static float p_repeat_analog_stick_input__Fv(void) {
     RepeatButtonPdata* pdata;
@@ -1724,7 +1607,7 @@ static float p_repeat_analog_stick_input__Fv(void) {
     }
 
     FireEvent__9ScreenMgrFiiUi(screen_manager, pdata->eventId, user, 0);
-    return (float)button_repeat_time;
+    return button_repeat_time;
 }
 
 /* TODO: [breakthrough needed] 87.943665%; repeat delay initialization restored; repeat scheduling remains. */
@@ -1763,16 +1646,10 @@ static float p_repeat_button_input__Fv(void) {
         return kSleepNegOne;
     }
     FireEvent__9ScreenMgrFiiUi(screen_manager, pdata->eventId, user, 0);
-    sleep = (float)button_repeat_time;
+    sleep = button_repeat_time;
     return sleep;
 }
 
-/*
- * Latch target_game_mode; for modes 6..21 optionally set_player_state.
- * Twin of HandleAction SE_ACT_SET_TARGET_GAME_MODE (uses global menu_player).
- * Retail: dense switch on mode -> (mode-6) jump table @8152.
- * Soft ceiling: ~99.7% -- jump-table reloc label only; stop.
- */
 /* TODO: [near miss] 99.72%; player-slot layout corrected; lowering residue remains. */
 void set_target_game_mode(int menu_player_arg, int mode) {
     target_game_mode = mode;
@@ -1808,13 +1685,6 @@ void set_target_game_mode(int menu_player_arg, int mode) {
     }
 }
 
-/* Returns 1 when ScreenEngine input must be suppressed. */
-/*
- * Per-port pad -> screen_engine_fire_switches. Spawned by load_screen (pids 0x901F+).
- * Defined before check_allow so MWCC emits `bl` (retail order) instead of inlining.
- *
- * Soft ceiling: ~73% -- -sdata 0 apdata/float ha/l vs @sda21; stop.
- */
 float p_handle_screen_engine_controller__Fv(void) {
     ScreenCtrlPdata* ctrl;
     GameInfo* gi;
@@ -1836,11 +1706,6 @@ float p_handle_screen_engine_controller__Fv(void) {
     }
 
     gi = &g_game_info;
-    /*
-     * Soft ceiling: ~73-81% -- -sdata 0 apdata/float ha/l vs @sda21; stop.
-     * Note: gi->pads[port].* typed form dropped fuzzy (~74% vs ~81%) -- retail
-     * reloads &g_game_info for edge; keep (char*)+stride open-code (Q flip).
-     */
     if (((gi->pause_flags >> 1) & 1) == 0) {
         port = ctrl->port;
         pad_off = port * GC_PAD_SLOT_STRIDE;
@@ -1860,10 +1725,6 @@ float p_handle_screen_engine_controller__Fv(void) {
     return kSleepOne;
 }
 
-/*
- * ScreenEngine frame tick (pid 0x9011). Drains deferred studio events, then
- * ScreenMgr::Idle + UpdateAnimations. Returns -1 when stack empty (exits wait).
- */
 float p_screen_engine_tick__Fv(void) {
     ScreenMgrActive* mgr;
     int dt;
@@ -1920,13 +1781,6 @@ int check_allow_screen_engine_control__Fv(void) {
     return deferred;
 }
 
-/*
- * Boot once: ScreenMgr::Init(client) + ScreenControl::RegisterGameVariables.
- * Retail addi from paused_event_queue via ScreenEngineBssIsland overlay
- * (+0x6C mgr / +0x2DC client / +0x368 vars; @814/@815/@816 pads).
- *
- * Soft ceiling: ~99.1% -- objdiff flags addi reloc args; bytes match size.
- */
 void init_screen_engine(void) {
     ScreenEngineBssIsland* island;
 
@@ -1935,18 +1789,9 @@ void init_screen_engine(void) {
     RegisterGameVariables__13ScreenControlFUiP13GameVariables(0, &island->game_variables);
 }
 
-/*
- * =====================================================================
- * mkGameVariables -- game subclass of GameVariables (Glue TU).
- * Layout 0x1C; vtbl __vt__15mkGameVariables. The full game-facing virtual
- * surface is lifted here.
- * =====================================================================
- */
-
-/* Retail @4397 -- shared 0.0f in Glue .sdata2. */
 static const float kGvFloatZero = 0.0f;
 
-void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
+void mkGameVariables::FreeTextureCollection(int id, GMTextureInfo_t* info) {
     if (info->data != 0) {
         Free__10ScreenUtilFPv(info->data);
     }
@@ -1960,17 +1805,11 @@ int get_num_pselect_body_textures(void);
 int get_num_selectable_bgnds(void);
 int controller_get_num_adjustable_buttons(void);
 void cconfig_get_button_textures(GVTexturePair out);
-void create_left_mc_icon_list(GVTexturePair out);
-void create_right_mc_icon_list(GVTexturePair out);
 int get_number_kontent_items(void);
 void create_gallery_image_list(GVTexturePair out, int count);
 void create_fullscreen_gallery_image_list(GVTexturePair out, int count);
-int ppl_get_multi_profile_count(int player);
-void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);
-void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 int get_num_modeselect_portraits(void);
 void get_modeselect_portrait_list(GVTexturePair out);
-void ppv_view_profile_icon_list(GVTexturePair out);
 
 #define ALLOC_GV_TEXTURE_COLLECTION(itemCount, itemCapacity)                         \
     do {                                                                            \
@@ -1985,7 +1824,6 @@ void ppv_view_profile_icon_list(GVTexturePair out);
         out->data = collection;                                                      \
     } while (0)
 
-/* TODO: [near miss] 97.74%; team selector (id != 0x1fdc hoisted before Malloc in retail) and mc icon calls pass li r4,7 (callee prototype lacks count); special-move scheduling. */
 int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
                                           unsigned int& columnsOut) {
     GVTextureCollection* collection;
@@ -2040,12 +1878,13 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         break;
     case 0x1fdc:
     case 0x1fdd:
+        id = id != 0x1fdc;
         count = 10;
         ALLOC_GV_TEXTURE_COLLECTION(count, count);
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        get_bg_pselect_team_textures(pair, id - 0x1fdc);
+        get_bg_pselect_team_textures(pair, id);
         break;
     case 0x1fd7:
     case 0x1fd8:
@@ -2079,7 +1918,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_left_mc_icon_list(pair);
+        create_left_mc_icon_list(pair, count);
         columnsOut = 1;
         break;
     case 0x1fe3:
@@ -2088,17 +1927,18 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_right_mc_icon_list(pair);
+        create_right_mc_icon_list(pair, count);
         columnsOut = 1;
         break;
     case 0x1fe0:
     case 0x1fe1:
         count = 12;
         ALLOC_GV_TEXTURE_COLLECTION(count, count);
+        id = id == 0x1fe0;
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        get_pz_special_move_list(pair, id == 0x1fe0);
+        get_pz_special_move_list(pair, id);
         break;
     case 0x1fdf:
         count = controller_get_num_adjustable_buttons();
@@ -2147,12 +1987,12 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
 
 #undef ALLOC_GV_TEXTURE_COLLECTION
 
-int mkGameVariables::GetNumStrings(int /*id*/) {
+int mkGameVariables::GetNumStrings(int id) {
     return 0;
 }
 
-void mkGameVariables::FreeStringCollection(int /*id*/, char** /*strings*/,
-                                           unsigned int /*count*/) {}
+void mkGameVariables::FreeStringCollection(int id, char** strings,
+                                           unsigned int count) {}
 
 extern char* menu_string_matrix[];
 extern char* pselect_string_matrix[];
@@ -2163,13 +2003,9 @@ extern char* profile_test_matrix_b[];
 extern char* view_profile_stats[];
 extern char* multi_profile_names_p1[];
 extern char* multi_profile_names_p2[];
-#if !defined(TARGET_PC)
 #pragma section sdata_type ".sdata" ".sbss" data_mode=sda_rel
 __declspec(section ".sdata") extern char* create_profile_storage_location_name_list[];
 #pragma section sdata_type
-#else
-extern char* create_profile_storage_location_name_list[];
-#endif
 extern char* game_settings_rounds_to_win_numbers[];
 extern char* number_strings[];
 extern int ui_sound_table[];
@@ -2187,11 +2023,7 @@ typedef struct GVStringMatrixIsland {
     char* multiProfileP2[14];  /* +0x7DC */
 } GVStringMatrixIsland;
 
-void get_left_mcard_text_matrix(char** out);
-void get_right_mcard_text_matrix(char** out);
 void* get_movelist_strings(unsigned int* out_max);
-int ppl_get_multi_profile_names_p1(char** out);
-int ppl_get_multi_profile_names_p2(char** out);
 int wager_load_koin_count_string_array__F8PLYR_NUM(int player);
 extern int p1_profile_status;
 extern int p2_profile_status;
@@ -2200,7 +2032,6 @@ extern unsigned char p2_profile[0x5c0];
 void get_soundtrack_title_list(const char*** titles_out, unsigned int* count_out,
                                int* stride_out);
 void get_storage_device_name_list(char** out);
-void get_profile_stats(char** outs);
 
 /* TODO: [breakthrough needed] 99.46%; recover separately named matrix data
  * before defining ui_sound_table, currently used as its relocation base. */
@@ -2302,7 +2133,6 @@ int mkGameVariables::GetStringMatrixCollection(int id, char*** out, int& rows) {
     return count;
 }
 
-#pragma optimization_level 3
 int wager_load_koin_count_string_array__F8PLYR_NUM(int player) {
     char buffer[80];
 
@@ -2337,13 +2167,8 @@ int wager_load_koin_count_string_array__F8PLYR_NUM(int player) {
     }
     return 0;
 }
-#pragma optimization_level 4
 
 int mkGameVariables::GetStringCollection(int id, char*** out) {
-    /*
-     * Soft ceiling: ~99.46% -- instructions match; anonymous retail
-     * @stringBase0 relocation identity differs in the source object.
-     */
     char** strings;
     int i;
 
@@ -2398,15 +2223,15 @@ int mkGameVariables::GetStringCollection(int id, char*** out) {
     return 0;
 }
 
-void mkGameVariables::SetColState(int /*id*/, int /*col*/, int /*value*/) {}
+void mkGameVariables::SetColState(int id, int col, int value) {}
 
-int mkGameVariables::GetColState(int /*id*/, int /*col*/) {
+int mkGameVariables::GetColState(int id, int col) {
     return 0;
 }
 
-void mkGameVariables::SetRowState(int /*id*/, int /*row*/, int /*value*/) {}
+void mkGameVariables::SetRowState(int id, int row, int value) {}
 
-int mkGameVariables::GetRowState(int /*id*/, int /*row*/) {
+int mkGameVariables::GetRowState(int id, int row) {
     return 0;
 }
 
@@ -2416,7 +2241,7 @@ void konquest_set_current_inventory_item(int item);
 void kontent_set_current_selection(int item);
 void set_current_soundtrack(int index);
 int get_current_soundtrack(void);
-void mkGameVariables::SetIntArray(int id, int* values, int /*count*/) {
+void mkGameVariables::SetIntArray(int id, int* values, int count) {
     switch (id) {
     case 3:
         break;
@@ -2440,7 +2265,7 @@ void mkGameVariables::SetIntArray(int id, int* values, int /*count*/) {
     }
 }
 
-void mkGameVariables::GetIntArray(int id, int* values, int /*count*/) {
+void mkGameVariables::GetIntArray(int id, int* values, int count) {
     switch (id) {
     case 0x1fea:
         values[3] = get_current_soundtrack();
@@ -2449,7 +2274,7 @@ void mkGameVariables::GetIntArray(int id, int* values, int /*count*/) {
     }
 }
 
-void mkGameVariables::SetString(int /*id*/, char* /*str*/) {}
+void mkGameVariables::SetString(int id, char* str) {}
 
 static char temp_string_buf_3481[0x100];
 extern const char* mk6_version_string;
@@ -2461,9 +2286,7 @@ extern int psel_p2_handicap;
 char* get_controller_vibration_string(int player);
 char* pselect_get_player_name(int player);
 int get_konq_profile_value(int type, int index);
-void format_value_to_display(char* dest, unsigned int value);
 char* locate_inventory_text(int page);
-char* get_heros_name(int which);
 char* movelist_get_character_name(void);
 char* movelist_get_counter(void);
 char* pselect_get_style_name(int player, int style);
@@ -2473,9 +2296,6 @@ const char* get_p1_player_name(void);
 const char* get_p2_player_name(void);
 char* get_left_storage_device_name(void);
 char* get_right_storage_device_name(void);
-char* get_left_storage_device_space_needed(void);
-char* get_right_storage_device_space_needed(void);
-char* get_current_create_a_profile_name(void);
 void get_gallery_page_number_string(char* out);
 char* get_coffin_blurb(void);
 char* get_long_coffin_description(void);
@@ -2485,12 +2305,8 @@ const char* get_current_soundtrack_description(void);
 int get_continue_timer(void);
 const char* get_screens_online_options_newaccountname(void);
 const char* get_screens_online_options_newaccountpassword(void);
-char* ppv_get_current_profile_name(void);
-void ppv_get_current_profile_arcade_finishes(char* dest);
-void ppv_get_current_profile_koins(char* dest, int index);
 
 char* mkGameVariables::GetString(int id) {
-    /* Soft ceiling: ~53.4% -- complete ID/call inventory; retail binary cmp tree. */
     char* result = temp_string_buf_3481;
     result[0] = 0;
 
@@ -2590,10 +2406,10 @@ char* mkGameVariables::GetString(int id) {
         sprintf(result, "%s", get_long_coffin_description());
         return result;
     case 0x1fdc:
-        sprintf(result, "%d", *(int*)((char*)&g_game_info + 0x214));
+        sprintf(result, "%d", g_game_info.field_214);
         return result;
     case 0x1fe5:
-        sprintf(result, "%d", *(int*)((char*)&g_game_info + 0x1d8));
+        sprintf(result, "%d", g_game_info.pad_overlay.pselect.field_1d8);
         return result;
     case 0x1feb:
         return (char*)get_current_soundtrack_title();
@@ -2637,13 +2453,12 @@ char* mkGameVariables::GetString(int id) {
         return result;
     }
     result[0] = 0;
-    return (char*)"UNFORMED";
+    return "UNFORMED";
 }
 
-void mkGameVariables::SetFloat(int /*id*/, float /*value*/) {}
+void mkGameVariables::SetFloat(int id, float value) {}
 
-float mkGameVariables::GetFloat(int /*id*/) {
-    /* Soft ceiling ~97.5%: SDA reloc label (@4397 vs local); opcode match. */
+float mkGameVariables::GetFloat(int id) {
     return kGvFloatZero;
 }
 
@@ -2662,10 +2477,7 @@ extern int profile_code_state[2];
 extern int popup_type;
 extern int winner;
 
-/*
- * Game-facing integer options. IDs are the retail Screen resource IDs; the
- * apparently sparse switch is intentional and mirrors the retail dispatcher.
- */
+/* TODO: [near miss] 100% bytes, not link-exact; plyrprofile.h needs extern "C" guards (ppc_set_button_answer mangled) and the local int icon-selection decl then conflicts. */
 void mkGameVariables::SetInt(int id, int value) {
     if (id >= 0x332c && id <= 0x3333) {
         set_game_option(id, value);
@@ -2712,11 +2524,19 @@ void mkGameVariables::SetInt(int id, int value) {
         add_to_wls_left_cursor(value);
         break;
     case 0x2b5c:
+        set_volume(0, value);
+        break;
     case 0x2b5d:
+        set_volume(1, value);
+        break;
     case 0x2b5e:
+        set_volume(2, value);
+        break;
     case 0x2b5f:
+        set_volume(3, value);
+        break;
     case 0x2b60:
-        set_volume(id - 0x2b5c, value);
+        set_volume(4, value);
         break;
     case 0x1fdd:
         set_memcard_cursor_for(value);
@@ -2725,10 +2545,18 @@ void mkGameVariables::SetInt(int id, int value) {
         pprofile_stage_var = value;
         break;
     case 0x2f44:
-        ppc_set_button_answer(value != 0 ? 2 : 1);
+        if (value != 0) {
+            ppc_set_button_answer(2);
+        } else {
+            ppc_set_button_answer(1);
+        }
+        break;
+    case 0x2f45:
         break;
     case 0x1fd2:
         ppc_set_current_icon_selection(value);
+        break;
+    case 0x1fd3:
         break;
     case 0x2f46:
         ppv_update_profile_cursor(value);
@@ -2752,7 +2580,11 @@ void mkGameVariables::SetInt(int id, int value) {
         adjust_brightness(value);
         break;
     case 0x1ff5:
-        gameoption_exitwithsave = value != 0;
+        if (value != 0) {
+            gameoption_exitwithsave = 1;
+        } else {
+            gameoption_exitwithsave = 0;
+        }
         break;
     case 0x1ff2:
         set_save_progress_flag(value);
@@ -2899,7 +2731,7 @@ int mkGameVariables::GetInt(int id) {
     return 0;
 }
 
-int mkGameVariables::IsValidOption(int /*id*/) {
+int mkGameVariables::IsValidOption(int id) {
     return 1;
 }
 
@@ -2911,16 +2743,8 @@ extern void* __vt__15mkGameVariables[];
 
 mkGameVariables::~mkGameVariables() {}
 
-/*
- * =====================================================================
- * mkScreenEngineClient -- LoadScreenSet / ReadStringData / CreatePoly
- * (next-modules T0-T1). Mangled C symbols so NonMatching Glue.o compares.
- * =====================================================================
- */
-
 enum { kMallocTagInit = 0x494E4954 /* 'INIT' */ };
 
-/* Retail @914 language folder names for Strings/<lang>/... lines. */
 static const char* const s_stringLangFolders[6] = {
     stringBase0 + 0x0,  /* English-US */
     stringBase0 + 0xB,  /* Spanish */
@@ -2932,14 +2756,6 @@ static const char* const s_stringLangFolders[6] = {
 
 extern void* __vt__10ScreenPoly;
 
-/*
- * ReadStringData -- parse STRINGS binary lines:
- *   Strings/<lang>/<key>/<hexpairs...>
- * Language must match get_language_setting(); store decoded bytes in
- * set->resourceLib->strings (Hashtable @ +0x08).
- * Soft ceiling: ReadStringData ~84.4% -- @914 mtctr/bdnz vs addic./bne;
- *   line-copy / NV coloring leftovers. Empty-first branch flip regresses; stop.
- */
 void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
                                                               void* set,
                                                               char* data,
@@ -2966,17 +2782,10 @@ void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
     const char* strBase;
     char c;
 
-    (void)this_unused;
-
-    /* Spill set/data/end first so r4/r5 can be reused for langs copy (retail). */
     setView = (ScreenSetView*)set;
     cursor = data;
     end = data + size;
 
-    /*
-     * Retail @914: mtctr 3x dword-pair (lwz/lwzu + stw/stwu) into stack langs[].
-     * Soft ceiling: for-loop copy (same 6 pointers; not lwzu/stwu shape).
-     */
     for (i = 0; i < 6; i++) {
         langs[i] = (char*)s_stringLangFolders[i];
     }
@@ -2989,7 +2798,6 @@ void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
     while (cursor < end) {
         n = 0;
         dst = line;
-        /* Retail: check then copy; prefer while-cond for blt-continue shape. */
         while (*cursor != '\n' && cursor < end) {
             c = *cursor;
             n += 1;
@@ -3002,7 +2810,7 @@ void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
             }
         }
         line[n] = 0;
-        cursor += 1; /* retail always advances past the delimiter */
+        cursor += 1;
 
         if (strncmp(line, strBase + 0x351, 8) != 0) {
             continue;
@@ -3018,7 +2826,6 @@ void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
             continue;
         }
 
-        /* Retail: strlen(slash3+1); empty on divwu. beq; else walk hex+2. */
         nbytes = (unsigned int)strlen(slash3 + 1) / 6;
         if (nbytes != 0) {
             decoded = (unsigned char*)Malloc__10ScreenUtilFUliPc(
@@ -3061,7 +2868,6 @@ int LoadScreenSet__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* client
     name = GetName__9ScreenSetFv(set);
     sprintf(path, stringBase0 + 0x1C9, name);
     sec = find_section_by_name(path);
-    /* Retail: beq fail epilogue (no early return). */
     ok = 0;
     if (sec != 0) {
         fileIndex = add_art_section_async(client->slot, sec);
@@ -3071,12 +2877,12 @@ int LoadScreenSet__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* client
         block = load_named_binary_block_from_file(
             client->slot, fileIndex, (char*)(stringBase0 + 0x373), &size);
         ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(
-            client, set, (char*)block, (unsigned int)size);
+            client, set, (char*)block, size);
 
         block = load_named_binary_block_from_file(
             client->slot, fileIndex, (char*)(stringBase0 + 0x37B), &size);
         LoadSetData__15ScreenInstancerFP9ScreenSetPvUiPv(set, block,
-                                                         (unsigned int)size, 0);
+                                                         size, 0);
         ok = 1;
     }
     return ok;
@@ -3089,7 +2895,6 @@ static void ApplyPolyTextureFilter(RwTexture* tex, unsigned int useLinear) {
         return;
     }
     view = (RwTextureFilterView*)tex;
-    /* Retail: store mode bits, then reload and OR filter enable bit0. */
     if (useLinear != 0) {
         view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
     } else {
@@ -3098,12 +2903,6 @@ static void ApplyPolyTextureFilter(RwTexture* tex, unsigned int useLinear) {
     view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
 }
 
-/*
- * CreatePoly -- ScreenPoly 0x7C from SEPoly_t.
- * Offsets init 0; Y = 480 - pos.y; V = 1 - uv.v; filterFlags bit6 from se->flags.
- * After TGA/alpha load: inline filter write (two stores) + live ScreenObj bind.
- * Soft ceiling: CreatePoly ~79% -- -sdata 0 / string-pool / vert schedule; stop.
- */
 void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
                                                    SEPoly_t* se) {
     ScreenPoly* poly;
@@ -3122,7 +2921,6 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     if (poly != 0) {
         __ct__10ScreenNodeFv(poly);
         poly->vtbl = &__vt__10ScreenPoly;
-        /* Retail ctor store order: obj, instance, flags, filter word, Y, X, tex. */
         poly->screenObj = 0;
         poly->screenObjInstance = 0;
         poly->flags = 0;
@@ -3132,14 +2930,12 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
         poly->colorTex = 0;
     }
 
-    /* Retail rlwimi bit6 from (se->flags << 5). */
     poly->filterFlags = ((se->flags << 5) & SCREEN_POLY_LINEAR) |
                         (poly->filterFlags & ~SCREEN_POLY_LINEAR);
     poly->offsetX = 0.0f;
     poly->offsetY = 0.0f;
 
     if (se->textureString == 0 || se->textureString[0] == 0) {
-        /* Retail @stringBase0+0x34D == "8X8". */
         se->textureString = (char*)(stringBase0 + 0x34D);
     }
     base = strrchr(se->textureString, '\\');
@@ -3163,7 +2959,7 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     }
     obj = poly->screenObj;
     if (obj != 0) {
-        if ((unsigned int)obj->instance !=
+        if (obj->instance !=
             (unsigned int)poly->screenObjInstance) {
             obj = 0;
         }
@@ -3193,7 +2989,7 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     }
     obj = poly->screenObj;
     if (obj != 0) {
-        if ((unsigned int)obj->instance !=
+        if (obj->instance !=
             (unsigned int)poly->screenObjInstance) {
             obj = 0;
         }
@@ -3235,15 +3031,6 @@ static unsigned char ScreenPolyModulateChannel(unsigned char src, float translat
     return (unsigned char)(int)v;
 }
 
-/*
- * ScreenPoly::Render -- mode-select chrome present leaf.
- * Get LTM from info->matrixStack frame, ensure ScreenObj+Pfx2d via
- * load_2d_pfxobj_with_texture(0x900B), switch to pfx2d batch, transform
- * verts + modulate RGBA by ScreenRenderInfo, pfx2d_render.
- *
- * Soft ceiling: Render ~78.6% -- stwux/psq prologue + FPR coloring; stop.
- * Present: hide bit7 + colorTex; create/bind ScreenObj; pfx2d batch; LTM verts.
- */
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
                                               ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
@@ -3260,10 +3047,9 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
     ScreenPolyVert* src;
     Pfx2dVert* dst;
 
-    stack = (ScreenMatrixStackC*)info->matrixStack;
+    stack = info->matrixStack;
     ltm = (float*)RwFrameGetLTM(stack->frame);
 
-    /* filterFlags bit7 hide (signed >=0) + require colorTex -- retail wrap. */
     if ((signed char)poly->filterFlags >= 0 && poly->colorTex != 0) {
         obj = poly->screenObj;
         if (obj != 0) {
@@ -3346,7 +3132,6 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
         }
         current_render_state = 1;
 
-        /* verts @ Pfx2dObj +0x00 -- copy then overwrite xy/rgba from LTM. */
         memcpy(pfx->verts, poly->verts, 0x50);
 
         i = 0;
@@ -3389,27 +3174,13 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
 }
 
 unsigned int IsVisible__10ScreenPolyFv(ScreenPoly* poly) {
-    /* Retail: extrwi bit7 + cntlzw/srwi (== 0 -> visible). */
     return (unsigned int)__cntlzw((poly->filterFlags >> 7) & 1) >> 5;
 }
 
 void SetVisible__10ScreenPolyFUi(ScreenPoly* poly, unsigned int visible) {
-    /* Retail: cntlzw(visible) + rlwimi bit7 (hide when visible==0). */
     ((ScreenPolyFilterBits*)&poly->filterFlags)->hidden = (visible == 0);
 }
 
-/*
- * ScreenPoly::SetComponent -- anim keys write verts / UV / hide / RGBA.
- * Jump table types 8..0x14: 8..B pos; C/E/10/12 UV; D/F/11/13 RGBA; 14 hide.
- * Soft ceiling: SetComponent -- exact 0x1A0 retail size; objdiff cannot align
- * the jump-table relocation. Structured algorithm and clamp stores match.
- *
- * Mode-select title banner (scr_main_menu.sec): Polys `decepCutout` /
- * `kanjiCutout` (+ `bannerTop` / `bannerShadow`) use type 0x14 hide (and
- * UV/RGBA keys) so Latin "DECEPTIO..." and kanji cutouts cross-fade. Driven by
- * ScreenAnimEffect::Process -> GetValue -> this. Tick:
- * p_screen_engine_tick -> ScreenMgr::UpdateAnimations -> UpdateSceneAnimation.
- */
 typedef struct ScreenAnimControlC {
     unsigned int type; /* +0x00 */
     int flag; /* +0x04 */
@@ -3427,14 +3198,12 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     unsigned char flags;
     unsigned int hide;
 
-    (void)unused;
     t = ctrl->type;
     switch (t) {
     case 0x8:
     case 0x9:
     case 0xA:
     case 0xB:
-        /* Position -> vert_map[type-8]; Y flipped vs 480. */
         idx = t - 8;
         map = vert_map__10ScreenPoly[idx];
         vert = &poly->verts[map];
@@ -3445,7 +3214,6 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     case 0xE:
     case 0x10:
     case 0x12:
-        /* UV -> vert_map[(type-0xC)>>1]; V flipped vs 1. */
         idx = (t - 0xC) >> 1;
         map = vert_map__10ScreenPoly[idx];
         vert = &poly->verts[map];
@@ -3456,7 +3224,6 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     case 0xF:
     case 0x11:
     case 0x13:
-        /* RGBA: clamp [0,1] then *255 into vert_map[(type-0xD)>>1]. */
         for (i = 0; i < 4; i++) {
             if (values[i] > 1.0f) {
                 values[i] = 1.0f;
@@ -3474,7 +3241,6 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
         vert->rgba[3] = (unsigned char)(int)(255.0f * values[3]);
         break;
     case 0x14:
-        /* Hide when values[0]==0 -- inline bit7 (not SetVisible). */
         hide = (values[0] == 0.0f);
         flags = poly->filterFlags;
         flags = (unsigned char)((flags & ~0x80) | (hide << 7));
@@ -3491,12 +3257,9 @@ void Close__10ScreenPolyFv(ScreenPoly* poly) {
     typedef int (*DestroyFn)(ScreenObj*);
     DestroyFn* vtbl;
 
-    /* Retail: live diamond, reload screenObj, vcall+0x10 if instance!=0, clear. */
     obj = poly->screenObj;
     if (obj != 0) {
-        if (obj->instance == (unsigned int)poly->screenObjInstance) {
-            /* keep */
-        } else {
+        if (obj->instance != (unsigned int)poly->screenObjInstance) {
             obj = 0;
         }
     } else {
@@ -3522,10 +3285,6 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
     RwTextureFilterView* view;
     RwRaster* raster;
 
-    /*
-     * Soft ceiling: ~97.3% -- extrwi. vs rlwinm. on bit6; stop.
-     * Q3 tries: (>>6)&1 ~87%; (flags & 0x40) ~95.9%; bitfield overlay best.
-     */
     poly->colorTex = tex;
     if (tex != 0) {
         view = (RwTextureFilterView*)tex;
@@ -3539,9 +3298,7 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
 
     obj = poly->screenObj;
     if (obj != 0) {
-        if (obj->instance == (unsigned int)poly->screenObjInstance) {
-            /* keep */
-        } else {
+        if (obj->instance != (unsigned int)poly->screenObjInstance) {
             obj = 0;
         }
     } else {
@@ -3556,7 +3313,6 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
         raster = 0;
     }
     obj->texture = raster;
-    /* Retail: unconditional pfx2d->texture store (no null check). */
     obj->pfx2d->texture = tex;
 }
 
@@ -3614,19 +3370,12 @@ extern int curr_pipeline_used;
 extern void* __dt__10ScreenNodeFv(void* node, short del);
 extern void __dl__10ScreenNodeFPv(void* node);
 
-/*
- * ScreenModel -- CHAR elements (mode-select 3D "CLOUDS" model etc.).
- * CreateElement('CHAR') loads mkobj; Render flushes 2D/font/pfx batch then
- * render_mkobj + transl atomics. Soft ceiling OK (NonMatching).
- */
 static MkObj* ScreenModelLive(ScreenModel* self) {
     MkObj* mkobj;
 
     mkobj = self->model;
     if (mkobj != 0) {
-        if (mkobj->hdr.instance == self->modelInstance) {
-            /* keep */
-        } else {
+        if (mkobj->hdr.instance != self->modelInstance) {
             mkobj = 0;
         }
     } else {
@@ -3636,7 +3385,7 @@ static MkObj* ScreenModelLive(ScreenModel* self) {
 }
 
 void Render__11ScreenModelFP16ScreenRenderInfo(ScreenModel* self,
-                                               void* /*info*/) {
+                                               void* info) {
     MkObj* mkobj;
     unsigned char flags;
 
@@ -3680,7 +3429,7 @@ void Dispose__11ScreenModelFv(ScreenModel* self) {
 }
 
 unsigned int IsVisible__11ScreenModelFv(ScreenModel* self) {
-    return (unsigned int)self->visible;
+    return self->visible;
 }
 
 void SetVisible__11ScreenModelFUi(ScreenModel* self, unsigned int visible) {
@@ -3699,16 +3448,12 @@ ScreenModel* __dt__11ScreenModelFv(ScreenModel* self, short del) {
     return self;
 }
 
-/*
- * ScreenParticle -- PTCL elements (screen_fx.mko FX). Render pushes LTM
- * position into the FX handle and batches render_pfx.
- */
 void Render__14ScreenParticleFP16ScreenRenderInfo(ScreenParticle* self,
                                                   ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
     float* ltm;
 
-    stack = (ScreenMatrixStackC*)info->matrixStack;
+    stack = info->matrixStack;
     ltm = (float*)RwFrameGetLTM(stack->frame);
     fx_set_param_v3(self->fxHandle, 0x202, ltm[12], ltm[13], ltm[14]);
 
@@ -3727,7 +3472,7 @@ void Render__14ScreenParticleFP16ScreenRenderInfo(ScreenParticle* self,
     }
 }
 
-void Dispose__14ScreenParticleFv(ScreenParticle* /*self*/) {}
+void Dispose__14ScreenParticleFv(ScreenParticle* self) {}
 
 unsigned int IsVisible__14ScreenParticleFv(ScreenParticle* self) {
     return (unsigned int)__cntlzw(self->hide) >> 5;
@@ -3780,20 +3525,14 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
     obj->visibility.hidden = (visible == 0);
 }
 
-/*
- * ProcessEngineEvent -- rebuild wrapped StringObj from SEText.
- * Retail accepts 0x407 and 0x409 only (0x408 early-outs in the cmp cascade).
- * Soft ceiling: ProcessEngineEvent ~98.5% -- live-obj branch / NV leftovers; stop.
- */
 /* TODO: [near miss] 99.9333%; instructions/data agree; 480.0f pool relocation differs. */
-void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr*/,
+void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* mgr,
                                                    int event) {
     SEText* se;
     StringObj* live;
     StringObj* created;
     unsigned char color[4];
 
-    /* Match retail binary-search shape around 0x408. */
     if (event == 0x408) {
         return;
     }
@@ -3811,7 +3550,6 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr
     }
 
     se = text->seData;
-    /* Retail Y: (int)(480.0f - posY); stack arg = valign, r10 = halign. */
     created = create_wrapped_string(kScreenTextStringOid, text->font, text->string,
                                     (int)se->posX, (int)(480.0f - se->posY), (int)se->wrapW,
                                     (int)se->yOff, se->halign, se->valign);
@@ -3819,7 +3557,7 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr
         return;
     }
     text->stringObj = created;
-    text->stringObjInstance = (int)created->instance;
+    text->stringObjInstance = created->instance;
     se = text->seData;
     color[0] = se->color[0];
     color[1] = se->color[1];
@@ -3828,12 +3566,6 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr
     pfxfont_set_string_color(&created->pfx, (unsigned int*)color);
 }
 
-/*
- * GetStartArray -- word-wrap line start offsets for ScreenText string.
- * Pass 1 counts wrapped lines; pass 2 mallocs int[count] and fills starts.
- * Wrap width from live StringObj.wrap_w; glyph advances from font metrics.
- * Soft ceiling: emit / i2f / NV leftovers OK for NonMatching callable.
- */
 int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount) {
     int lineCount;
     int remain;
@@ -3851,7 +3583,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
     int wrapInt;
 
     lineCount = 0;
-    remain = (int)strlen(str);
+    remain = strlen(str);
     if (text->font == 0 || str == 0 || remain < 1) {
         *outCount = 1;
         return 0;
@@ -3895,7 +3627,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
             } else {
                 wrapInt = 0;
             }
-            wrapW = (float)wrapInt;
+            wrapW = wrapInt;
             if (wrapW > 0.0f) {
                 live = text->stringObj;
                 if (live != 0) {
@@ -3910,7 +3642,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                 } else {
                     wrapInt = 0;
                 }
-                wrapW = (float)wrapInt;
+                wrapW = wrapInt;
                 if (width > wrapW && lastSpace > 0) {
                     i = lastSpace;
                     break;
@@ -3926,7 +3658,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
 
     *outCount = lineCount;
     starts = (int*)Malloc__10ScreenUtilFUliPc(
-        (unsigned long)(lineCount << 2), kMallocTagInit,
+        lineCount << 2, kMallocTagInit,
         (char*)(stringBase0 + 0x31f));
     {
         int* out;
@@ -3934,7 +3666,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
 
         out = starts;
         startOff = 0;
-        remain = (int)strlen(str);
+        remain = strlen(str);
         cursor = str;
         while (remain > 0) {
             width = 0.0f;
@@ -3972,7 +3704,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                 } else {
                     wrapInt = 0;
                 }
-                wrapW = (float)wrapInt;
+                wrapW = wrapInt;
                 if (wrapW > 0.0f) {
                     live = text->stringObj;
                     if (live != 0) {
@@ -3987,7 +3719,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                     } else {
                         wrapInt = 0;
                     }
-                    wrapW = (float)wrapInt;
+                    wrapW = wrapInt;
                     if (width > wrapW && lastSpace > 0) {
                         i = lastSpace;
                         break;
@@ -4006,11 +3738,6 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
     return starts;
 }
 
-/*
- * SetComponent -- anim keys: 0 pos, 2 RGBA, 3 halign, 4 valign, 0x14 hide.
- * Soft ceiling: SetComponent -- retail jump-table scheduling; structured
- * switch is 8 bytes short. Algorithm, control type order, and clamps match.
- */
 void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
                                                        ScreenAnimControlC* ctrl,
                                                        float* values, int unused) {
@@ -4018,7 +3745,6 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
     unsigned int t;
     int i;
 
-    (void)unused;
     t = ctrl->type;
     obj = ScreenTextLiveObj(text);
     if (obj == 0) {
@@ -4071,7 +3797,7 @@ int GetStringLen__10ScreenTextFv(ScreenText* text) {
     } else {
         str = obj->text;
         if (str != 0) {
-            len = (int)strlen(str);
+            len = strlen(str);
         } else {
             len = 0;
         }
@@ -4079,10 +3805,6 @@ int GetStringLen__10ScreenTextFv(ScreenText* text) {
     return len;
 }
 
-/*
- * Apply upper/lower to a live StringObj text buffer, then refresh glyphs.
- * Used by _ChangeCase for single-char TEXT leaves (KeyPad keys).
- */
 static void ChangeCaseStringObj(StringObj* obj, PfxFontSlot* font, int toUpper) {
     char* p;
     char ch;
@@ -4112,10 +3834,6 @@ static void ChangeCaseStringObj(StringObj* obj, PfxFontSlot* font, int toUpper) 
     update_string_obj_pfx(obj, font, obj->text);
 }
 
-/*
- * Inline TEXT leaf: live StringObj, strlen==1, then ChangeCaseStringObj.
- * Retail open-codes this at nesting depth 1-2 (no ChangeCase__10ScreenText bl).
- */
 static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     StringObj* obj;
     const char* str;
@@ -4129,7 +3847,7 @@ static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     if (str == 0) {
         len = 0;
     } else {
-        len = (int)strlen(str);
+        len = strlen(str);
     }
     if (len != 1) {
         return;
@@ -4141,11 +3859,6 @@ static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     ChangeCaseStringObj(obj, text->font, toUpper);
 }
 
-/* SEElements packed table + SEObject/TEXT heads (C view; ScreenObject.h is C++). */
-typedef struct SEElementsC {
-    int count;
-} SEElementsC;
-
 typedef struct SEObjectC {
     unsigned int typeTag; /* +0x00 */
     int pad04;
@@ -4153,40 +3866,36 @@ typedef struct SEObjectC {
     unsigned int flags;
     void* events;
     void* transform;
-    SEElementsC* children; /* +0x18 */
+    SEElements_t* children; /* +0x18 */
 } SEObjectC;
 
 enum {
-    kSeTagOBJ = 0x4F424A20, /* 'OBJ ' */
-    kSeTagGROP = 0x47524F50, /* 'GROP' */
-    kSeTagTEXT = 0x54455854 /* 'TEXT' */
+    kSeTagOBJ = 'OBJ ',
+    kSeTagGROP = 'GROP',
+    kSeTagTEXT = 'TEXT',
+    kSeTagPOLY = 'POLY',
+    kSeTagPTCL = 'PTCL',
+    kSeTagCHAR = 'CHAR'
 };
 
 #define SeEntryAt(list, i) (*(SEObjectC**)((char*)(list) + 4 + (i) * 4))
 
-/* TODO: [near miss] 97.3684%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void ChangeCase__10ScreenTextFi(ScreenText* text, int toUpper);
 
 static int SeTagIsGroup(unsigned int tag) {
     return tag == (unsigned int)kSeTagOBJ || tag == (unsigned int)kSeTagGROP;
 }
 
-/*
- * _ChangeCase -- walk SEElements tree; single-char TEXT leaves flip case.
- * Retail unrolls three OBJ/GROP levels then recurses; TEXT at depth 3 uses
- * GetStringLen + ChangeCase__10ScreenTextFi.
- * Soft ceiling: ~68.4% -- nested helpers vs retail 3-level unroll; stop.
- */
-/* TODO: [breakthrough] 69.8423%; font linkage/lifetime corrected; recover remaining control flow and calls. */
-static void _ChangeCase__FP12SEElements_tUi(SEElementsC* list, unsigned int toUpper) {
+/* TODO: [breakthrough] 69.84%; three-level OBJ/GROP walk in place; recover remaining control flow and calls. */
+static void _ChangeCase__FP12SEElements_tUi(SEElements_t* list, unsigned int toUpper) {
     int i;
     int j;
     int k;
     SEObjectC* entry;
     SEObjectC* mid;
     SEObjectC* inner;
-    SEElementsC* midList;
-    SEElementsC* innerList;
+    SEElements_t* midList;
+    SEElements_t* innerList;
     ScreenText* text;
 
     if (list == 0) {
@@ -4214,38 +3923,27 @@ static void _ChangeCase__FP12SEElements_tUi(SEElementsC* list, unsigned int toUp
                         } else if (inner->typeTag == (unsigned int)kSeTagTEXT) {
                             text = (ScreenText*)inner->liveObject;
                             if (GetStringLen__10ScreenTextFv(text) == 1) {
-                                ChangeCase__10ScreenTextFi(text, (int)toUpper);
+                                ChangeCase__10ScreenTextFi(text, toUpper);
                             }
                         }
                     }
                 } else if (mid->typeTag == (unsigned int)kSeTagTEXT) {
                     ChangeCaseTextInline((ScreenText*)mid->liveObject,
-                                         (int)toUpper);
+                                         toUpper);
                 }
             }
         } else if (entry->typeTag == (unsigned int)kSeTagTEXT) {
-            ChangeCaseTextInline((ScreenText*)entry->liveObject, (int)toUpper);
+            ChangeCaseTextInline((ScreenText*)entry->liveObject, toUpper);
         }
     }
 }
 
-/*
- * KeyPad::ChangeCase -- flip single-char labels under m_ext->children, latch
- * active @ +0xE4.
- */
 void ChangeCase__6KeyPadFUi(KeyPad* self, unsigned int toUpper) {
-    SEObjectC* ext;
-
-    ext = *(SEObjectC**)((char*)self + 0x1C);
-    _ChangeCase__FP12SEElements_tUi(ext->children, toUpper);
-    self->active = (int)toUpper;
+    _ChangeCase__FP12SEElements_tUi(self->head.ext->children, toUpper);
+    self->active = toUpper;
 }
 
-/*
- * ChangeCase -- mode!=0 upper, mode==0 lower; then refresh pfx glyphs.
- * Soft ceiling: ChangeCase ~97.4% -- exact byte walk; remaining obj/cursor/ch
- * register carousel only.
- */
+/* TODO: [near miss] 97.37%; byte walk matches; obj/cursor/ch register rotation remains. */
 void ChangeCase__10ScreenTextFi(ScreenText* text, int toUpper) {
     StringObj* obj;
     StringObj* live;
@@ -4298,12 +3996,9 @@ void Close__10ScreenTextFv(ScreenText* text) {
     typedef int (*DestroyFn)(StringObj*);
     DestroyFn* vtbl;
 
-    /* Retail: live diamond, reload stringObj, vcall+0x10 if instance!=0, clear. */
     obj = text->stringObj;
     if (obj != 0) {
-        if (obj->instance == (unsigned int)text->stringObjInstance) {
-            /* keep */
-        } else {
+        if (obj->instance != (unsigned int)text->stringObjInstance) {
             obj = 0;
         }
     } else {
@@ -4320,10 +4015,6 @@ void Close__10ScreenTextFv(ScreenText* text) {
     }
 }
 
-/*
- * ScreenText::Render -- pfxfont present leaf for mode-select labels.
- * Soft ceiling: Render ~93.3% -- extrwi/reg color leftovers; stop.
- */
 /* TODO: [near miss] 93.7371%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
@@ -4336,14 +4027,13 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     unsigned char color[4];
     float delta[3];
 
-    stack = (ScreenMatrixStackC*)info->matrixStack;
+    stack = info->matrixStack;
     ltm = (float*)RwFrameGetLTM(stack->frame);
 
     obj = ScreenTextLiveObj(text);
     if (obj == 0) {
         return;
     }
-    /* flags bit7 hidden -- MSB bitfield -> retail extrwi. */
     if (obj->visibility.hidden != 0) {
         return;
     }
@@ -4369,12 +4059,11 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     pfxfont_set_string_color(&obj->pfx, (unsigned int*)color);
     pfxfont_set_transform(&obj->pfx, ltm);
 
-    delta[0] = (float)(obj->render_x - obj->x);
+    delta[0] = obj->render_x - obj->x;
     delta[2] = 0.0f;
-    delta[1] = (float)(obj->y - obj->render_y);
+    delta[1] = obj->y - obj->render_y;
     MKMatrixTranslate(obj->pfx.transform, delta, 1);
 
-    /* Retail converts x/y inside each widescreen branch (no early f30/f31). */
     if (is_widescreen_mode() != 0) {
         pfxfont_string_render(&obj->pfx, (float)obj->x + 40.0f, (float)obj->y);
     } else {
@@ -4387,15 +4076,9 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     obj->pfx.instance0.rgba[3] = a;
 }
 
-/*
- * CreateElement -- POLY/TEXT/PTCL/CHAR dispatch.
- * TEXT + font cache inlined (retail has no CreateText / ResolveFont bls).
- * Soft ceiling: CreateElement ~84.7% -- TEXT font-cache and PTCL/CHAR
- * register/SDA scheduling remain; stop.
- */
 /* TODO: [breakthrough] 84.9835%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv(
-    ScreenEngineClient* client, void* /*mgr*/, void* screen, void* /*parent*/, void* data) {
+    ScreenEngineClient* client, void* mgr, void* screen, void* parent, void* data) {
     unsigned int tag;
     ScreenText* text;
     ScreenView* screenView;
@@ -4425,17 +4108,16 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
     int fxCtx[3];
 
     tag = *(unsigned int*)data;
-    if (tag == 0x504F4C59) { /* 'POLY' */
+    if (tag == kSeTagPOLY) {
         return CreatePoly__20mkScreenEngineClientFP8SEPoly_t(client, (SEPoly_t*)data);
     }
-    if (tag == 0x54455854) { /* 'TEXT' */
+    if (tag == kSeTagTEXT) {
         se = (SEText*)data;
         screenView = (ScreenView*)screen;
         text = (ScreenText*)__nw__10ScreenNodeFUl(0x24);
         if (text != 0) {
             __ct__10ScreenNodeFv(text);
             text->vtbl = &__vt__10ScreenText;
-            /* Retail store order: seData, font, flags, stringObj, instance. */
             text->seData = se;
             text->font = 0;
             text->flags = 0;
@@ -4472,8 +4154,6 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
                         sprintf(metName, stringBase0 + 0x346, fontName);
                         metrics =
                             load_named_binary_block(client->slot, metName, &metSize);
-                        (void)metSize;
-                        /* Retail: enable bit, then linear filter. */
                         face->flags_50 = (face->flags_50 & 0xffffff00) | 1;
                         face->flags_50 = (face->flags_50 & 0xffff00ff) | 0x3300;
                         row = &rows[freeSlot];
@@ -4487,7 +4167,6 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
                 text->font = cacheFont;
             }
 
-            /* Retail: no null guards on set / resourceLib. */
             lib = screenView->set->resourceLib;
             vtbl = *(void***)lib;
             getString = (char* (*)(void*, char*))vtbl[4];
@@ -4495,7 +4174,7 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
         }
         return text;
     }
-    if (tag == 0x5054434C) { /* 'PTCL' */
+    if (tag == kSeTagPTCL) {
         sePtcl = (SEParticle*)data;
         fxCtx[0] = 0x90046;
         fxCtx[1] = 0;
@@ -4522,11 +4201,11 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
                         sePtcl->posZ);
         return particle;
     }
-    if (tag == 0x43484152) { /* 'CHAR' */
+    if (tag == kSeTagCHAR) {
         seChar = (SEChar*)data;
         screenView = (ScreenView*)screen;
         nameTable = screenView->data->strings;
-        modelName = SEStringAt(nameTable, (unsigned int)seChar->nameIndex);
+        modelName = SEStringAt(nameTable, seChar->nameIndex);
 
         model = (ScreenModel*)__nw__10ScreenNodeFUl(0x1c);
         if (model != 0) {
@@ -4554,11 +4233,6 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
     return 0;
 }
 
-/*
- * mkScreenEngineMatrixStack -- RwFrame wrapper (T2 LTM path).
- * Create allocates 8 bytes: vtbl + RwFrame*. Ops pass combine mode 2.
- * LTM consumers read frame at +0x04 via RwFrameGetLTM.
- */
 typedef struct mkScreenEngineMatrixStack mkScreenEngineMatrixStack;
 
 typedef struct mkScreenEngineMatrixStackVtbl {
@@ -4621,17 +4295,16 @@ mkScreenEngineMatrixStack* __dt__25mkScreenEngineMatrixStackFv(mkScreenEngineMat
     return self;
 }
 
-void SetRootTransformation__20mkScreenEngineClientFP17ScreenMatrixStack(void* /*client*/,
-                                                                        void* /*stack*/) {
-    /* Retail no-op. */
+void SetRootTransformation__20mkScreenEngineClientFP17ScreenMatrixStack(void* client,
+                                                                        void* stack) {
 }
 
-void DestroyMatrixStack__20mkScreenEngineClientFP17ScreenMatrixStack(void* /*client*/,
+void DestroyMatrixStack__20mkScreenEngineClientFP17ScreenMatrixStack(void* client,
                                                                     ScreenMatrixStack* stack) {
     delete stack;
 }
 
-void* CreateMatrixStack__20mkScreenEngineClientFv(void* /*client*/) {
+void* CreateMatrixStack__20mkScreenEngineClientFv(void* client) {
     mkScreenEngineMatrixStack* stack;
 
     stack = (mkScreenEngineMatrixStack*)__nw__FUl(0x8);
@@ -4643,34 +4316,26 @@ void* CreateMatrixStack__20mkScreenEngineClientFv(void* /*client*/) {
     return stack;
 }
 
-int LoadScreen__20mkScreenEngineClientFP9ScreenSetP6ScreenUi(void* /*client*/,
-                                                            void* /*set*/,
-                                                            void* /*screen*/,
-                                                            unsigned int /*flags*/) {
+int LoadScreen__20mkScreenEngineClientFP9ScreenSetP6ScreenUi(void* client,
+                                                            void* set,
+                                                            void* screen,
+                                                            unsigned int flags) {
     return 1;
 }
 
-/* Retail empty present hooks (vtbl slots before CreateInstance). */
-void PostRender__20mkScreenEngineClientFv(void* /*client*/) {}
+void PostRender__20mkScreenEngineClientFv(void* client) {}
 
-void PreRender__20mkScreenEngineClientFv(void* /*client*/) {}
+void PreRender__20mkScreenEngineClientFv(void* client) {}
 
-/*
- * CreateInstance -- SCtl subclass factory by fourcc typeId (classInfo->typeId).
- * Alloc via ScreenControl::operator new, run ScreenControl ctor, then install
- * subclass vtbl + zero subclass fields. mgr/params unused in retail.
- *
- * Case body order matches retail emission (TEXT..KENT). Soft: vtbl lis vs SDA.
- */
 enum {
-    kSeInstIMLI = 0x494D4C49, /* 'IMLI' */
-    kSeInstKENT = 0x4B454E54, /* 'KENT' */
-    kSeInstKPAD = 0x4B504144, /* 'KPAD' */
-    kSeInstLIST = 0x4C495354, /* 'LIST' */
-    kSeInstSPSH = 0x53505348, /* 'SPSH' */
-    kSeInstSPSI = 0x53505349, /* 'SPSI' */
-    kSeInstTEXT = 0x54455854, /* 'TEXT' */
-    kSeInstWIFI = 0x57494649  /* 'WIFI' */
+    kSeInstIMLI = 'IMLI',
+    kSeInstKENT = 'KENT',
+    kSeInstKPAD = 'KPAD',
+    kSeInstLIST = 'LIST',
+    kSeInstSPSH = 'SPSH',
+    kSeInstSPSI = 'SPSI',
+    kSeInstTEXT = 'TEXT',
+    kSeInstWIFI = 'WIFI'
 };
 
 extern void* __nw__13ScreenControlFUl(unsigned long size);
@@ -4686,7 +4351,7 @@ extern void* __vt__8TextList;
 extern void* __vt__8KeyEntry;
 
 void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
-    void* /*this*/, void* /*mgr*/, int typeId, void* /*params*/) {
+    void* self, void* mgr, int typeId, void* params) {
     TextItem* textItem;
     KeyPad* keyPad;
     SpreadSheet_text* ssText;
@@ -4696,10 +4361,6 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
     TextList* textList;
     KeyEntry* keyEntry;
 
-    /*
-     * Soft ceiling: CreateInstance ~98.1% -- dispatch r3/r4 coloring and
-     * default-return placement remain; stop.
-     */
     switch (typeId) {
     case kSeInstTEXT:
         textItem = (TextItem*)__nw__13ScreenControlFUl(0xc4);
@@ -4828,11 +4489,6 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
     }
 }
 
-/*
- * SCtl ProcessParams -- typed field fills from ScreenParams.
- * NonMatching: C for objdiff; linked DOL still uses retail ASM.
- */
-
 extern void* m_pGameVariables__13ScreenControl;
 extern void FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
     void* self, unsigned int unused, int id, GMTextureInfo_t* info);
@@ -4844,7 +4500,7 @@ extern int GetTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_tRUi
 extern void FreeTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_t(
     void* self, int id, GMTextureInfo_t* info);
 
-void ProcessParams__8KeyEntryFP12ScreenParams(KeyEntry* /*self*/, void* /*params*/) {}
+void ProcessParams__8KeyEntryFP12ScreenParams(KeyEntry* self, void* params) {}
 
 void ProcessParams__6KeyPadFP12ScreenParams(KeyPad* self, void* params) {
     self->pageResIds[0] = GetResourceID__12ScreenParamsFUi(params, 0);
@@ -4876,18 +4532,11 @@ void ProcessParams__8WifImageFP12ScreenParams(WifImage* self, void* params) {
     self->unkF8 = GetFloat__12ScreenParamsFUi(params, 1);
     self->statusNode = (ScreenPoly*)GetScreenNode__12ScreenParamsFUi(params, 2);
     for (i = 0; i < self->imageCount; i++) {
-        name = GetName__12ScreenParamsFUi(params, (unsigned int)(i + 3));
+        name = GetName__12ScreenParamsFUi(params, i + 3);
         strupr(name);
         self->images[i] = load_named_tga_from_slot(screen_engine_client.slot, name);
     }
 }
-
-/*
- * =====================================================================
- * KeyEntry / KeyPad / TextItem / WifImage -- handlers + lifecycle
- * Soft ceilings measured after lift; NonMatching Glue keeps retail ASM linked.
- * =====================================================================
- */
 
 extern void Dispose__13ScreenControlFv(void* self);
 extern char* GetString__22GameVariableDispatcherFUiUi(void* self, unsigned int unused,
@@ -4911,7 +4560,7 @@ extern int GetStringMatrixCollection__22GameVariableDispatcherFUiUiPPPcRi(
 void Dispose__9ImageListFv(ImageList* self) {
     if (m_pGameVariables__13ScreenControl != 0) {
         FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
+            m_pGameVariables__13ScreenControl, self->gvContext,
             self->collectionId, &self->textureInfo);
     }
     if (self->itemNodes != 0) {
@@ -4930,9 +4579,9 @@ void Dispose__8TextListFv(TextList* self) {
         }
     } else if (m_pGameVariables__13ScreenControl != 0) {
         FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
-            (unsigned int)self->collectionId, self->strings,
-            (unsigned int)self->stringCount);
+            m_pGameVariables__13ScreenControl, self->gvContext,
+            self->collectionId, self->strings,
+            self->stringCount);
     }
     self->strings = 0;
     if (self->itemNodes != 0) {
@@ -4953,7 +4602,7 @@ void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
         (*(ClearContents**)self)[0x58 / 4](self);
         FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
             m_pGameVariables__13ScreenControl,
-            (unsigned int)self->sheet.gvContext, self->sheet.collectionId,
+            self->sheet.gvContext, self->sheet.collectionId,
             (GMTextureInfo_t*)&self->unk11C);
         self->unk120 = 0;
         self->unk11C = 0;
@@ -4963,25 +4612,23 @@ void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 
 void Dispose__16SpreadSheet_textFv(SpreadSheet_text* self) {
     typedef void (*ClearContents)(void*);
-    void** extra;
 
-    extra = (void**)((char*)self + 0xA8);
     if (self->unk118 != 0) {
         Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
     }
-    if (*extra != 0) {
-        Free__10ScreenUtilFPv(*extra);
-        *extra = 0;
+    if (self->sheet.cellColors != 0) {
+        Free__10ScreenUtilFPv(self->sheet.cellColors);
+        self->sheet.cellColors = 0;
     }
     if (self->unk11C != 0) {
         (*(ClearContents**)self)[0x58 / 4](self);
         FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
             m_pGameVariables__13ScreenControl,
-            (unsigned int)self->sheet.gvContext,
-            (unsigned int)self->sheet.collectionId,
+            self->sheet.gvContext,
+            self->sheet.collectionId,
             (char**)self->unk11C,
-            (unsigned int)(self->sheet.rows * self->sheet.cols));
+            self->sheet.rows * self->sheet.cols);
         self->unk11C = 0;
     }
     Dispose__13ScreenControlFv(self);
@@ -4992,30 +4639,30 @@ void AllocateCollection__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 
     count = 0;
     FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->sheet.pad9C,
+        m_pGameVariables__13ScreenControl, self->sheet.pad9C,
         self->sheet.collectionId, (GMTextureInfo_t*)&self->unk11C);
     self->unk11C = 0;
     self->unk120 = 0;
     self->sheet.unkEC =
         GetTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_tRUi(
             m_pGameVariables__13ScreenControl,
-            (unsigned int)self->sheet.pad9C, self->sheet.collectionId,
+            self->sheet.pad9C, self->sheet.collectionId,
             (GMTextureInfo_t*)&self->unk11C, &count);
-    self->sheet.unkE8 = (int)count;
+    self->sheet.unkE8 = count;
     self->unk120 = 1;
 }
 
 void AllocateCollection__16SpreadSheet_textFv(SpreadSheet_text* self) {
     FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->sheet.pad9C,
-        (unsigned int)self->sheet.collectionId, (char**)self->unk11C,
-        (unsigned int)(self->sheet.unkE8 * self->sheet.unkEC));
+        m_pGameVariables__13ScreenControl, self->sheet.pad9C,
+        self->sheet.collectionId, (char**)self->unk11C,
+        self->sheet.unkE8 * self->sheet.unkEC);
     self->unk11C = 0;
     self->sheet.unkEC =
         GetStringMatrixCollection__22GameVariableDispatcherFUiUiPPPcRi(
             m_pGameVariables__13ScreenControl,
-            (unsigned int)self->sheet.pad9C,
-            (unsigned int)self->sheet.collectionId,
+            self->sheet.pad9C,
+            self->sheet.collectionId,
             (char***)&self->unk11C, &self->sheet.unkE8);
 }
 
@@ -5106,7 +4753,7 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
         (char*)(stringBase0 + 0x285));
     for (i = 0; i < count; i++, nodeIndex++) {
         self->unk118[i] = (ScreenPoly*)GetScreenNode__12ScreenParamsFUi(
-            params, (unsigned int)nodeIndex);
+            params, nodeIndex);
     }
     if (self->sheet.bindNodeB0 != 0) {
         first = *self->unk118;
@@ -5144,11 +4791,11 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
         kMallocTagInit,
         (char*)(stringBase0 + 0x285));
     self->sheet.cellColors = (unsigned char*)Malloc__10ScreenUtilFUliPc(
-        (unsigned long)(count << 2), kMallocTagInit,
+        count << 2, kMallocTagInit,
         (char*)(stringBase0 + 0x285));
     for (i = 0; i < count; i++, nodeIndex++) {
         text = (ScreenText*)GetScreenNode__12ScreenParamsFUi(
-            params, (unsigned int)nodeIndex);
+            params, nodeIndex);
         self->unk118[i] = text;
         live = text->stringObj;
         if (live != 0) {
@@ -5181,8 +4828,8 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
             x = text->seData->posX;
             y = text->seData->posY;
         } else {
-            x = (float)live->x;
-            y = (float)(480 - live->y);
+            x = live->x;
+            y = 480 - live->y;
         }
         self->sheet.layout0[0] = x - kGvFloatZero;
         self->sheet.layout0[1] = y - kGvFloatZero;
@@ -5199,8 +4846,8 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
             x = text->seData->posX;
             y = text->seData->posY;
         } else {
-            x = (float)live->x;
-            y = (float)(480 - live->y);
+            x = live->x;
+            y = 480 - live->y;
         }
         self->sheet.layout1[0] = x - kGvFloatZero;
         self->sheet.layout1[1] = y - kGvFloatZero;
@@ -5433,7 +5080,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                     live->instance != (unsigned int)text->stringObjInstance) {
                     live = 0;
                 }
-                pos = live == 0 ? text->seData->posX : (float)live->x;
+                pos = live == 0 ? text->seData->posX : live->x;
                 marker = (ScreenPoly*)self->sheet.nodeB0;
                 ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
                 marker->offsetX = pos - self->sheet.layout0[0];
@@ -5450,7 +5097,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                 live->instance != (unsigned int)text->stringObjInstance) {
                 live = 0;
             }
-            pos = live == 0 ? text->seData->posY : (float)(480 - live->y);
+            pos = live == 0 ? text->seData->posY : 480 - live->y;
             marker = (ScreenPoly*)self->sheet.nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
             marker->offsetX = kGvFloatZero;
@@ -5529,32 +5176,20 @@ extern void set_snd_vol(int handle, int sound_id, float volume);
 extern void SetColorScale__12ScreenObjectFP8SEVec4_t(void* self, void* color);
 extern void HandleEvent__22GameVariableDispatcherFP12ScreenObjectii(
     void* self, void* object, int event, int arg);
-extern void unload_p1_player_profile(void);
-extern void unload_p2_player_profile(void);
 extern void pselect_init_arena_select(void);
 
 static void ProcessActionSubActions(const ScreenActionView* action) {
     ProcessSubActions__12ScreenObjectFPC12ScreenActioni(action->owner, action, 0);
 }
 
-/*
- * mkScreenEngineClient::HandleAction.
- *
- * Game-specific Screen action dispatcher. The ID set and side-effect ordering
- * come from retail GQNE5D; unknown IDs intentionally do nothing.
- *
- * Soft ceiling after 30 passes: full retail action/call inventory is lifted.
- * Objdiff cannot map the large sparse-switch CFG (reports 0%); opcode-sequence
- * comparison is ~54.8%. Remaining shape is MWCC allocation/frame coloring
- * (r28-r31 / 0x60 versus retail r27-r31 / 0x70) plus one shared tail.
- */
+/* TODO: [breakthrough needed] 0% objdiff (sparse switch not mappable, ~54.8% by opcode); frame r28-r31/0x60 vs retail r27-r31/0x70 and one shared tail remain. */
 void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
-    ScreenEngineClient* /*self*/, void* mgr, const ScreenActionView* action,
-    int /*handled*/) {
+    ScreenEngineClient* self, ScreenMgr* mgr, const ScreenActionView* action,
+    int handled) {
     void* params;
     void* node;
-    void* activeScreen;
-    void* activeLibrary;
+    Screen* activeScreen;
+    ScreenResourceLibrary* activeLibrary;
     void* animScene;
     void* animScreen;
     int id;
@@ -5583,7 +5218,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     id = action->arg;
     switch (id) {
     case 1:
-        animScreen = *(void**)((char*)action->owner + 0x20);
+        animScreen = action->owner->m_screen;
         value = GetInt__12ScreenParamsFUi(params, 0);
         animScene = GetAnimScene__6ScreenFi(animScreen, value);
         resource = GetResourceID__12ScreenParamsFUi(params, 1);
@@ -5601,11 +5236,11 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         break;
     case 0x7e3:
         RefreshAllOptions__13ScreenControlFP6Screen(
-            *(void**)((char*)action->owner + 0x20));
+            action->owner->m_screen);
         break;
     case 0x7e4:
         RefreshAllCollections__13ScreenControlFP6Screen(
-            *(void**)((char*)action->owner + 0x20));
+            action->owner->m_screen);
         break;
     case SE_ACT_SET_TARGET_GAME_MODE:
         player = action->eventUser - 1;
@@ -5679,7 +5314,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
                 textColor[2] = ((unsigned char*)&colorValue)[2];
                 textColor[3] = ((unsigned char*)&colorValue)[3];
                 pfxfont_set_string_color(
-                    (PfxFontString*)((char*)live + 0x3c),
+                    &live->pfx,
                     (unsigned int*)textColor);
                 text->flags |= 1;
             }
@@ -5758,7 +5393,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x1f43:
         player = action->eventUser - 1;
         pselect_start_code_entry(
-            player, ((PlyrInfo*)((char*)&g_game_info.plyr0 + player * 0x6c))->pad_index);
+            player, (&g_game_info.plyr0)[player].pad_index);
         break;
     case 0x1f44:
         if (pselect_background_select_available() != 0) {
@@ -5906,24 +5541,16 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         {
             ScreenText* text;
             StringObj* live;
-            void* libraryOwner;
             char* name;
             char* string;
             int activeIndex;
-            char* (*lookup)(void*, char*);
 
             text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
             name = GetName__12ScreenParamsFUi(params, 1);
-            activeIndex = *(int*)((char*)mgr + 0x1a4);
-            activeScreen =
-                activeIndex < 0
-                    ? 0
-                    : *(void**)((char*)mgr + 0x1a8 + activeIndex * 4);
-            libraryOwner = *(void**)((char*)activeScreen + 0x54);
-            activeLibrary = *(void**)((char*)libraryOwner + 8);
-            lookup = *(char* (**)(void*, char*))(
-                *(char**)activeLibrary + 0x10);
-            string = lookup(activeLibrary, name);
+            activeIndex = mgr->m_activeCount;
+            activeScreen = activeIndex < 0 ? 0 : mgr->m_stack[activeIndex];
+            activeLibrary = activeScreen->m_set->m_resourceLib;
+            string = (char*)activeLibrary->GetString(name);
 
             live = text->stringObj;
             if (live != 0 &&
@@ -5931,13 +5558,13 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
                 live = 0;
             }
             if (live != 0) {
-                savedTextColor[0] = *((unsigned char*)live + 0xb4);
-                savedTextColor[1] = *((unsigned char*)live + 0xb5);
-                savedTextColor[2] = *((unsigned char*)live + 0xb6);
-                savedTextColor[3] = *((unsigned char*)live + 0xb7);
+                savedTextColor[0] = live->pfx.instance0.rgba[0];
+                savedTextColor[1] = live->pfx.instance0.rgba[1];
+                savedTextColor[2] = live->pfx.instance0.rgba[2];
+                savedTextColor[3] = live->pfx.instance0.rgba[3];
                 update_string_obj_pfx(live, text->font, string);
                 pfxfont_set_string_color(
-                    (PfxFontString*)((char*)live + 0x3c),
+                    &live->pfx,
                     (unsigned int*)savedTextColor);
             }
         }
@@ -5954,7 +5581,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             m_pGameVariables__13ScreenControl, resource,
             (char*)stringBase0 + 0x1c8);
         RefreshAllOptions__13ScreenControlFP6Screen(
-            *(void**)((char*)action->owner + 0x20));
+            action->owner->m_screen);
         break;
     case 0x2b03:
         resource = GetResourceID__12ScreenParamsFUi(params, 0);
@@ -6022,12 +5649,10 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     }
 }
 
-/* TODO: [matched] 100% objdiff; finite switch, player layout and C call linkage restored. */
 void HandleEvent__20mkScreenEngineClientFP12ScreenObjectii(
     ScreenEngineClient* self, void* object, int event, int arg) {
     PlyrInfo* player;
 
-    (void)self;
     switch (event) {
     case 0x92824:
     case 0x92825:
@@ -6136,12 +5761,8 @@ void Init__8TextItemFv(TextItem* self) {
     Init__13ScreenControlFv(self);
 }
 
-void Init__8WifImageFv(WifImage* /*self*/) {}
+void Init__8WifImageFv(WifImage* self) {}
 
-/*
- * KeyPad::SetKey -- DEL / SPC / END / char insert against editBuf.
- * Soft ceiling: language-table stack copy vs static ptr tables; stop.
- */
 void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
                                                      const void* actionIn, char* key) {
     const ScreenActionView* action;
@@ -6153,7 +5774,6 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
     lang = get_language_setting();
 
     if (strcmp(s_keyPadDel[lang], key) == 0) {
-        /* Backspace / delete last char. */
         if (self->editLen >= self->maxLen) {
             FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, mgr, 0xFB0000, user, 0);
         }
@@ -6162,17 +5782,15 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
             self->editBuf[self->editLen] = 0;
         }
     } else if (strcmp(s_keyPadSpc[lang], key) == 0) {
-        /* Insert space when under maxLen. */
         if (self->editLen < self->maxLen) {
             self->editBuf[self->editLen] = ' ';
             self->editLen += 1;
             self->editBuf[self->editLen] = 0;
         }
     } else if (strcmp(s_keyPadEnd[lang], key) == 0) {
-        /* Page advance / wrap; early return skips SetString. */
         if (IsValidOption__22GameVariableDispatcherFUiUi(
-                m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-                (unsigned int)self->pageResIds[self->pageIndex]) == 0) {
+                m_pGameVariables__13ScreenControl, self->pad9C,
+                self->pageResIds[self->pageIndex]) == 0) {
             FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, mgr, 0xFC0000, user, 0);
         } else {
             self->pageIndex += 1;
@@ -6190,7 +5808,6 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
         FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, mgr, 0xFA0001, user, 0);
         return;
     } else if (self->editLen < self->maxLen) {
-        /* Normal char: optional case fold from active latch, then append. */
         if (self->active != 0) {
             if (key[0] >= 'a' && key[0] <= 'z') {
                 key[0] = (char)(key[0] - 0x20);
@@ -6208,14 +5825,10 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
     }
 
     SetString__22GameVariableDispatcherFUiUiPc(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->pageResIds[self->pageIndex], self->editBuf);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->pageResIds[self->pageIndex], self->editBuf);
 }
 
-/*
- * KeyPad::HandleAction -- page set/inc/dec, compares, SetKey, ChangeCase.
- * Soft ceiling: retail jump table @6120 vs switch; stop.
- */
 int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
                                                       const void* actionIn) {
     const ScreenActionView* action;
@@ -6281,7 +5894,6 @@ int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
         SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(self, mgr, actionIn, name);
         break;
     case 0xFF0010:
-        /* Toggle case: ChangeCase(!active) via cntlzw/extrwi. */
         ChangeCase__6KeyPadFUi(self, self->active == 0);
         break;
     default:
@@ -6300,10 +5912,6 @@ int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
     return result;
 }
 
-/*
- * KeyEntry::HandleAction -- 0xFF0007 looks up key label via Screen resourceLib,
- * then SetKey on parent KeyPad at +0x24.
- */
 int HandleAction__8KeyEntryFP9ScreenMgrPC12ScreenAction(KeyEntry* self, void* mgr,
                                                         const void* actionIn) {
     const ScreenActionView* action;
@@ -6317,8 +5925,8 @@ int HandleAction__8KeyEntryFP9ScreenMgrPC12ScreenAction(KeyEntry* self, void* mg
     action = (const ScreenActionView*)actionIn;
     if (action->arg == 0xFF0007) {
         name = GetName__12ScreenParamsFUi(action->params, 0);
-        screen = *(ScreenView**)((char*)self + 0x20);
-        keypad = *(KeyPad**)((char*)self + 0x24);
+        screen = self->ctrl.head.screen;
+        keypad = (KeyPad*)self->ctrl.head.parent;
         lib = screen->set->resourceLib;
         getStr = *(char* (**)(ScreenResourceLibView*, char*))(*(unsigned char**)lib + 0x10);
         keyStr = getStr(lib, name);
@@ -6339,9 +5947,6 @@ void HandleEvent__6KeyPadFP9ScreenMgrii(KeyPad* self, void* mgr, int event, int 
                                               0);
 }
 
-/*
- * KeyPad::RefreshOption -- pull GV string into editBuf (cap 0x1F chars).
- */
 void RefreshOption__6KeyPadFv(KeyPad* self) {
     char* src;
     int i;
@@ -6349,8 +5954,8 @@ void RefreshOption__6KeyPadFv(KeyPad* self) {
 
     self->editLen = 0;
     src = GetString__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->pageResIds[self->pageIndex]);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->pageResIds[self->pageIndex]);
     if (src == 0) {
         self->editBuf[0] = 0;
         return;
@@ -6367,7 +5972,6 @@ void RefreshOption__6KeyPadFv(KeyPad* self) {
     self->editBuf[self->editLen] = 0;
 }
 
-/* Visible wrap-line page size from ScreenText live StringObj / font metrics. */
 static int TextItemPageLines(TextItem* self) {
     ScreenText* text;
     StringObj* live;
@@ -6416,10 +6020,6 @@ static void TextItemRefreshNode(TextItem* self) {
     (*(void (**)(void*))(*(unsigned char**)node + 0x0c))(node);
 }
 
-/*
- * TextItem::UpdateString -- push gvString or scrolled editBuf into live pfx.
- * Soft ceiling: live-obj diamond / color schedule; stop.
- */
 /* TODO: [breakthrough] 45.8406%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void UpdateString__8TextItemFv(TextItem* self) {
     ScreenText* text;
@@ -6469,9 +6069,6 @@ void UpdateString__8TextItemFv(TextItem* self) {
     }
 }
 
-/*
- * TextItem::ScrollText -- dir==0 subtract amount; else add + clamp to page.
- */
 /* TODO: [near miss] 88.5%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void ScrollText__8TextItemFii(TextItem* self, int dir, int amount) {
     int pageLines;
@@ -6500,10 +6097,6 @@ void Dispose__8TextItemFv(TextItem* self) {
     TextItemFreeScrollState(self);
 }
 
-/*
- * TextItem::RefreshOption -- GetString, GetStartArray, clamp scroll, copy buf.
- * Soft ceiling: page-lines / scroll clamp schedule; stop.
- */
 /* TODO: [near miss] 89.8728%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void RefreshOption__8TextItemFv(TextItem* self) {
     int pageLines;
@@ -6521,8 +6114,8 @@ void RefreshOption__8TextItemFv(TextItem* self) {
     prevLimit = self->scrollLimit;
 
     self->gvString = GetString__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->optionId);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->optionId);
     if (self->gvString == 0) {
         return;
     }
@@ -6557,7 +6150,7 @@ void RefreshOption__8TextItemFv(TextItem* self) {
 
     if (self->scrollLimit > 1) {
         self->editBuf = (char*)Malloc__10ScreenUtilFUliPc(
-            (unsigned long)(strlen(self->gvString) + 1), kMallocTagInit,
+            strlen(self->gvString) + 1, kMallocTagInit,
             (char*)(stringBase0 + 0x294));
         strcpy(self->editBuf, self->gvString);
     }
@@ -6566,10 +6159,6 @@ void RefreshOption__8TextItemFv(TextItem* self) {
     TextItemRefreshNode(self);
 }
 
-/*
- * TextItem::HandleAction -- scroll / reset / end / compare / show-hide 0x7db.
- * Soft ceiling: retail signed cmp tree vs switch; stop.
- */
 /* TODO: [breakthrough] 27.3451%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mgr,
                                                         const void* actionIn) {
@@ -6655,8 +6244,8 @@ int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mg
     return result;
 }
 
-void HandleEvent__8TextItemFP9ScreenMgrii(TextItem* self, void* /*mgr*/, int event,
-                                          int /*arg*/) {
+void HandleEvent__8TextItemFP9ScreenMgrii(TextItem* self, void* mgr, int event,
+                                          int arg) {
     if (event == 0x407 || event == 0x1389) {
         self->scrollPos = 0;
         self->scrollLimit = -1;
@@ -6666,13 +6255,10 @@ void HandleEvent__8TextItemFP9ScreenMgrii(TextItem* self, void* /*mgr*/, int eve
     }
 }
 
-/*
- * WifImage ATC release -- Clear curTexture when instance latch matches.
- */
 static void WifImageReleaseAtc(WifImage* self) {
     AniTextureControl* atc;
 
-    atc = (AniTextureControl*)self->curTexture;
+    atc = self->curTexture;
     if (atc == 0) {
         return;
     }
@@ -6696,12 +6282,8 @@ void Dispose__8WifImageFv(WifImage* self) {
     WifImageReleaseAtc(self);
 }
 
-/*
- * WifImage::HandleEvent -- on 0x405 once: build ATC from images[] onto status poly.
- * Soft ceiling: ScreenPoly live diamond schedule; stop.
- */
-void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* /*mgr*/, int event,
-                                          int /*arg*/) {
+void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* mgr, int event,
+                                          int arg) {
     ScreenPoly* poly;
     ScreenObj* live;
     AniTextureControl* atc;
@@ -6710,7 +6292,7 @@ void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* /*mgr*/, int eve
     if (event != 0x405 || self->started != 0) {
         return;
     }
-    poly = (ScreenPoly*)self->statusNode;
+    poly = self->statusNode;
     live = poly->screenObj;
     if (live != 0) {
         if (live->instance != poly->screenObjInstance) {
@@ -6736,11 +6318,6 @@ void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* /*mgr*/, int eve
     self->started = 1;
 }
 
-/*
- * SpreadSheet::ProcessParams -- shared SPSH/SPSI param fill, then vtbl
- * FinishSetup(params, nextIndex). Used by profile/mem-screen grids.
- * Soft ceiling: ~98.4% -- init order and vtbl temp scheduling; stop.
- */
 void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* params) {
     int nextIndex;
     int bits;
@@ -6749,28 +6326,26 @@ void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* param
     self->cols = GetInt__12ScreenParamsFUi(params, 1);
     self->unkE8 = GetInt__12ScreenParamsFUi(params, 2);
     self->unkEC = GetInt__12ScreenParamsFUi(params, 3);
-    /* Retail boolize: neg/andc/srwi => (value != 0). */
-    self->flag104 = (int)((unsigned int)(-self->unkE8 & ~self->unkE8) >> 31);
-    self->flag108 = (int)((unsigned int)(-self->unkEC & ~self->unkEC) >> 31);
+    self->flag104 = self->unkE8 > 0;
+    self->flag108 = self->unkEC > 0;
     self->collectionId = GetResourceID__12ScreenParamsFUi(params, 4);
     self->optionId = GetResourceID__12ScreenParamsFUi(params, 5);
     self->useColor = GetBoolean__12ScreenParamsFUi(params, 6);
     bits = GetInt__12ScreenParamsFUi(params, 7);
     bits &= 1;
-    self->bindNodeB0 = (int)((unsigned int)(-bits & ~bits) >> 31);
+    self->bindNodeB0 = bits > 0;
     bits = GetInt__12ScreenParamsFUi(params, 7);
     bits &= 2;
-    self->bindNodeB4 = (int)((unsigned int)(-bits & ~bits) >> 31);
+    self->bindNodeB4 = bits > 0;
     self->flagF0 = GetBoolean__12ScreenParamsFUi(params, 8);
     nextIndex = 0xa;
-    /* hasExtraRes lives on subclasses at +0x10C -- same store for SPSH/SPSI. */
     ((SpreadSheet_text*)self)->hasExtraRes = GetBoolean__12ScreenParamsFUi(params, 9);
     if (self->useColor != 0) {
         unsigned int colorWord;
         unsigned char* colorBytes;
 
         colorWord =
-            GetColor__12ScreenParamsFUi(params, (unsigned int)nextIndex++);
+            GetColor__12ScreenParamsFUi(params, nextIndex++);
         colorBytes = (unsigned char*)&colorWord;
         self->color[0] = colorBytes[0];
         self->color[1] = colorBytes[1];
@@ -6779,15 +6354,15 @@ void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* param
     }
     if (((SpreadSheet_text*)self)->hasExtraRes != 0) {
         ((SpreadSheet_text*)self)->extraResId =
-            GetResourceID__12ScreenParamsFUi(params, (unsigned int)nextIndex++);
+            GetResourceID__12ScreenParamsFUi(params, nextIndex++);
     }
     if (self->bindNodeB0 != 0) {
         self->nodeB0 =
-            GetScreenNode__12ScreenParamsFUi(params, (unsigned int)nextIndex++);
+            GetScreenNode__12ScreenParamsFUi(params, nextIndex++);
     }
     if (self->bindNodeB4 != 0) {
         self->nodeB4 =
-            GetScreenNode__12ScreenParamsFUi(params, (unsigned int)nextIndex++);
+            GetScreenNode__12ScreenParamsFUi(params, nextIndex++);
     }
     (*(void (**)(SpreadSheet*, void*, int))(*(unsigned char**)self + 0x54))(
         self, params, nextIndex);
@@ -6830,10 +6405,6 @@ extern unsigned int IsValidInt__22GameVariableDispatcherFUiUiUiUii(
     void* self, unsigned int a, unsigned int b, unsigned int c, unsigned int id,
     int value);
 
-/*
- * SpreadSheet nav click -- extraResId indexes ui_sound_table (< 0x3D).
- * Special id 0x1B4E ducks pid 0x2001 via set_snd_vol before snd_req.
- */
 static inline void SpreadSheetPlayNavSound(SpreadSheet* self) {
     SpreadSheet_text* ss;
     unsigned int soundIndex;
@@ -6844,7 +6415,7 @@ static inline void SpreadSheetPlayNavSound(SpreadSheet* self) {
     if (ss->hasExtraRes == 0) {
         return;
     }
-    soundIndex = (unsigned int)ss->extraResId;
+    soundIndex = ss->extraResId;
     if (soundIndex >= 0x3Du) {
         vdebug_print_message(stringBase0 + 0x264, (int)soundIndex);
         return;
@@ -6865,10 +6436,6 @@ void Init__11SpreadSheetFv(SpreadSheet* self) {
     Init__13ScreenControlFv(self);
 }
 
-/*
- * SpreadSheet::RefreshCollection -- ClearContents + AllocateCollection, clamp
- * focus/window into counts, optional Update (vtbl+0x44).
- */
 /* TODO: [near miss] 93.53623%; Update is a real virtual call; subclass slots 0x50/0x58 still
  * go through the raw vtable pointer. */
 void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
@@ -6906,18 +6473,13 @@ void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
     }
 }
 
-/*
- * SpreadSheet::RefreshOption(int) -- GetIntArray into +0xD0 (4 ints), clamp
- * focus into counts and keep windows covering focus; Update if doUpdate.
- */
 void RefreshOption__11SpreadSheetFi(SpreadSheet* self, int doUpdate) {
-
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
     GetIntArray__22GameVariableDispatcherFUiUiPii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->optionId, &self->scrollX, 4);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->optionId, &self->scrollX, 4);
     if (self->scrollY < 0 || self->unkE8 == 0) {
         self->scrollY = 0;
     } else if (self->scrollY >= self->unkE8) {
@@ -6953,7 +6515,6 @@ void RefreshOption__11SpreadSheetFv(SpreadSheet* self) {
     RefreshOption__11SpreadSheetFi(self, 1);
 }
 
-/* Retail action handlers call these navigation methods; the sound helper expands. */
 #pragma auto_inline off
 /* TODO: [near miss] 98.52273%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
@@ -7102,7 +6663,6 @@ void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
 
 #pragma auto_inline reset
 
-/* Persist scroll/focus ints after a Scroll* when optionId is bound. */
 static void SpreadSheetSyncOptionArray(SpreadSheet* self) {
     if (self->optionId < 0) {
         return;
@@ -7111,8 +6671,8 @@ static void SpreadSheetSyncOptionArray(SpreadSheet* self) {
         return;
     }
     SetIntArray__22GameVariableDispatcherFUiUiPii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->optionId, &self->scrollX, 4);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->optionId, &self->scrollX, 4);
 }
 
 static void SpreadSheetFireSpEvent(SpreadSheet* self, int event) {
@@ -7121,28 +6681,28 @@ static void SpreadSheetFireSpEvent(SpreadSheet* self, int event) {
 
 static void SpreadSheetSetRowStateFire(SpreadSheet* self, int row, int value) {
     SetRowState__22GameVariableDispatcherFUiUiii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->collectionId, row, value);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->collectionId, row, value);
     SpreadSheetFireSpEvent(self, 0x53500000);
 }
 
 static int SpreadSheetGetRowState(SpreadSheet* self, int row) {
     return GetRowState__22GameVariableDispatcherFUiUii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->collectionId, row);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->collectionId, row);
 }
 
 static void SpreadSheetSetColStateFire(SpreadSheet* self, int col, int value) {
     SetColState__22GameVariableDispatcherFUiUiii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->collectionId, col, value);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->collectionId, col, value);
     SpreadSheetFireSpEvent(self, 0x53500001);
 }
 
 static int SpreadSheetGetColState(SpreadSheet* self, int col) {
     return GetColState__22GameVariableDispatcherFUiUii(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->collectionId, col);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->collectionId, col);
 }
 
 static void SpreadSheetCompareSubActions(SpreadSheet* self, const void* action, int lhs,
@@ -7152,10 +6712,6 @@ static void SpreadSheetCompareSubActions(SpreadSheet* self, const void* action, 
     }
 }
 
-/*
- * ClearContents + AllocateCollection + clamp focus/window -- no Update.
- * Used by HandleEvent 0x405 (RefreshCollection without the cellArray Update).
- */
 static void SpreadSheetRebuildClampNoUpdate(SpreadSheet* self) {
     void** vtbl;
     void (*clearContents)(SpreadSheet* self);
@@ -7188,13 +6744,9 @@ static void SpreadSheetRebuildClampNoUpdate(SpreadSheet* self) {
     }
 }
 
-/*
- * SpreadSheet::HandleEvent -- rebuild on 0x405 (empty dims), 0x407 (reset scroll),
- * 0x53500003 (refresh collection).
- * Soft ceiling: ~65.4% -- event cascade schedule; stop.
- */
-void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* /*mgr*/, int event,
-                                              int /*arg*/) {
+/* TODO: [near miss] 0% objdiff (about 65% by opcode); event compare cascade scheduling differs. */
+void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int event,
+                                              int arg) {
     if (event == 0x405) {
         if (self->unkE8 == 0 || self->unkEC == 0) {
             SpreadSheetRebuildClampNoUpdate(self);
@@ -7206,8 +6758,8 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* /*mgr*/, 
         self->scrollY = 0;
         self->unkDC = 0;
         SetIntArray__22GameVariableDispatcherFUiUiPii(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-            (unsigned int)self->optionId, &self->scrollX, 4);
+            m_pGameVariables__13ScreenControl, self->pad9C,
+            self->optionId, &self->scrollX, 4);
         RefreshCollection__11SpreadSheetFv(self);
         RefreshOption__11SpreadSheetFi(self, 1);
     } else if (event == 0x53500003) {
@@ -7216,10 +6768,6 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* /*mgr*/, 
     }
 }
 
-/*
- * SpreadSheet::HandleAction -- scroll, row/col state, compares, show/hide (0x7db).
- * Unknown args fall through to ScreenControl::HandleAction. result init 1.
- */
 /* TODO: [near miss] 99.58129%; nested single-use GetInt/state results and real Refresh*
  * virtual calls restored; one extra p0 copy in the origin-compare case remains. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
@@ -7276,14 +6824,12 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetSyncOptionArray(self);
         break;
     case 0x53500000:
-        /* Set row state at unkD4 + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetSetRowStateFire(self, idx, p1);
         break;
     case 0x53500001:
-        /* Add p1 to row state at unkD4 + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7291,47 +6837,40 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetSetRowStateFire(self, idx, p1);
         break;
     case 0x53500002:
-        /* Subtract p1 from row state at unkD4 + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->unkD4 + p0;
         state = SpreadSheetGetRowState(self, idx);
         SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500003:
-        /* Subtract p0 from row state at focus Y (unkDC). */
         idx = self->unkDC;
         state = SpreadSheetGetRowState(self, idx);
         SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500004:
-        /* Add p0 to row state at focus Y (unkDC). */
         idx = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p0 += SpreadSheetGetRowState(self, idx);
         SpreadSheetSetRowStateFire(self, idx, p0);
         break;
     case 0x53500005:
-        /* Subtract p0 from row state at focus Y (unkDC). */
         idx = self->unkDC;
         state = SpreadSheetGetRowState(self, idx);
         SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500006:
-        /* Compare window origin Y (unkD4). */
         idx = self->unkD4;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
         break;
     case 0x53500007:
-        /* Compare row state at unkD4 + p0. */
         state = SpreadSheetGetRowState(self, self->unkD4 + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
         SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
         break;
     case 0x53500008:
-        /* Compare visible col span (min(unkEC - unkD4, cols)). */
         vis = self->unkEC - self->unkD4;
         if (self->cols < vis) {
             vis = self->cols;
@@ -7341,7 +6880,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetCompareSubActions(self, actionIn, vis, p0, p1);
         break;
     case 0x53500009:
-        /* Compare focus offset within window (unkDC - unkD4). */
         idx = self->unkDC - self->unkD4;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7349,20 +6887,17 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
                                      p1);
         break;
     case 0x5350000A:
-        /* Compare focus Y (unkDC). */
         idx = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
         break;
     case 0x5350000C:
-        /* Start/mid/end class of focus Y vs unkEC. */
         idx = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         if (self->unkEC > 0) {
             if (self->unkEC == 1) {
-                /* Retail leaves GetInt(1) in r3 as compare lhs. */
                 lhs = p1;
             } else if (idx == 0) {
                 lhs = 0;
@@ -7375,21 +6910,18 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         }
         break;
     case 0x5350000B:
-        /* Compare row state at focus Y. */
         state = SpreadSheetGetRowState(self, self->unkDC);
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
         break;
     case 0x53500030:
-        /* Set col state at scrollX + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetSetColStateFire(self, idx, p1);
         break;
     case 0x53500031:
-        /* Add p1 to col state at scrollX + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7397,20 +6929,17 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetSetColStateFire(self, idx, p1);
         break;
     case 0x53500032:
-        /* Subtract p1 from col state at scrollX + p0. */
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         idx = self->scrollX + p0;
         state = SpreadSheetGetColState(self, idx);
         SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500033:
-        /* Set col state at focus X (scrollY). */
         idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         SpreadSheetSetColStateFire(self, idx, p0);
         break;
     case 0x53500039:
-        /* Compare focus offset within window (scrollY - scrollX). */
         idx = self->scrollY - self->scrollX;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7418,34 +6947,29 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
                                      p1);
         break;
     case 0x53500034:
-        /* Add p0 to col state at focus X. */
         idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p0 += SpreadSheetGetColState(self, idx);
         SpreadSheetSetColStateFire(self, idx, p0);
         break;
     case 0x53500035:
-        /* Subtract p0 from col state at focus X. */
         idx = self->scrollY;
         state = SpreadSheetGetColState(self, idx);
         SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500036:
-        /* Compare window origin X (scrollX). */
         idx = self->scrollX;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
         break;
     case 0x53500037:
-        /* Compare col state at scrollX + p0. */
         state = SpreadSheetGetColState(self, self->scrollX + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
         SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
         break;
     case 0x53500038:
-        /* Compare visible row span (min(unkE8 - scrollX, rows)). */
         vis = self->unkE8 - self->scrollX;
         if (self->rows < vis) {
             vis = self->rows;
@@ -7455,10 +6979,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetCompareSubActions(self, actionIn, vis, p0, p1);
         break;
     case 0x5350003A:
-        /*
-         * Compare focus X; also run sub-actions when unkE8==1 and rhs!=1 even if
-         * the compare fails (retail CR quirk path).
-         */
         idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7468,7 +6988,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         }
         break;
     case 0x5350003C:
-        /* Start/mid/end class of focus X vs unkE8. */
         idx = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7482,14 +7001,12 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
         break;
     case 0x5350003B:
-        /* Compare col state at focus X. */
         state = SpreadSheetGetColState(self, self->scrollY);
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
         break;
     case 0x7DB:
-        /* Refresh only when params node 0 is this object -- no peer delegate. */
         node = GetScreenNode__12ScreenParamsFUi(params, 0);
         if (node == (void*)self) {
             p1 = GetInt__12ScreenParamsFUi(params, 1);
@@ -7512,13 +7029,8 @@ void Init__8TextListFv(TextList* self) {
     Init__13ScreenControlFv(self);
 }
 
-/*
- * ClearStrings -- reset each visible ScreenText string color via pfxfont.
- * Soft ceiling: ~95.8% -- live-obj / color schedule; stop.
- */
 #pragma dont_inline on
-/* TODO: [near miss] 96.10%; native pointer indexing retained; color/latch schedule remains. */
-/* TODO: [near miss] 96.2%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
+/* TODO: [near miss] 96.19%; native pointer indexing retained; color/latch schedule and relocation differences remain. */
 void ClearStrings__8TextListFv(TextList* self) {
     int i;
     ScreenText* text;
@@ -7551,10 +7063,6 @@ void ClearStrings__8TextListFv(TextList* self) {
 }
 #pragma dont_inline off
 
-/*
- * TextList::RefreshCollection(flag) -- Free+Get string collection, clamp
- * focusMax, optionally Update (vtbl+0x44) when unkD4 and flag==1.
- */
 /* TODO: [near miss] 98.29269%; Update is a real virtual call; Free/Get and window-scan scheduling remain. */
 void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     char** oldStrings;
@@ -7572,18 +7080,16 @@ void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     }
     ClearStrings__8TextListFv(self);
     oldStrings = self->strings;
-    oldCount = (unsigned int)self->stringCount;
+    oldCount = self->stringCount;
     FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
-        (unsigned int)self->collectionId, oldStrings, oldCount);
+        m_pGameVariables__13ScreenControl, self->gvContext,
+        self->collectionId, oldStrings, oldCount);
     self->strings = 0;
     count = GetStringCollection__22GameVariableDispatcherFUiUiPPPc(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
-        (unsigned int)self->collectionId, &self->strings);
-    self->stringCount = (int)(count & 0xffff);
-    if (self->stringCount < 0) {
-        /* fall through to Update check */
-    } else {
+        m_pGameVariables__13ScreenControl, self->gvContext,
+        self->collectionId, &self->strings);
+    self->stringCount = count & 0xffff;
+    if (self->stringCount >= 0) {
         if (self->focusMax < 0) {
             self->focusMax = 0;
         }
@@ -7616,11 +7122,6 @@ void RefreshCollection__8TextListFv(TextList* self) {
     RefreshCollection__8TextListFi(self, 1);
 }
 
-/*
- * TextList::ProcessParams -- LIST control for mem-screen / menu option rows.
- * Malloc names: SS-5/6/7TextList (@stringBase0+0x2E0/0x2ED/0x2FA).
- * Soft ceiling: ~90.3% -- GV malloc/sprintf schedule; stop.
- */
 /* TODO: [near miss] 93.60%; pointer-sized row storage retained; allocation schedule remains. */
 void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
     int nodeIndex;
@@ -7651,7 +7152,7 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
         (unsigned long)self->itemCount * sizeof(*self->itemNodes), kMallocTagInit,
         (char*)(stringBase0 + 0x2e0));
     for (i = 0; i < self->itemCount; i++) {
-        node = GetScreenNode__12ScreenParamsFUi(params, (unsigned int)nodeIndex);
+        node = GetScreenNode__12ScreenParamsFUi(params, nodeIndex);
         nodeIndex += 1;
         self->itemNodes[i] = (ScreenNode*)node;
     }
@@ -7671,7 +7172,6 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
             self->color[2] = text->seData->color[2];
             self->color[3] = text->seData->color[3];
         } else {
-            /* StringObj+0xB4 == pfx.instance0.rgba (PfxFontInstance+0x18). */
             self->color[0] = live->pfx.instance0.rgba[0];
             self->color[1] = live->pfx.instance0.rgba[1];
             self->color[2] = live->pfx.instance0.rgba[2];
@@ -7702,7 +7202,6 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
                 buf += 1;
                 n -= 1;
             } while (n != 0);
-            /* Retail writes then falls into the common zeroing below. */
             self->stringCount = 1;
             self->focusMax = 0;
         }
@@ -7712,10 +7211,7 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
     self->focusIndex = 0;
 }
 
-/*
- * TextList::RefreshOption -- GetInt option cursor, advance until IsValidInt,
- * optional "%d" single-string mode, clamp window, then Update (vtbl+0x44).
- */
+/* TODO: [near miss] 73.03%; IsValidInt advance loop and "%d" single-string copy agree; clamp/window-scan scheduling remains. */
 void RefreshOption__8TextListFv(TextList* self) {
     int atEnd;
     int found;
@@ -7730,13 +7226,13 @@ void RefreshOption__8TextListFv(TextList* self) {
         return;
     }
     self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->optionId);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->optionId);
     for (;;) {
         if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
-                m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
-                (unsigned int)self->collectionId, (unsigned int)self->pad9C,
-                (unsigned int)self->optionId, self->focusMax) != 0) {
+                m_pGameVariables__13ScreenControl, self->gvContext,
+                self->collectionId, self->pad9C,
+                self->optionId, self->focusMax) != 0) {
             break;
         }
         atEnd = 1;
@@ -7774,9 +7270,7 @@ void RefreshOption__8TextListFv(TextList* self) {
         self->focusMax = 0;
         self->stringCount = 1;
     }
-    if (self->stringCount < 0) {
-        /* skip clamp */
-    } else {
+    if (self->stringCount >= 0) {
         if (self->focusMax < 0) {
             self->focusMax = 0;
         }
@@ -7805,13 +7299,7 @@ void RefreshOption__8TextListFv(TextList* self) {
     }
 }
 
-/*
- * TextList::Update -- refresh option strings onto visible ScreenText rows;
- * move linked ScreenPoly highlight to the focused row when present.
- * Soft ceiling: linked-poly pos (retail stfs via rA=0 / absolute 0).
- */
-/* TODO: [breakthrough needed] 63.84%; typed row indexing; linked-poly lowering remains. */
-/* TODO: [breakthrough] 63.8576%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [breakthrough needed] 63.86%; typed row indexing and font linkage in place; linked-poly lowering remains. */
 void Update__8TextListFv(TextList* self) {
     int atEnd;
     int found;
@@ -7841,15 +7329,15 @@ void Update__8TextListFv(TextList* self) {
         RefreshCollection__8TextListFi(self, 0);
         if (m_pGameVariables__13ScreenControl != 0) {
             self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-                m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-                (unsigned int)self->optionId);
+                m_pGameVariables__13ScreenControl, self->pad9C,
+                self->optionId);
             for (;;) {
                 if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                         m_pGameVariables__13ScreenControl,
-                        (unsigned int)self->gvContext,
-                        (unsigned int)self->collectionId,
-                        (unsigned int)self->pad9C,
-                        (unsigned int)self->optionId, self->focusMax) != 0) {
+                        self->gvContext,
+                        self->collectionId,
+                        self->pad9C,
+                        self->optionId, self->focusMax) != 0) {
                     break;
                 }
                 atEnd = 1;
@@ -7928,14 +7416,8 @@ void Update__8TextListFv(TextList* self) {
             strIdx =
                 strIdx - (strIdx / self->stringCount) * self->stringCount;
             if (self->linkedNode != 0 && strIdx == self->focusMax) {
-                /*
-                 * Retail stores the source pos via stfs 0(r0) (rA=0 => EA=0) --
-                 * MWCC leftover. Intended: stack floats, copy onto linked
-                 * ScreenPoly verts via vert_map (Y flipped vs 480).
-                 */
                 float x;
                 float y;
-                float z;
 
                 live = text->stringObj;
                 if (live != 0) {
@@ -7949,13 +7431,10 @@ void Update__8TextListFv(TextList* self) {
                 if (live == 0) {
                     x = text->seData->posX;
                     y = text->seData->posY;
-                    z = 0.0f;
                 } else {
-                    x = (float)live->x;
-                    y = (float)(480 - live->y);
-                    z = 0.0f;
+                    x = live->x;
+                    y = 480 - live->y;
                 }
-                (void)z;
                 link = (ScreenPoly*)self->linkedNode;
                 for (v = 0; v < 4; v++) {
                     map = vert_map__10ScreenPoly[v];
@@ -8009,9 +7488,7 @@ void ScrollInc__8TextListFi(TextList* self, int delta) {
     }
 }
 
-/*
- * TextList::Move -- nudge focusMax by delta, wrap/IsValidInt scan, sync GV + Update.
- */
+/* TODO: [breakthrough needed] 64.40%; boundary/wrap test and IsValidInt scan CFG differ from retail. */
 void Move__8TextListFi(TextList* self, int delta) {
     int oldFocus;
     int hitBoundary;
@@ -8040,11 +7517,8 @@ void Move__8TextListFi(TextList* self, int delta) {
         return;
     }
     self->focusMax = oldFocus + delta;
-    if (self->collectionId == -1 && self->optionId != -1) {
-        /* Numeric single-string mode -- skip wrap/valid/window. */
-    } else if (self->stringCount <= 0) {
-        /* fall through to SetInt */
-    } else {
+    if ((self->collectionId != -1 || self->optionId == -1) &&
+        self->stringCount > 0) {
         self->focusMax = self->focusMax -
                          (self->focusMax / self->stringCount) * self->stringCount;
         if (self->focusMax < 0) {
@@ -8054,10 +7528,10 @@ void Move__8TextListFi(TextList* self, int delta) {
         for (;;) {
             if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                     m_pGameVariables__13ScreenControl,
-                    (unsigned int)self->gvContext,
-                    (unsigned int)self->collectionId,
-                    (unsigned int)self->pad9C,
-                    (unsigned int)self->optionId, self->focusMax) != 0) {
+                    self->gvContext,
+                    self->collectionId,
+                    self->pad9C,
+                    self->optionId, self->focusMax) != 0) {
                 ok = 1;
                 break;
             }
@@ -8111,10 +7585,10 @@ void Move__8TextListFi(TextList* self, int delta) {
                     for (;;) {
                         if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                                 m_pGameVariables__13ScreenControl,
-                                (unsigned int)self->gvContext,
-                                (unsigned int)self->collectionId,
-                                (unsigned int)self->pad9C,
-                                (unsigned int)self->optionId,
+                                self->gvContext,
+                                self->collectionId,
+                                self->pad9C,
+                                self->optionId,
                                 self->focusIndex) != 0) {
                             break;
                         }
@@ -8152,23 +7626,20 @@ void Move__8TextListFi(TextList* self, int delta) {
     }
     if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-            (unsigned int)self->optionId, self->focusMax);
+            m_pGameVariables__13ScreenControl, self->pad9C,
+            self->optionId, self->focusMax);
     }
     if (self->collectionId == -1) {
         self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-            (unsigned int)self->optionId);
+            m_pGameVariables__13ScreenControl, self->pad9C,
+            self->optionId);
     }
     (*(void (**)(TextList*))(*(unsigned char**)self + 0x44))(self);
 }
 
-/*
- * TextList::HandleEvent -- 0x407 rebuild strings; 0x3EB teardown.
- */
-/* TODO: [breakthrough needed] 88.55%; pointer-sized string slot; dispatch lowering remains. */
-void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* /*mgr*/, int event,
-                                          int /*arg*/) {
+/* TODO: [near miss] 90.12%; pointer-sized string slot; event dispatch lowering remains. */
+void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* mgr, int event,
+                                          int arg) {
     char** table;
     char* buf;
 
@@ -8184,8 +7655,6 @@ void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* /*mgr*/, int eve
         }
         RefreshCollection__8TextListFi(self, 0);
         (*(void (**)(TextList*))(*(unsigned char**)self + 0x4c))(self);
-    } else if (event >= 0x407) {
-        /* no-op */
     } else if (event == 0x3eb) {
         if (self->collectionId == -1 && self->optionId != -1) {
             if (self->strings != 0) {
@@ -8199,17 +7668,15 @@ void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* /*mgr*/, int eve
                    self->strings != 0) {
             FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
                 m_pGameVariables__13ScreenControl,
-                (unsigned int)self->gvContext,
-                (unsigned int)self->collectionId, self->strings,
-                (unsigned int)self->stringCount);
+                self->gvContext,
+                self->collectionId, self->strings,
+                self->stringCount);
             self->strings = 0;
         }
     }
 }
 
-/*
- * TextList::HandleAction -- nav (Move/Scroll), refresh, compare, confirm SetInt.
- */
+/* TODO: [breakthrough needed] 60.43%; action compare tree order and vtable call lowering differ. */
 int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mgr,
                                                         const void* actionIn) {
     const ScreenActionView* action;
@@ -8234,8 +7701,8 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
         if (node == (void*)self) {
             if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
                 SetInt__22GameVariableDispatcherFUiUii(
-                    m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-                    (unsigned int)self->optionId, self->focusMax);
+                    m_pGameVariables__13ScreenControl, self->pad9C,
+                    self->optionId, self->focusMax);
             }
         } else if (node != 0) {
             nodeHandle =
@@ -8244,7 +7711,6 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
             nodeHandle(node, mgr, actionIn);
         }
     } else if (arg >= 0x7e2) {
-        /* High compare / Move aliases (0x100001..). */
         if (arg == 0x100003) {
             a = GetInt__12ScreenParamsFUi(params, 0);
             b = GetInt__12ScreenParamsFUi(params, 1);
@@ -8277,12 +7743,10 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
                     HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(
                         self, mgr, actionIn);
             } else {
-                /* 0x100004 -- start/mid/end class of focusMax. */
                 a = GetInt__12ScreenParamsFUi(params, 0);
                 b = GetInt__12ScreenParamsFUi(params, 1);
                 if (self->stringCount > 0) {
                     if (self->stringCount == 1) {
-                        /* Retail leaves r3 = GetInt(1) as compare lhs. */
                         cls = b;
                     } else if (self->focusMax == 0) {
                         cls = 0;
@@ -8343,11 +7807,7 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
     return result;
 }
 
-/*
- * ImageList::Update -- bind GameVariables texture strip onto POLY item nodes.
- * Mem-screen icon lists (PPWLS / view profile) tick this after RefreshCollection.
- * Soft ceiling: ~72.6% -- tex/filter/live-obj schedule; stop.
- */
+/* TODO: [near miss] 74.20%; texture/filter/live-object schedule remains. */
 void Update__9ImageListFv(ImageList* self) {
     int i;
     int off;
@@ -8401,7 +7861,7 @@ void Update__9ImageListFv(ImageList* self) {
         }
         wrapped = idx - (idx / count) * count;
         poly = (ScreenPoly*)(*(void**)((char*)self->itemNodes + off));
-        color = (RwTexture*)col->colors[wrapped];
+        color = col->colors[wrapped];
         poly->colorTex = color;
         if (color != 0) {
             view = (RwTextureFilterView*)color;
@@ -8428,7 +7888,7 @@ void Update__9ImageListFv(ImageList* self) {
             }
             obj->pfx2d->texture = color;
         }
-        alpha = (RwTexture*)col->alphas[wrapped];
+        alpha = col->alphas[wrapped];
         poly->alphaTex = alpha;
         if (alpha != 0) {
             view = (RwTextureFilterView*)alpha;
@@ -8475,9 +7935,6 @@ void Update__9ImageListFv(ImageList* self) {
     setVisible(link, 1);
 }
 
-/*
- * ImageList::RefreshCollection -- Free+Get texture strip, clamp focus, Update.
- */
 /* TODO: [breakthrough needed] 88.42647%; RefreshOption/Update are real virtual calls; dispatcher
  * argument and accept-branch schedule still differ. */
 void RefreshCollection__9ImageListFv(ImageList* self) {
@@ -8493,17 +7950,13 @@ void RefreshCollection__9ImageListFv(ImageList* self) {
     }
     countScratch = 1;
     FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
+        m_pGameVariables__13ScreenControl, self->gvContext,
         self->collectionId, &self->textureInfo);
     GetTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_tRUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->gvContext,
+        m_pGameVariables__13ScreenControl, self->gvContext,
         self->collectionId, &self->textureInfo, &countScratch);
     col = self->textureInfo.data;
     if (col != 0) {
-        /*
-         * Retail: if texReady==0 and colors!=0, skip refreshFlag check;
-         * else require refreshFlag==1. Then count!=0 before Update.
-         */
         accept = 0;
         if (self->textureInfo.ready == 0 && col->colors != 0) {
             accept = 1;
@@ -8518,15 +7971,13 @@ void RefreshCollection__9ImageListFv(ImageList* self) {
             } else if (self->focusIndex < 0) {
                 self->focusIndex = 0;
             }
-                ((ScreenControl*)self)->RefreshOption();
+            ((ScreenControl*)self)->RefreshOption();
         }
     }
     ((ScreenControl*)self)->Update();
 }
 
-/*
- * ImageList::RefreshOption -- GetInt focus, clamp, sync scrollBase, Update.
- */
+/* TODO: [near miss] 98.25%; focus clamp and scrollBase sync agree; a short scheduling residue remains. */
 void RefreshOption__9ImageListFv(ImageList* self) {
     int count;
 
@@ -8538,8 +7989,8 @@ void RefreshOption__9ImageListFv(ImageList* self) {
     }
     count = self->textureInfo.data->count;
     self->focusIndex = GetInt__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-        (unsigned int)self->optionId);
+        m_pGameVariables__13ScreenControl, self->pad9C,
+        self->optionId);
     if (self->focusIndex > count) {
         self->focusIndex = count - 1;
     }
@@ -8564,9 +8015,7 @@ void ScrollInc__9ImageListFi(ImageList* self, int delta) {
     }
 }
 
-/*
- * ImageList::Decrement -- step focus/scroll backward by delta.
- */
+/* TODO: [near miss] 87.94%; focus/scroll wrap arithmetic agrees; register and branch scheduling remain. */
 void Decrement__9ImageListFi(ImageList* self, int delta) {
     int count;
 
@@ -8590,15 +8039,13 @@ void Decrement__9ImageListFi(ImageList* self, int delta) {
     }
     if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-            (unsigned int)self->optionId, self->focusIndex);
+            m_pGameVariables__13ScreenControl, self->pad9C,
+            self->optionId, self->focusIndex);
     }
     (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
 }
 
-/*
- * ImageList::Increment -- step focus/scroll forward by delta.
- */
+/* TODO: [near miss] 93.93%; window-end modulo and wrap agree; register and branch scheduling remain. */
 void Increment__9ImageListFi(ImageList* self, int delta) {
     int count;
     int winEnd;
@@ -8624,16 +8071,13 @@ void Increment__9ImageListFi(ImageList* self, int delta) {
     }
     if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, (unsigned int)self->pad9C,
-            (unsigned int)self->optionId, self->focusIndex);
+            m_pGameVariables__13ScreenControl, self->pad9C,
+            self->optionId, self->focusIndex);
     }
     (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
 }
 
-/*
- * ImageList::HandleEvent -- 0x407 load tex; 0x408 free; 0x405 accept/refresh.
- * Soft ceiling: ~62% -- event cascade / thin GetTexture schedule; stop.
- */
+/* TODO: [breakthrough needed] 67.59%; event compare cascade and GetTextureCollection call schedule differ. */
 void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event,
                                            int arg) {
     unsigned int countScratch;
@@ -8652,17 +8096,12 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
                                                        0x3c))(self, mgr, 0x405,
                                                               arg);
         }
-    } else if (event >= 0x407) {
-        if (event >= 0x409) {
-            /* no-op (includes 0x9282a) */
-        } else {
-            /* 0x408 */
-            if (m_pGameVariables__13ScreenControl != 0 &&
-                self->collectionId != -1) {
-                FreeTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_t(
-                    m_pGameVariables__13ScreenControl, self->collectionId,
-                    &self->textureInfo);
-            }
+    } else if (event == 0x408) {
+        if (m_pGameVariables__13ScreenControl != 0 &&
+            self->collectionId != -1) {
+            FreeTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_t(
+                m_pGameVariables__13ScreenControl, self->collectionId,
+                &self->textureInfo);
         }
     } else if (event == 0x405) {
         col = self->textureInfo.data;
@@ -8691,10 +8130,7 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
     }
 }
 
-/*
- * ImageList::HandleAction -- Increment/Decrement/Scroll + refresh; else 0.
- * Soft ceiling: ~35% -- retail binary cmp tree vs sequential ifs; stop.
- */
+/* TODO: [breakthrough needed] 34.58%; retail binary compare tree differs from the source's if-chain. */
 int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
                                                          void* mgr,
                                                          const void* actionIn) {
@@ -8746,6 +8182,7 @@ int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
     return result;
 }
 
+/* TODO: [near miss] 94.94%; FPR/vtable call scheduling and nonvolatile coloring remain. */
 void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
     typedef struct ScreenPolyIndexedVertView {
         unsigned char pad00[0x18];
@@ -8759,10 +8196,6 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
     ScreenPoly* poly;
     ScreenPolyIndexedVertView* vert;
     void (*setVisible)(void* node, int visible);
-
-    /*
-     * Soft ceiling ~94.7%: remaining FPR/vtbl scheduling and NV color.
-     */
 
     self->itemCount = GetInt__12ScreenParamsFUi(params, 0);
     self->collectionId = GetResourceID__12ScreenParamsFUi(params, 1);
@@ -8780,7 +8213,7 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
         (char*)(stringBase0 + 0x307));
     for (i = 0; i < self->itemCount; i++) {
         self->itemNodes[i] =
-            GetScreenNode__12ScreenParamsFUi(params, (unsigned int)(i + nodeIndex));
+            GetScreenNode__12ScreenParamsFUi(params, i + nodeIndex);
         setVisible =
             *(void (**)(void*, int))(*(unsigned char**)self->itemNodes[i] + 0x1c);
         setVisible(self->itemNodes[i], 0);
@@ -8907,6 +8340,7 @@ void* __dt__16SpreadSheet_textFv(SpreadSheet_text* self, short del) {
     return self;
 }
 
+/* TODO: [near miss] 84.89%; screenObj latch reload and destroy-call scheduling remain. */
 void* __dt__10ScreenPolyFv(ScreenPoly* self, short del) {
     ScreenObj* live;
 
@@ -8914,12 +8348,11 @@ void* __dt__10ScreenPolyFv(ScreenPoly* self, short del) {
         self->vtbl = &__vt__10ScreenPoly;
         live = self->screenObj;
         if (live != 0 &&
-            *(unsigned int*)((char*)live + 4) !=
-                (unsigned int)self->screenObjInstance) {
+            live->instance != (unsigned int)self->screenObjInstance) {
             live = 0;
         }
         if (live != 0) {
-            if (*(int*)((char*)self->screenObj + 4) != 0) {
+            if (self->screenObj->instance != 0) {
                 ((void (*)(void*))(*(void***)self->screenObj)[4])(
                     self->screenObj);
             }
@@ -8934,6 +8367,7 @@ void* __dt__10ScreenPolyFv(ScreenPoly* self, short del) {
     return self;
 }
 
+/* TODO: [near miss] 84.89%; stringObj latch reload and destroy-call scheduling remain. */
 void* __dt__10ScreenTextFv(ScreenText* self, short del) {
     StringObj* live;
 
@@ -8945,7 +8379,7 @@ void* __dt__10ScreenTextFv(ScreenText* self, short del) {
             live = 0;
         }
         if (live != 0) {
-            if (*(int*)((char*)self->stringObj + 4) != 0) {
+            if (self->stringObj->instance != 0) {
                 ((void (*)(void*))(*(void***)self->stringObj)[4])(
                     self->stringObj);
             }
@@ -8963,8 +8397,8 @@ void* __dt__10ScreenTextFv(ScreenText* self, short del) {
 void* __dt__29mkScreenEngineResourceLibraryFv(void* self, short del) {
     if (self != 0) {
         *(void**)self = __vt__29mkScreenEngineResourceLibrary;
-        hashtable_foreach((Hashtable*)((char*)self + 8), free_string);
-        hashtable_destroy((Hashtable*)((char*)self + 8));
+        hashtable_foreach(&((ScreenResourceLibView*)self)->strings, free_string);
+        hashtable_destroy(&((ScreenResourceLibView*)self)->strings);
         __dt__21ScreenResourceLibraryFv(self, 0);
         if (del > 0) {
             __dl__FPv(self);

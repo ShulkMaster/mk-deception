@@ -272,9 +272,8 @@ void gcCiStopTr(void* object)
 
 static inline void gcci_update_transfer(GcCiObject* handle)
 {
-    int transferred;
+    int nbyte;
     int read_length;
-    int overflow;
     unsigned char* fill;
 
     if (handle->used != 1 || handle->status != GCCI_STATUS_TRANSFERRING) {
@@ -295,25 +294,24 @@ static inline void gcci_update_transfer(GcCiObject* handle)
         handle->sector_position += handle->request_sectors;
         if (handle->sector_position * handle->sector_length >
             handle->file_size) {
-            overflow =
+            nbyte =
                 handle->sector_position * handle->sector_length -
                 handle->file_size;
             fill = (unsigned char*)handle->transfer_buffer +
-                   handle->transfer_length - overflow;
-            memset(fill, 0, overflow);
-            DCStoreRange(fill, overflow);
+                   handle->transfer_length - nbyte;
+            memset(fill, 0, nbyte);
+            DCStoreRange(fill, nbyte);
         }
         handle->status = GCCI_STATUS_COMPLETE;
         gcg_ci_debug.transfer_status = GCCI_STATUS_COMPLETE;
         break;
     case DVD_STATE_CANCELED:
-        transferred = DVDGetTransferredSize(&handle->file_info);
-        DCInvalidateRange(handle->transfer_buffer, transferred);
-        gcg_ci_debug.transfer_status = GCCI_STATUS_IDLE;
+        nbyte = DVDGetTransferredSize(&handle->file_info);
+        DCInvalidateRange(handle->transfer_buffer, nbyte);
         handle->transfer_length =
-            handle->sector_length * (transferred / handle->sector_length);
-        handle->sector_position += transferred / handle->sector_length;
-        handle->status = GCCI_STATUS_IDLE;
+            handle->sector_length * (nbyte / handle->sector_length);
+        handle->sector_position += nbyte / handle->sector_length;
+        handle->status = gcg_ci_debug.transfer_status = GCCI_STATUS_IDLE;
         break;
     }
 }
@@ -322,7 +320,7 @@ static inline int gcci_is_any_transferring(GcCiObject* current)
 {
     int index;
 
-    for (index = 0; index < GCCI_MAX_HANDLES; index++, current++) {
+    for (index = 0; index < GCCI_MAX_HANDLES; current++, index++) {
         if (current->used == 1 &&
             current->status == GCCI_STATUS_TRANSFERRING) {
             return 1;
@@ -331,17 +329,15 @@ static inline int gcci_is_any_transferring(GcCiObject* current)
     return 0;
 }
 
-/* TODO: [near miss] 97.620300%; retail validation, busy-handle scan,
- * completion polling, bounds clamp, cache invalidation, and DVD dispatch
- * match; remaining residue is local register coloring. */
+/* TODO: [near miss] 99.04%; index and &gcg_ci_debug swap r30/r28 around the update loop; overflow subf scheduled one slot early. */
 int gcCiReqRd(void* object, int sectors, void* buffer)
 {
     GcCiObject* current;
-    GcCiObject* handle = object;
+    int aligned_length;
     int index;
+    GcCiObject* handle = object;
     int offset;
     int length;
-    int aligned_length;
     int result;
 
     if (handle == 0) {
@@ -382,8 +378,7 @@ int gcCiReqRd(void* object, int sectors, void* buffer)
         return 0;
     }
 
-    index = 0;
-    handle->transfer_length = index;
+    handle->transfer_length = index = 0;
     handle->transfer_buffer = buffer;
     handle->request_sectors = sectors;
 
@@ -530,7 +525,7 @@ void* gcCiOpen(const char* filename, void* parameter, int mode)
 
     handle = 0;
     current = gcg_ci_obj;
-    for (index = 0; index < GCCI_MAX_HANDLES; index++, current++) {
+    for (index = 0; index < GCCI_MAX_HANDLES; current++, index++) {
         if (current->used == 0) {
             handle = &gcg_ci_obj[index];
             break;

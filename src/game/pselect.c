@@ -463,7 +463,7 @@ static float p_random_player_select(void) {
     }
 
     pselect_update_selbox_pos(pdata->player, slot);
-    return (float)rnd_sleep_tbl[pdata->step++];
+    return rnd_sleep_tbl[pdata->step++];
 }
 
 void award_bet(void) {
@@ -763,15 +763,14 @@ void ck_increment_bet(void) {
         return;
     }
 
-    next_amount = (unsigned int)(g_game_info.pselect.field_1d8 +
-                                 g_game_info.pselect.field_1f0);
+    next_amount = g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
     p1_count = p1_profile.koins[koin];
     p2_count = p2_profile.koins[koin];
     if (next_amount > (unsigned int)p1_count ||
         next_amount > (unsigned int)p2_count) {
         return;
     }
-    g_game_info.pselect.field_1d8 = (int)next_amount;
+    g_game_info.pselect.field_1d8 = next_amount;
 
     proc = find_mkproc_pid(0x20A4);
     if (proc == 0) {

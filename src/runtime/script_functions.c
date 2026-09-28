@@ -2341,7 +2341,7 @@ void drone_blend_to_ani(AnimScript*, int, float);
 int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
-void konquest_use_portal(int, const Vec*, int, float, float, float);
+void konquest_use_portal(int, Vec*, int, float, float, float);
 int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
 int mk_chess_ani_until_reached_destination(int, float, float, float, float, float);
 void mk_chess_force_away(int, int, float, float);
@@ -10549,7 +10549,7 @@ void _start_konquest_interior(void) {
     start_konquest_interior(
         args.raw->slots[0].pointer,
         args.raw->slots[1].pointer,
-        (const void**)args.raw->slots[2].pointer,
+        args.raw->slots[2].pointer,
         args.raw->slots[3].pointer,
         args.raw->slots[4].pointer,
         args.raw->slots[5].pointer,

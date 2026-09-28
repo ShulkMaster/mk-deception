@@ -1720,7 +1720,10 @@ static void set_bone_world_pos_xz(
     }
 }
 
-/* TODO: [near miss] 99.73881%; only six r6/r7 owner/index substitutions remain; one scope control already neutral. */
+static inline RwMatrix* sobj_matrices(MkSobj* sobj) {
+    return sobj->matrices;
+}
+
 void set_bone_world_pos(void* obj, int bone, void* pos) {
     MkObj* mkobj;
     MkBone* mkbone;
@@ -1773,7 +1776,7 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
         RwMatrix* matrices;
 
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
-        if (sobj != 0 && (matrices = sobj->matrices) != 0) {
+        if (sobj != 0 && (matrices = sobj_matrices(sobj)) != 0) {
             for (i = 1; i < (int)mkobj->matrix_count; i++) {
                 matrix_index = mkobj->matrix_indices[i];
                 matrices[matrix_index].pos = matrix->pos;

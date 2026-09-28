@@ -833,8 +833,6 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-/* TODO: [near miss] 97.70%; shared reader init and declaration order fixed the entry;
- * remaining reader coloring/scheduling not yet examined. */
 void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
@@ -868,7 +866,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
         old_index = context->macroblock_index;
         for (;;) {
             int descriptor;
-            int code_length;
+            u8 code_length;
+            u8 encoded_increment;
             int increment;
 
             peek = bits >> 20;
@@ -891,7 +890,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
                 bits <<= code_length;
             }
 
-            increment = ((u32)descriptor >> 4) & 0x3F;
+            encoded_increment = (u32)descriptor >> 2;
+            increment = encoded_increment >> 2;
             if (increment == 34) {
                 continue;
             }
@@ -963,8 +963,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
         words = context->bit_reader.words;
 
         residual_offset = bit_offset & 7;
-        consumed = ((const u8*)words +
-                    ((bit_offset - residual_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) +
+                    ((bit_offset - residual_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len - consumed <= 0x800) {
             SJ_SplitChunk(&context->header_chunk, consumed,

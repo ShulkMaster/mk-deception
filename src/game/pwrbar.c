@@ -135,10 +135,13 @@ static float bar_speed = 0.01f;
 static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object == 0 || object->instance != latch->instance) {
+    if (object != 0) {
+        if (object->instance == latch->instance) {
+            return object;
+        }
         return 0;
     }
-    return object;
+    return 0;
 }
 
 static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
@@ -176,9 +179,9 @@ static inline StringObj* string_latch_object(ScreenLatch* latch) {
 
     if (object != 0) {
         if (object->instance == latch->instance) {
-        } else {
-            object = 0;
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
@@ -190,13 +193,11 @@ static inline ScreenObj* owned_screen_latch_object(ScreenLatch* latch) {
 
     if (object != 0) {
         if (object->instance == latch->instance) {
-        } else {
-            object = 0;
+            return object;
         }
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
 static inline void owned_set_quad_alpha(
@@ -531,25 +532,32 @@ static float p_update_fighting_state_lights(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 95.33%; local register layout and one redundant state store remain. */
 void init_fighting_state_lights(void) {
     FightingLightState* player_1_state =
         fighting_light_state(&g_game_info.plyr0);
     FightingLightState* player_2_state =
         fighting_light_state(&g_game_info.plyr1);
     int player_index;
+    FightingLightState* state;
+    ScreenObj* base;
+    ScreenObj* light;
+    union {
+        unsigned int word;
+        ScreenObjFlags bits;
+    } flags;
 
-    for (player_index = 0; player_index < 2; player_index++) {
-        FightingLightState* state =
-            player_index == 0 ? player_1_state : player_2_state;
-        ScreenObj* base;
-        ScreenObj* light;
-        int flags = 0;
-
+    for (player_index = 0; player_index <= 1; player_index++) {
+        if (player_index == 0) {
+            state = player_1_state;
+        } else {
+            state = player_2_state;
+        }
         state->flags_word = 0;
+        state->flags_word = 0;
+        flags.word = 0;
         if (player_index == 0) {
             base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
+                0x10005, 0x2027, (char*)0x2002B, flags.word, 0x28);
             if (base != 0) {
                 base->x = (screen_width - 0x280) / 2 + 0xAB;
                 base->y = 0x18D;
@@ -557,9 +565,9 @@ void init_fighting_state_lights(void) {
             state->base.object = base;
             state->base.instance = base->instance;
         } else {
-            flags = (unsigned char)flags | 0x20;
+            flags.bits.bit5 = 1;
             base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
+                0x10005, 0x2027, (char*)0x2002B, flags.word, 0x28);
             if (base != 0) {
                 base->x = screen_width - base->pfx2d->tex_w - 0xAC -
                           (screen_width - 0x280) / 2;
@@ -571,7 +579,7 @@ void init_fighting_state_lights(void) {
 
         light = load_2d_pfxobj(
             0x10005, 0x2028, (char*)0x20028,
-            base->flags, 0x25);
+            base->flags_word, 0x25);
         if (light != 0) {
             if (player_index == 0) {
                 light->x = (screen_width - 0x280) / 2 + 0xAB;
@@ -591,7 +599,7 @@ void init_fighting_state_lights(void) {
 
         light = load_2d_pfxobj(
             0x10005, 0x2029, (char*)0x20029,
-            light->flags, 0x26);
+            light->flags_word, 0x26);
         if (light != 0) {
             if (player_index == 0) {
                 light->x = (screen_width - 0x280) / 2 + 0xAB;
@@ -611,7 +619,7 @@ void init_fighting_state_lights(void) {
 
         light = load_2d_pfxobj(
             0x10005, 0x202A, (char*)0x2002A,
-            light->flags, 0x26);
+            light->flags_word, 0x26);
         if (light != 0) {
             if (player_index == 0) {
                 light->x = (screen_width - 0x280) / 2 + 0xAB;
@@ -635,7 +643,7 @@ void init_fighting_state_lights(void) {
     }
 }
 
-/* TODO: [near miss] 95.72%; latch register allocation and branch placement remain. */
+/* TODO: [near miss] 98.02%; latch helpers now return early; register allocation remains. */
 static float p_unhide_pbar_items(void) {
     PbarFadePdata* pdata = (PbarFadePdata*)apdata;
     PbarHideStringItem* string_item;
@@ -680,7 +688,7 @@ static float p_unhide_pbar_items(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 92.47%; four inlined latch branch diamonds remain shorter. */
+/* TODO: [near miss] 99.62%; hide-screen loop swaps latch/screen (r6/r7) vs retail; stop at coloring. */
 void retract_power_bars(void) {
     ScreenObj* p1_back;
     ScreenObj* p1_red;
@@ -718,10 +726,7 @@ void retract_power_bars(void) {
     p1_red = owned_screen_latch_object(&p1_pbar_red_item);
     p2_back = owned_screen_latch_object(&p2_pbar_back_item);
     p2_red = owned_screen_latch_object(&p2_pbar_red_item);
-    if (p1_back == 0 || p2_back == 0 || p1_red == 0) {
-        return;
-    }
-    if (p2_red == 0) {
+    if (p1_back == 0 || p2_back == 0 || p1_red == 0 || p2_red == 0) {
         return;
     }
 
@@ -760,7 +765,6 @@ void retract_power_bars(void) {
     f_powerbars_retracted = 1;
 }
 
-/* TODO: [near miss] 96.13%; four latch branches and one pdata reload remain. */
 static float p_extend_powerbars(void) {
     ScreenObj* p1_back = owned_screen_latch_object(&p1_pbar_back_item);
     ScreenObj* p1_red = owned_screen_latch_object(&p1_pbar_red_item);
@@ -811,10 +815,13 @@ static float p_extend_powerbars(void) {
         p2_red->pfx2d->verts[2].x == p2_bar_red_start) {
         if (_create_mkproc_generic_nostack(
                 0x2094, 0x1F, p_unhide_pbar_items, 0x28, &pdata) != 0) {
-            ((PbarExtendPdata*)pdata)->active = 0;
-            shake_camera(3, pdata, 0.01f);
+            PbarExtendPdata* extend = (PbarExtendPdata*)pdata;
+
+            extend->active = 0;
+            shake_camera(3, &extend->hdr, 0.01f);
             snd_req(0xD9C);
             bar_speed = 0.01f;
+            return -1.0f;
         }
         return -1.0f;
     }
@@ -892,7 +899,7 @@ float p_move_pbars_off_screen(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough needed] 93.78%; six inlined latch diamonds remain shorter. */
+/* TODO: [near miss] 99.54%; first bolt's latch result lands in r5 then mr r3 in retail; coloring only. */
 static void update_combo_break_counts(void) {
     if (g_game_info.plyr0.slot.pdata->breaker_strength !=
         p1_last_combo_break_count) {
@@ -1117,22 +1124,22 @@ int adjust_p1_life(float amount) {
     return depleted;
 }
 
-/* TODO: [breakthrough needed] 91.69%; compare invulnerability branch and life clamp stores. */
 int adjust_player_life(int player_index, float amount) {
     int depleted;
 
-    switch (player_index) {
-    case 0:
+    if (player_index == 0) {
         depleted = 0;
         if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-            (g_game_info.flags & 0x20) == 0) {
+            !g_game_info.flag_bits.lens_flare_enabled) {
             if (g_game_info.plyr0.field_0C <= 0.0f) {
                 depleted = 1;
+            } else {
+                depleted = 0;
             }
         } else {
             if (amount == -1.0f) {
                 g_game_info.plyr0.field_0C = 0.0f;
-            } else if ((g_game_info.field_04 & 0x20) == 0) {
+            } else if (!g_game_info.feature_flags.bits.powerbars_locked) {
                 g_game_info.plyr0.field_0C += amount;
             }
             if (amount > 0.0f) {
@@ -1152,18 +1159,19 @@ int adjust_player_life(int player_index, float amount) {
             }
         }
         return depleted;
-    case 1:
+    } else if (player_index == 1) {
         depleted = 0;
         if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-            (g_game_info.flags & 0x20) == 0) {
-            /* Retail checks player one's life in this invulnerability path. */
+            !g_game_info.flag_bits.lens_flare_enabled) {
             if (g_game_info.plyr0.field_0C <= 0.0f) {
                 depleted = 1;
+            } else {
+                depleted = 0;
             }
         } else {
             if (amount == -1.0f) {
                 g_game_info.plyr1.field_0C = 0.0f;
-            } else if ((g_game_info.field_04 & 0x20) == 0) {
+            } else if (!g_game_info.feature_flags.bits.powerbars_locked) {
                 g_game_info.plyr1.field_0C += amount;
             }
             if (amount > 0.0f) {
@@ -1183,9 +1191,8 @@ int adjust_player_life(int player_index, float amount) {
             }
         }
         return depleted;
-    default:
-        return 0;
     }
+    return 0;
 }
 
 /* TODO: [near miss] 99.13%; shares place_plyr_medals with init_pwr_bars (exact); destroy-loop and medal-row index/x coloring remain. */
@@ -1211,16 +1218,15 @@ static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
 
 
 
-/* TODO: [breakthrough] 93.11%; typed destroy call restored; compare remaining latch branch/load placement. */
 void destroy_pwr_bars(void) {
     MkProc* process;
     ScreenLatch* latch;
     ScreenObj* screen;
     StringObj* string;
     FightingLightState* state;
+    int player_index;
     FightingLightState* player_1_state;
     FightingLightState* player_2_state;
-    int player_index;
     int screen_index;
     int string_index;
     int i;
@@ -1235,7 +1241,7 @@ void destroy_pwr_bars(void) {
         latch = pbar_item_list[screen_index];
         screen = owned_screen_latch_object(latch);
         if (screen != 0 && screen->instance != 0) {
-            screen->vtbl->destroy();
+            screen->typed_vtbl->destroy(screen);
         }
     }
     delete_screen_obj_oid(0x2015);
@@ -1244,35 +1250,36 @@ void destroy_pwr_bars(void) {
         latch = pbar_string_item_list[string_index];
         string = string_latch_object(latch);
         if (string != 0 && string->instance != 0) {
-            string->vtbl->destroy();
+            string->typed_vtbl->destroy(string);
         }
     }
     for (i = 0; i < 8; i++) {
         medal_objs[i] = 0;
     }
-    f_powerbars_retracted = 0;
+    f_powerbars_retracted = player_index = 0;
     player_1_state = fighting_light_state(&g_game_info.plyr0);
     player_2_state = fighting_light_state(&g_game_info.plyr1);
 
-    for (player_index = 0; player_index < 2; player_index++) {
+    for (; player_index <= 1; player_index++) {
         state = player_index == 0 ? player_1_state : player_2_state;
+        state->flags_word = 0;
         state->flags_word = 0;
 
         screen = owned_screen_latch_object(&state->base);
         if (screen != 0 && screen->instance != 0) {
-            screen->vtbl->destroy();
+            screen->typed_vtbl->destroy(screen);
         }
         screen = owned_screen_latch_object(&state->red);
         if (screen != 0 && screen->instance != 0) {
-            screen->vtbl->destroy();
+            screen->typed_vtbl->destroy(screen);
         }
         screen = owned_screen_latch_object(&state->green);
         if (screen != 0 && screen->instance != 0) {
-            screen->vtbl->destroy();
+            screen->typed_vtbl->destroy(screen);
         }
         screen = owned_screen_latch_object(&state->airborne);
         if (screen != 0 && screen->instance != 0) {
-            screen->vtbl->destroy();
+            screen->typed_vtbl->destroy(screen);
         }
         destroy_mkprocs_pid(0x2093);
     }
@@ -1306,7 +1313,6 @@ void init_pwr_bars(void) {
     ScreenObj* object;
     ScreenObj* back;
     StringObj* name;
-    /* Screen flags occupy the leading byte of the API's packed flag word. */
     union {
         int word;
         ScreenObjDrawFlags bits;

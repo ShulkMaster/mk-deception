@@ -28,7 +28,7 @@ int update_storage_status(int flag);
 void fire_screen_studio_event(int id, int arg);
 void reset_sg_status(StorageDevice* device, int slot);
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
-                                           unsigned int region, void* regionBuf, int flag,
+                                           unsigned char region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes);
 int format_card_and_create_mkda_file(int device);
 int gc_delete_file(int device, const char* fileName);
@@ -328,17 +328,17 @@ void erase_player_profile(int device, int slot) {
     }
 }
 
-/* TODO: [near miss] 93.59%; erase path inlined as in retail; residue is device register and save-call argument scheduling. */
+/* TODO: [near miss] 97.64%; pos_device goes through r0 before r27, and retail seeds ok from region's li 1 (mr) in the erase loop. */
 float p_delete_profile(void) {
+    int ok;
+    int region;
+    int slot;
+    int device;
     StorageDevice* storage;
-    unsigned int* freeBlocks;
     int* freeBytes;
+    unsigned int* freeBlocks;
     const char* title;
     int statusChanged;
-    int device;
-    int slot;
-    int region;
-    int ok;
 
     number_profiles = 0;
     position = 0;
@@ -348,8 +348,8 @@ float p_delete_profile(void) {
     pos_slot = -1;
     pprofile_player = menu_player;
 
-    if (menu_player == 0 || menu_player == 1) {
-        pprofile_pad = (&g_game_info.plyr0)[menu_player].pad_index;
+    if (pprofile_player == 0 || pprofile_player == 1) {
+        pprofile_pad = (&g_game_info.plyr0)[pprofile_player].pad_index;
         set_mode_of_play(3);
         push_game_state(0xD);
         set_player_state(&(&g_game_info.plyr0)[pprofile_player], 2);
@@ -402,7 +402,7 @@ float p_delete_profile(void) {
                             while (region < 9 && ok != 0) {
                                 title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
                                 ok = save_konquest_region_to_memcard_w_error(
-                                    device, slot, 5, title, (unsigned char)region,
+                                    device, slot, 5, title, region,
                                     konq_region_data_buffer, 0, freeBlocks,
                                     freeBytes);
                                 if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
@@ -736,24 +736,24 @@ static inline StorageProfileSlot* ppv_profile_at(int device, int slot) {
     return result;
 }
 
-/* TODO: [near miss] 98.65%; exact instruction stream and size; only GPR coloring differs. */
 void ppv_view_profile_icon_list(GVTexturePair out) {
     StorageProfileSlot* profile;
     int i;
+    int device;
+    int slot;
     int before;
     int after;
     int start;
     int count;
-    int device;
-    int slot;
     int steps;
+    int profiles;
 
     device = pos_device;
     slot = pos_slot;
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         out.colors[i] = 0;
     }
-    if (number_profiles == 0) {
+    if ((profiles = number_profiles) == 0) {
         return;
     }
 
@@ -762,10 +762,10 @@ void ppv_view_profile_icon_list(GVTexturePair out) {
         before = position;
     }
     after = 3;
-    if (number_profiles - position <= 3) {
-        after = (number_profiles - position) - 1;
+    if (profiles - position <= 3) {
+        after = profiles - position - 1;
     }
-    count = before + after + (number_profiles != 0);
+    count = before + after + (profiles != 0);
     start = 3 - before;
 
     steps = before;
@@ -774,7 +774,7 @@ void ppv_view_profile_icon_list(GVTexturePair out) {
         steps--;
     }
 
-    for (i = start; i < start + count; i++) {
+    for (i = start; i < count + start; i++) {
         if (i == start) {
             profile = ppv_profile_at(device, slot);
         } else {
@@ -1405,7 +1405,11 @@ char* get_heros_name(int which) {
     return p1_profile.name;
 }
 
-/* TODO: [near miss] 93.50292%; canonical 64-bit category 7/8 read preserves retail behavior; register allocation differs. */
+static inline unsigned long long profile_unlock_bits_masked(
+    ProfileUnlockBits64* bits, unsigned long long mask) {
+    return bits->value & mask;
+}
+
 int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     unsigned long long unlocked;
@@ -1467,7 +1471,7 @@ int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
         }
         bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
         mask = 1ULL << character;
-        unlocked = bits->value & mask;
+        unlocked = profile_unlock_bits_masked(bits, mask);
         break;
     case 9:
         if (character < 0 || character >= 44) {
@@ -1660,12 +1664,12 @@ void summarize_unlocked_items(void) {
 
 static inline int profile_pins_equal(
     PlayerProfile* live, StorageProfileSlot* slot) {
-    unsigned char* live_pin;
     unsigned char* stored_pin;
+    unsigned char* live_pin;
     int i;
 
-    live_pin = live->pin;
     stored_pin = slot->pin;
+    live_pin = live->pin;
     for (i = 0; i < 6; i++) {
         if (*live_pin != *stored_pin) {
             return 0;
@@ -1678,12 +1682,12 @@ static inline int profile_pins_equal(
 
 static inline int profile_names_equal(
     PlayerProfile* live, StorageProfileSlot* slot) {
-    char* live_name;
     char* stored_name;
+    char* live_name;
     int i;
 
-    live_name = live->name;
     stored_name = slot->name;
+    live_name = live->name;
     for (i = 0; i < STORAGE_NAME_LEN; i++) {
         if (*live_name != *stored_name) {
             return 0;
@@ -1701,37 +1705,25 @@ static inline int profile_fully_matches(
     return live->idChecksum == slot->idChecksum;
 }
 
-static inline int profile_fully_matches_snapshot(
-    PlayerProfile* live, StorageProfileSlot* slot, int id_checksum) {
-    if (profile_pins_equal(live, slot) == 0) return 0;
-    if (profile_names_equal(live, slot) == 0) return 0;
-    return id_checksum == slot->idChecksum;
-}
 
 void check_new_mu_for_in_use_profiles(int device) {
-    StorageDevice* new_device;
-    StorageProfileSlot* stored;
     int slot;
     int identity_matches;
-    int id_checksum;
 
-    new_device = DEVICE_AT(device);
-    if (new_device->status != 0) {
+    if (DEVICE_AT(device)->status != 0) {
         return;
     }
 
     if (p1_profile_status == 1) {
-        stored = &DEVICE_AT(p1_profile_device)->profiles[p1_profile_slot];
-        identity_matches = profile_fully_matches(&p1_profile, stored);
+        identity_matches = profile_fully_matches(
+            &p1_profile, &DEVICE_AT(p1_profile_device)->profiles[p1_profile_slot]);
         if (identity_matches == 0) {
-            id_checksum = p1_profile.idChecksum;
             for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-                if (new_device->profiles[slot].present == 1) {
-                    stored = &new_device->profiles[slot];
-                    identity_matches = profile_fully_matches_snapshot(
-                        &p1_profile, stored, id_checksum);
+                if (DEVICE_AT(device)->profiles[slot].present == 1) {
+                    identity_matches = profile_fully_matches(
+                        &p1_profile, &DEVICE_AT(device)->profiles[slot]);
                     if (identity_matches != 0) {
-                        new_device->inUse[slot] = 1;
+                        DEVICE_AT(device)->inUse[slot] = 1;
                         p1_profile_device = device;
                         p1_profile_slot = slot;
                     }
@@ -1743,17 +1735,15 @@ void check_new_mu_for_in_use_profiles(int device) {
     }
 
     if (p2_profile_status == 1) {
-        stored = &DEVICE_AT(p2_profile_device)->profiles[p2_profile_slot];
-        identity_matches = profile_fully_matches(&p2_profile, stored);
+        identity_matches = profile_fully_matches(
+            &p2_profile, &DEVICE_AT(p2_profile_device)->profiles[p2_profile_slot]);
         if (identity_matches == 0) {
-            id_checksum = p2_profile.idChecksum;
             for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-                if (new_device->profiles[slot].present == 1) {
-                    stored = &new_device->profiles[slot];
-                    identity_matches = profile_fully_matches_snapshot(
-                        &p2_profile, stored, id_checksum);
+                if (DEVICE_AT(device)->profiles[slot].present == 1) {
+                    identity_matches = profile_fully_matches(
+                        &p2_profile, &DEVICE_AT(device)->profiles[slot]);
                     if (identity_matches != 0) {
-                        new_device->inUse[slot] = 1;
+                        DEVICE_AT(device)->inUse[slot] = 1;
                         p2_profile_device = device;
                         p2_profile_slot = slot;
                     }
@@ -1781,12 +1771,12 @@ static inline void advance_device_slot(int* device, int* slot) {
     }
 }
 
-/* TODO: [near miss] 99.01%; exact size; residue is pointer-role coloring in the profile search loop. */
+/* TODO: [near miss] 99.67%; first profile_fully_matches slot/pin pointers r8/r6 vs retail r6/r8 remain. */
 int validate_save_location(int player) {
+    StorageProfileSlot* slot;
+    PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
-    PlayerProfile* live;
-    StorageProfileSlot* slot;
     StorageProfileSlot* found;
     int device;
     int slotIndex;
@@ -1801,12 +1791,12 @@ int validate_save_location(int player) {
     }
     if (player == 0) {
         devicePtr = &p1_profile_device;
-        live = &p1_profile;
         slotPtr = &p1_profile_slot;
+        live = &p1_profile;
     } else {
         devicePtr = &p2_profile_device;
-        live = &p2_profile;
         slotPtr = &p2_profile_slot;
+        live = &p2_profile;
     }
     if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES || *slotPtr < 0 ||
         *slotPtr >= STORAGE_MAX_SLOTS) {
@@ -1854,11 +1844,11 @@ int validate_save_location(int player) {
     return 0;
 }
 
-/* TODO: [near miss] 99.06%; exact size; residue is pointer-role coloring in the profile search loop. */
+/* TODO: [near miss] 99.68%; first profile_fully_matches swaps stored/live pin and name temps (r6/r8 vs r8/r6); coloring only. */
 int validate_konq_save_location(int player) {
+    PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
-    PlayerProfile* live;
     StorageProfileSlot* stored;
     StorageProfileSlot* found;
     int device;
@@ -1932,7 +1922,8 @@ int validate_konq_save_location(int player) {
     }
 }
 
-/* TODO: [near miss] 99.37%; exact size; residue is pointer-role coloring in the profile search loop. */
+/* TODO: [near miss] 99.57%; exact size; first profile compare rotates
+ * live pin/slot/stored pin across r7-r9; slot local placement tried. */
 int validate_konq_load_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
@@ -2058,16 +2049,14 @@ static inline int multi_code_matches_pin(
 
 static inline StorageProfileSlot* find_next_matching_profile(
     const unsigned char* code, int* device, int* slot) {
-    int startDevice;
-    int startSlot;
     int walkDevice;
     int walkSlot;
+    int startDevice;
+    int startSlot;
     int first;
 
-    startDevice = *device;
-    startSlot = *slot;
-    walkDevice = startDevice;
-    walkSlot = startSlot;
+    startDevice = walkDevice = *device;
+    startSlot = walkSlot = *slot;
     first = 1;
     advance_device_slot(&walkDevice, &walkSlot);
     while (walkDevice != startDevice || walkSlot != startSlot) {
@@ -2305,7 +2294,6 @@ void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
     }
 }
 
-/* TODO: [near miss] 98.47%; exact instruction stream and size; only GPR coloring differs. */
 static void ppl_get_multi_profile_icons(
     unsigned char* code, GVTexturePair* out, int count) {
     int i;

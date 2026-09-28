@@ -861,23 +861,17 @@ int SoundBuffer_Playable::SetVolume(long volume) {
     return 0;
 }
 
-/* Matched: 100% report-exact; canonical SetFrequency dispatch. */
 int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
-    /* Soft ceiling: ~99.89% -- only the partial-TU floating-constant
-       relocation label differs from retail. */
-    SoundBuffer_Playable* self = this;
     unsigned long scaled_frequency = 0;
     SPSoundEntry* sound = 0;
 
-    if (self->file_entry->sound_table != 0) {
-        sound =
-            SPGetSoundEntry(self->file_entry->sound_table, 0);
+    if (file_entry->sound_table != 0) {
+        sound = SPGetSoundEntry(file_entry->sound_table, 0);
     }
     if (sound != 0) {
-        scaled_frequency =
-            (unsigned long)(sound->sample_rate * frequency);
+        scaled_frequency = (unsigned long)(sound->sample_rate * frequency);
     }
-    return this->SetFrequency(scaled_frequency);
+    return SetFrequency(scaled_frequency);
 }
 
 int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
@@ -1254,7 +1248,7 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
     i_ARQCALLBACK_ReturnArq(request_address);
 }
 
-/* TODO: [near miss] 98.26%; retail zeroes a separate secondary sound late (shared with
+/* TODO: [near miss] 98.32%; retail zeroes a separate secondary sound late (shared with
  * format = 0) but that placement shrinks the frame 0x60->0x50; GPR coloring remains. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
@@ -1362,9 +1356,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 unsigned long address;
                 unsigned long sync;
 
-                address =
-                    ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
-                    voice->pb.addr.currentAddressLo;
+                address = (unsigned long)voice->pb.addr.currentAddressHi << 16;
+                address = address + voice->pb.addr.currentAddressLo;
                 address = base + address;
                 sync = voice->sync | 0x10000;
                 voice->pb.addr.currentAddressLo = address;
@@ -1373,9 +1366,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                     voice->sync = sync;
                 }
 
-                address =
-                    ((unsigned long)voice->pb.addr.endAddressHi << 16) +
-                    voice->pb.addr.endAddressLo;
+                address = (unsigned long)voice->pb.addr.endAddressHi << 16;
+                address = address + voice->pb.addr.endAddressLo;
                 address = base + address;
                 sync = voice->sync | 0x8000;
                 voice->pb.addr.endAddressLo = address;
@@ -1385,9 +1377,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 }
 
                 if (use_loop_address) {
-                    address =
-                        ((unsigned long)voice->pb.addr.loopAddressHi << 16) +
-                        voice->pb.addr.loopAddressLo;
+                    address = (unsigned long)voice->pb.addr.loopAddressHi << 16;
+                    address = address + voice->pb.addr.loopAddressLo;
                     address = base + address;
                     sync = voice->sync | 0x4000;
                     voice->pb.addr.loopAddressLo = address;

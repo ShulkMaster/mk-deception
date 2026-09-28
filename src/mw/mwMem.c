@@ -152,7 +152,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
 }
 
 #pragma dont_inline on
-/* TODO: [breakthrough needed] 99.64%; diagnostic string-pool relocation remains; verify pool extent. */
+/* TODO: [near miss] 100% instruction-exact, not link-exact: the diagnostic string relocates to the hand-built stringBase0 instead of retail's anonymous @stringBase0 (TU string pool). */
 static void privWipeVirtual(_mwMemHeap* virtualHeap) {
     _mwMemHeap* heap;
     MwMemUsedHeader* usedHdr;

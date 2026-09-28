@@ -179,9 +179,6 @@ MkFlippedBoneMap flipped_human_bones = {
     sizeof(_flipped_human_bones) / sizeof(_flipped_human_bones[0]),
     _flipped_human_bones
 };
-extern float game_speed;
-extern int exec_tick_ctr;
-extern MkVtable5 vtbl_mkpdata_anim;
 extern unsigned char shared_ani[];
 
 float mka_next_fno;
@@ -239,11 +236,6 @@ static RpAtomic* atomic_set_HAnimHierarchy(
 static RwFrame* get_child_frame_hierarchy(
     RwFrame* frame, void* out_data);
 
-/*
- * Animation scripts are retail packed blobs with offsets relative to their
- * own base. Keep the byte walk isolated here instead of open-coding casts at
- * each consumer.
- */
 static inline void* anim_script_data(const void* script, unsigned int offset) {
     return (unsigned char*)script + offset;
 }
@@ -264,16 +256,9 @@ static inline float anim_last_frame(const AnimScript* script) {
 
 static inline void select_flip_map(
     AnimPdata* anim, const unsigned int* flags) {
-    MkObj* obj = anim->obj;
+    MkObj* obj = transition_anim_object(anim);
     int flipped;
 
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
     flipped = obj != 0 && obj->hide_flag_bits.bit6 != 0;
 
     if ((*flags & 8) != 0) {
@@ -298,11 +283,14 @@ static inline void add_script_loop_offset(
     if (script == 0) {
         return;
     }
-    scaled_x = (float)script->loop_offset_x * scale;
+    scaled_x = script->loop_offset_x;
+    scaled_x *= scale;
     offset->x = flip_factor * scaled_x + offset->x;
-    scaled_y = (float)script->loop_offset_y * scale;
+    scaled_y = script->loop_offset_y;
+    scaled_y *= scale;
     offset->y = offset->y + scaled_y;
-    scaled_z = (float)script->loop_offset_z * scale;
+    scaled_z = script->loop_offset_z;
+    scaled_z *= scale;
     offset->z = offset->z + scaled_z;
     *angle = norm_angle(*angle);
 }
@@ -317,11 +305,14 @@ static inline void subtract_script_loop_offset(
     if (script == 0) {
         return;
     }
-    scaled_x = (float)script->loop_offset_x * scale;
+    scaled_x = script->loop_offset_x;
+    scaled_x *= scale;
     offset->x = -(flip_factor * scaled_x - offset->x);
-    scaled_y = (float)script->loop_offset_y * scale;
+    scaled_y = script->loop_offset_y;
+    scaled_y *= scale;
     offset->y = offset->y - scaled_y;
-    scaled_z = (float)script->loop_offset_z * scale;
+    scaled_z = script->loop_offset_z;
+    scaled_z *= scale;
     offset->z = offset->z - scaled_z;
     *angle = norm_angle(*angle);
 }
@@ -329,12 +320,12 @@ static inline void subtract_script_loop_offset(
 static inline void rebuild_anim_track_table(AnimPdata* anim) {
     AnimScript* script = anim->script;
     int track_count = script->track_count;
-    AnimChannelHeader* track;
     void** track_data;
+    AnimChannelHeader* track;
+    int i;
 
     if (anim->track_capacity < track_count) {
-        /* Current and previous scripts each own one pointer per channel. */
-        void** table = (void**)get_mem(2 * track_count * sizeof(*anim->track_data));
+        void** table = get_mem(2 * track_count * sizeof(*anim->track_data));
 
         if (anim->track_capacity != 0) {
             memcpy(
@@ -353,16 +344,13 @@ static inline void rebuild_anim_track_table(AnimPdata* anim) {
     }
     track = script->tracks;
     track_data = anim->track_data;
-    while (track_count > 0) {
-        *track_data = anim_script_data(script, track->data_offset);
-        track_data++;
+    for (i = 0; i < track_count; i++) {
+        track_data[i] = anim_script_data(script, track->data_offset);
         track++;
-        track_count--;
     }
     anim->tag_frame =
-        (AnimTagFrame*)anim_script_data(script, track->data_offset);
-    anim->tag_frame = (AnimTagFrame*)anim_script_data(
-        script, script->tag_data_offset);
+        anim_script_data(script, track->data_offset);
+    anim->tag_frame = anim_script_data(script, script->tag_data_offset);
 }
 
 static inline int mkptr_list_exists(MkPtr** list) {
@@ -452,15 +440,19 @@ static void do_morph(MkHdr* hdr) {
     }
 }
 
+/* TODO: [near miss] 99.91%; only fcmpu operand order for span versus zero
+ * differs; equality branch and all other instructions match. */
 int pose_morph(MkHdr* hdr) {
     int result;
     int next_target;
     MorphState* morph;
     MorphFrameHeader* frame;
-    float position;
-    float previous_position;
-    float fraction;
     float span;
+    float fraction;
+    float remaining;
+    float previous_position;
+    float next_position;
+    float position;
     int target;
 
     morph = (MorphState*)hdr;
@@ -470,53 +462,52 @@ int pose_morph(MkHdr* hdr) {
     morph->current_frame =
         morph_find_frame(morph, morph->current_frame);
 
-    /* Both exact-frame paths share the same header decode. */
-    do {
-        if (mka_next_fno == mka_sought_fno) {
-            frame = (MorphFrameHeader*)mka_next_fp;
-        } else if (mka_prev_fno == mka_sought_fno) {
-            frame = (MorphFrameHeader*)mka_prev_fp;
+    if (mka_next_fno == mka_sought_fno) {
+        frame = (MorphFrameHeader*)mka_next_fp;
+    } else if (mka_prev_fno == mka_sought_fno) {
+        frame = (MorphFrameHeader*)mka_prev_fp;
+    } else {
+        MorphFrameHeader* previous_frame;
+        MorphFrameHeader* next_frame;
+
+        span = mka_next_fno - mka_prev_fno;
+        if (span != 0.0f) {
+            fraction = (mka_next_fno - mka_sought_fno) / span;
         } else {
-            MorphFrameHeader* previous_frame;
-            MorphFrameHeader* next_frame;
-
-            span = mka_next_fno - mka_prev_fno;
-            if (span != 0.0f) {
-                fraction = (mka_next_fno - mka_sought_fno) / span;
-            } else {
-                fraction = 0.0f;
-            }
-            next_frame = (MorphFrameHeader*)mka_next_fp;
-            previous_frame = (MorphFrameHeader*)mka_prev_fp;
-            next_target = next_frame->next_target;
-            previous_position = previous_frame->position;
-            target = next_frame->target;
-            if (previous_frame->next_target != next_target) {
-                previous_position = 0.0f;
-            }
-            position =
-                previous_position * fraction +
-                next_frame->position * (1.0f - fraction);
-            break;
+            fraction = 0.0f;
         }
-
-        target = frame->target;
-        next_target = frame->next_target;
-        position = frame->position;
-    } while (0);
+        remaining = 1.0f - fraction;
+        next_frame = (MorphFrameHeader*)mka_next_fp;
+        previous_frame = (MorphFrameHeader*)mka_prev_fp;
+        next_target = next_frame->next_target;
+        previous_position = previous_frame->position;
+        next_position = next_frame->position;
+        target = next_frame->target;
+        if (previous_frame->next_target != next_target) {
+            previous_position = 0.0f;
+        }
+        position =
+            previous_position * fraction +
+            next_position * remaining;
+        goto frame_decoded;
+    }
+    target = frame->target;
+    next_target = frame->next_target;
+    position = frame->position;
+frame_decoded:
 
     morph->interpolator->position = position;
     morph->interpolator->flags |= 3;
     if ((morph->interpolator->flags & 4) == 0 &&
         morph->atomic->object.parent != 0) {
-        RwFrameUpdateObjects((RwFrame*)morph->atomic->object.parent);
+        RwFrameUpdateObjects(morph->atomic->object.parent);
     }
     if (morph->interpolator->startMorphTarget != target) {
         morph->interpolator->startMorphTarget = target;
         morph->interpolator->flags |= 3;
         if ((morph->interpolator->flags & 4) == 0 &&
             morph->atomic->object.parent != 0) {
-            RwFrameUpdateObjects((RwFrame*)morph->atomic->object.parent);
+            RwFrameUpdateObjects(morph->atomic->object.parent);
         }
     }
     if (morph->interpolator->endMorphTarget != next_target) {
@@ -524,7 +515,7 @@ int pose_morph(MkHdr* hdr) {
         morph->interpolator->flags |= 3;
         if ((morph->interpolator->flags & 4) == 0 &&
             morph->atomic->object.parent != 0) {
-            RwFrameUpdateObjects((RwFrame*)morph->atomic->object.parent);
+            RwFrameUpdateObjects(morph->atomic->object.parent);
         }
     }
     return result;
@@ -651,7 +642,7 @@ static unsigned short* morph_find_frame(
             mka_prev_fno = mka_next_fno;
             mka_prev_fp = mka_next_fp;
             mka_next_fp = (unsigned short*)(
-                (unsigned char*)mka_next_fp + mka_bytes_per_frame);
+                (unsigned char*)mka_prev_fp + mka_bytes_per_frame);
             mka_next_fno = (float)*mka_next_fp;
         }
         return mka_next_fp;
@@ -661,7 +652,7 @@ static unsigned short* morph_find_frame(
         mka_next_fno = mka_prev_fno;
         mka_next_fp = mka_prev_fp;
         mka_prev_fp = (unsigned short*)(
-            (unsigned char*)mka_prev_fp - mka_bytes_per_frame);
+            (unsigned char*)mka_next_fp - mka_bytes_per_frame);
         mka_prev_fno = (float)*mka_prev_fp;
     }
     return mka_prev_fp;
@@ -681,9 +672,9 @@ MorphState* obj_start_morph(
         if (sobj_id != 0) {
             char message[80];
 
-            sobj = (MkSobj*)obj_find_sobj_by_id(obj, sobj_id);
+            sobj = obj_find_sobj_by_id(obj, sobj_id);
             if (sobj == 0) {
-                sobj = (MkSobj*)obj_create_sobjs_by_id(obj, sobj_id);
+                sobj = obj_create_sobjs_by_id(obj, sobj_id);
             }
             if (sobj != 0) {
                 morph->atomic = sobj->atomic;
@@ -803,25 +794,27 @@ BoneMatcherState* start_bone_matcher(
 
 static inline void compose_bone_rotation(
     Quat* out, const Quat* parent, const Quat* target) {
+    float dot = parent->z * target->z +
+        (parent->x * target->x + parent->y * target->y);
     float cross_x =
         parent->y * target->z - parent->z * target->y;
     float cross_y =
         parent->z * target->x - parent->x * target->z;
     float cross_z =
         parent->x * target->y - parent->y * target->x;
+    float pw = parent->w;
+    float tw = target->w;
 
     out->x = cross_x;
     out->y = cross_y;
     out->z = cross_z;
-    out->x += target->x * parent->w;
-    out->y += target->y * parent->w;
-    out->z += target->z * parent->w;
-    out->w = parent->w * target->w -
-        (parent->z * target->z +
-         (parent->x * target->x + parent->y * target->y));
-    out->x += parent->x * target->w;
-    out->y += parent->y * target->w;
-    out->z += parent->z * target->w;
+    out->x += target->x * pw;
+    out->y += target->y * pw;
+    out->z += target->z * pw;
+    out->w = pw * tw - dot;
+    out->x += parent->x * tw;
+    out->y += parent->y * tw;
+    out->z += parent->z * tw;
 }
 
 static inline MkObj* bone_matcher_state_live_parent_obj(BoneMatcherState* owner) {
@@ -867,7 +860,7 @@ static inline MkSobj* bone_matcher_state_live_clone_obj(BoneMatcherState* owner)
 
 
 
-/* TODO: [breakthrough needed] 90.898490%; FP ordering and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 97.11%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -1151,6 +1144,8 @@ static float p_anim_reset_weight_idle(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 98.67%; shared transition CFG matches; only hand script
+ * pointer and frame load order differs at the call; stop at scheduling. */
 static float p_pose_handanim(void) {
     if (anim_pdata->hand_transition > 0.0f) {
         if (anim_pdata->hand_anim_script != 0 &&
@@ -1167,15 +1162,11 @@ static float p_pose_handanim(void) {
             anim_pdata->frame_callback = 0;
             rebuild_anim_track_table(anim_pdata);
 
-            transition_to_anim_script_frame(
-                anim_pdata->hand_transition_frames,
-                0.0f,
-                anim_pdata,
-                anim_pdata->hand_anim_script,
-                anim_pdata->hand_flags | 0x80);
+            goto transition_hand;
         } else if (anim_pdata->hand_anim_script != 0 &&
                    anim_pdata->script != anim_pdata->hand_anim_script) {
             if (anim_pdata->hand_transition_frames < 1.0f) {
+transition_hand:
                 transition_to_anim_script_frame(
                     anim_pdata->hand_transition_frames,
                     0.0f,
@@ -1206,27 +1197,26 @@ static float p_pose_handanim(void) {
     return 0.0f;
 }
 
-/*
- * Retail retains a redundant successful-instance join branch here. When this
- * helper is inlined, the remaining p_animate/advance_anim differences are that
- * branch and FPR coloring in the two otherwise identical frame clamps.
- */
+static inline float anim_step_limit(AnimScript* script, float step) {
+    float maximum_step = (float)script->frame_count / 3.0f;
+    int maximum_step_int = (int)maximum_step;
+    if (step > 0.0f) {
+        if (step > maximum_step) {
+            step = (float)maximum_step_int;
+        }
+    } else if (step < -maximum_step) {
+        step = (float)-maximum_step_int;
+    }
+    return step;
+}
+
 static inline int advance_anim_state(AnimPdata* anim) {
     MkObj* obj;
     float speed;
-    float frame_step;
-    float maximum_step;
-    int maximum_step_int;
 
     obj = anim->obj;
     speed = game_speed;
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = transition_anim_object(anim);
     if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
         speed = 1.0f;
     }
@@ -1252,31 +1242,13 @@ static inline int advance_anim_state(AnimPdata* anim) {
     }
 
     if (anim->transition_weight < 1.0f) {
-        maximum_step = (float)anim->old_script->frame_count / 3.0f;
-        maximum_step_int = (int)maximum_step;
-        frame_step = speed * (anim->old_step + anim->old_step_accel);
-        if (frame_step > 0.0f) {
-            if (frame_step > maximum_step) {
-                frame_step = (float)maximum_step_int;
-            }
-        } else if (frame_step < -maximum_step) {
-            frame_step = (float)-maximum_step_int;
-        }
-        anim->old_frame += frame_step;
+        anim->old_frame += anim_step_limit(
+            anim->old_script, speed * (anim->old_step + anim->old_step_accel));
     }
 
     anim->previous_frame = anim->frame;
-    maximum_step = (float)anim->script->frame_count / 3.0f;
-    maximum_step_int = (int)maximum_step;
-    frame_step = speed * (anim->step + anim->step_accel);
-    if (frame_step > 0.0f) {
-        if (frame_step > maximum_step) {
-            frame_step = (float)maximum_step_int;
-        }
-    } else if (frame_step < -maximum_step) {
-        frame_step = (float)-maximum_step_int;
-    }
-    anim->frame += frame_step;
+    anim->frame += anim_step_limit(
+        anim->script, speed * (anim->step + anim->step_accel));
     if (anim->frame < anim->low_frame ||
         anim->frame >= anim->high_frame + 1.0f) {
         return 0;
@@ -1304,31 +1276,16 @@ static void ps_anim(void) {
 }
 
 void pw_anim(void) {
-    MkObj* obj;
-    PlyrPdata* owner;
-
     anim_pdata = (AnimPdata*)apdata;
-    obj = anim_pdata->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != anim_pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
-    anim_obj = obj;
-    if (obj == 0) {
+    anim_obj = (anim_pdata->obj != 0)
+                   ? ((anim_pdata->obj->hdr.instance == anim_pdata->obj_instance) ? anim_pdata->obj : 0)
+                   : 0;
+    if (anim_obj == 0) {
         mkproc_die();
     }
-    owner = anim_pdata->owner;
-    if (owner != 0) {
-        if (owner->instance != anim_pdata->owner_instance) {
-            owner = 0;
-        }
-    } else {
-        owner = 0;
-    }
-    plyr_pdata = owner;
+    plyr_pdata = (anim_pdata->owner != 0)
+                     ? ((anim_pdata->owner->instance == anim_pdata->owner_instance) ? anim_pdata->owner : 0)
+                     : 0;
 }
 
 int advance_anim(AnimPdata* anim) {
@@ -2661,7 +2618,7 @@ static void apply_anim_offset(
     offset->y *= root_weight;
     offset->z *= root_weight;
 
-    if (apply_to_object != 0 && anim->obj_movement_weight != 0.0f) {
+    if (apply_to_object != 0 && anim->obj_movement_weight) {
         v3_x_mat(&world_delta, &delta, obj->field_24);
         object_scale = frame_scale * anim->obj_movement_weight;
         world_delta.x *= object_scale;
@@ -2766,7 +2723,7 @@ static unsigned short* find_frame(unsigned short* current) {
             mka_prev_fp = mka_next_fp;
             mka_prev_fno = mka_next_fno;
             mka_next_fp = (unsigned short*)(
-                (unsigned char*)mka_next_fp + mka_bytes_per_frame);
+                (unsigned char*)mka_prev_fp + mka_bytes_per_frame);
             mka_next_fno = (float)*mka_next_fp;
         }
         return mka_next_fp;
@@ -2778,7 +2735,7 @@ static unsigned short* find_frame(unsigned short* current) {
         mka_next_fp = mka_prev_fp;
         mka_next_fno = mka_prev_fno;
         mka_prev_fp = (unsigned short*)(
-            (unsigned char*)mka_prev_fp - mka_bytes_per_frame);
+            (unsigned char*)mka_next_fp - mka_bytes_per_frame);
         mka_prev_fno = (float)*mka_prev_fp;
     }
     return mka_prev_fp;
@@ -2822,6 +2779,8 @@ static int _set_old_frameno(AnimPdata* anim) {
             break;
         case 3:
             anim->old_frame = anim->old_low_frame;
+            break;
+        case 4:
             break;
         }
         if (anim->old_frame_callback != 0) {
@@ -2919,6 +2878,8 @@ static int _set_frameno(AnimPdata* anim) {
             break;
         case 3:
             anim->frame = anim->low_frame;
+            break;
+        case 4:
             break;
         }
         if (anim->frame_callback != 0) {
@@ -3232,7 +3193,7 @@ static inline MkObj* animation_live_obj(AnimPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 96.486275%; register coloring, stack layout; one-trial ceiling. */
+/* TODO: [near miss] 99.41%; frame span matches; first live obj/root bone/rotation take r26/r27/r29 (retail r31/r26/r27). */
 int set_anim_script_frame(
     float frame,
     AnimPdata* anim,
@@ -3273,11 +3234,11 @@ int set_anim_script_frame(
     rebuild_anim_track_table(anim);
 
     if ((flags & 0x10) != 0) {
-        anim->frame =
-            anim->old_frame /
-            (float)(anim->old_script->frame_count - 1) *
-            (float)(anim->script->frame_count - 1);
-        anim->previous_frame = anim->frame;
+        float ratio = anim->old_frame / (float)(anim->old_script->frame_count - 1);
+        float mapped_frame = ratio * (float)(anim->script->frame_count - 1);
+
+        anim->frame = mapped_frame;
+        anim->previous_frame = mapped_frame;
     }
 
     if ((flags & 0x80) == 0) {
@@ -3291,7 +3252,7 @@ int set_anim_script_frame(
                 MkBone* root = obj->bones[obj->fallback_bone_index];
 
                 if (root != 0 && root->parent_matrix != 0) {
-                    MKMATRIX yaw_matrix __attribute__((aligned(16)));
+                    MKMATRIX yaw_matrix;
                     Vec adjusted_position;
                     Quat old_rotation;
                     Quat correction;
@@ -3376,8 +3337,7 @@ void anim_set_hiframe(AnimPdata* anim, float frame) {
     anim->high_frame = frame;
 }
 
-/* Soft ceiling: exact-size integer conversion; one constant load is scheduled earlier. */
-float anim_script_lastframe(const AnimScript* script) {
+float anim_script_lastframe(AnimScript* script) {
     return (float)(script->frame_count - 1);
 }
 
@@ -3517,6 +3477,7 @@ AnimPdata* get_mkpdata_anim(void) {
     return anim;
 }
 
+/* TODO: [near miss] 99.33962%; cloth-loop offset and bone pointer use r5/r7 opposite retail. */
 int obj_get_bid_for_tid(MkObj* obj, int tag) {
     unsigned int bone_index = tag & 0xFFF;
     unsigned int i;
@@ -3575,9 +3536,9 @@ int build_bones_tbl(MkObj* obj, const int* tags) {
     clump = obj->clump;
     hierarchy = 0;
     RwFrameForAllChildren(
-        (RwFrame*)clump->object.parent,
+        clump->object.parent,
         get_child_frame_hierarchy,
-        (void*)&hierarchy);
+        &hierarchy);
     if (hierarchy == 0) {
         return 0;
     }
@@ -3588,7 +3549,7 @@ int build_bones_tbl(MkObj* obj, const int* tags) {
             bone_count++;
         }
     }
-    obj->bones = (MkBone**)get_mem(bone_count * sizeof(MkBone*));
+    obj->bones = get_mem(bone_count * sizeof(MkBone*));
     if (obj->bones == 0) {
         return 0;
     }
@@ -3600,7 +3561,7 @@ int build_bones_tbl(MkObj* obj, const int* tags) {
 }
 
 MkBone* alloc_bone(void) {
-    MkBone* bone = (MkBone*)get_mem(sizeof(MkBone));
+    MkBone* bone = get_mem(sizeof(MkBone));
 
     if (bone != 0) {
         int count;
@@ -3659,8 +3620,9 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough needed] 91.98%; unroll controls have no effect; inspect remaining loop diffs. */
+/* TODO: [breakthrough] 94.55%; bone-loop register lifetimes (bone/next_unmapped/index colors) remain. */
 static void process_obj_bones(MkObj* obj, const int* tags) {
+    RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
     RpHAnimHierarchy* hierarchy;
     MkBone* parent_stack[256];
@@ -3676,7 +3638,7 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
     int i;
 
     RwFrameForAllChildren(
-        (RwFrame*)obj->clump->object.parent,
+        clump->object.parent,
         get_child_frame_hierarchy,
         &found_hierarchy);
     hierarchy = found_hierarchy;
@@ -3749,6 +3711,7 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
         MkBone* bone;
         BoneScanContext context;
+        RwMatrix* scan_matrix;
 
         if (bone_indices[i] > -1) {
             bone = obj->bones[bone_indices[i]];
@@ -3783,18 +3746,15 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         context.bone_index = i;
         RpClumpForAllAtomics(
             obj->clump, ScanForBone_callback, &context);
-        {
-            RwMatrix* scan_matrix = context.matrix;
-
-            if (scan_matrix != 0) {
-                bone->bind_offset.x = -scan_matrix->pos.x;
-                bone->bind_offset.y = -scan_matrix->pos.y;
-                bone->bind_offset.z = -scan_matrix->pos.z;
-            } else {
-                bone->bind_offset.x = 0.0f;
-                bone->bind_offset.y = 0.0f;
-                bone->bind_offset.z = 0.0f;
-            }
+        scan_matrix = context.matrix;
+        if (scan_matrix != 0) {
+            bone->bind_offset.x = -scan_matrix->pos.x;
+            bone->bind_offset.y = -scan_matrix->pos.y;
+            bone->bind_offset.z = -scan_matrix->pos.z;
+        } else {
+            bone->bind_offset.x = 0.0f;
+            bone->bind_offset.y = 0.0f;
+            bone->bind_offset.z = 0.0f;
         }
 
         if (parent != 0) {
@@ -3896,6 +3856,7 @@ static inline void quat_to_normalized_matrix(
     matrix->up.x = xy - zw;
 }
 
+/* TODO: [breakthrough needed] 84.65%; retail tests transform_parent twice (detach block), inlined quat->matrix FPR order differs; detach helpers grow the frame. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     MkBone* parent = bone->transform_parent;
     Vec displacement;
@@ -3912,13 +3873,11 @@ static void _bone_make_parents_my_children(MkBone* bone) {
     } else {
         MkBone* sibling = parent->tree_child;
         while (sibling != 0) {
-            MkBone* next = sibling->tree_next;
-
-            if (next == bone) {
+            if (sibling->tree_next == bone) {
                 sibling->tree_next = bone->tree_next;
                 break;
             }
-            sibling = next;
+            sibling = sibling->tree_next;
         }
     }
     bone->transform_parent = 0;
@@ -3926,11 +3885,13 @@ static void _bone_make_parents_my_children(MkBone* bone) {
 
     _bone_make_parents_my_children(parent);
     if (parent->tree_next == 0) {
+        MkBone* child;
+
         bone->flags_54_bits.has_children = 1;
-        if (bone->tree_child == 0) {
+        child = bone->tree_child;
+        if (child == 0) {
             bone->tree_child = parent;
         } else {
-            MkBone* child = bone->tree_child;
             while (child->tree_next != 0) {
                 child = child->tree_next;
             }

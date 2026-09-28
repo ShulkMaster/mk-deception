@@ -173,10 +173,10 @@ static const Vec UNITVECT_Y = {0.0f, 1.0f, 0.0f};
         inward.y = edge.z * normal.x - edge.x * normal.z; \
         inward.z = edge.x * normal.y - edge.y * normal.x; \
         normalize_v3(&inward); \
-        point_side = inward.x * point->x + inward.y * point->y + \
-                     inward.z * point->z; \
         vertex_side = inward.x * (current)->x + inward.y * (current)->y + \
                       inward.z * (current)->z; \
+        point_side = inward.x * point->x + inward.y * point->y + \
+                     inward.z * point->z; \
         if (point_side > vertex_side) { \
             return 0; \
         } \
@@ -211,14 +211,6 @@ int collide_shape_vs_plyr(
     PlyrInfo* player, const CollisionShape* shape);
 static CollisionObj* convert_cdf_quad_to_collision_box(
     const Vec* vertices, const Vec* angles, const Vec* position);
-/*
- * Soft ceiling: retail m2c and both callers confirm the vertex selection,
- * XZ radius, optional transform/translation, allocation, and cylinder layout.
- * Retail dynamically aligns this function's local MKMATRIX to 16 bytes;
- * portable C under the authentic TU flags emits a fixed frame. The 664-byte
- * bodies are equal in size, and the residual records cascade from stack
- * offsets, GPR/FPR allocation, fused arithmetic scheduling, and relocations.
- */
 static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     const Vec* vertices, const Vec* angles, const Vec* position);
 ArenaObstacle* get_obstacle(void);
@@ -365,8 +357,8 @@ static inline int collision_point_within_face(
 }
 static inline int collision_point_inside_shape(
     const CollisionShape* shape, const Vec* point) {
-    float projection;
     float radius = 0.0f;
+    float projection;
 
     switch (shape->type & 7) {
     case 2: {
@@ -375,9 +367,9 @@ static inline int collision_point_inside_shape(
         float dx;
         float dz;
 
-        dx = point->x - shape->cylinder_center.x;
         dz = point->z - shape->cylinder_center.z;
         collision_radius = shape->cylinder_radius + radius;
+        dx = point->x - shape->cylinder_center.x;
         distance = dx * dx + dz * dz;
         if (distance < collision_radius * collision_radius) {
             return 1;
@@ -385,31 +377,27 @@ static inline int collision_point_inside_shape(
         return 0;
     }
     case 3: {
-        float point_x = point->x;
-        float point_y = point->y;
-        float point_z = point->z;
-
-        projection = shape->box_axis_2.y * point_y;
-        projection += shape->box_axis_2.x * point_x;
-        projection += shape->box_axis_2.z * point_z;
+        projection = shape->box_axis_2.x * point->x +
+                     shape->box_axis_2.y * point->y +
+                     shape->box_axis_2.z * point->z;
         if (projection >= shape->box_axis_2_min + radius) {
             return 0;
         }
         if (projection <= shape->box_axis_2_max - radius) {
             return 0;
         }
-        projection = shape->box_axis_1.y * point_y;
-        projection += shape->box_axis_1.x * point_x;
-        projection += shape->box_axis_1.z * point_z;
+        projection = shape->box_axis_1.x * point->x +
+                     shape->box_axis_1.y * point->y +
+                     shape->box_axis_1.z * point->z;
         if (projection >= shape->box_axis_1_max + radius) {
             return 0;
         }
         if (projection <= shape->box_axis_1_min - radius) {
             return 0;
         }
-        projection = shape->box_axis_0.y * point_y;
-        projection += shape->box_axis_0.x * point_x;
-        projection += shape->box_axis_0.z * point_z;
+        projection = shape->box_axis_0.x * point->x +
+                     shape->box_axis_0.y * point->y +
+                     shape->box_axis_0.z * point->z;
         if (projection >= shape->box_axis_0_min + radius) {
             return 0;
         }
@@ -986,8 +974,7 @@ void repel_against_obstacle_list(
     length = 0.0f;
     if (length_bits.value > 0.0f) {
         guess_bits.bits =
-            (*(unsigned short*)((char*)GXMathSqrtTable +
-              ((length_bits.bits >> 10) & 0x3FFE)) << 8) |
+            (GXMathSqrtTable[(length_bits.bits >> 11) & 0x1FFF] << 8) |
             ((((length_bits.bits & 0x7F800000) + 0x3F800000) >> 1) &
              0x7F800000);
         guess = guess_bits.value;
@@ -1243,8 +1230,8 @@ int repel_point_against_global_collision_list_toward_target(
     const Vec* target, const Vec* start, Vec* result_point,
     unsigned int ignored_flags) {
     CollisionObjRef collision;
-    MkPtr* item;
     MkPtr* next;
+    MkPtr* item;
     Vec direction;
     float segment_length;
     float closest;
@@ -1252,7 +1239,13 @@ int repel_point_against_global_collision_list_toward_target(
     int inside;
 
     closest = -__float_max[0];
-    if (target == 0 || start == 0 || result_point == 0) {
+    if (target == 0) {
+        return 0;
+    }
+    if (start == 0) {
+        return 0;
+    }
+    if (result_point == 0) {
         return 0;
     }
     segment_length = uv_v3_to_v3_dist(&direction, start, target);
@@ -1268,7 +1261,7 @@ int repel_point_against_global_collision_list_toward_target(
                 continue;
             }
             if ((collision.object->flags & ignored_flags) == 0 &&
-                (collision.object->shape.type & 7) != 4) {
+                (int)(collision.object->shape.type & 7) != 4) {
                 inside = collision_point_inside_shape(
                     &collision.object->shape, target);
                 if (inside != 0) {
@@ -1627,8 +1620,7 @@ static float ray_intersection_with_shape(
         root = 0.0f;
         if (root_input.value > 0.0f) {
             root_guess.bits =
-                (*(unsigned short*)((char*)GXMathSqrtTable +
-                  ((root_input.bits >> 10) & 0x3FFE)) << 8) |
+                (GXMathSqrtTable[(root_input.bits >> 11) & 0x1FFF] << 8) |
                 ((((root_input.bits & 0x7F800000) + 0x3F800000) >> 1) &
                  0x7F800000);
             root = 0.5f * root_guess.value *
@@ -1922,6 +1914,7 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
     return collision;
 }
 
+/* TODO: [breakthrough needed] 46.48%; aligned MKMATRIX frame now matches retail's stwux prologue; stack offsets and FP scheduling remain. */
 static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     const Vec* vertices, const Vec* angles, const Vec* position) {
     union {
@@ -1972,8 +1965,7 @@ static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     radius = 0.0f;
     if (length_bits.value > 0.0f) {
         guess_bits.bits =
-            (*(unsigned short*)((char*)GXMathSqrtTable +
-              ((length_bits.bits >> 10) & 0x3FFE)) << 8) |
+            (GXMathSqrtTable[(length_bits.bits >> 11) & 0x1FFF] << 8) |
             ((((length_bits.bits & 0x7F800000) + 0x3F800000) >> 1) &
              0x7F800000);
         radius = 0.5f * guess_bits.value *
@@ -2471,8 +2463,7 @@ static int repel_cylinders(
             distance = 0.0f;
             if (distance_bits.value > 0.0f) {
                 guess_bits.bits =
-                    (*(unsigned short*)((char*)GXMathSqrtTable +
-                      ((distance_bits.bits >> 10) & 0x3FFE)) << 8) |
+                    (GXMathSqrtTable[(distance_bits.bits >> 11) & 0x1FFF] << 8) |
                     ((((distance_bits.bits & 0x7F800000) +
                        0x3F800000) >> 1) & 0x7F800000);
                 distance = 0.5f * guess_bits.value *
@@ -2519,8 +2510,7 @@ static int repel_cylinders(
         turn_distance = 0.0f;
         if (distance_bits.value > 0.0f) {
             guess_bits.bits =
-                (*(unsigned short*)((char*)GXMathSqrtTable +
-                  ((distance_bits.bits >> 10) & 0x3FFE)) << 8) |
+                (GXMathSqrtTable[(distance_bits.bits >> 11) & 0x1FFF] << 8) |
                 ((((distance_bits.bits & 0x7F800000) + 0x3F800000) >> 1) &
                  0x7F800000);
             turn_distance = 0.5f * guess_bits.value *
@@ -3219,7 +3209,7 @@ int collide_plyr_vs_plyr(void) {
     for (saved_index = 0; saved_index < saved_count; saved_index++) {
         saved_regions[saved_index] = source_regions[saved_index];
     }
-    ((PlayerCollisionData*)collision)->field_93F4 = 0;
+    (collision)->field_93F4 = 0;
     return 0;
 }
 
@@ -3590,18 +3580,18 @@ static void xz_unit_vector_to_shape(
     result->y = 0.0f;
 }
 
+/* TODO: [near miss] 95.59%; retail frame is 0x10 larger and loads the saved render states into r29-r31 right after the set_render_state calls. */
 void render_collision_regions(void) {
     union {
         MkHdr* hdr;
         CollisionObjList* list;
     } shadow_list;
-    RwMatrix camera_matrix;
+    MKMATRIX camera_matrix;
     MkPtr* item;
     MkPtr* next;
     int state_1;
     int state_6;
     int state_8;
-    unsigned char render_flags;
 
     if ((g_game_info.pause_flags & 1) == 0) {
         return;
@@ -3618,8 +3608,7 @@ void render_collision_regions(void) {
     set_render_state(6, 0);
     set_render_state(8, 0);
 
-    render_flags = ((unsigned char*)&g_game_info)[2];
-    if ((render_flags & 0x10) != 0) {
+    if (g_game_info.switch_input_flags.view_danger_zones) {
         if (g_game_info.plyr0.collision_data != 0) {
             g_game_info.plyr0.collision_data->render_recorded = 1;
         }
@@ -3630,33 +3619,35 @@ void render_collision_regions(void) {
             (MkListApplyFn)render_bgnd_danger_zone_obstacle,
             &constrain_info.obstacles);
     } else {
-        if ((render_flags & 0x20) == 0) {
+        if (!g_game_info.switch_input_flags.field_bit5) {
             render_players_joints();
         }
-        if ((render_flags & 0x80) == 0) {
+        if (!g_game_info.switch_input_flags.hide_obstacles) {
             render_background_danger_areas();
             apply_to_mklist(
                 (MkListApplyFn)render_obstacle,
                 &constrain_info.obstacles);
         }
-        if (mode_of_play == 7 && (render_flags & 0x40) == 0) {
+        if (mode_of_play == 7 && !g_game_info.switch_input_flags.hide_konquest_collision) {
             render_hero_collision();
             apply_to_mklist(
                 render_konquest_collision_obj, &global_collision_list);
-            item = konquest_shadow_collision_lists;
-            while (item != 0) {
-                shadow_list.hdr = item->hdr;
-                if (item->instance != shadow_list.hdr->instance) {
-                    next = item->next;
-                    item->hdr = 0;
-                    destroy_mkptr(item);
-                    item = next;
-                    continue;
+            if (mklist_is_valid(&konquest_shadow_collision_lists)) {
+                item = konquest_shadow_collision_lists;
+                while (item != 0) {
+                    shadow_list.hdr = item->hdr;
+                    if (item->instance != shadow_list.hdr->instance) {
+                        next = item->next;
+                        item->hdr = 0;
+                        destroy_mkptr(item);
+                        item = next;
+                        continue;
+                    }
+                    apply_to_mklist(
+                        render_konquest_shadow_objects,
+                        &shadow_list.list->objects);
+                    item = item->next;
                 }
-                apply_to_mklist(
-                    render_konquest_shadow_objects,
-                    &shadow_list.list->objects);
-                item = item->next;
             }
         }
     }
@@ -4443,5 +4434,5 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
 }
 
 void set_collision_render_state(int enabled) {
-    g_game_info.pause_flag_bits.paused = (unsigned char)enabled;
+    g_game_info.pause_flag_bits.paused = enabled;
 }

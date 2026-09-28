@@ -493,7 +493,7 @@ int get_script_function_by_name(ScriptSlot* slot, const char* name) {
 }
 
 /* TODO: [breakthrough needed] 56.54%; 23 rows differ; inspect retail CFG and operand types. */
-int check_script_function_exists(ScriptSlot* slot, const char* name) {
+unsigned int check_script_function_exists(ScriptSlot* slot, const char* name) {
     unsigned int i;
     ScriptFuncDef* def;
     char* function_name;

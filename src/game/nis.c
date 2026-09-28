@@ -1,6 +1,7 @@
 #include "game/nis.h"
 
 #include "game/game_info.h"
+#include "math/mk_math.h"
 #include "runtime/fonts.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
@@ -21,7 +22,7 @@ typedef struct KamidoguDropPdata {
     MkHdr hdr;               /* +0x00 */
     MkObj* owner;            /* +0x08 */
     unsigned int owner_id;   /* +0x0C */
-    float quat[4];           /* +0x10 */
+    Quat quat;               /* +0x10 */
 } KamidoguDropPdata; /* 0x20 */
 
 static const char stringBase0[] =
@@ -33,17 +34,6 @@ static const char stringBase0[] =
 
 const int gap_04_80314D64_rodata = 0;
 
-static const float flt_340 = 0.3f;
-static const float flt_341 = 180.0f;
-static const double dbl_343 = 4503601774854144.0;
-static const float flt_348 = 60.0f;
-static const float flt_349 = 1.0f;
-static const float flt_350 = -1.0f;
-static const float flt_361 = 0.0f;
-static const float flt_362 = 2.0f;
-static const float flt_375 = 0.025f;
-static const float flt_376 = 1.4f;
-static const float flt_377 = 0.005f;
 
 unsigned int nis_event_list[4];
 
@@ -51,7 +41,6 @@ int gap_08_80510E74_sbss;
 int nis_wait_override;
 
 extern char bgnd_animations[];
-extern float identity_quat[];
 extern char p1_profile[];
 extern int screen_width;
 extern int screen_height;
@@ -64,11 +53,7 @@ void delete_screen_obj_oid(int oid);
 struct FatalityFakeBoneMatcher;
 MkProc* get_fake_bone_matcher_proc(struct FatalityFakeBoneMatcher* matcher);
 void mkscripts_destroy_fk_bonematcher(void* bonematcher);
-void set_mat(void* mat, void* src);
-void mat_to_quat(void* quat, void* mat);
 void snd_req_vol(int sound_id, float volume);
-void interp_quat(void* dst, void* src, void* scratch, float t);
-void quat_to_mat(void* mat, void* quat);
 void display_load_meter(int slot);
 void turn_camera_on(void);
 void load_background(int id);
@@ -95,7 +80,6 @@ int check_switch_edge(int player, int edge);
 void eat_switch_edge(int player, int edge);
 void pop_game_state(void);
 void set_section_memory_scheme(int scheme);
-void zero_pdata_payload(int size, MkHdr* dest);
 
 extern void p_credits_screen(void);
 
@@ -119,10 +103,10 @@ void show_shujinko_unlock_screen(int string_id) {
     x_pos = (screen_width - 0x300) / 2;
     load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0], 0, x_pos, 0, 0xE);
     load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0x14], 0, x_pos + 0x200, 0, 0xE);
-    str_obj = create_wrapped_string(0x7F01, load_font(9), get_string_by_id(string_id | 0x20000), screen_width / 4, flt_340 * screen_height, screen_width / 2, 0, 1, 0);
+    str_obj = create_wrapped_string(0x7F01, load_font(9), get_string_by_id(string_id | 0x20000), screen_width / 4, 0.3f * screen_height, screen_width / 2, 0, 1, 0);
     insert_2d_obj((ScreenObj*)str_obj);
     fade_from_black(8, 1);
-    _mkproc_sleep_ticks = flt_341;
+    _mkproc_sleep_ticks = 180.0f;
     mkproc_sleep();
     _create_mkproc_generic_tinystack(0x9031, 0x1F, p_fade_fullscreen_image, 0, 0);
 }
@@ -134,9 +118,9 @@ static float p_fade_fullscreen_image(void) {
     float sleep_ticks;
     unsigned int alpha;
 
-    _mkproc_sleep_ticks = flt_348;
+    _mkproc_sleep_ticks = 60.0f;
     mkproc_sleep();
-    sleep_ticks = flt_349;
+    sleep_ticks = 1.0f;
     alpha = 0xFF;
     while ((alpha & 0xFF) > 2) {
         pfx_2d_obj_set_alpha_by_id(0x7F01, alpha);
@@ -148,7 +132,7 @@ static float p_fade_fullscreen_image(void) {
     _mkproc_sleep_ticks = sleep_ticks;
     mkproc_sleep();
     delete_screen_obj_oid(0x7F01);
-    return flt_350;
+    return -1.0f;
 }
 
 #pragma optimize_for_size on
@@ -158,7 +142,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
     MkPtr* list_item;
     KamidoguDropPdata* pdata;
-    RwMatrix matrix __attribute__((aligned(16)));
+    MKMATRIX matrix;
 
     matcher_proc = get_fake_bone_matcher_proc(bonematcher);
     list_item = find_in_mklist(owner != 0 ? as_mkhdr(&owner->hdr) : 0, &matcher_proc->pdata_list_b);
@@ -176,11 +160,11 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     owner->pos.value.x = matrix.pos.x;
     owner->pos.value.y = matrix.pos.y;
     owner->pos.value.z = matrix.pos.z;
-    matrix.pos.x = matrix.pos.y = matrix.pos.z = flt_361;
-    mat_to_quat(pdata->quat, &matrix);
+    matrix.pos.x = matrix.pos.y = matrix.pos.z = 0.0f;
+    mat_to_quat(&pdata->quat, &matrix);
     pdata->owner = owner;
     pdata->owner_id = owner->hdr.instance;
-    snd_req_vol(0x1789, flt_362);
+    snd_req_vol(0x1789, 2.0f);
 }
 
 static inline MkObj* kamidogu_live_owner(KamidoguDropPdata* pdata) {
@@ -203,21 +187,21 @@ static float p_drop_kamidogu(void) {
 
     pdata = (KamidoguDropPdata*)apdata;
     if (pdata == 0) {
-        return flt_350;
+        return -1.0f;
     }
     owner = kamidogu_live_owner(pdata);
     if (owner == 0) {
-        return flt_350;
+        return -1.0f;
     }
-    interp_quat(pdata->quat, identity_quat, pdata->quat, flt_375);
-    quat_to_mat(owner->field_24, pdata->quat);
-    if (owner->pos.value.y >= flt_376) {
-        owner->pos.value.y -= flt_377;
-        if (owner->pos.value.y <= flt_376) {
-            owner->pos.value.y = flt_376;
+    interp_quat(&pdata->quat, &identity_quat, &pdata->quat, 0.025f);
+    quat_to_mat(owner->field_24, &pdata->quat);
+    if (owner->pos.value.y >= 1.4f) {
+        owner->pos.value.y -= 0.005f;
+        if (owner->pos.value.y <= 1.4f) {
+            owner->pos.value.y = 1.4f;
         }
     }
-    return flt_349;
+    return 1.0f;
 }
 
 #pragma optimize_for_size reset
@@ -245,7 +229,7 @@ float p_konquest_ending(void) {
     start_plyrs();
     setup_sound_banks(8);
     wait_for_sound_banks_to_load();
-    _mkproc_sleep_ticks = flt_349;
+    _mkproc_sleep_ticks = 1.0f;
     mkproc_sleep();
     xfer_proc(info->plyr0.idle_proc, p_idle);
     xfer_proc(info->plyr1.idle_proc, p_idle);
@@ -253,7 +237,7 @@ float p_konquest_ending(void) {
     destroy_mkprocs_pid(0x1003);
     fade_to_black(8, 0);
     set_mode_of_play(0);
-    g_game_info.flag_bits.pad_bit1 = 1;
+    g_game_info.flag_bits.load_complete = 1;
     start_tunes();
     cmdscript_setup_execution(g_game_info.cmdscript, 1);
     cmdscript_execute(g_game_info.cmdscript);
@@ -264,7 +248,7 @@ float p_konquest_ending(void) {
     set_konq_profile_value(0, 4, 1);
     save_profile(0, 2);
     gamelogic_jump(6, p_credits_screen);
-    return flt_350;
+    return -1.0f;
 }
 
 void nis_set_wait_override(int value) {
@@ -305,8 +289,8 @@ static float p_init_skip_nis(void) {
     if (str_obj != 0) {
         mk_insert((MkHdr*)str_obj, &aproc->pdata_list_b);
     }
-    aproc->vtbl->jump_sleep(p_check_skip_nis, flt_361);
-    return flt_361;
+    aproc->vtbl->jump_sleep(p_check_skip_nis, 0.0f);
+    return 0.0f;
 }
 
 #pragma optimize_for_size reset
@@ -317,7 +301,7 @@ static float p_check_skip_nis(void) {
 
     parent_proc = find_mkproc_pid(0x900C);
     if (parent_proc == 0) {
-        return flt_350;
+        return -1.0f;
     }
     if (check_switch_edge(g_game_info.plyr0.pad_index, 6) != 0 ||
         check_switch_edge(g_game_info.plyr1.pad_index, 6) != 0) {
@@ -329,9 +313,9 @@ static float p_check_skip_nis(void) {
         }
         eat_switch_edge(0, 6);
         eat_switch_edge(1, 6);
-        return flt_350;
+        return -1.0f;
     }
-    return flt_349;
+    return 1.0f;
 }
 
 static float p_run_nis_cancel_function(void) {
@@ -342,7 +326,7 @@ static float p_run_nis_cancel_function(void) {
         cmdscript_setup_execution(pdata->cmdscript, pdata->cancel_func);
         cmdscript_execute(pdata->cmdscript);
     }
-    return flt_350;
+    return -1.0f;
 }
 
 int nis_scene_done(void) {
@@ -375,7 +359,7 @@ void nis_signal_event(int event) {
 void nis_wait_for_event(int event, int timeout) {
     float sleep_ticks;
 
-    sleep_ticks = flt_349;
+    sleep_ticks = 1.0f;
     while (nis_wait_override != 0 ||
            (nis_event_list[(unsigned int)event >> 5] & (1U << (event & 0x1F))) == 0) {
         if (timeout == 0) {
@@ -422,5 +406,5 @@ static float p_run_nis_scene(void) {
         cmdscript_setup_execution(pdata->cmdscript, pdata->scene_func);
         cmdscript_execute(pdata->cmdscript);
     }
-    return flt_350;
+    return -1.0f;
 }

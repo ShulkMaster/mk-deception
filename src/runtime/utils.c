@@ -1769,11 +1769,6 @@ void set_screen_obj_alpha(ScreenObj* obj, float alpha) {
 
 extern double fmod(double x, double y);
 extern void MKMatrixSetIdentity(void* m);
-/*
- * UV scroll (MatFX) -- 3D material UV animation (bgnd / konquest / gcpipemanager).
- * Mode-select 2D cloud polys use ScreenAnim UV keys, not this path.
- * Soft ceiling: dual/pass/matrix emit vs open-code; p_process coloring; stop.
- */
 enum {
     kUvPass1 = 1,
     kUvPass2 = 2,
@@ -2219,8 +2214,7 @@ float sfrand_ab(float a, float b) {
     return low + scaled;
 }
 
-/* Soft ceiling: random_percent ~97.73% -- FPR coloring only. */
-
+/* TODO: [near miss] 97.87%; only FPR coloring differs. */
 int random_percent(float percent) {
     unsigned int random_low;
     unsigned int random_value;
@@ -2232,8 +2226,7 @@ int random_percent(float percent) {
     return roll <= percent;
 }
 
-/* Soft ceiling: exact algorithm; ternary abs leaves one fmr plus FPR coloring. */
-
+/* TODO: [near miss] 96.70%; exact algorithm; the ternary abs leaves one extra fmr plus FPR coloring. */
 float sfrand(float max) {
     float range;
     float scaled;
@@ -2248,8 +2241,7 @@ float sfrand(float max) {
     return scaled - max;
 }
 
-/* Soft ceiling: frand ~99.41% -- one FPR allocation difference. */
-
+/* TODO: [near miss] 99.41%; or-operand order and one FPR allocation differ (__fabs regresses to 81%). */
 float frand(float max) {
     float range;
     unsigned int random_low;

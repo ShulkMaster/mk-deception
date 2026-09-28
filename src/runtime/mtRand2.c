@@ -1,9 +1,3 @@
-/*
- * Soft ceilings:
- *   genlrand: 97.22% -- tempering-island GPR coloring
- *   reload_rnd_tbl: 97.97% -- final-element tail GPR coloring
- *   sgenrand: 95.45% -- adjacent independent li/lis scheduling
- */
 #include "runtime/mtRand2.h"
 
 #define N 624
@@ -15,10 +9,10 @@
 unsigned int mt[N];
 static unsigned int mag01[2] = {0x0U, MATRIX_A};
 
-/* sbss: reverse decl order so reseed_rnd_tbl is at +0 */
 int mti;
 int reseed_rnd_tbl;
 
+/* TODO: [near miss] 97.22%; only GPR coloring in the tempering island differs. */
 unsigned int genlrand(void) {
     unsigned int y;
     unsigned int idx;
@@ -41,6 +35,7 @@ unsigned int genlrand(void) {
     return y;
 }
 
+/* TODO: [near miss] 97.96%; only GPR coloring in the final-element tail differs. */
 void reload_rnd_tbl(void) {
     int idx;
     unsigned int y;
@@ -61,13 +56,12 @@ void reload_rnd_tbl(void) {
     mt[N - 1] = mt[M - 1] ^ (y >> 1) ^ mag01[y & 0x1U];
 }
 
+/* TODO: [near miss] 95.45%; the first loop's count (li 0x26f) is scheduled one slot later than retail. */
 void sgenrand(unsigned int seed) {
     unsigned int x;
-    unsigned int t;
     int idx;
 
-    t = 0x60000U;
-    x = t - 0x4c17U;
+    x = 0x5b3e9U;
     if (seed == 0) {
         seed = 0x12345678U;
     }
@@ -80,8 +74,7 @@ void sgenrand(unsigned int seed) {
     mti = 1;
     for (idx = 1; idx < N; idx++) {
         mt[idx] ^= x;
-        t = x * 0x159bU;
-        x = t + 0x13e8bU;
+        x = x * 0x159bU + 0x13e8bU;
         x ^= (x >> 9) ^ (x << 19);
     }
     mti = idx;

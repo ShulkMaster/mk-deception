@@ -189,7 +189,7 @@ void ScreenObject::SetColorTranslation(SEVec4_t* color) {
     m_flags |= 1;
 }
 
-/* TODO: [near miss] 99.64602%; anonymous axis relocation labels differ; data-value match is exact. */
+/* TODO: [near miss] 100% instruction-exact, not link-exact: retail loads the axes from an anonymous @230 initializer, ours from named s_identityAxes. */
 void ScreenObject::UpdateTransform() {
     SETransform* xform;
     SETransform* xformScales;

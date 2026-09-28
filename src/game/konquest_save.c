@@ -418,11 +418,6 @@ int load_krd_buffer_from_memcard(int player, int arg) {
     return 1;
 }
 
-/*
- * Near match: validation, trigger/PUI restore, stale-link cleanup, NPC/path
- * restoration, and record advancement match retail. Residue is typed entry-base
- * selection, GPR coloring, and the seven-event CTR-loop lowering.
- */
 int load_konq_memory_from_krd_buffer(void) {
     KonquestProfileSave* profile;
     KonquestRegionBuffer* buffer;
@@ -433,10 +428,10 @@ int load_konq_memory_from_krd_buffer(void) {
     int trigger_index;
     int pui_index;
     KonquestTrigger* trigger;
-    KonquestPuiSaveEntry* pui_entry;
     PuiItem* item;
     Vec pos;
     MkPtr** npc_list;
+    KonquestNpc* npc;
     MkPtr* node;
     MkPtr* next;
     int npc_index;
@@ -445,42 +440,39 @@ int load_konq_memory_from_krd_buffer(void) {
     profile = p1_profile_konquest;
     buffer = &konq_region_data_buffer;
     region = profile->active_region;
-    bit = 1 << (region - 1);
-    loaded = (profile->regions_loaded_mask & bit) != 0;
-    if ((profile->regions_dirty & bit) != 0) {
-        if (buffer->header_valid == 0 || buffer->loaded_snapshot != loaded ||
-            buffer->region_id != region) {
-            valid = 0;
-        } else {
-            valid = 1;
-        }
-        if (valid == 0) {
-            return 0;
-        }
+    loaded = (profile->regions_loaded_mask & (bit = 1 << (region - 1))) != 0;
+    if ((profile->regions_dirty & bit) != 0 &&
+        (buffer->header_valid == 0 || buffer->loaded_snapshot != loaded ||
+         buffer->region_id != region)) {
+        valid = 0;
+    } else {
+        valid = 1;
+    }
+    if (valid == 0) {
+        return 0;
     }
     if (buffer->header_valid == 0 ||
         buffer->region_id != profile->active_region) {
         return 1;
     }
     for (trigger_index = 0; trigger_index < 0xC8; trigger_index++) {
-        KonquestTriggerSaveEntry* entry;
-
-        entry = &buffer->trigger_entries[trigger_index];
-        if (entry->trigger_id == -1) {
+        if (buffer->trigger_entries[trigger_index].trigger_id == -1) {
             break;
         }
-        trigger = find_trigger_by_id(entry->trigger_id);
+        trigger = find_trigger_by_id(
+            buffer->trigger_entries[trigger_index].trigger_id);
         if (trigger != 0 && ((trigger->flags24 & 1) == 0)) {
-            trigger->userdata->active = entry->bits.active;
+            trigger->userdata->active =
+                buffer->trigger_entries[trigger_index].bits.active;
         }
     }
     for (pui_index = 0; pui_index < buffer->pui_count; pui_index++) {
-        pui_entry = &buffer->pui_entries[pui_index];
-        item = get_pui_item_at_inv_bit_index(pui_entry->inventory_bit);
+        item = get_pui_item_at_inv_bit_index(
+            buffer->pui_entries[pui_index].inventory_bit);
         if (item != 0) {
-            pos.x = pui_entry->pos_x;
-            pos.y = pui_entry->pos_y;
-            pos.z = pui_entry->pos_z;
+            pos.x = buffer->pui_entries[pui_index].pos_x;
+            pos.y = buffer->pui_entries[pui_index].pos_y;
+            pos.z = buffer->pui_entries[pui_index].pos_z;
             spawn_dynamic_pui_at_pos(item, 3, &pos, 0, 1);
         }
     }
@@ -495,9 +487,6 @@ int load_konq_memory_from_krd_buffer(void) {
     if (is_mkptr_list_valid(npc_list)) {
         node = *npc_list;
         while (node != 0) {
-            KonquestNpc* npc;
-            KonquestNpcSaveEntry* npc_save;
-
             npc = (KonquestNpc*)node->hdr;
             if (node->instance != npc->hdr.instance) {
                 next = node->next;
@@ -507,53 +496,57 @@ int load_konq_memory_from_krd_buffer(void) {
                 continue;
             }
             if (npc != 0) {
-                npc_save = &buffer->npc_entries[npc_index];
-                npc->transform->field_58 = npc_save->pos_x;
-                npc->transform->field_4C = npc_save->pos_y;
-                npc->transform->field_54 = npc_save->pos_z;
+                npc->transform->field_58 = buffer->npc_entries[npc_index].pos_x;
+                npc->transform->field_4C = buffer->npc_entries[npc_index].pos_y;
+                npc->transform->field_54 = buffer->npc_entries[npc_index].pos_z;
                 npc->tile_index =
                     get_tile_from_position(&npc->transform->tile_position);
-                npc->flags = npc_save->flags & 0x02110000;
+                npc->flags = buffer->npc_entries[npc_index].flags & 0x02110000;
                 if (npc->path_data == 0) {
                     npc->path_data = get_new_path_data_struct();
                 }
                 if (npc->path_data != 0) {
-                    if (npc_save->path_id == -2) {
+                    if (buffer->npc_entries[npc_index].path_id == -2) {
                         npc->path_data->path_ref = 0;
                         npc->path_data->path_kind = 0;
-                    } else if (npc_save->path_id == -1) {
+                    } else if (buffer->npc_entries[npc_index].path_id == -1) {
                         npc->path_data->path_ref = 0;
-                        npc->path_data->param_a = npc_save->path_param_a;
+                        npc->path_data->param_a =
+                            buffer->npc_entries[npc_index].path_param_a;
                         npc->path_data->field_20 = kPathDefaultFloat;
-                        npc->path_data->param_b = npc_save->path_param_b;
+                        npc->path_data->param_b =
+                            buffer->npc_entries[npc_index].path_param_b;
                         npc->path_data->path_kind = 1;
-                    } else if (npc_save->path_id == 0) {
+                    } else if (buffer->npc_entries[npc_index].path_id == 0) {
                         npc->path_data->path_ref = 0;
                         npc->path_data->path_kind = 1;
-                    } else if (
-                        (unsigned int)npc_save->path_id >= 0x10000000U) {
-                        npc->path_data->path_ref =
-                            get_door_path(npc_save->path_id);
+                    } else if ((unsigned int)buffer->npc_entries[npc_index]
+                                   .path_id >= 0x10000000U) {
+                        npc->path_data->path_ref = get_door_path(
+                            buffer->npc_entries[npc_index].path_id);
                         npc->path_data->path_kind = 4;
                     } else {
                         npc->path_data->path_ref = get_data_table(
                             konquest_pdata->data_table_root,
-                            npc_save->path_id);
+                            buffer->npc_entries[npc_index].path_id);
                         npc->path_data->path_kind = get_row_count_for_table(
                             konquest_pdata->data_table_root,
-                            npc_save->path_id);
+                            buffer->npc_entries[npc_index].path_id);
                     }
-                    npc->path_data->path_id = npc_save->path_id;
-                    npc->path_data->field_34 = npc_save->path_field34;
-                    npc->path_data->field_30 = npc_save->path_field30;
-                    npc->path_data->field_3C = npc_save->path_field3C;
+                    npc->path_data->path_id =
+                        buffer->npc_entries[npc_index].path_id;
+                    npc->path_data->field_34 =
+                        buffer->npc_entries[npc_index].path_field34;
+                    npc->path_data->field_30 =
+                        buffer->npc_entries[npc_index].path_field30;
+                    npc->path_data->field_3C =
+                        buffer->npc_entries[npc_index].path_field3C;
                 }
-                flag_index = 0;
-                do {
+                for (flag_index = 0; flag_index < 7; flag_index++) {
                     npc->event_slots[flag_index].enabled =
-                        (npc_save->path_flags & (1U << flag_index)) != 0;
-                    flag_index++;
-                } while (flag_index < 7);
+                        (buffer->npc_entries[npc_index].path_flags &
+                         (1U << flag_index)) != 0;
+                }
             }
             node = node->next;
             npc_index++;

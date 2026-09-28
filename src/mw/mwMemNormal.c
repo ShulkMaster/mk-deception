@@ -141,8 +141,7 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     }
 }
 
-/* Soft ceiling: reachable list insertion differs only by li-zero versus mr from
- * an already-zero local; retail also retains an unreachable loop tail. */
+/* TODO: [near miss] 90.34%; list insertion differs by li 0 vs mr from a zero local; retail keeps an unreachable loop tail. */
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block) {
     MwMemUsedHeader* current = heap->freeList;
     MwMemUsedHeader* next;

@@ -160,7 +160,7 @@ const char* ladder_koin_type_to_string(int type) {
 }
 
 /* TODO: [breakthrough needed] 79.23%; compare nonvolatile lifetimes and pool placement. */
-const char* get_rnd_chess_koin_type(void) {
+const char* get_rnd_chess_koin_type(int difficulty) {
     const char* coin;
     int coin_type;
     int index;

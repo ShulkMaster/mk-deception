@@ -129,6 +129,7 @@ int ScreenElseAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
     return 1;
 }
 
+/* TODO: [near miss] 97.81%; action-id decision tree and dead stage loops match; register/scheduling residue remains. */
 int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                  int /*dt*/) {
     ScreenParams* params;
@@ -155,7 +156,6 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     arg = m_arg;
     object = m_object;
 
-    /* Sparse action ids lower to the retail cmpwi/beq/bge decision tree. */
     switch (arg) {
     case kArgQuestionVisible:
         paramIndex = 1;
@@ -195,18 +195,12 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
         break;
     }
     default:
-        /* Includes 0x41e/0x41f; loops below remain dead in retail. */
         return 1;
     }
 
     op = params->GetInt((unsigned int)paramIndex++);
     rhs = params->GetInt((unsigned int)paramIndex++);
 
-    /*
-     * Retail still emits AllStages (0x41e) / AnyStage (0x41f) after op/rhs.
-     * Those m_arg values return above, so the loops are dead in the DOL --
-     * keep them so MWCC emits the same bytes.
-     */
     if (arg == kArgQuestionAllStages) {
         exclude = params->GetInt((unsigned int)paramIndex);
         matched = 1;
@@ -231,7 +225,6 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
         matched = ScreenIntegerCompare(lhs, op, rhs);
     }
 
-    /* Retail: cmplwi matched; no null-check on m_object. */
     if ((unsigned int)matched != 0u) {
         object->ProcessSubActions(this, 0);
     }
@@ -243,7 +236,6 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     ScreenParams* params;
     ScreenMgr* eventsMgr;
 
-    /* Matching: scope target/enable so else-branch eventsMgr reuses params NV (r29). */
     params = m_params;
     if (params != 0) {
         if (m_arg == kArgEnableObject) {
@@ -266,7 +258,6 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
             Screen* screen;
             ScreenSet* set;
 
-            /* Non-0x403: write boolean into ScreenMgr::m_eventsEnabled. */
             screen = m_object->m_screen;
             set = screen->m_set;
             eventsMgr = set->m_mgr;
@@ -280,6 +271,7 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
+/* TODO: [near miss] 98.20%; only nonvolatile register coloring differs. */
 int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                     int /*dt*/) {
     ScreenParams* params;
@@ -294,8 +286,6 @@ int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/
             confirmId = params->GetInt(0);
             value = params->GetInt(1);
             flag = params->GetBoolean(2);
-            /* Retail: subic/subfe/clrlwi coerces GetBoolean to 0/1.
-             * Soft ceiling ~98%: remaining NV color; stop. */
             mgr->SetConfirmUser(value - 1, (unsigned int)(flag != 0), confirmId);
         } else {
             stageIndex = (int)m_flags;
@@ -396,21 +386,7 @@ int ScreenBlockEventsUntilAction::Update(ScreenMgr* /*mgr*/,
     duration = params->GetInt(0);
     m_elapsed += dt;
     elapsed = m_elapsed;
-    /*
-     * Soft ceiling ~99.08%: xor/and temp color (retail xor r5 vs our xor r4);
-     * same math (duration^elapsed branchless <). Tried operand swap, fold,
-     * idiomatic < (subfc -7%), signed/decl, two-step xor. Stop (F coloring).
-    */
-    {
-        unsigned int x;
-        unsigned int anded;
-        int diff;
-
-        x = (unsigned int)duration ^ (unsigned int)elapsed;
-        anded = x & (unsigned int)duration;
-        diff = ((int)x >> 1) - (int)anded;
-        flag = (unsigned int)diff >> 31;
-    }
+    flag = elapsed < duration;
     m_blocksEvents = flag;
     m_alive = flag;
     m_yield = flag;
@@ -426,8 +402,6 @@ int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     ScreenObject* prev;
     ScreenObject* parent;
 
-    /* SetFocus(..., fireEvents=1) emits 0x3ED lose / 0x3EC gain; host must
-     * not replace this with visibility toggles only. */
     focusIndex = -1;
     params = m_params;
     if (params == 0) {

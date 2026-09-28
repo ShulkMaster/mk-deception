@@ -71,6 +71,11 @@ typedef struct KonquestScreenLatch {
     unsigned int instance;
 } KonquestScreenLatch;
 
+typedef struct KonquestStringLatch {
+    StringObj* object;
+    unsigned int instance;
+} KonquestStringLatch;
+
 typedef struct KonquestBackgroundBox {
     union {
         struct {
@@ -142,7 +147,7 @@ typedef struct KonquestMissionState {
     int condition_ticks;               /* +0x2E0 */
     int drone_difficulty;               /* +0x2E4 */
     int field_2E8;                     /* +0x2E8 */
-    int current_setup_function;        /* +0x2EC */
+    unsigned int current_setup_function;        /* +0x2EC */
     int next_setup_function;           /* +0x2F0 */
     unsigned int winner_end_function;  /* +0x2F4 */
     unsigned int loser_end_function;   /* +0x2F8 */
@@ -151,10 +156,8 @@ typedef struct KonquestMissionState {
     unsigned int player_one_switch_state; /* +0x304 */
     unsigned int player_two_switch_state; /* +0x308 */
     int field_30C;                     /* +0x30C */
-    StringObj* move_string;             /* +0x310 */
-    unsigned int move_string_instance;  /* +0x314 */
-    StringObj* move_param_string;       /* +0x318 */
-    unsigned int move_param_string_instance; /* +0x31C */
+    KonquestStringLatch move_string;       /* +0x310 */
+    KonquestStringLatch move_param_string; /* +0x318 */
     StringObj* progress_string;         /* +0x320 */
     unsigned int progress_string_instance; /* +0x324 */
     StringObj* countdown_string;        /* +0x328 */
@@ -302,7 +305,7 @@ typedef struct TrialWrapupData {
 
 typedef struct KonquestAnimScriptView {
     char pad00[0x18];
-    int frame_count;
+    unsigned int frame_count;
 } KonquestAnimScriptView;
 
 typedef struct KonquestSwitchPdata {
@@ -434,8 +437,6 @@ static void trial_load_monk(void);
 void push_game_state(int state);
 void pop_game_state(void);
 void xfer_player_proc(MkProc* process, MkProcEntryFn entry);
-void trial_register_attack(
-    int player, unsigned char type, unsigned char value);
 static void increment_required_moves_progress(
     KonquestRequiredSequence* sequence,
     KonquestRequiredSequenceList* list);
@@ -453,14 +454,6 @@ static float p_transform_into_player(void);
 static void set_prompt_items(KonquestTrialWindowPdata* unused);
 static void plot_and_show_window_frame(KonquestTrialWindowPdata* unused);
 static void text_window_fade_out(unsigned char ticks);
-/*
- * Near match: mission-state validation, player/opponent filters, condition
- * bounds, registration, and progress updates match retail. The four-byte
- * delta is folded latch/limit join control flow; remaining differences are
- * the typed condition pointer versus retail's base/index register pair.
- */
-void trial_increment_state_value(
-    int player, int state, int increment);
 static void increment_progress_count(unsigned char increment);
 static void trial_show_move_message(void);
 static void show_background_box(
@@ -513,18 +506,41 @@ static inline ScreenObj* get_screen_latch(KonquestScreenLatch* latch) {
     return live;
 }
 
+static inline ScreenObj* live_screen_latch(KonquestScreenLatch* latch) {
+    ScreenObj* object = latch->object;
+
+    if (object != 0) {
+        if (object->instance == latch->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void hide_screen_latch(KonquestScreenLatch* latch) {
-    ScreenObj* object = get_screen_latch(latch);
+    ScreenObj* object = live_screen_latch(latch);
 
     if (object != 0) {
         object->flag_bits.hidden = 1;
     }
 }
 
-static inline StringObj* get_string_latch(
-    StringObj* string, unsigned int instance) {
+static inline void hide_background_box(KonquestBackgroundBox* box) {
+    int index;
+
+    for (index = 0; index < 5; index++) {
+        hide_screen_latch(&box->pieces[index]);
+    }
+}
+
+static inline StringObj* get_string_latch(KonquestStringLatch* latch) {
+    StringObj* string = latch->object;
+
     if (string != 0) {
-        if (string->instance == instance) {
+        if (string->instance == latch->instance) {
             return string;
         }
         string = 0;
@@ -695,54 +711,6 @@ static inline MkObj* get_mission_monk(void) {
         }
     }
     return live;
-}
-
-static inline void start_transform_particle_set(
-    const char* name, MkObj* hero) {
-    unsigned int emitter = fx_by_owner(name, 4);
-    MkPfx* particle;
-    MkObj* effect_object;
-
-    emitter = fx_next_emitter(emitter);
-    particle = pfx_from_emitter(emitter);
-    effect_object = pfx_bind_emitter_num_to_new_obj(
-        particle, 0x6015, 0);
-    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
-    effect_object->flags_08_bits.airborne = 1;
-    update_mkobj(
-        effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
-    fx_restart_emit(emitter);
-
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
-    fx_restart_emit(emitter);
 }
 
 static inline char** get_trial_sign_list(void) {
@@ -1367,7 +1335,7 @@ void trial_register_script_function(unsigned int function) {
                 plyr_pdata != 0) {
                 trial_register_attack(
                     plyr_pdata->plyr_num,
-                    (unsigned char)plyr_pdata->player_slot, function);
+                    plyr_pdata->player_slot, function);
             }
         }
     }
@@ -1377,11 +1345,12 @@ int trial_show_standard_fight_messages(void) {
     return mission_state->display_flags & 1;
 }
 
+/* TODO: [near miss] 99.36%; first prompt latch goes through r4 then mr r29 in retail; four string-pool offsets (TU layout). */
 void set_prompt_items(KonquestTrialWindowPdata* unused) {
+    int y;
     KonquestTrialWindowPdata* pdata =
         (KonquestTrialWindowPdata*)apdata;
     ScreenObj* object;
-    int y;
 
     if (pdata == 0) {
         return;
@@ -1433,27 +1402,28 @@ void set_prompt_items(KonquestTrialWindowPdata* unused) {
     }
 }
 
+/* TODO: [near miss] 99.75%; frame[0] latch object and pdata->bottom swap r10/r11 (coloring only). */
 void plot_and_show_window_frame(KonquestTrialWindowPdata* unused) {
     KonquestTrialWindowPdata* pdata =
         (KonquestTrialWindowPdata*)apdata;
     int left;
     int right;
-    int top;
     int bottom;
+    int top;
     int font_height;
-    float width_scale;
     float height_scale;
+    float width_scale;
 
     if (pdata == 0) {
         return;
     }
-    font_height = (int)get_font_height(pdata->font);
+    font_height = get_font_height(pdata->font);
     left = pdata->left - 0xF;
     right = pdata->left + pdata->width + 0xF;
     bottom = pdata->bottom + font_height + 3;
     top = (pdata->bottom - pdata->top) - font_height / 2;
-    width_scale = (float)((right - left) - 3) * 0.0625f;
-    height_scale = (float)((bottom - top) - 3) * 0.0625f;
+    width_scale = (float)((right - left) - 3) / 16.0f;
+    height_scale = (float)((bottom - top) - 3) / 16.0f;
 
     place_frame_piece(&pdata->frame[0], left, bottom, 1.0f, 1.0f, 0);
     place_frame_piece(
@@ -1481,7 +1451,7 @@ void plot_and_show_window_frame(KonquestTrialWindowPdata* unused) {
 static void text_window_fade_out(unsigned char ticks) {
     KonquestTrialWindowPdata* pdata =
         (KonquestTrialWindowPdata*)apdata;
-    unsigned char alpha = 0xFF;
+    int alpha = 0xFF;
     unsigned char alpha_step = 0xFF / ticks;
     ScreenObj* object;
     int index;
@@ -1493,7 +1463,7 @@ static void text_window_fade_out(unsigned char ticks) {
                 pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
             }
             _mkproc_sleep_ticks = 1.0f;
-            alpha -= alpha_step;
+            alpha = (alpha - alpha_step) & 0xFF;
             ticks--;
             aproc->vtbl->sleep();
         }
@@ -1849,6 +1819,7 @@ void trial_show_spoken_text_window(
     }
 }
 
+/* TODO: [near miss] 97.69%; one zero store (top) and the width fctiwz are scheduled differently around the stack round-trip. */
 void trial_show_text_window(
     int string_id, int style, int flags, float x, float y, float scale) {
     KonquestMissionState* state;
@@ -1880,14 +1851,12 @@ void trial_show_text_window(
             0x9002, aproc->priority + 1, p_show_text_window,
             sizeof(*pdata), (MkHdr**)&pdata) != 0) {
         int window_width;
-        int zero;
 
         zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
         window_width = screen_width;
-        zero = 0;
-        text_window_state = zero;
-        pdata->visible_item_count = zero;
-        pdata->top = zero;
+        text_window_state = 0;
+        pdata->visible_item_count = 0;
+        pdata->top = 0;
         pdata->left = (int)((float)window_width * x);
         pdata->bottom = (int)(480.0f - (480.0f * y));
         pdata->priority = 0x24;
@@ -1904,7 +1873,7 @@ void trial_show_text_window(
         if (pdata->button_charmap != 0) {
             rewrite_button_string(
                 danton20_charmap, pdata->text, swap_buttons,
-                (int*)&g_game_info.pads[pdata->controller_port].edge);
+                (int*)g_game_info.pads[pdata->controller_port].switch_map);
         }
         set_default_switch_maps();
         while (text_window_state == 0) {
@@ -2342,15 +2311,12 @@ static void increment_progress_count(unsigned char increment) {
 static void trial_show_move_message(void) {
     StringObj* string;
     char text[48];
-    int index;
 
     if (mission_state->display_item_c == 0) {
         return;
     }
     if (mission_state->move_message != 0) {
-        string = get_string_latch(
-            mission_state->move_string,
-            mission_state->move_string_instance);
+        string = get_string_latch(&mission_state->move_string);
         if (string != 0) {
             update_string_obj(string, 6, mission_state->move_message);
         } else {
@@ -2358,8 +2324,8 @@ static void trial_show_move_message(void) {
                 0x9007, 6, mission_state->move_message,
                 0x28, 0x16E, 0x22);
             if (string != 0) {
-                mission_state->move_string = string;
-                mission_state->move_string_instance = string->instance;
+                mission_state->move_string.object = string;
+                mission_state->move_string.instance = string->instance;
             }
         }
         if (*mission_state->move_message != ' ') {
@@ -2367,10 +2333,7 @@ static void trial_show_move_message(void) {
                 1, 0x1E, 0x16C, 0x24,
                 string->text_w + 0x14, 0x1A);
         } else {
-            for (index = 0; index < 5; index++) {
-                hide_screen_latch(
-                    &mission_state->background_boxes[1].pieces[index]);
-            }
+            hide_background_box(&mission_state->background_boxes[1]);
         }
     }
 
@@ -2381,9 +2344,7 @@ static void trial_show_move_message(void) {
             mission_state->move_description_flipped,
             (int*)g_game_info
                 .pads[mission_state->fight->field_0x0].switch_map);
-        string = get_string_latch(
-            mission_state->move_param_string,
-            mission_state->move_param_string_instance);
+        string = get_string_latch(&mission_state->move_param_string);
         if (string != 0) {
             update_string_obj(string, 7, text);
         } else {
@@ -2391,8 +2352,8 @@ static void trial_show_move_message(void) {
                 0x9007, 7, text, screen_width - 0x28,
                 0x16C, 0x22);
             if (string != 0) {
-                mission_state->move_param_string = string;
-                mission_state->move_param_string_instance = string->instance;
+                mission_state->move_param_string.object = string;
+                mission_state->move_param_string.instance = string->instance;
             }
         }
         if (*mission_state->move_message_param != ' ') {
@@ -2400,10 +2361,7 @@ static void trial_show_move_message(void) {
                 0, (screen_width - 0x32) - string->text_w,
                 0x166, 0x24, string->text_w + 0x14, 0x22);
         } else {
-            for (index = 0; index < 5; index++) {
-                hide_screen_latch(
-                    &mission_state->background_boxes[0].pieces[index]);
-            }
+            hide_background_box(&mission_state->background_boxes[0]);
         }
     }
 }
@@ -2430,8 +2388,8 @@ static void show_background_box(
         object->y = y + 1;
         object->flag_bits.scaled = 1;
         object->flag_bits.hidden = 0;
-        object->scale_x = (float)(width - 2);
-        object->scale_y = (float)(height - 2);
+        object->scale_x = width - 2;
+        object->scale_y = height - 2;
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
@@ -2449,7 +2407,7 @@ static void show_background_box(
         object->y = y;
         object->flag_bits.scaled = 1;
         object->flag_bits.hidden = 0;
-        object->scale_x = (float)width;
+        object->scale_x = width;
         object->scale_y = 1.0f;
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
@@ -2468,7 +2426,7 @@ static void show_background_box(
         object->y = y + height;
         object->flag_bits.scaled = 1;
         object->flag_bits.hidden = 0;
-        object->scale_x = (float)width;
+        object->scale_x = width;
         object->scale_y = 1.0f;
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
@@ -2488,7 +2446,7 @@ static void show_background_box(
         object->flag_bits.scaled = 1;
         object->flag_bits.hidden = 0;
         object->scale_x = 1.0f;
-        object->scale_y = (float)height;
+        object->scale_y = height;
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
@@ -2507,7 +2465,7 @@ static void show_background_box(
         object->flag_bits.scaled = 1;
         object->flag_bits.hidden = 0;
         object->scale_x = 1.0f;
-        object->scale_y = (float)height;
+        object->scale_y = height;
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 }
@@ -3390,19 +3348,30 @@ static inline MkProc* plyr_pdata_live_anim_proc(PlyrPdata* owner) {
 
 
 
-/* TODO: [breakthrough needed] 91.795580%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+static inline TrialWrapupEntry* wrapup_select_entry(
+    TrialWrapupEntry* table, unsigned short choice) {
+    int i;
+
+    for (i = 0; i < choice; i++) {
+        table++;
+    }
+    return table;
+}
+
 static float failed_trial_drone_wrapup(void) {
+    int sound_id;
+    LipSyncKeyframe* lip_sync;
+    int generic;
     TrialWrapupData* wrapup =
         mission_state->drone->pdata->status_data->trial_wrapup_data;
     TrialWrapupEntry* entry;
     MkProc* animation_process;
     AnimPdata* animation_pdata;
     AnimScript* animation;
-    int choice;
-    int generic;
-    int sound_id;
-    LipSyncKeyframe* lip_sync;
+    unsigned short choice;
+    int i;
     float duration;
+    float post_sound_delay;
     float animation_duration;
 
     if (wrapup != 0) {
@@ -3410,24 +3379,19 @@ static float failed_trial_drone_wrapup(void) {
         choice = randu0(
             (unsigned short)get_row_count_for_table_by_pointer(
                 plyr_pdata->cmo, entry));
-        while (choice != 0) {
+        for (i = 0; i < choice; i++) {
             entry++;
-            choice--;
         }
         wrapup->selected_failure = entry;
         generic = 0;
     } else {
-        entry = generic_char_failure_table;
-        choice = randu0(5);
-        while (choice != 0) {
-            entry++;
-            choice--;
-        }
+        entry = wrapup_select_entry(generic_char_failure_table, randu0(5));
         generic_char_wrapup_data.selected_failure = entry;
         generic = 1;
     }
     sound_id = entry->sound_id;
     lip_sync = entry->lip_sync;
+    post_sound_delay = 0.0f;
 
     set_ani_speed(1.0f);
     rotate_towards_him(0.2f);
@@ -3468,13 +3432,14 @@ static float failed_trial_drone_wrapup(void) {
         }
     }
 
-    _mkproc_sleep_ticks = 0.0f;
+    _mkproc_sleep_ticks = post_sound_delay;
     aproc->vtbl->sleep();
     if (generic != 0) {
         plyr_snd_req(sound_id);
     } else {
         drone_lip_synch(sound_id, lip_sync);
     }
+    duration -= post_sound_delay;
     if (duration < 0.0f) {
         duration = 0.0f;
     }
@@ -3506,8 +3471,11 @@ static float failed_trial_drone_wrapup(void) {
 
 
 
-/* TODO: [breakthrough needed] 92.544556%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+
 static float successful_trial_drone_wrapup(void) {
+    int sound_id;
+    LipSyncKeyframe* lip_sync;
+    int generic;
     TrialWrapupData* wrapup =
         mission_state->drone->pdata->status_data->trial_wrapup_data;
     TrialWrapupEntry* entry;
@@ -3515,11 +3483,9 @@ static float successful_trial_drone_wrapup(void) {
     AnimPdata* animation_pdata;
     AnimScript* animation;
     unsigned short choice;
-    int generic;
-    int sound_id;
-    LipSyncKeyframe* lip_sync;
-    float post_sound_delay;
+    int i;
     float duration;
+    float post_sound_delay;
     float animation_duration;
 
     if (wrapup != 0) {
@@ -3527,19 +3493,13 @@ static float successful_trial_drone_wrapup(void) {
         choice = randu0(
             (unsigned short)get_row_count_for_table_by_pointer(
                 plyr_pdata->cmo, entry));
-        while (choice != 0) {
+        for (i = 0; i < choice; i++) {
             entry++;
-            choice--;
         }
         wrapup->selected_success = entry;
         generic = 0;
     } else {
-        entry = generic_char_success_table;
-        choice = randu0(5);
-        while (choice != 0) {
-            entry++;
-            choice--;
-        }
+        entry = wrapup_select_entry(generic_char_success_table, randu0(5));
         generic_char_wrapup_data.selected_success = entry;
         generic = 1;
     }
@@ -3662,14 +3622,32 @@ static inline MkProc* mission_live_script_process(KonquestMissionState* owner) {
     return object;
 }
 
-/* TODO: [near miss] 96.473850%; instruction scheduling, register coloring; one-trial ceiling. */
+static inline void trial_transform_monk_into_player(KonquestMissionState* state,
+                                                    MkObj* monk) {
+    MkProc* script_process;
+
+    if (monk != 0) {
+        script_process = mission_live_script_process(state);
+        if (script_process == 0) {
+            return;
+        }
+        if (state->transform_complete == 0) {
+            xfer_proc(script_process, p_transform_into_player);
+            while (script_process->entry == p_transform_into_player) {
+                _mkproc_sleep_ticks = 1.0f;
+                aproc->vtbl->sleep();
+            }
+        }
+    }
+    mission_state->transform_complete = 1;
+}
+
 void trial_round_init(void) {
     KonquestMissionState* state = get_mission_state();
+    int i;
     KonquestRequiredSequenceList* sequences;
     MkObj* monk;
-    MkProc* script_process;
     MkProc* process;
-    int i;
     int flipped;
 
     mission_state = state;
@@ -3697,32 +3675,16 @@ void trial_round_init(void) {
 
     state = get_mission_state();
     mission_state = state;
-    if (state != 0) {
-        monk = mission_live_monk(state);
-
-    } else {
+    if (state == 0) {
         monk = 0;
+    } else {
+        monk = mission_live_monk(state);
     }
 
     state = get_mission_state();
     mission_state = state;
     if (state != 0) {
-        if (monk != 0) {
-            script_process = mission_live_script_process(state);
-
-            if (script_process != 0) {
-                if (state->transform_complete == 0) {
-                    xfer_proc(script_process, p_transform_into_player);
-                    while (script_process->entry == p_transform_into_player) {
-                        _mkproc_sleep_ticks = 1.0f;
-                        aproc->vtbl->sleep();
-                    }
-                }
-                mission_state->transform_complete = 1;
-            }
-        } else {
-            mission_state->transform_complete = 1;
-        }
+        trial_transform_monk_into_player(state, monk);
     }
 
     mission_state->player_one_wrapup_state = 0;
@@ -3773,9 +3735,9 @@ void trial_round_init(void) {
         }
         mission_state->progress_required = sequences->sequence_count;
         sequences->current_sequence = 0;
-        mission_state->move_message = sequences->entries[0].message;
-        mission_state->move_message_param =
-            sequences->entries[0].message_parameter;
+        trial_set_move_message(
+            mission_state->required_sequences.entries[0].message,
+            mission_state->required_sequences.entries[0].message_parameter);
     }
 
     if (mission_state->tick_script_function != 0) {
@@ -4056,7 +4018,8 @@ static float p_finish_transform_player(void) {
     return 0.0f;
 }
 
-static inline MkObj* plyr_pdata_validate_sidekick_obj(MkObj* object, PlyrPdata* owner) {
+static inline MkObj* plyr_pdata_live_sidekick_obj(PlyrPdata* owner) {
+    MkObj* object = owner->sidekick_obj;
     if (object != 0) {
         if (object->hdr.instance == owner->sidekick_instance) {
             return object;
@@ -4068,7 +4031,8 @@ static inline MkObj* plyr_pdata_validate_sidekick_obj(MkObj* object, PlyrPdata* 
     return object;
 }
 
-static inline MkProc* konquest_mission_state_validate_monk_process(MkProc* object, KonquestMissionState* owner) {
+static inline MkProc* konquest_mission_state_live_monk_process(KonquestMissionState* owner) {
+    MkProc* object = owner->monk_process;
     if (object != 0) {
         if (object->instance == owner->monk_process_instance) {
             return object;
@@ -4097,23 +4061,22 @@ static inline MkObj* konquest_mission_state_live_monk(KonquestMissionState* owne
 
 
 
-/* TODO: [breakthrough needed] 96.111115%; call/inlining boundary needs recovery (bl update_mkobj); no further evidence-backed source change. */
+/* TODO: [near miss] 97.87%; single update_mkobj call recovered; monk process/monk swap r29/r30 (retail copies the process after its check, loads monk direct). */
 static float p_finish_transform_monk(void) {
     Vec position = {4000.0f, 0.0f, 4000.0f};
     Vec angles = {0.0f, 0.0f, 0.0f};
-    KonquestMissionState* state = mission_state;
-    PlyrPdata* fighter = state->fight->pdata;
-    MkObj* player_object = state->fight->active_object;
-    MkObj* sidekick = fighter->sidekick_obj;
-    MkProc* raw_monk_process;
+    MkObj* sidekick;
+    MkObj* monk;
     MkProc* monk_process;
     AnimPdata* animation;
-    MkObj* monk;
+    MkObj* player_object;
+    KonquestMissionState* state = mission_state;
+    PlyrPdata* fighter = state->fight->pdata;
 
-    sidekick = plyr_pdata_validate_sidekick_obj(sidekick, fighter);
-    raw_monk_process = state->monk_process;
-    raw_monk_process = konquest_mission_state_validate_monk_process(raw_monk_process, state);
-    monk_process = raw_monk_process;
+    player_object = state->fight->active_object;
+
+    sidekick = plyr_pdata_live_sidekick_obj(fighter);
+    monk_process = konquest_mission_state_live_monk_process(state);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = -0.8f;
@@ -4128,7 +4091,6 @@ static float p_finish_transform_monk(void) {
         monk = 0;
     } else {
         monk = konquest_mission_state_live_monk(state);
-
     }
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
@@ -4140,11 +4102,7 @@ static float p_finish_transform_monk(void) {
     monk->ang.x = player_object->ang.x;
     monk->ang.y = player_object->ang.y;
     monk->ang.z = player_object->ang.z;
-    if (monk != 0) {
-        update_mkobj(as_mkhdr(&monk->hdr));
-    } else {
-        update_mkobj(0);
-    }
+    update_mkobj(monk != 0 ? as_mkhdr(&monk->hdr) : 0);
     start_hero_transform_effect(player_object);
     shake_camera(3, 0.03f);
     _mkproc_sleep_ticks = 15.0f;
@@ -4173,9 +4131,89 @@ static float p_finish_transform_monk(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.83%; flat body matches; first set swaps r28/r29 between first emitter and effect object (coloring only). */
 static void start_hero_transform_effect(MkObj* hero) {
-    start_transform_particle_set("hero_transform_smoke", hero);
-    start_transform_particle_set("hero_transform_explode", hero);
+    unsigned int emitter;
+    MkObj* effect_object;
+    MkPfx* particle;
+
+    emitter = fx_by_owner("hero_transform_smoke", 4);
+    emitter = fx_next_emitter(emitter);
+    particle = pfx_from_emitter(emitter);
+    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
+    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
+    effect_object->flags_08_bits.airborne = 1;
+    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
+    fx_restart_emit(emitter);
+
+    emitter = fx_by_owner("hero_transform_explode", 4);
+    emitter = fx_next_emitter(emitter);
+    particle = pfx_from_emitter(emitter);
+    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
+    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
+    effect_object->flags_08_bits.airborne = 1;
+    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
+    fx_restart_emit(emitter);
 }
 
 static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {

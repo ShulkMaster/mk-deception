@@ -13,7 +13,6 @@
 
 extern _mwMemHeap* SystemSwappableHeap;
 extern SectionSlotDef* section_memory_maps[];
-extern char* strstr(const char* string, const char* substring);
 extern void load_string_bank(int bank, const char* name);
 extern void load_string_bank_async(int bank, const char* name);
 

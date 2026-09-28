@@ -29,15 +29,12 @@ typedef struct TranslSortNode {
     void* payload;
 } TranslSortNode; /* 0x1C */
 
-extern RwCamera* Camera;
 extern RwMatrix* camera_mat;
 extern int curr_pipeline_used;
 extern int last_pipeline_used;
-extern unsigned long f_render_all_atomics;
 
 void atomic_set_transl_flag(RpAtomic* atomic);
 void obj_set_rw_lights(MkObj* object);
-RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 
 static TranslSortNode transl_sort_nodes[250];
 static TranslSortNode* BTREE_ROOT;

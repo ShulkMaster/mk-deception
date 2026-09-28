@@ -54,8 +54,13 @@ typedef struct JmtProcVtable {
 
 typedef struct JmtDecoyPdata {
     MkHdr hdr;
-    MkProc* player_proc;
-    unsigned int player_proc_instance;
+    union {
+        struct {
+            MkProc* player_proc;
+            unsigned int player_proc_instance;
+        };
+        PlyrProcLatch player_proc_latch;
+    };
     PlyrPdata* his_plyr_pdata;
     MkObj* his_obj;
     MkObj* decoy_object;
@@ -702,7 +707,7 @@ static float p_kabal_smoke(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 96.34%; retail copies player_proc/instance as one two-word aggregate (both loads before the stores); string pool naming is TU-wide. */
+/* TODO: [near miss] 100% instructions; not link-exact: decoy model name reloc targets jmt_effect_names instead of retail @stringBase0 (TU string pool). */
 void start_subzero_decoy(void* script_args, float duration) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -772,8 +777,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     pdata->decoy_object = decoy;
     pdata->decoy_instance = decoy->hdr.instance;
     mk_insert(&decoy->hdr, &proc->pdata_list_b);
-    pdata->player_proc = plyr_pdata->player_proc;
-    pdata->player_proc_instance = plyr_pdata->player_proc_instance;
+    pdata->player_proc_latch = plyr_pdata->player_proc_latch;
     pdata->his_plyr_pdata = plyr_pdata->his_plyr_pdata;
     pdata->his_obj = plyr_pdata->his_obj;
     pdata->source_object = plyr_obj;
@@ -846,15 +850,14 @@ void destroy_subzero_decoy(void) {
 
 
 
-/* TODO: [breakthrough needed] 94.29%; owner/iterator allocation and branch/load placement remain. */
+/* TODO: [near miss] 99.63%; source object takes r29 above the bone-loop induction registers (retail r27); stop at coloring. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
+    int index;
     MkObj* source;
     MkBone* source_bone;
-    MkBone* decoy_bone;
     unsigned int effect;
-    int index;
     int source_index;
 
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
@@ -876,14 +879,13 @@ static float p_create_decoy(void) {
         if (source_index < (int)source->bone_count &&
             index < (int)decoy->bone_count) {
             source_bone = source->bones[source_index];
-            decoy_bone = decoy->bones[index];
-            if (source_bone != 0 && decoy_bone != 0 &&
-                source_bone->parent_matrix != 0 &&
-                decoy_bone->parent_matrix != 0) {
-                memcpy(
-                    decoy_bone->parent_matrix,
-                    source_bone->parent_matrix,
-                    sizeof(*decoy_bone->parent_matrix));
+            if (source_bone != 0) {
+                RwMatrix* source_matrix = source_bone->parent_matrix;
+                RwMatrix* decoy_matrix = decoy->bones[index]->parent_matrix;
+
+                if (decoy_matrix != 0 && source_matrix != 0) {
+                    memcpy(decoy_matrix, source_matrix, sizeof(*decoy_matrix));
+                }
             }
         }
     }
@@ -944,21 +946,24 @@ static float p_create_decoy(void) {
 
 
 
-/* TODO: [breakthrough needed] 96.31%; vector initialization and return-join lowering remain. */
+/* TODO: [near miss] 97.51%; angles copy loads precede the color constants; a literal Vec initializer matches .text but moves .rodata (TU data layout). */
 static float p_decoy(void) {
     Vec angles = subzero_decoy_angles;
     JmtDecoyPdata* pdata;
     MkObj* decoy;
     PlyrInfo* player;
     Vec center;
-    RwRGBA dark_color = {0x80, 0x80, 0xFF, 0xC8};
     RwRGBA light_color = {0xE1, 0xE1, 0xFF, 0xC8};
+    RwRGBA dark_color = {0x80, 0x80, 0xFF, 0xC8};
 
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
     decoy = jmt_decoy_pdata_live_decoy_object(pdata);
 
-    if (decoy == 0 || pdata->source_object == 0) {
+    if (decoy == 0) {
+        return -1.0f;
+    }
+    if (pdata->source_object == 0) {
         return -1.0f;
     }
     if (pdata->source_object == g_game_info.plyr0.slot.mirror_a) {

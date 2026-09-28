@@ -565,43 +565,41 @@ int check_switch(int port, int switch_index) {
     return 0;
 }
 
-/* Soft ceiling: one call-site schedule pair plus six GPR-color differences. */
 void unstack_switches(void) {
-    SwitchMapEntry** switch_map;
-    unsigned int* edge;
-    PlyrInfo** player;
     int port;
     int switch_index;
     for (port = 0; port < 3; port++) {
-        GcPadSlot* pad = &g_game_info.pads[port];
-        player = &pad->player;
-        if (pad->flag_bits.connected && !pad->flag_bits.disabled &&
-            pad->player != 0) {
-            switch_map = &pad->switch_map;
-            edge = &pad->edge;
+        if (g_game_info.pads[port].flag_bits.connected &&
+            !g_game_info.pads[port].flag_bits.disabled) {
+            if (g_game_info.pads[port].player == 0) {
+                continue;
+            }
             for (switch_index = 0; switch_index < 16; switch_index++) {
-                if (*edge & (*switch_map)[switch_index].mask) {
+                if (g_game_info.pads[port].edge &
+                    g_game_info.pads[port].switch_map[switch_index].mask) {
                     union {
                         MkHdr* header;
                         SwitchProcData* switch_data;
                     } pdata;
                     MkProc* proc = _create_mkproc_generic_tinystack(
-                        0x3002, 6, (*switch_map)[switch_index].proc_fn,
+                        0x3002, 6,
+                        g_game_info.pads[port].switch_map[switch_index].proc_fn,
                         sizeof(SwitchProcData), &pdata.header);
                     if (proc != 0) {
                         int mapped_index;
                         proc->pre_destroy = pre_switchp;
                         proc->destroy_cb = post_switchp;
-                        pdata.switch_data->player = *player;
+                        pdata.switch_data->player = g_game_info.pads[port].player;
                         if (pdata.switch_data->player != 0) {
-                            mapped_index =
-                                find_bit(default_switch_map,
-                                         (*switch_map)[switch_index].mask);
+                            mapped_index = find_bit(
+                                default_switch_map,
+                                g_game_info.pads[port].switch_map[switch_index].mask);
                             if (mapped_index < 0) mapped_index = switch_index;
                             log_switch(
                                 pdata.switch_data->player->controller_slot,
                                 switch_index, exec_tick_ctr,
-                                (*switch_map)[switch_index].label, mapped_index);
+                                g_game_info.pads[port].switch_map[switch_index].label,
+                                mapped_index);
                         }
                     }
                 }

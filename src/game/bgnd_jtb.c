@@ -164,10 +164,7 @@ static inline float nb_sqrt(float value) {
     if (value <= 0.0f) {
         return 0.0f;
     }
-    estimate.u =
-        (unsigned int)*(unsigned short*)((char*)GXMathSqrtTable +
-                                        ((input.u >> 10) & 0x3FFE)) <<
-        8;
+    estimate.u = GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     estimate.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     refined = estimate.f * (3.0f - (estimate.f * estimate.f) / value);
@@ -193,7 +190,7 @@ static inline float nb_fast_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
-/* TODO: [near miss] 94.43%; nb_sqrt shape fixed; FPR scheduling and fused arithmetic differ. */
+/* TODO: [near miss] 99.59%; remaining-frames and velocity-delta FPR coloring (f0/f2/f3 rotation) remains. */
 void lower_mines_ani_to_point(
     void* script, int landing_sound, Vec* target, unsigned int frame_offset,
     float start_frame, float animation_step, float end_frame,
@@ -205,6 +202,8 @@ void lower_mines_ani_to_point(
     float root_a;
     float root_b;
     float inverse_frames;
+    float delta_x;
+    float delta_z;
 
     plyr_anim_pdata->flags |= 0x40;
     transition_to_anim_script(
@@ -222,9 +221,9 @@ void lower_mines_ani_to_point(
     launch_me_up(vertical_velocity, gravity);
     plyr_obj->flags_09_bits.launched = 0;
 
-    radicand = vertical_velocity * vertical_velocity -
-        (2.0f * gravity) *
-            ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
+    radicand = vertical_velocity * vertical_velocity;
+    radicand -= (2.0f * gravity) *
+        ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
     root = 0.001f;
     if (radicand >= root) {
         root = radicand;
@@ -244,12 +243,12 @@ void lower_mines_ani_to_point(
         frames = radicand;
     }
 
-    inverse_frames = 1.0f / frames;
     plyr_anim_pdata->step = (end_frame - start_frame) / frames;
-    plyr_obj->pos_vel.x =
-        (target->x - plyr_obj->pos.value.x) * inverse_frames;
-    plyr_obj->pos_vel.z =
-        (target->z - plyr_obj->pos.value.z) * inverse_frames;
+    inverse_frames = 1.0f / frames;
+    delta_x = target->x - plyr_obj->pos.value.x;
+    delta_z = target->z - plyr_obj->pos.value.z;
+    plyr_obj->pos_vel.x = delta_x * inverse_frames;
+    plyr_obj->pos_vel.z = delta_z * inverse_frames;
     ani_to_frame_x(end_frame);
 
     plyr_obj->flags_09_bits.launched = 1;
@@ -276,7 +275,7 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [near miss] 91.68%; calls, CFG, frame and access widths agree; aggregate-copy scheduling and FPR coloring differ. */
+/* TODO: [near miss] 93.90%; final momentum basis change: retail forms -1.0f*impact_scale and interleaves the axis copies; FPR coloring. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     NbNpcState* npc;
@@ -371,8 +370,8 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
             1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
         spad_sub_vectors(2, 1, 0);
         if (spad_xz_length_vector(2) < 0.35f) {
-            npc->momentum.x *= 1.1f;
-            npc->momentum.z *= 1.1f;
+            npc->momentum.x = 1.1f * npc->momentum.x;
+            npc->momentum.z = 1.1f * npc->momentum.z;
         }
         bgnd_collision_if_enable_col(5, npc_id + 0x12C);
         return;
@@ -418,24 +417,24 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
         if (side.x * npc->object->pos.value.x +
                 side.z * npc->object->pos.value.z <
             0.0f) {
-            side.x = -side.x;
-            side.z = -side.z;
+            side.x = -1.0f * side.x;
+            side.z = -1.0f * side.z;
         }
         {
-            float swap_x = facing.x;
-            float swap_y = facing.y;
-            float swap_z = facing.z;
+            float swap_x = side.x;
+            float swap_y = side.y;
+            float swap_z = side.z;
 
-            facing.x = side.x;
-            facing.y = side.y;
-            facing.z = side.z;
-            side.x = swap_x;
-            side.y = swap_y;
-            side.z = swap_z;
+            side.x = facing.x;
+            side.y = facing.y;
+            side.z = facing.z;
+            facing.x = swap_x;
+            facing.y = swap_y;
+            facing.z = swap_z;
         }
     } else if (alignment < 0.0f) {
-        facing.x = -facing.x;
-        facing.z = -facing.z;
+        facing.x = -1.0f * facing.x;
+        facing.z = -1.0f * facing.z;
     }
 
     old_x = npc->momentum.x;
@@ -459,7 +458,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 96.30%; weighted-vector FPR scheduling and NV coloring differ. */
+/* TODO: [near miss] 97.41%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -485,8 +484,8 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     int player_index;
     int power;
 
-    collision_id = npc_id + 0x12C;
     npc = bgnd_fetch_npc(npc_id);
+    collision_id = npc_id + 0x12C;
     bgnd_collision_if_disable_col(5, collision_id);
 
     spad_set_vector(0, 0x1A);
@@ -529,8 +528,10 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
 
         inverse_length = nb_fast_inverse_sqrt(
             delta.x * delta.x + delta.z * delta.z);
-        target.x = delta.x * inverse_length * force;
-        target.z = delta.z * inverse_length * force;
+        target.x = delta.x * inverse_length;
+        target.z = delta.z * inverse_length;
+        target.x *= force;
+        target.z *= force;
         inverse_mass = 1.0f / (npc->acceleration_divisor + 1.0f);
         target_weight = 1.0f;
         correction_weight = 0.9f;
@@ -570,6 +571,20 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.72%; direction x/z FPR swap (f7/f6) and camera/npc-object r5/r7 swap remain; declaration order is neutral. */
 static int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact) {
     MkObj* player_object;
@@ -577,6 +592,8 @@ static int nb_npc_hurt_player(
     NbFighterHurtView* fighter_view;
     CameraObj* camera;
     Vec facing;
+    float direction_x;
+    float direction_z;
     float hit_length_inverse;
     float facing_length_inverse;
     float alignment;
@@ -594,13 +611,13 @@ static int nb_npc_hurt_player(
     hit_length_inverse = nb_fast_inverse_sqrt(
         hit->direction_x * hit->direction_x +
         hit->direction_z * hit->direction_z);
+    direction_x = hit->direction_x * hit_length_inverse;
+    direction_z = hit->direction_z * hit_length_inverse;
     facing_length_inverse = nb_fast_inverse_sqrt(
         facing.x * facing.x + facing.z * facing.z);
     facing.x *= facing_length_inverse;
     facing.z *= facing_length_inverse;
-    alignment =
-        hit->direction_x * hit_length_inverse * facing.x +
-        hit->direction_z * hit_length_inverse * facing.z;
+    alignment = direction_x * facing.x + direction_z * facing.z;
 
     if (impact > 0.115f && alignment > 0.7f && alignment < 1.3f) {
         xfer_player_proc_to_script_manual_messaging(
@@ -614,27 +631,25 @@ static int nb_npc_hurt_player(
     }
     if (alignment > -0.45f && alignment < 0.45f) {
         MkObj* current_object;
+        MkObj* npc_object;
         int use_left_reaction;
         float camera_to_npc_x;
         float camera_to_npc_z;
         float camera_to_player_x;
         float camera_to_player_z;
 
+        use_left_reaction = 0;
         current_object = fighter_view->object_slot->object;
         plyr_obj = current_object;
         his_obj = fighter_view->opponent_object;
         plyr_anim_pdata = &fighter_view->anim_pdata;
+        npc_object = hit->object;
+        camera = camera_live_node(&camera_item);
 
-        camera = camera_item.node;
-        if (camera != 0 && camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-
-        camera_to_npc_x = camera->pos.x - hit->object->pos.value.x;
-        camera_to_npc_z = camera->pos.z - hit->object->pos.value.z;
-        camera_to_player_x = camera->pos.x - current_object->pos.value.x;
+        camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
         camera_to_player_z = camera->pos.z - current_object->pos.value.z;
-        use_left_reaction = 0;
+        camera_to_npc_x = camera->pos.x - npc_object->pos.value.x;
+        camera_to_player_x = camera->pos.x - current_object->pos.value.x;
         if (camera_to_npc_x * camera_to_npc_x +
                 camera_to_npc_z * camera_to_npc_z >
             camera_to_player_x * camera_to_player_x +

@@ -50,7 +50,7 @@ typedef struct PfxScriptEnvironment {
     PfxBehavior* next_behavior; /* +0x3C */
 } PfxScriptEnvironment;
 
-typedef struct PfxScriptEffectFlagBits {
+typedef struct PfxScriptEffectFlags {
     unsigned char vertex_color_enabled : 1; /* bit7 */
     unsigned char particle_size_enabled : 1; /* bit6 */
     unsigned char textured : 1;
@@ -58,78 +58,43 @@ typedef struct PfxScriptEffectFlagBits {
     unsigned char light_enabled : 1; /* bit3 */
     unsigned char light_mode : 1; /* bit2 */
     unsigned char pad_bits1_0 : 2;
-} PfxScriptEffectFlagBits;
-
-typedef union PfxScriptEffectFlags {
-    unsigned char raw;
-    PfxScriptEffectFlagBits bits;
 } PfxScriptEffectFlags;
 
-typedef struct PfxRenderFlagBits {
+typedef struct PfxRenderFlags {
     unsigned char pad_bit7 : 1;
     unsigned char custom_bounding_radius : 1; /* bit6 */
     unsigned char pad_bits5_0 : 6;
-} PfxRenderFlagBits;
-
-typedef union PfxRenderFlags {
-    unsigned char raw;
-    PfxRenderFlagBits bits;
 } PfxRenderFlags;
 
-typedef struct PfxOrientationFlagBits {
+typedef struct PfxOrientationFlags {
     unsigned char face_y : 1; /* bit7 */
     unsigned char pad_bits6_5 : 2;
     unsigned char rotation_enabled : 1;
     unsigned char pad_bits3_0 : 4;
-} PfxOrientationFlagBits;
-
-typedef union PfxOrientationFlags {
-    unsigned char raw;
-    PfxOrientationFlagBits bits;
 } PfxOrientationFlags;
 
-typedef struct PfxLifecycleFlagBits {
+typedef struct PfxLifecycleFlags {
     unsigned char pad_bits7_5 : 3;
     unsigned char restart_cycle : 1; /* bit4 */
     unsigned char owner_special : 1; /* bit3 */
     unsigned char pad_bits2_0 : 3;
-} PfxLifecycleFlagBits;
-
-typedef union PfxLifecycleFlags {
-    unsigned char raw;
-    PfxLifecycleFlagBits bits;
 } PfxLifecycleFlags;
 
-typedef struct PfxHideFlagBits {
+typedef struct PfxHideFlags {
     unsigned char hidden : 1; /* bit7 */
     unsigned char pad : 7;
-} PfxHideFlagBits;
-
-typedef union PfxHideFlags {
-    unsigned char raw;
-    PfxHideFlagBits bits;
 } PfxHideFlags;
 
-typedef struct PfxZTestFlagBits {
+typedef struct PfxZTestFlags {
     unsigned char pad : 7;
     unsigned char disabled : 1; /* bit0 */
-} PfxZTestFlagBits;
-
-typedef union PfxZTestFlags {
-    unsigned char raw;
-    PfxZTestFlagBits bits;
 } PfxZTestFlags;
 
-typedef struct PfxParametricFlagBits {
+typedef struct PfxParametricFlags {
     unsigned char pad_bit7 : 1;
     unsigned char scan_flag_40 : 1;
     unsigned char scan_flag_20 : 1;
     unsigned char pad_bits4_0 : 5;
-} PfxParametricFlagBits;
-
-typedef union PfxParametricFlags {
-    unsigned char raw;
-    PfxParametricFlagBits bits;
 } PfxParametricFlags;
 
 typedef struct PfxScriptVm {
@@ -686,7 +651,7 @@ void fx_hide(unsigned int handle, int hidden) {
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
-        resolved.effect->hide_flags.bits.hidden = hidden;
+        resolved.effect->hide_flags.hidden = hidden;
     }
 }
 
@@ -768,7 +733,7 @@ void fx_disable_ztest(unsigned int handle, int disabled) {
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
-        resolved.effect->ztest_flags.bits.disabled = disabled;
+        resolved.effect->ztest_flags.disabled = disabled;
     }
 }
 
@@ -809,7 +774,7 @@ void set_vertex_color(const PfxVertexColorArgs* color) {
         environment = &pfxscript_environment;
     }
     effect = environment->effect;
-    if (effect != 0 && effect->flags.bits.vertex_color_enabled) {
+    if (effect != 0 && effect->flags.vertex_color_enabled) {
         pfx_native_set_rgba(
             &effect->vertex_color,
             color->red, color->green, color->blue, color->alpha);
@@ -826,7 +791,7 @@ void set_light(const PfxLightArgs* light) {
         environment = &pfxscript_environment;
     }
     effect = environment->effect;
-    if (effect != 0 && !effect->flags.bits.light_enabled) {
+    if (effect != 0 && !effect->flags.light_enabled) {
         for (component = 0; component < 3; component++) {
             effect->light_direction_components[component] =
                 light->direction_components[component];
@@ -835,8 +800,8 @@ void set_light(const PfxLightArgs* light) {
         pfx_native_set_rgba(
             &effect->light_color,
             light->red, light->green, light->blue, light->alpha);
-        effect->flags.bits.light_enabled = 1;
-        effect->flags.bits.light_mode = light->mode;
+        effect->flags.light_enabled = 1;
+        effect->flags.light_mode = light->mode;
     }
 }
 
@@ -864,7 +829,7 @@ void face_y(void) {
     }
     effect = environment->effect;
     if (effect != 0) {
-        effect->orientation_flags.bits.face_y = 1;
+        effect->orientation_flags.face_y = 1;
     }
 }
 
@@ -878,7 +843,7 @@ void particle_size(float size) {
     }
     effect = environment->effect;
     if (effect != 0 &&
-        effect->flags.bits.particle_size_enabled != 0) {
+        effect->flags.particle_size_enabled != 0) {
         effect->particle_size = size;
     }
 }
@@ -890,7 +855,7 @@ void set_decal_plane(const float* plane) {
 
     effect = active_pfx_environment()->effect;
     if (effect != 0) {
-        effect->flags.bits.decal_plane_enabled = 1;
+        effect->flags.decal_plane_enabled = 1;
         for (index = 0; index < 6; index++) {
             effect->decal_plane[index] = plane[index];
         }
@@ -923,7 +888,7 @@ void set_bounding_radius(float radius) {
     effect = environment->effect;
     if (effect != 0) {
         effect->bounding_radius = radius;
-        effect->render_flags.bits.custom_bounding_radius = 1;
+        effect->render_flags.custom_bounding_radius = 1;
     }
 }
 
@@ -1597,7 +1562,7 @@ static void build_step_effect(
     }
     effect->effect_value = description->effect_value;
     first_emitter->flags.bits.cycle_paused = 1;
-    effect->lifecycle_flags.bits.restart_cycle = 0;
+    effect->lifecycle_flags.restart_cycle = 0;
     environment = active_pfx_environment();
     environment->source_effect = (MkPfx*)effect;
     effect->effect_id = description->effect_id;
@@ -1616,7 +1581,7 @@ static void build_step_effect(
     script_runtime->vertex_color.g = 0xFF;
     script_runtime->vertex_color.b = 0xFF;
     script_runtime->vertex_color.a = 0xFF;
-    script_runtime->flags.bits.vertex_color_enabled = 1;
+    script_runtime->flags.vertex_color_enabled = 1;
     pfx_render_set_blendmode(
         (struct PfxRenderView*)runtime, description->blend_mode);
     if (description->texture->frame_count > 1) {
@@ -1660,7 +1625,7 @@ void reset_effect(const char* name) {
     effect = find_pfx_by_name(name);
     if (effect != 0) {
         runtime = (PfxVm*)effect->emitters;
-        effect->lifecycle_flags.bits.restart_cycle = 0;
+        effect->lifecycle_flags.restart_cycle = 0;
         for (emitter_index = 0;
              emitter_index < runtime->emitter_count;
              emitter_index++) {
@@ -1699,7 +1664,7 @@ void reset_effect_ppfx(PfxScriptEffect* effect) {
     int field_index;
 
     runtime = (PfxVm*)effect->emitters;
-    effect->lifecycle_flags.bits.restart_cycle = 0;
+    effect->lifecycle_flags.restart_cycle = 0;
     for (emitter_index = 0;
          emitter_index < runtime->emitter_count;
          emitter_index++) {
@@ -1787,7 +1752,7 @@ void fx_restart_emit(unsigned int handle) {
     emitter = emitter_from_handle(handle);
     effect = resolve_effect_handle(handle);
     if (emitter != 0) {
-        effect->lifecycle_flags.bits.restart_cycle = 1;
+        effect->lifecycle_flags.restart_cycle = 1;
         emitter->flags.bits.cycle_paused = 0;
         emitter->cycle_index = 0;
         pfx_emitter_restart_cycle(emitter);
@@ -1814,7 +1779,7 @@ void restart_effect(const char* name) {
     effect = find_pfx_by_name(name);
     if (effect != 0) {
         emitter = effect->emitter;
-        effect->lifecycle_flags.bits.restart_cycle = 1;
+        effect->lifecycle_flags.restart_cycle = 1;
         emitter->flags.bits.cycle_paused = 0;
         emitter->cycle_index = 0;
         pfx_emitter_restart_cycle(emitter);
@@ -1824,7 +1789,7 @@ void restart_effect(const char* name) {
 void restart_effect_ppfx(PfxScriptEffect* effect) {
     PfxVmEmitter* emitter = effect->emitter;
 
-    effect->lifecycle_flags.bits.restart_cycle = 1;
+    effect->lifecycle_flags.restart_cycle = 1;
     emitter->flags.bits.cycle_paused = 0;
     emitter->cycle_index = 0;
     pfx_emitter_restart_cycle(emitter);
@@ -1837,7 +1802,7 @@ void resume_effect(const char* name) {
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        effect->lifecycle_flags.bits.restart_cycle = 1;
+        effect->lifecycle_flags.restart_cycle = 1;
         emitter = pfx_get_emitter((PfxVm*)effect->emitters, 0);
         emitter->flags.bits.cycle_paused = 0;
     }
@@ -1863,7 +1828,7 @@ void fx_resume_emit(unsigned int handle) {
     effect = resolve_effect_handle(handle);
     if (emitter != 0) {
         emitter->flags.bits.cycle_paused = 0;
-        effect->lifecycle_flags.bits.restart_cycle = 1;
+        effect->lifecycle_flags.restart_cycle = 1;
     }
 }
 
@@ -1980,7 +1945,7 @@ void set_rotation(float angle, float variance) {
             emitter = pfx_get_emitter((PfxVm*)effect, 0);
             pfxvm_spawn_line_1f(emitter, 0, angle - variance,
                                 angle + variance);
-            effect->orientation_flags.bits.rotation_enabled = 1;
+            effect->orientation_flags.rotation_enabled = 1;
         }
     }
 }
@@ -2000,8 +1965,8 @@ void texture_animation_with_vsize(
         effect = environment->effect;
         if (effect != 0 && effect->texture != 0) {
             texture = effect->texture->raster;
-            width = (float)texture->width;
-            height = (float)texture->height;
+            width = texture->width;
+            height = texture->height;
             if (effect->initialization_mode != 0) {
                 effect->runtime_flags |= 0x100;
             }
@@ -2028,8 +1993,8 @@ void texture_animation(float horizontal_scale, int vertical_frames, float speed)
         effect = environment->effect;
         if (effect != 0 && effect->texture != 0) {
             texture = effect->texture->raster;
-            width = (float)texture->width;
-            height = (float)texture->height;
+            width = texture->width;
+            height = texture->height;
             if (effect->initialization_mode != 0) {
                 effect->runtime_flags |= 0x100;
             }
@@ -2051,8 +2016,7 @@ void spawn_color(int field, int red, int green, int blue, int alpha) {
     }
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
-            environment->emitter, field, (float)red, (float)green,
-            (float)blue, (float)alpha);
+            environment->emitter, field, red, green, blue, alpha);
     }
 }
 
@@ -2252,8 +2216,7 @@ void emit_color(int field, int red, int green, int blue, int alpha) {
     }
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
-            environment->emitter, field, (float)red, (float)green,
-            (float)blue, (float)alpha);
+            environment->emitter, field, red, green, blue, alpha);
     }
 }
 
@@ -2789,10 +2752,10 @@ static void build_parametric_effect_from_table(
     first_emitter = emitter;
     pfx_emitter_scan_for_fields(emitter, scan_fields);
     if ((scan_fields[0] & 0x40) != 0) {
-        effect->parametric_flags.bits.scan_flag_40 = 1;
+        effect->parametric_flags.scan_flag_40 = 1;
     }
     if ((scan_fields[0] & 0x20) != 0) {
-        effect->parametric_flags.bits.scan_flag_20 = 1;
+        effect->parametric_flags.scan_flag_20 = 1;
     }
     pfxvm_compile(runtime);
 
@@ -2827,7 +2790,7 @@ static void build_parametric_effect_from_table(
         emitter = pfx_get_emitter(runtime, emitter_index);
         emitter->flags.bits.cycle_paused = 1;
     }
-    effect->lifecycle_flags.bits.restart_cycle = 0;
+    effect->lifecycle_flags.restart_cycle = 0;
     environment->source_effect = (MkPfx*)effect;
 
     data = runtime->parametric;
@@ -2867,7 +2830,7 @@ static void build_parametric_effect_from_table(
                 effect->vertex_color.g = description->color_table[0].green;
                 effect->vertex_color.b = description->color_table[0].blue;
                 effect->vertex_color.a = description->color_table[0].alpha;
-                effect->flags.bits.vertex_color_enabled = 1;
+                effect->flags.vertex_color_enabled = 1;
             }
         }
         if (description->table_a != 0) {
@@ -2977,16 +2940,16 @@ static void initialize_effect(PfxScriptVm* effect) {
     script = g_pfx_cmo;
     if (environment->texture_name != 0 &&
         environment->texture_name[0] != '\0') {
-        effect->flags.bits.textured = 1;
+        effect->flags.textured = 1;
         effect->texture = load_named_tga_from_slot(
             script->load_ctx->art_id, environment->texture_name);
     }
 
     if ((effect->runtime_flags & 0x20) == 0) {
-        effect->flags.bits.particle_size_enabled = 1;
+        effect->flags.particle_size_enabled = 1;
         effect->particle_size = 1.0f;
     } else {
-        effect->flags.bits.particle_size_enabled = 0;
+        effect->flags.particle_size_enabled = 0;
     }
 
     environment = active_pfx_environment();
@@ -3111,7 +3074,7 @@ static void bank_run_fx(PfxBank* bank) {
         } else {
             effect = 0;
         }
-        if (effect == 0 || !effect->lifecycle_flags.bits.restart_cycle) {
+        if (effect == 0 || !effect->lifecycle_flags.restart_cycle) {
             continue;
         }
 
@@ -3134,7 +3097,7 @@ static void bank_run_fx(PfxBank* bank) {
                     pfxvm_create_transfer(
                         (PfxVm*)transfer.effect->emitters,
                         runtime);
-                    transfer.effect->lifecycle_flags.bits.restart_cycle = 1;
+                    transfer.effect->lifecycle_flags.restart_cycle = 1;
                 }
             }
         }
@@ -3150,7 +3113,7 @@ static void bank_run_fx(PfxBank* bank) {
                 }
             }
             if (emitter_index == runtime->emitter_count) {
-                effect->lifecycle_flags.bits.restart_cycle = 0;
+                effect->lifecycle_flags.restart_cycle = 0;
             }
         }
         pfxmetrics_event(runtime->metrics, 0x2000);

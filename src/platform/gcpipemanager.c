@@ -25,15 +25,14 @@ RpGameCubeVtxFmt gamecube_vtxfmt_skinned2;
 RpGameCubeVtxFmt gamecube_vtxfmt_generic;
 static int bInitVtxFmts;
 
-/* TODO: [near miss] 99.34%; material call and GXBool ABI agree; only local GPR coloring remains. */
 DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                                        int use_matfx, int use_alpha) {
     DpMaterialCallback callback = 0;
     GXBool color_enable;
-    int color_material_source;
-    int color_ambient_source;
     GXBool alpha_enable;
+    int color_material_source;
     int alpha_material_source;
+    int color_ambient_source;
     int alpha_ambient_source;
     unsigned char tev_stages;
     GXColor color;
@@ -378,6 +377,7 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
     }
 }
 
+/* TODO: [breakthrough needed] 89.71%; retail vtxfmt .bss order differs (skinned at +0x30, generic at +0x0) and the geometry reload in the material loop differs. */
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;
@@ -459,9 +459,6 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
             v1 = 0.0f;
             u2 = 0.0f;
             v2 = 0.0f;
-        }
-        /* Retail keeps this legacy UV-scroll guard even though its body is empty. */
-        if ((data->flags & 0x10000000) && u1 == 0.0f) {
         }
         switch (data->field_20) {
         case 0x300:
