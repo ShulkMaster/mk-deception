@@ -167,9 +167,6 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     snd_req_vol(0x1789, 2.0f);
 }
 
-static inline MkObj* kamidogu_live_owner(KamidoguDropPdata* pdata) {
-    return MK_HDR_LIVE(pdata->owner, pdata->owner_id);
-}
 
 static float p_drop_kamidogu(void) {
     KamidoguDropPdata* pdata;
@@ -179,7 +176,7 @@ static float p_drop_kamidogu(void) {
     if (pdata == 0) {
         return -1.0f;
     }
-    owner = kamidogu_live_owner(pdata);
+    owner = MK_HDR_LIVE(pdata->owner, pdata->owner_id);
     if (owner == 0) {
         return -1.0f;
     }

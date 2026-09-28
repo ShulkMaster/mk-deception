@@ -555,9 +555,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    return MK_HDR_LIVE(owner->node, owner->instance);
-}
 
 /* TODO: [near miss] 98.72%; direction x/z FPR swap (f7/f6) and camera/npc-object r5/r7 swap remain; declaration order is neutral. */
 static int nb_npc_hurt_player(
@@ -619,7 +616,7 @@ static int nb_npc_hurt_player(
         his_obj = fighter_view->opponent_object;
         plyr_anim_pdata = &fighter_view->anim_pdata;
         npc_object = hit->object;
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
         camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
         camera_to_player_z = camera->pos.z - current_object->pos.value.z;

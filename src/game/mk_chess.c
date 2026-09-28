@@ -5059,16 +5059,7 @@ void mk_chess_count_p1_power_squares(unsigned int x, unsigned int y) {
 }
 
 static inline ScreenObj* mk_chess_live_screen(ChessScreenRef* owner) {
-    ScreenObj* screen = owner->screen;
-    if (screen != 0) {
-        if (screen->instance == owner->instance) {
-            return screen;
-        }
-        screen = 0;
-    } else {
-        screen = 0;
-    }
-    return screen;
+    return MK_LIVE(owner->screen, owner->instance);
 }
 
 static inline void mk_chess_refresh_side_health(unsigned int side_index) {

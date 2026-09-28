@@ -558,9 +558,6 @@ int is_he_blocking_throw(void) {
     return blocking;
 }
 
-static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
-}
 
 /* TODO: [near miss] 99.29%; only state/object volatile coloring (r4/r5 swapped) remains. */
 int is_plyr_blocking(PlyrPdata* player) {
@@ -578,7 +575,7 @@ int is_plyr_blocking(PlyrPdata* player) {
         return ((unsigned int)state >> 11) & 1;
     }
 
-    object = player_live_tracked_obj(player);
+    object = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
 
     if (object == 0) {
         return 0;
@@ -1095,9 +1092,6 @@ static inline void check_for_combo_message_impl(void) {
     plyr_pdata->combo_hit_count = 0;
 }
 
-static inline MkProc* player_live_transient_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->transient_proc, (int)owner->transient_proc_instance);
-}
 
 void land_chores(
     int land_sound, int second_sound,
@@ -1108,7 +1102,7 @@ void land_chores(
     wall_eligible_off();
     plyr_obj->flags_09_bits.tightrope_restricted = 1;
     object = plyr_obj;
-    process = player_live_transient_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, (int)plyr_pdata->transient_proc_instance);
 
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
@@ -1508,16 +1502,13 @@ void init_3d_move(void) {
     plyr_obj->flags_09_bits.face_opponent = 1;
 }
 
-static inline MkProc* player_live_transient(PlyrPdata* owner) {
-    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
-}
 
 void end_air_move(void) {
     MkObj* object;
     MkProc* process;
 
     object = plyr_obj;
-    process = player_live_transient(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, plyr_pdata->transient_proc_instance);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -1582,9 +1573,6 @@ void init_ground_move_no_aniproc(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
 }
 
-static inline MkProc* plyr_pdata_live_transient_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
-}
 
 
 
@@ -1607,7 +1595,7 @@ void init_ground_move(void) {
     plyr_pdata->collision_result = -1;
     plyr_pdata->collision_disabled = 0;
     object = plyr_obj;
-    process = plyr_pdata_live_transient_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, plyr_pdata->transient_proc_instance);
 
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
@@ -2577,12 +2565,8 @@ static inline MkProc* ejb_live_process(
     return process;
 }
 
-static inline MkObj* ejb_live_object(
-    MkObj* object, const unsigned int* instance) {
-    return MK_HDR_LIVE(object, *instance);
-}
 
-/* TODO: [near miss] 99.27%; held-object latch keeps the zero in r6 and merges its null arms (retail r4, two arms). */
+/* TODO: [near miss] 99.73%; held-object latch arms now match; only its base/object registers swap (r5/r6). */
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step) {
     PlyrPdata* opponent;
@@ -2603,8 +2587,7 @@ float two_player_animation_match_attacker(
     if (process != 0) {
         xfer_proc(process, p_anim_idle);
     }
-    tracked_object = ejb_live_object(opponent->tracked_obj,
-                                    &opponent->tracked_obj_instance);
+    tracked_object = MK_HDR_LIVE(opponent->tracked_obj, opponent->tracked_obj_instance);
     if (tracked_object != 0) {
         process = ejb_live_process(opponent->transient_proc,
                                    &opponent->transient_proc_instance);
@@ -2623,8 +2606,7 @@ float two_player_animation_match_attacker(
     }
     plyr_obj->hide_flag_bits.still_move = 0;
     opponent = plyr_pdata->his_plyr_pdata;
-    if (ejb_live_object(opponent->held_by_object_latch.obj,
-                        &opponent->held_by_object_latch.instance) == 0) {
+    if (MK_HDR_LIVE(opponent->held_by_object_latch.obj, opponent->held_by_object_latch.instance) == 0) {
         opponent->held_by_object_latch.obj = plyr_obj;
         plyr_pdata->his_plyr_pdata->held_by_object_latch.instance =
             plyr_obj->hdr.instance;
@@ -2694,13 +2676,7 @@ void two_player_animation(
         animation, 1, 0, attacker_blend, 0.0f);
 }
 
-static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->player_proc, owner->player_proc_instance);
-}
 
-static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->anim_proc, owner->anim_proc_instance);
-}
 
 
 
@@ -2711,7 +2687,7 @@ void idle_victim(void) {
     PlyrPdata* opponent;
     MkProc* process;
 
-    process = player_live_player_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->player_proc, plyr_pdata->player_proc_instance);
 
     if (process != 0) {
         xfer_proc(process, p_idle);
@@ -2720,13 +2696,13 @@ void idle_victim(void) {
     }
 
     opponent = plyr_pdata->his_plyr_pdata;
-    process = player_live_anim_proc(opponent);
+    process = MK_LIVE(opponent->anim_proc, opponent->anim_proc_instance);
 
     if (process != 0) {
         xfer_proc(process, p_anim_idle);
     }
 
-    tracked_object = player_live_tracked_obj(opponent);
+    tracked_object = MK_HDR_LIVE(opponent->tracked_obj, opponent->tracked_obj_instance);
 
     if (tracked_object != 0) {
         process = player_live_transient_proc_direct(opponent);
@@ -3156,7 +3132,7 @@ void air_collision_pause(
     if (plyr_pdata->collision_result != -1) {
         plyr_obj->flags_09_bits.launched = 0;
         object = plyr_obj;
-        process = player_live_transient_proc(plyr_pdata);
+        process = MK_LIVE(plyr_pdata->transient_proc, (int)plyr_pdata->transient_proc_instance);
         if (process != 0 && process != aproc &&
             process->instance != 0) {
             process->vtbl->destroy(process);
@@ -3216,7 +3192,7 @@ void wait_to_land(void) {
         aproc->vtbl->sleep();
     }
 
-    process = player_live_transient_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, (int)plyr_pdata->transient_proc_instance);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -3450,9 +3426,6 @@ void ps_plyr_force(void) {
     plyr_obj = 0;
 }
 
-static inline PlyrPdata* force_live_player(EjbPlyrForcePdata* force) {
-    return MK_LIVE(force->player, force->player_instance);
-}
 
 /* TODO: [near miss] 96.666664%; validation agrees; stop at owner/result coloring. */
 static void pw_plyr_force(void) {
@@ -3460,8 +3433,8 @@ static void pw_plyr_force(void) {
 
     force = (EjbPlyrForcePdata*)apdata;
     plyr_force_pdata = force;
-    plyr_obj = ejb_live_object(force->object, &force->object_instance);
-    plyr_pdata = force_live_player(force);
+    plyr_obj = MK_HDR_LIVE(force->object, force->object_instance);
+    plyr_pdata = MK_LIVE(force->player, force->player_instance);
 }
 
 void stop_me(void) {
@@ -3469,7 +3442,7 @@ void stop_me(void) {
     MkProc* process;
 
     object = plyr_obj;
-    process = player_live_transient(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, plyr_pdata->transient_proc_instance);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -3555,7 +3528,7 @@ void myvel_my_angle_y(
     float cosine;
     int flipped;
 
-    process = plyr_pdata_live_transient_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, plyr_pdata->transient_proc_instance);
 
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);
@@ -3652,9 +3625,6 @@ void uv_my_angle_y(Vec* direction, float angle_offset) {
     direction->z = gxMathCos(wrapped_angle);
 }
 
-static inline ScalePdata* plyr_live_scale_pdata(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->scale_pdata, owner->scale_pdata_instance);
-}
 
 
 /* TODO: [near miss] 99.80263%; instructions and literal values agree;
@@ -3668,7 +3638,7 @@ int super_charge_me(void) {
         plyr_pdata->damage_boost = 1.3f;
         plyr_pdata->damage_boost_until = game_tick_ctr +
             (int)(60.0f * inverse_game_speed + 0.5f);
-        scale_pdata = plyr_live_scale_pdata(plyr_pdata);
+        scale_pdata = MK_HDR_LIVE(plyr_pdata->scale_pdata, plyr_pdata->scale_pdata_instance);
 
         if (scale_pdata != 0) {
             scale_pdata->prior_scale = plyr_obj->scale;
@@ -4325,7 +4295,7 @@ static void wait_for_backland(void) {
         aproc->vtbl->sleep();
     }
 
-    process = player_live_transient_proc(plyr_pdata);
+    process = MK_LIVE(plyr_pdata->transient_proc, (int)plyr_pdata->transient_proc_instance);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -4346,10 +4316,8 @@ void impale_him(void) {
     }
 
     fighter = plyr_pdata->fighter_definition;
-    source = ejb_live_object(fighter->primary_weapon,
-        &fighter->primary_weapon_instance);
-    target = ejb_live_object(fighter->secondary_weapon,
-        &fighter->secondary_weapon_instance);
+    source = MK_HDR_LIVE(fighter->primary_weapon, fighter->primary_weapon_instance);
+    target = MK_HDR_LIVE(fighter->secondary_weapon, fighter->secondary_weapon_instance);
     player_impale(source, target);
 }
 
@@ -5337,7 +5305,7 @@ static void start_impale_bleeding(void) {
 void scale_me_normal(void) {
     ScalePdata* scale_pdata;
 
-    scale_pdata = plyr_live_scale_pdata(plyr_pdata);
+    scale_pdata = MK_HDR_LIVE(plyr_pdata->scale_pdata, plyr_pdata->scale_pdata_instance);
     if (scale_pdata == 0) {
         return;
     }

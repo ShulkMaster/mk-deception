@@ -219,15 +219,12 @@ static inline void projectile_set_target_position(const Vec* position) {
     }
 }
 
-static inline MkProc* projectile_live_process(ProjectilePdata* owner) {
-    return MK_LIVE(owner->process, owner->process_instance);
-}
 
 static inline void projectile_set_process_handler(MkProcEntryFn handler) {
     MkProc* process;
 
     if (proj_pdata != 0) {
-        process = projectile_live_process(proj_pdata);
+        process = MK_LIVE(proj_pdata->process, proj_pdata->process_instance);
         if (process != 0) {
             xfer_proc(process, handler);
         }
@@ -445,9 +442,6 @@ void set_active_projectile_sound(
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
-    return MK_HDR_LIVE(owner->object, owner->object_instance);
-}
 
 /* TODO: [near miss] 97.701300%; FP ordering and register allocation remain; no further evidence-backed source change. */
 void set_active_projectile_velocity(const Vec* velocity) {
@@ -455,7 +449,7 @@ void set_active_projectile_velocity(const Vec* velocity) {
     float inverse_length;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             object->flags_08_bits.gravity_enabled = 1;
@@ -482,7 +476,7 @@ void set_active_add_ang_y(float angle) {
     int fixed;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             object->ang.y += angle;
@@ -557,7 +551,7 @@ void set_active_projectile_impale_info(
     MkObj* object;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             build_bones_tbl(object, bone_tags);
@@ -608,13 +602,7 @@ MkObj* set_active_projectile_tracking_light(LightDef* definition) {
     return 0;
 }
 
-static inline ProjectilePdata* projectile_follower_pdata_validate_projectile(ProjectilePdata* object, ProjectileFollowerPdata* owner) {
-    return MK_HDR_LIVE(object, owner->projectile_instance);
-}
 
-static inline MkObj* projectile_pdata_live_tracking_light(ProjectilePdata* owner) {
-    return MK_HDR_LIVE(owner->tracking_light, owner->tracking_light_instance);
-}
 
 static float p_point_light_follower(void) {
     ProjectileFollowerPdata* follower =
@@ -623,12 +611,12 @@ static float p_point_light_follower(void) {
     MkObj* object;
     MkObj* light;
 
-    projectile = projectile_follower_pdata_validate_projectile(projectile, follower);
+    projectile = MK_HDR_LIVE(projectile, follower->projectile_instance);
     if (projectile != 0) {
-        object = projectile_pdata_live_object(projectile);
+        object = MK_HDR_LIVE(projectile->object, projectile->object_instance);
 
         if (object != 0) {
-            light = projectile_pdata_live_tracking_light(projectile);
+            light = MK_HDR_LIVE(projectile->tracking_light, projectile->tracking_light_instance);
 
             if (light != 0) {
                 light->pos.value.x = object->pos.value.x;
@@ -1403,12 +1391,9 @@ static float p_ground_target_collide(void) {
     return 1.0f;
 }
 
-static inline MkProc* projectile_live_hold_process(PlyrPdata* owner) {
-    return MK_LIVE(owner->hold_proc, owner->hold_proc_instance);
-}
 
 int check_for_throw(PlyrPdata* player) {
-    MkProc* hold_proc = projectile_live_hold_process(player->his_plyr_pdata);
+    MkProc* hold_proc = MK_LIVE(player->his_plyr_pdata->hold_proc, player->his_plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         return 1;

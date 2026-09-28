@@ -1290,9 +1290,6 @@ static float p_watch_bleed_obj_for_gnd_coll(void);
 static float p_foot_print(void);
 static float p_foot_print_wait(void);
 
-static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
-    return MK_LIVE(owner->proc, owner->instance);
-}
 static float p_bleed(void);
 static float p_pfx_bleed(void);
 static void do_pfx_bleed(MkHdr* hdr);
@@ -1838,7 +1835,7 @@ void spawn_decal_emitter(
         }
     }
 
-    watcher_proc = blood_proc_latch_live_proc(&ncs_pfx_decal_emitter_proc);
+    watcher_proc = MK_LIVE(ncs_pfx_decal_emitter_proc.proc, ncs_pfx_decal_emitter_proc.instance);
     if (watcher_proc == 0) {
         ncs_pfx_decal_emitter_proc.proc = 0;
         ncs_pfx_decal_emitter_proc.instance = 0;
@@ -2009,7 +2006,7 @@ void bleed_restart(void) {
     destroy_mkprocs_pid(0x501B);
     destroy_mkprocs_pid(0x5015);
 
-    proc = blood_proc_latch_live_proc(&bleed_pfx_proc_item);
+    proc = MK_LIVE(bleed_pfx_proc_item.proc, bleed_pfx_proc_item.instance);
     if (proc != 0) {
         destroy_list(&proc->pdata_list);
     }
@@ -2218,9 +2215,6 @@ void plyr_obj_load_bld_data(
         model, &model->paths[9], source_paths[9], &std_bp_parms);
 }
 
-static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
-}
 
 
 
@@ -2240,7 +2234,7 @@ void plyr_bleed_mouth(PlyrPdata* pdata) {
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model.surface.records != 0) {
-        object = plyr_pdata_live_tracked_obj(pdata);
+        object = MK_HDR_LIVE(pdata->tracked_obj, pdata->tracked_obj_instance);
 
         if (object != 0) {
             blood_name = blood_map[4];
@@ -2274,7 +2268,7 @@ void plyr_bleed_large_ext(
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model.surface.records != 0) {
-        object = plyr_pdata_live_tracked_obj(pdata);
+        object = MK_HDR_LIVE(pdata->tracked_obj, pdata->tracked_obj_instance);
 
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
@@ -2336,7 +2330,7 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model.surface.records != 0) {
-        object = plyr_pdata_live_tracked_obj(pdata);
+        object = MK_HDR_LIVE(pdata->tracked_obj, pdata->tracked_obj_instance);
 
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
@@ -2421,7 +2415,7 @@ void plyr_bleed_small_cycle_ext(
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model.surface.records != 0) {
-        object = plyr_pdata_live_tracked_obj(pdata);
+        object = MK_HDR_LIVE(pdata->tracked_obj, pdata->tracked_obj_instance);
 
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
@@ -2519,9 +2513,6 @@ static inline int blood_bone_is_compatible(int requested, int candidate) {
     }
 }
 
-static inline MkObj* bleed_pdata_live_object(BleedPdata* owner) {
-    return MK_HDR_LIVE(owner->object, owner->object_instance);
-}
 
 
 
@@ -2559,7 +2550,7 @@ static float p_bleed(void) {
             }
 
             if (--pdata->timer <= 0) {
-                object = bleed_pdata_live_object(pdata);
+                object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
 
 
                 if (object != 0 && !object->hide_flag_bits.hidden) {
@@ -2945,7 +2936,7 @@ int obj_spawn_bld(
     }
 
     if (pfx == 0) {
-        proc = blood_proc_latch_live_proc(&bleed_pfx_proc_item);
+        proc = MK_LIVE(bleed_pfx_proc_item.proc, bleed_pfx_proc_item.instance);
 
         if (proc != 0) {
             pfx_create_raw_userdata(

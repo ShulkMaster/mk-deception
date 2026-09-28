@@ -505,12 +505,9 @@ void setup_vomit_slip_sound(void) {
     }
 }
 
-static inline MkProc* player_live_animation_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance);
-}
 
 int plyr_in_spin_react(PlyrPdata* pdata) {
-    MkProc* proc = player_live_animation_proc(pdata);
+    MkProc* proc = MK_LIVE(pdata->anim_proc, (int)pdata->anim_proc_instance);
     AnimPdata* animation;
 
     if (proc != 0) {
@@ -674,9 +671,6 @@ void set_player_state(PlyrInfo* player, int state) {
     player->player_state = state;
 }
 
-static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* owner) {
-    return MK_HDR_LIVE(owner->primary_weapon, owner->primary_weapon_instance);
-}
 
 static inline MkObj* moveset_live_secondary_weapon(GlobalMoveset* owner) {
     MkObj* object = owner->secondary_weapon;
@@ -704,9 +698,6 @@ static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
     return object;
 }
 
-static inline MkObj* moveset_live_reflection_weapon(GlobalMoveset* owner) {
-    return MK_HDR_LIVE(owner->reflection_weapon, owner->reflection_weapon_instance);
-}
 
 void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
     GlobalMoveset* moveset;
@@ -717,7 +708,7 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
         return;
     }
     moveset = &global_movesets[moveset_index + 6];
-    primary = moveset_live_primary_weapon(moveset);
+    primary = MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
 
     secondary = moveset_live_secondary_weapon(moveset);
 
@@ -746,7 +737,7 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
         player_object = player_live_tracked_obj(plyr_pdata);
 
         if (player_object != 0) {
-            MkObj* reflection = moveset_live_reflection_weapon(moveset);
+            MkObj* reflection = MK_HDR_LIVE(moveset->reflection_weapon, moveset->reflection_weapon_instance);
 
 
             if (reflection == 0) {
@@ -778,17 +769,11 @@ void register_baraka_cb_functions(void) {
     plyr_pdata->baraka_moveset_callback = baraka_advance_active_moveset;
 }
 
-static inline MkObj* baraka_live_object(PlyrMirrorObjLatch* latch) {
-    return MK_HDR_LIVE(latch->obj, latch->instance);
-}
 
-static inline MkProc* player_live_blades_monitor(PlyrPdata* owner) {
-    return MK_LIVE(owner->baraka_blades_monitor, (int)owner->baraka_blades_monitor_instance);
-}
 
 
 static inline void baraka_retract_blades(PlyrPdata* pdata) {
-    MkProc* proc = player_live_blades_monitor(pdata);
+    MkProc* proc = MK_LIVE(pdata->baraka_blades_monitor, (int)pdata->baraka_blades_monitor_instance);
     BarakaBladesPdata* blades;
     PlyrMirrorSlots* slots;
     MkObj* first;
@@ -810,8 +795,8 @@ static inline void baraka_retract_blades(PlyrPdata* pdata) {
     if (slots == 0) {
         return;
     }
-    first = baraka_live_object(&slots->weapon[0].secondary);
-    second = baraka_live_object(&slots->weapon[1].secondary);
+    first = MK_HDR_LIVE(slots->weapon[0].secondary.obj, slots->weapon[0].secondary.instance);
+    second = MK_HDR_LIVE(slots->weapon[1].secondary.obj, slots->weapon[1].secondary.instance);
     if (first != 0 && second != 0) {
         first->flags_09_bits.tightrope_restricted = 1;
         first->flags_09_bits.bit6 = 0;
@@ -826,7 +811,7 @@ static inline void baraka_retract_blades(PlyrPdata* pdata) {
 }
 
 static inline void baraka_extend_blades(PlyrPdata* pdata) {
-    MkProc* proc = player_live_blades_monitor(pdata);
+    MkProc* proc = MK_LIVE(pdata->baraka_blades_monitor, (int)pdata->baraka_blades_monitor_instance);
     BarakaBladesPdata* blades;
 
     if (proc == 0) {
@@ -848,11 +833,11 @@ static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context) {
     MkObj* object;
 
-    object = baraka_live_object(&context->weapon[0].primary);
+    object = MK_HDR_LIVE(context->weapon[0].primary.obj, context->weapon[0].primary.instance);
     if (object != 0) {
         object->hide_flag_bits.hidden = 1;
     }
-    object = baraka_live_object(&context->weapon[1].primary);
+    object = MK_HDR_LIVE(context->weapon[1].primary.obj, context->weapon[1].primary.instance);
     if (object != 0) {
         object->hide_flag_bits.hidden = 1;
     }
@@ -884,7 +869,7 @@ static inline void plyr_start_script_in_slot(
 
 
 void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade) {
-    MkProc* proc = player_live_blades_monitor(pdata);
+    MkProc* proc = MK_LIVE(pdata->baraka_blades_monitor, (int)pdata->baraka_blades_monitor_instance);
     BarakaBladesPdata* blades;
 
     if (proc != 0) {
@@ -1002,9 +987,6 @@ void start_baraka_jaw_monitor(void) {
     }
 }
 
-static inline AnimPdata* baraka_jaw_live_animation(BarakaJawPdata* owner) {
-    return MK_HDR_LIVE(owner->animation, owner->animation_instance);
-}
 
 /* TODO: [near miss] 98.769230%; relocation offsets, instruction scheduling; one-trial ceiling. */
 static float p_baraka_jaw_controller(void) {
@@ -1061,7 +1043,7 @@ static float p_baraka_jaw_controller(void) {
         }
     }
 
-    animation = baraka_jaw_live_animation(pdata);
+    animation = MK_HDR_LIVE(pdata->animation, pdata->animation_instance);
 
     if (animation != 0) {
         animation->flags |= 0x4000;
@@ -1128,17 +1110,8 @@ int get_player_number(MkObj* object) {
 }
 
 
-static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
-}
 
-static inline MkObj* plyr_pdata_live_aux_weapon_latch_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
-}
 
-static inline MkObj* plyr_pdata_live_mirror_obj_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->mirror_obj.obj, owner->mirror_obj.instance);
-}
 
 
 
@@ -1153,7 +1126,7 @@ void show_player(PlyrPdata* player) {
     if (player == 0) {
         return;
     }
-    object = plyr_pdata_live_tracked_obj(player);
+    object = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
 
     if (object != 0) {
         unhide_obj(object);
@@ -1162,15 +1135,15 @@ void show_player(PlyrPdata* player) {
         plyr_weapon_show(player, 1, player->mirror_slots);
     }
 
-    fighter = plyr_pdata_live_tracked_obj(player);
+    fighter = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
 
     if (fighter != 0) {
-        object = plyr_pdata_live_aux_weapon_latch_obj(player);
+        object = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
 
         if (object != 0) {
             unhide_obj(object);
         }
-        object = plyr_pdata_live_mirror_obj_obj(player);
+        object = MK_HDR_LIVE(player->mirror_obj.obj, player->mirror_obj.instance);
 
         if (object != 0) {
             unhide_obj(object);
@@ -1219,7 +1192,7 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
     MkPtr* link;
     int i;
 
-    object = plyr_pdata_live_tracked_obj(player);
+    object = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
 
     if (object != 0) {
         hide_obj(object);
@@ -1231,15 +1204,15 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
         }
     }
 
-    fighter = plyr_pdata_live_tracked_obj(player);
+    fighter = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
 
     if (fighter != 0) {
-        object = plyr_pdata_live_aux_weapon_latch_obj(player);
+        object = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
 
         if (object != 0) {
             hide_obj(object);
         }
-        object = plyr_pdata_live_mirror_obj_obj(player);
+        object = MK_HDR_LIVE(player->mirror_obj.obj, player->mirror_obj.instance);
 
         if (object != 0) {
             hide_obj(object);
@@ -1530,13 +1503,7 @@ void ps_plyr(void) {
     his_pdata = 0;
 }
 
-static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance);
-}
 
-static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->sidekick_anim_proc, (int)owner->sidekick_anim_instance);
-}
 
 static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
     MkProc* object = owner->left_hand_anim_proc;
@@ -1551,9 +1518,6 @@ static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
     return object;
 }
 
-static inline MkProc* player_live_right_hand_anim_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->right_hand_anim_proc, (int)owner->right_hand_anim_instance);
-}
 
 static inline void pw_plyr_inline(void) {
     MkObj* object;
@@ -1563,7 +1527,7 @@ static inline void pw_plyr_inline(void) {
     plyr_pdata = (PlyrPdata*)apdata;
     object = player_live_tracked_obj(plyr_pdata);
     plyr_obj = object;
-    anim_proc = player_live_anim_proc(plyr_pdata);
+    anim_proc = MK_LIVE(plyr_pdata->anim_proc, (int)plyr_pdata->anim_proc_instance);
     plyr_anim_proc = anim_proc;
     if (anim_proc != 0) {
         plyr_anim_pdata = (AnimPdata*)pdata_of_proc(anim_proc);
@@ -1575,7 +1539,7 @@ static inline void pw_plyr_inline(void) {
     }
     hand_proc = player_live_left_hand_anim_proc(plyr_pdata);
     plyr_lefthand_anim_proc = hand_proc;
-    hand_proc = player_live_right_hand_anim_proc(plyr_pdata);
+    hand_proc = MK_LIVE(plyr_pdata->right_hand_anim_proc, (int)plyr_pdata->right_hand_anim_instance);
     plyr_righthand_anim_proc = hand_proc;
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
@@ -1738,7 +1702,7 @@ float p_plyr_start(void) {
     sidekick = player_live_tracked_obj(plyr_pdata);
 
     plyr_obj = sidekick;
-    proc = player_live_anim_proc(plyr_pdata);
+    proc = MK_LIVE(plyr_pdata->anim_proc, (int)plyr_pdata->anim_proc_instance);
 
     plyr_anim_proc = proc;
     if (proc != 0) {
@@ -1752,7 +1716,7 @@ float p_plyr_start(void) {
     proc = player_live_left_hand_anim_proc(plyr_pdata);
 
     plyr_lefthand_anim_proc = proc;
-    proc = player_live_right_hand_anim_proc(plyr_pdata);
+    proc = MK_LIVE(plyr_pdata->right_hand_anim_proc, (int)plyr_pdata->right_hand_anim_instance);
 
     plyr_righthand_anim_proc = proc;
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
@@ -2674,12 +2638,9 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-static inline MkProc* player_live_own_process(PlyrPdata* owner) {
-    return MK_LIVE(owner->own_player_proc, owner->own_player_proc_instance);
-}
 
 float active_sidekick_swap_change_style(PlyrPdata* pdata) {
-    MkProc* process = player_live_own_process(pdata);
+    MkProc* process = MK_LIVE(pdata->own_player_proc, pdata->own_player_proc_instance);
     CmdScript* script;
 
     active_sidekick_swap(pdata, 2);
@@ -2720,9 +2681,9 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     player = pdata->plyr_info;
     sidekick = player_live_sidekick_obj(pdata);
     sidekick_animation =
-        (AnimPdata*)pdata_of_proc(player_live_sidekick_anim_proc(pdata));
+        (AnimPdata*)pdata_of_proc(MK_LIVE(pdata->sidekick_anim_proc, (int)pdata->sidekick_anim_instance));
     player_animation =
-        (AnimPdata*)pdata_of_proc(player_live_anim_proc(pdata));
+        (AnimPdata*)pdata_of_proc(MK_LIVE(pdata->anim_proc, (int)pdata->anim_proc_instance));
 
     unhide_obj(sidekick);
     sidekick->pos_vel.z = 0.0f;
@@ -2859,7 +2820,7 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
     SidekickActionView* actions = (SidekickActionView*)pdata;
     int function;
 
-    anim_proc = player_live_sidekick_anim_proc(pdata);
+    anim_proc = MK_LIVE(pdata->sidekick_anim_proc, (int)pdata->sidekick_anim_instance);
 
     animation = (AnimPdata*)pdata_of_proc(anim_proc);
     sidekick = player_live_sidekick_obj(pdata);
@@ -2912,15 +2873,7 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-static inline MkProc* sidekick_proc_live_player_sidekick_anim_proc(
-    PlyrSidekickProcPdata* owner) {
-    return MK_LIVE(owner->player->sidekick_anim_proc, (int)owner->player->sidekick_anim_instance);
-}
 
-static inline MkObj* sidekick_proc_live_player_sidekick_obj(
-    PlyrSidekickProcPdata* owner) {
-    return MK_HDR_LIVE(owner->player->sidekick_obj, owner->player->sidekick_instance);
-}
 
 static float p_plyr_sidekick(void) {
     PlyrSidekickProcPdata* pdata = (PlyrSidekickProcPdata*)apdata;
@@ -2928,10 +2881,10 @@ static float p_plyr_sidekick(void) {
     AnimPdata* animation;
     MkObj* sidekick;
 
-    anim_proc = sidekick_proc_live_player_sidekick_anim_proc(pdata);
+    anim_proc = MK_LIVE(pdata->player->sidekick_anim_proc, (int)pdata->player->sidekick_anim_instance);
 
     animation = (AnimPdata*)pdata_of_proc(anim_proc);
-    sidekick = sidekick_proc_live_player_sidekick_obj(pdata);
+    sidekick = MK_HDR_LIVE(pdata->player->sidekick_obj, pdata->player->sidekick_instance);
 
     if (sidekick == 0) {
         return -1.0f;
@@ -3321,13 +3274,7 @@ static inline MkObj* plyr_pdata_live_held_opponent_latch_obj(PlyrPdata* owner) {
     return object;
 }
 
-static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->hold_proc, (int)owner->hold_proc_instance);
-}
 
-static inline MkProc* plyr_pdata_live_his_plyr_pdata_anim_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->his_plyr_pdata->anim_proc, (int)owner->his_plyr_pdata->anim_proc_instance);
-}
 
 
 static inline void release_other_player_inline(void) {
@@ -3353,7 +3300,7 @@ static inline void release_other_player_inline(void) {
     plyr_pdata->his_plyr_pdata->held_by_player = 0;
     plyr_pdata->his_plyr_pdata->hold_state = 0;
 
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_LIVE(plyr_pdata->hold_proc, (int)plyr_pdata->hold_proc_instance);
     if (hold_proc != 0) {
         plyr_pdata->hold_proc = 0;
         plyr_pdata->hold_proc_instance = 0;
@@ -3361,7 +3308,7 @@ static inline void release_other_player_inline(void) {
             hold_proc->vtbl->destroy(hold_proc);
         }
 
-        animation_proc = plyr_pdata_live_his_plyr_pdata_anim_proc(plyr_pdata);
+        animation_proc = MK_LIVE(plyr_pdata->his_plyr_pdata->anim_proc, (int)plyr_pdata->his_plyr_pdata->anim_proc_instance);
         if (animation_proc != 0) {
             animation = (AnimPdata*)pdata_of_proc(animation_proc);
             animation->hand_transition = 1.0f;
@@ -3437,7 +3384,7 @@ MkHdr* plyr_grab_other_flip_states(
 
     held = plyr_pdata_live_held_opponent_latch_obj(plyr_pdata);
 
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_LIVE(plyr_pdata->hold_proc, (int)plyr_pdata->hold_proc_instance);
 
     if (held != 0 || hold_proc != 0) {
         return (MkHdr*)hold_proc;
@@ -3447,7 +3394,7 @@ MkHdr* plyr_grab_other_flip_states(
     opponent_animation = 0;
 
     if (opponent_flip != 0) {
-        opponent_anim_proc = plyr_pdata_live_his_plyr_pdata_anim_proc(plyr_pdata);
+        opponent_anim_proc = MK_LIVE(plyr_pdata->his_plyr_pdata->anim_proc, (int)plyr_pdata->his_plyr_pdata->anim_proc_instance);
 
         if (opponent_anim_proc != 0) {
             opponent_animation =

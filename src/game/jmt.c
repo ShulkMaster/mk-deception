@@ -1106,9 +1106,6 @@ void start_bow(int bone, float duration) {
     }
 }
 
-static inline MkObj* jmt_bow_pdata_live_bow(JmtBowPdata* owner) {
-    return MK_HDR_LIVE(owner->bow, owner->bow_instance);
-}
 
 
 
@@ -1121,7 +1118,7 @@ static float p_bow_ctrl(void) {
     Vec position;
 
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
-    bow = jmt_bow_pdata_live_bow(pdata);
+    bow = MK_HDR_LIVE(pdata->bow, pdata->bow_instance);
 
     if (bow == 0) {
         return -1.0f;
@@ -1159,7 +1156,7 @@ static float p_bow_retract(void) {
     Vec position;
 
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
-    bow = jmt_bow_pdata_live_bow(pdata);
+    bow = MK_HDR_LIVE(pdata->bow, pdata->bow_instance);
 
     if (bow == 0) {
         return -1.0f;

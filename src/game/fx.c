@@ -302,9 +302,6 @@ static const char fx_string_base[228] =
     "Tried to unfreeze a player who is NOT frozen!!\0"
     "TELE_ENERGY\0FX.C-created";
 
-static inline CameraObj* camera_item_live_node(CameraItem* owner) {
-    return MK_HDR_LIVE(owner->node, owner->instance);
-}
 
 
 
@@ -321,7 +318,7 @@ static inline int lensflare_sun_blocked(
     if (count == 0 || planes == 0) {
         return 0;
     }
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return 0;
     }
@@ -352,13 +349,13 @@ static float lensflare_proc2(void) {
     int index;
 
     pdata = (LensflarePdata*)apdata;
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
         mkproc_die();
     }
 
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     uv_v3_to_v3(&direction, &camera->pos, &sun);
     v3_to_xy_ang(&angles, &direction);
@@ -994,9 +991,6 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     player_fstyle_sign[player_index] = 0;
 }
 
-static inline ScreenObj* moveset_live_style_sign(GlobalMoveset* owner) {
-    return MK_LIVE(owner->style_sign, owner->style_sign_instance);
-}
 
 void kill_all_fstyle_signs(void) {
     int player;
@@ -1008,7 +1002,7 @@ void kill_all_fstyle_signs(void) {
     for (player = 0; player < 2; player++) {
         moveset = &global_movesets[player + 6];
         if (moveset != 0) {
-            sign = moveset_live_style_sign(moveset);
+            sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
             if (sign != 0) {
                 if (sign->instance != 0) {
@@ -1119,9 +1113,6 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
     return atomic;
 }
 
-static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->instance);
-}
 
 static float p_freeze_light(void) {
     PlyrMirrorObjLatch* item;
@@ -1130,7 +1121,7 @@ static float p_freeze_light(void) {
 
     pdata = (FreezeLightPdata*)apdata;
     item = pdata->light;
-    light = mirror_latch_live_obj(item);
+    light = MK_HDR_LIVE(item->obj, item->instance);
 
 
     if (pdata->player->state_flags.bits.frozen == 0) {
@@ -1147,13 +1138,7 @@ static float p_freeze_light(void) {
     return 1.0f;
 }
 
-static inline MkObj* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->instance);
-}
 
-static inline MkHdr* fx_hdr_latch_live_object(FxHdrLatch* owner) {
-    return MK_LIVE(owner->object, owner->instance);
-}
 
 
 
@@ -1212,7 +1197,7 @@ void unfreeze_player(void) {
     }
 
     object_latch = &player->mirror_slots->weapon[1].primary;
-    object = plyr_mirror_obj_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1221,7 +1206,7 @@ void unfreeze_player(void) {
     }
 
     object_latch = &player->aux_weapon_latch;
-    object = plyr_mirror_obj_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1230,13 +1215,13 @@ void unfreeze_player(void) {
     }
 
     player_object->light_flags = 0x1004;
-    object = plyr_mirror_obj_latch_live_obj(light_latch);
+    object = MK_HDR_LIVE(light_latch->obj, light_latch->instance);
 
     if (object != 0 && object->hdr.instance != 0U) {
         object->hdr.typed_vtbl->destroy(&object->hdr);
     }
 
-    hdr = fx_hdr_latch_live_object(proc_latch);
+    hdr = MK_LIVE(proc_latch->object, proc_latch->instance);
 
     if (hdr != 0 && hdr->instance != 0U) {
         hdr->typed_vtbl->destroy(hdr);
@@ -1304,7 +1289,7 @@ static void apply_special_fx_to_player(void* texture) {
     plyr_pdata->state_flags.bits.frozen = 1;
 
     object_latch = &plyr_pdata->mirror_slots->weapon[0].primary;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
@@ -1313,7 +1298,7 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->mirror_slots->weapon[1].primary;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
@@ -1322,7 +1307,7 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->aux_weapon_latch;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;

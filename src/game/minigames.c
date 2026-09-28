@@ -1723,18 +1723,6 @@ float p_puzzle_fighter(void) {
     return 0.0f;
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 99.70085%; natural const-data placement changes relocations;
  * retain ordinary declarations without section attributes. */
@@ -1760,7 +1748,7 @@ static float p_puzzle_fighter_real_one(void) {
     turn_camera_on();
     skip_camera_intro();
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     camera->pos.x = puzzle_cam_start_pos.x;
     camera->pos.y = puzzle_cam_start_pos.y;
@@ -6677,18 +6665,6 @@ int puzzle_fighter_plyr_winning_big_based_on_points(void) {
     return 2;
 }
 
-static inline StringObj* puzzle_message_live_text(PuzzleMessagePdata* owner) {
-    StringObj* object = owner->text;
-    if (object != 0) {
-        if (object->instance == owner->text_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 99.39%; retail repeats the old-process null branch (beq 8c) once more; needs evidence of an inlined null-checking kill helper. */
 static void puzzle_fighter_display_block_count_msg(
@@ -6701,7 +6677,7 @@ static void puzzle_fighter_display_block_count_msg(
     if (player->block_count_message_proc != 0) {
         pdata = (PuzzleMessagePdata*)pdata_of_proc(
             proc = player->block_count_message_proc);
-        text = puzzle_message_live_text(pdata);
+        text = MK_LIVE(pdata->text, pdata->text_instance);
 
         if (text != 0) {
             destroy_string_obj(text);
@@ -6914,18 +6890,6 @@ static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
 }
 
 
-static inline StringObj* puzzle_message_pdata_live_text(PuzzleMessagePdata* owner) {
-    StringObj* object = owner->text;
-    if (object != 0) {
-        if (object->instance == owner->text_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline ScreenObj* puzzle_message_pdata_live_secondary_image(PuzzleMessagePdata* owner) {
     ScreenObj* object = owner->secondary_image;
@@ -6970,7 +6934,7 @@ static float p_puzzle_fighter_chain_msg(void) {
         return -1.0f;
     }
 
-    text = puzzle_message_pdata_live_text(pdata);
+    text = MK_LIVE(pdata->text, pdata->text_instance);
 
     secondary = puzzle_message_pdata_live_secondary_image(pdata);
 

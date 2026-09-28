@@ -655,9 +655,6 @@ void general_flash_fx(
         effect, position.x, position.y, position.z);
 }
 
-static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* fighter) {
-    return MK_HDR_LIVE(fighter->primary_weapon, fighter->primary_weapon_instance);
-}
 
 static inline void start_blade_clash_fx(
     PlyrPdata* player, unsigned int effect, MkObj* blade, int bone) {
@@ -687,7 +684,7 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 
     player_num = player->plyr_num;
     bone = 0;
-    blade = moveset_live_primary_weapon(player->fighter_definition);
+    blade = MK_HDR_LIVE(player->fighter_definition->primary_weapon, player->fighter_definition->primary_weapon_instance);
     if (blade == 0 || blade->hide_flag_bits.hidden == 1) {
         bone = 0x1C;
         blade = player->plyr_info->slot.mirror_a;
@@ -713,9 +710,6 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 }
 
 
-static inline MkProc* reaction_transfer_pdata_live_opponent_proc(ReactionTransferPdata* owner) {
-    return MK_HDR_LIVE(owner->opponent_proc, owner->opponent_proc_instance);
-}
 
 static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
     MkProc* object = owner->hold_proc;
@@ -729,15 +723,12 @@ static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 }
 
 /* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
-static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
-}
 
 
 
 
 
-/* TODO: [near miss] 97.77%; retail keeps one fewer GPR live (stmw r15) and spills
+/* TODO: [near miss] 97.82%; retail keeps one fewer GPR live (stmw r15) and spills
  * saved_state where MWCC spills reaction; the inlined cleanup block is
  * run_reaction_cleanup_function's body. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
@@ -784,7 +775,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     transfer = (ReactionTransferPdata*)apdata;
-    opponent_proc = reaction_transfer_pdata_live_opponent_proc(transfer);
+    opponent_proc = MK_HDR_LIVE(transfer->opponent_proc, transfer->opponent_proc_instance);
 
     victim_obj = transfer->opponent_obj;
     victim = transfer->opponent_pdata;
@@ -873,11 +864,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         saved_opponent_object = his_obj;
         plyr_pdata = saved_player;
         his_pdata = saved_player->his_plyr_pdata;
-        cleanup_object = plyr_pdata_live_tracked_obj(saved_player);
+        cleanup_object = MK_HDR_LIVE(saved_player->tracked_obj, saved_player->tracked_obj_instance);
 
         plyr_obj = cleanup_object;
         cleanup_opponent_object =
-            plyr_pdata_live_tracked_obj(saved_player->his_plyr_pdata);
+            MK_HDR_LIVE(saved_player->his_plyr_pdata->tracked_obj, saved_player->his_plyr_pdata->tracked_obj_instance);
         his_obj = cleanup_opponent_object;
         if (cleanup_object != 0 && cleanup_opponent_object != 0) {
             saved_cmdscript = active_cmdscript;

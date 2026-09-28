@@ -1233,17 +1233,6 @@ void npc_start_fx_at_his_position( KonquestNpcData* data, const char* effect_nam
 MkObj* npc_get_obj(KonquestNpcData* data);
 
 
-static inline MkObj* konquest_npc_pdata_validate_monk(MkObj* object, KonquestNpcPdata* owner) {
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_start_blood_fall(void);
 void npc_start_fx_at_position( const char* effect_name, const Vec* offset);
 void npc_reset_my_timed_events(void);
@@ -1326,18 +1315,6 @@ void npc_play_conversation_part( int dialog_id, int animation_id, int conversati
 void conversation_term(void);
 void conversation_init(int mode);
 
-static inline MkProc* animation_live_proc(AnimPdata* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void npc_queue_active_animation(int animation_id, int flags) {
     g_active_npc->queued_animation = get_animation(animation_id);
@@ -1384,18 +1361,6 @@ void npc_set_my_world_pos(float x, float y, float z);
 void npc_set_my_pos(float x, float y, float z);
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 
-static inline AniTextureControl* lip_sync_validate_texture(
-    AniTextureControl* object, KonquestLipSyncPdata* owner) {
-    if (object != 0) {
-        if (object->instance == owner->texture_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void kill_lip_sync_procs(void);
 
 static inline AniTextureControl* lip_sync_live_texture(KonquestLipSyncPdata* owner) {
@@ -1533,18 +1498,6 @@ static inline AniTextureControl* npc_get_lip_texture(
 }
 
 
-static inline AniTextureControl* npc_manager_model_slot_live_lip_texture(NpcManagerModelSlot* owner) {
-    AniTextureControl* object = owner->lip_texture;
-    if (object != 0) {
-        if (object->instance == owner->lip_texture_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void initialize_npc_data(void);
 
 /*
@@ -1760,7 +1713,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                 slot->age = 0.0f;
                 if (npc->animation != 0) {
                     npc->animation->object = slot->object;
-                    lip_texture = npc_manager_model_slot_live_lip_texture(slot);
+                    lip_texture = MK_LIVE(slot->lip_texture, slot->lip_texture_instance);
 
                     if (lip_texture == 0) {
                         if (npc->art_id == 0) {
@@ -6264,7 +6217,7 @@ void npc_play_two_player_one_shot_anims(int npc_animation_id,
 
             monk_animation = konquest_pdata->monk_animation;
             monk_animation_proc =
-                animation_live_proc(konquest_pdata->monk_animation);
+                MK_LIVE(konquest_pdata->monk_animation->proc, konquest_pdata->monk_animation->proc_instance);
 
             monk_npc = npc_live_monk_npc(konquest_pdata);
 
@@ -7223,18 +7176,6 @@ void npc_start_fx_at_position(
     }
 }
 
-static inline MkObj* blood_fall_live_object(BloodFallObjectRef* ref) {
-    MkObj* object = ref->object;
-    if (object != 0) {
-        if (object->hdr.instance == ref->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_blood_fall_control(void) {
     BloodFallPdata* pdata = (BloodFallPdata*)pdata_of_proc(aproc);
@@ -7242,7 +7183,7 @@ static float p_blood_fall_control(void) {
     int index;
 
     for (index = 0; index < 3; index++) {
-        MkObj* object = blood_fall_live_object(&pdata->objects[index]);
+        MkObj* object = MK_HDR_LIVE(pdata->objects[index].object, pdata->objects[index].instance);
         if (object != 0) {
             no_objects = 0;
             if (object->pos.value.y > pdata->ground_y) {

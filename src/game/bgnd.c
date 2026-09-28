@@ -321,21 +321,9 @@ static void bl_process_general_movement(
     float distance_limit_sq, float heading_offset, float heading_divisor,
     float movement_scale_a, float movement_scale_b, int surface);
 
-static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
-    return MK_LIVE(owner->own_player_proc, owner->own_player_proc_instance);
-}
 
-static inline MkProc* bgnd_live_transient_process(PlyrPdata* owner) {
-    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
-}
 
-static inline MkObj* bgnd_live_light_object(MkxRpLight* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
-}
 
-static inline UvScrollControl* bgnd_live_uv_control(BgndUvScrollControlItem* owner) {
-    return MK_HDR_LIVE(owner->control, owner->instance);
-}
 
 static inline void set_subobject_transl(MkSobj* object) {
     RpAtomic* atomic;
@@ -1724,23 +1712,8 @@ static void sh_update_blood_fall_pebbles(
 static inline void sh_normalize_blood_direction(Vec* direction);
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_1_hdr(
-    SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
-    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[1].instance);
-}
 
-static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_0_hdr(
-    SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
-    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[0].instance);
-}
 
-static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_2_hdr(
-    SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
-    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[2].instance);
-}
 
 static float p_sh_bottom_floor_blood_fall(void) {
     ShBloodFallProcessData* data;
@@ -1754,17 +1727,17 @@ static float p_sh_bottom_floor_blood_fall(void) {
         return -1.0f;
     }
 
-    pebbles = slaughterhouse_live_blood_fall_pebbles_1_hdr(g_slaughterhouse_pdata);
+    pebbles = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[1].instance);
 
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
 
-    pebbles = slaughterhouse_live_blood_fall_pebbles_0_hdr(g_slaughterhouse_pdata);
+    pebbles = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
 
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
 
-    pebbles = slaughterhouse_live_blood_fall_pebbles_2_hdr(g_slaughterhouse_pdata);
+    pebbles = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
 
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
@@ -1978,15 +1951,7 @@ static void sh_update_blood_fall_pebbles(
 }
 
 
-static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_1_hdr(SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
-    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[1].instance);
-}
 
-static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_0_hdr(SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
-    return MK_HDR_LIVE(object, owner->blood_fall_pebbles[0].instance);
-}
 
 static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_2_hdr(SlaughterhouseData* owner) {
     PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
@@ -2032,9 +1997,9 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     PebbleData* small;
     PebbleData* largest;
 
-    large = slaughterhouse_data_live_blood_fall_pebbles_1_hdr(g_slaughterhouse_pdata);
+    large = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[1].instance);
 
-    small = slaughterhouse_data_live_blood_fall_pebbles_0_hdr(g_slaughterhouse_pdata);
+    small = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
 
     largest = slaughterhouse_data_live_blood_fall_pebbles_2_hdr(g_slaughterhouse_pdata);
 
@@ -2178,39 +2143,24 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         }
     }
 }
-static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_0_hdr(SlaughterhouseData* owner) {
-    MkObj* object = (MkObj*) owner->lower_level_pebbles[0].hdr;
-    return MK_HDR_LIVE(object, owner->lower_level_pebbles[0].instance);
-}
 
-static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_1_hdr(SlaughterhouseData* owner) {
-    MkObj* object = (MkObj*) owner->lower_level_pebbles[1].hdr;
-    return MK_HDR_LIVE(object, owner->lower_level_pebbles[1].instance);
-}
 
-static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_2_hdr(SlaughterhouseData* owner) {
-    MkObj* object = (MkObj*) owner->lower_level_pebbles[2].hdr;
-    return MK_HDR_LIVE(object, owner->lower_level_pebbles[2].instance);
-}
 
 void sh_lower_level_pebble_unhide(void) {
     MkObj* object;
 
     if (g_slaughterhouse_pdata != 0) {
-        object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[0].hdr, g_slaughterhouse_pdata->lower_level_pebbles[0].instance);
         if (object != 0) {
             unhide_obj(object);
         }
 
-        object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[1].hdr, g_slaughterhouse_pdata->lower_level_pebbles[1].instance);
         if (object != 0) {
             unhide_obj(object);
         }
 
-        object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[2].hdr, g_slaughterhouse_pdata->lower_level_pebbles[2].instance);
         if (object != 0) {
             unhide_obj(object);
         }
@@ -2221,20 +2171,17 @@ void sh_lower_level_pebble_hide(void) {
     MkObj* object;
 
     if (g_slaughterhouse_pdata != 0) {
-        object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[0].hdr, g_slaughterhouse_pdata->lower_level_pebbles[0].instance);
         if (object != 0) {
             hide_obj(object);
         }
 
-        object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[1].hdr, g_slaughterhouse_pdata->lower_level_pebbles[1].instance);
         if (object != 0) {
             hide_obj(object);
         }
 
-        object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(
-            g_slaughterhouse_pdata);
+        object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[2].hdr, g_slaughterhouse_pdata->lower_level_pebbles[2].instance);
         if (object != 0) {
             hide_obj(object);
         }
@@ -2283,7 +2230,7 @@ static void sh_load_objs(void) {
         return;
     }
 
-    object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(data);
+    object = MK_HDR_LIVE((MkObj*) data->lower_level_pebbles[0].hdr, data->lower_level_pebbles[0].instance);
 
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000C, 0xA01D);
@@ -2306,7 +2253,7 @@ static void sh_load_objs(void) {
     }
 
     data = g_slaughterhouse_pdata;
-    object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(data);
+    object = MK_HDR_LIVE((MkObj*) data->lower_level_pebbles[1].hdr, data->lower_level_pebbles[1].instance);
 
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000A, 0xA01D);
@@ -2329,7 +2276,7 @@ static void sh_load_objs(void) {
     }
 
     data = g_slaughterhouse_pdata;
-    object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(data);
+    object = MK_HDR_LIVE((MkObj*) data->lower_level_pebbles[2].hdr, data->lower_level_pebbles[2].instance);
 
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F0009, 0xA01D);
@@ -2378,14 +2325,11 @@ static void sh_load_objs(void) {
     }
 }
 
-static inline MkHdr* sh_live_latched_object(MkHdrLatch* latch) {
-    return MK_LIVE(latch->hdr, latch->instance);
-}
 
 static inline void sh_hide_latched_object(MkHdrLatch* latch) {
     MkHdr* object;
 
-    object = sh_live_latched_object(latch);
+    object = MK_LIVE(latch->hdr, latch->instance);
     if (object != 0) {
         hide_obj(object);
     }
@@ -2453,9 +2397,9 @@ void bgnd_sh_level_2(void) {
         if (!mslSoundIsValid(g_slaughterhouse_pdata->lower_ambient_sound_2)) {
             g_slaughterhouse_pdata->lower_ambient_sound_2 = snd_req(0x13E);
         }
-        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[0]));
-        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[1]));
-        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[2]));
+        unhide_obj(MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[0].hdr, g_slaughterhouse_pdata->lower_level_pebbles[0].instance));
+        unhide_obj(MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[1].hdr, g_slaughterhouse_pdata->lower_level_pebbles[1].instance));
+        unhide_obj(MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[2].hdr, g_slaughterhouse_pdata->lower_level_pebbles[2].instance));
     }
 }
 void bgnd_sh_level_1(void) {
@@ -2538,7 +2482,7 @@ void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
 static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
     MkHdr* object;
 
-    if (sh_live_latched_object(latch) != 0) {
+    if (MK_LIVE(latch->hdr, latch->instance) != 0) {
         object = latch->hdr;
         if (object->instance != 0) {
             object->typed_vtbl->destroy(object);
@@ -4803,9 +4747,6 @@ static float victim_fall_down_a_level(void) {
 }
 
 
-static inline CameraObj* camera_item_live_node(CameraItem* owner) {
-    return MK_HDR_LIVE(owner->node, owner->instance);
-}
 
 
 
@@ -4824,7 +4765,7 @@ static float p_beetle_lair_front_wall_breaking(void) {
     MkObj* player_object;
     MkSobj* wall;
 
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
     _mkproc_sleep_ticks = 3.0f;
@@ -4882,9 +4823,6 @@ extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
                              float* final_speed, int reset, float time);
 extern void get_current_target(Vec* target);
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    return MK_HDR_LIVE(owner->node, owner->instance);
-}
 
 /* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x180 higher than retail (TU data layout). */
 static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
@@ -4920,7 +4858,7 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     aproc->vtbl->sleep();
     xfer_camera(p_idle_camera, 1);
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
     get_current_target(&look_target);
@@ -5090,13 +5028,7 @@ static inline void bl_column_normalize_vector(Vec* vector) {
     vector->z *= inverse_length;
 }
 
-static inline MkObj* bl_column_break_data_live_player_tracked_obj(BlColumnBreakData* owner) {
-    return MK_HDR_LIVE(owner->player->tracked_obj, owner->player->tracked_obj_instance);
-}
 
-static inline MkObj* bl_column_break_data_live_player_his_plyr_pdata_tracked_obj(BlColumnBreakData* owner) {
-    return MK_HDR_LIVE(owner->player->his_plyr_pdata->tracked_obj, owner->player->his_plyr_pdata->tracked_obj_instance);
-}
 
 
 
@@ -5160,12 +5092,12 @@ static float p_beetle_lair_column_breaking(void) {
     _mkproc_sleep_ticks = 3.0f;
     aproc->vtbl->sleep();
 
-    target = bl_column_break_data_live_player_tracked_obj(data);
+    target = MK_HDR_LIVE(data->player->tracked_obj, data->player->tracked_obj_instance);
 
     if (target == 0) {
         return -1.0f;
     }
-    reference = bl_column_break_data_live_player_his_plyr_pdata_tracked_obj(data);
+    reference = MK_HDR_LIVE(data->player->his_plyr_pdata->tracked_obj, data->player->his_plyr_pdata->tracked_obj_instance);
 
     if (reference == 0) {
         return -1.0f;
@@ -9366,7 +9298,7 @@ static float p_hide_walls(void) {
     float hide_distance;
     unsigned int index;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
         return -1.0f;
@@ -10158,9 +10090,6 @@ void bgnd_xfer_attacker(int script_function) {
     xfer_player_proc(process, bgnd_call_script_function);
 }
 
-static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem* owner) {
-    return MK_HDR_LIVE(object, owner->instance);
-}
 
 
 
@@ -10307,7 +10236,7 @@ float bgnd_process_collision_info(
         CameraObj* camera = camera_item.node;
         Vec target;
 
-        camera = camera_item_validate_node(camera, &camera_item);
+        camera = MK_HDR_LIVE(camera, camera_item.instance);
         get_current_target(&target);
         target.x -= camera->pos.x;
         target.z -= camera->pos.z;
@@ -10439,7 +10368,7 @@ void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     CmdScript* script;
     MkProc* process;
 
-    process = bgnd_live_player_process(player);
+    process = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     script = get_cmdscript_for_proc(process);
     if (process != 0) {
         run_reaction_cleanup_function(player);
@@ -11403,7 +11332,7 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
     CmdScript* script;
     MkProc* process;
 
-    process = bgnd_live_player_process(player);
+    process = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     if (process != 0) {
         script = get_cmdscript_for_proc(process);
         if (script != 0) {
@@ -11413,9 +11342,6 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
     }
 }
 
-static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
-    return MK_LIVE(owner->player_proc, owner->player_proc_instance);
-}
 
 static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
     MkProc* object = owner->own_player_proc;
@@ -11438,7 +11364,7 @@ void mks_xfer_collision_info_plyr_to_script(int script_function,
 
     if (player == 1) {
         pdata = g_active_obstacle_event_data->player_pdata;
-        process = player_live_player_proc(pdata);
+        process = MK_LIVE(pdata->player_proc, pdata->player_proc_instance);
     } else {
         pdata = g_active_obstacle_event_data->player_pdata;
         process = player_live_own_player_proc(pdata);
@@ -11722,7 +11648,7 @@ void bgnd_set_sobj_uv_scroll_abs_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = bgnd_live_uv_control(item);
+        control = MK_HDR_LIVE(item->control, item->instance);
         if (control != 0) {
             control->mtx1[12] = u1;
             control->mtx1[13] = v1;
@@ -11738,7 +11664,7 @@ void bgnd_set_sobj_uv_scroll_rate_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = bgnd_live_uv_control(item);
+        control = MK_HDR_LIVE(item->control, item->instance);
         if (control != 0) {
             control->rateU1 = u1;
             control->rateV1 = v1;
@@ -11852,8 +11778,7 @@ int bgnd_launch_plyr_up_and_forward_running(void) {
     MkProc* process;
     int moving;
 
-    process = bgnd_live_transient_process(
-        g_game_info.collision_player_pdata->his_plyr_pdata);
+    process = MK_LIVE(g_game_info.collision_player_pdata->his_plyr_pdata->transient_proc, g_game_info.collision_player_pdata->his_plyr_pdata->transient_proc_instance);
     moving = g_game_info.player_objects[0]->flags_08_bits.moving;
     if (process != 0 || moving) {
         return 1;
@@ -12550,7 +12475,7 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     MkObj* object;
 
     light = MKX_RPLIGHT_FROM_HDR(header);
-    object = bgnd_live_light_object(light);
+    object = MK_HDR_LIVE(light->obj, light->obj_instance);
     if (object != 0) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }

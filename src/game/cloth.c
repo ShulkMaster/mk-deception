@@ -2021,14 +2021,11 @@ static void ps_axis(void) {
     axis_sobj = 0;
 }
 
-static inline MkObj* axis_pdata_live_axis(AxisPdata* pdata) {
-    return MK_HDR_LIVE(pdata->axis, pdata->axis_instance);
-}
 
 static void pw_axis(void) {
     axis_pdata = (AxisPdata*)apdata;
     if (axis_pdata != 0) {
-        axis_obj = axis_pdata_live_axis(axis_pdata);
+        axis_obj = MK_HDR_LIVE(axis_pdata->axis, axis_pdata->axis_instance);
         if (axis_obj == 0) {
             mkproc_die();
         }

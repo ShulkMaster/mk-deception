@@ -749,16 +749,13 @@ void liukang_in_fight_random_snd_check(void) {
     }
 }
 
-static inline MkProc* ai_live_player_process(PlyrPdata* player) {
-    return MK_LIVE(player->player_proc, player->player_proc_instance);
-}
 
 void dk_taunt_at_screen(void) {
     PlyrPdata* player;
     MkProc* proc;
 
     player = plyr_pdata;
-    proc = ai_live_player_process(player);
+    proc = MK_LIVE(player->player_proc, player->player_proc_instance);
     xfer_player_proc(proc, dk_screen_taunt);
 }
 

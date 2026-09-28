@@ -469,19 +469,6 @@ typedef struct NcsGroundCollisionWatchPdata {
     int emitters[3];             /* +0x24 */
 } NcsGroundCollisionWatchPdata;
 
-static inline MkObj* ncs_live_object_ref(FighterObjectRef* ref) {
-    MkObj* object = ref->object;
-
-    if (object != 0) {
-        if (object->hdr.instance == ref->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-} /* 0x30 */
 
 typedef struct NcsCameraWallRegion {
     int type;
@@ -600,33 +587,7 @@ static inline MkObj* ncs_live_tracked_obj(PlyrPdata* owner) {
                : 0;
 }
 
-static inline MkObj* ncs_live_aux_weapon(PlyrPdata* player) {
-    MkObj* weapon = player->aux_weapon_latch.obj;
 
-    if (weapon != 0) {
-        if (weapon->hdr.instance == player->aux_weapon_latch.instance) {
-            return weapon;
-        }
-        weapon = 0;
-    } else {
-        weapon = 0;
-    }
-    return weapon;
-}
-
-static inline CameraObj* ncs_live_camera(void) {
-    CameraObj* camera = camera_item.node;
-
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            return camera;
-        }
-        camera = 0;
-    } else {
-        camera = 0;
-    }
-    return camera;
-}
 
 static inline float ncs_sqrt(float squared) {
     union {
@@ -843,7 +804,7 @@ MkProc* fire_sc_spear(
     MkProc* proc;
 
     proc = 0;
-    weapon = ncs_live_aux_weapon(player);
+    weapon = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
     if (weapon != 0) {
         if (weapon->field_60 == 0) {
             weapon->field_60 = 1;
@@ -1126,7 +1087,7 @@ static float p_sc_spear2_victory(void) {
     float dz;
     float root;
 
-    camera = ncs_live_camera();
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return 1.0f;
     }
@@ -1903,25 +1864,13 @@ static float p_prison_grab(void) {
     return 1.0f;
 }
 
-static inline MkProc* ncs_live_camera_process(GameInfo* owner) {
-    MkProc* process = owner->camera_proc;
-    if (process != 0) {
-        if (process->instance == owner->camera_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 void ncs_dkp_camera_konqchar_show_hide_alpha(
     int character_index, MkObj* character) {
     MkProc* process;
     NcsKonquestCharacterPdata* pdata;
 
-    process = ncs_live_camera_process(&g_game_info);
+    process = MK_LIVE(g_game_info.camera_proc, g_game_info.camera_proc_instance);
     if (process == 0) {
         return;
     }
@@ -2663,8 +2612,7 @@ static float p_watch_obj_for_gnd_coll(void);
 static float p_camera_wall_show_hide_alpha(void);
 static float p_limb_sever_attach(void);
 static float p_gore2_update(void);
-/* TODO: [near miss] 99.49%; glop velocity fmuls operand order and the cleanup loop's
- * FighterObjectRef address folding (retail +0xc displacement) remain. */
+/* TODO: [near miss] 99.92%; only the glop velocity fmuls operand order (f30 first in retail) remains. */
 static void trigger_blood_glops(
     PlyrPdata* player, int bone, MkObj* source, int blood_type) {
     NcsGroundCollisionWatchPdata* watcher;
@@ -2753,7 +2701,7 @@ static void trigger_blood_glops(
 
     if (watcher != 0) {
         for (index = 0; index < 3; index++) {
-            glop = ncs_live_object_ref(&watcher->objects[index]);
+            glop = MK_HDR_LIVE(watcher->objects[index].object, watcher->objects[index].instance);
             if (glop != 0 && glop->hdr.instance != 0) {
                 glop->hdr.typed_vtbl->destroy(&glop->hdr);
             }
@@ -3328,7 +3276,7 @@ MkObj* mks_limb_sever(
         fighter = g_game_info.plyr1.slot.fighter;
     }
     severed_ref = &fighter->severed_limbs[limb];
-    severed = ncs_live_object_ref(severed_ref);
+    severed = MK_HDR_LIVE(severed_ref->object, severed_ref->instance);
     if (severed == 0) {
         severed = obj_sever_limb(object, limb, 0, include_children);
         if (severed != 0) {
@@ -3811,22 +3759,9 @@ void limb_sever_update_slide_end_coeff(
     }
 }
 
-static inline MkProc* ncs_live_animation_process(AnimPdata* data) {
-    MkProc* process = data->proc;
-
-    if (process != 0) {
-        if (process->instance == data->proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 MkProc* proc_of_anim_pdata(AnimPdata* data) {
-    return ncs_live_animation_process(data);
+    return MK_LIVE(data->proc, data->proc_instance);
 }
 
 void set_pdata_anim_step(AnimPdata* pdata, float step) {

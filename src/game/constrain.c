@@ -332,16 +332,13 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     }
 }
 
-static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
-}
 
 float dist_behind_me(void) {
     MkObj* object;
     Vec direction;
     float distance;
 
-    object = player_live_tracked_obj(plyr_pdata);
+    object = MK_HDR_LIVE(plyr_pdata->tracked_obj, plyr_pdata->tracked_obj_instance);
 
     if (object == 0) {
         return 0.0f;
@@ -518,9 +515,6 @@ void set_constrain_last_pos(int player, const Vec* position) {
     }
 }
 
-static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
-    return MK_HDR_LIVE(owner->sidekick_obj, owner->sidekick_instance);
-}
 
 static float p_constrain_players(void) {
     MkObj* sidekick;
@@ -544,7 +538,7 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P1_OBJECT != 0) {
         pdata = g_game_info.plyr0.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = player_live_sidekick_obj(pdata);
+            sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);
@@ -555,7 +549,7 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P2_OBJECT != 0) {
         pdata = g_game_info.plyr1.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = player_live_sidekick_obj(pdata);
+            sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);

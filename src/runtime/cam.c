@@ -1252,9 +1252,6 @@ float p_mk_chess_cam_chase_cursor(void) {
     return 1.0f;
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    return MK_HDR_LIVE(owner->node, owner->instance);
-}
 
 /* TODO: [near miss] 100% report; cam offset block relocates via ...data.0 instead of retail cam_ang_offset (TU data layout). */
 float p_mk_chess_cam_control(void) {
@@ -1410,9 +1407,6 @@ void remove_widescreen_bars(void) {
     }
 }
 
-static inline ScreenObj* fade_box_live_node(FadeBoxItem* owner) {
-    return MK_LIVE(owner->node, owner->instance);
-}
 
 /* TODO: [near miss] 99.96%; left_edge int->float subtract lands in f3 instead of a temp f1 (float coloring only). */
 static float p_move_widescreen_bars(void) {
@@ -1425,9 +1419,9 @@ static float p_move_widescreen_bars(void) {
     pdata = (WidescreenBarPdata*)pdata_of_proc(aproc);
     left_edge = -(screen_width - 0x280);
     left_edge *= 0.5f;
-    upper = fade_box_live_node(&upper_fade_box_item);
+    upper = MK_LIVE(upper_fade_box_item.node, upper_fade_box_item.instance);
 
-    lower = fade_box_live_node(&lower_fade_box_item);
+    lower = MK_LIVE(lower_fade_box_item.node, lower_fade_box_item.instance);
 
     if (upper == 0 || lower == 0) {
         return -1.0f;
@@ -2777,9 +2771,6 @@ static float p_run_interaction_camera(void) {
     return -1.0f;
 }
 
-static inline MkObj* konquest_camera_live_hero_object(KonquestCameraPdataView* owner) {
-    return MK_HDR_LIVE(owner->hero_object, owner->hero_instance);
-}
 
 static inline InteractionNpc* konquest_camera_live_movement_npc(
     KonquestCameraPdataView* owner) {
@@ -2805,7 +2796,7 @@ void interaction_cam_set_target_info(int duration, float angle_a,
     float normalized_angle_a;
     float normalized_angle_b;
 
-    hero = konquest_camera_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     movement_npc = konquest_camera_live_movement_npc(konquest_pdata);
 
@@ -2840,13 +2831,7 @@ void interaction_cam_set_target_info(int duration, float angle_a,
 }
 
 
-static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem* owner) {
-    return MK_HDR_LIVE(object, owner->instance);
-}
 
-static inline MkObj* interaction_camera_data_live_hero(InteractionCameraData* owner) {
-    return MK_HDR_LIVE(owner->hero, owner->hero_instance);
-}
 
 static inline MkObj* interaction_camera_data_live_target(InteractionCameraData* owner) {
     MkObj* object = owner->target;
@@ -2898,7 +2883,7 @@ static float p_interaction_cam(void) {
     entry_camera = camera_item.node;
     g_ic_data.created_process = 0;
     snap_angles = g_ic_data.ticks == 1;
-    entry_camera = camera_item_validate_node(entry_camera, &camera_item);
+    entry_camera = MK_HDR_LIVE(entry_camera, camera_item.instance);
 
     if (entry_camera == 0) {
         return -1.0f;
@@ -2938,7 +2923,7 @@ static float p_interaction_cam(void) {
 
             if (track_targets != 0) {
                 float interaction_angle;
-                hero = interaction_camera_data_live_hero(&g_ic_data);
+                hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
 
                 if (hero != 0) {
                     target = interaction_camera_data_live_target(&g_ic_data);
@@ -2958,7 +2943,7 @@ static float p_interaction_cam(void) {
                     }
                 }
 
-                hero = interaction_camera_data_live_hero(&g_ic_data);
+                hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
 
                 if (hero == 0) {
                     interaction_angle = 0.0f;
@@ -3020,12 +3005,12 @@ static float p_interaction_cam(void) {
             g_ic_data.ticks--;
         }
 
-        active_camera = camera_live_node(&camera_item);
+        active_camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         active_camera->pos.x = desired_camera_position.x;
         active_camera->pos.y = desired_camera_position.y;
         active_camera->pos.z = desired_camera_position.z;
         look_at_interaction_target(&look_target, snap_angles);
-        active_camera = camera_live_node(&camera_item);
+        active_camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         old_cam_ang_offset.x = cam_ang_offset.x;
         old_cam_ang_offset.y = cam_ang_offset.y;
         old_cam_ang_offset.z = cam_ang_offset.z;
@@ -3385,9 +3370,6 @@ void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
 }
 
 
-static inline MkObj* special_move_camera_data_live_target(SpecialMoveCameraData* owner) {
-    return MK_HDR_LIVE(owner->target, owner->target_instance);
-}
 
 
 
@@ -3427,14 +3409,14 @@ static float p_special_move_cam(void) {
     float phase;
     float blend;
 
-    target = special_move_camera_data_live_target(&smc_data);
+    target = MK_HDR_LIVE(smc_data.target, smc_data.target_instance);
 
     if (target == 0) {
         mkproc_jump_sleep(p_camera_proc);
         return 0.0f;
     }
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         mkproc_jump_sleep(p_camera_proc);
         return 0.0f;
@@ -3502,17 +3484,17 @@ static float p_special_move_cam(void) {
             current_ang_z = delta_ang_z * blend + start_ang_z;
         }
 
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         camera->pos.x = current_pos_x;
         camera->pos.y = current_pos_y;
         camera->pos.z = current_pos_z;
 
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         camera->ang.x = current_ang_x;
         camera->ang.y = current_ang_y;
         camera->ang.z = current_ang_z;
 
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         old_cam_ang_offset.x = cam_ang_offset.x;
         old_cam_ang_offset.y = cam_ang_offset.y;
         old_cam_ang_offset.z = cam_ang_offset.z;
@@ -3559,7 +3541,7 @@ float get_volume_from_distance(const Vec* position, float far_distance,
     float volume = 0.0f;
     float distance;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return -1.0f;
     }
@@ -3650,17 +3632,13 @@ void camera_exit_script(void) {
     destroy_mkprocs_pid(0x9006);
 }
 
-static inline MkProc* camera_monitor_validate_node(
-    MkProc* object, CameraScriptMonitorItem* owner) {
-    return MK_LIVE(object, owner->instance);
-}
 
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
     MkProc* process;
 
-    monitor = camera_monitor_validate_node(monitor, &camera_script_monitor_item);
+    monitor = MK_LIVE(monitor, camera_script_monitor_item.instance);
     if (monitor != 0 && monitor->instance != 0) {
         monitor->vtbl->destroy(monitor);
     }
@@ -4114,13 +4092,13 @@ void camera_special_function(int function) {
         break;
     case 4:
         get_play_camera_position(&position);
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         camera->pos.x = position.x;
         camera->pos.y = position.y;
         camera->pos.z = position.z;
         if (g_game_info.plyr0.slot.mirror_a != 0 &&
             g_game_info.plyr1.slot.mirror_a != 0) {
-            camera = camera_live_node(&camera_item);
+            camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
             if (g_game_info.plyr0.slot.mirror_a != 0 &&
                 g_game_info.plyr1.slot.mirror_a != 0) {
                 position.x = g_game_info.plyr1.slot.mirror_a->pos.value.x +
@@ -4136,7 +4114,7 @@ void camera_special_function(int function) {
             position.y = -((3.0f * gxMathTan(0.1f)) -
                            (1.55f + camera->ground_plane));
         }
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         direction.x = position.x - camera->pos.x;
         direction.y = position.y - camera->pos.y;
         direction.z = position.z - camera->pos.z;
@@ -4619,7 +4597,7 @@ float p_attract_camera(void) {
     int next_mode;
     CameraObj* camera;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     state.camera = camera;
     state.countdown = 0;
     state.mode = -1;
@@ -4669,7 +4647,7 @@ static void attract_glitch_move_gamecam(AttractCameraState* state) {
     get_play_camera_position(&state->current_position);
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         if (g_game_info.plyr0.slot.mirror_a != 0 &&
             g_game_info.plyr1.slot.mirror_a != 0) {
             state->target_position.x =
@@ -5942,7 +5920,7 @@ void adj_cam_pos(void) {
     float current_distance_sq;
     float inverse_length;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     camera_midpoint.y += camera->ground_plane;
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
@@ -6070,7 +6048,7 @@ void adj_cam_pos(void) {
     }
 
     distance_divisor = last_camera_distance / 2.6f;
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     camera->pos.x -= old_cam_pos_offset.x;
     rate = 0.1f / distance_divisor;
     camera->pos.y -= old_cam_pos_offset.y;
@@ -6081,10 +6059,10 @@ void adj_cam_pos(void) {
     radial_move_to_game_position(&camera_info.pdata->target_pos,
                                  &camera_midpoint, rate);
 
-    camera_turn_toward(&camera_live_node(&camera_item)->ang,
+    camera_turn_toward(&MK_HDR_LIVE(camera_item.node, camera_item.instance)->ang,
                        &camera_info.pdata->target_ang, rate);
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     old_cam_ang_offset.x = cam_ang_offset.x;
     old_cam_ang_offset.y = cam_ang_offset.y;
     old_cam_ang_offset.z = cam_ang_offset.z;

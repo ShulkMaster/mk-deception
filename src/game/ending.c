@@ -140,9 +140,6 @@ extern EndingDataEntry ending_data_table[26];
 extern int ending_speech;
 extern int f_ending_speech_paused;
 
-static inline ScreenObj* ending_item_live_object(EndingScreenObjItem* item) {
-    return MK_LIVE(item->object, item->instance);
-}
 
 static int scrolling_text_string_count;
 
@@ -494,12 +491,12 @@ static void fade_ending_screen_images(int image, int ticks) {
     unsigned char next_alpha;
     unsigned char next_final;
 
-    image_1a = ending_item_live_object(&ending_image_1a_item);
-    image_1b = ending_item_live_object(&ending_image_1b_item);
-    image_2a = ending_item_live_object(&ending_image_2a_item);
-    image_2b = ending_item_live_object(&ending_image_2b_item);
-    image_3a = ending_item_live_object(&ending_image_3a_item);
-    image_3b = ending_item_live_object(&ending_image_3b_item);
+    image_1a = MK_LIVE(ending_image_1a_item.object, ending_image_1a_item.instance);
+    image_1b = MK_LIVE(ending_image_1b_item.object, ending_image_1b_item.instance);
+    image_2a = MK_LIVE(ending_image_2a_item.object, ending_image_2a_item.instance);
+    image_2b = MK_LIVE(ending_image_2b_item.object, ending_image_2b_item.instance);
+    image_3a = MK_LIVE(ending_image_3a_item.object, ending_image_3a_item.instance);
+    image_3b = MK_LIVE(ending_image_3b_item.object, ending_image_3b_item.instance);
 
     if (image == 1) {
         image_1a->flag_bits.hidden = 0;
@@ -565,12 +562,12 @@ static void fade_ending_screen_images(int image, int ticks) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
 
-        image_1a = ending_item_live_object(&ending_image_1a_item);
-        image_1b = ending_item_live_object(&ending_image_1b_item);
-        image_2a = ending_item_live_object(&ending_image_2a_item);
-        image_2b = ending_item_live_object(&ending_image_2b_item);
-        image_3a = ending_item_live_object(&ending_image_3a_item);
-        image_3b = ending_item_live_object(&ending_image_3b_item);
+        image_1a = MK_LIVE(ending_image_1a_item.object, ending_image_1a_item.instance);
+        image_1b = MK_LIVE(ending_image_1b_item.object, ending_image_1b_item.instance);
+        image_2a = MK_LIVE(ending_image_2a_item.object, ending_image_2a_item.instance);
+        image_2b = MK_LIVE(ending_image_2b_item.object, ending_image_2b_item.instance);
+        image_3a = MK_LIVE(ending_image_3a_item.object, ending_image_3a_item.instance);
+        image_3b = MK_LIVE(ending_image_3b_item.object, ending_image_3b_item.instance);
     }
 
     if (image == 3) {

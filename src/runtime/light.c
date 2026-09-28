@@ -482,9 +482,6 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     return light;
 }
 
-static inline MkObj* mkx_rp_light_live_obj(MkxRpLight* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
-}
 
 
 
@@ -541,7 +538,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         }
         if (count > 1) {
             headMkx = MKX_RPLIGHT_FROM_HDR(point_light_list->hdr);
-            linked = mkx_rp_light_live_obj(headMkx);
+            linked = MK_HDR_LIVE(headMkx->obj, headMkx->obj_instance);
 
             if (linked != 0) {
                 if (linked->hdr.instance != 0) {

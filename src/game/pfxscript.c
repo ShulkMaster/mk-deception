@@ -473,9 +473,6 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-static inline PfxBank* pfx_live_bank(const PfxBankLatch* latch) {
-    return MK_HDR_LIVE(latch->bank, latch->bank_instance);
-}
 static inline PfxScriptEffect* pfx_live_effect(const PfxEffectLatch* latch) {
     PfxScriptEffect* effect = latch->effect;
 
@@ -503,7 +500,7 @@ unsigned int fx_by_id(int effect_id, unsigned int owner) {
 
     for (bank_index = 0; bank_index < 15; bank_index++) {
         bank_latch = &banks[bank_index];
-        bank = pfx_live_bank(bank_latch);
+        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
 
         if (bank != 0 && (bank->owner_flags & owner) != 0) {
             for (effect_index = 0;
@@ -2369,7 +2366,7 @@ void unload_all_effect_banks(void) {
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = pfx_live_bank(&banks[index]);
+        bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0) {
             bank_destroy(&bank->hdr);
         }
@@ -2996,7 +2993,7 @@ static float p_update_effects(void) {
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = pfx_live_bank(&banks[index]);
+        bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0) {
             bank_run_fx(bank);
         }
@@ -3016,7 +3013,7 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
     for (index = 0; index < 15; index++) {
         PfxBank* bank;
 
-        bank = pfx_live_bank(&banks[index]);
+        bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0 && (bank->owner_flags & owner_flags) != 0) {
             if (bank->hdr.instance != 0U) {
                 PfxBankVtablePrefix* vtbl;

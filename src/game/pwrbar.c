@@ -1201,9 +1201,6 @@ void update_plyr_medals(void) {
 }
 
 
-static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
-    return MK_LIVE(owner->object, owner->instance);
-}
 
 
 
@@ -1222,7 +1219,7 @@ void destroy_pwr_bars(void) {
     int string_index;
     int i;
 
-    process = proc_latch_live_object(&pwr_bar_proc_item);
+    process = MK_LIVE(pwr_bar_proc_item.object, pwr_bar_proc_item.instance);
 
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);

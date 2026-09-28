@@ -2728,9 +2728,6 @@ static float p_force_reaction(void) {
 }
 
 
-static inline PuzzleProcess* puzzle_reaction_transfer_data_live_opponent_proc(PuzzleReactionTransferData* owner) {
-    return MK_LIVE(owner->opponent_proc, owner->opponent_proc_instance);
-}
 
 static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
     PuzzleProcess* object = owner->hold_proc;
@@ -2765,7 +2762,7 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     }
 
     dispatch = tbl_xfer_addresses[reaction].dispatch;
-    opponent_proc = puzzle_reaction_transfer_data_live_opponent_proc(reaction_data);
+    opponent_proc = MK_LIVE(reaction_data->opponent_proc, reaction_data->opponent_proc_instance);
 
     his_obj = reaction_data->opponent_obj;
     his_pdata = reaction_data->opponent_pdata;

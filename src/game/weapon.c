@@ -416,10 +416,6 @@ static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
     return object;
 }
 
-static inline MkObj* weapon_trail_parent(MkObj* trail) {
-    MkObj* parent = (MkObj*)trail->parent_hdr;
-    return MK_HDR_LIVE(parent, trail->parent_inst);
-}
 
 static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
     MkObj* weapon = weapon_latch_object(latch);
@@ -431,7 +427,7 @@ static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
             MkObj* trail = (MkObj*)trail_hdr;
 
             if (trail != 0) {
-                if (weapon_trail_parent(trail) == 0) {
+                if (MK_HDR_LIVE((MkObj*)trail->parent_hdr, trail->parent_inst) == 0) {
                     if (trail->hdr.instance != 0) {
                         trail->hdr.typed_vtbl->destroy((MkHdr*)trail);
                     }
@@ -617,10 +613,6 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
 }
 
 
-static inline WeaponBoneMatcherState* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    WeaponBoneMatcherState* object = (WeaponBoneMatcherState*) owner->obj;
-    return MK_HDR_LIVE(object, owner->instance);
-}
 
 
 
@@ -696,7 +688,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     }
 
     if (secondary_latch != 0) {
-        matcher = plyr_mirror_obj_latch_live_obj(secondary_latch);
+        matcher = MK_HDR_LIVE((WeaponBoneMatcherState*) secondary_latch->obj, secondary_latch->instance);
 
     }
     if (matcher == 0) {
@@ -741,9 +733,6 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     return 0;
 }
 
-static inline MkObj* weapon_bone_matcher_state_live_child_latch_obj(WeaponBoneMatcherState* owner) {
-    return MK_HDR_LIVE(owner->child_obj, owner->child_instance);
-}
 
 /* TODO: [breakthrough needed] 87.398380%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
 
@@ -791,7 +780,7 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
                     continue;
                 }
                 link = (WeaponBoneMatcherState*)link_ptr->hdr;
-                linked_item = weapon_bone_matcher_state_live_child_latch_obj(link);
+                linked_item = MK_HDR_LIVE(link->child_obj, link->child_instance);
 
                 if (linked_item == item) {
                     object_to_destroy = &link->hdr;

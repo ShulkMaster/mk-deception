@@ -125,12 +125,9 @@ void end_first_pass_render(void) {
     destroy_fade_box();
 }
 
-static inline MkObj* display_camera_live_object(DisplayCameraItem* owner) {
-    return MK_HDR_LIVE(owner->object, owner->instance);
-}
 
 void start_first_pass_render(void) {
-    MkObj* camera_object = display_camera_live_object(&camera_item);
+    MkObj* camera_object = MK_HDR_LIVE(camera_item.object, camera_item.instance);
 
     if (camera_object != 0) {
         camera_object->pos.value.x = 0.0f;
@@ -447,9 +444,6 @@ void turn_display_off(void) {
     display_off = 1;
 }
 
-static inline MkObj* fighter_live_shadow_obj(FighterMirror* owner) {
-    return MK_HDR_LIVE(owner->shadow_obj, owner->shadow_obj_instance);
-}
 
 void Render(void) {
     MkProc* capture_proc;
@@ -494,7 +488,7 @@ void Render(void) {
                     MkObj* flag_obj = fighter->flag_obj;
 
                     if (flag_obj != 0) {
-                        MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+                        MkObj* shadow_obj = MK_HDR_LIVE(fighter->shadow_obj, fighter->shadow_obj_instance);
 
                         if (shadow_obj == 0) {
                             plyr_turn_off_mirrorguy(&g_game_info.plyr0);
@@ -517,7 +511,7 @@ void Render(void) {
                     MkObj* flag_obj = fighter->flag_obj;
 
                     if (flag_obj != 0) {
-                        MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+                        MkObj* shadow_obj = MK_HDR_LIVE(fighter->shadow_obj, fighter->shadow_obj_instance);
 
                         if (shadow_obj == 0) {
                             plyr_turn_off_mirrorguy(&g_game_info.plyr1);
@@ -686,7 +680,7 @@ int set_render_state(int state, int value) {
 
 
 void update_camera_facing_matrix(void) {
-    MkObj* camera_object = display_camera_live_object(&camera_item);
+    MkObj* camera_object = MK_HDR_LIVE(camera_item.object, camera_item.instance);
 
     if (camera_object != 0) {
         Vec angles;

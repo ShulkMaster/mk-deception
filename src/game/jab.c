@@ -657,10 +657,6 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
     object->scale.z = target->z;
 }
 
-static inline MkProc* jab_ref_live_object(JabObjectRef* owner) {
-    MkProc* object = (MkProc*) owner->object;
-    return MK_LIVE(object, owner->instance);
-}
 
 /* TODO: [near miss] 97.586205%; register coloring, instruction scheduling; one-trial ceiling. */
 void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
@@ -669,7 +665,7 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     MkProc* proc;
     JabProcVtableRef vtbl;
 
-    proc = jab_ref_live_object(proc_ref);
+    proc = MK_LIVE((MkProc*) proc_ref->object, proc_ref->instance);
 
     if (proc != 0) {
         pdata = (JadeBindPdata*)pdata_of_proc(proc);

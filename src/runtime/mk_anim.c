@@ -200,9 +200,6 @@ int set_anim_script_frame(
     float frame, AnimPdata* anim, AnimScript* script, unsigned int flags);
 AnimPdata* get_mkpdata_anim(void);
 
-static inline MkObj* transition_anim_object(AnimPdata* anim) {
-    return MK_HDR_LIVE(anim->obj, anim->obj_instance);
-}
 
 int transition_to_anim_script_frame(
     float transition_frames,
@@ -247,7 +244,7 @@ static inline float anim_last_frame(const AnimScript* script) {
 
 static inline void select_flip_map(
     AnimPdata* anim, const unsigned int* flags) {
-    MkObj* obj = transition_anim_object(anim);
+    MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     int flipped;
 
     flipped = obj != 0 && obj->hide_flag_bits.bit6 != 0;
@@ -348,19 +345,8 @@ static inline int mkptr_list_exists(MkPtr** list) {
     return list != 0;
 }
 
-static inline MkObj* live_anim_object(const PlyrMirrorObjLatch* latch) {
-    return MK_HDR_LIVE(latch->obj, latch->instance);
-}
 
-static inline MkProc* live_anim_proc(const PlyrProcLatch* latch) {
-    return MK_LIVE(latch->proc, latch->instance);
-}
 
-static inline BoneMatcherState* live_anim_pose_state(
-    const MkHdrLatch* latch) {
-    BoneMatcherState* state = (BoneMatcherState*)latch->hdr;
-    return MK_HDR_LIVE(state, latch->instance);
-}
 
 static inline int anim_selection_is_none(
     const AnimSelectionFrame* selection) {
@@ -794,9 +780,6 @@ static inline MkObj* bone_matcher_state_live_parent_obj(BoneMatcherState* owner)
     return object;
 }
 
-static inline MkObj* bone_matcher_state_live_child_obj(BoneMatcherState* owner) {
-    return MK_HDR_LIVE(owner->child_obj, owner->child_instance);
-}
 
 static inline MkSobj* bone_matcher_state_live_clone_obj(BoneMatcherState* owner) {
     MkSobj* object = owner->clone_obj;
@@ -861,7 +844,7 @@ static float p_bone_matcher(void) {
         mkproc_die();
     }
 
-    child_obj = bone_matcher_state_live_child_obj(matcher);
+    child_obj = MK_HDR_LIVE(matcher->child_obj, matcher->child_instance);
 
     if (child_obj == 0) {
         mkproc_die();
@@ -1171,7 +1154,7 @@ static inline int advance_anim_state(AnimPdata* anim) {
 
     obj = anim->obj;
     speed = game_speed;
-    obj = transition_anim_object(anim);
+    obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
         speed = 1.0f;
     }
@@ -1247,14 +1230,8 @@ int advance_anim(AnimPdata* anim) {
     return advance_anim_state(anim);
 }
 
-static inline PlyrPdata* anim_pdata_live_owner(AnimPdata* owner) {
-    return MK_LIVE(owner->owner, owner->owner_instance);
-}
 
 /* TODO: [breakthrough needed] 76.517290%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
-static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
-}
 
 
 
@@ -1308,18 +1285,18 @@ int pose_anim(AnimPdata* anim, int update_object) {
         anim->updates_this_tick++;
     }
 
-    owner = anim_pdata_live_owner(anim);
+    owner = MK_LIVE(anim->owner, anim->owner_instance);
 
-    obj = anim_pdata_live_obj(anim);
+    obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
     if (obj != 0) {
         if (owner != 0 && owner->mirror_slots != 0) {
             channel_objects[0] =
-                live_anim_object(&owner->mirror_slots->weapon[0].primary);
+                MK_HDR_LIVE(owner->mirror_slots->weapon[0].primary.obj, owner->mirror_slots->weapon[0].primary.instance);
             channel_objects[1] =
-                live_anim_object(&owner->mirror_slots->weapon[1].primary);
+                MK_HDR_LIVE(owner->mirror_slots->weapon[1].primary.obj, owner->mirror_slots->weapon[1].primary.instance);
             channel_objects[2] =
-                live_anim_object(&owner->held_opponent_latch);
+                MK_HDR_LIVE(owner->held_opponent_latch.obj, owner->held_opponent_latch.instance);
         } else {
             channel_objects[0] = 0;
             channel_objects[1] = 0;
@@ -1859,50 +1836,40 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                         continue;
                                     }
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_8C);
+                                        selected_proc = MK_LIVE(owner->field_8C.proc, owner->field_8C.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->face_anim_latch);
+                                        selected_proc = MK_LIVE(owner->face_anim_latch.proc, owner->face_anim_latch.instance);
                                     }
                                     scripts = owner->face_animations;
                                     script_count = 0x1A;
                                     break;
                                 case 0x18:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_7C);
+                                        selected_proc = MK_LIVE(owner->field_7C.proc, owner->field_7C.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->left_hand_anim_latch);
+                                        selected_proc = MK_LIVE(owner->left_hand_anim_latch.proc, owner->left_hand_anim_latch.instance);
                                     }
                                     break;
                                 case 0x19:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_84);
+                                        selected_proc = MK_LIVE(owner->field_84.proc, owner->field_84.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->right_hand_anim_latch);
+                                        selected_proc = MK_LIVE(owner->right_hand_anim_latch.proc, owner->right_hand_anim_latch.instance);
                                     }
                                     hand_flags = 8;
                                     break;
                                 case 0x48:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[0]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[0].proc, owner->goro_hand_anim[0].instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[1]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[1].proc, owner->goro_hand_anim[1].instance);
                                     }
                                     break;
                                 case 0x55:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[2]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[2].proc, owner->goro_hand_anim[2].instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[3]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[3].proc, owner->goro_hand_anim[3].instance);
                                     }
                                     hand_flags = 8;
                                     break;
@@ -1939,14 +1906,11 @@ int pose_anim(AnimPdata* anim, int update_object) {
 
                             if (owner != 0) {
                                 if (group == 1) {
-                                    pose = live_anim_pose_state(
-                                        &owner->mirror_slots->weapon[0].secondary_hdr);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->mirror_slots->weapon[0].secondary_hdr.hdr, owner->mirror_slots->weapon[0].secondary_hdr.instance);
                                 } else if (group == 2) {
-                                    pose = live_anim_pose_state(
-                                        &owner->mirror_slots->weapon[1].secondary_hdr);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->mirror_slots->weapon[1].secondary_hdr.hdr, owner->mirror_slots->weapon[1].secondary_hdr.instance);
                                 } else if (group == 3) {
-                                    pose = live_anim_pose_state(
-                                        &owner->hold_hdr_latch);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->hold_hdr_latch.hdr, owner->hold_hdr_latch.instance);
                                 }
                             }
                             if (pose != 0) {
@@ -2259,50 +2223,40 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                         continue;
                                     }
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_8C);
+                                        selected_proc = MK_LIVE(owner->field_8C.proc, owner->field_8C.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->face_anim_latch);
+                                        selected_proc = MK_LIVE(owner->face_anim_latch.proc, owner->face_anim_latch.instance);
                                     }
                                     scripts = owner->face_animations;
                                     script_count = 0x1A;
                                     break;
                                 case 0x18:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_7C);
+                                        selected_proc = MK_LIVE(owner->field_7C.proc, owner->field_7C.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->left_hand_anim_latch);
+                                        selected_proc = MK_LIVE(owner->left_hand_anim_latch.proc, owner->left_hand_anim_latch.instance);
                                     }
                                     break;
                                 case 0x19:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->field_84);
+                                        selected_proc = MK_LIVE(owner->field_84.proc, owner->field_84.instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->right_hand_anim_latch);
+                                        selected_proc = MK_LIVE(owner->right_hand_anim_latch.proc, owner->right_hand_anim_latch.instance);
                                     }
                                     hand_flags = 8;
                                     break;
                                 case 0x48:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[0]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[0].proc, owner->goro_hand_anim[0].instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[1]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[1].proc, owner->goro_hand_anim[1].instance);
                                     }
                                     break;
                                 case 0x55:
                                     if (transition_pass != 0) {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[2]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[2].proc, owner->goro_hand_anim[2].instance);
                                     } else {
-                                        selected_proc = live_anim_proc(
-                                            &owner->goro_hand_anim[3]);
+                                        selected_proc = MK_LIVE(owner->goro_hand_anim[3].proc, owner->goro_hand_anim[3].instance);
                                     }
                                     hand_flags = 8;
                                     break;
@@ -2359,16 +2313,11 @@ int pose_anim(AnimPdata* anim, int update_object) {
 
                             if (owner != 0) {
                                 if (group == 1) {
-                                    pose = live_anim_pose_state(
-                                        &owner->fighter_definition->mirror_slots.
-                                            weapon[0].secondary_hdr);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->fighter_definition->mirror_slots.weapon[0].secondary_hdr.hdr, owner->fighter_definition->mirror_slots.weapon[0].secondary_hdr.instance);
                                 } else if (group == 2) {
-                                    pose = live_anim_pose_state(
-                                        &owner->fighter_definition->mirror_slots.
-                                            weapon[1].secondary_hdr);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->fighter_definition->mirror_slots.weapon[1].secondary_hdr.hdr, owner->fighter_definition->mirror_slots.weapon[1].secondary_hdr.instance);
                                 } else if (group == 3) {
-                                    pose = live_anim_pose_state(
-                                        &owner->hold_hdr_latch);
+                                    pose = MK_HDR_LIVE((BoneMatcherState*)owner->hold_hdr_latch.hdr, owner->hold_hdr_latch.instance);
                                 }
                             }
                             if (pose != 0) {
@@ -2567,13 +2516,10 @@ static void apply_anim_offset(
     }
 }
 
-static inline MkObj* animation_live_object(AnimPdata* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
-}
 
 void set_root_and_obj_movement_weights(
     AnimPdata* anim, float root_weight, float obj_weight) {
-    MkObj* obj = animation_live_object(anim);
+    MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     RwMatrix* root_matrix;
     Vec world_delta;
     Vec local_delta;
@@ -2938,7 +2884,7 @@ int transition_to_anim_script_frame(
     }
 
     if ((flags & 0x80) == 0) {
-        obj = transition_anim_object(anim);
+        obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
                 obj->hide_flag_bits.bit0 = 1;
@@ -3030,7 +2976,7 @@ int transition_to_anim_script_frame(
     anim->step = 1.0f;
 
     speed = game_speed;
-    obj = transition_anim_object(anim);
+    obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
         speed = 1.0f;
     }
@@ -3079,7 +3025,7 @@ int transition_to_anim_script_frame(
     }
     anim->step = saved_step;
     anim->frame = frame;
-    obj = transition_anim_object(anim);
+    obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
         float ground_restore_x;
         float ground_restore_y;
@@ -3109,9 +3055,6 @@ void transition_to_anim_script(
         transition_frames, 0.0f, anim, script, flags);
 }
 
-static inline MkObj* animation_live_obj(AnimPdata* owner) {
-    return MK_HDR_LIVE(owner->obj, owner->obj_instance);
-}
 
 /* TODO: [near miss] 99.41%; frame span matches; first live obj/root bone/rotation take r26/r27/r29 (retail r31/r26/r27). */
 int set_anim_script_frame(
@@ -3162,7 +3105,7 @@ int set_anim_script_frame(
     }
 
     if ((flags & 0x80) == 0) {
-        obj = animation_live_obj(anim);
+        obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
@@ -3207,7 +3150,7 @@ int set_anim_script_frame(
         }
     }
 
-    obj = animation_live_obj(anim);
+    obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
     if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
         float ground_restore_x;
@@ -3237,7 +3180,7 @@ void set_anim_script(
 }
 
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
-    MkObj* obj = animation_live_object(anim);
+    MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
     obj->hide_flag_bits.bit6 = 1 - obj->hide_flag_bits.bit6;
     anim->flags ^= 8;

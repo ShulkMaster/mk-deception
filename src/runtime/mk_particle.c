@@ -126,9 +126,6 @@ static inline PfxVm* pfx_vm(MkPfx* pfx) {
 /* Retail function order                                                     */
 /* ======================================================================== */
 
-static inline MkHdr* pfx_slot_live_hdr(PfxSlot* owner) {
-    return MK_LIVE(owner->hdr, owner->instance);
-}
 
 
 
@@ -148,7 +145,7 @@ void mkpfx_get_origin(MkPfx* pfx, float origin[3]) {
     slot = pfx->active_slot;
     slot_base = pfx->slot_table;
     mat = pfx->transforms[slot].matrix.elements;
-    bound = pfx_slot_live_hdr(slot_base);
+    bound = MK_LIVE(slot_base->hdr, slot_base->instance);
 
 
     if (bound != 0) {
