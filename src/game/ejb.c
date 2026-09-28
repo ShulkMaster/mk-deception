@@ -1034,18 +1034,17 @@ float aniproc_land(void) {
     return 0.0f;
 }
 
-static inline MkProc* player_live_transient_proc_direct(PlyrPdata* owner) {
-    return MK_LIVE(owner->transient_proc, owner->transient_proc_instance);
-}
 
 void hit_START_chores(
     int first_sound, int second_sound,
     float shake_ticks, float shake_strength) {
     MkObj* object;
     MkProc* process;
+    PlyrPdata* player;
 
     object = plyr_obj;
-    process = player_live_transient_proc_direct(plyr_pdata);
+    player = plyr_pdata;
+    process = MK_LIVE(player->transient_proc, player->transient_proc_instance);
 
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
@@ -2705,7 +2704,7 @@ void idle_victim(void) {
     tracked_object = MK_HDR_LIVE(opponent->tracked_obj, opponent->tracked_obj_instance);
 
     if (tracked_object != 0) {
-        process = player_live_transient_proc_direct(opponent);
+        process = MK_LIVE(opponent->transient_proc, opponent->transient_proc_instance);
 
         if (process != 0 && process != aproc && process->instance != 0) {
             process->vtbl->destroy(process);
@@ -4337,7 +4336,7 @@ void drift_downwards(void) {
 
     pdata = plyr_pdata;
     object = plyr_obj;
-    process = player_live_transient_proc_direct(pdata);
+    process = MK_LIVE(pdata->transient_proc, pdata->transient_proc_instance);
 
 
     if (process != 0 && process != aproc && process->instance != 0) {

@@ -1614,9 +1614,6 @@ static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
 
 
 
-static inline StringObj* krypt_pdata_live_use_key_string_obj(KryptPdata* owner) {
-    return MK_LIVE(owner->use_key_string.obj, owner->use_key_string.obj_instance);
-}
 
 
 
@@ -1651,7 +1648,7 @@ void heads_up_display_visible(int visible) {
 
     label_b = MK_LIVE(krypt_pdata->hud_label_r.obj, krypt_pdata->hud_label_r.obj_instance);
 
-    value_b = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+    value_b = MK_LIVE(krypt_pdata->use_key_string.obj, krypt_pdata->use_key_string.obj_instance);
 
 
     if (wallet_back != 0) {
@@ -3188,11 +3185,13 @@ static void init_konquest_keys(void) {
 /* TODO: [near miss] 99.12%; UI pointer and search index/stride differ only in GPR coloring. */
 static void update_use_key_string(void) {
     StringObj* use_key_text;
+    KryptPdata* pdata;
     const char* use_key_label;
     char key_name[4];
     char text[32];
 
-    use_key_text = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+    pdata = krypt_pdata;
+    use_key_text = MK_LIVE(pdata->use_key_string.obj, pdata->use_key_string.obj_instance);
 
 
     krypt_pdata->available_key_coffin = find_available_konquest_key();

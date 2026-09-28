@@ -105,9 +105,6 @@ typedef struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 } SkyTempleExplodeMonitorPdata;
 
-static inline MkObj* mab_live_object(MkObj* object, unsigned int instance) {
-    return MK_HDR_LIVE(object, instance);
-}
 
 #define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
     do {                                                                  \
@@ -1560,6 +1557,7 @@ void skytemple_player_explode(
             float camera_delta_z;
             float camera_delta_x;
             float direction_scale = 0.025f;
+            unsigned int limb_instance;
 
             mkobj_zero_bone_rots(limb);
             limb->ang_vel.x = 0.09f;
@@ -1569,7 +1567,8 @@ void skytemple_player_explode(
             limb->ang.z = 0.0f;
             saved_gravity = limb->gravity;
 
-            bounce_object = mab_live_object(limb, limb->hdr.instance);
+            limb_instance = limb->hdr.instance;
+            bounce_object = MK_HDR_LIVE(limb, limb_instance);
 
             camera = camera_obj;
             if (camera != 0 && bounce_object != 0) {
