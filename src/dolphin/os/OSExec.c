@@ -14,9 +14,11 @@ extern int sprintf(char* destination, const char* format, ...);
 #define BOOT_REGION_START (*(volatile unsigned long*)0x812FDFF0)
 #define BOOT_REGION_END (*(volatile unsigned long*)0x812FDFEC)
 #define BOOT_FLAG (*(volatile unsigned char*)0x800030E2)
-#define OS_EXEC_PARAMS (*(OSExecParams**)0x800030F0)
-#define OS_APPLOADER_OFFSET (*(volatile unsigned long*)0x800030F4)
-#define PI_REGISTERS ((volatile unsigned long*)0xCC003000)
+extern OSExecParams* __OSExecParams : 0x800030F0;
+#define OS_EXEC_PARAMS __OSExecParams
+#define OS_APPLOADER_OFFSET (*(volatile long*)0x800030F4)
+extern volatile unsigned long __PIRegs[] : 0xCC003000;
+#define PI_REGISTERS __PIRegs
 
 extern int __OSIsGcam;
 
@@ -87,10 +89,9 @@ static void Callback(long result, DVDCommandBlock* block)
     Prepared = 1;
 }
 
-/* TODO: [near miss] 99.06%; with peephole off only one scheduling row remains. */
 void __OSGetExecParams(OSExecParams* params)
 {
-    if ((unsigned long)OS_EXEC_PARAMS >= 0x80000000) {
+    if (0x80000000 <= (unsigned long)OS_EXEC_PARAMS) {
         memcpy(params, OS_EXEC_PARAMS, sizeof(OSExecParams));
     } else {
         params->valid = 0;
@@ -100,24 +101,24 @@ void __OSGetExecParams(OSExecParams* params)
 /* TODO: [near miss] 98.78%; retail compares the apploader offset signed (cmpwi), ours unsigned (cmplwi). */
 static int GetApploaderPosition(void)
 {
-    static long apploader_position;
+    static long apploaderPosition;
     unsigned long* tgc_header;
     long offset;
 
-    if (apploader_position != 0) {
-        return apploader_position;
+    if (apploaderPosition != 0) {
+        return apploaderPosition;
     }
 
     if (OS_APPLOADER_OFFSET != 0) {
         tgc_header = OSAllocFromArenaLo(0x40, 32);
         ReadDisc(tgc_header, 0x40, OS_APPLOADER_OFFSET);
         offset = tgc_header[14];
-        apploader_position = OS_APPLOADER_OFFSET + offset;
+        apploaderPosition = OS_APPLOADER_OFFSET + offset;
     } else {
-        apploader_position = 0x2440;
+        apploaderPosition = 0x2440;
     }
 
-    return apploader_position;
+    return apploaderPosition;
 }
 
 typedef struct AppLoaderHeader {
@@ -152,7 +153,10 @@ static inline void StartDol(const OSExecParams* params, void* entry)
 
 static inline int IsStreamEnabled(void)
 {
-    return DVDGetCurrentDiskID()->streaming != 0;
+    if (DVDGetCurrentDiskID()->streaming) {
+        return 1;
+    }
+    return 0;
 }
 
 static inline void StopStreaming(void)
@@ -209,11 +213,14 @@ static inline void* LoadDol(const OSExecParams* params,
 
 static inline int IsNewApploader(const AppLoaderHeader* header)
 {
-    return strncmp(header->date, "2004/02/01", 10) > 0;
+    if (strncmp(header->date, "2004/02/01", 10) > 0) {
+        return 1;
+    }
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 91.06%; retail materializes inlined boolean tests (IsNewApploader) as
- * 0/1 flags and calls Run out of line; needs the SDK inline/flag source shape. */
+/* TODO: [blocked] 98.08%; boolean helpers and absolute-address globals match; retail calls Run out of line
+ * (a privileged hand-written routine), ours inlines the C Run, which also swaps r27/r28. */
 void __OSBootDolSimple(unsigned long dol_offset, unsigned long restart_code,
                        void* region_start, void* region_end,
                        int args_use_default, int argc, char** argv)

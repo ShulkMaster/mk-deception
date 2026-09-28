@@ -53,27 +53,6 @@ static float mk_inv_sqrt(float x) {
     return kInvSqrtScale * guess * t3 * (kNewton12 - (t1 * t3 * t3));
 }
 
-static float mk_sqrt_table(float x) {
-    union {
-        float f;
-        unsigned int u;
-    } pun;
-    unsigned int bits;
-    unsigned int mantissa_exp;
-    float guess;
-
-    if (!(kZero < x)) {
-        return kZero;
-    }
-    pun.f = x;
-    bits = pun.u;
-    mantissa_exp = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
-    mantissa_exp |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    pun.u = mantissa_exp;
-    guess = pun.f;
-    return kHalf * guess * (kThree - (guess * guess) / x);
-}
-
 /* TODO: [breakthrough needed] 74.62%; FP scheduling differs; see mk_math.o compiler/flag note. */
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {
     float dx;
@@ -105,7 +84,7 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
     out->z = dir->z * t + origin->z;
 }
 
-/* TODO: [breakthrough] 23.48%; sqrt table indexing corrected; source-shape/FP differences need a localized retail audit. */
+/* TODO: [breakthrough] 26.12%; sqrt table indexing corrected; source-shape/FP differences need a localized retail audit. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float ax = cylAxis->x;
@@ -136,7 +115,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float lenO;
 
     if (kZero < lenN) {
-        invLen = mk_sqrt_table(lenN);
+        invLen = gxMathFastSqrt(lenN);
     }
 
     if (kTiny <= invLen) {
@@ -163,7 +142,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
             tMid *= invLen;
             halfChord = radius * radius - dist * dist;
             if (kZero < halfChord) {
-                halfChord = mk_sqrt_table(halfChord);
+                halfChord = gxMathFastSqrt(halfChord);
             } else {
                 halfChord = kZero;
             }
@@ -185,7 +164,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     lenO = ox * ox + oy * oy + oz * oz;
     dist = kZero;
     if (kZero < lenO) {
-        dist = mk_sqrt_table(lenO);
+        dist = gxMathFastSqrt(lenO);
     }
     *tNear = kHugeNeg;
     *tFar = kHugePos;
@@ -198,9 +177,9 @@ float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
-/* TODO: [breakthrough] 28.29%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [breakthrough] 62.16%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float dist_xz_to_xz(const Vec* a, const Vec* b) {
-    return mk_sqrt_table(dist2_xz_to_xz(a, b));
+    return gxMathFastSqrt(dist2_xz_to_xz(a, b));
 }
 
 /* TODO: [breakthrough needed] 41.09%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
@@ -226,9 +205,9 @@ void normalize_xz(Vec* v) {
     v->z *= inv;
 }
 
-/* TODO: [breakthrough] 33.73%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [breakthrough] 70.59%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float length_xz(const Vec* v) {
-    return mk_sqrt_table(v->x * v->x + v->z * v->z);
+    return gxMathFastSqrt(v->x * v->x + v->z * v->z);
 }
 
 float xz_dot_xz(const Vec* a, const Vec* b) {
@@ -285,9 +264,9 @@ float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-/* TODO: [breakthrough] 15.78%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [breakthrough] 46.34%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float dist_v3_to_v3(const Vec* a, const Vec* b) {
-    return mk_sqrt_table(dist2_v3_to_v3(a, b));
+    return gxMathFastSqrt(dist2_v3_to_v3(a, b));
 }
 
 void uv_from_angle_y(Vec* out, float angY) {
@@ -308,14 +287,14 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
-/* TODO: [breakthrough] 55.76%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [breakthrough] 72.57%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     float len;
     float inv;
     out->x = to->x - from->x;
     out->y = to->y - from->y;
     out->z = to->z - from->z;
-    len = mk_sqrt_table(out->x * out->x + out->y * out->y + out->z * out->z);
+    len = gxMathFastSqrt(out->x * out->x + out->y * out->y + out->z * out->z);
     inv = kZero;
     if (kZero < len) {
         inv = kOne / len;
@@ -346,9 +325,9 @@ void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const V
     out->z = weights->z * c->z + weights->x * a->z + weights->y * b->z;
 }
 
-/* TODO: [breakthrough] 72.11%; sqrt table indexing corrected; sqrt-table and 1/len scheduling differ. */
+/* TODO: [breakthrough] 95.75%; sqrt table indexing corrected; sqrt-table and 1/len scheduling differ. */
 float normalize_v3_length(Vec* v) {
-    float len = mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
+    float len = gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
     float inv = kZero;
     if (kZero < len) {
         inv = kOne / len;
@@ -373,9 +352,9 @@ void zero_v3(Vec* v) {
     v->x = kZero;
 }
 
-/* TODO: [breakthrough] 28.29%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [breakthrough] 62.16%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float length_v3(const Vec* v) {
-    return mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
+    return gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
 }
 
 /* TODO: [breakthrough needed] 32.04%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
@@ -442,30 +421,30 @@ float norm_angle(float ang) {
     return ((int)(ang * kAngToFixed) & 0xFFFFF) * kFixedToAng;
 }
 
-/* TODO: [breakthrough] 61.36%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
+/* TODO: [breakthrough] 79.50%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
 void v3_to_xz_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = gxMathArcTanYX(v->y, v->x);
     ang->y = kZero;
-    len = mk_sqrt_table(v->x * v->x + v->y * v->y);
+    len = gxMathFastSqrt(v->x * v->x + v->y * v->y);
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
-/* TODO: [breakthrough] 64.87%; sqrt table indexing corrected; FP scheduling around the atan2 calls differs. */
+/* TODO: [breakthrough] 80.09%; sqrt table indexing corrected; FP scheduling around the atan2 calls differs. */
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
-    len = mk_sqrt_table(v->x * v->x + v->z * v->z);
+    len = gxMathFastSqrt(v->x * v->x + v->z * v->z);
     ang->y = (float)atan2((double)v->x, (double)v->z);
     ang->x = -(float)atan2((double)v->y, (double)len);
 }
 
-/* TODO: [breakthrough] 64.26%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
+/* TODO: [breakthrough] 81.71%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
 void v3_to_xy_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
     ang->y = gxMathArcTanYX(v->x, v->z);
-    len = mk_sqrt_table(v->x * v->x + v->z * v->z);
+    len = gxMathFastSqrt(v->x * v->x + v->z * v->z);
     ang->x = -gxMathArcTanYX(v->y, len);
 }
 
@@ -629,7 +608,7 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = -(az * bz - -(ay * by - (aw * bw - ax * bx)));
 }
 
-/* TODO: [breakthrough] 70.62%; sqrt table indexing corrected; FP scheduling differs. */
+/* TODO: [breakthrough] 79.29%; sqrt table indexing corrected; FP scheduling differs. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
     float ax;
@@ -651,7 +630,7 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
         ax = kZero;
         ay = -v1->y;
         az = v1->x;
-        len = mk_sqrt_table(ax * ax + ay * ay + az * az);
+        len = gxMathFastSqrt(ax * ax + ay * ay + az * az);
         if (len < kEps) {
             ax = -v1->z;
             ay = kZero;
@@ -669,12 +648,12 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     az = v1->x * v2->y - v1->y * v2->x;
     inv = mk_inv_sqrt(ax * ax + ay * ay + az * az);
     half = kHalf * (kOne - dot);
-    w = mk_sqrt_table(half);
+    w = gxMathFastSqrt(half);
     half = kHalf * (kOne + dot);
     out->x = ax * inv * w;
     out->y = ay * inv * w;
     out->z = az * inv * w;
-    out->w = mk_sqrt_table(half);
+    out->w = gxMathFastSqrt(half);
 }
 
 /* TODO: [breakthrough needed] 67.87%; FP operation order/scheduling differs. */

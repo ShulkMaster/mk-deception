@@ -459,7 +459,6 @@ void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     ProcessEvent(mgr, event, arg);
 }
 
-/* TODO: [near miss] 99.803925%; this/reverse-index GPR coloring remains; stop at equivalent traversal. */
 ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
     unsigned int numEvents;
     unsigned int i;
@@ -476,11 +475,11 @@ ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
                 actionType = (int)event->GetAction((unsigned int)j);
                 if (actionType == 0x3e8) {
                     params = event->GetParams((unsigned int)j);
-                    return params->GetScreenObject(0);
+                    return (ScreenObject*)params->GetScreenNode(0);
                 }
                 if (actionType == SCREEN_ACTION_SET_FOCUS) {
                     params = event->GetParams((unsigned int)j);
-                    return params->GetScreenObject(1);
+                    return (ScreenObject*)params->GetScreenNode(1);
                 }
             }
         }

@@ -103,7 +103,7 @@ typedef struct OSBootInfo {
     unsigned long fst_max_length;
 } OSBootInfo;
 
-#define __OSBusClock (*(volatile unsigned long*)0x800000F8)
+extern unsigned long __OSBusClock : 0x800000F8;
 #define OS_TIMER_CLOCK (__OSBusClock / 4)
 #define OSTicksToSeconds(ticks) ((ticks) / OS_TIMER_CLOCK)
 #define OSSecondsToTicks(seconds) ((seconds) * OS_TIMER_CLOCK)

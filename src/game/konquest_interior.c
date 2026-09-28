@@ -755,34 +755,9 @@ void interior_exit_button_script(void) {
     }
 }
 
-static inline MkObj* interior_live_hero_object(KonquestInteriorPdata* owner) {
-    MkObj* object = owner->hero_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->hero_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkObj* interior_saved_live_interior_object(
-    KonquestInteriorSaveData* owner) {
-    MkObj* object = owner->interior_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->interior_object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-/* TODO: [near miss] 98.403435%; register coloring, relocation offsets; one-trial ceiling. */
+/* TODO: [near miss] 98.68%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;
@@ -795,10 +770,10 @@ static float p_konq_interior_exit_point(void) {
     KonquestChildObject* door;
     KonquestChildObject* partner;
 
-    hero = interior_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     camera = get_pdata_of_camera();
-    interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
 
 
     turn_controllers_off();
@@ -930,11 +905,7 @@ void set_interior_cam_pos_and_ang(void) {
     CameraObj* camera;
 
     camera = camera_item.node;
-    if (camera != 0) {
-        camera = (camera->hdr.instance == camera_item.instance) ? camera : 0;
-    } else {
-        camera = 0;
-    }
+    camera = MK_HDR_LIVE(camera, camera_item.instance);
 
     if (camera != 0) {
         position.x = konquest_pdata->camera_offset_x +
@@ -961,18 +932,6 @@ void set_interior_cam_pos_and_ang(void) {
         update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void konq_interior_hide_room_sobjs(MkObj* object) {
     KonquestRoomSobj* entry = room_sobj_list;
@@ -990,7 +949,7 @@ static inline void konq_interior_hide_room_sobjs(MkObj* object) {
 
 /* TODO: [near miss] 99.59%; TU rodata/string order (Vec initializers +0x54, BACKGROUND/standard_ir_exit) and model/entry r28/r29 swap remain. */
 static float p_konq_interior_entry_point(void) {
-    MkObj* hero = interior_live_hero_object(konquest_pdata);
+    MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
 
 
@@ -1027,7 +986,7 @@ static float p_konq_interior_entry_point(void) {
 
     if (konquest_pdata->region_table->interior_art_name != 0) {
         wait_for_slot_load(0xA002F);
-        interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+        interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
 
         if (interior_object == 0) {
             model = load_named_model_from_slot(
@@ -1089,7 +1048,7 @@ static float p_konq_interior_entry_point(void) {
         Vec camera_angle_base = {0.0f, 0.0f, 0.0f};
         Vec camera_angle = {0.0f, 0.0f, 0.0f};
         Vec camera_position = {0.0f, 0.0f, 0.0f};
-        CameraObj* camera = camera_live_node(&camera_item);
+        CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
 
@@ -1129,7 +1088,7 @@ static float p_konq_interior_entry_point(void) {
         konq_interior_save_data.current_interior->light_defs,
         &bgnd_light_list);
 
-    interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
 
     if (interior_object != 0) {
         insert_fgnd_mkobj(interior_object);
@@ -1239,12 +1198,7 @@ void start_konquest_interior(
         return;
     }
     trigger = (KonquestTrigger*)pdata->obj;
-    if (trigger != 0) {
-        trigger =
-            (trigger->hdr.instance == pdata->obj_instance) ? trigger : 0;
-    } else {
-        trigger = 0;
-    }
+    trigger = MK_HDR_LIVE(trigger, pdata->obj_instance);
     if (trigger == 0) {
         return;
     }

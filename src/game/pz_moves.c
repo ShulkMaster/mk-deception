@@ -2728,38 +2728,14 @@ static float p_force_reaction(void) {
 }
 
 
-static inline PuzzleProcess* puzzle_reaction_transfer_data_live_opponent_proc(PuzzleReactionTransferData* owner) {
-    PuzzleProcess* object = owner->opponent_proc;
-    if (object != 0) {
-        if (object->instance == owner->opponent_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    PuzzleProcess* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->instance == owner->hold_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* Preserve the reaction opponent across hold cleanup for the final dispatch. */
 
 
 
 
-/* TODO: [near miss] 95.16%; compiler CSEs the table entry (r30) where retail keeps
+/* TODO: [near miss] 95.48%; compiler CSEs the table entry (r30) where retail keeps
  * the scaled index and rematerializes tbl_xfer_addresses; GPR allocation remains. */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;
@@ -2774,7 +2750,7 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     }
 
     dispatch = tbl_xfer_addresses[reaction].dispatch;
-    opponent_proc = puzzle_reaction_transfer_data_live_opponent_proc(reaction_data);
+    opponent_proc = MK_LIVE(reaction_data->opponent_proc, reaction_data->opponent_proc_instance);
 
     his_obj = reaction_data->opponent_obj;
     his_pdata = reaction_data->opponent_pdata;
@@ -2787,7 +2763,7 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         plyr_pdata->scream_sound_handle = 0;
     }
 
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         release_other_player();

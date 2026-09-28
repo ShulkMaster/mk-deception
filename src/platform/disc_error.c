@@ -141,7 +141,6 @@ static inline void show_disc_message(const char* text) {
 static int fs_error_handler(int error, const char* text) {
     int drive_status;
 
-    (void)error;
     if (in_error_handler != 0) {
         while (in_error_handler != 0) {
             OSYieldThread();

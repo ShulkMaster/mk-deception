@@ -87,7 +87,8 @@ void hashtable_store(Hashtable* ht, const char* key, void* value) {
     hashtable_store_with_instance(ht, key, value, 0);
 }
 
-/* TODO: [near miss] 97.74%; retail keeps the pool slot in r30 and copies it for the recycled-entry unlink; slot/entry coloring remains. */
+/* TODO: [near miss] 99.71%; entry-as-slot with in-branch slot copy matches the CFG and copies;
+ * only volatile regs differ (retail pool base r6, slot copy r3, next r4). */
 void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance) {
     int ch;
     unsigned int hash;
@@ -129,15 +130,15 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
         entry = entry->next;
     }
     if (entry == 0) {
-        allocation_slot = &ht->entry_pool[ht->allocation_index];
-        recycled = allocation_slot->next;
+        entry = &ht->entry_pool[ht->allocation_index];
+        recycled = entry->next;
         if (recycled != 0) {
+            allocation_slot = entry;
+            entry = recycled;
             allocation_slot->next = recycled->next;
             recycled->next = 0;
-            entry = recycled;
         } else {
             ht->allocation_index++;
-            entry = allocation_slot;
         }
         if (ht->owns_keys != 0) {
             len = strlen(key);
@@ -154,26 +155,24 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
     entry->instance = instance;
 }
 
-/* TODO: [near miss] 96.64%; only the zero/one constant registers in the clear loop and tail stores differ. */
+/* TODO: [near miss] 98.08%; chained loop store shares retail's single zero; residue is the zero/offset
+ * register swap at loop setup and retail's single r3 = 1 shared by the initialized store and return. */
 int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
-    unsigned int count;
     unsigned int i;
 
-    count = bucket_count;
     ht->owns_keys = 1;
-    ht->key_storage_capacity = count << 6;
+    ht->key_storage_capacity = bucket_count << 6;
     ht->heap = heap;
     ht->key_storage = _mwMemMalloc(heap, ht->key_storage_capacity, 3, 0, 0, 0);
-    ht->capacity = count;
-    ht->bucket_count = count;
-    ht->buckets = _mwMemMalloc(ht->heap, count << 2, 3, 0, 0, 0);
+    ht->capacity = bucket_count;
+    ht->bucket_count = bucket_count;
+    ht->buckets = _mwMemMalloc(ht->heap, bucket_count << 2, 3, 0, 0, 0);
     ht->entry_pool = _mwMemMalloc(ht->heap, ht->capacity << 4, 3, 0, 0, 0);
     if (ht->buckets == 0 || ht->entry_pool == 0 || ht->key_storage == 0) {
         return 0;
     }
-    for (i = 0; i < count; i++) {
-        ht->buckets[i] = 0;
-        ht->entry_pool[i].next = 0;
+    for (i = 0; i < bucket_count; i++) {
+        ht->entry_pool[i].next = ht->buckets[i] = 0;
     }
     ht->key_storage_used = 0;
     ht->allocation_index = 0;

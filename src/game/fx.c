@@ -302,18 +302,6 @@ static const char fx_string_base[228] =
     "Tried to unfreeze a player who is NOT frozen!!\0"
     "TELE_ENERGY\0FX.C-created";
 
-static inline CameraObj* camera_item_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -330,7 +318,7 @@ static inline int lensflare_sun_blocked(
     if (count == 0 || planes == 0) {
         return 0;
     }
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return 0;
     }
@@ -344,7 +332,7 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [breakthrough] 71.14%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
+/* TODO: [breakthrough] 71.72%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
 static float lensflare_proc2(void) {
     LensflarePdata* pdata;
     CameraObj* camera;
@@ -361,13 +349,13 @@ static float lensflare_proc2(void) {
     int index;
 
     pdata = (LensflarePdata*)apdata;
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
         mkproc_die();
     }
 
-    camera = camera_item_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     uv_v3_to_v3(&direction, &camera->pos, &sun);
     v3_to_xy_ang(&angles, &direction);
@@ -554,7 +542,7 @@ static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
 
 
 
-/* TODO: [breakthrough needed] 91.084910%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 93.16%; CFG agrees except pid temp (retail mr r31,r0 after sign load) and allow_restart join blocks; macro latch form regresses (moveset/player r29/r30 swap). */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     FightingStyleSignPdata* pdata;
     ScreenObj* sign;
@@ -563,19 +551,10 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     int winner;
     int allow_restart;
 
-    if (moveset == 0) {
+    if (moveset == 0 || mode_of_play == 6 || g_game_info.flag_bits.high_res_path == 1) {
         return;
     }
-    if (mode_of_play == 6) {
-        return;
-    }
-    if (g_game_info.flag_bits.high_res_path == 1) {
-        return;
-    }
-    if (player < 0) {
-        return;
-    }
-    if (player > 1) {
+    if (player < 0 || player > 1) {
         return;
     }
 
@@ -629,17 +608,6 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
 
 /* The screen-object latches retain both pointer and instance for validation. */
 
-static inline ScreenObj* fx_screen_obj_latch_live_object(FxScreenObjLatch* owner) {
-    ScreenObj* object = owner->object;
-
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 
 
@@ -656,7 +624,7 @@ static void update_skewer_positions(int player) {
 
     flags.value = 0;
     if (player == 0) {
-        p1_body = fx_screen_obj_latch_live_object(&p1_skewer_item);
+        p1_body = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
         if (p1_body == 0) {
             flags.bits.reverse = 0;
@@ -674,7 +642,7 @@ static void update_skewer_positions(int player) {
                 }
             }
         } else {
-            p1_tip = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+            p1_tip = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
         }
 
         sign = player_fstyle_sign[0];
@@ -701,7 +669,7 @@ static void update_skewer_positions(int player) {
     }
 
     if (player == 1) {
-        p2_body = fx_screen_obj_latch_live_object(&p2_skewer_item);
+        p2_body = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
         if (p2_body == 0) {
             flags.bits.reverse = 0;
@@ -722,7 +690,7 @@ static void update_skewer_positions(int player) {
                 }
             }
         } else {
-            p2_tip = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+            p2_tip = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
         }
 
         sign = player_fstyle_sign[1];
@@ -792,12 +760,12 @@ static float fighting_style_sign_proc(void) {
             pull_screen_obj(player_fstyle_sign[0]);
             player_fstyle_sign[0] = 0;
 
-            skewer = fx_screen_obj_latch_live_object(&p1_skewer_item);
+            skewer = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
-            skewer = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+            skewer = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
@@ -806,7 +774,7 @@ static float fighting_style_sign_proc(void) {
             aproc->vtbl->sleep();
         }
 
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         player_fstyle_sign[0] = sign;
         if (sign == 0) {
@@ -869,12 +837,12 @@ static float fighting_style_sign_proc(void) {
             pull_screen_obj(player_fstyle_sign[1]);
             player_fstyle_sign[1] = 0;
 
-            skewer = fx_screen_obj_latch_live_object(&p2_skewer_item);
+            skewer = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
             }
-            skewer = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+            skewer = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
 
             if (skewer != 0 && skewer->instance != 0U) {
                 skewer->typed_vtbl->destroy(skewer);
@@ -883,7 +851,7 @@ static float fighting_style_sign_proc(void) {
             aproc->vtbl->sleep();
         }
 
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         player_fstyle_sign[1] = sign;
         if (sign == 0) {
@@ -1003,18 +971,6 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     player_fstyle_sign[player_index] = 0;
 }
 
-static inline ScreenObj* moveset_live_style_sign(GlobalMoveset* owner) {
-    ScreenObj* object = owner->style_sign;
-    if (object != 0) {
-        if (object->instance == owner->style_sign_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void kill_all_fstyle_signs(void) {
     int player;
@@ -1026,7 +982,7 @@ void kill_all_fstyle_signs(void) {
     for (player = 0; player < 2; player++) {
         moveset = &global_movesets[player + 6];
         if (moveset != 0) {
-            sign = moveset_live_style_sign(moveset);
+            sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
             if (sign != 0) {
                 if (sign->instance != 0) {
@@ -1052,7 +1008,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
 
     for (style_index = 0; style_index < 3; style_index++) {
         moveset = player->slot.pdata->weapon_styles[style_index];
-        sign = global_moveset_live_style_sign(moveset);
+        sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
         if (sign != 0) {
             if (sign->instance != 0U) {
@@ -1064,25 +1020,25 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
     }
 
     if (player->controller_slot == 0) {
-        sign = fx_screen_obj_latch_live_object(&p1_skewer_item);
+        sign = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
-        sign = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
+        sign = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
     } else {
-        sign = fx_screen_obj_latch_live_object(&p2_skewer_item);
+        sign = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
         }
 
-        sign = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
+        sign = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
 
         if (sign != 0 && sign->instance != 0U) {
             sign->typed_vtbl->destroy(sign);
@@ -1137,18 +1093,6 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
     return atomic;
 }
 
-static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_freeze_light(void) {
     PlyrMirrorObjLatch* item;
@@ -1157,7 +1101,7 @@ static float p_freeze_light(void) {
 
     pdata = (FreezeLightPdata*)apdata;
     item = pdata->light;
-    light = mirror_latch_live_obj(item);
+    light = MK_HDR_LIVE(item->obj, item->instance);
 
 
     if (pdata->player->state_flags.bits.frozen == 0) {
@@ -1174,31 +1118,7 @@ static float p_freeze_light(void) {
     return 1.0f;
 }
 
-static inline MkObj* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkHdr* fx_hdr_latch_live_object(FxHdrLatch* owner) {
-    MkHdr* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -1244,11 +1164,7 @@ void unfreeze_player(void) {
     player->state_flags.bits.frozen = 0;
 
     object_latch = &player->mirror_slots->weapon[0].primary;
-    object = object_latch->obj != 0
-                 ? (object_latch->obj->hdr.instance == object_latch->instance
-                        ? object_latch->obj
-                        : 0)
-                 : 0;
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1257,7 +1173,7 @@ void unfreeze_player(void) {
     }
 
     object_latch = &player->mirror_slots->weapon[1].primary;
-    object = plyr_mirror_obj_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1266,7 +1182,7 @@ void unfreeze_player(void) {
     }
 
     object_latch = &player->aux_weapon_latch;
-    object = plyr_mirror_obj_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1275,13 +1191,13 @@ void unfreeze_player(void) {
     }
 
     player_object->light_flags = 0x1004;
-    object = plyr_mirror_obj_latch_live_obj(light_latch);
+    object = MK_HDR_LIVE(light_latch->obj, light_latch->instance);
 
     if (object != 0 && object->hdr.instance != 0U) {
         object->hdr.typed_vtbl->destroy(&object->hdr);
     }
 
-    hdr = fx_hdr_latch_live_object(proc_latch);
+    hdr = MK_LIVE(proc_latch->object, proc_latch->instance);
 
     if (hdr != 0 && hdr->instance != 0U) {
         hdr->typed_vtbl->destroy(hdr);
@@ -1349,7 +1265,7 @@ static void apply_special_fx_to_player(void* texture) {
     plyr_pdata->state_flags.bits.frozen = 1;
 
     object_latch = &plyr_pdata->mirror_slots->weapon[0].primary;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
@@ -1358,7 +1274,7 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->mirror_slots->weapon[1].primary;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
@@ -1367,7 +1283,7 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->aux_weapon_latch;
-    object = mirror_latch_live_obj(object_latch);
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;

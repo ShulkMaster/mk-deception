@@ -494,34 +494,13 @@ static inline ScreenObj* get_screen_latch(KonquestScreenLatch* latch) {
     ScreenObj* raw = latch->object;
     ScreenObj* live;
 
-    if (raw != 0) {
-        if (raw->instance == latch->instance) {
-            live = raw;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(raw, latch->instance);
     return live;
 }
 
-static inline ScreenObj* live_screen_latch(KonquestScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void hide_screen_latch(KonquestScreenLatch* latch) {
-    ScreenObj* object = live_screen_latch(latch);
+    ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object != 0) {
         object->flag_bits.hidden = 1;
@@ -536,49 +515,16 @@ static inline void hide_background_box(KonquestBackgroundBox* box) {
     }
 }
 
-static inline StringObj* get_string_latch(KonquestStringLatch* latch) {
-    StringObj* string = latch->object;
-
-    if (string != 0) {
-        if (string->instance == latch->instance) {
-            return string;
-        }
-        string = 0;
-    } else {
-        string = 0;
-    }
-    return string;
-}
 
 static inline StringObj* get_countdown_string_latch(
     KonquestMissionState* state) {
     StringObj* raw = state->countdown_string;
     StringObj* live;
 
-    if (raw != 0) {
-        if (raw->instance == state->countdown_string_instance) {
-            live = raw;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(raw, state->countdown_string_instance);
     return live;
 }
 
-static inline MkHdr* get_dialog_latch(
-    MkHdr* dialog, unsigned int instance) {
-    if (dialog != 0) {
-        if (dialog->instance == instance) {
-            return dialog;
-        }
-        dialog = 0;
-    } else {
-        dialog = 0;
-    }
-    return dialog;
-}
 
 static inline MkProc* get_process_latch(
     MkProc* process, unsigned int instance) {
@@ -681,13 +627,7 @@ static inline void text_window_fade_in(unsigned char ticks) {
 static inline KonquestMissionState* get_mission_state(void) {
     KonquestMissionState* state = mission_state_item.state;
 
-    if (state != 0) {
-        if (state->hdr.instance == mission_state_item.instance) {
-            return state;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_HDR_LIVE(state, mission_state_item.instance);
 }
 
 static inline MkObj* get_mission_monk(void) {
@@ -700,15 +640,7 @@ static inline MkObj* get_mission_monk(void) {
         live = 0;
     } else {
         raw = state->monk;
-        if (raw != 0) {
-            if (raw->hdr.instance == state->monk_instance) {
-                live = raw;
-            } else {
-                live = 0;
-            }
-        } else {
-            live = 0;
-        }
+        live = MK_HDR_LIVE(raw, state->monk_instance);
     }
     return live;
 }
@@ -1184,15 +1116,7 @@ void trial_setup_nis_scene(int setup) {
             monk = 0;
         } else {
             raw = state->monk;
-            if (raw != 0) {
-                if (raw->hdr.instance == state->monk_instance) {
-                    monk = raw;
-                } else {
-                    monk = 0;
-                }
-            } else {
-                monk = 0;
-            }
+            monk = MK_HDR_LIVE(raw, state->monk_instance);
         }
 
         if (monk != 0) {
@@ -1797,7 +1721,7 @@ void trial_do_dialog(
     if (dialog != 0) {
         instance = dialog->instance;
         if (wait != 0) {
-            while (get_dialog_latch(&dialog->hdr, instance) != 0) {
+            while (MK_LIVE(&dialog->hdr, instance) != 0) {
                 _mkproc_sleep_ticks = 1.0f;
                 ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
             }
@@ -2316,7 +2240,7 @@ static void trial_show_move_message(void) {
         return;
     }
     if (mission_state->move_message != 0) {
-        string = get_string_latch(&mission_state->move_string);
+        string = MK_LIVE(mission_state->move_string.object, mission_state->move_string.instance);
         if (string != 0) {
             update_string_obj(string, 6, mission_state->move_message);
         } else {
@@ -2344,7 +2268,7 @@ static void trial_show_move_message(void) {
             mission_state->move_description_flipped,
             (int*)g_game_info
                 .pads[mission_state->fight->field_0x0].switch_map);
-        string = get_string_latch(&mission_state->move_param_string);
+        string = MK_LIVE(mission_state->move_param_string.object, mission_state->move_param_string.instance);
         if (string != 0) {
             update_string_obj(string, 7, text);
         } else {
@@ -3331,18 +3255,6 @@ float end_of_trial_wrapup(int winner) {
     return 0.0f;
 }
 
-static inline MkProc* plyr_pdata_live_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->anim_proc;
-    if (object != 0) {
-        if (object->instance == owner->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -3402,7 +3314,7 @@ static float failed_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = plyr_pdata_live_anim_proc(pdata);
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
 
         if (animation_process != 0) {
             animation_pdata =
@@ -3449,7 +3361,7 @@ static float failed_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = plyr_pdata_live_anim_proc(pdata);
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
 
         if (animation_process != 0) {
             animation_pdata =
@@ -3519,7 +3431,7 @@ static float successful_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = plyr_pdata_live_anim_proc(pdata);
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
 
         if (animation_process != 0) {
             animation_pdata =
@@ -3566,7 +3478,7 @@ static float successful_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = plyr_pdata_live_anim_proc(pdata);
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
 
         if (animation_process != 0) {
             animation_pdata =
@@ -3596,38 +3508,14 @@ static float successful_trial_player_wrapup(void) {
     return 0.0f;
 }
 
-static inline MkObj* mission_live_monk(KonquestMissionState* owner) {
-    MkObj* object = owner->monk;
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkProc* mission_live_script_process(KonquestMissionState* owner) {
-    MkProc* object = owner->script_process;
-    if (object != 0) {
-        if (object->instance == owner->script_process_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void trial_transform_monk_into_player(KonquestMissionState* state,
                                                     MkObj* monk) {
     MkProc* script_process;
 
     if (monk != 0) {
-        script_process = mission_live_script_process(state);
+        script_process = MK_LIVE(state->script_process, state->script_process_instance);
         if (script_process == 0) {
             return;
         }
@@ -3678,7 +3566,7 @@ void trial_round_init(void) {
     if (state == 0) {
         monk = 0;
     } else {
-        monk = mission_live_monk(state);
+        monk = MK_HDR_LIVE(state->monk, state->monk_instance);
     }
 
     state = get_mission_state();
@@ -3865,25 +3753,13 @@ void trial_setup_fight(void) {
         (unsigned short)konquest_save_data.background_and_flags;
 }
 
-static inline MkProc* mission_validate_script_process(
-    MkProc* object, KonquestMissionState* owner) {
-    if (object != 0) {
-        if (object->instance == owner->script_process_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 96.650480%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_transform_into_monk(void) {
     MkProc* script_process = mission_state->script_process;
     AnimPdata* animation = plyr_anim_pdata;
 
-    script_process = mission_validate_script_process(script_process, mission_state);
+    script_process = MK_LIVE(script_process, mission_state->script_process_instance);
     if (plyr_anim_proc != 0 && animation != 0) {
         xfer_proc(plyr_anim_proc, p_anim_idle);
         animation->step = -1.0f;
@@ -3912,25 +3788,13 @@ static float p_transform_into_monk(void) {
     return 0.0f;
 }
 
-static inline MkProc* mission_validate_monk_process(
-    MkProc* object, KonquestMissionState* owner) {
-    if (object != 0) {
-        if (object->instance == owner->monk_process_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_transform_into_player(void) {
     MkProc* monk_process;
     AnimPdata* animation;
     MkProc* player_process;
 
-    monk_process = mission_validate_monk_process(mission_state->monk_process, mission_state);
+    monk_process = MK_LIVE(mission_state->monk_process, mission_state->monk_process_instance);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = 0.8f;
@@ -3953,19 +3817,6 @@ static float p_transform_into_player(void) {
     return 0.0f;
 }
 
-static inline MkProc* mission_player_animation_process(PlyrPdata* pdata) {
-    MkProc* process = pdata->anim_proc;
-
-    if (process != 0) {
-        if (process->instance == pdata->anim_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 static float p_finish_transform_player(void) {
     KonquestMissionState* state = get_mission_state();
@@ -3974,7 +3825,7 @@ static float p_finish_transform_player(void) {
     MkObj* monk;
 
     mission_state = state;
-    animation_process = mission_player_animation_process(state->fight->pdata);
+    animation_process = MK_LIVE(state->fight->pdata->anim_proc, state->fight->pdata->anim_proc_instance);
     animation = (AnimPdata*)pdata_of_proc(animation_process);
     monk = get_mission_monk();
 
@@ -4018,44 +3869,8 @@ static float p_finish_transform_player(void) {
     return 0.0f;
 }
 
-static inline MkObj* plyr_pdata_live_sidekick_obj(PlyrPdata* owner) {
-    MkObj* object = owner->sidekick_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->sidekick_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkProc* konquest_mission_state_live_monk_process(KonquestMissionState* owner) {
-    MkProc* object = owner->monk_process;
-    if (object != 0) {
-        if (object->instance == owner->monk_process_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkObj* konquest_mission_state_live_monk(KonquestMissionState* owner) {
-    MkObj* object = owner->monk;
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -4075,8 +3890,8 @@ static float p_finish_transform_monk(void) {
 
     player_object = state->fight->active_object;
 
-    sidekick = plyr_pdata_live_sidekick_obj(fighter);
-    monk_process = konquest_mission_state_live_monk_process(state);
+    sidekick = MK_HDR_LIVE(fighter->sidekick_obj, fighter->sidekick_instance);
+    monk_process = MK_LIVE(state->monk_process, state->monk_process_instance);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = -0.8f;
@@ -4090,7 +3905,7 @@ static float p_finish_transform_monk(void) {
     if (state == 0) {
         monk = 0;
     } else {
-        monk = konquest_mission_state_live_monk(state);
+        monk = MK_HDR_LIVE(state->monk, state->monk_instance);
     }
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
@@ -4216,18 +4031,6 @@ static void start_hero_transform_effect(MkObj* hero) {
     fx_restart_emit(emitter);
 }
 
-static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -4270,7 +4073,7 @@ static void trial_load_monk(void) {
         mission_state->monk_process = monk_process;
         mission_state->monk_process_instance = monk_process->instance;
 
-        monk = anim_pdata_live_obj(animation);
+        monk = MK_HDR_LIVE(animation->obj, animation->obj_instance);
 
         if (monk != 0) {
             monk->light_flags = player_object->light_flags;
@@ -4323,7 +4126,7 @@ static void pw_konquest_trial_monk(void) {
     if (state == 0) {
         return;
     }
-    process = mission_validate_monk_process(state->monk_process, state);
+    process = MK_LIVE(state->monk_process, state->monk_process_instance);
     if (process != 0) {
         current_anim_pdata = (AnimPdata*)pdata_of_proc(process);
     }

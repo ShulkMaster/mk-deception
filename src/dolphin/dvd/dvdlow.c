@@ -68,8 +68,6 @@ static inline int ProcessNextCommand(void)
     return 0;
 }
 
-/* TODO: [breakthrough] 91.972824%; explicit Prev buffer-field stores now
- * match; reset-clock arithmetic/branch scheduling remains localized. */
 void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     DVDLowCallback callback;
@@ -85,7 +83,7 @@ void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
         Prev.address = Curr.address;
         Prev.length = Curr.length;
         Prev.offset = Curr.offset;
-        if (StopAtNextInt) cause |= 8;
+        if (StopAtNextInt == 1) cause |= 8;
     }
 
     LastCommandWasRead = 0;
@@ -107,8 +105,10 @@ void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
         reg = __DIRegs[1];
         mask = reg & 2;
         pending = (reg & 4) & (mask << 1);
-        if ((pending & 4) && ResetCoverCallback) ResetCoverCallback(4);
-        if (pending & 4) ResetCoverCallback = 0;
+        if (pending & 4) {
+            if (ResetCoverCallback) ResetCoverCallback(4);
+            ResetCoverCallback = 0;
+        }
         __DIRegs[1] = __DIRegs[1];
     } else if (WaitingCoverClose) {
         reg = __DIRegs[1];
@@ -165,12 +165,11 @@ static inline void SetTimeoutAlarm(OSTime timeout)
     OSSetAlarm(&AlarmForTimeout, timeout, AlarmHandlerForTimeout);
 }
 
-/* TODO: [breakthrough needed] 66.72%; command/read phase ownership and timeout expansion remain. */
 static void Read(void* address, unsigned long length, unsigned long offset,
                  DVDLowCallback callback)
 {
-    Callback = callback;
     StopAtNextInt = 0;
+    Callback = callback;
     LastCommandWasRead = 1;
     LastReadIssued = __OSGetSystemTime();
     __DIRegs[2] = 0xA8000000;
@@ -180,12 +179,22 @@ static void Read(void* address, unsigned long length, unsigned long offset,
     __DIRegs[6] = length;
     LastLength = length;
     __DIRegs[7] = 3;
-    SetTimeoutAlarm(OSSecondsToTicks(length > 0xA00000 ? 20 : 10));
+    if (length > 0xA00000) {
+        SetTimeoutAlarm(OSSecondsToTicks(20));
+    } else {
+        SetTimeoutAlarm(OSSecondsToTicks(10));
+    }
 }
 
 static inline int AudioBufferOn(void)
 {
-    return DVDGetCurrentDiskID()->streaming != 0;
+    DVDDiskID* id;
+
+    id = DVDGetCurrentDiskID();
+    if (id->streaming) {
+        return 1;
+    }
+    return 0;
 }
 
 static inline int HitCache(const DVDBuffer* current, const DVDBuffer* previous)
@@ -243,12 +252,10 @@ static inline void WaitBeforeRead(void* address, unsigned long length,
     OSSetAlarm(&AlarmForWA, wait, AlarmHandler);
 }
 
-/* TODO: [breakthrough] 57.042168%; explicit HitCache true/false CFG matches the donor; workaround/read lifetimes and cache/wait dispatch remain. */
 int DVDLowRead(void* address, unsigned long length, unsigned long offset,
                DVDLowCallback callback)
 {
     unsigned long previous_end;
-    unsigned long current_start;
     OSTime elapsed;
     __DIRegs[6] = length;
     Curr.address = address;
@@ -262,10 +269,9 @@ int DVDLowRead(void* address, unsigned long length, unsigned long offset,
         } else if (!HitCache(&Curr, &Prev)) {
             DoJustRead(address, length, offset, callback);
         } else {
-            previous_end = ((Prev.offset + Prev.length - 1) >> 15) & 0x1FFFF;
-            current_start = (Curr.offset >> 15) & 0x1FFFF;
-            if (previous_end == current_start ||
-                previous_end + 1 == current_start) {
+            previous_end = (Prev.offset + Prev.length - 1) >> 15;
+            if (previous_end == Curr.offset >> 15 ||
+                previous_end + 1 == Curr.offset >> 15) {
                 elapsed = __OSGetSystemTime() - LastReadFinished;
                 if (elapsed > OSMillisecondsToTicks(5)) {
                     DoJustRead(address, length, offset, callback);
@@ -373,8 +379,6 @@ int DVDLowAudioBufferConfig(int enable, unsigned long size,
     return IssueImmediate(0xE4000000 | (enable ? 0x10000 : 0) | size, callback);
 }
 
-/* TODO: [breakthrough needed] 70.17021%; donor reg|4|1 spelling is
- * codegen-neutral; reset-loop lifetimes and timer/frame lowering remain broad. */
 void DVDLowReset(void)
 {
     unsigned long reg;

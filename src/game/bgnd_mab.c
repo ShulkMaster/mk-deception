@@ -105,17 +105,6 @@ typedef struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 } SkyTempleExplodeMonitorPdata;
 
-static inline MkObj* mab_live_object(MkObj* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->hdr.instance == instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 #define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
     do {                                                                  \
@@ -482,18 +471,6 @@ int get_offset_of_closest_fence_section(
 }
 
 
-static inline MkObj* mk_obj_ref_live_object(MkObjRef* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -504,9 +481,9 @@ void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     MkObj* object;
 
     if (player->controller_slot == 0) {
-        object = mk_obj_ref_live_object(&debug_p1_axis_item);
+        object = MK_HDR_LIVE(debug_p1_axis_item.object, debug_p1_axis_item.instance);
     } else {
-        object = mk_obj_ref_live_object(&debug_p2_axis_item);
+        object = MK_HDR_LIVE(debug_p2_axis_item.object, debug_p2_axis_item.instance);
     }
 
     if (object == 0) {
@@ -560,7 +537,7 @@ static float p_fish_attack_bloodsplat(void) {
     }
 
     while (scale < 0.75f) {
-        object = mk_obj_ref_live_object(&splat);
+        object = MK_HDR_LIVE(splat.object, splat.instance);
         if (object != 0) {
             object->scale.x = scale;
             object->scale.z = scale;
@@ -586,29 +563,7 @@ static inline MkObj* fighter_severed_limb_live_object(
     return object;
 }
 
-static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkObj* fish_attack_live_target(FishAttackPdata* pdata) {
-    MkObj* object = pdata->target;
-    if (object != 0) {
-        if (object->hdr.instance == pdata->target_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 /* TODO: [near miss] 99.83%; only the else-branch fish web colors r25 vs retail r24
  * (fish helper/macro reshapes regress; 120s permuter found nothing). */
@@ -655,7 +610,7 @@ float p_fish_attack(void) {
             return -1.0f;
         }
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         if (target == 0) {
             return -1.0f;
@@ -674,7 +629,7 @@ float p_fish_attack(void) {
         pdata->turn_limit = (unsigned short)randu0(10) + 5;
         pdata->turning_left = 1;
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -697,7 +652,7 @@ float p_fish_attack(void) {
         FighterMirror* fighter;
         MkObj* severed_object;
 
-        target = fish_attack_live_target(pdata);
+        target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
         RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
@@ -715,7 +670,7 @@ float p_fish_attack(void) {
         if (pdata->state_ticks <= 0) {
             if (pdata->lifetime < 15 && pdata->state < 4) {
                 pdata->state = 4;
-                target = fish_attack_live_target(pdata);
+                target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -757,7 +712,7 @@ float p_fish_attack(void) {
             {
                 Vec* forward;
 
-                target = fish_attack_live_target(pdata);
+                target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
                 RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
@@ -792,7 +747,7 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
-            target = fish_attack_live_target(pdata);
+            target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
             plyr_obj = target;
             RESOLVE_MAB_OBJECT_IN_PLACE(
                 fish, pdata->fish, pdata->fish_instance);
@@ -841,7 +796,7 @@ float p_fish_attack(void) {
                 v3_to_xy_ang(&fish->ang, &fish->pos_vel);
                 fighter = player->slot.fighter;
                 severed_object =
-                    fighter_severed_limb_live_object(fighter, fish_index);
+                    MK_HDR_LIVE(fighter->severed_limbs[fish_index].object, fighter->severed_limbs[fish_index].instance);
                 if (severed_object != 0 && pdata->state_ticks < 20) {
                     fish->pos.value.y -= 0.1f;
                 }
@@ -956,18 +911,6 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-static inline MkProc* player_info_live_slot_fighter_anim_proc_direct(PlyrInfo* owner) {
-    MkProc* object = owner->slot.fighter->anim_proc;
-    if (object != 0) {
-        if (object->instance == owner->slot.fighter->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 99.54%; one row: retail seeds the limb offset with mr r29,r28 (as when init_plyr_severed_limb_list is inlined); a direct call does not inline here. */
 static float p_player_body_explode(void) {
@@ -988,7 +931,7 @@ static float p_player_body_explode(void) {
         FighterMirror* fighter;
 
         fighter = player->slot.fighter;
-        object = fighter_severed_limb_live_object(fighter, limb);
+        object = MK_HDR_LIVE(fighter->severed_limbs[limb].object, fighter->severed_limbs[limb].instance);
         if (object == 0) {
             object = obj_sever_limb(
                 player->slot.mirror_a, limb,
@@ -1002,7 +945,7 @@ static float p_player_body_explode(void) {
     }
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
-    anim_proc = player_info_live_slot_fighter_anim_proc_direct(player);
+    anim_proc = MK_LIVE(player->slot.fighter->anim_proc, player->slot.fighter->anim_proc_instance);
 
     xfer_proc(anim_proc, p_anim_idle);
 
@@ -1011,11 +954,7 @@ static float p_player_body_explode(void) {
 
         fighter = player->slot.fighter;
         object = fighter->severed_limbs[body_part].object;
-        object = object != 0
-            ? (object->hdr.instance ==
-                    fighter->severed_limbs[body_part].instance
-                ? object : 0)
-            : 0;
+        object = MK_HDR_LIVE(object, fighter->severed_limbs[body_part].instance);
         if (object != 0) {
             object->flags_08_bits.gravity_enabled = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -1203,10 +1142,7 @@ static float p_monitor_objs_sobjs(void) {
 
     pdata = (ObjectMonitorPdata*)apdata;
     all_settled = 1;
-    target = pdata->target != 0
-                 ? (pdata->target->instance == pdata->target_instance
-                        ? (MkObj*)pdata->target : 0)
-                 : 0;
+    target = (MkObj*)MK_LIVE(pdata->target, pdata->target_instance);
 
     if (target != 0) {
         iterator = first_mkptr(&target->sobj_list);
@@ -1357,8 +1293,7 @@ static float p_xpd_obj_monitor(void) {
         for (limb = 0; limb < 15; limb++) {
             MkObj* object;
 
-            object = fighter_severed_limb_live_object(
-                pdata->player->slot.fighter, limb);
+            object = MK_HDR_LIVE(pdata->player->slot.fighter->severed_limbs[limb].object, pdata->player->slot.fighter->severed_limbs[limb].instance);
 
             if (object != 0) {
                 if (object->pos.value.y < 0.35f + g_game_info.field_34) {
@@ -1454,7 +1389,7 @@ float p_skytemple_bodysplat(void) {
 
     scale = 1.0f;
     while (scale < 2.5f) {
-        object = mk_obj_ref_live_object(&splat);
+        object = MK_HDR_LIVE(splat.object, splat.instance);
         if (object != 0) {
             object->scale.x = scale;
             object->scale.z = scale;
@@ -1477,10 +1412,7 @@ static float p_cam_bounce_monitor(void) {
     float reflection;
 
     pdata = (CameraBouncePdata*)apdata;
-    object = pdata->object != 0
-                 ? (pdata->object->hdr.instance == pdata->object_instance
-                        ? pdata->object : 0)
-                 : 0;
+    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
     if (camera_obj == 0 || object == 0) {
         return -1.0f;
     }
@@ -1488,10 +1420,7 @@ static float p_cam_bounce_monitor(void) {
     distance = dist_v3_to_v3(
         &camera_obj->pos, &object->pos.value);
     while (__fabs(distance) > pdata->trigger_distance) {
-        object = pdata->object != 0
-                     ? (pdata->object->hdr.instance == pdata->object_instance
-                            ? pdata->object : 0)
-                     : 0;
+        object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
         if (object == 0) {
             return -1.0f;
         }
@@ -1501,10 +1430,7 @@ static float p_cam_bounce_monitor(void) {
         aproc->vtbl->sleep();
     }
 
-    object = pdata->object != 0
-                 ? (pdata->object->hdr.instance == pdata->object_instance
-                        ? pdata->object : 0)
-                 : 0;
+    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1538,18 +1464,6 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-static inline MkProc* player_info_live_slot_fighter_anim_proc(PlyrInfo* owner) {
-    MkProc* object = owner->slot.fighter->anim_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->slot.fighter->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */
 void skytemple_player_explode(
@@ -1582,7 +1496,7 @@ void skytemple_player_explode(
     init_plyr_severed_limb_list(player);
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
-    anim_proc = player_info_live_slot_fighter_anim_proc(player);
+    anim_proc = MK_HDR_LIVE(player->slot.fighter->anim_proc, player->slot.fighter->anim_proc_instance);
 
     xfer_proc(anim_proc, p_anim_idle);
 
@@ -1616,6 +1530,7 @@ void skytemple_player_explode(
             float camera_delta_z;
             float camera_delta_x;
             float direction_scale = 0.025f;
+            unsigned int limb_instance;
 
             mkobj_zero_bone_rots(limb);
             limb->ang_vel.x = 0.09f;
@@ -1625,7 +1540,8 @@ void skytemple_player_explode(
             limb->ang.z = 0.0f;
             saved_gravity = limb->gravity;
 
-            bounce_object = mab_live_object(limb, limb->hdr.instance);
+            limb_instance = limb->hdr.instance;
+            bounce_object = MK_HDR_LIVE(limb, limb_instance);
 
             camera = camera_obj;
             if (camera != 0 && bounce_object != 0) {

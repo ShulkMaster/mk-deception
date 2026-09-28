@@ -135,25 +135,13 @@ static float bar_speed = 0.01f;
 static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
@@ -177,27 +165,13 @@ static inline int pbar_green_triggered(PlyrInfo* player,
 static inline StringObj* string_latch_object(ScreenLatch* latch) {
     StringObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline ScreenObj* owned_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
+    return MK_LIVE(object, latch->instance);
 }
 
 static inline void owned_set_quad_alpha(
@@ -210,19 +184,6 @@ static inline void owned_set_quad_alpha(
     for (i = 0; i < 4; i++) {
         object->pfx2d->verts[i].a = alpha;
     }
-}
-
-static inline ScreenObj* pbar_live_screen(ScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
 }
 
 static inline void set_latched_quad_alpha(ScreenLatch* latch) {
@@ -508,21 +469,21 @@ static float p_update_fighting_state_lights(void) {
             state = player_2_state;
         }
 
-        light = pbar_live_screen(&state->red);
+        light = MK_LIVE((ScreenObj*)state->red.object, state->red.instance);
         if (light != 0) {
             brighten_screen(light, state->red_active);
         } else {
             return -1.0f;
         }
 
-        light = pbar_live_screen(&state->green);
+        light = MK_LIVE((ScreenObj*)state->green.object, state->green.instance);
         if (light != 0) {
             brighten_screen(light, state->green_active);
         } else {
             return -1.0f;
         }
 
-        light = pbar_live_screen(&state->airborne);
+        light = MK_LIVE((ScreenObj*)state->airborne.object, state->airborne.instance);
         if (light != 0) {
             brighten_screen(light, state->airborne_active);
         } else {
@@ -860,7 +821,6 @@ void extend_powerbars(void) {
     }
 }
 
-/* TODO: [near miss] 99.41860%; latch CFG agrees; list-base and frame-counter register coloring; stop. */
 float p_move_pbars_off_screen(void) {
     ScreenLatch* latch;
     ScreenObj* screen;
@@ -874,7 +834,7 @@ float p_move_pbars_off_screen(void) {
         for (screen_index = 0;
              pbar_item_list[screen_index] != 0; screen_index++) {
             latch = pbar_item_list[screen_index];
-            screen = pbar_live_screen(latch);
+            screen = MK_LIVE((ScreenObj*)latch->object, latch->instance);
             if (screen != 0) {
                 screen->y += 6;
             }
@@ -888,7 +848,7 @@ float p_move_pbars_off_screen(void) {
         for (string_index = 0;
              pbar_string_item_list[string_index] != 0; string_index++) {
             latch = pbar_string_item_list[string_index];
-            string = (StringObj*)pbar_live_screen(latch);
+            string = (StringObj*)MK_LIVE((ScreenObj*)latch->object, latch->instance);
             if (string != 0) {
                 string->render_y += 6;
             }
@@ -1201,18 +1161,6 @@ void update_plyr_medals(void) {
 }
 
 
-static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
-    MkProc* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -1231,7 +1179,7 @@ void destroy_pwr_bars(void) {
     int string_index;
     int i;
 
-    process = proc_latch_live_object(&pwr_bar_proc_item);
+    process = MK_LIVE(pwr_bar_proc_item.object, pwr_bar_proc_item.instance);
 
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);

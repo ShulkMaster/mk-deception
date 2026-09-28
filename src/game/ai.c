@@ -440,7 +440,7 @@ int go_into_twitch_death_please;
 int g_fatality_game_number;
 DroneOverrideInfo g_DroneOverrideInfo;
 extern ConstrainInfo constrain_info;
-extern unsigned int randu0(unsigned int max);
+extern unsigned int randu0(unsigned short max);
 extern void snd_req(int sound_id);
 extern void random_snd_req(int sound_id);
 extern void shake_camera(int ticks, float strength);
@@ -686,9 +686,11 @@ static inline void ai_side_clearances(float* right, float* left) {
         unit.x = gxMathSin(plyr_obj->ang.y);
         unit.y = 0.0f;
         unit.z = gxMathCos(plyr_obj->ang.y);
-        delta_x = probe_length * unit.z;
+        delta_z = -unit.x;
+        delta_x = unit.z;
         delta_y = 0.0f;
-        delta_z = -unit.x * probe_length;
+        delta_x = probe_length * delta_x;
+        delta_z = probe_length * delta_z;
 
         end.x = origin.x + delta_x;
         end.y = origin.y + delta_y;
@@ -712,22 +714,6 @@ static inline void ai_side_clearances(float* right, float* left) {
     }
     *right = right_distance;
     *left = left_distance;
-}
-
-static inline float ai_sqrt_table(float squared) {
-    AiFloatBits input;
-    AiFloatBits estimate;
-
-    input.f = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000;
-    return 0.5f * (estimate.f *
-                   (3.0f - (estimate.f * estimate.f) / squared));
 }
 
 static inline float ai_backward_clearance(void) {
@@ -765,25 +751,13 @@ void liukang_in_fight_random_snd_check(void) {
     }
 }
 
-static inline MkProc* ai_live_player_process(PlyrPdata* player) {
-    MkProc* proc = player->player_proc;
-    if (proc != 0) {
-        if (proc->instance == player->player_proc_instance) {
-            return proc;
-        }
-        proc = 0;
-    } else {
-        proc = 0;
-    }
-    return proc;
-}
 
 void dk_taunt_at_screen(void) {
     PlyrPdata* player;
     MkProc* proc;
 
     player = plyr_pdata;
-    proc = ai_live_player_process(player);
+    proc = MK_LIVE(player->player_proc, player->player_proc_instance);
     xfer_player_proc(proc, dk_screen_taunt);
 }
 
@@ -930,27 +904,7 @@ float big_boss_taunt_cam_cut(void) {
     return 0.0f;
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
-static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 static float p_lookat_cam(void) {
     CameraObj* camera;
@@ -965,14 +919,14 @@ static float p_lookat_cam(void) {
     float sine;
     float cosine;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
         AI_TRANSFER(p_camera_proc);
         return 0.0f;
     }
 
-    target = taunt_camera_live_object(&at_cam_data);
+    target = MK_HDR_LIVE(at_cam_data.object, at_cam_data.object_instance);
 
     if (target == 0) {
         AI_TRANSFER(p_camera_proc);
@@ -1112,8 +1066,6 @@ float give_some_distance(void) {
 }
 
 
-/* TODO: [near miss] 98.36066%; recognized death types share the exit;
- * one retail dispatch branch remains. */
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
@@ -1121,6 +1073,7 @@ float go_into_twitch_death(void) {
     case 1:
     case 2:
     case 3:
+    case 5:
         break;
     case 4:
         plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1142,7 +1095,6 @@ float go_into_twitch_death(void) {
 }
 
 
-/* TODO: [near miss] 98.87%; retail retains two equivalent case-1 default-dispatch branches. */
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1209,7 +1161,8 @@ float go_into_major_pain(void) {
             xfer_proc(plyr_anim_proc, p_animate);
         }
         break;
-    default:
+    case 0:
+    case 5:
         break;
     }
     AI_TRANSFER(j_stay_down_dead);
@@ -1465,7 +1418,7 @@ void whoosh_fx(int hit_type) {
 #pragma opt_propagation reset
 
 void dead_liukang_snd_chain_check(
-    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    PlyrPdata* player, int base_delay, int delay_range,
     unsigned int likelihood) {
     int delay;
     int is_dead_liukang;
@@ -5492,7 +5445,8 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.46932%; argument/indexed-table GPR residue remains; focused integer-Boolean search found no improvement. */
+/* TODO: [near miss] 99.47%; drone/immediate and category-index GPR coloring;
+ * shared count-helper and direct-access forms regress; signed helper types are neutral. */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     PlyrMoveBlendData* move_data;
     AiFightstyleAttack* script;
@@ -6012,14 +5966,14 @@ static int drone_ai_victim_avoid(void) {
         target_z =
             drone->avoidance_position[2] - player->pos.value.z;
         target_squared_distance = target_x * target_x + target_z * target_z;
-        target_distance = ai_sqrt_table(target_squared_distance);
+        target_distance = gxMathFastSqrt(target_squared_distance);
         if (target_distance == 0.0f) {
             return 0;
         }
         enemy_x = opponent->pos.value.x - player->pos.value.x;
         enemy_z = opponent->pos.value.z - player->pos.value.z;
         enemy_squared_distance = enemy_x * enemy_x + enemy_z * enemy_z;
-        enemy_distance = ai_sqrt_table(enemy_squared_distance);
+        enemy_distance = gxMathFastSqrt(enemy_squared_distance);
         inverse_distance = enemy_distance > 0.0f
                                ? 1.0f / enemy_distance
                                : enemy_distance;
@@ -6435,7 +6389,6 @@ float drone_ai_perform_script_attack(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.92105%; clearance constant-pool identity and FPR coloring remain. */
 float jump_away_opponent_with_j_exit(void) {
     DroneAI* drone;
     float right_clearance;
@@ -6790,7 +6743,6 @@ static float jump_away_opponent_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_long_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6807,7 +6759,6 @@ static float side_step_to_center_long_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_attack_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6824,7 +6775,6 @@ static float side_step_to_center_attack_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 float side_step_to_center_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6976,7 +6926,6 @@ static float drone_ai_attack_obstacle_now(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.92857%; clearance constant-pool identity and FPR coloring remain. */
 static float drone_ai_dodge_3d_with_counter(void) {
     DroneAI* drone;
     Vec facing;
@@ -7580,11 +7529,9 @@ float drone_entry(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.45206%; table-base GPR swap remains; GC 2.0/2.5/2.6/2.7 emit identical AI text; retain retail load order. */
 static float drone_loop(void) {
     DroneAI* drone;
     unsigned int ticks;
-    unsigned short random_range;
     int difficulty;
 
     drone = get_player_number(plyr_obj) == 0
@@ -7597,9 +7544,8 @@ static float drone_loop(void) {
         return 1.0f;
     }
     difficulty = drone->difficulty_index;
-    random_range = g_randomDecisionBaseWaitTime[difficulty];
     ticks = g_minDecisionBaseWaitTime[difficulty];
-    ticks += (unsigned short)randu0(random_range);
+    ticks += (unsigned short)randu0(g_randomDecisionBaseWaitTime[difficulty]);
     return ticks;
 }
 #pragma opt_propagation reset
@@ -8224,7 +8170,8 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.15%; character-search preheader placement remains; preserve distinct match/sentinel returns. */
+/* TODO: [near miss] 97.15%; character search needs a tail LICM preheader;
+ * recover its loop-entry CFG while preserving distinct match/sentinel returns. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
@@ -10108,6 +10055,7 @@ static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     FighterAiTable* table;
     unsigned short row_index;
     FighterAiMoveRow* row;
+    AiFightstyleAttack* special;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     table = plyr_pdata->ai_tables->tables;
@@ -10124,7 +10072,8 @@ static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     drone->ai_command_flag0 = 0;
     drone->ai_command_flag1 = 0;
     drone->ai_command_flag2 = 0;
-    return get_special_move();
+    special = get_special_move();
+    return special;
 }
 
 static AiFightstyleAttack* drone_ai_choose_move_from_category(

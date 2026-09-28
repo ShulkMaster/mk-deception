@@ -381,12 +381,7 @@ static float p_image_fader(void) {
 
     if (pdata->delay > 0) {
         object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(object, pdata->object_instance);
         if (object != 0) {
             if (pdata->direction == 0) {
                 object->x--;
@@ -403,12 +398,7 @@ static float p_image_fader(void) {
     if (pdata->alpha > 0) {
         pdata->alpha -= 8;
         object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(object, pdata->object_instance);
         if (object != 0) {
             pfx_2d_obj_set_alpha(object, pdata->alpha);
             if (pdata->direction == 0) {
@@ -426,12 +416,7 @@ static float p_image_fader(void) {
     }
 
     object = pdata->object;
-    if (object != 0) {
-        object = (object->instance == pdata->object_instance)
-            ? object : 0;
-    } else {
-        object = 0;
-    }
+    object = MK_LIVE(object, pdata->object_instance);
     if (object != 0 && object->instance != 0) {
         object->vtbl->destroy();
     }
@@ -655,18 +640,6 @@ void general_flash_fx(
         effect, position.x, position.y, position.z);
 }
 
-static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* fighter) {
-    MkObj* object = fighter->primary_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == fighter->primary_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void start_blade_clash_fx(
     PlyrPdata* player, unsigned int effect, MkObj* blade, int bone) {
@@ -686,7 +659,7 @@ static inline void start_blade_clash_fx(
     }
 }
 
-/* TODO: [near miss] 99.23%; player/blade homes (r30/r31) and the third
+/* TODO: [near miss] 99.58%; player/blade homes (r30/r31) and the third
  * clash-fx expansion's effect/weapon homes swap; stop at coloring. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
@@ -696,7 +669,7 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 
     player_num = player->plyr_num;
     bone = 0;
-    blade = moveset_live_primary_weapon(player->fighter_definition);
+    blade = MK_HDR_LIVE(player->fighter_definition->primary_weapon, player->fighter_definition->primary_weapon_instance);
     if (blade == 0 || blade->hide_flag_bits.hidden == 1) {
         bone = 0x1C;
         blade = player->plyr_info->slot.mirror_a;
@@ -722,49 +695,15 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 }
 
 
-static inline MkProc* reaction_transfer_pdata_live_opponent_proc(ReactionTransferPdata* owner) {
-    MkProc* object = owner->opponent_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->opponent_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    MkProc* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->hold_proc_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 /* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
-static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
 
 
-/* TODO: [near miss] 97.77%; retail keeps one fewer GPR live (stmw r15) and spills
+/* TODO: [near miss] 97.87%; retail keeps one fewer GPR live (stmw r15) and spills
  * saved_state where MWCC spills reaction; the inlined cleanup block is
  * run_reaction_cleanup_function's body. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
@@ -811,7 +750,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     transfer = (ReactionTransferPdata*)apdata;
-    opponent_proc = reaction_transfer_pdata_live_opponent_proc(transfer);
+    opponent_proc = MK_HDR_LIVE(transfer->opponent_proc, transfer->opponent_proc_instance);
 
     victim_obj = transfer->opponent_obj;
     victim = transfer->opponent_pdata;
@@ -900,11 +839,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         saved_opponent_object = his_obj;
         plyr_pdata = saved_player;
         his_pdata = saved_player->his_plyr_pdata;
-        cleanup_object = plyr_pdata_live_tracked_obj(saved_player);
+        cleanup_object = MK_HDR_LIVE(saved_player->tracked_obj, saved_player->tracked_obj_instance);
 
         plyr_obj = cleanup_object;
         cleanup_opponent_object =
-            plyr_pdata_live_tracked_obj(saved_player->his_plyr_pdata);
+            MK_HDR_LIVE(saved_player->his_plyr_pdata->tracked_obj, saved_player->his_plyr_pdata->tracked_obj_instance);
         his_obj = cleanup_opponent_object;
         if (cleanup_object != 0 && cleanup_opponent_object != 0) {
             saved_cmdscript = active_cmdscript;
@@ -933,7 +872,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     original_previous_state = plyr_pdata->previous_state;
     saved_state = plyr_pdata->state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
-    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+    hold_proc = MK_HDR_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         release_other_player();

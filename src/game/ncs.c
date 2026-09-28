@@ -469,19 +469,6 @@ typedef struct NcsGroundCollisionWatchPdata {
     int emitters[3];             /* +0x24 */
 } NcsGroundCollisionWatchPdata;
 
-static inline MkObj* ncs_live_object_ref(FighterObjectRef* ref) {
-    MkObj* object = ref->object;
-
-    if (object != 0) {
-        if (object->hdr.instance == ref->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-} /* 0x30 */
 
 typedef struct NcsCameraWallRegion {
     int type;
@@ -592,84 +579,6 @@ void spawn_bld_splat(
 MslSoundHandle plyr_snd_req(int sound);
 MslSoundHandle random_voice(int sound);
 
-static inline MkObj* ncs_live_tracked_obj(PlyrPdata* owner) {
-    return owner->tracked_obj != 0
-               ? (owner->tracked_obj->hdr.instance == owner->tracked_obj_instance
-                      ? owner->tracked_obj
-                      : 0)
-               : 0;
-}
-
-static inline MkObj* ncs_live_aux_weapon(PlyrPdata* player) {
-    MkObj* weapon = player->aux_weapon_latch.obj;
-
-    if (weapon != 0) {
-        if (weapon->hdr.instance == player->aux_weapon_latch.instance) {
-            return weapon;
-        }
-        weapon = 0;
-    } else {
-        weapon = 0;
-    }
-    return weapon;
-}
-
-static inline CameraObj* ncs_live_camera(void) {
-    CameraObj* camera = camera_item.node;
-
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            return camera;
-        }
-        camera = 0;
-    } else {
-        camera = 0;
-    }
-    return camera;
-}
-
-static inline float ncs_sqrt(float squared) {
-    union {
-        float f;
-        unsigned int u;
-    } input, estimate;
-
-    input.f = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    return 0.5f *
-        (estimate.f * (3.0f - (estimate.f * estimate.f) / squared));
-}
-
-static inline NcsSpearEffect* ncs_get_spear_effect(void) {
-    return pdata_sc_spear->effect != 0
-               ? (pdata_sc_spear->effect->hdr.instance ==
-                          pdata_sc_spear->effect_instance
-                      ? pdata_sc_spear->effect
-                      : 0)
-               : 0;
-}
-
-static inline NcsSpearEffect* ncs_live_spear_effect(SpearProcPdata* owner) {
-    NcsSpearEffect* effect;
-
-    effect = owner->effect;
-    if (effect != 0) {
-        if (effect->hdr.instance == owner->effect_instance) {
-            return effect;
-        }
-        effect = 0;
-    } else {
-        effect = 0;
-    }
-    return effect;
-}
-
 static float p_mkpfx_fadingrun(void);
 float p_sc_spear1(void);
 static void sc_spear_prewake(void);
@@ -758,18 +667,9 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     Vec delta;
 
     proc = 0;
-    camera = camera_item.node != 0
-                 ? (camera_item.node->hdr.instance == camera_item.instance
-                        ? camera_item.node
-                        : 0)
-                 : 0;
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera != 0) {
-        weapon = player->aux_weapon_latch.obj != 0
-                     ? (player->aux_weapon_latch.obj->hdr.instance ==
-                                player->aux_weapon_latch.instance
-                            ? player->aux_weapon_latch.obj
-                            : 0)
-                     : 0;
+        weapon = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
         if (weapon != 0) {
             if (weapon->field_60 == 0) {
                 weapon->field_60 = 1;
@@ -843,7 +743,7 @@ MkProc* fire_sc_spear(
     MkProc* proc;
 
     proc = 0;
-    weapon = ncs_live_aux_weapon(player);
+    weapon = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
     if (weapon != 0) {
         if (weapon->field_60 == 0) {
             weapon->field_60 = 1;
@@ -909,7 +809,7 @@ float p_sc_spear1(void) {
 
     sc_spear_obj->flags_08_bits.gravity_enabled = 1;
     plyr_aux_weapon_release(pdata_sc_spear->owner);
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -997,7 +897,7 @@ static float p_sc_spear2(void) {
     int collision;
     int outcome;
 
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1025,7 +925,7 @@ static float p_sc_spear2(void) {
             NcsSpearEffect* effect;
 
             outcome = 1;
-            effect = ncs_get_spear_effect();
+            effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
             if (effect != 0) {
                 effect->field_2A0 = 0.75f;
                 effect->field_2A8 = 0.005f;
@@ -1126,20 +1026,20 @@ static float p_sc_spear2_victory(void) {
     float dz;
     float root;
 
-    camera = ncs_live_camera();
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return 1.0f;
     }
 
     dx = camera->pos.x - sc_spear_obj->pos.value.x;
     dz = camera->pos.z - sc_spear_obj->pos.value.z;
-    root = ncs_sqrt(dx * dx + dz * dz);
+    root = gxMathFastSqrt(dx * dx + dz * dz);
 
     if (root < 0.3f) {
         sc_spear_obj->pos_vel.z = 0.0f;
         sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.x = 0.0f;
-        effect = ncs_get_spear_effect();
+        effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
         if (effect != 0) {
             effect->field_2A0 = 0.75f;
             effect->field_2A8 = 0.005f;
@@ -1157,7 +1057,7 @@ static float p_sc_spear2_getup(void) {
         sc_spear_obj->pos_vel.z = 0.0f;
         sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.x = 0.0f;
-        effect = ncs_live_spear_effect(pdata_sc_spear);
+        effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
         if (effect != 0) {
             effect->field_2A0 = 0.75f;
             effect->field_2A8 = 0.005f;
@@ -1169,11 +1069,7 @@ static float p_sc_spear2_getup(void) {
 float p_sc_spear_blocked(void) {
     NcsSpearEffect* effect;
 
-    effect = pdata_sc_spear->effect != 0
-                 ? (pdata_sc_spear->effect->hdr.instance == pdata_sc_spear->effect_instance
-                        ? pdata_sc_spear->effect
-                        : 0)
-                 : 0;
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1289,7 +1185,7 @@ static float p_sc_spear3_pre(void) {
 static float p_sc_spear3(void) {
     NcsSpearEffect* effect;
 
-    effect = ncs_live_spear_effect(pdata_sc_spear);
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect != 0) {
         effect->field_298 = 1.0f;
         effect->field_29C = 0.0f;
@@ -1306,7 +1202,7 @@ static float p_sc_spear4(void) {
     MkObj* target;
     int collision;
 
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1378,7 +1274,7 @@ static float p_sc_spear4_victory(void) {
     float direction_squared;
     float inverse_length;
 
-    target_object = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target_object = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target_object == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1386,14 +1282,14 @@ static float p_sc_spear4_victory(void) {
     }
     get_bone_world_pos(
         target_object, get_bid_with_flip(target_object, 0x19), &target);
-    distance = ncs_sqrt(ncs_xz_distance_squared(&target, &sc_spear_obj->pos.value));
+    distance = gxMathFastSqrt(ncs_xz_distance_squared(&target, &sc_spear_obj->pos.value));
     if (distance < 0.5f) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
         return 0.0f;
     }
 
-    speed = ncs_sqrt(
+    speed = gxMathFastSqrt(
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);
@@ -1441,7 +1337,7 @@ static float p_sc_spear4_getup(void) {
     float speed;
     float inverse_length;
 
-    target_object = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target_object = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target_object == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1455,7 +1351,7 @@ static float p_sc_spear4_getup(void) {
         return 0.0f;
     }
 
-    speed = ncs_sqrt(
+    speed = gxMathFastSqrt(
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);
@@ -1479,7 +1375,7 @@ static float p_sc_spear4_getup(void) {
 float p_sc_spear_kill(void) {
     NcsSpearEffect* effect;
 
-    effect = ncs_get_spear_effect();
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect != 0 && effect->hdr.instance != 0) {
         ((NcsDestroyable*)effect)->vtbl->destroy((NcsDestroyable*)effect);
     }
@@ -1663,19 +1559,6 @@ void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc) {
     }
 }
 
-static inline MkObj* ncs_live_spear_object(SpearProcPdata* pdata) {
-    MkObj* object = pdata->spear_object;
-
-    if (object != 0) {
-        if (object->hdr.instance == pdata->spear_object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 MkObj* get_spearobj_from_spearproc(MkProc* proc) {
     SpearProcPdata* pdata = (SpearProcPdata*)pdata_of_proc(proc);
@@ -1683,7 +1566,7 @@ MkObj* get_spearobj_from_spearproc(MkProc* proc) {
     if (pdata == 0) {
         return 0;
     }
-    return ncs_live_spear_object(pdata);
+    return MK_HDR_LIVE(pdata->spear_object, pdata->spear_object_instance);
 }
 
 void sc_spear_postsleep(void) {
@@ -1703,7 +1586,7 @@ static void sc_spear_prewake(void) {
     if (pdata_sc_spear == 0) {
         mkproc_die();
     }
-    object = ncs_live_spear_object(pdata_sc_spear);
+    object = MK_HDR_LIVE(pdata_sc_spear->spear_object, pdata_sc_spear->spear_object_instance);
     sc_spear_obj = object;
     if (object == 0) {
         mkproc_die();
@@ -1903,25 +1786,13 @@ static float p_prison_grab(void) {
     return 1.0f;
 }
 
-static inline MkProc* ncs_live_camera_process(GameInfo* owner) {
-    MkProc* process = owner->camera_proc;
-    if (process != 0) {
-        if (process->instance == owner->camera_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 void ncs_dkp_camera_konqchar_show_hide_alpha(
     int character_index, MkObj* character) {
     MkProc* process;
     NcsKonquestCharacterPdata* pdata;
 
-    process = ncs_live_camera_process(&g_game_info);
+    process = MK_LIVE(g_game_info.camera_proc, g_game_info.camera_proc_instance);
     if (process == 0) {
         return;
     }
@@ -2663,8 +2534,7 @@ static float p_watch_obj_for_gnd_coll(void);
 static float p_camera_wall_show_hide_alpha(void);
 static float p_limb_sever_attach(void);
 static float p_gore2_update(void);
-/* TODO: [near miss] 99.49%; glop velocity fmuls operand order and the cleanup loop's
- * FighterObjectRef address folding (retail +0xc displacement) remain. */
+/* TODO: [near miss] 99.92%; only the glop velocity fmuls operand order (f30 first in retail) remains. */
 static void trigger_blood_glops(
     PlyrPdata* player, int bone, MkObj* source, int blood_type) {
     NcsGroundCollisionWatchPdata* watcher;
@@ -2753,7 +2623,7 @@ static void trigger_blood_glops(
 
     if (watcher != 0) {
         for (index = 0; index < 3; index++) {
-            glop = ncs_live_object_ref(&watcher->objects[index]);
+            glop = MK_HDR_LIVE(watcher->objects[index].object, watcher->objects[index].instance);
             if (glop != 0 && glop->hdr.instance != 0) {
                 glop->hdr.typed_vtbl->destroy(&glop->hdr);
             }
@@ -3328,7 +3198,7 @@ MkObj* mks_limb_sever(
         fighter = g_game_info.plyr1.slot.fighter;
     }
     severed_ref = &fighter->severed_limbs[limb];
-    severed = ncs_live_object_ref(severed_ref);
+    severed = MK_HDR_LIVE(severed_ref->object, severed_ref->instance);
     if (severed == 0) {
         severed = obj_sever_limb(object, limb, 0, include_children);
         if (severed != 0) {
@@ -3811,22 +3681,9 @@ void limb_sever_update_slide_end_coeff(
     }
 }
 
-static inline MkProc* ncs_live_animation_process(AnimPdata* data) {
-    MkProc* process = data->proc;
-
-    if (process != 0) {
-        if (process->instance == data->proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 MkProc* proc_of_anim_pdata(AnimPdata* data) {
-    return ncs_live_animation_process(data);
+    return MK_LIVE(data->proc, data->proc_instance);
 }
 
 void set_pdata_anim_step(AnimPdata* pdata, float step) {

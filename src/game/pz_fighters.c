@@ -45,22 +45,6 @@ typedef union PuzzleFloatBits {
 
 
 
-static inline float pz_fast_sqrt(float squared) {
-    PuzzleFloatBits input;
-    PuzzleFloatBits estimate;
-
-    input.value = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.bits = GXMathSqrtTable[(input.bits >> 11) & 0x1FFF] << 8;
-    estimate.bits |=
-        (((input.bits & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000;
-    return 0.5f *
-           (estimate.value *
-            (3.0f - (estimate.value * estimate.value) / squared));
-}
-
 
 typedef struct PuzzleEffectBankContext {
     int slot;
@@ -3027,8 +3011,8 @@ void pz_fighter_startup_attack(
         } else if (distance > desired_distance - 1.0f &&
                    distance < desired_distance + 1.75f) {
             correction =
-                (pz_fast_sqrt(distance) -
-                 pz_fast_sqrt(desired_distance)) /
+                (gxMathFastSqrt(distance) -
+                 gxMathFastSqrt(desired_distance)) /
                 5.0f;
             if (correction < 0.0f) {
                 force_away(5, 3, -1.0f * correction, 0.9f);
@@ -3191,8 +3175,8 @@ static void pz_fighter_snap_to_distance(
     float his_x_offset;
     float his_z_offset;
 
-    current_distance = pz_fast_sqrt(current_distance_squared);
-    desired_distance = pz_fast_sqrt(desired_distance_squared);
+    current_distance = gxMathFastSqrt(current_distance_squared);
+    desired_distance = gxMathFastSqrt(desired_distance_squared);
     correction = (current_distance - desired_distance) * 0.5f;
 
     my_position.x = plyr_obj->pos.value.x;

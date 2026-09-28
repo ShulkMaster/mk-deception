@@ -827,7 +827,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 67.22%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
+/* TODO: [near miss] 74.63%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
 static float p_subzero_ice_chunk(void) {
     FatalityIceChunkPdata* data;
     FatalityIceChunkPebble* chunk;
@@ -845,8 +845,7 @@ static float p_subzero_ice_chunk(void) {
     if (data == 0) {
         return -1.0f;
     }
-    if (data->owner != 0 &&
-        data->owner->hdr.instance == data->owner_instance) {
+    if (MK_HDR_LIVE(data->owner, data->owner_instance) != 0) {
         fix_index = 0;
         for (chunk_index = 0; chunk_index < 9; chunk_index++) {
             chunk = data->chunks[chunk_index];
@@ -1092,18 +1091,6 @@ MkObj* subzero_start_iceblock(void) {
     return iceblock;
 }
 
-static inline MkObj* fatality_live_object(
-    MkObj* object, const unsigned int* instance) {
-    if (object != 0) {
-        if (object->hdr.instance == *instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_sz2_iceblock_scalar(void) {
     FatalityScalePdata* data;
@@ -1113,7 +1100,7 @@ static float p_sz2_iceblock_scalar(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_live_object(data->object, &data->object_instance);
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1267,22 +1254,9 @@ float subzero_rx_freeze(void) {
     return 0.0f;
 }
 
-static inline MkHdr* fatality_live_sound_object(FatalityObjectLatch* sound) {
-    MkHdr* object = sound->object;
-
-    if (object != 0) {
-        if (object->instance == sound->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
-    MkHdr* object = fatality_live_sound_object(sound);
+    MkHdr* object = MK_LIVE(sound->object, sound->object_instance);
 
     if (object != 0 && finished == 0) {
         sound->active = 1;
@@ -1854,9 +1828,7 @@ static float p_raiden_summon_lightning_bolt(void) {
     if (data == 0) {
         return -1.0f;
     }
-    bolt = data->bolt != 0
-               ? (data->bolt->hdr.instance == data->bolt_instance ? data->bolt : 0)
-               : 0;
+    bolt = MK_HDR_LIVE(data->bolt, data->bolt_instance);
     if (bolt == 0) {
         return -1.0f;
     }
@@ -1878,13 +1850,8 @@ static float p_raiden_summon_lightning_bolt(void) {
         bolt->hide_flag_bits.hidden = 1;
     } else {
         bolt->hide_flag_bits.hidden = 0;
-        owner_object =
-            data->owner->tracked_obj != 0
-                ? (data->owner->tracked_obj->hdr.instance ==
-                           data->owner->tracked_obj_instance
-                       ? data->owner->tracked_obj
-                       : 0)
-                : 0;
+        owner_object = MK_HDR_LIVE(
+            data->owner->tracked_obj, data->owner->tracked_obj_instance);
         if (owner_object == 0) {
             data->bone_id = -1;
         }
@@ -1942,9 +1909,7 @@ void fix_axe_angle(const Vec* angles) {
 
     latch = &fatality_state.player->mirror_slots->weapon[0].secondary;
     axe = latch->obj;
-    axe = axe != 0
-              ? (axe->hdr.instance == latch->instance ? axe : 0)
-              : 0;
+    axe = MK_HDR_LIVE(axe, latch->instance);
 
     if (axe != 0) {
         YXZ_angles_to_quat(angles, &axe->orientation_quat);
@@ -2224,7 +2189,7 @@ float p_bodyslam_bodysplat(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_live_object(data->object, &data->object_instance);
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -2783,25 +2748,12 @@ static float p_fake_bone_matcher_proc(void) {
     return 1.0f;
 }
 
-static inline MkProc* fatality_live_matcher_process(FatalityFakeBoneMatcher* matcher) {
-    MkProc* process = matcher->process;
-
-    if (process != 0) {
-        if (process->instance == matcher->process_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 MkProc* get_fake_bone_matcher_proc(FatalityFakeBoneMatcher* matcher) {
     MkProc* result = 0;
 
     if (matcher != 0) {
-        result = fatality_live_matcher_process(matcher);
+        result = MK_LIVE(matcher->process, matcher->process_instance);
     }
     return result;
 }
@@ -2920,18 +2872,6 @@ void start_obj_scalar_proc(
     }
 }
 
-static inline MkObj* obj_scalar_live_object(FatalityObjectScalarPdata* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
@@ -2944,7 +2884,7 @@ float p_obj_scalar_proc(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = obj_scalar_live_object(data);
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -3067,12 +3007,11 @@ static float p_obj_pos_matcher(void) {
     if (data == 0) {
         return -1.0f;
     }
-    source = fatality_live_object(data->source, &data->source_instance);
+    source = MK_HDR_LIVE(data->source, data->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    destination = fatality_live_object(data->destination,
-        &data->destination_instance);
+    destination = MK_HDR_LIVE(data->destination, data->destination_instance);
     if (destination == 0) {
         return -1.0f;
     }
@@ -3147,14 +3086,14 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
 
     if (weapon == 0) {
         latch = &plyr_pdata->mirror_slots->weapon[0].secondary;
-        object = fatality_live_object(latch->obj, &latch->instance);
+        object = MK_HDR_LIVE(latch->obj, latch->instance);
         if (object != 0) {
             object->flags_08_bits.bit7 = ignored;
             return object;
         }
     }
     latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
-    object = fatality_live_object(latch->obj, &latch->instance);
+    object = MK_HDR_LIVE(latch->obj, latch->instance);
     if (object != 0) {
         object->flags_08_bits.bit7 = ignored;
     }
@@ -3218,15 +3157,13 @@ void weapon_reflection_show_hide(
     MkObj* object;
 
     if (secondary == 0) {
-        object = fatality_live_object(player->weapon_reflections->primary,
-            &player->weapon_reflections->primary_instance);
+        object = MK_HDR_LIVE(player->weapon_reflections->primary, player->weapon_reflections->primary_instance);
         if (object != 0) {
             object->hide_flag_bits.hidden = hidden;
             return;
         }
     }
-    object = fatality_live_object(player->weapon_reflections->secondary,
-        &player->weapon_reflections->secondary_instance);
+    object = MK_HDR_LIVE(player->weapon_reflections->secondary, player->weapon_reflections->secondary_instance);
     if (object != 0) {
         object->hide_flag_bits.hidden = hidden;
     }

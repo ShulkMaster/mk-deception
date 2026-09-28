@@ -167,19 +167,6 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     snd_req_vol(0x1789, 2.0f);
 }
 
-static inline MkObj* kamidogu_live_owner(KamidoguDropPdata* pdata) {
-    MkObj* owner = pdata->owner;
-
-    if (owner != 0) {
-        if (owner->hdr.instance == pdata->owner_id) {
-            return owner;
-        }
-        owner = 0;
-    } else {
-        owner = 0;
-    }
-    return owner;
-}
 
 static float p_drop_kamidogu(void) {
     KamidoguDropPdata* pdata;
@@ -189,7 +176,7 @@ static float p_drop_kamidogu(void) {
     if (pdata == 0) {
         return -1.0f;
     }
-    owner = kamidogu_live_owner(pdata);
+    owner = MK_HDR_LIVE(pdata->owner, pdata->owner_id);
     if (owner == 0) {
         return -1.0f;
     }
@@ -344,12 +331,9 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-/* TODO: [near miss] 94%; operations and accesses agree; bit-local removal neutral, stop at coloring. */
+/* TODO: [near miss] 94%; operations and accesses agree; local, mask, pointer and expanded forms neutral; stop at coloring. */
 void nis_signal_event(int event) {
-    unsigned int word_index = (unsigned int)event >> 5;
-    unsigned int bit = (unsigned int)event & 0x1F;
-
-    nis_event_list[word_index] |= 1U << bit;
+    nis_event_list[(unsigned int)event >> 5] |= 1 << (event & 0x1F);
 }
 
 #pragma optimize_for_size on

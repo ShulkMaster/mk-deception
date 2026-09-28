@@ -454,15 +454,7 @@ static void update_atc_block(AniTextureControl* atc) {
     tex = atc->textures[frame];
     raw = atc->screen_obj;
     if (raw != 0) {
-        if (raw != 0) {
-            if (raw->instance == (unsigned int)atc->screen_obj_instance) {
-                screen = raw;
-            } else {
-                screen = 0;
-            }
-        } else {
-            screen = 0;
-        }
+        screen = MK_LIVE(atc->screen_obj, (unsigned int)atc->screen_obj_instance);
         if (screen == 0) {
             atc->instance = 0;
             mkhdr_memfree((MkHdr*)atc);

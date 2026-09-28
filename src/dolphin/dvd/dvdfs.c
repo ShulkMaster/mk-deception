@@ -8,14 +8,15 @@ typedef struct FSTEntry {
 } FSTEntry;
 
 #define ENTRY_IS_DIRECTORY(entry) \
-    ((FstStart[(entry)].type_and_name_offset & 0xFF000000) != 0)
+    (((FstStart[(entry)].type_and_name_offset & 0xFF000000) == 0) ? 0 : 1)
 #define ENTRY_NAME_OFFSET(entry) \
     (FstStart[(entry)].type_and_name_offset & 0x00FFFFFF)
 #define ENTRY_PARENT(entry) (FstStart[(entry)].parent_or_position)
 #define ENTRY_NEXT(entry) (FstStart[(entry)].next_or_length)
 #define FILE_POSITION(entry) (FstStart[(entry)].parent_or_position)
 #define FILE_LENGTH(entry) (FstStart[(entry)].next_or_length)
-#define DI_REGS ((volatile unsigned long*)0xCC006000)
+extern volatile unsigned long __DIRegs[] : 0xCC006000;
+#define DI_REGS __DIRegs
 
 extern int tolower(int character);
 
@@ -46,52 +47,58 @@ static int isSame(const char* path, const char* name)
     while (*name) {
         if (tolower(*path++) != tolower(*name++)) return 0;
     }
-    return *path == '/' || *path == 0;
+    if (*path == '/' || *path == 0) {
+        return 1;
+    }
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 82.703705%; path parsing and FST offsets agree;
- * retail hierarchical-search join remains structurally unresolved. */
 long DVDConvertPathToEntrynum(const char* path)
 {
     const char* component_end;
-    const char* extension_start = 0;
-    const char* original_path = path;
     char* name;
-    unsigned long directory = currentDirectory;
-    unsigned long entry;
-    unsigned long component_length;
     int wants_directory;
-    int extension;
+    unsigned long component_length;
+    unsigned long directory;
+    unsigned long entry;
+    const char* original_path = path;
+    const char* extension_start;
     int illegal;
+    int extension;
+
+    directory = currentDirectory;
 
     for (;;) {
-        if (!*path) return directory;
-        if (*path == '/') {
+        if (*path == 0) {
+            return directory;
+        } else if (*path == '/') {
             directory = 0;
             path++;
             continue;
-        }
-        if (*path == '.') {
-            if (path[1] == '.' && path[2] == '/') {
-                directory = ENTRY_PARENT(directory);
-                path += 3;
-                continue;
-            }
-            if (path[1] == '.' && !path[2]) return ENTRY_PARENT(directory);
-            if (path[1] == '/') {
+        } else if (*path == '.') {
+            if (path[1] == '.') {
+                if (path[2] == '/') {
+                    directory = ENTRY_PARENT(directory);
+                    path += 3;
+                    continue;
+                } else if (path[2] == 0) {
+                    return ENTRY_PARENT(directory);
+                }
+            } else if (path[1] == '/') {
                 path += 2;
                 continue;
+            } else if (path[1] == 0) {
+                return directory;
             }
-            if (!path[1]) return directory;
         }
 
-        if (!__DVDLongFileNameFlag) {
+        if (__DVDLongFileNameFlag == 0) {
             extension = 0;
             illegal = 0;
-            for (component_end = path; *component_end && *component_end != '/';
+            for (component_end = path; *component_end != 0 && *component_end != '/';
                  component_end++) {
                 if (*component_end == '.') {
-                    if (component_end - path > 8 || extension) {
+                    if (component_end - path > 8 || extension == 1) {
                         illegal = 1;
                         break;
                     }
@@ -101,7 +108,9 @@ long DVDConvertPathToEntrynum(const char* path)
                     illegal = 1;
                 }
             }
-            if (extension && component_end - extension_start > 3) illegal = 1;
+            if (extension == 1 && component_end - extension_start > 3) {
+                illegal = 1;
+            }
             if (illegal) {
                 OSPanic("dvdfs.c", 387,
                         "DVDConvertEntrynumToPath(possibly DVDOpen or DVDChangeDir or DVDOpenDir): "
@@ -109,27 +118,36 @@ long DVDConvertPathToEntrynum(const char* path)
                         "temporary restriction and will be removed soon\n", original_path);
             }
         } else {
-            for (component_end = path;
-                 *component_end && *component_end != '/'; component_end++) {}
+            for (component_end = path; *component_end != 0 && *component_end != '/';
+                 component_end++) {
+            }
         }
 
-        wants_directory = *component_end != 0;
+        wants_directory = (*component_end == 0) ? 0 : 1;
         component_length = component_end - path;
+        component_end = path;
+
         for (entry = directory + 1; entry < ENTRY_NEXT(directory);
              entry = ENTRY_IS_DIRECTORY(entry) ? ENTRY_NEXT(entry) : entry + 1) {
-            if (!ENTRY_IS_DIRECTORY(entry) && wants_directory) continue;
+            if (ENTRY_IS_DIRECTORY(entry) == 0 && wants_directory == 1) {
+                continue;
+            }
             name = FstStringStart + ENTRY_NAME_OFFSET(entry);
-            if (isSame(path, name)) break;
+            if (isSame(component_end, name) == 1) {
+                goto next_level;
+            }
         }
-        if (entry == ENTRY_NEXT(directory)) return -1;
-        if (!wants_directory) return entry;
+        return -1;
+
+    next_level:
+        if (!wants_directory) {
+            return entry;
+        }
         directory = entry;
         path += component_length + 1;
     }
 }
 
-/* TODO: [breakthrough needed] 81.896550%; combined range/directory guard is
- * retained after donor-shaped CFG regressed; retail field-store lowering remains. */
 int DVDFastOpen(long entry_number, DVDFileInfo* file_info)
 {
     if (entry_number < 0 || (unsigned long)entry_number >= MaxEntryNum ||
@@ -195,19 +213,16 @@ static unsigned long entryToPath(unsigned long entry, char* path,
     return position;
 }
 
-#pragma dont_inline on
-/* TODO: [breakthrough needed] 89.448980%; helper boundary and typed directory
- * entry agree; path-termination branches still need a verified CFG hypothesis. */
-int DVDGetCurrentDir(char* path, unsigned long max_length)
+static int DVDConvertEntrynumToPath(long entry, char* path,
+                                    unsigned long max_length)
 {
-    unsigned long entry = currentDirectory;
     unsigned long position = entryToPath(entry, path, max_length);
 
     if (position == max_length) {
         path[max_length - 1] = 0;
         return 0;
     }
-    if (ENTRY_IS_DIRECTORY(entry) ? 1 : 0) {
+    if (ENTRY_IS_DIRECTORY(entry)) {
         if (position == max_length - 1) {
             path[position] = 0;
             return 0;
@@ -217,7 +232,11 @@ int DVDGetCurrentDir(char* path, unsigned long max_length)
     path[position] = 0;
     return 1;
 }
-#pragma dont_inline reset
+
+int DVDGetCurrentDir(char* path, unsigned long max_length)
+{
+    return DVDConvertEntrynumToPath(currentDirectory, path, max_length);
+}
 
 int DVDReadAsyncPrio(DVDFileInfo* file_info, void* address, long length,
                      long offset, DVDCallback callback, long priority)
@@ -293,8 +312,6 @@ static void cbForReadSync(long result, DVDCommandBlock* block)
     OSWakeupThread(&__DVDThreadQueue);
 }
 
-/* TODO: [breakthrough needed] 84.925930%; valid-state results agree; retaining
- * a defined zero result for invalid states differs from retail's join. */
 long DVDGetTransferredSize(DVDFileInfo* file_info)
 {
     long bytes;
@@ -318,9 +335,6 @@ long DVDGetTransferredSize(DVDFileInfo* file_info)
     case DVD_STATE_BUSY:
         bytes = block->transferred_size +
                 (block->current_transfer_size - DI_REGS[6]);
-        break;
-    default:
-        bytes = 0;
         break;
     }
 

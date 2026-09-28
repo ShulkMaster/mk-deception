@@ -211,19 +211,6 @@ static inline float projectile_fast_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
-static inline float projectile_fast_sqrt(float squared) {
-    ProjectileFloatBits bits;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    bits.f = squared;
-    bits.u =
-        ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
-        ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
-    return 0.5f * (bits.f * (3.0f - (bits.f * bits.f) / squared));
-}
-
 static inline void projectile_set_target_position(const Vec* position) {
     if (proj_pdata != 0) {
         proj_pdata->target_position.x = position->x;
@@ -232,25 +219,12 @@ static inline void projectile_set_target_position(const Vec* position) {
     }
 }
 
-static inline MkProc* projectile_live_process(ProjectilePdata* owner) {
-    MkProc* process = owner->process;
-
-    if (process != 0) {
-        if (process->instance == owner->process_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 static inline void projectile_set_process_handler(MkProcEntryFn handler) {
     MkProc* process;
 
     if (proj_pdata != 0) {
-        process = projectile_live_process(proj_pdata);
+        process = MK_LIVE(proj_pdata->process, proj_pdata->process_instance);
         if (process != 0) {
             xfer_proc(process, handler);
         }
@@ -390,7 +364,7 @@ void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
 }
 
-/* TODO: [breakthrough] 88.25%; named gravity bitfield store; audit the remaining consumer CFG/ABI differences separately. */
+/* TODO: [breakthrough] 91.70%; named gravity bitfield store; audit the remaining consumer CFG/ABI differences separately. */
 void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     MkObj* object;
     float speed;
@@ -411,7 +385,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     }
 
     object->flags_08_bits.gravity_enabled = 1;
-    speed = projectile_fast_sqrt(
+    speed = gxMathFastSqrt(
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.y * object->pos_vel.y +
         object->pos_vel.z * object->pos_vel.z);
@@ -468,18 +442,6 @@ void set_active_projectile_sound(
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 97.701300%; FP ordering and register allocation remain; no further evidence-backed source change. */
 void set_active_projectile_velocity(const Vec* velocity) {
@@ -487,7 +449,7 @@ void set_active_projectile_velocity(const Vec* velocity) {
     float inverse_length;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             object->flags_08_bits.gravity_enabled = 1;
@@ -514,7 +476,7 @@ void set_active_add_ang_y(float angle) {
     int fixed;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             object->ang.y += angle;
@@ -589,7 +551,7 @@ void set_active_projectile_impale_info(
     MkObj* object;
 
     if (proj_pdata != 0) {
-        object = projectile_pdata_live_object(proj_pdata);
+        object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
             build_bones_tbl(object, bone_tags);
@@ -640,30 +602,7 @@ MkObj* set_active_projectile_tracking_light(LightDef* definition) {
     return 0;
 }
 
-static inline ProjectilePdata* projectile_follower_pdata_validate_projectile(ProjectilePdata* object, ProjectileFollowerPdata* owner) {
-    if (object != 0) {
-        if (object->hdr.instance == owner->projectile_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkObj* projectile_pdata_live_tracking_light(ProjectilePdata* owner) {
-    MkObj* object = owner->tracking_light;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracking_light_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_point_light_follower(void) {
     ProjectileFollowerPdata* follower =
@@ -672,12 +611,12 @@ static float p_point_light_follower(void) {
     MkObj* object;
     MkObj* light;
 
-    projectile = projectile_follower_pdata_validate_projectile(projectile, follower);
+    projectile = MK_HDR_LIVE(projectile, follower->projectile_instance);
     if (projectile != 0) {
-        object = projectile_pdata_live_object(projectile);
+        object = MK_HDR_LIVE(projectile->object, projectile->object_instance);
 
         if (object != 0) {
-            light = projectile_pdata_live_tracking_light(projectile);
+            light = MK_HDR_LIVE(projectile->tracking_light, projectile->tracking_light_instance);
 
             if (light != 0) {
                 light->pos.value.x = object->pos.value.x;
@@ -867,7 +806,7 @@ static void pw_projectile(void) {
     proj_pdata = (ProjectilePdata*)pdata_of_proc(aproc);
 }
 
-/* TODO: [breakthrough] 86.94936%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 90.89%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 void retarget_projectile(ProjectilePdata* pdata) {
     ProjectilePdata* source;
@@ -891,7 +830,7 @@ void retarget_projectile(ProjectilePdata* pdata) {
     pdata->retarget_source = source->retarget_source;
     pdata->retarget_object = source->retarget_object;
 
-    speed = projectile_fast_sqrt(
+    speed = gxMathFastSqrt(
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.y * object->pos_vel.y +
         object->pos_vel.z * object->pos_vel.z);
@@ -918,7 +857,7 @@ void retarget_projectile(ProjectilePdata* pdata) {
     pdata->max_ticks = 300.0f;
 }
 
-/* TODO: [breakthrough] 87.67961%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 90.63%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 static void projectile_set_velocity_angy_tol(
     MkObj* object, float speed, float tolerance) {
@@ -953,7 +892,7 @@ static void projectile_set_velocity_angy_tol(
         return;
     }
 
-    cone_sin = projectile_fast_sqrt(1.0f - cone_cos * cone_cos);
+    cone_sin = gxMathFastSqrt(1.0f - cone_cos * cone_cos);
     side = forward_z * direction_x - forward_x * direction_z;
     side_x = side * forward_z;
     side_z = -(side * forward_x);
@@ -1048,7 +987,7 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08_bits.gravity_enabled = 0;
 }
 
-/* TODO: [breakthrough] 65.5321%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 67.13%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 static float p_projectile_handler(void) {
     ProjectilePdata* projectile = proj_pdata;
@@ -1093,7 +1032,7 @@ static float p_projectile_handler(void) {
         dx = projectile->retarget_object->pos.value.x - object->pos.value.x;
         dz = projectile->retarget_object->pos.value.z - object->pos.value.z;
         if (dx * dx + dz * dz < 3.0f) {
-            speed = projectile_fast_sqrt(
+            speed = gxMathFastSqrt(
                 object->pos_vel.x * object->pos_vel.x +
                 object->pos_vel.y * object->pos_vel.y +
                 object->pos_vel.z * object->pos_vel.z);
@@ -1119,7 +1058,7 @@ static float p_projectile_handler(void) {
         if (distance_squared < 0.25f) {
             projectile->behavior_bits.track_3d = 0;
         } else if (distance_squared < 3.0f) {
-            speed = projectile_fast_sqrt(
+            speed = gxMathFastSqrt(
                 object->pos_vel.x * object->pos_vel.x +
                 object->pos_vel.y * object->pos_vel.y +
                 object->pos_vel.z * object->pos_vel.z);
@@ -1452,22 +1391,9 @@ static float p_ground_target_collide(void) {
     return 1.0f;
 }
 
-static inline MkProc* projectile_live_hold_process(PlyrPdata* owner) {
-    MkProc* process = owner->hold_proc;
-
-    if (process != 0) {
-        if (process->instance == owner->hold_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
-}
 
 int check_for_throw(PlyrPdata* player) {
-    MkProc* hold_proc = projectile_live_hold_process(player->his_plyr_pdata);
+    MkProc* hold_proc = MK_LIVE(player->his_plyr_pdata->hold_proc, player->his_plyr_pdata->hold_proc_instance);
 
     if (hold_proc != 0) {
         return 1;

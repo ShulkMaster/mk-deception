@@ -247,15 +247,7 @@ static inline void copy_common_konquest_profile_data(
     memcpy(&profile->common_time[0], konquest_pdata->current_time, 0x18);
     pdata = konquest_pdata;
     candidate = pdata->monk_obj;
-    if (candidate != 0) {
-        if (candidate->hdr.instance == pdata->monk_instance) {
-            monk = candidate;
-        } else {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
+    monk = MK_HDR_LIVE(candidate, pdata->monk_instance);
     if (monk != 0) {
         profile->monk_pos_x = monk->pos.value.x;
         profile->monk_pos_y = monk->pos.value.y;
@@ -317,17 +309,6 @@ int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     return 1;
 }
 
-static inline MkObj* konquest_validate_monk(MkObj* object) {
-    if (object != 0) {
-        if (object->hdr.instance == konquest_pdata->monk_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void full_konquest_load_from_memcard(void) {
     KonquestProfileSave* profile;
@@ -342,7 +323,7 @@ void full_konquest_load_from_memcard(void) {
         set_current_time(profile->common_time);
     }
     if (profile->profile_valid != 0) {
-        monk = konquest_validate_monk(konquest_pdata->monk_obj);
+        monk = MK_HDR_LIVE(konquest_pdata->monk_obj, konquest_pdata->monk_instance);
         if (monk != 0) {
             set_monk_position(profile->monk_pos_x, profile->monk_pos_y,
                               profile->monk_pos_z, profile->monk_pos_w);

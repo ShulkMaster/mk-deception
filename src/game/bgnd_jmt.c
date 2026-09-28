@@ -166,25 +166,6 @@ static inline float bgnd_inv_sqrt(float value) {
            -(correction * (product * correction) - 12.0f);
 }
 
-static inline float bgnd_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } input, guess;
-    float refined;
-
-    input.f = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    guess.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    refined = guess.f * (3.0f - (guess.f * guess.f) / value);
-    return 0.5f * refined;
-}
-
 extern MkObj* g_bgnd_preloaded_models[];
 RopeProcLatch rope_proc_item;
 RopeProcLatch sobj_ctrl_proc_item;
@@ -479,18 +460,6 @@ static inline int bgnd_update_active_slot(BgndUpdateData* update) {
     return update->active_slot;
 }
 
-static inline MkProc* rope_latch_live_proc(RopeProcLatch* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void mks_removehide_by_group(int group_id, int remove_hide) {
     MkProc* proc;
@@ -499,7 +468,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     MkPtr* next;
     BgndUpdateData* update;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -536,7 +505,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     MkPtr* link;
     MkPtr* next;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -592,7 +561,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     MkPtr* next;
     MkProc* proc;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -643,7 +612,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     MkPtr* link;
     MkPtr* next;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -710,7 +679,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     float position_z;
     int previous_index;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -790,7 +759,7 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     MkPtr* link;
     MkPtr* next;
 
-    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -910,18 +879,6 @@ void bgnd_insert_obj_ctrl_section(int object_id, int section) {
 }
 
 
-static inline MkProc* rope_proc_latch_live_proc(RopeProcLatch* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -936,7 +893,7 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
         return;
     }
 
-    proc = rope_proc_latch_live_proc(&sobj_ctrl_proc_item);
+    proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
     if (proc == 0) {
         return;
@@ -959,7 +916,7 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
                      (update->origin.x * update->origin.x +
                       update->origin.y * update->origin.y);
     update->origin_length = length_squared;
-    update->origin_length = bgnd_sqrt(update->origin_length);
+    update->origin_length = gxMathFastSqrt(update->origin_length);
     update->remove_hide = -1;
     update->active_slot = 0;
 
@@ -1195,7 +1152,7 @@ void bgnd_detach_rope(int model_index) {
         return;
     }
 
-    proc = rope_proc_latch_live_proc(&rope_proc_item);
+    proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
 
 
     if (proc == 0) {
@@ -1240,7 +1197,7 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
         return;
     }
 
-    proc = rope_latch_live_proc(&rope_proc_item);
+    proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
 
 
     if (proc == 0) {
@@ -1309,7 +1266,7 @@ void bgnd_attach_rope_to_bgnd_obj(
         return;
     }
 
-    proc = rope_proc_latch_live_proc(&rope_proc_item);
+    proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
 
 
     if (proc == 0) {

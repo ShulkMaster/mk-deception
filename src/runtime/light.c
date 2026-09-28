@@ -482,24 +482,12 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     return light;
 }
 
-static inline MkObj* mkx_rp_light_live_obj(MkxRpLight* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
 
 
-/* TODO: [breakthrough needed] 89.028490%; call/inlining boundary needs recovery (bl RwFrameDestroy); no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 89.20%; call/inlining boundary needs recovery (bl RwFrameDestroy); no further evidence-backed source change. */
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;
@@ -550,7 +538,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         }
         if (count > 1) {
             headMkx = MKX_RPLIGHT_FROM_HDR(point_light_list->hdr);
-            linked = mkx_rp_light_live_obj(headMkx);
+            linked = MK_HDR_LIVE(headMkx->obj, headMkx->obj_instance);
 
             if (linked != 0) {
                 if (linked->hdr.instance != 0) {

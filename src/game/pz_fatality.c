@@ -3,6 +3,7 @@
 #include "game/pz_fatality.h"
 #include "runtime/cam_api.h"
 #include "runtime/asset.h"
+#include "runtime/mk_struct.h"
 #include "runtime/cstring.h"
 #include "rw/rwframe.h"
 
@@ -824,22 +825,6 @@ static inline void pz_snake_lunge(unsigned int snake) {
     }
 }
 
-static inline PuzzleFighterRenderObject* pz_resolve_lightning_bolt(
-    PuzzleFighterRenderObject* bolt, unsigned int instance) {
-    PuzzleFighterRenderObject* resolved;
-
-    if (bolt != 0) {
-        if (bolt->instance == instance) {
-            resolved = bolt;
-        } else {
-            resolved = 0;
-        }
-    } else {
-        resolved = 0;
-    }
-    return resolved;
-}
-
 static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     PuzzleFighterRenderObject* bolt;
     PuzzleParticleEffect* lightning_smoke;
@@ -901,7 +886,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
         }
     }
 
-    bolt = pz_resolve_lightning_bolt(bolt, bolt_instance);
+    bolt = MK_LIVE(bolt, bolt_instance);
     if (bolt != 0 && bolt->instance != 0) {
         bolt->vtbl->destroy(bolt, bolt->vtbl);
     }
@@ -1076,20 +1061,6 @@ float r_pz_fighter_rx_get_to_point(void);
 static PuzzleFighterRenderObject* fleshchunk_obj;
 static PuzzleFleshchunkPdata* pdata_fleshchunk;
 
-static inline PuzzleFighterRenderObject* fleshchunk_live_object(
-    PuzzleFleshchunkPdata* owner) {
-    PuzzleFighterRenderObject* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 /*
  * Retail builds this unit with -inline noauto,deferred, which emits functions
  * in reverse source order. The definitions below are therefore in reverse of
@@ -1113,7 +1084,7 @@ static void ft_fleshchunk_prewake(void) {
         mkproc_die();
     }
 
-    object = fleshchunk_live_object(pdata_fleshchunk);
+    object = MK_LIVE(pdata_fleshchunk->object, pdata_fleshchunk->object_instance);
     fleshchunk_obj = object;
     if (object == 0) {
         mkproc_die();

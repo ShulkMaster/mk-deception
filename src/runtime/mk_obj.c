@@ -154,9 +154,6 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj);
 void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
 int get_player_number(void* obj);
 
-extern int limb_meat_chunk_list[];
-extern int* limb_meats_mat_id_tbl[];
-extern int* limb_children_table[];
 
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
@@ -211,6 +208,42 @@ LightMkList light_mklists[13] = {
     {0, 0, 0}
 };
 
+static int head_child_limbs[1] = { -1 };
+static int hand_right_child_limbs[1] = { -1 };
+static int forearm_right_child_limbs[2] = { 1, -1 };
+static int arm_right_child_limbs[2] = { 2, -1 };
+static int hand_left_child_limbs[1] = { -1 };
+static int forearm_left_child_limbs[2] = { 4, -1 };
+static int arm_left_child_limbs[2] = { 5, -1 };
+static int foot_right_child_limbs[1] = { -1 };
+static int calf_right_child_limbs[2] = { 7, -1 };
+static int thigh_right_child_limbs[2] = { 8, -1 };
+static int foot_left_child_limbs[1] = { -1 };
+static int calf_left_child_limbs[2] = { 10, -1 };
+static int thigh_left_child_limbs[2] = { 11, -1 };
+
+static int limb_root_bids[15] = { 16, 25, 21, 17, 24, 20, 15, 8, 5, 2, 7, 4, 1, 0, 3 };
+static int pelvis_child_limbs[3] = { 9, 12, -1 };
+static int torso_child_limbs[4] = { 0, 3, 6, -1 };
+static int* limb_children_table[15] = { head_child_limbs, hand_right_child_limbs, forearm_right_child_limbs, arm_right_child_limbs, hand_left_child_limbs, forearm_left_child_limbs, arm_left_child_limbs, foot_right_child_limbs, calf_right_child_limbs, thigh_right_child_limbs, foot_left_child_limbs, calf_left_child_limbs, thigh_left_child_limbs, pelvis_child_limbs, torso_child_limbs };
+int limb_meat_chunk_list[29] = { 19, 29, 38, 39, 48, 49, 59, 68, 69, 78, 79, 89, 98, 99, 108, 109, 119, 128, 129, 138, 139, 147, 148, 149, 156, 157, 158, 159, -1 };
+static int limb_meats_mat_id__head[3] = { 19, 156, -1 };
+static int limb_meats_mat_id__hand_r[3] = { 29, 39, -1 };
+static int limb_meats_mat_id__forearm_r[5] = { 38, 49, 29, 39, -1 };
+static int limb_meats_mat_id__arm_r[5] = { 48, 158, 68, 49, -1 };
+static int limb_meats_mat_id__hand_l[3] = { 59, 69, -1 };
+static int limb_meats_mat_id__forearm_l[5] = { 68, 79, 59, 69, -1 };
+static int limb_meats_mat_id__arm_l[5] = { 78, 157, 68, 79, -1 };
+static int limb_meats_mat_id__foot_r[3] = { 89, 99, -1 };
+static int limb_meats_mat_id__calf_r[5] = { 98, 109, 89, 99, -1 };
+static int limb_meats_mat_id__thigh_r[5] = { 108, 149, 98, 109, -1 };
+static int limb_meats_mat_id__foot_l[3] = { 119, 129, -1 };
+static int limb_meats_mat_id__calf_l[5] = { 128, 139, 119, 129, -1 };
+static int limb_meats_mat_id__thigh_l[5] = { 138, 148, 128, 139, -1 };
+static int limb_meats_mat_id__pelvis[7] = { 147, 159, 108, 149, 138, 148, -1 };
+static int limb_meats_mat_id__torso[9] = { 159, 147, 19, 156, 48, 158, 78, 157, -1 };
+int* limb_meats_mat_id_tbl[15] = { limb_meats_mat_id__head, limb_meats_mat_id__hand_r, limb_meats_mat_id__forearm_r, limb_meats_mat_id__arm_r, limb_meats_mat_id__hand_l, limb_meats_mat_id__forearm_l, limb_meats_mat_id__arm_l, limb_meats_mat_id__foot_r, limb_meats_mat_id__calf_r, limb_meats_mat_id__thigh_r, limb_meats_mat_id__foot_l, limb_meats_mat_id__calf_l, limb_meats_mat_id__thigh_l, limb_meats_mat_id__pelvis, limb_meats_mat_id__torso };
+
 typedef struct GoroArmsFixupEntry {
     int source_bone;
     int target_bone;
@@ -227,8 +260,6 @@ GoroArmsFixupEntry goro_arms_fixup_map[12] = {
     {0x16, 0x47}, {0x18, 0x48}, {0x0E, 0x50}, {0x11, 0x51},
     {0x13, 0x52}, {0x15, 0x53}, {0x17, 0x54}, {0x19, 0x55}
 };
-
-extern int limb_root_bids[15];
 
 int build_bones_tbl(MkObj* obj, const int* tags);
 void* ft_fake_bone_matcher(
@@ -1068,18 +1099,6 @@ static float p_goro_arms_fixup(void) {
     return 1.0f;
 }
 
-static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 96.830986%; relocation offsets, register coloring; one-trial ceiling. */
 void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
@@ -1126,7 +1145,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_slots->weapon[0].mirror;
-    linked_obj = mirror_latch_live_obj(latch);
+    linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
@@ -1140,7 +1159,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_slots->weapon[1].mirror;
-    linked_obj = mirror_latch_live_obj(latch);
+    linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
@@ -1154,7 +1173,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_obj;
-    linked_obj = mirror_latch_live_obj(latch);
+    linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
@@ -1189,31 +1208,11 @@ void create_shadow_proc(int pid, PlyrPdata* controller, MkObj* source,
 }
 
 static void shadow_update_pair(ShadowObjPair* pair) {
-    MkObj* raw_source;
-    MkObj* raw_shadow;
     MkObj* source;
     MkObj* shadow;
 
-    raw_source = pair->source;
-    if (raw_source != 0) {
-        if (raw_source->hdr.instance == pair->source_instance) {
-            source = raw_source;
-        } else {
-            source = 0;
-        }
-    } else {
-        source = 0;
-    }
-    raw_shadow = pair->shadow;
-    if (raw_shadow != 0) {
-        if (raw_shadow->hdr.instance == pair->shadow_instance) {
-            shadow = raw_shadow;
-        } else {
-            shadow = 0;
-        }
-    } else {
-        shadow = 0;
-    }
+    source = MK_HDR_LIVE(pair->source, pair->source_instance);
+    shadow = MK_HDR_LIVE(pair->shadow, pair->shadow_instance);
     if (source != 0 && shadow != 0) {
         memcpy(shadow->field_24, &source->bones[0]->matrix,
                sizeof(RwMatrix));
@@ -1224,17 +1223,7 @@ static void shadow_update_pair(ShadowObjPair* pair) {
     }
 }
 
-static inline MkObj* shadow_validate_obj(MkObj* raw,
-                                         unsigned int expected_instance) {
-    if (raw != 0) {
-        if (raw->hdr.instance == expected_instance) {
-            return raw;
-        }
-        return 0;
-    }
-    return 0;
-}
-
+/* TODO: [near miss] 98.00%; bone-map loop register numbering (r27/r28) and pair lookup scheduling differ. */
 static float p_shadow_obj(void) {
     ShadowPdata* pdata;
     PlyrMirrorBoneMap* map;
@@ -1246,11 +1235,11 @@ static float p_shadow_obj(void) {
     int i;
 
     pdata = (ShadowPdata*)apdata;
-    source = shadow_validate_obj(pdata->source, pdata->source_instance);
+    source = MK_HDR_LIVE(pdata->source, pdata->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    shadow = shadow_validate_obj(pdata->shadow, pdata->shadow_instance);
+    shadow = MK_HDR_LIVE(pdata->shadow, pdata->shadow_instance);
     if (shadow == 0) {
         return -1.0f;
     }
@@ -1321,18 +1310,6 @@ void auto_calc_limbobj_bone_world_pos(MkObj* obj, int bone) {
     }
 }
 
-static inline MkObj* limb_live_object(LimbBonePdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static void limb_bone_calc_world_pos(MkHdr* data) {
     LimbBonePdata* pdata;
@@ -1343,7 +1320,7 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
     int bone_index;
 
     pdata = (LimbBonePdata*)data;
-    obj = limb_live_object(pdata);
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
     if (obj != 0) {
         bone_index = pdata->bone;
         bone = obj->bones[bone_index];
@@ -2093,18 +2070,6 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
     return proc;
 }
 
-static inline MkObj* material_fade_live_obj(FadeMaterialPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 97.970300%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_fade_material(void) {
@@ -2119,7 +2084,7 @@ static float p_fade_material(void) {
     if (aproc->pid != 0x5010 || pdata == 0) {
         mkproc_die();
     }
-    obj = material_fade_live_obj(pdata);
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
 
     if (obj == 0) {
         mkproc_die();
@@ -2327,23 +2292,14 @@ static void update_mkhdr_sobj(MkHdr* hdr) {
     update_mksobj((MkSobj*)hdr);
 }
 
+/* TODO: [near miss] 90.53%; bound latch branch layout (retail uses explicit merge branches) and r4/r5 coloring differ. */
 void vdestroy_mksobj(MkSobj* sobj) {
     MkSobj* mksobj;
-    MkHdr* raw_bound;
     MkHdr* bound;
 
     mksobj = sobj;
     mksobj->hdr.instance = 0;
-    raw_bound = mksobj->bound_hdr;
-    if (raw_bound != 0) {
-        if (raw_bound->instance == mksobj->bound_instance) {
-            bound = raw_bound;
-        } else {
-            bound = 0;
-        }
-    } else {
-        bound = 0;
-    }
+    bound = MK_LIVE(mksobj->bound_hdr, mksobj->bound_instance);
     if (bound != 0) {
         bound = mksobj->bound_hdr;
         if (bound->instance != 0) {
@@ -3052,18 +3008,6 @@ void bind_rplight_to_obj(RpLight* light, MkObj* obj) {
     }
 }
 
-static inline MkObj* light_live_object(MkxRpLight* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void vdestroy_mkx_rplight(MkxRpLight* link) {
     MkObj* obj;
@@ -3079,7 +3023,7 @@ void vdestroy_mkx_rplight(MkxRpLight* link) {
     }
     RpLightDestroy(link->light);
 
-    obj = light_live_object(link);
+    obj = MK_HDR_LIVE(link->obj, link->obj_instance);
     if (obj != 0 && obj->hdr.instance != 0) {
         ((void (*)(MkHdr*))obj->hdr.vtbl->destroy)(&obj->hdr);
     }
@@ -3317,17 +3261,7 @@ void* start_scale_proc(void* obj, void* script) {
     return pdata;
 }
 
-static inline MkObj* scale_validate_obj(MkObj* obj,
-                                        unsigned int expected_instance) {
-    if (obj != 0) {
-        if (obj->hdr.instance == expected_instance) {
-            return obj;
-        }
-        return 0;
-    }
-    return 0;
-}
-
+/* TODO: [near miss] 99.70%; FPR numbering (f0/f1) in elapsed accumulate and divide differs. */
 static float p_scale(void) {
     ScalePdata* pdata;
     MkObj* obj;
@@ -3340,7 +3274,7 @@ static float p_scale(void) {
     if (aproc->pid != 0x5022 || pdata == 0) {
         return -1.0f;
     }
-    obj = scale_validate_obj(pdata->obj, pdata->obj_instance);
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
     if (obj == 0) {
         return -1.0f;
     }
@@ -3394,18 +3328,6 @@ void* limb_sever_find_limbset(void* obj, int id) {
     return result;
 }
 
-static inline MkHdr* fighter_live_limb_update_proc(FighterMirror* owner) {
-    MkHdr* object = (MkHdr*) owner->limb_update_proc;
-    if (object != 0) {
-        if (object->instance == owner->limb_update_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 96.646706%; null-safe header cast restores retail branch;
  * remaining register coloring and lowering differ. */
@@ -3457,7 +3379,7 @@ void limb_sever_reset_limbs(PlyrInfo* player) {
         }
     }
 
-    hdr = fighter_live_limb_update_proc(fighter);
+    hdr = MK_LIVE((MkHdr*) fighter->limb_update_proc, fighter->limb_update_proc_instance);
 
     if (hdr != 0 && hdr != (MkHdr*)aproc && hdr->instance != 0) {
         hdr->typed_vtbl->destroy(hdr);

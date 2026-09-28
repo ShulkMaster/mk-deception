@@ -24,9 +24,9 @@ typedef void (*OSIdleFunction)(void* parameter);
 #define OS_PRIORITY_MAX 31
 #define MSR_FP 0x2000
 #define OS_ERROR_MAX 16
-#define __OSCurrentThread (*(OSThread**)0x800000E4)
-#define __gUnkThread1 (*(OSThread**)0x800000D8)
-#define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
+extern OSThread* __OSCurrentThread : 0x800000E4;
+extern OSThread* __gUnkThread1 : 0x800000D8;
+extern OSThreadQueue __OSActiveThreadQueue : 0x800000DC;
 #define LINE(first, second, third) (second)
 #define ASSERTLINE(line, condition) ((void)0)
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
@@ -131,8 +131,6 @@ static inline void OSSetCurrentThread(OSThread* thread) {
     __OSCurrentThread = thread;
 }
 
-/* TODO: [breakthrough needed] 85.081400%; SDK algorithm and thread layout
- * agree; static-owner and register scheduling need structural evidence. */
 void __OSThreadInit() {
     OSThread* thread = &DefaultThread;
     OSPriority prio;
@@ -265,7 +263,7 @@ static void UnsetRun(OSThread* thread) {
 }
 
 OSPriority __OSGetEffectivePriority(OSThread* thread) {
-    s32 priority = thread->base;
+    OSPriority priority = thread->base;
     OSMutex* mutex;
 
     for (mutex = thread->queueMutex.head; mutex; mutex = mutex->link.next) {
@@ -413,7 +411,6 @@ void OSYieldThread(void) {
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 97.696724%; queueMutex initialization now matches retail store order; absolute active-queue owner still lowers through addi/lwzu instead of direct lwz. */
 int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* stack, u32 stackSize, OSPriority priority, u16 attr) {
     BOOL enabled;
     u32 sp;
@@ -473,7 +470,6 @@ int OSCreateThread(OSThread* thread, void* (*func)(void*), void* param, void* st
     return 1;
 }
 
-/* TODO: [near miss] 99.561400%; DEQUEUE_THREAD expresses the typed unlink; only next-link register coloring remains. */
 void OSExitThread(void* val) {
     BOOL enabled = OSDisableInterrupts();
     OSThread* currentThread = OSGetCurrentThread();
@@ -571,8 +567,6 @@ int OSJoinThread(OSThread* thread, void** val) {
     return 0;
 }
 
-/* TODO: [near miss] 99.382710%; donor algorithm and queue operations agree;
- * only harmless register/static-address coloring remains. */
 s32 OSResumeThread(OSThread* thread) {
     BOOL enabled = OSDisableInterrupts();
     s32 suspendCount;

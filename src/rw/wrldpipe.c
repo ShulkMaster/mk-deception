@@ -65,12 +65,17 @@ int _rpCreatePlatformAtomicPipelines(void) {
 }
 
 
+static inline int RxPipelineDestroy(RxPipeline* pipeline) {
+    _rxPipelineDestroy(pipeline);
+    return 1;
+}
+
+/* TODO: [breakthrough] 92.68%; inlined TRUE-returning destroy explains retail r31;
+ * retail passes the pipeline straight in r3, ours copies it to r31 first. */
 void _rpDestroyPlatformAtomicPipelines(void) {
-    /* TODO: Retail retains an unused success value in r31 after destruction;
-     * this semantic implementation intentionally omits that dead state. */
     RpAtomicSetDefaultPipeline(0);
     if (rxPipelineGlobalField(platformAtomicPipeline) != 0) {
-        _rxPipelineDestroy(rxPipelineGlobalField(platformAtomicPipeline));
+        RxPipelineDestroy(rxPipelineGlobalField(platformAtomicPipeline));
         rxPipelineGlobalField(platformAtomicPipeline) = 0;
     }
 }

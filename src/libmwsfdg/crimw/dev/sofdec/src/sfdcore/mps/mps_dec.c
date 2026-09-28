@@ -1,197 +1,131 @@
 #include "cri/mps.h"
 
-typedef struct MpsBitReader {
-    const unsigned int* next_word;
-    unsigned int current;
-    unsigned int following;
-    int word_offset;
-} MpsBitReader;
+#define MPSDEC_INIT_BITS(position)                                            \
+    words = (const unsigned int*)((unsigned long)(position) & ~3UL);      \
+    word_offset = ((position) - (const unsigned char*)words) * 8;         \
+    current = words[0] << word_offset;                                    \
+    following = words[1];                                                 \
+    words += 2
 
-static inline void mpsdec_init_bits(MpsBitReader* reader,
-                                    const unsigned char* data,
-                                    int bit_position) {
-    const unsigned char* position = data + (bit_position >> 3);
-    const unsigned int* words =
-        (const unsigned int*)((unsigned long)position & ~3UL);
-    int word_offset = (position - (const unsigned char*)words) * 8;
+#define MPSDEC_BITS_POSITION()                                                \
+    ((const unsigned char*)(words - 2) + ((word_offset + 7) >> 3))
 
-    reader->word_offset = word_offset;
-    reader->current = words[0] << word_offset;
-    reader->following = words[1];
-    reader->next_word = words + 2;
-}
-
-static inline unsigned int mpsdec_read_bits(MpsBitReader* reader, int count) {
-    unsigned int value;
-    int shift;
-    int threshold = 32 - count;
-
-    if (reader->word_offset >= threshold) {
-        shift = reader->word_offset - threshold;
-        if (shift != 0) {
-            reader->current |= reader->following >> (count - shift);
-            value = reader->current >> threshold;
-            reader->current = reader->following << shift;
-        } else {
-            value = reader->current >> threshold;
-            reader->current = reader->following;
-        }
-        reader->following = *reader->next_word++;
-        reader->word_offset = shift;
-    } else {
-        value = reader->current >> threshold;
-        reader->current <<= count;
-        reader->word_offset += count;
+#define MPSDEC_READ_BIT(value)                                                \
+    (value) = current >> 31;                                              \
+    if (word_offset == 31) {                                              \
+        current = following;                                              \
+        following = *words++;                                             \
+        word_offset = 0;                                                  \
+    } else {                                                              \
+        current <<= 1;                                                    \
+        word_offset++;                                                    \
     }
-    return value;
-}
 
-static inline unsigned int mpsdec_read_first_two_bits(MpsBitReader* reader) {
-    unsigned int value;
+#define MPSDEC_READ_WORD(value)                                               \
+    if (word_offset != 0) {                                               \
+        (value) = current | (following >> (32 - word_offset));            \
+        current = following << word_offset;                               \
+    } else {                                                              \
+        (value) = current;                                                \
+        current = following;                                              \
+    }                                                                     \
+    following = *words++
 
-    if (reader->word_offset >= 30) {
-        reader->word_offset -= 30;
-        if (reader->word_offset != 0) {
-            reader->current |= reader->following >> 1;
-            value = reader->current >> 30;
-            reader->current = reader->following << 1;
-        } else {
-            value = reader->current >> 30;
-            reader->current = reader->following;
-        }
-        reader->following = *reader->next_word++;
-    } else {
-        value = reader->current >> 30;
-        reader->current <<= 2;
-        reader->word_offset += 2;
+#define MPSDEC_PEEK_BITS(count, value)                                        \
+    (value) = current >> (32 - (count));                                  \
+    if (word_offset > 32 - (count)) {                                     \
+        (value) |= following >> (64 - (count) - word_offset);             \
     }
-    return value;
-}
 
-static inline void mpsdec_read_bits_into(MpsBitReader* reader, int count,
-                                         int* output) {
-    int threshold = 32 - count;
-
-    if (reader->word_offset >= threshold) {
-        reader->word_offset -= threshold;
-        if (reader->word_offset != 0) {
-            reader->current |= reader->following >>
-                               (count - reader->word_offset);
-            *output = reader->current >> threshold;
-            reader->current = reader->following << reader->word_offset;
-        } else {
-            *output = reader->current >> threshold;
-            reader->current = reader->following;
-        }
-        reader->following = *reader->next_word++;
-    } else {
-        *output = reader->current >> threshold;
-        reader->current <<= count;
-        reader->word_offset += count;
+#define MPSDEC_READ_BITS(count, value)                                        \
+    if (word_offset >= 32 - (count)) {                                    \
+        word_offset -= 32 - (count);                                      \
+        if (word_offset != 0) {                                           \
+            current |= following >> ((count) - word_offset);              \
+            (value) = current >> (32 - (count));                          \
+            current = following << word_offset;                           \
+        } else {                                                          \
+            (value) = current >> (32 - (count));                          \
+            current = following;                                          \
+        }                                                                 \
+        following = *words++;                                             \
+    } else {                                                              \
+        (value) = current >> (32 - (count));                              \
+        current <<= (count);                                              \
+        word_offset += (count);                                           \
     }
-}
 
-static inline unsigned int mpsdec_read_bit(MpsBitReader* reader) {
-    unsigned int value = reader->current >> 31;
-
-    if (reader->word_offset == 31) {
-        reader->current = reader->following;
-        reader->following = *reader->next_word++;
-        reader->word_offset = 0;
-    } else {
-        reader->current <<= 1;
-        reader->word_offset++;
+#define MPSDEC_READ_LAST_BITS(count, value)                                   \
+    if (word_offset >= 32 - (count)) {                                    \
+        if (word_offset - (32 - (count)) != 0) {                          \
+            current |= following >>                                       \
+                       ((count) - (word_offset - (32 - (count))));        \
+            (value) = current >> (32 - (count));                          \
+        } else {                                                          \
+            (value) = current >> (32 - (count));                          \
+        }                                                                 \
+    } else {                                                              \
+        (value) = current >> (32 - (count));                              \
     }
-    return value;
-}
 
-static inline void mpsdec_read_bit_into(MpsBitReader* reader, int* output) {
-    *output = reader->current >> 31;
-
-    if (reader->word_offset == 31) {
-        reader->current = reader->following;
-        reader->following = *reader->next_word++;
-        reader->word_offset = 0;
-    } else {
-        reader->current <<= 1;
-        reader->word_offset++;
+#define MPSDEC_READ_FIRST_TWO_BITS(value)                                     \
+    if (word_offset >= 30) {                                              \
+        word_offset -= 30;                                                \
+        if (word_offset != 0) {                                           \
+            current |= following >> 1;                                    \
+            (value) = current >> 30;                                      \
+            current = following << 1;                                     \
+        } else {                                                          \
+            (value) = current >> 30;                                      \
+            current = following;                                          \
+        }                                                                 \
+        following = *words++;                                             \
+    } else {                                                              \
+        (value) = current >> 30;                                          \
+        current <<= 2;                                                    \
+        word_offset += 2;                                                 \
     }
-}
 
-static inline void mpsdec_read_word_into(MpsBitReader* reader, int* output) {
-    if (reader->word_offset != 0) {
-        *output = reader->current |
-                  (reader->following >> (32 - reader->word_offset));
-        reader->current = reader->following << reader->word_offset;
-    } else {
-        *output = reader->current;
-        reader->current = reader->following;
+#define MPSDEC_SKIP_BITS(count)                                               \
+    word_offset += (count);                                               \
+    if (word_offset >= 32) {                                              \
+        word_offset -= 32;                                                \
+        current = following << word_offset;                               \
+        following = *words++;                                             \
+    } else {                                                              \
+        current <<= (count);                                              \
     }
-    reader->following = *reader->next_word++;
-}
 
-static inline void mpsdec_skip_bits(MpsBitReader* reader, int count) {
-    reader->word_offset += count;
-    if (reader->word_offset >= 32) {
-        reader->word_offset -= 32;
-        reader->current = reader->following << reader->word_offset;
-        reader->following = *reader->next_word++;
-    } else {
-        reader->current <<= count;
-    }
-}
+#define MPSDEC_READ_TIMESTAMP(result)                                         \
+    MPSDEC_SKIP_BITS(4);                                                  \
+    MPSDEC_READ_BITS(3, high);                                            \
+    MPSDEC_SKIP_BITS(1);                                                  \
+    MPSDEC_READ_BITS(15, middle);                                         \
+    MPSDEC_SKIP_BITS(1);                                                  \
+    MPSDEC_READ_BITS(15, low);                                            \
+    MPSDEC_SKIP_BITS(1);                                                  \
+    (result) = ((long long)high << 30) | ((long long)middle << 15) | low
 
-static inline const unsigned char* mpsdec_bits_position(
-    const MpsBitReader* reader) {
-    return (const unsigned char*)(reader->next_word - 2) +
-           ((reader->word_offset + 7) >> 3);
-}
-
-static inline int mpsdec_bits_consumed(const MpsBitReader* reader,
-                                       const unsigned char* data) {
-    return mpsdec_bits_position(reader) - data;
-}
-
-static inline unsigned int mpsdec_peek_bits(MpsBitReader* reader, int count) {
-    int threshold = 32 - count;
-    unsigned int value = reader->current >> threshold;
-
-    if (reader->word_offset > threshold) {
-        value |= reader->following >>
-                 (32 + threshold - reader->word_offset);
-    }
-    return value;
-}
-
-#define MPSDEC_READ_TIMESTAMP(reader, result)                              \
-    do {                                                                  \
-        unsigned int high;                                                \
-        unsigned int middle;                                              \
-        unsigned int low;                                                 \
-        mpsdec_skip_bits((reader), 4);                                    \
-        high = mpsdec_read_bits((reader), 3);                             \
-        mpsdec_skip_bits((reader), 1);                                    \
-        middle = mpsdec_read_bits((reader), 15);                          \
-        mpsdec_skip_bits((reader), 1);                                    \
-        low = mpsdec_read_bits((reader), 15);                             \
-        mpsdec_skip_bits((reader), 1);                                    \
-        (result) =                                                        \
-            ((long long)high << 30) | ((long long)middle << 15) | low;    \
-    } while (0)
-
-/* TODO: [near miss] 99.95%; only the single-PTS branch colors `middle` r31 (retail r30);
- * shared timestamp temporaries and an inline timestamp reader did not help. */
 static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
                              int* consumed, int packet_length_bytes) {
-    MpsBitReader reader;
+    unsigned int current;
+    int word_offset;
+    unsigned int following;
+    const unsigned int* words;
     MpsPacketHeader* header = &handle->headers.packet_header;
     int stream_id;
     int stream_type;
     int stream_index;
+    unsigned int value;
+    int scale;
+    unsigned int size;
+    unsigned int high;
+    unsigned int middle;
+    unsigned int low;
     int base_header_size;
 
-    mpsdec_init_bits(&reader, data, 24);
-    stream_id = mpsdec_read_bits(&reader, 8);
+    MPSDEC_INIT_BITS(data + 3);
+    MPSDEC_READ_BITS(8, stream_id);
     header->stream_id = stream_id;
     if (stream_id >= 0xE0 && stream_id <= 0xEF) {
         stream_type = 1;
@@ -216,10 +150,10 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
     header->stream_index = stream_index;
 
     if (packet_length_bytes == 2) {
-        mpsdec_read_bits_into(&reader, 16, &header->packet_length);
+        MPSDEC_READ_BITS(16, header->packet_length);
         base_header_size = 6;
     } else {
-        mpsdec_read_word_into(&reader, &header->packet_length);
+        MPSDEC_READ_WORD(header->packet_length);
         base_header_size = 8;
     }
 
@@ -230,20 +164,18 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
     }
 
     for (;;) {
-        unsigned int next_byte = mpsdec_peek_bits(&reader, 8);
-        if (next_byte != 0xFF) {
+        MPSDEC_PEEK_BITS(8, value);
+        if (value != 0xFF) {
             break;
         }
-        mpsdec_skip_bits(&reader, 8);
+        MPSDEC_SKIP_BITS(8);
     }
 
-    if (mpsdec_peek_bits(&reader, 2) == 1) {
-        int scale;
-        unsigned int size;
-
-        mpsdec_skip_bits(&reader, 2);
-        scale = mpsdec_read_bit(&reader);
-        size = mpsdec_read_bits(&reader, 13);
+    MPSDEC_PEEK_BITS(2, value);
+    if (value == 1) {
+        MPSDEC_SKIP_BITS(2);
+        MPSDEC_READ_BIT(scale);
+        MPSDEC_READ_BITS(13, size);
         size <<= 7;
         if (scale != 0) {
             size <<= 3;
@@ -251,23 +183,20 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
         header->std_buffer_size = size;
     }
 
-    {
-        unsigned int timestamp_flags = mpsdec_peek_bits(&reader, 4);
-
-        if (timestamp_flags == 2) {
-            MPSDEC_READ_TIMESTAMP(&reader, header->pts);
-            header->dts = -1;
-        } else if (timestamp_flags == 3) {
-            MPSDEC_READ_TIMESTAMP(&reader, header->pts);
-            MPSDEC_READ_TIMESTAMP(&reader, header->dts);
-        } else {
-            mpsdec_skip_bits(&reader, 8);
-            header->pts = -1;
-            header->dts = -1;
-        }
+    MPSDEC_PEEK_BITS(4, value);
+    if (value == 2) {
+        MPSDEC_READ_TIMESTAMP(header->pts);
+        header->dts = -1;
+    } else if (value == 3) {
+        MPSDEC_READ_TIMESTAMP(header->pts);
+        MPSDEC_READ_TIMESTAMP(header->dts);
+    } else {
+        MPSDEC_SKIP_BITS(8);
+        header->pts = -1;
+        header->dts = -1;
     }
 
-    *consumed = mpsdec_bits_consumed(&reader, data);
+    *consumed = MPSDEC_BITS_POSITION() - data;
     header->payload_length =
         header->packet_length + base_header_size - *consumed;
 }
@@ -275,28 +204,26 @@ static void mpsdec_DecPketHd(MpsHandle* handle, const unsigned char* data,
 static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
                             int* consumed) {
     unsigned int trailer;
-    MpsBitReader reader;
+    unsigned int current;
+    int word_offset;
+    unsigned int following;
+    const unsigned int* words;
     MpsSystemHeader* header = &handle->headers.last_system_header;
     MpsSystemCallbackInfo info;
-    const unsigned char* position = data + 4;
-    const unsigned int* words =
-        (const unsigned int*)((unsigned long)position & ~3UL);
-    reader.word_offset = (position - (const unsigned char*)words) * 8;
-    reader.current = *words++ << reader.word_offset;
-    reader.following = *words++;
-    reader.next_word = words;
-    mpsdec_read_bits_into(&reader, 16, &header->header_length);
-    mpsdec_skip_bits(&reader, 1);
-    mpsdec_read_bits_into(&reader, 22, &header->rate_bound);
-    mpsdec_skip_bits(&reader, 1);
-    mpsdec_read_bits_into(&reader, 6, &header->audio_bound);
-    mpsdec_read_bit_into(&reader, &header->fixed_flag);
-    mpsdec_read_bit_into(&reader, &header->csps_flag);
-    mpsdec_read_bit_into(&reader, &header->audio_lock_flag);
-    mpsdec_read_bit_into(&reader, &header->video_lock_flag);
-    mpsdec_skip_bits(&reader, 1);
-    mpsdec_read_bits_into(&reader, 5, &header->video_bound);
-    trailer = mpsdec_read_bits(&reader, 8);
+
+    MPSDEC_INIT_BITS(data + 4);
+    MPSDEC_READ_BITS(16, header->header_length);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_BITS(22, header->rate_bound);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_BITS(6, header->audio_bound);
+    MPSDEC_READ_BIT(header->fixed_flag);
+    MPSDEC_READ_BIT(header->csps_flag);
+    MPSDEC_READ_BIT(header->audio_lock_flag);
+    MPSDEC_READ_BIT(header->video_lock_flag);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_BITS(5, header->video_bound);
+    MPSDEC_READ_BITS(8, trailer);
 
     info.stream_count = 0;
     for (;;) {
@@ -304,14 +231,14 @@ static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
         unsigned int buffer_bound_scale;
         unsigned int buffer_size_bound;
 
-        if ((reader.current >> 31) == 0) {
+        if ((current >> 31) == 0) {
             break;
         }
 
-        stream_id = mpsdec_read_bits(&reader, 8);
-        mpsdec_skip_bits(&reader, 2);
-        buffer_bound_scale = mpsdec_read_bit(&reader);
-        buffer_size_bound = mpsdec_read_bits(&reader, 13);
+        MPSDEC_READ_BITS(8, stream_id);
+        MPSDEC_SKIP_BITS(2);
+        MPSDEC_READ_BIT(buffer_bound_scale);
+        MPSDEC_READ_BITS(13, buffer_size_bound);
         info.streams[info.stream_count].stream_id = stream_id;
         info.streams[info.stream_count].buffer_bound_scale =
             buffer_bound_scale;
@@ -320,7 +247,7 @@ static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
     }
 
     {
-        const unsigned char* position = mpsdec_bits_position(&reader);
+        const unsigned char* position = MPSDEC_BITS_POSITION();
         *consumed = position - data;
         if ((int)MPS_CheckDelim(position) == 0 &&
             MPS_CheckDelim(position + 1) == 0x40000) {
@@ -342,11 +269,12 @@ static void mpsdec_DecSysHd(MpsHandle* handle, const unsigned char* data,
     }
 }
 
-/* TODO: [near miss] 93.451614%; prefix and terminal reads follow retail;
- * remaining mismatch is register coloring around the reader state. */
 static void mpsdec_DecPackHd(MpsHandle* handle, const unsigned char* data,
                              int* consumed) {
-    MpsBitReader reader;
+    const unsigned int* words;
+    int word_offset;
+    unsigned int current;
+    unsigned int following;
     MpsPackHeader* header = &handle->headers.pack_header;
     unsigned int prefix;
     unsigned int high;
@@ -354,28 +282,22 @@ static void mpsdec_DecPackHd(MpsHandle* handle, const unsigned char* data,
     unsigned int low;
     unsigned int mux_rate;
 
-    mpsdec_init_bits(&reader, data, 32);
-    prefix = mpsdec_read_first_two_bits(&reader);
-    mpsdec_skip_bits(&reader, 2);
-    high = mpsdec_read_bits(&reader, 3);
-    mpsdec_skip_bits(&reader, 1);
-    middle = mpsdec_read_bits(&reader, 15);
-    mpsdec_skip_bits(&reader, 1);
-    low = mpsdec_read_bits(&reader, 15);
-    mpsdec_skip_bits(&reader, 1);
-    mpsdec_skip_bits(&reader, 1);
-    /* The rate is the last field; no later read needs the advanced cursor. */
-    if (reader.word_offset >= 10) {
-        if (reader.word_offset - 10 != 0) {
-            reader.current |=
-                reader.following >> (22 - (reader.word_offset - 10));
-            mux_rate = reader.current >> 10;
-        } else {
-            mux_rate = reader.current >> 10;
-        }
-    } else {
-        mux_rate = reader.current >> 10;
-    }
+    words = (const unsigned int*)((unsigned long)(data + 4) & ~3UL);
+    word_offset = ((data + 4) - (const unsigned char*)words) * 8;
+    current = words[0];
+    following = words[1];
+    current <<= word_offset;
+    words += 2;
+    MPSDEC_READ_FIRST_TWO_BITS(prefix);
+    MPSDEC_SKIP_BITS(2);
+    MPSDEC_READ_BITS(3, high);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_BITS(15, middle);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_BITS(15, low);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_SKIP_BITS(1);
+    MPSDEC_READ_LAST_BITS(22, mux_rate);
 
     header->scr =
         ((long long)high << 30) | ((long long)middle << 15) | low;

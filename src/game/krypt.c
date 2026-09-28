@@ -366,15 +366,7 @@ static inline StringObj* kontent_bio_text_live(void) {
     StringObj* live;
 
     raw = kontent_pdata->bio_text;
-    if (raw != 0) {
-        if (raw->instance == kontent_pdata->bio_text_instance) {
-            live = raw;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(raw, kontent_pdata->bio_text_instance);
     return live;
 }
 
@@ -740,18 +732,6 @@ void* get_krypt_anim_pdata(void) {
     return krypt_pdata->anim_pdata;
 }
 
-static inline MkHdr* krypt_live_character(MkObjLatch* owner) {
-    MkHdr* object = owner->obj;
-    if (object != 0) {
-        if (object->instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 void* get_krypt_character_obj(void) {
     MkObjLatch* pdata;
@@ -762,7 +742,7 @@ void* get_krypt_character_obj(void) {
         return 0;
     }
 
-    obj = krypt_live_character(pdata);
+    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
     if (obj != 0) {
         return obj;
     }
@@ -798,7 +778,7 @@ void set_krypt_character_previous_root_angle(void* script_args, float angle) {
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     if (pdata != 0) {
-        obj = (MkObj*)krypt_live_character(pdata);
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
         if (obj != 0) {
             obj->bone_angle_68 = angle;
             update_mkobj(obj);
@@ -811,7 +791,7 @@ void set_krypt_character_angle(void* script_args, float angle) {
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     if (pdata != 0) {
-        obj = (MkObj*)krypt_live_character(pdata);
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
         if (obj != 0) {
             obj->hide_flag_bits.pin_animation = 0;
             obj->ang.y = angle;
@@ -825,7 +805,7 @@ void set_krypt_character_pos(Vec* position) {
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     if (pdata != 0) {
-        obj = (MkObj*)krypt_live_character(pdata);
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
         if (obj != 0) {
             obj->hide_flag_bits.pin_animation = 0;
             obj->pos.value.x = position->x;
@@ -834,31 +814,6 @@ void set_krypt_character_pos(Vec* position) {
             update_mkobj(obj);
         }
     }
-}
-static inline MkHdr* krypt_character_anim_proc_pdata_live_obj(KryptCharacterAnimProcPdata* owner) {
-    MkHdr* object = owner->obj;
-    if (object != 0) {
-        if (object->instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
 }
 
 
@@ -877,10 +832,10 @@ static float p_run_character_animation(void) {
     cmdscript_setup_execution(g_game_info.cmdscript, pdata->script_index);
     cmdscript_execute(g_game_info.cmdscript);
 
-    obj = krypt_character_anim_proc_pdata_live_obj(pdata);
+    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
 
     if (obj != 0) {
-        if (anim_pdata_live_proc(krypt_pdata->anim_pdata) != 0) {
+        if (MK_LIVE(krypt_pdata->anim_pdata->proc, krypt_pdata->anim_pdata->proc_instance) != 0) {
             animation = krypt_pdata->anim_pdata;
             if (animation->proc->instance != 0) {
                 animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
@@ -954,24 +909,6 @@ MkObj* load_krypt_character(char* character_name) {
     return load_krypt_character_model(character_name);
 }
 
-static inline MkObj* load_krypt_character_impl(char* character_name) {
-    if (find_mkproc_pid(0x8240) != 0) {
-        return 0;
-    }
-    return load_krypt_character_model(character_name);
-}
-static inline MkObj* animation_live_obj(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_krypt_animate(void) {
     AnimPdata* animation;
@@ -988,7 +925,7 @@ static float p_krypt_animate(void) {
                           (float)footstep_frames[0][krypt_pdata->footstep_frame_index];
             frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
             if (frame_delta < animation->step) {
-                object = animation_live_obj(animation);
+                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
 
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume) {
@@ -1005,7 +942,7 @@ static float p_krypt_animate(void) {
                           (float)footstep_frames[1][krypt_pdata->footstep_frame_index];
             frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
             if (frame_delta < animation->step) {
-                object = animation_live_obj(animation);
+                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
 
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume) {
@@ -1041,7 +978,7 @@ static float p_monitor_krypt_characters(void) {
         character_names = get_data_table_by_name("krypt_character_names");
         character_scripts =
             get_data_table_by_name("krypt_character_info_table");
-        object = load_krypt_character_impl(
+        object = load_krypt_character(
             character_names[(unsigned short)randu0((unsigned short)get_row_count_for_table_by_pointer(
                 g_game_info.cmdscript, character_names))]);
         script_row = (unsigned short)randu0(
@@ -1501,70 +1438,8 @@ static void set_koin_positions_and_colors(void* pfx) {
     }
 }
 
-static inline ScreenObj* krypt_live_wallet_back_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_back.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_back.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline ScreenObj* krypt_live_wallet_front_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_front.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_front.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline StringObj* krypt_wallet_text_at(int index) {
-    StringObj* object = krypt_pdata->wallet_text[index].obj;
-    if (object != 0) {
-        if (object->instance == krypt_pdata->wallet_text[index].obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* krypt_live_wallet_text(KryptPdata* pdata, int koin_type) {
-    StringObj* object = pdata->wallet_text[koin_type].obj;
-    if (object != 0) {
-        if (object->instance == pdata->wallet_text[koin_type].obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* krypt_wallet_text(const KryptStringObjLatch* latch) {
-    StringObj* object = latch->obj;
-    if (object != 0) {
-        if (object->instance == latch->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* Keep the retail dialog call while expanding the explicit latch helper. */
 #pragma auto_inline off
@@ -1575,7 +1450,7 @@ static inline void krypt_set_wallet_text_y(int y) {
 
     for (i = 0; i < 6; i++) {
         wallet_text = krypt_pdata->wallet_text;
-        text = krypt_wallet_text(&wallet_text[i]);
+        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
         if (text != 0) {
             text->y = y;
         }
@@ -1590,9 +1465,9 @@ void force_wallet_to_open_position(void) {
     char value[8];
     int i;
 
-    wallet_back = krypt_live_wallet_back_obj(krypt_pdata);
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-    wallet_front = krypt_live_wallet_front_obj(krypt_pdata);
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
     if (wallet_back != 0 && wallet_front != 0) {
         wallet_back->y = 0;
@@ -1604,7 +1479,7 @@ void force_wallet_to_open_position(void) {
     for (i = 0; i < 6; i++) {
         format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
         wallet_text = krypt_pdata->wallet_text;
-        text = krypt_wallet_text(&wallet_text[i]);
+        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
         if (text != 0) {
             update_string_obj(text, 0, value);
         } else {
@@ -1618,32 +1493,6 @@ void force_wallet_to_open_position(void) {
     krypt_pdata->wallet_open = 1;
 }
 #pragma auto_inline reset
-
-static inline ScreenObj* krypt_pdata_live_wallet_back_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_back.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_back.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline ScreenObj* krypt_pdata_live_wallet_front_obj(KryptPdata* owner) {
-    ScreenObj* object = owner->wallet_front.obj;
-    if (object != 0) {
-        if (object->instance == owner->wallet_front.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline ScreenObj* krypt_pdata_live_open_button_obj(KryptPdata* owner) {
     ScreenObj* object = owner->open_button.obj;
@@ -1671,57 +1520,6 @@ static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
     return object;
 }
 
-static inline StringObj* krypt_pdata_live_hud_label_l_obj(KryptPdata* owner) {
-    StringObj* object = owner->hud_label_l.obj;
-    if (object != 0) {
-        if (object->instance == owner->hud_label_l.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* krypt_pdata_live_hud_string_20011_obj(KryptPdata* owner) {
-    StringObj* object = owner->hud_string_20011.obj;
-    if (object != 0) {
-        if (object->instance == owner->hud_string_20011.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* krypt_pdata_live_hud_label_r_obj(KryptPdata* owner) {
-    StringObj* object = owner->hud_label_r.obj;
-    if (object != 0) {
-        if (object->instance == owner->hud_label_r.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* krypt_pdata_live_use_key_string_obj(KryptPdata* owner) {
-    StringObj* object = owner->use_key_string.obj;
-    if (object != 0) {
-        if (object->instance == owner->use_key_string.obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -1729,7 +1527,10 @@ static inline StringObj* krypt_pdata_live_use_key_string_obj(KryptPdata* owner) 
 
 
 
-/* TODO: [near miss] 97.321243%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
+
+
+
+/* TODO: [near miss] 99.69%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1742,21 +1543,21 @@ void heads_up_display_visible(int visible) {
     StringObj* wallet_text;
     int i;
 
-    wallet_back = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-    wallet_front = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
-    icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
+    icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
 
-    icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+    icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
 
-    label_a = krypt_pdata_live_hud_label_l_obj(krypt_pdata);
+    label_a = MK_LIVE(krypt_pdata->hud_label_l.obj, krypt_pdata->hud_label_l.obj_instance);
 
-    value_a = krypt_pdata_live_hud_string_20011_obj(krypt_pdata);
+    value_a = MK_LIVE(krypt_pdata->hud_string_20011.obj, krypt_pdata->hud_string_20011.obj_instance);
 
-    label_b = krypt_pdata_live_hud_label_r_obj(krypt_pdata);
+    label_b = MK_LIVE(krypt_pdata->hud_label_r.obj, krypt_pdata->hud_label_r.obj_instance);
 
-    value_b = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+    value_b = MK_LIVE(krypt_pdata->use_key_string.obj, krypt_pdata->use_key_string.obj_instance);
 
 
     if (wallet_back != 0) {
@@ -1790,7 +1591,7 @@ void heads_up_display_visible(int visible) {
         }
     }
     for (i = 0; i < 6; i++) {
-        wallet_text = krypt_wallet_text(&krypt_pdata->wallet_text[i]);
+        wallet_text = MK_LIVE(krypt_pdata->wallet_text[i].obj, krypt_pdata->wallet_text[i].obj_instance);
         if (wallet_text != 0) {
             if (visible) unhide_string_obj(wallet_text); else hide_string_obj(wallet_text);
         }
@@ -1853,10 +1654,7 @@ void init_heads_up_display(void) {
     for (i = 0; i < 6; i++) {
         format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
         string_obj = krypt_pdata->wallet_text[i].obj;
-        string_obj = string_obj != 0
-            ? (string_obj->instance == krypt_pdata->wallet_text[i].obj_instance
-                ? string_obj : 0)
-            : 0;
+        string_obj = MK_LIVE(string_obj, krypt_pdata->wallet_text[i].obj_instance);
         if (string_obj != 0) {
             update_string_obj(string_obj, 0, value);
         } else {
@@ -1962,23 +1760,11 @@ static inline void display_prize_description_impl(
     }
 }
 
-static inline ScreenObj* live_screen_latch(KryptScreenObjLatch* latch) {
-    ScreenObj* object = latch->obj;
-    if (object != 0) {
-        if (object->instance == latch->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void move_picture_to_camera_impl(KryptScreenObjLatch* picture_latch) {
     ScreenObj* picture;
 
-    picture = live_screen_latch(picture_latch);
+    picture = MK_LIVE(picture_latch->obj, picture_latch->obj_instance);
     unhide_screen_obj(picture);
     picture->scale_x = 0.1f;
     picture->scale_y = 0.1f;
@@ -2016,7 +1802,7 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 98.76%; frame, award-art and wallet-latch shape match; koin totals fold
+/* TODO: [near miss] 98.91%; frame, award-art and wallet-latch shape match; koin totals fold
  * into profile+k*4 (retail keeps lwzx base), GPR r24-r29 and f28/f31 coloring remain. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
@@ -2110,10 +1896,10 @@ static float p_move_camera_and_open_coffin(void) {
     }
 
     move_picture_to_camera_impl(&krypt_pdata->award_frame);
-    notice_top = live_screen_latch(&krypt_pdata->award_notice_top);
-    notice_left = live_screen_latch(&krypt_pdata->award_notice_left);
-    notice_right = live_screen_latch(&krypt_pdata->award_notice_right);
-    notice_bottom = live_screen_latch(&krypt_pdata->award_notice_bottom);
+    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
+    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
+    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
+    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
     unhide_screen_obj(notice_top);
     unhide_screen_obj(notice_left);
     unhide_screen_obj(notice_right);
@@ -2156,10 +1942,10 @@ static float p_move_camera_and_open_coffin(void) {
     }
 
     destroy_mkobjs_oid(0x8311);
-    notice_top = live_screen_latch(&krypt_pdata->award_notice_top);
-    notice_left = live_screen_latch(&krypt_pdata->award_notice_left);
-    notice_right = live_screen_latch(&krypt_pdata->award_notice_right);
-    notice_bottom = live_screen_latch(&krypt_pdata->award_notice_bottom);
+    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
+    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
+    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
+    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
     hide_screen_obj(notice_top);
     hide_screen_obj(notice_left);
     hide_screen_obj(notice_right);
@@ -2243,7 +2029,7 @@ static float p_move_camera_and_open_coffin(void) {
             } else {
                 _create_mkproc_generic_tinystack(
                     0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-                wallet_text = krypt_live_wallet_text(krypt_pdata, koin_type);
+                wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
                 display_numerical_change(
                     wallet_text, 0, old_total, amount, 1, 0x14);
                 destroy_mkprocs_pid(0x8246);
@@ -2584,9 +2370,9 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 1;
             snd_req(0x3B8);
         }
-        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+        open_button = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+        exit_button = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y + 6 < 0) {
@@ -2598,7 +2384,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_wallet_text_at(index);
+            text = MK_LIVE(krypt_pdata->wallet_text[index].obj, krypt_pdata->wallet_text[index].obj_instance);
             if (text != 0) {
                 if (text->y < 34) {
                     text->y += 6;
@@ -2613,9 +2399,9 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 0;
             snd_req(0x3B9);
         }
-        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+        open_button = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
-        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+        exit_button = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
 
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y - 6 > -100) {
@@ -2627,7 +2413,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_wallet_text_at(index);
+            text = MK_LIVE(krypt_pdata->wallet_text[index].obj, krypt_pdata->wallet_text[index].obj_instance);
             if (text != 0) {
                 if (text->y > -66) {
                     text->y -= 6;
@@ -2653,7 +2439,7 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.52%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
+/* TODO: [near miss] 99.56%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
 static int do_dialog(int dialog_type) {
     int result;
     ScreenObj* dialog_left;
@@ -2669,7 +2455,7 @@ static int do_dialog(int dialog_type) {
 
     yes_button = 0;
     ok_button = 0;
-    hud_icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
+    hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
     hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
     message = 0;
     dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);
@@ -2799,7 +2585,7 @@ static float p_single_move_footstep_proc(void) {
     snd_req(0x3CC);
     return -1.0f;
 }
-/* TODO: [near miss] 96.48%; wallet latch now indexes krypt_pdata directly;
+/* TODO: [near miss] 96.64%; wallet latch now indexes krypt_pdata directly;
  * koin totals base/index lowering (retail lwzx on profile+0x38) remains. */
 static int deduct_koins(int amount, unsigned int koin_type) {
     ProfileCommon* profile;
@@ -2842,7 +2628,7 @@ static int deduct_koins(int amount, unsigned int koin_type) {
 
     _create_mkproc_generic_tinystack(
         0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-    wallet_text = krypt_live_wallet_text(krypt_pdata, koin_type);
+    wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
     display_numerical_change(wallet_text, 0, old_total, -amount, 1, 0x14);
     destroy_mkprocs_pid(0x8246);
     _mkproc_sleep_ticks = 30.0f;
@@ -3130,31 +2916,7 @@ static void position_fire_pots(void) {
 /* Cluster F - mode shell (Agent A)                                          */
 /* ========================================================================= */
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkSobj* krypt_fog_live_sobj(MkObjLatch* owner) {
-    MkSobj* object = (MkSobj*)owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 float p_fog_follow_camera(void) {
     CameraObj* camera;
@@ -3162,27 +2924,15 @@ float p_fog_follow_camera(void) {
     MkSobj* fog;
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (pdata != 0 && camera != 0) {
-        fog = krypt_fog_live_sobj(pdata);
+        fog = MK_HDR_LIVE((MkSobj*)pdata->obj, pdata->obj_instance);
         if (fog != 0) {
             fog->pos.z = camera->pos.z;
         }
     }
     return 1.0f;
-}
-static inline MkObj* krypt_camera_live_obj(KryptCameraFollowPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
 }
 
 static float p_follow_camera(void) {
@@ -3190,7 +2940,7 @@ static float p_follow_camera(void) {
     KryptCameraFollowPdata* pdata;
     MkObj* obj;
 
-    camera = camera_live_node(&camera_item);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
     pdata = (KryptCameraFollowPdata*)pdata_of_proc(aproc);
@@ -3198,7 +2948,7 @@ static float p_follow_camera(void) {
         return -1.0f;
     }
 
-    obj = krypt_camera_live_obj(pdata);
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
 
     if (obj == 0) {
         return -1.0f;
@@ -3338,14 +3088,15 @@ static void init_konquest_keys(void) {
 
 
 
-/* TODO: [near miss] 99.12%; UI pointer and search index/stride differ only in GPR coloring. */
 static void update_use_key_string(void) {
     StringObj* use_key_text;
+    KryptPdata* pdata;
     const char* use_key_label;
     char key_name[4];
     char text[32];
 
-    use_key_text = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+    pdata = krypt_pdata;
+    use_key_text = MK_LIVE(pdata->use_key_string.obj, pdata->use_key_string.obj_instance);
 
 
     krypt_pdata->available_key_coffin = find_available_konquest_key();

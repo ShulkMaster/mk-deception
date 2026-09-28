@@ -212,17 +212,18 @@ static PalQuantNode* AllocateToLeaf(RwPalQuant* quantizer,
                           octants >> 4, depth - 1);
 }
 
-/* Accumulates every source pixel into the quantizer's matching octree leaf. */
 void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
                         float weight)
 {
 
+    int shift;
     int width;
     int height;
     int stride;
     unsigned char* pixels;
     RwRGBA* palette;
 
+    shift = 8 - QuantDepth;
     stride = image->stride;
     pixels = image->pixels;
     palette = (RwRGBA*)image->palette;
@@ -236,8 +237,9 @@ void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
             width = image->width;
             while (width--) {
                 RwRGBA* color = &palette[*linePixels];
+                PalQuantNode* leaf;
                 OctantMap octants = GetOctAdr(color);
-                PalQuantNode* leaf = AllocateToLeaf(
+                leaf = AllocateToLeaf(
                     quantizer, quantizer->root, octants, QuantDepth);
                 LeafAddPixel(&leaf->leaf, color, weight);
                 linePixels++;
@@ -250,8 +252,9 @@ void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
             RwRGBA* color = (RwRGBA*)pixels;
             width = image->width;
             while (width--) {
+                PalQuantNode* leaf;
                 OctantMap octants = GetOctAdr(color);
-                PalQuantNode* leaf = AllocateToLeaf(
+                leaf = AllocateToLeaf(
                     quantizer, quantizer->root, octants, QuantDepth);
                 LeafAddPixel(&leaf->leaf, color, weight);
                 color++;
@@ -623,6 +626,7 @@ void RwPalQuantMatchImage(unsigned char* destinationPixels,
     unsigned int height;
     unsigned int stride = image->stride;
     unsigned char* pixels = image->pixels;
+    int maxColors = 1 << destinationDepth;
     unsigned char* destination;
     unsigned char nodeIndex;
     OctantMap octants;

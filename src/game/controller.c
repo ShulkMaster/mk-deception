@@ -3,6 +3,7 @@
 #include "game/game_info.h"
 #include "game/mcardmsg.h"
 #include "game/plyrprofile.h"
+#include "game/switch.h"
 #include "game/trial.h"
 #include "platform/display.h"
 #include "platform/gcio.h"
@@ -29,17 +30,32 @@ typedef struct RumblePdata {
     int ticks;
 } RumblePdata;
 
-extern int p1_rumble_on;
-extern int p2_rumble_on;
-extern int p1_temp_rumble_state;
-extern int p2_temp_rumble_state;
-extern SwitchMapEntry default_switch_map[];
+int p1_rumble_on;
+int p2_rumble_on;
+int p1_temp_rumble_state;
+int p2_temp_rumble_state;
+SwitchMapEntry default_switch_map[16] = {
+    {0x0001, pad_l2_proc, "PAD_L2"},
+    {0x0002, pad_r2_proc, "PAD_R2"},
+    {0x0004, pad_l1_proc, "PAD_L1"},
+    {0x0008, pad_r1_proc, "PAD_R1"},
+    {0x0010, pad_rup_proc, "PAD_RUP"},
+    {0x0020, pad_rrt_proc, "PAD_RRT"},
+    {0x0040, pad_rdn_proc, "PAD_RDN"},
+    {0x0080, pad_rlt_proc, "PAD_RLT"},
+    {0x0100, pad_select_proc, "PAD_SELECT"},
+    {0x0200, pad_lt_stick_btn_proc, "PAD_LAS_BTN"},
+    {0x0400, pad_rt_stick_btn_proc, "PAD_RAS_BTN"},
+    {0x0800, pad_start_proc, "PAD_START"},
+    {0x1000, pad_lup_proc, "PAD_LUP"},
+    {0x2000, pad_lrt_proc, "PAD_LRT"},
+    {0x4000, pad_ldn_proc, "PAD_LDN"},
+    {0x8000, pad_llt_proc, "PAD_LLT"}
+};
 extern PlayerProfile p1_profile;
 extern PlayerProfile p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
-extern int p1_use_temp_switch_map;
-extern int p2_use_temp_switch_map;
 SwitchMapEntry p2_profile_switch_map[PROFILE_SWITCHMAP_COUNT];
 SwitchMapEntry p1_profile_switch_map[PROFILE_SWITCHMAP_COUNT];
 SwitchMapEntry p2_temp_switch_map[PROFILE_SWITCHMAP_COUNT];
@@ -68,6 +84,8 @@ typedef struct ControllerScreenObjRef {
 } ControllerScreenObjRef;
 
 static ControllerScreenObjRef cnt_rem_fadebox_item;
+int p2_use_temp_switch_map;
+int p1_use_temp_switch_map;
 
 #define DRAW_CONTROLLER_REMOVED_TEXT(screen_oid, player_x, port_number, text_buffer) \
     do {                                                                            \

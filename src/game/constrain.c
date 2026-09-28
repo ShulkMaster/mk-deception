@@ -96,26 +96,6 @@ static float p_constrain_players(void);
 static void repel_players(void);
 static void keep_players_on_tightrope(void);
 
-static inline float constrain_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } input, guess;
-    float refined;
-
-    if (!(value > 0.0f)) {
-        return 0.0f;
-    }
-
-    input.f = value;
-    guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    guess.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    refined = guess.f * (3.0f - (guess.f * guess.f) / value);
-    return 0.5f * refined;
-}
-
 static inline float constrain_inv_sqrt(float value) {
     union {
         float f;
@@ -352,25 +332,13 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     }
 }
 
-static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 float dist_behind_me(void) {
     MkObj* object;
     Vec direction;
     float distance;
 
-    object = player_live_tracked_obj(plyr_pdata);
+    object = MK_HDR_LIVE(plyr_pdata->tracked_obj, plyr_pdata->tracked_obj_instance);
 
     if (object == 0) {
         return 0.0f;
@@ -385,7 +353,7 @@ float dist_behind_me(void) {
     return distance;
 }
 
-/* TODO: [breakthrough] 88.73786%; sqrt halfword indexing corrected;
+/* TODO: [breakthrough] 94.30%; sqrt halfword indexing corrected;
  * remaining source-shape/FP differences need localized retail audit. */
 static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction) {
@@ -404,7 +372,7 @@ static float dist_from_plyr_pos_to_arena_edge(
             direction->x * position->x + direction->z * position->z;
         radicand =
             144.0f - (length * length - along_ray * along_ray);
-        distance = constrain_sqrt(radicand) - along_ray;
+        distance = gxMathFastSqrt(radicand) - along_ray;
         if (distance <= 0.0f) {
             distance = 0.0f;
         }
@@ -422,7 +390,7 @@ static float dist_from_plyr_pos_to_arena_edge(
     return distance;
 }
 
-/* TODO: [breakthrough] 86.19403%; sqrt halfword indexing corrected;
+/* TODO: [breakthrough] 99.78%; sqrt halfword indexing corrected;
  * remaining source-shape/FP differences need localized retail audit. */
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius) {
@@ -443,7 +411,7 @@ float xz_ray_circle_intersection_dist(
         radius * radius -
         (length * length - along_ray * along_ray);
     if (radicand > 0.0f) {
-        distance = constrain_sqrt(radicand);
+        distance = gxMathFastSqrt(radicand);
     } else {
         distance = 0.0f;
     }
@@ -547,18 +515,6 @@ void set_constrain_last_pos(int player, const Vec* position) {
     }
 }
 
-static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
-    MkObj* object = owner->sidekick_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->sidekick_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_constrain_players(void) {
     MkObj* sidekick;
@@ -582,7 +538,7 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P1_OBJECT != 0) {
         pdata = g_game_info.plyr0.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = player_live_sidekick_obj(pdata);
+            sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);
@@ -593,7 +549,7 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P2_OBJECT != 0) {
         pdata = g_game_info.plyr1.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = player_live_sidekick_obj(pdata);
+            sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);

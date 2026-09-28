@@ -67,18 +67,6 @@ static inline void movelist_set_pfx_byte_flags(
     }
 }
 
-static inline MovelistPfxObj* movelist_style_live_pfx_obj(MovelistPdata* pdata, int style_index) {
-    MovelistPfxObj* object = pdata->styles[style_index].pfx_obj;
-    if (object != 0) {
-        if (object->instance == pdata->styles[style_index].pfx_inst) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline void movelist_show_valid_style(MovelistPdata* screen_pdata) {
     int zero;
@@ -99,7 +87,7 @@ static inline void movelist_show_valid_style(MovelistPdata* screen_pdata) {
         move_count = screen_pdata->styles[style_index].max_move;
     } while (move_count == 0);
     hide_or_show_2d_obj_by_id(0x9012, 1);
-    pfx_obj = movelist_style_live_pfx_obj(screen_pdata, screen_pdata->style_idx);
+    pfx_obj = MK_LIVE(screen_pdata->styles[screen_pdata->style_idx].pfx_obj, screen_pdata->styles[screen_pdata->style_idx].pfx_inst);
     if (pfx_obj == 0) {
         return;
     }
@@ -176,7 +164,7 @@ void movelist_change_style(int delta) {
 
     hide_or_show_2d_obj_by_id(0x9012, 1);
 
-    pfx_obj = movelist_style_live_pfx_obj(screen_pdata, screen_pdata->style_idx);
+    pfx_obj = MK_LIVE(screen_pdata->styles[screen_pdata->style_idx].pfx_obj, screen_pdata->styles[screen_pdata->style_idx].pfx_inst);
 
     if (pfx_obj == 0) {
         return;
@@ -249,18 +237,6 @@ static int vdestroy_movelist(void* self) {
     mkhdr_memfree(self);
 }
 
-static inline FighterStyleScreen* fighter_style_obj_live_screen(FighterStyleObj* owner) {
-    FighterStyleScreen* object = owner->screen;
-    if (object != 0) {
-        if (object->instance == owner->screen_inst) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -342,7 +318,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         FighterStyleScreen* screen;
         Pfx2dObj* pfx2d;
 
-        screen = fighter_style_obj_live_screen(char_data->style_objs[style_slot]);
+        screen = MK_LIVE(char_data->style_objs[style_slot]->screen, char_data->style_objs[style_slot]->screen_inst);
 
         if (screen != 0) {
             pfx2d = screen->pfx2d;

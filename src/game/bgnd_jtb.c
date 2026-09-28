@@ -155,22 +155,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id);
 static int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact);
 
-static inline float nb_sqrt(float value) {
-    NbFloatBits input;
-    NbFloatBits estimate;
-    float refined;
-
-    input.f = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.u = GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    refined = estimate.f * (3.0f - (estimate.f * estimate.f) / value);
-    return 0.5f * refined;
-}
-
 static inline float nb_fast_inverse_sqrt(float squared) {
     NbFloatBits bits;
     float estimate;
@@ -228,7 +212,7 @@ void lower_mines_ani_to_point(
     if (radicand >= root) {
         root = radicand;
     }
-    root = nb_sqrt(root);
+    root = gxMathFastSqrt(root);
 
     root_a = (root - vertical_velocity) / gravity;
     root_b = (-root - vertical_velocity) / gravity;
@@ -317,7 +301,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     momentum_y = npc->momentum.y;
     momentum_x = npc->momentum.x;
     momentum_z = npc->momentum.z;
-    speed = nb_sqrt(
+    speed = gxMathFastSqrt(
         momentum_z * momentum_z +
         (momentum_x * momentum_x + momentum_y * momentum_y));
     spad_set_vector(0, 0x1C);
@@ -571,18 +555,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 /* TODO: [near miss] 98.72%; direction x/z FPR swap (f7/f6) and camera/npc-object r5/r7 swap remain; declaration order is neutral. */
 static int nb_npc_hurt_player(
@@ -644,7 +616,7 @@ static int nb_npc_hurt_player(
         his_obj = fighter_view->opponent_object;
         plyr_anim_pdata = &fighter_view->anim_pdata;
         npc_object = hit->object;
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
         camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
         camera_to_player_z = camera->pos.z - current_object->pos.value.z;
@@ -710,7 +682,7 @@ static float p_npc_on_pendulum_rope(void) {
         displacement.x = object->pos.value.x - npc->anchor.x;
         displacement.y = object->pos.value.y - npc->anchor.y;
         displacement.z = object->pos.value.z - npc->anchor.z;
-        distance = nb_sqrt(
+        distance = gxMathFastSqrt(
             displacement.x * displacement.x +
             displacement.y * displacement.y +
             displacement.z * displacement.z);
@@ -815,7 +787,7 @@ static float p_npc_on_pendulum_rope(void) {
                 tangent.x *= inverse_length;
                 tangent.y *= inverse_length;
                 tangent.z *= inverse_length;
-                speed = nb_sqrt(speed_squared);
+                speed = gxMathFastSqrt(speed_squared);
                 if (tangent.x * npc->momentum.x +
                         tangent.y * npc->momentum.y +
                         tangent.z * npc->momentum.z <

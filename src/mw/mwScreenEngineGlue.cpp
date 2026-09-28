@@ -1162,20 +1162,6 @@ void preload_screen_data(const char* name, int slot) {
     }
 }
 
-static inline MkHdr* screen_engine_live_share(void) {
-    MkHdr* share = screen_engine_client.share_pdata;
-
-    if (share != 0) {
-        if (share->instance == (unsigned int)screen_engine_client.share_instance) {
-            return share;
-        }
-        share = 0;
-    } else {
-        share = 0;
-    }
-    return share;
-}
-
 void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot) {
     MkHdr* current;
     unsigned int loaded;
@@ -1191,7 +1177,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
         unload_section_slot(slot);
     }
 
-    current = screen_engine_live_share();
+    current = MK_LIVE(screen_engine_client.share_pdata, (unsigned int)screen_engine_client.share_instance);
 
     if ((share_pdata == 0 || current == 0 || share_pdata == current) && share_pdata != 0) {
         screen_engine_client.share_pdata = share_pdata;
@@ -1315,30 +1301,7 @@ void screen_engine_render(void) {
 }
 
 void* get_screen_pdata(void) {
-    MkHdr* share;
-
-    share = screen_engine_client.share_pdata;
-    if (share != 0) {
-        if (share->instance == (unsigned int)screen_engine_client.share_instance) {
-            return share;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-static inline MkHdr* screen_live_share(ScreenEngineClient* client) {
-    MkHdr* current = client->share_pdata;
-
-    if (current != 0) {
-        if (current->instance == (unsigned int)client->share_instance) {
-            return current;
-        }
-        current = 0;
-    } else {
-        current = 0;
-    }
-    return current;
+    return MK_LIVE(screen_engine_client.share_pdata, (unsigned int)screen_engine_client.share_instance);
 }
 
 void screen_share_pdata(MkHdr* share) {
@@ -1346,7 +1309,7 @@ void screen_share_pdata(MkHdr* share) {
     MkHdr* current;
 
     client = &screen_engine_client;
-    current = screen_live_share(client);
+    current = MK_LIVE(client->share_pdata, (unsigned int)client->share_instance);
     if (share != 0 && current != 0 && share != current) {
         return;
     }
@@ -3497,20 +3460,8 @@ ScreenParticle* __dt__14ScreenParticleFv(ScreenParticle* self, short del) {
 extern void* __vt__10ScreenText;
 extern void* __vt__25mkScreenEngineMatrixStack;
 
-static inline StringObj* ScreenTextLiveObj(ScreenText* text) {
-    if (text->stringObj != 0) {
-        if (text->stringObj->instance == (unsigned int)text->stringObjInstance) {
-            return text->stringObj;
-        } else {
-            return 0;
-        }
-    } else {
-        return 0;
-    }
-}
-
 unsigned int IsVisible__10ScreenTextFv(ScreenText* text) {
-    StringObj* obj = ScreenTextLiveObj(text);
+    StringObj* obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return 0;
     }
@@ -3518,7 +3469,7 @@ unsigned int IsVisible__10ScreenTextFv(ScreenText* text) {
 }
 
 void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
-    StringObj* obj = ScreenTextLiveObj(text);
+    StringObj* obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -3544,7 +3495,7 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* mgr,
         return;
     }
 
-    live = ScreenTextLiveObj(text);
+    live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (live != 0) {
         return;
     }
@@ -3746,7 +3697,7 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
     int i;
 
     t = ctrl->type;
-    obj = ScreenTextLiveObj(text);
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -3791,7 +3742,7 @@ int GetStringLen__10ScreenTextFv(ScreenText* text) {
     const char* str;
     int len;
 
-    obj = ScreenTextLiveObj(text);
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         len = 0;
     } else {
@@ -3839,7 +3790,7 @@ static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     const char* str;
     int len;
 
-    obj = ScreenTextLiveObj(text);
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -3852,7 +3803,7 @@ static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     if (len != 1) {
         return;
     }
-    obj = ScreenTextLiveObj(text);
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -3946,21 +3897,10 @@ void ChangeCase__6KeyPadFUi(KeyPad* self, unsigned int toUpper) {
 /* TODO: [near miss] 97.37%; byte walk matches; obj/cursor/ch register rotation remains. */
 void ChangeCase__10ScreenTextFi(ScreenText* text, int toUpper) {
     StringObj* obj;
-    StringObj* live;
     char* str;
     char ch;
 
-    obj = text->stringObj;
-    if (obj != 0) {
-        if (obj->instance == (unsigned int)text->stringObjInstance) {
-            live = obj;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
-    obj = live;
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -4030,7 +3970,7 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     stack = info->matrixStack;
     ltm = (float*)RwFrameGetLTM(stack->frame);
 
-    obj = ScreenTextLiveObj(text);
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj == 0) {
         return;
     }
@@ -5982,7 +5922,7 @@ static int TextItemPageLines(TextItem* self) {
     if (text == 0 || text->font == 0) {
         return lines;
     }
-    live = ScreenTextLiveObj(text);
+    live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (live == 0) {
         return lines;
     }
@@ -6031,7 +5971,7 @@ void UpdateString__8TextItemFv(TextItem* self) {
 
     if (self->scrollLimit <= 1) {
         text = (ScreenText*)self->textNode;
-        live = ScreenTextLiveObj(text);
+        live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
         if (live != 0) {
             color[0] = live->pfx.instance0.rgba[0];
             color[1] = live->pfx.instance0.rgba[1];
@@ -6057,7 +5997,7 @@ void UpdateString__8TextItemFv(TextItem* self) {
     }
 
     text = (ScreenText*)self->textNode;
-    live = ScreenTextLiveObj(text);
+    live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (live != 0) {
         color[0] = live->pfx.instance0.rgba[0];
         color[1] = live->pfx.instance0.rgba[1];

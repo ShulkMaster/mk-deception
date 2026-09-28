@@ -1901,7 +1901,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_del.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mps/mps_dec.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_dec.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2329,7 +2329,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/CriticalSection.o",
                 source="libmsl/CriticalSection.c",
                 extra_cflags=["-use_lmw_stmw on", "-str", "reuse,pool,readonly"],
@@ -2735,9 +2735,9 @@ config.libs = [
             Object(NonMatching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
             Object(Matching, "os.a/OSFont.o", source="dolphin/os/OSFont.c"),
             Object(Matching, "os.a/OSRtc.o", source="dolphin/os/OSRtc.c"),
-            Object(NonMatching, "os.a/OSThread.o", source="dolphin/os/OSThread.c"),
+            Object(Matching, "os.a/OSThread.o", source="dolphin/os/OSThread.c"),
             Object(Matching, "os.a/OSArena.o", source="dolphin/os/OSArena.c"),
-            Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c"),
+            Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c", extra_cflags=["-inline noauto"]),
             Object(
                 Matching,
                 "os.a/OSAudioSystem.o",
@@ -2768,7 +2768,7 @@ config.libs = [
                 extra_cflags=["-inline noauto"],
             ),
             Object(Matching, "os.a/OSMessage.o", source="dolphin/os/OSMessage.c"),
-            Object(NonMatching, "os.a/OSResetSW.o", source="dolphin/os/OSResetSW.c"),
+            Object(Matching, "os.a/OSResetSW.o", source="dolphin/os/OSResetSW.c"),
             Object(Matching, "os.a/OSReset.o", source="dolphin/os/OSReset.c"),
             Object(Matching, "os.a/OSMutex.o", source="dolphin/os/OSMutex.c"),
             Object(NonMatching, "os.a/__start.o", source="dolphin/__start.c"),
@@ -2789,7 +2789,7 @@ config.libs = [
     DolphinLib(
         "odenotstub",
         [
-            Object(NonMatching, "dvd.a/dvdfs.o", source="dolphin/dvd/dvdfs.c"),
+            Object(Matching, "dvd.a/dvdfs.o", source="dolphin/dvd/dvdfs.c"),
             Object(
                 Matching,
                 "odenotstub.a/odenotstub.o",
@@ -2811,7 +2811,7 @@ config.libs = [
         "dvd",
         [
             Object(Matching, "dvd.a/dvd.o", source="dolphin/dvd/dvd.c"),
-            Object(NonMatching, "dvd.a/dvdlow.o", source="dolphin/dvd/dvdlow.c"),
+            Object(Matching, "dvd.a/dvdlow.o", source="dolphin/dvd/dvdlow.c", extra_cflags=["-inline noauto"]),
             Object(
                 Matching,
                 "dvd.a/dvdFatal.o",
@@ -2940,7 +2940,7 @@ config.libs = [
         "mix",
         [
             Object(
-                NonMatching,
+                Matching,
                 "mix.a/mix.o",
                 source="dolphin/mix/mix.c",
             ),
