@@ -85,20 +85,20 @@ Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
 - IF a scratch's base score is far above the real TU's residue, REQUIRE a check
   that retail inlined same-TU callees. Upstream import and every candidate
   rebuild strip non-`inline` function bodies, so the scratch calls them.
-  `tools/decomp_permuter.py` now restores callees that the retail body never
-  calls, marked `inline` (`SFD_SetCond` base 6450 -> 40); pass
-  `--no-inline-callees` to disable this.
+  Restoring the callees that the retail body never calls, marked `inline`,
+  fixes the base (`SFD_SetCond` 6450 -> 40); confirm that the DecompStudio
+  permuter scratch does this before trusting its base score.
 - IF the best nonzero candidates differ in noise but share one transformation,
   REQUIRE that it is expressible without `new_var` temporaries, dead `if (1)`
   blocks, or comma operators; TRY that shared idea as honest C in the real TU.
   The scratch score does not need to be zero. Five score-110 candidates all fed
   `(x *= k)` directly to a call; that insight closes
   `mwMemUserConfigOutofMemoryCallback` (H15 scaled-argument addendum).
-  `tools/permuter_call_args.py` now enumerates that family directly: all
-  keep/fold/fold-value/hoist combinations of a call's arguments, with `--joint`
-  combining call sites. It found the form in 8 compiles, while random upstream
-  search needed about 200k iterations to approach it. The `perm_call_arg_staging` random
-  pass (via `tools/permuter_mkd.py`) mixes it with other passes. Moves never
+  The DecompStudio permuter's call-argument mode enumerates that family
+  directly: all keep/fold/fold-value/hoist combinations of a call's
+  arguments, optionally combined across call sites. It found the form in 8 compiles, while random upstream
+  search needed about 200k iterations to approach it. Its random
+  call-argument pass mixes it with other passes. Moves never
   cross an observable call or store, and one combination moves at most one
   call expression.
 

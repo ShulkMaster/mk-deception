@@ -146,7 +146,7 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough needed] 64.635475%; corrected character owner and natural height conversion retained; projection/rendering CFG remains unresolved. */
+/* TODO: [breakthrough needed] 65.74%; aligned MKVECTOR frame matches retail's prologue; retail keeps f24-f31 live and a 0x1d0 frame, so the projection math is structured differently. */
 void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     PlyrPdata* owner = (PlyrPdata*)shadow;
     ShadowFighterObject* fighter;
@@ -161,21 +161,21 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     RwRaster* src_raster;
     RwRaster* dst_raster;
     ShadowboxObject* box;
-    Vec plane_normal;
-    Vec plane_point;
-    Vec light_dir;
-    Vec light_pos;
-    Vec light_at;
-    Vec delta_pos;
-    Vec delta_at;
-    Vec work_a;
-    Vec work_b;
-    Vec work_c;
-    Vec corner_a;
-    Vec corner_b;
-    Vec corner_c;
-    Vec corner_d;
-    Vec offset;
+    MKVECTOR plane_normal;
+    MKVECTOR plane_point;
+    MKVECTOR light_dir;
+    MKVECTOR light_pos;
+    MKVECTOR light_at;
+    MKVECTOR delta_pos;
+    MKVECTOR delta_at;
+    MKVECTOR work_a;
+    MKVECTOR work_b;
+    MKVECTOR work_c;
+    MKVECTOR corner_a;
+    MKVECTOR corner_b;
+    MKVECTOR corner_c;
+    MKVECTOR corner_d;
+    MKVECTOR offset;
     float proj_scale;
     float angle;
     float mag_a;

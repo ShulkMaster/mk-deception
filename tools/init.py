@@ -12,10 +12,6 @@ import shutil
 import struct
 import subprocess
 import sys
-import tempfile
-import urllib.error
-import urllib.request
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
@@ -29,12 +25,6 @@ CONFIG = ROOT / "config" / VERSION / "config.yml"
 # Full raw GQNE5D image metadata: https://www.gametdb.com/Wii/GQNE5D
 EXPECTED_ISO_SIZE = 1_459_978_240
 EXPECTED_ISO_SHA1 = "489c6b57b70390933dff7d8d9d12424f58a8f821"
-
-M2C_REPOSITORY = "https://github.com/matt-kempster/m2c.git"
-M2C_ARCHIVES = (
-    "https://github.com/matt-kempster/m2c/archive/refs/heads/main.zip",
-    "https://github.com/matt-kempster/m2c/archive/refs/heads/master.zip",
-)
 
 
 def executable_name(name: str) -> str:
@@ -292,7 +282,7 @@ def check_host_tools(reporter: Reporter) -> tuple[Optional[str], Optional[str]]:
     if git_version:
         reporter.pass_("Git", git_version)
     else:
-        reporter.warn("Git", "not installed; submodules and m2c updates will use fallbacks")
+        reporter.warn("Git", "not installed; submodules will not be initialized")
     return ninja, git
 
 
@@ -308,128 +298,6 @@ def init_submodules(git: Optional[str], reporter: Reporter) -> None:
         reporter,
         "Git submodules",
         required=False,
-    )
-
-
-def safe_extract_zip(archive: Path, destination: Path) -> None:
-    with zipfile.ZipFile(archive) as zipped:
-        base = destination.resolve()
-        for member in zipped.infolist():
-            target = (destination / member.filename).resolve()
-            if target != base and base not in target.parents:
-                raise ValueError(f"unsafe archive member: {member.filename}")
-        zipped.extractall(destination)
-
-
-def download_m2c_archive(destination: Path) -> None:
-    last_error: Optional[Exception] = None
-    for url in M2C_ARCHIVES:
-        try:
-            request = urllib.request.Request(url, headers={"User-Agent": "mkd-init"})
-            with tempfile.TemporaryDirectory(dir=BUILD) as temp_name:
-                temp = Path(temp_name)
-                archive = temp / "m2c.zip"
-                with urllib.request.urlopen(request) as response, archive.open("wb") as output:
-                    shutil.copyfileobj(response, output)
-                unpacked = temp / "unpacked"
-                unpacked.mkdir()
-                safe_extract_zip(archive, unpacked)
-                roots = [entry for entry in unpacked.iterdir() if entry.is_dir()]
-                if len(roots) != 1 or not (roots[0] / "m2c.py").is_file():
-                    raise ValueError("m2c archive has an unexpected layout")
-                shutil.move(str(roots[0]), destination)
-            return
-        except (OSError, ValueError, urllib.error.URLError) as error:
-            last_error = error
-    raise RuntimeError(f"unable to download m2c: {last_error}")
-
-
-def ensure_m2c(git: Optional[str], reporter: Reporter) -> None:
-    destination = BUILD / "m2c"
-    script = destination / "m2c.py"
-    if script.is_file():
-        if git and (destination / ".git").is_dir():
-            run(
-                [git, "-C", str(destination), "pull", "--ff-only"],
-                reporter,
-                "m2c update",
-                required=False,
-            )
-        else:
-            reporter.pass_("m2c checkout", str(destination.relative_to(ROOT)))
-        return
-    BUILD.mkdir(parents=True, exist_ok=True)
-    if git:
-        if run(
-            [git, "clone", "--depth", "1", M2C_REPOSITORY, str(destination)],
-            reporter,
-            "m2c checkout",
-            required=False,
-        ):
-            return
-        if destination.exists() and not script.is_file():
-            reporter.warn("m2c clone cleanup", f"remove incomplete path manually: {destination}")
-            return
-    try:
-        download_m2c_archive(destination)
-    except RuntimeError as error:
-        reporter.fail("m2c checkout", str(error))
-    else:
-        reporter.pass_("m2c checkout", "downloaded source archive to build/m2c")
-
-
-def venv_python() -> Path:
-    if os.name == "nt":
-        return BUILD / "venv" / "Scripts" / "python.exe"
-    return BUILD / "venv" / "bin" / "python"
-
-
-def setup_m2c_python(reporter: Reporter) -> None:
-    script = BUILD / "m2c" / "m2c.py"
-    if not script.is_file():
-        reporter.fail("m2c Python setup", "build/m2c/m2c.py is missing")
-        return
-    python = venv_python()
-    local_environment = python.is_file()
-    if not python.is_file():
-        local_environment = run(
-            [sys.executable, "-m", "venv", str(BUILD / "venv")],
-            reporter,
-            "Local Python environment",
-            required=False,
-        )
-        if not local_environment:
-            python = Path(sys.executable)
-    requirements = BUILD / "m2c" / "requirements.txt"
-    if requirements.is_file():
-        marker = BUILD / "venv" / ".m2c-requirements.sha1"
-        digest = sha1_file(requirements)
-        installed = marker.is_file() and marker.read_text(encoding="ascii").strip() == digest
-        if not installed:
-            if local_environment:
-                ok = run(
-                    [str(python), "-m", "pip", "install", "-r", str(requirements)],
-                    reporter,
-                    "m2c Python dependencies",
-                    required=False,
-                )
-            else:
-                reporter.warn(
-                    "m2c Python dependencies",
-                    "local venv is unavailable; refusing to install into the system Python",
-                )
-                ok = False
-            if ok:
-                marker.parent.mkdir(parents=True, exist_ok=True)
-                marker.write_text(digest + "\n", encoding="ascii")
-        else:
-            reporter.pass_("m2c Python dependencies", "requirements are current")
-    else:
-        reporter.pass_("m2c Python dependencies", "checkout has no requirements.txt")
-    run(
-        [str(python), str(script), "--help"],
-        reporter,
-        "m2c smoke test",
     )
 
 
@@ -561,8 +429,6 @@ def main() -> int:
     ninja, git = check_host_tools(reporter)
     retail_ok = validate_retail_input(args.iso, reporter)
     init_submodules(git, reporter)
-    ensure_m2c(git, reporter)
-    setup_m2c_python(reporter)
     ensure_downloads(reporter)
     configure_and_build(ninja, reporter, retail_ok)
     return reporter.summary()

@@ -777,34 +777,6 @@ MkProc* create_mkproc_headtracking(int pid, MkObj* obj, PlyrPdata* target) {
     return proc;
 }
 
-static inline int head_tracking_should_fade(MkObj* obj, PlyrPdata* target,
-                                            int* special_camera) {
-    int state;
-
-    if (g_game_info.plyr0.slot.mirror_a == obj ||
-        g_game_info.plyr1.slot.mirror_a == obj) {
-        state = target->state;
-        if (state < 0x6200) {
-            if (state < 0x6004 && state >= 0x6000) {
-                return 1;
-            }
-        } else if (state < 0x6202) {
-            return 1;
-        }
-        if (mode_of_play == 6) {
-            if ((state & 0x400) != 0) {
-                return 1;
-            }
-        } else if ((state & 0x600) != 0) {
-            return 1;
-        }
-    }
-    if (aproc->pid == 0x6006) {
-        *special_camera = 1;
-    }
-    return obj->flags_09_bits.head_tracking == 0;
-}
-
 static float p_plyr_head_tracking(void) {
     PlyrPdata* target;
     MkObj* obj;
@@ -812,45 +784,69 @@ static float p_plyr_head_tracking(void) {
     MkBone* head;
     MkBone* neck;
     RwMatrix* camera_matrix;
-    Vec object_pos;
-    Vec target_pos;
-    Vec target_low_pos;
-    Vec direction;
-    Vec target_angles;
-    Vec neck_angles;
-    Vec camera_angles;
+    MKVECTOR object_pos;
+    MKVECTOR target_pos;
+    MKVECTOR target_low_pos;
+    MKVECTOR direction;
+    MKVECTOR target_angles;
+    MKVECTOR neck_angles;
+    MKVECTOR camera_angles;
     Quat desired_rotation;
     Quat local_rotation;
     Vec camera_offset;
     int special_camera;
     int saved_fallback_bone;
+    int state;
 
     special_camera = 0;
     obj = pdata_headtracking->obj;
     head = obj->bones[16];
     if (head != 0) {
         target = pdata_headtracking->target;
-        target_obj = target->his_obj;
-        if (target_obj != 0 && target_obj->oid == 0) {
+        if (target->his_obj != 0 && target->his_obj->oid == 0) {
             return 1.0f;
         }
         if (head->flags_55_bits.collision_disabled != 0 ||
             head->parent_matrix == 0 ||
             head->transform_parent->parent_matrix == 0 ||
             target->fighter_definition->fighter_id == 0x33) {
+        disable_tracking:
             head->flags_54_bits.pose_matrix_applied = 0;
             return 1.0f;
         }
 
-        if (head_tracking_should_fade(obj, target, &special_camera)) {
+        if (g_game_info.plyr0.slot.mirror_a == obj ||
+            g_game_info.plyr1.slot.mirror_a == obj) {
+            state = target->state;
+            switch (state) {
+            case 0x6000:
+            case 0x6001:
+            case 0x6002:
+            case 0x6003:
+            case 0x6200:
+            case 0x6201:
+                goto fade_out;
+            }
+            if (mode_of_play == 6) {
+                if ((state & 0x400) != 0) {
+                    goto fade_out;
+                }
+            } else if ((state & 0x600) != 0) {
+                goto fade_out;
+            }
+        }
+        if (aproc->pid == 0x6006) {
+            special_camera = 1;
+        }
+        if (obj->flags_09_bits.head_tracking == 0) {
+        fade_out:
             pdata_headtracking->blend_weight -= 0.06f;
             if (special_camera != 0 &&
                 pdata_headtracking->blend_weight <= 0.4f) {
                 pdata_headtracking->blend_weight = 0.4f;
             } else if (pdata_headtracking->blend_weight <= 0.0f) {
                 pdata_headtracking->blend_weight = 0.0f;
-                head->flags_54_bits.pose_matrix_applied = 0;
-                return 1.0f;
+                goto disable_tracking;
             }
         } else {
             pdata_headtracking->blend_weight += 0.06f;
@@ -894,6 +890,7 @@ static float p_plyr_head_tracking(void) {
                               &target_pos);
                 PSVECNormalize(&target_pos, &target_pos);
                 v3_to_xy_ang(&target_angles, &target_pos);
+                goto set_head_matrix;
             } else {
                 if ((int)target_obj->bone_count <= 16) {
                     target_pos = target_obj->pos.value;
@@ -974,8 +971,8 @@ static float p_plyr_head_tracking(void) {
                 pdata_headtracking->angle_x = target_angles.x;
                 pdata_headtracking->angle_y = target_angles.y;
             }
-            if (special_camera != 0 ||
-                pdata_headtracking->blend_weight >= 1.0f) {
+            if (pdata_headtracking->blend_weight >= 1.0f) {
+            set_head_matrix:
                 YXZ_angles_to_MKMATRIX(&target_angles,
                                        head->parent_matrix);
                 RtQuatConvertFromMatrix(&head->rotation_90,

@@ -94,8 +94,8 @@ hyphens; include the base commit, affected symbols/files, commands, and validati
 results in each task's notes. Keep patch files inert until deliberately applied.
 Do not put credentials, retail images, or tool checkouts here.
 
-Continue using `.scratches/` for compiler experiments, m2c/permuter workspaces,
-and generated comparison/build output. Reports may reference those local paths.
+Continue using `.scratches/` for compiler experiments and generated
+comparison/build output. Reports may reference those local paths.
 Keep reusable conventions and diagnostic playbooks in tracked `docs/decomp/`;
 keep actual fixes in `src/`, `include/`, or the relevant project files. Ignored
 artifacts are local-only: tracked documentation must explain its reusable finding
@@ -120,9 +120,9 @@ python3 tools/init.py --iso "/path/to/Mortal Kombat - Deception.iso"
 ```
 
 The initializer validates the `GQNE5D` ISO SHA-1, size, game ID, and embedded
-`main.dol`; initializes submodules when present; installs or updates m2c; fetches
-the pinned compiler and matching tools into `build/`; runs `configure.py`; and
-performs the full Ninja build.
+`main.dol`; initializes submodules when present; fetches the pinned compiler and
+matching tools into `build/`; runs `configure.py`; and performs the full Ninja
+build.
 
 Important: `--iso` validates an image but does not currently extract it. DTK's
 split step still needs the matching extracted tree under `orig/GQNE5D`. DTK can
@@ -172,99 +172,32 @@ rule and stop.
 
 ## Recover a function with m2c
 
-Find the function and its unit in `config/GQNE5D/symbols.txt`, `objdiff.json`, or
-the generated assembly under `build/GQNE5D/asm/`. Then run:
-
-```sh
-python3 tools/m2c_decompile.py SYMBOL build/GQNE5D/asm/UNIT.s
-```
-
-Useful variants:
-
-```sh
-python3 tools/m2c_decompile.py --c++ SYMBOL build/GQNE5D/asm/UNIT.s
-python3 tools/m2c_decompile.py --stack-structs SYMBOL build/GQNE5D/asm/UNIT.s
-```
-
-For typed recovery, first build and preprocess a scratch context. Generated
-`.ctx` files can still contain directives; m2c requires preprocessed C:
-
-```sh
-ninja build/GQNE5D/src/UNIT.ctx
-mkdir -p .scratches/m2c
-cpp -P -DBUILD_VERSION=0 -DVERSION_GQNE5D -DNDEBUG=1 build/GQNE5D/src/UNIT.ctx > .scratches/m2c/UNIT.ctx.c
-python3 tools/m2c_decompile.py --context .scratches/m2c/UNIT.ctx.c SYMBOL build/GQNE5D/asm/UNIT.s
-```
-
-These defines match the current GQNE5D build; use the actual unit's defines
-and include paths if its configuration differs. Host preprocessing prepares
-parser input, not runtime evidence. Check inferred union members against retail
-offsets and never hand-edit generated contexts.
+DecompStudio's `m2c` tool (or `get_function {symbol, m2c: true}`) runs its
+built-in m2c on the retail object, with the unit's preprocessed source as type
+context. The repository no longer ships a Python m2c wrapper or checkout. Find
+the function and its unit in `config/GQNE5D/symbols.txt` or `objdiff.json` when
+the symbol is uncertain.
 
 Use m2c to recover control flow, operations, and an initial type hypothesis.
 Replace generated temporaries, unknown types, casts, and gotos with supported
 project types and structured C. Keep a `goto` only under the last-resort
-exception in the repository rules. Check every call and store order against the
-retail assembly before treating the reconstruction as source.
+exception in the repository rules. Check inferred union members against retail
+offsets, and check every call and store order against the retail assembly before
+treating the reconstruction as source.
 
 ## Permute a localized near match
 
-Use local [decomp-permuter](https://github.com/simonlindholm/decomp-permuter)
-only after the algorithm, CFG, ABI, types, and layout agree with retail evidence
-and objdiff classifies the function as a near miss. It complements the ranked
-playbooks for localized scheduling, stack, and register-allocation differences;
-it does not replace m2c, reconstruction, or playbook diagnosis.
-
-Install the external checkout outside version control:
-
-```sh
-git clone https://github.com/simonlindholm/decomp-permuter.git build/decomp-permuter
-python3 -m pip install toml
-```
-
-`tools/decomp_permuter.py` also accepts `--permuter /path/to/checkout` or the
-`DECOMP_PERMUTER_PATH` environment variable. It maps the assembly unit through
-`objdiff.json`, builds its generated context, extracts only the requested retail
-function, recovers the exact Ninja/MWCC command, and creates an isolated scratch
-under `.scratches/permuter/nonmatchings/`.
-
-Prepare a local scratch with the same symbol-plus-assembly shape as m2c:
-
-```sh
-python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s
-```
-
-Run it immediately with four local workers and stop on score zero:
-
-```sh
-python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s --run -- -j 4 --stop-on-zero
-```
-
-`--run` goes through `tools/permuter_mkd.py`, which registers the MKD plugin
-passes from `tools/permuter_plugins/` and applies the `playbook` weight profile.
-That profile favors honest staging, ordering, and operand passes and disables
-dead-sink, padding, and `if (1)` passes. Pass `--profile upstream` to keep
-upstream MWCC weights. The scratch's `settings.toml` `[weight_overrides]` still
-wins.
-
-When argument staging or register coloring around a call remains, first score
-every call-argument staging combination (keep, fold `v op= e` into the
-argument, fold to the value, or hoist into a local) exhaustively:
-
-```sh
-python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s --call-args
-python3 tools/permuter_call_args.py .scratches/permuter/nonmatchings/SCRATCH --joint
-```
-
-A scratch has its own score floor. Compare a candidate with the scratch's
-best score, not with zero, then remeasure it in the real TU.
-
-Without `--run`, the wrapper prints the launcher command for the prepared
-scratch. Edit only that scratch's `base.c` when adding `PERM_GENERAL`,
-`PERM_LINESWAP`, or `PERM_RANDOMIZE`; never put `PERM_*` macros in `src/`.
-Random mode is most useful for a clean near miss. Manual macros are appropriate
-when two or more evidence-backed source forms interact and would be tedious to
-enumerate.
+Use DecompStudio's permuter only after the algorithm, CFG, ABI, types, and
+layout agree with retail evidence and objdiff classifies the function as a near
+miss. It complements the ranked playbooks for localized scheduling, stack, and
+register-allocation differences; it does not replace m2c, reconstruction, or
+playbook diagnosis. It permutes the live source or a draft with the MKD
+`playbook` profile, which favors honest staging, ordering, and operand passes
+and disables dead-sink, padding, and `if (1)` passes. When argument staging or
+register coloring around a call remains, use its call-argument mode to score
+every staging combination (keep, fold `v op= e` into the argument, fold to the
+value, or hoist into a local). The repository no longer ships the Python
+decomp-permuter adapter or checkout.
 
 Treat every generated candidate as a hypothesis. Reject undefined behavior,
 fake `volatile`, invented lifetimes, incorrect types, or reordered side effects.

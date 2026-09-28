@@ -1065,7 +1065,7 @@ static inline AnimPdata* baraka_jaw_live_animation(BarakaJawPdata* owner) {
 /* TODO: [near miss] 98.769230%; relocation offsets, instruction scheduling; one-trial ceiling. */
 static float p_baraka_jaw_controller(void) {
     BarakaJawPdata* pdata = (BarakaJawPdata*)apdata;
-    MKMATRIX matrix __attribute__((aligned(16)));
+    MKMATRIX matrix;
     Quat rotation;
     AnimPdata* animation;
     int next_ticks;

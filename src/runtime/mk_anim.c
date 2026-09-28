@@ -728,8 +728,6 @@ void bm_force_fake_child_bid(BoneMatcherState* matcher, int bone_id) {
     matcher->fake_child_bid = bone_id;
 }
 
-/* TODO: [near miss] 99.63504%; canonical matcher owner preserves codegen;
- * branch/register allocation differences remain. */
 BoneMatcherState* start_bone_matcher(
     MkObj* parent_obj,
     int parent_bid,
@@ -737,9 +735,9 @@ BoneMatcherState* start_bone_matcher(
     int child_bid,
     float blend_ticks) {
     BoneMatcherState* matcher;
-    MkBone* parent_bone;
     MkBone* child_bone;
-    RwMatrix flip_matrix __attribute__((aligned(16)));
+    MkBone* parent_bone;
+    MKMATRIX flip_matrix;
 
     _create_mkproc_generic_nostack(
         0x500F,
@@ -747,49 +745,53 @@ BoneMatcherState* start_bone_matcher(
         p_bone_matcher,
         sizeof(BoneMatcherState),
         (MkHdr**)&matcher);
-    if (matcher != 0) {
-        matcher->flags_word_08 = 0;
-        matcher->child_weight = 0.0f;
-        matcher->parent_obj = parent_obj;
-        matcher->parent_instance = parent_obj->hdr.instance;
-        matcher->parent_bid = parent_bid;
-        zero_v3(&matcher->parent_offset);
-
-        parent_bone = parent_obj->bones[parent_bid];
-        if (parent_bone != 0 && parent_bone->parent_matrix != 0) {
-            child_bone = child_obj->bones[child_bid];
-            if (child_bone != 0 && child_bone->parent_matrix != 0) {
-                parent_bone->flags_54_bits.calculation_locked = 1;
-                matcher->child_obj = child_obj;
-                matcher->child_instance = child_obj->hdr.instance;
-                matcher->fake_child_bid = child_bid;
-                zero_v3(&matcher->child_offset);
-                matcher->clone_obj = 0;
-                matcher->clone_instance = 0;
-                matcher->parent_rotation = child_bone->rotation;
-                matcher->mirrored_parent_rotation = matcher->parent_rotation;
-                matcher->mirrored_parent_rotation.y *= -1.0f;
-                matcher->mirrored_parent_rotation.z *= -1.0f;
-                memcpy(
-                    &matcher->child_matrix,
-                    child_bone->parent_matrix,
-                    0x30);
-                YXZ_angles_to_MKMATRIX(&ani_flip_angs, &flip_matrix);
-                mat_x_mat(
-                    &matcher->flipped_child_matrix,
-                    &matcher->child_matrix,
-                    &flip_matrix);
-                matcher->blend_ticks = blend_ticks;
-                return matcher;
-            }
-        }
-
-        if (matcher->hdr.instance != 0) {
-            matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
-        }
-        return 0;
+    if (matcher == 0) {
+        goto done;
     }
+    matcher->flags_word_08 = 0;
+    matcher->child_weight = 0.0f;
+    matcher->parent_obj = parent_obj;
+    matcher->parent_instance = parent_obj->hdr.instance;
+    matcher->parent_bid = parent_bid;
+    zero_v3(&matcher->parent_offset);
+
+    parent_bone = parent_obj->bones[parent_bid];
+    if (parent_bone == 0 || parent_bone->parent_matrix == 0) {
+        goto failed;
+    }
+    child_bone = child_obj->bones[child_bid];
+    if (child_bone == 0 || child_bone->parent_matrix == 0) {
+        goto failed;
+    }
+
+    parent_bone->flags_54_bits.calculation_locked = 1;
+    matcher->child_obj = child_obj;
+    matcher->child_instance = child_obj->hdr.instance;
+    matcher->fake_child_bid = child_bid;
+    zero_v3(&matcher->child_offset);
+    matcher->clone_obj = 0;
+    matcher->clone_instance = 0;
+    matcher->mirrored_parent_rotation =
+        (matcher->parent_rotation = child_bone->rotation);
+    matcher->mirrored_parent_rotation.y *= -1.0f;
+    matcher->mirrored_parent_rotation.z *= -1.0f;
+    memcpy(
+        &matcher->child_matrix,
+        child_bone->parent_matrix,
+        0x30);
+    YXZ_angles_to_MKMATRIX(&ani_flip_angs, &flip_matrix);
+    mat_x_mat(
+        &matcher->flipped_child_matrix,
+        &matcher->child_matrix,
+        &flip_matrix);
+    matcher->blend_ticks = blend_ticks;
+done:
     return matcher;
+failed:
+    if (matcher->hdr.instance != 0) {
+        matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
+    }
+    return 0;
 }
 
 static inline void compose_bone_rotation(
@@ -1344,8 +1346,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
     Vec next_vec;
     Quat previous_quat;
     Quat next_quat;
-    BoneMatcherState previous_pose __attribute__((aligned(16)));
-    BoneMatcherState next_pose __attribute__((aligned(16)));
+    BoneMatcherState previous_pose;
+    BoneMatcherState next_pose;
     unsigned int flags;
     int merged_flag;
     unsigned int partial_flag;
@@ -2945,7 +2947,7 @@ static int _set_frameno(AnimPdata* anim) {
     return result;
 }
 
-/* TODO: [near miss] 98.84%; unchanged without pragmas; inspect residual source lowering. */
+/* TODO: [near miss] 99.47%; track-table helper coloring (retail script r27/count r28/table r31) and clamp FP regs remain; helper reorders are mixed across consumers. */
 int transition_to_anim_script_frame(
     float transition_frames,
     float frame,
@@ -3023,7 +3025,7 @@ int transition_to_anim_script_frame(
                 MkBone* root = obj->bones[obj->fallback_bone_index];
 
                 if (root != 0 && root->parent_matrix != 0) {
-                    MKMATRIX yaw_matrix __attribute__((aligned(16)));
+                    MKMATRIX yaw_matrix;
                     Vec adjusted_position;
                     Quat old_rotation;
                     Quat correction;
@@ -3068,9 +3070,10 @@ int transition_to_anim_script_frame(
             if (mkptr_list_exists(&obj->list_44)) {
                 child_link = obj->list_44;
                 while (child_link != 0) {
-                    MkObj* child = (MkObj*)child_link->hdr;
+                    MkObj* child;
 
-                    if (child->hdr.instance != child_link->instance) {
+                    if ((child = (MkObj*)child_link->hdr)->hdr.instance !=
+                        child_link->instance) {
                         MkPtr* next = child_link->next;
 
                         child_link->hdr = 0;
@@ -3123,9 +3126,9 @@ int transition_to_anim_script_frame(
             }
         }
         if (anim->transition_weight < 1.0f) {
+            frame_step = speed * (anim->old_step + anim->old_step_accel);
             maximum_step = (float)anim->old_script->frame_count / 3.0f;
             maximum_step_int = (int)maximum_step;
-            frame_step = speed * (anim->old_step + anim->old_step_accel);
             if (frame_step > 0.0f) {
                 if (frame_step > maximum_step) {
                     frame_step = (float)maximum_step_int;
@@ -3136,9 +3139,9 @@ int transition_to_anim_script_frame(
             anim->old_frame += frame_step;
         }
         anim->previous_frame = anim->frame;
+        frame_step = speed * (anim->step + anim->step_accel);
         maximum_step = (float)anim->script->frame_count / 3.0f;
         maximum_step_int = (int)maximum_step;
-        frame_step = speed * (anim->step + anim->step_accel);
         if (frame_step > 0.0f) {
             if (frame_step > maximum_step) {
                 frame_step = (float)maximum_step_int;

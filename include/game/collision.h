@@ -16,7 +16,6 @@ typedef struct CollisionShape {
         struct {
             Vec sphere_center; /* +0x00 */
             float sphere_radius; /* +0x0C */
-            char sphere_pad10[0x70];
         };
         struct {
             Vec cylinder_axis; /* +0x00 */
@@ -25,7 +24,6 @@ typedef struct CollisionShape {
             char cylinder_pad1C[4];
             float cylinder_radius; /* +0x20 */
             float cylinder_height; /* +0x24 */
-            char cylinder_pad28[0x58];
         };
         struct {
             Vec box_corner_0;      /* +0x00 */
@@ -45,7 +43,7 @@ typedef struct CollisionShape {
             float box_axis_1_max;  /* +0x70 */
             float box_axis_2_min;  /* +0x74 */
             float box_axis_2_max;  /* +0x78 */
-            float box_pad_7C;
+            float box_field_0x7C;  /* +0x7C */
         };
         struct {
             Vec quad_vertex_0;     /* +0x00 */
@@ -55,13 +53,11 @@ typedef struct CollisionShape {
             Vec quad_vertex_2;     /* +0x20 */
             float quad_pad_2C;
             Vec quad_vertex_3;     /* +0x30 */
-            float quad_pad_3C[16];
         };
         CollisionPaddedVec quad_vertices[8];
     };
     unsigned int type; /* +0x80, low three bits select the shape kind */
-    char data84[0x0C];
-} CollisionShape; /* 0x90 */
+} __attribute__((aligned(16))) CollisionShape; /* 0x90 */
 
 typedef struct CollisionObjList {
     MkHdr hdr;
@@ -78,14 +74,12 @@ typedef struct CollisionObj {
 /* Runtime-owned node: local and transformed shapes share one bone owner. */
 typedef struct PlayerCollisionNode {
     struct MkBone* bone; /* +0x00 */
-    unsigned int reserved04[3];
     CollisionShape local_shape; /* +0x10 */
     CollisionShape world_shape; /* +0xA0 */
 } PlayerCollisionNode; /* 0x130 */
 
 struct PlayerCollisionData {
     struct MkObj* object; /* +0x0000 */
-    unsigned int reserved04[3];
     CollisionShape body_shape; /* +0x0010 */
     PlayerCollisionNode joints[28]; /* +0x00A0 */
     PlayerCollisionNode attacks[36]; /* +0x21E0 */
@@ -105,6 +99,7 @@ struct PlayerCollisionData {
     float attack_radius; /* +0x940C */
 };
 
+typedef char CollisionShapeSizeCheck[sizeof(CollisionShape) == 0x90 ? 1 : -1];
 typedef char PlayerCollisionNodeSizeCheck[sizeof(PlayerCollisionNode) == 0x130 ? 1 : -1];
 typedef char PlayerCollisionDataSizeCheck[sizeof(PlayerCollisionData) == 0x9410 ? 1 : -1];
 

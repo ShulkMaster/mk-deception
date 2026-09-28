@@ -866,8 +866,8 @@ static void do_cloth_force(ClothForcePdata* force) {
     ClothBone* second;
     Vec* first_position;
     Vec* second_position;
-    Vec difference __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
+    MKVECTOR difference;
+    MKVECTOR direction;
     float distance_squared;
     float distance;
     float inverse_distance;
@@ -924,20 +924,21 @@ static void do_cloth_force(ClothForcePdata* force) {
     }
 }
 
-/* TODO: [near miss] 91.71786%; five attempts completed; automatic-vector alignment, dead type-test lowering and scheduling remain. */
+/* TODO: [near miss] 94.27%; cloth_coll_bone_uv is a pt_displacement_v member alias (TU data layout: retail has a separate static, no CSE of its address), deferred-return branch and volume register remain. */
 static void do_cloth_colls(MkHdr* collision) {
     ClothCollisionVolume* volume;
     ClothCollisionPlane* plane;
     MkBone* reference;
-    Vec world_normal;
-    Vec plane_offset;
-    Vec plane_point;
-    RwMatrixPosition point_0;
-    RwMatrixPosition point_1;
-    Vec center;
-    Vec edge_0;
-    Vec edge_1;
-    Vec adjustment;
+    MKVECTOR plane_offset;
+    MKVECTOR plane_point;
+    MKVECTOR world_normal;
+    RwMatrixPosition point_0 __attribute__((aligned(16)));
+    RwMatrixPosition point_1 __attribute__((aligned(16)));
+    MKVECTOR center;
+    MKVECTOR edge_1;
+    MKVECTOR edge_0;
+    MKVECTOR adjustment;
+    MKVECTOR offset;
     float plane_distance;
     float point_distance;
     unsigned int index;
@@ -976,107 +977,118 @@ static void do_cloth_colls(MkHdr* collision) {
                 }
             }
         }
-        return;
-    }
-
-    if (collision->vtbl == &vtbl_cloth_coll_plane) {
-        plane = (ClothCollisionPlane*)collision;
     } else {
-        plane = 0;
-    }
-    if (plane != 0) {
-        if (!plane->flags_6C_bits.flags_80) {
-            reference = plane->reference_bone;
-            cloth_coll_bone = reference;
-            if (!cloth_coll_bone->flags_55_bits.collision_disabled) {
-                if (cloth_coll_bone->flags_55_bits.collision_deferred) {
-                    return;
+        if (collision->vtbl == &vtbl_cloth_coll_plane) {
+            plane = (ClothCollisionPlane*)collision;
+        } else {
+            plane = 0;
+        }
+        if (plane != 0) {
+            if (!plane->flags_6C_bits.flags_80) {
+                reference = plane->reference_bone;
+                cloth_coll_bone = reference;
+                if (!cloth_coll_bone->flags_55_bits.collision_disabled) {
+                    if (cloth_coll_bone->flags_55_bits.collision_deferred) {
+                        return;
+                    }
+                    gxMat33Tx31(
+                        &world_normal, &plane->normal,
+                        (Mat33*)&cloth_coll_bone->matrix);
+                    PSVECScale(
+                        &plane->normal, &plane_offset, plane->distance);
+                    gxMatV3MatAddV3(
+                        &plane_point, &plane_offset,
+                        (Mat33*)&cloth_coll_bone->matrix,
+                        &cloth_coll_bone->matrix.pos_vec);
+                    plane_distance =
+                        PSVECDotProduct(&world_normal, &plane_point);
+                    for (index = 0; index < plane->bone_count; index++) {
+                        cloth_bone = plane->bones[index];
+                        point_distance = PSVECDotProduct(
+                            &world_normal, &cloth_bone->force_position);
+                        if (point_distance < plane_distance) {
+                            Vec* position = &cloth_bone->force_position;
+                            Vec push;
+
+                            PSVECScale(
+                                &world_normal, &push,
+                                plane_distance - point_distance);
+                            PSVECAdd(position, &push, position);
+                        }
+                    }
                 }
-                gxMat33Tx31(
-                    &world_normal, &plane->normal,
-                    (Mat33*)&cloth_coll_bone->matrix);
-                PSVECScale(
-                    &plane->normal, &plane_offset, plane->distance);
-                gxMatV3MatAddV3(
-                    &plane_point, &plane_offset,
-                    (Mat33*)&cloth_coll_bone->matrix,
-                    &cloth_coll_bone->matrix.pos_vec);
-                plane_distance =
-                    PSVECDotProduct(&world_normal, &plane_point);
+            } else {
+                cloth_coll_bone = 0;
+                if (plane->flags_6C_bits.flags_40) {
+                    point_0 = plane->reference_bones[0]->matrix.pos_row;
+                    point_1 = plane->reference_bones[1]->matrix.pos_row;
+                    PSVECSubtract(
+                        &plane->reference_bones[3]->matrix.pos_vec,
+                        &plane->reference_bones[2]->matrix.pos_vec,
+                        &center);
+                    PSVECScale(&center, &center, 0.5f);
+                    PSVECAdd(
+                        &center,
+                        &plane->reference_bones[2]->matrix.pos_vec,
+                        &center);
+                    PSVECSubtract(&point_0.value, &center, &edge_1);
+                    PSVECSubtract(&point_1.value, &center, &edge_0);
+                    PSVECCrossProduct(&edge_0, &edge_1, &plane->normal);
+                    PSVECNormalize(&plane->normal, &plane->normal);
+                    PSVECScale(
+                        &plane->normal, &adjustment, plane->weights[0]);
+                    PSVECAdd(&point_0.value, &adjustment, &point_0.value);
+                    PSVECScale(
+                        &plane->normal, &adjustment, plane->weights[1]);
+                    PSVECAdd(&point_1.value, &adjustment, &point_1.value);
+                    PSVECScale(
+                        &plane->normal, &adjustment,
+                        plane->weights[2] +
+                            0.5f * (plane->weights[3] - plane->weights[2]));
+                    PSVECAdd(&center, &adjustment, &center);
+                    PSVECSubtract(&point_0.value, &center, &edge_1);
+                    PSVECSubtract(&point_1.value, &center, &edge_0);
+                    PSVECCrossProduct(&edge_0, &edge_1, &plane->normal);
+                    PSVECNormalize(&plane->normal, &plane->normal);
+                }
                 for (index = 0; index < plane->bone_count; index++) {
                     cloth_bone = plane->bones[index];
-                    point_distance = PSVECDotProduct(
-                        &world_normal, &cloth_bone->force_position);
-                    if (point_distance < plane_distance) {
+                    PSVECSubtract(
+                        &cloth_bone->force_position, &point_0.value, &offset);
+                    point_distance =
+                        PSVECDotProduct(&offset, &plane->normal);
+                    if (point_distance < 0.0f) {
                         Vec* position = &cloth_bone->force_position;
-                        PSVECScale(
-                            &world_normal, &adjustment,
-                            plane_distance - point_distance);
-                        PSVECAdd(position, &adjustment, position);
+                        Vec push;
+
+                        PSVECScale(&plane->normal, &push, -point_distance);
+                        PSVECAdd(position, &push, position);
                     }
                 }
             }
         } else {
-            cloth_coll_bone = 0;
-            if (plane->flags_6C_bits.flags_40) {
-                point_0 = plane->reference_bones[0]->matrix.pos_row;
-                point_1 = plane->reference_bones[1]->matrix.pos_row;
-                PSVECSubtract(
-                    &plane->reference_bones[3]->matrix.pos_vec,
-                    &plane->reference_bones[2]->matrix.pos_vec,
-                    &center);
-                PSVECScale(&center, &center, 0.5f);
-                PSVECAdd(
-                    &center,
-                    &plane->reference_bones[2]->matrix.pos_vec,
-                    &center);
-                PSVECSubtract(&point_0.value, &center, &edge_1);
-                PSVECSubtract(&point_1.value, &center, &edge_0);
-                PSVECCrossProduct(&edge_0, &edge_1, &plane->normal);
-                PSVECNormalize(&plane->normal, &plane->normal);
-                PSVECScale(
-                    &plane->normal, &adjustment, plane->weights[0]);
-                PSVECAdd(&point_0.value, &adjustment, &point_0.value);
-                PSVECScale(
-                    &plane->normal, &adjustment, plane->weights[1]);
-                PSVECAdd(&point_1.value, &adjustment, &point_1.value);
-                PSVECScale(
-                    &plane->normal, &adjustment,
-                    plane->weights[2] +
-                        0.5f * (plane->weights[3] - plane->weights[2]));
-                PSVECAdd(&center, &adjustment, &center);
-                PSVECSubtract(&point_0.value, &center, &edge_1);
-                PSVECSubtract(&point_1.value, &center, &edge_0);
-                PSVECCrossProduct(&edge_0, &edge_1, &plane->normal);
-                PSVECNormalize(&plane->normal, &plane->normal);
+            ClothCollisionVolume* unused_volume;
+
+            if (collision->vtbl == &vtbl_cloth_coll_volume) {
+                unused_volume = (ClothCollisionVolume*)collision;
+            } else {
+                unused_volume = 0;
             }
-            for (index = 0; index < plane->bone_count; index++) {
-                cloth_bone = plane->bones[index];
-                PSVECSubtract(
-                    &cloth_bone->force_position, &point_0.value, &adjustment);
-                point_distance =
-                    PSVECDotProduct(&adjustment, &plane->normal);
-                if (point_distance < 0.0f) {
-                    Vec* position = &cloth_bone->force_position;
-                    PSVECScale(
-                        &plane->normal, &adjustment, -point_distance);
-                    PSVECAdd(position, &adjustment, position);
-                }
+            if (unused_volume != 0) {
             }
         }
-    } else if (collision->vtbl == &vtbl_cloth_coll_volume) {
     }
 }
 
-/* TODO: [near miss] 93.13%; world_point aligned and slots ordered like retail; frame size (0xa0) and the scratch-base CSE (retail keeps only r31) still differ. */
+/* TODO: [near miss] 93.20%; axis/radial temps are 16-byte rows; frame is 0x90 vs retail 0xa0 and the scratch base is CSE'd differently (retail keeps only r31). */
 static void cloth_coll_point_cyl_inside(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec world_point __attribute__((aligned(16)));
-    Vec radial_direction_0;
-    Vec axis_point_0;
-    Vec radial_direction_1;
-    Vec axis_point_1;
+    MKVECTOR world_point;
+    RwMatrixPosition radial_direction_0;
+    RwMatrixPosition axis_point_0;
+    RwMatrixPosition radial_direction_1;
+    RwMatrixPosition axis_point_1;
     Vec axis_offset_0;
     Vec axis_offset_1;
     int index;
@@ -1102,17 +1114,17 @@ static void cloth_coll_point_cyl_inside(void) {
         {
             Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
             PSVECScale(&scratch->bone_axis, &axis_offset_0, along_axis);
-            PSVECAdd(origin, &axis_offset_0, &axis_point_0);
+            PSVECAdd(origin, &axis_offset_0, &axis_point_0.value);
         }
         gxVectUVV3ToV3(
-            &radial_direction_0, &axis_point_0,
+            &radial_direction_0.value, &axis_point_0.value,
             force_position);
         PSVECScale(
-            &radial_direction_0, &radial_direction_0,
+            &radial_direction_0.value, &radial_direction_0.value,
             cloth_coll->radius);
-        PSVECAdd(&axis_point_0, &radial_direction_0, &axis_point_0);
+        PSVECAdd(&axis_point_0.value, &radial_direction_0.value, &axis_point_0.value);
         PSVECSubtract(
-            &axis_point_0, force_position,
+            &axis_point_0.value, force_position,
             &scratch->displacement);
         collided = 1;
     } else {
@@ -1146,17 +1158,17 @@ static void cloth_coll_point_cyl_inside(void) {
             {
                 Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
                 PSVECScale(&scratch->bone_axis, &axis_offset_1, along_axis);
-                PSVECAdd(origin, &axis_offset_1, &axis_point_1);
+                PSVECAdd(origin, &axis_offset_1, &axis_point_1.value);
             }
             gxVectUVV3ToV3(
-                &radial_direction_1, &axis_point_1, &world_point);
+                &radial_direction_1.value, &axis_point_1.value, &world_point);
             PSVECScale(
-                &radial_direction_1, &radial_direction_1,
+                &radial_direction_1.value, &radial_direction_1.value,
                 cloth_coll->radius);
             PSVECAdd(
-                &axis_point_1, &radial_direction_1, &axis_point_1);
+                &axis_point_1.value, &radial_direction_1.value, &axis_point_1.value);
             PSVECSubtract(
-                &axis_point_1, &world_point, &scratch->displacement);
+                &axis_point_1.value, &world_point, &scratch->displacement);
             collided = 1;
         } else {
             collided = 0;
@@ -1220,10 +1232,10 @@ static inline int cloth_vector_cylinder_displacement(const Vec* point) {
     return 0;
 }
 
-/* TODO: [near miss] 94.49814%; Retail temporary fourth word is unwritten; XYZ publication owner restored. Remaining automatic stack alignment and helper scheduling; no undefined padding read introduced. */
 static void cloth_coll_vector_cyl(void) {
-    Vec object_offset;
-    Vec world_point;
+    MKVECTOR world_point;
+    RwMatrixPosition local_position __attribute__((aligned(16)));
+    MKVECTOR object_offset;
     int index;
     float position_weight;
 
@@ -1234,9 +1246,9 @@ static void cloth_coll_vector_cyl(void) {
         &cloth_coll_bone->transform_parent->matrix.pos_vec,
         &object_offset);
     gxMat33Tx31(
-        &world_point, &object_offset,
+        &local_position.value, &object_offset,
         (Mat33*)&cloth_coll_bone_parent_world_mat_inv);
-    cloth_bone->collision_local_position = world_point;
+    cloth_bone->collision_local_position_row = local_position;
     if (cloth_vector_cylinder_displacement(
             &cloth_bone->collision_local_position)) {
         PSVECAdd(
@@ -1395,13 +1407,13 @@ static void cloth_coll_point_cyl_abs(void) {
 static void cloth_coll_point_cyl_rel(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec world_point __attribute__((aligned(16)));
-    Vec offset_point_0 __attribute__((aligned(16)));
-    Vec radial_direction_0 __attribute__((aligned(16)));
-    Vec axis_point_0 __attribute__((aligned(16)));
-    Vec offset_point_1 __attribute__((aligned(16)));
-    Vec radial_direction_1 __attribute__((aligned(16)));
-    Vec axis_point_1 __attribute__((aligned(16)));
+    MKVECTOR world_point;
+    MKVECTOR offset_point_0;
+    MKVECTOR radial_direction_0;
+    MKVECTOR axis_point_0;
+    MKVECTOR offset_point_1;
+    MKVECTOR radial_direction_1;
+    MKVECTOR axis_point_1;
     int index;
     int collided;
     float position_weight;
@@ -1509,11 +1521,11 @@ static void cloth_coll_point_cyl_rel(void) {
 static void set_cloth_pos(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
-    RwMatrix inverse_parent __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
-    Vec normalized_direction __attribute__((aligned(16)));
-    Vec object_position __attribute__((aligned(16)));
-    Vec target_direction __attribute__((aligned(16)));
+    MKMATRIX inverse_parent;
+    MKVECTOR direction;
+    MKVECTOR normalized_direction;
+    MKVECTOR object_position;
+    MKVECTOR target_direction;
     Quat rotation;
     Vec zero_scale;
     float interpolation;
@@ -1622,8 +1634,8 @@ static void calc_cloth_stretch(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
     ClothBone* parent_cloth;
-    Vec difference __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
+    MKVECTOR difference;
+    MKVECTOR direction;
     float distance_squared;
     float distance;
     float inverse_distance;
@@ -1704,7 +1716,7 @@ static void calc_cloth_stretch(ClothBone* bone) {
     }
 }
 
-/* TODO: [near miss] 99.16%; aligned vector slots, FMA split and float tests match; grandparent/cloth-link volatile registers and wind-scale load order differ. */
+/* TODO: [near miss] 99.84%; only the grandparent/cloth-link volatile register pair (r4/r3 vs retail r3/r4) differs. */
 static void calc_cloth_dwp(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
@@ -1712,13 +1724,12 @@ static void calc_cloth_dwp(ClothBone* bone) {
     ClothBone* parent_cloth;
     const RwMatrix* target_matrix;
     const Vec* target_origin;
-    Vec velocity __attribute__((aligned(16)));
-    Vec adjustment __attribute__((aligned(16)));
-    Vec transformed_normal __attribute__((aligned(16)));
-    Vec spring_velocity __attribute__((aligned(16)));
+    MKVECTOR velocity;
+    MKVECTOR adjustment;
+    MKVECTOR transformed_normal;
+    MKVECTOR spring_velocity;
     float collision_scale;
     float spring_scale;
-    float wind_dot;
     float wind_scale;
 
     render_bone = bone->bone;
@@ -1803,12 +1814,13 @@ static void calc_cloth_dwp(ClothBone* bone) {
             transformed_normal.x = wind_v3.x - velocity.x;
             transformed_normal.y = wind_v3.y - velocity.y;
             transformed_normal.z = wind_v3.z - velocity.z;
-            wind_dot =
+            wind_scale =
                 PSVECDotProduct(&adjustment, &transformed_normal);
-            if (wind_dot < 0.0f) {
-                wind_dot *= -1.0f;
+            if (wind_scale < 0.0f) {
+                wind_scale *= -1.0f;
             }
-            wind_scale = (float)(wind_dot * bone->initial_z) + bone->initial_x;
+            wind_scale *= bone->initial_z;
+            wind_scale += bone->initial_x;
             adjustment.x = wind_v3.x * wind_scale;
             adjustment.y = wind_v3.y * wind_scale;
             adjustment.z = wind_v3.z * wind_scale;

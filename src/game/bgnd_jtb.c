@@ -970,7 +970,7 @@ static void nb_get_desired_acceleration(
         state->acceleration_divisor;
 }
 
-/* TODO: [near miss] 97.79%; integer-to-float setup, zero-register coloring and matrix-call scheduling differ. */
+/* TODO: [near miss] instruction-exact; rope offset reads named nb_rope_preload_rotation where retail uses an anonymous initializer (@496); a local initializer shifts .rodata (TU data layout). */
 void nb_place_slave_in_bgnd(
     int npc_id, int rope_model_index, const char* model_name, int model_id,
     float anchor_x, float anchor_y, float anchor_z, float rope_length,
@@ -982,7 +982,7 @@ void nb_place_slave_in_bgnd(
     Vec* object_position;
     Vec local_angles;
     Vec rope_offset;
-    MKMATRIX rotation __attribute__((aligned(16)));
+    MKMATRIX rotation;
     float collision_offset_z;
 
     rope_offset = nb_rope_preload_rotation;
@@ -1013,7 +1013,7 @@ void nb_place_slave_in_bgnd(
     npc->field_44 = 0.0f;
     npc->last_hit_id[1] = 0.0f;
     npc->last_hit_id[0] = 0.0f;
-    npc->phase = 0.17444445f * (float)npc_id;
+    npc->phase = 0.17444445f * (float)(unsigned int)npc_id;
     npc->swing_ticks = 3000;
 
     npc->object->ang_vel.z = 0.0f;

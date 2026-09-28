@@ -1275,15 +1275,7 @@ void npc_attack(int attack_arg_a, int attack_arg_b);
 
 
 static inline KonquestNpc* konquest_npc_pdata_validate_monk_npc(KonquestNpc* object, KonquestNpcPdata* owner) {
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_npc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return (object != 0) ? ((object->hdr.instance == owner->monk_npc_instance) ? object : 0) : 0;
 }
 
 static inline MkObj* konquest_npc_pdata_live_monk(KonquestNpcPdata* owner) {
@@ -2227,12 +2219,7 @@ void npc_make_invisible(KonquestNpc* npc) {
     }
 }
 
-/* Near match: 75.348434%, 12 bytes short of retail with retail-evidenced
- * compact loop lowering. Model-cache attachment,
- * texture/material setup, repeated object ownership loads, animation process
- * restoration, aligned collision construction, and both rollback paths match.
- * Residue is visible-array loop induction, pointer-boolean lowering, split
- * saves, and the pooled "0" string relocation. */
+/* TODO: [breakthrough] 75.38%; visible-array loop induction, pointer-boolean lowering, split saves and the pooled "0" string relocation remain. */
 static void load_model_for_npc(KonquestNpc* npc) {
     if (npc->animation != 0) {
         MkSobj* sobj;
@@ -2242,7 +2229,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
 
         npc_manager_find_model_for_npc(npc);
         if (npc->animation != 0) {
-            sobj = (MkSobj*)obj_first_sobj(npc->animation->object);
+            sobj = obj_first_sobj(npc->animation->object);
             if (sobj != 0) {
                 if (sobj->atomic->geometry != 0) {
                     RpGeometryForAllMaterials(
@@ -2286,7 +2273,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
         update_mkobj(object_header);
         if (konquest_editor_mode_on != 0) {
             animation_proc = create_mkproc_anim(
-                0x5002, (MkProcEntryFn)p_animate, &animation);
+                0x5002, p_animate, &animation);
         } else {
             animation_proc = create_mkproc_anim(
                 0x5002, p_anim_idle, &animation);
@@ -2299,10 +2286,10 @@ static void load_model_for_npc(KonquestNpc* npc) {
         animation->obj = npc->animation->object;
         animation->obj_instance = npc->animation->object->hdr.instance;
         set_root_and_obj_movement_weights(
-            (AnimState*)animation, 0.0f, 1.0f);
+            animation, 0.0f, 1.0f);
         if (npc->queued_animation == 0) {
             set_anim_script(
-                (KonquestAnimPdata*)animation,
+                animation,
                 get_animation(npc->data->idle_animation), 0);
         } else {
             set_anim_script_frame(
@@ -2314,11 +2301,11 @@ static void load_model_for_npc(KonquestNpc* npc) {
         }
         animation->step = 1.0f;
         npc->animation->proc = animation_proc;
-        pose_anim((AnimState*)animation, 1);
+        pose_anim(animation, 1);
 
         if (konquest_editor_mode_on == 0 &&
             npc_event_has_active_animation(npc) != 0) {
-            CollisionShape shape __attribute__((aligned(16)));
+            CollisionShape shape;
             Vec center;
 
             center.x = npc->animation->object->pos.value.x;
@@ -2331,7 +2318,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
                     &shape, npc->data_table_index + 0x10001);
         }
         if ((npc->flags_1D & 0x20) != 0) {
-            sobj = (MkSobj*)obj_first_sobj(npc->animation->object);
+            sobj = obj_first_sobj(npc->animation->object);
             if (sobj != 0) {
                 sobj->flags09_bits.bit4 = 1;
             }
@@ -2644,13 +2631,9 @@ static void append_oblique_projection(
     result[3].flags = 3;
 }
 
-/*
- * Project the root transforms and each bone's parent matrix into the shadow.
- * The remaining difference is localized branch and loop-increment scheduling.
- */
 static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
-    RwMatrix inverse __attribute__((aligned(16)));
-    MKMATRIX bone_projection __attribute__((aligned(16)));
+    MKMATRIX inverse;
+    MKMATRIX bone_projection;
     RwMatrix* source_root;
     RwMatrix* shadow_root;
     float light_x;
@@ -2658,7 +2641,10 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     float light_z;
     unsigned int index;
 
-    if (shadow == 0 || source == 0 || source->bone_count != shadow->bone_count) {
+    if (shadow == 0 || source == 0) {
+        return;
+    }
+    if (source->bone_count != shadow->bone_count) {
         return;
     }
 
@@ -2684,9 +2670,9 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
         (ObliqueMatrixCell*)&npc_shadows.projection);
 
     MKMatrixSetIdentity(&bone_projection);
-    bone_projection.pos.x = -(light_x / light_y);
-    bone_projection.pos.y = 0.0f;
-    bone_projection.pos.z = -(light_z / light_y);
+    bone_projection.up.x = -(light_x / light_y);
+    bone_projection.up.y = 0.0f;
+    bone_projection.up.z = -(light_z / light_y);
     for (index = 0; index < source->bone_count; index++) {
         RwMatrix* shadow_matrix = shadow->bones[index]->parent_matrix;
 
@@ -2705,9 +2691,9 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     RwFrameUpdateObjects(shadow->frame);
 }
 
-/* Near match: the remaining difference is FPR allocation and float relocation. */
+/* TODO: [near miss] 98.93617%; three matrix-component FPRs are cyclically colored; check donor lifetime evidence. */
 void npc_shadow_set_light_angle(const Vec* angles) {
-    MKMATRIX rotation __attribute__((aligned(16)));
+    MKMATRIX rotation;
     float projection_z;
     float projection_x;
 
@@ -5759,37 +5745,9 @@ static inline void npc_start_lip_synch(
     }
 }
 
-/* TODO: [near miss] 99.492065%; register coloring, instruction lowering; one-trial ceiling. */
+/* TODO: [near miss] 99.33%; body is the shared npc_start_lip_synch inline; texture pointer/instance copy rows differ in register allocation. */
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
-    KonquestLipSyncPdata* lip;
-
-    if (g_active_npc->animation != 0 && sound_id != -1 &&
-        _create_mkproc_generic_nostack(
-            0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
-            (MkHdr**)&lip) != 0) {
-        AniTextureControl* texture;
-        KonquestNpcAnimState* animation;
-        KonquestLipSyncPdata* target;
-        unsigned int texture_instance;
-
-        zero_pdata_payload(sizeof(*lip), &lip->hdr);
-        lip->mode = 1;
-        lip->npc = g_active_npc;
-        target = lip;
-        animation = g_active_npc->animation;
-        texture = animation->lip_texture;
-        texture_instance = animation->lip_texture_instance;
-        target->texture = texture;
-        target->texture_instance = texture_instance;
-        lip->sound_handle = sound_id;
-
-        texture = lip_sync_live_texture(lip);
-
-        if (texture != 0) {
-            lip->keyframes = keyframes;
-        }
-        lip->stop_requested = 0;
-    }
+    npc_start_lip_synch(sound_id, keyframes);
 }
 
 void kill_lip_sync_procs(void) {

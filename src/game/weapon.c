@@ -1032,7 +1032,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     Vec parent_to_child;
     Vec child_direction;
     Quat rotation;
-    MKMATRIX rotation_matrix __attribute__((aligned(16)));
+    MKMATRIX rotation_matrix;
     int* chain_root;
     int map_index;
 

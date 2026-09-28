@@ -1682,11 +1682,11 @@ static float ray_intersection_with_quad(
 
 static int is_point_inside_quad(
     const CollisionShape* quad, const Vec* point) {
-    Vec edge_0;
-    Vec edge_1;
-    Vec normal;
+    MKVECTOR normal;
+    MKVECTOR inward;
+    MKVECTOR edge_1;
+    MKVECTOR edge_0;
     Vec edge;
-    Vec inward;
     float point_side;
     float vertex_side;
 
@@ -1805,6 +1805,7 @@ void generate_collision_objects(
     }
 }
 
+/* TODO: [breakthrough needed] 60.23%; aligned MKMATRIX frame now matches retail's stwux prologue; stack offsets and FP scheduling remain. */
 static CollisionObj* convert_cdf_quad_to_collision_box(
     const Vec* source, const Vec* angles, const Vec* position) {
     union {
@@ -1896,8 +1897,7 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
                 distance = 0.0f;
                 if (distance_bits.value > 0.0f) {
                     guess_bits.bits =
-                        (*(unsigned short*)((char*)GXMathSqrtTable +
-                          ((distance_bits.bits >> 10) & 0x3FFE)) << 8) |
+                        (GXMathSqrtTable[(distance_bits.bits >> 11) & 0x1FFF] << 8) |
                         ((((distance_bits.bits & 0x7F800000) +
                             0x3F800000) >> 1) & 0x7F800000);
                     distance = 0.5f * guess_bits.value *
@@ -1905,8 +1905,8 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
                          (guess_bits.value * guess_bits.value) /
                          distance_bits.value);
                 }
-                if (distance < collision->shape.box_pad_7C) {
-                    collision->shape.box_pad_7C = distance;
+                if (distance < collision->shape.box_field_0x7C) {
+                    collision->shape.box_field_0x7C = distance;
                 }
             }
         }
@@ -2093,7 +2093,7 @@ static int repel_cylinder_and_box(
     int result;
     int hit;
 
-    if (box->box_pad_7C > 0.0f) {
+    if (box->box_field_0x7C > 0.0f) {
         center_x =
             0.5f * (box->box_corner_2.x - box->box_corner_1.x) +
             0.5f * (box->box_corner_0.x + box->box_corner_1.x);
@@ -2102,7 +2102,7 @@ static int repel_cylinder_and_box(
             0.5f * (box->box_corner_0.z + box->box_corner_1.z);
         dx = center_x - cylinder->cylinder_center.x;
         dz = center_z - cylinder->cylinder_center.z;
-        distance = cylinder->cylinder_radius + box->box_pad_7C + 0.01f;
+        distance = cylinder->cylinder_radius + box->box_field_0x7C + 0.01f;
         if (dx * dx + dz * dz >= distance * distance) {
             return 0;
         }
@@ -2555,7 +2555,7 @@ void build_col_shape_vertical_box(
     axis_1.y = 0.0f;
     axis_2.z = -axis_1.x;
     shape->type = 3;
-    shape->box_pad_7C = 0.0f;
+    shape->box_field_0x7C = 0.0f;
     shape->box_axis_0 = UNITVECT_Y;
     shape->box_axis_1 = axis_1;
     shape->box_axis_2 = axis_2;
@@ -2628,7 +2628,7 @@ static void build_col_shape_vertical_box_from_corners(
     }
 
     shape->type = 3;
-    shape->box_pad_7C = 0.0f;
+    shape->box_field_0x7C = 0.0f;
     shape->box_axis_0 = UNITVECT_Y;
 
     shape->box_axis_2.x = corner_2->z - corner_1->z;

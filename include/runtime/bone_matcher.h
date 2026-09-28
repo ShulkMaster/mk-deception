@@ -67,7 +67,7 @@ typedef struct BoneMatcherState {
     Quat mirrored_parent_rotation;
     Vec mirrored_parent_translation;
     char pad108[8];
-} BoneMatcherState; /* 0x110 */
+} __attribute__((aligned(16))) BoneMatcherState; /* 0x110 */
 
 typedef char BoneMatcherStateSize[(sizeof(BoneMatcherState) == 0x110) ? 1 : -1];
 

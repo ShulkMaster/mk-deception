@@ -9267,15 +9267,11 @@ static float p_monk_move(void) {
 
     hero = konquest_pdata->hero_object;
     initial_state = konquest_pdata->hero_state;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            hero = konquest_pdata->hero_object;
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = (hero != 0)
+               ? ((hero->hdr.instance == konquest_pdata->hero_instance)
+                      ? konquest_pdata->hero_object
+                      : 0)
+               : 0;
     if (hero == 0) {
         return -1.0f;
     }
@@ -17321,18 +17317,6 @@ static float p_hero_use_portal(void) {
 
 
 /* TODO: [near miss] 96.62%; param coloring (uid/target/mode r29-r31 rotated), hud arrow latch tail-merge, portal_instance zeroed via mr remain. */
-static inline MkProc* konquest_live_portal_proc(MkProc* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->instance == instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 void konquest_use_portal(
     int uid, Vec* target_offset, int direction_mode,
     float camera_y_offset, float hero_distance, float camera_distance) {
@@ -17422,7 +17406,9 @@ void konquest_use_portal(
             portal_pdata->field_24 = direction_mode;
         }
 
-        while (konquest_live_portal_proc(portal_proc, portal_instance) != 0) {
+        while (((portal_proc != 0)
+                    ? ((portal_proc->instance == portal_instance) ? portal_proc : 0)
+                    : 0) != 0) {
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
@@ -17697,7 +17683,9 @@ void konquest_hero_portal_in(void) {
             }
         }
 
-        while (konquest_live_portal_proc(portal_proc, portal_instance) != 0) {
+        while (((portal_proc != 0)
+                    ? ((portal_proc->instance == portal_instance) ? portal_proc : 0)
+                    : 0) != 0) {
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
