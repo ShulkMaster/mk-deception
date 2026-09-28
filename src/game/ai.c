@@ -686,9 +686,11 @@ static inline void ai_side_clearances(float* right, float* left) {
         unit.x = gxMathSin(plyr_obj->ang.y);
         unit.y = 0.0f;
         unit.z = gxMathCos(plyr_obj->ang.y);
-        delta_x = probe_length * unit.z;
+        delta_z = -unit.x;
+        delta_x = unit.z;
         delta_y = 0.0f;
-        delta_z = -unit.x * probe_length;
+        delta_x = probe_length * delta_x;
+        delta_z = probe_length * delta_z;
 
         end.x = origin.x + delta_x;
         end.y = origin.y + delta_y;
@@ -1064,8 +1066,6 @@ float give_some_distance(void) {
 }
 
 
-/* TODO: [near miss] 98.36066%; recognized death types share the exit;
- * one retail dispatch branch remains. */
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
@@ -1073,6 +1073,7 @@ float go_into_twitch_death(void) {
     case 1:
     case 2:
     case 3:
+    case 5:
         break;
     case 4:
         plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1094,7 +1095,6 @@ float go_into_twitch_death(void) {
 }
 
 
-/* TODO: [near miss] 98.87%; retail retains two equivalent case-1 default-dispatch branches. */
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1161,7 +1161,8 @@ float go_into_major_pain(void) {
             xfer_proc(plyr_anim_proc, p_animate);
         }
         break;
-    default:
+    case 0:
+    case 5:
         break;
     }
     AI_TRANSFER(j_stay_down_dead);
@@ -6387,7 +6388,6 @@ float drone_ai_perform_script_attack(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.92105%; clearance constant-pool identity and FPR coloring remain. */
 float jump_away_opponent_with_j_exit(void) {
     DroneAI* drone;
     float right_clearance;
@@ -6742,7 +6742,6 @@ static float jump_away_opponent_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_long_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6759,7 +6758,6 @@ static float side_step_to_center_long_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 static float side_step_to_center_attack_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6776,7 +6774,6 @@ static float side_step_to_center_attack_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.87805%; clearance constant-pool identity and FPR coloring remain. */
 float side_step_to_center_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6928,7 +6925,6 @@ static float drone_ai_attack_obstacle_now(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.92857%; clearance constant-pool identity and FPR coloring remain. */
 static float drone_ai_dodge_3d_with_counter(void) {
     DroneAI* drone;
     Vec facing;
