@@ -441,15 +441,15 @@ typedef char BgndNpcCollisionTrackDataSize[
     (sizeof(BgndNpcCollisionTrackData) == 0x18) ? 1 : -1];
 
 struct BgndObstacleEventData {
-    int event_id;        /* +0x00 */
+    unsigned int event_id; /* +0x00 */
     int field_04;
     Vec* impact_vector;  /* +0x08 */
     PlyrPdata* player_pdata; /* +0x0C */
     union {
-        unsigned char flags;
+        unsigned int flags;
         struct {
-            unsigned char player_side : 1; /* bit7 */
-            unsigned char pad_low : 7;
+            unsigned int player_side : 1; /* bit31 */
+            unsigned int pad_low : 31;
         } flag_bits;
     }; /* +0x10 */
 };
@@ -464,7 +464,7 @@ struct BgndWallHiderRuntime {
     unsigned int hidden_effect_count; /* +0x60 */
     Vec normal;                      /* +0x64 */
     float normal_distance;           /* +0x70 */
-    unsigned int normal_flags;       /* +0x74 */
+    int normal_flags;                /* +0x74 */
 };
 
 typedef struct BgndPebbleControl {
@@ -550,7 +550,7 @@ typedef struct BgndPebbleMonitor {
 
 typedef struct BgndCrack {
     Vec position;        /* +0x00 */
-    unsigned int active; /* +0x0C */
+    int active; /* +0x0C */
 } BgndCrack; /* 0x10 */
 
 typedef struct BgndCrackPlacer {
@@ -742,11 +742,11 @@ static inline void bgnd_copy_vector(Vec* destination, const Vec* source) {
 }
 
 static inline void bgnd_reset_crack_pool(void) {
-    BgndCrack* cracks;
     unsigned int i;
+    BgndCrack* cracks;
 
     g_bgnd_last_crack_overwritten = 0;
-    cracks = (BgndCrack*)g_bgnd_cracks->user_data;
+    cracks = g_bgnd_cracks->user_data;
     g_game_info.crack_count = 0.0f;
     for (i = 0; i < 10; i++) {
         cracks[i].active = 0;
@@ -832,7 +832,6 @@ void bgnd_level_transition_end(void) {
     g_game_info.plyr1.slot.pdata->collision_disabled = 0;
     drone_ai_ok_to_think();
 }
-/* Soft ceiling 86.29%: exact body; GPR save/restore emission differs. */
 void bgnd_level_transition_start(void) {
     drone_ai_dont_think();
     turn_controllers_off();
@@ -938,7 +937,6 @@ void bgnd_force_specularity_off_for_material(
         }
     }
 }
-/* Exact operations; 81.46%, retail/local 148/164 bytes from stmw/lmw choice. */
 void bgnd_sobj_set_texture_kl_values(
     unsigned int object_id, unsigned int material_id, int dual_texture,
     float l, int k) {
@@ -967,7 +965,6 @@ float script_fabs(float value) {
     }
     return -value;
 }
-/* TODO: [near miss] 96.36%; playback-rate field corrected; animation reload around the active guard differs */
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
@@ -1100,6 +1097,25 @@ static inline MkHdr* sh_get_latched_object(MkHdrLatch* latch) {
     return object;
 }
 
+static inline float bgnd_inv_sqrt(float value) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float product;
+    float correction;
+
+    if (value <= 0.0f) {
+        return 0.0f;
+    }
+    input.f = value;
+    estimate.u = 0x5F375A00U - (input.u >> 1);
+    product = estimate.f * (value * estimate.f);
+    correction = 3.0f - product;
+    return 0.0625f * estimate.f * correction *
+           -(correction * (product * correction) - 12.0f);
+}
+
 static inline void sh_normalize_blood_xz(Vec* vector) {
     union {
         float f;
@@ -1127,7 +1143,7 @@ static inline void sh_normalize_blood_xz(Vec* vector) {
     vector->z *= inverse_length;
 }
 
-/* TODO: [breakthrough needed] 81.088234%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [breakthrough] 91.31%; state CFG and splat copies improved; resolve movement Vec stack layout and latch branches. */
 static float p_sh_fatality_body_parts(void) {
     ShFatalityBodyPartsProcessData* data;
     PebbleData* pebble_data;
@@ -1136,7 +1152,10 @@ static float p_sh_fatality_body_parts(void) {
     int index;
 
     data = (ShFatalityBodyPartsProcessData*)pdata_of_proc(aproc);
-    if (data == 0 || g_slaughterhouse_pdata == 0) {
+    if (data == 0) {
+        return -1.0f;
+    }
+    if (g_slaughterhouse_pdata == 0) {
         return -1.0f;
     }
     if (data->delay > 0.0f) {
@@ -1158,7 +1177,7 @@ static float p_sh_fatality_body_parts(void) {
     pebble_data = (PebbleData*)sh_get_latched_object(
         &g_slaughterhouse_pdata->blood_fall_pebbles[0]);
     if (pebble_data != 0) {
-        controls = (ShBloodPebbleControl*)pebble_data->user_data;
+        controls = pebble_data->user_data;
         index = 0;
         while (index < pebble_data->count) {
             ShBloodPebbleControl* control = &controls[index];
@@ -1166,8 +1185,7 @@ static float p_sh_fatality_body_parts(void) {
             control->lifetime -= game_speed;
             if (control->lifetime <= 0.0f) {
                 control->lifetime = 0.0f;
-                switch (control->state) {
-                case 0: {
+                if (control->state == 0) {
                     Vec step;
 
                     step.x = game_speed * control->velocity.x;
@@ -1185,9 +1203,10 @@ static float p_sh_fatality_body_parts(void) {
                         control->position.z = 21.65f;
                         control->velocity.x *= 0.2f;
                         control->velocity.z *= -0.2f;
-                        if (randu0(10) <= 2) {
-                            Vec splat_position = control->position;
+                        if ((unsigned short)randu0(10) <= 2) {
+                            Vec splat_position;
 
+                            bgnd_copy_vector(&splat_position, &control->position);
                             splat_position.z = 21.65f;
                             spawn_bld_splat(
                                 "sh_bloodsplat", 0, &splat_position);
@@ -1209,9 +1228,7 @@ static float p_sh_fatality_body_parts(void) {
                         control->angles.z = sfrand(1.0f);
                         control->angle_degrees = frand(360.0f);
                     }
-                    break;
-                }
-                case 1:
+                } else if (control->state == 1) {
                     control->velocity.x *= 0.97f;
                     if (control->position.y < -15.5f) {
                         control->position.y = -15.5f;
@@ -1234,14 +1251,14 @@ static float p_sh_fatality_body_parts(void) {
                     if (control->lifetime < 90.0f) {
                         control->position.y -= 0.002f;
                     }
-                    break;
-                case 2:
+                } else if (control->state == 2) {
                     control->position.y += game_speed * control->velocity.y;
                     control->angle_step -= 1.0f;
                     if (control->angle_step <= 0.0f) {
-                        Vec splat_position = control->position;
+                        Vec splat_position;
 
                         control->angle_step = 90.0f;
+                        bgnd_copy_vector(&splat_position, &control->position);
                         splat_position.z = 21.65f;
                         spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
                     }
@@ -1251,7 +1268,6 @@ static float p_sh_fatality_body_parts(void) {
                     if (control->position.y < -15.4f) {
                         control->state = 1;
                     }
-                    break;
                 }
             }
             MKMatrixRotateScaleTranslate(
@@ -1265,20 +1281,20 @@ static float p_sh_fatality_body_parts(void) {
         &g_slaughterhouse_pdata->blood_fall_pebbles[2]);
     if (pebble_data != 0) {
         ShBloodPebbleControl* control =
-            (ShBloodPebbleControl*)pebble_data->user_data;
+            pebble_data->user_data;
 
         control->lifetime -= game_speed;
         if (control->lifetime <= 0.0f) {
             Vec step;
 
             control->lifetime = 0.0f;
-            step.x = control->velocity.x * game_speed;
-            step.y = control->velocity.y * game_speed;
-            step.z = control->velocity.z * game_speed;
-            control->position.x += step.x;
-            control->position.y += step.y;
-            control->position.z += step.z;
             if (control->state == 0) {
+                step.x = control->velocity.x * game_speed;
+                step.y = control->velocity.y * game_speed;
+                step.z = control->velocity.z * game_speed;
+                control->position.x += step.x;
+                control->position.y += step.y;
+                control->position.z += step.z;
                 control->velocity.y -= 0.004f;
                 control->angle_degrees += control->angle_step;
                 if (control->angle_degrees > 360.0f) {
@@ -1295,6 +1311,12 @@ static float p_sh_fatality_body_parts(void) {
                     control->state = 1;
                 }
             } else {
+                step.x = control->velocity.x * game_speed;
+                step.y = control->velocity.y * game_speed;
+                step.z = control->velocity.z * game_speed;
+                control->position.x += step.x;
+                control->position.y += step.y;
+                control->position.z += step.z;
                 control->velocity.y -= 0.001f;
                 control->angle_degrees += control->angle_step;
                 if (control->angle_degrees > 360.0f) {
@@ -1308,10 +1330,6 @@ static float p_sh_fatality_body_parts(void) {
     }
     return 1.0f;
 }
-/*
- * Near match: exact 464-byte instruction stream; all remaining differences
- * are float-pool relocation labels.
- */
 static void sh_update_fatality_body_part(MkObj* object) {
     object->flags_08_bits.airborne = 1;
     object->flags_08_bits.gravity_enabled = 1;
@@ -1355,6 +1373,35 @@ static void sh_update_fatality_body_part(MkObj* object) {
         }
     }
 }
+static inline void sh_normalize_xz(Vec* vector) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x_squared;
+    float z_squared;
+
+    x_squared = vector->x * vector->x;
+    z_squared = vector->z * vector->z;
+    squared = x_squared + z_squared;
+    if (squared <= 0.0f) {
+        inverse_length = 0.0f;
+    } else {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    vector->x *= inverse_length;
+    vector->z *= inverse_length;
+}
+
 static inline void sh_normalize_fatality_vector(Vec* vector) {
     union {
         float f;
@@ -1384,10 +1431,7 @@ static inline void sh_normalize_fatality_vector(Vec* vector) {
     vector->z *= inverse_length;
 }
 
-/* Clean-C near match: 78.97%, retail/local 2416/2280. Process ownership,
- * source-object validation, both launched body models, every RNG call, small
- * and large fragment initialization, scales, matrices, and delay agree.
- * Residue is repeated latch-merge/CSE and aggregate-copy scheduling. */
+/* TODO: [near miss] 79.05%; ownership, RNG calls and fragment setup agree; latch-merge CSE and aggregate-copy scheduling remain (retail 2416 vs 2280 bytes). */
 static void sh_start_fatality_body_parts(PlyrPdata* player) {
     ShFatalityBodyPartsProcessData* process_data;
     MkObj* source;
@@ -1426,7 +1470,7 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
         object->ang_vel.x = sfrand(0.05f);
         object->ang_vel.y = sfrand(0.05f);
         object->ang_vel.z = sfrand(0.05f);
-        object->flags_08 |= 1;
+        object->flags_08_bits.moving = 1;
         object->gravity = -0.003f;
         unhide_obj(object);
     }
@@ -1448,7 +1492,7 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
         object->ang_vel.x = sfrand(0.05f);
         object->ang_vel.y = sfrand(0.05f);
         object->ang_vel.z = sfrand(0.05f);
-        object->flags_08 |= 1;
+        object->flags_08_bits.moving = 1;
         object->gravity = -0.003f;
         unhide_obj(object);
     }
@@ -1463,7 +1507,7 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
     if (pebble_data != 0) {
         int index;
 
-        controls = (ShBloodPebbleControl*)pebble_data->user_data;
+        controls = pebble_data->user_data;
         index = 0;
         while (index < pebble_data->count) {
             ShBloodPebbleControl* control = &controls[index];
@@ -1509,7 +1553,7 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
 
         speed = 0.2f + frand(0.2f);
         pebble_data->count = 1;
-        control = (ShBloodPebbleControl*)pebble_data->user_data;
+        control = pebble_data->user_data;
         control->position = source->pos.value;
         control->velocity.x = sfrand(0.3f);
         control->velocity.y = 0.5f + sfrand(0.5f);
@@ -1531,16 +1575,17 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
     process_data->delay = 30.0f + frand(60.0f);
     process_data->player = player;
 }
-/* Clean-C near match: 90.31%, retail/local 1724/1704. Fatality state, both
- * collision-dispatch calls, player launch/arrival loop, grinder timing, all
- * sound/effect phases, body-part launch, cleanup, and process exit agree.
- * Residue is stack-vector and short-circuit scheduling. */
 static float p_sh_throw_plyr_in_grinder(void) {
+    static float scale = 0.16f;
     Vec target;
-    Vec zero_velocity = {0.0f, 0.0f, 0.0f};
+    Vec zero_velocity;
+    float inverse_length;
+    float x;
     MkSobj* first;
     MkSobj* second;
     float distance;
+    float second_x;
+    float second_z;
     int voice;
 
     drone_ai_dont_think();
@@ -1556,6 +1601,9 @@ static float p_sh_throw_plyr_in_grinder(void) {
                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     bgnd_process_collision_info(7, 0.0f, 0.0f, 0.0f,
                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    zero_velocity.x = 0.0f;
+    zero_velocity.y = 0.0f;
+    zero_velocity.z = 0.0f;
     obj_set_pos_vel(g_game_info.player_objects[1], &zero_velocity);
     destroy_mkprocs_pid(0xA005);
     destroy_mkprocs_pid(0xA00D);
@@ -1578,17 +1626,30 @@ static float p_sh_throw_plyr_in_grinder(void) {
     plyr_obj->flags_0B_bits.bit3 = 1;
 
     first = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
-    target = first->pos;
+    target.x = first->pos.x;
+    target.y = first->pos.y;
+    target.z = first->pos.z;
     second = obj_find_sobj_by_id(g_game_info.bgnd_obj, 2);
-    target.x = 0.5f * (target.x - second->pos.x) + second->pos.x;
-    target.z = 0.5f * (target.z - second->pos.z) + second->pos.z;
+    second_x = second->pos.x;
+    second_z = second->pos.z;
+    target.x -= second_x;
+    target.z -= second_z;
+    target.x = 0.5f * target.x;
+    target.z = 0.5f * target.z;
+    target.x += second_x;
+    target.z += second_z;
     plyr_obj->pos_vel.x = target.x - plyr_obj->pos.value.x;
     plyr_obj->pos_vel.z = target.z - plyr_obj->pos.value.z;
-    sh_normalize_blood_xz(&plyr_obj->pos_vel);
-    plyr_obj->pos_vel.x *= 0.16f;
-    plyr_obj->pos_vel.z *= 0.16f;
-    plyr_obj->pos_vel.y =
-        0.2f * (1.0f / dist_xz_to_xz(&plyr_obj->pos.value, &target));
+    x = plyr_obj->pos_vel.x;
+    inverse_length = bgnd_inv_sqrt(
+        (float)(x * x) +
+        (float)(plyr_obj->pos_vel.z * plyr_obj->pos_vel.z));
+    plyr_obj->pos_vel.x = x * inverse_length;
+    plyr_obj->pos_vel.z *= inverse_length;
+    plyr_obj->pos_vel.x *= scale;
+    plyr_obj->pos_vel.z *= scale;
+    distance = dist_xz_to_xz(&plyr_obj->pos.value, &target);
+    plyr_obj->pos_vel.y = 0.2f * (1.0f / distance);
     plyr_obj->flags_08_bits.moving = 0;
     xfer_proc(plyr_anim_proc, p_animate);
     blend_to_ani(*(AniData**)&shared_ani[0x44], 0, 1.0f);
@@ -1601,9 +1662,9 @@ static float p_sh_throw_plyr_in_grinder(void) {
     } while (distance > 0.21f && plyr_obj->pos.value.z < target.z);
 
     plyr_obj->gravity = 0.0f;
-    plyr_obj->pos_vel.x = 0.0f;
-    plyr_obj->pos_vel.y = 0.0f;
     plyr_obj->pos_vel.z = 0.0f;
+    plyr_obj->pos_vel.y = 0.0f;
+    plyr_obj->pos_vel.x = 0.0f;
     plyr_obj->pos.value.x = target.x;
     plyr_obj->pos.value.z = target.z;
     target.y = plyr_obj->pos.value.y;
@@ -1693,10 +1754,6 @@ static inline void sh_normalize_blood_direction(Vec* direction) {
     direction->z *= inverse_length;
 }
 
-/* Clean-C near match: 82.09%, retail/local 2936/2912. The complete three-state
- * update, RNG/call order, five inlined normalizations, impact lifetime, splat
- * emission, and matrix updates agree. The remaining six instructions are
- * merge-branch emission around duplicated respawn paths. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, const Vec* origin,
     float gravity);
@@ -1773,7 +1830,8 @@ static float p_sh_bottom_floor_blood_fall(void) {
         pebbles, &data->active_splats, &data->origin, data->gravity);
     return 1.0f;
 }
-/* TODO: [breakthrough needed] 82.16077%; correct splat and structured sign guards; normalization/loop lowering remains. */
+/* TODO: [breakthrough needed] 83.77%; state dispatch now matches; constant
+ * vector materialization and normalization stack layout still differ. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, const Vec* origin,
     float gravity) {
@@ -1784,13 +1842,12 @@ static void sh_update_blood_fall_pebbles(
         return;
     }
 
-    controls = (ShBloodPebbleControl*)pebble_data->user_data;
+    controls = pebble_data->user_data;
     index = 0;
     while (index < pebble_data->count) {
         ShBloodPebbleControl* control = &controls[index];
 
-        switch (control->state) {
-        case 0:
+        if (control->state == 0) {
             control->position.y += game_speed * control->velocity.y;
             control->velocity.y += gravity;
             control->angle_degrees += control->angle_step;
@@ -1821,8 +1878,8 @@ static void sh_update_blood_fall_pebbles(
                     control->angles.z = sfrand(1.0f);
                     control->angle_degrees = frand(360.0f);
                 } else if (roll == 99 && *active_splats < 3) {
-                    Vec direction = {0.0f, 0.0f, 1.0f};
                     Vec rotated_direction;
+                    Vec direction = {0.0f, 0.0f, 1.0f};
                     float angle;
                     float distance;
 
@@ -1860,8 +1917,8 @@ static void sh_update_blood_fall_pebbles(
                     control->scale.y = 1.2f;
                     control->scale.z = 1.2f;
                 } else {
-                    Vec direction = {0.0f, 0.0f, 1.0f};
                     Vec rotated_direction;
+                    Vec direction = {0.0f, 0.0f, 1.0f};
                     float angle;
                     float distance;
 
@@ -1890,14 +1947,12 @@ static void sh_update_blood_fall_pebbles(
             MKMatrixRotateScaleTranslate(
                 &pebble_data->pebbles[index].matrix, &control->angles,
                 control->angle_degrees, &control->scale, &control->position);
-            break;
-
-        case 1:
+        } else if (control->state == 1) {
             control->velocity.x *= 0.97f;
             control->lifetime -= 1.0f;
             if (control->lifetime <= 0.0f) {
-                Vec direction = {0.0f, 0.0f, 1.0f};
                 Vec rotated_direction;
+                Vec direction = {0.0f, 0.0f, 1.0f};
                 float angle;
                 float distance;
 
@@ -1908,9 +1963,7 @@ static void sh_update_blood_fall_pebbles(
                 direction.z *= 0.795f;
                 angle = sfrand(3.1415927f);
                 rotate_xz(&rotated_direction, &direction, angle);
-                if (angle >= 0.0f) {
-                    /* Use the positive rotation magnitude. */
-                } else {
+                if (angle < 0.0f) {
                     angle = -angle;
                 }
                 distance = angle / 3.1415927f + frand(1.5f);
@@ -1948,9 +2001,7 @@ static void sh_update_blood_fall_pebbles(
             MKMatrixRotateScaleTranslate(
                 &pebble_data->pebbles[index].matrix, &control->angles,
                 control->angle_degrees, &control->scale, &control->position);
-            break;
-
-        case 2:
+        } else if (control->state == 2) {
             control->position.x += control->velocity.x;
             control->position.y += control->velocity.y;
             control->position.z += control->velocity.z;
@@ -1981,7 +2032,6 @@ static void sh_update_blood_fall_pebbles(
             MKMatrixRotateScaleTranslate(
                 &pebble_data->pebbles[index].matrix, &control->angles,
                 control->angle_degrees, &control->scale, &control->position);
-            break;
         }
         index++;
     }
@@ -2032,7 +2082,26 @@ static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_2_hdr(Slau
 
 
 
-/* TODO: [breakthrough needed] 92.896240%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+static inline float sh_random_blood_pebble_direction(Vec* rotated_direction) {
+    Vec direction = {0.0f, 0.0f, 1.0f};
+    float angle;
+    float inverse_length;
+
+    inverse_length = bgnd_inv_sqrt(
+        direction.z * direction.z +
+        (direction.x * direction.x + direction.y * direction.y));
+    direction.x *= inverse_length;
+    direction.y *= inverse_length;
+    direction.z *= inverse_length;
+    direction.x = 0.795f * direction.x;
+    direction.y = 0.795f * direction.y;
+    direction.z = 0.795f * direction.z;
+    angle = sfrand(3.1415927f);
+    rotate_xz(rotated_direction, &direction, angle);
+    return angle;
+}
+
+/* TODO: [near miss] 99.16%; GPR assignment rotated (data retail r25, ours r31; pebble sets r30-r28). */
 static void sh_init_bottom_floor_blood_fall_pebbles(
     ShBloodFallProcessData* data) {
     PebbleData* large;
@@ -2050,41 +2119,30 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         ShBloodPebbleControl* controls;
         int index;
 
-        controls = (ShBloodPebbleControl*)large->user_data;
+        controls = large->user_data;
         index = 0;
         while (index < large->count) {
             float local_scale = 1.5f + frand(1.0f);
             ShBloodPebbleControl* control;
-            Vec direction = {0.0f, 0.0f, 1.0f};
-            Vec rotated_direction;
             Vec scale;
+            Vec rotated_direction;
             float angle;
             float distance;
 
             scale.x = scale.y = scale.z = local_scale;
-            sh_normalize_blood_direction(&direction);
-            direction.x *= 0.795f;
-            direction.y *= 0.795f;
-            direction.z *= 0.795f;
-            angle = sfrand(3.1415927f);
-            rotate_xz(&rotated_direction, &direction, angle);
-            if (angle >= 0.0f) {
-                /* Use the positive rotation magnitude. */
-            } else {
-                angle = -angle;
-            }
-            control = &controls[index];
+            angle = sh_random_blood_pebble_direction(&rotated_direction);
+            angle = angle >= 0.0f ? angle : -angle;
             distance = angle / 3.1415927f + frand(1.5f);
+            control = &controls[index];
             rotated_direction.x *= distance;
             rotated_direction.y *= distance;
             rotated_direction.z *= distance;
-            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.x = rotated_direction.x + data->origin.x;
             control->position.y = data->origin.y;
-            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.z = rotated_direction.z + data->origin.z;
             control->position.y += sfrand(9.15f);
-            control->velocity.x = 0.0f;
-            control->velocity.y = 0.0f;
-            control->velocity.z = 0.0f;
+            control->velocity.x = control->velocity.y =
+                control->velocity.z = 0.0f;
             control->velocity.y = -0.01f - frand(0.01f);
             control->angle_degrees = frand(360.0f);
             control->angle_step = 3.0f + frand(2.0f);
@@ -2092,9 +2150,9 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
             control->angles.y = control->position.y;
             control->angles.z = control->position.z;
             control->angles.y = 0.0f;
-            control->angles.x *= -1.0f;
-            control->angles.y *= -1.0f;
-            control->angles.z *= -1.0f;
+            control->angles.x = -1.0f * control->angles.x;
+            control->angles.y = -1.0f * control->angles.y;
+            control->angles.z = -1.0f * control->angles.z;
             control->state = 0;
             control->scale.x = scale.x;
             control->scale.y = scale.y;
@@ -2107,41 +2165,30 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         ShBloodPebbleControl* controls;
         int index;
 
-        controls = (ShBloodPebbleControl*)small->user_data;
+        controls = small->user_data;
         index = 0;
         while (index < small->count) {
             float local_scale = 0.5f + frand(1.5f);
             ShBloodPebbleControl* control;
-            Vec direction = {0.0f, 0.0f, 1.0f};
-            Vec rotated_direction;
             Vec scale;
+            Vec rotated_direction;
             float angle;
             float distance;
 
             scale.x = scale.y = scale.z = local_scale;
-            sh_normalize_blood_direction(&direction);
-            direction.x *= 0.795f;
-            direction.y *= 0.795f;
-            direction.z *= 0.795f;
-            angle = sfrand(3.1415927f);
-            rotate_xz(&rotated_direction, &direction, angle);
-            if (angle >= 0.0f) {
-                /* Use the positive rotation magnitude. */
-            } else {
-                angle = -angle;
-            }
-            control = &controls[index];
+            angle = sh_random_blood_pebble_direction(&rotated_direction);
+            angle = angle >= 0.0f ? angle : -angle;
             distance = angle / 3.1415927f + frand(1.5f);
+            control = &controls[index];
             rotated_direction.x *= distance;
             rotated_direction.y *= distance;
             rotated_direction.z *= distance;
-            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.x = rotated_direction.x + data->origin.x;
             control->position.y = data->origin.y;
-            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.z = rotated_direction.z + data->origin.z;
             control->position.y += sfrand(9.15f);
-            control->velocity.x = 0.0f;
-            control->velocity.y = 0.0f;
-            control->velocity.z = 0.0f;
+            control->velocity.x = control->velocity.y =
+                control->velocity.z = 0.0f;
             control->velocity.y = -0.01f - frand(0.01f);
             control->angle_degrees = frand(360.0f);
             control->angle_step = 3.0f + frand(5.0f);
@@ -2149,9 +2196,9 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
             control->angles.y = control->position.y;
             control->angles.z = control->position.z;
             control->angles.y = 0.0f;
-            control->angles.x *= -1.0f;
-            control->angles.y *= -1.0f;
-            control->angles.z *= -1.0f;
+            control->angles.x = -1.0f * control->angles.x;
+            control->angles.y = -1.0f * control->angles.y;
+            control->angles.z = -1.0f * control->angles.z;
             control->state = 0;
             control->scale.x = scale.x;
             control->scale.y = scale.y;
@@ -2164,41 +2211,30 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         ShBloodPebbleControl* controls;
         int index;
 
-        controls = (ShBloodPebbleControl*)largest->user_data;
+        controls = largest->user_data;
         index = 0;
         while (index < largest->count) {
             float local_scale = 2.5f + frand(0.5f);
             ShBloodPebbleControl* control;
-            Vec direction = {0.0f, 0.0f, 1.0f};
-            Vec rotated_direction;
             Vec scale;
+            Vec rotated_direction;
             float angle;
             float distance;
 
             scale.x = scale.y = scale.z = local_scale;
-            sh_normalize_blood_direction(&direction);
-            direction.x *= 0.795f;
-            direction.y *= 0.795f;
-            direction.z *= 0.795f;
-            angle = sfrand(3.1415927f);
-            rotate_xz(&rotated_direction, &direction, angle);
-            if (angle >= 0.0f) {
-                /* Use the positive rotation magnitude. */
-            } else {
-                angle = -angle;
-            }
-            control = &controls[index];
+            angle = sh_random_blood_pebble_direction(&rotated_direction);
+            angle = angle >= 0.0f ? angle : -angle;
             distance = angle / 3.1415927f + frand(1.5f);
+            control = &controls[index];
             rotated_direction.x *= distance;
             rotated_direction.y *= distance;
             rotated_direction.z *= distance;
-            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.x = rotated_direction.x + data->origin.x;
             control->position.y = data->origin.y;
-            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.z = rotated_direction.z + data->origin.z;
             control->position.y += sfrand(9.15f);
-            control->velocity.x = 0.0f;
-            control->velocity.y = 0.0f;
-            control->velocity.z = 0.0f;
+            control->velocity.x = control->velocity.y =
+                control->velocity.z = 0.0f;
             control->velocity.y = -0.01f - frand(0.01f);
             control->angle_degrees = frand(360.0f);
             control->angle_step = 3.0f + frand(2.0f);
@@ -2206,9 +2242,9 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
             control->angles.y = control->position.y;
             control->angles.z = control->position.z;
             control->angles.y = 0.0f;
-            control->angles.x *= -1.0f;
-            control->angles.y *= -1.0f;
-            control->angles.z *= -1.0f;
+            control->angles.x = -1.0f * control->angles.x;
+            control->angles.y = -1.0f * control->angles.y;
+            control->angles.z = -1.0f * control->angles.z;
             control->state = 0;
             control->scale.x = scale.x;
             control->scale.y = scale.y;
@@ -2335,7 +2371,7 @@ static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_4_hdr(Slaughte
 
 
 
-/* TODO: [breakthrough needed] 94.974790%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 98.844536%; typed sobj bit4 matches; r30/r31 owner-object coloring remains. */
 static void sh_load_objs(void) {
     SlaughterhouseData* data;
     MkObj* object;
@@ -2360,7 +2396,7 @@ static void sh_load_objs(void) {
             insert_fgnd_mkobj(object);
             hide_obj(object);
             sobj = obj_find_sobj_by_id(object, 7);
-            sobj->flags09 |= 0x10;
+            sobj->flags09_bits.bit4 = 1;
             pebbles = create_pebble_userdata(sobj, 20, 0x40);
             if (pebbles != 0) {
                 data->blood_fall_pebbles[0].hdr = &pebbles->hdr;
@@ -2383,7 +2419,7 @@ static void sh_load_objs(void) {
             insert_fgnd_mkobj(object);
             hide_obj(object);
             sobj = obj_find_sobj_by_id(object, 0);
-            sobj->flags09 |= 0x10;
+            sobj->flags09_bits.bit4 = 1;
             pebbles = create_pebble_userdata(sobj, 10, 0x40);
             if (pebbles != 0) {
                 data->blood_fall_pebbles[1].hdr = &pebbles->hdr;
@@ -2406,7 +2442,7 @@ static void sh_load_objs(void) {
             insert_fgnd_mkobj(object);
             hide_obj(object);
             sobj = obj_find_sobj_by_id(object, 0);
-            sobj->flags09 |= 0x10;
+            sobj->flags09_bits.bit4 = 1;
             pebbles = create_pebble_userdata(sobj, 10, 0x40);
             if (pebbles != 0) {
                 data->blood_fall_pebbles[2].hdr = &pebbles->hdr;
@@ -2442,32 +2478,34 @@ static void sh_load_objs(void) {
     }
 }
 
-static inline void sh_hide_latched_object(MkHdrLatch* latch) {
-    MkHdr* object;
+static inline MkHdr* sh_live_latched_object(MkHdrLatch* latch) {
+    MkHdr* object = latch->hdr;
 
-    object = latch->hdr;
     if (object != 0) {
-        if (object->instance != latch->instance) {
-            object = 0;
+        if (object->instance == latch->instance) {
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
+    return object;
+}
+
+static inline void sh_hide_latched_object(MkHdrLatch* latch) {
+    MkHdr* object;
+
+    object = sh_live_latched_object(latch);
     if (object != 0) {
         hide_obj(object);
     }
 }
 
-/* Clean-C near match: 82.42%, retail/local 732/644. Floor visibility, four
- * animated sobjs, blood-fall process setup, sound transitions, and all three
- * pebble-model unhides agree; residue is validated-pointer merge branching. */
 void bgnd_sh_level_2(void) {
     ShBloodFallProcessData* process_data;
-    SlaughterhouseData* data;
     MkSobj* sobj;
     MkProc* process;
     RwMatrix* matrix;
-    MkHdr* object;
 
     obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x28);
     if (g_game_info.bgnd_obj != 0) {
@@ -2484,17 +2522,17 @@ void bgnd_sh_level_2(void) {
         }
     }
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
-    sobj->flags_08 |= 4;
-    sobj->ang_vel.x = 0.05f;
+    sobj->flags_08_bits.angular_velocity_enabled = 1;
+    sobj->ang_vel.y = 0.05f;
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 2);
-    sobj->flags_08 |= 4;
-    sobj->ang_vel.x = -0.05f;
+    sobj->flags_08_bits.angular_velocity_enabled = 1;
+    sobj->ang_vel.y = -0.05f;
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 10);
-    sobj->flags_08 |= 4;
-    sobj->ang_vel.y = -0.03f;
+    sobj->flags_08_bits.angular_velocity_enabled = 1;
+    sobj->ang_vel.z = -0.03f;
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 11);
-    sobj->flags_08 |= 4;
-    sobj->ang_vel.y = 0.03f;
+    sobj->flags_08_bits.angular_velocity_enabled = 1;
+    sobj->ang_vel.z = 0.03f;
 
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 6);
     process_data = 0;
@@ -2514,42 +2552,22 @@ void bgnd_sh_level_2(void) {
         }
     }
 
-    data = g_slaughterhouse_pdata;
-    if (data != 0) {
-        if (mslSoundIsValid(data->upper_ambient_sound)) {
-            snd_stop(data->upper_ambient_sound);
-            data->upper_ambient_sound = 0;
+    if (g_slaughterhouse_pdata != 0) {
+        if (mslSoundIsValid(g_slaughterhouse_pdata->upper_ambient_sound)) {
+            snd_stop(g_slaughterhouse_pdata->upper_ambient_sound);
+            g_slaughterhouse_pdata->upper_ambient_sound = 0;
         }
-        if (!mslSoundIsValid(data->lower_ambient_sound_1)) {
-            data->lower_ambient_sound_1 = snd_req(0x13D);
+        if (!mslSoundIsValid(g_slaughterhouse_pdata->lower_ambient_sound_1)) {
+            g_slaughterhouse_pdata->lower_ambient_sound_1 = snd_req(0x13D);
         }
-        if (!mslSoundIsValid(data->lower_ambient_sound_2)) {
-            data->lower_ambient_sound_2 = snd_req(0x13E);
+        if (!mslSoundIsValid(g_slaughterhouse_pdata->lower_ambient_sound_2)) {
+            g_slaughterhouse_pdata->lower_ambient_sound_2 = snd_req(0x13E);
         }
-
-        object = data->lower_level_pebbles[0].hdr;
-        if (object != 0 && object->instance !=
-                data->lower_level_pebbles[0].instance) {
-            object = 0;
-        }
-        unhide_obj(object);
-        object = data->lower_level_pebbles[1].hdr;
-        if (object != 0 && object->instance !=
-                data->lower_level_pebbles[1].instance) {
-            object = 0;
-        }
-        unhide_obj(object);
-        object = data->lower_level_pebbles[2].hdr;
-        if (object != 0 && object->instance !=
-                data->lower_level_pebbles[2].instance) {
-            object = 0;
-        }
-        unhide_obj(object);
+        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[0]));
+        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[1]));
+        unhide_obj(sh_live_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[2]));
     }
 }
-/* Clean-C near match: 88.02%, retail/local 748/692. Level visibility, five
- * validated model hides, process teardown, pdata allocation/ownership, model
- * loading, and ambient-sound transition agree; residue is merge branching. */
 void bgnd_sh_level_1(void) {
     SlaughterhouseData* data;
 
@@ -2568,13 +2586,12 @@ void bgnd_sh_level_1(void) {
         }
     }
 
-    data = g_slaughterhouse_pdata;
-    if (data != 0) {
-        sh_hide_latched_object(&data->lower_level_pebbles[3]);
-        sh_hide_latched_object(&data->lower_level_pebbles[4]);
-        sh_hide_latched_object(&data->lower_level_pebbles[0]);
-        sh_hide_latched_object(&data->lower_level_pebbles[1]);
-        sh_hide_latched_object(&data->lower_level_pebbles[2]);
+    if (g_slaughterhouse_pdata != 0) {
+        sh_hide_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[3]);
+        sh_hide_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[4]);
+        sh_hide_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[0]);
+        sh_hide_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[1]);
+        sh_hide_latched_object(&g_slaughterhouse_pdata->lower_level_pebbles[2]);
     }
 
     destroy_mkprocs_pid(0xA005);
@@ -2593,28 +2610,24 @@ void bgnd_sh_level_1(void) {
             zero_pdata_payload(sizeof(SlaughterhouseData), &data->hdr);
         }
         g_slaughterhouse_pdata = data;
-        if (data != 0) {
-            mk_insert(&data->hdr, &g_game_info.bgnd_obj->child_list);
-            sh_load_objs();
+        if (data == 0) {
+            return;
         }
+        mk_insert(&data->hdr, &g_game_info.bgnd_obj->child_list);
+        sh_load_objs();
     }
-    data = g_slaughterhouse_pdata;
-    if (data != 0) {
-        if (mslSoundIsValid(data->lower_ambient_sound_2)) {
-            snd_stop(data->lower_ambient_sound_2);
-            data->lower_ambient_sound_2 = 0;
-        }
-        if (mslSoundIsValid(data->lower_ambient_sound_1)) {
-            snd_stop(data->lower_ambient_sound_1);
-            data->lower_ambient_sound_1 = 0;
-        }
-        if (!mslSoundIsValid(data->upper_ambient_sound)) {
-            data->upper_ambient_sound = snd_req(0x13C);
-        }
+    if (mslSoundIsValid(g_slaughterhouse_pdata->lower_ambient_sound_2)) {
+        snd_stop(g_slaughterhouse_pdata->lower_ambient_sound_2);
+        g_slaughterhouse_pdata->lower_ambient_sound_2 = 0;
+    }
+    if (mslSoundIsValid(g_slaughterhouse_pdata->lower_ambient_sound_1)) {
+        snd_stop(g_slaughterhouse_pdata->lower_ambient_sound_1);
+        g_slaughterhouse_pdata->lower_ambient_sound_1 = 0;
+    }
+    if (!mslSoundIsValid(g_slaughterhouse_pdata->upper_ambient_sound)) {
+        g_slaughterhouse_pdata->upper_ambient_sound = snd_req(0x13C);
     }
 }
-/* Near match: 99.39%, exact 132-byte instruction stream; float-pool labels
- * differ because this imported TU has a different constant-pool history. */
 void bgnd_start_sh_fx(void) {
     set_background_color(0x78, 0x62, 0x56, 0xFF);
     fog_color_real[0] = 0.33f;
@@ -2635,15 +2648,7 @@ void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
 static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
     MkHdr* object;
 
-    object = latch->hdr;
-    if (object != 0) {
-        if (object->instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
-    if (object != 0) {
+    if (sh_live_latched_object(latch) != 0) {
         object = latch->hdr;
         if (object->instance != 0) {
             object->typed_vtbl->destroy(object);
@@ -2653,9 +2658,7 @@ static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
     }
 }
 
-/* Clean-C near match: 86.54%, retail/local 832/800. All eight typed latches
- * validate, destroy, and clear in retail order; the only size residue is one
- * redundant success-to-merge branch removed from each validation. */
+/* TODO: [near miss] 90.77%; retail re-reads latch->hdr after validation (ours reuses the validated pointer); registers follow. */
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     sh_destroy_latched_object(&pdata->blood_fall_pebbles[0]);
     sh_destroy_latched_object(&pdata->blood_fall_pebbles[1]);
@@ -2669,7 +2672,6 @@ static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     mkhdr_memfree(&pdata->hdr);
     g_slaughterhouse_pdata = 0;
 }
-/* Near match: size-identical 204-byte stream; only the 50.0f pool label differs. */
 void start_bl_beetles_live_top_floor(void) {
     BlBeetlePdata* data;
     MkSobj* object;
@@ -2715,7 +2717,7 @@ static float p_bl_beetle_brains(void) {
 
     pdata = (BlBeetlePdata*)pdata_of_proc(aproc);
     pebble_data = pdata->pebble_data;
-    beetles = (BlBeetleControl*)pebble_data->user_data;
+    beetles = pebble_data->user_data;
     x_axis = (Vec){1.0f, 0.0f, 0.0f};
     z_axis = (Vec){0.0f, 0.0f, 1.0f};
     y_axis = (Vec){0.0f, 1.0f, 0.0f};
@@ -2898,11 +2900,6 @@ static inline int bl_beetle_near_bone(
         limit_sq;
 }
 
-/*
- * Exact-size 99.22% near match. The inline bone-distance helper reproduces
- * retail's repeated stack layout and short-circuit CFG; residue is limited to
- * constant-pool relocation identities in the partially imported TU.
- */
 static int beetle_squashed(
     BlBeetleControl* beetle, PlyrInfo** squashing_player) {
     unsigned int player_index;
@@ -2942,7 +2939,6 @@ static int beetle_squashed(
     }
     return 0;
 }
-/* Exact-size 99.75% near miss; only five float-pool relocation labels differ. */
 static void bl_process_beetle_follow_plyr_personality(
     BlBeetleControl* beetle) {
     unsigned int personality_roll;
@@ -2988,17 +2984,12 @@ static void bl_process_beetle_follow_plyr_personality(
         }
     }
 }
-/*
- * Exact algorithm and access widths; 98.08%, retail/local 364/360 bytes.
- * Retail separately materializes the g_game_info base before the flag-byte
- * load. The remaining float differences are constant-pool relocation labels.
- */
 static void bl_process_beetle_under_glass_personality(
     BlBeetleControl* beetle) {
     unsigned int personality;
 
     if (beetle->movement_state == 0) {
-        if (g_game_info.flag_bits.field_bit6 == 1) {
+        if (g_game_info.floor_flags.field_74_bit6 == 1) {
             beetle->movement_state = 1;
             beetle->personality_ticks = 300;
             beetle->heading_ticks = 0;
@@ -3034,17 +3025,12 @@ static void bl_process_beetle_under_glass_personality(
         }
     }
 }
-/*
- * Exact algorithm/accesses; 98.35%, retail/local 436/432 bytes. Retail emits a
- * separate g_game_info base add before the flag load; other residue is pool
- * relocation labeling.
- */
 static void bl_process_beetle_under_glass_traveller_personality(
     BlBeetleControl* beetle) {
     unsigned int personality;
 
     if (beetle->movement_state == 0) {
-        if (g_game_info.flag_bits.field_bit6 == 1) {
+        if (g_game_info.floor_flags.field_74_bit6 == 1) {
             beetle->movement_state = 1;
             beetle->personality_ticks = 300;
             beetle->heading_ticks = 0;
@@ -3087,10 +3073,7 @@ static void bl_process_beetle_under_glass_traveller_personality(
         }
     }
 }
-/*
- * Exact-size 97.52% near miss. Residue is float-register coloring and the
- * equivalent scheduling of the shared 4.0f distance threshold load.
- */
+/* TODO: [near miss] 97.72358%; coordinate FPR coloring and shared 4.0f load scheduling remain. */
 static void bl_process_beetle_runaway_personality(
     BlBeetleControl* beetle) {
     float x;
@@ -3144,15 +3127,9 @@ static void bl_process_beetle_runaway_personality(
         }
     }
 }
-/*
- * Exact-size 99.30% near miss; remaining differences are float-pool labels and
- * float-register coloring in the second player-distance calculation.
- */
 static void bl_process_beetle_transition_personality(
     BlBeetleControl* beetle) {
-    float x;
-    float y;
-    float z;
+    Vec delta;
 
     if (--beetle->transition_ticks == 0) {
         float scale = 1.1f + frand(0.45f);
@@ -3179,7 +3156,9 @@ static void bl_process_beetle_transition_personality(
             beetle->personality_ticks =
                 (unsigned short)randu0(180) + 180;
         } else {
-            beetle->movement_target = g_game_info.misc->beetle_target;
+            beetle->movement_target.x = g_game_info.misc->beetle_target.x;
+            beetle->movement_target.y = g_game_info.misc->beetle_target.y;
+            beetle->movement_target.z = g_game_info.misc->beetle_target.z;
             beetle->distance_limit_sq = 100.0f;
             beetle->personality = 2;
             beetle->movement_state = 6;
@@ -3189,25 +3168,25 @@ static void bl_process_beetle_transition_personality(
         }
         beetle->heading_ticks = 0;
     } else {
-        x = g_game_info.plyr0.slot.mirror_a->pos.value.x -
+        delta.x = g_game_info.plyr0.slot.mirror_a->pos.value.x -
             beetle->position.x;
-        y = 0.0f;
-        z = g_game_info.plyr0.slot.mirror_a->pos.value.z -
+        delta.y = 0.0f;
+        delta.z = g_game_info.plyr0.slot.mirror_a->pos.value.z -
             beetle->position.z;
-        if (x * x + y * y + z * z < 7.0f) {
+        if (delta.x * delta.x + delta.y * delta.y + delta.z * delta.z < 7.0f) {
             beetle->movement_state = 1;
             beetle->personality_ticks = beetle->transition_ticks + 3;
             beetle->heading_ticks = 0;
             beetle->speed_scale = 1.65f + frand(0.4f);
             beetle->fast_motion = 1;
         } else {
-            y = g_game_info.plyr1.slot.mirror_a->pos.value.y -
-                beetle->position.y;
-            x = g_game_info.plyr1.slot.mirror_a->pos.value.x -
+            delta.x = g_game_info.plyr1.slot.mirror_a->pos.value.x -
                 beetle->position.x;
-            z = g_game_info.plyr1.slot.mirror_a->pos.value.z -
+            delta.y = g_game_info.plyr1.slot.mirror_a->pos.value.y -
+                beetle->position.y;
+            delta.z = g_game_info.plyr1.slot.mirror_a->pos.value.z -
                 beetle->position.z;
-            if (z * z + (x * x + y * y) < 7.0f) {
+            if (delta.x * delta.x + delta.y * delta.y + delta.z * delta.z < 7.0f) {
                 beetle->movement_state = 1;
                 beetle->personality_ticks = beetle->transition_ticks + 3;
                 beetle->heading_ticks = 0;
@@ -3227,7 +3206,6 @@ static void bl_process_beetle_transition_personality(
         }
     }
 }
-/* Exact-size 99.54% near miss; all residuals are float-pool relocations. */
 static void bl_process_beetle_chilling(BlBeetleControl* beetle) {
     int changed;
 
@@ -3291,10 +3269,6 @@ static void bl_process_beetle_chilling(BlBeetleControl* beetle) {
         break;
     }
 }
-/*
- * Soft ceiling 99.41%: exact size and instruction flow. The remaining objdiff
- * entries are local constant-pool relocation labels, not behavioral code.
- */
 static void bl_process_beetle_track_plyr(BlBeetleControl* beetle) {
     unsigned int direction_roll;
     float distance_sq;
@@ -3519,11 +3493,6 @@ static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
         break;
     }
 }
-/*
- * Exact-size 99.91% near match. Calls, switch lowering, coordinate projection,
- * arithmetic, and access widths match retail; residue is constant-pool
- * relocation identity in the partially imported translation unit.
- */
 static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
     float distance_limit_sq, float heading_offset, float heading_divisor,
@@ -3673,19 +3642,19 @@ static inline void bl_init_beetle(
                                  &beetle->position);
 }
 
-/* TODO: [near miss] 97.956860%; repeated beetle/pebble GPR coloring and pool identity; retain ceiling. */
+/* TODO: [near miss] 99.52%; loops 1-3 and the last loop swap beetle/pebble GPRs; f21/f22 swap in the movement-target loops. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
+    Pebble* pebble;
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
     Vec position;
     int random_ticks;
     int index;
 
-    beetles = (BlBeetleControl*)data->pebble_data->user_data;
+    beetles = data->pebble_data->user_data;
     index = 0;
     for (; index < 5; index++) {
         float local_scale = 1.7f + frand(0.25f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 37.0f + sfrand(1.4f);
         position.x = 0.2f + sfrand(1.4f);
@@ -3697,7 +3666,6 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 7; index++) {
         float local_scale = 1.0f + frand(0.25f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 40.0f + sfrand(0.25f);
         position.x = 0.2f + sfrand(0.85f);
@@ -3709,7 +3677,6 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 10; index++) {
         float local_scale = 1.35f + frand(0.15f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 34.25f + sfrand(0.45f);
         position.x = -0.03f + sfrand(0.05f);
@@ -3721,7 +3688,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 12; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
         position.x = sfrand(2.5f);
@@ -3736,7 +3703,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 14; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
         position.x = 7.6f + sfrand(2.5f);
@@ -3751,7 +3718,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 16; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
         position.x = -7.6f + sfrand(2.5f);
@@ -3766,7 +3733,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 19; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 21.5f + sfrand(0.85f);
         position.x = 8.25f + sfrand(0.85f);
@@ -3779,7 +3746,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 21; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 44.0f + sfrand(1.5f);
         position.y = -7.0f + sfrand(2.5f);
@@ -3794,7 +3761,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 22; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 44.0f + sfrand(1.5f);
         position.y = -7.0f + sfrand(2.5f);
@@ -3809,7 +3776,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 24; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 23.0f + sfrand(1.5f);
         position.y = -7.0f + sfrand(2.5f);
@@ -3824,7 +3791,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 25; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 23.0f + sfrand(1.5f);
         position.y = -7.0f + sfrand(2.5f);
@@ -3839,7 +3806,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     for (; index < 28; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 21.5f + sfrand(0.85f);
         position.x = -8.25f + sfrand(0.85f);
@@ -3852,277 +3819,87 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     }
     data->pebble_data->count = 10;
 }
-/*
- * Clean-C ceiling: 94.88%, retail/local 2468/2428 bytes. All initialization
- * ranges, calls, access widths, and field offsets agree. Residue is register
- * coloring plus ten redundant constant-base/pool reloads at range boundaries
- * that this compiler invocation carries across the adjacent loops.
- */
+/* TODO: [near miss] 98.65%; ranges use bl_init_beetle; data/beetle/pebble GPR coloring remains (data r31, retail r26). */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
-    unsigned int random_ticks;
+    Vec position;
+    int random_ticks;
     int index;
 
+    beetles = data->pebble_data->user_data;
     index = 0;
-    beetles = (BlBeetleControl*)data->pebble_data->user_data;
     for (; index < 6; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float z;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
-        z = 1.99f + sfrand(0.8f);
-        x = -1.0f + sfrand(0.8f);
-        beetle = &beetles[index];
+        position.z = 1.99f + sfrand(0.8f);
+        position.x = -1.0f + sfrand(0.8f);
+        position.y = 0.0f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = 0.0f;
-            beetle->position.z = z;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 1.0f;
-            beetle->personality = 1;
-            beetle->movement_state = 0;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 0;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 1, 0,
+                       random_ticks, 1.0f, 0, 0);
     }
     for (; index < 9; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float z;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
-        z = 5.0f + sfrand(0.15f);
-        x = -4.0f + sfrand(0.15f);
-        beetle = &beetles[index];
+        position.z = 5.0f + sfrand(0.15f);
+        position.x = -4.0f + sfrand(0.15f);
+        position.y = 0.0f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = 0.0f;
-            beetle->position.z = z;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 1.0f;
-            beetle->personality = 0;
-            beetle->movement_state = 0;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 0;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 0, 0,
+                       random_ticks, 1.0f, 0, 0);
     }
     for (; index < 21; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float z;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
-        z = 1.99f + sfrand(0.25f);
-        x = -1.0f + sfrand(0.25f);
-        beetle = &beetles[index];
+        position.z = 1.99f + sfrand(0.25f);
+        position.x = -1.0f + sfrand(0.25f);
+        position.y = 0.0f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = 0.0f;
-            beetle->position.z = z;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 0.55f;
-            beetle->personality = 4;
-            beetle->movement_state = 0;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 0;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 4, 0,
+                       random_ticks, 0.55f, 0, 0);
     }
     for (; index < 23; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float z;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
-        z = sfrand(7.0f);
-        x = sfrand(7.0f);
-        beetle = &beetles[index];
+        position.z = sfrand(7.0f);
+        position.x = sfrand(7.0f);
+        position.y = 0.0f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = 0.0f;
-            beetle->position.z = z;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 9.0f;
-            beetle->personality = 2;
-            beetle->movement_state = 0;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 0;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
+                       random_ticks, 9.0f, 0, 0);
     }
     for (; index < 27; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float y;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
-        y = 2.0f + sfrand(1.5f);
-        x = sfrand(2.5f);
-        beetle = &beetles[index];
+        position.y = 2.0f + sfrand(1.5f);
+        position.x = sfrand(2.5f);
+        position.z = 15.17f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = y;
-            beetle->position.z = 15.17f;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 9.0f;
-            beetle->personality = 2;
-            beetle->movement_state = 5;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 1;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
+                       random_ticks, 9.0f, 0, 1);
     }
     for (; index < 31; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        float z;
-        float x;
         Pebble* pebble;
         random_ticks = (unsigned short)randu0(60);
-        z = sfrand(7.0f);
-        x = sfrand(7.0f);
-        beetle = &beetles[index];
+        position.z = sfrand(7.0f);
+        position.x = sfrand(7.0f);
+        position.y = 0.0f;
         pebble = &data->pebble_data->pebbles[index];
-        {
-            Vec y_axis = {0.0f, 1.0f, 0.0f};
-            Vec scale;
-            scale.x = scale.y = scale.z = local_scale;
-            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-            beetle->position.x = x;
-            beetle->position.y = 0.0f;
-            beetle->position.z = z;
-            beetle->movement_target.x = beetle->position.x;
-            beetle->movement_target.y = beetle->position.y;
-            beetle->movement_target.z = beetle->position.z;
-            beetle->distance_limit_sq = 9.0f;
-            beetle->personality = 3;
-            beetle->movement_state = 0;
-            beetle->personality_ticks = random_ticks;
-            beetle->heading_degrees = (float)(unsigned short)randu0(360);
-            beetle->heading_step = 0.0f;
-            beetle->wall_ticks = (unsigned short)randu0(60);
-            beetle->heading_ticks = 0;
-            beetle->bounce_ticks = 0;
-            beetle->field_68 = 3;
-            beetle->vertical_velocity = -0.003f;
-            beetle->fast_motion = 0;
-            beetle->transition_ticks = 0;
-            beetle->surface = 0;
-            beetle->scale.x = scale.x;
-            beetle->scale.y = scale.y;
-            beetle->scale.z = scale.z;
-            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
-                                         beetle->heading_degrees, &scale,
-                                         &beetle->position);
-        }
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 3, 0,
+                       random_ticks, 9.0f, 0, 0);
     }
     data->pebble_data->count = 31;
 }
@@ -4156,8 +3933,8 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
-/* TODO: [breakthrough] 84.392685%; tracked-object latch exits restored;
- * stack and normalization lowering remain. */
+/* TODO: [breakthrough] 87.70%; ordered event-class checks and fighting-light
+ * trigger stores match; wall-target and normalization stack layout remains. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     BlColumnBreakData* column_data;
     BgndScriptProcData* script_data;
@@ -4191,16 +3968,15 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
         eligible = 1;
     }
 
-    switch (event->field_04) {
-    case 7:
+    if (event->field_04 == 7) {
         if (event->event_id == 0x12C) {
             if (beetle_lair_react_to_wall_danger_zone_cb(
                     (BlDangerEvent*)event)) {
                 event->player_pdata->online_sync_index = 0x131;
                 if (event->player_pdata->plyr_num == 0) {
-                    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+                    g_game_info.plyr0.fighting_lights.green_trigger = 1;
                 } else {
-                    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+                    g_game_info.plyr1.fighting_lights.green_trigger = 1;
                 }
             }
         } else if (event->event_id == 0x12D && event->player_pdata != 0) {
@@ -4258,15 +4034,15 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
             if (aligned) {
                 event->player_pdata->online_sync_index = 0xE3;
                 if (event->player_pdata->plyr_num == 0) {
-                    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+                    g_game_info.plyr0.fighting_lights.green_trigger = 1;
                 } else {
-                    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+                    g_game_info.plyr1.fighting_lights.green_trigger = 1;
                 }
             }
         }
         return 0;
-
-    case 5:
+    }
+    if (event->field_04 == 5) {
         if ((event->event_id == 0x97 || event->event_id == 0x40) &&
             eligible != 0 && !g_game_info.floor_flags.field_74_bit6) {
             Vec smoke_position = {0.0f, 0.0f, 0.0f};
@@ -4281,24 +4057,8 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
             direction.x = event->impact_vector->x;
             direction.y = event->impact_vector->y;
             direction.z = event->impact_vector->z;
-            inverse_length = 0.0f;
-            length = direction.x * direction.x +
-                direction.y * direction.y + direction.z * direction.z;
-            if (!(length <= 0.0f)) {
-                union {
-                    float f;
-                    unsigned int u;
-                } estimate, input;
-                float product;
-                float correction;
-
-                input.f = length;
-                estimate.u = 0x5F375A00U - (input.u >> 1);
-                product = estimate.f * (length * estimate.f);
-                correction = 3.0f - product;
-                inverse_length = 0.0625f * estimate.f * correction *
-                    -(correction * (product * correction) - 12.0f);
-            }
+            inverse_length = bgnd_inv_sqrt(direction.x * direction.x +
+                direction.y * direction.y + direction.z * direction.z);
             event->impact_vector->x = 0.045f * direction.x * inverse_length;
             event->impact_vector->y = 0.045f * direction.y * inverse_length;
             event->impact_vector->z = 0.045f * direction.z * inverse_length;
@@ -4449,9 +4209,8 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
             return 1;
         }
         return 0;
-    default:
-        return 0;
     }
+    return 0;
 }
 typedef struct BlWallBreakCameraData {
     MkHdr hdr;
@@ -4461,7 +4220,7 @@ typedef struct BlWallBreakCameraData {
 typedef struct BlWallBreakControllerData {
     MkHdr hdr;
     PlyrPdata* player;
-    int initial_delay;
+    unsigned int initial_delay;
     int remaining_scene_ticks;
 } BlWallBreakControllerData;
 
@@ -4469,25 +4228,16 @@ static float p_beetle_lair_front_wall_breaking(void);
 static float p_beetle_lair_wall_breaking_controller(void);
 extern void tightrope_restrictions_off(void);
 
-/* Clean-C near match: 96.23%, retail/local 1092/1080 bytes. The complete
- * transition, launch normalization, process ownership, and player-state
- * updates agree; residue is register coloring and merged flag-update loads. */
+/* TODO: [near miss] 99.97%; only stack slots swap: inlined bgnd_inv_sqrt input (retail 0x14) vs controller output (retail 0xc). */
 float r_beetle_lair_transition(void) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate, input;
-    BlWallBreakCameraData* camera_data;
     BlWallBreakControllerData* controller_data;
+    BlWallBreakControllerData* front_wall_data;
     MkProc* process;
     PlyrPdata* player;
     Vec velocity;
-    float correction;
     float inverse_length;
-    float product;
-    float squared;
-    float x;
     float z;
+    float x;
     int launched;
 
     launched = 0;
@@ -4517,28 +4267,20 @@ float r_beetle_lair_transition(void) {
     random_hit(4);
     random_voice(0x13);
 
-    inverse_length = 0.0f;
-    z = g_game_info.player_objects[0]->pos.value.z -
-        g_game_info.player_objects[1]->pos.value.z;
     x = g_game_info.player_objects[0]->pos.value.x -
         g_game_info.player_objects[1]->pos.value.x;
-    squared = x * x + z * z;
-    if (!(squared <= 0.0f)) {
-        input.f = squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = 0.0625f * estimate.f * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
+    z = g_game_info.player_objects[0]->pos.value.z -
+        g_game_info.player_objects[1]->pos.value.z;
+    inverse_length = bgnd_inv_sqrt(x * x + z * z);
+    x *= inverse_length;
     velocity.z = 0.23f;
-    velocity.x = 0.23f * (x * inverse_length);
+    velocity.x = 0.23f * x;
     if (plyr_obj->pos.value.x > 2.5f ||
         plyr_obj->pos.value.x < -2.5f) {
-        velocity.z = 0.23f;
         velocity.x *= 0.5f;
+        velocity.z = 0.23f;
     }
-    obj_set_pos_vel(plyr_obj, &velocity);
+    obj_set_pos_vel(g_game_info.player_objects[0], &velocity);
     tightrope_restrictions_off();
     plyr_obj->flags_0B_bits.bit6 = 1;
     special_move_cam_setup(1, 0xC8, 0, 0.35f, 4.0f, 2.0f, -2.67f, 0.2f);
@@ -4557,23 +4299,23 @@ float r_beetle_lair_transition(void) {
     damage_me(0.05f);
     ck_rumble_controller(get_my_plyr_num(), 8, 0x19);
 
-    camera_data = 0;
+    front_wall_data = 0;
     player = plyr_pdata;
     process = _create_mkproc_generic_tinystack(
         0xC01A, 0x1F, p_beetle_lair_front_wall_breaking,
-        sizeof(BlWallBreakCameraData), (MkHdr**)&camera_data);
-    if (process != 0 && camera_data != 0) {
-        camera_data->player = player;
+        sizeof(BlWallBreakControllerData), (MkHdr**)&front_wall_data);
+    if (process != 0 && front_wall_data != 0) {
+        front_wall_data->player = player;
         if (g_game_info.bgnd_obj != 0) {
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }
     delete_obstacle_from_background_by_id(0x42);
     player->online_sync_index = -1;
-    if (player->player_slot == 0) {
-        g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
+    if (player->plyr_num == 0) {
+        g_game_info.plyr0.fighting_lights.green_trigger = 0;
     } else {
-        g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
+        g_game_info.plyr1.fighting_lights.green_trigger = 0;
     }
 
     controller_data = 0;
@@ -4593,42 +4335,24 @@ float r_beetle_lair_transition(void) {
     ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
-/* TODO: [near miss] 98.013336%; target snapshot and result joins restored;
- * zero-length guard and union stack slots differ. */
 static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate, input;
     MkObj* source;
     MkObj* target;
     Vec wall_normal = {0.0f, 0.0f, 1.0f};
-    float correction;
     float dot;
     float inverse_length;
-    float product;
-    float squared;
     float x;
     float y;
     float z;
     float target_z;
 
-    inverse_length = 0.0f;
     target = event->target->object;
     source = event->source->object_ref->object;
     y = target->pos.value.y - source->pos.value.y;
     x = target->pos.value.x - source->pos.value.x;
     target_z = target->pos.value.z;
     z = target_z - source->pos.value.z;
-    squared = z * z + (x * x + y * y);
-    if (!(squared <= 0.0f)) {
-        input.f = squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = 0.0625f * estimate.f * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
+    inverse_length = bgnd_inv_sqrt(z * z + (x * x + y * y));
     x *= inverse_length;
     y *= inverse_length;
     z *= inverse_length;
@@ -4687,30 +4411,31 @@ static inline void bl_front_wall_effect_at(
     }
 }
 
-/* TODO: [breakthrough needed] 83.16828%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [breakthrough needed] 89.94%; missing earlier Vec pool template shifts addends; launch FPR/copy scheduling remains. */
 static float p_beetle_lair_wall_breaking_controller(void) {
     Vec camera_start = {2.166f, -9.5f, 42.734f};
     Vec camera_end = {0.4512f, -0.5f, 18.8713f};
+    Vec velocity;
+    Vec angular_velocity;
     Vec scale = {1.0f, 1.0f, 1.0f};
+    Vec position0;
+    Vec angles0;
+    Vec position1;
+    Vec angles1;
+    Vec position2;
+    Vec angles2;
+    Vec position3;
+    Vec angles3;
+    Vec position4;
+    Vec angles4;
     BlWallBreakControllerData* data;
     BlWallBreakCameraData* camera_data;
     MkPfx* effect;
     MkProc* process;
+    PlyrPdata* player;
     MkObj* player_object;
     MkObj* opponent_object;
     MkSobj* chunk;
-    Vec position0;
-    Vec position1;
-    Vec position2;
-    Vec position3;
-    Vec position4;
-    Vec velocity;
-    Vec angular_velocity;
-    Vec angles0;
-    Vec angles1;
-    Vec angles2;
-    Vec angles3;
-    Vec angles4;
     float camera_dx;
     float camera_dz;
 
@@ -4750,12 +4475,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit3 = 1;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
 
+    player = data->player;
     camera_data = 0;
     process = _create_mkproc_generic_tinystack(
         0xC01C, 0x1F, p_beetle_lair_downstairs_wall_break_cam_control,
         sizeof(BlWallBreakCameraData), (MkHdr**)&camera_data);
     if (process != 0 && camera_data != 0) {
-        camera_data->player = data->player;
+        camera_data->player = player;
         if (g_game_info.bgnd_obj != 0) {
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
@@ -4791,18 +4517,14 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     camera_dx = camera_start.x - camera_end.x;
     camera_dz = camera_start.z - camera_end.z;
 
-    position0.x = 0.4512f;
-    position0.y = 0.8f;
-    position0.z = 18.2113f;
+    position0 = (Vec){0.4512f, 0.8f, 18.2113f};
     velocity.x = 0.05f + camera_dx / 100.0f;
     velocity.y = camera_dz / 100.0f;
     velocity.z = 0.05f;
     angular_velocity.x = 0.05f;
     angular_velocity.y = 0.0f;
     angular_velocity.z = 0.0f;
-    angles0.x = 3.1415927f;
-    angles0.y = 0.0f;
-    angles0.z = 0.0f;
+    angles0 = (Vec){3.1415927f, 0.0f, 0.0f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[0]);
     bgnd_launch_chunk(
         chunk, &position0, &velocity, &angular_velocity, &angles0, 0,
@@ -4810,18 +4532,14 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 
-    position1.x = 0.0f;
-    position1.y = 1.1f;
-    position1.z = 18.2113f;
+    position1 = (Vec){0.0f, 1.1f, 18.2113f};
     velocity.x = 0.0f;
     velocity.y = 0.105f;
     velocity.z = -0.01f;
     angular_velocity.x = 0.043f;
     angular_velocity.y = -0.07f;
     angular_velocity.z = 0.0f;
-    angles1.x = 3.1415927f;
-    angles1.y = 0.0f;
-    angles1.z = 1.0471976f;
+    angles1 = (Vec){3.1415927f, 0.0f, 1.0471976f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[1]);
     bgnd_launch_chunk(
         chunk, &position1, &velocity, &angular_velocity, &angles1, 0,
@@ -4829,9 +4547,7 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 
-    position2.x = 0.6f;
-    position2.y = 1.3f;
-    position2.z = 18.2113f;
+    position2 = (Vec){0.6f, 1.3f, 18.2113f};
     velocity.x = camera_dx / 110.0f - 0.11f;
     velocity.y = camera_dz / 110.0f;
     velocity.z = 0.03f;
@@ -4848,18 +4564,14 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 
-    position3.x = -0.8512f;
-    position3.y = 1.3f;
-    position3.z = 18.2113f;
+    position3 = (Vec){-0.8512f, 1.3f, 18.2113f};
     velocity.x = camera_dx / 300.0f - 0.05f;
     velocity.y = camera_dz / 200.0f;
     velocity.z = 0.2f;
     angular_velocity.x = 0.2f;
     angular_velocity.y = 0.0f;
     angular_velocity.z = 0.15f;
-    angles3.x = 3.1415927f;
-    angles3.y = 0.0f;
-    angles3.z = 0.0f;
+    angles3 = (Vec){3.1415927f, 0.0f, 0.0f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[3]);
     bgnd_launch_chunk(
         chunk, &position3, &velocity, &angular_velocity, &angles3, 0,
@@ -4867,9 +4579,7 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 
-    position4.x = -0.6f;
-    position4.y = 0.6f;
-    position4.z = 18.4313f;
+    position4 = (Vec){-0.6f, 0.6f, 18.4313f};
     velocity.x = camera_dx / 110.0f;
     velocity.y = camera_dz / 110.0f;
     velocity.z = 0.03f;
@@ -4911,9 +4621,6 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
 extern void cam_recalc_midpoint(void);
 
-/* Exact-size 99.93% near match. Counter control, camera handoff, player-state
- * restoration, wall-hider state, controller enable, and AI restart agree;
- * remaining residue is TU-local relocation labeling. */
 static float p_beetle_lair_watch_remaining_fall_scene(void) {
     BlWallBreakControllerData* data;
 
@@ -4999,7 +4706,6 @@ extern void init_ground_move_no_aniproc(void);
 extern void ani_to_blend_frame(float frame);
 extern float p_blend_to_stance_in_10(void);
 
-/* TODO: [near miss] 98.58086%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float winner_watching_him_fall(void) {
     Vec bone_position;
     AniData* animation;
@@ -5042,8 +4748,7 @@ static float winner_watching_him_fall(void) {
     g_bgnd_preloaded_models[5]->scale.x = 1.25f;
     g_bgnd_preloaded_models[5]->scale.y = 1.0f;
     g_bgnd_preloaded_models[5]->scale.z = 1.25f;
-    debris_piece = obj_first_sobj(g_bgnd_preloaded_models[5]);
-    debris_piece->z_offset = -50.0f;
+    obj_first_sobj(g_bgnd_preloaded_models[5])->z_offset = -50.0f;
     update_mkobj(g_bgnd_preloaded_models[5]);
     unhide_obj(g_bgnd_preloaded_models[5]);
 
@@ -5061,19 +4766,16 @@ static float winner_watching_him_fall(void) {
     g_bgnd_preloaded_models[7]->scale.x = 1.25f;
     g_bgnd_preloaded_models[7]->scale.y = 1.0f;
     g_bgnd_preloaded_models[7]->scale.z = 1.25f;
-    debris_piece = obj_first_sobj(g_bgnd_preloaded_models[7]);
-    debris_piece->z_offset = -40.0f;
+    obj_first_sobj(g_bgnd_preloaded_models[7])->z_offset = -40.0f;
     update_mkobj(g_bgnd_preloaded_models[7]);
     unhide_obj(g_bgnd_preloaded_models[7]);
 
     init_ground_move();
     shake_hit_voice(3, -1, 7, 0.03f);
     snd_req(0x90);
-    effect_z = plyr_obj->pos.value.z;
-    effect_y = g_game_info.field_34 + 0.01f;
-    effect_x = plyr_obj->pos.value.x;
     bl_front_wall_effect_at(
-        "dust_aland_gnd_pnd", effect_x, effect_y, effect_z);
+        "dust_aland_gnd_pnd", plyr_obj->pos.value.x,
+        g_game_info.field_34 + 0.01f, plyr_obj->pos.value.z);
     effect_z = plyr_obj->pos.value.z;
     effect_y = g_game_info.field_34 + 0.01f;
     effect_x = plyr_obj->pos.value.x;
@@ -5085,8 +4787,7 @@ static float winner_watching_him_fall(void) {
     return 0.0f;
 }
 
-/* The repeated preload-table accesses are intentional. */
-/* TODO: [near miss] 99.91841%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [near miss] 99.96%; initializer block @1626 is at +0x198 (retail +0xFC, TU data layout); loop fadds operand order remains. */
 static float victim_fall_down_a_level(void) {
     Vec face_target = {0.0f, 0.0f, 0.0f};
     Vec target_position = {0.4512f, -0.5f, 18.8713f};
@@ -5094,9 +4795,6 @@ static float victim_fall_down_a_level(void) {
     Vec follower_position;
     Vec bone_position;
     MkSobj* debris_piece;
-    float effect_x;
-    float effect_y;
-    float effect_z;
 
     stop_me();
     bulvan_function(1);
@@ -5154,15 +4852,10 @@ static float victim_fall_down_a_level(void) {
     unhide_obj(g_bgnd_preloaded_models[8]);
 
     shake_camera(3, 0.03f);
-    effect_z = plyr_obj->pos.value.z;
-    effect_y = g_game_info.field_34 + 0.01f;
-    effect_x = plyr_obj->pos.value.x;
-    bl_front_wall_effect_at(
-        "dust_aland_gnd_pnd", effect_x, effect_y, effect_z);
-    effect_z = plyr_obj->pos.value.z;
-    effect_y = g_game_info.field_34 + 0.01f;
-    effect_x = plyr_obj->pos.value.x;
-    bl_front_wall_effect_at("wall_debris_1", effect_x, effect_y, effect_z);
+    bl_front_wall_effect_at("dust_aland_gnd_pnd", plyr_obj->pos.value.x,
+        g_game_info.field_34 + 0.01f, plyr_obj->pos.value.z);
+    bl_front_wall_effect_at("wall_debris_1", plyr_obj->pos.value.x,
+        g_game_info.field_34 + 0.01f, plyr_obj->pos.value.z);
     random_hit(9);
     random_hit(5);
     damage_me(0.05f);
@@ -5238,13 +4931,14 @@ static inline CameraObj* camera_item_live_node(CameraItem* owner) {
 
 
 
-/* TODO: [near miss] 93.48485%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [breakthrough] 97.121216%; fifth typed wall-position vector fixes frame; wall writes and TU rodata offset remain. */
 static float p_beetle_lair_front_wall_breaking(void) {
     Vec camera_velocity = {0.0f, 0.0f, -0.05f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
+    Vec wall_position = {0.0f, 0.0f, 0.0f};
     Vec effect_offset = {0.0f, 0.0f, 0.6f};
     Vec wall_offset = {1.5f, 0.75f, 0.0f};
-    BlWallBreakCameraData* data;
+    BlWallBreakControllerData* data;
     CameraObj* camera;
     MkObj* player_object;
     MkSobj* wall;
@@ -5253,19 +4947,19 @@ static float p_beetle_lair_front_wall_breaking(void) {
 
 
     _mkproc_sleep_ticks = 3.0f;
-    data = (BlWallBreakCameraData*)apdata;
+    data = (BlWallBreakControllerData*)apdata;
     aproc->vtbl->sleep();
     snd_req(0x8A);
     shake_camera_y(3, 0.03f);
 
     wall = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xBE);
     player_object = data->player->plyr_info->slot.mirror_a;
-    wall->pos.x = player_object->pos.value.x + wall_offset.x;
-    wall->pos.y = player_object->pos.value.y + wall_offset.y;
-    wall->pos.z = 13.1f;
-    effect_position.x = wall->pos.x;
-    effect_position.y = wall->pos.y;
-    effect_position.z = player_object->pos.value.z + wall_offset.z;
+    wall_position.x = player_object->pos.value.x + wall_offset.x;
+    wall_position.y = player_object->pos.value.y + wall_offset.y;
+    wall_position.z = 13.1f;
+    wall->pos.x = wall_position.x;
+    wall->pos.y = wall_position.y;
+    wall->pos.z = wall_position.z;
     wall->flags_08_bits.bit6 = 1;
     wall->flags_08_bits.scale_dirty = 1;
     wall->scale.x = 2.0f;
@@ -5320,37 +5014,34 @@ static inline CameraObj* camera_live_node(CameraItem* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.472440%; relocation offsets, register coloring; one-trial ceiling. */
+/* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x180 higher than retail (TU data layout). */
 static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     Vec cut_position = {4.996f, 2.0f, 27.5f};
     Vec fixed_position = {1.166f, -9.5f, 43.734f};
     Vec endpoint = {3.0f, -8.4543f, 35.572f};
     Vec target = {0.4512f, -0.5f, 18.8713f};
     Vec cut_target = {0.0f, 0.0f, 18.8713f};
-    BlWallBreakCameraData* data;
     CameraObj* camera;
     MkObj* opponent;
     Vec current_target;
     Vec movement;
     Vec look_target;
-    float initial_speed;
-    float final_speed;
+    float initial_speed = 0.0f;
+    float final_speed = 0.0f;
     float delta_x;
     float delta_y;
     float delta_z;
     float pitch;
-    float angle_offset;
+    float angle_offset = 0.0f;
     int follow_ticks;
     int move_ticks;
     unsigned int elapsed;
+    BlWallBreakCameraData* data;
 
-    angle_offset = 0.0f;
     elapsed = 0;
     follow_ticks = (int)(120.0f * inverse_game_speed);
     move_ticks = (int)(100.0f * inverse_game_speed);
     data = (BlWallBreakCameraData*)apdata;
-    initial_speed = 0.0f;
-    final_speed = 0.0f;
 
     go_to_camera_cut(&cut_position, &cut_target);
     _mkproc_sleep_ticks = 37.0f;
@@ -5401,8 +5092,8 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
            --move_ticks > 0) {
         Vec angle = {-0.33f, 3.1415927f, 0.0f};
         opponent = data->player->his_plyr_pdata->plyr_info->slot.mirror_a;
-        delta_z = camera->pos.z - opponent->pos.value.z;
         delta_y = camera->pos.y - opponent->pos.value.y;
+        delta_z = camera->pos.z - opponent->pos.value.z;
         delta_x = camera->pos.x - opponent->pos.value.x;
         angle.y = 3.1415927f + gxMathArcTanYX(delta_x, delta_z);
         pitch = gxMathArcTanYX(delta_y, delta_z);
@@ -5516,37 +5207,17 @@ static inline float bl_column_vector_length(const Vec* vector) {
 }
 
 static inline void bl_column_normalize_vector(Vec* vector) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate, input;
-    float correction;
     float inverse_length;
-    float product;
-    float squared;
     float x;
 
     x = vector->x;
-    squared = vector->z * vector->z +
-        (x * x + vector->y * vector->y);
-    inverse_length = 0.0f;
-    if (!(squared <= 0.0f)) {
-        input.f = squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = 0.0625f * estimate.f * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
+    inverse_length = bgnd_inv_sqrt(vector->z * vector->z +
+                                   (x * x + vector->y * vector->y));
     vector->x = x * inverse_length;
     vector->y *= inverse_length;
     vector->z *= inverse_length;
 }
 
-/* Retail/local are 3016/3012 bytes. Calls, child-process layouts, object IDs,
- * table indexing, access widths, motion math, and effect order agree. The
- * residue is CSE/scheduling across the two inlined length helpers, register
- * coloring in the repeated launch blocks, and one equivalent latch branch. */
 static inline MkObj* bl_column_break_data_live_player_tracked_obj(BlColumnBreakData* owner) {
     MkObj* object = owner->player->tracked_obj;
     if (object != 0) {
@@ -5577,12 +5248,39 @@ static inline MkObj* bl_column_break_data_live_player_his_plyr_pdata_tracked_obj
 
 
 
-/* TODO: [near miss] 92.06764%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+static inline void bl_set_vector(Vec* vector, float x, float y, float z) {
+    vector->x = x;
+    vector->y = y;
+    vector->z = z;
+}
+
+static inline void bl_spawn_launch_column_piece(MkSobj* piece,
+                                                const Vec* direction,
+                                                float gravity, int mode) {
+    BlFinalColumnPieceData* launch_data;
+    MkProc* process;
+
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_launch_column_piece,
+        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+    if (process != 0 && launch_data != 0) {
+        launch_data->piece = piece;
+        launch_data->launch_position.x = direction->x;
+        launch_data->launch_position.y = direction->y;
+        launch_data->launch_position.z = direction->z;
+        launch_data->gravity = gravity;
+        launch_data->mode = mode;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+}
+
+/* TODO: [breakthrough] 98.29%; launch spawns are an inline helper (retail output slots);
+ * flip/final output slots, sqrt/inv-sqrt temp slots and length CSE remain. */
 static float p_beetle_lair_column_breaking(void) {
     Vec axis = {0.0f, 1.0f, 0.0f};
     BlColumnBreakData* data;
-    BlColumnPieceData* flip_data;
-    BlFinalColumnPieceData* launch_data;
     MkObj* target;
     MkObj* reference;
     MkPfx* effect;
@@ -5590,13 +5288,15 @@ static float p_beetle_lair_column_breaking(void) {
     MkSobj* piece;
     unsigned int first_piece_id;
     unsigned int object_id;
-    float blast_y;
     float effect_x;
+    float blast_y;
     float effect_z;
     float flip_x;
     float flip_y;
     float flip_z;
     float length;
+    float random_base_x;
+    float random_base_z;
     float random_x;
     float random_z;
     float scale;
@@ -5647,8 +5347,8 @@ static float p_beetle_lair_column_breaking(void) {
         }
         effect_x = 4.6f;
         first_piece_id = 0x82;
-        effect_z = 1.85f;
         blast_y = 1.3f;
+        effect_z = 1.85f;
     } else {
         obj_create_sobjs_by_id(g_game_info.bgnd_obj, 12);
         if (g_game_info.bgnd_obj != 0) {
@@ -5659,8 +5359,8 @@ static float p_beetle_lair_column_breaking(void) {
         }
         effect_x = -6.3f;
         first_piece_id = 0x78;
-        effect_z = 1.85f;
         blast_y = 1.3f;
+        effect_z = 1.85f;
     }
 
     for (object_id = first_piece_id; object_id < first_piece_id + 6;
@@ -5686,18 +5386,21 @@ static float p_beetle_lair_column_breaking(void) {
     flip_x = 0.15f * data->direction.x;
     flip_y = 0.15f * data->direction.y;
     flip_z = 0.15f * data->direction.z;
-    flip_data = 0;
-    process = _create_mkproc_generic_tinystack(
-        0x8105, 0x1F, p_bl_flip_column_piece,
-        sizeof(BlColumnPieceData), (MkHdr**)&flip_data);
-    if (process != 0 && flip_data != 0) {
-        flip_data->piece = piece;
-        flip_data->replacement_sobj_id = first_piece_id;
-        flip_data->rotation_source.x = flip_x;
-        flip_data->rotation_source.y = flip_y;
-        flip_data->rotation_source.z = flip_z;
-        if (g_game_info.bgnd_obj != 0) {
-            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+    {
+        BlColumnPieceData* flip_data;
+
+        process = _create_mkproc_generic_tinystack(
+            0x8105, 0x1F, p_bl_flip_column_piece,
+            sizeof(BlColumnPieceData), (MkHdr**)&flip_data);
+        if (process != 0 && flip_data != 0) {
+            flip_data->piece = piece;
+            flip_data->replacement_sobj_id = first_piece_id;
+            flip_data->rotation_source.x = flip_x;
+            flip_data->rotation_source.y = flip_y;
+            flip_data->rotation_source.z = flip_z;
+            if (g_game_info.bgnd_obj != 0) {
+                mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+            }
         }
     }
 
@@ -5706,114 +5409,97 @@ static float p_beetle_lair_column_breaking(void) {
 
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 1);
     bl_enable_column_piece_motion(piece);
-    piece->pos_vel.x = 0.55f * data->direction.x;
-    piece->pos_vel.y = 0.02f;
-    piece->pos_vel.z = 0.55f * data->direction.z;
+    bl_set_vector(&piece->pos_vel, 0.55f * data->direction.x, 0.02f,
+                  0.55f * data->direction.z);
     bl_set_column_piece_motion(piece, &axis, -0.5f);
-    launch_data = 0;
-    process = _create_mkproc_generic_tinystack(
-        0x8105, 0x1F, p_launch_column_piece,
-        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
-    if (process != 0 && launch_data != 0) {
-        launch_data->piece = piece;
-        launch_data->launch_position.x = data->direction.x;
-        launch_data->launch_position.y = data->direction.y;
-        launch_data->launch_position.z = data->direction.z;
-        launch_data->gravity = 0.002f;
-        launch_data->mode = 1;
-        if (g_game_info.bgnd_obj != 0) {
-            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
-        }
-    }
+    bl_spawn_launch_column_piece(piece, &data->direction, 0.002f, 1);
 
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 2);
     bl_enable_column_piece_motion(piece);
-    random_x = 1.05f * data->direction.x + sfrand(0.01f);
-    random_z = 1.05f * data->direction.z + sfrand(0.01f);
+    random_base_x = 1.05f * data->direction.x;
+    random_base_z = 1.05f * data->direction.z;
+    random_x = random_base_x + sfrand(0.01f);
+    random_z = random_base_z + sfrand(0.01f);
     piece->pos_vel.x = random_x;
     piece->pos_vel.y = 0.08f;
     piece->pos_vel.z = random_z;
     bl_set_column_piece_motion(piece, &axis, -0.18f);
     rotate_xz(&piece->pos_vel, &piece->pos_vel, -0.7853982f);
-    launch_data = 0;
-    process = _create_mkproc_generic_tinystack(
-        0x8105, 0x1F, p_launch_column_piece,
-        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
-    if (process != 0 && launch_data != 0) {
-        launch_data->piece = piece;
-        launch_data->launch_position.x = data->direction.x;
-        launch_data->launch_position.y = data->direction.y;
-        launch_data->launch_position.z = data->direction.z;
-        launch_data->gravity = 0.003f;
-        launch_data->mode = 0;
-        if (g_game_info.bgnd_obj != 0) {
-            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
-        }
-    }
+    bl_spawn_launch_column_piece(piece, &data->direction, 0.003f, 0);
 
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 3);
     bl_enable_column_piece_motion(piece);
-    piece->pos_vel.x = 1.05f * data->direction.x;
-    piece->pos_vel.y = 0.1f;
-    piece->pos_vel.z = 1.05f * data->direction.z;
+    bl_set_vector(&piece->pos_vel, 1.05f * data->direction.x, 0.1f,
+                  1.05f * data->direction.z);
     bl_set_column_piece_motion(piece, &axis, -1.8f);
     rotate_xz(&piece->pos_vel, &piece->pos_vel, 0.5235988f);
-    launch_data = 0;
-    process = _create_mkproc_generic_tinystack(
-        0x8105, 0x1F, p_launch_column_piece,
-        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
-    if (process != 0 && launch_data != 0) {
-        launch_data->piece = piece;
-        launch_data->launch_position.x = data->direction.x;
-        launch_data->launch_position.y = data->direction.y;
-        launch_data->launch_position.z = data->direction.z;
-        launch_data->gravity = 0.0025f;
-        launch_data->mode = 0;
-        if (g_game_info.bgnd_obj != 0) {
-            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
-        }
-    }
+    bl_spawn_launch_column_piece(piece, &data->direction, 0.0025f, 0);
 
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 5);
     bl_enable_column_piece_motion(piece);
-    piece->pos_vel.x = 0.35f * data->direction.x;
-    piece->pos_vel.y = 0.02f;
-    piece->pos_vel.z = 0.35f * data->direction.z;
+    bl_set_vector(&piece->pos_vel, 0.35f * data->direction.x, 0.02f,
+                  0.35f * data->direction.z);
     piece->ang_vel.x = 0.0f;
     piece->ang_vel.y = 0.0f;
     piece->ang_vel.z = 0.01f;
     rotate_xz(&piece->pos_vel, &piece->pos_vel, -1.5707964f);
-    launch_data = 0;
-    process = _create_mkproc_generic_tinystack(
-        0x8105, 0x1F, p_launch_final_column_piece,
-        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
-    if (process != 0 && launch_data != 0) {
-        launch_data->piece = piece;
-        launch_data->launch_position.x = data->direction.x;
-        launch_data->launch_position.y = data->direction.y;
-        launch_data->launch_position.z = data->direction.z;
-        launch_data->gravity = 0.002f;
-        if (g_game_info.bgnd_obj != 0) {
-            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+    {
+        BlFinalColumnPieceData* launch_data;
+
+        process = _create_mkproc_generic_tinystack(
+            0x8105, 0x1F, p_launch_final_column_piece,
+            sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+        if (process != 0 && launch_data != 0) {
+            launch_data->piece = piece;
+            launch_data->launch_position.x = data->direction.x;
+            launch_data->launch_position.y = data->direction.y;
+            launch_data->launch_position.z = data->direction.z;
+            launch_data->gravity = 0.002f;
+            if (g_game_info.bgnd_obj != 0) {
+                mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+            }
         }
     }
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.78808%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+static inline void bl_launch_final_column_fx(const char* name, MkSobj* piece) {
+    MkPfx* effect;
+    unsigned int handle;
+    float z;
+    float y;
+    float x;
+
+    z = piece->pos.z;
+    y = piece->pos.y;
+    x = piece->pos.x;
+    handle = fx_by_owner(name, 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, 0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = x;
+                g_latest_obj_pfx->pos.value.y = y;
+                g_latest_obj_pfx->pos.value.z = z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect(name);
+            }
+        }
+    }
+}
+
 static float p_launch_final_column_piece(void) {
     BlFinalColumnPieceData* data;
-    MkPfx* effect;
     MkSobj* piece;
-    unsigned int handle;
     int ticks;
     float damping;
-    float final_z;
-    float final_x;
-    float final_y;
-    float dust_x;
-    float dust_y;
-    float dust_z;
 
     ticks = 200;
     damping = (float)pow(0.992, game_speed);
@@ -5834,65 +5520,52 @@ static float p_launch_final_column_piece(void) {
     hide_sobj(piece);
     snd_req_vol(0x8C, 1.0f);
 
-    final_z = piece->pos.z;
-    final_x = piece->pos.x;
-    final_y = piece->pos.y;
-    handle = fx_by_owner("final_col_fx", 4);
-    if (handle != 0) {
-        fx_reset(handle);
-        effect = pfx_from_handle(handle);
-        if (effect != 0) {
-            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
-            if (g_latest_obj_pfx == 0) {
-                g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, 0x8227);
-            }
-            if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
-                g_latest_obj_pfx->pos.value.x = final_x;
-                g_latest_obj_pfx->pos.value.y = final_y;
-                g_latest_obj_pfx->pos.value.z = final_z;
-                update_mkobj(g_latest_obj_pfx);
-                resume_effect("final_col_fx");
-            }
-        }
-    }
-
-    dust_z = piece->pos.z;
-    dust_y = piece->pos.y;
-    dust_x = piece->pos.x;
-    handle = fx_by_owner("dust_small_gnd_pnd", 4);
-    if (handle != 0) {
-        fx_reset(handle);
-        effect = pfx_from_handle(handle);
-        if (effect != 0) {
-            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
-            if (g_latest_obj_pfx == 0) {
-                g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, 0x8227);
-            }
-            if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
-                g_latest_obj_pfx->pos.value.x = dust_x;
-                g_latest_obj_pfx->pos.value.y = dust_y;
-                g_latest_obj_pfx->pos.value.z = dust_z;
-                update_mkobj(g_latest_obj_pfx);
-                resume_effect("dust_small_gnd_pnd");
-            }
-        }
-    }
+    bl_launch_final_column_fx("final_col_fx", piece);
+    bl_launch_final_column_fx("dust_small_gnd_pnd", piece);
     return -1.0f;
 }
 
 static unsigned int bl_column_dust_number;
 
+static inline void bl_launch_column_misc_fx(MkSobj* piece) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+    int handle;
+    float z;
+    float y;
+    float x;
+
+    z = piece->pos.z;
+    y = piece->pos.y;
+    x = piece->pos.x;
+    handle = fx_by_owner("misc_col_fx", 4);
+    if (handle != 0) {
+        handle = fx_next_emitter(handle);
+        if (handle != 0) {
+            fx_resume_emit(handle);
+            effect = pfx_from_emitter(handle);
+            if (effect != 0) {
+                emitter_object = pfx_bind_emitter_num_to_new_obj(
+                    effect, 0x6015, emitter_id_from_handle(handle));
+                if (emitter_object != 0) {
+                    emitter_object->flags_08_bits.airborne = 1;
+                    emitter_object->pos.value.x = x;
+                    emitter_object->pos.value.y = y;
+                    emitter_object->pos.value.z = z;
+                    update_mkobj(emitter_object);
+                }
+            }
+        }
+    }
+}
+
 static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
     MkPfx* effect;
     MkPfx* first_dust;
     unsigned int handle;
-    float x;
-    float y;
     float z;
+    float y;
+    float x;
 
     z = piece->pos.z;
     y = piece->pos.y;
@@ -5924,18 +5597,11 @@ static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
     }
 }
 
-/* TODO: [near miss] 99.24632%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_launch_column_piece(void) {
-    int ticks;
     BlFinalColumnPieceData* data;
-    MkPfx* effect;
-    MkObj* emitter_object;
+    int ticks;
     MkSobj* piece;
-    unsigned int handle;
     float damping;
-    float misc_z;
-    float misc_x;
-    float misc_y;
 
     ticks = 200;
     damping = (float)pow(0.992, game_speed);
@@ -5956,28 +5622,7 @@ static float p_launch_column_piece(void) {
     snd_req_vol(0x8C, 1.0f);
     hide_sobj(piece);
 
-    misc_z = piece->pos.z;
-    misc_y = piece->pos.y;
-    misc_x = piece->pos.x;
-    handle = fx_by_owner("misc_col_fx", 4);
-    if (handle != 0) {
-        handle = fx_next_emitter(handle);
-        if (handle != 0) {
-            fx_resume_emit(handle);
-            effect = pfx_from_emitter(handle);
-            if (effect != 0) {
-                emitter_object = pfx_bind_emitter_num_to_new_obj(
-                    effect, 0x6015, emitter_id_from_handle(handle));
-                if (emitter_object != 0) {
-                    emitter_object->flags_08_bits.airborne = 1;
-                    emitter_object->pos.value.x = misc_x;
-                    emitter_object->pos.value.y = misc_y;
-                    emitter_object->pos.value.z = misc_z;
-                    update_mkobj(emitter_object);
-                }
-            }
-        }
-    }
+    bl_launch_column_misc_fx(piece);
 
     if (bl_column_dust_number == 0) {
         bl_launch_column_dust("dust_small_1", piece);
@@ -6114,15 +5759,13 @@ void bgnd_set_viewing_of_danger_zones(int enabled) {
     g_game_info.switch_input_flags.view_danger_zones = enabled;
     set_collision_render_state(enabled);
 }
-/* Clean-C near match: 66.03%, retail/local 488/460. Shape dispatch, aligned
- * builders, obstacle replacement, flags, repel state, and disable call agree;
- * MWCC removes retail's redundant post-create null-normalization branches. */
+/* TODO: [breakthrough needed] 66.95%; rebuild sequence agrees; retail keeps redundant post-create null-normalization branches our build folds (488 vs 460 bytes). */
 void bgnd_set_danger_zone_y_angle(float y_angle) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
-    CollisionShape box_shape __attribute__((aligned(16)));
-    CollisionShape cylinder_shape __attribute__((aligned(16)));
-    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+    CollisionShape box_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape special_cylinder_shape;
 
     zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
     if (zone->shape_type == 0) {
@@ -6172,15 +5815,13 @@ void bgnd_set_danger_zone_y_angle(float y_angle) {
         bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
     }
 }
-/* Clean-C near match: 66.12%, retail/local 488/460. This is the same evidenced
- * rebuild sequence as the y-angle setter; residue is the four folded
- * null-normalization branches and resulting instruction alignment. */
+/* TODO: [breakthrough needed] 67.00%; same rebuild as the y-angle setter; four folded null-normalization branches (488 vs 460 bytes). */
 void bgnd_set_danger_zone_depth(float depth) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
-    CollisionShape box_shape __attribute__((aligned(16)));
-    CollisionShape cylinder_shape __attribute__((aligned(16)));
-    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+    CollisionShape box_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape special_cylinder_shape;
 
     zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
     if (zone->shape_type == 0) {
@@ -6239,15 +5880,13 @@ void bgnd_set_danger_zone_radius(float radius) {
         bgnd_set_danger_zone_width(radius);
     }
 }
-/* Clean-C near match: 72.47%, retail/local 476/448. Deletion, all three shape
- * paths, flags, ownership, repel state, and enable state agree; only redundant
- * post-create null normalization is absent from local compiler emission. */
+/* TODO: [breakthrough needed] 72.47%; shape paths and state agree; retail's redundant post-create null normalization is folded here (476 vs 448 bytes). */
 void bgnd_set_danger_zone_width(float width) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
-    CollisionShape box_shape __attribute__((aligned(16)));
-    CollisionShape cylinder_shape __attribute__((aligned(16)));
-    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+    CollisionShape box_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape special_cylinder_shape;
 
     if (g_active_bgnd_danger_zone <= 24) {
         zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
@@ -6293,15 +5932,13 @@ void bgnd_set_danger_zone_width(float width) {
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
-/* Clean-C near match: 66.39%, retail/local 456/436. Center stores and the full
- * rebuild/ownership sequence agree; residue is folded null normalization and
- * the consequent scheduling/alignment shift. */
+/* TODO: [breakthrough needed] 67.68%; center stores and rebuild agree; folded null normalization shifts scheduling (456 vs 436 bytes). */
 void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
-    CollisionShape box_shape __attribute__((aligned(16)));
-    CollisionShape cylinder_shape __attribute__((aligned(16)));
-    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+    CollisionShape box_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape special_cylinder_shape;
 
     zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
     zone->center.x = x;
@@ -6347,29 +5984,22 @@ void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
-/* TODO: [near miss] 89.78261%; retail retains field address with lwzu;
- * obstacle-slot and dual-owner trials regress; retain original zone owner. */
 void bgnd_delete_danger_zone(unsigned int zone_index) {
-    BgndDangerZone* zone;
-
     if (zone_index <= 24) {
-        zone = &bgnd_danger_zones[zone_index];
-        if (zone->obstacle != 0) {
+        if (bgnd_danger_zones[zone_index].obstacle != 0) {
             delete_obstacle_from_background_by_id(
                 bgnd_danger_zones[zone_index].obstacle_id);
-            zone->obstacle = 0;
+            bgnd_danger_zones[zone_index].obstacle = 0;
         }
     }
 }
-/* TODO: [near miss] 99.793816%; search snapshot and final indexed calls agree;
- * enable-path ID/next registers differ; stop at coloring. */
 void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
     BgndCollisionItem* item;
     BgndDangerZone* zone;
     MkPtr** list;
     MkPtr* link;
-    MkPtr* next;
     unsigned int obstacle_id;
+    MkPtr* next;
 
     if (zone_index < 24) {
         zone = &bgnd_danger_zones[zone_index];
@@ -6431,19 +6061,16 @@ void bgnd_set_active_danger_zone(unsigned int zone) {
         g_active_bgnd_danger_zone = zone;
     }
 }
-/* Clean-C near match: 68.69%, retail/local 584/568. Validation, typed zone
- * initialization, three shape builders, obstacle flags, collision-script
- * registration, and disabled initial state agree; residue is folded redundant
- * null normalization after obstacle creation. */
+/* TODO: [breakthrough needed] 70.37%; zone setup and registration agree; retail's redundant null normalization after obstacle creation is folded (584 vs 568 bytes). */
 void bgnd_create_danger_zone(
     int shape_type, unsigned int zone_index, unsigned int obstacle_id,
     float height, unsigned int collision_script_function) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
     Vec center = {0.0f, 0.0f, 0.0f};
-    CollisionShape box_shape __attribute__((aligned(16)));
-    CollisionShape cylinder_shape __attribute__((aligned(16)));
-    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+    CollisionShape box_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape special_cylinder_shape;
 
     if (shape_type < 3 && zone_index < 24) {
         if (get_obstacle_type_from_id(obstacle_id) != 7) {
@@ -6514,7 +6141,6 @@ static float plyr_is_prone(void) {
 void bgnd_delete_proc_by_id(int pid) {
     destroy_mkprocs_pid(pid);
 }
-/* Near match: 99.57%, exact size; only the -1.0f relocation label differs. */
 float p_bgnd_script_in_proc(void) {
     BgndScriptProcData* pdata;
 
@@ -6555,25 +6181,27 @@ void bgnd_start_script_in_proc(
         set_process_as_scriptable(process);
     }
 }
-/*
- * Near match: 99.24%, retail/local 216/216 bytes. The remaining difference is
- * the register choice for the initial NPC and obstacle pointer loads.
- */
+static inline int bgnd_list_exists(MkPtr** list) {
+    return list != 0;
+}
+
 static float p_npc_track_colshape(void) {
     MkObj* object;
+    BgndNpc* npc;
+    ArenaObstacle* obstacle;
     BgndNpcCollisionTrackData* data;
-    MkPtr** list;
     CollisionObj* collision;
     MkPtr* node;
     MkPtr* next;
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
     Vec center;
 
     data = (BgndNpcCollisionTrackData*)apdata;
-    object = data->npc->object;
-    list = &data->npc->obstacle->shapes;
-    if (list != 0) {
-        node = *list;
+    npc = data->npc;
+    obstacle = npc->obstacle;
+    object = npc->object;
+    if (bgnd_list_exists(&obstacle->shapes)) {
+        node = obstacle->shapes;
         while (node != 0) {
             collision = (CollisionObj*)node->hdr;
             if (node->instance != collision->hdr.instance) {
@@ -6596,7 +6224,6 @@ static float p_npc_track_colshape(void) {
     return 1.0f;
 }
 
-/* Shared inline lookup evidenced by the repeated retail CFG in NPC helpers. */
 static inline BgndNpc* bgnd_find_npc(unsigned int npc_id) {
     MkPtr** list;
     MkPtr* node;
@@ -6629,7 +6256,7 @@ void bgnd_npc_add_collision_shape(
     float radius, float height, float offset_y, float unused_offset_z) {
     BgndNpc* npc;
     BgndNpcCollisionTrackData* data;
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
     Vec center;
 
     npc = bgnd_find_npc(npc_id);
@@ -6657,7 +6284,6 @@ void bgnd_npc_add_collision_shape(
     }
 }
 
-/* Exact typed lookup and position copy. */
 void bgnd_npc_get_pos(unsigned int npc_id, Vec* position) {
     BgndNpc* npc;
 
@@ -6668,7 +6294,6 @@ void bgnd_npc_get_pos(unsigned int npc_id, Vec* position) {
         position->z = npc->object->pos.value.z;
     }
 }
-/* Exact typed lookup and Y-position store. */
 void bgnd_npc_set_pos_y(unsigned int npc_id, float y) {
     BgndNpc* npc;
 
@@ -6699,23 +6324,18 @@ int bgnd_npc_get_aux_int_data(unsigned int npc_id, unsigned int index) {
     return npc->aux_data->values[index];
 }
 
-/* TODO: [near miss] 97.708336%; auxiliary-data null exit is merged;
- * recover the distinct failure boundary before further trials. */
 void bgnd_npc_set_aux_int_data(
     unsigned int npc_id, unsigned int index, int value) {
     BgndNpc* npc;
-    BgndNpcAuxData* aux_data;
 
     npc = bgnd_find_npc(npc_id);
-    if (npc != 0) {
-        aux_data = npc->aux_data;
-        if (aux_data == 0) {
-            return;
-        }
-        if (index < 2) {
-            aux_data->values[index] = value;
-        }
+    if (npc == 0 || npc->aux_data == 0) {
+        return;
     }
+    if (index >= 2) {
+        return;
+    }
+    npc->aux_data->values[index] = value;
 }
 void bgnd_add_scripted_brains_to_npc(
     unsigned int npc_id, unsigned int script_index) {
@@ -6774,25 +6394,26 @@ void bgnd_npc_set_pos_vel(
     npc->object->pos_vel.z = z;
 }
 
-/*
- * Near match: 98.24%. Clean C folds retail's zero-times-speed expression;
- * the remaining differences are that fold and local constant relocations.
- */
+static inline float bgnd_normalize_y_angle(float angle) {
+    int fixed_angle = (int)(166886.1f * angle) & 0xFFFFF;
+    return 0.000005992112f * (float)fixed_angle;
+}
+
+/* TODO: [near miss] 99.65%; coefficient and angle FPR coloring remains. */
 void bgnd_npc_set_pos_vel_heading(unsigned int npc_id, float speed) {
     BgndNpc* npc;
     float heading;
-    float sine;
-    float cosine;
+    Vec direction;
 
     npc = bgnd_find_npc(npc_id);
     npc->object->flags_08_bits.gravity_enabled = 1;
-    heading = 0.000005992112f *
-              (float)(((int)(166886.1f * npc->object->ang.y)) & 0xFFFFF);
-    sine = gxMathSin(heading);
-    cosine = gxMathCos(heading);
-    npc->object->pos_vel.x = sine * speed;
-    npc->object->pos_vel.y = 0.0f * speed;
-    npc->object->pos_vel.z = cosine * speed;
+    heading = bgnd_normalize_y_angle(npc->object->ang.y);
+    direction.x = gxMathSin(heading);
+    direction.y = 0.0f;
+    direction.z = gxMathCos(heading);
+    npc->object->pos_vel.x = direction.x * speed;
+    npc->object->pos_vel.y = direction.y * speed;
+    npc->object->pos_vel.z = direction.z * speed;
 }
 
 void bgnd_npc_set_scale(
@@ -6810,28 +6431,24 @@ float bgnd_npc_get_ang_y(unsigned int npc_id) {
     return bgnd_find_npc(npc_id)->object->ang.y;
 }
 
-/* Near match: 99.48%, exact size; only local constant labels differ. */
+/* TODO: [near miss] 99.70149%; normalization constants occupy swapped f2/f3 and pool labels differ. */
 void bgnd_npc_adjust_y_ang(unsigned int npc_id, float angle) {
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
     npc->object->flags_08_bits.angular_velocity_enabled = 1;
     npc->object->ang.y += angle;
-    npc->object->ang.y = 0.000005992112f *
-                         (float)(((int)(166886.1f * npc->object->ang.y)) &
-                                 0xFFFFF);
+    npc->object->ang.y = bgnd_normalize_y_angle(npc->object->ang.y);
 }
 
-/* Near match: 99.46%, exact size; only local constant labels differ. */
+/* TODO: [near miss] 99.69231%; two angle constants use swapped FPRs; stop at coloring. */
 void bgnd_npc_set_y_ang(unsigned int npc_id, float angle) {
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
     npc->object->flags_08_bits.angular_velocity_enabled = 1;
     npc->object->ang.y = angle;
-    npc->object->ang.y = 0.000005992112f *
-                         (float)(((int)(166886.1f * npc->object->ang.y)) &
-                                 0xFFFFF);
+    npc->object->ang.y = bgnd_normalize_y_angle(npc->object->ang.y);
 }
 
 void bgnd_npc_set_pos(
@@ -6904,7 +6521,7 @@ void bgnd_create_named_npc_in_slot(
         if (g_game_info.bgnd_id == 0x16) {
             art_slot = 0x18006D;
         }
-        g_bgnd_preloaded_models[npc_id] = (MkObj*)load_named_model_from_slot(
+        g_bgnd_preloaded_models[npc_id] = load_named_model_from_slot(
             art_slot, model_name, npc_id + 0xC000, 0);
         if (g_bgnd_preloaded_models[npc_id] != 0) {
             g_bgnd_preloaded_models[npc_id]->pos.value.z = 0.0f;
@@ -6996,7 +6613,6 @@ static float bgnd_npc_play_ani(void) {
     return 0.0f;
 }
 
-/* Near match: 99.74%, exact size; only the 1.0f relocation label differs. */
 float bgnd_npc_idle(void) {
     BgndNpcAniCommand* command;
 
@@ -7007,29 +6623,18 @@ float bgnd_npc_idle(void) {
         aproc->vtbl->sleep();
     }
 }
-/*
- * Exact direction, normalization, and scaling; 86.86%, retail/local 332/348.
- * Residue is the positive-length branch lowering and stmw/lmw selection.
- */
 void bgnd_set_launch_velocity_based_on_sobj_pos(
     int velocity_index, unsigned int source_id, unsigned int target_id,
     void* script, float horizontal_velocity, float vertical_velocity) {
-    union {
-        float f;
-        unsigned int u;
-    } input, estimate;
     Vec* velocity;
     Vec* source;
     Vec* target;
-    float correction;
     float inverse_length;
-    float product;
-    float squared;
     float x;
     float x_squared;
     float z_squared;
+    float length_squared;
 
-    (void)script;
     velocity = &g_bgnd_scratch_pad_vectors[velocity_index];
     source = sobj_get_world_pos(
         obj_find_sobj_by_id(g_game_info.bgnd_obj, source_id));
@@ -7040,16 +6645,8 @@ void bgnd_set_launch_velocity_based_on_sobj_pos(
     x = velocity->x;
     x_squared = x * x;
     z_squared = velocity->z * velocity->z;
-    squared = x_squared + z_squared;
-    inverse_length = 0.0f;
-    if (squared > 0.0f) {
-        input.f = squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = 0.0625f * estimate.f * correction *
-                         -(correction * (product * correction) - 12.0f);
-    }
+    length_squared = x_squared + z_squared;
+    inverse_length = bgnd_inv_sqrt(length_squared);
     velocity->x = x * inverse_length;
     velocity->z *= inverse_length;
     velocity->x *= horizontal_velocity;
@@ -7075,18 +6672,13 @@ void bgnd_set_sobj_launch_params_exact(
     velocity->y = vertical_velocity;
     rotate_xz(velocity, velocity, heading);
 }
-/*
- * Exact vector algorithm and call order; 92.23%, retail/local 348/352 bytes.
- * Residue is r30/r31 coloring, stmw/lmw selection, and equivalent branch
- * lowering around the impact-vector sentinel.
- */
 void bgnd_set_sobj_launch_params(
     int velocity_index, int angle_index, unsigned int angle_source,
     void* script, float impact_scale, float angle_scale,
     float random_x, float random_y, float random_z,
     float vertical_velocity, float heading) {
-    Vec* velocity;
     Vec* angles;
+    Vec* velocity;
     Vec* source;
     float x_offset;
     float y_offset;
@@ -7100,7 +6692,7 @@ void bgnd_set_sobj_launch_params(
     velocity->y = source->y * impact_scale;
     velocity->z = source->z * impact_scale;
     if (angle_source == 0xF0) {
-        /* Keep using the impact vector. */
+        source = &g_game_info.impact_vector;
     } else {
         source = &g_bgnd_scratch_pad_vectors[angle_source];
     }
@@ -7116,11 +6708,9 @@ void bgnd_set_sobj_launch_params(
     velocity->y = vertical_velocity;
     rotate_xz(velocity, velocity, heading);
 }
-/*
- * Exact object selection, vector transfers, flags, and monitor allocation;
- * 92.66%, exact retail size (632 bytes). Residue is constant-compare lowering,
- * temporary register selection, and equivalent bounded-loop scheduling.
- */
+
+#define BGND_MODEL_BACKGROUND ((int)0xDDDDEEEE)
+
 void bgnd_launch_sobj(
     int model_index, unsigned int object_id, unsigned int position_index,
     unsigned int velocity_index, unsigned int angular_velocity_index,
@@ -7131,12 +6721,14 @@ void bgnd_launch_sobj(
     Vec* vector;
     unsigned int i;
 
-    if (model_index == (int)0xDDDDEEEE) {
+    switch (model_index) {
+    case BGND_MODEL_BACKGROUND:
         object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
         if (object == 0) {
             return;
         }
-    } else {
+        break;
+    default:
         model = g_bgnd_preloaded_models[model_index];
         if (model == 0) {
             return;
@@ -7145,6 +6737,7 @@ void bgnd_launch_sobj(
         if (object == 0) {
             return;
         }
+        break;
     }
     if (g_sobj_launch_monitor_pdata == 0) {
         return;
@@ -7161,18 +6754,18 @@ void bgnd_launch_sobj(
         bgnd_copy_vector(&object->ang, vector);
     }
     if (velocity_index != 0xFF) {
-        object->flags_08_bits.bit5 = 1;
         vector = &g_bgnd_scratch_pad_vectors[velocity_index];
+        object->flags_08_bits.bit5 = 1;
         bgnd_copy_vector(&object->pos_vel, vector);
     }
     if (angular_velocity_index != 0xFF) {
-        object->flags_08_bits.angular_velocity_enabled = 1;
         vector = &g_bgnd_scratch_pad_vectors[angular_velocity_index];
+        object->flags_08_bits.angular_velocity_enabled = 1;
         bgnd_copy_vector(&object->ang_vel, vector);
     }
     if (scale_index != 0xFF) {
-        object->flags_08_bits.scale_dirty = 1;
         vector = &g_bgnd_scratch_pad_vectors[scale_index];
+        object->flags_08_bits.scale_dirty = 1;
         bgnd_copy_vector(&object->scale, vector);
     }
 
@@ -7250,8 +6843,6 @@ void bgnd_set_kill_plane_for_launched_sobj(int test_type) {
         break;
     }
 }
-/* TODO: [near miss] 99.52381%; indexed owner reloads restored;
- * final global-store registers differ; stop at coloring. */
 void start_sobj_launch_monitor(void) {
     BgndSobjLaunchMonitor* monitor;
     MkProc* process;
@@ -7269,8 +6860,8 @@ void start_sobj_launch_monitor(void) {
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }
-    g_active_launched_sobj_pdata = 0;
     g_sobj_launch_monitor_pdata = monitor;
+    g_active_launched_sobj_pdata = 0;
 }
 static float p_bgnd_launch_sobj_monitor(void) {
     BgndSobjLaunchMonitor* monitor;
@@ -7315,7 +6906,6 @@ static float p_bgnd_launch_sobj_monitor(void) {
     }
     return 1.0f;
 }
-/* 99.93%, exact 276-byte code; only the pooled 0.1f relocation differs. */
 void bgnd_chunk_explosion_match_velocity_with_params(
     float velocity_scale, float vertical_velocity,
     float random_vertical_velocity, char* shard_name, int bounce_limit,
@@ -7339,7 +6929,6 @@ void bgnd_chunk_explosion_match_velocity_with_params(
     start_pfx_glass_shards(art_id, &position, &velocity, bounce_limit,
                            spawn_count, scale_mode, motion_mode);
 }
-/* 99.72%, exact 72-byte code; only the pooled u32-to-double relocation differs. */
 static int launch_sobj_watch_dist_from_orgin(
     BgndSobjLaunchEntry* entry, unsigned int distance_squared) {
     float squared;
@@ -7357,7 +6946,6 @@ static int launch_sobj_watch_dist_from_orgin(
     threshold = (float)distance_squared;
     return squared > threshold;
 }
-/* 99.67%, exact 60-byte code; only the pooled -20.0f relocation differs. */
 static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
                                          unsigned int unused) {
     Vec* position;
@@ -7366,7 +6954,6 @@ static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
     position = sobj_get_world_pos(entry->object);
     return position->y <= -20.0f;
 }
-/* 99.74%, exact 76-byte code; only the pooled 0.03f relocation differs. */
 static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
                                              unsigned int unused) {
     Vec* position;
@@ -7375,11 +6962,6 @@ static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
     position = sobj_get_world_pos(entry->object);
     return position->y <= g_game_info.field_34 + 0.03f;
 }
-/*
- * Exact transform, flag, call, and monitor-entry algorithm; 86.42%,
- * retail/local 472/504 bytes. Residue is stmw/lmw selection and typed
- * free-entry loop lowering.
- */
 float bgnd_launch_chunk(
     MkSobj* object, const Vec* position, const Vec* velocity,
     const Vec* angular_velocity, const Vec* angles, unsigned int end_mode,
@@ -7531,7 +7113,6 @@ MkHdr* get_sobj_pebble_obj(MkSobj* object) {
 void* get_general_pebble_data(PebbleData* pebble_data) {
     return pebble_data->user_data;
 }
-/* Exact: typed process payload, mode dispatch, initialization, and ownership. */
 BgndPebbleMonitor* ncs_create_pebble_monitor_proc(
     MkSobj* object, PebbleData* pebble_data, int mode, int count) {
     BgndPebbleMonitor* monitor;
@@ -7570,10 +7151,6 @@ BgndPebbleMonitor* ncs_create_pebble_monitor_proc(
 void ncs_set_pebble_pos(PebbleData* data, int index, Vec* position) {
     MKMatrixTranslate(&data->pebbles[index].matrix, position, 0);
 }
-/*
- * Exact constructor and initialization; 99.44%, retail/local 156/156 bytes.
- * The only residue is scheduling of the two independent loop increments.
- */
 PebbleData* ncs_create_pebbles_with_sobj(MkSobj* object,
                                          unsigned int count) {
     PebbleData* pebble_data;
@@ -7623,7 +7200,6 @@ void pebble_setup_bounce_props(int player, int index, Vec* velocity,
     pebble->bounce_velocity.z = velocity->z;
     pebble->bounce_flags = flags;
 }
-/* Soft ceiling: 99.74% -- only the 57.295776f pool relocation label differs. */
 void pebble_set_ang_vel(int player, int index, Vec* velocity) {
     BgndPebbleControl* pebble;
 
@@ -7656,28 +7232,21 @@ void pebble_set_vel(int player, int index, Vec* velocity) {
     pebble->velocity.y = velocity->y;
     pebble->velocity.z = velocity->z;
 }
-/* TODO: [near miss] 86.666664%; first position load uses displacement instead
- * of retail lfsx; prior exact-stream claim was incorrect; inspect address lifetime. */
 void pebble_get_pos(int player, int index, Vec* position) {
     BgndPebbleControl* pebbles;
-    BgndPebbleControl* pebble;
 
     pebbles = g_pebbles_pdata[player]->collection->pebbles;
     position->x = pebbles[index].position.x;
-    pebble = &pebbles[index];
-    position->y = pebble->position.y;
-    position->z = pebble->position.z;
+    position->y = pebbles[index].position.y;
+    position->z = pebbles[index].position.z;
 }
-/* Near match: exact 60-byte instruction stream; global relocations differ. */
 void pebble_set_pos(int player, int index, Vec* position) {
     BgndPebbleControl* pebbles;
-    BgndPebbleControl* pebble;
 
     pebbles = g_pebbles_pdata[player]->collection->pebbles;
     pebbles[index].position.x = position->x;
-    pebble = &pebbles[index];
-    pebble->position.y = position->y;
-    pebble->position.z = position->z;
+    pebbles[index].position.y = position->y;
+    pebbles[index].position.z = position->z;
 }
 void bgnd_pebble_burst_at_pos(int unused, int first, int second, void* script,
                               float x, float y, float z) {
@@ -7722,20 +7291,16 @@ void bgnd_pebble_burst_set_end_state(int player, unsigned int first,
         }
     }
 }
-/*
- * Soft ceiling: 84.88%, retail/local 384/364 bytes. Selector mapping, radial
- * randomization, and stores agree; typed iteration shortens offset scheduling.
- */
 void bgnd_pebble_burst_set_value_min_max(int player, unsigned int first,
                                          unsigned int end, int field,
                                          void* script, float minimum,
                                          float maximum) {
     BgndPebbleCollection* collection;
-    BgndPebbleControl* pebble;
+    BgndPebbleControl* pebbles;
+    unsigned int index;
     Vec* value;
     Vec direction;
     float magnitude;
-    unsigned int index;
 
     (void)script;
     if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
@@ -7744,39 +7309,44 @@ void bgnd_pebble_burst_set_value_min_max(int player, unsigned int first,
     }
 
     collection = g_pebbles[player];
-    if (collection == 0 || minimum > maximum) {
+    if (collection == 0) {
+        return;
+    }
+    if (minimum > maximum) {
         return;
     }
 
-    pebble = &collection->pebbles[first];
-    for (index = first; index < end; index++, pebble++) {
+    pebbles = collection->pebbles;
+    for (index = first; index < end; index++) {
         switch (field) {
         case 0:
-            value = &pebble->position;
+            value = &pebbles[index].position;
             break;
         case 1:
-            value = &pebble->velocity;
+            value = &pebbles[index].velocity;
             break;
         case 2:
-            value = &pebble->angular_velocity;
-            break;
-        case 3:
-            value = &pebble->bounce_velocity;
+            value = &pebbles[index].angular_velocity;
             break;
         case 4:
-            value = &pebble->angles;
+            value = &pebbles[index].angles;
+            break;
+        case 3:
+            value = &pebbles[index].bounce_velocity;
             break;
         default:
             continue;
         }
 
-        direction.x = 0.0f;
-        direction.y = 0.0f;
         direction.z = 0.0f;
+        direction.y = 0.0f;
+        direction.x = 0.0f;
         magnitude = minimum + frand(maximum - minimum);
         uv_from_angle_y(&direction, frand(6.2831855f));
-        value->x = direction.x * magnitude;
-        value->z = direction.z * magnitude;
+        direction.x *= magnitude;
+        direction.z *= magnitude;
+        value->x = direction.x;
+        value->z = direction.z;
     }
 }
 static inline void bgnd_set_randomized_component(float* destination,
@@ -7790,18 +7360,14 @@ static inline void bgnd_set_randomized_component(float* destination,
     }
 }
 
-/*
- * Soft ceiling: 93.14%, retail/local 676/664 bytes. Remaining differences are
- * loop induction and scheduling around the three inlined component updates.
- */
 void bgnd_pebble_burst_set_value(int player, unsigned int first,
                                  unsigned int end, int field, void* script,
                                  float x, float y, float z, float x_spread,
                                  float y_spread, float z_spread) {
     BgndPebbleCollection* collection;
-    BgndPebbleControl* pebble;
-    Vec* value;
+    BgndPebbleControl* pebbles;
     unsigned int index;
+    Vec* value;
 
     (void)script;
     if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
@@ -7814,23 +7380,23 @@ void bgnd_pebble_burst_set_value(int player, unsigned int first,
         return;
     }
 
-    pebble = &collection->pebbles[first];
-    for (index = first; index < end; index++, pebble++) {
+    pebbles = collection->pebbles;
+    for (index = first; index < end; index++) {
         switch (field) {
         case 0:
-            value = &pebble->position;
+            value = &pebbles[index].position;
             break;
         case 1:
-            value = &pebble->velocity;
+            value = &pebbles[index].velocity;
             break;
         case 2:
-            value = &pebble->angular_velocity;
-            break;
-        case 3:
-            value = &pebble->bounce_velocity;
+            value = &pebbles[index].angular_velocity;
             break;
         case 4:
-            value = &pebble->angles;
+            value = &pebbles[index].angles;
+            break;
+        case 3:
+            value = &pebbles[index].bounce_velocity;
             break;
         default:
             continue;
@@ -7841,17 +7407,12 @@ void bgnd_pebble_burst_set_value(int player, unsigned int first,
         bgnd_set_randomized_component(&value->z, z, z_spread);
     }
 }
-/*
- * Soft ceiling: 91.41%, 724/728 bytes. Retail keeps a separate 0x70-byte
- * offset induction variable; typed array iteration folds it into a pointer.
- * The bounds, two loops, randomization, matrix calls, and stores are intact.
- */
 static void bgnd_pebble_burst_at(int player, const Vec* position,
                                  unsigned int first, unsigned int end) {
     BgndPebbleCollection* collection;
     BgndPebbleControl* pebbles;
-    BgndPebbleControl* pebble;
     unsigned int index;
+    BgndPebbleControl* pebble;
 
     if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
         end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
@@ -7865,13 +7426,13 @@ static void bgnd_pebble_burst_at(int player, const Vec* position,
     pebbles = collection->pebbles;
 
     for (index = first; index < end; index++) {
-        pebble = &pebbles[index];
         if (position != 0) {
-            pebble->position.x = position->x + sfrand(0.1f);
-            pebble->position.y = position->y + sfrand(0.05f);
-            pebble->position.z = position->z + sfrand(0.1f);
+            pebbles[index].position.x = position->x + sfrand(0.1f);
+            pebbles[index].position.y = position->y + sfrand(0.05f);
+            pebbles[index].position.z = position->z + sfrand(0.1f);
         }
 
+        pebble = &pebbles[index];
         pebble->angular_velocity.z = 0.0f;
         pebble->angular_velocity.y = 0.0f;
         pebble->angular_velocity.x = 0.0f;
@@ -7923,7 +7484,6 @@ static void bgnd_pebble_burst_at(int player, const Vec* position,
     }
     unhide_sobj(g_pebbles_pdata[player]->sobj);
 }
-/* Exact-size 99.70% near miss; residue is jump-table relocation labeling. */
 float bgnd_pebble_fetch_current_info(unsigned int field) {
     switch (field) {
     case 0:
@@ -7962,7 +7522,6 @@ float bgnd_pebble_fetch_current_info(unsigned int field) {
         return 0.0f;
     }
 }
-/* Exact-size 99.76% near miss; residue is jump-table relocation labeling. */
 void bgnd_pebble_set_current_info(unsigned int field, void* script,
                                   float value) {
     (void)script;
@@ -8087,20 +7646,15 @@ void bgnd_pebble_change_current_behavior(
     g_current_pebble->bounce_param = behavior_param;
     g_current_pebble->end_behavior = 4;
 }
-/*
- * Soft ceiling: 94.90%, retail/local 468/460 bytes. The launch state and matrix
- * update agree; residue is nonvolatile save grouping and store scheduling.
- */
+/* TODO: [near miss] 99.91453%; pebble-array base uses r7 instead of retail r29; stop at coloring. */
 void bgnd_pebble_launch_at_time(
     int player, int index, unsigned int delay, int behavior_param,
     float position_x, float position_y, float position_z, float scale_x,
     float scale_y, float scale_z, float angle_x, float angle_y, float angle_z) {
-    BgndPebbleCollection* collection;
     BgndPebbleControl* pebble;
 
     unhide_sobj(g_pebbles_pdata[player]->sobj);
-    collection = g_pebbles_pdata[player]->collection;
-    pebble = &collection->pebbles[index];
+    pebble = &g_pebbles_pdata[player]->collection->pebbles[index];
 
     pebble->angular_velocity.z = 0.0f;
     pebble->angular_velocity.y = 0.0f;
@@ -8128,25 +7682,21 @@ void bgnd_pebble_launch_at_time(
     pebble->angles.z = angle_z;
     pebble->bounce_param = behavior_param;
 
-    MKMatrixRotatXZYScaleTranslate(&collection->matrices[index],
+    MKMatrixRotatXZYScaleTranslate(
+        &g_pebbles_pdata[player]->collection->matrices[index],
                                    pebble->angles.x, pebble->angles.z,
                                    pebble->angles.y, &pebble->scale,
                                    &pebble->position);
 }
-/*
- * Soft ceiling: 85.98%, retail/local 200/216 bytes. All state writes and timing
- * conversion agree; residue is lifetime coloring and stmw/lmw selection.
- */
 void bgnd_pebble_simple_launch_at_time(int player, int index,
                                        unsigned int delay,
                                        int behavior_param) {
     BgndPebblePlayerData* player_data;
-    BgndPebbleCollection* collection;
     BgndPebbleControl* pebble;
 
     player_data = g_pebbles_pdata[player];
-    collection = player_data->collection;
-    pebble = &collection->pebbles[index];
+    pebble = player_data->collection->pebbles;
+    pebble += index;
     unhide_sobj(player_data->sobj);
 
     pebble->angular_velocity.z = 0.0f;
@@ -8165,8 +7715,7 @@ void bgnd_pebble_simple_launch_at_time(int player, int index,
     pebble->bounce_param = behavior_param;
     pebble->end_behavior = 4;
 }
-/* TODO: [near miss] 96.08242%; native-safe owner fields preserve GC offsets;
- * remaining register allocation and loop-induction scheduling are unchanged. */
+/* TODO: [near miss] 96.33%; one extra saved GPR (0x70 frame): retail frees the collection register in loop 2 and reloads g_pebbles[player]; plain reload regresses. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
     BgndPebbleCollection* collection;
@@ -8175,20 +7724,21 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     BgndPebbleControl* pebble;
     MkProc* process;
     unsigned int index;
+    unsigned int i;
 
     if (player >= 20) {
         return 0;
     }
-    object->flags_08_bits.angular_velocity_enabled = 1;
+    object->flags_08_bits.bit6 = 1;
     object->z_offset = 0.0f;
     object->flags09_bits.bit4 = 1;
     object->flags09_bits.bit3 = 1;
 
     collection = (BgndPebbleCollection*)create_pebble_userdata(
         object, count, sizeof(BgndPebbleControl));
-    for (index = 0; index < count; index++) {
+    for (i = 0; i < count; i++) {
         MKMatrixTranslate(
-            &collection->matrices[index], &object->pos, 0);
+            &collection->matrices[i], &object->pos, 0);
     }
     g_pebbles[player] = collection;
     if (g_pebbles[player] == 0) {
@@ -8267,7 +7817,7 @@ void bgnd_create_pebbles(
     MkSobj* object;
 
     switch (model_index) {
-    case -572657938:
+    case BGND_MODEL_BACKGROUND:
         object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
         if (object == 0) {
             object = 0;
@@ -8295,7 +7845,7 @@ static inline MkSobj* bgnd_lookup_sobj(int model_index, unsigned int object_id) 
     MkSobj* object;
 
     switch (model_index) {
-    case (int)0xDDDDEEEE:
+    case BGND_MODEL_BACKGROUND:
         object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
         if (object == 0) {
             return 0;
@@ -8340,47 +7890,38 @@ MkObj* bgnd_fetch_obj(int model_id) {
 void bgnd_unhide_pebbles(int player) {
     unhide_sobj(g_pebbles_pdata[player]->sobj);
 }
-/* TODO: [breakthrough needed] 86.69768%; pebble snapshot and matrix-owner
- * reload differ; defer paired-single save frame. */
 void bgnd_hide_pebbles(int player) {
-    BgndPebbleCollection* collection;
-    BgndPebbleControl* pebble;
     unsigned int index;
+    BgndPebbleControl* pebbles;
 
-    collection = g_pebbles[player];
+    pebbles = g_pebbles[player]->pebbles;
     for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
          index++) {
-        pebble = &collection->pebbles[index];
-        pebble->state = 0;
-        pebble->position.y = -200.0f;
-        MKMatrixTranslate(&collection->matrices[index], &pebble->position, 0);
+        pebbles[index].state = 0;
+        pebbles[index].position.y = -200.0f;
+        MKMatrixTranslate(&g_pebbles[player]->matrices[index],
+            &pebbles[index].position, 0);
     }
     hide_sobj(g_pebbles_pdata[player]->sobj);
 }
-/*
- * Clean-C ceiling: 68.31%, retail/local 168/184 bytes. Retail keeps separate
- * byte-offset/index lifetimes and uses stmw/lmw; the typed pointer loop agrees.
- */
 void bgnd_pebble_rand_scale(int player, void* script, float base,
                             float range) {
     BgndPebbleControl* pebble;
+    BgndPebbleControl* pebbles;
     float scale;
     unsigned int index;
 
     (void)script;
-    pebble = g_pebbles[player]->pebbles;
+    pebbles = g_pebbles[player]->pebbles;
     for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
-         index++, pebble++) {
+         index++) {
+        pebble = &pebbles[index];
         scale = base + frand(range);
         pebble->scale.z = scale;
         pebble->scale.y = scale;
         pebble->scale.x = scale;
     }
 }
-/*
- * Exact-size typed loop. Retail hoists the userdata base and advances a byte
- * offset; typed indexing reloads the stable base and colors the loop GPRs.
- */
 void bgnd_pebble_gravity(int player, void* script, float gravity) {
     BgndPebbleControl* pebbles;
     unsigned int index;
@@ -8392,7 +7933,6 @@ void bgnd_pebble_gravity(int player, void* script, float gravity) {
         pebbles[index].gravity = gravity;
     }
 }
-/* Near match: size-identical 288-byte stream; only the 0.5f pool label differs. */
 void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
     BgndPebbleControl* pebble;
     unsigned int index;
@@ -8428,20 +7968,16 @@ void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
             &pebble->scale, &pebble->position);
     }
 }
-/*
- * Exact state gating, integration, and matrix update; 94.61%, retail/local
- * 288/280 bytes. Retail uses independent 0x70 control and 0x40 matrix byte
- * offsets; clean typed C selects pointer induction and different coloring.
- */
 static float p_pebble_manual_monitor(void) {
-    BgndPebbleMonitor* monitor;
     BgndPebbleControl* pebble;
     BgndPebbleCollection* collection;
+    BgndPebbleControl* pebbles;
     unsigned int i;
+    BgndPebbleMonitor* monitor;
 
     monitor = (BgndPebbleMonitor*)pdata_of_proc(aproc);
     collection = (BgndPebbleCollection*)monitor->pebble_data;
-    pebble = (BgndPebbleControl*)collection->pebbles;
+    pebbles = collection->pebbles;
     if (g_game_info.bgnd_obj == 0) {
         return -1.0f;
     }
@@ -8450,7 +7986,9 @@ static float p_pebble_manual_monitor(void) {
          g_game_info.plyr1.slot.mirror_a == 0)) {
         return 1.0f;
     }
-    for (i = 0; i < (unsigned int)monitor->count; i++, pebble++) {
+    for (i = 0; i < (unsigned int)monitor->count; i++) {
+        pebble = &pebbles[i];
+
         v3_add_v3_scaled(&pebble->position, &pebble->position,
                          &pebble->velocity, game_speed);
         pebble->velocity.y += game_speed * pebble->gravity;
@@ -8617,7 +8155,7 @@ static float p_pebble_burst_monitor(void) {
     }
     return -1.0f;
 }
-/* TODO: [near miss] 98.84%; state-13 float coloring and one call argument load remain. */
+/* TODO: [near miss] 98.86%; state-13 FP coloring and one call argument order remain. */
 static float p_pebble_path_monitor(void) {
     BgndPebbleMonitor* monitor;
     BgndPebbleControl* pebble;
@@ -8708,7 +8246,7 @@ static float p_pebble_path_monitor(void) {
             step_y = 0.33f * dy;
             step_z = 0.33f * dz;
             pebble->angles.x = step_x + pebble->angles.x;
-            pebble->angles.y = step_y + pebble->angles.y;
+            pebble->angles.y = pebble->angles.y + step_y;
             pebble->angles.z = step_z + pebble->angles.z;
             if (dz * dz + (dx * dx + dy * dy) < 50.0f) {
                 pebble->angles.x = pebble->target_position.x;
@@ -8792,7 +8330,6 @@ static float p_pebble_path_monitor(void) {
     }
     return -1.0f;
 }
-/* Soft ceiling 85.07%: typed crack/matrix induction and save-set lowering. */
 void bgnd_start_cracks(void) {
     MkSobj* object;
     PebbleData* pebble_data;
@@ -8824,20 +8361,31 @@ void bgnd_start_cracks(void) {
         bgnd_reset_crack_pool();
     }
 }
-/* Soft ceiling 69.84%: typed crack/matrix induction and save-set lowering. */
 void bgnd_remove_cracks(void) {
     if (g_bgnd_cracks != 0) {
         bgnd_reset_crack_pool();
     }
     g_bgnd_cracks = 0;
 }
-/* Soft ceiling 67.60%: typed crack/matrix induction and save-set lowering. */
 void bgnd_init_cracks(void) {
+    unsigned int i;
+    BgndCrack* cracks;
+
     if (g_bgnd_cracks != 0) {
-        bgnd_reset_crack_pool();
+        g_bgnd_last_crack_overwritten = 0;
+        cracks = g_bgnd_cracks->user_data;
+        g_game_info.crack_count = 0.0f;
+        for (i = 0; i < 10; i++) {
+            cracks[i].active = 0;
+            cracks[i].position.z = 0.0f;
+            cracks[i].position.y = 0.0f;
+            cracks[i].position.x = 0.0f;
+            cracks[i].position.y = 10000.0f;
+            MKMatrixTranslate(&g_bgnd_cracks->pebbles[i].matrix,
+                              &cracks[i].position, 0);
+        }
     }
 }
-/* Soft ceiling 71.90%: save-set and independent argument scheduling only. */
 void bgnd_place_crack_when_plyr_hits_ground(unsigned int player_index) {
     BgndCrackPlacer* placer;
     PlyrInfo* player;
@@ -8858,18 +8406,19 @@ void bgnd_place_crack_when_plyr_hits_ground(unsigned int player_index) {
         mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
-/* Clean-C near match: 87.73%, retail/local 676/696. Bone order and floor
- * thresholds, delay, free-slot/overwrite policy, counter update, matrix store,
- * sound, and process returns agree; residue is bounded-loop induction. */
+/* TODO: [near miss] 92.54%; zero stores via rodata copy; scalar zeroing is 100% text but drops the TU's zero-Vec pool entry (note 1534). */
 static float p_crack_placer(void) {
     BgndCrackPlacer* placer;
+    PebbleData* crack_pool;
     BgndCrack* cracks;
     Vec position = {0.0f, 0.0f, 0.0f};
     unsigned int crack_index;
     int place_crack;
 
     placer = (BgndCrackPlacer*)pdata_of_proc(aproc);
-    cracks = (BgndCrack*)placer->crack_pool->user_data;
+    crack_pool = placer->crack_pool;
+    place_crack = 0;
+    cracks = crack_pool->user_data;
     if (g_bgnd_cracks == 0) {
         return -1.0f;
     }
@@ -8878,7 +8427,6 @@ static float p_crack_placer(void) {
         return 1.0f;
     }
 
-    place_crack = 0;
     if (placer->delay != 0) {
         placer->delay--;
     } else {
@@ -8928,10 +8476,11 @@ static float p_crack_placer(void) {
             }
         }
         cracks[crack_index].active = 1;
-        cracks[crack_index].position = position;
+        cracks[crack_index].position.x = position.x;
+        cracks[crack_index].position.y = position.y;
+        cracks[crack_index].position.z = position.z;
         cracks[crack_index].position.y = g_game_info.field_34;
-        MKMatrixTranslate(
-            &placer->crack_pool->pebbles[crack_index].matrix,
+        MKMatrixTranslate(&crack_pool->pebbles[crack_index].matrix,
             &cracks[crack_index].position, 0);
         snd_req(0x11B);
         return -1.0f;
@@ -8967,7 +8516,6 @@ void bgnd_set_fx_ang_dir_to_i_vector(void) {
             g_game_info.impact_vector.z, g_game_info.impact_vector.x);
     }
 }
-/* Soft ceiling 92.94%: exact body; GPR save/restore emission differs. */
 void bgnd_launch_fx_at_active_sobj_pos_with_offset(
     const char* name, float x_offset, float y_offset, float z_offset) {
     MkPfx* effect;
@@ -8990,7 +8538,6 @@ void bgnd_launch_fx_at_active_sobj_pos_with_offset(
         }
     }
 }
-/* Soft ceiling 72.45%: exact body; FPR/GPR prologue scheduling differs. */
 unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* name, float x, float y, float z) {
     MkPfx* effect;
@@ -9022,7 +8569,6 @@ unsigned int pfxhandle_bgnd_spawn_at_position(
     update_mkobj(object);
     return handle;
 }
-/* Soft ceiling 84.14%: exact body; GPR save/restore emission differs. */
 void bgnd_launch_fx_to_sobj(const char* name, int object_id) {
     MkPfx* effect;
     MkSobj* object;
@@ -9040,7 +8586,6 @@ void bgnd_launch_fx_to_sobj(const char* name, int object_id) {
         }
     }
 }
-/* Soft ceiling 69.81%: exact body; FPR/GPR save/restore scheduling differs. */
 void bgnd_launch_fx_at_position(const char* name, float x, float y, float z) {
     MkPfx* effect;
     unsigned int handle;
@@ -9097,7 +8642,6 @@ void bgnd_launch_fx_at_plyr_bid(const char* name, int bone) {
         }
     }
 }
-/* Soft ceiling 80.44%: exact body; GPR save/restore scheduling differs. */
 unsigned int bgnd_pfxhandle_spawn_at_bid(const char* name, MkObj* object,
                                          int bone) {
     MkPfx* effect;
@@ -9125,7 +8669,6 @@ unsigned int bgnd_pfxhandle_spawn_at_bid(const char* name, MkObj* object,
     }
     return handle;
 }
-/* Soft ceiling 74.81%: exact body; nonvolatile register allocation differs. */
 void bgnd_launch_fx_at_bid_of_mkobj(const char* name, MkObj* object,
                                     int bone) {
     MkPfx* effect;
@@ -9141,7 +8684,6 @@ void bgnd_launch_fx_at_bid_of_mkobj(const char* name, MkObj* object,
         }
     }
 }
-/* Soft ceiling 93.34%: exact body; GPR save/restore emission differs. */
 void bgnd_launch_fx_at_sobj_pos(
     const char* name, unsigned int object_id, float y_offset) {
     MkPfx* effect;
@@ -9234,7 +8776,6 @@ MkObj* ncs_bgnd_preload_named_model(
     return object;
 }
 
-/* Exact-size 99.85%; only the pooled 1.0f relocation label differs. */
 void bgnd_enable_obj_pos_and_ang_setting(
     MkObj* object, Vec* position, Vec* angles) {
     object->flags_08_bits.airborne = 1;
@@ -9262,7 +8803,7 @@ MkObj* bgnd_preload_named_model(const char* model_name, unsigned int model_index
         art_slot = 0x18006D;
     }
 
-    g_bgnd_preloaded_models[model_index] = (MkObj*)load_named_model_from_slot(
+    g_bgnd_preloaded_models[model_index] = load_named_model_from_slot(
         art_slot, model_name, model_index + 0xC000, 0);
     if (g_bgnd_preloaded_models[model_index] != 0) {
         g_bgnd_preloaded_models[model_index]->pos.value.z = 0.0f;
@@ -9292,7 +8833,6 @@ MkObj* bgnd_get_preload_obj(int model_index) {
     }
     return object;
 }
-/* Exact-size 99.52%; only the compiler-local jump-table relocation differs. */
 void bgnd_start_preload_sobj_morph(
     int model_index, int sobj_id, unsigned int script_id,
     unsigned int flags) {
@@ -9373,11 +8913,10 @@ void bgnd_start_timer(unsigned int timer, int ticks, int limit) {
 int bgnd_timer_get_tick_count(int timer) {
     return g_game_info.bgnd_timer_ticks[timer];
 }
-/* Soft ceiling 89.29%: typed timer induction and register coloring differ. */
 static float p_bgnd_timer_monitor(void) {
-    CmdScript* previous_script;
     CmdScript* script;
     unsigned int timer;
+    CmdScript* previous_script;
 
     if (g_game_info.bgnd_obj == 0) {
         return -1.0f;
@@ -9413,6 +8952,7 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
     MkObj* player_object;
     PlyrPdata* opponent;
     PlyrPdata* player;
+    const Vec* impact;
 
     player = event->player_pdata;
     player_object = bgnd_get_live_tracked_obj(player);
@@ -9423,9 +8963,10 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
             g_game_info.collision_player_info = player->plyr_info;
             player = event->player_pdata;
             g_game_info.active_player = player->his_plyr_pdata->plyr_info;
-            g_game_info.impact_vector.x = event->impact_vector->x;
-            g_game_info.impact_vector.y = event->impact_vector->y;
-            g_game_info.impact_vector.z = event->impact_vector->z;
+            impact = event->impact_vector;
+            g_game_info.impact_vector.x = impact->x;
+            g_game_info.impact_vector.y = impact->y;
+            g_game_info.impact_vector.z = impact->z;
             g_game_info.player_objects[0] = opponent_object;
             g_game_info.player_objects[1] = player_object;
             g_game_info.collision_player_side = event->flag_bits.player_side;
@@ -9440,7 +8981,6 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
 void bgnd_collison_if_set_info(void) {
     bgnd_apply_collision_info(g_active_obstacle_event_data);
 }
-/* Soft ceiling 90.00%: exact body; GPR save/restore emission differs. */
 void bgnd_collision_if_rx_override(unsigned int collision_id) {
     PlyrPdata* player;
     ScriptTableDef* table;
@@ -9477,7 +9017,6 @@ static inline void bgnd_collision_if_add_monitor(
     mk_insert(&item->hdr, &g_bgnd_collision_to_script_if[list_index]);
 }
 
-/* Soft ceiling 95.67%: exact inlined cases; GPR save/restore differs. */
 void bgnd_collision_if_monitor_col_as(
     int list_index, unsigned int collision_id, unsigned int script_function,
     int monitor_type) {
@@ -9520,7 +9059,6 @@ void bgnd_collison_if_monitor_col(
     item->collision_mode = 1;
     mk_insert(&item->hdr, &g_bgnd_collision_to_script_if[list_index]);
 }
-/* Soft ceiling 83.08%: exact body; GPR save/restore emission differs. */
 void bgnd_collision_if_enable_col(int list_index, unsigned int collision_id) {
     BgndCollisionItem* item;
     MkPtr** list;
@@ -9547,7 +9085,6 @@ void bgnd_collision_if_enable_col(int list_index, unsigned int collision_id) {
         }
     }
 }
-/* Soft ceiling 83.08%: exact body; GPR save/restore emission differs. */
 void bgnd_collision_if_disable_col(int list_index, unsigned int collision_id) {
     BgndCollisionItem* item;
     MkPtr** list;
@@ -9574,17 +9111,15 @@ void bgnd_collision_if_disable_col(int list_index, unsigned int collision_id) {
         }
     }
 }
-/* Soft ceiling 85.12%: exact behavior; typed-list CFG and coloring differ. */
+/* TODO: [near miss] 97.44%; only signedness left: BgndCollisionItem monitor_mode/collision_mode should be unsigned int (retail cmplwi). */
 static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
+    unsigned int list_index;
     BgndCollisionItem* item;
-    CmdScript* previous_script;
     CmdScript* script;
+    CmdScript* previous_script;
     MkPtr** list;
     MkPtr* link;
     MkPtr* next;
-    PlyrPdata* player;
-    unsigned int list_index;
-    unsigned int player_side;
 
     if (g_game_info.plyr0.slot.pdata->state != 0x4203 &&
         g_game_info.plyr1.slot.pdata->state != 0x4203) {
@@ -9596,9 +9131,9 @@ static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
             return 0;
         }
     }
-    player = event->player_pdata;
-    if (player != 0 &&
-        (player->plyr_info->slot.mirror_a == 0 || player->his_obj == 0)) {
+    if (event->player_pdata != 0 &&
+        (event->player_pdata->plyr_info->slot.mirror_a == 0 ||
+         event->player_pdata->his_obj == 0)) {
         return 0;
     }
     for (list_index = 0; list_index < 8; list_index++) {
@@ -9614,25 +9149,27 @@ static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
                     link = next;
                     continue;
                 }
-                player_side = event->flag_bits.player_side;
-                if ((item->collision_mode != 0 || player_side) &&
+                if ((item->collision_mode != 0 || event->flag_bits.player_side) &&
                     !item->flags.bits.disabled &&
                     event->event_id == item->collision_id &&
                     (item->monitor_mode == 0 ||
-                     (item->monitor_mode == 1 && player->state == 0x609) ||
-                     (item->monitor_mode == 2 && (player->state & 0x400)) ||
-                     (item->monitor_mode == 3 && (player->state & 0x1000))) &&
-                    (!item->flags.bits.bit7 || player != 0)) {
+                     (item->monitor_mode == 1 && event->player_pdata->state == 0x609) ||
+                     (item->monitor_mode == 2 && (event->player_pdata->state & 0x400)) ||
+                     (item->monitor_mode == 3 && (event->player_pdata->state & 0x1000))) &&
+                    (!item->flags.bits.bit7 || event->player_pdata != 0)) {
+                    unsigned int player_side;
+
                     script = alloc_cmdscript();
                     previous_script = active_cmdscript;
+                    player_side = event->flag_bits.player_side;
                     if (player_side == 1 && item->flags.bits.bit6 == 1 &&
-                        player->state != 0x609) {
+                        event->player_pdata->state != 0x609) {
                         return 0;
                     }
                     if (item->collision_mode != 0 &&
-                        item->collision_mode != 3 && player != 0 &&
+                        item->collision_mode != 3 && event->player_pdata != 0 &&
                         player_side == 1) {
-                        event->player_pdata = player->his_plyr_pdata;
+                        event->player_pdata = event->player_pdata->his_plyr_pdata;
                     }
                     g_active_obstacle_event_data = event;
                     g_active_bgnd_col_item = item;
@@ -9667,7 +9204,7 @@ void bgnd_swap_level(int level) {
         if (g_game_info.wall_hider != 0) {
             g_game_info.wall_hider->flag_bits.disabled = 1;
         }
-        g_game_info.section = (BgndDataTable*)get_data_table(
+        g_game_info.section = get_data_table(
             g_game_info.cmdscript, g_game_info.cmdscript->table_count);
         g_game_info.misc = g_game_info.section->misc + level;
 
@@ -9749,9 +9286,6 @@ void bgnd_swap_level(int level) {
         }
     }
 }
-/* Clean-C near match: 96.25%, exact 368-byte size. Retail preserves the same
- * complete state words, scoped start vectors, calls, sleep, and restoration;
- * residue is temporary-register selection while copying the two angle vectors. */
 float bgnd_move_plyrs_to_initial_pos(void) {
     unsigned int player0_state =
         g_game_info.plyr0.slot.pdata->state_flags.raw_word;
@@ -9765,15 +9299,15 @@ float bgnd_move_plyrs_to_initial_pos(void) {
     g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 1;
     g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 1;
     if (g_game_info.plyr0.slot.mirror_a != 0) {
-        Vec player0_angles = {0.0f, 1.5707964f, 0.0f};
         Vec* player0_start = &g_game_info.misc->player0_start;
+        Vec player0_angles = {0.0f, 1.5707964f, 0.0f};
         player0_start->y = g_game_info.field_34;
         move_player(g_game_info.plyr0.slot.mirror_a,
                     player0_start, &player0_angles);
     }
     if (g_game_info.plyr1.slot.mirror_a != 0) {
-        Vec player1_angles = {0.0f, -1.5707964f, 0.0f};
         Vec* player1_start = &g_game_info.misc->player1_start;
+        Vec player1_angles = {0.0f, -1.5707964f, 0.0f};
         player1_start->y = g_game_info.field_34;
         move_player(g_game_info.plyr1.slot.mirror_a,
                     player1_start, &player1_angles);
@@ -9845,11 +9379,8 @@ void bgnd_add_fx_to_hide(const char* effect_name) {
         }
     }
 }
-/* Near match: 99.33%, exact 208-byte flow; append-index locals differ only in
- * temporary register allocation. */
 void bgnd_add_wall_to_unhide(int object_id) {
     BgndWallHiderRuntime* runtime;
-    unsigned int index;
     MkSobj* object;
 
     if (g_game_info.wall_hider != 0) {
@@ -9870,9 +9401,7 @@ void bgnd_add_wall_to_unhide(int object_id) {
                 }
             }
             runtime = g_game_info.wall_hider->runtime;
-            index = runtime->unhide_count;
-            runtime->unhide_count = index + 1;
-            runtime->walls_to_unhide[index] = object_id;
+            runtime->walls_to_unhide[runtime->unhide_count++] = object_id;
         }
     }
 }
@@ -9895,7 +9424,6 @@ void bgnd_add_wall_to_hide(int object_id) {
         }
     }
 }
-/* Exact retail initialization, typed normal fields, and wall-hider ownership. */
 void bgnd_add_new_normal_check_for_hider(
     void* script_args, float normal_x, float normal_y, float normal_z,
     float distance) {
@@ -9921,8 +9449,6 @@ void bgnd_add_new_normal_check_for_hider(
         mk_insert(&runtime->hdr, &g_game_info.wall_hider->walls);
     }
 }
-/* Exact 152-byte instruction stream; the only objdiff residue is the pooled
- * 100.0f constant's local symbol label. */
 void bgnd_start_wall_hider(int unused) {
     BgndWallHiderData* hider;
     MkProc* process;
@@ -9975,7 +9501,6 @@ void bgnd_remove_wall_from_hider(unsigned int object_id) {
     }
 }
 
-/* TODO: [near miss] 97.468880%; instruction lowering, branch lowering; one-trial ceiling. */
 static float p_hide_walls(void) {
     BgndWallHiderData* hider;
     BgndWallHiderRuntime* runtime;
@@ -9994,11 +9519,14 @@ static float p_hide_walls(void) {
     }
 
     hider = (BgndWallHiderData*)apdata;
-    if (hider == 0 || g_game_info.bgnd_obj == 0 ||
-        hider->flag_bits.kill_process) {
+    if (hider == 0) {
         return -1.0f;
     }
-    if (hider->flag_bits.disabled) {
+    if (g_game_info.bgnd_obj == 0 ||
+        hider->flag_bits.kill_process == 1) {
+        return -1.0f;
+    }
+    if (hider->flag_bits.disabled == 1) {
         return 1.0f;
     }
 
@@ -10085,14 +9613,11 @@ static float p_hide_walls(void) {
     }
     return 1.0f;
 }
-/* Clean-C near match: 90.83%, retail/local 764/740 bytes. The six missing
- * instructions are redundant source-vector reloads that MWCC CSEs locally;
- * the remaining differences are initialization order and FPR scheduling. */
 void bgnd_place_object_at_position(
-    int object_id, int sobj_id, const Vec* position, const Vec* angles,
+    int object_id, int sobj_id, Vec* position, Vec* angles,
     int flags) {
     BgndDisplayedItem* item;
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
     Vec center;
 
     item = (BgndDisplayedItem*)get_mkhdr_generic(sizeof(BgndDisplayedItem));
@@ -10107,12 +9632,12 @@ void bgnd_place_object_at_position(
     item->field_28 = 0;
     item->source_sobj_id = 0;
     item->field_30 = 0;
-    item->position.z = item->position.y = item->position.x = 0.0f;
-    item->angles.z = item->angles.y = item->angles.x = 0.0f;
-    item->field_4C.z = item->field_4C.y = item->field_4C.x = 0.0f;
-    item->field_58.z = item->field_58.y = item->field_58.x = 0.0f;
-    item->collision_center.z = item->collision_center.y =
-        item->collision_center.x = 0.0f;
+    item->position.x = item->position.y = item->position.z = 0.0f;
+    item->angles.x = item->angles.y = item->angles.z = 0.0f;
+    item->field_4C.x = item->field_4C.y = item->field_4C.z = 0.0f;
+    item->field_58.x = item->field_58.y = item->field_58.z = 0.0f;
+    item->collision_center.x = item->collision_center.y =
+        item->collision_center.z = 0.0f;
     item->collision_radius = 0.0f;
     item->collision_height = 0.0f;
     item->field_78 = 0.0f;
@@ -10185,10 +9710,30 @@ void bgnd_place_object_at_position(
         }
     }
 }
-/* Clean-C near match: 98.59%, retail/local 1964/1944 bytes. All retail calls,
- * branches, latches, transforms, collision setup, and list ownership agree.
- * The paired path intentionally preserves retail's overwrite of +0x0C before
- * its later +0x10 access; the residue is branch merging/register coloring. */
+static inline MkObj* global_moveset_live_primary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->primary_weapon;
+
+    if (object != 0) {
+        if (object->hdr.instance == owner->primary_weapon_instance) {
+            return object;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+static inline MkObj* global_moveset_live_secondary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->secondary_weapon;
+
+    if (object != 0) {
+        if (object->hdr.instance == owner->secondary_weapon_instance) {
+            return object;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 void bgnd_place_weapon_at_position(
     int primary_object_id, int secondary_object_id, int primary_sobj_id,
     int secondary_sobj_id, int paired, int pickup_sobj_id, int permanent,
@@ -10199,9 +9744,8 @@ void bgnd_place_weapon_at_position(
     float secondary_angle_z, float radius, float height,
     float collision_x, float collision_y, float collision_z) {
     BgndDisplayedItem* item;
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
     Vec center;
-    MkObj* object;
 
     item = (BgndDisplayedItem*)get_mkhdr_generic(sizeof(BgndDisplayedItem));
     item->type = 0;
@@ -10215,12 +9759,12 @@ void bgnd_place_weapon_at_position(
     item->field_28 = 0;
     item->source_sobj_id = 0;
     item->field_30 = 0;
-    item->position.z = item->position.y = item->position.x = 0.0f;
-    item->angles.z = item->angles.y = item->angles.x = 0.0f;
-    item->field_4C.z = item->field_4C.y = item->field_4C.x = 0.0f;
-    item->field_58.z = item->field_58.y = item->field_58.x = 0.0f;
-    item->collision_center.z = item->collision_center.y =
-        item->collision_center.x = 0.0f;
+    item->position.x = item->position.y = item->position.z = 0.0f;
+    item->angles.x = item->angles.y = item->angles.z = 0.0f;
+    item->field_4C.x = item->field_4C.y = item->field_4C.z = 0.0f;
+    item->field_58.x = item->field_58.y = item->field_58.z = 0.0f;
+    item->collision_center.x = item->collision_center.y =
+        item->collision_center.z = 0.0f;
     item->collision_radius = 0.0f;
     item->collision_height = 0.0f;
     item->field_78 = 0.0f;
@@ -10232,16 +9776,8 @@ void bgnd_place_weapon_at_position(
     if (item != 0) {
         if (paired == 0) {
             item->type = 0;
-            object = global_movesets[6].primary_weapon;
-            if (object != 0) {
-                if (object->hdr.instance !=
-                    global_movesets[6].primary_weapon_instance) {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
-            item->primary_object = object;
+            item->primary_object =
+                global_moveset_live_primary_weapon(&global_movesets[6]);
             item->object_id = primary_object_id;
             item->display_sobj = obj_find_sobj_by_id(
                 g_game_info.bgnd_obj, primary_sobj_id);
@@ -10272,26 +9808,10 @@ void bgnd_place_weapon_at_position(
             item->source_sobj_id = primary_sobj_id;
         } else {
             item->type = 1;
-            object = global_movesets[6].primary_weapon;
-            if (object != 0) {
-                if (object->hdr.instance !=
-                    global_movesets[6].primary_weapon_instance) {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
-            item->primary_object = object;
-            object = global_movesets[6].secondary_weapon;
-            if (object != 0) {
-                if (object->hdr.instance !=
-                    global_movesets[6].secondary_weapon_instance) {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
-            item->primary_object = object;
+            item->primary_object =
+                global_moveset_live_primary_weapon(&global_movesets[6]);
+            item->primary_object =
+                global_moveset_live_secondary_weapon(&global_movesets[6]);
             item->object_id = primary_object_id;
             item->field_20 = secondary_object_id;
             item->display_sobj = obj_find_sobj_by_id(
@@ -10356,9 +9876,9 @@ void bgnd_place_weapon_at_position(
         center.x = collision_x;
         center.y = collision_y;
         center.z = collision_z;
-        item->collision_center.x = collision_x;
-        item->collision_center.y = collision_y;
-        item->collision_center.z = collision_z;
+        item->collision_center.x = center.x;
+        item->collision_center.y = center.y;
+        item->collision_center.z = center.z;
         build_col_shape_vertical_cylinder(&shape, &center, radius, height);
         item->obstacle = add_shape_to_background_obstacle_list(
             &shape, primary_object_id + 0x100);
@@ -10482,8 +10002,6 @@ void bgnd_act_at_time(int ticks, int script_function, void* script,
     }
 }
 
-/* Exact 168-byte instruction stream; only the pooled -1.0f symbol label
- * differs in objdiff. */
 static float p_act_at_time(void) {
     BgndActAtTimeData* data;
     float y;
@@ -10509,7 +10027,6 @@ static float p_act_at_time(void) {
     cmdscript_execute(g_game_info.cmdscript);
     return -1.0f;
 }
-/* Exact calls/arguments; 73.60%, retail/local 100/108 bytes from stmw/lmw. */
 void bgnd_run_camera_script(int argument, int flags) {
     camera_set_attacker(g_game_info.player_objects[1]);
     camera_set_victim(g_game_info.player_objects[0]);
@@ -10545,36 +10062,16 @@ void spad_set_vector_setting(
     vector->y = y;
     vector->z = z;
 }
-/*
- * Exact-size 92.09% near miss. The inverse-square-root algorithm and stores
- * agree; residue is stack-slot reuse and floating-point scheduling.
- */
 void spad_norm_vector(int index) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate, input;
     Vec* vector;
-    float correction;
     float inverse_length;
-    float product;
-    float squared;
     float x;
 
     vector = &g_bgnd_scratch_pad_vectors[index];
     x = vector->x;
-    squared = vector->z * vector->z +
-              (x * x + vector->y * vector->y);
-    if (squared <= 0.0f) {
-        inverse_length = 0.0f;
-    } else {
-        input.f = squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = 0.0625f * estimate.f * correction *
-                         -(correction * (product * correction) - 12.0f);
-    }
+    inverse_length = bgnd_inv_sqrt(
+        (float)(vector->z * vector->z) +
+        ((float)(x * x) + (float)(vector->y * vector->y)));
     vector->x = x * inverse_length;
     vector->y *= inverse_length;
     vector->z *= inverse_length;
@@ -10594,9 +10091,6 @@ float spad_xz_dot_xz(int first, int second) {
     b = &g_bgnd_scratch_pad_vectors[second];
     return a->z * b->z + (a->x * b->x + a->y * b->y);
 }
-/* Clean-C near match: 87.39%, retail/local 980/872. All jump-table sources,
- * partial/full vector writes, player/event ownership chains, and integer-to-
- * float conversions agree. Residue is repeated typed-pointer CSE. */
 void spad_set_vector(int index, unsigned int source) {
     Vec* output = &g_bgnd_scratch_pad_vectors[index];
 
@@ -10651,38 +10145,26 @@ void spad_set_vector(int index, unsigned int source) {
         output->y = g_current_reaction_info.player_info->slot.mirror_a->pos.value.y;
         output->z = g_current_reaction_info.player_info->slot.mirror_a->pos.value.z;
         break;
-    case 0x13: {
-        MkObj* object = g_current_reaction_info.player_info->slot.pdata->
-            his_plyr_pdata->plyr_info->slot.mirror_a;
-        output->x = object->pos.value.x;
-        output->y = object->pos.value.y;
-        output->z = object->pos.value.z;
+    case 0x13:
+        output->x = g_current_reaction_info.player_info->slot.pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.x;
+        output->y = g_current_reaction_info.player_info->slot.pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.y;
+        output->z = g_current_reaction_info.player_info->slot.pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.z;
         break;
-    }
-    case 0x15: {
-        MkObj* object = g_active_obstacle_event_data->player_pdata->
-            plyr_info->slot.mirror_a;
-        output->x = object->pos.value.x;
-        output->y = object->pos.value.y;
-        output->z = object->pos.value.z;
+    case 0x15:
+        output->x = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->pos.value.x;
+        output->y = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->pos.value.y;
+        output->z = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->pos.value.z;
         break;
-    }
-    case 0x14: {
-        MkObj* object = g_active_obstacle_event_data->player_pdata->
-            his_plyr_pdata->plyr_info->slot.mirror_a;
-        output->x = object->pos.value.x;
-        output->y = object->pos.value.y;
-        output->z = object->pos.value.z;
+    case 0x14:
+        output->x = g_active_obstacle_event_data->player_pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.x;
+        output->y = g_active_obstacle_event_data->player_pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.y;
+        output->z = g_active_obstacle_event_data->player_pdata->his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.z;
         break;
-    }
-    case 0x1E: {
-        MkObj* object = g_active_obstacle_event_data->player_pdata->
-            plyr_info->slot.mirror_a;
-        output->x = object->ang.x;
-        output->y = object->ang.y;
-        output->z = object->ang.z;
+    case 0x1E:
+        output->x = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->ang.x;
+        output->y = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->ang.y;
+        output->z = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->ang.z;
         break;
-    }
     case 0x1A:
         output->x = (float)g_active_obstacle_event_data->player_pdata->plyr_num;
         break;
@@ -10737,15 +10219,11 @@ float spad_get_pos(int index, unsigned int component) {
     }
     return value;
 }
-/* Exact operations/size; remaining 3.81% is GPR argument coloring. */
 void spad_sub_vectors(int destination, int first, int second) {
-    Vec* output;
-    Vec* a;
-    Vec* b;
+    Vec* output = &g_bgnd_scratch_pad_vectors[destination];
+    Vec* a = &g_bgnd_scratch_pad_vectors[first];
+    Vec* b = &g_bgnd_scratch_pad_vectors[second];
 
-    a = &g_bgnd_scratch_pad_vectors[first];
-    b = &g_bgnd_scratch_pad_vectors[second];
-    output = &g_bgnd_scratch_pad_vectors[destination];
     output->x = a->x - b->x;
     output->y = a->y - b->y;
     output->z = a->z - b->z;
@@ -10759,61 +10237,47 @@ void spad_add_vector(int index, void* script, float x, float y, float z) {
     vector->y += y;
     vector->z += z;
 }
-/* Exact operations/size; remaining 3.33% is GPR argument coloring. */
 void spad_set_vector_y(int index, void* script, float y) {
+    Vec* vector;
+
     (void)script;
-    g_bgnd_scratch_pad_vectors[index].y = y;
+    vector = &g_bgnd_scratch_pad_vectors[index];
+    vector->y = y;
 }
-/* TODO: [near miss] 85.12658%; both sqrt table offsets are corrected;
- * retail/local 316/304 bytes retain the existing stack-reuse ceiling. */
+static inline float bgnd_fast_sqrt(float value) {
+    unsigned int bits;
+    float guess;
+    float correction;
+
+    if (value <= 0.0f) {
+        return 0.0f;
+    }
+    bits = (unsigned int)GXMathSqrtTable[(*(unsigned int*)&value >> 11) & 0x1FFF]
+           << 8;
+    bits |= (((*(unsigned int*)&value & 0x7F800000U) + 0x3F800000U) >> 1) &
+            0x7F800000U;
+    guess = *(float*)&bits;
+    correction = 3.0f - (guess * guess) / value;
+    return 0.5f * (guess * correction);
+}
+
+/* TODO: [near miss] 98.48%; only FPR numbering differs inside the two inlined bgnd_fast_sqrt copies. */
 float spad_xz_cos_two_vectors(int first, int second) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate1, input1, estimate2, input2;
     Vec* first_vector;
     Vec* second_vector;
     float first_length;
     float second_length;
-    float squared;
 
     first_vector = &g_bgnd_scratch_pad_vectors[first];
     second_vector = &g_bgnd_scratch_pad_vectors[second];
-    squared = first_vector->x * first_vector->x +
-              first_vector->z * first_vector->z;
-    input1.f = squared;
-    if (squared <= 0.0f) {
-        first_length = 0.0f;
-    } else {
-        estimate1.u =
-            (unsigned int)GXMathSqrtTable[(input1.u >> 11) & 0x1FFF] << 8;
-        estimate1.u |= (((input1.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-                       0x7F800000U;
-        first_length =
-            0.5f * estimate1.f *
-            (3.0f - (estimate1.f * estimate1.f) / squared);
-    }
-
-    squared = second_vector->x * second_vector->x +
-              second_vector->z * second_vector->z;
-    input2.f = squared;
-    if (squared <= 0.0f) {
-        second_length = 0.0f;
-    } else {
-        estimate2.u =
-            (unsigned int)GXMathSqrtTable[(input2.u >> 11) & 0x1FFF] << 8;
-        estimate2.u |= (((input2.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-                       0x7F800000U;
-        second_length =
-            0.5f * estimate2.f *
-            (3.0f - (estimate2.f * estimate2.f) / squared);
-    }
-
+    first_length = bgnd_fast_sqrt(first_vector->x * first_vector->x +
+                                  first_vector->z * first_vector->z);
+    second_length = bgnd_fast_sqrt(second_vector->x * second_vector->x +
+                                   second_vector->z * second_vector->z);
     return (first_vector->x * second_vector->x +
             first_vector->z * second_vector->z) /
            (first_length * second_length);
 }
-/* Exact-size 99.15% near miss; only pooled constants/relocation labels differ. */
 void spad_set_heading_vector_to(int index, void* script, float heading,
                                 float offset) {
     Vec* vector;
@@ -10821,9 +10285,10 @@ void spad_set_heading_vector_to(int index, void* script, float heading,
     int normalized;
 
     (void)script;
-    normalized = (int)(166886.1f * (heading + offset)) & 0xFFFFF;
-    angle = 0.000005992112f * (float)normalized;
     vector = &g_bgnd_scratch_pad_vectors[index];
+    heading += offset;
+    normalized = (int)(166886.1f * heading) & 0xFFFFF;
+    angle = 0.000005992112f * (float)normalized;
     vector->x = gxMathSin(angle);
     vector->y = 0.0f;
     vector->z = gxMathCos(angle);
@@ -10871,7 +10336,8 @@ static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem
 
 
 
-/* TODO: [breakthrough needed] 93.727140%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 99.62%; rsqrt stack-slot order (retail groups inputs
+ * above estimates), case 0xD cross-product and case 0x16/0x3A GPR coloring remain. */
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8) {
@@ -10897,7 +10363,7 @@ float bgnd_process_collision_info(
         return g_game_info.player_objects[1]->pos.value.z;
 
     case 0:
-        sh_normalize_fatality_vector(&g_game_info.impact_vector);
+        sh_normalize_blood_direction(&g_game_info.impact_vector);
         g_game_info.impact_vector.x *= value1;
         g_game_info.impact_vector.z *= value1;
         g_game_info.impact_vector.y = 0.0f;
@@ -10909,12 +10375,15 @@ float bgnd_process_collision_info(
             g_game_info.bgnd_obj, (unsigned int)value2);
         Vec scaled;
 
-        scaled.x = g_game_info.impact_vector.x * value1;
-        scaled.y = g_game_info.impact_vector.y * value1;
-        scaled.z = g_game_info.impact_vector.z * value1;
-        output->x = scaled.z * up.y - scaled.y * up.z;
-        output->y = scaled.x * up.z - scaled.z * up.x;
-        output->z = scaled.y * up.x - scaled.x * up.y;
+        scaled.x = g_game_info.impact_vector.x;
+        scaled.y = g_game_info.impact_vector.y;
+        scaled.z = g_game_info.impact_vector.z;
+        scaled.x *= value1;
+        scaled.y *= value1;
+        scaled.z *= value1;
+        output->x = scaled.y * up.z - scaled.z * up.y;
+        output->y = scaled.z * up.x - scaled.x * up.z;
+        output->z = scaled.x * up.y - scaled.y * up.x;
         rotate_xz(output, output, object->ang.y);
         break;
     }
@@ -10941,14 +10410,17 @@ float bgnd_process_collision_info(
             value1, value2, value3, value4, value5);
         break;
 
-    case 5:
-        g_game_info.collision_player_pdata->online_sync_index = -1;
-        if (g_game_info.collision_player_pdata->plyr_num == 0) {
+    case 5: {
+        PlyrPdata* player = g_game_info.collision_player_pdata;
+
+        player->online_sync_index = -1;
+        if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 0;
         } else {
             g_game_info.plyr1.fighting_lights.green_trigger = 0;
         }
         break;
+    }
 
     case 7: {
         PlyrPdata* player = g_game_info.collision_player_pdata;
@@ -10962,7 +10434,7 @@ float bgnd_process_collision_info(
         info->slot.mirror_a->flags_0B_bits.bit6 = 1;
         info->slot.mirror_a->flags_0B_bits.bit3 = 1;
         info->slot.mirror_a->flags_09_bits.face_opponent = 0;
-        result = (float)player->plyr_num;
+        result = (float)g_game_info.collision_player_pdata->plyr_num;
         break;
     }
     case 8: {
@@ -10977,7 +10449,8 @@ float bgnd_process_collision_info(
         info->slot.mirror_a->flags_0B_bits.bit6 = 1;
         info->slot.mirror_a->flags_0B_bits.bit3 = 1;
         info->slot.mirror_a->flags_09_bits.face_opponent = 0;
-        result = (float)player->plyr_num;
+        result = (float)g_game_info.collision_player_pdata->his_plyr_pdata->
+            plyr_num;
         break;
     }
     case 0x21:
@@ -11003,16 +10476,14 @@ float bgnd_process_collision_info(
     case 0xD: {
         CameraObj* camera = camera_item.node;
         Vec target;
-        Vec direction;
 
         camera = camera_item_validate_node(camera, &camera_item);
         get_current_target(&target);
-        direction.x = target.x - camera->pos.x;
-        direction.y = target.y;
-        direction.z = target.z - camera->pos.z;
-        sh_normalize_blood_xz(&direction);
-        if ((plyr_obj->pos.value.x - camera->pos.x) * direction.z +
-                (plyr_obj->pos.value.z - camera->pos.z) * -direction.x > 0.0f) {
+        target.x -= camera->pos.x;
+        target.z -= camera->pos.z;
+        sh_normalize_xz(&target);
+        if ((plyr_obj->pos.value.x - camera->pos.x) * target.z +
+                (plyr_obj->pos.value.z - camera->pos.z) * -target.x > 0.0f) {
             result = 1.0f;
         }
         break;
@@ -11047,13 +10518,12 @@ float bgnd_process_collision_info(
         break;
     }
 
-    case 0x1F: {
-        MkObj* object = g_game_info.collision_player_pdata->his_plyr_pdata->
-            plyr_info->slot.mirror_a;
-        object->pos_vel.x = value1;
-        object->pos_vel.z = value2;
+    case 0x1F:
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->pos_vel.x = value1;
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->pos_vel.z = value2;
         break;
-    }
     case 0x3B:
         return g_active_obstacle_event_data->player_pdata->plyr_info->
             slot.mirror_a->pos.value.z;
@@ -11123,14 +10593,14 @@ float bgnd_process_collision_info(
         break;
     case 0x2E:
         return g_game_info.player_objects[0]->pos_vel.z;
-    case 0x33: {
-        MkObj* object = g_game_info.collision_player_pdata->his_plyr_pdata->
-            plyr_info->slot.mirror_a;
-        object->ang.x += value1;
-        object->ang.y += value2;
-        object->ang.z += value3;
+    case 0x33:
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->ang.x += value1;
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->ang.y += value2;
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->ang.z += value3;
         return 0.0f;
-    }
     }
     return result;
 }
@@ -11160,16 +10630,18 @@ void bgnd_takeover_plyr(PlyrInfo* player) {
     player->slot.mirror_a->flags_0B_bits.bit3 = 1;
     player->slot.mirror_a->flags_09_bits.face_opponent = 0;
 }
-/* Near match: 96.56%, exact 128-byte operations; retail keeps a redundant
- * switch-dispatch edge and uses different pool relocation labels. */
 float bgnd_process_active_sobj_info(
     int info_id, void* script_args, float angle_component, float offset) {
     (void)script_args;
-    if (info_id == 6) {
+    switch (info_id) {
+    case 6:
         g_active_sobj->flags_08_bits.bit3 = 1;
         g_active_sobj->ang.x = g_active_sobj->ang.y =
             g_active_sobj->ang.z = 0.0f;
         g_active_sobj->ang.y = offset + gxMathArcCos(angle_component);
+        break;
+    default:
+        break;
     }
     return 0.0f;
 }
@@ -11193,9 +10665,7 @@ int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
         obstacle_id, &g_bgnd_scratch_pad_vectors[scratch_index]);
 }
 #pragma dont_inline on
-/* Near match: 98.82%, exact 356-byte size. Retail keeps the displayed-list
- * lookup out of line; the narrow pragma preserves that evidenced call without
- * changing the TU's authentic auto-inline policy. Residue is one branch edge. */
+/* TODO: [near miss] 99.60674%; item ID and displayed-list head register coloring remains; check supported lifetimes. */
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** displayed_list;
@@ -11218,22 +10688,23 @@ void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     if (displayed_list != 0) {
         link = *displayed_list;
         while (link != 0) {
-            item = (BgndDisplayedItem*)link->hdr;
-            if (link->instance != item->hdr.instance) {
+            BgndDisplayedItem* list_item;
+            list_item = (BgndDisplayedItem*)link->hdr;
+            if (link->instance != list_item->hdr.instance) {
                 MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
-            } else if (item->type == item_id) {
-                mk_pull_discard(&item->hdr, displayed_list);
-                if (item->obstacle != 0 &&
+            } else if (list_item->type == item_id) {
+                mk_pull_discard(&list_item->hdr, displayed_list);
+                if (list_item->obstacle != 0 &&
                         !g_game_info.feature_flags.bits.high_bit) {
-                    item->obstacle->flags.bits.disabled = 0;
+                    list_item->obstacle->flags.bits.disabled = 0;
                 }
-                mk_insert(&item->hdr, &g_game_info.field_64);
-                if (item->sobj_id != 0) {
+                mk_insert(&list_item->hdr, &g_game_info.field_64);
+                if (list_item->sobj_id != 0) {
                     unhide_sobj(obj_create_sobjs_by_id(
-                        g_game_info.bgnd_obj, item->sobj_id));
+                        g_game_info.bgnd_obj, list_item->sobj_id));
                 }
                 break;
             } else {
@@ -11418,9 +10889,7 @@ void bgnd_rx_notify(
         }
     }
 }
-/* Retail reads an otherwise uninitialized event flags byte; keep it initialized. */
-/* TODO: [breakthrough needed] 92.41964%; latch joins restored;
- * event-flags initialization contract remains unresolved. */
+/* TODO: [near miss] 98.84%; case 7 differs only in g_game_info base / Vec word register coloring. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
@@ -11440,21 +10909,19 @@ void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
         break;
     case 7:
     {
-        BgndObstacleEventData event;
         Vec impact = {0.0f, 0.0f, 0.0f};
+        BgndObstacleEventData event;
+        BgndObstacleEventData* data = &event;
 
-        event.impact_vector = &impact;
-        event.event_id = g_game_info.collision_event_id;
-        event.player_pdata =
+        data->player_pdata =
             g_current_reaction_info.player_info->slot.pdata->his_plyr_pdata;
-        event.flags = 0;
-        bgnd_apply_collision_info(&event);
+        data->impact_vector = &impact;
+        data->event_id = g_game_info.collision_event_id;
+        bgnd_apply_collision_info(data);
         break;
     }
     }
 }
-/* Near match: 99.51%, exact 408-byte instruction stream; pool and jump-table
- * relocation labels differ. */
 float bgnd_current_rx_get_info(int info_id) {
     PlyrPdata* pdata;
 
@@ -11531,12 +10998,7 @@ void bgnd_anim_camera_setup(void) {
     }
 }
 
-/*
- * Near match: the instruction stream and size match retail. The remaining
- * differences are the pooled 255.0f relocation label and r28/r29 allocation
- * for data across three otherwise identical instructions.
- */
-/* TODO: [near miss] 99.81481%; 5040 declaration permutations found no exact pointer-register allocation; retained source unchanged. */
+/* TODO: [near miss] 99.81481%; data-pointer r28/r29 coloring remains at alpha conversion; stop at coloring. */
 void bgnd_fade_object(int object_id, void* script, float fade_step) {
     BgndFadeObjectData* data;
     MkProc* process;
@@ -11574,7 +11036,6 @@ void bgnd_fade_object(int object_id, void* script, float fade_step) {
     }
 }
 
-/* Near match: exact 208-byte instruction stream; only -1.0f pool labels differ. */
 static float p_bgnd_fade_object(void) {
     MkSobj* object;
     unsigned int alpha;
@@ -11606,10 +11067,6 @@ static float p_bgnd_fade_object(void) {
     }
     return 1.0f;
 }
-/*
- * The public owner is a validated MkHdr latch; retail accesses its enclosing
- * MkObj layout here.
- */
 void pulsate_object(
     MkHdr* owner, int sobj_id, int max_hold_ticks, int min_hold_ticks,
     float fade_in_step, float fade_out_step) {
@@ -11659,10 +11116,6 @@ void pulsate_object(
         }
     }
 }
-/*
- * Near match: exact 492-byte instruction stream; only the pooled -0.2f and
- * 255.0f relocation labels differ.
- */
 void bgnd_pulsate_object(
     int object_id, int max_hold_ticks, int min_hold_ticks, void* script_args,
     float fade_in_step, float fade_out_step) {
@@ -11717,7 +11170,6 @@ void bgnd_pulsate_object(
         }
     }
 }
-/* Near match: exact 676-byte stream; only the u32 conversion pool label differs. */
 void bgnd_pulsate_object_with_caps_and_scale(
     int object_id, int max_hold_ticks, int min_hold_ticks,
     unsigned int min_alpha, unsigned int max_alpha, void* script_args,
@@ -11779,7 +11231,6 @@ void bgnd_pulsate_object_with_caps_and_scale(
         }
     }
 }
-/* Near match: exact 496-byte stream; only the u32 conversion pool label differs. */
 void bgnd_pulsate_object_with_caps(
     int object_id, int max_hold_ticks, int min_hold_ticks,
     unsigned int min_alpha, unsigned int max_alpha,
@@ -11832,10 +11283,6 @@ void bgnd_pulsate_object_with_caps(
         }
     }
 }
-/*
- * Near match: size-identical 1280-byte instruction stream. The remaining
- * differences are only the -1.0f and unsigned-conversion pool labels.
- */
 static float p_bgnd_pulsate_object(void) {
     BgndPulsateData* data;
     MkSobj* object;
@@ -11972,10 +11419,6 @@ static float p_bgnd_pulsate_object(void) {
     return 1.0f;
 }
 
-/*
- * Near match: size-identical 1252-byte instruction stream. The remaining
- * differences are only unsigned-conversion pool labels.
- */
 static float p_pulsate_object(void) {
     BgndPulsateData* data;
     MkSobj* object;
@@ -12166,33 +11609,22 @@ static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.062500%; register coloring; one-trial ceiling. */
+/* TODO: [near miss] 99.0625%; first player-process latch swaps owner/object r4 and r5. */
 void mks_xfer_collision_info_plyr_to_script(int script_function,
                                              int player) {
-    CmdScript* script;
     PlyrPdata* pdata;
-    MkProc* candidate;
     MkProc* process;
 
     if (player == 1) {
         pdata = g_active_obstacle_event_data->player_pdata;
-        candidate = player_live_player_proc(pdata);
-
-        process = candidate;
+        process = player_live_player_proc(pdata);
     } else {
         pdata = g_active_obstacle_event_data->player_pdata;
-        candidate = player_live_own_player_proc(pdata);
-
-        process = candidate;
+        process = player_live_own_player_proc(pdata);
     }
-    script = get_cmdscript_for_proc(process);
-    script->unk28 = script_function;
+    get_cmdscript_for_proc(process)->unk28 = script_function;
     xfer_player_proc(process, bgnd_call_script_function);
 }
-/*
- * Clean-C emission ceiling: MWCC uses paired stw/lwz saves locally while
- * retail uses stmw/lmw for the same r30/r31 lifetimes.
- */
 void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int function) {
     MkProc* process;
@@ -12215,11 +11647,11 @@ static float bgnd_call_script_function(void) {
     call_player_script_function(g_game_info.cmdscript);
     return 0.0f;
 }
-/* TODO: [near miss] 98.039215%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 void bgnd_append_texture_to_material(int sobj_id, int material_id,
                                      char* texture_name, int texture_slot) {
     char message[180];
     MkSobj* object;
+    AniTextureControl* texture;
 
     if (g_game_info.bgnd_obj != 0) {
         object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, sobj_id);
@@ -12230,13 +11662,16 @@ void bgnd_append_texture_to_material(int sobj_id, int material_id,
             return;
         }
         if (g_game_info.bgnd_id == 0x16) {
-            append_texture_by_name_to_atomic_material_id(
+            texture = append_texture_by_name_to_atomic_material_id(
                 0x18006D, texture_name, object->atomic,
                 material_id, texture_slot);
         } else {
-            append_texture_by_name_to_atomic_material_id(
+            texture = append_texture_by_name_to_atomic_material_id(
                 0x2001E, texture_name, object->atomic,
                 material_id, texture_slot);
+        }
+        if (texture == 0) {
+            return;
         }
     }
 }
@@ -12297,38 +11732,16 @@ void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
                 sobj_id, material_id);
     }
 }
-/* TODO: [near miss] 95.19231%; frame/material register coloring; iteration-local scope is neutral. */
-void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
-                            unsigned int frame) {
-    char material_error[80];
-    char sobj_error[80];
-    AniTextureControl* control;
-    MkSobj* object;
-    unsigned int index;
-    unsigned int sobj_id;
+/* TODO: [near miss] 98.94%; auto-inlined bgnd_swap_textures loop; only frame/sobj_id r27/r28 coloring swap remains. */
+void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
+    unsigned int index = 0;
 
-    index = 0;
-    while ((sobj_id = entries[index].sobj_id) != 0) {
-        int material_id = entries[index].material_id;
-        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
-        if (object == 0) {
-            sprintf(sobj_error,
-                    "bgnd_swap_textures: sobj_id = %d not found", sobj_id);
-        } else if (frame <= 1) {
-            control = find_atc_for_atomic_material_id(
-                object->atomic, material_id);
-            if (control != 0) {
-                set_ani_texture_frame(control, frame);
-            } else {
-                sprintf(material_error,
-                        "Material ID not found. sobj_id = %d, mat_id = %d",
-                        sobj_id, material_id);
-            }
-        }
+    while (entries[index].sobj_id != 0) {
+        bgnd_swap_textures(entries[index].sobj_id,
+                           entries[index].material_id, frame);
         index++;
     }
 }
-/* Exact operations; 49.29%, retail/local 112/120 from FPR helper selection. */
 void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
                       float z) {
     MkSobj* object;
@@ -12422,7 +11835,6 @@ void bgnd_shadow_control(unsigned int enabled) {
     plyr_turn_on_mirrorguy(&g_game_info.plyr1);
     plyr_turn_on_shadowbox(&g_game_info.plyr1);
 }
-/* Exact operations; 82.31%, retail/local 104/112 bytes from stmw/lmw choice. */
 void bgnd_always_face_y(unsigned int object_id) {
     MkSobj* object;
 
@@ -12434,7 +11846,6 @@ void bgnd_always_face_y(unsigned int object_id) {
         }
     }
 }
-/* Exact operations; 82.31%, retail/local 104/112 bytes from stmw/lmw choice. */
 void bgnd_no_z_test(unsigned int object_id) {
     MkSobj* object;
 
@@ -12447,7 +11858,6 @@ void bgnd_no_z_test(unsigned int object_id) {
     }
 }
 
-/* Exact operations; 82.31%, retail/local 104/112 bytes from stmw/lmw choice. */
 void bgnd_no_z_write(unsigned int object_id) {
     MkSobj* object;
 
@@ -12460,7 +11870,6 @@ void bgnd_no_z_write(unsigned int object_id) {
     }
 }
 
-/* Exact operations; 82.08%, retail/local 104/112 bytes from stmw/lmw choice. */
 void bgnd_apply_zoffset(unsigned int object_id, void* script, float z_offset) {
     MkSobj* object;
 
@@ -12474,7 +11883,6 @@ void bgnd_apply_zoffset(unsigned int object_id, void* script, float z_offset) {
     }
 }
 
-/* Exact operations; 72.80%, retail/local 100/116 bytes from stmw/lmw choice. */
 void bgnd_sobj_set_priority(unsigned int object_id, int priority) {
     MkSobj* object;
 
@@ -12548,9 +11956,9 @@ void bgnd_init_all_uv_scroll_w_control(void) {
 void bgnd_destroy_sobj_uv_scroll_w_control(unsigned int index) {
     bgnd_clear_uv_scroll_control(index);
 }
-static inline int bgnd_uv_scroll_control_slot_available(unsigned int index) {
-    BgndUvScrollControlItem* item;
+static inline unsigned int bgnd_uv_scroll_control_slot_available(unsigned int index) {
     UvScrollControl* control;
+    BgndUvScrollControlItem* item;
 
     if (index >= 8) {
         return 0;
@@ -12570,11 +11978,6 @@ static inline int bgnd_uv_scroll_control_slot_available(unsigned int index) {
     return 1;
 }
 
-/*
- * Near match: 98.38%, exact 284-byte size and instruction flow. The inlined
- * slot validation differs only in register allocation and an equivalent
- * signed/unsigned zero comparison.
- */
 int bgnd_start_sobj_uv_scroll_w_control(
     int sobj_id, float u1, float v1, float u2, float v2,
     unsigned int translucent, unsigned int index) {
@@ -12674,7 +12077,6 @@ void bgnd_sobj_set_rel_pos(unsigned int object_id, void* script, float x,
         object->pos.z += z;
     }
 }
-/* Exact operations; 80.00%, retail/local 92/100 bytes from stmw/lmw choice. */
 void bgnd_unhide_sobj_and_children(unsigned int object_id) {
     MkSobj* object;
 
@@ -12686,7 +12088,6 @@ void bgnd_unhide_sobj_and_children(unsigned int object_id) {
         }
     }
 }
-/* Exact operations; 80.00%, retail/local 92/100 bytes from stmw/lmw choice. */
 void bgnd_hide_sobj_and_children(unsigned int object_id) {
     MkSobj* object;
 
@@ -12698,7 +12099,6 @@ void bgnd_hide_sobj_and_children(unsigned int object_id) {
         }
     }
 }
-/* Exact operations; 80.00%, retail/local 92/100 bytes from stmw/lmw selection. */
 void bgnd_unhide_sobj(unsigned int object_id) {
     MkSobj* object;
 
@@ -12710,44 +12110,43 @@ void bgnd_unhide_sobj(unsigned int object_id) {
         }
     }
 }
-/* Exact-size 98.75% near miss; the remaining differences are a permutation of
- * the three nonvolatile registers holding g_game_info, object_id, and next_id. */
 void bgnd_unhide_sobj_list(unsigned int* object_ids) {
-    unsigned int* next_id;
     unsigned int object_id;
+    unsigned int* next_id;
     MkSobj* object;
+    GameInfo* game = &g_game_info;
 
-    next_id = object_ids + 1;
     object_id = *object_ids;
+    next_id = object_ids + 1;
     while (object_id != 0) {
         if (object_id == 0x63) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCA);
+            object = obj_find_sobj_by_id(game->bgnd_obj, 0xCA);
             if (object != 0 && is_sobj_hidden(object) != 0) {
                 break;
             }
         }
         if (object_id == 0x65) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCA);
+            object = obj_find_sobj_by_id(game->bgnd_obj, 0xCA);
             if (object != 0 && is_sobj_hidden(object) != 0) {
                 break;
             }
         }
         if (object_id == 0x64) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCB);
+            object = obj_find_sobj_by_id(game->bgnd_obj, 0xCB);
             if (object != 0 && is_sobj_hidden(object) != 0) {
                 break;
             }
         }
         if (object_id == 0x66) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCB);
+            object = obj_find_sobj_by_id(game->bgnd_obj, 0xCB);
             if (object != 0 && is_sobj_hidden(object) != 0) {
                 break;
             }
         }
 
-        obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
-        if (g_game_info.bgnd_obj != 0) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+        obj_create_sobjs_by_id(game->bgnd_obj, object_id);
+        if (game->bgnd_obj != 0) {
+            object = obj_find_sobj_by_id(game->bgnd_obj, object_id);
             if (object != 0) {
                 unhide_sobj(object);
             }
@@ -12756,7 +12155,6 @@ void bgnd_unhide_sobj_list(unsigned int* object_ids) {
         next_id++;
     }
 }
-/* Exact operations; 80.00%, retail/local 92/100 bytes from stmw/lmw selection. */
 void bgnd_hide_sobj(unsigned int object_id) {
     MkSobj* object;
 
@@ -12768,19 +12166,19 @@ void bgnd_hide_sobj(unsigned int object_id) {
         }
     }
 }
-/* TODO: [near miss] 97.72414%; loop pointer/ID register allocation
- * and initial address scheduling differ; stop at coloring. */
 void bgnd_hide_sobj_list(unsigned int* object_ids) {
-    unsigned int* next_id;
+    GameInfo* game_info;
     unsigned int object_id;
+    unsigned int* next_id;
     MkSobj* object;
 
+    game_info = &g_game_info;
     next_id = object_ids + 1;
     object_id = *object_ids;
     while (object_id != 0) {
-        obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
-        if (g_game_info.bgnd_obj != 0) {
-            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+        obj_create_sobjs_by_id(game_info->bgnd_obj, object_id);
+        if (game_info->bgnd_obj != 0) {
+            object = obj_find_sobj_by_id(game_info->bgnd_obj, object_id);
             if (object != 0) {
                 hide_sobj(object);
             }
@@ -12799,10 +12197,6 @@ void bgnd_sobj_get_ang(unsigned int object_id, Vec* angles) {
         angles->z = object->ang.z;
     }
 }
-/*
- * Exact body operations; 49.29%, retail/local 112/120 bytes. Retail calls the
- * shared FPR save/restore helpers while this compiler invocation emits stores.
- */
 void bgnd_sobj_set_ang(unsigned int object_id, void* script, float x,
                        float y, float z) {
     MkSobj* object;
@@ -12816,7 +12210,6 @@ void bgnd_sobj_set_ang(unsigned int object_id, void* script, float x,
         object->ang.z = z;
     }
 }
-/* Same exact-operation FPR save/restore ceiling as bgnd_sobj_set_ang. */
 void bgnd_sobj_set_pos_vel(unsigned int object_id, void* script, float x,
                            float y, float z) {
     MkSobj* object;
@@ -12857,7 +12250,6 @@ float bgnd_sobj_get_x_pos(int object_id) {
     }
     return 0.0f;
 }
-/* Same exact-operation FPR save/restore ceiling as bgnd_sobj_set_ang. */
 void bgnd_sobj_set_pos(unsigned int object_id, void* script, float x,
                        float y, float z) {
     MkSobj* object;
@@ -12970,7 +12362,6 @@ void bgnd_sobj_set_ani_framerate(unsigned int object_id,
     }
 }
 
-/* Exact operations; 82.86%, retail/local 112/120 bytes from stmw/lmw selection. */
 void bgnd_sobj_set_ani_frame(unsigned int object_id,
                              unsigned int material_id, int frame) {
     AniTextureControl* control;
@@ -13038,11 +12429,8 @@ int bgnd_get_int(int value_id) {
 void bgnd_create_sobjs(void) {
     obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0);
 }
-/*
- * Near match: exact light placement, lifetime-process creation, and ABI;
- * retail/local are 292/296 bytes. Residue is x/z float-register coloring and
- * one equivalent tightrope-vector address setup instruction.
- */
+/* TODO: [near miss] 97.67123%; z component and light_x swap f3/f5, and the
+ * half-width operands load in swapped order; equivalent coloring/scheduling. */
 MkObj* bgnd_place_point_light_for_ticks(
     LightDef* light_def, int ticks, int offset_from_tightrope,
     float radius_step) {
@@ -13059,12 +12447,12 @@ MkObj* bgnd_place_point_light_for_ticks(
         perpendicular_x = tightrope_perp_uv.x;
         perpendicular_z = tightrope_perp_uv.z;
         light_x = light_def->field20;
-        if (perpendicular_x * (light_x - camera_obj->pos.x) +
+        if (perpendicular_x * (light_def->field20 - camera_obj->pos.x) +
                 perpendicular_z *
                     (light_def->field28 - camera_obj->pos.z) >
             0.0f) {
-            perpendicular_x *= -1.0f;
-            perpendicular_z *= -1.0f;
+            perpendicular_x = -1.0f * perpendicular_x;
+            perpendicular_z = -1.0f * perpendicular_z;
         }
         half_width = light_def->field1C * 0.5f;
         perpendicular_x *= half_width;
@@ -13087,10 +12475,6 @@ MkObj* bgnd_place_point_light_for_ticks(
     }
     return light;
 }
-/*
- * Near match: size-identical 212-byte instruction stream. The only remaining
- * differences are the two -1.0f constant-pool labels.
- */
 static float p_bgnd_point_light_life_span(void) {
     BgndPointLightLifeData* data;
 
@@ -13114,17 +12498,14 @@ static float p_bgnd_point_light_life_span(void) {
     }
     return -1.0f;
 }
-/* Exact code bytes apart from float-pool relocation identities. */
 float degrees_to_rad(void* script, float degrees) {
     (void)script;
     return 3.1415927f * degrees / 180.0f;
 }
-/* Exact code bytes apart from float-pool relocation identities. */
 float rad_to_degrees(void* script, float radians) {
     (void)script;
     return 180.0f * radians / 3.1415927f;
 }
-/* Exact instruction stream apart from the conversion-pool relocation label. */
 float int_to_float(int value) { return value; }
 int float_to_int(void* script, float value) {
     (void)script;
@@ -13143,10 +12524,6 @@ RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha) {
     set_atomic_material_alpha(atomic, (unsigned int)alpha);
     return atomic;
 }
-/*
- * Near match: size-identical 184-byte instruction stream. The only remaining
- * differences are the two float-pool labels for -1.0f and pi.
- */
 float p_track_cam_ang_y_light(void) {
     float initial_yaw;
 
@@ -13170,37 +12547,12 @@ float p_track_cam_ang_y_light(void) {
     return -1.0f;
 }
 
-static inline MkObj* global_moveset_live_primary_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->primary_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == owner->primary_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline MkObj* global_moveset_live_secondary_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->secondary_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == owner->secondary_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
 
 
-/* TODO: [breakthrough needed] 94.655464%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+
 void load_bgnd_style(int player, const char* script_name, void* script_args) {
     GlobalMoveset* moveset;
     MkFileInfo* animation_section;
@@ -13254,7 +12606,7 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                 moveset->definition->animation_section_name);
             add_anim_section_async_pal(
                 0x2001E, animation_section,
-                (void*)&global_movesets[player + 6].standing_animation_script,
+                (int*)global_movesets[player + 6U].animation_data,
                 0, 1);
             wait_for_slot_load(0x2001E);
             load_bgnd_fstyle_sign(player);
@@ -13304,10 +12656,7 @@ static inline void bgnd_destroy_object_latch(
     }
 }
 
-/* Clean-C near match: 79.07%, retail/local 696/676. Both scripts, eight
- * collision lists, four moveset weapon latches, three gameplay lists, camera
- * ownership, all indexed tables, and every active-global reset agree. The
- * 20-byte residue is latch merge and loop-induction scheduling. */
+/* TODO: [near miss] 79.67%; teardown sequence agrees (696 vs 676 bytes); latch merge and loop-induction scheduling remain. */
 void destroy_background_extras(void) {
     unsigned int index;
 
@@ -13385,28 +12734,15 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
-/* TODO: [breakthrough] 88.00283%; background owners and MKO script/bank types recovered;
- * remaining CFG/register differences need local evidence. */
+/* TODO: [near miss] 97.54%; retail pools g_current_reaction_info/collision lists off
+ * bgnd_animations (TU data layout: bgnd.c defines no .bss); r30/r31 coloring follows. */
 int load_background(int bgnd_id) {
-    char* anims;
-    BgndDataTable* data_table;
-    BgndMisc* misc;
-    MkObj* bgnd_obj;
-    ScriptSlot* slot;
     char* art_name;
     int art_id;
     int i;
-    int n;
-    int zero;
+    BgndDataTable* data_table;
     char** effect_list;
-    char* effect_name;
-    int effect_off;
-    float inv255;
-    float* fog_col;
     LoadBgndCtx ctx;
-    GlobalBackgroundEntry* entry;
-
-    anims = bgnd_animations;
 
     if (mode_of_play == 6 && bgnd_id != 0x17) {
         return 0;
@@ -13414,30 +12750,22 @@ int load_background(int bgnd_id) {
 
     RwImageSetGamma(1.0f);
 
-    entry = &global_background_data[bgnd_id];
-    load_ssf((MkFileEntry*)entry->ssf_entry);
-
-    slot = cmdscript_loadfile_by_name(0xB, entry->script_name);
-    g_game_info.cmdscript = slot;
-
-    data_table = (BgndDataTable*)get_data_table(slot, slot->table_count);
-    g_game_info.section = data_table;
-    misc = data_table != 0 ? data_table->misc : 0;
-    g_game_info.misc = misc;
+    load_ssf((MkFileEntry*)global_background_data[bgnd_id].ssf_entry);
+    g_game_info.cmdscript =
+        cmdscript_loadfile_by_name(0xB, global_background_data[bgnd_id].script_name);
+    g_game_info.section = get_data_table(
+        g_game_info.cmdscript, g_game_info.cmdscript->table_count);
+    g_game_info.misc = g_game_info.section->misc;
 
     init_misc_bgnd_data();
 
-    zero = 0;
-    g_game_info.field_64 = (MkPtr*)zero;
-    g_game_info.displayed_items = (MkPtr*)zero;
-    g_game_info.npc_list = (MkPtr*)zero;
-    g_current_reaction_info.handler_enabled = zero;
-    i = 0;
-    n = 8;
-    do {
+    g_game_info.field_64 = 0;
+    g_game_info.displayed_items = 0;
+    g_game_info.npc_list = 0;
+    g_current_reaction_info.handler_enabled = 0;
+    for (i = 0; i < 8; i++) {
         g_bgnd_collision_to_script_if[i] = 0;
-        i++;
-    } while (--n);
+    }
     g_active_obstacle_event_data = 0;
     g_active_bgnd_col_item = 0;
 
@@ -13447,14 +12775,14 @@ int load_background(int bgnd_id) {
     }
 
     if (mode_of_play == 9 || mode_of_play == 10) {
-        if ((entry->flags & 8) != 0) {
+        if ((global_background_data[bgnd_id].flags & 8) != 0) {
             art_name = data_table->art_name;
             art_id = 0x8003D;
         } else {
             return 0;
         }
-    } else if (mode_of_play == 0xB) {
-        if ((entry->flags & 0x10) != 0) {
+    } else if (mode_of_play == 11) {
+        if ((global_background_data[bgnd_id].flags & 0x10) != 0) {
             art_name = data_table->art_name;
             art_id = 0x140064;
         } else {
@@ -13469,61 +12797,56 @@ int load_background(int bgnd_id) {
         art_id = 0x18006D;
     }
 
-    if (data_table != 0 && (unsigned int)data_table->art_name != 0) {
+    if (data_table != 0 && data_table->art_name != 0) {
         load_art_section_by_name(art_id, art_name);
     }
 
-    bgnd_obj = (MkObj*)load_named_model_from_slot(art_id, "BACKGROUND", 0x1004, 0);
-    g_game_info.bgnd_obj = bgnd_obj;
+    g_game_info.bgnd_obj =
+        (MkObj*)load_named_model_from_slot(art_id, "BACKGROUND", 0x1004, 0);
 
-    data_table = g_game_info.section;
-    if (data_table != 0) {
-        if (data_table->anims != 0) {
-            load_background_anims(data_table->anims, bgnd_id);
+    if (g_game_info.section != 0) {
+        if (g_game_info.section->anims != 0) {
+            load_background_anims(g_game_info.section->anims, bgnd_id);
         } else {
-            memset(anims, 0, 0x84);
+            memset(bgnd_animations, 0, 0x84);
         }
     }
 
     init_weapon_trail_light_list();
 
-    misc = g_game_info.misc;
-    if ((unsigned int)misc->lights_spec != 0) {
-        load_lights(misc->lights_spec, &bgnd_spec_light_list);
+    if (g_game_info.misc->lights_spec != 0) {
+        load_lights(g_game_info.misc->lights_spec, &bgnd_spec_light_list);
     }
-    if ((unsigned int)misc->lights_plyr != 0) {
-        load_lights(misc->lights_plyr, &plyr_light_list);
+    if (g_game_info.misc->lights_plyr != 0) {
+        load_lights(g_game_info.misc->lights_plyr, &plyr_light_list);
     }
-    if ((unsigned int)misc->lights_bgnd != 0) {
-        load_lights(misc->lights_bgnd, &bgnd_light_list);
+    if (g_game_info.misc->lights_bgnd != 0) {
+        load_lights(g_game_info.misc->lights_bgnd, &bgnd_light_list);
     } else {
         g_game_info.bgnd_obj->light_flags = 0;
     }
 
-    bgnd_obj = g_game_info.bgnd_obj;
-    if (bgnd_obj != 0) {
-        insert_fgnd_mkobj(bgnd_obj);
+    if (g_game_info.bgnd_obj != 0) {
+        insert_fgnd_mkobj(g_game_info.bgnd_obj);
     } else {
         return 0;
     }
 
-    if ((unsigned int)misc->lights_bgnd != 0) {
+    if (g_game_info.misc->lights_bgnd != 0) {
         g_game_info.bgnd_obj->light_flags = 0x1009;
     } else {
         g_game_info.bgnd_obj->light_flags = 0x1000;
     }
 
-    data_table = g_game_info.section;
     set_background_color(
-        (int)data_table->bg_r,
-        (int)data_table->bg_g,
-        (int)data_table->bg_b,
-        (int)data_table->bg_a);
+        (int)g_game_info.section->bg_r,
+        (int)g_game_info.section->bg_g,
+        (int)g_game_info.section->bg_b,
+        (int)g_game_info.section->bg_a);
 
     g_game_info.field_34 = 0.0f;
 
-    data_table = g_game_info.section;
-    art_name = data_table->sky_name;
+    art_name = g_game_info.section->sky_name;
     if (art_name != 0 && art_name[0] != 0) {
         g_game_info.sky =
             (MkObj*)load_named_model_from_slot(art_id, art_name, 0x201F, 0);
@@ -13540,24 +12863,19 @@ int load_background(int bgnd_id) {
     apply_to_mklist(add_mkx_light_obj_to_bgnd_cleanup_list,
                     &plyr_light_list);
 
-    data_table = g_game_info.section;
-    if ((data_table->flags70 & 1) != 0) {
-        UpdateShadowCameraLightSource(misc->shadow_cam_light);
+    if ((g_game_info.section->flags70 & 1) != 0) {
+        UpdateShadowCameraLightSource(g_game_info.misc->shadow_cam_light);
     }
 
-    misc = g_game_info.misc;
     data_table = g_game_info.section;
-    ShadowStrength = misc->shadow_strength;
-    inv255 = 255.0f;
-    fog_col = fog_color_real;
-    fog_col[0] = data_table->fog_r / inv255;
-    fog_col[1] = data_table->fog_g / inv255;
-    fog_col[2] = data_table->fog_b / inv255;
-    fog_col[3] = data_table->fog_a / inv255;
+    ShadowStrength = g_game_info.misc->shadow_strength;
+    fog_color_real[0] = data_table->fog_r / 255.0f;
+    fog_color_real[1] = data_table->fog_g / 255.0f;
+    fog_color_real[2] = data_table->fog_b / 255.0f;
+    fog_color_real[3] = data_table->fog_a / 255.0f;
 
     RwCameraSetNearClipPlane(Camera, data_table->near_clip);
-    data_table = g_game_info.section;
-    RwCameraSetFarClipPlane(Camera, data_table->far_clip_cam);
+    RwCameraSetFarClipPlane(Camera, g_game_info.section->far_clip_cam);
     fog_density = data_table->fog_density;
     fog_distance = data_table->fog_distance;
     if (data_table->fog_enable != 0) {
@@ -13571,44 +12889,35 @@ int load_background(int bgnd_id) {
     }
 
     if (Camera != 0) {
-        data_table = g_game_info.section;
-        RwCameraSetNearClipPlane(Camera, data_table->near_clip);
-        data_table = g_game_info.section;
-        RwCameraSetFarClipPlane(Camera, data_table->far_clip_cam);
+        RwCameraSetNearClipPlane(Camera, g_game_info.section->near_clip);
+        RwCameraSetFarClipPlane(Camera, g_game_info.section->far_clip_cam);
     }
 
-    bgnd_obj = g_game_info.bgnd_obj;
     g_game_info.bgnd_id = bgnd_id;
     ctx.art_id = art_id;
-    ctx.bgnd_obj = bgnd_obj;
+    ctx.bgnd_obj = g_game_info.bgnd_obj;
     ctx.pad = 0;
-
-    slot = g_game_info.cmdscript;
-    active_cmdscript->mko = slot;
-    slot->load_ctx = &ctx;
+    active_cmdscript->mko = g_game_info.cmdscript;
+    g_game_info.cmdscript->load_ctx = &ctx;
 
     effect_list = g_game_info.section->effect_banks;
     if (effect_list != 0) {
-        for (effect_off = 0; (effect_name = effect_list[effect_off]) != 0; effect_off++) {
-            load_effect_bank(effect_name);
+        for (i = 0; effect_list[i] != 0; i++) {
+            load_effect_bank(effect_list[i]);
         }
     }
 
     g_game_info.cmdscript->load_ctx = 0;
 
-    data_table = g_game_info.section;
-    if (data_table->load_script != 0) {
-        slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, data_table->load_script);
-        cmdscript_execute(slot);
+    if (g_game_info.section->load_script != 0) {
+        cmdscript_setup_execution(g_game_info.cmdscript, g_game_info.section->load_script);
+        cmdscript_execute(g_game_info.cmdscript);
     }
 
     g_game_info.wall_hider = 0;
-    misc = g_game_info.misc;
-    if (misc->script != 0) {
-        slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, misc->script);
-        cmdscript_execute(slot);
+    if (g_game_info.misc->script != 0) {
+        cmdscript_setup_execution(g_game_info.cmdscript, g_game_info.misc->script);
+        cmdscript_execute(g_game_info.cmdscript);
     }
 
     g_game_info.field_08 = 1;

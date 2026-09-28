@@ -1,6 +1,7 @@
 #include "game/game_info.h"
 #include "math/gxMat.h"
 #include "math/gxMath.h"
+#include "math/mk_math.h"
 #include "platform/main.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_cmdscript.h"
@@ -61,8 +62,13 @@ typedef struct BgndUpdateSlot {
     float field_34;
     float field_38;
     Vec direction; /* +0x3C */
-    char pad48[0x08];
-} BgndUpdateSlot; /* 0x50 */
+} BgndUpdateSlot; /* 0x48 */
+
+typedef struct BgndUpdateCommand {
+    int delay;           /* +0x00 */
+    int slot_index;      /* +0x04 */
+    BgndUpdateSlot slot; /* +0x08 */
+} BgndUpdateCommand; /* 0x50 */
 
 typedef int (*BgndUpdateDestroyFn)(
     BgndUpdateData* update, struct BgndUpdateVtable* vtable);
@@ -81,8 +87,7 @@ struct BgndUpdateData {
     int group_id;    /* +0x1C */
     int remove_hide; /* +0x20 */
     int active_slot; /* +0x24 */
-    char pad28[0x08];
-    BgndUpdateSlot slots[1]; /* +0x30 */
+    BgndUpdateCommand commands[2]; /* +0x28 */
 };
 
 /* A command prefix begins 0x50 bytes apart; its slot payload starts at +0x30. */
@@ -307,18 +312,17 @@ BgndDamageState* get_cliff_data(void) {
     return &pdata->state;
 }
 
-/* TODO: [near miss] 96.26%; residue is flag-load coloring and script destructor call scheduling. */
 static float p_watch_cliffs(void) {
     BgndDamagePdata* pdata;
-    CmdScript* script;
     CmdScript* previous_script;
+    CmdScript* script;
     int can_fall;
 
     pdata = (BgndDamagePdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
-    if ((g_game_info.flags & 0x08) != 0) {
+    if (g_game_info.flag_bits.level_fatality_active == 1) {
         return 1.0f;
     }
     if (pdata->state.cliff_index >= 5) {
@@ -327,9 +331,9 @@ static float p_watch_cliffs(void) {
 
     if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
         can_fall = 0;
-    } else if ((g_game_info.flags & 0x20) == 0) {
+    } else if (!g_game_info.flag_bits.lens_flare_enabled) {
         can_fall = 0;
-    } else if ((g_game_info.flags & 1) == 1) {
+    } else if (g_game_info.flag_bits.field_bit0 == 1) {
         can_fall = 0;
     } else if (g_game_info.pause_flag_bits.fatality_window == 1) {
         can_fall = 0;
@@ -347,7 +351,7 @@ static float p_watch_cliffs(void) {
     }
 
     pdata->state.wait_ticks -= game_speed;
-    if (pdata->state.wait_ticks > 0.0f) {
+    if (pdata->state.wait_ticks >= 0.0f) {
         return 1.0f;
     }
     pdata->state.wait_ticks = 300.0f;
@@ -404,15 +408,14 @@ int get_exec_tick_ctr(void) {
     return exec_tick_ctr;
 }
 
-/* TODO: [near miss] 90.71%; residue is flag-load coloring and bool materialization. */
 int can_fallingcliff_fall(void) {
     if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
         return 0;
     }
-    if ((g_game_info.flags & 0x20) == 0) {
+    if (!g_game_info.flag_bits.lens_flare_enabled) {
         return 0;
     }
-    if ((g_game_info.flags & 1) == 1) {
+    if (g_game_info.flag_bits.field_bit0 == 1) {
         return 0;
     }
     if (g_game_info.pause_flag_bits.fatality_window == 1) {
@@ -422,7 +425,7 @@ int can_fallingcliff_fall(void) {
         g_game_info.plyr1.field_0C == 0.0f) {
         return 0;
     }
-    return are_death_traps_on() == 1;
+    return are_death_traps_on() != 0;
 }
 
 void start_shadow_watcher(void) {
@@ -472,8 +475,8 @@ void mks_set_update_delay(int ticks, int random_ticks) {
     g_ticks_delay = ticks;
 }
 
-static inline int bgnd_list_is_valid(MkPtr** list) {
-    return list != 0;
+static inline int bgnd_update_active_slot(BgndUpdateData* update) {
+    return update->active_slot;
 }
 
 static inline MkProc* rope_latch_live_proc(RopeProcLatch* owner) {
@@ -503,7 +506,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -526,11 +529,9 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
 void mks_shadow_scale(int group_id, int blend_ticks,
                       float start_scale, float end_scale) {
     MkPtr** list;
-    BgndUpdateCommandBlock* previous;
     MkProc* proc;
     BgndUpdateData* update;
     int slot_index;
-    BgndUpdateCommandBlock* command;
     int previous_index;
     MkPtr* link;
     MkPtr* next;
@@ -542,7 +543,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -555,17 +556,15 @@ void mks_shadow_scale(int group_id, int blend_ticks,
             link = next;
         } else {
             if (update->group_id == group_id) {
-                slot_index = update->active_slot;
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    slot_index * 0x50);
-                command->slot.blend_numerator = blend_ticks;
-                command->slot.blend_divisor = blend_ticks;
-                command->delay = g_ticks_delay +
+                slot_index = bgnd_update_active_slot(update);
+                update->commands[slot_index].slot.blend_numerator = blend_ticks;
+                update->commands[slot_index].slot.blend_divisor = blend_ticks;
+                update->commands[slot_index].delay = g_ticks_delay +
                     (unsigned short)randu0(
                         (unsigned short)(g_delay_rnd + 1));
-                command->slot.field_34 = 0.0f;
-                command->slot.update_fn = update_func_shadow_scale;
-                command->slot_index = slot_index;
+                update->commands[slot_index].slot.field_34 = 0.0f;
+                update->commands[slot_index].slot.update_fn = update_func_shadow_scale;
+                update->commands[slot_index].slot_index = slot_index;
 
                 update->active_slot++;
                 if (update->active_slot >= 2) {
@@ -575,12 +574,10 @@ void mks_shadow_scale(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                     previous_index * 0x50);
-                previous->slot.shadow_scale = start_scale;
-                previous->slot.start_value = start_scale;
-                previous->slot.end_value = end_scale;
-                previous->slot.enabled = 1;
+                update->commands[previous_index].slot.shadow_scale = start_scale;
+                update->commands[previous_index].slot.start_value = start_scale;
+                update->commands[previous_index].slot.end_value = end_scale;
+                update->commands[previous_index].slot.enabled = 1;
             }
             link = link->next;
         }
@@ -591,7 +588,6 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     BgndUpdateData* update;
     int slot_index;
     MkPtr** list;
-    BgndUpdateCommandBlock* command;
     MkPtr* link;
     MkPtr* next;
     MkProc* proc;
@@ -603,7 +599,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -616,17 +612,15 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
-                slot_index = update->active_slot;
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    slot_index * 0x50);
-                command->slot.blend_numerator = blend_ticks;
-                command->slot.blend_divisor = blend_ticks;
-                command->delay = g_ticks_delay +
+                slot_index = bgnd_update_active_slot(update);
+                update->commands[slot_index].slot.blend_numerator = blend_ticks;
+                update->commands[slot_index].slot.blend_divisor = blend_ticks;
+                update->commands[slot_index].delay = g_ticks_delay +
                     (unsigned short)randu0(
                         (unsigned short)(g_delay_rnd + 1));
-                command->slot.field_34 = 0.0f;
-                command->slot.update_fn = update_func_blend_start;
-                command->slot_index = slot_index;
+                update->commands[slot_index].slot.field_34 = 0.0f;
+                update->commands[slot_index].slot.update_fn = update_func_blend_start;
+                update->commands[slot_index].slot_index = slot_index;
 
                 update->active_slot++;
                 if (update->active_slot >= 2) {
@@ -642,11 +636,9 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
                                  float velocity_x, float velocity_y,
                                  float velocity_z, float gravity) {
     MkPtr** list;
-    BgndUpdateCommandBlock* previous;
     MkProc* proc;
     BgndUpdateData* update;
     int slot_index;
-    BgndUpdateCommandBlock* command;
     int previous_index;
     MkPtr* link;
     MkPtr* next;
@@ -658,7 +650,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -671,17 +663,15 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
-                slot_index = update->active_slot;
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    slot_index * 0x50);
-                command->slot.blend_numerator = blend_ticks;
-                command->slot.blend_divisor = blend_ticks;
-                command->delay = g_ticks_delay +
+                slot_index = bgnd_update_active_slot(update);
+                update->commands[slot_index].slot.blend_numerator = blend_ticks;
+                update->commands[slot_index].slot.blend_divisor = blend_ticks;
+                update->commands[slot_index].delay = g_ticks_delay +
                     (unsigned short)randu0(
                         (unsigned short)(g_delay_rnd + 1));
-                command->slot.field_34 = 0.0f;
-                command->slot.update_fn = update_func_fall;
-                command->slot_index = slot_index;
+                update->commands[slot_index].slot.field_34 = 0.0f;
+                update->commands[slot_index].slot.update_fn = update_func_fall;
+                update->commands[slot_index].slot_index = slot_index;
 
                 update->active_slot++;
                 if (update->active_slot >= 2) {
@@ -691,28 +681,26 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                     previous_index * 0x50);
-                previous->slot.fall_acceleration = gravity;
-                previous->slot.direction.x = velocity_x;
-                previous->slot.direction.y = velocity_y;
-                previous->slot.direction.z = velocity_z;
+                update->commands[previous_index].slot.fall_acceleration = gravity;
+                update->commands[previous_index].slot.direction.x = velocity_x;
+                update->commands[previous_index].slot.direction.y = velocity_y;
+                update->commands[previous_index].slot.direction.z = velocity_z;
             }
             link = link->next;
         }
     }
 }
 
-/* TODO: [near miss] 98.605446%; register coloring; one-trial ceiling. */
 void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                                   float speed, float speed_param,
                                   float random_range) {
     MkProc* proc;
     MkPtr** list;
-    MkPtr* link;
-    MkPtr* next;
     BgndUpdateData* update;
+    MkPtr* link;
+    int slot_index;
     BgndUpdateCommandBlock* command;
+    MkPtr* next;
     BgndUpdateCommandBlock* previous;
     MkSobj* object;
     float inverse_length;
@@ -720,7 +708,6 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     float position_x;
     float position_y;
     float position_z;
-    int slot_index;
     int previous_index;
 
     proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
@@ -730,7 +717,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -796,11 +783,9 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                                  float start_speed, float speed_param,
                                  float sin_rate, float sin_phase) {
     MkPtr** list;
-    BgndUpdateCommandBlock* previous;
     MkProc* proc;
     BgndUpdateData* update;
     int slot_index;
-    BgndUpdateCommandBlock* command;
     int previous_index;
     MkPtr* link;
     MkPtr* next;
@@ -812,7 +797,7 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (!bgnd_list_is_valid(list)) {
+    if (!mklist_is_valid(list)) {
         return;
     }
     link = proc->pdata_list;
@@ -825,17 +810,15 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
-                slot_index = update->active_slot;
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    slot_index * 0x50);
-                command->slot.blend_numerator = blend_ticks;
-                command->slot.blend_divisor = blend_ticks;
-                command->delay = g_ticks_delay +
+                slot_index = bgnd_update_active_slot(update);
+                update->commands[slot_index].slot.blend_numerator = blend_ticks;
+                update->commands[slot_index].slot.blend_divisor = blend_ticks;
+                update->commands[slot_index].delay = g_ticks_delay +
                     (unsigned short)randu0(
                         (unsigned short)(g_delay_rnd + 1));
-                command->slot.field_34 = 0.0f;
-                command->slot.update_fn = update_func_sin;
-                command->slot_index = slot_index;
+                update->commands[slot_index].slot.field_34 = 0.0f;
+                update->commands[slot_index].slot.update_fn = update_func_sin;
+                update->commands[slot_index].slot_index = slot_index;
 
                 update->active_slot++;
                 if (update->active_slot >= 2) {
@@ -845,18 +828,16 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                     previous_index * 0x50);
-                previous->slot.shadow_scale = start_value;
-                previous->slot.start_value = start_value;
-                previous->slot.end_value = end_value;
-                previous->slot.speed = start_speed;
-                previous->slot.initial_speed = start_speed;
-                previous->slot.speed_param = speed_param;
-                previous->slot.sin_rate = sin_rate;
-                previous->slot.sin_phase = sin_phase;
-                previous->slot.enabled = update_flags;
-                previous->slot.enabled |= extra_flags;
+                update->commands[previous_index].slot.shadow_scale = start_value;
+                update->commands[previous_index].slot.start_value = start_value;
+                update->commands[previous_index].slot.end_value = end_value;
+                update->commands[previous_index].slot.speed = start_speed;
+                update->commands[previous_index].slot.initial_speed = start_speed;
+                update->commands[previous_index].slot.speed_param = speed_param;
+                update->commands[previous_index].slot.sin_rate = sin_rate;
+                update->commands[previous_index].slot.sin_phase = sin_phase;
+                update->commands[previous_index].slot.enabled = update_flags;
+                update->commands[previous_index].slot.enabled |= extra_flags;
             }
             link = link->next;
         }
@@ -948,7 +929,6 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     MkProc* proc;
     MkHdr* pdata;
     BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
     float length_squared;
     int index;
 
@@ -962,7 +942,7 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
         return;
     }
 
-    pdata = get_mkpdata_generic(0xC8);
+    pdata = get_mkpdata_generic(sizeof(BgndUpdateData));
     if (pdata == 0) {
         return;
     }
@@ -984,23 +964,22 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     update->active_slot = 0;
 
     for (index = 0; index < 2; index++) {
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        command->slot.field_34 = 0.0f;
-        command->slot.field_38 = 0.0f;
-        command->slot.direction.z = 0.0f;
-        command->slot.direction.y = 0.0f;
-        command->slot.direction.x = 0.0f;
-        command->slot.blend_divisor = 0;
-        command->slot.blend_numerator = 0;
-        command->slot.update_fn = 0;
-        command->slot.enabled = 0;
-        command->slot.start_value = 0.0f;
-        command->slot.end_value = 0.0f;
-        command->slot.shadow_scale = 0.0f;
-        command->slot.sin_phase = 0.0f;
-        command->slot.sin_rate = 0.0f;
-        command->delay = 0;
-        command->slot.fall_acceleration = 0.0f;
+        update->commands[index].slot.field_34 = 0.0f;
+        update->commands[index].slot.field_38 = 0.0f;
+        update->commands[index].slot.direction.z = 0.0f;
+        update->commands[index].slot.direction.y = 0.0f;
+        update->commands[index].slot.direction.x = 0.0f;
+        update->commands[index].slot.blend_divisor = 0;
+        update->commands[index].slot.blend_numerator = 0;
+        update->commands[index].slot.update_fn = 0;
+        update->commands[index].slot.enabled = 0;
+        update->commands[index].slot.start_value = 0.0f;
+        update->commands[index].slot.end_value = 0.0f;
+        update->commands[index].slot.shadow_scale = 0.0f;
+        update->commands[index].slot.sin_phase = 0.0f;
+        update->commands[index].slot.sin_rate = 0.0f;
+        update->commands[index].delay = 0;
+        update->commands[index].slot.fall_acceleration = 0.0f;
     }
 }
 
@@ -1076,15 +1055,11 @@ static float p_obj_ctrl(void) {
 }
 
 static void update_func_shadow_scale(BgndUpdateData* update, int index) {
-    BgndUpdateCommandBlock* command;
     MkSobj* object;
     float shadow_scale;
 
     object = update->object;
-    if (object == 0 ||
-        (command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                              index * 0x50),
-         command->slot.blend_divisor <= 0)) {
+    if (object == 0 || update->commands[index].slot.blend_divisor <= 0) {
         if (object != 0) {
             hide_sobj(object);
         }
@@ -1094,7 +1069,7 @@ static void update_func_shadow_scale(BgndUpdateData* update, int index) {
         return;
     }
 
-    shadow_scale = command->slot.shadow_scale;
+    shadow_scale = update->commands[index].slot.shadow_scale;
     object->flags_08_bits.scale_dirty = 1;
     object->scale.x = 1.0f;
     object->scale.y = 1.0f;
@@ -1112,7 +1087,7 @@ static void update_func_blend_start(BgndUpdateData* update, int index) {
         return;
     }
 
-    slot = &update->slots[index];
+    slot = &update->commands[index].slot;
     if (slot->blend_divisor <= 0) {
         object->pos.y = update->origin.y;
         return;
@@ -1134,17 +1109,16 @@ static void update_func_awayxz(BgndUpdateData* update, int index) {
         return;
     }
 
-    distance = update_seconds_per_frame * update->slots[index].speed;
-    delta.x = update->slots[index].direction.x * distance;
+    distance = update_seconds_per_frame * update->commands[index].slot.speed;
+    delta.x = update->commands[index].slot.direction.x * distance;
     delta.y = 0.0f;
-    delta.z = update->slots[index].direction.z * distance;
+    delta.z = update->commands[index].slot.direction.z * distance;
     object->pos.x += delta.x;
     object->pos.y += delta.y;
     object->pos.z += delta.z;
 }
 
 static void update_func_fall(BgndUpdateData* update, int index) {
-    BgndUpdateCommandBlock* command;
     MkSobj* object;
     Vec movement;
 
@@ -1153,15 +1127,14 @@ static void update_func_fall(BgndUpdateData* update, int index) {
         return;
     }
 
-    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-    movement.x = update_seconds_per_frame * command->slot.direction.x;
-    movement.y = update_seconds_per_frame * command->slot.direction.y;
-    movement.z = update_seconds_per_frame * command->slot.direction.z;
+    movement.x = update_seconds_per_frame * update->commands[index].slot.direction.x;
+    movement.y = update_seconds_per_frame * update->commands[index].slot.direction.y;
+    movement.z = update_seconds_per_frame * update->commands[index].slot.direction.z;
     object->pos.x += movement.x;
     object->pos.y += movement.y;
     object->pos.z += movement.z;
-    command->slot.direction.y +=
-        update_seconds_per_frame * command->slot.fall_acceleration;
+    update->commands[index].slot.direction.y +=
+        update_seconds_per_frame * update->commands[index].slot.fall_acceleration;
 }
 
 /* TODO: [near miss] 99.02%; residue is FPR coloring and float-pool labels. */
@@ -1178,32 +1151,32 @@ static void update_func_sin(BgndUpdateData* update, int index) {
         return;
     }
 
-    frame_time = (float)(update->slots[index].blend_divisor -
-                         update->slots[index].blend_numerator) / 60.0f;
+    frame_time = (float)(update->commands[index].slot.blend_divisor -
+                         update->commands[index].slot.blend_numerator) / 60.0f;
 
-    if ((update->slots[index].enabled & 4) != 0) {
-        random_offset = frand(update->slots[index].sin_phase);
+    if ((update->commands[index].slot.enabled & 4) != 0) {
+        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = update->origin_length *
-                     (update->slots[index].sin_rate + random_offset);
-    } else if ((update->slots[index].enabled & 8) != 0) {
-        random_offset = frand(update->slots[index].sin_phase);
+                     (update->commands[index].slot.sin_rate + random_offset);
+    } else if ((update->commands[index].slot.enabled & 8) != 0) {
+        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = object->pos.x *
-                     (update->slots[index].sin_rate + random_offset);
-    } else if ((update->slots[index].enabled & 0x20) != 0) {
+                     (update->commands[index].slot.sin_rate + random_offset);
+    } else if ((update->commands[index].slot.enabled & 0x20) != 0) {
         base_angle = gxMathArcTanYX(update->origin.x, update->origin.z);
-        random_offset = frand(update->slots[index].sin_phase);
-        base_angle *= update->slots[index].sin_rate + random_offset;
+        random_offset = frand(update->commands[index].slot.sin_phase);
+        base_angle *= update->commands[index].slot.sin_rate + random_offset;
     } else {
-        random_offset = frand(update->slots[index].sin_phase);
+        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = object->pos.x *
-                     (update->slots[index].sin_rate + random_offset);
+                     (update->commands[index].slot.sin_rate + random_offset);
     }
 
     sine = gxMathSin(
-        6.28f * update->slots[index].speed * frame_time + base_angle);
-    value = update->slots[index].shadow_scale * sine;
-    object->pos.y += value - update->slots[index].field_34;
-    update->slots[index].field_34 = value;
+        6.28f * update->commands[index].slot.speed * frame_time + base_angle);
+    value = update->commands[index].slot.shadow_scale * sine;
+    object->pos.y += value - update->commands[index].slot.field_34;
+    update->commands[index].slot.field_34 = value;
 }
 
 
@@ -1429,7 +1402,17 @@ static float p_rope(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 90.23%; operations, accesses, loop and frame alignment agree; residue is aligned-matrix call scheduling and register allocation. */
+static inline void rope_bone_world_matrix(
+    RwMatrix* out, RwMatrix* parent, MkObj* model) {
+    RwMatrix* modelling = &model->frame->modelling;
+
+    gxMat33x33((Mat33*)out, (Mat33*)parent, (Mat33*)modelling);
+    gxMatV3MatAddV3(
+        (Vec*)&out->pos, (Vec*)&parent->pos, (Mat33*)modelling,
+        (Vec*)&modelling->pos);
+}
+
+/* TODO: [near miss] 96.64%; rope info/modelling r27/r25 swap and stack-matrix address registers r28/r29 remain. */
 static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     RopeControllerData* rope;
     RopeInfo* info_base;
@@ -1448,8 +1431,8 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     rope->segment_count = segment_count;
     rope->damping = 0.975f;
     for (i = 0; i < rope->segment_count; i++) {
-        RopeSegment* segment;
         RopeInfo* info;
+        RopeSegment* segment;
         MkBone* bone;
 
         segment = &rope->segments[i];
@@ -1473,51 +1456,33 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
 
         segment->bone = bone;
         bone->flags_54_bits.calculation_locked = 1;
-        gxMat33x33(
-            (Mat33*)&bone->matrix, (Mat33*)bone->parent_matrix,
-            (Mat33*)model->frame);
-        gxMatV3MatAddV3(
-            (Vec*)&bone->matrix.pos, (Vec*)&bone->parent_matrix->pos,
-            (Mat33*)model->frame, (Vec*)&model->frame->modelling.pos);
+        rope_bone_world_matrix(
+            (RwMatrix*)&bone->matrix, (RwMatrix*)bone->parent_matrix, model);
 
         if (bone->transform_parent != 0) {
             MkBone* child;
-            RwMatrix bone_matrix __attribute__((aligned(16)));
-            RwMatrix child_matrix __attribute__((aligned(16)));
+            MKMATRIX bone_matrix;
+            MKMATRIX child_matrix;
 
             child = bone->transform_parent;
             child->flags_54_bits.calculation_locked = 1;
-            gxMat33x33(
-                (Mat33*)&child->matrix, (Mat33*)child->parent_matrix,
-                (Mat33*)model->frame);
-            gxMatV3MatAddV3(
-                (Vec*)&child->matrix.pos,
-                (Vec*)&child->parent_matrix->pos, (Mat33*)model->frame,
-                (Vec*)&model->frame->modelling.pos);
+            rope_bone_world_matrix(
+                (RwMatrix*)&child->matrix, (RwMatrix*)child->parent_matrix,
+                model);
 
             if (bone->flags_54_bits.calculation_locked) {
                 bone_matrix = bone->matrix;
             } else {
-                gxMat33x33(
-                    (Mat33*)&bone_matrix, (Mat33*)bone->parent_matrix,
-                    (Mat33*)model->frame);
-                gxMatV3MatAddV3(
-                    (Vec*)&bone_matrix.pos,
-                    (Vec*)&bone->parent_matrix->pos,
-                    (Mat33*)model->frame,
-                    (Vec*)&model->frame->modelling.pos);
+                rope_bone_world_matrix(
+                    (RwMatrix*)&bone_matrix, (RwMatrix*)bone->parent_matrix,
+                    model);
             }
             if (child->flags_54_bits.calculation_locked) {
                 child_matrix = child->matrix;
             } else {
-                gxMat33x33(
-                    (Mat33*)&child_matrix, (Mat33*)child->parent_matrix,
-                    (Mat33*)model->frame);
-                gxMatV3MatAddV3(
-                    (Vec*)&child_matrix.pos,
-                    (Vec*)&child->parent_matrix->pos,
-                    (Mat33*)model->frame,
-                    (Vec*)&model->frame->modelling.pos);
+                rope_bone_world_matrix(
+                    (RwMatrix*)&child_matrix, (RwMatrix*)child->parent_matrix,
+                    model);
             }
             PSVECSubtract(
                 (Vec*)&bone_matrix.pos, (Vec*)&child_matrix.pos,
@@ -1600,10 +1565,10 @@ static inline RopeSegment* rope_previous_segment(
 static void rope_controller_update(MkHdr* pdata) {
     MkObj* model;
     RopeControllerData* rope;
-    RwMatrix inverse_model_matrix;
-    RwMatrix attached_matrix;
-    RwMatrix rotation;
-    RwMatrix source;
+    MKMATRIX inverse_model_matrix;
+    MKMATRIX attached_matrix;
+    MKMATRIX rotation;
+    MKMATRIX source;
     Vec acceleration;
     Vec velocity_delta;
     RwMatrixPosition constraint_axis;

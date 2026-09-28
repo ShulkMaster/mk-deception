@@ -78,8 +78,7 @@ void bgnd_act_at_time(int ticks, int script_function, void* script,
                       float x, float y, float z);
 void bgnd_pebble_gravity(int player, void* script, float gravity);
 void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame);
-void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
-                            unsigned int frame);
+void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame);
 void bgnd_append_texture_to_material(int sobj_id, int material_id,
                                      char* texture_name, int texture_slot);
 void bgnd_append_texture_to_material_tbl(
