@@ -125,7 +125,7 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
 void plyr_bleed_large_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner);
 void dead_liukang_snd_chain_check(
-    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    PlyrPdata* player, int base_delay, int delay_range,
     unsigned int likelihood);
 MslSoundHandle random_foot(int group);
 void check_bgnd_effect(void);

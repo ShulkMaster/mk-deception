@@ -386,7 +386,7 @@ float xz_distance_between_players(void);
 void init_ground_move(void);
 void nudge_towards_him(float max_step);
 void dead_liukang_snd_chain_check(
-    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    PlyrPdata* player, int base_delay, int delay_range,
     unsigned int likelihood);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);

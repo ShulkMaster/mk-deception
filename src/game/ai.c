@@ -440,7 +440,7 @@ int go_into_twitch_death_please;
 int g_fatality_game_number;
 DroneOverrideInfo g_DroneOverrideInfo;
 extern ConstrainInfo constrain_info;
-extern unsigned int randu0(unsigned int max);
+extern unsigned int randu0(unsigned short max);
 extern void snd_req(int sound_id);
 extern void random_snd_req(int sound_id);
 extern void shake_camera(int ticks, float strength);
@@ -1418,7 +1418,7 @@ void whoosh_fx(int hit_type) {
 #pragma opt_propagation reset
 
 void dead_liukang_snd_chain_check(
-    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    PlyrPdata* player, int base_delay, int delay_range,
     unsigned int likelihood) {
     int delay;
     int is_dead_liukang;
@@ -7528,11 +7528,9 @@ float drone_entry(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.45206%; table-base GPR swap remains; GC 2.0/2.5/2.6/2.7 emit identical AI text; retain retail load order. */
 static float drone_loop(void) {
     DroneAI* drone;
     unsigned int ticks;
-    unsigned short random_range;
     int difficulty;
 
     drone = get_player_number(plyr_obj) == 0
@@ -7545,9 +7543,8 @@ static float drone_loop(void) {
         return 1.0f;
     }
     difficulty = drone->difficulty_index;
-    random_range = g_randomDecisionBaseWaitTime[difficulty];
     ticks = g_minDecisionBaseWaitTime[difficulty];
-    ticks += (unsigned short)randu0(random_range);
+    ticks += (unsigned short)randu0(g_randomDecisionBaseWaitTime[difficulty]);
     return ticks;
 }
 #pragma opt_propagation reset
@@ -10056,6 +10053,7 @@ static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     FighterAiTable* table;
     unsigned short row_index;
     FighterAiMoveRow* row;
+    AiFightstyleAttack* special;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     table = plyr_pdata->ai_tables->tables;
@@ -10072,7 +10070,8 @@ static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     drone->ai_command_flag0 = 0;
     drone->ai_command_flag1 = 0;
     drone->ai_command_flag2 = 0;
-    return get_special_move();
+    special = get_special_move();
+    return special;
 }
 
 static AiFightstyleAttack* drone_ai_choose_move_from_category(
