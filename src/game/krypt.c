@@ -64,7 +64,7 @@ AnimScript* get_animation(int animation_id);
 void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags, float blend);
 MkProc* create_mkproc_anim(int pid, MkProcEntryFn entry, AnimPdata** out_animation);
-void set_root_and_obj_movement_weights(float root_weight, float obj_weight, AnimPdata* animation);
+void set_root_and_obj_movement_weights(AnimPdata* animation, float root_weight, float obj_weight);
 void build_bones_tbl(MkObj* object, const int* tags);
 void insert_ground_me_mkobj(MkObj* object);
 char* strlwr(char* string);
@@ -951,7 +951,7 @@ static inline MkObj* load_krypt_character_model(char* character_name) {
         if (krypt_pdata->anim_proc != 0) {
             krypt_pdata->anim_pdata->obj = object;
             krypt_pdata->anim_pdata->obj_instance = object->hdr.instance;
-            set_root_and_obj_movement_weights(0.0f, 1.0f, krypt_pdata->anim_pdata);
+            set_root_and_obj_movement_weights(krypt_pdata->anim_pdata, 0.0f, 1.0f);
             krypt_pdata->anim_pdata->step = 1.0f;
             set_anim_script(
                 krypt_pdata->anim_pdata,

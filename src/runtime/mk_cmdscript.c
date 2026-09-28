@@ -1,10 +1,14 @@
 #include "runtime/mk_cmdscript.h"
 
 #include "mw/mwMem.h"
+#include "game/ejb.h"
+#include "game/trial.h"
+#include "runtime/utils.h"
 #include "runtime/cstring.h"
 #include "runtime/hashtable.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_vtbl.h"
 
 typedef struct {
     unsigned char gpr;
@@ -18,17 +22,13 @@ typedef struct {
 #define va_end(list) ((void)0)
 
 void* __va_arg(__va_list ap, int type);
-int get_language(void);
 void mk_hwfile_cancel(void* req);
 void mk_hwfile_free_request(void* req);
 void mk_hwfile_wait_for_completion(void* req);
-void trial_register_script_function(unsigned int func_index);
-float j_exit(void);
 
 extern _mwMemHeap* SystemSwappableHeap;
 extern void** script_callable_function_table;
 extern int number_of_script_functions;
-extern MkVtable5 vtbl_cmdscript;
 
 typedef void (*ScriptBuiltinFn)(void);
 
@@ -89,12 +89,10 @@ static ScriptBuiltinFn builtin_script_function_table[22] = {
     _set_bit_field,
 };
 
-/* Retail .bss -- 20 x 0xA8 entries */
 static ScriptSlotEntry script_slot_list[20];
 static Hashtable c_table_list;
 CmdScript global_script_interpreter;
 
-/* Retail .sbss: MWCC reverse decl -> current_args @0, active_cmdscript @4 */
 CmdScript* active_cmdscript;
 unsigned int* current_args;
 
@@ -224,7 +222,6 @@ static inline void execute_cmdscript(ScriptSlot* slot) {
     cs->state = 0;
 }
 
-/* ---- 0x8001394C ---- */
 
 /* TODO: [breakthrough needed] 70.527275%; typed pdata allocation is neutral;
  * remaining process-call/CFG differences need retail reconstruction audit. */
@@ -235,11 +232,11 @@ void one_shot_script_func(void* a, unsigned int b, int wait) {
     float one;
 
     proc = cmdscript_create_tinystack(
-        0x9028, 0x1f, (MkProcEntryFn)p_run_one_shot_script,
+        0x9028, 0x1f, p_run_one_shot_script,
         sizeof(OneShotScriptPdata), (MkHdr**)&pdata);
     if (proc != 0) {
         set_process_as_scriptable(proc);
-        pdata->script = (ScriptSlot*)a;
+        pdata->script = a;
         pdata->func_index = b;
         instance = proc->instance;
         if (wait != 0) {
@@ -252,8 +249,8 @@ void one_shot_script_func(void* a, unsigned int b, int wait) {
     }
 }
 
-/* ---- 0x80013A28 ---- */
 
+/* TODO: [breakthrough needed] 58.88%; 101 rows differ; inspect retail CFG and operand types. */
 float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
@@ -266,7 +263,6 @@ float p_run_one_shot_script(void) {
     return kNegOne;
 }
 
-/* ---- 0x80013BD8 / 0x80013C00 (krypt-critical) ---- */
 
 void load_string_bank_async(unsigned int bank, char* name) {
     cmdscript_loadfile_language_by_name_async((int)(bank >> 16) - 1, name);
@@ -276,8 +272,8 @@ void load_string_bank(unsigned int bank, char* name) {
     cmdscript_loadfile_language_by_name((int)(bank >> 16) - 1, name);
 }
 
-/* ---- 0x80013C28 ---- */
 
+/* TODO: [breakthrough needed] 86.66%; 32 rows differ; inspect retail CFG and operand types. */
 char* get_string_by_id(unsigned int id) {
     unsigned int bank;
     unsigned int index;
@@ -298,7 +294,7 @@ char* get_string_by_id(unsigned int id) {
         return 0;
     }
     slot = &entry->body;
-    row = (unsigned int*)resolve_table_row(slot, slot->table_count);
+    row = resolve_table_row(slot, slot->table_count);
     if ((unsigned int)row < (unsigned int)slot->table_data) {
         return 0;
     }
@@ -320,7 +316,6 @@ char* get_string_by_id(unsigned int id) {
     return ((char**)row)[index];
 }
 
-/* ---- stack helpers ---- */
 
 void cmdscript_reset_stack(void) {
     CmdScript* cs;
@@ -337,6 +332,7 @@ void cmdscript_step_backward(void) {
     cs->pc = cs->prev_pc;
 }
 
+/* TODO: [breakthrough needed] 66.87%; 8 rows differ; inspect retail CFG and operand types. */
 unsigned int get_script_stack_depth(void) {
     CmdScript* cs;
 
@@ -363,8 +359,8 @@ void register_c_table(const char* name, void* table) {
     hashtable_store(&c_table_list, name, table);
 }
 
-/* ---- 0x80013E44 parse_args (va_list lift) ---- */
 
+/* TODO: [breakthrough needed] 78.65%; 60 rows differ; inspect retail CFG and operand types. */
 void parse_args(const char* fmt, ...) {
     __va_list ap;
     unsigned int arg_offset;
@@ -417,6 +413,7 @@ void parse_args(const char* fmt, ...) {
     va_end(ap);
 }
 
+/* TODO: [breakthrough needed] 76.38%; 8 rows differ; inspect retail CFG and operand types. */
 char* get_script_string_arg(int index) {
     unsigned int val;
     unsigned int base;
@@ -436,6 +433,7 @@ char* get_script_string_arg(int index) {
     return (char*)val;
 }
 
+/* TODO: [breakthrough needed] 62.96%; 13 rows differ; inspect retail CFG and operand types. */
 void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     unsigned int attrs_id;
 
@@ -443,6 +441,7 @@ void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     return resolve_table_row(slot, attrs_id);
 }
 
+/* TODO: [near miss] 98.52%; 13 localized rows differ; compare retail operands. */
 void* get_data_table_by_name(const char* name) {
     ScriptTableDef* def;
     ScriptSlot* slot;
@@ -457,7 +456,7 @@ void* get_data_table_by_name(const char* name) {
         return found;
     }
     for (i = 0; i < SCRIPT_SLOT_COUNT; i++) {
-        entry = slot_entry_at((int)i);
+        entry = slot_entry_at(i);
         if (entry->state == 2) {
             slot = &entry->body;
             for (t = 0; t < slot->max_table; t++) {
@@ -474,6 +473,7 @@ void* get_data_table_by_name(const char* name) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 56.54%; 23 rows differ; inspect retail CFG and operand types. */
 int get_script_function_by_name(ScriptSlot* slot, const char* name) {
     unsigned int i;
     ScriptFuncDef* def;
@@ -492,6 +492,7 @@ int get_script_function_by_name(ScriptSlot* slot, const char* name) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 56.54%; 23 rows differ; inspect retail CFG and operand types. */
 int check_script_function_exists(ScriptSlot* slot, const char* name) {
     unsigned int i;
     ScriptFuncDef* def;
@@ -510,6 +511,7 @@ int check_script_function_exists(ScriptSlot* slot, const char* name) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 77.61%; 13 rows differ; inspect retail CFG and operand types. */
 char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
     unsigned int base;
     unsigned int id;
@@ -533,6 +535,7 @@ char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 71.66%; 7 rows differ; inspect retail CFG and operand types. */
 char* get_name_of_table(ScriptSlot* slot, unsigned int index) {
     char* table_name;
 
@@ -544,6 +547,7 @@ char* get_name_of_table(ScriptSlot* slot, unsigned int index) {
     return table_name;
 }
 
+/* TODO: [breakthrough needed] 76.13%; 12 rows differ; inspect retail CFG and operand types. */
 unsigned int get_table_index_by_pointer(ScriptSlot* slot, void* table) {
     unsigned int base;
     unsigned int id;
@@ -564,6 +568,7 @@ unsigned int get_table_index_by_pointer(ScriptSlot* slot, void* table) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 84.16%; 9 rows differ; inspect retail CFG and operand types. */
 unsigned int get_row_count_for_table_by_pointer(ScriptSlot* slot, void* table) {
     unsigned int base;
     unsigned int id;
@@ -595,8 +600,8 @@ void* get_data_table(ScriptSlot* slot, unsigned int index) {
     return resolve_table_row(slot, index);
 }
 
-/* ---- execute / setup ---- */
 
+/* TODO: [breakthrough needed] 62.83%; 91 rows differ; inspect retail CFG and operand types. */
 void cmdscript_execute(ScriptSlot* slot) {
     CmdScript* cs;
     CmdScriptStackFrame* stack_base;
@@ -652,6 +657,7 @@ void cmdscript_execute(ScriptSlot* slot) {
     cs->state = 0;
 }
 
+/* TODO: [breakthrough needed] 71.86%; 39 rows differ; inspect retail CFG and operand types. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
 
@@ -673,6 +679,7 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     }
 }
 
+/* TODO: [breakthrough needed] 72.51%; 26 rows differ; inspect retail CFG and operand types. */
 void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     __va_list ap;
     unsigned int i;
@@ -681,13 +688,14 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     if (script != 0 && count < 6 && count != 0) {
         va_start(ap, count);
         for (i = 0; i < count; i++) {
-            val = (int*)__va_arg(ap, 1);
+            val = __va_arg(ap, 1);
             script->stack_sp->args[i] = *val;
         }
         va_end(ap);
     }
 }
 
+/* TODO: [breakthrough needed] 64.55%; 98 rows differ; inspect retail CFG and operand types. */
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
@@ -698,6 +706,7 @@ float call_player_script_function(ScriptSlot* slot) {
     return kZero;
 }
 
+/* TODO: [breakthrough needed] 77.41%; 14 rows differ; inspect retail CFG and operand types. */
 void cmdscript_unload(ScriptSlot* slot) {
     ScriptSlotEntry* entry;
     MkProc* saved;
@@ -733,12 +742,12 @@ void cmdscript_unload(ScriptSlot* slot) {
     memset(slot, 0, sizeof(ScriptSlot));
 }
 
-/* Retail leaves r3 untouched after memfree (int slot, no explicit return). */
 int vdestroy_cmdscript(CmdScript* script) {
     script->instance = 0;
     mkhdr_memfree((MkHdr*)script);
 }
 
+/* TODO: [breakthrough needed] 78.00%; 28 rows differ; inspect retail CFG and operand types. */
 void unload_script(int slot_index) {
     ScriptSlotEntry* entry;
     int state;
@@ -750,6 +759,7 @@ void unload_script(int slot_index) {
     }
 }
 
+/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name) {
     MkFileInfo* section;
 
@@ -760,6 +770,7 @@ ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name) 
     return cmdscript_loadfile_language_async(language, section);
 }
 
+/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name) {
     MkFileInfo* section;
 
@@ -770,6 +781,7 @@ ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name) {
     return cmdscript_loadfile_language(language, section);
 }
 
+/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name) {
     MkFileInfo* section;
 
@@ -780,6 +792,7 @@ ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name) {
     return cmdscript_loadfile(language, section);
 }
 
+/* TODO: [breakthrough needed] 80.32%; 40 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_info) {
     MkFileInfo* info;
     ScriptSlotEntry* entry;
@@ -819,6 +832,7 @@ ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_inf
     return body;
 }
 
+/* TODO: [breakthrough needed] 70.00%; 10 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info) {
     MkFileInfo* info;
 
@@ -826,6 +840,7 @@ ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info) {
     return cmdscript_loadfile(language, info);
 }
 
+/* TODO: [breakthrough needed] 79.95%; 49 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info) {
     ScriptSlotEntry* entry;
     ScriptSlot* body;
@@ -870,7 +885,7 @@ ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info) {
     return body;
 }
 
-/* TODO: [breakthrough] 73.48148%; byte-count arithmetic corrected; slot layout and load CFG remain. */
+/* TODO: [breakthrough] 73.85%; byte-count arithmetic fixed; inspect slot layout and load CFG. */
 ScriptSlot* cmdscript_finish_load(int slot_index) {
     ScriptSlotEntry* entry;
     ScriptSlot* slot;
@@ -892,7 +907,7 @@ ScriptSlot* cmdscript_finish_load(int slot_index) {
         if (entry->state != 2) {
             entry->state = 2;
             entry->async_req = 0;
-            header = (unsigned int*)slot->load_buf;
+            header = slot->load_buf;
             slot->func_count = header[0];
             slot->hdr_word0 = header[1];
             slot->pad48 = header[2];
@@ -941,12 +956,13 @@ void deactivate_cmdscript(void) {
     active_cmdscript = 0;
 }
 
+/* TODO: [breakthrough needed] 73.22%; 14 rows differ; inspect retail CFG and operand types. */
 void activate_cmdscript(void) {
     active_cmdscript = find_cmdscript_in_list(&aproc->pdata_list);
 }
 
-/* ---- 0x80015344 (krypt-critical) ---- */
 
+/* TODO: [breakthrough needed] 91.81%; 11 rows differ; inspect retail CFG and operand types. */
 void set_process_as_scriptable(MkProc* proc) {
     MkPtr* next;
     MkPtr* ptr;
@@ -990,6 +1006,7 @@ void set_process_as_scriptable(MkProc* proc) {
     }
 }
 
+/* TODO: [breakthrough needed] 65.75%; 16 rows differ; inspect retail CFG and operand types. */
 CmdScript* get_cmdscript_for_proc(MkProc* proc) {
     return find_cmdscript_in_list(&proc->pdata_list);
 }
@@ -1005,7 +1022,7 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
-/* Soft ceiling: exact retail size/CFG; residual is GPR coloring and scheduling. */
+/* TODO: [breakthrough needed] 84.16%; 92 rows differ; inspect retail CFG and operand types. */
 void fixup_data_tables(ScriptSlot* slot) {
     unsigned int table_index;
 
@@ -1024,7 +1041,7 @@ void fixup_data_tables(ScriptSlot* slot) {
                 unsigned int slot_index;
 
                 for (slot_index = 0; slot_index < SCRIPT_SLOT_COUNT; slot_index++) {
-                    ScriptSlotEntry* candidate_entry = slot_entry_at((int)slot_index);
+                    ScriptSlotEntry* candidate_entry = slot_entry_at(slot_index);
                     ScriptSlot* candidate;
                     unsigned int candidate_index;
 
@@ -1083,7 +1100,7 @@ void fixup_data_tables(ScriptSlot* slot) {
                                 *value = (unsigned int)(slot->table_data +
                                                         referenced->data_index);
                             } else {
-                                *value = (unsigned int)def->data_index;
+                                *value = def->data_index;
                             }
                         }
                         break;
@@ -1103,6 +1120,7 @@ void fixup_data_tables(ScriptSlot* slot) {
     slot->tables_fixed_up = 1;
 }
 
+/* TODO: [breakthrough needed] 87.33%; 40 rows differ; inspect retail CFG and operand types. */
 void script_system_reset(void) {
     int i;
     ScriptSlotEntry* entry;
@@ -1120,8 +1138,8 @@ void init_cmdscript_system(void) {
     memset(script_slot_list, 0, sizeof(script_slot_list));
 }
 
-/* ---- builtins (local; retail .fn order after init_cmdscript_system) ---- */
 
+/* TODO: [breakthrough needed] 79.21%; 10 rows differ; inspect retail CFG and operand types. */
 void _set_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1139,6 +1157,7 @@ void _set_bit_field(void) {
     *dst = (*dst & ~mask) | (src << shift);
 }
 
+/* TODO: [breakthrough needed] 60.25%; 17 rows differ; inspect retail CFG and operand types. */
 void _get_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1154,6 +1173,7 @@ void _get_bit_field(void) {
     cs->regs[args[1]] = (val & mask) >> shift;
 }
 
+/* TODO: [near miss] 93.82%; 2 localized rows differ; compare retail operands. */
 void _copy_stream_to_address(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1169,6 +1189,7 @@ void _copy_stream_to_address(void) {
     memcpy(dst, &args[3], size);
 }
 
+/* TODO: [breakthrough needed] 82.68%; 32 rows differ; inspect retail CFG and operand types. */
 void _call_script_function(void) {
     unsigned int* args;
     unsigned int func_index;
@@ -1186,6 +1207,7 @@ void _call_script_function(void) {
     active_cmdscript->func_name = (char*)(function->name_offset + slot->string_reloc - 1);
 }
 
+/* TODO: [breakthrough needed] 93.79%; 11 rows differ; inspect retail CFG and operand types. */
 void _load_table_address(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1203,31 +1225,31 @@ void _unconditional_branch(void) {
     int rel;
     unsigned int* base;
 
-    /* Retail load order: current_args then active_cmdscript; PC field @+0x14. */
     args = current_args;
     cs = active_cmdscript;
-    rel = (int)args[1];
+    rel = args[1];
     base = cs->pc;
     cs->pc = base + rel;
 }
 
+/* TODO: [near miss] 80.36%; 4 localized rows differ; compare retail operands. */
 void _conditional_branch(void) {
     CmdScript* cs;
     unsigned int* args;
     int rel;
     unsigned int* base;
 
-    /* Retail: active_cmdscript then current_args; bnelr if regs[0]!=0; else pc+=args[1]. */
     cs = active_cmdscript;
     args = current_args;
     if (cs->regs[0] != 0) {
         return;
     }
-    rel = (int)args[1];
+    rel = args[1];
     base = cs->pc;
     cs->pc = base + rel;
 }
 
+/* TODO: [breakthrough needed] 90.68%; 24 rows differ; inspect retail CFG and operand types. */
 void _compare_float_float(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1268,9 +1290,10 @@ void _compare_float_float(void) {
             result = 1;
         break;
     }
-    cs->regs[args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 84.01%; 36 rows differ; inspect retail CFG and operand types. */
 void _compare_uint_uint(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1327,9 +1350,10 @@ void _compare_uint_uint(void) {
         }
         break;
     }
-    cs->regs[args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 84.01%; 36 rows differ; inspect retail CFG and operand types. */
 void _compare_int_int(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1342,8 +1366,8 @@ void _compare_int_int(void) {
     result = 0;
     op = args[3];
     cs = active_cmdscript;
-    a = (int)cs->regs[args[1]];
-    b = (int)cs->regs[args[2]];
+    a = cs->regs[args[1]];
+    b = cs->regs[args[2]];
     switch (op) {
     case 18:
         if (a < b)
@@ -1378,9 +1402,10 @@ void _compare_int_int(void) {
             result = 1;
         break;
     }
-    cs->regs[args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 87.58%; 16 rows differ; inspect retail CFG and operand types. */
 void _combine_float_float(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1412,6 +1437,7 @@ void _combine_float_float(void) {
     *(float*)&cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 79.75%; 27 rows differ; inspect retail CFG and operand types. */
 void _combine_uint_uint(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1458,6 +1484,7 @@ void _combine_uint_uint(void) {
     cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 79.75%; 27 rows differ; inspect retail CFG and operand types. */
 void _combine_int_int(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1470,8 +1497,8 @@ void _combine_int_int(void) {
     result = 0;
     op = args[3];
     cs = active_cmdscript;
-    a = (int)cs->regs[args[1]];
-    b = (int)cs->regs[args[2]];
+    a = cs->regs[args[1]];
+    b = cs->regs[args[2]];
     switch (op) {
     case 0:
         result = a + b;
@@ -1501,9 +1528,10 @@ void _combine_int_int(void) {
         result = a >> b;
         break;
     }
-    cs->regs[args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = result;
 }
 
+/* TODO: [breakthrough needed] 79.66%; 12 rows differ; inspect retail CFG and operand types. */
 void _copy_register_to_address(void) {
     CmdScript* cs;
     void* destination;
@@ -1513,6 +1541,7 @@ void _copy_register_to_address(void) {
     memcpy(destination, &cs->regs[current_args[2]], current_args[3]);
 }
 
+/* TODO: [breakthrough needed] 64.04%; 21 rows differ; inspect retail CFG and operand types. */
 void _copy_column_address_to_register(void) {
     unsigned int* args;
     CmdScript* script;
@@ -1534,6 +1563,7 @@ void _copy_column_address_to_register(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 45.62%; 32 rows differ; inspect retail CFG and operand types. */
 void _copy_column_to_register(void) {
     unsigned int value;
     unsigned int dest_reg;
@@ -1562,6 +1592,7 @@ void _copy_constant_to_variable(void) {
     stack_words[args[1]] = args[2];
 }
 
+/* TODO: [near miss] 89.09%; 2 localized rows differ; compare retail operands. */
 void _copy_register_to_variable(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1573,6 +1604,7 @@ void _copy_register_to_variable(void) {
     stack_words[args[1]] = cs->regs[args[2]];
 }
 
+/* TODO: [breakthrough needed] 85.90%; 7 rows differ; inspect retail CFG and operand types. */
 void _copy_variable_to_register(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1584,6 +1616,7 @@ void _copy_variable_to_register(void) {
     cs->regs[args[1]] = stack_words[args[2]];
 }
 
+/* TODO: [breakthrough needed] 80.45%; 10 rows differ; inspect retail CFG and operand types. */
 void _copy_register_to_register(void) {
     CmdScript* cs;
 
@@ -1591,6 +1624,7 @@ void _copy_register_to_register(void) {
     cs->regs[current_args[1]] = cs->regs[current_args[2]];
 }
 
+/* TODO: [breakthrough needed] 81.25%; 7 rows differ; inspect retail CFG and operand types. */
 void _copy_constant_to_register(void) {
     CmdScript* cs;
 
@@ -1598,6 +1632,7 @@ void _copy_constant_to_register(void) {
     cs->regs[current_args[1]] = current_args[2];
 }
 
+/* TODO: [near miss] 89.09%; 2 localized rows differ; compare retail operands. */
 void _copy_register_to_instruction(void) {
     unsigned int* args;
     CmdScript* cs;

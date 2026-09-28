@@ -31,6 +31,7 @@ void unload_p2_player_profile(void);
 #include "libmkparticle/pfxfont.h"
 #include "movie/MkMovies.h"
 #include "mwScreenEngine/GameVariables.h"
+#include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenPoly.h"
 #include "mwScreenEngine/ScreenSCtl.h"
 #include "mwScreenEngine/ScreenControl.h"
@@ -195,8 +196,7 @@ MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, void* proc_fn
 MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, void* proc_fn, int pdata_size,
                                        void** pdata_out);
 
-/* ScreenMgr C++ (mangled); returns nonzero on accept (async load may continue). */
-int LoadScreen__9ScreenMgrFPcUi(void* mgr, char* name, unsigned int flag);
+/* ScreenMgr methods use their typed declaration in ScreenMgr.h. */
 void BroadcastEvent__9ScreenMgrFiii(void* mgr, int event, int a, int b);
 void FireEvent__9ScreenMgrFiiUi(void* mgr, int event, int a, unsigned int b);
 void Render__9ScreenMgrFv(void* mgr);
@@ -210,7 +210,7 @@ void RegisterGameVariables__13ScreenControlFUiP13GameVariables(unsigned int unus
 void Init__13ScreenControlFv(void* self);
 void RefreshAllCollections__13ScreenControlFP6Screen(void* screen);
 void RefreshAllOptions__13ScreenControlFP6Screen(void* screen);
-void __ct__9ScreenMgrFv(void* self);
+void* __ct__9ScreenMgrFv(void* self);
 void __dt__9ScreenMgrFv(void* self, short del);
 void __ct__12ScreenClientFv(void* self);
 void __ct__13GameVariablesFv(void* self);
@@ -320,9 +320,8 @@ void __sinit_mwScreenEngineGlue_cpp(void) {
 
     island = (ScreenEngineBssIsland*)paused_event_queue;
 
-    __ct__9ScreenMgrFv(island->screen_manager);
     __register_global_object(
-        island->screen_manager, __dt__9ScreenMgrFv,
+        __ct__9ScreenMgrFv(island->screen_manager), __dt__9ScreenMgrFv,
         (char*)island + 0x60);
 
     __ct__12ScreenClientFv(&island->client);
@@ -1021,14 +1020,13 @@ void set_popup_message_text(const char* text) {
  * broadcast ends in BroadcastEvent; fire ends in FireEvent.
  */
 
+/* TODO: [near miss] 95.56%; offset IV init is li versus retail mr (same residue as
+ * ncs_bgnd_nuke_collision_to_script_interface); whole-unit function order differs. */
 void screen_engine_process_events(void) {
     int i;
     PausedStudioEvent* base;
     PausedStudioEvent* entry;
-    int* flags_ptr;
-    int flags;
 
-    /* Soft ceiling: process_events -- drain/frame leftovers; stop. */
     i = 0;
     base = paused_event_queue;
     do {
@@ -1036,19 +1034,17 @@ void screen_engine_process_events(void) {
         if (entry->event == 0) {
             break;
         }
-        flags_ptr = &entry->flags;
-        flags = *flags_ptr;
+        int& flags = entry->flags;
         if (flags < 0) {
-            /* Retail: cntlzw(-1 - flags) >> 5  (== 1 iff flags == -1). */
             BroadcastEvent__9ScreenMgrFiii(screen_manager, (int)entry->event,
-                                           (int)(__cntlzw(-1 - flags) >> 5), 0);
+                                           flags == -1, 0);
         } else {
             FireEvent__9ScreenMgrFiiUi(screen_manager, (int)entry->event, flags & 0xFF,
                                        (unsigned int)((flags >> 8) & 0xFF));
         }
         i += 1;
         entry->event = 0;
-        *flags_ptr = 0;
+        flags = 0;
     } while (i < 12);
 
     Idle__9ScreenMgrFi(screen_manager, 0);
@@ -1224,40 +1220,27 @@ void wait_for_screen_close(void) {
     }
 }
 
-/*
- * Load screen SSF, then async-load each slash-separated name as scr_<part>.sec
- * into the given section slot (language-aware).
- *
- * Retail keeps @stringBase0 in r31 and passes stringBase0+0x1C9 to sprintf.
- * Soft ceiling: preload_screen_data ~99.6% -- zero/str_base r30/r31; stop.
- * Q6 try: literal "scr_%s.sec" dropped to ~93.8% -- keep stringBase0.
- */
+/* Load screen SSF, then async-load each slash-separated name as scr_<part>.sec
+ * into the given section slot (language-aware). */
+/* TODO: [near miss] 99.555557%; pooled string base and zero use r30/r31 in reverse. */
 void preload_screen_data(const char* name, int slot) {
     char name_buf[0x100];
     char path_buf[0x80];
     const char* str_base;
-    int zero;
     char* slash;
     char* cursor;
-    char* strchr_r3;
+    char* found;
 
-    /*
-     * Soft ceiling: ~99.56% -- zero/str_base r30/r31 NV unreproducible; stop.
-     * Tried: decl order, char/pointer zero, assign order, strchr_r3 shape.
-     * Q6 literal "scr_%s.sec" -5%; keep stringBase0.
-     */
     load_ssf(screen_engine_file_table);
-    strncpy(name_buf, name, 0x100);
-    name_buf[0xFF] = 0;
+    strncpy(name_buf, name, sizeof(name_buf));
+    name_buf[sizeof(name_buf) - 1] = '\0';
 
     cursor = name_buf;
-    strchr_r3 = strchr(cursor, '/');
-    /* Keep: li zero, mr slash, addi str_base (order matches; regs swapped). */
-    zero = 0;
+    found = strchr(cursor, '/');
     str_base = stringBase0;
-    slash = strchr_r3;
+    slash = found;
     while (slash != 0) {
-        *slash = (char)zero;
+        *slash = '\0';
         sprintf(path_buf, str_base + 0x1C9, cursor);
         add_art_section_by_name_async_language(slot, path_buf);
         cursor = slash + 1;
@@ -1265,19 +1248,20 @@ void preload_screen_data(const char* name, int slot) {
     }
 }
 
-/*
- * Ask ScreenMgr to load `name`, then spawn screen tick + 3 controller procs.
- * share_pdata may be published on screen_engine_client for get_screen_pdata.
- *
- * B18: On LoadScreen success, allocates vtbl_screen_engine MkHdr
- * (size 0x8) and insert_2d_obj's it onto image.screen_obj_list -- that is
- * the Midway must-run path for menu chrome to reach render_2d_objs. Host
- * still fills ScreenClient::LoadScreenSet so ScreenMgr::Render has Screens.
- *
- * B21 PPWLS: load_screen("common/memory_card/mc_main", 0x90046, ...) from
- * p_player_profile_whats_loaded_screen; studio events 0x1FB7/0x1FBE refresh/done.
- */
-/* TODO: [near miss] 99.05173%; matching-only argument aliases removed; equivalent shared-pdata validation branch lowering remains */
+static inline MkHdr* screen_engine_live_share(void) {
+    MkHdr* share = screen_engine_client.share_pdata;
+
+    if (share != 0) {
+        if (share->instance == (unsigned int)screen_engine_client.share_instance) {
+            return share;
+        }
+        share = 0;
+    } else {
+        share = 0;
+    }
+    return share;
+}
+
 void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot) {
     MkHdr* current;
     unsigned int loaded;
@@ -1293,21 +1277,14 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
         unload_section_slot(slot);
     }
 
-    current = screen_engine_client.share_pdata;
-    if (current != 0) {
-        if (current->instance != (unsigned int)screen_engine_client.share_instance) {
-            current = 0;
-        }
-    } else {
-        current = 0;
-    }
+    current = screen_engine_live_share();
 
     if ((share_pdata == 0 || current == 0 || share_pdata == current) && share_pdata != 0) {
         screen_engine_client.share_pdata = share_pdata;
         screen_engine_client.share_instance = (int)share_pdata->instance;
     }
 
-    loaded = (unsigned int)LoadScreen__9ScreenMgrFPcUi(screen_manager, (char*)name, 1);
+    loaded = (unsigned int)((ScreenMgr*)screen_manager)->LoadScreen((char*)name, 1);
     if (loaded == 0) {
         return;
     }

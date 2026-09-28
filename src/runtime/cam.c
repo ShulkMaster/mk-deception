@@ -97,8 +97,7 @@ void unhide_atomic(void* atomic);
 float frand(float maximum);
 unsigned short randu0(unsigned int maximum);
 int build_bones_tbl(MkObj* object, const int* tags);
-void set_root_and_obj_movement_weights(float root_weight, float object_weight,
-                                       AnimPdata* animation);
+void set_root_and_obj_movement_weights(AnimPdata* animation, float root_weight, float object_weight);
 void get_bone_offset_world_pos(MkObj* object, int bone, const Vec* offset,
                                Vec* position);
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
@@ -1770,7 +1769,7 @@ void camera_run_animation_start_end(float start_frame, float end_frame, int wait
             anim = get_mkpdata_anim();
             anim->obj = bone;
             anim->obj_instance = bone->hdr.instance;
-            set_root_and_obj_movement_weights(kZero, kZero, anim);
+            set_root_and_obj_movement_weights(anim, kZero, kZero);
             anim->step = info->pdata->speed;
             mk_insert(&anim->hdr, &bone->child_list);
             info->pdata->anim_pdata = anim;

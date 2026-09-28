@@ -632,7 +632,7 @@ typedef struct ScriptExitArgs {
 } ScriptExitArgs;
 
 #define CURRENT_EXIT_ARGS ((ScriptExitArgs*)current_args)
-#define CURRENT_PLAYER_PDATA ((PlyrPdata*)plyr_pdata)
+#define CURRENT_PLAYER_PDATA (plyr_pdata)
 #define ACTIVE_SCRIPT_EXIT ((ScriptExitView*)active_cmdscript)
 
 typedef struct ScriptObjectRef {
@@ -825,7 +825,6 @@ typedef union ScriptResultRef {
     ScriptExitView* exit;
 } ScriptResultRef;
 
-extern float _mkproc_sleep_ticks;
 extern float inverse_game_speed;
 void update_bone_hierarchy(void* object);
 void ground_me(void* object);
@@ -844,7 +843,6 @@ int printf(const char* format, ...);
 void obj_setup_for_animation(
     MkObj* object, const int* tags, MkFlippedBoneMap* flipped_bone_map,
     void* ground_colls);
-void xfer_proc(MkProc* proc, MkProcEntryFn entry);
 void update_mkobj(void* object);
 void* get_mkobj_frame(int id, int frame);
 void trial_add_required_attack(unsigned char attack, unsigned char count,
@@ -881,7 +879,6 @@ int is_my_chest_to_screen(void);
 int am_i_on_the_left2(void* me, void* him);
 int am_i_on_the_left(void);
 int is_he_flipped(void);
-int am_i_flipped(void);
 int is_fast_getup(void);
 int disable_impale_check(void);
 void tag_team_activate_player(MkObj* object, int active);
@@ -1272,7 +1269,6 @@ int is_plyr_airborn(MkHdr* object, PlyrPdata* player);
 int get_offset_of_closest_fence_section(const Vec* point,
                                         const FenceSection* sections,
                                         int start_index, int mirrored);
-MkProc* find_mkproc_pid(int pid);
 void start_fish_attack(MkHdr* player, int direction, int flags);
 int is_timer_off(void);
 void debug_create_axis_indicator(MkHdr* player, int axis);
@@ -1282,12 +1278,8 @@ void bgnd_level_transition_end(void);
 void bgnd_level_transition_start(void);
 void obj_set_sobj_alpha(MkObj* object, int sobj_index, int alpha);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-float get_volume_from_distance(const Vec* position, float far_distance,
-                               float near_distance);
-float get_pan_value(const Vec* position);
 void mab_test(void);
 void player_body_explode(MkHdr* player, const Vec* position, float velocity);
-void bgnd_clear_danger_zone_callback(PlyrPdata* player);
 void yinyang_set_bad_fish_hide_flag(void* entries, int hidden, int count);
 void yinyang_set_good_fish_hide_flag(void* entries, int hidden, int count);
 void yinyang_make_fish_jump(int fish, int velocity);
@@ -1324,7 +1316,6 @@ void set_obj_light_flags(MkObj* object, int flags);
 void set_obj_ang(MkObj* object, float x, float y, float z);
 void set_obj_pos(MkObj* object, float x, float y, float z);
 int random_percent(float percent);
-void delete_screen_obj_oid(int oid);
 void reset_collision_system(void);
 void pos_cam_for_current_level(void);
 void reset_severed_limbs(int player);
@@ -1797,7 +1788,6 @@ int add_days_to_time(int, int);
 int add_hours_to_time(int, int);
 int add_months_to_time(int, int);
 int add_to_konq_profile_value(int, int);
-void add_widescreen_bars(float);
 int add_years_to_time(int, int);
 int adjust_his_damage_multiplier(void *, float);
 int adjust_my_damage_multiplier(void *, float);
@@ -2099,8 +2089,6 @@ int save_hero_position_and_angle_prior_to_fight(void *, float);
 int set_active_projectile_block_script(int);
 int set_active_projectile_velocity_to_hit_gnd(void *, float);
 int set_ani_speed_miss_hit(void *, float, float);
-void set_background_obstacle_disable_flag(int, int);
-void set_background_obstacle_repel_flag(int, int);
 int set_hero_punched_ground_collisions(int);
 int set_his_damage_multiplier(void *, float);
 int set_konq_profile_value(int, int, int);
@@ -2207,8 +2195,6 @@ int get_krypt_current_row(void);
 int get_last_character_trained_with(void);
 int get_mode_of_play(void);
 int get_monk_age(void);
-int get_my_particle_player_bank_num(void);
-int get_my_plyr_num(void);
 MkObj* get_pickup_object(void);
 int get_previous_konquest_region_number(void);
 int get_projectile_his_plyr_num(void);
@@ -2355,7 +2341,6 @@ void drone_blend_to_ani(AnimScript*, int, float);
 int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
-void interaction_cam_set_target_info(int, float, float, float, float, float, float);
 void konquest_use_portal(int, const Vec*, int, float, float, float);
 int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
 int mk_chess_ani_until_reached_destination(int, float, float, float, float, float);
@@ -2381,9 +2366,6 @@ void show_text(int, unsigned int, unsigned int, unsigned int, int, float, float,
 int sidekick_switch_style_swap(int, float);
 int single_frame_collision_check(int, int, int, void *, float, float, float);
 int special_move_cam_him(int, int, int, float, float, float, float, float);
-void special_move_cam_setup(int, int, int, float, float, float, float, float);
-void special_move_cam_setup2(int, int, int, MkObj*, MkObj*, float, float,
-                             float, float, float);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, const Vec* velocity,
@@ -2437,14 +2419,14 @@ void _obj_setup_for_animation(void) {
                             ((ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
-/* Soft ceiling: _npc_set_anim_proc ~96.25% -- pooled-string relocation labels only. */
+/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _npc_set_anim_proc(void) {
     int function_index;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
                &function_index);
     npc_set_anim_proc(
-        (MkProcEntryFn)script_callable_function_table[function_index - 1]);
+        script_callable_function_table[function_index - 1]);
 }
 
 void _animate_obj(void) {
@@ -2455,7 +2437,7 @@ void _animate_obj(void) {
     temp_r31_91 = args.raw->slots[0].i;
     ((ScriptRawResult*)active_cmdscript)->value.i = (int)animate_obj(
         (MkObj*)temp_r31_91,
-        (AnimScript*)get_animation(args.raw->slots[1].i),
+        get_animation(args.raw->slots[1].i),
         (const int*)args.raw->slots[2].i,
         (MkFlippedBoneMap*)args.raw->slots[3].i,
         (void*)args.raw->slots[4].i, args.raw->slots[6].i,
@@ -2473,14 +2455,14 @@ void _start_gusher(void) {
         (const Vec*)args.raw->slots[4].i);
 }
 
-/* Soft ceiling: _plyr_spawn_his_anim_limb ~82.12% -- typed call ABI scheduling. */
+/* TODO: [near miss] 65.12%; call and arguments agree; residue is argument-load scheduling around the typed call. */
 void _plyr_spawn_his_anim_limb(void) {
     ((ScriptRawResult*)active_cmdscript)->value.i =
         plyr_spawn_his_anim_limb(
             ((ScriptRawArgs*)current_args)->slots[0].i,
             ((ScriptRawArgs*)current_args)->slots[1].i,
             ((ScriptRawArgs*)current_args)->slots[2].i,
-            (void*)get_animation(((ScriptRawArgs*)current_args)->slots[3].i),
+            get_animation(((ScriptRawArgs*)current_args)->slots[3].i),
             ((ScriptRawArgs*)current_args)->slots[4].i,
             script_callable_function_table[
                 ((ScriptRawArgs*)current_args)->slots[5].i - 1],
@@ -2521,10 +2503,10 @@ void _set_anim_script(void) {
     AnimPdata* animation;
 
     args.bytes = current_args;
-    animation = (AnimPdata*)args.raw->slots[0].pointer;
+    animation = args.raw->slots[0].pointer;
     set_anim_script(
         animation,
-        (AniData*)get_animation(args.raw->slots[1].i),
+        get_animation(args.raw->slots[1].i),
         args.raw->slots[2].i);
 }
 
@@ -2704,7 +2686,7 @@ void _drone_blend_to_ani(void) {
     AnimScript* animation;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x17, &sp10, &spC, &sp8);
-    animation = (AnimScript*)get_animation(sp10);
+    animation = get_animation(sp10);
     drone_blend_to_ani(animation, spC, sp8);
 }
 
@@ -2760,7 +2742,7 @@ void _camera_init_animation(void) {
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1F,
                &animation_id);
-    animation = (AniData*)get_animation(animation_id);
+    animation = get_animation(animation_id);
     camera_init_animation(animation, p_animated_intro_done);
 }
 
@@ -2788,7 +2770,7 @@ void _set_move_pz_attributes_to(void) {
 }
 
 void _get_current_player_number(void) {
-    if (((PlyrPdata*)plyr_pdata)->plyr_num == 1) {
+    if ((plyr_pdata)->plyr_num == 1) {
         ((ScriptRawResult*)active_cmdscript)->value.i = 1;
     } else {
         ((ScriptRawResult*)active_cmdscript)->value.i = 0;
@@ -2810,7 +2792,7 @@ void _my_attack_hit(void) {
     ScriptResultRef script;
     PlyrPdata* player;
 
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     if (player->collision_result == 1) {
         script.bytes = active_cmdscript;
         script.integer->value = 1;
@@ -2824,7 +2806,7 @@ void _my_attack_hit(void) {
 void _hit_branch(void) {
     unsigned int function_index;
 
-    if (((PlyrPdata*)plyr_pdata)->collision_result != 1) {
+    if ((plyr_pdata)->collision_result != 1) {
         return;
     }
     function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
@@ -2866,7 +2848,7 @@ void _check_his_state(void) {
 void _block_branch(void) {
     unsigned int function_index;
 
-    if (((PlyrPdata*)plyr_pdata)->collision_result != 2) {
+    if ((plyr_pdata)->collision_result != 2) {
         return;
     }
     function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
@@ -2887,7 +2869,7 @@ void _block_branch(void) {
 void _miss_branch(void) {
     unsigned int function_index;
 
-    if (((PlyrPdata*)plyr_pdata)->collision_result != 0) {
+    if ((plyr_pdata)->collision_result != 0) {
         return;
     }
     function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
@@ -3032,7 +3014,7 @@ void _exit_attack_with(void) {
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     player->script_exit_value_int = args.exit_args->exit_value;
     player->script_exit_args[0] = args.exit_args->exit_arg0;
     player->input_unlock_tick = args.exit_args->input_unlock_tick;
@@ -3069,7 +3051,7 @@ void _drone_xfer_him(void) {
 void _drone_super_combo(void) {
 }
 
-/* Soft ceiling: _xfer_camera ~96.59% -- pooled-string relocation labels only. */
+/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _xfer_camera(void) {
     int function_index;
     int reset_projection;
@@ -3077,7 +3059,7 @@ void _xfer_camera(void) {
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x23,
                &function_index, &reset_projection);
     xfer_camera(
-        (ScriptProcEntryFn)script_callable_function_table[function_index - 1],
+        script_callable_function_table[function_index - 1],
         reset_projection);
 }
 
@@ -3199,7 +3181,7 @@ void _camera_setup_for_orbiting_npc(void) {
 
 void _camera_set_lookat_focus_obj(void) {
     camera_set_lookat_focus(
-        (MkObj*)((ScriptRawArgs*)current_args)->slots[0].pointer);
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _camera_set_lookat_focus(void) {
@@ -3382,7 +3364,7 @@ void _if_switching_to(void) {
     int style;
     int result;
 
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     command = ((ScriptRawArgs*)current_args)->slots[0].u;
     style = player->player_slot + 1;
     if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
@@ -3514,7 +3496,7 @@ void _glitch_him_to_ani(void) {
     args.bytes = current_args;
     script.bytes = active_cmdscript;
     script.command->animation = get_animation(args.raw->slots[0].i);
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     opponent = (ScriptOpponentProcLatch*)player->his_plyr_pdata;
     proc = opponent->proc;
     if (proc != 0 && proc->instance != opponent->proc_instance) {
@@ -3522,7 +3504,7 @@ void _glitch_him_to_ani(void) {
     }
     if (proc != 0) {
         pdata = (AnimPdata*)pdata_of_proc(proc);
-        set_anim_script(pdata, (AniData*)script.command->animation,
+        set_anim_script(pdata, script.command->animation,
                         args.raw->slots[1].i);
     }
 }
@@ -3665,7 +3647,7 @@ void _blend_to_ani(void) {
     args.bytes = current_args;
     script.bytes = active_cmdscript;
     blend_to_ani(
-        (AniData*)script.command->animation,
+        script.command->animation,
         args.animation->flags,
         args.animation->frame);
 }
@@ -3679,7 +3661,7 @@ void _exit_react(void) {
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     player->script_exit_value_int = args.exit_args->exit_value;
     player->script_exit_args[0] = args.exit_args->exit_arg0;
     player->input_unlock_tick = args.exit_args->input_unlock_tick;
@@ -3709,7 +3691,7 @@ void _exit_float_int(void) {
 
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     exits = (ScriptProcEntryFn*)exit_table_340;
 
     script.exit->exit = exits[args.exit_float_int->exit_index];
@@ -3765,7 +3747,7 @@ void _true_xfer_him(void) {
     }
 }
 
-/* Soft ceiling: _script_sleep ~99.31% -- pool-label-only objdiff noise; stop. */
+/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _script_sleep(void) {
     int ticks;
 
@@ -3787,11 +3769,11 @@ float j_call_player_script_function(void) {
 
     pw_plyr();
     cmdscript_reset_stack();
-    slot = ((PlyrPdata*)plyr_pdata)->fighter_definition->cmo;
+    slot = (plyr_pdata)->fighter_definition->cmo;
     cmdscript_setup_execution(
         slot, ((ScriptCommandView*)active_cmdscript)->branch_target);
     call_player_script_function(
-        ((PlyrPdata*)plyr_pdata)->fighter_definition->cmo);
+        (plyr_pdata)->fighter_definition->cmo);
     return 1.0f;
 }
 
@@ -3805,7 +3787,7 @@ void* get_animation(int animation_id) {
         return 0;
     }
 
-    player = (PlyrPdata*)plyr_pdata;
+    player = plyr_pdata;
     if (animation_id >= 3000) {
         animations = bgnd_animation_table;
         animation_id -= 3000;
@@ -4371,13 +4353,13 @@ void _set_decal_plane(void) {
 }
 
 void _create_multiemit_parametric_fx(void) {
-    create_multiemit_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].pointer,
+    create_multiemit_parametric_fx(((ScriptRawArgs*)current_args)->slots[0].pointer,
                                    get_script_string_arg(2),
                                    ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _create_parametric_fx(void) {
-    create_parametric_fx((struct PfxParametricEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].pointer, get_script_string_arg(2));
+    create_parametric_fx(((ScriptRawArgs*)current_args)->slots[0].pointer, get_script_string_arg(2));
 }
 
 void _create_multiemit_step_fx(void) {
@@ -6597,8 +6579,8 @@ void _set_active_projectile_impale_info(void) {
 
     args.bytes = current_args;
     set_active_projectile_impale_info(
-        (ProjectileImpaleInfo*)args.two_pointer->first,
-        (const int*)args.two_pointer->second);
+        args.two_pointer->first,
+        args.two_pointer->second);
 }
 
 void _set_active_projectile_not_duckable(void) {
@@ -8145,7 +8127,7 @@ void _bgnd_pfxhandle_spawn_at_bid(void) {
     effect_name = get_script_string_arg(1);
     ((ScriptRawResult*)active_cmdscript)->value.i =
         bgnd_pfxhandle_spawn_at_bid(
-            effect_name, (MkObj*)args.raw->slots[1].pointer,
+            effect_name, args.raw->slots[1].pointer,
             args.raw->slots[2].i);
 }
 
@@ -8156,7 +8138,7 @@ void _bgnd_launch_fx_at_bid_of_mkobj(void) {
     args.bytes = current_args;
     effect_name = get_script_string_arg(1);
     bgnd_launch_fx_at_bid_of_mkobj(
-        effect_name, (MkObj*)args.raw->slots[1].pointer,
+        effect_name, args.raw->slots[1].pointer,
         args.raw->slots[2].i);
 }
 
@@ -8437,7 +8419,7 @@ void _get_general_pebble_data(void) {
 
     args.bytes = current_args;
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        get_general_pebble_data((PebbleData*)args.raw->slots[0].pointer);
+        get_general_pebble_data(args.raw->slots[0].pointer);
 }
 
 void _ncs_create_pebble_monitor_proc(void) {
@@ -8984,7 +8966,7 @@ void _bgnd_takeover_plyr(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_takeover_plyr((PlyrInfo*)args.raw->slots[0].pointer);
+    bgnd_takeover_plyr(args.raw->slots[0].pointer);
 }
 
 void _spad_norm_vector(void) {
@@ -9856,7 +9838,7 @@ void _do_victory_camera(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    do_victory_camera((VictoryCameraConfig*)args.raw->slots[0].pointer);
+    do_victory_camera(args.raw->slots[0].pointer);
 }
 
 void _unfreeze_player(void) {
@@ -9939,7 +9921,7 @@ void _is_sidekick_active(void) {
 
     args.bytes = current_args;
     ((ScriptRawResult*)active_cmdscript)->value.i =
-        is_sidekick_active((PlyrInfo*)args.raw->slots[0].pointer);
+        is_sidekick_active(args.raw->slots[0].pointer);
 }
 
 void _taunt_increase_life(void) {
@@ -9960,7 +9942,7 @@ void _general_flash_fx(void) {
 
     args.bytes = current_args;
     general_flash_fx(
-        args.raw->slots[0].i, (MkObj*)args.raw->slots[1].pointer,
+        args.raw->slots[0].i, args.raw->slots[1].pointer,
         get_script_string_arg(3), args.raw->slots[3].i,
         args.raw->slots[4].i, args.raw->slots[5].f);
 }
@@ -10080,10 +10062,10 @@ void _start_projectile_from_sidekick_bone(void) {
     result.bytes = active_cmdscript;
     result.mkobj->value = start_projectile_from_sidekick_bone(
         args.raw->slots[0].i,
-        (MkObj*)args.raw->slots[1].pointer,
+        args.raw->slots[1].pointer,
         get_script_string_arg(3), args.raw->slots[3].f,
         args.raw->slots[4].f,
-        (const Vec*)args.raw->slots[5].pointer);
+        args.raw->slots[5].pointer);
 }
 
 void _noobsmoke_fire_projectile_request(void) {
@@ -10122,8 +10104,8 @@ void _special_move_cam_setup2(void) {
     args.bytes = current_args;
     special_move_cam_setup2(args.raw->slots[5].i, args.raw->slots[6].i,
                             args.raw->slots[7].i,
-                            (MkObj*)args.raw->slots[8].pointer,
-                            (MkObj*)args.raw->slots[9].pointer,
+                            args.raw->slots[8].pointer,
+                            args.raw->slots[9].pointer,
                             args.raw->slots[0].f,
                             args.raw->slots[1].f, args.raw->slots[2].f,
                             args.raw->slots[3].f, args.raw->slots[4].f);
@@ -10150,7 +10132,7 @@ void _is_special_move_available(void) {
     args.bytes = current_args;
     ((ScriptRawResult*)active_cmdscript)->value.i =
         is_special_move_available(
-            (PlyrPdata*)args.raw->slots[0].pointer,
+            args.raw->slots[0].pointer,
             args.raw->slots[1].i);
 }
 
@@ -10565,12 +10547,12 @@ void _start_konquest_interior(void) {
 
     args.bytes = current_args;
     start_konquest_interior(
-        (KonquestInteriorRoom*)args.raw->slots[0].pointer,
-        (KonquestRoomObject*)args.raw->slots[1].pointer,
+        args.raw->slots[0].pointer,
+        args.raw->slots[1].pointer,
         (const void**)args.raw->slots[2].pointer,
-        (int*)args.raw->slots[3].pointer,
-        (KonquestRoomObjectTexture*)args.raw->slots[4].pointer,
-        (KonquestRoomObjectTexture*)args.raw->slots[5].pointer,
+        args.raw->slots[3].pointer,
+        args.raw->slots[4].pointer,
+        args.raw->slots[5].pointer,
         args.raw->slots[6].i);
 }
 
@@ -10706,7 +10688,7 @@ void _camera_set_anim_aux_data(void) {
 
     args.bytes = current_args;
     camera_set_anim_aux_data(
-        (CameraAnimEvent*)args.raw->slots[0].pointer);
+        args.raw->slots[0].pointer);
 }
 
 void _trial_mirror_anims_if_needed(void) {
@@ -10765,7 +10747,7 @@ void _drone_lip_synch(void) {
 
     args.bytes = current_args;
     drone_lip_synch(args.raw->slots[0].i,
-                    (LipSyncKeyframe*)args.raw->slots[1].pointer);
+                    args.raw->slots[1].pointer);
 }
 
 void _trial_show_monk(void) {
@@ -10881,7 +10863,7 @@ void _trial_set_combo_requirement(void) {
     trial_set_combo_requirement(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
 }
 
-/* Soft ceiling: typed two-string wrapper ~93.44%; one extra return-value move. */
+/* TODO: [near miss] 93.44%; one extra return-value move remains. */
 void _trial_add_required_sequence(void) {
     char* message_parameter = get_script_string_arg(2);
 
@@ -11094,8 +11076,8 @@ void _attach_pfx_to_object(void) {
     effect_name = get_script_string_arg(2);
     args.bytes = current_args;
     attach_pfx_to_object(
-        (MkObj*)args.raw->slots[0].pointer, effect_name,
-        (const Vec*)args.raw->slots[2].pointer);
+        args.raw->slots[0].pointer, effect_name,
+        args.raw->slots[2].pointer);
 }
 
 void _npc_hide_skip_message(void) {
@@ -11262,19 +11244,19 @@ void _npc_start_fx_at_his_position(void) {
     npc_start_fx_at_his_position(
         ((ScriptRawArgs*)current_args)->slots[0].pointer,
         get_script_string_arg(2),
-        (const Vec*)((ScriptRawArgs*)current_args)->slots[2].pointer);
+        ((ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 void _npc_start_fx_at_position(void) {
     npc_start_fx_at_position(
         get_script_string_arg(1),
-        (const Vec*)((ScriptRawArgs*)current_args)->slots[1].pointer);
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _hero_start_fx_at_position(void) {
     hero_start_fx_at_position(
         get_script_string_arg(1),
-        (const Vec*)((ScriptRawArgs*)current_args)->slots[1].pointer);
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _set_hero_position_relative_to_chest(void) {
@@ -11521,7 +11503,7 @@ void _pui_set_color(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pui_set_color(args.raw->slots[0].i, (unsigned char)args.raw->slots[1].i, (unsigned char)args.raw->slots[2].i, (unsigned char)args.raw->slots[3].i, (unsigned char)args.raw->slots[4].i);
+    pui_set_color(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i);
 }
 
 void _pui_delay_spawn(void) {
@@ -11571,10 +11553,7 @@ void _konquest_camera_return_to_normal(void) {
     konquest_camera_return_to_normal();
 }
 
-/*
- * Soft ceiling: 73.75% at exact retail size. The five argument loads, call,
- * and result store are identical; only load scheduling and the base GPR differ.
- */
+/* TODO: [near miss] 73.75%; exact size; argument loads, call and result store agree; residue is load scheduling and base GPR. */
 void _display_konquest_text(void) {
     ScriptArgsRef args;
     float left_fraction;
@@ -11700,7 +11679,7 @@ void _attach_pfx_to_object_by_uid(void) {
     current.bytes = current_args;
     attach_pfx_to_object_by_uid(
         current.raw->slots[0].i, effect_name,
-        (const Vec*)saved.raw->slots[2].pointer,
+        saved.raw->slots[2].pointer,
         saved.raw->slots[3].i);
 }
 
@@ -12400,7 +12379,7 @@ void _fire_trigger(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    fire_trigger((KonquestTriggerDefinition*)args.raw->slots[0].pointer);
+    fire_trigger(args.raw->slots[0].pointer);
 }
 
 void _set_monk_position(void) {
@@ -12423,7 +12402,7 @@ void _trigger_set_time_for_enable(void) {
 
     args.bytes = current_args;
     trigger_set_time_for_enable(
-        (KonquestTriggerDefinition*)args.raw->slots[0].pointer,
+        args.raw->slots[0].pointer,
         args.raw->slots[1].i, args.raw->slots[2].i,
         args.raw->slots[3].i);
 }
@@ -12440,7 +12419,7 @@ void _assign_obj_to_trigger(void) {
 
     args.bytes = current_args;
     assign_obj_to_trigger(
-        args.raw->slots[0].i, (KonquestTriggerDefinition*)args.raw->slots[1].pointer);
+        args.raw->slots[0].i, args.raw->slots[1].pointer);
 }
 
 void _add_object_to_tile(void) {
@@ -12669,7 +12648,7 @@ void _camera_set_animation_parent_position(void) {
 
     args.bytes = current_args;
     camera_set_animation_parent_position(
-        (Vec*)args.raw->slots[0].pointer);
+        args.raw->slots[0].pointer);
 }
 
 void _camera_set_animation_parent_angle(void) {
@@ -12677,7 +12656,7 @@ void _camera_set_animation_parent_angle(void) {
 
     args.bytes = current_args;
     camera_set_animation_parent_angle(
-        (const Vec*)args.raw->slots[0].pointer, args.raw->slots[1].i);
+        args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _cam_set_ground_plane(void) {
@@ -12691,42 +12670,42 @@ void _set_camera_velocity(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_velocity((const Vec*)args.raw->slots[0].pointer);
+    set_camera_velocity(args.raw->slots[0].pointer);
 }
 
 void _get_camera_velocity(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_velocity((Vec*)args.raw->slots[0].pointer);
+    get_camera_velocity(args.raw->slots[0].pointer);
 }
 
 void _set_camera_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_angle((Vec*)args.raw->slots[0].pointer);
+    set_camera_angle(args.raw->slots[0].pointer);
 }
 
 void _get_camera_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_angle((Vec*)args.raw->slots[0].pointer);
+    get_camera_angle(args.raw->slots[0].pointer);
 }
 
 void _set_camera_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_position((Vec*)args.raw->slots[0].pointer);
+    set_camera_position(args.raw->slots[0].pointer);
 }
 
 void _get_camera_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_position((Vec*)args.raw->slots[0].pointer);
+    get_camera_position(args.raw->slots[0].pointer);
 }
 
 void _fade_from_white(void) {
@@ -12787,7 +12766,7 @@ void _camera_set_victim(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_victim((MkObj*)args.raw->slots[0].pointer);
+    camera_set_victim(args.raw->slots[0].pointer);
 }
 
 void _camera_get_attacker(void) {
@@ -12798,7 +12777,7 @@ void _camera_set_attacker(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_attacker((MkObj*)args.raw->slots[0].pointer);
+    camera_set_attacker(args.raw->slots[0].pointer);
 }
 
 void _camera_special_function(void) {
@@ -12865,7 +12844,7 @@ void _camera_set_center_of_rotation(void) {
 
     args.bytes = current_args;
     camera_set_center_of_rotation(
-        (const CamVec3*)args.raw->slots[0].pointer);
+        args.raw->slots[0].pointer);
 }
 
 void _camera_set_travel_time(void) {

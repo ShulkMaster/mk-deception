@@ -986,7 +986,7 @@ AnimPdata* animate_obj(
         set_anim_script(animation, (AniData*)script, 0x21);
         animation->step = playback_rate;
         if (active != 0) {
-            set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
+            set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
         }
     }
     return animation;
@@ -6950,7 +6950,7 @@ void bgnd_create_named_npc_in_slot(
             create_mkproc_anim(0xC01F, p_animate, &npc->animation);
         npc->animation->obj = object;
         npc->animation->obj_instance = object->hdr.instance;
-        set_root_and_obj_movement_weights(0.0f, 1.0f, npc->animation);
+        set_root_and_obj_movement_weights(npc->animation, 0.0f, 1.0f);
         set_anim_script(
             npc->animation, (AniData*)bgnd_animation_table[animation_id], 0);
         npc->animation->hand_transition = 0.125f;

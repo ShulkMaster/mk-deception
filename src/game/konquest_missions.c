@@ -354,12 +354,8 @@ TrialWrapupData generic_char_wrapup_data = {
     0, generic_char_success_table, 0, generic_char_failure_table
 };
 extern KonquestMissionSaveData konquest_save_data;
-extern float _mkproc_sleep_ticks;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MkObj* plyr_obj;
-extern PlyrPdata* plyr_pdata;
-extern GameInfo g_game_info;
-extern int force_midpoint_calculation_update;
 extern int force_bgnd_num;
 extern KonquestMissionPdata* konquest_pdata;
 extern int mode_of_play;
@@ -368,7 +364,6 @@ extern int screen_width;
 extern AnimPdata* plyr_anim_pdata;
 extern MkProc* plyr_anim_proc;
 extern KonquestTrialAnimations bgnd_animations;
-extern CameraObj* camera_obj;
 extern unsigned char* p1_profile_konquest;
 extern int mcard_msg_active;
 extern KonquestRegionAsset konquest_region_data[9];
@@ -384,7 +379,6 @@ void snd_stop(MslSoundHandle sound);
 void transition_to_anim_script(
     float transition_frames, AnimPdata* animation,
     AnimScript* script, unsigned int flags);
-int get_konq_profile_value(int category, int index);
 void setDroneOverrideSwitch(int activated, DroneOverrideInfo* info);
 void fade_to_black(int ticks, int flags);
 void fade_from_black(int ticks, int flags);
@@ -488,16 +482,13 @@ float j_stay_down_dead(void);
 void start_mkpfx_FadeSnapShot(void);
 void move_plyrs_to_round_start(void);
 void start_constrain_proc(void);
-void skip_camera_intro(void);
 void stop_tunes(void);
-float p_camera_proc(void);
 float p_anim_idle(void);
 int transition_to_anim_script_frame(
     float transition_frames, float frame, AnimPdata* animation,
     AnimScript* script, unsigned int flags);
 void animpdata_ani_1_frame(AnimPdata* animation);
 void animpdata_ani_to_frame_x(AnimPdata* animation, float frame);
-void update_mkobj(void* object);
 void shake_camera(int strength, float duration);
 void hide_player(PlyrPdata* player, int hide_weapons);
 void rotate_towards_position(const Vec* target, float max_step);
@@ -578,7 +569,7 @@ static inline MkProc* get_process_latch(
     MkProc* live;
 
     if (process != 0) {
-        if (process->instance == instance) {
+        if (instance == process->instance) {
             live = process;
         } else {
             live = 0;
@@ -1250,8 +1241,8 @@ void trial_setup_nis_scene(int setup) {
         set_camera_angle(&camera_angle);
         start_mkpfx_FadeSnapShot();
         move_plyrs_to_round_start();
-        xfer_player_proc((MkProc*)g_game_info.plyr0.idle_proc, j_exit);
-        xfer_player_proc((MkProc*)g_game_info.plyr1.idle_proc, j_exit);
+        xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
+        xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
     }
     xfer_camera(p_idle, 0);
 }
@@ -1991,9 +1982,9 @@ void drone_set_difficulty_level(int difficulty) {
     int timeout = 0xF0;
 
     if (mission_state->fight->animation_side == 1) {
-        idle_process = (MkProc*)g_game_info.plyr0.idle_proc;
+        idle_process = g_game_info.plyr0.idle_proc;
     } else {
-        idle_process = (MkProc*)g_game_info.plyr1.idle_proc;
+        idle_process = g_game_info.plyr1.idle_proc;
     }
     if (idle_process != 0) {
         while (timeout != 0 && idle_process->entry == getup_from_ground) {
@@ -2078,23 +2069,23 @@ void drone_set_script(int player, int script_function) {
         if (process != 0) {
             script = get_cmdscript_for_proc(process);
             script->unk28 = script_function;
-            xfer_proc(process, (MkProcEntryFn)call_mission_script);
+            xfer_proc(process, call_mission_script);
         }
         return;
     }
 
     if ((player == 0 && state->fight->animation_side == 0) ||
         (player == 1 && state->fight->animation_side == 1)) {
-        process = (MkProc*)g_game_info.plyr0.idle_proc;
+        process = g_game_info.plyr0.idle_proc;
         script = get_cmdscript_for_proc(process);
         script->unk28 = script_function;
-        xfer_player_proc(process, (MkProcEntryFn)call_mission_script);
+        xfer_player_proc(process, call_mission_script);
         return;
     }
-    process = (MkProc*)g_game_info.plyr1.idle_proc;
+    process = g_game_info.plyr1.idle_proc;
     script = get_cmdscript_for_proc(process);
     script->unk28 = script_function;
-    xfer_player_proc(process, (MkProcEntryFn)call_mission_script);
+    xfer_player_proc(process, call_mission_script);
 }
 
 static float call_mission_script(void) {
@@ -2173,9 +2164,9 @@ void drone_change_to_style(int player, int style) {
     timeout = 0xF0;
     if ((player == 0 && mission_state->fight->animation_side == 0) ||
         (player == 1 && mission_state->fight->animation_side == 1)) {
-        idle_process = (MkProc*)g_game_info.plyr0.idle_proc;
+        idle_process = g_game_info.plyr0.idle_proc;
     } else {
-        idle_process = (MkProc*)g_game_info.plyr1.idle_proc;
+        idle_process = g_game_info.plyr1.idle_proc;
     }
     if (idle_process != 0) {
         while (timeout != 0 && idle_process->entry == getup_from_ground) {
@@ -2215,7 +2206,7 @@ void drone_do_special_move(int player, int script_function) {
     if (script != 0) {
         script->unk28 = script_function;
         xfer_proc(
-            fighter->process, (MkProcEntryFn)p_run_special_move);
+            fighter->process, p_run_special_move);
     }
 }
 
@@ -2620,11 +2611,7 @@ void trial_add_required_attack(
     }
 }
 
-/*
- * Soft ceiling: trial_add_required_sequence ~95.43% -- both string arguments,
- * 16-byte entry selection, byte counters, and progress update match retail.
- * Only the compiler's second defensive-null branch polarity differs.
- */
+/* TODO: [near miss] 95.43%; string arguments, 16-byte entry selection, counters and progress agree; only the second defensive-null branch polarity differs. */
 void trial_add_required_sequence(
     const char* message, const char* message_parameter) {
     KonquestRequiredSequenceList* list =
@@ -2695,7 +2682,7 @@ void trial_register_attack(
         mission_state->condition_active = 1;
         if (active_cmdscript != 0 && active_cmdscript->attrs_table != 0) {
             KonquestTrialScriptAttrs* attrs =
-                (KonquestTrialScriptAttrs*)active_cmdscript->attrs_table;
+                active_cmdscript->attrs_table;
 
             mission_state->condition_ticks = attrs->condition_ticks;
         } else {
@@ -3875,7 +3862,7 @@ void trial_game_init(void) {
         load_font(6);
         load_font(7);
         mission_state->tune_table =
-            (KonquestMissionTuneTable*)get_data_table_by_name("bgnd_music");
+            get_data_table_by_name("bgnd_music");
         g_game_info.plyr0.field_0C = 1.0f;
         g_game_info.plyr1.field_0C = 1.0f;
         g_game_info.plyr0.field_10 = 1.0f;
@@ -4032,7 +4019,7 @@ static float p_finish_transform_player(void) {
     xfer_proc(animation_process, p_anim_idle);
     set_anim_script_frame(
         63.0f, animation,
-        (AniData*)bgnd_animations.transform_animation, 0x43);
+        bgnd_animations.transform_animation, 0x43);
     plyr_obj->pos.value.x = monk->pos.value.x;
     plyr_obj->pos.value.y = monk->pos.value.y;
     plyr_obj->pos.value.z = monk->pos.value.z;

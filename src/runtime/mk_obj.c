@@ -12,6 +12,10 @@
 #include "game/specular.h"
 #include "runtime/asset.h"
 #include "runtime/cstring.h"
+#include "runtime/mk_mem.h"
+#include "runtime/mk_particle.h"
+#include "platform/display.h"
+#include "platform/main.h"
 #include "math/gxMat.h"
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
@@ -29,8 +33,6 @@ typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
 typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial* material, void* data);
 typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
 
-/* RwMatrix begins with the padded 3x3 Mat33 rotation block. */
-#define RW_MATRIX_MAT33(matrix_) ((Mat33*)(matrix_))
 #define RW_OBJECT_FROM_FRAME_LINK(link_)                                      \
     ((RwObject*)((unsigned char*)(link_) - sizeof(RwObject)))
 
@@ -81,7 +83,7 @@ typedef struct FadeMaterialPdata {
 
 typedef struct LimbSet {
     char pad00[0x780];
-    unsigned int moved_bones; /* +0x780 */
+    unsigned int moved_bones;
 } LimbSet;
 
 typedef struct HeadTrackingPdata {
@@ -156,20 +158,10 @@ extern int limb_meat_chunk_list[];
 extern int* limb_meats_mat_id_tbl[];
 extern int* limb_children_table[];
 
-RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
-int RpClumpDestroy(RpClump* clump);
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
-void pull_clump_from_world(RpClump* clump);
 void mkobj_destroy_bones(MkObj* obj);
-void free_mem(void* ptr);
-int stricmp(const char* lhs, const char* rhs);
 extern MkObj* plyr_obj;
-extern MkVtable5 vtbl_mkx_mem;
-extern MkVtable5 vtbl_mkx_rplight;
-extern MkVtable5 vtbl_mkobj;
-extern _mwMemHeap* mkobj_heap;
-extern RpWorld* World;
 static HeadTrackingPdata* pdata_headtracking;
 static MkPtr* limb_bone_list;
 unsigned int uploaded_light_state;
@@ -196,12 +188,8 @@ MkPtr* bgnd_light_list;
 MkPtr* particle_mkobj_list;
 MkPtr* fgnd_mkobj_list;
 float obj_game_speed;
-extern int MksobjLocalOffset;
 extern float camera_facing_matrix_ay[16];
-extern float game_speed;
 extern RwEngineFreeView* RwEngineInstance;
-extern MkPtr* pfx_render_list;
-extern MkPtr* pfx_clone_render_list;
 
 static HotAmbientLightDef hot_ambient_light = {
     1, 0, 3, {1.0f, 1.0f, 1.0f, 1.0f}
@@ -240,11 +228,8 @@ GoroArmsFixupEntry goro_arms_fixup_map[12] = {
     {0x13, 0x52}, {0x15, 0x53}, {0x17, 0x54}, {0x19, 0x55}
 };
 
-extern int exec_tick_ctr;
-extern int mode_of_play;
 extern int limb_root_bids[15];
 
-void update_camera_facing_matrix(void);
 int build_bones_tbl(MkObj* obj, const int* tags);
 void* ft_fake_bone_matcher(
     MkObj* parent, MkObj* child, int child_bone,
@@ -265,9 +250,6 @@ MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
 void mkbone_insert_child_of_parent(MkBone* bone, MkBone* parent);
-void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
-MkPfx* find_pfx_by_name_by_bankowner(
-    const char* name, unsigned int owner);
 void reset_effect_ppfx(void* effect);
 void pfx_spawn_at_bid(const char* name, void* obj, int bone);
 void bone_make_parents_my_children(MkBone* bone);
@@ -288,8 +270,6 @@ static float normalize_obj_angle(float angle) {
     fixed &= 0xFFFFF;
     return (float)fixed * 0.000005992112f;
 }
-
-/* NonMatching recovery for mk_obj.o (169 funcs, retail order). */
 
 MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth) {
     RwFrame* frame;
@@ -324,7 +304,7 @@ static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
         object = RW_OBJECT_FROM_FRAME_LINK(link);
         link = link->next;
         if (object->type == 1) {
-            plugin = (MksobjPluginData*)((char*)object + MksobjLocalOffset);
+            plugin = MK_ATOMIC_PLUGIN(object);
             sobj = plugin->sobj;
             if (sobj != 0 && (sobj->id_flags & 0xFFF) == id) {
                 return sobj;
@@ -437,11 +417,11 @@ static RwObject* rwobject_set_true_clip_flag(RwObject* object, unsigned char fla
     MkSobj* sobj;
 
     if (object->type == 1) {
-        plugin = (MksobjPluginData*)((char*)object + MksobjLocalOffset);
+        plugin = MK_ATOMIC_PLUGIN(object);
         sobj = plugin->sobj;
         if (sobj != 0) {
             sobj->flags09 =
-                (unsigned char)((sobj->flags09 & ~4) | ((flag & 1) << 2));
+                (sobj->flags09 & ~4) | ((flag & 1) << 2);
         }
     }
     return object;
@@ -466,7 +446,7 @@ void obj_set_sobj_alpha(MkObj* obj, int sobj_index, int alpha) {
     MkSobj* sobj;
 
     if (obj != 0) {
-        sobj = find_sobj_by_id_inline(obj, (unsigned int)sobj_index);
+        sobj = find_sobj_by_id_inline(obj, sobj_index);
         if (sobj != 0) {
             set_atomic_material_alpha(sobj->atomic, alpha);
         }
@@ -493,7 +473,7 @@ void obj_set_gravity(MkObj* obj, float gravity) {
 }
 
 Quat* obj_get_bone_rot_quat(void* obj, int bone) {
-    MkObj* mkobj = (MkObj*)obj;
+    MkObj* mkobj = obj;
     MkBone* mkbone;
 
     mkbone = mkobj->bones[bone];
@@ -525,7 +505,7 @@ void obj_set_light_flag(void* obj, int flag) {
 }
 
 void obj_set_ang_vel(MkObj* obj, void* velocity) {
-    Vec* vel = (Vec*)velocity;
+    Vec* vel = velocity;
 
     obj->flags_08_bits.rotation_enabled = 1;
     obj->ang_vel.x = vel->x;
@@ -540,7 +520,7 @@ void obj_get_pos_vel(MkObj* obj, Vec* out) {
 }
 
 void obj_set_pos_vel(MkObj* obj, void* velocity) {
-    Vec* vel = (Vec*)velocity;
+    Vec* vel = velocity;
 
     obj->flags_08_bits.gravity_enabled = 1;
     obj->pos_vel.x = vel->x;
@@ -549,8 +529,8 @@ void obj_set_pos_vel(MkObj* obj, void* velocity) {
 }
 
 void obj_get_ang(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* value = (Vec*)out;
+    MkObj* mkobj = obj;
+    Vec* value = out;
 
     value->x = mkobj->dir_x;
     value->y = mkobj->dir_y;
@@ -558,8 +538,8 @@ void obj_get_ang(void* obj, void* out) {
 }
 
 void obj_set_ang(void* obj, void* ang) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* value = (Vec*)ang;
+    MkObj* mkobj = obj;
+    Vec* value = ang;
 
     mkobj->dir_x = value->x;
     mkobj->dir_y = value->y;
@@ -588,7 +568,7 @@ void obj_get_scale(MkObj* obj, Vec* out) {
 }
 
 void obj_set_scale(MkObj* obj, void* value) {
-    Vec* scale = (Vec*)value;
+    Vec* scale = value;
 
     if (obj != 0) {
         obj->flags_08_bits.scale_active = 1;
@@ -613,7 +593,7 @@ void sobj_get_ang_vel(MkSobj* sobj, Vec* out) {
 }
 
 void sobj_set_ang_vel(MkSobj* sobj, void* velocity) {
-    Vec* vel = (Vec*)velocity;
+    Vec* vel = velocity;
 
     sobj->flags_08_bits.angular_velocity_enabled = 1;
     sobj->ang_vel.x = vel->x;
@@ -628,7 +608,7 @@ void sobj_get_pos_vel(MkSobj* sobj, Vec* out) {
 }
 
 void sobj_set_pos_vel(MkSobj* mksobj, void* vel) {
-    Vec* velocity = (Vec*)vel;
+    Vec* velocity = vel;
 
     mksobj->flags_08_bits.bit6 = 1;
     mksobj->flags_08_bits.bit5 = 1;
@@ -644,7 +624,7 @@ void sobj_get_ang(MkSobj* sobj, Vec* out) {
 }
 
 void sobj_set_ang(MkSobj* sobj, void* value) {
-    Vec* ang = (Vec*)value;
+    Vec* ang = value;
 
     sobj->flags_08_bits.bit4 = 1;
     sobj->ang.x = ang->x;
@@ -659,7 +639,7 @@ void sobj_get_pos(MkSobj* sobj, Vec* out) {
 }
 
 void sobj_set_pos(MkSobj* sobj, void* value) {
-    Vec* pos = (Vec*)value;
+    Vec* pos = value;
 
     sobj->flags_08_bits.bit7 = 1;
     sobj->pos.x = pos->x;
@@ -670,7 +650,7 @@ void sobj_set_pos(MkSobj* sobj, void* value) {
 Vec* sobj_get_world_pos(MkSobj* sobj) {
     RwMatrix* matrix;
 
-    matrix = (RwMatrix*)RwFrameGetLTM(sobj->frame);
+    matrix = RwFrameGetLTM(sobj->frame);
     return (Vec*)&matrix->pos;
 }
 
@@ -767,7 +747,7 @@ static float p_headtracking_die(void) {
     HeadTrackingPdata* pdata;
     MkBone* bone;
 
-    pdata = (HeadTrackingPdata*)pdata_headtracking;
+    pdata = pdata_headtracking;
     if (pdata->obj != 0) {
         bone = pdata->obj->bones[16];
         if (bone != 0) {
@@ -903,7 +883,7 @@ static float p_plyr_head_tracking(void) {
                 } else {
                     v3_x_mat_add_v3(&object_pos,
                                     (Vec*)&root->parent_matrix->pos,
-                                    (MKMATRIX*)obj->field_24, &obj->pos.value);
+                                    obj->field_24, &obj->pos.value);
                 }
             }
 
@@ -926,7 +906,7 @@ static float p_plyr_head_tracking(void) {
                     } else {
                         v3_x_mat_add_v3(
                             &target_pos, (Vec*)&target_bone->parent_matrix->pos,
-                            (MKMATRIX*)target_obj->field_24, &target_obj->pos.value);
+                            target_obj->field_24, &target_obj->pos.value);
                     }
                 }
                 if ((int)target_obj->bone_count <= 9) {
@@ -940,7 +920,7 @@ static float p_plyr_head_tracking(void) {
                     } else {
                         v3_x_mat_add_v3(&target_low_pos,
                                         (Vec*)&target_bone->parent_matrix->pos,
-                                        (MKMATRIX*)target_obj->field_24,
+                                        target_obj->field_24,
                                         &target_obj->pos.value);
                     }
                 }
@@ -997,7 +977,7 @@ static float p_plyr_head_tracking(void) {
             if (special_camera != 0 ||
                 pdata_headtracking->blend_weight >= 1.0f) {
                 YXZ_angles_to_MKMATRIX(&target_angles,
-                                       (MKMATRIX*)head->parent_matrix);
+                                       head->parent_matrix);
                 RtQuatConvertFromMatrix(&head->rotation_90,
                                         head->parent_matrix);
             } else {
@@ -1131,7 +1111,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
             }
         }
         matrix = mirror->field_24;
-        YXZ_angles_to_MKMATRIX(&angles, (MKMATRIX*)matrix);
+        YXZ_angles_to_MKMATRIX(&angles, matrix);
         if (pdata->plyr_info->flags_14_bits.alternate_costume) {
             matrix->pos.y =
                 -(g_game_info.misc->mirror_plane_offset +
@@ -1386,7 +1366,7 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
             return;
         }
         v3_x_mat_add_v3(
-            out, (Vec*)&parent->pos, (MKMATRIX*)obj->field_24,
+            out, (Vec*)&parent->pos, obj->field_24,
             &obj->pos.value);
         return;
     }
@@ -1409,11 +1389,11 @@ void ground_me(void* obj) {
     int bone_index;
     int i;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     if (mkobj->flags_09_bits.launched == 0) {
         return;
     }
-    collision = (GroundCollisionEntry*)mkobj->ground_colls;
+    collision = mkobj->ground_colls;
     if (collision == 0) {
         return;
     }
@@ -1643,7 +1623,7 @@ void get_bone_offset_world_pos(
     RwMatrix* object_matrix;
     int bone_count;
 
-    bone_count = (int)obj->bone_count;
+    bone_count = obj->bone_count;
     if (bone >= bone_count) {
         *out = obj->pos.value;
         return;
@@ -1653,7 +1633,7 @@ void get_bone_offset_world_pos(
         mkbone->parent_matrix == 0) {
         object_matrix = obj->field_24;
         v3_x_mat_add_v3(
-            out, offset, (MKMATRIX*)object_matrix,
+            out, offset, object_matrix,
             (Vec*)&object_matrix->pos);
         return;
     }
@@ -1693,8 +1673,8 @@ static void set_bone_world_pos_xz(
     int i;
     int matrix_index;
 
-    mkobj = (MkObj*)obj;
-    target = (Vec*)pos;
+    mkobj = obj;
+    target = pos;
     if (bone >= (int)mkobj->bone_count) {
         current = mkobj->pos.value;
     } else if (bone == -1) {
@@ -1708,7 +1688,7 @@ static void set_bone_world_pos_xz(
         } else {
             v3_x_mat_add_v3(
                 &current, (Vec*)&parent->pos,
-                (MKMATRIX*)mkobj->field_24, &mkobj->pos.value);
+                mkobj->field_24, &mkobj->pos.value);
         }
     }
     mkobj->pos.value.x += target->x - current.x;
@@ -1721,7 +1701,7 @@ static void set_bone_world_pos_xz(
     if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
-            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+            frame = mkobj->clumps[i]->object.parent;
             frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
@@ -1754,8 +1734,8 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
     int i;
     int matrix_index;
 
-    mkobj = (MkObj*)obj;
-    target = (Vec*)pos;
+    mkobj = obj;
+    target = pos;
     if (bone >= (int)mkobj->bone_count) {
         current = mkobj->pos.value;
     } else if (bone == -1) {
@@ -1769,7 +1749,7 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
         } else {
             v3_x_mat_add_v3(
                 &current, (Vec*)&parent->pos,
-                (MKMATRIX*)mkobj->field_24, &mkobj->pos.value);
+                mkobj->field_24, &mkobj->pos.value);
         }
     }
     mkobj->pos.value.x += target->x - current.x;
@@ -1783,7 +1763,7 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
     if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
-            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+            frame = mkobj->clumps[i]->object.parent;
             frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
@@ -1807,7 +1787,7 @@ void* get_bone_with_tag(void* obj, int tag) {
     MkBone* bone;
     unsigned int i;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     for (i = 0; i < mkobj->bone_count; i++) {
         bone = mkobj->bones[i];
         if (bone != 0 && bone->tag == tag) {
@@ -1860,7 +1840,7 @@ void get_bone_world_pos(MkObj* obj, int bone, Vec* out) {
     }
     v3_x_mat_add_v3(
         out, (Vec*)&mkbone->parent_matrix->pos,
-        (MKMATRIX*)obj->field_24, (Vec*)&obj->pos.value);
+        obj->field_24, &obj->pos.value);
 }
 
 void update_bone_hierarchy(void* obj) {
@@ -1877,7 +1857,7 @@ void update_bone_hierarchy(void* obj) {
     unsigned int read_index;
     unsigned int count;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     saved_pos.value.x = 0.0f;
     saved_pos.value.y = 0.0f;
     saved_pos.value.z = 0.0f;
@@ -1985,10 +1965,10 @@ void update_bone_hierarchy(void* obj) {
                     rotation->z == rotation->w) {
                     rotation->w = 1.0f;
                 }
-                gxQuatQuatToMat(RW_MATRIX_MAT33(matrix), rotation);
+                gxQuatQuatToMat((Mat33*)matrix, rotation);
                 if (bone->flags_55_bits.scale_controlled != 0) {
                     mat_scaled_by_v3(
-                        (MKMATRIX*)matrix, (MKMATRIX*)matrix, &bone->scale);
+                        matrix, matrix, &bone->scale);
                 }
             }
         }
@@ -2156,7 +2136,7 @@ static float p_fade_material(void) {
     if (value > 255) {
         value = 255;
     }
-    color->red = (unsigned char)value;
+    color->red = value;
     value = color->green + amount;
     if (value < 0) {
         value = 0;
@@ -2164,7 +2144,7 @@ static float p_fade_material(void) {
     if (value > 255) {
         value = 255;
     }
-    color->green = (unsigned char)value;
+    color->green = value;
     value = color->blue + amount;
     if (value < 0) {
         value = 0;
@@ -2172,7 +2152,7 @@ static float p_fade_material(void) {
     if (value > 255) {
         value = 255;
     }
-    color->blue = (unsigned char)value;
+    color->blue = value;
     value = color->alpha + amount;
     if (value < 0) {
         value = 0;
@@ -2180,7 +2160,7 @@ static float p_fade_material(void) {
     if (value > 255) {
         value = 255;
     }
-    color->alpha = (unsigned char)value;
+    color->alpha = value;
     if (color->red == 0 && color->green == 0 && color->blue == 0) {
         obj->hide_flag_bits.hidden = 1;
         mkproc_die();
@@ -2246,7 +2226,7 @@ void obj_set_z_offsets(float offset, void* obj) {
     MkSobj* sobj;
     int i;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     if (mkobj->sobj_list == 0) {
         data.obj = mkobj;
         data.id = 0;
@@ -2315,12 +2295,12 @@ void update_mksobj(MkSobj* sobj) {
         mksobj->ang.y = normalize_obj_angle(mksobj->ang.y);
         mksobj->ang.z = normalize_obj_angle(mksobj->ang.z);
         YXZ_angles_to_MKMATRIX(
-            &mksobj->ang, (MKMATRIX*)matrix);
+            &mksobj->ang, matrix);
         changed = 1;
     }
     if (mksobj->flags09_bits.bit5 != 0) {
         if (mksobj->atomic != 0) {
-            face_frame = (RwFrame*)mksobj->atomic->object.parent;
+            face_frame = mksobj->atomic->object.parent;
             if (face_frame != 0) {
                 face_frame->object.privateFlags |= 0x20;
                 face_matrix = &face_frame->modelling;
@@ -2334,7 +2314,7 @@ void update_mksobj(MkSobj* sobj) {
     }
     if (mksobj->flags_08_bits.scale_dirty != 0) {
         mat_scaled_by_v3(
-            (MKMATRIX*)matrix, (MKMATRIX*)matrix, &mksobj->scale);
+            matrix, matrix, &mksobj->scale);
         changed = 1;
     }
     if (changed != 0) {
@@ -2476,7 +2456,7 @@ void sobj_swap_material_texture(void* sobj, void* a, void* b) {
     RpGeometry* geometry;
 
     swap.material_id = (unsigned int)a;
-    swap.texture = (RwTexture*)b;
+    swap.texture = b;
     geometry = ((MkSobj*)sobj)->atomic->geometry;
     if (geometry != 0) {
         RpGeometryForAllMaterials(geometry, material_set_texture, &swap);
@@ -2484,10 +2464,10 @@ void sobj_swap_material_texture(void* sobj, void* a, void* b) {
 }
 
 static RpMaterial* material_set_texture(RpMaterial* material, void* data) {
-    MaterialTextureSwap* swap = (MaterialTextureSwap*)data;
+    MaterialTextureSwap* swap = data;
     MkmaterialPluginData* mkmat;
 
-    mkmat = (MkmaterialPluginData*)((char*)material + MkmaterialLocalOffset);
+    mkmat = MK_MATERIAL_PLUGIN(material);
     if (swap->material_id != (mkmat->flags & 0xFFF)) {
         return material;
     }
@@ -2520,7 +2500,7 @@ MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id) {
 
     data.result = 0;
     data.obj = obj;
-    data.id = (unsigned int)id;
+    data.id = id;
     data.mask = 0xFFF;
     data.priority = 0x10;
     data.set_priority = 0;
@@ -2564,7 +2544,7 @@ static RpAtomic* atomic_create_sobj_callback(
     RwFrame* frame;
     RwMatrix* frameMatrix;
 
-    data = (struct SobjCreateData*)dataArg;
+    data = dataArg;
     flags = MK_ATOMIC_PLUGIN(atomic)->flags;
     if (data->mask != 0) {
         if (data->id == 0) {
@@ -2579,8 +2559,8 @@ static RpAtomic* atomic_create_sobj_callback(
     sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj == 0) {
         owner = data->obj;
-        frame = (RwFrame*)atomic->object.parent;
-        new_sobj = (MkSobj*)_mwMemMalloc(
+        frame = atomic->object.parent;
+        new_sobj = _mwMemMalloc(
             mksobj_heap, 0x90, 0x80, 0, 0, 0);
         if (new_sobj != 0) {
             new_sobj->hdr.vtbl = (MkVtable5*)&vtbl_mksobj;
@@ -2628,7 +2608,7 @@ static RpAtomic* atomic_create_sobj_callback(
 void material_restore_reflection_texture(void* material) {
     SpecularMaterialPluginData* spec;
 
-    spec = (SpecularMaterialPluginData*)((char*)material + SpecularMaterialOffset);
+    spec = mk_get_specular_material_plugin(material);
     if (spec->saved_texture != 0) {
         spec->texture = spec->saved_texture;
         spec->saved_texture = 0;
@@ -2638,7 +2618,7 @@ void material_restore_reflection_texture(void* material) {
 void material_cache_reflection_texture(void* material) {
     SpecularMaterialPluginData* spec;
 
-    spec = (SpecularMaterialPluginData*)((char*)material + SpecularMaterialOffset);
+    spec = mk_get_specular_material_plugin(material);
     if (spec->saved_texture == 0) {
         spec->saved_texture = spec->texture;
         spec->texture = 0;
@@ -2648,16 +2628,16 @@ void material_cache_reflection_texture(void* material) {
 void material_set_reflection_texture(void* material, void* tex) {
     SpecularMaterialPluginData* spec;
 
-    spec = (SpecularMaterialPluginData*)((char*)material + SpecularMaterialOffset);
-    spec->texture = (RwTexture*)tex;
+    spec = mk_get_specular_material_plugin(material);
+    spec->texture = tex;
 }
 
 void material_set_zbias(void* material, float zbias) {
     MkmaterialPluginData* mkmat;
     SpecularMaterialPluginData* spec;
 
-    mkmat = (MkmaterialPluginData*)((char*)material + MkmaterialLocalOffset);
-    spec = (SpecularMaterialPluginData*)((char*)material + SpecularMaterialOffset);
+    mkmat = MK_MATERIAL_PLUGIN(material);
+    spec = mk_get_specular_material_plugin(material);
     mkmat->z_bias = zbias;
     spec->gloss = zbias;
 }
@@ -2674,7 +2654,7 @@ RpMaterial* obj_find_material_by_id(MkObj* obj, int id) {
         sobj = (MkSobj*)ptr->hdr;
         geometry = sobj->atomic->geometry;
         material = find_geometry_material_by_id(
-            geometry, (unsigned int)id);
+            geometry, id);
         if (material != 0) {
             break;
         }
@@ -2718,7 +2698,7 @@ RpMaterial* obj_find_material_with_texture(
 static RpAtomic* atomic_find_texture_callback(RpAtomic* atomic, void* data) {
     MaterialTextureFind* find;
 
-    find = (MaterialTextureFind*)data;
+    find = data;
     RpGeometryForAllMaterials(
         atomic->geometry, material_find_texture_callback, find);
     if (find->texture != 0) {
@@ -2731,7 +2711,7 @@ static RpMaterial* material_find_texture_callback(
     RpMaterial* material, void* data) {
     MaterialTextureFind* find;
 
-    find = (MaterialTextureFind*)data;
+    find = data;
     if (material->texture != 0 &&
         stricmp(material->texture->name, find->name) == 0) {
         find->material = material;
@@ -2753,7 +2733,7 @@ static RpAtomic* obj_get_1st_atomic_callback(RpAtomic* atomic, void* data) {
 }
 
 void destroy_mkobjs_oid(int oid) {
-    oid_to_kill = (unsigned int)oid;
+    oid_to_kill = oid;
     oid_to_kill_mask = 0xFFFFFFFF;
     apply_to_mklist(_destroy_mkobj_oid_mask, &fgnd_mkobj_list);
     apply_to_mklist(_destroy_mkobj_oid_mask, &particle_mkobj_list);
@@ -2883,7 +2863,7 @@ void update_obj_pos(MkObj* mkobj) {
     if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
-            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+            frame = mkobj->clumps[i]->object.parent;
             frame_matrix = &frame->modelling;
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
@@ -2916,7 +2896,7 @@ void update_mkobj(void* obj) {
     int i;
     int matrixIndex;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     changed = 0;
     apply_to_mklist(update_mkhdr_sobj, &mkobj->sobj_list);
     if (mkobj->flags_0B_bits.force_anim_speed != 0) {
@@ -2939,7 +2919,7 @@ void update_mkobj(void* obj) {
         mkobj->ang.y = normalize_obj_angle(mkobj->ang.y);
         mkobj->ang.z = normalize_obj_angle(mkobj->ang.z);
         YXZ_angles_to_MKMATRIX(
-            &mkobj->ang, (MKMATRIX*)matrix);
+            &mkobj->ang, matrix);
         changed = 1;
     }
     if (mkobj->flags_09_bits.bit0 != 0 && mkobj->clump != 0) {
@@ -2977,7 +2957,7 @@ void update_mkobj(void* obj) {
         if (mkobj->hide_flag_bits.bit4 == 0) {
             RwFrameUpdateObjects(mkobj->frame);
             for (i = 1; i < mkobj->clump_count; i++) {
-                frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+                frame = mkobj->clumps[i]->object.parent;
                 frameMatrix = &frame->modelling;
                 memcpy(frameMatrix, matrix, sizeof(RwMatrix));
                 RwFrameUpdateObjects(frame);
@@ -3004,8 +2984,8 @@ static void* AtomicFaceCamera(void* atomic, void* data) {
     RwMatrix* frameMatrix;
     RwMatrix* cameraMatrix;
 
-    rpAtomic = (RpAtomic*)atomic;
-    frame = (RwFrame*)rpAtomic->object.parent;
+    rpAtomic = atomic;
+    frame = rpAtomic->object.parent;
     if (frame != 0) {
         frame->object.privateFlags |= 0x20;
         frameMatrix = &frame->modelling;
@@ -3093,7 +3073,7 @@ void vdestroy_mkx_rplight(MkxRpLight* link) {
     if (RpLightGetWorld(link->light) != 0) {
         RpWorldRemoveLight(World, link->light);
     }
-    frame = (RwFrame*)((RwObject*)link->light)->parent;
+    frame = ((RwObject*)link->light)->parent;
     if (frame != 0) {
         RwFrameDestroy(frame);
     }
@@ -3121,7 +3101,7 @@ MkxRpLight* get_mkx_rplight(RpLight* light) {
 }
 
 int vdestroy_mkx_mem(void* mem) {
-    MkxMem* mkxmem = (MkxMem*)mem;
+    MkxMem* mkxmem = mem;
 
     _mwMemFree(mkxmem->allocation, 0, 0);
     mkxmem->hdr.instance = 0;
@@ -3139,7 +3119,7 @@ void* get_mkx_mem(void* allocation) {
 }
 
 int vdestroy_mkobj(void* obj) {
-    MkObj* mkobj = (MkObj*)obj;
+    MkObj* mkobj = obj;
     RpClump* clump;
     int i;
 
@@ -3182,7 +3162,7 @@ void destroy_mkobj(void* obj) {
     RpClump* clump;
     MkObj* mkobj;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
 
     mkobj->hdr.instance = 0;
     if (mkobj->hide_flag_bits.bit3 != 0) {
@@ -3219,10 +3199,10 @@ void destroy_mkobj(void* obj) {
 }
 
 void destroy_clump(void* clump) {
-    pull_clump_from_world((RpClump*)clump);
+    pull_clump_from_world(clump);
     RpClumpForAllAtomics(
-        (RpClump*)clump, atomic_null_texture_pointers, 0);
-    RpClumpDestroy((RpClump*)clump);
+        clump, atomic_null_texture_pointers, 0);
+    RpClumpDestroy(clump);
 }
 
 static RpAtomic* atomic_null_texture_pointers(
@@ -3301,17 +3281,17 @@ static RpMaterial* material_null_texture_pointer(
     effect = RpMatFXMaterialGetEffects(material);
     if (effect != rpMATFXEFFECTNULL) {
         if (effect == rpMATFXEFFECTDUAL) {
-            dual = (RpMatFXDualData*)MatFXGetData(
+            dual = MatFXGetData(
                 material, rpMATFXEFFECTDUAL);
             dual->texture = 0;
         } else if (effect == rpMATFXEFFECTBUMPMAP) {
-            bump = (RpMatFXBumpMapData*)MatFXGetData(
+            bump = MatFXGetData(
                 material, rpMATFXEFFECTBUMPMAP);
             bump->bumped_texture = 0;
             bump->coefficient = 1.0f;
         } else if (effect != rpMATFXEFFECTUVTRANSFORM &&
                    effect == rpMATFXEFFECTDUALUVTRANSFORM) {
-            dual = (RpMatFXDualData*)MatFXGetData(
+            dual = MatFXGetData(
                 material, rpMATFXEFFECTDUAL);
             dual->texture = 0;
         }
@@ -3325,10 +3305,10 @@ void* start_scale_proc(void* obj, void* script) {
     _create_mkproc_generic_nostack(
         0x5022, 0x20, p_scale, sizeof(ScalePdata), (MkHdr**)&pdata);
     if (pdata != 0) {
-        pdata->obj = (MkObj*)obj;
+        pdata->obj = obj;
         pdata->obj_instance = ((MkObj*)obj)->hdr.instance;
-        pdata->script = (ScaleScriptEntry*)script;
-        pdata->script_start = (ScaleScriptEntry*)script;
+        pdata->script = script;
+        pdata->script_start = script;
         pdata->prior_scale.z = 1.0f;
         pdata->prior_scale.y = 1.0f;
         pdata->prior_scale.x = 1.0f;
@@ -3404,7 +3384,7 @@ void* limb_sever_find_limbset(void* obj, int id) {
     void* result;
 
     result = 0;
-    limb_obj = (MkObj*)((MkObj*)obj)->field_5C;
+    limb_obj = ((MkObj*)obj)->field_5C;
     if (limb_obj != 0) {
         sobj = (MkSobj*)first_mkhdr(&limb_obj->sobj_list);
         if (sobj != 0) {
@@ -3715,7 +3695,7 @@ MkObj* obj_sever_limb(
         return 0;
     }
 
-    severed = (MkObj*)get_mkobj_frame(severed_type, 0);
+    severed = get_mkobj_frame(severed_type, 0);
     if (severed == 0) {
         return 0;
     }
@@ -3727,7 +3707,7 @@ MkObj* obj_sever_limb(
 
     sobj_ref = get_mkptr_not_owns_mkhdr(&sobj->hdr);
     insert_mkptr(sobj_ref, &severed->sobj_list);
-    severed->matrix_indices = (int*)get_mem(0x3C);
+    severed->matrix_indices = get_mem(0x3C);
     if (severed->matrix_indices == 0) {
         if (severed->hdr.instance != 0) {
             ((void (*)(MkHdr*))severed->hdr.vtbl->destroy)(&severed->hdr);
@@ -3736,7 +3716,7 @@ MkObj* obj_sever_limb(
     }
     severed->flipped_bone_map = source->flipped_bone_map;
     severed->bone_count = source->bone_count;
-    severed->bones = (MkBone**)get_mem(severed->bone_count * 4);
+    severed->bones = get_mem(severed->bone_count * 4);
     if (severed->bones == 0) {
         if (severed->hdr.instance != 0) {
             ((void (*)(MkHdr*))severed->hdr.vtbl->destroy)(&severed->hdr);
@@ -3765,7 +3745,7 @@ MkObj* obj_sever_limb(
         bone_make_parents_my_children(root);
         v3_x_mat(
             &root_offset, (Vec*)&root->parent_matrix->pos,
-            (MKMATRIX*)severed->field_24);
+            severed->field_24);
         severed->pos.value.x += root_offset.x;
         severed->pos.value.y += root_offset.y;
         severed->pos.value.z += root_offset.z;
@@ -4018,7 +3998,7 @@ static void _move_bones_from_obj_to_limbobj(
 
     source = source_arg;
     limb = limb_arg;
-    sobj = (MkSobj*)obj_first_sobj(source);
+    sobj = obj_first_sobj(source);
     if (sobj == 0) {
         return;
     }
@@ -4076,7 +4056,7 @@ static void xfer_bone_tree_from_obj_to_limb_obj(
             new_bone->bone_index = destination_index;
             new_bone->field_60 = 0.0f;
             new_bone->field_64 = 0.0f;
-            new_bone->update_tick = (unsigned int)(exec_tick_ctr - 1);
+            new_bone->update_tick = exec_tick_ctr - 1;
             new_bone->transform_parent = 0;
             new_bone->tree_next = 0;
             new_bone->tree_child = 0;
@@ -4116,7 +4096,7 @@ static void xfer_bone_tree_from_obj_to_limb_obj(
 MkObj* get_mkobj(int type, RpClump* clump) {
     MkObj* obj;
 
-    obj = get_mkobj_frame(type, (RwFrame*)clump->object.parent);
+    obj = get_mkobj_frame(type, clump->object.parent);
     if (obj != 0) {
         obj->clump_count = 1;
         obj->clump = clump;
@@ -4130,7 +4110,7 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
     MkObj* obj;
     RwMatrix* matrix;
 
-    obj = (MkObj*)_mwMemMalloc(
+    obj = _mwMemMalloc(
         mkobj_heap, sizeof(MkObj), 4, 0, 0, 0);
     if (obj != 0) {
         obj->hdr.vtbl = &vtbl_mkobj;
@@ -4194,11 +4174,11 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
 }
 
 void insert_ground_me_mkobj(void* obj) {
-    mk_insert((MkHdr*)obj, &ground_me_mkobj_list);
+    mk_insert(obj, &ground_me_mkobj_list);
 }
 
 void pull_bone_hierarchy_mkobj(void* obj) {
-    mk_pull_discard((MkHdr*)obj, &bone_hierarchy_mkobj_list);
+    mk_pull_discard(obj, &bone_hierarchy_mkobj_list);
 }
 
 void insert_bone_hierarchy_mkobj(MkObj* obj) {
@@ -4206,15 +4186,15 @@ void insert_bone_hierarchy_mkobj(MkObj* obj) {
 }
 
 void insert_particle_mkobj(void* obj) {
-    mk_insert((MkHdr*)obj, &particle_mkobj_list);
+    mk_insert(obj, &particle_mkobj_list);
 }
 
 void remove_fgnd_mkobj(void* obj) {
-    mk_pull_discard((MkHdr*)obj, &fgnd_mkobj_list);
+    mk_pull_discard(obj, &fgnd_mkobj_list);
 }
 
 void insert_fgnd_mkobj(void* obj) {
-    mk_insert((MkHdr*)obj, &fgnd_mkobj_list);
+    mk_insert(obj, &fgnd_mkobj_list);
 }
 
 void render_fgnd_mkobjs(void) {
@@ -4306,14 +4286,14 @@ void force_rw_lights(void) {
 
 #pragma dont_inline on
 void sobj_set_priority(void* sobj_arg, int priority) {
-    MkSobj* sobj = (MkSobj*)sobj_arg;
+    MkSobj* sobj = sobj_arg;
     RpAtomic* atomic;
     MkSobj* linked;
 
     if (priority == 0x12) {
         atomic = sobj->atomic;
-        *(unsigned int*)((char*)atomic + MksobjLocalOffset) |= 0x80000000u;
-        linked = *(MkSobj**)((char*)atomic + MksobjLocalOffset + 8);
+        MK_ATOMIC_PLUGIN(atomic)->flags |= 0x80000000u;
+        linked = MK_ATOMIC_PLUGIN(atomic)->sobj;
         if (linked == 0) {
             return;
         }
@@ -4322,12 +4302,11 @@ void sobj_set_priority(void* sobj_arg, int priority) {
         return;
     }
 
-    /* Retail: bne to plain store; fallthrough clears plugin bits when was 0x12. */
     if (sobj->priority == 0x12) {
         sobj->priority = priority;
         atomic = sobj->atomic;
-        *(unsigned int*)((char*)atomic + MksobjLocalOffset) &= 0x7FFFFFFFu;
-        linked = *(MkSobj**)((char*)atomic + MksobjLocalOffset + 8);
+        MK_ATOMIC_PLUGIN(atomic)->flags &= 0x7FFFFFFFu;
+        linked = MK_ATOMIC_PLUGIN(atomic)->sobj;
         if (linked == 0) {
             return;
         }
@@ -4354,7 +4333,7 @@ void obj_set_sobj_priority(MkObj* obj, int id, int priority) {
     mkobj = obj;
     data.result = 0;
     data.obj = mkobj;
-    data.id = (unsigned int)id;
+    data.id = id;
     data.mask = 0xFFF;
     data.priority = 0x10;
     data.set_priority = 0;
@@ -4408,7 +4387,7 @@ void atomic_set_transl_flag(RpAtomic* atomic) {
 MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id) {
     MkSobj* sobj;
 
-    sobj = obj_find_sobj_by_id((MkObj*)obj, id);
+    sobj = obj_find_sobj_by_id(obj, id);
     if (sobj != 0) {
         sobj->atomic->object.flags = 4;
     }
@@ -4418,7 +4397,7 @@ MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id) {
 MkSobj* hide_sobj_by_sobj_id(void* obj, unsigned int id) {
     MkSobj* sobj;
 
-    sobj = obj_find_sobj_by_id((MkObj*)obj, id);
+    sobj = obj_find_sobj_by_id(obj, id);
     if (sobj != 0) {
         sobj->atomic->object.flags &= ~4u;
     }
@@ -4426,32 +4405,32 @@ MkSobj* hide_sobj_by_sobj_id(void* obj, unsigned int id) {
 }
 
 void unhide_sobj(void* sobj_arg) {
-    MkSobj* sobj = (MkSobj*)sobj_arg;
+    MkSobj* sobj = sobj_arg;
 
     sobj->atomic->object.flags = 0x4;
 }
 
 void hide_sobj(void* sobj_arg) {
-    MkSobj* sobj = (MkSobj*)sobj_arg;
+    MkSobj* sobj = sobj_arg;
 
-    sobj->atomic->object.flags = (unsigned char)(sobj->atomic->object.flags & ~0x4u);
+    sobj->atomic->object.flags &= ~0x4u;
 }
 
 void unhide_obj(void* obj_arg) {
-    MkObj* obj = (MkObj*)obj_arg;
+    MkObj* obj = obj_arg;
 
     obj->hide_flag_bits.hidden = 0;
 }
 
 void hide_obj(void* obj_arg) {
-    MkObj* obj = (MkObj*)obj_arg;
+    MkObj* obj = obj_arg;
 
     obj->hide_flag_bits.hidden = 1;
 }
 
 void mkobj_get_matrix_pos(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* pos = (Vec*)out;
+    MkObj* mkobj = obj;
+    Vec* pos = out;
 
     pos->x = mkobj->field_24->pos.x;
     pos->y = mkobj->field_24->pos.y;
@@ -4459,8 +4438,8 @@ void mkobj_get_matrix_pos(void* obj, void* out) {
 }
 
 void mkobj_get_matrix_right(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* right = (Vec*)out;
+    MkObj* mkobj = obj;
+    Vec* right = out;
 
     right->x = mkobj->field_24->right.x;
     right->y = mkobj->field_24->right.y;
@@ -4468,8 +4447,8 @@ void mkobj_get_matrix_right(void* obj, void* out) {
 }
 
 void mkobj_get_matrix_at(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* at = (Vec*)out;
+    MkObj* mkobj = obj;
+    Vec* at = out;
 
     at->x = mkobj->field_24->at.x;
     at->y = mkobj->field_24->at.y;

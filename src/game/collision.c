@@ -222,7 +222,6 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
 static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     const Vec* vertices, const Vec* angles, const Vec* position);
 ArenaObstacle* get_obstacle(void);
-int get_obstacle_type_from_id(unsigned int obstacle_id);
 void insert_collision_on_proper_tile_list(CollisionObj* object);
 static int collide_sphere_and_box(
     const CollisionShape* sphere, const CollisionShape* box);
@@ -367,7 +366,6 @@ static inline int collision_point_within_face(
 static inline int collision_point_inside_shape(
     const CollisionShape* shape, const Vec* point) {
     float projection;
-    /* Retail uses the center point for both wrappers; no sphere expansion. */
     float radius = 0.0f;
 
     switch (shape->type & 7) {
@@ -768,7 +766,7 @@ void generate_shadow_collision_objects(int handle, unsigned int art_oid) {
     int group_count;
     int group_index;
 
-    cdf = (int*)get_cdf_data(handle, art_oid);
+    cdf = get_cdf_data(handle, art_oid);
     group_count = *cdf;
     cursor = (unsigned char*)(cdf + 1);
 
@@ -901,7 +899,7 @@ void generate_obstacles(int handle, char* name, MkPtr** obstacle_list) {
     int vertex_index;
     Vec vertices[4];
 
-    cdf = (int*)load_named_cdf_data_from_slot(handle, name);
+    cdf = load_named_cdf_data_from_slot(handle, name);
     if (cdf == 0) {
         return;
     }
@@ -1038,7 +1036,7 @@ void repel_against_obstacle_list(
     }
 }
 
-/* TODO: [breakthrough needed] 64.32627%; canonical collision owners change address formation and copies. */
+/* TODO: [breakthrough] 79.67%; saved position as three floats and obstacle flag bitfields recovered; obstacle pointer is held in two registers in retail (mr r27, r4), remaining coloring. */
 int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index) {
@@ -1050,14 +1048,18 @@ int repel_shape_against_obstacle_list(
     MkPtr* collision_item;
     MkPtr* next;
     Vec pushes[20];
-    Vec original;
+    float original_x;
+    float original_y;
+    float original_z;
     Vec total;
     int collision_count;
     int collided;
     int result;
     int index;
 
-    original = *test_position;
+    original_x = test_position->x;
+    original_y = test_position->y;
+    original_z = test_position->z;
     result = 0;
     collision_count = 0;
     if (info != 0) {
@@ -1072,9 +1074,9 @@ int repel_shape_against_obstacle_list(
                 continue;
             }
             if (step_index == 0) {
-                obstacle->flags.value &= (unsigned char)~8;
+                obstacle->flags.bits.callback_handled = 0;
             }
-            if ((obstacle->flags.value & 0x40) == 0 &&
+            if (!obstacle->flags.bits.disabled &&
                 &obstacle->shapes != 0) {
                 collision_item = obstacle->shapes;
                 while (collision_item != 0) {
@@ -1111,9 +1113,11 @@ int repel_shape_against_obstacle_list(
                         }
                         break;
                     }
-                    if ((obstacle->flags.value & 0x10) != 0) {
+                    if (obstacle->flags.bits.inverted) {
                         if (collided != 0) {
-                            *test_position = original;
+                            test_position->x = original_x;
+                            test_position->y = original_y;
+                            test_position->z = original_z;
                         }
                         collided = collided == 0;
                     }
@@ -1127,7 +1131,7 @@ int repel_shape_against_obstacle_list(
                             callback_data.movement = movement;
                             movement->y = 0.0f;
                             callback_data.player = player->slot.pdata;
-                            if ((obstacle->flags.value & 8) == 0) {
+                            if (!obstacle->flags.bits.callback_handled) {
                                 if (((int (*)(ObstacleCallbackData*))
                                          constrain_info.callback)(
                                         &callback_data) != 0) {
@@ -1138,23 +1142,25 @@ int repel_shape_against_obstacle_list(
                                     }
                                     return result;
                                 }
-                                obstacle->flags.value |= 8;
+                                obstacle->flags.bits.callback_handled = 1;
                             }
                         }
-                        if ((obstacle->flags.value & 0x80) == 0) {
+                        if (!obstacle->flags.bits.repel) {
                             collision_data = player->slot.pdata;
                             collision_data->f_constrained = 1;
                             if (collision_count < 20) {
                                 pushes[collision_count].x =
-                                    test_position->x - original.x;
+                                    test_position->x - original_x;
                                 pushes[collision_count].y =
-                                    test_position->y - original.y;
+                                    test_position->y - original_y;
                                 pushes[collision_count].z =
-                                    test_position->z - original.z;
+                                    test_position->z - original_z;
                                 collision_count++;
                             }
                         }
-                        *test_position = original;
+                        test_position->x = original_x;
+                        test_position->y = original_y;
+                        test_position->z = original_z;
                     }
                     collision_item = collision_item->next;
                 }
@@ -1164,7 +1170,9 @@ int repel_shape_against_obstacle_list(
     }
 
     if (collision_count != 0) {
-        *test_position = original;
+        test_position->x = original_x;
+        test_position->y = original_y;
+        test_position->z = original_z;
         total = pushes[0];
         for (index = 1; index < collision_count; index++) {
             total.x += pushes[index].x;
@@ -1637,10 +1645,7 @@ static float ray_intersection_with_shape(
     }
 }
 
-/*
- * In addition to FPR scheduling, this function retains the documented
- * portable-C stack-alignment gap for its four Vec temporaries.
- */
+/* TODO: [near miss] 90.55%; residue is FPR scheduling and the stack-alignment gap for its four Vec temporaries. */
 static float ray_intersection_with_quad(
     const Vec* origin,
     const Vec* direction,
@@ -1742,7 +1747,7 @@ void generate_collision_objects(
     Vec transformed;
     MKMATRIX matrix;
 
-    cdf = (int*)get_cdf_data(handle, art_oid);
+    cdf = get_cdf_data(handle, art_oid);
     group_count = *cdf;
     cursor = (unsigned char*)(cdf + 1);
     for (group_index = 0; group_index < group_count; group_index++) {
@@ -2018,7 +2023,7 @@ CollisionObj* get_collision_obj(void) {
     return allocate_collision_obj();
 }
 
-/* Soft ceiling: repel_a_from_b ~94% -- three redundant zero loads remain. */
+/* TODO: [near miss] 95.60%; three redundant zero loads remain. */
 static int repel_a_from_b(
     CollisionShape* shape, const CollisionShape* obstacle, Vec* movement) {
     CollisionRepelInfo info;
@@ -2556,7 +2561,7 @@ void build_col_shape_vertical_box(
     axis_2.x = gxMathSin(angle);
     axis_2.y = 0.0f;
     axis_1.z = axis_2.x;
-    axis_1.x = -(float)gxMathCos(angle);
+    axis_1.x = -gxMathCos(angle);
     axis_1.y = 0.0f;
     axis_2.z = -axis_1.x;
     shape->type = 3;
@@ -2697,10 +2702,7 @@ void build_col_shape_vertical_cylinder(
     }
 }
 
-/*
- * Near match: the retail switch, calls, and sphere loop agree; the remaining
- * delta is register assignment and equivalent instruction placement.
- */
+/* TODO: [near miss] 72.01%; switch, calls and sphere loop agree; residue is register assignment and instruction placement. */
 void render_col_shape(
     const CollisionShape* shape, const unsigned int* color) {
     CollisionIm3DVertex vertices[16];
@@ -2727,7 +2729,7 @@ void render_col_shape(
         red = color_channels[0];
         do {
             angle = 3.1415927f * ((float)index / 7.5f);
-            radial.x = shape->sphere_radius * (float)gxMathCos(angle);
+            radial.x = shape->sphere_radius * gxMathCos(angle);
             radial.y = shape->sphere_radius * gxMathSin(angle);
             radial.z = 0.0f;
             v3_x_mat_add_v3(
@@ -3607,7 +3609,7 @@ void render_collision_regions(void) {
 
     RwMatrixInvert(
         &camera_matrix,
-        (const RwMatrix*)((const char*)Camera + 0x20));
+        &Camera->viewMatrix);
     RwMatrixOrthoNormalize(&inv_cam_rot_mat, &camera_matrix);
     RwEngineInstance->render_state(1, &state_1, RwEngineInstance);
     RwEngineInstance->render_state(6, &state_6, RwEngineInstance);
@@ -3689,7 +3691,7 @@ static void render_hero_collision(void) {
         do {
             angle = 3.1415927f * ((float)index / 7.5f);
             radial.x = konquest_hero_collision_shape.sphere_radius *
-                (float)gxMathCos(angle);
+                gxMathCos(angle);
             radial.y = konquest_hero_collision_shape.sphere_radius *
                 gxMathSin(angle);
             radial.z = 0.0f;
@@ -3762,7 +3764,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
             for (sphere_index = 0; sphere_index < 16; sphere_index++) { \
                 angle = 3.1415927f * ((float)sphere_index / 7.5f); \
                 radial.x = (render_shape)->sphere_radius * \
-                    (float)gxMathCos(angle); \
+                    gxMathCos(angle); \
                 radial.y = (render_shape)->sphere_radius * \
                     gxMathSin(angle); \
                 radial.z = 0.0f; \
@@ -3791,7 +3793,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
     } while (0)
 
     if (collision->joints != 0) {
-        storage = (PlayerCollisionData*)collision;
+        storage = collision;
         joint_count = storage->joint_count;
         joint_regions =
             collision->joints;
@@ -3842,7 +3844,7 @@ static void render_konquest_shadow_objects(MkHdr* hdr) {
     case 1:
         for (index = 0; index < 16; index++) {
             angle = 3.1415927f * ((float)index / 7.5f);
-            radial.x = shape->sphere_radius * (float)gxMathCos(angle);
+            radial.x = shape->sphere_radius * gxMathCos(angle);
             radial.y = shape->sphere_radius * gxMathSin(angle);
             radial.z = 0.0f;
             v3_x_mat_add_v3(
@@ -3905,7 +3907,7 @@ void render_obstacle(ArenaObstacle* obstacle) {
         case 1: \
             for (index = 0; index < 16; index++) { \
                 angle = 3.1415927f * ((float)index / 7.5f); \
-                radial.x = shape->sphere_radius * (float)gxMathCos(angle); \
+                radial.x = shape->sphere_radius * gxMathCos(angle); \
                 radial.y = shape->sphere_radius * gxMathSin(angle); \
                 radial.z = 0.0f; \
                 v3_x_mat_add_v3( \
@@ -3955,7 +3957,7 @@ static void render_konquest_collision_obj(MkHdr* hdr) {
         case 1: \
             for (index = 0; index < 16; index++) { \
                 angle = 3.1415927f * ((float)index / 7.5f); \
-                radial.x = shape->sphere_radius * (float)gxMathCos(angle); \
+                radial.x = shape->sphere_radius * gxMathCos(angle); \
                 radial.y = shape->sphere_radius * gxMathSin(angle); \
                 radial.z = 0.0f; \
                 v3_x_mat_add_v3( \
@@ -3994,7 +3996,7 @@ static void render_konquest_collision_obj(MkHdr* hdr) {
 DEFINE_COLLISION_OBJECT_RENDERER(render_collision_obj, rgba_blue)
 #undef DEFINE_COLLISION_OBJECT_RENDERER
 
-/* TODO: [breakthrough needed] 72.81%; canonical collision owners change address formation and copies. */
+/* TODO: [breakthrough needed] 73.14%; canonical collision owners change address formation and copies. */
 void set_plyr_attack_region(
     int use_body, float radius, float extension) {
     PlayerCollisionData* collision;
@@ -4011,9 +4013,9 @@ void set_plyr_attack_region(
     int recording;
 
     collision = plyr_pdata->plyr_info->collision_data;
-    storage = (PlayerCollisionData*)collision;
+    storage = collision;
     recording = (g_game_info.pause_flags & 1) != 0 &&
-        (((unsigned char*)&g_game_info)[2] & 0x20) == 0;
+        g_game_info.switch_input_flags.field_bit5 == 0;
     if (recording) {
         storage->render_recorded = 0;
         storage->recorded_count = 0;
@@ -4096,11 +4098,11 @@ static void add_plyr_body_attack_nodes(
 
     entries = attack_region_list[region_id];
     player = plyr_pdata->plyr_info;
-    storage = (PlayerCollisionData*)player->collision_data;
+    storage = player->collision_data;
     object = storage->object;
     movement.x = gxMathSin(object->ang.y) * storage->attack_radius;
     movement.y = 0.0f;
-    movement.z = (float)gxMathCos(object->ang.y) * storage->attack_radius;
+    movement.z = gxMathCos(object->ang.y) * storage->attack_radius;
     if (player == 0) {
         return;
     }
@@ -4200,7 +4202,7 @@ static void generate_weapon_collision_nodes(
     unsigned int last_pair_index;
     unsigned int index;
 
-    storage = (PlayerCollisionData*)collision_data;
+    storage = collision_data;
     first_index = storage->field_93F4;
     update_bone_hierarchy(
         weapon != 0 ? as_mkhdr(&weapon->hdr) : 0);
@@ -4210,7 +4212,7 @@ static void generate_weapon_collision_nodes(
         gxMathSin(storage->object->ang.y) * storage->attack_radius;
     movement.y = 0.0f;
     movement.z =
-        (float)gxMathCos(storage->object->ang.y) * storage->attack_radius;
+        gxMathCos(storage->object->ang.y) * storage->attack_radius;
 
     bone = 0;
     for (index = 0; index < weapon->bone_count; index++) {
@@ -4288,7 +4290,7 @@ void reset_player_collision(PlyrInfo* player) {
     int bone_index;
     int index;
 
-    storage = (PlayerCollisionData*)player->collision_data;
+    storage = player->collision_data;
     if (storage == 0) {
         return;
     }
@@ -4398,7 +4400,7 @@ static void update_player_collision_nodes(PlayerCollisionData* collision) {
     PlayerCollisionNode* node;
     unsigned int index;
 
-    storage = (PlayerCollisionData*)collision;
+    storage = collision;
     if (storage->joint_count != 0U) {
         for (index = 0; index < storage->joint_count; index++) {
             node = &storage->joints[index];

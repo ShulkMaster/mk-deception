@@ -1,3 +1,4 @@
+#include "libmkparticle/fields.h"
 #include "libmkparticle/texture_anim.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_particle.h"
@@ -60,7 +61,7 @@ typedef struct JabPfxDefinition {
     int lifetime_minimum;
     int lifetime_maximum;
     PfxInitCb initialize;
-} JabPfxDefinition; /* 0x7C */
+} JabPfxDefinition;
 
 const JabPfxDefinition jab_pfx_table[8] = {
     {
@@ -113,7 +114,6 @@ const JabPfxDefinition jab_pfx_table[8] = {
     },
 };
 
-/* Serialized smoke-emitter preset consumed by the effect-table runtime. */
 unsigned char gSmokeTable[0x58] = {
     0x00, 0x00, 0x00, 0x00, 0xC8, 0xC8, 0xC8, 0xFF,
     0xC8, 0xC8, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x08,
@@ -178,7 +178,7 @@ typedef union JabProcVtableRef {
 
 typedef struct JabProcSleepVtable {
     char pad00[0x18];
-    int (*sleep)(void); /* +0x18 */
+    int (*sleep)(void);
 } JabProcSleepVtable;
 
 typedef struct JabBoneMatcherState {
@@ -279,14 +279,12 @@ MkPfx* create_pfx(
     int bind_source, int process_id, float (*entry)(void), MkPfx** effect,
     const void* definition, const char* name);
 PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
-void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
 static float pfx_sh_grinder_crush_blood(void);
 static float pfx_sh_grinder_crush_chunks(void);
 static float pfx_sh_grinder_meat_spew(void);
 static float pfx_kenshi_lift_smoke(void);
 static float pfx_react_falling_attach_smoke_to_bones_proc(void);
 void pfxhandle_spawn_at_bid(const char* name, MkObj* object, int bone);
-/* Retail call sites use both three- and five-argument local declarations. */
 void spawn_bld_splat();
 unsigned int fx_by_owner(const char* name, int owner);
 int pfx_plyr_bankowner(PlyrInfo* player);
@@ -1200,18 +1198,12 @@ float pfx_sh_grinder_crush_chunks(void) {
     vector_stride = vm->particle_vector_stride;
     last_index = vm->particle_cursor - 1;
     last_color = source_colors + field_stride * last_index;
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_angle = (float*)((unsigned char*)source_angles +
-                          field_stride * last_index);
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_timer = (float*)((unsigned char*)source_timers +
-                          vector_stride * last_index);
-    last_state = (int*)((unsigned char*)source_states +
-                        vector_stride * last_index);
+    last_position = PFX_FIELD_AT(source_positions, field_stride * last_index);
+    last_scale = PFX_FIELD_AT(source_scales, field_stride * last_index);
+    last_angle = PFX_FIELD_AT(source_angles, field_stride * last_index);
+    last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
+    last_timer = PFX_FIELD_AT(source_timers, vector_stride * last_index);
+    last_state = PFX_FIELD_AT(source_states, vector_stride * last_index);
 
     index = 0;
     while (index < vm->particle_cursor) {
@@ -1232,15 +1224,13 @@ float pfx_sh_grinder_crush_chunks(void) {
             *source_angles = *last_angle;
             *source_states = *last_state;
 
-            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_position = PFX_FIELD_AT(last_position, -field_stride);
             last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale - field_stride);
-            last_angle = (float*)((unsigned char*)last_angle - field_stride);
-            last_velocity =
-                (Vec*)((unsigned char*)last_velocity - vector_stride);
-            last_timer =
-                (float*)((unsigned char*)last_timer - vector_stride);
-            last_state = (int*)((unsigned char*)last_state - vector_stride);
+            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+            last_angle = PFX_FIELD_AT(last_angle, -field_stride);
+            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+            last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
+            last_state = PFX_FIELD_AT(last_state, -vector_stride);
             vm->particle_cursor--;
         } else {
             delta_x = source_velocities->x * game_speed;
@@ -1289,30 +1279,18 @@ float pfx_sh_grinder_crush_chunks(void) {
             destination_colors[2] = source_colors[2];
             destination_colors[3] = source_colors[3];
 
-            source_velocities =
-                (Vec*)((unsigned char*)source_velocities + vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_positions =
-                (Vec*)((unsigned char*)source_positions + field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
-            source_timers =
-                (float*)((unsigned char*)source_timers + vector_stride);
-            destination_timers =
-                (float*)((unsigned char*)destination_timers + vector_stride);
-            source_states =
-                (int*)((unsigned char*)source_states + vector_stride);
-            destination_states =
-                (int*)((unsigned char*)destination_states + vector_stride);
-            source_scales =
-                (float*)((unsigned char*)source_scales + field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_angles =
-                (float*)((unsigned char*)source_angles + field_stride);
-            destination_angles =
-                (float*)((unsigned char*)destination_angles + field_stride);
+            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+            source_positions = PFX_FIELD_AT(source_positions, field_stride);
+            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+            source_timers = PFX_FIELD_AT(source_timers, vector_stride);
+            destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
+            source_states = PFX_FIELD_AT(source_states, vector_stride);
+            destination_states = PFX_FIELD_AT(destination_states, vector_stride);
+            source_scales = PFX_FIELD_AT(source_scales, field_stride);
+            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+            source_angles = PFX_FIELD_AT(source_angles, field_stride);
+            destination_angles = PFX_FIELD_AT(destination_angles, field_stride);
             source_colors += field_stride;
             destination_colors += field_stride;
         }
@@ -1385,17 +1363,12 @@ void sh_spawn_grinder_crush_blood(void) {
         colors = pfx_get_field(vm, -2, 0x101);
 
         particle_index = vm->particle_cursor;
-        positions = (Vec*)((unsigned char*)positions +
-                           field_stride * particle_index);
-        scales = (float*)((unsigned char*)scales +
-                          field_stride * particle_index);
-        angles = (float*)((unsigned char*)angles +
-                          field_stride * particle_index);
+        positions = PFX_FIELD_AT(positions, field_stride * particle_index);
+        scales = PFX_FIELD_AT(scales, field_stride * particle_index);
+        angles = PFX_FIELD_AT(angles, field_stride * particle_index);
         colors += field_stride * particle_index;
-        velocities = (Vec*)((unsigned char*)velocities +
-                            vector_stride * particle_index);
-        zero_fields = (float*)((unsigned char*)zero_fields +
-                               vector_stride * particle_index);
+        velocities = PFX_FIELD_AT(velocities, vector_stride * particle_index);
+        zero_fields = PFX_FIELD_AT(zero_fields, vector_stride * particle_index);
         vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->birth_rate;
 
         index = 0;
@@ -1436,13 +1409,12 @@ void sh_spawn_grinder_crush_blood(void) {
             colors[2] = 0x7D;
             colors[3] = 0xFF;
 
-            positions = (Vec*)((unsigned char*)positions + field_stride);
-            scales = (float*)((unsigned char*)scales + field_stride);
-            angles = (float*)((unsigned char*)angles + field_stride);
+            positions = PFX_FIELD_AT(positions, field_stride);
+            scales = PFX_FIELD_AT(scales, field_stride);
+            angles = PFX_FIELD_AT(angles, field_stride);
             colors += field_stride;
-            velocities = (Vec*)((unsigned char*)velocities + vector_stride);
-            zero_fields =
-                (float*)((unsigned char*)zero_fields + vector_stride);
+            velocities = PFX_FIELD_AT(velocities, vector_stride);
+            zero_fields = PFX_FIELD_AT(zero_fields, vector_stride);
             index++;
         }
     }
@@ -1505,17 +1477,12 @@ float pfx_sh_grinder_crush_blood(void) {
     field_stride = vm->transforms[0].particle_field_stride;
     vector_stride = vm->particle_vector_stride;
     last_index = vm->particle_cursor - 1;
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
+    last_position = PFX_FIELD_AT(source_positions, field_stride * last_index);
     last_color = source_colors + field_stride * last_index;
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_angle = (float*)((unsigned char*)source_angles +
-                          field_stride * last_index);
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_zero_field = (float*)((unsigned char*)source_zero_fields +
-                               vector_stride * last_index);
+    last_scale = PFX_FIELD_AT(source_scales, field_stride * last_index);
+    last_angle = PFX_FIELD_AT(source_angles, field_stride * last_index);
+    last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
+    last_zero_field = PFX_FIELD_AT(source_zero_fields, vector_stride * last_index);
 
     index = 0;
     while (index < vm->particle_cursor) {
@@ -1537,14 +1504,12 @@ float pfx_sh_grinder_crush_blood(void) {
             *source_scales = *last_scale;
             *source_angles = *last_angle;
 
-            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_position = PFX_FIELD_AT(last_position, -field_stride);
             last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale - field_stride);
-            last_angle = (float*)((unsigned char*)last_angle - field_stride);
-            last_velocity =
-                (Vec*)((unsigned char*)last_velocity - vector_stride);
-            last_zero_field =
-                (float*)((unsigned char*)last_zero_field - vector_stride);
+            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+            last_angle = PFX_FIELD_AT(last_angle, -field_stride);
+            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+            last_zero_field = PFX_FIELD_AT(last_zero_field, -vector_stride);
             vm->particle_cursor--;
         } else {
             delta_x = source_velocities->x * game_speed;
@@ -1565,26 +1530,16 @@ float pfx_sh_grinder_crush_blood(void) {
             destination_colors[2] = source_colors[2];
             destination_colors[3] = source_colors[3];
 
-            source_positions =
-                (Vec*)((unsigned char*)source_positions + field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
-            source_velocities =
-                (Vec*)((unsigned char*)source_velocities + vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_zero_fields =
-                (float*)((unsigned char*)source_zero_fields + vector_stride);
-            destination_zero_fields = (float*)((unsigned char*)destination_zero_fields +
-                                               vector_stride);
-            source_scales =
-                (float*)((unsigned char*)source_scales + field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_angles =
-                (float*)((unsigned char*)source_angles + field_stride);
-            destination_angles =
-                (float*)((unsigned char*)destination_angles + field_stride);
+            source_positions = PFX_FIELD_AT(source_positions, field_stride);
+            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+            source_zero_fields = PFX_FIELD_AT(source_zero_fields, vector_stride);
+            destination_zero_fields = PFX_FIELD_AT(destination_zero_fields, vector_stride);
+            source_scales = PFX_FIELD_AT(source_scales, field_stride);
+            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+            source_angles = PFX_FIELD_AT(source_angles, field_stride);
+            destination_angles = PFX_FIELD_AT(destination_angles, field_stride);
             source_colors += field_stride;
             destination_colors += field_stride;
         }
@@ -1709,17 +1664,12 @@ float pfx_sh_grinder_meat_spew(void) {
     field_stride = vm->transforms[0].particle_field_stride;
     vector_stride = vm->particle_vector_stride;
     last_index = vm->particle_cursor - 1;
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
-    last_angle = (float*)((unsigned char*)source_angles +
-                          field_stride * last_index);
+    last_scale = PFX_FIELD_AT(source_scales, field_stride * last_index);
+    last_position = PFX_FIELD_AT(source_positions, field_stride * last_index);
+    last_angle = PFX_FIELD_AT(source_angles, field_stride * last_index);
     last_color = source_colors + field_stride * last_index;
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_timer = (float*)((unsigned char*)source_timers +
-                          vector_stride * last_index);
+    last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
+    last_timer = PFX_FIELD_AT(source_timers, vector_stride * last_index);
 
     index = 0;
     while (index < vm->particle_cursor) {
@@ -1739,13 +1689,12 @@ float pfx_sh_grinder_meat_spew(void) {
             *source_scales = *last_scale;
             *source_angles = *last_angle;
 
-            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_position = PFX_FIELD_AT(last_position, -field_stride);
             last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale - field_stride);
-            last_angle = (float*)((unsigned char*)last_angle - field_stride);
-            last_velocity =
-                (Vec*)((unsigned char*)last_velocity - vector_stride);
-            last_timer = (float*)((unsigned char*)last_timer - vector_stride);
+            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+            last_angle = PFX_FIELD_AT(last_angle, -field_stride);
+            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+            last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
             vm->particle_cursor--;
         } else {
             delta_x = source_velocities->x * game_speed;
@@ -1778,26 +1727,16 @@ float pfx_sh_grinder_meat_spew(void) {
             destination_colors[2] = source_colors[2];
             destination_colors[3] = source_colors[3];
 
-            source_velocities =
-                (Vec*)((unsigned char*)source_velocities + vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_positions =
-                (Vec*)((unsigned char*)source_positions + field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
-            source_timers =
-                (float*)((unsigned char*)source_timers + vector_stride);
-            destination_timers =
-                (float*)((unsigned char*)destination_timers + vector_stride);
-            source_scales =
-                (float*)((unsigned char*)source_scales + field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_angles =
-                (float*)((unsigned char*)source_angles + field_stride);
-            destination_angles =
-                (float*)((unsigned char*)destination_angles + field_stride);
+            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+            source_positions = PFX_FIELD_AT(source_positions, field_stride);
+            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+            source_timers = PFX_FIELD_AT(source_timers, vector_stride);
+            destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
+            source_scales = PFX_FIELD_AT(source_scales, field_stride);
+            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+            source_angles = PFX_FIELD_AT(source_angles, field_stride);
+            destination_angles = PFX_FIELD_AT(destination_angles, field_stride);
             source_colors += field_stride;
             destination_colors += field_stride;
         }
@@ -1854,16 +1793,11 @@ float pfx_sh_grinder_meat_spew(void) {
                 destination_colors[2] = 0x96;
                 destination_colors[3] = 0xFF;
 
-                destination_positions =
-                    (Vec*)((unsigned char*)destination_positions + field_stride);
-                destination_velocities =
-                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
-                destination_timers =
-                    (float*)((unsigned char*)destination_timers + vector_stride);
-                destination_scales =
-                    (float*)((unsigned char*)destination_scales + field_stride);
-                destination_angles =
-                    (float*)((unsigned char*)destination_angles + field_stride);
+                destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+                destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+                destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
+                destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+                destination_angles = PFX_FIELD_AT(destination_angles, field_stride);
                 destination_colors += field_stride;
                 index++;
             }
@@ -1948,15 +1882,11 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     field_stride = vm->transforms[0].particle_field_stride;
     vector_stride = vm->particle_vector_stride;
     last_index = vm->particle_cursor - 1;
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
+    last_position = PFX_FIELD_AT(source_positions, field_stride * last_index);
     last_color = source_colors + field_stride * last_index;
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_timer = (float*)((unsigned char*)source_timers +
-                          vector_stride * last_index);
+    last_scale = PFX_FIELD_AT(source_scales, field_stride * last_index);
+    last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
+    last_timer = PFX_FIELD_AT(source_timers, vector_stride * last_index);
 
     index = 0;
     while (index < vm->particle_cursor) {
@@ -1976,15 +1906,11 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
             *source_scales = *last_scale;
             *source_timers = *last_timer;
 
-            last_position = (Vec*)((unsigned char*)last_position -
-                                   field_stride);
+            last_position = PFX_FIELD_AT(last_position, -field_stride);
             last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale -
-                                  field_stride);
-            last_velocity = (Vec*)((unsigned char*)last_velocity -
-                                   vector_stride);
-            last_timer = (float*)((unsigned char*)last_timer -
-                                  vector_stride);
+            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+            last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
             vm->particle_cursor--;
         } else {
             destination_colors[0] = source_colors[0];
@@ -2012,22 +1938,14 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
 
             source_colors += field_stride;
             destination_colors += field_stride;
-            source_scales = (float*)((unsigned char*)source_scales +
-                                     field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_positions = (Vec*)((unsigned char*)source_positions +
-                                      field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
-            source_velocities = (Vec*)((unsigned char*)source_velocities +
-                                       vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_timers = (float*)((unsigned char*)source_timers +
-                                     vector_stride);
-            destination_timers =
-                (float*)((unsigned char*)destination_timers + vector_stride);
+            source_scales = PFX_FIELD_AT(source_scales, field_stride);
+            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+            source_positions = PFX_FIELD_AT(source_positions, field_stride);
+            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+            source_timers = PFX_FIELD_AT(source_timers, vector_stride);
+            destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
         }
         index++;
     }
@@ -2090,15 +2008,11 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
                 *destination_scales = 0.7f;
                 *destination_timers = 0.0f;
 
-                destination_positions =
-                    (Vec*)((unsigned char*)destination_positions + field_stride);
-                destination_velocities =
-                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
+                destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+                destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
                 destination_colors += field_stride;
-                destination_scales =
-                    (float*)((unsigned char*)destination_scales + field_stride);
-                destination_timers =
-                    (float*)((unsigned char*)destination_timers + vector_stride);
+                destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+                destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
                 index++;
             }
             apfx->effect_state = apfx->effect_state != 1;
@@ -2201,15 +2115,11 @@ float pfx_kenshi_lift_smoke(void) {
     field_stride = vm->transforms[0].particle_field_stride;
     vector_stride = vm->particle_vector_stride;
     last_index = vm->particle_cursor - 1;
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
+    last_position = PFX_FIELD_AT(source_positions, field_stride * last_index);
     last_color = source_colors + field_stride * last_index;
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_timer = (float*)((unsigned char*)source_timers +
-                          vector_stride * last_index);
+    last_scale = PFX_FIELD_AT(source_scales, field_stride * last_index);
+    last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
+    last_timer = PFX_FIELD_AT(source_timers, vector_stride * last_index);
 
     index = 0;
     while (index < vm->particle_cursor) {
@@ -2235,12 +2145,11 @@ float pfx_kenshi_lift_smoke(void) {
             *source_scales = *last_scale;
             *source_timers = *last_timer;
 
-            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_position = PFX_FIELD_AT(last_position, -field_stride);
             last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale - field_stride);
-            last_velocity =
-                (Vec*)((unsigned char*)last_velocity - vector_stride);
-            last_timer = (float*)((unsigned char*)last_timer - vector_stride);
+            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+            last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
             vm->particle_cursor--;
         } else {
             destination_colors[0] = source_colors[0];
@@ -2266,22 +2175,14 @@ float pfx_kenshi_lift_smoke(void) {
 
             source_colors += field_stride;
             destination_colors += field_stride;
-            source_timers =
-                (float*)((unsigned char*)source_timers + vector_stride);
-            destination_timers =
-                (float*)((unsigned char*)destination_timers + vector_stride);
-            source_scales =
-                (float*)((unsigned char*)source_scales + field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_velocities =
-                (Vec*)((unsigned char*)source_velocities + vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_positions =
-                (Vec*)((unsigned char*)source_positions + field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_timers = PFX_FIELD_AT(source_timers, vector_stride);
+            destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
+            source_scales = PFX_FIELD_AT(source_scales, field_stride);
+            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+            source_positions = PFX_FIELD_AT(source_positions, field_stride);
+            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
         }
         index++;
     }
@@ -2357,15 +2258,11 @@ float pfx_kenshi_lift_smoke(void) {
                 *destination_scales = 0.2f;
                 *destination_timers = 0.0f;
 
-                destination_positions =
-                    (Vec*)((unsigned char*)destination_positions + field_stride);
-                destination_velocities =
-                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
+                destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
+                destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
                 destination_colors += field_stride;
-                destination_scales =
-                    (float*)((unsigned char*)destination_scales + field_stride);
-                destination_timers =
-                    (float*)((unsigned char*)destination_timers + vector_stride);
+                destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+                destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
                 index++;
             }
             effect->effect_state = effect->effect_state != 1;

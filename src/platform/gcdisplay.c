@@ -55,9 +55,6 @@ typedef struct PADStatus {
     signed char err;
 } PADStatus;
 
-extern int feedback_blendrate;
-extern int use_feedback_effect;
-extern int old_use_feedback_effect;
 extern GXRenderModeObj GXNtsc480ProgSoft;
 
 void GProfile_GCN_GxDrawDone(void);
@@ -110,7 +107,6 @@ static int gc_prompt_for_480P(PADStatus* pads);
 static void display_dragon_with_text(DragonTextPrompt* prompt);
 static void display_image(void);
 
-/* 10s timeout using bus clock / 4 (TB freq) - retail OSGetTime compare. */
 static inline int timed_out_10s(OSTime start) {
     OSTime now;
     OSTime diff;
@@ -253,7 +249,7 @@ void feedback_effect(void) {
 void gc_setup_feedback_buffer_for_konquest(void) {
     feedbackTexPixels =
         _mwMemMalloc(permanent_heap, (unsigned long)(screen_width * screen_height * 2), 5, 0, 0, 0);
-    mk_insert((MkHdr*)get_mkx_mem(feedbackTexPixels), &aproc->pdata_list_b);
+    mk_insert(get_mkx_mem(feedbackTexPixels), &aproc->pdata_list_b);
     if (feedbackTexPixels != 0) {
         GXInitTexObj(&feedbackTex, feedbackTexPixels, (unsigned short)screen_width,
                      (unsigned short)screen_height, 4, 0, 0, 0);
@@ -465,7 +461,7 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
         mode = gc_native_display.rmode;
         if (mode->field_rendering != 0) {
             GXSetViewportJitter(0.0f, 0.0f, (float)mode->fbWidth, (float)mode->efbHeight, 0.0f,
-                                1.0f, (unsigned long)VIGetNextField());
+                                1.0f, VIGetNextField());
         } else {
             GXSetViewport(0.0f, 0.0f, (float)mode->fbWidth, (float)mode->efbHeight, 0.0f, 1.0f);
         }
@@ -681,8 +677,8 @@ void gc_native_display_init(void) {
     _RwGCXFB2 = xfb2;
     gc_native_display.xfbCopy = xfb2;
     _RwGCXFBCopy = xfb2;
-    DCFlushRange(xfb1, (unsigned long)xfbHalf);
-    DCFlushRange(gc_native_display.xfbCopy, (unsigned long)xfbHalf);
+    DCFlushRange(xfb1, xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
 
     VISetBlack(1);
     VIFlush();
@@ -887,8 +883,8 @@ static void gcSetup480P(void) {
     _RwGCXFB2 = (unsigned char*)_RwGCXFBDisp + xfbHalf;
     gc_native_display.xfbCopy = _RwGCXFB2;
     _RwGCXFBCopy = _RwGCXFB2;
-    DCFlushRange(_RwGCXFBDisp, (unsigned long)xfbHalf);
-    DCFlushRange(gc_native_display.xfbCopy, (unsigned long)xfbHalf);
+    DCFlushRange(_RwGCXFBDisp, xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
 
     VISetBlack(1);
     VIFlush();
@@ -1004,7 +1000,7 @@ static int gc_prompt_for_480P(PADStatus* pads) {
             }
         }
 
-        prompt.yes_hi = (unsigned char)yes;
+        prompt.yes_hi = yes;
         gc_grab_renderpipe();
         gc_native_display_render((NativeRenderCb)display_dragon_with_text, &prompt);
         gc_release_renderpipe();
@@ -1134,7 +1130,6 @@ static void display_image(void) {
         pal_565 = palette;
         for (i = 0; i < 0x100; i++) {
             src = loading_palette[i];
-            /* RGB555 -> RGB565 (retail bit pack). */
             dst = (unsigned short)(((src >> 10) & 0x1F) | (src << 11) | ((src & 0x3E0) << 1));
             pal_565[i] = dst;
         }
@@ -1162,7 +1157,6 @@ static void display_image(void) {
     GXSetVtxAttrFmt(0, 9, 0, 3, 0);
     GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
     GXBegin(0x80, 0, 4);
-    /* Quad: 256x256 CI8 centered horizontally, y 0x70..0x170, UV 0..256. */
     wgPipe[0] = (unsigned short)left;
     wgPipe[0] = 0x70;
     wgPipe[0] = 0;

@@ -17,7 +17,6 @@ static const char stringBase0[] =
     "MEM_ALWAYS_FAIL\0"
     "Assertion failure: MEM_ALWAYS_FAIL";
 
-/* MWCC emits .sbss in reverse declaration order. */
 MwMemSystemParams systemParams;
 int SystemInitialize;
 u32 heapCount;
@@ -50,7 +49,7 @@ static inline void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
         break;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
-    case 3: /* unnamed retail normal-block strategy */
+    case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         normHeapResetHeap(heap, wipeMode);
         break;
@@ -69,7 +68,7 @@ static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreatePara
         break;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
-    case 3: /* unnamed retail normal-block strategy */
+    case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         normHeapInitHeap(heap);
         break;
@@ -99,8 +98,6 @@ static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* The allocation traversal, child exclusion, restart semantics, and reset
- * dispatch match retail. Remaining differences are GPRs and switch lowering. */
 /* TODO: [breakthrough needed] 92.34%; strategy-switch lowering and diagnostic-pool addressing remain. */
 static void privWipeHeap(_mwMemHeap* heap) {
     MwMemUsedHeader* usedHdr;
@@ -134,7 +131,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
             }
         }
 
-        strategy = (int)heap->strategy;
+        strategy = heap->strategy;
         switch (strategy) {
         case MW_MEM_STRATEGY_FIXED:
             fixedBlockHeapResetHeap(heap, 1);
@@ -144,7 +141,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
             break;
         case MW_MEM_STRATEGY_NORMAL:
         case MW_MEM_STRATEGY_VIRTUAL:
-        case 3: /* unnamed retail normal-block strategy */
+        case 3:
         case MW_MEM_STRATEGY_OVERFLOW:
             normHeapResetHeap(heap, 1);
             break;
@@ -154,7 +151,6 @@ static void privWipeHeap(_mwMemHeap* heap) {
     }
 }
 
-/* Retail virtual-heap destruction retains this scan as a call boundary. */
 #pragma dont_inline on
 /* TODO: [breakthrough needed] 99.64%; diagnostic string-pool relocation remains; verify pool extent. */
 static void privWipeVirtual(_mwMemHeap* virtualHeap) {
@@ -184,9 +180,7 @@ static void privWipeVirtual(_mwMemHeap* virtualHeap) {
 }
 #pragma dont_inline reset
 
-/* Retail wiping keeps the leaf walkers as calls inside this traversal. */
 #pragma dont_inline on
-/* Restart at the root after wiping, then descend through children and siblings. */
 /* TODO: [near miss] 94.64%; equivalent root-restart traversal branch layout remains. */
 static void privWipeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
@@ -228,8 +222,7 @@ static void privWipeHeapHierarchy(_mwMemHeap* heap) {
 }
 #pragma dont_inline reset
 
-/* Unlink the heap from its hierarchy and global list before releasing its storage. */
-/* TODO: [near miss] 96.02%; predecessor-load scheduling remains after the same unlink stores. */
+/* TODO: [near miss] 96.20%; predecessor-load scheduling remains after the unlink stores. */
 static void privFreeHeap(_mwMemHeap* heap) {
     _mwMemHeap* parent;
     _mwMemHeap* hier_next;
@@ -295,9 +288,7 @@ static void privFreeVirtual(_mwMemHeap* heap) {
     privFreeHeap(heap);
 }
 
-/* Retail destruction calls this hierarchy walker out-of-line. */
 #pragma dont_inline on
-/* Restart at the root after destruction before descending again. */
 /* TODO: [near miss] 95.11%; equivalent root-restart destruction branch layout remains. */
 static void privFreeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
@@ -467,7 +458,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
     }
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
-    case 3: /* unnamed retail normal-block strategy */
+    case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         freeNode = heap->freeList;
         maxSize = 0;
@@ -490,7 +481,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
 }
 
 #pragma opt_common_subs off
-/* TODO: [near miss] 98.77%; strategy selector coloring and equivalent branch polarity remain. */
+/* TODO: [near miss] 99.39%; strategy selector coloring and equivalent branch polarity remain. */
 void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
                                 MwMemMallocRequest* request) {
     void* result;
@@ -506,7 +497,7 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
         result = hdrlessHeapAlloc(size, heap, flags, request);
         break;
     case MW_MEM_STRATEGY_NORMAL:
-    case 3: /* unnamed retail normal-block strategy */
+    case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         result = normHeapMallocMem(size, heap, flags, request);
         break;
@@ -525,7 +516,6 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
 }
 #pragma opt_common_subs reset
 
-/* Find the owning heap and update size accounting around the strategy-specific free. */
 /* TODO: [near miss] 89.93%; owner/result coloring and equivalent strategy dispatch remain. */
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     _mwMemHeap* cursor;
@@ -679,8 +669,7 @@ void _mwMemFree(void* ptr, const char* file, u32 line) {
     _mwMemFreeVirtual(ptr, file, line);
 }
 
-/* Recover the size and parent state before allocation and the 256-slot index scan. */
-/* TODO: [breakthrough needed] 84.49%; allocation lifetimes, strategy dispatch and saved-local layout remain. */
+/* TODO: [breakthrough needed] 84.50%; allocation lifetimes, strategy dispatch and saved-local layout remain. */
 _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* defaults,
                               const char* function, u32 line) {
     _mwMemHeap* parent;
@@ -723,7 +712,7 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
         break;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
-    case 3: /* unnamed retail normal-block strategy */
+    case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         if (arenaSize != 0) {
             arenaSize += create->extraSizeShift << 4;
@@ -743,9 +732,8 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     arenaSize = (arenaSize - sizeof(*heap)) & ~0xFU;
     savedOverflow = parent->overflowEnable;
     parent->overflowEnable = 0;
-    /* Preserve the allocator's 16-byte round-up form. */
     allocSize = (arenaSize + sizeof(*heap) + 0xF) & ~0xFU;
-    heap = (_mwMemHeap*)_mwMemMalloc(parent, allocSize, 0x10, name, function, line);
+    heap = _mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
     parent->overflowEnable = savedOverflow;
 
@@ -879,7 +867,6 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
     return newBlock;
 }
 
-/* Align the total allocation size before clearing it and publishing request results. */
 /* TODO: [near miss] 98.57%; total/result and line/zero coloring remain; stop at allocation. */
 void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
                    const char* file, const char* function, u32 line) {
@@ -1175,7 +1162,6 @@ u32 mwMemVirtualHeapGetHeapSize(void) {
     return sizeof(_mwMemHeap) + 0x1F;
 }
 
-/* Retail callers retain this helper boundary; TU-wide noauto changes other functions. */
 #pragma dont_inline on
 static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap,
                                       const char* name) {
@@ -1184,14 +1170,11 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
     if (size == 0 || buffer == 0) {
         return 0;
     }
-    /* Subtract one before rounding down, so the aligned header-plus-arena
-     * extent is strictly less than size. Retail encodes this as size - 0x81. */
     arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
     return privInitSystemHeap(arenaSize, buffer, MW_MEM_STRATEGY_NORMAL, outHeap, name);
 }
 #pragma dont_inline reset
 
-/* Retail system creation calls this helper rather than cloning its probe path. */
 #pragma dont_inline on
 static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char* name) {
     u8* buffer;
@@ -1210,7 +1193,6 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
     if (!available) {
         return 0;
     }
-    /* Keep the same strict-boundary rounding used for caller-owned buffers. */
     arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
     buffer = privGetOSMemory(arenaSize + sizeof(_mwMemHeap));
     return privInitSystemHeap(arenaSize, buffer, 1, outHeap, name);
@@ -1229,7 +1211,7 @@ int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* param
         if (buffer == 0 && size != 0) {
             result = privSystemCreateAutomated(size, &heap, heapName);
         } else {
-            result = privSystemCreateFromBuffer((u8*)buffer, size, &heap, heapName);
+            result = privSystemCreateFromBuffer(buffer, size, &heap, heapName);
         }
     }
     if (result != 0) {
@@ -1244,7 +1226,7 @@ _mwMemHeap* mwMemExtSystemHeapCreate(_mwMemHeap* parent, void* buffer, u32 size,
                                      const char* name) {
     _mwMemHeap* heap;
 
-    privSystemCreateFromBuffer((u8*)buffer, size, &heap, name);
+    privSystemCreateFromBuffer(buffer, size, &heap, name);
     return heap;
 }
 

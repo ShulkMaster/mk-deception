@@ -103,7 +103,6 @@ extern SoundCallTable pf_hit_call_table[];
 
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
 int snd_calculate_volume(SoundRequest* request);
-float get_pan_value(const Vec* position);
 
 MslSoundHandle mslBankPlayVol(
     mslLoadedBank* bank, int sound, int field_0c, int priority, float volume,
@@ -149,7 +148,7 @@ void check_and_load_sound_bank_async(int bank, int slot);
 void* get_konquest_region_table(void);
 void lsba_callbank(SoundBankCallback* callback);
 
-/* Soft ceiling: dk_voice_call ~92% - branch emission and request stack-slot ordering. */
+/* TODO: [near miss] 92.04%; residue is branch emission and request stack-slot ordering. */
 void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {
     int group2[3] = {0x1C4, 0x1C4, 0x1C5};
     int group1[3] = {0x1B4, 0x1B5, 0x1B4};
@@ -215,13 +214,7 @@ void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {
     }
 }
 
-/*
- * Track positional sounds, update valid live handles, and restart expired
- * handles with the same attenuation/pan state.
- * Soft ceiling: ~88.50% -- nested retail ID validation and shared attenuation
- * lifetime are recovered; remaining differences are loop-wide GPR/FPR
- * coloring and camera pointer-wrapper branch emission.
- */
+/* TODO: [near miss] 88.50%; ID validation and attenuation lifetime recovered; residue is loop-wide GPR/FPR coloring and camera-wrapper branches. */
 float p_track_sound(void) {
     SoundTrackerPdata* pdata;
     CameraObj* camera;
@@ -435,7 +428,7 @@ void mute_all_game_sounds(void) {
     }
 }
 
-/* Soft ceiling: finish_music ~96% - range-branch sense and one handle reload. */
+/* TODO: [near miss] 95.93%; residue is range-branch sense and one handle reload. */
 void finish_music(void) {
     MslSoundHandle handle;
     int sound_id;
@@ -486,7 +479,7 @@ void finish_music(void) {
     }
 }
 
-/* Soft ceiling: end_music ~96% - range-branch sense and one handle reload. */
+/* TODO: [near miss] 96.26%; residue is range-branch sense and one handle reload. */
 void end_music(void) {
     MslSoundHandle handle;
     int sound_id;
@@ -561,7 +554,7 @@ void stop_tunes(void) {
     }
 }
 
-/* Soft ceiling: start_tunes ~96% - range branches and GPR coloring. */
+/* TODO: [near miss] 96.13%; residue is range branches and GPR coloring. */
 void start_tunes(void) {
     SoundRequest secondary_request;
     SoundRequest primary_request;
@@ -728,15 +721,7 @@ void snd_set_game_vol(float volume) {
         }                                                                              \
     } while (0)
 
-/*
- * Breakthrough needed: setup_sound_bank_list_by_mode ~77.93%. Retail keeps a
- * three-way async-cancel diamond and bottom-tested 29-entry walks. Each
- * natural structured spelling can crash MWCC 2.7 (exit 159) in this
- * duplicated 1 KB body. The explicit cancel-result switch and lower filename
- * buffer recover the retail frame and diamonds; current code is 0x3D0 versus
- * retail 0x404. Retain the readable equivalent until a new source shape
- * closes the register/loop gap.
- */
+/* TODO: [breakthrough needed] 81.44%; body is 0x3D0 vs retail 0x404; retail's async-cancel diamond and bottom-tested walks need a shape that does not crash MWCC. */
 void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
     char mode2_filename[0x98];
     char mode1_filename[0xA0];
@@ -781,7 +766,7 @@ void setup_sound_banks(int mode) {
     setup_sound_bank_list_by_mode(mode, transition_mode);
 }
 
-/* Soft ceiling: load_banks_on_list_async ~76% - loop GPR allocation. */
+/* TODO: [near miss] 85.03%; residue is loop GPR allocation. */
 void load_banks_on_list_async(int mode) {
     SoundBankLoadMode* load_mode = &bank_load_table[mode];
     char filename[0x98];
@@ -843,7 +828,7 @@ void load_banks_on_list_async(int mode) {
         }                                                                         \
     } while (0)
 
-/* Soft ceiling: unload_banks_not_on_list ~72% - nested-loop GPR allocation. */
+/* TODO: [near miss] 81.35%; residue is nested-loop GPR allocation. */
 void unload_banks_not_on_list(int mode) {
     SoundBankLoadMode* load_mode = &bank_load_table[mode];
     char filename[0xA0];
@@ -888,7 +873,7 @@ void unload_banks_not_on_list(int mode) {
     }
 }
 
-/* Soft ceiling: unload_slots_not_on_list ~72% - nested-loop GPR allocation. */
+/* TODO: [near miss] 80.03%; residue is nested-loop GPR allocation. */
 void unload_slots_not_on_list(int mode) {
     SoundBankLoadMode* load_mode = &bank_load_table[mode];
     char filename[0x9C];
@@ -942,7 +927,7 @@ void unload_slots_not_on_list(int mode) {
         ((SleepFn*)vtable)[6](vtable);            \
     } while (0)
 
-/* Soft ceiling: wait_for_a_sound_bank_to_load ~86% - loop branch emission. */
+/* TODO: [near miss] 86.00%; residue is loop branch emission. */
 void wait_for_a_sound_bank_to_load(int bank) {
     int* async_state = &sbank_data[bank].async_state;
     int timeout = 0x708;
@@ -974,7 +959,7 @@ void wait_for_sound_banks_to_load(void) {
     }
 }
 
-/* Soft ceiling: unload_pz_fighter_fatality_banks ~73% - unload GPR allocation. */
+/* TODO: [near miss] 75.77%; residue is unload-loop GPR allocation. */
 void unload_pz_fighter_fatality_banks(void) {
     LoadedSoundBank* loaded = &loaded_sbank_data[0x15];
     int bank = loaded->bank_index;
@@ -1003,7 +988,7 @@ void unload_pz_fighter_fatality_banks(void) {
 
 #undef SOUND_BANK_WAIT_SLEEP
 
-/* Soft ceiling: load_pz_fighter_fatality_bank ~86% - inlined wait branches. */
+/* TODO: [near miss] 86.55%; residue is the inlined wait-loop branches. */
 void load_pz_fighter_fatality_bank(int bank) {
     check_and_load_sound_bank_async(bank, 0x15);
     wait_for_a_sound_bank_to_load(bank);
@@ -1081,11 +1066,11 @@ int get_indirect_bank(unsigned int indirect_bank) {
         if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->alternate_1;
         break;
     case 0x0100000C:
-        konquest = (KonquestSoundBanks*)get_konquest_region_table();
+        konquest = get_konquest_region_table();
         bank = konquest->bank_0;
         break;
     case 0x0100000D:
-        konquest = (KonquestSoundBanks*)get_konquest_region_table();
+        konquest = get_konquest_region_table();
         bank = konquest->bank_1;
         break;
     }
@@ -1096,7 +1081,7 @@ int get_indirect_bank(unsigned int indirect_bank) {
     return bank;
 }
 
-/* Soft ceiling: lsba_callbank ~74% - repeated switch-case GPR allocation. */
+/* TODO: [near miss] 88.15%; residue is repeated switch-case GPR allocation. */
 void lsba_callbank(SoundBankCallback* callback) {
     int bank;
 
@@ -1133,7 +1118,7 @@ void lsba_callbank(SoundBankCallback* callback) {
     }
 }
 
-/* Soft ceiling: check_and_load_sound_bank_async ~65% - dual-buffer GPR allocation. */
+/* TODO: [near miss] 72.87%; residue is dual filename-buffer GPR allocation. */
 void check_and_load_sound_bank_async(int bank, int slot) {
     char load_filename[0x98];
     char unload_filename[0x9C];
@@ -1197,7 +1182,7 @@ typedef struct DelayedSoundPdata {
 
 float p_snd_req_delay(void);
 
-/* Soft ceiling: snd_req_delay ~97% - final range-check branch emission. */
+/* TODO: [near miss] 97.02%; residue is the final range-check branch emission. */
 void snd_req_delay(int sound_id, int delay) {
     typedef MkProc* (*CreateDelayedSoundProcFn)(
         int, int, MkProcEntryFn, int, MkHdr**);
@@ -1219,7 +1204,6 @@ void snd_req_delay(int sound_id, int delay) {
     }
 }
 
-/* Retail @1597 is -1.0f: finish this delayed request after one dispatch. */
 float p_snd_req_delay(void) {
     SoundRequest request;
     int sound_id;
@@ -1296,7 +1280,7 @@ MslSoundHandle pan_vol_pitch_snd_req(
     return handle;
 }
 
-/* Soft ceiling: pan_vol_snd_req ~98% - duplicated validation branch emission. */
+/* TODO: [near miss] 98.33%; residue is duplicated validation branch emission. */
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume) {
     SoundRequest request;
     MslSoundHandle handle;
@@ -1335,7 +1319,7 @@ MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume) {
     return handle;
 }
 
-/* Soft ceiling: pan_snd_req ~98% - duplicated validation branch emission. */
+/* TODO: [near miss] 98.35%; residue is duplicated validation branch emission. */
 MslSoundHandle pan_snd_req(int sound_id, float pan) {
     SoundRequest request;
     MslSoundHandle handle;
@@ -1411,7 +1395,7 @@ MslSoundHandle snd_req_vol(int sound_id, float volume) {
     return handle;
 }
 
-/* Soft ceiling: snd_req ~98% - duplicated validation branch emission. */
+/* TODO: [near miss] 97.88%; residue is duplicated validation branch emission (retail bne/b pair). */
 MslSoundHandle snd_req(int sound_id) {
     SoundRequest request;
     MslSoundHandle handle;
@@ -1444,7 +1428,7 @@ MslSoundHandle snd_req(int sound_id) {
     return handle;
 }
 
-/* Soft ceiling: snd_calculate_volume ~74% - global-load and arithmetic scheduling. */
+/* TODO: [near miss] 73.85%; residue is global-load and arithmetic scheduling. */
 int snd_calculate_volume(SoundRequest* request) {
     SoundEntry* entry;
     SoundSubgroupVolume* subgroup;
@@ -1490,7 +1474,7 @@ int snd_calculate_volume(SoundRequest* request) {
     return result;
 }
 
-/* Soft ceiling: plyr_snd_req_no_plyr_proc ~88% - player-bank GPR allocation. */
+/* TODO: [near miss] 87.85%; residue is player-bank GPR allocation. */
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     PlyrPdata* fighter, int sound_offset) {
     SoundRequest request;
@@ -1563,7 +1547,7 @@ void select_fighter_voice_in_bank(int player, int alternate_voice) {
     }
 }
 
-/* Soft ceiling: foot_snd_req ~88% - table-index and validation branch emission. */
+/* TODO: [near miss] 87.51%; residue is table-index and validation branch emission. */
 MslSoundHandle foot_snd_req(int foot_type) {
     SoundRequest request;
     MslSoundHandle handle = 0;
@@ -1651,12 +1635,7 @@ void snd_death_voice(void) {
     random_voice(0xE);
 }
 
-/*
- * Soft ceiling: pan_vol_pitch_random_snd_req ~93.01% -- the retail
- * count switch, branch-local result lifetime, and delayed pan/pitch
- * initialization are recovered. Remaining differences are table-base and
- * branch-result register coloring.
- */
+/* TODO: [near miss] 93.01%; count switch, result lifetime and delayed pan/pitch init recovered; residue is table-base and branch-result coloring. */
 MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch) {
     SoundRequest single_request;
     SoundRequest alternate_request;
@@ -1853,7 +1832,6 @@ void random_snd_req_delay(int group, int delay) {
     }
 }
 
-/* Soft ceiling: p_random_snd_req_delay ~99.55% - zero-float pool label only. */
 float p_random_snd_req_delay(void) {
     if (aproc->pid != 0x3010) {
         return 0.0f;
@@ -1871,7 +1849,7 @@ float p_random_snd_req_delay(void) {
  */
 #pragma optimization_level 1
 
-/* Soft ceiling: pan_vol_pitch_random_hit ~74.50% - compiler-stable O1 body. */
+/* TODO: [near miss] 74.69%; compiler-stable -O1 body; see the pragma note above. */
 MslSoundHandle pan_vol_pitch_random_hit(
     int group, float pan, float volume, float pitch) {
     SoundRequest request;
@@ -1924,10 +1902,7 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return handle;
 }
 
-/*
- * Soft ceiling: random_hit ~92.50% - duplicate table-index calculation,
- * sentinel-branch emission, and float-constant load scheduling remain.
- */
+/* TODO: [near miss] 92.50%; residue is duplicate table-index calculation, sentinel branch and float-constant load scheduling. */
 MslSoundHandle random_hit(int group) {
     SoundRequest request;
     int* sounds;

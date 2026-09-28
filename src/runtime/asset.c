@@ -1,6 +1,9 @@
 #include "runtime/asset.h"
 
 #include "platform/gcinstance.h"
+#include "game/specular.h"
+#include "runtime/instance.h"
+#include "rw/batextur.h"
 #include "runtime/cstring.h"
 #include "runtime/section.h"
 #include "runtime/section_slot_file.h"
@@ -14,13 +17,6 @@
 #include "rw/rwobject.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwstream.h"
-
-/* Native SEC texture payload view; distinct from the stock raster header. */
-typedef struct AssetNativeRasterView {
-    char pad00[0x28];
-    unsigned int source_width;  /* +0x28; first u32 after name in SEC tex blob */
-    unsigned int source_height; /* +0x2C; second u32 */
-} AssetNativeRasterView;
 
 typedef struct WiffTextureSequence {
     unsigned int frame_count;
@@ -39,18 +35,7 @@ static RwTexture* pull_texture_from_texdict(RwTexture* texture, void* data);
 static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
                                        unsigned int offset);
 
-RwTexDictionary* RwTexDictionaryGetCurrent(void);
-RwTexDictionary* RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
-RwTexDictionary* RwTexDictionaryCreate(void);
-int RwTexDictionaryDestroy(RwTexDictionary* dictionary);
-RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
-                                     RwTexture* texture);
-RwTexDictionary* RwTexDictionaryForAllTextures(
-    RwTexDictionary* dictionary,
-    RwTexture* (*callback)(RwTexture*, void*), void* data);
-RpClump* inplaceClumpStreamRead(RwStream* stream);
 void destroy_clump(RpClump* clump);
-void specular_condition_clump(RpClump* clump);
 unsigned int plyr1_ss_tbl[2] = {0x0003000A, 0x0003000B};
 unsigned int plyr2_ss_tbl[2] = {0x0004000A, 0x0004000B};
 
@@ -113,7 +98,7 @@ void annihilate_art_section_data(SecSlotFileEntry* entry) {
     pin = 1;
     while (i < (unsigned int)entry->member_count) {
         member = &entry->members[i];
-        mtype = (int)(member->type & 0x3FFFFFFFu);
+        mtype = (member->type & 0x3FFFFFFFu);
         if (mtype == SEC_MEMBER_TEXTURE || mtype == SEC_MEMBER_TEXTURE_ALT) {
             tex = member->texture;
             if (tex != NULL) {
@@ -125,6 +110,7 @@ void annihilate_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
+/* TODO: [breakthrough needed] 90.26%; 28 rows differ; compare retail branches and SEC member types. */
 void process_anim_section_data(SecSlotFileEntry* entry) {
     SecFileHeader* sec = (SecFileHeader*)entry->buffer;
     int* palette_table = entry->palette_table;
@@ -153,6 +139,7 @@ void process_anim_section_data(SecSlotFileEntry* entry) {
     }
 }
 
+/* TODO: [near miss] 98.10%; 26 localized rows differ; inspect retail operands and relocations. */
 MkObj* load_named_model_for_player(const char* name, int player,
                                    int object_type, int flags) {
     unsigned int* slots = player == 0 ? plyr1_ss_tbl : plyr2_ss_tbl;
@@ -171,6 +158,7 @@ MkObj* load_named_model_for_player(const char* name, int player,
     return NULL;
 }
 
+/* TODO: [breakthrough needed] 92.99%; 45 rows differ; compare retail branches and SEC member types. */
 MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl) {
     MkObj* object;
     int file_index = get_slot_file_count(0x2001E);
@@ -197,6 +185,7 @@ MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl) 
     return object;
 }
 
+/* TODO: [breakthrough needed] 85.62%; 19 rows differ; compare retail branches and SEC member types. */
 unsigned int get_artid_of_named_item_in_slot(
     int handle, const char* name, int unused) {
     int file_count;
@@ -205,7 +194,6 @@ unsigned int get_artid_of_named_item_in_slot(
     unsigned int member_index;
 
     (void)unused;
-    /* Returns packed oid (section_id << 16) | member_index for load_tga. */
     file_count = get_slot_file_count(handle);
     file_index = 1;
     while (file_index <= file_count) {
@@ -232,6 +220,7 @@ unsigned int get_artid_of_named_item_in_slot(
     return 0;
 }
 
+/* TODO: [breakthrough needed] 92.11%; 21 rows differ; compare retail branches and SEC member types. */
 void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
     int file_index;
     SecSlotFileEntry* entry;
@@ -240,7 +229,6 @@ void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
     int found;
     void* data;
 
-    /* Same named ART member scan as load_named_cdf_data_from_slot. */
     file_index = get_slot_file_count(handle);
     while (file_index > 0) {
         if (handle == -1) {
@@ -276,6 +264,7 @@ void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
     return NULL;
 }
 
+/* TODO: [breakthrough needed] 86.37%; 20 rows differ; compare retail branches and SEC member types. */
 void* load_named_binary_block_from_file(int handle, int file_index,
                                         const char* name, int* out_size) {
     SecSlotFileEntry* entry;
@@ -283,7 +272,6 @@ void* load_named_binary_block_from_file(int handle, int file_index,
     int i;
     int found;
 
-    /* LoadScreenSet passes the 1-based file index and requires out_size. */
     if (handle == -1) {
         return NULL;
     }
@@ -309,10 +297,11 @@ void* load_named_binary_block_from_file(int handle, int file_index,
     }
 
     member = &entry->members[found];
-    *out_size = (int)member->size;
+    *out_size = member->size;
     return entry->buffer + member->data_offset;
 }
 
+/* TODO: [breakthrough needed] 91.66%; 29 rows differ; compare retail branches and SEC member types. */
 void* load_named_binary_block(int handle, const char* name, int* out_size) {
     int file_index;
     SecSlotFileEntry* entry;
@@ -321,7 +310,6 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
     int found;
     void* data;
 
-    /* Retail inlines the from-file body inside this countdown. */
     file_index = get_slot_file_count(handle);
     while (file_index > 0) {
         if (handle == -1) {
@@ -346,7 +334,7 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
                 } else {
                     member = &entry->members[found];
                     data = entry->buffer + member->data_offset;
-                    *out_size = (int)member->size;
+                    *out_size = member->size;
                 }
             }
         }
@@ -358,6 +346,7 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
     return NULL;
 }
 
+/* TODO: [near miss] 99.10%; 6 localized rows differ; inspect retail operands and relocations. */
 void* load_binary_block(int handle, unsigned int art_oid, int* out_size) {
     SecSlotFileEntry* entry;
     void* data;
@@ -365,20 +354,20 @@ void* load_binary_block(int handle, unsigned int art_oid, int* out_size) {
     unsigned int member_index;
     SecArtMember* member;
 
-    /* Same oid walk shape as load_tga (keep get_nth r3 through join). */
     section_id = art_oid >> 16;
     member_index = art_oid & 0xFFFFu;
     entry = find_slot_section(handle, section_id);
     if (entry != NULL) {
         member = &entry->members[member_index];
         data = entry->buffer + member->data_offset;
-        *out_size = (int)member->size;
+        *out_size = member->size;
     } else {
         data = NULL;
     }
     return data;
 }
 
+/* TODO: [breakthrough needed] 92.11%; 21 rows differ; compare retail branches and SEC member types. */
 void* load_named_cdf_data_from_slot(int handle, const char* name) {
     int file_index;
     SecSlotFileEntry* entry;
@@ -387,7 +376,6 @@ void* load_named_cdf_data_from_slot(int handle, const char* name) {
     int found;
     void* data;
 
-    /* Same named ART member scan as load_named_binary_block (no out_size). */
     file_index = get_slot_file_count(handle);
     while (file_index > 0) {
         if (handle == -1) {
@@ -423,6 +411,7 @@ void* load_named_cdf_data_from_slot(int handle, const char* name) {
     return NULL;
 }
 
+/* TODO: [near miss] 92.30%; 7 localized rows differ; inspect retail operands and relocations. */
 void* get_nav_data(int handle, unsigned int art_oid) {
     unsigned int section_id;
     unsigned int member_index;
@@ -442,6 +431,7 @@ void* get_nav_data(int handle, unsigned int art_oid) {
     return data;
 }
 
+/* TODO: [near miss] 92.30%; 7 localized rows differ; inspect retail operands and relocations. */
 void* get_cdf_data(int handle, unsigned int art_oid) {
     unsigned int section_id;
     unsigned int member_index;
@@ -461,11 +451,7 @@ void* get_cdf_data(int handle, unsigned int art_oid) {
     return data;
 }
 
-/*
- * Alpha pair for a named color TGA: find the first member named `name`, then
- * return the texture on the *next* member if it shares the same name.
- * Retail get_nth uses file_count (r25), not the loop index.
- */
+/* TODO: [breakthrough needed] 83.75%; 48 rows differ; compare retail branches and SEC member types. */
 RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
     int file_count;
     int file_index;
@@ -480,7 +466,6 @@ RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
     file_count = get_slot_file_count(handle);
     file_index = 1;
     while (file_index <= file_count) {
-        /* Retail: mr r4, r25 (file_count), not file_index. */
         entry = get_nth_sec_slot_file_from_handle(handle, file_count);
         if (entry == NULL) {
             return NULL;
@@ -523,7 +508,7 @@ RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
     return NULL;
 }
 
-/* Retail retains a duplicated ART-test block after the named-member scan. */
+/* TODO: [breakthrough needed] 84.46%; 52 rows differ; compare retail branches and SEC member types. */
 RwTexture* load_named_tga_from_slot(int handle, const char* name) {
     int file_count;
     int file_index;
@@ -557,7 +542,6 @@ RwTexture* load_named_tga_from_slot(int handle, const char* name) {
                 if (member_index == -1) {
                     tex = NULL;
                 } else if (entry == NULL) {
-                    /* Retail keeps this null check after a proven non-null entry. */
                     tex = NULL;
                 } else {
                     tex = entry->members[member_index].texture;
@@ -599,6 +583,7 @@ RwTexture* load_tga(int handle, unsigned int art_oid) {
     return tex;
 }
 
+/* TODO: [breakthrough needed] 93.55%; 17 rows differ; compare retail branches and SEC member types. */
 MkObj* load_model_from_slot(int handle, unsigned int art_oid,
                             int object_type) {
     unsigned int section_id;
@@ -629,6 +614,7 @@ MkObj* load_model_from_slot(int handle, unsigned int art_oid,
     return object;
 }
 
+/* TODO: [near miss] 98.52%; 18 localized rows differ; inspect retail operands and relocations. */
 AniTextureControl* load_named_wiff_from_slot(int handle, const char* name) {
     int file_index = get_slot_file_count(handle);
     while (file_index > 0) {
@@ -670,6 +656,7 @@ AniTextureControl* get_wiff_atc_block(int handle, unsigned int art_oid) {
         entry, (unsigned int)entry->members[member_index].data_or_texture);
 }
 
+/* TODO: [breakthrough needed] 90.74%; 29 rows differ; compare retail branches and SEC member types. */
 static AniTextureControl* _get_wiff(SecSlotFileEntry* entry,
                                     unsigned int offset) {
     AniTextureControl* control = get_ani_texture_control();
@@ -721,7 +708,7 @@ static AniTextureControl* _get_wiff(SecSlotFileEntry* entry,
     return control;
 }
 
-/* Relocate SEC members, then instantiate each native texture payload. */
+/* TODO: [near miss] 97.09%; 46 localized rows differ; inspect retail operands and relocations. */
 void process_art_section_data(SecSlotFileEntry* entry) {
     RwMemory mem;
     SecFileHeader* sec;
@@ -742,14 +729,13 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     unsigned int source_width;
     unsigned int source_height;
     int levels;
-    AssetNativeRasterView* raster;
 
-    mem.length = (unsigned int)entry->size_or_flag;
+    mem.length = entry->size_or_flag;
     mem.start = entry->buffer;
-    sec = (SecFileHeader*)mem.start;
+    sec = mem.start;
     if (sec->magic == SEC_MAGIC) {
-        entry->member_count = (int)sec->member_count;
-        entry->section_id = (int)sec->section_id;
+        entry->member_count = sec->member_count;
+        entry->section_id = sec->section_id;
         entry->members = sec_file_members(sec);
 
         if (sec->flags == 0) {
@@ -759,15 +745,14 @@ void process_art_section_data(SecSlotFileEntry* entry) {
             i = 0;
             while (i < (unsigned int)entry->member_count) {
                 member = &entry->members[i];
-                mtype = (int)(member->type & 0x3FFFFFFFu);
+                mtype = (member->type & 0x3FFFFFFFu);
                 if (mtype != SEC_MEMBER_TEXTURE && mtype != SEC_MEMBER_TEXTURE_ALT) {
-                    last_non_tex = (int)i;
+                    last_non_tex = i;
                 }
                 rel = member->name_offset;
                 member->name_or_data = (char*)(table_end + rel);
                 if (mtype == SEC_MEMBER_RELOC) {
-                    reloc = (int*)((char*)entry->buffer +
-                                   member->data_offset);
+                    reloc = (int*)(entry->buffer + member->data_offset);
                     reloc_count = *reloc;
                     reloc_ptr = reloc + 1;
                     if (reloc_count > 0) {
@@ -784,10 +769,6 @@ void process_art_section_data(SecSlotFileEntry* entry) {
             if (last_non_tex != entry->member_count - 1) {
                 stream = RwStreamOpen(3, 1, &mem);
                 if (stream != NULL) {
-                    /*
-                     * Retail: lwz members[last_non_tex]+0x14 (= next member's
-                     * data_or_texture; members[0] when last_non_tex == -1).
-                     */
                     skip = entry->members[last_non_tex + 1].data_offset;
                     if (skip != 0) {
                         RwStreamSkip(stream, skip);
@@ -819,10 +800,9 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                             } else {
                                 tex->filter_flags = (tex->filter_flags & 0xFFFFFF00u) | 4u;
                             }
-                            RwTextureSetName((RwTexture*)tex, name_buf);
-                            raster = (AssetNativeRasterView*)tex->raster;
-                            raster->source_height = source_height;
-                            raster->source_width = source_width;
+                            RwTextureSetName(tex, name_buf);
+                            tex->raster->originalHeight = source_height;
+                            tex->raster->originalWidth = source_width;
                         }
 
                         member->data_or_texture = tex;
@@ -839,6 +819,7 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
+/* TODO: [near miss] 98.69%; 16 localized rows differ; inspect retail operands and relocations. */
 MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
                                    int object_type) {
     MkObj* object = load_model_from_slot(handle, art_oid, object_type);
@@ -848,6 +829,7 @@ MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
     return object;
 }
 
+/* TODO: [near miss] 98.72%; 22 localized rows differ; inspect retail operands and relocations. */
 MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
                                   int transl) {
     int file_index;
@@ -868,6 +850,7 @@ MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
     return NULL;
 }
 
+/* TODO: [breakthrough needed] 90.17%; 23 rows differ; compare retail branches and SEC member types. */
 static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
                                        unsigned int offset) {
     RwMemory memory;

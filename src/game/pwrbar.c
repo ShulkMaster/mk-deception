@@ -2,6 +2,7 @@
 #include "runtime/fonts.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/image.h"
 
 extern int game_tick_ctr;
@@ -32,16 +33,6 @@ typedef struct PbarExtendPdata {
     MkHdr hdr;
     int active;
 } PbarExtendPdata;
-
-typedef struct PwrbarProcVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
-    MkVtblFn fn3;
-    MkVtblFn destroy;
-    MkVtblFn dispatch;
-    MkVtblFn sleep;
-} PwrbarProcVtable;
 
 typedef PlyrFightingLightState FightingLightState;
 
@@ -144,7 +135,7 @@ static float bar_speed = 0.01f;
 static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
-    if (object == 0 || (unsigned int)object->instance != latch->instance) {
+    if (object == 0 || object->instance != latch->instance) {
         return 0;
     }
     return object;
@@ -154,7 +145,7 @@ static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
+        if (object->instance == latch->instance) {
             return object;
         }
         return 0;
@@ -181,11 +172,10 @@ static inline int pbar_green_triggered(PlyrInfo* player,
 }
 
 static inline StringObj* string_latch_object(ScreenLatch* latch) {
-    StringObj* object = (StringObj*)latch->object;
+    StringObj* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
-            /* Keep the live object. */
+        if (object->instance == latch->instance) {
         } else {
             object = 0;
         }
@@ -199,8 +189,7 @@ static inline ScreenObj* owned_screen_latch_object(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
-            /* Keep the live object. */
+        if (object->instance == latch->instance) {
         } else {
             object = 0;
         }
@@ -225,7 +214,7 @@ static inline void owned_set_quad_alpha(
 static inline ScreenObj* pbar_live_screen(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
+        if (object->instance == latch->instance) {
             return object;
         }
         object = 0;
@@ -239,7 +228,7 @@ static inline void set_latched_quad_alpha(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance != latch->instance) {
+        if (object->instance != latch->instance) {
             object = 0;
         }
     } else {
@@ -412,6 +401,7 @@ static inline void clear_screen_latch(ScreenLatch* latch) {
     latch->instance = 0;
 }
 
+/* TODO: [breakthrough needed] 93.08%; compare medal string placement and latch calls. */
 void show_wins_in_a_row(void) {
     StringObj* string = 0;
     ScreenLatch* latch;
@@ -541,7 +531,7 @@ static float p_update_fighting_state_lights(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: 95.22% -- local/register layout and one redundant state store. */
+/* TODO: [near miss] 95.33%; local register layout and one redundant state store remain. */
 void init_fighting_state_lights(void) {
     FightingLightState* player_1_state =
         fighting_light_state(&g_game_info.plyr0);
@@ -645,7 +635,7 @@ void init_fighting_state_lights(void) {
     }
 }
 
-/* Soft ceiling: 95.16% -- latch register allocation and branch placement. */
+/* TODO: [near miss] 95.72%; latch register allocation and branch placement remain. */
 static float p_unhide_pbar_items(void) {
     PbarFadePdata* pdata = (PbarFadePdata*)apdata;
     PbarHideStringItem* string_item;
@@ -662,10 +652,10 @@ static float p_unhide_pbar_items(void) {
         latch = pbar_hide_screen_items[screen_index];
         screen = owned_screen_latch_object(latch);
         if (screen != 0 && screen->pfx2d->verts[0].a < 0xFF) {
-            screen->pfx2d->verts[0].a = (unsigned char)alpha;
-            screen->pfx2d->verts[1].a = (unsigned char)alpha;
-            screen->pfx2d->verts[2].a = (unsigned char)alpha;
-            screen->pfx2d->verts[3].a = (unsigned char)alpha;
+            screen->pfx2d->verts[0].a = alpha;
+            screen->pfx2d->verts[1].a = alpha;
+            screen->pfx2d->verts[2].a = alpha;
+            screen->pfx2d->verts[3].a = alpha;
         }
     }
     for (string_index = 0;
@@ -674,9 +664,9 @@ static float p_unhide_pbar_items(void) {
         string = string_latch_object(string_item->latch);
         if (string != 0) {
             if (alpha <= string_item->alpha) {
-                set_string_obj_alpha(string, (float)alpha);
+                set_string_obj_alpha(string, alpha);
             } else {
-                set_string_obj_alpha(string, (float)string_item->alpha);
+                set_string_obj_alpha(string, string_item->alpha);
             }
         }
     }
@@ -690,7 +680,7 @@ static float p_unhide_pbar_items(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: 91.91% -- four inlined latch branch diamonds remain shorter. */
+/* TODO: [breakthrough needed] 92.47%; four inlined latch branch diamonds remain shorter. */
 void retract_power_bars(void) {
     ScreenObj* p1_back;
     ScreenObj* p1_red;
@@ -770,7 +760,7 @@ void retract_power_bars(void) {
     f_powerbars_retracted = 1;
 }
 
-/* Soft ceiling: 96.06% -- four latch branches and one pdata reload only. */
+/* TODO: [near miss] 96.13%; four latch branches and one pdata reload remain. */
 static float p_extend_powerbars(void) {
     ScreenObj* p1_back = owned_screen_latch_object(&p1_pbar_back_item);
     ScreenObj* p1_red = owned_screen_latch_object(&p1_pbar_red_item);
@@ -897,12 +887,12 @@ float p_move_pbars_off_screen(void) {
             }
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((PwrbarProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
 
-/* Soft ceiling: 93.41% -- six shortened inlined latch diamonds only. */
+/* TODO: [breakthrough needed] 93.78%; six inlined latch diamonds remain shorter. */
 static void update_combo_break_counts(void) {
     if (g_game_info.plyr0.slot.pdata->breaker_strength !=
         p1_last_combo_break_count) {
@@ -934,7 +924,6 @@ static void update_combo_break_counts(void) {
     }
 }
 
-/* Soft ceiling: 99.92% -- two identical 0.06f pool-label relocations differ. */
 static float p_power_bar_proc(void) {
     int changed;
 
@@ -1128,6 +1117,7 @@ int adjust_p1_life(float amount) {
     return depleted;
 }
 
+/* TODO: [breakthrough needed] 91.69%; compare invulnerability branch and life clamp stores. */
 int adjust_player_life(int player_index, float amount) {
     int depleted;
 
@@ -1207,7 +1197,7 @@ void update_plyr_medals(void) {
 static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
     MkProc* object = owner->object;
     if (object != 0) {
-        if ((unsigned int)object->instance == owner->instance) {
+        if (object->instance == owner->instance) {
             return object;
         }
         object = 0;
@@ -1221,7 +1211,7 @@ static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
 
 
 
-/* TODO: [breakthrough needed] 92.750000%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [breakthrough] 93.11%; typed destroy call restored; compare remaining latch branch/load placement. */
 void destroy_pwr_bars(void) {
     MkProc* process;
     ScreenLatch* latch;
@@ -1238,7 +1228,7 @@ void destroy_pwr_bars(void) {
     process = proc_latch_live_object(&pwr_bar_proc_item);
 
     if (process != 0 && process->instance != 0) {
-        ((PwrbarProcVtable*)process->vtbl)->destroy();
+        process->vtbl->destroy(process);
     }
     for (screen_index = 0;
          pbar_item_list[screen_index] != 0; screen_index++) {
@@ -1457,7 +1447,7 @@ void init_pwr_bars(void) {
 
     name = string_left_xy(
         0x2016, 5,
-        (const char*)global_player_data[g_game_info.plyr0.player_index].name,
+        global_player_data[g_game_info.plyr0.player_index].name,
         BAR_BACK_X + 0x23, 0x1A3, 0x17);
     if (name != 0) {
         name->visibility.hidden = 0;
@@ -1475,7 +1465,7 @@ void init_pwr_bars(void) {
 
     name = string_right_xy(
         0x2016, 5,
-        (const char*)global_player_data[g_game_info.plyr1.player_index].name,
+        global_player_data[g_game_info.plyr1.player_index].name,
         screen_width - (BAR_BACK_X + 0x23), 0x1A3, 0x17);
     if (name != 0) {
         name->visibility.hidden = 0;

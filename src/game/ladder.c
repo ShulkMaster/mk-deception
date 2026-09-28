@@ -4,11 +4,12 @@
 #include "platform/io.h"
 #include "platform/main_jump.h"
 #include "runtime/cam.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 #include "runtime/section.h"
 #include "runtime/sound.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_proc.h"
-void* memcpy(void* destination, const void* source, unsigned long size);
 
 #include "game/bgnd.h"
 #include "game/game_info.h"
@@ -16,6 +17,7 @@ void* memcpy(void* destination, const void* source, unsigned long size);
 #include "game/settings.h"
 #include "platform/main.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/asset.h"
 #include "runtime/fonts.h"
 #include "runtime/light.h"
 #include "runtime/mk_cmdscript.h"
@@ -34,18 +36,18 @@ typedef struct LadderEntry {
     int locked_background_id;
     int character_id;
     int locked_character_id;
-} LadderEntry; /* 0x10 */
+} LadderEntry;
 
 typedef struct LadderModelEntry {
     int character_id;
     const char* model_name;
-} LadderModelEntry; /* 0x08 */
+} LadderModelEntry;
 
 typedef struct LadderPlacement {
     Vec position;
     float angle_y;
     int mirrored;
-} LadderPlacement; /* 0x14 */
+} LadderPlacement;
 
 typedef struct LadderBgndAnimations {
     AnimScript* default_piece;
@@ -54,8 +56,8 @@ typedef struct LadderBgndAnimations {
     AnimScript* defeated_piece;
     AnimScript* piece_two;
     AniData* other_paths[25];
-    AniData* intro_camera; /* +0x78 */
-    AniData* travel_camera; /* +0x7C */
+    AniData* intro_camera;
+    AniData* travel_camera;
 } LadderBgndAnimations;
 
 typedef struct LadderObjVtable {
@@ -71,11 +73,6 @@ typedef struct LadderStringRef {
     unsigned int instance;
 } LadderStringRef;
 
-/*
- * Retail lays the ladder tables in one contiguous TU-local data region.
- * Keeping that relationship typed lets MWCC use the shared data base without
- * scattering byte-offset arithmetic through the ladder screen code.
- */
 typedef struct LadderHudEntry {
     int background_id;
     char* texture_name;
@@ -89,20 +86,20 @@ typedef struct LadderCharacterTexture {
 } LadderCharacterTexture;
 
 typedef struct LadderDataRegion {
-    LadderCoinType coin_offsets[6]; /* +0x00 */
-    const char* ladder_koins[4];    /* +0x30 */
-    int koin_awards[9];             /* +0x40 */
-    int puzzle_koin_awards[7];      /* +0x64 */
-    int chess_koin_awards[7];       /* +0x80 */
-    LadderHudEntry ladder_hud[35];     /* +0x9C */
-    LadderHudEntry puzzle_hud[6]; /* +0x2CC */
-    LadderCharacterTexture puzzle_characters[12]; /* +0x32C */
+    LadderCoinType coin_offsets[6];
+    const char* ladder_koins[4];
+    int koin_awards[9];
+    int puzzle_koin_awards[7];
+    int chess_koin_awards[7];
+    LadderHudEntry ladder_hud[35];
+    LadderHudEntry puzzle_hud[6];
+    LadderCharacterTexture puzzle_characters[12];
     char pad38C[0x974];
-    float camera_frames[8][2]; /* +0xD00 */
-    LadderPlacement player_positions[8]; /* +0xD40 */
-    LadderPlacement defeated_positions[8]; /* +0xDE0 */
-    LadderPlacement small_positions[8];    /* +0xE80 */
-    LadderModelEntry models[25];           /* +0xF20 */
+    float camera_frames[8][2];
+    LadderPlacement player_positions[8];
+    LadderPlacement defeated_positions[8];
+    LadderPlacement small_positions[8];
+    LadderModelEntry models[25];
 } LadderDataRegion;
 
 #define LADDER_DATA_REGION ((LadderDataRegion*)coin_offset_tbl)
@@ -128,16 +125,12 @@ extern GlobalBackgroundEntry global_background_data[];
 extern unsigned short n_ladder_koins;
 extern int p1_profile_status;
 extern int p2_profile_status;
-int strcmp(const char* left, const char* right);
-int sprintf(char* destination, const char* format, ...);
 extern LightDef ladder_skinned_obj_light_def;
 extern LightDef ladder_skinned_obj_ambient_light_def;
 extern unsigned char ladder_piece_ground_colls[];
 extern unsigned char ladder_piece_bones[];
 extern LadderBgndAnimations bgnd_animations;
 
-MkObj* load_named_model_from_slot(
-    int slot, const char* name, int flags, int unused);
 void insert_ground_me_mkobj(MkObj* object);
 AnimPdata* animate_obj(
     MkObj* object,
@@ -166,10 +159,7 @@ const char* ladder_koin_type_to_string(int type) {
     return 0;
 }
 
-/*
- * Soft ceiling: get_rnd_chess_koin_type ~70.43% -- typed table walk is
- * coherent; remaining differences are NV allocation and pool placement.
- */
+/* TODO: [breakthrough needed] 79.23%; compare nonvolatile lifetimes and pool placement. */
 const char* get_rnd_chess_koin_type(void) {
     const char* coin;
     int coin_type;
@@ -211,10 +201,6 @@ int get_chess_leader_won_coin_award(void) {
     return award;
 }
 
-/*
- * Soft ceiling: get_chess_coin_award ~99.47% -- opcodes are exact; only
- * compiler-generated float-pool relocation labels differ.
- */
 int get_chess_coin_award(int coin_index) {
     int award;
 
@@ -224,16 +210,16 @@ int get_chess_coin_award(int coin_index) {
 
     award = chess_koin_award_table[coin_index] * 5;
     if (game_settings.arcade_difficulty == 0) {
-        return (int)(0.5f * (float)award);
+        return (0.5f * (float)award);
     }
     if (game_settings.arcade_difficulty == 1) {
-        return (int)(0.75f * (float)award);
+        return (0.75f * (float)award);
     }
     if (game_settings.arcade_difficulty == 3) {
-        return (int)(1.1f * (float)award);
+        return (1.1f * (float)award);
     }
     if (game_settings.arcade_difficulty == 4) {
-        award = (int)(1.25f * (float)award);
+        award = (1.25f * (float)award);
     }
     return award;
 }
@@ -319,7 +305,7 @@ void one_player_ladder_init(void) {
     curr_ladder_char = -1;
     g_game_info.field_20C = 0;
 
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         pz_loss_in_a_row = 0;
         table_index = randu0(5) & 0xFFFF;
         ladder_data_tbl_offset = table_index;
@@ -425,7 +411,7 @@ static void build_ladder_hud_data(void) {
         } else if (display_difficulty < 0) {
             display_difficulty = 0;
         }
-        award = (int)(
+        award = (
             0.5f +
             ((difficulty_ranges[display_difficulty * 2 + 1] -
               difficulty_ranges[display_difficulty * 2]) /
@@ -464,13 +450,13 @@ static void build_ladder_hud_data(void) {
 
     if (award != 0) {
         if (difficulty == 0) {
-            award = (int)(0.5f * (float)award);
+            award = (0.5f * (float)award);
         } else if (difficulty == 1) {
-            award = (int)(0.75f * (float)award);
+            award = (0.75f * (float)award);
         } else if (difficulty == 3) {
-            award = (int)(1.1f * (float)award);
+            award = (1.1f * (float)award);
         } else if (difficulty == 4) {
-            award = (int)(1.25f * (float)award);
+            award = (1.25f * (float)award);
         }
     }
     g_game_info.pselect.field_1e8 = award;
@@ -498,14 +484,7 @@ static void build_ladder_hud_data(void) {
     }
 }
 
-/*
- * Builds one visible ladder fighter model. Typed placement rows capture the
- * retail 0x14-byte position/angle/mirror stride used by both live and defeated
- * pieces.
- * Soft ceiling: place_plyr_on_ladder ~75.86% - the typed shared data view
- * restores retail table-base coalescing; remaining differences are NV
- * allocation and a few address-expression shapes.
- */
+/* TODO: [breakthrough needed] 78.94%; compare nonvolatile lifetimes and address expressions. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
     LadderDataRegion* ladder_data;
     LadderModelEntry* model_entry;
@@ -807,11 +786,11 @@ float p_ladder_select(void) {
     camera = get_pdata_of_camera();
     camera->speed = 1.5f * game_speed;
     if (curr_ladder_pos == 0 && mode_of_play != 6) {
-        frames = (int)(72.0f * inverse_game_speed);
-        ladder_sleep((float)frames);
+        frames = (72.0f * inverse_game_speed);
+        ladder_sleep(frames);
         snd_req(0x1A9F);
         if (camera != 0) {
-            frames = (int)(22.0f * inverse_game_speed);
+            frames = (22.0f * inverse_game_speed);
             for (i = 0; i < frames; i++) {
                 camera->speed *= 0.9f;
                 ladder_sleep(1.0f);
@@ -834,7 +813,7 @@ float p_ladder_select(void) {
         position.x = 0.0f;
         position.y = 3.572f * (float)curr_ladder_pos + -26.283203f;
         position.z = 7.376953f;
-        while (!move_to_end_point((const Vec*)&position, &initial_speed,
+        while (!move_to_end_point(&position, &initial_speed,
                                  &final_speed, 0, 2.0f)) ladder_sleep(1.0f);
     }
     if (mode_of_play == 0) {
@@ -911,7 +890,7 @@ float p_ladder_select(void) {
         if (arena_name == 0 || arena_name->instance != bgnd_name_item.instance)
             arena_name = 0;
         if (arena_name != 0) {
-            set_string_obj_alpha(arena_name, (float)(unsigned char)alpha);
+            set_string_obj_alpha(arena_name, (unsigned char)alpha);
             alpha += (signed char)(8.0f * game_speed);
             ladder_sleep(1.0f);
         }
@@ -924,10 +903,10 @@ float p_ladder_select(void) {
             if (curr_ladder_pos >= 0 && curr_ladder_pos <= 6) {
                 award = data->puzzle_koin_awards[curr_ladder_pos] * 5;
                 difficulty = game_settings.rounds_to_win;
-                if (difficulty == 0) award = (int)(0.5f * (float)award);
-                else if (difficulty == 1) award = (int)(0.75f * (float)award);
-                else if (difficulty == 3) award = (int)(1.1f * (float)award);
-                else if (difficulty == 4) award = (int)(1.25f * (float)award);
+                if (difficulty == 0) award = (0.5f * (float)award);
+                else if (difficulty == 1) award = (0.75f * (float)award);
+                else if (difficulty == 3) award = (1.1f * (float)award);
+                else if (difficulty == 4) award = (1.25f * (float)award);
             }
             g_game_info.pselect.field_1e8 = award;
             coin = pz_ladder_koins[randu0(n_pz_ladder_koins) & 0xFFFF];

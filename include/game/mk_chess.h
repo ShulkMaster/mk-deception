@@ -471,7 +471,7 @@ typedef struct ChessCameraInfo {
     char pad20[0x0C];
     Vec saved_position; /* +0x2C */
     Vec desired_look_at; /* +0x38 */
-    int look_at_ticks; /* +0x44 */
+    unsigned int look_at_ticks; /* +0x44 */
     int zoom_sound_enabled; /* +0x48 */
     int field_4C; /* input L1 gate; initialized to zero */
     int field_50; /* input L1 gate; initialized to zero */

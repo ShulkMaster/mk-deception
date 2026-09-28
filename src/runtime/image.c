@@ -6,25 +6,17 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_obj.h"
+#include "runtime/mk_vtbl.h"
+#include "rw/rwcore_types.h"
 #include "rw/alphapass.h"
 
 extern float game_speed;
-extern MkVtable5 vtbl_mkpdata_string_obj;
-extern MkVtable5 vtbl_screen_engine;
 
 static void update_atc_block(AniTextureControl* atc);
 static void _destroy_screen_obj_oid_mask(ScreenObj* obj);
 
-RwTexture* material_get_texture_pointer(RpMaterial* mat, int flag);
-void material_set_texture_pointer(RpMaterial* mat, RwTexture* tex, int flag);
-int RwRasterGetNumLevels(RwRaster* raster);
 void set_render_state(int state, int value);
-Pfx2dObj* pfx2d_alloc_obj(void);
-void pfx2d_free_obj(Pfx2dObj* obj);
-void pfx2d_build_default_geometry(Pfx2dObj* obj);
-void pfx2d_begin_render(void);
-void pfx2d_end_render(void);
-void pfx2d_render(Pfx2dObj* obj);
 void render_string_obj(StringObj* obj);
 void screen_engine_render(void);
 
@@ -40,25 +32,19 @@ static const float kOne = 1.0f;
 static const float kHalf = 0.5f;
 static const float kNegOne = -1.0f;
 
-/* MWCC int->float helpers (sdata2 doubles). */
 static float u32_to_float(unsigned int v) {
-    return (float)v;
+    return v;
 }
 
 static float s32_to_float(int v) {
-    return (float)v;
+    return v;
 }
 
-/*
- * StringObj-compatible priority view. Using the complete StringObj here
- * changes MWCC alias scheduling in the three RTTI ladders below.
- */
 typedef struct ImageStringObjView {
     char pad[0xCC];
-    int priority; /* +0xCC */
+    int priority;
 } ImageStringObjView;
 
-/* Typed plugin accessors - same codegen as (char*)+LocalOffset. */
 #define mkmaterial_plugin(mat) \
     ((MkmaterialPluginData*)((char*)(mat) + MkmaterialLocalOffset))
 #define mkobj_clump_ext(clump) \
@@ -73,16 +59,13 @@ void insert_ani_texture_control_item(AniTextureControl* atc, AniTextureControlIt
     item->instance = atc->instance;
 }
 
-/* Soft ceiling: ck_ani_texture_control_item (~91.5%) --
- * retail joins fail paths via r5 + extra b; branch peephole leftover; stop.
- * (Q28 two-var keep does NOT work for directly-returned latches: MWCC
- * tail-duplicates the returns instead of joining.) */
+/* TODO: [breakthrough needed] 91.54%; failure-path join differs; resolve the r5 branch shape. */
 AniTextureControl* ck_ani_texture_control_item(AniTextureControlItem* item) {
     AniTextureControl* atc;
 
     atc = item->atc;
     if (atc != 0) {
-        if ((unsigned int)atc->instance != (unsigned int)item->instance) {
+        if (atc->instance != (unsigned int)item->instance) {
             atc = 0;
         }
     } else {
@@ -128,7 +111,7 @@ void set_ani_texture_framerate(AniTextureControl* atc, float rate) {
 }
 
 void set_ani_texture_frame(AniTextureControl* atc, int frame) {
-    atc->frame_f = u32_to_float((unsigned int)frame);
+    atc->frame_f = u32_to_float(frame);
 }
 
 void set_ani_texture_rwtexture_a(AniTextureControl* atc, int index, RwTexture* tex) {
@@ -164,7 +147,7 @@ void start_ani_texture_control(void) {
     flags[1] = 0;
     flags[0] = 0;
     proc = get_mkproc_nostack(flags);
-    create_mkproc(0x10, proc, 0x4002, (MkProcEntryFn)p_animate_textures, 0);
+    create_mkproc(0x10, proc, 0x4002, p_animate_textures, 0);
 }
 
 void pull_ani_texture_control(AniTextureControl* atc) {
@@ -203,7 +186,6 @@ AniTextureControl* get_ani_texture_control(void) {
     atc = (AniTextureControl*)get_mkhdr(&vtbl_ani_texture_control, sizeof(*atc));
     if (atc != 0) {
         atc->frame = 0;
-        /* Single stw clears flags + flags_hi (adjacent ushorts @ +0x0C). */
         atc->flags_word = 0;
         atc->frame_f = kZero;
         atc->numframes = 0;
@@ -225,7 +207,6 @@ float p_animate_textures(void) {
 }
 
 void delete_screen_obj_oid(int oid) {
-    /* Retail stores oid then mask. */
     oid_to_kill = oid;
     oid_to_kill_mask = -1;
     apply_to_mklist((MkListApplyFn)_destroy_screen_obj_oid_mask, &screen_obj_list);
@@ -251,7 +232,6 @@ static void _destroy_screen_obj_oid_mask(ScreenObj* obj) {
 int vdestroy_screen_obj(ScreenObj* obj) {
     ScreenObj* screen;
 
-    /* Retail inlines as_* without null-guarding the cast result. */
     if (obj->vtbl == &vtbl_mkpdata_screen_obj) {
         screen = obj;
     } else {
@@ -262,7 +242,6 @@ int vdestroy_screen_obj(ScreenObj* obj) {
     }
     screen->instance = 0;
     mkhdr_memfree((MkHdr*)screen);
-    /* Retail leaves r3 from mkhdr_memfree (no li r3,0). */
 }
 
 int destroy_screen_obj(ScreenObj* obj) {
@@ -271,14 +250,12 @@ int destroy_screen_obj(ScreenObj* obj) {
     }
     obj->instance = 0;
     mkhdr_memfree((MkHdr*)obj);
-    /* Retail leaves r3 from mkhdr_memfree (no li r3,0). */
 }
 
 void pull_screen_obj(ScreenObj* obj) {
     MkHdr* hdr;
     MkPtr* ptr;
 
-    /* Retail: beq-to-null / fallthrough as_mkhdr (not bne early-return). */
     if (obj != 0) {
         hdr = as_mkhdr((MkHdr*)obj);
     } else {
@@ -291,10 +268,7 @@ void pull_screen_obj(ScreenObj* obj) {
     }
 }
 
-/* Keep these out of xy wrappers (retail calls, does not inline). */
-#if !defined(TARGET_PC)
 #pragma dont_inline on
-#endif
 ScreenObj* load_named_2d_pfxobj(int slot, int oid, const char* name, int flags, int priority) {
     RwTexture* tex;
     ScreenObj* obj;
@@ -302,7 +276,6 @@ ScreenObj* load_named_2d_pfxobj(int slot, int oid, const char* name, int flags, 
     int saved_flags;
     int saved_pri;
 
-    /* Decl/assign order -> stmw r29..r31 then mr r29/r30/r31 (retail). */
     saved_oid = oid;
     saved_flags = flags;
     saved_pri = priority;
@@ -333,9 +306,7 @@ ScreenObj* load_2d_pfxobj(int slot, int oid, char* name, int flags, int priority
     }
     return obj;
 }
-#if !defined(TARGET_PC)
 #pragma dont_inline reset
-#endif
 
 ScreenObj* load_named_2d_pfxobj_xy(int slot, int oid, const char* name, int flags, int x, int y,
                                     int priority) {
@@ -344,7 +315,6 @@ ScreenObj* load_named_2d_pfxobj_xy(int slot, int oid, const char* name, int flag
     int saved_y;
     int saved_pri;
 
-    /* Retail: mr r31,r9; mr r29,r7; mr r30,r8; mr r7,r31 */
     saved_pri = priority;
     saved_x = x;
     saved_y = y;
@@ -364,7 +334,6 @@ ScreenObj* load_2d_pfxobj_xy(int slot, int oid, char* name, int flags, int x, in
     int saved_x;
     int saved_y;
 
-    /* Retail: mr r30,r7; mr r31,r8; mr r7,r9 - only saves x/y, not priority. */
     saved_x = x;
     saved_y = y;
     obj = load_2d_pfxobj(slot, oid, name, flags, priority);
@@ -392,7 +361,7 @@ RpMaterial* MaterialFindAniTexture(RpMaterial* material, void* data) {
                 return material;
             }
         } else {
-            mid = (unsigned short)((atc->flags >> 3) & 0xff);
+            mid = ((atc->flags >> 3) & 0xff);
             if (mid != 0) {
                 mat_plugin = mkmaterial_plugin(material);
                 mat_id = mat_plugin->flags & 0xfff;
@@ -404,7 +373,6 @@ RpMaterial* MaterialFindAniTexture(RpMaterial* material, void* data) {
 fbits = &atc->flag_bits;
         atc->materials[fbits->count] = material;
         fbits->count = fbits->count + 1;
-        /* Prefer return 0 (li r3) over material=0 (li r31). */
         if (fbits->multi == 0 || fbits->count >= 3) {
             return 0;
         }
@@ -434,7 +402,6 @@ RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data) {
 }
 
 AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned int material_id) {
-    /* Decl mat before atc -> retail atc=r6, mat=r5 (was swapped). */
     MkPtr* ptr;
     MkPtr* next;
     RpMaterial* mat;
@@ -467,7 +434,7 @@ AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned in
     return 0;
 }
 
-/* Soft ceiling: update_atc_block (~92%+) -- loop NV coloring leftover. */
+/* TODO: [near miss] 94.49%; loop agrees; lfs pair order, alpha register and zero instruction differ. */
 static void update_atc_block(AniTextureControl* atc) {
     int i;
     int count;
@@ -478,21 +445,17 @@ static void update_atc_block(AniTextureControl* atc) {
     RwTexture* alpha;
     int frame;
 
-    /* Soft ceiling: ~94.4% -- lfs pair emission order, alpha NV color,
-     * li vs mr zero; stop. */
     atc->frame_f = atc->framerate * game_speed + atc->frame_f;
     if (atc->frame_f >= s32_to_float(atc->numframes)) {
-        atc->frame_f = (float)fmod((double)atc->frame_f, (double)s32_to_float(atc->numframes));
+        atc->frame_f = fmod(atc->frame_f, s32_to_float(atc->numframes));
     }
-    atc->frame = (int)atc->frame_f;
+    atc->frame = atc->frame_f;
     frame = atc->frame;
     tex = atc->textures[frame];
     raw = atc->screen_obj;
     if (raw != 0) {
-        /* Retail inlines the live-check helper; its own null check is dead
-         * here (second beq reuses CR0) but still emitted. */
         if (raw != 0) {
-            if ((unsigned int)raw->instance == (unsigned int)atc->screen_obj_instance) {
+            if (raw->instance == (unsigned int)atc->screen_obj_instance) {
                 screen = raw;
             } else {
                 screen = 0;
@@ -527,8 +490,6 @@ if (atc->flag_bits.alpha) {
     }
 }
 
-/* Draw-path core for legal/logo/PRESS START (via load_2d_pfxobj*).
- * Soft ceiling: load_2d_pfxobj_with_texture (~97.8%) -- dead pfx2d_free on null path; stop. */
 ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, int priority) {
     ScreenObj* obj;
     Pfx2dObj* pfx;
@@ -568,8 +529,6 @@ ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, i
     pfx = pfx2d_alloc_obj();
     obj->pfx2d = pfx;
     if (obj->pfx2d == 0) {
-        /* Retail inlines a cleanup helper whose own null check is dead here
-         * (beq reuses CR0) but still emitted. */
         if (obj->pfx2d != 0) {
             pfx2d_free_obj(obj->pfx2d);
         }
@@ -580,7 +539,6 @@ ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, i
     obj->pfx2d->texture = texture;
     pfx2d_build_default_geometry(obj->pfx2d);
     if (dflags->flip_u) {
-        /* Flip U of verts 1<->2 and 0<->3 (retail +0x1C/+0x30, +0x08/+0x44). */
         pfx = obj->pfx2d;
         tmp = pfx->verts[2].u;
         pfx->verts[2].u = pfx->verts[1].u;
@@ -600,8 +558,6 @@ ScreenObj* load_wiff_screen_pfxobj(int a, int b, int oid, AniTextureControl** ou
     int saved_pri;
     AniTextureControl* atc;
 
-    /* Retail: mr r30,r8 (pri) then mr. r29,r3 (atc); r30 later reused for obj.
-     * Soft ceiling: ~99.9% -- sdata2 reloc label only (kNegOne). */
     saved_pri = priority;
     atc = get_wiff_atc_block(a, b);
     if (atc == 0) {
@@ -711,7 +667,6 @@ ScreenObj* insert_2d_obj(ScreenObj* obj) {
                         }
                     }
                 }
-                /* Retail: cmpw pri,cur_pri; blt continue; else insert. */
                 if (pri >= cur_pri) {
                     insert = get_mkptr_owns_mkhdr((MkHdr*)obj);
                     insert_mkptr_before(insert, ptr);
@@ -798,7 +753,6 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
                     if (as_string != 0) {
                         cur_pri = as_string->priority;
                     } else {
-                        /* Retail zeros cur when cur_vtbl is not screen_engine. */
                         if (cur_vtbl != &vtbl_screen_engine) {
                             cur = 0;
                         }
@@ -822,8 +776,8 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
     return obj;
 }
 
+/* TODO: [near miss] 98.60%; nonvolatile register coloring remains; stop at soft ceiling. */
 ScreenObj* insert_screen_obj(ScreenObj* obj) {
-    /* Soft ceiling: insert_screen_obj (~98.5%+) -- NV coloring; stop. */
     MkPtr* ptr;
     MkPtr* next;
     ScreenObj* cur;
@@ -917,7 +871,6 @@ ScreenObj* insert_screen_obj(ScreenObj* obj) {
     return obj;
 }
 
-/* Layered ScreenObj / string / screen-engine draw (legal, logo, PRESS START). */
 void render_2d_objs(int layer) {
     ScreenObj* obj;
     MkPtr* ptr;
@@ -955,8 +908,8 @@ hflags = &obj->flag_bits;
                             && (suppress_normal_2d_items == 0 || ((obj->flags >> 1) & 1) != 0)
                             && obj->pfx2d != 0) {
                             if (obj->blend != 0) {
-                                set_render_state(0xa, (int)(obj->blend >> 16));
-                                set_render_state(0xb, (int)(obj->blend & 0xffff));
+                                set_render_state(0xa, (obj->blend >> 16));
+                                set_render_state(0xb, (obj->blend & 0xffff));
                             }
                             obj->pfx2d->x = obj->x;
                             obj->pfx2d->y = obj->y;
@@ -995,9 +948,7 @@ hflags = &obj->flag_bits;
     }
 }
 
-/* Soft ceiling: ~95.2% -- retail homes slot/name in r25/r31 (ours swapped);
- * both single-use at one call site, decl/copy levers do not move param
- * coloring; plus float pool label diffs. */
+/* TODO: [near miss] 95.22%; slot/name coloring and float-pool labels remain. */
 AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* name,
                                                                  RpAtomic* atomic,
                                                                  int material_id,
@@ -1045,7 +996,7 @@ AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* 
         tex->filter_flags = (tex->filter_flags & 0xffff00ff) | 0x3300;
     }
     atc->textures[1] = tex;
-    atc->flags = (unsigned short)(((material_id & 0xff) << 3) | (atc->flags & 0xf807));
+    atc->flags = (((material_id & 0xff) << 3) | (atc->flags & 0xf807));
     if (flag != 0) {
 atc->flag_bits.filter = 1;
     }
@@ -1067,6 +1018,7 @@ atc->flag_bits.filter = 1;
     return atc;
 }
 
+/* TODO: [near miss] 98.51%; zero-sharing register shape remains; inspect index and offset lifetimes. */
 AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, ImageMkSobj* mkobj) {
     AniTextureControl* atc;
     ImageClumpExt* clump_ext;
@@ -1103,7 +1055,6 @@ AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, Ima
     count = fbits->count;
     tex = atc->textures[atc->frame];
     alpha = atc->alpha_textures[atc->frame];
-    /* Retail: li i,0; mr off,i -- share one zero. */
     i = 0;
     for (; i < count; i += 1) {
         fbits = &atc->flag_bits;
@@ -1172,9 +1123,9 @@ AniTextureControl* attach_wiff_to_atomic_material(
     return atc;
 }
 
+/* TODO: [breakthrough needed] 82.97%; recover the retail bdnz shift loop. */
 AniTextureControl* append_wiff_to_clump_material(int slot, char* name, RpClump* clump,
                                                  char* tex_name) {
-    /* Soft ceiling: append_wiff_to_clump_material (~83%) -- bdnz shift loop; stop. */
     ImageClumpExt* clump_ext;
     AniTextureControl* atc;
     int n;
@@ -1214,8 +1165,7 @@ atc->flag_bits.multi = 1;
     return atc;
 }
 
-/* Soft ceiling: append_wiff_to_clump_material_id (~83%) -- 3D WIFF helper;
- * not on legal/logo 2D path; stop Matching-grind. */
+/* TODO: [breakthrough needed] 82.60%; recover the 3D WIFF helper path. */
 AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClump* clump,
                                                     unsigned short material_id) {
     ImageClumpExt* clump_ext;
@@ -1236,7 +1186,7 @@ AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClum
     }
 flags_u = atc->flags;
 atc->flags =
-        (unsigned short)((flags_u & 0xf807) | ((material_id & 0xff) << 3));
+        ((flags_u & 0xf807) | ((material_id & 0xff) << 3));
     atc->framerate = kZero;
     RpClumpForAllAtomics(clump, AtomicFindAniTexture, atc);
     mat = atc->materials[0];

@@ -2945,7 +2945,7 @@ static float p_plyr_sidekick_intro(void) {
     position_z = main_object->pos.value.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
     sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
     sidekick->pos.value.z = position_z;
@@ -3158,7 +3158,7 @@ static float p_plyr_smoke_entrance(void) {
     sidekick->ground_colls_y = main_object->ground_colls_y;
     velocity.y = 0.06f;
     sidekick->pos_vel = velocity;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
     sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
     sidekick->pos.value.z = position_z;
@@ -3397,7 +3397,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
         exit_data->player = player;
     }
 
-    set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
+    set_root_and_obj_movement_weights(plyr_anim_pdata, 0.0f, 1.0f);
     plyr_obj->pos.value.x = position_x;
     plyr_obj->pos.value.y = position_y;
     plyr_obj->pos.value.z = position_z;
@@ -3498,7 +3498,7 @@ static float p_plyr_sidekick_switch(void) {
     }
 
     set_root_and_obj_movement_weights(
-        0.0f, object_weight, sidekick_anim);
+        sidekick_anim, 0.0f, object_weight);
     sidekick->pos.value.x =
         main_object->pos.value.x + direction.x * inverse_length * 2.5f;
     sidekick->pos.value.y = position_y;
@@ -3656,7 +3656,7 @@ static float p_plyr_sidekick_projectile(void) {
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(0.0f, object_weight, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, object_weight);
     sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
     sidekick->pos.value.z = position_z;
@@ -3698,7 +3698,7 @@ static float p_plyr_sidekick_projectile(void) {
     pdata->player->state_flags.raw |= 1;
     moves_sleep(12.0f);
 
-    set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
     transition_to_anim_script(
         anim, actions->common_exit_animation, transition | 3, 0.1f);
     anim->step = 2.0f;
@@ -3821,7 +3821,7 @@ static float p_plyr_noob_entrance(void) {
     sidekick->flags_09_bits.bit6 = 0;
     sidekick->flags_09_bits.launched = 0;
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
     sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
     sidekick->pos.value.z = position_z;
@@ -3964,7 +3964,7 @@ static float p_plyr_sidekick_charge(void) {
     position_z = main_object->pos.value.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
+    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
     sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
     sidekick->pos.value.z = position_z;

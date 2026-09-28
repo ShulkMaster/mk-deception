@@ -4,6 +4,7 @@
 #include "platform/io.h"
 #include "platform/main_jump.h"
 #include "runtime/fonts.h"
+#include "libmkparticle/pfxfont.h"
 #include "runtime/image.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
@@ -15,107 +16,83 @@
 #include "runtime/utils.h"
 #include "movie/movie_info.h"
 
-/*
- * attract.o - NonMatching readable lift for attract boot past legal/Sofdec.
- * Priority: p_attract_mode / p_atm_loop / title gate (atm_mkda_logo + PRESS START).
- * Soft ceiling: atm_bio_screen ~83.4% (setup emission); put_bio_text ~90.0%
- * schedule / lookup leftover. Stop Matching-grind.
- *   schedule; ATTRACT_PAGE_SETUP andi. vs rlwimi.
- *
- * Retail call contract (B16 P0 - see attract.h):
- *   atm_list[2] atm_mkda_logo -> logo movie (or atm_old_mkda_logo fallback)
- *     + PRESS START flasher (p_flash_atm_text / atm_setup_press_start_flasher)
- *   Start/A via check_switch_edge_any_pad(0xB|6) -> gamelogic_jump(6, p_main_menu)
- * Soft ceiling: check_switch_edge_any_pad / scan_switches (do not Matching-grind gcio).
- */
 
-/* GameInfo+4 bit 0x20: MSB-first bitfield -> retail rlwimi / extrwi. */
 typedef struct GiDemoFlag {
     unsigned char pad0 : 2;
     unsigned char demo_mode : 1;
     unsigned char pad1 : 5;
 } GiDemoFlag;
 
-/* MkProc.flags (+0xA8) bit 0x08 (SKIP_IF_PAUSED) -> retail rlwimi. */
 typedef struct MkProcPauseFlag {
     unsigned char pad0 : 4;
     unsigned char skip_if_paused : 1;
     unsigned char pad1 : 3;
 } MkProcPauseFlag;
 
-/* Live MkHdr latch: obj + instance (MkHdr+0x04). */
 typedef struct AtmObjLatch {
     MkHdr* obj;
     unsigned int instance;
 } AtmObjLatch;
 
 typedef struct BioFileEntry {
-    MkFileInfo* primary; /* +0x00 */
-    MkFileInfo* alt;     /* +0x04 */
-    int sound_id;        /* +0x08 */
-    int unlock_bit;      /* +0x0C */
-    int string_id_a;     /* +0x10 */
-    int string_id_b;     /* +0x14 */
-} BioFileEntry; /* stride 0x18 */
+    MkFileInfo* primary;
+    MkFileInfo* alt;
+    int sound_id;
+    int unlock_bit;
+    int string_id_a;
+    int string_id_b;
+} BioFileEntry;
 
-/* Bio flasher pdata (0x18 tinystack). MkHdr lives at +0x00. */
 typedef struct BioFlasherPdata {
-    MkHdr hdr;                     /* +0x00 */
-    StringObj* press_start_obj;    /* +0x08 */
-    unsigned int press_start_inst; /* +0x0C */
-    StringObj* bio_text_obj;       /* +0x10 */
-    unsigned int bio_text_inst;    /* +0x14 */
+    MkHdr hdr;
+    StringObj* press_start_obj;
+    unsigned int press_start_inst;
+    StringObj* bio_text_obj;
+    unsigned int bio_text_inst;
 } BioFlasherPdata;
 
-/* gp_data unlock words used by atm_bio_screen (retail +0x20..+0x2C). */
 typedef struct GpBioUnlock {
     char pad00[0x20];
-    unsigned int unlock_hi; /* +0x20 */
-    unsigned int unlock_lo; /* +0x24 */
-    unsigned int alt_hi;    /* +0x28 */
-    unsigned int alt_lo;    /* +0x2C */
+    unsigned int unlock_hi;
+    unsigned int unlock_lo;
+    unsigned int alt_hi;
+    unsigned int alt_lo;
 } GpBioUnlock;
 
 typedef struct AtmFlashPdata {
     int field_00;
 } AtmFlashPdata;
 
-/* attract.o .rodata */
 static const char stringBase0[] =
     "bio_strings_eng.mko\0"
     "PART_A\0"
     "PART_B\0";
 
-/* attract.o .sdata2 */
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_twenty = 20.0f;
 static const float sleep_ticks_neg_one = -1.0f;
 static const float sleep_ticks_one_point_five = 1.5f;
 static const float sleep_ticks_five = 5.0f;
-static const float sleep_ticks_legal = 300.0f; /* @687 legal screen dwell */
-static const float sleep_ticks_zero = 0.0f;    /* @706 p_attract_mode return */
-static const float sleep_ticks_bio_tap = 45.0f; /* @528 Start/A dwell before fade */
-static const float bio_text_scale_a = 0.42f;   /* @525 * screen_width -> x */
-static const float bio_text_scale_b = 0.92f;   /* @526 * screen_height -> y */
-static const float bio_text_scale_c = 0.8f;    /* @527 * screen_height -> y_off */
+static const float sleep_ticks_legal = 300.0f;
+static const float sleep_ticks_zero = 0.0f;
+static const float sleep_ticks_bio_tap = 45.0f;
+static const float bio_text_scale_a = 0.42f;
+static const float bio_text_scale_b = 0.92f;
+static const float bio_text_scale_c = 0.8f;
 static const double int_to_float_bias = 4503601774854144.0;
 
-/* attract.o .data - bio table still ASM-backed while NonMatching. */
 extern BioFileEntry bio_file_table[];
 extern GpBioUnlock gp_data;
 extern const MkFileEntry bios_file_table[];
 extern const MkFileEntry bio_text_file_table[];
 extern MkFileInfo sec_eu_biofont;
-extern MkFileInfo sec_attract;
 
-extern float _mkproc_sleep_ticks;
 extern int screen_width;
 extern int screen_height;
 extern int next_bio_screen;
 extern int b_game_timer_off;
 extern int __mini_game_display_ctrl;
 
-/* MWCC emits .sbss in reverse declaration order. */
 int gap_08_805107B4_sbss;
 int atm_current_page;
 AtmObjLatch press_start_item;
@@ -131,11 +108,9 @@ extern float p_puzzle_fighter(void);
 extern float p_mk_chess(void);
 extern float p_gamelogic(void);
 
-void pfxfont_set_string_color(PfxFontString* dest, unsigned int* color);
 void set_player_state(PlyrInfo* plyr, int state);
 void unassign_player(PlyrInfo* player);
 void one_player_ladder_init(void);
-/* Any-pad Start (0xB) / A (6) edge. Do not Matching-grind gcio. */
 void scan_switches(void);
 void rnd_plyrs(void);
 void snd_req(int id);
@@ -143,16 +118,9 @@ void snd_req_vol(int id, float volume);
 void xfer_puzzle_exit(int arg);
 void turn_display_off(void);
 void reset_game_speed(void);
-void fade_from_black(int frames, int flag);
-void fade_to_black(int frames, int flag);
-void destroy_fade_box(void);
 void turn_camera_on(void);
 void turn_camera_off(void);
 int is_widescreen_mode(void);
-void set_mode_of_play(int mode);
-void push_game_state(int state);
-void pause_procs(int flag);
-unsigned int randu0(unsigned int max);
 void setup_sound_banks(int bank);
 int get_next_bgnd(void);
 
@@ -175,11 +143,6 @@ static int atm_movie_tapout(void);
 static void mkproc_sleep(void);
 static void mkproc_jump_sleep(MkProcEntryFn entry);
 
-/*
- * Retail .data:0x8033E040 size 0x68 (26 entries). p_atm_loop wraps at 0x1A.
- * Pattern: logo triad, then (mkda + fight/quad/chess/bio/puzzle) x4.
- * Page funcs are void; MkProcEntryFn is float(*)(void) - cast matches ASM ptrs.
- */
 MkProcEntryFn atm_list[] = {
     (MkProcEntryFn)atm_midway_logo,
     (MkProcEntryFn)atm_intro_movie,
@@ -209,9 +172,6 @@ MkProcEntryFn atm_list[] = {
     (MkProcEntryFn)atm_demo_puzzle,
 };
 
-/* Retail duplicates this prelude in each attract page (no shared helper .o symbol).
- * Soft ceiling: flag clear emits andi. vs retail rlwimi held across stores;
- * GiDemoFlag local gets rlwimi but +0x10 frame - keep andi. */
 #define ATTRACT_PAGE_SETUP()                                                                       \
     do {                                                                                           \
         GiDemoFlag* _ap_f;                                                                         \
@@ -288,11 +248,6 @@ static void destroy_pfx_link(MkHdr* obj) {
     destroy_fn(obj);
 }
 
-/*
- * Start/A edge on any pad via check_switch_edge_any_pad
- * (and scan_switches in atm_tapout_scan) - do not Matching-grind gcio.
- * Buttons: 0xB = Start, 6 = A.
- */
 static int check_start_or_a(void) {
     if (check_switch_edge_any_pad(0xB) != 0) {
         return 1;
@@ -314,7 +269,6 @@ static int atm_tapout_scan(void) {
     return 0;
 }
 
-/* Live PRESS START StringObj, or 0 if slot empty / instance recycled. */
 static StringObj* press_start_item_live(void) {
     StringObj* item;
     StringObj* live;
@@ -332,14 +286,6 @@ static StringObj* press_start_item_live(void) {
     return live;
 }
 
-/*
- * Helper (not a retail .o symbol - inlined into atm_old_mkda_logo).
- * Spawns PRESS START flasher proc (pid 0x2005 / p_flash_atm_text) + centered
- * string (get_string(1) == "PRESS START" via string_center_xy).
- *
- * Retail: _create_mkproc_generic_tinystack returns MkProc* in r3 (via
- * create_mkproc). Shared mk_pdata.h prototype is void - cast at call site.
- */
 typedef MkProc* (*AttractCreateMkprocFn)(int proc_id, int priority, MkProcEntryFn proc_fn,
                                          int pdata_size, MkHdr** out_pdata);
 
@@ -353,10 +299,10 @@ static void atm_setup_press_start_flasher(void) {
     proc = ((AttractCreateMkprocFn)_create_mkproc_generic_tinystack)(0x2005, 0x1F, p_flash_atm_text,
                                                                      0xC, (MkHdr**)&pdata);
     if (proc != 0) {
-        proc->pre_destroy = (MkProcCallbackFn)pre_atm_flash;
-        proc->destroy_cb = (MkProcCallbackFn)post_atm_flash;
+        proc->pre_destroy = pre_atm_flash;
+        proc->destroy_cb = post_atm_flash;
         press_start_proc_item.obj = (MkHdr*)proc;
-        press_start_proc_item.instance = (unsigned int)proc->instance;
+        press_start_proc_item.instance = proc->instance;
     }
 
     text = get_string(1);
@@ -406,12 +352,9 @@ static void atm_old_mkda_logo(void) {
             snd_req(0x1B47);
             fade_to_black(4, 1);
             turn_display_off();
-            /* Title gate: Start/A -> main menu. Retail falls through to the
-             * loop tail (no early return) -- the jump retires this proc. */
             gamelogic_jump(6, p_main_menu);
         }
 
-        /* Retail calls randu0(0x1F4) each frame; result unused. */
         randu0(0x1F4);
         _mkproc_sleep_ticks = sleep_ticks_one;
         mkproc_sleep();
@@ -432,7 +375,7 @@ static int gp_unlock_bit_set(unsigned int hi, unsigned int lo, int bit) {
     return (bits & mask) != 0ull;
 }
 
-/* Soft ceiling: atm_bio_screen ~77% -- page-setup / load order emission; stop. */
+/* TODO: [breakthrough needed] 83.52%; page setup and load order still differ. */
 static void atm_bio_screen(void) {
     int bio_index;
     int use_alt;
@@ -458,10 +401,9 @@ static void atm_bio_screen(void) {
     g_game_info.field_1F8 = 0;
 
     if (next_bio_screen < 0) {
-        next_bio_screen = (int)(randu0(0x1AU) & 0xFFFFU);
+        next_bio_screen = (randu0(0x1AU) & 0xFFFFU);
     }
 
-    /* Advance until unlock bit is set in gp_data +0x20/+0x24. */
     for (;;) {
         bio_index = next_bio_screen;
         unlock_bit = bio_file_table[bio_index].unlock_bit;
@@ -537,9 +479,9 @@ static void atm_bio_screen(void) {
 
             height = screen_height;
             font = load_font(0x10);
-            text_x = (int)(bio_text_scale_a * (float)screen_width);
-            text_y = (int)(bio_text_scale_b * (float)height);
-            text_y_off = (int)(bio_text_scale_c * (float)height);
+            text_x = (bio_text_scale_a * (float)screen_width);
+            text_y = (bio_text_scale_b * (float)height);
+            text_y_off = (bio_text_scale_c * (float)height);
         }
 
         str_obj = create_wrapped_string(0x9017, font, text, text_x, text_y, 0x14A, text_y_off, 0, 1);
@@ -553,8 +495,8 @@ static void atm_bio_screen(void) {
     }
 
     x = (screen_width - 0x300) / 2;
-    load_named_2d_pfxobj_xy(0x90046, 0x4006, (char*)&stringBase0[0x14], 0, x, 0, 0x1E);
-    load_named_2d_pfxobj_xy(0x90046, 0x4007, (char*)&stringBase0[0x1B], 0, x + 0x200, 0, 0x1E);
+    load_named_2d_pfxobj_xy(0x90046, 0x4006, &stringBase0[0x14], 0, x, 0, 0x1E);
+    load_named_2d_pfxobj_xy(0x90046, 0x4007, &stringBase0[0x1B], 0, x + 0x200, 0, 0x1E);
 
     turn_camera_on();
     fade_from_black(0xC, 1);
@@ -584,7 +526,7 @@ static void atm_bio_screen(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/* Soft ceiling: put_bio_text ~90.0% -- table-search CFG and emit order; stop. */
+/* TODO: [breakthrough needed] 90.19%; table-search CFG and instruction order still differ. */
 StringObj* put_bio_text(int unlock_bit, int use_alt) {
     BioFileEntry* entry;
     int index;
@@ -597,7 +539,6 @@ StringObj* put_bio_text(int unlock_bit, int use_alt) {
     int height;
     unsigned char color[4];
 
-    /* Retail: mtctr 0x1A, index starts 0, exhausted -> -1 (cmpwi -1). */
     index = 0;
     for (; index < 0x1A; index++) {
         if (bio_file_table[index].unlock_bit == unlock_bit) {
@@ -619,12 +560,11 @@ StringObj* put_bio_text(int unlock_bit, int use_alt) {
         text = get_string_by_id(entry->string_id_a | 0x20000);
     }
 
-    /* Retail loads screen_height before load_font (NV schedule). */
     height = screen_height;
     font = load_font(0x10);
-    text_x = (int)(bio_text_scale_a * (float)screen_width);
-    text_y = (int)(bio_text_scale_b * (float)height);
-    text_y_off = (int)(bio_text_scale_c * (float)height);
+    text_x = (bio_text_scale_a * (float)screen_width);
+    text_y = (bio_text_scale_b * (float)height);
+    text_y_off = (bio_text_scale_c * (float)height);
 
     str_obj = create_wrapped_string(0x9017, font, text, text_x, text_y, 0x14A, text_y_off, 0, 1);
     str_obj->priority = 0x10;
@@ -725,14 +665,7 @@ static void atm_midway_logo(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/*
- * PRESS START blinker (pid 0x2005). Sleep 20 ticks visible, 20 hidden.
- * Toggles StringObjVisBits.hidden on press_start_item from
- * atm_setup_press_start_flasher. Drawn via render_2d_objs / render_string_obj
- * once the fonts path is linked.
- */
-/* Soft ceiling: p_flash_atm_text ~97.6% -- retail coalesces the latch keep
- * copy into r5; ours emits one mr per diamond. Stop. */
+/* TODO: [near miss] 97.84%; latch keep copy emits separate mr instructions across the diamond. */
 static float p_flash_atm_text(void) {
     StringObj* raw;
     StringObj* item;
@@ -827,11 +760,6 @@ static void atm_quad_movie(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/*
- * Attract page for the MKD intro FMV.
- * Calls play_movie(MOVIE_ID_INTRO, atm_movie_tapout) - movie_info[4], Sofdec fullscreen path.
- * Tapout polls controller input; sets atm_movie_tapped_out when the player skips.
- */
 static void atm_intro_movie(void) {
     ATTRACT_PAGE_SETUP();
     g_game_info.field_1F8 = 0;
@@ -840,13 +768,6 @@ static void atm_intro_movie(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/*
- * Title / PRESS START gate (atm_list[2] after intro).
- * Logo Sofdec (lang-select movie id); on failure falls back to atm_old_mkda_logo
- * (static art + atm_setup_press_start_flasher). Start/A (atm_logo_tapped_out or
- * old-logo check_start_or_a) -> gamelogic_jump(6, p_main_menu); else continue
- * p_atm_loop.
- */
 static void atm_mkda_logo(void) {
     int lang;
 
@@ -873,11 +794,6 @@ static void atm_mkda_logo(void) {
     }
 }
 
-/*
- * Demo-mode Start while a fight/minigame attract page is running.
- * Clears demo flag, pauses briefly, fades, resets page to logo index, re-enters
- * p_atm_loop (which then hits atm_mkda_logo / PRESS START).
- */
 float p_atm_start_button(void) {
     GameInfo* game;
     GiDemoFlag* gi_flags;
@@ -913,7 +829,6 @@ float p_atm_start_button(void) {
     return sleep_ticks_neg_one;
 }
 
-/* Soft ceiling: p_atm_loop ~99% - leftover reg coloring on page index; stop. */
 float p_atm_loop(void) {
     MkProcEntryFn page;
 
@@ -974,7 +889,6 @@ float p_attract_mode(void) {
     g_game_info.field_210 = zero;
     game->bgnd_id = bgnd_slot;
 
-    /* Retail computes (displayed == 0) as a value: cntlzw + srwi. */
     if (((unsigned int)__cntlzw(memcard_boot_screen_displayed) >> 5) != 0) {
         load_ssf((MkFileEntry*)attract_file_table);
         load_art_section_language(SEC_SLOT_HANDLE_ATTRACT_LEGAL, &sec_legal_screen);

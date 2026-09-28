@@ -1,6 +1,3 @@
-/* BUILD: -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in .rodata (far
- * lis/addi); plain -str reuse emits @sda21 loads. */
-
 #include "platform/gcmcard.h"
 
 #include "game/memcard.h"
@@ -10,12 +7,6 @@
 #include "platform/gcmcicon.h"
 #include "runtime/cstring.h"
 
-/*
- * gcmcard.o - B20 Wave C: Midway platform memcard (CARD facade).
- * NonMatching: ASM still linked for DOL; C for objdiff progress.
- * Function order = retail emission.
- */
-
 #pragma use_lmw_stmw on
 
 extern PlayerProfile p1_profile;
@@ -24,14 +15,6 @@ extern void* mc_data_buffer;
 extern int mc_data_buffer_size;
 extern unsigned int mc_icon_file_size; /* defined unsigned in gcmcicon.c */
 extern int f_writing_to_memcard;
-extern int mcard_msg_incompatible_card_answer;
-extern int msg_another_market_answer;
-extern int mcard_msg_wrong_device_answer;
-extern int msg_sys_corrupt_answer;
-extern int mcard_msg_mu_removed_answer;
-extern int msg_crc_failure_answer;
-extern int mcard_msg_card_damaged_answer;
-extern int msg_no_file_answer;
 
 void gc_mem_card_status_changes_for_one_device(int device);
 
@@ -196,6 +179,7 @@ int check_save_region_data_result(int* result, int device, int mode) {
     return cont;
 }
 
+/* TODO: [breakthrough needed] 90.88%; compare result dispatch and message call sequence. */
 int check_load_profile_result(int* result, int device) {
     StorageDevice* dev;
     int cont;
@@ -357,6 +341,7 @@ int check_load_profile_result(int* result, int device) {
     return cont;
 }
 
+/* TODO: [breakthrough needed] 87.94%; compare save-result dispatch and prompt flow. */
 int check_save_profile_result(int* result, int device, int flag) {
     StorageDevice* dev;
     int cont;
@@ -547,6 +532,7 @@ static inline int gc_unmount_checked(int device) {
     }
 }
 
+/* TODO: [breakthrough needed] 68.46%; compare format retry loop and CARD result mapping. */
 int gc_format_procedure(int device) {
     unsigned int mask;
     s32 sectorSize;
@@ -559,7 +545,7 @@ int gc_format_procedure(int device) {
     unsigned char* workArea;
     CARDCallback detach;
 
-    mask = (unsigned int)mcmasks[device];
+    mask = mcmasks[device];
     last_card_state |= (int)mask;
     removals &= (int)~mask;
     insertions &= (int)~mask;
@@ -711,6 +697,7 @@ int gc_format_procedure(int device) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 77.05%; compare CARD open/delete result paths. */
 int gc_delete_file(int device, const char* fileName) {
     s32 rc;
     int mapped;
@@ -763,6 +750,7 @@ static inline int finish_memcard_load_after_close(int device, CARDFileInfo* file
     return finish_memcard_load_after_unmount(device, result);
 }
 
+/* TODO: [breakthrough needed] 60.39%; compare mount/read/checksum path and buffer ownership. */
 int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -909,7 +897,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
 
     checksumLength = (unsigned int)size - 4;
     remaining = checksumLength;
-    walk = (unsigned char*)buffer;
+    walk = buffer;
     bit = 0x80;
     sum = 0;
     while (remaining > 0) {
@@ -958,6 +946,7 @@ static inline int finish_memcard_save_after_close(int device, CARDFileInfo* file
     return finish_memcard_save_after_unmount(device, result);
 }
 
+/* TODO: [breakthrough needed] 55.30%; compare create/write/checksum path and buffer ownership. */
 int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -992,7 +981,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     checksum = 0;
     if (skipChecksum == 0) {
         n = size - 4;
-        walk = (unsigned char*)buffer;
+        walk = buffer;
         bit = 0x80;
         while (n != 0) {
             checksum += (int)((unsigned char)(*walk | (unsigned char)bit));
@@ -1184,7 +1173,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     if ((unsigned int)writeLen > sizeof(gc_memcard_io_buffer)) {
         status = -99;
     } else {
-        memcpy(gc_memcard_io_buffer, srcBuf, (unsigned long)bufSize);
+        memcpy(gc_memcard_io_buffer, srcBuf, bufSize);
         if (writeLen - bufSize > 0)
             memset((unsigned char*)srcBuf + bufSize, 0, writeLen - bufSize);
         do {
@@ -1262,6 +1251,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     return 0;
 }
 
+/* TODO: [breakthrough needed] 68.55%; compare serial probe/mount and error mapping branches. */
 static int gc_get_memcard_serial_number(int device, unsigned int* out) {
     s32 rc;
     s32 serialRc;
@@ -1347,10 +1337,10 @@ static int gc_get_memcard_serial_number(int device, unsigned int* out) {
         if (serialRc != 0) {
             out[0] = 0;
             out[1] = 0;
-            mapped = (int)serialRc;
+            mapped = serialRc;
         } else {
-            out[0] = (unsigned int)(serial >> 32);
-            out[1] = (unsigned int)serial;
+            out[0] = serial >> 32;
+            out[1] = serial;
         }
         if (device >= 0 && device < 2) {
             do {
@@ -1361,6 +1351,7 @@ static int gc_get_memcard_serial_number(int device, unsigned int* out) {
     return mapped;
 }
 
+/* TODO: [breakthrough needed] 87.39%; compare serial-change and insertion/removal flag branches. */
 void gc_mem_card_status_changes_for_one_device(int device) {
     int serialRc;
     unsigned int serial[2];
@@ -1374,7 +1365,7 @@ void gc_mem_card_status_changes_for_one_device(int device) {
 
     switch (serialRc) {
     case 0: {
-        unsigned int mask = (unsigned int)mcmasks[device];
+        unsigned int mask = mcmasks[device];
         if ((last_card_state & (int)mask) != 0) {
             if (((serial[1] ^ last_card_serial_no[device][1]) |
                  (serial[0] ^ last_card_serial_no[device][0])) != 0) {
@@ -1396,7 +1387,7 @@ void gc_mem_card_status_changes_for_one_device(int device) {
     case -2:
     case -0xd:
     case -0x80: {
-        unsigned int mask = (unsigned int)mcmasks[device];
+        unsigned int mask = mcmasks[device];
         if ((last_card_state & (int)mask) == 0) {
             last_card_state |= (int)mask;
             insertions |= (int)mask;
@@ -1406,7 +1397,7 @@ void gc_mem_card_status_changes_for_one_device(int device) {
         return;
     }
     case -3: {
-        unsigned int mask = (unsigned int)mcmasks[device];
+        unsigned int mask = mcmasks[device];
         insertions &= (int)~mask;
         if ((last_card_state & (int)mask) != 0) {
             last_card_state &= (int)~mask;
@@ -1423,10 +1414,7 @@ void gc_mem_card_status_changes_for_one_device(int device) {
     }
 }
 
-/*
- * Soft ceiling: ~94% -- retail homes device in r29 / changed in r28, MWCC
- * colors them the other way; ops and scheduling otherwise exact. Stop.
- */
+/* TODO: [near miss] 93.95%; device/changed register coloring differs; stop at coloring. */
 int update_storage_status_for_one_device(int device) {
     int changed = 0;
 
@@ -1451,12 +1439,7 @@ int update_storage_status_for_one_device(int device) {
     return changed;
 }
 
-/*
- * Retail inlines the helper above (-inline auto, same TU): the emitted loop
- * body carries the helper's redundant 0..1 range check and its exact changed=1
- * scheduling, so the source is this call, not a hand-expanded copy.
- * Soft ceiling: ~94% -- same r28/r29 coloring swap propagated by the inline.
- */
+/* TODO: [near miss] 94.23%; inlined helper's device/changed register coloring differs. */
 int update_storage_status(int flag) {
     int any = 0;
     int device;
@@ -1469,11 +1452,7 @@ int update_storage_status(int flag) {
     return any;
 }
 
-/*
- * Soft ceiling: ~94% -- MWCC roots the CARD-result compare tree at case -4
- * where retail roots at the -9 boundary; same case set, unknown root-selection
- * heuristic. Header checks, rounding, reads, and copies are exact. Stop.
- */
+/* TODO: [near miss] 94.45%; CARD-result compare tree roots at -4 instead of retail -9. */
 int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
     CARDStat stat;
     int readLen;
@@ -1494,9 +1473,6 @@ int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
         if (mc_icon_file_size == 0) {
             return 0;
         }
-        /* Signed rounding through the int intermediate: retail emits
-         * srawi/addze, which an unsigned one-expression form strength-reduces
-         * to clrrwi instead. */
         readLen = mc_icon_file_size + 0x1FF;
         readLen = size + readLen;
         readLen = (readLen / 0x200) * 0x200;

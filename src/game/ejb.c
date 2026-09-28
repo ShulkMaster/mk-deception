@@ -6,6 +6,7 @@
 #include "game/ejb.h"
 #include "game/game_info.h"
 #include "game/jmt.h"
+#include "game/moveset.h"
 #include "game/plyr.h"
 #include "game/trial.h"
 #include "msl/msl_types.h"
@@ -16,6 +17,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/anims.h"
 #include "runtime/utils.h"
 
@@ -29,10 +31,6 @@ typedef struct EjbSwitchLogEntry {
     int mapped_index;
 } EjbSwitchLogEntry;
 
-typedef struct EjbFighterDefinitionView {
-    int character_id;
-} EjbFighterDefinitionView;
-
 typedef struct EjbPlyrForcePdata {
     MkHdr hdr;
     MkObj* object;
@@ -43,24 +41,6 @@ typedef struct EjbPlyrForcePdata {
     float velocity_scale;
     int iterations;
 } EjbPlyrForcePdata;
-
-typedef struct EjbAnimPdataExtended {
-    char pad00[0x64];
-    float weight;
-    float weight_velocity;
-    char pad6C[8];
-    float pose_frame; /* +0x74 */
-    char pad78[0x80];
-    float transition_rate; /* +0xF8 */
-    float landing_frame; /* +0xFC */
-} EjbAnimPdataExtended;
-
-typedef struct EjbBoneMatcherView {
-    char pad00[0x0C];
-    float position_weight; /* +0x0C */
-    char pad10[0x38];
-    float rotation_weight; /* +0x48 */
-} EjbBoneMatcherView;
 
 typedef struct EjbSharedAnimationsView {
     AniData* pad000[4];
@@ -95,7 +75,6 @@ typedef struct EjbSharedAnimationsView {
 typedef char EjbSharedAnimationsViewSizeCheck[sizeof(EjbSharedAnimationsView) == (628 / 4) * sizeof(AniData*) ? 1 : -1];
 
 extern PlyrPdata* his_pdata;
-extern CameraObj* camera_obj;
 extern MkObj* his_obj;
 extern MkObj* plyr_obj;
 extern MkProc* plyr_anim_proc;
@@ -110,10 +89,8 @@ extern EjbSwitchLogEntry p2_switch_log[30];
 
 int check_switch(SwitchData* data, int switch_id);
 int is_plyr_blocking(PlyrPdata* pdata);
-void swap_active_plyr_proc(void);
 int is_my_chest_to_screen(void);
 void random_voice(int group);
-int advance_anim(AnimPdata* anim);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
 int transition_to_anim_script_frame(
@@ -183,18 +160,12 @@ float two_player_animation_blend(
     float attacker_blend, float victim_blend);
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player);
 float p_konquest_register_bleeding(void);
-void special_move_cam_setup(
-    int mode, int ticks, int flags, float x, float y, float z,
-    float distance, float speed);
-void release_other_player(void);
 int drone_ai_check_button_direction(int direction);
 int drone_ai_should_roll(int mode);
 int mk_chess_should_i_fall_down(void);
 void player_impale(MkObj* source, MkObj* target);
-void trial_increment_state_value(int player, int state, int amount);
 int adjust_player_life(int player, float amount);
 void shake_camera(int ticks, float strength);
-void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 void update_bone_hierarchy(MkHdr* object);
 void ground_me(MkHdr* object);
 float r_jump_slambounce_final_hit(void);
@@ -297,14 +268,12 @@ static float ani_with_new_angle_y(
     float step, float blend);
 int rotate_towards_sync(float angle);
 void toggle_obj_and_ani_flips(AnimPdata* anim);
-int is_blind(PlyrPdata* pdata);
 float front_rollup(void);
 float j_front_roll_left(void);
 float j_front_roll_right(void);
 float j_ass_rollup(void);
 float j_back_rollup_IN(void);
 float j_back_rollup_OUT(void);
-int is_big_boss(PlyrPdata* pdata);
 float victory(void);
 float big_boss_end_of_round(void);
 float fall_dead(void);
@@ -634,11 +603,11 @@ int is_plyr_blocking(PlyrPdata* player) {
     if (player->blocking_disabled_2 != 0) {
         return 0;
     }
-    if ((unsigned int)player->blocking_disable_tick_1 >
+    if (player->blocking_disable_tick_1 >
         (unsigned int)game_tick_ctr) {
         return 0;
     }
-    if ((unsigned int)player->blocking_disable_tick_2 >
+    if (player->blocking_disable_tick_2 >
         (unsigned int)game_tick_ctr) {
         return 0;
     }
@@ -1114,7 +1083,7 @@ void hit_START_chores(
         snd_req(second_sound);
     }
     if (shake_ticks != 0.0f) {
-        shake_camera((int)shake_ticks, shake_strength);
+        shake_camera(shake_ticks, shake_strength);
     }
 }
 
@@ -1185,7 +1154,7 @@ void land_chores(
         snd_req(second_sound);
     }
     if (shake_ticks != 0.0f) {
-        shake_camera((int)shake_ticks, shake_strength);
+        shake_camera(shake_ticks, shake_strength);
     }
     check_for_combo_message_impl();
 }
@@ -2237,9 +2206,9 @@ static inline void exit_reaction_common(void) {
         his_pdata->blocking_disabled_2 = 0;
     }
 
-    exit_ticks = (float)plyr_pdata->script_exit_value_int;
+    exit_ticks = plyr_pdata->script_exit_value_int;
     if (ticks > exit_ticks) {
-        _mkproc_sleep_ticks = (float)(int)(ticks - exit_ticks);
+        _mkproc_sleep_ticks = (int)(ticks - exit_ticks);
         aproc->vtbl->sleep();
         frames = plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
         ticks = frames * plyr_anim_pdata->step;
@@ -2341,9 +2310,9 @@ float j_exit_6(void) {
     }
 
     exit_ticks =
-        (float)plyr_pdata->script_exit_value_int;
+        plyr_pdata->script_exit_value_int;
     if (ticks > exit_ticks) {
-        _mkproc_sleep_ticks = (float)(int)(ticks - exit_ticks);
+        _mkproc_sleep_ticks = (int)(ticks - exit_ticks);
         aproc->vtbl->sleep();
         frames = plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
         ticks = frames * plyr_anim_pdata->step;
@@ -2571,7 +2540,7 @@ void ejb_too_close_repell(void) {
     }
 }
 
-static inline EjbBoneMatcherView* prepare_two_player_animation(
+static inline BoneMatcherState* prepare_two_player_animation(
     int self_flip_mode, int flip_opponent, int animate_opponent) {
     PlyrPdata* opponent;
     MkProc* process;
@@ -2579,7 +2548,7 @@ static inline EjbBoneMatcherView* prepare_two_player_animation(
     MkObj* tracked_object;
     MkObj* held_by_object;
     AnimPdata* opponent_anim;
-    EjbBoneMatcherView* matcher;
+    BoneMatcherState* matcher;
 
     process = plyr_pdata->player_proc;
     process = process != 0
@@ -2622,10 +2591,10 @@ static inline EjbBoneMatcherView* prepare_two_player_animation(
     }
 
     if (flip_opponent != 0) {
-        matcher = (EjbBoneMatcherView*)plyr_grab_other_flip_states(
+        matcher = (BoneMatcherState*)plyr_grab_other_flip_states(
             self_flip_mode, 2);
     } else {
-        matcher = (EjbBoneMatcherView*)plyr_grab_other_flip_states(
+        matcher = (BoneMatcherState*)plyr_grab_other_flip_states(
             self_flip_mode, 1);
     }
     plyr_obj->hide_flag_bits.still_move = 0;
@@ -2657,8 +2626,8 @@ static inline EjbBoneMatcherView* prepare_two_player_animation(
                 opponent_anim->hand_transition = 1.0f;
                 opponent_anim->hand_transition_step = -0.1f;
             } else {
-                matcher->position_weight = 0.0f;
-                matcher->rotation_weight = 0.0f;
+                matcher->child_weight = 0.0f;
+                matcher->blend_ticks = 0.0f;
             }
         }
     }
@@ -3143,7 +3112,7 @@ float ani_to_frame_x_col(
                 if ((opponent_state & 0x1000) != 0) {
                     if (his_pdata->throw_restriction == 3) {
                         collision_blocked = 0;
-                    } else if ((unsigned int)(game_tick_ctr -
+                    } else if ((game_tick_ctr -
                                    his_pdata->last_collision_tick) < 10) {
                         collision_blocked = 0;
                     } else {
@@ -3307,7 +3276,7 @@ void air_collision_pause(
             EJB_ADVANCE_TO_FRAME(animation, target_frame);
             plyr_anim_pdata->step = saved_step;
         } else {
-            _mkproc_sleep_ticks = (float)pause_ticks;
+            _mkproc_sleep_ticks = pause_ticks;
             aproc->vtbl->sleep();
         }
     }
@@ -3510,7 +3479,7 @@ void force_away(
 float p_force_away(void) {
     int iteration;
 
-    _mkproc_sleep_ticks = (float)plyr_force_pdata->delay;
+    _mkproc_sleep_ticks = plyr_force_pdata->delay;
     aproc->vtbl->sleep();
     if (plyr_force_pdata->iterations > 0 && plyr_force_pdata->iterations < 60) {
         for (iteration = 0; iteration < plyr_force_pdata->iterations; iteration++) {
@@ -3559,13 +3528,13 @@ float p_wall_monitor(void) {
                 ->flags_09_bits.wall_restricted &&
             g_game_info.plyr0.slot.pdata->state == 0x602) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc, r_hit_wall);
+                g_game_info.plyr0.idle_proc, r_hit_wall);
         }
         if (g_game_info.plyr1.slot.mirror_a
                 ->flags_09_bits.wall_restricted &&
             g_game_info.plyr1.slot.pdata->state == 0x602) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc, r_hit_wall);
+                g_game_info.plyr1.idle_proc, r_hit_wall);
         }
     }
     return 1.0f;
@@ -3819,7 +3788,7 @@ int super_charge_me(void) {
             scale_pdata->script = (ScaleScriptEntry*)scale_script_chargeup;
             scale_pdata->elapsed = 0.0f;
         } else {
-            scale_pdata = (ScalePdata*)start_scale_proc(
+            scale_pdata = start_scale_proc(
                 plyr_obj, scale_script_chargeup);
             plyr_pdata->scale_pdata = scale_pdata;
             plyr_pdata->scale_pdata_instance = scale_pdata->hdr.instance;
@@ -4054,12 +4023,12 @@ void setup_for_flip_ani(void) {
 }
 
 float p_chamber_to_stance_2(void) {
-    EjbAnimPdataExtended* animation;
+    AnimPdata* animation;
 
-    animation = (EjbAnimPdataExtended*)plyr_anim_pdata;
+    animation = plyr_anim_pdata;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.chamber_to_stance_2,
-        3, animation->transition_rate);
+        3, animation->landing_start);
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
     ani_to_blend_frame(10.0f);
@@ -4368,7 +4337,7 @@ void shake_hit_voice(
     if (fighter_voice != -1) {
         random_voice(fighter_voice);
     }
-    rumble_strength = (int)(400.0f * rumble_scale);
+    rumble_strength = 400.0f * rumble_scale;
     if (rumble_strength > 10) {
         rumble_strength = 10;
     }
@@ -4610,6 +4579,7 @@ int player_area_collision_check(
     return 0;
 }
 
+/* TODO: [near miss] 99.60%; three FP operand registers differ; retain the codegen-relevant flag cast. */
 void scorpion_summon_collide(void) {
     float delta_x;
     float delta_z;
@@ -5347,16 +5317,15 @@ void head_tracking_off(void) {
 }
 
 void head_tracking_on(void) {
-    EjbFighterDefinitionView* fighter;
+    GlobalMoveset* fighter;
 
     if (is_blind(plyr_pdata) != 0) {
         plyr_obj->flags_09_bits.head_tracking = 0;
         return;
     }
 
-    fighter =
-        (EjbFighterDefinitionView*)plyr_pdata->fighter_definition;
-    if (fighter->character_id == 0x33) {
+    fighter = plyr_pdata->fighter_definition;
+    if (fighter->fighter_id == 0x33) {
         plyr_obj->flags_09_bits.head_tracking = 0;
         return;
     }

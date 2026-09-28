@@ -181,7 +181,6 @@ static inline float bgnd_sqrt(float value) {
 }
 
 extern MkObj* g_bgnd_preloaded_models[];
-extern int exec_tick_ctr;
 RopeProcLatch rope_proc_item;
 RopeProcLatch sobj_ctrl_proc_item;
 int g_ticks_delay;
@@ -308,10 +307,7 @@ BgndDamageState* get_cliff_data(void) {
     return &pdata->state;
 }
 
-/*
- * Soft ceiling: p_watch_cliffs ~90.33% -- flag-load coloring and script
- * destructor call scheduling.
- */
+/* TODO: [near miss] 96.26%; residue is flag-load coloring and script destructor call scheduling. */
 static float p_watch_cliffs(void) {
     BgndDamagePdata* pdata;
     CmdScript* script;
@@ -408,7 +404,7 @@ int get_exec_tick_ctr(void) {
     return exec_tick_ctr;
 }
 
-/* Soft ceiling: can_fallingcliff_fall ~90.60% -- flag-load coloring and bool emit. */
+/* TODO: [near miss] 90.71%; residue is flag-load coloring and bool materialization. */
 int can_fallingcliff_fall(void) {
     if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
         return 0;
@@ -867,7 +863,7 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     }
 }
 
-/* Soft ceiling: start_sobj_ctrl_proc ~89.05% -- spawn-argument scheduling only. */
+/* TODO: [near miss] 89.05%; residue is spawn-argument scheduling only. */
 void start_sobj_ctrl_proc(void) {
     int flags[2];
     MkProc* proc;
@@ -890,22 +886,19 @@ void start_sobj_ctrl_proc(void) {
     }
 }
 
-/* Soft ceiling: destroy_sobj_ctrl_proc ~96.56% -- latch branch layout only. */
+/* TODO: [near miss] 96.56%; residue is the latch branch layout (retail bne/b around the kept arm). */
 void destroy_sobj_ctrl_proc(void) {
     MkProc* proc;
 
     proc = sobj_ctrl_proc_item.proc;
     if (proc != 0) {
-        if ((unsigned int)proc->instance ==
-            sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
+        if (proc->instance != sobj_ctrl_proc_item.instance) {
             proc = 0;
         }
     } else {
         proc = 0;
     }
-    if (proc != 0 && (unsigned int)proc->instance != 0) {
+    if (proc != 0 && proc->instance != 0) {
         ((MkProcDestroyVtable*)proc->vtbl)->destroy(proc);
     }
     sobj_ctrl_proc_item.proc = 0;
@@ -927,7 +920,7 @@ void bgnd_insert_obj_ctrl_section(int object_id, int section) {
     MkSobj* object;
 
     if (g_game_info.bgnd_obj != 0) {
-        object = (MkSobj*)obj_find_sobj_by_id(
+        object = obj_find_sobj_by_id(
             g_game_info.bgnd_obj, object_id);
         if (object != 0) {
             insert_obj_ctrl_section(object, section);
@@ -1011,7 +1004,7 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     }
 }
 
-/* Soft ceiling: 99.12% -- GPR coloring and li-zero versus mr-zero only. */
+/* TODO: [near miss] 99.12%; residue is GPR coloring and li-zero versus mr-zero. */
 static float p_obj_ctrl(void) {
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
@@ -1108,7 +1101,7 @@ static void update_func_shadow_scale(BgndUpdateData* update, int index) {
     object->scale.z = shadow_scale;
 }
 
-/* Soft ceiling: 91.42% -- equivalent blend-expression scheduling/FPR coloring. */
+/* TODO: [near miss] 91.41%; residue is blend-expression scheduling and FPR coloring. */
 static void update_func_blend_start(BgndUpdateData* update, int index) {
     BgndUpdateSlot* slot;
     MkSobj* object;
@@ -1171,7 +1164,7 @@ static void update_func_fall(BgndUpdateData* update, int index) {
         update_seconds_per_frame * command->slot.fall_acceleration;
 }
 
-/* Soft ceiling: 98.91% -- FPR coloring and float-pool labels only. */
+/* TODO: [near miss] 99.02%; residue is FPR coloring and float-pool labels. */
 static void update_func_sin(BgndUpdateData* update, int index) {
     MkSobj* object;
     float frame_time;
@@ -1377,7 +1370,7 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
-/* Soft ceiling: 94.08% -- validated-process latch branch/GPR coloring only. */
+/* TODO: [near miss] 94.07%; residue is the validated-process latch branch and GPR coloring. */
 void bgnd_preload_obj_attach_rope(int model_index) {
     MkHdr* rope_pdata;
     MkObj* model;
@@ -1390,9 +1383,7 @@ void bgnd_preload_obj_attach_rope(int model_index) {
 
     rope_proc = rope_proc_item.proc;
     if (rope_proc != 0) {
-        if (rope_proc->instance == rope_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
+        if (rope_proc->instance != rope_proc_item.instance) {
             rope_proc = 0;
         }
     } else {
@@ -1409,7 +1400,7 @@ void bgnd_preload_obj_attach_rope(int model_index) {
     }
 }
 
-/* Soft ceiling: start_rope_proc ~88.14% -- spawn-argument scheduling only. */
+/* TODO: [near miss] 88.13%; residue is spawn-argument scheduling only. */
 void start_rope_proc(void) {
     int flags[2];
     MkProc* proc;
@@ -1430,7 +1421,6 @@ void start_rope_proc(void) {
     }
 }
 
-/* Soft ceiling: p_rope ~99.64% -- float-pool label only. */
 static float p_rope(void) {
     while (apdata != 0) {
         rope_controller_update(apdata);
@@ -1439,10 +1429,7 @@ static float p_rope(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: 90.23% -- aligned-matrix call scheduling and register
- * allocation only; operations, accesses, loop, and frame alignment agree.
- */
+/* TODO: [near miss] 90.23%; operations, accesses, loop and frame alignment agree; residue is aligned-matrix call scheduling and register allocation. */
 static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     RopeControllerData* rope;
     RopeInfo* info_base;
@@ -1479,7 +1466,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
         segment->length_scale = 1.0f;
         segment->bone_tag = info->bone_tag;
 
-        bone = (MkBone*)get_bone_with_tag(model, segment->bone_tag);
+        bone = get_bone_with_tag(model, segment->bone_tag);
         if (bone == 0) {
             break;
         }
@@ -1609,11 +1596,7 @@ static inline RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/*
- * Soft ceiling: retail aligns the matrix/vector workspace to 16 bytes. Clean
- * portable C uses the TU's natural stack layout, leaving stack offsets,
- * register allocation, and matrix/vector load scheduling as residue.
- */
+/* TODO: [near miss] 92.46%; retail aligns the matrix/vector workspace to 16 bytes; residue is stack offsets, register allocation and load scheduling. */
 static void rope_controller_update(MkHdr* pdata) {
     MkObj* model;
     RopeControllerData* rope;

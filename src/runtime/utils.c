@@ -42,7 +42,6 @@
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
 
-extern MkVtable5 vtbl_mkpdata_string_obj;
 
 void* memset(void* dst, int c, unsigned long n);
 unsigned int genlrand(void);
@@ -51,8 +50,6 @@ int ck_eat_online_switches(void);
 long long debug_get_usec_timer(void);
 void limb_sever_reset_limbs(PlyrInfo* player);
 
-/* mode_of_play lives in main.o sbss (also referenced from display.c). */
-extern int mode_of_play;
 extern int screen_width;
 extern int p1_profile_status;
 extern int p2_profile_status;
@@ -61,15 +58,11 @@ extern int p2_profile_device;
 extern int p1_profile_slot;
 extern int p2_profile_slot;
 extern int f_writing_to_memcard;
-extern void* p1_profile_common;
-extern void* p2_profile_common;
 extern PlayerProfile p1_profile;
 extern PlayerProfile p2_profile;
 extern int p1_rumble_on;
 extern int p2_rumble_on;
 extern void fire_screen_studio_event(int event, int arg);
-/* setup_fixed_block_heaps indexes jump_target_mode (.sdata), not mode_of_play. */
-extern int jump_target_mode;
 extern int use_feedback_effect;
 extern MkPtr* pfx_render_list;
 extern MkPtr* pfx_clone_render_list;
@@ -80,12 +73,10 @@ extern float game_volume;
 extern _mslSystem* msi;
 
 extern MkHdr* apdata_save;
-extern PlyrPdata* plyr_pdata;
 extern MkObj* plyr_obj;
 extern MkObj* his_obj;
 extern PlyrPdata* his_pdata;
 extern MkProc* plyr_anim_proc;
-extern AnimPdata* plyr_anim_pdata;
 extern int f_fatality_finished;
 extern int f_fatality_available;
 extern int f_fatality_was_done;
@@ -383,7 +374,7 @@ static float p_debug_damage_txt(void) {
             object = 0;
         }
         if (object != 0) {
-            alpha = (unsigned char)pdata->alpha;
+            alpha = pdata->alpha;
             part = &object->pfx.instance0;
             while (part != 0) {
                 part->rgba[3] = alpha;
@@ -432,8 +423,8 @@ void display_debug_damage(PlyrInfo* player, float damage) {
     camera_get_screen_pos_from_world_pos(&world_position, &screen_position);
     sprintf(text, STR_DAMAGE_INT, (int)(100.0f * damage));
     object = string_center_xy(
-        0x209B, 0, text, (int)screen_position.x,
-        (int)screen_position.y, 0x1D);
+        0x209B, 0, text, screen_position.x,
+        screen_position.y, 0x1D);
     if (_create_mkproc_generic_nostack(
             0x209D, 0x1F, p_debug_damage_txt,
             sizeof(DebugDamagePdata), (MkHdr**)&pdata) != 0) {
@@ -446,7 +437,6 @@ void display_debug_damage(PlyrInfo* player, float damage) {
 }
 
 void Simple_MoviePlayFullScreen(const char* path, int width, int height, MovieTapoutFn tapout);
-void mkMovieTexPlay(int index, const char* name, int a, int b, int c, int use_mfs);
 int is_widescreen_mode(void);
 int strncmp(const char* a, const char* b, unsigned long n);
 int sprintf(char* dest, const char* fmt, ...);
@@ -456,11 +446,7 @@ const char* pathname_create(const char* path, int flag);
 void* mwFileOpen(const char* path, int mode);
 void mwFileClose(void);
 
-extern GameInfo g_game_info;
 
-int is_controller_removed(void);
-float snd_get_game_vol(void);
-void snd_set_game_vol(float vol);
 
 static inline int fade_pause_allows_tick(void) {
     if (g_game_info.feature_flags.bits.high_bit == 0 &&
@@ -470,12 +456,7 @@ static inline int fade_pause_allows_tick(void) {
     return 1;
 }
 
-/*
- * Soft ceiling: play_movie ~98.42% fuzzy.
- * Leftover: r30/r31 swap (scaled movie_id index vs path), one volatile r0/r4
- * move, and @stringBase0 vs named stringBase0 relocations. Algorithm and CFG
- * match retail; stop per near-miss budget.
- */
+/* TODO: [near miss] 98.89%; algorithm and CFG agree; register coloring and stringBase0 relocation remain. */
 int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     const char* path;
     int height;
@@ -486,7 +467,6 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     const char* open_path;
     unsigned int play_type;
 
-    /* Dims from original movie_id (retail may index OOB before clamp). */
     if (is_widescreen_mode() != 0 && movie_info[movie_id].ws_path != 0) {
         height = movie_info[movie_id].ws_height;
         width = movie_info[movie_id].ws_width;
@@ -497,7 +477,6 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
 
     extra = movie_info[movie_id].tex_extra;
     path_id = movie_id;
-    /* Retail: cmpwi 0x2d / bge (not cmpwi 0x2c / bgt). */
     if (movie_id >= 0x2D || movie_id < 0) {
         path_id = 0;
     }
@@ -509,7 +488,6 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     }
 
     play_type = movie_info[movie_id].play_type;
-    /* play_type 1: in-scene texture movie; intro/midway logos use type 0. */
     if (play_type == 1) {
         int texture_path_id;
 
@@ -524,7 +502,6 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
         }
         mkMovieTexPlay(0, path, width, height, extra, 0);
     } else if (play_type == 0) {
-        /* Retail strncmp(prefix, path, n) - prefix in r3. */
         if (strncmp(STR_MOVIE_V_PREFIX, path, 2) == 0 || strncmp(STR_MOVIE_VP_PREFIX, path, 3) == 0) {
             sprintf(buf, STR_KRYPT_MOVIE_PATH, path);
             open_path = pathname_create(buf, 0);
@@ -679,9 +656,7 @@ void setup_fixed_block_heaps(void) {
     current_heap_block_counts.heaps.fixed1024Count = 0x18;
     current_heap_block_counts.field_0x34 = 0;
 
-    /* Retail loads jump_target_mode (.sdata), not mode_of_play. */
-    /* Soft ceiling under -O4,s: 99.86% -- jump-table relocation symbol only. */
-    mode = (unsigned int)jump_target_mode;
+    mode = jump_target_mode;
     switch (mode) {
     case 4:
         current_heap_block_counts.heaps.mkptrCount = 6000;
@@ -754,7 +729,7 @@ void load_and_set_refl_on_weapon(void) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
 
-    art_section = get_shared_art_section_for_player((SharedArtPlayer*)plyr_obj);
+    art_section = get_shared_art_section_for_player(plyr_obj);
     if (art_section == 0) {
         return;
     }
@@ -793,7 +768,7 @@ void load_and_set_refl_on_weapon(void) {
 }
 
 void pause_procs(int flag) {
-    g_game_info.pause_flag_bits.controller_disable_guard = (unsigned char)flag;
+    g_game_info.pause_flag_bits.controller_disable_guard = flag;
     if (flag != 0 && !g_game_info.pause_flag_bits.rumble_stopped_for_pause) {
         turn_all_rumble_motors_off();
         g_game_info.pause_flag_bits.rumble_stopped_for_pause = 1;
@@ -808,7 +783,7 @@ int get_level_fatality_done_flag_state(void) {
 }
 
 void set_level_fatality_done_flag_state(int state) {
-    g_game_info.flag_bits.level_fatality_done = (unsigned char)state;
+    g_game_info.flag_bits.level_fatality_done = state;
 }
 
 void pos_cam_for_current_level(void) {
@@ -883,16 +858,12 @@ int get_language_setting(void) {
     return language;
 }
 
-/*
- * Cursor / UI blinker (pid from caller; Konquest text cursor uses 0x8255).
- * Sleep on_ticks visible, off_ticks hidden; dies when ScreenObj live-check fails.
- */
 static inline ScreenObj* resolve_blink_object(
     ScreenObj* object, unsigned int instance) {
     ScreenObj* resolved;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == instance) {
+        if (object->instance == instance) {
             resolved = object;
         } else {
             resolved = 0;
@@ -917,7 +888,7 @@ static float p_blink_cursor(void) {
         on_ticks = pdata->on_ticks;
         off_ticks = pdata->off_ticks;
         if (object != 0) {
-            instance = (unsigned int)object->instance;
+            instance = object->instance;
         } else {
             return kBlinkDoneTick;
         }
@@ -929,7 +900,7 @@ static float p_blink_cursor(void) {
         live = resolve_blink_object(object, instance);
         if (live != 0) {
             live->flag_bits.hidden = 0;
-            _mkproc_sleep_ticks = (float)on_ticks;
+            _mkproc_sleep_ticks = on_ticks;
             ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
         } else {
             return kBlinkDoneTick;
@@ -938,7 +909,7 @@ static float p_blink_cursor(void) {
         live = resolve_blink_object(object, instance);
         if (live != 0) {
             live->flag_bits.hidden = 1;
-            _mkproc_sleep_ticks = (float)off_ticks;
+            _mkproc_sleep_ticks = off_ticks;
             ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
         } else {
             return kBlinkDoneTick;
@@ -951,17 +922,16 @@ void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks) {
     BlinkCursorPdata* pdata;
 
     proc = ((UtilsCreateMkprocFn)_create_mkproc_generic_bigstack)(
-        proc_id, 0x1F, (MkProcEntryFn)p_blink_cursor, 0x28, (MkHdr**)&mab_generic_pdata);
+        proc_id, 0x1F, p_blink_cursor, 0x28, (MkHdr**)&mab_generic_pdata);
     if (proc != 0) {
-        /* Retail reloads mab_generic_pdata for each store. */
-        pdata = (BlinkCursorPdata*)mab_generic_pdata;
+        pdata = mab_generic_pdata;
         pdata->obj = obj;
-        pdata = (BlinkCursorPdata*)mab_generic_pdata;
+        pdata = mab_generic_pdata;
         pdata->on_ticks = on_ticks;
-        pdata = (BlinkCursorPdata*)mab_generic_pdata;
+        pdata = mab_generic_pdata;
         pdata->off_ticks = off_ticks;
     } else {
-        pdata = (BlinkCursorPdata*)mab_generic_pdata;
+        pdata = mab_generic_pdata;
         pdata->obj = 0;
     }
 }
@@ -972,10 +942,6 @@ void hide_or_show_2d_obj_by_id(int oid, int hide) {
     apply_to_mklist((MkListApplyFn)show_or_hide_2dobj, &screen_obj_list);
 }
 
-/*
- * ScreenObj: hide bit 0x10 (ScreenObjFlags). StringObj: hidden bit 0x80
- * (StringObjVisBits) -- retail uses different rlwimi inserts per type.
- */
 static void show_or_hide_2dobj(MkHdr* hdr) {
     ScreenObj* screen;
     StringObj* text;
@@ -987,7 +953,7 @@ static void show_or_hide_2dobj(MkHdr* hdr) {
     }
     if (screen != 0) {
         if (screen->oid == set_2dobj_oid) {
-            screen->flag_bits.hidden = (unsigned char)(set_2dobj_hide_state & 1);
+            screen->flag_bits.hidden = (set_2dobj_hide_state & 1);
         }
     }
 
@@ -1002,7 +968,7 @@ static void show_or_hide_2dobj(MkHdr* hdr) {
     if (text->oid != set_2dobj_oid) {
         return;
     }
-    ((StringObjVisBits*)&text->flags)->hidden = (unsigned char)(set_2dobj_hide_state & 1);
+    ((StringObjVisBits*)&text->flags)->hidden = (set_2dobj_hide_state & 1);
 }
 
 void service_game_timers(void) {
@@ -1137,7 +1103,7 @@ RpAtomic* set_atomic_material_color_by_id(
     if (geometry != 0) {
         found = 0;
         i = 0;
-        for (count = (unsigned int)geometry->matList.numMaterials;
+        for (count = geometry->matList.numMaterials;
              count > 0; count--) {
             RpMaterial* material = geometry->matList.materials[i];
             if ((MK_MATERIAL_PLUGIN(material)->flags & 0xFFF) ==
@@ -1428,7 +1394,7 @@ static void obj_set_alpha_by_id(MkHdr* hdr) {
 }
 
 void pfx_2d_obj_set_alpha_by_id(int id, int alpha) {
-    set_2dobj_alpha = (unsigned char)alpha;
+    set_2dobj_alpha = alpha;
     set_2dobj_oid = id;
     apply_to_mklist(obj_set_alpha_by_id, &screen_obj_list);
 }
@@ -1516,7 +1482,7 @@ static float p_fade_screen(void) {
         if (next_alpha > 0xFF) {
             pdata->alpha = 0xFF;
         } else {
-            pdata->alpha = (unsigned char)next_alpha;
+            pdata->alpha = next_alpha;
         }
 
         obj = resolve_fade_screen_object(pdata);
@@ -1551,7 +1517,7 @@ static float p_fade_screen(void) {
         if (next_alpha < 0) {
             pdata->alpha = 0;
         } else {
-            pdata->alpha = (unsigned char)next_alpha;
+            pdata->alpha = next_alpha;
         }
 
         obj = resolve_fade_screen_object(pdata);
@@ -1594,9 +1560,7 @@ static float p_fade_screen(void) {
 }
 
 /* Keep out-of-line so fade_from / fade_to wrappers match retail bl. */
-#if !defined(TARGET_PC)
 #pragma dont_inline on
-#endif
 static void fade_screen(int frames, int color, int flag, int to_fade) {
     FadeScreenPdata* pdata;
     MkProc* proc;
@@ -1610,7 +1574,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
     int i;
     unsigned char alpha;
 
-    scaled_frames = (int)((float)frames * inverse_game_speed);
+    scaled_frames = ((float)frames * inverse_game_speed);
     if (find_mkproc_pid(FADE_PROC_PID) == 0) {
         if (to_fade == 0) {
             destroy_mkprocs_pid(FADE_PROC_PID);
@@ -1619,7 +1583,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
         }
 
         proc = _create_mkproc_generic_nostack(
-            FADE_PROC_PID, 0x1F, (MkProcEntryFn)p_fade_screen,
+            FADE_PROC_PID, 0x1F, p_fade_screen,
             sizeof(FadeScreenPdata), (MkHdr**)&pdata);
         if (proc != 0) {
             pdata->frames = scaled_frames;
@@ -1663,7 +1627,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                     if (next_alpha > 0xFF) {
                         pdata->alpha = 0xFF;
                     } else {
-                        pdata->alpha = (unsigned char)next_alpha;
+                        pdata->alpha = next_alpha;
                     }
 
                     obj = pdata->screen_obj;
@@ -1749,9 +1713,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
         }
     }
 }
-#if !defined(TARGET_PC)
 #pragma dont_inline reset
-#endif
 
 void fade_from_black(int frames, int flag) {
     fade_screen(frames, 0, flag, 0);
@@ -1796,7 +1758,7 @@ void set_screen_obj_alpha(ScreenObj* obj, float alpha) {
         if (scaled_alpha > 255.0f) {
             scaled_alpha = 255.0f;
         }
-        vertex_alpha = (signed char)scaled_alpha;
+        vertex_alpha = scaled_alpha;
         obj->pfx2d->verts[0].a = vertex_alpha;
         obj->pfx2d->verts[1].a = vertex_alpha;
         obj->pfx2d->verts[2].a = vertex_alpha;
@@ -1853,9 +1815,7 @@ static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix);
 
-#if !defined(TARGET_PC)
 #pragma dont_inline on
-#endif
 
 static void uv_scroll_dual_pass(UvScrollControl* ctrl) {
     RpAtomic* atomic;
@@ -1890,9 +1850,7 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
     RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1[0]);
 }
 
-#if !defined(TARGET_PC)
 #pragma dont_inline off
-#endif
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {
@@ -1963,7 +1921,7 @@ static inline void material_apply_scroll_effects(RpMaterial* material) {
 static void* material_scroll_uvs_callback(void* mat, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
-    ctrl = (UvScrollControl*)data;
+    ctrl = data;
     flags = ctrl->pass_flags;
     if ((flags & kUvPass1) != 0 && (flags & kUvPass2) != 0) {
         UV_ADVANCE_PAIR(ctrl->mtx1[12], ctrl->mtx1[13], ctrl->rateU1, ctrl->rateV1);
@@ -1984,14 +1942,12 @@ static void* material_scroll_uvs_callback(void* mat, void* data) {
     return mat;
 }
 
-#if !defined(TARGET_PC)
 #pragma dont_inline on
-#endif
 static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
     unsigned int bit0;
-    ctrl = (UvScrollControl*)data;
+    ctrl = data;
     flags = ctrl->pass_flags;
     bit0 = flags & kUvPass1;
     if (bit0 != 0 && (flags & kUvPass2) != 0) {
@@ -2003,9 +1959,7 @@ static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     }
     return atomic;
 }
-#if !defined(TARGET_PC)
 #pragma dont_inline off
-#endif
 
 static inline MkObj* resolve_uv_scroll_owner(UvScrollControl* ctrl) {
     MkObj* owner;
@@ -2013,7 +1967,7 @@ static inline MkObj* resolve_uv_scroll_owner(UvScrollControl* ctrl) {
 
     owner = ctrl->owner;
     if (owner != 0) {
-        if ((unsigned int)owner->hdr.instance == ctrl->owner_instance) {
+        if (owner->hdr.instance == ctrl->owner_instance) {
             resolved = owner;
         } else {
             resolved = 0;
@@ -2218,7 +2172,7 @@ UvScrollControl* start_sobj_uv_scroll(
     MkSobj* subobject;
     void* result;
 
-    subobject = (MkSobj*)obj_create_sobjs_by_id(owner, sobj_id);
+    subobject = obj_create_sobjs_by_id(owner, sobj_id);
     if (subobject != 0) {
         result = sobj_start_uv_scroll(owner, subobject, u1, v1, u2, v2);
     } else {
@@ -2246,7 +2200,7 @@ AniTextureControl* replace_sobj_texture_with_named_wiff(
     return result;
 }
 
-/* Soft ceiling: exact algorithm; ternary abs leaves one fmr plus FPR coloring. */
+/* TODO: [near miss] 97.35%; ternary absolute value leaves one fmr and FPR coloring residue. */
 float sfrand_ab(float a, float b) {
     float high;
     float low;
@@ -2307,7 +2261,7 @@ float frand(float max) {
     return range * ((float)random_value / 65535.0f);
 }
 
-/* Soft ceiling: signrand ~97.76% -- GPR coloring and scheduling only. */
+/* TODO: [near miss] 97.76%; GPR coloring and scheduling remain. */
 int signrand(unsigned short range) {
     char message[80];
     unsigned int first_random;
@@ -2321,7 +2275,7 @@ int signrand(unsigned short range) {
     second_random = genlrand();
     limit = (unsigned short)(range * 2 + 1);
     random_value = (unsigned char)first_random;
-    original_range = (unsigned short)range;
+    original_range = range;
     random_value |= (unsigned char)second_random << 8;
     result = limit * random_value;
     result >>= 16;
@@ -2339,10 +2293,6 @@ int signrand(unsigned short range) {
     return (unsigned short)result - original_range;
 }
 
-/*
- * Exact 16-bit random scaling and validation; 93.64%, retail/local 180/172.
- * Residue is pooled diagnostic-string addressing and multiply-result coloring.
- */
 unsigned int randu0(unsigned int max) {
     char message[80];
     unsigned int first_random;
@@ -2377,7 +2327,7 @@ unsigned int random(void) {
 }
 
 int get_mode_of_play(void) {
-    return (int)mode_of_play;
+    return mode_of_play;
 }
 
 void set_mode_of_play(int mode) {
@@ -2425,7 +2375,6 @@ void push_game_state(int state) {
     if (depth >= 7) {
         game_state_stack_depth = 7;
     }
-    /* Retail: if (state < 0 && state >= 0x1d) return; - impossible; keep fallthrough. */
     if (state < 0) {
         if (state >= 0x1d) {
             return;
@@ -2500,7 +2449,7 @@ void init_global_vars(void) {
     sobj_ctrl_proc_item.object = 0;
     sobj_ctrl_proc_item.instance = 0;
 
-    g_game_info.flag_bits.field_bit0 = (unsigned char)state;
+    g_game_info.flag_bits.field_bit0 = state;
     f_fatality_finished = 0;
     f_fatality_available = 0;
     f_fatality_was_done = 0;
@@ -2526,7 +2475,7 @@ unsigned long long stop_usec_timer(int id) {
     unsigned long long now;
 
     usec_timer_data[id].running = 0;
-    now = (unsigned long long)debug_get_usec_timer();
+    now = debug_get_usec_timer();
     if (now < usec_timer_data[id].start) {
         usec_timer_data[id].elapsed = usec_timer_data[id].start - now;
     } else {
@@ -2536,7 +2485,7 @@ unsigned long long stop_usec_timer(int id) {
 }
 
 void start_usec_timer(int id) {
-    usec_timer_data[id].start = (unsigned long long)debug_get_usec_timer();
+    usec_timer_data[id].start = debug_get_usec_timer();
     usec_timer_data[id].elapsed = 0;
     usec_timer_data[id].running = 1;
 }

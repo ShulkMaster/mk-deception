@@ -12,6 +12,7 @@
 #include "game/blood.h"
 #include "game/blood_asset.h"
 #include "libmkparticle/color.h"
+#include "libmkparticle/fields.h"
 #include "math/mk_math.h"
 #include "math/gxMath.h"
 
@@ -1247,8 +1248,6 @@ extern BloodProcLatch bleed_proc_item;
 extern BloodProcLatch bleed_pfx_proc_item;
 extern BloodProcLatch ncs_pfx_decal_emitter_proc;
 extern MkPtr* gusher_list;
-extern MkVtable5 vtbl_mkpdata_generic;
-extern MkVtable5 vtbl_pfx;
 extern float game_speed;
 extern int exec_tick_ctr;
 extern BloodDecalArrayView mkpfx_ncs_decal_array;
@@ -1275,11 +1274,8 @@ void obj_set_bone_calc_world_mat_flag(MkObj* object, int bone);
 unsigned int fx_next_emitter(unsigned int emitter);
 void fx_resume_emit(unsigned int emitter);
 int emitter_id_from_handle(unsigned int emitter);
-float gxMathArcTanYX(float y, float x);
-int strcmp(const char* left, const char* right);
 int obj_get_bid_for_tid(MkObj* object, int tag);
 PfxEmitter* pfx_get_emitter(void* pfx_vm, int emitter_index);
-void* pfx_get_field(void* pfx_vm, int emitter_index, int field);
 int pfx_get_struct_size(void* pfx_vm, int field);
 void update_live_particles(PfxVm* pfx_vm);
 int obj_spawn_bld(
@@ -1324,9 +1320,7 @@ static inline void queue_blood_spawn(
 
     proc = bleed_proc_item.proc;
     if (proc != 0) {
-        if (proc->instance == bleed_proc_item.instance) {
-            /* The process instance latch is still valid. */
-        } else {
+        if (proc->instance != bleed_proc_item.instance) {
             proc = 0;
         }
     } else {
@@ -1366,8 +1360,6 @@ static inline float blood_sqrt(float value) {
         (3.0f - (guess.f * guess.f) / value);
 }
 
-/* Retail stops at the first terminal or disconnected point, leaving the
- * remaining shared corner entries untouched. */
 static inline void prepare_blood_path(
     BloodModelData* model, BloodPath* destination,
     const BloodPath* source, const Vec* weights) {
@@ -1491,7 +1483,6 @@ GusherPdata* start_gusher(
         pdata->position.x = position->x;
         pdata->position.y = position->y;
         pdata->position.z = position->z;
-        /* Retail redundantly copies this vector twice. */
         pdata->position.x = position->x;
         pdata->position.y = position->y;
         pdata->position.z = position->z;
@@ -1543,7 +1534,7 @@ static float p_gusher(void) {
         }
 
         v3_x_mat(
-            &velocity, &pdata->direction, (MKMATRIX*)&bone->matrix);
+            &velocity, &pdata->direction, &bone->matrix);
         velocity_scale =
             sfrand_ab(pdata->velocity_min, pdata->velocity_max) *
             pdata->current_step->velocity_scale;
@@ -1552,7 +1543,7 @@ static float p_gusher(void) {
         velocity.z *= velocity_scale;
         spawn_bld_fall(
             pdata->current_step->blood_type, bone, &pdata->position,
-            &velocity, (FighterMirror*)pdata->owner);
+            &velocity, pdata->owner);
         pdata->current_step++;
         time += pdata->current_step->interval;
     }
@@ -1560,8 +1551,8 @@ static float p_gusher(void) {
     time += 0.99f;
     if (pdata->owner != 0 && random_percent(0.014f * time) != 0) {
         plyr_bleed_small_cycle_ext(
-            (PlyrPdata*)pdata->owner, pdata->bone,
-            (PlyrPdata*)pdata->owner);
+            pdata->owner, pdata->bone,
+            pdata->owner);
     }
     return time;
 }
@@ -1586,7 +1577,6 @@ void spawn_bld_fall(
 
     watcher = 0;
     object = 0;
-    /* Retail follows pdata+0x18 to player-info+0x04 for the effect bank. */
     effect = fx_by_owner(
         blood_type, 1 << ((PlyrPdata*)owner)->plyr_info->controller_slot);
     if (effect != 0) {
@@ -1852,14 +1842,14 @@ void spawn_decal_emitter(
     }
 
     if (owner != 0 &&
-        (unsigned int)(exec_tick_ctr - decal_tick_counter) >=
+        (exec_tick_ctr - decal_tick_counter) >=
             randu0(75) + 25) {
         decal_tick_counter = exec_tick_ctr;
     }
 
     watcher_proc = ncs_pfx_decal_emitter_proc.proc;
     if (watcher_proc != 0 &&
-        (unsigned int)watcher_proc->instance !=
+        watcher_proc->instance !=
             ncs_pfx_decal_emitter_proc.instance) {
         watcher_proc = 0;
     }
@@ -1924,7 +1914,7 @@ void spawn_decal_emitter(
     emitter_index = emitter_id_from_handle(emitter);
     pfx_bind_emitter_num_to_obj(
         pfx, g_game_info.bgnd_obj, 0, emitter_index);
-    emitter_vm = (PfxEmitter*)pfx_get_emitter(
+    emitter_vm = pfx_get_emitter(
         &pfx->matrix, emitter_index);
     emitter_vm->transform = matrix;
     watcher->matrix_count++;
@@ -1983,8 +1973,7 @@ void reset_blood_decals(void) {
     }
 }
 
-/* TODO: [near miss] 87.798355%; footprint writes use the canonical player;
- * existing control-flow/register differences remain. */
+/* TODO: [near miss] 92.63%; footprint writes use the canonical player and use_game_speed bitfield; control-flow/register differences remain. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
@@ -2002,7 +1991,7 @@ void bleed_restart(void) {
 
     proc = bleed_pfx_proc_item.proc;
     if (proc != 0 &&
-        (unsigned int)proc->instance != bleed_pfx_proc_item.instance) {
+        proc->instance != bleed_pfx_proc_item.instance) {
         proc = 0;
     }
     if (proc != 0) {
@@ -2050,7 +2039,7 @@ void bleed_restart(void) {
             0x5018, 0x2C, p_foot_print_wait,
             sizeof(FootPrintPdata), (MkHdr**)&foot_pdata);
         if (foot_proc != 0) {
-            foot_proc->scheduling_flags |= 0x10;
+            foot_proc->flags_bits.use_game_speed = 1;
             foot_proc->sleep_ticks = 60.0f;
             foot_pdata->object = object;
             foot_pdata->object_instance = object->hdr.instance;
@@ -2083,7 +2072,7 @@ void bleed_restart(void) {
             0x5018, 0x2C, p_foot_print_wait,
             sizeof(FootPrintPdata), (MkHdr**)&foot_pdata);
         if (foot_proc != 0) {
-            foot_proc->scheduling_flags |= 0x10;
+            foot_proc->flags_bits.use_game_speed = 1;
             foot_proc->sleep_ticks = 60.0f;
             foot_pdata->object = object;
             foot_pdata->object_instance = object->hdr.instance;
@@ -2148,8 +2137,7 @@ void bleed_init(void) {
     }
 }
 
-/* TODO: [breakthrough] 82.89077%; retail path-preparation early exits restored;
- * existing blood-path relocation/code-generation differences remain. */
+/* TODO: [breakthrough] 83.59%; retail path-preparation early exits restored; blood-path relocation/code-generation differences remain. */
 void plyr_obj_load_bld_data(
     FighterMirror* fighter, BloodModelData* model, MkObj* object,
     char* path_name) {
@@ -2171,7 +2159,7 @@ void plyr_obj_load_bld_data(
             0x5018, 0x2C, p_foot_print_wait, sizeof(*foot_pdata),
             (MkHdr**)&foot_pdata);
         if (foot_proc != 0) {
-            foot_proc->scheduling_flags |= 0x10;
+            foot_proc->flags_bits.use_game_speed = 1;
             foot_proc->sleep_ticks = 60.0f;
             foot_pdata->object = object;
             foot_pdata->object_instance = object->hdr.instance;
@@ -2196,7 +2184,7 @@ void plyr_obj_load_bld_data(
     if (path_name != 0) {
         art_section = get_shared_art_section_for_player(
             (SharedArtPlayer*)object);
-        file = (BloodPathFile*)load_named_bloodpath_data_from_slot(
+        file = load_named_bloodpath_data_from_slot(
             art_section, path_name);
         relocate = 1;
         if (file->relocation_marker < 0) {
@@ -2710,22 +2698,17 @@ static void do_pfx_bleed(MkHdr* hdr) {
     vm = (PfxVm*)pfx->matrix;
     if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
         position_stride = vm->transforms[0].particle_field_stride;
-        destination_base =
-            (BloodParticlePosition*)pfx_get_field(vm, -2, 0x100);
-        source_base =
-            (BloodParticlePosition*)pfx_get_field(vm, -1, 0x100);
+        destination_base = pfx_get_field(vm, -2, 0x100);
+        source_base = pfx_get_field(vm, -1, 0x100);
         state_stride = pfx_get_struct_size(vm, 0x600);
-        states = (BloodVelocityState*)pfx_get_field(vm, -2, 0x600);
+        states = pfx_get_field(vm, -2, 0x600);
         removed_count = 0;
         index = 0;
 
         while (index < vm->particle_cursor - removed_count) {
-            state = (BloodVelocityState*)((char*)states +
-                state_stride * index);
-            destination = (BloodParticlePosition*)((char*)destination_base +
-                position_stride * index);
-            source = (BloodParticlePosition*)((char*)source_base +
-                position_stride * index);
+            state = PFX_FIELD_AT(states, state_stride * index);
+            destination = PFX_FIELD_AT(destination_base, position_stride * index);
+            source = PFX_FIELD_AT(source_base, position_stride * index);
             remove_particle = 0;
 
             if (state->spawn_delay > 0.0f) {
@@ -2797,7 +2780,7 @@ static void do_pfx_bleed(MkHdr* hdr) {
                             fall_velocity.y = world_position.y * 0.5f - 0.002f;
                             fall_velocity.z = world_position.z * 0.5f;
                             spawn_bld_fall(
-                                "bleedfall", (MkBone*)pfx->bone_mat,
+                                "bleedfall", pfx->bone_mat,
                                 &destination->position, &fall_velocity,
                                 pfx->decal_owner);
 
@@ -2899,19 +2882,16 @@ static void do_pfx_bleed(MkHdr* hdr) {
                 BloodVelocityState* last_state;
                 BloodParticlePosition* last_position;
 
-                last_state = (BloodVelocityState*)((char*)
-                    pfx_get_field(vm, -2, 0x600) +
+                last_state = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x600),
                     state_stride * vm->particle_cursor);
                 memcpy(state, last_state, state_stride);
                 if (removed_count != 0) {
-                    last_position = (BloodParticlePosition*)((char*)
-                        pfx_get_field(vm, -2, 0x100) +
+                    last_position = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x100),
                         position_stride * vm->particle_cursor);
                     removed_count--;
                     memcpy(destination, last_position, position_stride);
                 } else {
-                    last_position = (BloodParticlePosition*)((char*)
-                        pfx_get_field(vm, -1, 0x100) +
+                    last_position = PFX_FIELD_AT(pfx_get_field(vm, -1, 0x100),
                         position_stride * vm->particle_cursor);
                     memcpy(destination, last_position, position_stride);
                 }
@@ -2966,7 +2946,7 @@ static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
 
 
 
-/* TODO: [breakthrough needed] 70.11414%; typed particle definition retained; stack layout and instruction ordering need recovery. */
+/* TODO: [breakthrough needed] 70.91%; typed particle definition retained; stack layout and instruction ordering need recovery. */
 int obj_spawn_bld(
     MkObj* object, BloodVelocityState* previous, int batch_count,
     BloodSpawnStep* step, BloodSpawnTarget* path, int point_index,
@@ -3053,10 +3033,10 @@ int obj_spawn_bld(
             config->texture_frame_count = 0x10;
             config->texture_u_step = 0.25f;
             config->texture_v_step = 0.25f;
-            config->flags150 |= 0x40;
-            config->flags150 |= 0x80;
+            config->flag150_40 = 1;
+            config->flag150_80 = 1;
             mk_insert(&pfx->hdr, &bone->list_80);
-            pfx->flags |= 0x10;
+            pfx->flag_bits.visible = 1;
             pfx->name_dst = "blood";
         }
     }
@@ -3078,11 +3058,10 @@ int obj_spawn_bld(
 
     vm = (PfxVm*)pfx->matrix;
     position_stride = vm->transforms[0].particle_field_stride;
-    particle_position = (BloodParticlePosition*)(
-        (char*)pfx_get_field(vm, -2, 0x100) +
+    particle_position = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x100),
         position_stride * vm->particle_cursor);
     state_stride = pfx_get_struct_size(vm, 0x600);
-    state = (BloodVelocityState*)((char*)pfx_get_field(vm, -2, 0x600) +
+    state = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x600),
         state_stride * vm->particle_cursor);
     prior_state = 0;
 
@@ -3101,7 +3080,7 @@ int obj_spawn_bld(
             state->spawn_delay = spawn_delay;
             state->point_index = point_index;
             state->step = step;
-            state->path = (BloodPath*)path;
+            state->path = path;
             if (previous != 0) {
                 state->weight_0 = previous->weight_0;
                 state->weight_1 = previous->weight_1;
@@ -3150,9 +3129,8 @@ int obj_spawn_bld(
                     object, &particle_position->position, state);
             }
 
-            particle_position = (BloodParticlePosition*)(
-                (char*)particle_position + position_stride);
-            state = (BloodVelocityState*)((char*)state + state_stride);
+            particle_position = PFX_FIELD_AT(particle_position, position_stride);
+            state = PFX_FIELD_AT(state, state_stride);
             spawned++;
             vm->particle_cursor++;
             elapsed += definition->spawn_interval;
@@ -3194,9 +3172,6 @@ static int obj_set_bld_vel(
         record = &path->surface->records[
             path->record_indices[state->point_index]];
         corner = path->corner_indices[state->point_index];
-        /* Retail 0x800FF670-0x800FF698 leaves corner unchecked: -1 reads
-         * the preceding vertex-index words. Preserve this failure path;
-         * see the blood path early-exit evidence report for the reproducer. */
         current = &record->points[corner];
         corner++;
         if (corner >= 3) {

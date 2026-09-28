@@ -2308,7 +2308,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
         animation->obj = npc->animation->object;
         animation->obj_instance = npc->animation->object->hdr.instance;
         set_root_and_obj_movement_weights(
-            0.0f, 1.0f, (AnimState*)animation);
+            (AnimState*)animation, 0.0f, 1.0f);
         if (npc->queued_animation == 0) {
             set_anim_script(
                 (KonquestAnimPdata*)animation,
@@ -5404,7 +5404,7 @@ void npc_set_my_movement_weight(float root_weight, float object_weight) {
             g_active_npc->animation->proc);
 
         set_root_and_obj_movement_weights(
-            root_weight, object_weight, animation);
+            animation, root_weight, object_weight);
     }
 }
 

@@ -20,7 +20,6 @@ typedef MkObj ShadowFighterObject;
 
 typedef PlyrMirrorSlots ShadowLightPair;
 
-/* Public shadow handles refer to the shadow state owned by player pdata. */
 
 typedef struct ShadowboxObject {
     MkObj object;
@@ -185,7 +184,7 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     float aspect;
     float inv_height;
 
-    fighter = (ShadowFighterObject*)fighter_object;
+    fighter = fighter_object;
     shadow_scale = kShadowScaleDefault;
     if (owner->character_id == 0x1D) {
         shadow_scale = kShadowScaleAlt;
@@ -247,7 +246,7 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     if (clear_flags != 0) {
         ip_camera = ShadowIPCamera;
         src_raster = owner->shadow_raster;
-        inv_height = (float)src_raster->height;
+        inv_height = src_raster->height;
         aspect = kOne / ip_camera->farPlane;
         ip_camera->frameBuffer = src_raster;
         RwCameraClear(ip_camera, &clear_color_black, 3);
@@ -477,14 +476,14 @@ int SetupShadow(ShadowObject* shadow) {
     }
     if (owner->character_id == 0x1D) {
         if (owner->plyr_num == 0) {
-            owner->shadowbox = (MkObj*)load_model_from_slot_transl(
+            owner->shadowbox = load_model_from_slot_transl(
                 0x0003000B, 0x008F0002, 0x5012);
         } else {
-            owner->shadowbox = (MkObj*)load_model_from_slot_transl(
+            owner->shadowbox = load_model_from_slot_transl(
                 0x0004000B, 0x008F0002, 0x5012);
         }
     } else {
-        owner->shadowbox = (MkObj*)load_model_from_slot_transl(
+        owner->shadowbox = load_model_from_slot_transl(
             0, 0x0001000A, 0x5012);
     }
     if (owner->shadowbox == NULL) {
@@ -493,13 +492,13 @@ int SetupShadow(ShadowObject* shadow) {
     box = (ShadowboxObject*)owner->shadowbox;
     flags = box->object.flags_08;
     flags = (flags & ~(1 << 6)) | (1 << 6);
-    box->object.flags_08 = (unsigned char)flags;
+    box->object.flags_08 = flags;
     flags = box->object.flags_08;
     flags = (flags & ~(1 << 3)) | (1 << 3);
-    box->object.flags_08 = (unsigned char)flags;
+    box->object.flags_08 = flags;
     flags = box->object.flags_08;
     flags = (flags & ~(1 << 1)) | (1 << 1);
-    box->object.flags_08 = (unsigned char)flags;
+    box->object.flags_08 = flags;
     insert_fgnd_mkobj(box);
     if (owner->character_id == 0x1D) {
         material = obj_find_material_with_texture((MkObj*)box, stringBase0);
@@ -524,7 +523,7 @@ int SetupShadow(ShadowObject* shadow) {
     if (sobj != NULL) {
         flags = sobj->flags09;
         flags = (flags & ~(1 << 7)) | (1 << 7);
-        sobj->flags09 = (unsigned char)flags;
+        sobj->flags09 = flags;
         sobj->render_flags = 0x10006;
         sobj_set_priority(sobj, 0xC);
     }
@@ -600,7 +599,7 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
     float inv_far;
     int alpha;
 
-    raster_height = (float)src_raster->height;
+    raster_height = src_raster->height;
     inv_height = kOne / raster_height;
     inv_far = kOne / ip_camera->farPlane;
     last_pass = pass_count - 1;
@@ -631,8 +630,8 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
                                RwEngineInstance->dOpenDevice.zBufferFar,
                                inv_far, kZero);
             } else {
-                alpha = (int)(kAlphaScale * ShadowStrength);
-                Im2DRenderQuad((unsigned char)alpha, kZero, kZero,
+                alpha = (kAlphaScale * ShadowStrength);
+                Im2DRenderQuad(alpha, kZero, kZero,
                                raster_height, raster_height,
                                RwEngineInstance->dOpenDevice.zBufferFar,
                                inv_far, kZero);

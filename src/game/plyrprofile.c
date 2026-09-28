@@ -20,58 +20,27 @@
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
 
-/*
- * plyrprofile.o - profiles + boot PPWLS (B21) + menu create/view/delete (B22).
- * See docs/campaigns/index.md (B20-B22).
- */
-
 #pragma use_lmw_stmw on
 
 char* nbc_find_text(int a, int b);
 void load_screen(const char* path, int slot, int a, int b);
 int update_storage_status(int flag);
-void gc_boot_space_check(void);
-void destroy_mkprocs_pid(int pid);
-void set_wls_left_cursor(int v);
 void fire_screen_studio_event(int id, int arg);
-void reset_format_or_recreate_flags(void);
-void check_format_or_recreate(void);
-void turn_camera_on(void);
-void turn_camera_off(void);
-void turn_all_ports_on(void);
 void reset_sg_status(StorageDevice* device, int slot);
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes);
 int format_card_and_create_mkda_file(int device);
 int gc_delete_file(int device, const char* fileName);
-int is_device_unformatted(int device);
-int is_device_present(int device);
-int is_device_error(int device);
-int is_device_full(int device);
-int is_storage_device_full(int device);
-void set_mode_of_play(int mode);
-void push_game_state(int state);
 void set_player_state(PlyrInfo* plyr, int state);
 void setup_sound_banks(int bank);
 void wait_for_sound_banks_to_load(void);
 void ppc_set_stage_value(int stage);
 static void pne_set_players_name_to_default(char* name, int* charPos);
 static float p_player_profile_whats_loaded_screen(void);
-int get_wls_left_cursor(void);
 void set_sal_cursor(int v);
-/* Ring walk remains open-coded so retail keeps this helper out of p_view_profile. */
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition);
-void erase_player_profile(int device, int slot);
-void format_value_to_display(char* dest, unsigned int value);
-int does_name_already_exist(const char* name);
-RwTexture* load_named_tga_from_slot(int slot, const char* name);
-unsigned long strlen(const char* s);
-char* strcat(char* dest, const char* src);
-char* strncat(char* dest, const char* src, unsigned long n);
-int strcmp(const char* a, const char* b);
-int check_switch_edge(int port, int switch_index);
 int check_switch_action(int port, int action);
 int is_memcard_scanner_running(void);
 void kill_async_memcard_scan(void);
@@ -81,15 +50,11 @@ void snd_req(int sound_id);
 void move_player_name(const char* src, char* dst);
 void move_player_pin(const unsigned char* src, unsigned char* dst);
 
-extern int msg_card_gone_answer;
 extern int menu_player;
 extern char konq_region_data_buffer[];
 
 char player_name[0xB];
 
-extern MkProc* aproc;
-extern float _mkproc_sleep_ticks;
-extern GameInfo g_game_info;
 
 typedef struct MkVtableMkprocLocal {
     int (*fn0)(void);
@@ -111,7 +76,6 @@ static inline void mkproc_sleep(void) {
     vtbl->sleep();
 }
 
-/* Retail jump_sleep takes ticks in f1 (like pselect name-sound). */
 static inline float mkproc_jump_sleep(MkProcEntryFn entry) {
     MkVtableMkprocLocal* vtbl;
     float (*js)(float, MkProcEntryFn);
@@ -121,17 +85,15 @@ static inline float mkproc_jump_sleep(MkProcEntryFn entry) {
     return js(0.0f, entry);
 }
 
-/* .sdata2 */
 static const float kOne = 1.0f;
 static const float kNegOne = -1.0f;
-static const float kSleepBeforeCreateScreen = 5.0f; /* @2555 */
-static const float kInitialCancelDelay = 45.0f; /* @2556 */
-static const float kSleepIntro = 10.0f; /* @2557 */
-static const float kSleepLoop = 2.0f;   /* @2558 */
-static const float kSleepPost = 50.0f;  /* @4196 */
-static const float kZero = 0.0f;        /* @4199 / @1814 used as -1 */
+static const float kSleepBeforeCreateScreen = 5.0f;
+static const float kInitialCancelDelay = 45.0f;
+static const float kSleepIntro = 10.0f;
+static const float kSleepLoop = 2.0f;
+static const float kSleepPost = 50.0f;
+static const float kZero = 0.0f;
 
-/* MWCC emits tentative small-data objects in reverse declaration order. */
 static unsigned char player_icon;
 static unsigned char player_kode[6];
 static int player_kode_current_digit;
@@ -212,10 +174,6 @@ void pselect_update_profile_settings(void);
 #define NBC_MEMCARD_TITLE 0x30
 #define MCARD_MSG_ACTIVE_PROGRESS 0xB
 
-/*
- * PPWLS profile icon TGA names (color + _L alpha pairs). Indexed as icon*2.
- * Soft: string pool layout for Matching; names match retail stringBase0.
- */
 ProfileIconNames ppwls_icon[] = {
     {"MC_EMPTY_ICON", "MC_EMPTY_ICON_L"}, {"MC_ICON1", "MC_ICON1_L"},
     {"MC_ICON2", "MC_ICON2_L"},           {"MC_ICON3", "MC_ICON3_L"},
@@ -232,11 +190,6 @@ ProfileIconNames ppwls_icon[] = {
     {"MC_ICON24", "MC_ICON24_L"},
 };
 
-float p_reset_ppwls_timeout(void);
-float p_atm_loop(void);
-void set_profile_to_default(PlayerProfile* profile);
-void unload_player_profiles(void);
-
 static inline void spawn_ppwls_timeout_proc(void) {
     MkHdr* pdata;
 
@@ -246,7 +199,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
                                      PPWLS_TIMEOUT_PROC_PDATA, &pdata);
 }
 
-/* Profile blob 0x5C0 -- retail init offsets. */
 #define PROFILE_COMMON_OFF 0x8
 #define PROFILE_SWITCHMAP_OFF 0x108
 #define PROFILE_KONQUEST_OFF 0x190
@@ -262,10 +214,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
 
 PlayerProfile p1_profile;
 PlayerProfile p2_profile;
-extern void* p1_profile_common;
-extern void* p2_profile_common;
-extern void* p1_profile_konquest;
-extern void* p2_profile_konquest;
 extern int mcard_msg_active;
 extern SwitchMapEntry default_switch_map[];
 extern int p1_rumble_on;
@@ -330,10 +278,7 @@ static inline int find_device_display_status_impl(int device, int compact_no_fil
     return 1;
 }
 
-/*
- * Soft ceiling: erase_player_profile -- retail retains a redundant upper-bound
- * branch that MWCC folds in clean structured C; the body is retail-correct.
- */
+/* TODO: [near miss] 87.22%; body is retail-correct; retail keeps a redundant upper-bound branch that structured C folds away. */
 void erase_player_profile(int device, int slot) {
     StorageDevice* base;
     unsigned int* freeBlocks;
@@ -383,10 +328,7 @@ void erase_player_profile(int device, int slot) {
     }
 }
 
-/*
- * Soft ceiling: p_delete_profile -- retail inlines the erase path; the remaining
- * differences are device/register and save-call argument scheduling.
- */
+/* TODO: [near miss] 93.59%; erase path inlined as in retail; residue is device register and save-call argument scheduling. */
 float p_delete_profile(void) {
     StorageDevice* storage;
     unsigned int* freeBlocks;
@@ -507,7 +449,6 @@ float p_delete_profile(void) {
     return kNegOne;
 }
 
-/* Screen GetString sink: dest buffer + koin index 0..5. */
 void ppv_get_current_profile_koins(char* dest, int index) {
     StorageProfileSlot* slot;
     int value;
@@ -607,7 +548,6 @@ void ppv_get_current_profile_arcade_finishes(char* dest) {
     format_value_to_display(dest, value);
 }
 
-/* Soft ceiling: ppv_get_current_profile_name -- storage index schedule. */
 char* ppv_get_current_profile_name(void) {
     StorageProfileSlot* slot;
 
@@ -796,7 +736,7 @@ static inline StorageProfileSlot* ppv_profile_at(int device, int slot) {
     return result;
 }
 
-/* Soft ceiling: exact instruction stream/size; remaining differences are GPR coloring. */
+/* TODO: [near miss] 98.65%; exact instruction stream and size; only GPR coloring differs. */
 void ppv_view_profile_icon_list(GVTexturePair out) {
     StorageProfileSlot* profile;
     int i;
@@ -863,7 +803,7 @@ void ppv_update_profile_cursor(int delta) {
     fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
 }
 
-/* Soft ceiling: p_view_profile sleep/timer schedule; present OK. */
+/* TODO: [near miss] 99.38%; residue is the sleep/timer schedule. */
 float p_view_profile(void) {
     int statusChanged;
 
@@ -1620,7 +1560,6 @@ static inline void mark_bitset_unlocked(
     bits->value |= mask;
 }
 
-/* Consumers: nis, krypt handle_controller_input, projectile. */
 void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;
@@ -1826,11 +1765,6 @@ void check_new_mu_for_in_use_profiles(int device) {
     }
 }
 
-/*
- * Consumer: save_profile (utils / CARD path).
- * Soft ceiling: the validate_* routines are exact-size; the remaining
- * differences are pointer-role coloring in their profile search loops.
- */
 static inline void advance_device_slot(int* device, int* slot) {
     if (*device < 0 || *device >= STORAGE_MAX_DEVICES || *slot < 0 || *slot >= STORAGE_MAX_SLOTS) {
         return;
@@ -1847,6 +1781,7 @@ static inline void advance_device_slot(int* device, int* slot) {
     }
 }
 
+/* TODO: [near miss] 99.01%; exact size; residue is pointer-role coloring in the profile search loop. */
 int validate_save_location(int player) {
     int* devicePtr;
     int* slotPtr;
@@ -1919,7 +1854,7 @@ int validate_save_location(int player) {
     return 0;
 }
 
-/* Consumer: konquest_save. */
+/* TODO: [near miss] 99.06%; exact size; residue is pointer-role coloring in the profile search loop. */
 int validate_konq_save_location(int player) {
     int* devicePtr;
     int* slotPtr;
@@ -1997,6 +1932,7 @@ int validate_konq_save_location(int player) {
     }
 }
 
+/* TODO: [near miss] 99.37%; exact size; residue is pointer-role coloring in the profile search loop. */
 int validate_konq_load_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
@@ -2234,10 +2170,6 @@ int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr
 #define PPL_LIST_PID_P2 0x9027
 #define PPL_NAME_SLOTS 14
 
-/*
- * UI list pdata: 6-byte code/PIN lives at +0x14 (retail lbz walk).
- * Compare against StorageProfileSlot.pin (@ +0x13 of each slot).
- */
 static inline int ppl_count_matching_profiles(const unsigned char* code) {
     int count;
     int device;
@@ -2284,7 +2216,6 @@ static inline int ppl_fill_matching_names(
     return count;
 }
 
-/* Screen multi-profile list: fills out[] with name string pointers; returns count. */
 /* TODO: [near miss] 99.55%; shared pdata preserves retail layout; only dev-base vs code-cursor GPR (volatile/nonvolatile) swap remains. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
@@ -2331,7 +2262,6 @@ int ppl_get_multi_profile_names_p1(char** out) {
     return count;
 }
 
-/* Soft ceiling: exact instruction stream/size; remaining differences are GPR coloring. */
 static void ppl_get_multi_profile_icons(
     unsigned char* code, GVTexturePair* out, int count);
 
@@ -2375,6 +2305,7 @@ void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
     }
 }
 
+/* TODO: [near miss] 98.47%; exact instruction stream and size; only GPR coloring differs. */
 static void ppl_get_multi_profile_icons(
     unsigned char* code, GVTexturePair* out, int count) {
     int i;
@@ -2486,7 +2417,6 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
             *device = STORAGE_MAX_DEVICES - 1;
             *slot = STORAGE_MAX_SLOTS - 1;
             find_next_matching_slot(code, device, slot);
-            /* Retail repeats the device sentinel in both short-circuit arms. */
             if (*device == -1 || *device == -1) {
                 *state = 1;
                 return 0;
@@ -2553,7 +2483,6 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
     }
 }
 
-/* Copy active profile blob into dest (prep for CARD write). */
 void memory_save_profile(int player, PlayerProfile* dest) {
     if (player == 0) {
         memcpy(dest, &p1_profile, PROFILE_SIZE);
@@ -2562,7 +2491,6 @@ void memory_save_profile(int player, PlayerProfile* dest) {
     }
 }
 
-/* Copy src blob into active profile (after CARD read). */
 void memory_load_profile(int player, PlayerProfile* src) {
     if (player == 0) {
         memcpy(&p1_profile, src, PROFILE_SIZE);
@@ -2571,10 +2499,6 @@ void memory_load_profile(int player, PlayerProfile* src) {
     }
 }
 
-/*
- * Soft ceiling: move_profile_* ~99% -- stmw / default-reset schedule. Soft OK.
- * Returns 1 on success (dest was empty), else 0.
- */
 int move_profile_p2_to_p1(void) {
     if (p1_profile_status != 0) {
         return 0;
@@ -2637,13 +2561,10 @@ void mark_profile_as_in_use(int device, int slot) {
     DEVICE_AT(device)->inUse[slot] = 1;
 }
 
-/* Display codes: 0 empty/unknown, 1 absent, 2 full, 3 ready, 4 error,
- * 5 unformatted, and 6..9 mapped from raw status 6/8/9/10/0xb. */
 int find_device_display_status(int device) {
     return find_device_display_status_impl(device, 1);
 }
 
-/* Soft ceiling: p_reset_ppwls_timeout ~99.7% -- float @sda21 pool names only; stop. */
 float p_reset_ppwls_timeout(void) {
     int ticks_left;
 
@@ -2663,7 +2584,6 @@ void reset_ppwls_timeout(void) {
     spawn_ppwls_timeout_proc();
 }
 
-/* Called from check_format_or_recreate during the PPWLS loop. */
 void format_or_recreate_a_device(int device) {
     int status;
 
@@ -2690,7 +2610,6 @@ void format_or_recreate_a_device(int device) {
     spawn_ppwls_timeout_proc();
 }
 
-/* Soft ceiling: exact size/operations; two remaining differences are GPR coloring. */
 static float p_player_profile_whats_loaded_screen(void) {
     int status_changed;
 
@@ -2739,7 +2658,6 @@ void set_ppwls_input_done(void) {
     ppwls_input_done = 1;
 }
 
-/* Soft ceiling: p_player_profile_boot_screen_entry_point ~99.4% -- float @sda21 pool names; stop. */
 float p_player_profile_boot_screen_entry_point(void) {
     _mkproc_sleep_ticks = kOne;
     mkproc_sleep();
@@ -2847,7 +2765,6 @@ int does_name_already_exist(const char* name) {
     return hits != 0;
 }
 
-/* Valid coffin indices are 0..0x257; reject with >= 0x258 (cmplwi; blt). */
 #define COFFIN_BIT_COUNT 0x258
 
 void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
@@ -2866,26 +2783,19 @@ void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
     }
 }
 
+/* TODO: [near miss] 98.46%; only the slw operand register coloring differs. */
 int get_coffin_bit(const unsigned char* bits, unsigned int index) {
     if (index >= COFFIN_BIT_COUNT) {
         return 0;
     }
-    /* Soft ceiling: get_coffin_bit ~98% -- slw operand reg color; stop. */
     return (bits[index >> 3] & (1 << (index & 7))) != 0;
 }
 
-/* Retail global; same body used by init/unload/move_profile. */
 /* TODO: [near miss] 96.59574%; typed default masks preserve codegen; loop scheduling remains. */
 void set_profile_to_default(PlayerProfile* profile) {
     set_profile_to_default_impl(profile);
 }
 
-/* Soft ceiling: exact size/operations; switch-map loop coloring remains. */
-
-/*
- * Soft ceiling: unload_p* -- retail subfic/subfe for device/slot != -1;
- * switch_map arg is g_game_info.plyr0 / plyr1. Soft OK.
- */
 void unload_p2_player_profile(void) {
     clear_storage_in_use(p2_profile_device, p2_profile_slot);
     set_profile_to_default(&p2_profile);
@@ -2915,7 +2825,6 @@ void unload_player_profiles(void) {
 }
 #pragma dont_inline reset
 
-/* Soft ceiling: exact size/operations; twin reset register coloring remains. */
 void init_player_profiles(void) {
     set_profile_to_default(&p1_profile);
     p1_profile_status = 0;

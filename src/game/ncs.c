@@ -1,3 +1,4 @@
+#include "libmkparticle/fields.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api.h"
 #include "runtime/mk_obj.h"
@@ -487,7 +488,6 @@ NcsBoneMatcher* start_bone_matcher(
     float blend_ticks);
 void plyr_aux_weapon_release(PlyrPdata* player);
 void snd_req(int sound_id);
-void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
 void atomic_set_transl_flag(void* atomic);
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
@@ -538,7 +538,6 @@ void limb_sever_explode_apart(PlyrInfo* player);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void spawn_bld_splat(
     const char* name, void* owner, const Vec* position);
-void sobj_set_priority(void* object, int priority);
 MslSoundHandle plyr_snd_req(int sound);
 MslSoundHandle random_voice(int sound);
 
@@ -619,28 +618,24 @@ static float p_mkpfx_fadingrun(void) {
     }
 
     quad->verts[0].a =
-        (unsigned char)fading_screen.alpha;
+        fading_screen.alpha;
     quad->verts[1].a =
-        (unsigned char)fading_screen.alpha;
+        fading_screen.alpha;
     quad->verts[2].a =
-        (unsigned char)fading_screen.alpha;
+        fading_screen.alpha;
     quad->verts[3].a =
-        (unsigned char)fading_screen.alpha;
+        fading_screen.alpha;
     return 1.0f;
 }
 
 MkProc* start_scorpion_spear(int field_34) {
-    MkObj* player;
-    MkObj* opponent;
     Vec velocity;
     float facing_x;
     float facing_z;
 
-    player = (MkObj*)plyr_obj;
-    opponent = (MkObj*)his_obj;
-    facing_x = gxMathSin(player->ang.y);
-    facing_z = gxMathCos(player->ang.y);
-    xz_unit_vector(&velocity, &player->pos.value, &opponent->pos.value);
+    facing_x = gxMathSin(plyr_obj->ang.y);
+    facing_z = gxMathCos(plyr_obj->ang.y);
+    xz_unit_vector(&velocity, &plyr_obj->pos.value, &his_obj->pos.value);
     if (facing_x * velocity.x + facing_z * velocity.z < 0.0f) {
         velocity.x = facing_x;
         velocity.y = 0.0f;
@@ -677,7 +672,7 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
         return 0;
     }
 
-    weapon_view = (MkObj*)weapon;
+    weapon_view = weapon;
     if (weapon_view->field_60 == 0) {
         weapon_view->field_60 = 1;
         if (player->character_id == 0) {
@@ -749,7 +744,7 @@ MkProc* fire_sc_spear(
         return 0;
     }
 
-    weapon_view = (MkObj*)weapon;
+    weapon_view = weapon;
     if (weapon_view->field_60 == 0) {
         weapon_view->field_60 = 1;
         if (player->character_id == 0) {
@@ -840,7 +835,7 @@ float p_sc_spear1(void) {
     }
 
     effect = 0;
-    effect_proc = (MkProc*)pfx_create_raw_userdata(
+    effect_proc = pfx_create_raw_userdata(
         0, 0, 0x64, 2, 0, 0, 0x501A,
         p_pfx_sc_spear, (void**)&effect);
     if (effect_proc == 0) {
@@ -867,7 +862,7 @@ float p_sc_spear1(void) {
 
     {
         int art_section = get_shared_art_section_for_player(
-            (SharedArtPlayer*)target);
+            target);
         RwTexture* texture = load_named_tga_from_slot(art_section, "ROPE");
 
         pfx_set_texture((PfxRenderView*)&effect->vm, texture);
@@ -1104,7 +1099,7 @@ float p_sc_spear_blocked(void) {
             &effect->vm, (void*)0x10005, (void*)0x20039);
     } else {
         int art_section = get_shared_art_section_for_player(
-            (SharedArtPlayer*)pdata_sc_spear->opponent_object);
+            pdata_sc_spear->opponent_object);
         RwTexture* texture = load_named_tga_from_slot(
             art_section, "ROPE");
 
@@ -1165,7 +1160,7 @@ float p_sc_spear_retract(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: remaining differences are register allocation and scheduling. */
+/* TODO: [near miss] 78.54%; residue is register allocation and scheduling. */
 float p_sc_spear_retract_victory(void) {
     PlyrPdata* owner;
     MkObj* owner_object;
@@ -1455,7 +1450,7 @@ float p_sc_spear_kill(void) {
     }
 
     sc_spear_obj->flags_08_bits.gravity_enabled = 0;
-    weapon = (MkObj*)sc_spear_obj;
+    weapon = sc_spear_obj;
     weapon->field_60 = 0;
     owner = pdata_sc_spear->owner;
     if (owner->character_id == 0) {
@@ -1514,7 +1509,7 @@ static float p_pfx_sc_spear(void) {
 
     pfx = (MkPfx*)effect;
     stride = pfx->transforms[0].particle_field_stride;
-    particle_position = (Vec*)pfx_get_field(&effect->vm, -2, 0x100);
+    particle_position = pfx_get_field(&effect->vm, -2, 0x100);
     emitter_object = apfx_emitter_obj;
     get_bone_world_pos(target, effect->bone, &target_position);
     v3_sub_v3(&direction, &emitter_object->pos.value, &target_position);
@@ -1586,7 +1581,7 @@ static float p_pfx_sc_spear(void) {
         } else {
             particle_position->y = emitter_object->pos.value.y;
         }
-        particle_position = (Vec*)((unsigned char*)particle_position + stride);
+        particle_position = PFX_FIELD_AT(particle_position, stride);
         particle_count++;
     }
     pfx->field_94 = particle_count;
@@ -1939,16 +1934,16 @@ void ncs_camera_wall_show_hide_alpha(
             region->max_z = region->min_z * region->min_z;
         }
         for (ids = region->show_ids; *ids >= 0; ids++) {
-            MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                g_game_info.bgnd_obj, (unsigned int)*ids);
+            MkSobj* sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, *ids);
 
             if (sobj != 0) {
                 sobj->z_offset = -50.0f;
             }
         }
         for (ids = region->alpha_ids; *ids >= 0; ids++) {
-            MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                g_game_info.bgnd_obj, (unsigned int)*ids);
+            MkSobj* sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, *ids);
 
             if (sobj != 0 && sobj->atomic != 0 &&
                 sobj->atomic->geometry != 0) {
@@ -2012,16 +2007,16 @@ static float p_camera_wall_show_hide_alpha(void) {
             const int* ids;
 
             for (ids = previous->hide_ids; *ids >= 0; ids++) {
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)*ids);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, *ids);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     unhide_atomic(sobj->atomic);
                 }
             }
             for (ids = previous->show_ids; *ids >= 0; ids++) {
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)*ids);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, *ids);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     hide_atomic(sobj->atomic);
@@ -2029,8 +2024,8 @@ static float p_camera_wall_show_hide_alpha(void) {
             }
             for (ids = previous->alpha_ids; *ids >= 0; ids++) {
                 int id = *ids;
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)id);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, id);
 
                 if (sobj != 0) {
                     sobj_set_color_for_all_materials(sobj, &white);
@@ -2051,16 +2046,16 @@ static float p_camera_wall_show_hide_alpha(void) {
 
             pdata->active_region = region_index;
             for (ids = region->hide_ids; *ids >= 0; ids++) {
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)*ids);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, *ids);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     hide_atomic(sobj->atomic);
                 }
             }
             for (ids = region->show_ids; *ids >= 0; ids++) {
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)*ids);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, *ids);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     unhide_atomic(sobj->atomic);
@@ -2068,8 +2063,8 @@ static float p_camera_wall_show_hide_alpha(void) {
             }
             for (ids = region->alpha_ids; *ids >= 0; ids++) {
                 int id = *ids;
-                MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, (unsigned int)id);
+                MkSobj* sobj = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, id);
 
                 if (sobj != 0) {
                     sobj_set_color_for_all_materials(sobj, &white);
@@ -2090,8 +2085,8 @@ static float p_camera_wall_show_hide_alpha(void) {
 
         pdata->special_alpha_initialized = 1;
         for (id = 0x4E; id <= 0x54; id++) {
-            MkSobj* sobj = (MkSobj*)obj_find_sobj_by_id(
-                g_game_info.bgnd_obj, (unsigned int)id);
+            MkSobj* sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, id);
 
             sobj_set_color_for_all_materials(sobj, &white);
             sobj->flags09_bits.bit7 = 0;
@@ -2344,13 +2339,7 @@ void start_gore2_update(void) {
     mkpdata_pbl_gore2_update = pdata;
 }
 
-/*
- * Soft ceiling: retail dynamically aligns the matrix workspace to 16 bytes,
- * retains explicit null-normalization branches, and chooses different loop
- * induction registers. Portable C keeps the same typed algorithm in a fixed
- * frame; reproducing the residue would require alignment or dead-control-flow
- * forcing.
- */
+/* TODO: [near miss] 82.70%; algorithm agrees; residue is retail's 16-byte-aligned matrix frame, null-normalization branches and loop induction registers. */
 static float p_gore2_update(void) {
     Gore2UpdatePdata* pdata;
     int type;
@@ -2427,7 +2416,7 @@ static float p_gore2_update(void) {
                         MKMATRIX* matrix =
                             &pool->pebbles[particle_index].matrix;
                         MKMATRIX* owner_matrix =
-                            (MKMATRIX*)owner->field_24;
+                            owner->field_24;
 
                         if ((unsigned int)particle->bone != 0x40000000) {
                             MkBone* bone = owner->bones[particle->bone];
@@ -2473,7 +2462,7 @@ void start_sweat_particles(
 
     saved_script = active_cmdscript;
     active_cmdscript =
-        get_cmdscript_for_proc((MkProc*)player->plyr_info->idle_proc);
+        get_cmdscript_for_proc(player->plyr_info->idle_proc);
     for (type = 0; type < 3; type++) {
         if (((particle_mask >> type) & 1) != 0) {
             effect = fx_by_owner(
@@ -2505,7 +2494,7 @@ void start_sweat_particles_scripts(int particle_mask, int bone) {
     object = plyr_obj;
     saved_script = active_cmdscript;
     active_cmdscript =
-        get_cmdscript_for_proc((MkProc*)player->plyr_info->idle_proc);
+        get_cmdscript_for_proc(player->plyr_info->idle_proc);
     for (type = 0; type < 3; type++) {
         if (((particle_mask >> type) & 1) != 0) {
             effect = fx_by_owner(
@@ -2537,7 +2526,7 @@ unsigned int start_blood_particles(
 
     saved_script = active_cmdscript;
     active_cmdscript = get_cmdscript_for_proc(
-        (MkProc*)player->plyr_info->idle_proc);
+        player->plyr_info->idle_proc);
     for (type = 0; type < 11; type++) {
         if (((particle_mask >> type) & 1) != 0 &&
             get_blood_level() >=
@@ -2589,7 +2578,7 @@ unsigned int start_blood_particles_scripts(
 
     saved_script = active_cmdscript;
     active_cmdscript = get_cmdscript_for_proc(
-        (MkProc*)player->plyr_info->idle_proc);
+        player->plyr_info->idle_proc);
     for (type = 0; type < 11; type++) {
         if (((particle_mask >> type) & 1) != 0 &&
             get_blood_level() >=
@@ -2736,7 +2725,7 @@ static void trigger_blood_glops(
     }
 }
 
-/* Soft ceiling: retail retains additional loop state in saved registers. */
+/* TODO: [near miss] 86.07%; retail keeps additional loop state in saved registers. */
 static float p_watch_obj_for_gnd_coll(void) {
     NcsGroundCollisionWatchPdata* pdata;
     int active_count;
@@ -2774,7 +2763,6 @@ static float p_watch_obj_for_gnd_coll(void) {
     return active_count != 0 ? 1.0f : -1.0f;
 }
 
-/* Soft ceiling: exact retail size; remaining delta is GPR allocation. */
 void spawn_blood_pool_at_bid(
     NcsBloodPoolSource* source, int bone, int large) {
     Vec position;
@@ -2788,7 +2776,6 @@ void spawn_blood_pool_at_bid(
     }
 }
 
-/* Soft ceiling: exact retail size; remaining delta is GPR allocation. */
 void mks_spawn_blood_pool_at_bid(
     NcsBloodPoolSource* source, MkObj* object, int bone, int large) {
     Vec position;
@@ -3120,11 +3107,7 @@ void limb_sever_explode_apart_plyr_num(int player) {
     }
 }
 
-/*
- * Soft ceiling: retail expands both typed limb helpers at every call site.
- * The remaining size delta is late inline/DCE behavior plus register and
- * instruction scheduling; the complete limb order and motion are recovered.
- */
+/* TODO: [near miss] 91.32%; limb order and motion recovered; residue is inline/DCE size delta and scheduling. */
 void limb_sever_explode_apart(PlyrInfo* player) {
     MkObj* owner;
     NcsLimbUpdatePdata* update;
@@ -3146,7 +3129,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 4, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 4, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 4, 0);
@@ -3154,7 +3137,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.x = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 5, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 5, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 5, 0);
@@ -3163,7 +3146,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 6, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 6, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 6, 0);
@@ -3173,7 +3156,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.01f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 1, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 1, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 1, 0);
@@ -3183,7 +3166,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = -0.03f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 2, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 2, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
@@ -3192,7 +3175,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 3, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 3, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
@@ -3202,7 +3185,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 10, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 10, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 10, 0);
 
@@ -3210,7 +3193,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 11, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 11, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 11, 0);
 
@@ -3219,7 +3202,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 12, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 12, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 12, 0);
 
@@ -3228,7 +3211,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = -0.04f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 7, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 7, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 7, 0);
 
@@ -3237,7 +3220,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 8, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 8, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 8, 0);
 
@@ -3246,7 +3229,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 9, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 9, &world_velocity, update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 9, 0);
 
@@ -3255,7 +3238,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, mkobj_get_matrix(owner));
     severed = limb_sever_set_motion_inline(
-        owner, 0, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 0, &world_velocity, update,
         1, 2, 0xD2, 1, -0.006f, 0.1f, 0.0001f);
     zero_v3(&angular_velocity);
     angular_velocity.z = 0.085f;
@@ -3281,7 +3264,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     obj_set_pos_vel(owner, &world_velocity);
 
     severed = limb_sever_set_motion_inline(
-        owner, 13, &world_velocity, (NcsLimbUpdatePdata*)update,
+        owner, 13, &world_velocity, update,
         1, 3, 1000, 1, -0.006f, 0.01f, 0.3f);
     zero_v3(&angular_velocity);
     angular_velocity.z = 0.1f;
@@ -3334,7 +3317,6 @@ void limb_sever_destroy_existing_attach_proc(
     MkPtr** list;
     MkPtr* link;
 
-    /* Retail also preserves this address check before loading the list head. */
     list = &player->slot.fighter->attach_proc_list;
     if (list != 0) {
         link = *list;
@@ -3465,7 +3447,7 @@ MkProc* plyr_spawn_his_anim_limb(
     severed->ground_colls = player->object->ground_colls;
     severed->ground_colls_y = player->object->ground_colls_y;
     severed->flags_0B &= (unsigned char)~4;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
+    set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
     set_anim_script(animation, animation_script, transition);
     animation->step = animation_step;
     return proc;
@@ -3532,13 +3514,13 @@ static float p_limb_sever_attach(void) {
         return -1.0f;
     }
 
-    target_matrix = (MKMATRIX*)target->field_24;
-    severed_matrix = (MKMATRIX*)severed->field_24;
+    target_matrix = target->field_24;
+    severed_matrix = severed->field_24;
     if (pdata->owner_bone >= 0) {
         MkBone* target_bone = target->bones[pdata->owner_bone];
 
         if (target_bone != 0 && target_bone->parent_matrix != 0) {
-            target_matrix = (MKMATRIX*)target_bone->parent_matrix;
+            target_matrix = target_bone->parent_matrix;
         }
     }
     YXZ_angles_to_MKMATRIX(&pdata->rotation, &rotation_matrix);
@@ -3548,7 +3530,7 @@ static float p_limb_sever_attach(void) {
             severed_matrix, severed_matrix, &severed->scale);
     }
 
-    source_matrix = (MKMATRIX*)severed
+    source_matrix = severed
         ->bones[limbbid_bid_map[pdata->target_bone]->bone_id]->parent_matrix;
     source_position.x = source_matrix->pos.x;
     source_position.y = source_matrix->pos.y;
@@ -3575,7 +3557,7 @@ static float p_limb_sever_update(void) {
     if (pdata == 0) {
         mkproc_die();
     }
-    limbset = (NcsLimbSet*)pdata->limbset;
+    limbset = pdata->limbset;
     if (pdata->field_18 < 0 || limbset == 0) {
         return -1.0f;
     }
@@ -3788,11 +3770,6 @@ int pfx_plyr_bankowner(const PlyrInfo* player) {
     return 1 << player->controller_slot;
 }
 
-/*
- * Soft ceiling: retail keeps this loop rolled. At this TU's authentic -O4,p
- * settings MWCC unrolls it; function-local unroll pragmas are intentionally
- * avoided, so the portable loop is retained despite the emission gap.
- */
 void limb_sever_update_slide_end_coeff(
     NcsLimbSlide* limb, float coefficient) {
     int index;
@@ -3827,6 +3804,7 @@ void set_pdata_anim_step(AnimPdata* pdata, float step) {
     pdata->step = step;
 }
 
+/* TODO: [near miss] 61.71%; arithmetic equivalent; retail keeps the empty zero-length branch as a jump and loads arguments after frame setup. */
 float mkobj_pos_pos_dot_normal_xz(
     const MkObj* from, const MkObj* to, const Vec* normal) {
     NcsFloatBits bits;
@@ -3841,15 +3819,8 @@ float mkobj_pos_pos_dot_normal_xz(
     dx = to->pos.value.x - from->pos.value.x;
     dz = to->pos.value.z - from->pos.value.z;
     squared = dx * dx + dz * dz;
-    /*
-     * Soft ceiling: retail retains an empty zero-length branch as a separate
-     * jump and schedules the argument loads after the stack-frame setup.
-     * Clean MWCC folds the empty branch and hoists those loads. The arithmetic,
-     * including the unordered/NaN path, is otherwise instruction-equivalent.
-     */
     inverse_length = 0.0f;
     if (squared <= 0.0f) {
-        /* A zero-length XZ direction has no normalized component. */
     } else {
         bits.f = squared;
         bits.u = 0x5F375A00 - (bits.u >> 1);

@@ -1753,7 +1753,7 @@ void npc_restart_his_normal_behavior(void* npc_data);
 void hero_stop_moving(void);
 MkObj* trial_get_monk(void);
 void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, AnimPdata* animation);
+    AnimPdata* animation, float root_weight, float object_weight);
 void npc_make_invisible(KonquestNpc* npc);
 void make_damashi_npc(MkObj* object);
 void vdestroy_konquest_pui(KonquestPuiRuntime* pui);
@@ -9558,7 +9558,7 @@ MkProc* load_hero_model(int animation_script) {
     if (created != 0) {
         animation->obj = hero;
         animation->obj_instance = hero->hdr.instance;
-        set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
+        set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
         animation->step = 1.0f;
         set_anim_script(animation, (AniData*)animation_script, 0);
     }
@@ -13997,7 +13997,7 @@ void idle_hero_anim_proc(void) {
             pdata = (AnimPdata*)pdata_of_proc(proc);
             if (pdata != 0) {
                 pdata->step = 1.0f;
-                set_root_and_obj_movement_weights(0.0f, 1.0f, pdata);
+                set_root_and_obj_movement_weights(pdata, 0.0f, 1.0f);
             }
         }
     }

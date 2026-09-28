@@ -299,6 +299,7 @@ void* __pool_alloc_clear(__mem_pool* pool, unsigned long size) {
     return ptr;
 }
 
+/* TODO: [breakthrough needed] 82.31%; compare pool dispatch and copy sizing. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long needed;
@@ -487,7 +488,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
         }
 
         available = allocation_size(memory);
-        block = (FixBlock*)memory;
+        block = memory;
         if (start->head == NULL) {
             start->head = block;
             start->tail = block;
@@ -501,7 +502,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
         block->client_size = fix_pool_sizes[index];
         stride = fix_pool_sizes[index] + 4;
         count = (available - 0x14) / stride;
-        subblock = (FixSubBlock*)((unsigned char*)block + sizeof(FixBlock));
+        subblock = (FixSubBlock*)(block + 1);
         for (i = 0; i < count - 1; i++) {
             next = (FixSubBlock*)((unsigned char*)subblock + stride);
             subblock->block = block;
@@ -510,7 +511,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
         }
         subblock->block = block;
         subblock->next = NULL;
-        block->free = (FixSubBlock*)((unsigned char*)block + 0x14);
+        block->free = (FixSubBlock*)(block + 1);
         block->allocated = 0;
         start->head = block;
     }
@@ -554,13 +555,14 @@ static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     if (block->max_size < subblock_size(*start)) {
         block->max_size = subblock_size(*start);
     }
-    first = (SubBlock*)((unsigned char*)block + sizeof(Block));
+    first = (SubBlock*)(block + 1);
     if ((first->size & 2) == 0 && subblock_size(first) == (block->size & ~7UL) - 24) {
         unlink_block(pool, block);
         __sys_free(block);
     }
 }
 
+/* TODO: [breakthrough needed] 80.44%; compare free-list traversal and pointer lifetimes. */
 static void* soft_allocate_from_var_pools(
     MemPoolObj* pool, unsigned long size, unsigned long* largest) {
     unsigned long needed = (size + 15) & ~7UL;
@@ -591,6 +593,7 @@ static void* soft_allocate_from_var_pools(
     return NULL;
 }
 
+/* TODO: [breakthrough needed] 87.16%; compare block-selection branches. */
 static void* allocate_from_var_pools(MemPoolObj* pool, unsigned long size) {
     unsigned long needed = (size + 15) & ~7UL;
     Block* block;
@@ -623,6 +626,7 @@ static void* allocate_from_var_pools(MemPoolObj* pool, unsigned long size) {
     return (unsigned char*)Block_subBlock(block, needed) + 8;
 }
 
+/* TODO: [breakthrough needed] 88.42%; compare allocation and list-link order. */
 static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
     unsigned long block_size = (size + 31) & ~7UL;
     Block* block;
@@ -631,7 +635,7 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
     if (block_size < 0x10000) {
         block_size = 0x10000;
     }
-    block = (Block*)__sys_alloc(block_size);
+    block = __sys_alloc(block_size);
     if (block == NULL) {
         return NULL;
     }
@@ -651,6 +655,7 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
     return block;
 }
 
+/* TODO: [breakthrough needed] 86.20%; compare split and unlink control flow. */
 static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     SubBlock** rover = block_start(block);
     SubBlock* start = *rover;
@@ -682,8 +687,9 @@ static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     return subblock;
 }
 
+/* TODO: [breakthrough needed] 83.10%; compare footer/tag stores and coalescing CFG. */
 static void Block_construct(Block* block, unsigned long size) {
-    SubBlock* subblock = (SubBlock*)((unsigned char*)block + 16);
+    SubBlock* subblock = (SubBlock*)(block + 1);
     SubBlock** start;
     unsigned long subblock_bytes = size - 24;
 

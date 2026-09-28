@@ -43,11 +43,6 @@ typedef char TgaHeaderSizeCheck[sizeof(TgaHeader) == 0x12 ? 1 : -1];
 typedef char TgaHeaderValuesSizeCheck[
     sizeof(TgaHeaderValues) == 0x30 ? 1 : -1];
 
-/*
- * Retail builds the packed 18-byte header from this word-sized description.
- * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
- */
-
 static inline void tga_copy_row(unsigned char *destination,
                                 const unsigned char *pixels, int row,
                                 int width) {
@@ -99,8 +94,7 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   return image;
 }
 
-/* TODO: [near miss] 98.41%; helper split fixes all callee-saved homes and the mr-seeded IV;
- * row-loop volatile coloring (rows/column r5/r6, target r7/r9) and one header li order remain. */
+/* TODO: [near miss] 98.41%; row-loop register coloring and one header li order remain. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;
@@ -122,26 +116,26 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
     values.pixel_depth = 24;
     values.descriptor = 0;
 
-    header.id_length = (unsigned char)values.id_length;
-    header.color_map_type = (unsigned char)values.color_map_type;
-    header.image_type = (unsigned char)values.image_type;
-    header.color_map_first_lo = (unsigned char)values.color_map_first;
+    header.id_length = values.id_length;
+    header.color_map_type = values.color_map_type;
+    header.image_type = values.image_type;
+    header.color_map_first_lo = values.color_map_first;
     header.color_map_first_hi =
-        (unsigned char)((values.color_map_first & 0xff00) >> 8);
-    header.color_map_length_lo = (unsigned char)values.color_map_length;
+        ((values.color_map_first & 0xff00) >> 8);
+    header.color_map_length_lo = values.color_map_length;
     header.color_map_length_hi =
-        (unsigned char)((values.color_map_length & 0xff00) >> 8);
-    header.color_map_depth = (unsigned char)values.color_map_depth;
-    header.origin_x_lo = (unsigned char)values.origin_x;
-    header.origin_x_hi = (unsigned char)((values.origin_x & 0xff00) >> 8);
-    header.origin_y_lo = (unsigned char)values.origin_y;
-    header.origin_y_hi = (unsigned char)(values.origin_y >> 8);
-    header.width_lo = (unsigned char)values.width;
-    header.width_hi = (unsigned char)(values.width >> 8);
-    header.height_lo = (unsigned char)values.height;
-    header.height_hi = (unsigned char)(values.height >> 8);
-    header.pixel_depth = (unsigned char)values.pixel_depth;
-    header.descriptor = (unsigned char)values.descriptor;
+        ((values.color_map_length & 0xff00) >> 8);
+    header.color_map_depth = values.color_map_depth;
+    header.origin_x_lo = values.origin_x;
+    header.origin_x_hi = ((values.origin_x & 0xff00) >> 8);
+    header.origin_y_lo = values.origin_y;
+    header.origin_y_hi = (values.origin_y >> 8);
+    header.width_lo = values.width;
+    header.width_hi = (values.width >> 8);
+    header.height_lo = values.height;
+    header.height_hi = (values.height >> 8);
+    header.pixel_depth = values.pixel_depth;
+    header.descriptor = values.descriptor;
     debug_file_write(file, &header, sizeof(header));
 
     result = tga_write_pixels(file, image, values);

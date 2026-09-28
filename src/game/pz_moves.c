@@ -306,7 +306,6 @@ extern PlyrPdata* his_pdata;
 extern PuzzleSharedAnimations pz_shared_ani;
 extern PuzzleSharedCombatAnimations shared_ani;
 extern ScriptSlot* pz_shared_cmo;
-extern float _mkproc_sleep_ticks;
 int g_pz_cam_already_shaking;
 extern int exec_tick_ctr;
 extern PuzzleFighterMoveTables g_pz_fighter_tables;
@@ -354,9 +353,6 @@ float j_exit_6(void);
 void face_opponent_now(void);
 void head_tracking_off(void);
 void head_tracking_on(void);
-void cmdscript_reset_stack(void);
-void cmdscript_setup_execution(ScriptSlot* slot, unsigned int function);
-float call_player_script_function(ScriptSlot* slot);
 void toggle_obj_and_ani_flips(PuzzleAnimPdata* animation);
 void release_other_player(void);
 void pz_fighter_reaction_xfer_him(int reaction);
@@ -680,7 +676,6 @@ int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move
     return 0;
 }
 
-/* Soft ceiling: 99.94% - jump-table relocation label only. */
 float pz_fighter_perform_special_move(void) {
     switch (plyr_pdata->character_id) {
     case 0:
@@ -862,7 +857,7 @@ static float pz_fighter_scorpion_attack_start(void) {
     ani_to_end();
     set_my_state(0xD200);
     spear_proc = start_scorpion_spear(9);
-    plyr_pdata->spear_proc = (struct MkProc*)spear_proc;
+    plyr_pdata->spear_proc = spear_proc;
     plyr_pdata->spear_proc_instance = spear_proc->instance;
     blend_to_ani(
         plyr_pdata->fighter_definition->spear_throw_loop, 0, 0.1f);
@@ -989,7 +984,7 @@ static float pz_fighter_jax_attack_start(void) {
 
 float pz_fighters_react_to_bomb_explosion(void) {
     if (pz_fighter_fetch_plyr_to_home_post_distance(
-            ((PlyrPdata*)plyr_pdata)->plyr_num) >
+            plyr_pdata->plyr_num) >
         6.5f) {
         active_cmdscript->unk28 = 0x44;
     } else {
@@ -1359,7 +1354,6 @@ float pz_fighter_perform_scripted_move(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.66% - floating-constant relocation labels only. */
 void pz_fighter_walk_FB_true(
     int (*continue_test)(void), unsigned int duration, int forward) {
     static float object_weight_setting = 0.2f;
@@ -1421,7 +1415,6 @@ void pz_fighter_walk_FB_true(
     plyr_anim_pdata->weight = object_weight_setting;
 }
 
-/* pz_fighter_shake_camera: 100% via typed out-pdata and spawn ownership. */
 void pz_fighter_shake_camera(int duration, float strength) {
     PuzzleCameraShakePdata* pdata;
 
@@ -1464,7 +1457,6 @@ static float p_pz_shake_camera(void) {
     return -1.0f;
 }
 
-/* Soft ceiling: 99.79% - threshold-constant relocation labels only. */
 int pz_fighter_walk_until_danger_or_in_wrong_direction(void) {
     float player1_distance;
     float player2_distance;
@@ -1494,16 +1486,10 @@ int pz_fighter_walk_until_danger_or_in_wrong_direction(void) {
     return 0;
 }
 
-/* Soft ceiling: pz_fighter_walk_until_fight_distance ~99.58% - pool label only. */
 int pz_fighter_walk_until_fight_distance(void) {
     return xz_distance_between_players() < 0.95f;
 }
 
-/*
- * Soft ceilings: pz_fighter_showoff_warmup1 and
- * pz_fighter_active_warmup2/1 ~99.29%; pz_fighter_bow_warmup ~99.39%.
- * The remaining deltas are float-pool symbol identities only.
- */
 float pz_fighter_showoff_warmup2(void) {
     face_opponent_now();
     xfer_proc(plyr_anim_proc, p_anim_idle);
@@ -1667,12 +1653,10 @@ static float p_pz_fighter_projectile_launcher(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: pz_fighter_completely_prone ~97.50% - pool label only. */
 float pz_fighter_completely_prone(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: pz_fighter_won2 ~99.67% - float pool labels only. */
 float pz_fighter_won2(void) {
     int flags = 3;
 
@@ -1690,7 +1674,6 @@ float pz_fighter_won2(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_wipe_blood_off ~99.60% - float pool labels only. */
 float pz_fighter_wipe_blood_off(void) {
     int flags = 3;
 
@@ -1719,7 +1702,6 @@ void pz_fighter_wipe_blood_off_hands(void) {
     plyr_bleed_medium_cycle(plyr_pdata, 0x19);
 }
 
-/* Soft ceiling: pz_fighter_double_arm_victory ~99.63% - float pool labels only. */
 static float pz_fighter_double_arm_victory(void) {
     int flags = 3;
 
@@ -1736,7 +1718,6 @@ static float pz_fighter_double_arm_victory(void) {
     return 0.0f;
 }
 
-/* Exact: typed force_away arguments preserve the retail float ABI. */
 float pz_fighter_whatever2(void) {
     int flags = 3;
 
@@ -1754,7 +1735,6 @@ float pz_fighter_whatever2(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_disgusted_with_grinding ~99.65% - float pool labels only. */
 float pz_fighter_disgusted_with_grinding(void) {
     int flags = 3;
 
@@ -1771,7 +1751,6 @@ float pz_fighter_disgusted_with_grinding(void) {
     return 0.0f;
 }
 
-/* Soft ceilings: one-arm victory variants 99.53% - float relocations only. */
 float pz_fighter_one_arm_victory2(void) {
     int flags = 3;
 
@@ -2078,7 +2057,6 @@ static float pz_fighter_beg(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.53% - floating-constant relocation labels only. */
 float pz_fighter_laugh_small(void) {
     int flags = 3;
 
@@ -2239,7 +2217,6 @@ float pz_fighter_round_victory(void) {
     return 0.0f;
 }
 
-/* Exact match: direct table indexing preserves retail's updating base load. */
 void pz_fighter_register_move(
     int move, int table, int parameter1, int parameter2, int character) {
     unsigned int index;
@@ -2333,7 +2310,6 @@ float pz_fighter_back_and_forth_showoff(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_distance_check_wo_super_check ~99.69% - pool label only. */
 int pz_fighter_distance_check_wo_super_check(void) {
     float distance =
         pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
@@ -2344,7 +2320,6 @@ int pz_fighter_distance_check_wo_super_check(void) {
     return 2;
 }
 
-/* Soft ceiling: pz_fighter_distance_check ~99.82% - pool label only. */
 int pz_fighter_distance_check(void) {
     float distance =
         pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
@@ -2404,7 +2379,6 @@ float pz_fighter_perform_taunt(void) {
 
 #undef PZ_RUN_SHARED_FIGHTER_SCRIPT
 
-/* Soft ceiling: 99.43% - animation-constant relocation labels only. */
 void pz_fighter_shaking(void) {
     int flags = 0;
     int frame;
@@ -2439,7 +2413,6 @@ void pz_fighter_release_other_player(int reaction) {
     pz_fighter_reaction_xfer_him(reaction);
 }
 
-/* Near match: retail has no return value; only constant-pool labels differ. */
 void pz_fighter_step_throw_into_check(void) {
     init_ground_move();
     random_voice(9);
@@ -2490,7 +2463,6 @@ void pz_fighter_create_space_between_fighters(void) {
     }
 }
 
-/* Soft ceiling: 99.51% - floating-constant relocation labels only. */
 float pz_fighter_dash_back(void) {
     avoid_double_ani();
     init_ground_move_no_aniproc();
@@ -2565,7 +2537,6 @@ void pz_fighter_create_space_between_fighters_for_special_moves(void) {
     random_foot(1);
 }
 
-/* Soft ceiling: 99.63% - floating-constant relocation labels only. */
 float pz_fighter_dizzy(void) {
     int flags = 0;
 
@@ -2731,7 +2702,6 @@ float pz_fighter_long_exit(void) {
     return 0.0f;
 }
 
-/* Exact: explicit process-allocation success and pdata checks. */
 void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
     PuzzleReactionDelayPdata* pdata;
 
@@ -2745,7 +2715,6 @@ void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
     }
 }
 
-/* Soft ceiling: 99.47% - return-constant relocation labels only. */
 static float p_force_reaction(void) {
     PuzzleReactionDelayPdata* pdata = (PuzzleReactionDelayPdata*)apdata;
 
@@ -2773,7 +2742,7 @@ static inline PuzzleProcess* puzzle_reaction_transfer_data_live_opponent_proc(Pu
 }
 
 static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    PuzzleProcess* object = (PuzzleProcess*) owner->hold_proc;
+    PuzzleProcess* object = owner->hold_proc;
     if (object != 0) {
         if (object->instance == owner->hold_proc_instance) {
             return object;
@@ -2883,7 +2852,6 @@ static float pz_fighter_r_null(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 97.72% - floating-constant relocation labels only. */
 static float r_pz_ermac_slam(void) {
     got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
     init_air_move();
@@ -2919,7 +2887,6 @@ static float r_pz_ermac_slam(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.46% - floating-constant relocation labels only. */
 static float r_pz_fighter_spear_tug(void) {
     int ticks;
 
@@ -2961,7 +2928,6 @@ static float r_pz_fighter_spear_hit(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 94.14% - constant/string relocation labeling and address formation only. */
 static float r_pz_fighter_almost_in_grinder(void) {
     face_opponent_now();
     shake_hit_voice(0.02f, 0, 0, 4);
@@ -3021,7 +2987,6 @@ static float r_pz_fighter_almost_in_grinder(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.85% - floating-constant relocation labels only. */
 static float r_pz_fighter_feet3_swept_out(void) {
     face_opponent_now();
     got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
@@ -3042,7 +3007,6 @@ static float r_pz_fighter_feet3_swept_out(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.75% - floating-constant relocation labels only. */
 float pz_fighter_inline_force_away_with_ani(
     float velocity, unsigned int coast_ticks, float damping,
     unsigned int damping_ticks) {
@@ -3075,7 +3039,6 @@ void suspend_in_midair(float ticks) {
     plyr_obj->gravity_enabled = 1;
 }
 
-/* Soft ceiling: 97.48% - floating-constant relocation labels only. */
 static float r_pz_fighter_dizzyfall3_with_holdface(void) {
     face_opponent_now();
     wall_eligible_on();
@@ -3115,7 +3078,6 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.59% - floating-constant relocation labels only. */
 static float r_pz_fighter_block_lo(void) {
     stop_me();
     init_ground_move();
@@ -3234,7 +3196,6 @@ static float p_present_control(void) {
     case 3:
         present->state = 4;
         l_blend_ticks = 5;
-        /* fall through */
     case 4:
         get_bone_world_pos(
             (PuzzleFighterObject*)present->owner->his_plyr_pdata
@@ -3342,7 +3303,6 @@ void pz_fighter_clear_out_all_external_forces(
     fighter->external_force_z = 0.0f;
 }
 
-/* Exact: repeated typed slot access preserves retail post-setup reloads. */
 static float r_call_other_pz_player_char_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->his_plyr_pdata->cmo,

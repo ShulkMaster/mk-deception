@@ -2687,7 +2687,7 @@ static inline MkObj* animation_live_object(AnimPdata* owner) {
 }
 
 void set_root_and_obj_movement_weights(
-    float root_weight, float obj_weight, AnimPdata* anim) {
+    AnimPdata* anim, float root_weight, float obj_weight) {
     MkObj* obj = animation_live_object(anim);
     RwMatrix* root_matrix;
     Vec world_delta;
