@@ -2494,51 +2494,6 @@ static inline int find_pui_inventory_index(void* pui) {
 }
 int is_pui_an_interior_item(const char* pui);
 
-static inline KonquestTriggerStruct* find_trigger_by_id_inline(
-    unsigned int id) {
-    MkPtr* link;
-    MkPtr* next;
-
-    if (konquest_has_list(&konquest_pdata->triggers)) {
-        link = konquest_pdata->triggers;
-        while (link != 0) {
-            KonquestTriggerStruct* trigger;
-
-            trigger = (KonquestTriggerStruct*)link->hdr;
-            if (link->instance != trigger->hdr.instance) {
-                next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
-                link = next;
-            } else {
-                if (trigger->id == id) {
-                    return trigger;
-                }
-                link = link->next;
-            }
-        }
-    }
-    if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
-        link = konquest_pdata->temporary_triggers;
-        while (link != 0) {
-            KonquestTriggerStruct* trigger;
-
-            trigger = (KonquestTriggerStruct*)link->hdr;
-            if (link->instance != trigger->hdr.instance) {
-                next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
-                link = next;
-            } else {
-                if (trigger->id == id) {
-                    return trigger;
-                }
-                link = link->next;
-            }
-        }
-    }
-    return 0;
-}
 static void update_pui_actions( KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous);
 static void scan_pui_events_and_determine_current_actions( KonquestPuiEventRow* event_table, KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous);
 int get_pui_inventory_bit_index(void* item);
@@ -2638,40 +2593,6 @@ void set_age_progression(int progression);
 void display_time_progression_images(int progression);
 void start_character_separation_process(float separation);
 void konquest_start_npc_interaction(void);
-static inline float konquest_fast_sqrt(float value) {
-    KonquestFloatBits input;
-    KonquestFloatBits estimate;
-    unsigned int exponent;
-    unsigned int table_index;
-
-    input.value = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    table_index = (input.bits >> 11) & 0x1FFF;
-    exponent =
-        (((input.bits & 0x7F800000) + 0x3F800000) >> 1) &
-        0x7F800000;
-    estimate.bits = GXMathSqrtTable[table_index] << 8;
-    estimate.bits |= exponent;
-    return 0.5f *
-        (estimate.value *
-         (3.0f - (estimate.value * estimate.value) / value));
-}
-
-static inline MkProc* interaction_live_npc_fields_turn_proc(
-    KonquestInteractionPdata* owner) {
-    MkProc* object = owner->npc->fields.turn_proc;
-    if (object != 0) {
-        if (object->instance == owner->npc->fields.turn_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static inline KonquestNpc* konquest_live_hero_grounding(KonquestPdata* owner) {
     KonquestNpc* object = (KonquestNpc*) owner->hero_grounding;
@@ -2761,13 +2682,6 @@ static inline StringObj* konquest_live_hud_labels_5_object(KonquestPdata* owner)
     return object;
 }
 
-static inline KonquestTileRecord* get_tile_record_by_index(int index) {
-    if (index <
-        konquest_pdata->tile_width * konquest_pdata->tile_height + 1) {
-        return &konquest_pdata->tile_structs[index];
-    }
-    return 0;
-}
 void* get_visible_tile_set(int index);
 void play_beam_advance_sound(int delay);
 
@@ -3029,7 +2943,7 @@ static inline float door_path_distance_squared(
         edge_z * edge_z + (edge_x * edge_x + edge_y * edge_y);
     hero_z = hero->pos.value.z - path[0].position.z;
     projection_numerator = hero_x * edge_x + hero_z * edge_z;
-    edge_length = konquest_fast_sqrt(edge_length_squared);
+    edge_length = gxMathFastSqrt(edge_length_squared);
     projection = projection_numerator / (edge_length * edge_length);
     delta->x =
         hero->pos.value.x -
@@ -3749,7 +3663,7 @@ static inline MkSobj* konquest_find_nth_sobj_by_id(MkObj* model, unsigned int id
     return 0;
 }
 
-/* TODO: [near miss] 96.79%; retail keeps model's 0 live in r3 through the tile-model latch (null paths are mr r6,r3). */
+/* TODO: [near miss] 97.17%; retail keeps model's 0 live in r3 through the tile-model latch (null paths are mr r6,r3). */
 MkSobj* get_tile_sobj_by_id(int id) {
     MkObj* model = 0;
 
@@ -5542,7 +5456,7 @@ static float p_adjust_objective_arrow_and_beam(void) {
     delta_z = pdata->objective.position.z - hero->pos.value.z;
     delta_x = pdata->objective.position.x - hero->pos.value.x;
     distance_squared = delta_x * delta_x + delta_z * delta_z;
-    distance = konquest_fast_sqrt(distance_squared);
+    distance = gxMathFastSqrt(distance_squared);
     if (distance > 0.0f) {
         inverse_distance = 1.0f / distance;
     } else {
@@ -7271,11 +7185,11 @@ static void object_transition_to_state(
     position_length_squared =
         position_x * position_x + position_y * position_y +
         position_z * position_z;
-    position_ticks = konquest_fast_sqrt(position_length_squared);
+    position_ticks = gxMathFastSqrt(position_length_squared);
     state_data = &konquest_pdata->region_table
                       ->enumerations[enumeration_index]
                       .states[state];
-    position_speed = konquest_fast_sqrt(
+    position_speed = gxMathFastSqrt(
         state_data->position_speed.x * state_data->position_speed.x +
         state_data->position_speed.y * state_data->position_speed.y +
         state_data->position_speed.z * state_data->position_speed.z);
@@ -7293,11 +7207,11 @@ static void object_transition_to_state(
 
     angle_length_squared =
         angle_x * angle_x + angle_y * angle_y + angle_z * angle_z;
-    angle_ticks = konquest_fast_sqrt(angle_length_squared);
+    angle_ticks = gxMathFastSqrt(angle_length_squared);
     state_data = &konquest_pdata->region_table
                       ->enumerations[enumeration_index]
                       .states[state];
-    angle_speed = konquest_fast_sqrt(
+    angle_speed = gxMathFastSqrt(
         state_data->angle_speed.x * state_data->angle_speed.x +
         state_data->angle_speed.y * state_data->angle_speed.y +
         state_data->angle_speed.z * state_data->angle_speed.z);
@@ -8024,7 +7938,7 @@ void play_beam_advance_sound(int delay) {
 void* get_visible_tile_set(int index) {
     KonquestTileRecord* tile;
 
-    tile = get_tile_record_by_index(index);
+    tile = get_nth_tile_struct(index);
     if (tile == 0) {
         return 0;
     }
@@ -8227,7 +8141,7 @@ static void update_visible_tiles(void) {
     unsigned int visible_tile_bits;
     int index;
 
-    tile = get_tile_record_by_index(konquest_pdata->tile_load_state);
+    tile = get_nth_tile_struct(konquest_pdata->tile_load_state);
     if (tile != 0) {
         visible_tile_bits = tile->state;
     } else {
@@ -11443,7 +11357,7 @@ static float p_konquest_interaction(void) {
         movement.z = hero->pos.value.z - target_position.z;
         length_squared =
             movement.x * movement.x + movement.z * movement.z;
-        distance = konquest_fast_sqrt(length_squared);
+        distance = gxMathFastSqrt(length_squared);
         if (distance > 0.0f) {
             inverse_length = 1.0f / distance;
         } else {
@@ -13025,7 +12939,7 @@ static void update_pui_actions(
 
                     trigger_id = get_table_index_by_pointer(
                         konquest_pdata->script_owner, item);
-                    trigger = find_trigger_by_id_inline(trigger_id);
+                    trigger = find_trigger_by_id(trigger_id);
                     if (trigger != 0 && trigger->flag_bits.bit3 == 0) {
                         script_index = item->kill_script_index;
                     }

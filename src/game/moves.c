@@ -1002,15 +1002,6 @@ static float p_watch_weapon(void) {
     return 1.0f;
 }
 
-#define MOVES_LIVE_PROC(proc_, instance_)                                  \
-    ((proc_) != 0 ? ((proc_)->instance == (instance_) ? (proc_) : 0) : 0)
-
-#define MOVES_LIVE_WEAPON(latch_)                                          \
-    ((latch_).obj != 0                                                     \
-         ? ((latch_).obj->hdr.instance == (latch_).instance ? (latch_).obj \
-                                                             : 0)          \
-         : 0)
-
 /* TODO: [near miss] 99.11%; only player/slots r30/r31 coloring is swapped. */
 static float p_hide_and_die(void) {
     MovesWeaponWatchPdata* pdata;
@@ -1838,29 +1829,12 @@ float switch_proc_advance_moveset(void) {
     return -1.0f;
 }
 
-static inline float moves_fast_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } value_bits, guess_bits;
-
-    value_bits.f = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    guess_bits.u =
-        (unsigned int)GXMathSqrtTable[(value_bits.u >> 11) & 0x1FFF] << 8;
-    guess_bits.u |=
-        (((value_bits.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    return 0.5f * (guess_bits.f * (3.0f - (guess_bits.f * guess_bits.f) / value));
-}
-
 /* TODO: [near miss] 95.80%; only prologue scheduling differs (retail loads the 0.0f guard constant before the offset components). */
 static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
     float length;
     float weight;
 
-    length = moves_fast_sqrt(
+    length = gxMathFastSqrt(
         offset->z * offset->z +
         (offset->x * offset->x + offset->y * offset->y));
 

@@ -589,24 +589,6 @@ static inline MkObj* ncs_live_tracked_obj(PlyrPdata* owner) {
 
 
 
-static inline float ncs_sqrt(float squared) {
-    union {
-        float f;
-        unsigned int u;
-    } input, estimate;
-
-    input.f = squared;
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |=
-        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    return 0.5f *
-        (estimate.f * (3.0f - (estimate.f * estimate.f) / squared));
-}
-
 static inline NcsSpearEffect* ncs_get_spear_effect(void) {
     return pdata_sc_spear->effect != 0
                ? (pdata_sc_spear->effect->hdr.instance ==
@@ -1094,7 +1076,7 @@ static float p_sc_spear2_victory(void) {
 
     dx = camera->pos.x - sc_spear_obj->pos.value.x;
     dz = camera->pos.z - sc_spear_obj->pos.value.z;
-    root = ncs_sqrt(dx * dx + dz * dz);
+    root = gxMathFastSqrt(dx * dx + dz * dz);
 
     if (root < 0.3f) {
         sc_spear_obj->pos_vel.z = 0.0f;
@@ -1347,14 +1329,14 @@ static float p_sc_spear4_victory(void) {
     }
     get_bone_world_pos(
         target_object, get_bid_with_flip(target_object, 0x19), &target);
-    distance = ncs_sqrt(ncs_xz_distance_squared(&target, &sc_spear_obj->pos.value));
+    distance = gxMathFastSqrt(ncs_xz_distance_squared(&target, &sc_spear_obj->pos.value));
     if (distance < 0.5f) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
         return 0.0f;
     }
 
-    speed = ncs_sqrt(
+    speed = gxMathFastSqrt(
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);
@@ -1416,7 +1398,7 @@ static float p_sc_spear4_getup(void) {
         return 0.0f;
     }
 
-    speed = ncs_sqrt(
+    speed = gxMathFastSqrt(
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);

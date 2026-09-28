@@ -930,24 +930,6 @@ MkObj* load_krypt_character(char* character_name) {
     return load_krypt_character_model(character_name);
 }
 
-static inline MkObj* load_krypt_character_impl(char* character_name) {
-    if (find_mkproc_pid(0x8240) != 0) {
-        return 0;
-    }
-    return load_krypt_character_model(character_name);
-}
-static inline MkObj* animation_live_obj(AnimPdata* owner) {
-    MkObj* object = owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 static float p_krypt_animate(void) {
     AnimPdata* animation;
@@ -1017,7 +999,7 @@ static float p_monitor_krypt_characters(void) {
         character_names = get_data_table_by_name("krypt_character_names");
         character_scripts =
             get_data_table_by_name("krypt_character_info_table");
-        object = load_krypt_character_impl(
+        object = load_krypt_character(
             character_names[(unsigned short)randu0((unsigned short)get_row_count_for_table_by_pointer(
                 g_game_info.cmdscript, character_names))]);
         script_row = (unsigned short)randu0(
@@ -3182,7 +3164,6 @@ static void init_konquest_keys(void) {
 
 
 
-/* TODO: [near miss] 99.12%; UI pointer and search index/stride differ only in GPR coloring. */
 static void update_use_key_string(void) {
     StringObj* use_key_text;
     KryptPdata* pdata;

@@ -757,7 +757,7 @@ void interior_exit_button_script(void) {
 
 
 
-/* TODO: [near miss] 98.403435%; register coloring, relocation offsets; one-trial ceiling. */
+/* TODO: [near miss] 98.68%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;

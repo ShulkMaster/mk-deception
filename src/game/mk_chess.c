@@ -11726,18 +11726,7 @@ static void mk_chess_move_cursor_to_next_piece(unsigned int side, unsigned int d
     }
 }
 
-static inline float mk_chess_table_square_root(float value) {
-    union { float f; unsigned int u; } input, estimate;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    input.f = value;
-    estimate.u = (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
-    estimate.u |= (((input.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000;
-    return 0.5f * (estimate.f * (3.0f - (estimate.f * estimate.f) / value));
-}
-
-/* TODO: [breakthrough needed] 81.90625%; offset rounding restored; floating-point scheduling and stack placement remain. */
+/* TODO: [breakthrough needed] 84.31%; offset rounding restored; floating-point scheduling and stack placement remain. */
 static int mk_chess_choose_middle_control_points_for_zoom_cam_return(
     int position_class, int return_class, Vec* from, Vec* middle_1, Vec* middle_2, Vec* to) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -11763,7 +11752,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam_return(
         perpendicular.z *= -1.0f;
     }
     if (position_class == 1) {
-        float distance = mk_chess_table_square_root(dx * dx + dz * dz);
+        float distance = gxMathFastSqrt(dx * dx + dz * dz);
         middle_1->x = 0.6f * dx;
         middle_1->y = 0.6f * dy;
         middle_1->z = 0.6f * dz;
@@ -11892,7 +11881,7 @@ static void mk_chess_set_up_zoom_cam(Vec* target) {
 }
 
 
-/* TODO: [breakthrough needed] 88.02445%; geometry branches recovered; FP scheduling and stack placement remain. */
+/* TODO: [breakthrough needed] 89.52%; geometry branches recovered; FP scheduling and stack placement remain. */
 static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_position,
     unsigned int position_class, unsigned int height_class, Vec* from,
     Vec* middle_1, Vec* middle_2, Vec* to) {
@@ -11920,7 +11909,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
     if (position_class == 1) {
         float from_dx = from->x - to->x;
         float from_dz = from->z - to->z;
-        float distance = mk_chess_table_square_root(from_dx * from_dx + from_dz * from_dz);
+        float distance = gxMathFastSqrt(from_dx * from_dx + from_dz * from_dz);
         if (height_class == 4) {
             middle_1->x = 0.6f * dx;
             middle_1->y = 0.6f * dy;
@@ -12016,7 +12005,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
 }
 
 
-/* TODO: [breakthrough needed] 81.85058%; geometry and timing recovered; retail PSQ blocks runtime validation; inspect FP scheduling. */
+/* TODO: [breakthrough needed] 83.45%; geometry and timing recovered; retail PSQ blocks runtime validation; inspect FP scheduling. */
 static int mk_chess_choose_middle_control_points_for_fight_cam(
     const Vec* normal, const Vec* axis, const Vec* camera_position, const Vec* center,
     unsigned int camera_side, unsigned int camera_type, const Vec* camera_start,
@@ -12027,7 +12016,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
     float dy = camera_start->y - camera_end->y;
     float dx = camera_start->x - camera_end->x;
     float dz = camera_start->z - camera_end->z;
-    float camera_distance = mk_chess_table_square_root(dz * dz + (dx * dx + dy * dy));
+    float camera_distance = gxMathFastSqrt(dz * dz + (dx * dx + dy * dy));
     float inverse_length;
     float side_sign, height_adjust, first_offset, second_offset, distance_scale;
     int timing = 7;
@@ -13794,7 +13783,7 @@ void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type,
     }
 }
 
-/* TODO: [near miss] 94.48%; discriminant product still fused (retail separate fmuls/fsubs, stores it before the sqrt threshold test); FPR constant coloring. */
+/* TODO: [near miss] 95.82%; discriminant product still fused (retail separate fmuls/fsubs, stores it before the sqrt threshold test); FPR constant coloring. */
 void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int sound,
     float launch_frame, float initial_speed, float landing_frame, float vertical_speed,
     float gravity, float blend, float start_x, float start_y, float target_x, float target_y)
@@ -13840,7 +13829,7 @@ void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int
     discriminant = vertical_speed * vertical_speed;
     discriminant -= 2.0f * gravity * (g_active_piece->object->pos.value.y - 0.19f);
     discriminant = discriminant >= 0.001f ? discriminant : 0.001f;
-    root = mk_chess_table_square_root(discriminant);
+    root = gxMathFastSqrt(discriminant);
     flight_time = (root - vertical_speed) / gravity;
     other_time = (-root - vertical_speed) / gravity;
     if (flight_time < 0.0f || (other_time > 0.0f && other_time < flight_time)) flight_time = other_time;
@@ -14150,7 +14139,7 @@ static inline void mk_chess_restore_scroll_alpha(ScreenObj* image)
     for (vertex = 0; vertex < 4; vertex++) image->pfx2d->verts[vertex].a = 255;
 }
 
-/* TODO: [near miss] 96.57143%; scroll motion recovered; scheduling/coloring and static relocation remain. */
+/* TODO: [near miss] 98.70%; scroll motion recovered; scheduling/coloring and static relocation remain. */
 static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide)
 {
     static StringObj* string_obj;
@@ -14404,7 +14393,7 @@ void mk_chess_set_game_mode(int mode)
     }
 }
 
-/* TODO: [near miss] 98.33%; hud r30/piece r31 swap (retail hud r31) and the volatile zero/previous
+/* TODO: [near miss] 99.63%; hud r30/piece r31 swap (retail hud r31) and the volatile zero/previous
  * choice (r6/r5 vs r5/r6) remain; declaration and scope variants are neutral. */
 void mk_chess_hud_set_piece_portrait(ChessPiece* piece)
 {
@@ -14525,7 +14514,6 @@ static void mk_chess_bottom_hud_transition_update(ChessSideHudState* hud)
     }
 }
 
-/* TODO: [near miss] 98.77%; structure matches; hud/force/portrait take r31/r29/r30 (retail r29/r30/r31). */
 static void mk_chess_bottom_hud_snap_update(ChessSideHudState* hud, int force)
 {
     ChessPiece* piece = hud->selected_piece;

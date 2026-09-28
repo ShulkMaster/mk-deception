@@ -774,28 +774,6 @@ static inline int npc_is_visible_model_active(KonquestNpc* npc) {
     return 1;
 }
 
-static inline float npc_fast_sqrt(float value) {
-    KonquestSqrtBits input;
-    KonquestSqrtBits estimate;
-    unsigned int exponent;
-    unsigned int table_index;
-
-    input.value = value;
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    table_index = (input.bits >> 11) & 0x1FFF;
-    exponent =
-        (((input.bits & 0x7F800000) + 0x3F800000) >> 1) &
-        0x7F800000;
-    estimate.bits =
-        GXMathSqrtTable[table_index] << 8;
-    estimate.bits |= exponent;
-    return 0.5f *
-        (estimate.value *
-         (3.0f - (estimate.value * estimate.value) / value));
-}
-
 static inline KonquestNpc* npc_get_latched(
     KonquestNpc* npc, const unsigned int* instance) {
     if (npc != 0) {
@@ -2769,7 +2747,7 @@ void npc_shadow_update(void) {
                             projected_x = point.x - transformed.x;
                             projected_y = point.y - transformed.y;
                             projected_z = point.z - transformed.z;
-                            radius = npc_fast_sqrt(
+                            radius = gxMathFastSqrt(
                                 projected_z * projected_z +
                                 (projected_x * projected_x +
                                  projected_y * projected_y));
@@ -2787,7 +2765,7 @@ void npc_shadow_update(void) {
                             } else if (distance_squared < 1225.0f) {
                                 shadow_scale =
                                     1.0f +
-                                    ((npc_fast_sqrt(distance_squared) -
+                                    ((gxMathFastSqrt(distance_squared) -
                                       13.0f) /
                                      3.0f);
                             } else {
@@ -5558,7 +5536,7 @@ static void npc_update_current_direction(
         delta_x = target_x - npc->animation->object->pos.value.x;
         delta_z = target_z - npc->animation->object->pos.value.z;
         distance_squared = delta_x * delta_x + delta_z * delta_z;
-        distance = npc_fast_sqrt(distance_squared);
+        distance = gxMathFastSqrt(distance_squared);
         inverse_distance = distance > 0.0f ? 1.0f / distance : distance;
         target_angle = gxMathArcTanYX(
             delta_x * inverse_distance, delta_z * inverse_distance);
