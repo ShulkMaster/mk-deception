@@ -2,7 +2,7 @@
 #define GAME_MINIGAMES_H
 
 typedef struct PuzzleFighterEvent {
-    int player;
+    unsigned int player;
     int type;
     float block_count;
     float chain_count;

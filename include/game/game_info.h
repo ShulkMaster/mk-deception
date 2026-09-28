@@ -87,7 +87,8 @@ typedef struct GamePauseFlags {
 } GamePauseFlags;
 
 typedef struct GameSwitchInputFlags {
-    unsigned char pad_7_6 : 2;
+    unsigned char hide_obstacles : 1; /* bit7 */
+    unsigned char hide_konquest_collision : 1; /* bit6 */
     unsigned char field_bit5 : 1;
     unsigned char view_danger_zones : 1; /* bit4 */
     unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
@@ -115,7 +116,7 @@ typedef struct GameInfoFlags {
     unsigned char level_transition_active : 1; /* bit4 */
     unsigned char level_fatality_active : 1;   /* bit3 */
     unsigned char level_fatality_done : 1; /* bit2 */
-    unsigned char pad_bit1 : 1;
+    unsigned char load_complete : 1;
     unsigned char field_bit0 : 1;
 } GameInfoFlags;
 
@@ -198,7 +199,7 @@ typedef struct GameInfo {
     MkObj* player_objects[2]; /* +0x4C */
     int collision_player_side; /* +0x54 */
     PlyrPdata* collision_player_pdata; /* +0x58 */
-    int collision_event_id; /* +0x5C */
+    unsigned int collision_event_id; /* +0x5C */
     MkPtr* displayed_items; /* +0x60 - BgndDisplayedItem list */
     MkPtr* field_64; /* +0x64 - owned background list */
     BgndWallHiderData* wall_hider; /* +0x68 */
@@ -220,8 +221,8 @@ typedef struct GameInfo {
         } blood_flags;
     }; /* +0x74 */
     int field_78; /* +0x78 */
-    int bgnd_timer_ticks[3]; /* +0x7C */
-    int bgnd_timer_limits[3]; /* +0x88 */
+    unsigned int bgnd_timer_ticks[3]; /* +0x7C */
+    unsigned int bgnd_timer_limits[3]; /* +0x88 */
     MkPtr* npc_list; /* +0x94 - background NPC records */
     float crack_count; /* +0x98 - reset with crack pool, increments on placement */
     char pad9C[8];

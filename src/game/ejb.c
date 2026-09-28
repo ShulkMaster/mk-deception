@@ -571,7 +571,7 @@ static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.626370%; register coloring, instruction lowering; one-trial ceiling. */
+/* TODO: [near miss] 99.29%; only state/object volatile coloring (r4/r5 swapped) remains. */
 int is_plyr_blocking(PlyrPdata* player) {
     MkObj* object;
     int state;
@@ -615,7 +615,7 @@ int is_plyr_blocking(PlyrPdata* player) {
         trial_block_callback(player->plyr_num) == 0) {
         return 0;
     }
-    if ((g_game_info.flags & 0x20) == 0) {
+    if (!g_game_info.flag_bits.lens_flare_enabled) {
         return 0;
     }
     return check_switch(player->switch_data, 1) != 0;
@@ -1300,19 +1300,20 @@ void nudge_towards_him(float max_step) {
     plyr_obj->ang.y += max_step;
 }
 
-/* TODO: [near miss] 98.18182%; five-attempt limit reached; inspect and record remaining FP operand scheduling. */
 void rotate_towards_position(Vec* target, float max_step) {
     float desired;
     float difference;
     float absolute_difference;
+    float dx;
+    float dz;
 
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
         return;
     }
-    desired = gxMathArcTanYX(
-        target->x - plyr_obj->pos.value.x,
-        target->z - plyr_obj->pos.value.z);
+    dx = target->x - plyr_obj->pos.value.x;
+    dz = target->z - plyr_obj->pos.value.z;
+    desired = gxMathArcTanYX(dx, dz);
     difference = ang_sub_ang(desired, plyr_obj->ang.y);
     if (difference >= 0.0f) {
         absolute_difference = difference;
@@ -1369,16 +1370,15 @@ void rotate_towards_position(Vec* target, float max_step) {
                 plyr_obj->ang.y += max_step;
             }
             ejb_sleep_ticks(1.0f);
-            desired = gxMathArcTanYX(
-                target->x - plyr_obj->pos.value.x,
-                target->z - plyr_obj->pos.value.z);
+            dx = target->x - plyr_obj->pos.value.x;
+            dz = target->z - plyr_obj->pos.value.z;
+            desired = gxMathArcTanYX(dx, dz);
             difference = ang_sub_ang(desired, plyr_obj->ang.y);
         }
     }
     plyr_obj->ang.y = desired;
 }
 
-/* TODO: [near miss] 99.45544%; five-attempt limit reached; remaining equivalent branch and operand scheduling differences. */
 void rotate_towards_him(float max_step) {
     float desired;
     float difference;
@@ -1386,58 +1386,57 @@ void rotate_towards_him(float max_step) {
     float delta_z;
     GlobalMoveset* fighter;
 
-    if (g_game_info.plyr0.slot.mirror_a != 0) {
-        if (g_game_info.plyr1.slot.mirror_a == 0) {
-            return;
-        }
-        if (plyr_obj->flags_0B_bits.bit3 != 1) {
-            delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
-            delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
-            desired = gxMathArcTanYX(delta_x, delta_z);
-            difference = ang_sub_ang(desired, plyr_obj->ang.y);
-            if (rotate_towards_sync(difference) == 1) {
-                set_my_state_impl(0x201);
-                xfer_proc(plyr_anim_proc, p_anim_idle);
-                transition_to_anim_script(
-                    plyr_anim_pdata, shared_ani.turn_around, 3, 0.125f);
-                plyr_anim_pdata->step = 0.6f;
+    if (g_game_info.plyr0.slot.mirror_a == 0 ||
+        g_game_info.plyr1.slot.mirror_a == 0) {
+        return;
+    }
+    if (plyr_obj->flags_0B_bits.bit3 != 1) {
+        delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
+        delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
+        desired = gxMathArcTanYX(delta_x, delta_z);
+        difference = ang_sub_ang(desired, plyr_obj->ang.y);
+        if (rotate_towards_sync(difference) == 1) {
+            set_my_state_impl(0x201);
+            xfer_proc(plyr_anim_proc, p_anim_idle);
+            transition_to_anim_script(
+                plyr_anim_pdata, shared_ani.turn_around, 3, 0.125f);
+            plyr_anim_pdata->step = 0.6f;
+            ejb_sleep_ticks(1.0f);
+            while (plyr_anim_pdata->frame < 4.8f) {
+                advance_anim(plyr_anim_pdata);
+                pose_anim(plyr_anim_pdata, 1);
                 ejb_sleep_ticks(1.0f);
-                while (plyr_anim_pdata->frame < 4.8f) {
-                    advance_anim(plyr_anim_pdata);
-                    pose_anim(plyr_anim_pdata, 1);
-                    ejb_sleep_ticks(1.0f);
-                }
-                plyr_anim_pdata->flags |= 0x1000;
-                plyr_obj->ang.y += 3.1415927f;
-                toggle_obj_and_ani_flips(plyr_anim_pdata);
-                fighter = plyr_pdata->fighter_definition;
-                transition_to_anim_script(
-                    plyr_anim_pdata, fighter->standing_animation_script, 0, 0.125f);
-                plyr_anim_pdata->step = 1.0f;
-                ejb_sleep_ticks(1.0f);
-                while (plyr_anim_pdata->frame < 8.0f) {
-                    advance_anim(plyr_anim_pdata);
-                    pose_anim(plyr_anim_pdata, 1);
-                    ejb_sleep_ticks(1.0f);
-                }
-                set_my_state_impl(0);
-                xfer_proc(plyr_anim_proc, p_animate);
-            } else {
-                while ((difference >= 0.0f ? difference : -difference) > max_step) {
-                    if (difference < 0.0f) {
-                        plyr_obj->ang.y -= max_step;
-                    } else {
-                        plyr_obj->ang.y += max_step;
-                    }
-                    ejb_sleep_ticks(1.0f);
-                    delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
-                    delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
-                    desired = gxMathArcTanYX(delta_x, delta_z);
-                    difference = ang_sub_ang(desired, plyr_obj->ang.y);
-                }
             }
-            plyr_obj->ang.y = desired;
+            plyr_anim_pdata->flags |= 0x1000;
+            plyr_obj->ang.y += 3.1415927f;
+            toggle_obj_and_ani_flips(plyr_anim_pdata);
+            fighter = plyr_pdata->fighter_definition;
+            transition_to_anim_script(
+                plyr_anim_pdata, fighter->standing_animation_script, 0, 0.125f);
+            plyr_anim_pdata->step = 1.0f;
+            ejb_sleep_ticks(1.0f);
+            while (plyr_anim_pdata->frame < 8.0f) {
+                advance_anim(plyr_anim_pdata);
+                pose_anim(plyr_anim_pdata, 1);
+                ejb_sleep_ticks(1.0f);
+            }
+            set_my_state_impl(0);
+            xfer_proc(plyr_anim_proc, p_animate);
+        } else {
+            while ((difference >= 0.0f ? difference : -difference) > max_step) {
+                if (difference < 0.0f) {
+                    plyr_obj->ang.y -= max_step;
+                } else {
+                    plyr_obj->ang.y += max_step;
+                }
+                ejb_sleep_ticks(1.0f);
+                delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
+                delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
+                desired = gxMathArcTanYX(delta_x, delta_z);
+                difference = ang_sub_ang(desired, plyr_obj->ang.y);
+            }
         }
+        plyr_obj->ang.y = desired;
     }
 }
 
@@ -2020,13 +2019,19 @@ static inline int visual_flip_state(void) {
     return flipped;
 }
 
+static inline void ejb_anim_advance_to_clamped_frame(
+    AnimPdata* animation, float target_frame) {
+    if (target_frame > animation->high_frame) {
+        target_frame = animation->high_frame;
+    }
+    EJB_ADVANCE_TO_FRAME(animation, target_frame);
+}
+
 void newani_to_frame_x(
     AniData* animation, int flip_mode, float frame, float step,
     float weight, float blend) {
-    AnimPdata* anim;
     int other_flip;
     int flags;
-    float target;
 
     flags = 0;
     if (flip_mode != 0) {
@@ -2037,7 +2042,7 @@ void newani_to_frame_x(
             flags = 8;
         }
         swap_active_plyr_proc();
-        other_flip = visual_flip_state() != 0;
+        other_flip = visual_flip_state() != 0 ? 1 : 0;
         swap_active_plyr_proc();
         if (other_flip != 0) {
             if (visual_flip_state() == 0) {
@@ -2054,12 +2059,7 @@ void newani_to_frame_x(
     plyr_anim_pdata->step = step;
     plyr_anim_pdata->weight_velocity = 0.0f;
     plyr_anim_pdata->weight = weight;
-    anim = plyr_anim_pdata;
-    target = frame;
-    if (target > anim->high_frame) {
-        target = anim->high_frame;
-    }
-    EJB_ADVANCE_TO_FRAME(anim, target);
+    ejb_anim_advance_to_clamped_frame(plyr_anim_pdata, frame);
 }
 
 float fpick_a_float(float normal, float flipped_value) {
@@ -2660,8 +2660,7 @@ static inline MkObj* ejb_live_object(
     return object;
 }
 
-/* TODO: [near miss] 98.22%; register coloring and an equivalent held-object
- * latch control flow remain. */
+/* TODO: [near miss] 98.68%; held-object latch keeps the zero in r6 and merges its null arms (retail r4, two arms). */
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step) {
     PlyrPdata* opponent;
@@ -2677,7 +2676,8 @@ float two_player_animation_match_attacker(
         his_pdata->state = 0xC603;
     }
     opponent = plyr_pdata->his_plyr_pdata;
-    process = ejb_live_process(opponent->anim_proc, &opponent->anim_proc_instance);
+    process = ejb_live_process(plyr_pdata->his_plyr_pdata->anim_proc,
+                               &plyr_pdata->his_plyr_pdata->anim_proc_instance);
     if (process != 0) {
         xfer_proc(process, p_anim_idle);
     }
@@ -3597,6 +3597,7 @@ float xz_distance_between_players(void) {
     return delta_x * delta_x + delta_z * delta_z;
 }
 
+/* TODO: [near miss] 98.52%; the gxMathSin result goes through f0 before f31 (extra fmr) in both angle branches; stop at coloring. */
 void myvel_his_angle_y_inout(
     float angle_offset, float x_velocity, float z_velocity) {
     float camera_z;
@@ -3691,13 +3692,13 @@ void myvel_my_angle_y(
     plyr_obj->pos_vel.z = cosine * z_velocity;
 }
 
-/* TODO: [near miss] 94.59%; clean C initializes sine/cosine for the impossible
- * non-player case (16 bytes over) plus FPR allocation/move residue. */
+/* TODO: [near miss] 97.23%; wrapped angle lands in f29 instead of f28 across the
+ * sin/cos calls (extra fmr); helpers/CSE forms reorder constant loads. */
 void myvel_his_angle_y(
     float angle_offset, float x_velocity, float z_velocity) {
+    float sine;
+    float cosine;
     float angle;
-    float sine = 0.0f;
-    float cosine = 0.0f;
     int flipped;
 
     swap_active_plyr_proc();
@@ -3708,6 +3709,7 @@ void myvel_his_angle_y(
     if (plyr_anim_pdata->flags & 8) {
         flipped ^= 1;
     }
+    flipped = flipped != 0;
     swap_active_plyr_proc();
     if (flipped != 0) {
         if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
@@ -5023,7 +5025,6 @@ float back_to_crouch(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.89139%; winner initialization and flag tests restored; equivalent return-tail joins remain */
 float end_of_round_check(void) {
     int winner;
     MkHdr* object_hdr;
@@ -5046,19 +5047,16 @@ float end_of_round_check(void) {
                 if (f_fatality_was_done != 0 &&
                     is_big_boss(his_pdata) == 0) {
                     end_round_cam_done = 1;
+                } else {
+                    aproc->vtbl->jump_sleep(victory, 0.0f);
                     return 0.0f;
                 }
-                aproc->vtbl->jump_sleep(victory, 0.0f);
-                return 0.0f;
-            }
-            if (is_big_boss(plyr_pdata) &&
+            } else if (is_big_boss(plyr_pdata) &&
                 !g_game_info.pause_flag_bits.fatality_window) {
                 aproc->vtbl->jump_sleep(big_boss_end_of_round, 0.0f);
                 return 0.0f;
             }
-            return 0.0f;
-        }
-        if (g_game_info.pause_flag_bits.fatality_window) {
+        } else if (g_game_info.pause_flag_bits.fatality_window) {
             if (f_fatality_was_done || g_game_info.flag_bits.level_fatality_done != 0) {
                 return 0.0f;
             }
@@ -5106,15 +5104,17 @@ float end_of_round_check(void) {
             }
             aproc->vtbl->jump_sleep(dizzy, 0.0f);
             return 0.0f;
-        }
-        if (g_game_info.flag_bits.level_fatality_done != 0) {
+        } else {
+            if (g_game_info.flag_bits.level_fatality_done == 0) {
+                if (is_big_boss(plyr_pdata) != 0) {
+                    aproc->vtbl->jump_sleep(big_boss_end_of_round, 0.0f);
+                    return 0.0f;
+                }
+                aproc->vtbl->jump_sleep(fall_dead, 0.0f);
+                return 0.0f;
+            }
             return 0.0f;
         }
-        if (is_big_boss(plyr_pdata) != 0) {
-            aproc->vtbl->jump_sleep(big_boss_end_of_round, 0.0f);
-            return 0.0f;
-        }
-        aproc->vtbl->jump_sleep(fall_dead, 0.0f);
     } else if (plyr_pdata->state == 0x4200 ||
                plyr_pdata->state_flags.bits.dizzy != 0) {
         skip_end_of_trial_wrapup();

@@ -92,6 +92,10 @@ MkPtr* mk_insert(MkHdr* hdr, MkPtr** list);
 MkPtr* get_mkptr_not_owns_mkhdr(MkHdr* hdr);
 MkPtr* get_mkptr_owns_mkhdr(MkHdr* hdr);
 int get_mkptr_count(void);
+
+static inline int mklist_is_valid(MkPtr** list) {
+    return list != 0;
+}
 void init_free_mkptrs(void);
 void mk_system_reset(void);
 void mk_system_init(void);

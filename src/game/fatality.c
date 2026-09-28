@@ -1022,10 +1022,9 @@ static float p_subzero_iceblock_alpha(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 93.21%; placement, scale process, color and priority agree; residue is code emission. */
 MkObj* subzero_start_iceblock(void) {
-    FatalityScalePdata* scale_data;
     RwRGBA color;
+    FatalityScalePdata* scale_data;
     MkObj* iceblock;
     Vec at;
     Vec right;
@@ -1048,17 +1047,19 @@ MkObj* subzero_start_iceblock(void) {
         obj_set_color_for_all_materials(iceblock, &color);
         obj_set_all_sobjs_priority(iceblock, 0x13);
         iceblock->light_flags = fatality_state.victim_object->light_flags;
-        iceblock->pos.value = fatality_state.victim_object->pos.value;
+        iceblock->pos.value.x = fatality_state.victim_object->pos.value.x;
+        iceblock->pos.value.y = fatality_state.victim_object->pos.value.y;
+        iceblock->pos.value.z = fatality_state.victim_object->pos.value.z;
         mkobj_get_matrix_at(fatality_state.victim_object, &at);
         mkobj_get_matrix_right(fatality_state.victim_object, &right);
         if (fatality_state.mirror_camera != 0) {
-            right.x *= 0.1f;
-            right.y *= 0.1f;
-            right.z *= 0.1f;
+            right.x = 0.1f * right.x;
+            right.y = 0.1f * right.y;
+            right.z = 0.1f * right.z;
         } else {
-            right.x *= -0.1f;
-            right.y *= -0.1f;
-            right.z *= -0.1f;
+            right.x = -0.1f * right.x;
+            right.y = -0.1f * right.y;
+            right.z = -0.1f * right.z;
         }
         iceblock->pos.value.y = g_game_info.field_34;
         if (fatality_state.opponent->character_id == 0xA) {
@@ -1840,7 +1841,6 @@ void kill_raiden_summon_lightning_bolt(
     lightning->bone_id = -1;
 }
 
-/* TODO: [near miss] 91.99%; flash/fade state machine fully represented; residue is code emission. */
 static float p_raiden_summon_lightning_bolt(void) {
     static float y_offset = 15.3f;
     RaidenLightningBoltPdata* data;
@@ -1854,10 +1854,9 @@ static float p_raiden_summon_lightning_bolt(void) {
     if (data == 0) {
         return -1.0f;
     }
-    bolt = data->bolt;
-    if (bolt != 0 && bolt->hdr.instance != data->bolt_instance) {
-        bolt = 0;
-    }
+    bolt = data->bolt != 0
+               ? (data->bolt->hdr.instance == data->bolt_instance ? data->bolt : 0)
+               : 0;
     if (bolt == 0) {
         return -1.0f;
     }
@@ -1879,12 +1878,13 @@ static float p_raiden_summon_lightning_bolt(void) {
         bolt->hide_flag_bits.hidden = 1;
     } else {
         bolt->hide_flag_bits.hidden = 0;
-        owner_object = data->owner->tracked_obj;
-        if (owner_object != 0 &&
-            owner_object->hdr.instance !=
-                data->owner->tracked_obj_instance) {
-            owner_object = 0;
-        }
+        owner_object =
+            data->owner->tracked_obj != 0
+                ? (data->owner->tracked_obj->hdr.instance ==
+                           data->owner->tracked_obj_instance
+                       ? data->owner->tracked_obj
+                       : 0)
+                : 0;
         if (owner_object == 0) {
             data->bone_id = -1;
         }
@@ -1895,7 +1895,7 @@ static float p_raiden_summon_lightning_bolt(void) {
             return -1.0f;
         }
 
-        get_bone_world_pos(bolt, data->bone_id, &bolt->pos.value);
+        get_bone_world_pos(owner_object, data->bone_id, &bolt->pos.value);
         get_camera_angle(&camera_angle);
         bolt->ang.y = camera_angle.y;
         switch (data->orientation) {
@@ -1925,11 +1925,11 @@ static float p_raiden_summon_lightning_bolt(void) {
         if (data->alpha != 0) {
             data->alpha--;
             if (data->alpha == 0) {
-                data->fade_step = randu0(7) + 0x14;
+                data->fade_step = (unsigned short)randu0(7) + 0x14;
                 data->alpha = 0xFF;
             }
         } else {
-            data->alpha = randu0(2) + 2;
+            data->alpha = (unsigned short)randu0(2) + 2;
         }
     }
     data->frame++;
@@ -2920,11 +2920,23 @@ void start_obj_scalar_proc(
     }
 }
 
-/* TODO: [near miss] 96.51%; source is 12 bytes smaller; residue is the inline latch join and register allocation. */
+static inline MkObj* obj_scalar_live_object(FatalityObjectScalarPdata* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
     MkObj* object;
-    int active;
+    int active = 0;
     float step;
     float swap;
 
@@ -2932,12 +2944,10 @@ float p_obj_scalar_proc(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_resolve_object_latch(
-        data->object, data->object_instance);
+    object = obj_scalar_live_object(data);
     if (object == 0) {
         return -1.0f;
     }
-    active = 0;
     if (object->scale.x != data->target.x) {
         active = 1;
         if (data->flag_bits.multiply != 0) {
@@ -3001,8 +3011,10 @@ float p_obj_scalar_proc(void) {
     if (active != 0) {
         return 1.0f;
     }
-    if (data->flag_bits.stop_when_complete != 0 ||
-        data->flag_bits.ping_pong == 0) {
+    if (data->flag_bits.stop_when_complete != 0) {
+        return -1.0f;
+    }
+    if (data->flag_bits.ping_pong == 0) {
         return -1.0f;
     }
     data->step.x = -data->step.x;
@@ -3534,11 +3546,10 @@ void fade_fatality_screen(void) {
     }
 }
 
-/* TODO: [near miss] 94.14%; exact size and equivalent control flow; residue is register allocation and scheduling. */
+/* TODO: [near miss] 96.25%; retail shares the zero for flag stores and the blend call arg (r7); camera script is a 0x318-based table indexed 0x2f/0x30 (no such array view yet). */
 void run_fatality_sequence(
     unsigned int main_script, unsigned int victim_script) {
     FatalityBgndScriptView* section_script;
-    FatalityBgndScriptView* active_script;
     CmdScript* victim_cmdscript;
 
     plyr_obj->flags_09_bits.face_opponent = 0;
@@ -3564,12 +3575,12 @@ void run_fatality_sequence(
     }
 
     section_script = (FatalityBgndScriptView*)g_game_info.section->misc;
-    active_script = (FatalityBgndScriptView*)g_game_info.misc;
     if (section_script != 0 && section_script->function != 0 &&
-        active_script->function != 0) {
+        ((FatalityBgndScriptView*)g_game_info.misc)->function != 0) {
         cmdscript_set_parameters(active_cmdscript, 1, &fatality_state);
         cmdscript_setup_execution(
-            g_game_info.cmdscript, active_script->function);
+            g_game_info.cmdscript,
+            ((FatalityBgndScriptView*)g_game_info.misc)->function);
         cmdscript_execute(g_game_info.cmdscript);
     }
 

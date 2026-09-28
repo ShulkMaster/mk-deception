@@ -188,8 +188,8 @@ extern PlyrPdata* his_pdata;
 extern int snd_req(int sound_id);
 extern PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
 extern void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
-extern void pfx_texture_animate(
-    PfxVm* vm, int width, int height, int frame_width, float speed);
+extern void pfx_texture_animate(PfxVm* vm, int texture_width, int frame_width,
+                                int frame_height, int frame_count, float frame_time);
 extern void* pfx_behavior(PfxVm* vm, int emitter_index);
 extern void pfxvm_kill_on_intersect_plane_x(void* behavior, float plane);
 extern void pfxvm_kill_on_intersect_plane_y(void* behavior, float plane);
@@ -631,113 +631,109 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
 
 static inline ScreenObj* fx_screen_obj_latch_live_object(FxScreenObjLatch* owner) {
     ScreenObj* object = owner->object;
+
     if (object != 0) {
         if (object->instance == owner->instance) {
             return object;
         }
-        object = 0;
-    } else {
-        object = 0;
+        return 0;
     }
-    return object;
+    return 0;
 }
 
 
 
 
 
-/* TODO: [near miss] 95.913360%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static void update_skewer_positions(int player) {
-    ScreenObj* body;
-    ScreenObj* tip;
+    ScreenObj* p1_body;
+    ScreenObj* p1_tip = 0;
+    ScreenObj* p2_body;
+    ScreenObj* p2_tip = 0;
     ScreenObj* sign;
     PlyrPdata* player_data;
     FxScreenLoadFlags flags;
 
-    body = 0;
-    tip = 0;
     flags.value = 0;
     if (player == 0) {
-        body = fx_screen_obj_latch_live_object(&p1_skewer_item);
+        p1_body = fx_screen_obj_latch_live_object(&p1_skewer_item);
 
-        if (body == 0) {
+        if (p1_body == 0) {
             flags.bits.reverse = 0;
             flags.bits.alternate = 1;
-            body = load_2d_pfxobj(
+            p1_body = load_2d_pfxobj(
                 0x10005, 0x2052, (char*)0x2001A, flags.value, 0x2B);
-            if (body != 0) {
-                p1_skewer_item.object = body;
-                p1_skewer_item.instance = body->instance;
-                tip = load_2d_pfxobj(
+            if (p1_body != 0) {
+                p1_skewer_item.object = p1_body;
+                p1_skewer_item.instance = p1_body->instance;
+                p1_tip = load_2d_pfxobj(
                     0x10005, 0x2052, (char*)0x2001B, 0, 0x2B);
-                if (tip != 0) {
-                    p1_skewer_tip_item.object = tip;
-                    p1_skewer_tip_item.instance = tip->instance;
+                if (p1_tip != 0) {
+                    p1_skewer_tip_item.object = p1_tip;
+                    p1_skewer_tip_item.instance = p1_tip->instance;
                 }
             }
         } else {
-            tip = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
-
+            p1_tip = fx_screen_obj_latch_live_object(&p1_skewer_tip_item);
         }
 
         sign = player_fstyle_sign[0];
         if (sign != 0) {
-            body->x = sign->x - SKEWER_LEFT_OVERHANG;
-            body->y = sign->y +
-                (sign->pfx2d->tex_h / 2 - body->pfx2d->tex_h / 2);
+            p1_body->x = sign->x - SKEWER_LEFT_OVERHANG;
+            p1_body->y = sign->y +
+                (sign->pfx2d->tex_h / 2 - p1_body->pfx2d->tex_h / 2);
             if (f_p1_showing_fatatality != 0) {
-                body->scale_x =
-                    (float)(SKEWER_LEFT_OVERHANG +
-                            SKEWER_RIGHT_OVERHANG + 0x9D) * 0.125f;
+                p1_body->scale_x =
+                    (float)(SKEWER_LEFT_OVERHANG + 0x9D +
+                            SKEWER_RIGHT_OVERHANG) / 8.0f;
             } else {
                 player_data = g_game_info.plyr0.slot.pdata;
                 if (player_data->active_move_display != 0) {
-                    body->scale_x =
+                    p1_body->scale_x =
                         (float)(player_data->active_move_display->display_width +
                                 SKEWER_LEFT_OVERHANG +
-                                SKEWER_RIGHT_OVERHANG) * 0.125f;
+                                SKEWER_RIGHT_OVERHANG) / 8.0f;
                 }
             }
-            tip->x = (int)(8.0f * body->scale_x + (float)body->x);
-            tip->y = body->y - 1;
+            p1_tip->x = (int)(8.0f * p1_body->scale_x + (float)p1_body->x);
+            p1_tip->y = p1_body->y - 1;
         }
     }
 
     if (player == 1) {
-        body = fx_screen_obj_latch_live_object(&p2_skewer_item);
+        p2_body = fx_screen_obj_latch_live_object(&p2_skewer_item);
 
-        if (body == 0) {
+        if (p2_body == 0) {
             flags.bits.reverse = 0;
             flags.bits.alternate = 1;
-            body = load_2d_pfxobj(
+            p2_body = load_2d_pfxobj(
                 0x10005, 0x2053, (char*)0x2001A, flags.value, 0x2B);
-            if (body != 0) {
-                p2_skewer_item.object = body;
-                p2_skewer_item.instance = body->instance;
+            if (p2_body != 0) {
+                p2_skewer_item.object = p2_body;
+                p2_skewer_item.instance = p2_body->instance;
                 flags.bits.reverse = 1;
                 flags.bits.alternate = 0;
-                tip = load_2d_pfxobj(
+                p2_tip = load_2d_pfxobj(
                     0x10005, 0x2053, (char*)0x2001B,
                     flags.value, 0x2B);
-                if (tip != 0) {
-                    p2_skewer_tip_item.object = tip;
-                    p2_skewer_tip_item.instance = tip->instance;
+                if (p2_tip != 0) {
+                    p2_skewer_tip_item.object = p2_tip;
+                    p2_skewer_tip_item.instance = p2_tip->instance;
                 }
             }
         } else {
-            tip = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
-
+            p2_tip = fx_screen_obj_latch_live_object(&p2_skewer_tip_item);
         }
 
         sign = player_fstyle_sign[1];
         if (sign != 0) {
-            body->x = sign->x - SKEWER_RIGHT_OVERHANG;
-            body->y = sign->y +
-                (sign->pfx2d->tex_h / 2 - body->pfx2d->tex_h / 2);
-            body->scale_x =
-                ((float)screen_width - (float)body->x) * 0.125f;
-            tip->x = body->x - tip->pfx2d->tex_w;
-            tip->y = body->y - 1;
+            p2_body->x = sign->x - SKEWER_RIGHT_OVERHANG;
+            p2_body->y = sign->y +
+                (sign->pfx2d->tex_h / 2 - p2_body->pfx2d->tex_h / 2);
+            p2_body->scale_x =
+                ((float)screen_width - (float)p2_body->x) / 8.0f;
+            p2_tip->x = p2_body->x - p2_tip->pfx2d->tex_w;
+            p2_tip->y = p2_body->y - 1;
         }
     }
 }
@@ -750,7 +746,18 @@ static void update_skewer_positions(int player) {
 
 
 
-/* TODO: [breakthrough needed] 93.421800%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 98.54%; only the fatality-window test's block order in fx_fatality_available_for differs (retail: beq zero-block, call, b compare). */
+static inline int fx_fatality_available_for(int winner) {
+    if (get_fatality_available_flag() == 0) {
+        return 0;
+    }
+    if (g_game_info.pause_flag_bits.fatality_window &&
+        check_for_winner() == winner) {
+        return 1;
+    }
+    return 0;
+}
+
 static float fighting_style_sign_proc(void) {
     FightingStyleSignPdata* pdata;
     GlobalMoveset* moveset;
@@ -774,9 +781,7 @@ static float fighting_style_sign_proc(void) {
             width = g_game_info.plyr0.slot.pdata
                 ->active_move_display->display_width;
             while (player_fstyle_sign[0]->x > width) {
-                int old_x = player_fstyle_sign[0]->x;
-
-                player_fstyle_sign[0]->x = old_x - 0x1E;
+                player_fstyle_sign[0]->x -= 0x1E;
                 update_skewer_positions(0);
                 _mkproc_sleep_ticks = 1.0f;
                 aproc->vtbl->sleep();
@@ -809,12 +814,7 @@ static float fighting_style_sign_proc(void) {
         }
         insert_screen_obj(player_fstyle_sign[0]);
 
-        fatality = 0;
-        if (get_fatality_available_flag() != 0 &&
-            g_game_info.pause_flag_bits.fatality_window &&
-            check_for_winner() == 1) {
-            fatality = 1;
-        }
+        fatality = fx_fatality_available_for(1);
         if (fatality != 0 && f_p1_show_fatality_off == 0) {
             f_p1_showing_fatatality = 1;
             sign = load_2d_pfxobj(
@@ -823,7 +823,7 @@ static float fighting_style_sign_proc(void) {
                 pull_screen_obj(player_fstyle_sign[0]);
                 player_fstyle_sign[0] = sign;
                 sign->x = FSTYLE_LFT_START_X - 0x9D;
-                sign->y = 0x20;
+                player_fstyle_sign[0]->y = 0x20;
             }
         } else {
             f_p1_showing_fatatality = 0;
@@ -858,9 +858,7 @@ static float fighting_style_sign_proc(void) {
         }
         if (player_fstyle_sign[1] != 0) {
             while (player_fstyle_sign[1]->x < FSTYLE_RGHT_START_X) {
-                int old_x = player_fstyle_sign[1]->x;
-
-                player_fstyle_sign[1]->x = old_x + 0x1E;
+                player_fstyle_sign[1]->x += 0x1E;
                 update_skewer_positions(1);
                 _mkproc_sleep_ticks = 1.0f;
                 aproc->vtbl->sleep();
@@ -893,12 +891,7 @@ static float fighting_style_sign_proc(void) {
         }
         insert_screen_obj(player_fstyle_sign[1]);
 
-        fatality = 0;
-        if (get_fatality_available_flag() != 0 &&
-            g_game_info.pause_flag_bits.fatality_window &&
-            check_for_winner() == 2) {
-            fatality = 1;
-        }
+        fatality = fx_fatality_available_for(2);
         if (fatality != 0 && f_p2_show_fatality_off == 0) {
             f_p2_showing_fatatality = 1;
             sign = load_2d_pfxobj(
@@ -956,6 +949,7 @@ void load_bgnd_fstyle_sign(int player) {
     }
 }
 
+/* TODO: [near miss] 95.58%; retail indexes weapon_styles by a raw byte offset (no clrrwi) and colors r25-r31 differently. */
 void load_player_fstyle_signs(PlyrPdata* player) {
     GlobalMoveset* moveset;
     ScreenObj* sign;
@@ -988,7 +982,7 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     style_offset = 0;
     for (style_index = 0; style_index < 3;
          style_index++, style_offset += sizeof(player->weapon_styles[0])) {
-        moveset = (GlobalMoveset*)player->weapon_styles[
+        moveset = player->weapon_styles[
             style_offset / sizeof(player->weapon_styles[0])];
         slot = (slot_group << 16) |
                (unsigned short)(style_index + 13);
@@ -1210,13 +1204,12 @@ static inline MkHdr* fx_hdr_latch_live_object(FxHdrLatch* owner) {
 
 
 
-/* TODO: [near miss] 97.452830%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void unfreeze_player(void) {
     MkObj* player_object;
-    FxHdrLatch* proc_latch;
     PlyrPdata* player;
     PlyrMirrorObjLatch* object_latch;
     PlyrMirrorObjLatch* light_latch;
+    FxHdrLatch* proc_latch;
     MkObj* object;
     MkHdr* hdr;
 
@@ -1232,7 +1225,10 @@ void unfreeze_player(void) {
         proc_latch = &p2_freeze_proc_item;
     }
 
-    if (player_object == 0 || player == 0) {
+    if (player_object == 0) {
+        return;
+    }
+    if (player == 0) {
         return;
     }
     if (!player->state_flags.bits.frozen) {
@@ -1248,7 +1244,11 @@ void unfreeze_player(void) {
     player->state_flags.bits.frozen = 0;
 
     object_latch = &player->mirror_slots->weapon[0].primary;
-    object = plyr_mirror_obj_latch_live_obj(object_latch);
+    object = object_latch->obj != 0
+                 ? (object_latch->obj->hdr.instance == object_latch->instance
+                        ? object_latch->obj
+                        : 0)
+                 : 0;
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;
@@ -1309,35 +1309,36 @@ void freeze_player(void) {
     apply_special_fx_to_player(texture);
 }
 
-/* TODO: [near miss] 97.919260%; register coloring, relocation offsets; one-trial ceiling. */
 static void apply_special_fx_to_player(void* texture) {
-    FreezeLightPdata* proc_data;
-    PlyrMirrorObjLatch* light_latch;
-    FxHdrLatch* proc_latch;
-    PlyrMirrorObjLatch* object_latch;
-    PlyrPdata* player;
     MkObj* player_object;
+    PlyrPdata* player;
+    PlyrMirrorObjLatch* light_latch;
+    int proc_id;
+    FxHdrLatch* proc_latch;
+    FreezeLightPdata* proc_data;
+    PlyrMirrorObjLatch* object_latch;
     MkObj* object;
     MkObj* light;
     MkProc* proc;
-    int proc_id;
 
     if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
         player_object = g_game_info.plyr0.slot.mirror_a;
         player = g_game_info.plyr0.slot.pdata;
         light_latch = &p1_freeze_light_item;
-        proc_latch = &p1_freeze_proc_item;
         proc_id = 0x2039;
+        proc_latch = &p1_freeze_proc_item;
     } else {
         player_object = g_game_info.plyr1.slot.mirror_a;
         player = g_game_info.plyr1.slot.pdata;
         light_latch = &p2_freeze_light_item;
-        proc_latch = &p2_freeze_proc_item;
         proc_id = 0x203A;
+        proc_latch = &p2_freeze_proc_item;
     }
 
-    if (player_object == 0 || plyr_pdata == 0 ||
-        plyr_pdata->state_flags.bits.frozen) {
+    if (player_object == 0 || plyr_pdata == 0) {
+        return;
+    }
+    if (plyr_pdata->state_flags.bits.frozen) {
         return;
     }
 
@@ -1419,16 +1420,15 @@ int can_i_do_fatality_now(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough] 94.07%; typed constructor/VM fields recovered; r27/r30/r31 homes and name-arg staging remain. */
 MkPfx* create_pfx(
     int bind_source, int process_id, MkProcEntryFn entry,
     MkPfx** effect_out, const FxPfxDefinition* definition,
     const char* name) {
     PfxBuildInfo build;
+    MkPfx* effect;
     PfxVm* vm;
     PfxEmitter* emitter;
     void* behavior;
-    MkPfx* effect;
     Vec* origin;
     float lifetime;
 
@@ -1437,7 +1437,11 @@ MkPfx* create_pfx(
     }
 
     memset(&build, 0, sizeof(build));
-    build.name = (char*)(name != 0 ? name : &fx_string_base[215]);
+    if (name != 0) {
+        build.name = (char*)name;
+    } else {
+        build.name = (char*)&fx_string_base[215];
+    }
     if (definition->kill_plane_x != 0 ||
         definition->kill_plane_y != 0 ||
         definition->kill_plane_z != 0 ||
@@ -1451,7 +1455,7 @@ MkPfx* create_pfx(
         definition->initialize, process_id, entry,
         (void**)effect_out);
     if (effect == 0) {
-        return 0;
+        return effect;
     }
 
     if ((definition->flags & 1) != 0 &&
@@ -1479,11 +1483,9 @@ MkPfx* create_pfx(
         &vm->color1B4, definition->red, definition->green,
         definition->blue, definition->alpha);
 
-    emitter = pfx_get_emitter(vm, 0);
-    emitter->birth_rate = definition->emitter_lifetime;
+    pfx_get_emitter(vm, 0)->birth_rate = definition->emitter_lifetime;
     vm->particle_capacity = definition->field_90;
-    emitter = pfx_get_emitter(vm, 0);
-    emitter->field_40 = definition->emitter_field_40;
+    pfx_get_emitter(vm, 0)->field_40 = definition->emitter_field_40;
 
     if ((definition->flags & 4) == 0) {
         if (definition->texture != 0) {
@@ -1492,7 +1494,8 @@ MkPfx* create_pfx(
         }
         if (definition->animate_texture != 0) {
             pfx_texture_animate(
-                vm, definition->texture_width,
+                vm, definition->animate_texture,
+                definition->texture_width,
                 definition->texture_height,
                 definition->texture_frame_width,
                 definition->texture_speed);

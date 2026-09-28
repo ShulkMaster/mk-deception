@@ -116,7 +116,7 @@ typedef struct KryptPdata {
     int konquest_key_bit_count; /* +0x124 */
     MkPtr* tracked_sound_list;        /* +0x128 - fire-pot sound list head */
     TrackedSound* fire_pot_sounds[6]; /* +0x12C..+0x140 */
-    void* player_profile;             /* +0x144 */
+    struct PlayerProfile* player_profile; /* +0x144 */
     ProfileCommon* profile_common;    /* +0x148 */
     KryptProfileKonquest* profile_konquest; /* +0x14C */
 } KryptPdata;

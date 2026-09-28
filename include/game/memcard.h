@@ -45,8 +45,8 @@ void check_format_or_recreate(void);
 void set_wls_left_cursor(int device);
 int get_wls_left_cursor(void);
 
-void create_right_mc_icon_list(GVTexturePair out);
-void create_left_mc_icon_list(GVTexturePair out);
+void create_right_mc_icon_list(GVTexturePair out, int count);
+void create_left_mc_icon_list(GVTexturePair out, int count);
 void get_right_mcard_text_matrix(char** out);
 void get_left_mcard_text_matrix(char** out);
 char* get_right_storage_device_space_needed(void);

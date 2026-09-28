@@ -105,20 +105,17 @@ typedef struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 } SkyTempleExplodeMonitorPdata;
 
-#define RESOLVE_MAB_OBJECT(result, object, expected_instance)              \
-    do {                                                                  \
-        MkObj* candidate_;                                                \
-        candidate_ = (object);                                           \
-        if (candidate_ != 0) {                                           \
-            if (candidate_->hdr.instance == (expected_instance)) {       \
-                (result) = candidate_;                                   \
-            } else {                                                     \
-                (result) = 0;                                            \
-            }                                                            \
-        } else {                                                         \
-            (result) = 0;                                                \
-        }                                                                \
-    } while (0)
+static inline MkObj* mab_live_object(MkObj* object, unsigned int instance) {
+    if (object != 0) {
+        if (object->hdr.instance == instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 
 #define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
     do {                                                                  \
@@ -1124,8 +1121,9 @@ void obj_setup_for_animation(
     object->ground_colls = ground_colls;
 }
 
-/* TODO: [near miss] 93.05%; algorithm matches; Vec initializer pool (@511) layout and a dead 2.0f stack temporary differ. */
+/* TODO: [near miss] 99.63%; initializer pool base/frame pointer swap r10/r11; the @511 pool object vs ...rodata.0 naming is TU data layout. */
 void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
+    RwFrame* camera_frame = Camera->object.object.parent;
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
     Vec cylinder_axis = {0.0f, 1.0f, 0.0f};
     Vec camera_direction;
@@ -1139,19 +1137,14 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     YinyangFishPair* current;
     int index;
 
-    camera_direction.x =
-        ((RwFrame*)Camera->object.object.parent)->modelling.at.x;
+    camera_direction.x = camera_frame->modelling.at.x;
     camera_direction.y = 0.0f;
-    camera_direction.z =
-        ((RwFrame*)Camera->object.object.parent)->modelling.at.z;
+    camera_direction.z = camera_frame->modelling.at.z;
     ray_cyl_intersection(
         &camera_obj->pos, &camera_direction,
         &cylinder_position, &cylinder_axis,
         29.0f + sfrand(2.0f), &intersection_a, &intersection_b);
-    intersection = intersection_a;
-    if (intersection <= 0.0f) {
-        intersection = intersection_b;
-    }
+    intersection = intersection_a > 0.0f ? intersection_a : intersection_b;
 
     camera_position.x = camera_obj->pos.x;
     camera_position.y = 0.0f;
@@ -1189,6 +1182,7 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
 
         current->active_fish->field_38 = 0.0f;
         current->active_fish->flags |= 3;
+        jump_position.y = 2.0f;
         current->bad_fish->pos.value = current->good_fish->pos.value;
         current->bad_fish->ang = current->good_fish->ang;
         bad_hidden = current->bad_fish->hide_flag_bits.hidden;
@@ -1199,13 +1193,13 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     }
 }
 
-/* TODO: [near miss] 97.50%; __fabs folds like retail; nonvolatile register coloring (r27-r31 rotated) remains. */
 static float p_monitor_objs_sobjs(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
+    int all_settled;
+    MkSobj* object;
+    MkPtr* iterator;
     ObjectMonitorPdata* pdata;
     MkObj* target;
-    MkPtr* iterator;
-    int all_settled;
 
     pdata = (ObjectMonitorPdata*)apdata;
     all_settled = 1;
@@ -1217,8 +1211,6 @@ static float p_monitor_objs_sobjs(void) {
     if (target != 0) {
         iterator = first_mkptr(&target->sobj_list);
         while (iterator != 0) {
-            MkSobj* object;
-
             object = (MkSobj*)iterator->hdr;
             if ((object->id_flags & 0xFFF) != 0) {
                 if (object->pos.y <
@@ -1231,16 +1223,16 @@ static float p_monitor_objs_sobjs(void) {
                     pdata->callback(object);
                     object->pos.y = g_game_info.field_34 +
                         pdata->settle_height + pdata->vertical_step;
-                    reflection = 2.0f *
-                        (object->pos_vel.x * ground_normal.x +
-                         object->pos_vel.y * ground_normal.y +
-                         object->pos_vel.z * ground_normal.z);
+                    reflection = object->pos_vel.x * ground_normal.x +
+                                 object->pos_vel.y * ground_normal.y +
+                                 object->pos_vel.z * ground_normal.z;
+                    reflection = 2.0f * reflection;
                     reflected_x = ground_normal.x * reflection;
                     reflected_y = ground_normal.y * reflection;
                     reflected_z = ground_normal.z * reflection;
-                    object->pos_vel.x -= reflected_x;
-                    object->pos_vel.y -= reflected_y;
-                    object->pos_vel.z -= reflected_z;
+                    object->pos_vel.x = object->pos_vel.x - reflected_x;
+                    object->pos_vel.y = object->pos_vel.y - reflected_y;
+                    object->pos_vel.z = object->pos_vel.z - reflected_z;
                     scale_v3(
                         &object->pos_vel, &object->pos_vel,
                         pdata->velocity_scale);
@@ -1348,7 +1340,7 @@ void p_statue_xpd_callback(MkSobj* object) {
 
 
 
-/* TODO: [near miss] 98.71%; structure matches; float register coloring in the ground bounce and pool constant naming remain. */
+/* TODO: [near miss] 99.55%; FPR numbering in the reflection block (normal.x/velocity temps shifted by one) remains. */
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     int frame;
@@ -1369,13 +1361,11 @@ static float p_xpd_obj_monitor(void) {
                 pdata->player->slot.fighter, limb);
 
             if (object != 0) {
-                float ground_y = g_game_info.field_34 + 0.35f;
-
-                if (object->pos.value.y < ground_y) {
+                if (object->pos.value.y < 0.35f + g_game_info.field_34) {
                     float reflection;
                     Vec bounce;
 
-                    object->pos.value.y = ground_y;
+                    object->pos.value.y = 0.35f + g_game_info.field_34;
                     reflection = 2.0f *
                         (object->pos_vel.x * ground_normal.x +
                          object->pos_vel.y * ground_normal.y +
@@ -1418,7 +1408,7 @@ static float p_xpd_obj_monitor(void) {
             if (sound_delay < 0) {
                 int sound;
 
-                sound_delay = (unsigned short)randu0(30);
+                sound_delay = randu0(30) & 0xFFFF;
                 sound = (unsigned short)randu0(4);
                 if (sound == 0) {
                     snd_req(0x12C);
@@ -1476,7 +1466,6 @@ float p_skytemple_bodysplat(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.38%; camera at-vector reflection matches; only f1-f6 float register coloring in the dot product remains. */
 static float p_cam_bounce_monitor(void) {
     CameraBouncePdata* pdata;
     MkObj* object;
@@ -1533,16 +1522,16 @@ static float p_cam_bounce_monitor(void) {
     camera_normal =
         (Vec*)&((RwFrame*)Camera->object.object.parent)->modelling.at;
     normalize_v3(camera_normal);
-    reflection = 2.0f *
-        (object->pos_vel.x * camera_normal->x +
-         object->pos_vel.y * camera_normal->y +
-         object->pos_vel.z * camera_normal->z);
+    reflection = object->pos_vel.x * camera_normal->x +
+                 object->pos_vel.y * camera_normal->y +
+                 object->pos_vel.z * camera_normal->z;
+    reflection = 2.0f * reflection;
     bounce.x = camera_normal->x * reflection;
     bounce.y = camera_normal->y * reflection;
     bounce.z = camera_normal->z * reflection;
-    object->pos_vel.x -= bounce.x;
-    object->pos_vel.y -= bounce.y;
-    object->pos_vel.z -= bounce.z;
+    object->pos_vel.x = object->pos_vel.x - bounce.x;
+    object->pos_vel.y = object->pos_vel.y - bounce.y;
+    object->pos_vel.z = object->pos_vel.z - bounce.z;
     v3_add_v3(&object->pos.value, &object->pos.value, &object->pos_vel);
     scale_v3(
         &object->pos_vel, &object->pos_vel, pdata->velocity_scale);
@@ -1562,13 +1551,16 @@ static inline MkProc* player_info_live_slot_fighter_anim_proc(PlyrInfo* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.23%; first loop is inlined init_plyr_severed_limb_list; volatile temp coloring in it and f29-f31 float coloring remain. */
+/* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;
     MkProc* anim_proc;
     MkProc* bounce_proc;
     MkObj* limb;
+    SkyTempleExplodeMonitorPdata* monitor_pdata;
+    float saved_gravity;
+    float limb_y;
     float saved_facial_damage;
     int limb_index;
 
@@ -1597,21 +1589,16 @@ void skytemple_player_explode(
     saved_facial_damage = player->slot.fighter->facial_damage;
     add_facial_damage(player->slot.fighter, 1.0f);
 
+    limb_y = y + 0.35f;
     for (limb_index = 0; limb_index < 15; limb_index++) {
-        limb = player->slot.fighter->severed_limbs[limb_index].object;
-        if (limb != 0) {
-            if (limb->hdr.instance != player->slot.fighter->severed_limbs[limb_index].instance) {
-                limb = 0;
-            }
-        } else {
-            limb = 0;
-        }
+        limb = fighter_severed_limb_live_object(
+            player->slot.fighter, limb_index);
         if (limb == 0) {
             continue;
         }
 
         limb->pos.value.x = x;
-        limb->pos.value.y = y + 0.35f;
+        limb->pos.value.y = limb_y;
         limb->pos.value.z = z;
         limb->flags_08_bits.gravity_enabled = 1;
         limb->flags_08_bits.angular_velocity_enabled = 1;
@@ -1627,7 +1614,8 @@ void skytemple_player_explode(
             Vec gusher_direction;
             float camera_delta_y;
             float camera_delta_z;
-            float saved_gravity;
+            float camera_delta_x;
+            float direction_scale = 0.025f;
 
             mkobj_zero_bone_rots(limb);
             limb->ang_vel.x = 0.09f;
@@ -1637,17 +1625,16 @@ void skytemple_player_explode(
             limb->ang.z = 0.0f;
             saved_gravity = limb->gravity;
 
-            RESOLVE_MAB_OBJECT(
-                bounce_object, limb, limb->hdr.instance);
+            bounce_object = mab_live_object(limb, limb->hdr.instance);
 
             camera = camera_obj;
             if (camera != 0 && bounce_object != 0) {
                 camera_delta_y = camera->pos.y - bounce_object->pos.value.y;
                 camera_delta_z = camera->pos.z - bounce_object->pos.value.z;
-                bounce_object->pos_vel.x =
-                    (camera->pos.x - bounce_object->pos.value.x) * 0.025f;
-                bounce_object->pos_vel.y = camera_delta_y * 0.025f;
-                bounce_object->pos_vel.z = camera_delta_z * 0.025f;
+                camera_delta_x = camera->pos.x - bounce_object->pos.value.x;
+                bounce_object->pos_vel.x = camera_delta_x * direction_scale;
+                bounce_object->pos_vel.y = camera_delta_y * direction_scale;
+                bounce_object->pos_vel.z = camera_delta_z * direction_scale;
                 if (_create_mkproc_generic_tinystack(
                         0x2092, 0x1F, p_cam_bounce_monitor,
                         sizeof(CameraBouncePdata),
@@ -1683,11 +1670,19 @@ void skytemple_player_explode(
 
             limb->pos_vel.y = 0.03f + frand(0.03f);
             velocity = sfrand(0.02f);
-            limb->pos_vel.x = velocity > 0.0f
-                ? velocity + 0.03f : velocity - 0.03f;
+            if (velocity > 0.0f) {
+                velocity += 0.03f;
+            } else {
+                velocity -= 0.03f;
+            }
+            limb->pos_vel.x = velocity;
             velocity = sfrand(0.02f);
-            limb->pos_vel.z = velocity > 0.0f
-                ? velocity + 0.03f : velocity - 0.03f;
+            if (velocity > 0.0f) {
+                velocity += 0.03f;
+            } else {
+                velocity -= 0.03f;
+            }
+            limb->pos_vel.z = velocity;
             limb->ang_vel.x = sfrand(0.1f);
             limb->ang_vel.y = sfrand(0.1f);
             limb->ang_vel.z = sfrand(0.1f);
@@ -1695,8 +1690,6 @@ void skytemple_player_explode(
     }
 
     {
-        SkyTempleExplodeMonitorPdata* monitor_pdata;
-
         if (_create_mkproc_generic_tinystack(
                 0x208E, 0x1F, p_xpd_obj_monitor,
                 sizeof(SkyTempleExplodeMonitorPdata),
@@ -1738,9 +1731,7 @@ void skytemple_player_explode(
         aproc->vtbl->sleep();
     }
 
-    RESOLVE_MAB_OBJECT(
-        limb, player->slot.fighter->severed_limbs[0].object,
-        player->slot.fighter->severed_limbs[0].instance);
+    limb = fighter_severed_limb_live_object(player->slot.fighter, 0);
     if (limb != 0) {
         ScreenObj* effect;
 

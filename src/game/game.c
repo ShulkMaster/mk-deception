@@ -672,10 +672,10 @@ int is_timer_off(void) {
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void do_fight_effect(void) {
+    int i;
     ScreenObj* round;
     ScreenObj* round_number;
     ScreenObj* fight;
-    int i;
     int material;
 
     round =
@@ -705,6 +705,7 @@ static void do_fight_effect(void) {
             if (round_number->instance != 0) {
                 round_number->typed_vtbl->destroy(round_number);
             }
+            return;
         }
         return;
     }
@@ -1858,11 +1859,12 @@ void reset_game_timer(void) {
 
 #pragma dont_inline on
 
+/* TODO: [near miss] 99.59%; start-position blocks swap volatile r3/r6 (mirror object vs misc pointer). */
 void round_init(void) {
-    if (g_game_info.plyr0.field_10 == 0.0f) {
+    if (!g_game_info.plyr0.field_10) {
         g_game_info.plyr0.field_10 = 1.0f;
     }
-    if (g_game_info.plyr1.field_10 == 0.0f) {
+    if (!g_game_info.plyr1.field_10) {
         g_game_info.plyr1.field_10 = 1.0f;
     }
     if (mode_of_play != 10 && mode_of_play != 8) {
@@ -1901,8 +1903,8 @@ void round_init(void) {
     }
 
     if (g_game_info.pselect.field_1f4 == 1) {
-        Vec player1_angles;
         Vec player2_angles;
+        Vec player1_angles;
 
         if (g_game_info.plyr0.slot.mirror_a != 0) {
             RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
@@ -2268,7 +2270,7 @@ static float p_load_screen(void) {
         return 1.0f;
     }
 
-    if (g_game_info.flag_bits.pad_bit1) {
+    if (g_game_info.flag_bits.load_complete) {
         meter->scale_x = 91.0f;
         _mkproc_sleep_ticks = 6.0f;
         ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
@@ -2301,7 +2303,7 @@ void display_load_meter(int section_slot) {
     int* image_index;
     int current_index;
 
-    g_game_info.flag_bits.pad_bit1 = 0;
+    g_game_info.flag_bits.load_complete = 0;
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
 
@@ -2317,24 +2319,24 @@ void display_load_meter(int section_slot) {
     case 0:
     case 10:
         table = loading_fight_pic_tbl;
-        image_index = &game_settings.pad_3C;
+        image_index = &game_settings.fight_loading_image;
         break;
     case 6:
         table = loading_puzzle_pic_tbl;
-        image_index = &game_settings.pad_44[1];
+        image_index = &game_settings.puzzle_loading_image;
         break;
     case 9:
         table = loading_chess_pic_tbl;
-        image_index = &game_settings.pad_44[0];
+        image_index = &game_settings.chess_loading_image;
         break;
     case 7:
     case 8:
-        image_index = &game_settings.konquest_latch;
+        image_index = &game_settings.konquest_loading_image;
         table = get_loading_table();
         break;
     default:
         table = loading_fight_pic_tbl;
-        image_index = &game_settings.pad_3C;
+        image_index = &game_settings.fight_loading_image;
         break;
     }
 
@@ -2432,7 +2434,10 @@ int ck_fatality_available(void) {
     if (g_game_info.flag_bits.level_fatality_done) {
         return 0;
     }
-    return get_blood_level() != 0;
+    if (get_blood_level() == 0) {
+        return 0;
+    }
+    return 1;
 }
 
 static float p_say_finish_him(void) {
@@ -2506,14 +2511,13 @@ static float p_say_finish_him(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 93.771126%; inlined availability guard boundary fixed;
- * paired-single save frame confirmed; defer remaining caller recovery. */
+/* TODO: [near miss] 99.28%; first ending-timing lookup colors base/index r4/r3 (retail r3/r5); loop and declaration forms measured neutral. */
 static void ck_do_fatality(void) {
-    PlyrInfo* victim;
+    int fatality_occurred = 0;
     PlyrInfo* victor;
+    PlyrInfo* victim;
     MkHdr* spawned_pdata;
     int timeout;
-    int fatality_occurred = 0;
     int timing_index;
     float ending_ticks;
 
@@ -2523,11 +2527,11 @@ static void ck_do_fatality(void) {
 
     f_fatality_finished = 0;
     if (winner == 1) {
-        victim = &g_game_info.plyr1;
         victor = &g_game_info.plyr0;
+        victim = &g_game_info.plyr1;
     } else if (winner == 2) {
-        victim = &g_game_info.plyr0;
         victor = &g_game_info.plyr1;
+        victim = &g_game_info.plyr0;
     } else {
         return;
     }
@@ -2548,8 +2552,8 @@ static void ck_do_fatality(void) {
         timeout = 420;
         while (victim->slot.pdata->state != 0x4203 && timeout != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
             timeout--;
+            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
 
         timeout = 300;
@@ -2558,8 +2562,8 @@ static void ck_do_fatality(void) {
                 break;
             }
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
             timeout--;
+            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
     }
 
@@ -2583,13 +2587,13 @@ static void ck_do_fatality(void) {
         return;
     }
 
-    timing_index = 0;
-    while (plyr_ending_timings[timing_index].character_id !=
-           victor->player_index) {
-        if (plyr_ending_timings[timing_index].character_id < 0) {
+    for (timing_index = 0;
+         plyr_ending_timings[timing_index].character_id >= 0;
+         timing_index++) {
+        if (victor->player_index ==
+            plyr_ending_timings[timing_index].character_id) {
             break;
         }
-        timing_index++;
     }
 
     switch (g_game_info.field_200) {
@@ -2600,13 +2604,13 @@ static void ck_do_fatality(void) {
         ending_ticks = plyr_ending_timings[timing_index].alternate;
         break;
     case 3:
-        timing_index = 0;
-        while (plyr_ending_timings[timing_index].character_id !=
-               victim->player_index) {
-            if (plyr_ending_timings[timing_index].character_id < 0) {
+        for (timing_index = 0;
+             plyr_ending_timings[timing_index].character_id >= 0;
+             timing_index++) {
+            if (victim->player_index ==
+                plyr_ending_timings[timing_index].character_id) {
                 break;
             }
-            timing_index++;
         }
         ending_ticks = plyr_ending_timings[timing_index].defeated;
         break;
@@ -2931,7 +2935,7 @@ float p_gamelogic(void) {
         push_game_state(7);
     }
 
-    g_game_info.flag_bits.pad_bit1 = 0;
+    g_game_info.flag_bits.load_complete = 0;
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
     if (_create_mkproc_generic_bigstack(
@@ -2943,24 +2947,24 @@ float p_gamelogic(void) {
         case 0:
         case 10:
             table = loading_fight_pic_tbl;
-            image_index = &game_settings.pad_3C;
+            image_index = &game_settings.fight_loading_image;
             break;
         case 6:
             table = loading_puzzle_pic_tbl;
-            image_index = &game_settings.pad_44[1];
+            image_index = &game_settings.puzzle_loading_image;
             break;
         case 9:
             table = loading_chess_pic_tbl;
-            image_index = &game_settings.pad_44[0];
+            image_index = &game_settings.chess_loading_image;
             break;
         case 7:
         case 8:
-            image_index = &game_settings.konquest_latch;
+            image_index = &game_settings.konquest_loading_image;
             table = get_loading_table();
             break;
         default:
             table = loading_fight_pic_tbl;
-            image_index = &game_settings.pad_3C;
+            image_index = &game_settings.fight_loading_image;
             break;
         }
         if (table[*image_index].left_image == (char*)-1) {
@@ -3030,7 +3034,7 @@ float p_gamelogic(void) {
     setup_sound_banks(2);
     wait_for_sound_banks_to_load();
     _mkproc_sleep_ticks = 6.0f;
-    g_game_info.flag_bits.pad_bit1 = 1;
+    g_game_info.flag_bits.load_complete = 1;
     ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
     start_first_pass_render();
     _mkproc_sleep_ticks = 3.0f;

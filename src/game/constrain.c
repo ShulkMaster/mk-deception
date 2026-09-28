@@ -149,11 +149,11 @@ static inline int object_can_be_repelled(const MkObj* object) {
 }
 
 static inline int object_ignores_wall_limits(const MkObj* object) {
-    return (object->flags_0B & 0x40) != 0;
+    return object->flags_0B_bits.bit6 != 0;
 }
 
 static inline int player_ignores_obstacles(const PlyrPdata* player) {
-    return (player->state_flags.raw & 0x08) != 0;
+    return player->state_flags.bits.bit3 != 0;
 }
 
 #define CONSTRAIN_P1_OBJECT (g_game_info.plyr0.slot.mirror_a)
@@ -654,11 +654,12 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 94.38%; FPR allocation, one absolute-value branch and two instructions differ. */
+/* TODO: [near miss] 96.73%; P1/P2 object register order, abs branch (retail bne/b) and midpoint FPR operands remain. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;
     float repel_distance;
+    float repel_strength;
     float projection_1;
     float projection_2;
     float distance;
@@ -675,30 +676,30 @@ static void repel_players(void) {
     }
 
     repel_distance = repel_check_plyrs();
-    if (repel_distance != 0.0f) {
-        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value);
-        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
-        if (projection_1 > projection_2) {
+    repel_strength = 0.75f;
+    if (repel_distance) {
+        if (tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value) >
+            tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value)) {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
-                    0.75f * (repel_distance * repel_distance));
+                    repel_strength * (repel_distance * repel_distance));
             }
             if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P2_OBJECT->pos.value, &tightrope_uv,
-                    -0.75f * (repel_distance * repel_distance));
+                    -repel_strength * (repel_distance * repel_distance));
             }
         } else {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
-                    -0.75f * (repel_distance * repel_distance));
+                    -repel_strength * (repel_distance * repel_distance));
             }
             if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P2_OBJECT->pos.value, &tightrope_uv,
-                    0.75f * (repel_distance * repel_distance));
+                    repel_strength * (repel_distance * repel_distance));
             }
         }
     }

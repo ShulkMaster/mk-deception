@@ -1,6 +1,10 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Game settings blob (settings.o / utils getters).
  * Offsets from get_blood_level / get_puzzle_rounds_to_win / are_death_traps_on.
@@ -22,9 +26,12 @@ typedef struct GameSettings {
     int damage_level;          /* +0x30 */
     int combo_breaker;         /* +0x34 - retail get_blood_level / death-trap gate */
     int fatalities;            /* +0x38 - death traps */
-    int pad_3C;                /* +0x3C */
-    int konquest_latch;        /* +0x40 - cleared on Konquest menu entry */
-    int pad_44[4];             /* +0x44 */
+    int fight_loading_image;   /* +0x3C */
+    int konquest_loading_image; /* +0x40 */
+    int chess_loading_image;   /* +0x44 */
+    int puzzle_loading_image;  /* +0x48 */
+    int field_4C;              /* +0x4C */
+    int field_50;              /* +0x50 */
     int color_red;             /* +0x54 - video calibrate (menu getters) */
     int color_blue;            /* +0x58 */
     int color_green;           /* +0x5C */
@@ -49,5 +56,9 @@ void memory_move_game_setting(GameSettings* dst, const GameSettings* src);
 void set_gsettings_to_default(GameSettings* dst);
 int save_gsettings(int device);
 void init_gsettings(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

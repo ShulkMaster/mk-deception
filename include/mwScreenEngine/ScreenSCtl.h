@@ -17,10 +17,19 @@ typedef struct ScreenText ScreenText;
  * Not full C++ class layouts -- Glue CreateInstance / CreateElement only.
  */
 
+/* ScreenObject base fields after the vtable (+0x04 .. +0x8F). */
+typedef struct ScreenObjectHead {
+    unsigned char node[0x18];  /* +0x04 .. +0x1B -- ScreenNode, m_extraTranslation */
+    struct SEObject_t* ext;    /* +0x1C -- m_ext */
+    struct ScreenView* screen; /* +0x20 -- m_screen */
+    void* parent;              /* +0x24 -- m_parent */
+    unsigned char pad28[0x68]; /* +0x28 .. +0x8F */
+} ScreenObjectHead;
+
 /* Shared ScreenControl head (ScreenObject 0x90 + control ids). */
 typedef struct ScreenControlView {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C]; /* +0x04 .. +0x8F */
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 -- m_collectionId */
     int gvContext; /* +0x94 -- Dispatcher unused arg */
     int optionId; /* +0x98 -- m_optionId */
@@ -39,7 +48,7 @@ typedef struct KeyEntry {
  */
 typedef struct TextItem {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C]; /* +0x04 .. +0x8F */
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 */
     int optionId; /* +0x98 -- CreateInstance zeros (overrides ctor -1) */
@@ -62,7 +71,7 @@ typedef struct TextItem {
  */
 typedef struct KeyPad {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C];
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 */
     int optionId; /* +0x98 */
@@ -84,7 +93,7 @@ typedef struct KeyPad {
  */
 typedef struct SpreadSheet {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C];
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 */
     int optionId; /* +0x98 */
@@ -145,7 +154,7 @@ typedef GVTextureCollection ImageListTexCollection;
 
 typedef struct ImageList {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C];
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 -- Dispatcher unused arg (often -1) */
     int optionId; /* +0x98 */
@@ -175,7 +184,7 @@ typedef struct ImageList {
  */
 typedef struct WifImage {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C];
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 */
     int optionId; /* +0x98 */
@@ -197,7 +206,7 @@ typedef struct WifImage {
  */
 typedef struct TextList {
     void* vtbl; /* +0x00 */
-    unsigned char so[0x8C];
+    ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */
     int gvContext; /* +0x94 */
     int optionId; /* +0x98 */

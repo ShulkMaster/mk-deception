@@ -52,14 +52,10 @@ typedef struct MovelistPfxObj {
 } MovelistPfxObj;
 
 typedef struct MovelistStyleSlot {
-    char pad00[4];
-    MovelistPfxObj* special_pfx; /* +0x04 - STYLE_SPECIAL when style_count > 3 */
-    unsigned int special_pfx_inst; /* +0x08 */
-    char pad0C[4];
-    MovelistMoveEntry moves[MOVELIST_MOVES_PER_STYLE]; /* +0x10 */
-    MovelistPfxObj* pfx_obj;                           /* +0x1B4 */
-    unsigned int pfx_inst;                             /* +0x1B8 */
-    int max_move; /* +0x1BC - fill cursor during init_movelist */
+    MovelistMoveEntry moves[MOVELIST_MOVES_PER_STYLE]; /* +0x000 */
+    MovelistPfxObj* pfx_obj;                           /* +0x1A4 */
+    unsigned int pfx_inst;                             /* +0x1A8 */
+    int max_move; /* +0x1AC - fill cursor during init_movelist */
 } MovelistStyleSlot; /* logical end 0x1C0; stride 0x1B0 */
 
 typedef struct MovelistPdata {
@@ -67,9 +63,7 @@ typedef struct MovelistPdata {
     int field_04;          /* +0x04 */
     GameInfoPlyr* plyr;    /* +0x08 */
     void* switch_map;      /* +0x0C */
-    char pad10[0x98];
-    unsigned char flags_A8; /* +0xA8 - bit3 sleep latch */
-    char padA9[0x7D7];
+    MovelistStyleSlot styles[5]; /* +0x10 */
     char counter_buf[8]; /* +0x880 */
     int switch_side;     /* +0x888 */
     int style_idx;       /* +0x88C */
@@ -77,7 +71,5 @@ typedef struct MovelistPdata {
     MkPtr* obj_list;     /* +0x894 - mk_insert list head */
 } MovelistPdata; /* 0x898 */
 
-#define movelist_style_slot(pdata_, idx_) \
-    ((MovelistStyleSlot*)((char*)(pdata_) + (idx_) * MOVELIST_STYLE_STRIDE))
 
 #endif

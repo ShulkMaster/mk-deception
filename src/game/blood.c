@@ -1289,6 +1289,19 @@ static float p_gusher(void);
 static float p_watch_bleed_obj_for_gnd_coll(void);
 static float p_foot_print(void);
 static float p_foot_print_wait(void);
+
+static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 static float p_bleed(void);
 static float p_pfx_bleed(void);
 static void do_pfx_bleed(MkHdr* hdr);
@@ -1819,40 +1832,40 @@ void spawn_bld_splat(
     spawn_decal_emitter(name, owner, position, 0, 0.0f);
 }
 
-/* TODO: [breakthrough] 90.08442%; canonical player-info effect-bank owner;
- * existing watcher CFG/register residue remains. */
+/* TODO: [near miss] 97.30%; CFG matches; params/locals colored one register off
+ * and the position copy loads y before storing x. */
+static inline MKMATRIX* decal_watcher_next_matrix(
+    DecalEmitterWatcherPdata* watcher) {
+    return &watcher->matrices[watcher->matrix_count];
+}
+
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,
     const MKMATRIX* orientation, float angle) {
+    int index;
     MkProc* watcher_proc;
     DecalEmitterWatcherPdata* watcher;
     MKMATRIX* matrix;
     MkPfx* pfx;
     PfxEmitter* emitter_vm;
-    unsigned int emitter;
+    int emitter;
     int emitter_index;
-    int index;
 
-    if (owner != 0 && get_blood_level() < blood_type_list[1]) {
-        for (index = 0; index < 6; index++) {
-            if (strcmp(mkpfx_ncs_decal_array.names[index], name) == 0) {
-                return;
+    if (owner != 0) {
+        if (get_blood_level() < blood_type_list[1]) {
+            for (index = 0; index < 6; index++) {
+                if (strcmp(mkpfx_ncs_decal_array.names[index], name) == 0) {
+                    return;
+                }
             }
+        }
+        if ((exec_tick_ctr - decal_tick_counter) >=
+            (unsigned short)randu0(75) + 25) {
+            decal_tick_counter = exec_tick_ctr;
         }
     }
 
-    if (owner != 0 &&
-        (exec_tick_ctr - decal_tick_counter) >=
-            randu0(75) + 25) {
-        decal_tick_counter = exec_tick_ctr;
-    }
-
-    watcher_proc = ncs_pfx_decal_emitter_proc.proc;
-    if (watcher_proc != 0 &&
-        watcher_proc->instance !=
-            ncs_pfx_decal_emitter_proc.instance) {
-        watcher_proc = 0;
-    }
+    watcher_proc = blood_proc_latch_live_proc(&ncs_pfx_decal_emitter_proc);
     if (watcher_proc == 0) {
         ncs_pfx_decal_emitter_proc.proc = 0;
         ncs_pfx_decal_emitter_proc.instance = 0;
@@ -1871,17 +1884,18 @@ void spawn_decal_emitter(
         ncs_pfx_decal_emitter_proc.instance = 0;
         return;
     }
-    if (watcher->matrix_count >= 10 || g_game_info.bgnd_obj == 0) {
+    if (watcher->matrix_count >= 10) {
+        return;
+    }
+    if (g_game_info.bgnd_obj == 0) {
         return;
     }
 
-    matrix = &watcher->matrices[watcher->matrix_count];
+    matrix = decal_watcher_next_matrix(watcher);
     if (angle != 0.0f) {
-        if (orientation != 0) {
-            angle -= gxMathArcTanYX(
-                orientation->at.x, orientation->at.z);
-        }
-        y_angle_to_MKMATRIX(matrix, angle);
+        y_angle_to_MKMATRIX(matrix, orientation != 0
+            ? angle - gxMathArcTanYX(orientation->at.x, orientation->at.z)
+            : angle);
     } else {
         MKMatrixSetIdentity(matrix);
     }
@@ -1973,14 +1987,47 @@ void reset_blood_decals(void) {
     }
 }
 
+static inline MkProc* bleed_start_foot_prints(
+    FighterMirror* fighter, MkObj* object) {
+    MkProc* foot_proc;
+    FootPrintPdata* foot_pdata;
+
+    if (get_blood_level() < blood_type_list[0]) {
+        return 0;
+    }
+    obj_set_bone_calc_world_mat_flag(object, 0xB);
+    obj_set_bone_calc_world_mat_flag(object, 0xA);
+    foot_proc = _create_mkproc_generic_nostack(
+        0x5018, 0x2C, p_foot_print_wait,
+        sizeof(FootPrintPdata), (MkHdr**)&foot_pdata);
+    if (foot_proc == 0) {
+        return 0;
+    }
+    foot_proc->flags_bits.use_game_speed = 1;
+    foot_proc->sleep_ticks = 60.0f;
+    foot_pdata->object = object;
+    foot_pdata->object_instance = object->hdr.instance;
+    foot_pdata->decal_owner = fighter;
+    foot_pdata->left_position.x = -1000.0f;
+    foot_pdata->left_position.y = -1000.0f;
+    foot_pdata->left_position.z = -1000.0f;
+    foot_pdata->right_position.x = -1000.0f;
+    foot_pdata->right_position.y = -1000.0f;
+    foot_pdata->right_position.z = -1000.0f;
+    foot_pdata->bone_offset.x = 0.0f;
+    foot_pdata->bone_offset.y = 0.0f;
+    foot_pdata->bone_offset.z = -0.03f;
+    foot_pdata->use_right_foot = 0;
+    return foot_proc;
+}
+
 /* TODO: [near miss] 92.63%; footprint writes use the canonical player and use_game_speed bitfield; control-flow/register differences remain. */
+/* TODO: [near miss] 99.02%; stack slots: retail puts the footprint pdata locals (0x1c/0x18) above both nostack flag pairs; splat-list loop and player-arg register order. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
-    FootPrintPdata* foot_pdata;
-    FighterMirror* fighter;
-    MkObj* object;
-    int flags;
+    int bleed_flags[2];
+    int pfx_flags[2];
     int index;
 
     destroy_mkprocs_pid(0x5013);
@@ -1989,11 +2036,7 @@ void bleed_restart(void) {
     destroy_mkprocs_pid(0x501B);
     destroy_mkprocs_pid(0x5015);
 
-    proc = bleed_pfx_proc_item.proc;
-    if (proc != 0 &&
-        proc->instance != bleed_pfx_proc_item.instance) {
-        proc = 0;
-    }
+    proc = blood_proc_latch_live_proc(&bleed_pfx_proc_item);
     if (proc != 0) {
         destroy_list(&proc->pdata_list);
     }
@@ -2010,16 +2053,18 @@ void bleed_restart(void) {
     }
 
     bleed_startup__fire_off_splat_watcher_func = 0;
-    flags = 0;
+    bleed_flags[1] = 0;
+    bleed_flags[0] = 0;
     proc = create_mkproc(
-        0x30, get_mkproc_nostack(&flags), 0x5013, p_bleed, 0);
+        0x30, get_mkproc_nostack(bleed_flags), 0x5013, p_bleed, 0);
     if (proc != 0) {
         bleed_proc_item.proc = proc;
         bleed_proc_item.instance = proc->instance;
     }
-    flags = 0;
+    pfx_flags[1] = 0;
+    pfx_flags[0] = 0;
     proc = create_mkproc(
-        0x2E, get_mkproc_nostack(&flags), 0x5014, p_pfx_bleed, 0);
+        0x2E, get_mkproc_nostack(pfx_flags), 0x5014, p_pfx_bleed, 0);
     if (proc != 0) {
         bleed_pfx_proc_item.proc = proc;
         bleed_pfx_proc_item.instance = proc->instance;
@@ -2028,70 +2073,22 @@ void bleed_restart(void) {
         start_blood_splat_watcher();
     }
 
-    fighter = g_game_info.plyr0.slot.fighter;
-    object = g_game_info.plyr0.slot.mirror_a;
-    if (get_blood_level() < blood_type_list[0]) {
-        foot_proc = 0;
-    } else {
-        obj_set_bone_calc_world_mat_flag(object, 0xB);
-        obj_set_bone_calc_world_mat_flag(object, 0xA);
-        foot_proc = _create_mkproc_generic_nostack(
-            0x5018, 0x2C, p_foot_print_wait,
-            sizeof(FootPrintPdata), (MkHdr**)&foot_pdata);
-        if (foot_proc != 0) {
-            foot_proc->flags_bits.use_game_speed = 1;
-            foot_proc->sleep_ticks = 60.0f;
-            foot_pdata->object = object;
-            foot_pdata->object_instance = object->hdr.instance;
-            foot_pdata->decal_owner = fighter;
-            foot_pdata->left_position.x = -1000.0f;
-            foot_pdata->left_position.y = -1000.0f;
-            foot_pdata->left_position.z = -1000.0f;
-            foot_pdata->right_position.x = -1000.0f;
-            foot_pdata->right_position.y = -1000.0f;
-            foot_pdata->right_position.z = -1000.0f;
-            foot_pdata->bone_offset.x = 0.0f;
-            foot_pdata->bone_offset.y = 0.0f;
-            foot_pdata->bone_offset.z = -0.03f;
-            foot_pdata->use_right_foot = 0;
-        }
-    }
+    foot_proc = bleed_start_foot_prints(
+        g_game_info.plyr0.slot.fighter, g_game_info.plyr0.slot.mirror_a);
     if (foot_proc != 0) {
-        ((PlyrPdata*)fighter)->foot_print_proc = foot_proc;
-        ((PlyrPdata*)fighter)->foot_print_proc_instance = foot_proc->instance;
+        ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->foot_print_proc =
+            foot_proc;
+        ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->foot_print_proc_instance =
+            foot_proc->instance;
     }
 
-    fighter = g_game_info.plyr1.slot.fighter;
-    object = g_game_info.plyr1.slot.mirror_a;
-    if (get_blood_level() < blood_type_list[0]) {
-        foot_proc = 0;
-    } else {
-        obj_set_bone_calc_world_mat_flag(object, 0xB);
-        obj_set_bone_calc_world_mat_flag(object, 0xA);
-        foot_proc = _create_mkproc_generic_nostack(
-            0x5018, 0x2C, p_foot_print_wait,
-            sizeof(FootPrintPdata), (MkHdr**)&foot_pdata);
-        if (foot_proc != 0) {
-            foot_proc->flags_bits.use_game_speed = 1;
-            foot_proc->sleep_ticks = 60.0f;
-            foot_pdata->object = object;
-            foot_pdata->object_instance = object->hdr.instance;
-            foot_pdata->decal_owner = fighter;
-            foot_pdata->left_position.x = -1000.0f;
-            foot_pdata->left_position.y = -1000.0f;
-            foot_pdata->left_position.z = -1000.0f;
-            foot_pdata->right_position.x = -1000.0f;
-            foot_pdata->right_position.y = -1000.0f;
-            foot_pdata->right_position.z = -1000.0f;
-            foot_pdata->bone_offset.x = 0.0f;
-            foot_pdata->bone_offset.y = 0.0f;
-            foot_pdata->bone_offset.z = -0.03f;
-            foot_pdata->use_right_foot = 0;
-        }
-    }
+    foot_proc = bleed_start_foot_prints(
+        g_game_info.plyr1.slot.fighter, g_game_info.plyr1.slot.mirror_a);
     if (foot_proc != 0) {
-        ((PlyrPdata*)fighter)->foot_print_proc = foot_proc;
-        ((PlyrPdata*)fighter)->foot_print_proc_instance = foot_proc->instance;
+        ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->foot_print_proc =
+            foot_proc;
+        ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->foot_print_proc_instance =
+            foot_proc->instance;
     }
 }
 
@@ -2675,7 +2672,7 @@ static void do_pfx_bleed(MkHdr* hdr) {
     MkBone* old_bone;
     MkBone* new_bone;
     MkPfx* pfx;
-    RwMatrix inverse;
+    MKMATRIX inverse;
     Vec world_position;
     Vec fall_velocity;
     Vec local_position;
@@ -2929,18 +2926,6 @@ static void do_pfx_bleed(MkHdr* hdr) {
 
 
 
-static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
-    MkProc* object = owner->proc;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -3248,10 +3233,14 @@ static inline int blood_surface_find_neighbor(
     int candidate_triangle;
     int candidate_corner;
     int matching_corner;
+    int vertex;
+    int next_vertex;
 
     if (next_corner == 3) {
         next_corner = 0;
     }
+    vertex = triangle[corner];
+    next_vertex = triangle[next_corner];
     for (candidate_triangle = 0;
          candidate_triangle < surface->record_count;
          candidate_triangle++) {
@@ -3262,11 +3251,11 @@ static inline int blood_surface_find_neighbor(
         }
         candidate = triangles[candidate_triangle];
         for (candidate_corner = 0; candidate_corner < 3; candidate_corner++) {
-            if (triangle[corner] == candidate[candidate_corner]) {
+            if (vertex == candidate[candidate_corner]) {
                 for (matching_corner = 0;
                      matching_corner < 3;
                      matching_corner++) {
-                    if (triangle[next_corner] == candidate[matching_corner]) {
+                    if (next_vertex == candidate[matching_corner]) {
                         return candidate_triangle;
                     }
                 }
@@ -3276,18 +3265,19 @@ static inline int blood_surface_find_neighbor(
     return -1;
 }
 
+/* TODO: [near miss] 97.14%; triangle pointer/corner counter registers and neighbor-helper triangle address operand order remain. */
 static void obj_bld_surface_build_polys(
     MkObj* object, BloodSurface* output, const BloodSurface* source) {
-    BloodSurfaceRecord* record;
-    BloodSurfaceVertex* vertices;
-    int (*triangles)[3];
     const int* triangle;
+    int selected_bone;
+    int corner;
+    int triangle_index;
+    int (*triangles)[3];
+    BloodSurfaceVertex* vertices;
+    BloodSurfaceRecord* record;
     MkBone* ancestor;
     Vec edge_vectors[3];
-    int selected_bone;
-    int triangle_bones[3];
-    int triangle_index;
-    int corner;
+    unsigned int triangle_bones[3];
 
     memcpy(output, source, sizeof(*source));
     output->records = get_mem(source->record_count * sizeof(*output->records));

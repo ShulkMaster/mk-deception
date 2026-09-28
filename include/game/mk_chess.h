@@ -169,7 +169,15 @@ typedef struct ChessCell {
     unsigned int emitter; /* +0x14 */
     unsigned int second_emitter; /* +0x18 */
     int square_type; /* +0x1C */
-    unsigned char flags; /* +0x20 - emitter bits 7/6 and hidden bit 5 */
+    union {
+        unsigned char flags; /* +0x20 */
+        struct {
+            unsigned char emitter_active : 1;
+            unsigned char second_emitter_active : 1;
+            unsigned char hidden : 1;
+            unsigned char pad : 5;
+        } flag_bits;
+    };
     char pad21[3];
     float saved_parameters[4]; /* +0x24 - serialized special-cell parameters */
 } ChessCell; /* 0x34 */
@@ -417,7 +425,15 @@ typedef struct ChessBoardGameController {
 } ChessBoardGameController; /* 0x93C */
 
 typedef struct ChessManagerInfo {
-    unsigned char flags; /* +0x00 - bit5 suppresses the next power-cell announcement */
+    union {
+        unsigned char flags; /* +0x00 */
+        struct {
+            unsigned char bit7 : 1;
+            unsigned char bit6 : 1;
+            unsigned char suppress_power_cell_announcement : 1;
+            unsigned char pad : 5;
+        } flag_bits;
+    };
     char pad01[3];
     unsigned int active_side; /* +0x04 */
     unsigned int winning_side; /* +0x08 - copied to saved result */
@@ -478,7 +494,7 @@ typedef struct ChessCameraInfo {
 } ChessCameraInfo; /* 0x54 */
 
 typedef struct ChessCameraSoundState {
-    int field_00;
+    MslSoundHandle field_00;
     MslSoundHandle zoom_sound; /* +0x04 */
 } ChessCameraSoundState;
 

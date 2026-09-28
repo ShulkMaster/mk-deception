@@ -115,13 +115,18 @@ typedef struct PlyrPdata {
     void* vtbl; /* +0x00 - vtbl_mkpdata_plyr; free-list next when idle */
     unsigned int instance; /* +0x04 */
     union {
-        struct MkProc* player_proc;
-        struct MkProc* opponent_proc;
-    }; /* +0x08 */
-    union {
-        unsigned int player_proc_instance;
-        unsigned int opponent_proc_instance;
-    }; /* +0x0C */
+        struct {
+            union {
+                struct MkProc* player_proc;
+                struct MkProc* opponent_proc;
+            }; /* +0x08 */
+            union {
+                unsigned int player_proc_instance;
+                unsigned int opponent_proc_instance;
+            }; /* +0x0C */
+        };
+        PlyrProcLatch player_proc_latch;
+    };
     struct PlyrPdata* his_plyr_pdata; /* +0x10 */
     MkObj* his_obj;                   /* +0x14 */
     PlyrInfo* plyr_info;              /* +0x18 - GameInfo plyr0/plyr1 */
