@@ -1992,17 +1992,6 @@ static void setup_children_pebbles_of_tile_object(
 void kill_konquest_dialog_procs(void);
 void konquest_fade_from_black(int ticks, int event);
 void konquest_fade_to_black(int ticks, int event);
-static inline KonquestGrounding* konquest_live_grounding(KonquestPdata* owner) {
-    KonquestGrounding* object = owner->hero_grounding;
-    if (object != 0) {
-        if (object->hdr.instance == owner->grounding_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 static inline MkObj* konquest_live_hero(KonquestPdata* owner) {
     MkObj* object = owner->hero_object;
     if (object != 0) {
@@ -2017,17 +2006,6 @@ static inline MkObj* konquest_live_hero(KonquestPdata* owner) {
 }
 
 
-static inline MkObj* konquest_live_pui_object(KonquestPuiRuntime* owner) {
-    MkObj* object = owner->object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->object_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 static inline KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* owner) {
     KonquestChestOwner* object = owner->owner;
     if (object != 0) {
@@ -2038,36 +2016,6 @@ static inline KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* ow
     }
     return 0;
 }
-
-
-static inline MkHdr* konquest_live_tile_objects(KonquestPdata* owner) {
-    MkHdr* object = owner->tile_objects;
-    if (object != 0) {
-        if (object->instance == owner->tile_objects_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-
-
-static inline MkObj* konquest_live_damashi(KonquestPdata* owner) {
-    MkObj* object = owner->damashi_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->damashi_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-
-
 
 
 static inline int advance_konquest_fade_to_black(KonquestFadePdata* pdata) {
@@ -2213,18 +2161,6 @@ static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
     return object;
 }
 
-static inline KonquestGrounding* konquest_pdata_live_hero_grounding(KonquestPdata* owner) {
-    KonquestGrounding* object = owner->hero_grounding;
-    if (object != 0) {
-        if (object->hdr.instance == owner->grounding_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void konquest_hero_portal_in(void);
 static inline float konquest_inverse_length(float length_squared) {
     KonquestFloatBits estimate;
@@ -2401,18 +2337,6 @@ int player_has_item(void* item);
 
 
 
-static inline MkObj* konquest_pui_delay_view_live_render_object(KonquestPuiDelayView* owner) {
-    MkObj* object = owner->render_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->render_object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 static void update_dropped_pui(KonquestPuiDelayView* pui);
 
 static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
@@ -2536,47 +2460,6 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
 MkProc* konquest_set_dialog_text( const char* text, const LipSyncKeyframe* lip_sync_keyframes);
 
 
-static inline StringObj* konquest_dialog_pdata_live_lines_0_object(KonquestDialogPdata* owner) {
-    KonquestStringLatch* line = &owner->lines[0];
-    StringObj* object = line->object;
-    if (object != 0) {
-        if (object->instance == line->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* konquest_dialog_pdata_live_lines_1_object(KonquestDialogPdata* owner) {
-    KonquestStringLatch* line = &owner->lines[1];
-    StringObj* object = line->object;
-    if (object != 0) {
-        if (object->instance == line->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* konquest_dialog_pdata_live_lines_2_object(KonquestDialogPdata* owner) {
-    KonquestStringLatch* line = &owner->lines[2];
-    StringObj* object = line->object;
-    if (object != 0) {
-        if (object->instance == line->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void konquest_end_npc_nis(void);
 static inline int is_dialog_art_active(KonquestDialogArt* dialog_art) {
     if (dialog_art == 0) {
@@ -2647,16 +2530,6 @@ static void update_sun_moon_position(float angle);
 
 
 
-static inline MkObj* konquest_pdata_validate_hero_object(MkObj* object, KonquestPdata* owner) {
-    if (object != 0) {
-        if (object->hdr.instance == owner->hero_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 /* Retail change_monk_age calls this leaf out of line under the TU's -inline
  * auto mode; keep that observed call boundary scoped to this definition. */
 void set_monk_age(int age);
@@ -2669,36 +2542,11 @@ void change_monk_age(int age);
 void set_hero_punched_ground_collisions(int punched);
 int get_tile_from_position(Vec* position);
 
-static inline StringObj* konquest_live_hud_labels_5_object(KonquestPdata* owner) {
-    StringObj* object = (StringObj*) owner->hud_labels[5].object;
-    if (object != 0) {
-        if (object->instance == owner->hud_labels[5].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 void* get_visible_tile_set(int index);
 void play_beam_advance_sound(int delay);
 
 
 
-static inline MkHdr* konquestpdata_live_objective_beam_object_mkhdr(KonquestPdata* owner) {
-    MkHdr* object = owner->objective_beam.object;
-    if (object != 0) {
-        if (object->instance == owner->objective_beam.instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 static inline KonquestTriggerStruct* find_trigger_by_definition(
     KonquestTriggerDefinition* definition) {
     MkPtr* link;
@@ -3085,7 +2933,7 @@ static inline void play_pui_effect_now(
     RwSphere sphere;
     unsigned int emitter;
 
-    object = konquest_pui_runtime_live_render_object(pui);
+    object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
     owner = konquest_pui_runtime_live_owner(pui);
     if (object != 0 && owner != 0) {
         sphere.center.x = object->pos.value.x;
@@ -3152,7 +3000,7 @@ static inline void remove_trigger_from_world(
             MkObj* render_object;
 
             pui = (struct KonquestPuiRuntime*)trigger->owned_data->field_24;
-            render_object = konquest_pui_runtime_live_render_object(pui);
+            render_object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
             if ((int)pui->effect_60 != 0) {
                 fx_reset_emit(pui->effect_60);
@@ -3344,57 +3192,6 @@ void get_current_time(void* time);
 void set_current_time(const KonquestTime* time);
 
 
-static inline StringObj* konquest_live_hud_labels_1_object(KonquestPdata* owner) {
-    StringObj* object = (StringObj*) owner->hud_labels[1].object;
-    if (object != 0) {
-        if (object->instance == owner->hud_labels[1].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline ScreenObj* konquest_live_hud_labels_3_object(KonquestPdata* owner) {
-    ScreenObj* object = (ScreenObj*) owner->hud_labels[3].object;
-    if (object != 0) {
-        if (object->instance == owner->hud_labels[3].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* konquest_live_hud_extra_label_object(KonquestPdata* owner) {
-    StringObj* object = (StringObj*) owner->hud_extra_label.object;
-    if (object != 0) {
-        if (object->instance == owner->hud_extra_label.instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline StringObj* konquest_live_hud_labels_2_object(KonquestPdata* owner) {
-    StringObj* object = (StringObj*) owner->hud_labels[2].object;
-    if (object != 0) {
-        if (object->instance == owner->hud_labels[2].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -3414,18 +3211,6 @@ static inline MkObj* konquest_live_objective_beam_object(KonquestPdata* owner) {
     return object;
 }
 
-static inline ScreenObj* konquest_live_hud_objects_0_object(KonquestPdata* owner) {
-    ScreenObj* object = (ScreenObj*) owner->hud_objects[0].object;
-    if (object != 0) {
-        if (object->instance == owner->hud_objects[0].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 static float p_adjust_compass(void);
 static void init_heads_up_display(void);
 void attach_pfx_to_object_by_uid( int uid, const char* effect_name, const Vec* offset, int keep_attached);
@@ -3640,7 +3425,7 @@ MkHdr* get_konquest_tile_objects_obj(void) {
     MkHdr* object = 0;
 
     if (pdata != 0) {
-        object = konquest_live_tile_objects(pdata);
+        object = MK_LIVE(pdata->tile_objects, pdata->tile_objects_instance);
     }
     return object;
 }
@@ -3904,7 +3689,7 @@ float p_setup_konquest_map(void) {
     }
 
     if (konquest_editor_mode_on == 0) {
-        hero = konquest_live_hero(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0 && camera_obj != 0) {
             camera_obj->pos.x = hero->pos.value.x;
@@ -4260,7 +4045,7 @@ void trigger_update(int force) {
         MkPtr* trigger_link;
 
         trigger_update_countdown = 120;
-        hero = konquest_pdata_live_hero_object(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0 && konquest_has_list(&konquest_pdata->triggers)) {
             trigger_link = konquest_pdata->triggers;
@@ -4370,7 +4155,7 @@ float p_konquest_loop(void) {
     }
     update_time_screen_objs(update_all);
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (konquest_current_game_mode() == 0 ||
         konquest_current_game_mode() == 4) {
         if (get_game_state() != 0x14 && get_game_state() != 0x15) {
@@ -4415,7 +4200,7 @@ float p_konquest_loop(void) {
     trigger_update(0);
     pui_update();
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero != 0) {
         if (konquest_pdata->current_nav_area >= 0) {
             konquest_pdata->current_nav_area = nav_what_area_is_point_in(
@@ -4486,7 +4271,7 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
         }
     }
 
-    owner = konquest_pui_runtime_live_owner(pui);
+    owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
 
     if (owner != 0) {
         if (pui->owner->hdr.instance != 0) {
@@ -4496,7 +4281,7 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
         pui->owner_instance = 0;
     }
 
-    render_object = konquest_pui_runtime_live_render_object(pui);
+    render_object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
     if (render_object != 0) {
         if (pui->render_object->hdr.instance != 0) {
@@ -5240,7 +5025,7 @@ static float p_adjust_compass(void) {
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
-    compass = konquest_live_hud_objects_0_object(konquest_pdata);
+    compass = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
 
 
     for (index = 0; index < 4; index++) {
@@ -5499,13 +5284,13 @@ static void update_time_screen_objs(int update_all) {
 
     hour_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
 
-    minute_object = konquest_live_hud_labels_1_object(konquest_pdata);
+    minute_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
 
-    day_object = konquest_live_hud_labels_3_object(konquest_pdata);
+    day_object = MK_LIVE((ScreenObj*) konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
 
-    date_object = konquest_live_hud_extra_label_object(konquest_pdata);
+    date_object = MK_LIVE((StringObj*) konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
 
-    period_object = konquest_live_hud_labels_2_object(konquest_pdata);
+    period_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
 
 
     if (update_all != 0 && day_object != 0) {
@@ -5776,7 +5561,7 @@ void load_konquest_tiles(void) {
         MkHdr* tile_objects;
         KonquestSectionContext context;
 
-        tile_objects = konquest_live_tile_objects(konquest_pdata);
+        tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
         context.slot = 0x60029;
         context.owner = tile_objects;
         context.flags = 0;
@@ -5793,7 +5578,7 @@ void load_konquest_tiles(void) {
         MkHdr* tile_objects;
         KonquestSectionContext context;
 
-        tile_objects = konquest_live_tile_objects(konquest_pdata);
+        tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
         context.slot = 0x60030;
         context.owner = tile_objects;
         context.flags = 0;
@@ -7024,7 +6809,7 @@ static int is_in_range(KonquestTriggerStruct* trigger) {
     Vec distance = {0.0f, 0.0f, 0.0f};
     MkObj* hero;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero == 0) {
         return 0;
     }
@@ -7060,7 +6845,7 @@ static int is_leaving_area(KonquestTriggerStruct* trigger) {
     {
         Vec distance = {0.0f, 0.0f, 0.0f};
 
-        hero = konquest_live_hero(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
         if (hero == 0) {
             in_range = 0;
         } else if (trigger == 0) {
@@ -7438,7 +7223,7 @@ void turn_to_face_exterior_door(void) {
         return;
     }
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
 
     {
@@ -7796,8 +7581,8 @@ void hide_objective_arrow_and_beam(void) {
     MkHdr* beam;
     MkSobj* sky_object;
 
-    arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
-    beam = konquestpdata_live_objective_beam_object_mkhdr(konquest_pdata);
+    arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+    beam = MK_LIVE(konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
     if (arrow == 0 || beam == 0) {
         return;
     }
@@ -7821,7 +7606,7 @@ void show_objective_arrow_and_beam(void) {
     MkHdr* beam;
 
     arrow = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
-    beam = konquestpdata_live_objective_beam_object_mkhdr(konquest_pdata);
+    beam = MK_LIVE(konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
 
     if (arrow == 0 || beam == 0) {
         return;
@@ -7862,9 +7647,9 @@ void check_objective_table(void) {
                 ScreenObj* hidden_arrow;
                 MkObj* hidden_beam;
 
-                hidden_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+                hidden_arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
 
-                hidden_beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+                hidden_beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
 
                 if (hidden_arrow != 0 && hidden_beam != 0) {
                     MkSobj* sky_object;
@@ -8232,7 +8017,7 @@ void update_tile_grid(void) {
     MkObj* hero;
     KonquestTileRecord* tile;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     tile = get_nth_tile_struct(konquest_pdata->tile_load_state);
     if (tile != 0) {
@@ -8287,7 +8072,7 @@ inline void update_map_coords(void) {
     konquest_pdata->tile_row =
         konquest_pdata->tile_load_state / konquest_pdata->tile_width + 1;
 
-    label = konquest_live_hud_labels_5_object(konquest_pdata);
+    label = MK_LIVE((StringObj*) konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
 
     sprintf(text, "%c - %d", konquest_pdata->tile_column + 'A',
             konquest_pdata->tile_row);
@@ -8304,7 +8089,7 @@ inline void update_map_coords(void) {
 void set_hero_punched_ground_collisions(int punched) {
     MkObj* hero;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (punched != 0) {
         hero->ground_colls = monk_laying_on_ground_colls;
     } else {
@@ -8324,7 +8109,7 @@ void render_konquest_shadows(void) {
 
     pdata = konquest_pdata;
     if (pdata != 0) {
-        candidate = konquest_live_hero(pdata);
+        candidate = MK_HDR_LIVE(pdata->hero_object, pdata->hero_instance);
         hero = candidate;
         if (pdata->game_mode_index < 0) {
             game_mode = 0;
@@ -8438,7 +8223,7 @@ inline void setup_hero_model(void) {
     MkProc* hero_proc;
     AnimPdata* hero_anim;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero == 0 && konquest_pdata->hero_anim == 0 &&
         (hero_proc = load_hero_model(konquest_animations[0])) != 0) {
@@ -8467,7 +8252,7 @@ inline void load_konquest_monk(void) {
 
 
 
-/* TODO: [near miss] 99.05%; face-texture live check keeps the loaded pointer (mr r0) where retail reloads before destroy; slot/face_texture r28/r29 swap. */
+/* TODO: [near miss] 99.19%; face-texture live check keeps the loaded pointer (mr r0) where retail reloads before destroy; slot/face_texture r28/r29 swap. */
 void change_monk_age(int age) {
     MkObj* hero;
     AnimPdata* animation;
@@ -8487,7 +8272,7 @@ void change_monk_age(int age) {
 
     if (age >= 0 && age <= 4) {
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     x = hero->pos.value.x;
     y = hero->pos.value.y;
@@ -8530,7 +8315,7 @@ void change_monk_age(int age) {
     TearDownShadow((ShadowObject*)&pdata_monk);
     xfer_camera(p_idle, 1);
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero == 0 && konquest_pdata->hero_anim == 0 &&
         (hero_proc = load_hero_model(konquest_animations[0])) != 0) {
@@ -8546,13 +8331,13 @@ void change_monk_age(int age) {
         (hero->hide_flag_bits).still_move = 1;
     }
 
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding == 0 || grounding->camera_target == 0) {
         return;
     }
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     grounding->camera_target->focus_object = hero;
 
@@ -8598,7 +8383,7 @@ void change_monk_age(int age) {
     set_monk_position(x, y, z, angle);
     camera = get_pdata_of_camera();
     if (camera != 0) {
-        hero = konquest_pdata_live_hero_object(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0) {
             camera->movement_focus = hero;
@@ -8621,7 +8406,7 @@ void set_monk_position(float x, float y, float z, float angle) {
     MkObj* hero;
 
     camera = get_pdata_of_camera();
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero != 0) {
         (hero->hide_flag_bits).pin_animation = 0;
@@ -8664,7 +8449,7 @@ static float p_control_konquest_monk(void) {
         return -1.0f;
     }
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero == 0) {
         return -1.0f;
     }
@@ -8735,7 +8520,7 @@ static float p_monk_move(void) {
                     random_snd_req(0x85);
                     if (get_game_state() == 0x13 &&
                         konquest_pdata->region_table->effect_bank_name != 0) {
-                        effect_hero = konquest_pdata_live_hero_object(konquest_pdata);
+                        effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
                         {
                             bone_offset = (Vec){0.0f, 0.0f, 0.0f};
@@ -8813,7 +8598,7 @@ static float p_monk_meditate(void) {
     int animation_complete;
 
     initial_state = konquest_pdata->hero_state;
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     konquest_pdata->npc_interaction_state = 0;
     hero->hide_flag_bits.still_move = 0;
@@ -8846,7 +8631,7 @@ static float p_monk_meditate(void) {
                         ->game_modes[konquest_pdata->game_mode_index] = 4;
                 }
 
-                meditation_hero = konquest_live_hero(konquest_pdata);
+                meditation_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
                 speed_pdata = 0;
                 monitor_pdata = 0;
                 if (meditation_hero != 0) {
@@ -8972,7 +8757,7 @@ static void exit_meditation(void) {
     MkObj* hero;
     KonquestGameSpeedPdata* pdata;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     pdata = 0;
     if (in_exit_meditation == 0 && hero != 0) {
@@ -9022,7 +8807,7 @@ static float p_monk_punch(void) {
     int can_hit_npc;
     Vec direction;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     direction = (Vec){0.0f, 0.0f, 0.0f};
     npc = 0;
     can_hit_npc = 0;
@@ -9138,7 +8923,7 @@ static float p_monk_punch_react(void) {
     MkObj* hero;
     int mode_index;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     mode_index = konquest_pdata->game_mode_index;
     if ((mode_index < 0 || konquest_current_game_mode() != 5) &&
@@ -9191,7 +8976,7 @@ static float p_monk_punch_react(void) {
 static float p_monk_getup(void) {
     MkObj* hero;
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
 
     transition_to_anim_script(
@@ -9221,7 +9006,7 @@ static float p_monk_getup(void) {
 }
 
 void set_camera_to_look_at_hero(void) {
-    MkObj* hero = konquest_live_hero(konquest_pdata);
+    MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero != 0) {
         camera_set_lookat_focus(hero);
@@ -9236,7 +9021,7 @@ static float p_monk_unconscious(void) {
     float duration;
     float elapsed;
 
-    hero = konquest_pdata_validate_hero_object(konquest_pdata->hero_object, konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     elapsed = 0.0f;
     duration = (float)konquest_pdata->hero_unconscious;
 
@@ -9253,7 +9038,7 @@ static float p_monk_unconscious(void) {
         konquest_pdata->script_owner,
         konquest_pdata->unconscious_camera_script, 1);
 
-    camera_focus = konquest_live_hero(konquest_pdata);
+    camera_focus = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (camera_focus != 0) {
         camera_set_lookat_focus(camera_focus);
         camera_set_movement_focus_obj(camera_focus);
@@ -9344,7 +9129,7 @@ static float p_collide_monk(void) {
         return 1.0f;
     }
     camera = get_pdata_of_camera();
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero != 0) {
         if (old_hero_position.y == 500.0f) {
@@ -9395,7 +9180,7 @@ inline void attach_camera_to_monk(void) {
 
     camera = get_pdata_of_camera();
     if (camera != 0) {
-        hero = konquest_live_hero(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
         if (hero != 0) {
             camera->movement_focus = hero;
         }
@@ -9963,7 +9748,7 @@ void hero_stop_moving(void) {
     MkObj* hero;
     MonkStateData* state;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero != 0) {
         hero->pos_vel.z = 0.0f;
@@ -9995,7 +9780,7 @@ void handle_controller_input(void) {
     float vertical_input;
     float magnitude;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (konquest_current_game_mode() != 0 &&
         konquest_current_game_mode() != 4) {
@@ -10066,7 +9851,7 @@ static void handle_monk_input(void) {
     int run_pressed;
     int state;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     mode_index = konquest_pdata->game_mode_index;
     if ((mode_index < 0 ? 0 : konquest_pdata->game_modes[mode_index]) != 0) {
@@ -10714,7 +10499,7 @@ static float p_konquest_map_screen(void) {
     int index;
 
     pdata = konquest_pdata;
-    hero = konquest_live_hero(pdata);
+    hero = MK_HDR_LIVE(pdata->hero_object, pdata->hero_instance);
     map_scale_x = 1.0f;
     map_scale_z = 1.0f;
 
@@ -11303,7 +11088,7 @@ static float p_konquest_interaction(void) {
     int npc_facing;
 
     pdata = (KonquestInteractionPdata*)apdata;
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     hero_facing = 0;
     npc_facing = 0;
     movement.z = 0.0f;
@@ -11465,7 +11250,7 @@ void konquest_start_npc_interaction(void) {
         g_active_npc->fields.flag_bits.flags_bit3 = 1;
     }
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero != 0) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
@@ -11497,7 +11282,7 @@ void konquest_start_npc_interaction(void) {
             npc_ani_1_frame();
         } while (konquest_game_mode_in_stack(1) != 0);
 
-        hero = konquest_live_hero(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
         if (hero != 0) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
@@ -11733,7 +11518,7 @@ void konquest_start_npc_nis(void) {
         konquest_pdata->flag_bits.bit4 = 0;
     }
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero != 0) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
@@ -11853,12 +11638,14 @@ void konquest_end_npc_nis(void) {
 
 static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
     StringObj* object;
+    KonquestStringLatch* line;
 
     if (pdata->dialog_art != 0 && pdata->dialog_art->owner != 0) {
         pdata->dialog_art->owner->flag_bits.dialog_active = 0;
     }
 
-    object = konquest_dialog_pdata_live_lines_0_object(pdata);
+    line = &pdata->lines[0];
+    object = MK_LIVE(line->object, line->instance);
 
     if (object != 0) {
         if (pdata->lines[0].object->instance != 0) {
@@ -11868,7 +11655,8 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
         pdata->lines[0].instance = 0;
     }
 
-    object = konquest_dialog_pdata_live_lines_1_object(pdata);
+    line = &pdata->lines[1];
+    object = MK_LIVE(line->object, line->instance);
 
     if (object != 0) {
         if (pdata->lines[1].object->instance != 0) {
@@ -11878,7 +11666,8 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
         pdata->lines[1].instance = 0;
     }
 
-    object = konquest_dialog_pdata_live_lines_2_object(pdata);
+    line = &pdata->lines[2];
+    object = MK_LIVE(line->object, line->instance);
 
     if (object != 0) {
         if (pdata->lines[2].object->instance != 0) {
@@ -12120,7 +11909,7 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
     MkHdr* entry;
 
     selected = 0;
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     *distance = 1000.0f;
     *facing_angle = 6.2831855f;
@@ -12293,10 +12082,10 @@ void nis_register_participant(int type, void* npc_data) {
         KonquestNpcRuntime* npc;
 
         if (konquest_pdata != 0) {
-            hero = konquest_live_hero(konquest_pdata);
+            hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
             if (hero != 0) {
                 npc = (KonquestNpcRuntime*)
-                    konquest_live_grounding(konquest_pdata);
+                    MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
                 if (npc != 0) {
                     npc->state_flag_bits.nis_participant = 1;
                     participant->npc = npc;
@@ -12402,7 +12191,7 @@ void konquest_nis_init(int value) {
     konquest_pdata->npc_interaction_state = 0;
     nis_participants = 0;
 
-    grounding = konquest_live_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
         grounding->flag_bits.suspended = 0;
@@ -12487,7 +12276,7 @@ static float p_head_tracking(void) {
     Vec position;
     float angle;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
@@ -12642,7 +12431,7 @@ void resume_hero_state_process(void) {
         proc = MK_LIVE(konquest_pdata->hero_anim->proc, konquest_pdata->hero_anim->proc_instance);
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
     }
@@ -12651,7 +12440,7 @@ void resume_hero_state_process(void) {
 void start_subobject_pulsing_effect(int pulse_type) {
     MkHdr* object;
 
-    object = konquest_live_tile_objects(konquest_pdata);
+    object = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
     if (object != 0) {
         pulsate_object(object, pulse_type, 0x1E, 0xA, 6.0f, 6.0f);
     }
@@ -13279,7 +13068,7 @@ static void pui_restore_open_chests(KonquestPuiDefinition* item) {
 
     pui = find_pui_runtime_by_id(item);
     if (pui != 0) {
-        render_object = konquest_live_pui_object(pui);
+        render_object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (render_object != 0) {
             chest = obj_find_sobj_by_id(render_object, 10);
             if (chest != 0) {
@@ -13303,7 +13092,7 @@ static MkProc* pui_set_chest_state(
         return 0;
     }
 
-    render_object = konquest_live_pui_object(pui);
+    render_object = MK_HDR_LIVE(pui->object, pui->object_instance);
     if (render_object == 0) {
         return 0;
     }
@@ -13318,7 +13107,7 @@ static MkProc* pui_set_chest_state(
     if (proc != 0) {
         KonquestChestOwner* owner;
 
-        owner = konquest_live_pui_owner(pui);
+        owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
         owner->interaction->closed = 0;
 
         pdata->owner = owner;
@@ -13390,7 +13179,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
 
                         new_trigger = MK_HDR_LIVE(new_pui->trigger_owner, new_pui->owner_instance);
 
-                        render_object = konquest_pui_delay_view_live_render_object(new_pui);
+                        render_object = MK_HDR_LIVE(new_pui->render_object, new_pui->render_object_instance);
 
                         if (old_trigger->flag_bits.bit2 != 0) {
                             new_pui->alpha = 0xFF;
@@ -13735,7 +13524,7 @@ void spawn_pui(
 
         pui = create_new_konquest_pui(item, behavior, position_mode);
         if (pui != 0) {
-            object = konquest_live_pui_object(pui);
+            object = MK_HDR_LIVE(pui->object, pui->object_instance);
             if (object != 0) {
                 KonquestTileRecord* tile;
                 int tile_index;
@@ -13828,9 +13617,9 @@ void pui_play_pfx(
         pui->attached_effect = handle;
         return;
     case 4:
-        object = konquest_pui_runtime_live_render_object(pui);
+        object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
-        owner = konquest_pui_runtime_live_owner(pui);
+        owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
 
         if (object != 0 && owner != 0) {
             sphere4.radius = owner->interaction->radius;
@@ -13861,7 +13650,7 @@ void pui_play_pfx(
     case 5:
         object = konquest_pui_runtime_live_render_object(pui);
 
-        owner = konquest_pui_runtime_live_owner(pui);
+        owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
 
         if (object != 0 && owner != 0) {
             sphere5.radius = owner->interaction->radius;
@@ -13930,8 +13719,8 @@ void pui_play_pfx_sequence(
             KonquestPuiPfxSequencePdata* pdata;
             RwSphere sphere;
 
-            object = konquest_pui_runtime_live_render_object(pui);
-            owner = konquest_pui_runtime_live_owner(pui);
+            object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
+            owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
             if (object != 0 && owner != 0) {
                 sphere.radius = owner->interaction->radius;
                 sphere.center.x = object->pos.value.x;
@@ -13958,8 +13747,8 @@ void pui_play_pfx_sequence(
             KonquestPuiPfxSequencePdata* pdata;
             RwSphere sphere;
 
-            object = konquest_pui_runtime_live_render_object(pui);
-            owner = konquest_pui_runtime_live_owner(pui);
+            object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
+            owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
             if (object != 0 && owner != 0) {
                 sphere.radius = owner->interaction->radius;
                 sphere.center.x = object->pos.value.x;
@@ -14043,7 +13832,7 @@ void pui_set_color(
     object = find_pui_runtime_by_numeric_id(id);
 
     if (object != 0) {
-        render_object = konquest_live_pui_object(object);
+        render_object = MK_HDR_LIVE(object->object, object->object_instance);
         if (render_object != 0) {
             color.red = red;
             color.green = green;
@@ -14236,14 +14025,14 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
 
     switch (pui->behavior) {
     case 0:
-        object = konquest_live_pui_object(pui);
+        object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
         }
         return;
     case 1:
-        object = konquest_live_pui_object(pui);
+        object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -14255,7 +14044,7 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
         }
         return;
     case 2:
-        object = konquest_live_pui_object(pui);
+        object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
             object->flags_08_bits.angular_velocity_enabled = 1;
             object->flags_08_bits.rotation_enabled = 1;
@@ -14269,9 +14058,9 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
         }
         return;
     case 3:
-        owner = konquest_live_pui_owner(pui);
-        object = konquest_live_pui_object(pui);
-        hero = konquest_live_hero(konquest_pdata);
+        owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
+        object = MK_HDR_LIVE(pui->object, pui->object_instance);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
         if (hero != 0 && object != 0 && owner != 0) {
             x = hero->field_24->at.x;
             z = hero->field_24->at.z;
@@ -14289,7 +14078,7 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
         }
         return;
     case 4:
-        object = konquest_live_pui_object(pui);
+        object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
             object->flags_08_bits.angular_velocity_enabled = 1;
             object->flags_08_bits.rotation_enabled = 1;
@@ -14337,7 +14126,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         update_dropped_pui(pui);
         break;
     case 1:
-        moving_object = konquest_live_pui_object(pui);
+        moving_object = MK_HDR_LIVE(pui->object, pui->object_instance);
         moving_object->pos.value.x += moving_object->pos_vel.x * game_speed;
         moving_object->pos.value.y += moving_object->pos_vel.y * game_speed;
         moving_object->pos.value.z += moving_object->pos_vel.z * game_speed;
@@ -14354,7 +14143,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         moving_object->pos_vel.x = 0.0f;
         break;
     case 2:
-        moving_object = konquest_live_pui_object(pui);
+        moving_object = MK_HDR_LIVE(pui->object, pui->object_instance);
         moving_object->pos.value.x += moving_object->pos_vel.x * game_speed;
         moving_object->pos.value.y += moving_object->pos_vel.y * game_speed;
         moving_object->pos.value.z += moving_object->pos_vel.z * game_speed;
@@ -14429,7 +14218,7 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
         return;
     }
 
-    object = konquest_pui_delay_view_live_render_object(pui);
+    object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
     if (object == 0) {
         if (pui->hdr.instance != 0) {
@@ -14469,7 +14258,7 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
         object->pos_vel.z = 0.5f * object->pos_vel.z;
         object->pos_vel.y *= -1.0f;
         if (++pui->bounce_count >= 2) {
-            settled_object = konquest_pui_delay_view_live_render_object(pui);
+            settled_object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
             if (settled_object != 0) {
                 settled_object->flags_08_bits.airborne = 1;
@@ -15115,7 +14904,7 @@ void open_chest_and_give_item_to_player(
     hero_stop_moving();
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = anim_pdata_live_proc(animation);
+        proc = MK_LIVE(animation->proc, animation->proc_instance);
 
         xfer_proc(proc, p_animate);
     }
@@ -15205,11 +14994,11 @@ void open_chest_and_give_item_to_player(
 
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = anim_pdata_live_proc(animation);
+        proc = MK_LIVE(animation->proc, animation->proc_instance);
 
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
@@ -15262,7 +15051,7 @@ void open_chest_and_unlock_kontent(
     hero_stop_moving();
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = anim_pdata_live_proc(animation);
+        proc = MK_LIVE(animation->proc, animation->proc_instance);
 
         xfer_proc(proc, p_animate);
     }
@@ -15359,11 +15148,11 @@ void open_chest_and_unlock_kontent(
 
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = anim_pdata_live_proc(animation);
+        proc = MK_LIVE(animation->proc, animation->proc_instance);
 
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
@@ -15383,7 +15172,7 @@ MkObj* get_pickup_object(void) {
         return 0;
     }
 
-    return konquest_live_pui_object(pui);
+    return MK_HDR_LIVE(pui->object, pui->object_instance);
 }
 
 void set_hero_position_relative_to_chest(void) {
@@ -15392,7 +15181,7 @@ void set_hero_position_relative_to_chest(void) {
     MkObj* hero;
     MkObj* chest;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     chest = get_pickup_object();
     if (chest != 0 && hero != 0) {
         float hero_height;
@@ -15450,7 +15239,7 @@ void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg) {
         xfer_proc(proc, p_control_konquest_monk);
     }
 
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
@@ -15610,7 +15399,7 @@ int display_konquest_text(
                 xfer_proc(animation_proc, p_control_konquest_monk);
             }
 
-            grounding = konquest_live_grounding(konquest_pdata);
+            grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
             if (grounding != 0) {
                 npc_xfer(grounding, p_npc_idle, 0);
             }
@@ -15669,7 +15458,7 @@ MkObj* konquest_start_damashi(
     return object;
 }
 
-/* TODO: [near miss] 99.70%; final konquest_live_damashi expansion colors pdata/object r5/r4 (retail r4/r5). */
+/* TODO: [near miss] 99.70%; final damashi latch check colors pdata/object r5/r4 (retail r4/r5). */
 void konquest_hide_damashi(void) {
     KonquestPdata* pdata;
     MkObj* object;
@@ -15703,7 +15492,7 @@ void konquest_hide_damashi(void) {
     if (npc == 0) {
         return;
     }
-    object = konquest_live_damashi(konquest_pdata);
+    object = MK_HDR_LIVE(konquest_pdata->damashi_object, konquest_pdata->damashi_instance);
     if (object == 0) {
         return;
     }
@@ -15740,7 +15529,7 @@ void konquest_hide_damashi(void) {
     }
 
     pdata = konquest_pdata;
-    if (konquest_live_damashi(pdata) != 0) {
+    if (MK_HDR_LIVE(pdata->damashi_object, pdata->damashi_instance) != 0) {
         object = pdata->damashi_object;
         if (object->hdr.instance != 0) {
             object->hdr.typed_vtbl->destroy(&object->hdr);
@@ -15781,7 +15570,7 @@ void transition_to_region(int region) {
 
 void suspend_hero_grounding(void) {
     KonquestGrounding* grounding =
-        konquest_pdata_live_hero_grounding(konquest_pdata);
+        MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
         grounding->flag_bits.suspended = 1;
@@ -15790,7 +15579,7 @@ void suspend_hero_grounding(void) {
 
 void restore_hero_grounding(void) {
     KonquestGrounding* grounding =
-        konquest_pdata_live_hero_grounding(konquest_pdata);
+        MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
         grounding->flag_bits.suspended = 0;
@@ -15807,7 +15596,7 @@ void save_hero_position_and_angle_prior_to_fight(float angle_offset) {
     KonquestSavedState* save;
     MkObj* hero;
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     if (hero != 0) {
         save = &konquest_save_data;
         save->hero_position.x = hero->pos.value.x;
@@ -16199,7 +15988,7 @@ void hero_start_fx_at_position(
     unsigned int effect;
     Vec position = {0.0f, 0.0f, 0.0f};
 
-    hero = konquest_live_hero(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     effect = fx_by_owner(effect_name, 4);
     position.x = hero->pos.value.x + offset->x;
     position.y = hero->pos.value.y + offset->y;
@@ -16310,9 +16099,9 @@ static float p_hero_teleport(void) {
     Vec scratch;
 
     pdata = (KonquestTeleportPdata*)pdata_of_proc(aproc);
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
-    hero = konquest_pdata_live_hero_object(konquest_pdata);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
 
     run_konquest_teleport_script("hero_do_teleport_start_effect");
@@ -16473,7 +16262,7 @@ void konquest_teleport_hero_to_location(const Vec* target) {
         g_fade_hud_in = 0;
         turn_controllers_off();
 
-        hero = konquest_pdata_live_hero_object(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0) {
             hero->pos_vel.z = 0.0f;
@@ -16490,7 +16279,7 @@ void konquest_teleport_hero_to_location(const Vec* target) {
             monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
         animation = konquest_pdata->hero_anim;
         if (animation != 0) {
-            animation_proc = anim_pdata_live_proc(animation);
+            animation_proc = MK_LIVE(animation->proc, animation->proc_instance);
 
             xfer_proc(animation_proc, p_animate);
         }
@@ -16517,11 +16306,11 @@ void konquest_teleport_hero_to_location(const Vec* target) {
 
         animation = konquest_pdata->hero_anim;
         if (animation != 0) {
-            animation_proc = anim_pdata_live_proc(animation);
+            animation_proc = MK_LIVE(animation->proc, animation->proc_instance);
 
             xfer_proc(animation_proc, p_control_konquest_monk);
         }
-        grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+        grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
         if (grounding != 0) {
             npc_xfer(grounding, p_npc_idle, 0);
@@ -16572,8 +16361,8 @@ static float p_hero_use_portal(void) {
 
     pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
 
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
-    hero = konquest_live_hero(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     portal = find_object_by_uid_inline(pdata->uid);
     record = (KonquestRenderRecord*)first_mkhdr(&portal->list_4C);
@@ -16717,7 +16506,7 @@ static float p_hero_use_portal(void) {
 
 
 
-/* TODO: [near miss] 96.62%; param coloring (uid/target/mode r29-r31 rotated), hud arrow latch tail-merge, portal_instance zeroed via mr remain. */
+/* TODO: [near miss] 97.71%; param coloring (uid/target/mode r29-r31 rotated), hud arrow latch tail-merge, portal_instance zeroed via mr remain. */
 void konquest_use_portal(
     int uid, Vec* target_offset, int direction_mode,
     float camera_y_offset, float hero_distance, float camera_distance) {
@@ -16746,9 +16535,9 @@ void konquest_use_portal(
             0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
         g_fade_hud_in = 0;
 
-        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
 
-        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0) {
             MkSobj* sky_object;
@@ -16765,7 +16554,7 @@ void konquest_use_portal(
         }
 
         turn_controllers_off();
-        hero = konquest_pdata_live_hero_object(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0) {
             hero->pos_vel.z = 0.0f;
@@ -16782,7 +16571,7 @@ void konquest_use_portal(
             monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
         animation = konquest_pdata->hero_anim;
         if (animation != 0) {
-            animation_proc = anim_pdata_live_proc(animation);
+            animation_proc = MK_LIVE(animation->proc, animation->proc_instance);
 
             xfer_proc(animation_proc, p_animate);
         }
@@ -16839,8 +16628,8 @@ static float p_hero_portal_in(void) {
 
     pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
 
-    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
-    hero = konquest_live_hero(konquest_pdata);
+    grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     portal = find_object_by_uid_inline(pdata->uid);
 
@@ -16990,7 +16779,7 @@ inline KonquestPortalRow* konquest_get_current_region_portal(void) {
     return 0;
 }
 
-/* TODO: [near miss] 98.28%; first beam latch r28/r29 swap and portal_proc/instance zeroing (retail li r31 + mr r30,r31) remain. */
+/* TODO: [near miss] 98.37%; portal_proc/instance zeroing (retail li r31 + mr r30,r31) and adjacent lis/addi scheduling remain. */
 void konquest_hero_portal_in(void) {
     ScreenObj* arrow;
     MkObj* beam;
@@ -17017,9 +16806,9 @@ void konquest_hero_portal_in(void) {
         }
 
         konquest_hide_hud(0);
-        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
 
-        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0) {
             MkSobj* sky_object;
@@ -17036,7 +16825,7 @@ void konquest_hero_portal_in(void) {
         }
 
         turn_controllers_off();
-        hero = konquest_pdata_live_hero_object(konquest_pdata);
+        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
         if (hero != 0) {
             hero->pos_vel.z = 0.0f;
@@ -17053,7 +16842,7 @@ void konquest_hero_portal_in(void) {
             monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
         animation = konquest_pdata->hero_anim;
         if (animation != 0) {
-            animation_proc = anim_pdata_live_proc(animation);
+            animation_proc = MK_LIVE(animation->proc, animation->proc_instance);
 
             xfer_proc(animation_proc, p_animate);
         }
@@ -17091,9 +16880,9 @@ void konquest_hero_portal_in(void) {
             ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
 
-        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
 
-        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0 &&
             p1_profile_konquest->fields.objective_index <
@@ -17109,11 +16898,11 @@ void konquest_hero_portal_in(void) {
 
         animation = konquest_pdata->hero_anim;
         if (animation != 0) {
-            animation_proc = anim_pdata_live_proc(animation);
+            animation_proc = MK_LIVE(animation->proc, animation->proc_instance);
 
             xfer_proc(animation_proc, p_control_konquest_monk);
         }
-        grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+        grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
         if (grounding != 0) {
             npc_xfer(grounding, p_npc_idle, 0);

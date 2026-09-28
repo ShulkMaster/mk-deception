@@ -773,19 +773,6 @@ void start_subzero_decoy(void* script_args, float duration) {
     drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
-static inline MkObj* jmt_decoy_pdata_live_decoy_object(JmtDecoyPdata* owner) {
-    MkObj* object = owner->decoy_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->decoy_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 
 void destroy_subzero_decoy(void) {
     MkProc* proc;
@@ -832,18 +819,18 @@ void destroy_subzero_decoy(void) {
 
 
 
-/* TODO: [near miss] 99.63%; source object takes r29 above the bone-loop induction registers (retail r27); stop at coloring. */
+/* TODO: [near miss] 99.69%; source/index nonvolatile register swap (r27 vs r28) in the tail; stop at coloring. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
+    MkObj* source;
     MkObj* decoy;
     int index;
-    MkObj* source;
     MkBone* source_bone;
     unsigned int effect;
     int source_index;
 
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
-    decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+    decoy = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
 
     if (decoy == 0) {
         return -1.0f;

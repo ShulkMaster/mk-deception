@@ -567,13 +567,11 @@ unsigned int fx(const char* name) {
     return banks_find_owned_fx(name, owner);
 }
 
-/* TODO: [near miss] 69.97%; exact latch search; three-instruction residue. */
+/* TODO: [near miss] 71.92%; latch search agrees; prologue saves (stmw vs stw) and register coloring remain. */
 unsigned int fx2(unsigned int bank_handle, const char* name) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
-    PfxBank* raw_bank;
     PfxBank* bank;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
     int bank_index;
     int effect_index;
@@ -587,13 +585,7 @@ unsigned int fx2(unsigned int bank_handle, const char* name) {
         bank = 0;
     } else {
         bank_latch = &banks[bank_index - 1];
-        raw_bank = bank_latch->bank;
-        if (raw_bank != 0 &&
-            raw_bank->hdr.instance == bank_latch->bank_instance) {
-            bank = raw_bank;
-        } else {
-            bank = 0;
-        }
+        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
         if (bank != 0 &&
             (bank_latch->bank_instance & 0xFFFFFFF0) !=
                 (bank_handle & 0xFFFFFFF0)) {
@@ -603,13 +595,7 @@ unsigned int fx2(unsigned int bank_handle, const char* name) {
 
     for (effect_index = 0; effect_index < bank->effect_count; effect_index++) {
         effect_latch = &bank->effects[effect_index];
-        raw_effect = effect_latch->effect;
-        if (raw_effect != 0 &&
-            raw_effect->hdr.instance == effect_latch->effect_instance) {
-            effect = raw_effect;
-        } else {
-            effect = 0;
-        }
+        effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
         if (effect != 0 && effect->effect_name != 0 &&
             strcmp(name, effect->effect_name) == 0) {
             return ((effect_index << 4) & 0x3FF0) |
@@ -2402,7 +2388,7 @@ static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
     }
 }
 
-/* TODO: [breakthrough needed] 59.128365%; retail bank-latch handle validation
+/* TODO: [breakthrough needed] 59.66%; retail bank-latch handle validation
  * restored; remaining cleanup expansion and control-flow/register differences
  * need local evidence. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
@@ -2557,11 +2543,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     bank = 0;
     if (bank_index >= 1 && bank_index <= 15) {
         bank_latch = &banks[bank_index - 1];
-        raw_bank = bank_latch->bank;
-        if (raw_bank != 0 &&
-            raw_bank->hdr.instance == bank_latch->bank_instance) {
-            bank = raw_bank;
-        }
+        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
         if (bank != 0 &&
             (bank_latch->bank_instance & 0xFFFFFFF0) !=
                 (bank_handle & 0xFFFFFFF0)) {
@@ -3026,10 +3008,9 @@ static inline void bank_destroy(MkHdr* bank) {
     }
 }
 
-/* TODO: [near miss] 91.81%; exact runtime loop; one-instruction residue. */
+/* TODO: [near miss] 93.24%; exact runtime loop; one-instruction residue. */
 static void bank_run_fx(PfxBank* bank) {
     PfxEffectLatch* effect_latch;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
     PfxVm* runtime;
     PfxResolvedHandle transfer;
@@ -3041,13 +3022,7 @@ static void bank_run_fx(PfxBank* bank) {
          effect_index < bank->effect_capacity;
          effect_index++) {
         effect_latch = &bank->effects[effect_index];
-        raw_effect = effect_latch->effect;
-        if (raw_effect != 0 &&
-            raw_effect->hdr.instance == effect_latch->effect_instance) {
-            effect = raw_effect;
-        } else {
-            effect = 0;
-        }
+        effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
         if (effect == 0 || !effect->lifecycle_flags.restart_cycle) {
             continue;
         }
@@ -3094,14 +3069,12 @@ static void bank_run_fx(PfxBank* bank) {
     }
 }
 
-/* TODO: [near miss] 75.53%; exact owned-effect search; four-instruction residue. */
+/* TODO: [near miss] 79.35%; exact owned-effect search; four-instruction residue. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
-    PfxBank* raw_bank;
     PfxBank* bank;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
     unsigned int handle;
     int bank_index;
@@ -3109,26 +3082,14 @@ static unsigned int banks_find_owned_fx(
 
     for (bank_index = 0; bank_index < 15; bank_index++) {
         bank_latch = &banks[bank_index];
-        raw_bank = bank_latch->bank;
-        if (raw_bank != 0 &&
-            raw_bank->hdr.instance == bank_latch->bank_instance) {
-            bank = raw_bank;
-        } else {
-            bank = 0;
-        }
+        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
         if (bank != 0 && (bank->owner_flags & owner) != 0) {
             handle = 0;
             for (effect_index = 0;
                  effect_index < bank->effect_count;
                  effect_index++) {
                 effect_latch = &bank->effects[effect_index];
-                raw_effect = effect_latch->effect;
-                if (raw_effect != 0 &&
-                    raw_effect->hdr.instance == effect_latch->effect_instance) {
-                    effect = raw_effect;
-                } else {
-                    effect = 0;
-                }
+                effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
                 if (effect != 0 && effect->effect_name != 0 &&
                     strcmp(name, effect->effect_name) == 0) {
                     handle = ((effect_index << 4) & 0x3FF0) |
@@ -3180,14 +3141,12 @@ static void vdestroy_effectbank(PfxBank* bank) {
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-/* TODO: [near miss] 82.08%; retail invalid-handle early return kept; residue not yet classified. */
+/* TODO: [near miss] 86.00%; retail invalid-handle early return kept; residue not yet classified. */
 static void resolve_pfx_handle(
     unsigned int handle, PfxResolvedHandle* resolved) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
-    PfxBank* raw_bank;
     PfxBank* bank;
-    PfxScriptEffect* raw_effect;
     PfxScriptEffect* effect;
     int bank_index;
     int effect_index;
@@ -3207,13 +3166,7 @@ static void resolve_pfx_handle(
     }
 
     bank_latch = &banks[bank_index - 1];
-    raw_bank = bank_latch->bank;
-    if (raw_bank != 0 &&
-        raw_bank->hdr.instance == bank_latch->bank_instance) {
-        bank = raw_bank;
-    } else {
-        bank = 0;
-    }
+    bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
     if (bank == 0 || bank->handle_bank != (unsigned int)bank_index ||
         (handle >> 24) != bank->handle_generation ||
         effect_index >= bank->effect_capacity) {
@@ -3221,13 +3174,7 @@ static void resolve_pfx_handle(
     }
 
     effect_latch = &bank->effects[effect_index];
-    raw_effect = effect_latch->effect;
-    if (raw_effect != 0 &&
-        raw_effect->hdr.instance == effect_latch->effect_instance) {
-        effect = raw_effect;
-    } else {
-        effect = 0;
-    }
+    effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
     if (effect != 0) {
         cached_handle = handle;
         cached_info.bank = bank;

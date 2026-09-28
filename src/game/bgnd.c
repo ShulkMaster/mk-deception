@@ -1953,18 +1953,6 @@ static void sh_update_blood_fall_pebbles(
 
 
 
-static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_2_hdr(SlaughterhouseData* owner) {
-    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->blood_fall_pebbles[2].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -2001,7 +1989,7 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
 
     small = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
 
-    largest = slaughterhouse_data_live_blood_fall_pebbles_2_hdr(g_slaughterhouse_pdata);
+    largest = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
 
 
     if (large != 0) {
@@ -2188,31 +2176,7 @@ void sh_lower_level_pebble_hide(void) {
     }
 }
 
-static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_3_hdr(SlaughterhouseData* owner) {
-    MkObj* object = (MkObj*) owner->lower_level_pebbles[3].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->lower_level_pebbles[3].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_4_hdr(SlaughterhouseData* owner) {
-    MkObj* object = (MkObj*) owner->lower_level_pebbles[4].hdr;
-    if (object != 0) {
-        if (object->hdr.instance == owner->lower_level_pebbles[4].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
@@ -2298,7 +2262,7 @@ static void sh_load_objs(void) {
         }
     }
 
-    object = slaughterhouse_data_live_lower_level_pebbles_3_hdr(g_slaughterhouse_pdata);
+    object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[3].hdr, g_slaughterhouse_pdata->lower_level_pebbles[3].instance);
 
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000B, 0xA01E);
@@ -2311,7 +2275,7 @@ static void sh_load_objs(void) {
         hide_obj(object);
     }
 
-    object = slaughterhouse_data_live_lower_level_pebbles_4_hdr(g_slaughterhouse_pdata);
+    object = MK_HDR_LIVE((MkObj*) g_slaughterhouse_pdata->lower_level_pebbles[4].hdr, g_slaughterhouse_pdata->lower_level_pebbles[4].instance);
 
     if (object == 0) {
         object = load_model_from_slot(0x10005, 0x20006, 0xA01F);
@@ -3767,7 +3731,7 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
-/* TODO: [breakthrough] 87.70%; ordered event-class checks and fighting-light
+/* TODO: [breakthrough] 88.76%; ordered event-class checks and fighting-light
  * trigger stores match; wall-target and normalization stack layout remains. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     BlColumnBreakData* column_data;
@@ -3897,9 +3861,8 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
             event->impact_vector->y = 0.045f * direction.y * inverse_length;
             event->impact_vector->z = 0.045f * direction.z * inverse_length;
 
-            player_object = bgnd_get_live_tracked_obj(event->player_pdata);
-            opponent_object = bgnd_get_live_tracked_obj(
-                event->player_pdata->his_plyr_pdata);
+            player_object = MK_HDR_LIVE(event->player_pdata->tracked_obj, event->player_pdata->tracked_obj_instance);
+            opponent_object = MK_HDR_LIVE(event->player_pdata->his_plyr_pdata->tracked_obj, event->player_pdata->his_plyr_pdata->tracked_obj_instance);
             if (player_object != 0 && opponent_object != 0) {
                 g_game_info.collision_player_info =
                     event->player_pdata->plyr_info;
@@ -6878,22 +6841,8 @@ static float p_bgnd_launch_chunk_monitor(void) {
     }
     return 1.0f;
 }
-static inline MkHdr* sobj_get_bound_header(MkSobj* object) {
-    MkHdr* bound;
-
-    bound = object->bound_hdr;
-    if (bound != 0) {
-        if (bound->instance == object->bound_instance) {
-            return bound;
-        }
-        bound = 0;
-    } else {
-        bound = 0;
-    }
-    return bound;
-}
 MkHdr* get_sobj_pebble_obj(MkSobj* object) {
-    return sobj_get_bound_header(object);
+    return MK_LIVE(object->bound_hdr, object->bound_instance);
 }
 
 void* get_general_pebble_data(PebbleData* pebble_data) {
@@ -9496,29 +9445,6 @@ void bgnd_place_object_at_position(
         }
     }
 }
-static inline MkObj* global_moveset_live_primary_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->primary_weapon;
-
-    if (object != 0) {
-        if (object->hdr.instance == owner->primary_weapon_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-static inline MkObj* global_moveset_live_secondary_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->secondary_weapon;
-
-    if (object != 0) {
-        if (object->hdr.instance == owner->secondary_weapon_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 void bgnd_place_weapon_at_position(
     int primary_object_id, int secondary_object_id, int primary_sobj_id,
@@ -9563,7 +9489,7 @@ void bgnd_place_weapon_at_position(
         if (paired == 0) {
             item->type = 0;
             item->primary_object =
-                global_moveset_live_primary_weapon(&global_movesets[6]);
+                MK_HDR_LIVE(global_movesets[6].primary_weapon, global_movesets[6].primary_weapon_instance);
             item->object_id = primary_object_id;
             item->display_sobj = obj_find_sobj_by_id(
                 g_game_info.bgnd_obj, primary_sobj_id);
@@ -9595,9 +9521,9 @@ void bgnd_place_weapon_at_position(
         } else {
             item->type = 1;
             item->primary_object =
-                global_moveset_live_primary_weapon(&global_movesets[6]);
+                MK_HDR_LIVE(global_movesets[6].primary_weapon, global_movesets[6].primary_weapon_instance);
             item->primary_object =
-                global_moveset_live_secondary_weapon(&global_movesets[6]);
+                MK_HDR_LIVE(global_movesets[6].secondary_weapon, global_movesets[6].secondary_weapon_instance);
             item->object_id = primary_object_id;
             item->field_20 = secondary_object_id;
             item->display_sobj = obj_find_sobj_by_id(
@@ -11680,11 +11606,7 @@ static inline void bgnd_clear_uv_scroll_control(unsigned int index) {
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
         control = item->control;
-        if (control != 0) {
-            control = control->hdr.instance == item->instance ? control : 0;
-        } else {
-            control = 0;
-        }
+        control = MK_HDR_LIVE(control, item->instance);
         if (control != 0 && control->hdr.instance != 0) {
             control->hdr.typed_vtbl->destroy(&control->hdr);
         }
@@ -11712,11 +11634,7 @@ static inline unsigned int bgnd_uv_scroll_control_slot_available(unsigned int in
     }
     item = &bgnd_uv_scroll_control_item[index];
     control = item->control;
-    if (control != 0) {
-        control = control->hdr.instance == item->instance ? control : 0;
-    } else {
-        control = 0;
-    }
+    control = MK_HDR_LIVE(control, item->instance);
     if (control != 0) {
         return 0;
     }
@@ -12317,7 +12235,7 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                     moveset->definition->animation_header;
             }
             if (moveset->definition->primary_weapon != 0) {
-                weapon = global_moveset_live_primary_weapon(moveset);
+                weapon = MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
 
                 if (weapon != 0) {
                     return;
@@ -12333,7 +12251,7 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                 }
             }
             if (moveset->definition->secondary_weapon != 0) {
-                weapon = global_moveset_live_secondary_weapon(moveset);
+                weapon = MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
 
                 if (weapon != 0) {
                     return;

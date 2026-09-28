@@ -376,13 +376,12 @@ float p_jab_point_light_tracker(void) {
     Vec position;
 
     pdata = (JabPointLightPdata*)pdata_of_proc(aproc);
-    RESOLVE_JAB_OBJECT(
-        tracked_object, pdata->tracked_object, pdata->tracked_object_instance);
+    tracked_object = MK_HDR_LIVE(pdata->tracked_object, pdata->tracked_object_instance);
     if (tracked_object == 0) {
         return -1.0f;
     }
 
-    RESOLVE_JAB_OBJECT(light, pdata->light, pdata->light_instance);
+    light = MK_HDR_LIVE(pdata->light, pdata->light_instance);
     if (light == 0) {
         return -1.0f;
     }
@@ -658,7 +657,6 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
 }
 
 
-/* TODO: [near miss] 97.586205%; register coloring, instruction scheduling; one-trial ceiling. */
 void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     JadeBindPdata* pdata;
     MkObj* boomerang;
@@ -669,8 +667,7 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
 
     if (proc != 0) {
         pdata = (JadeBindPdata*)pdata_of_proc(proc);
-        RESOLVE_JAB_OBJECT(
-            boomerang, pdata->child, pdata->child_instance);
+        boomerang = MK_HDR_LIVE(pdata->child, pdata->child_instance);
         if (boomerang != 0) {
             boomerang->flags_08_bits.angular_velocity_enabled = 1;
             boomerang->flags_08_bits.rotation_enabled = 1;
@@ -685,7 +682,7 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     proc_ref->instance = 0;
 }
 
-/* TODO: [near miss] 92.60%; nonvolatile register coloring, character guard branch, and string relocation remain. */
+/* TODO: [near miss] 99.12%; character guard branch polarity (beq vs bne) remains, 2 rows. */
 void jab_start_jade_boomerang_throw(
     JabObjectRef* proc_ref, JabObjectRef* boomerang_ref,
     float unused_parameter) {
@@ -702,13 +699,9 @@ void jab_start_jade_boomerang_throw(
     if (player_data != 0) {
         if (player_data->character_id == JADE_CHARACTER_ID) {
             jade_data = player_data;
-            RESOLVE_JAB_OBJECT(
-                player, jade_data->tracked_obj,
-                jade_data->tracked_obj_instance);
+            player = MK_HDR_LIVE(jade_data->tracked_obj, jade_data->tracked_obj_instance);
             if (player != 0) {
-                RESOLVE_JAB_OBJECT(
-                    boomerang, (MkObj*)boomerang_ref->object,
-                    boomerang_ref->instance);
+                boomerang = MK_HDR_LIVE((MkObj*)boomerang_ref->object, boomerang_ref->instance);
                 if (boomerang == 0) {
                     boomerang = load_named_model_for_player(
                         "BRANG",
@@ -725,17 +718,7 @@ void jab_start_jade_boomerang_throw(
                     boomerang->flags_08_bits.angular_velocity_enabled = 1;
                     boomerang->flags_08_bits.rotation_enabled = 0;
 
-                    proc_candidate = (MkProc*)proc_ref->object;
-                    if (proc_candidate != 0) {
-                        if (proc_candidate->instance ==
-                            proc_ref->instance) {
-                            live_proc = proc_candidate;
-                        } else {
-                            live_proc = 0;
-                        }
-                    } else {
-                        live_proc = 0;
-                    }
+                    live_proc = MK_LIVE((MkProc*)proc_ref->object, proc_ref->instance);
                     bind_proc = live_proc;
                     if (live_proc == 0) {
                         bind_proc = _create_mkproc_generic_nostack(
@@ -771,11 +754,8 @@ float p_bind_obj_to_obj_bone(void) {
     MkObj* child;
 
     pdata = (JadeBindPdata*)pdata_of_proc(aproc);
-    RESOLVE_JAB_OBJECT(
-        parent, pdata->parent, pdata->parent_instance);
-    child = pdata->child;
-    RESOLVE_JAB_OBJECT(
-        child, child, pdata->child_instance);
+    parent = MK_HDR_LIVE(pdata->parent, pdata->parent_instance);
+    child = MK_HDR_LIVE(pdata->child, pdata->child_instance);
     if (parent == 0 || child == 0) {
         return -1.0f;
     }
@@ -1838,7 +1818,7 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
     }
 }
 
-/* TODO: [near miss] 97.57%; CFG and arithmetic agree; remaining residue is
+/* TODO: [near miss] 97.63%; CFG and arithmetic agree; remaining residue is
  * particle-pointer GPR coloring, which follows local declaration order. */
 float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     PfxVm* vm;
@@ -1958,9 +1938,7 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
 
             spawn_count = pfx_get_emitter(vm, 0)->birth_rate;
             vm->particle_cursor += spawn_count;
-            RESOLVE_JAB_OBJECT(
-                object, apfx->tracked_object,
-                apfx->tracked_object_instance);
+            object = MK_HDR_LIVE(apfx->tracked_object, apfx->tracked_object_instance);
 
             index = 0;
             while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {

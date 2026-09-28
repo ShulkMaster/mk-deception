@@ -767,38 +767,12 @@ static inline void compose_bone_rotation(
     out->z += parent->z * tw;
 }
 
-static inline MkObj* bone_matcher_state_live_parent_obj(BoneMatcherState* owner) {
-    MkObj* object = owner->parent_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->parent_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-
-static inline MkSobj* bone_matcher_state_live_clone_obj(BoneMatcherState* owner) {
-    MkSobj* object = owner->clone_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->clone_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
 
 
 
 
-/* TODO: [near miss] 97.18%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
+/* TODO: [near miss] 97.82%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -838,7 +812,7 @@ static float p_bone_matcher(void) {
         return 1.0f;
     }
 
-    parent_obj = bone_matcher_state_live_parent_obj(matcher);
+    parent_obj = MK_HDR_LIVE(matcher->parent_obj, matcher->parent_instance);
 
     if (parent_obj == 0) {
         mkproc_die();
@@ -903,7 +877,7 @@ static float p_bone_matcher(void) {
     }
 
     if (matcher->flags_08.bits.copy_clone_matrix != 0) {
-        clone_obj = bone_matcher_state_live_clone_obj(matcher);
+        clone_obj = MK_HDR_LIVE(matcher->clone_obj, matcher->clone_instance);
 
         if (clone_obj == 0) {
             mkproc_die();

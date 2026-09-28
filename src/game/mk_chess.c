@@ -3565,29 +3565,7 @@ static float p_gnd_blast(void) {
     return 1.0f;
 }
 
-static inline MkObj* mk_chess_live_imprison_object(ChessPieceEffect* effect) {
-    MkObj* object = effect->object;
-    if (object != 0) {
-        if (object->hdr.instance == effect->object_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 static float p_mk_chess_imprison(void);
-
-static inline MkObj* mk_chess_live_team_model(ChessSideState* side) {
-    MkObj* object = side->team_model;
-    if (object != 0) {
-        if (object->hdr.instance == side->team_model_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 /* TODO: [near miss] 95.90%; equivalent side guard, allocator-output reload and coloring remain. */
 static void start_imprison_effect(ChessPiece* piece, unsigned int duration) {
@@ -3604,7 +3582,9 @@ static void start_imprison_effect(ChessPiece* piece, unsigned int duration) {
         }
         effect = (ChessPieceEffect*)get_mkpdata_generic(sizeof(ChessPieceEffect));
         if (effect != 0) {
-            object = mk_chess_live_team_model(mk_chess_pdata->sides[piece->side]);
+            ChessSideState* side;
+            side = mk_chess_pdata->sides[piece->side];
+            object = MK_HDR_LIVE(side->team_model, side->team_model_instance);
             if (object == 0) {
                 if (effect->hdr.instance != 0) {
                     effect->hdr.typed_vtbl->destroy(&effect->hdr);
@@ -3650,7 +3630,7 @@ static float p_mk_chess_imprison(void) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessImprisonPdata* pdata = (ChessImprisonPdata*)apdata;
     ChessPieceEffect* effect = pdata->effect;
-    MkObj* object = mk_chess_live_imprison_object(effect);
+    MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
 
     if (object == 0) {
         if (effect->hdr.instance != 0) {
@@ -5942,26 +5922,13 @@ int mk_chess_allow_cam_control(void) {
     return result;
 }
 
-static inline CameraObj* camera_live_node(CameraItem* owner) {
-    CameraObj* object = owner->node;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 extern float DEFAULT_ASPECTRATIO;
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
 
 /* TODO: [near miss] 99.48%; data-value exact; anonymous aggregate and float relocations remain. */
 void mk_chess_camera_init(void) {
     Vec target = {0.0f, 0.0f, 0.0f};
-    CameraObj* initial_camera = camera_live_node(&camera_item);
+    CameraObj* initial_camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     CameraSize(Camera, 0, gxMathTan(0.28797933f), DEFAULT_ASPECTRATIO);
     if (board_game_save_data.restore_pending != 0) {
@@ -5970,7 +5937,7 @@ void mk_chess_camera_init(void) {
         initial_camera->pos.z = board_game_save_data.camera_position.z;
     } else {
         ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-        CameraObj* camera = camera_live_node(&camera_item);
+        CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         Vec origin;
 
         camera->pos.y = 30.2f;
@@ -6003,7 +5970,7 @@ void mk_chess_camera_init(void) {
 
 /* TODO: [near miss] 99.70%; data-value exact; anonymous relocation identity remains. */
 float mk_chess_zoom_return_completed(void) {
-    CameraObj* camera = camera_live_node(&camera_item);
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
     if (camera != 0) {
@@ -6023,7 +5990,7 @@ float mk_chess_zoom_return_completed(void) {
 float mk_chess_zoom_completed(void) {
     ChessCameraInfo* camera_info =
         mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
-    CameraObj* camera = camera_live_node(&camera_item);
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
 
 
@@ -6110,7 +6077,7 @@ float x_chess_r2(void) {
     if (mk_chess_pdata->manager.input_state == 0) {
         snd_req(0x379);
         manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-        camera = camera_live_node(&camera_item);
+        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
         camera->pos.y = 30.2f;
         if (manager->active_side == 1) {
             camera->pos.x = 0.0f;
@@ -6126,7 +6093,7 @@ float x_chess_r2(void) {
         update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
-        mk_chess_set_viewing_quadrant(camera_live_node(&camera_item));
+        mk_chess_set_viewing_quadrant(MK_HDR_LIVE(camera_item.node, camera_item.instance));
     }
     ((ChessProcVtable*)aproc->vtbl)->jump_sleep(p_monitor_chess_input, 0.0f);
     return 0.0f;
@@ -6885,19 +6852,6 @@ unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud);
 static float p_mk_chess_cast_spell(void);
 static float p_mk_chess_spell_targetting_hud(void);
 
-static inline MkHdr* mk_chess_live_spell_bar_cursor(void)
-{
-    ChessCursor* owner = &mk_chess_pdata->cursors[2];
-    MkHdr* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->object_instance) return object;
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 static inline void mk_chess_close_spell_bars_vertical(ChessHudState* hud, int next_state)
 {
     ScreenObj* image;
@@ -6926,7 +6880,7 @@ static inline void mk_chess_close_spell_bars_vertical(ChessHudState* hud, int ne
             hud->field_14 = (-2.0f * game_speed);
         }
     }
-    hide_obj(mk_chess_live_spell_bar_cursor());
+    hide_obj((MkObj*)MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance));
 }
 
 static inline int mk_chess_close_spell_bars_horizontal(ChessHudState* hud)
@@ -7243,7 +7197,7 @@ static inline void mk_chess_move_spell_target(int* x, int* y, unsigned int direc
     move_cursor_based_on_quadrant(mk_chess_pdata->manager.active_side, x, y, direction, 0, 10, 0);
     mode = mk_chess_pdata;
     cell = &mode->board[(unsigned char)*x].cells[(unsigned char)*y];
-    cursor = (MkObj*)mk_chess_live_spell_bar_cursor();
+    cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
     mode->cursors[2].cell_x = *x;
     mode->cursors[2].cell_y = *y;
     cursor->pos.value.x = cell->position.x;
@@ -7260,7 +7214,7 @@ static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     unsigned int result = 2;
     int x = mk_chess_pdata->cursors[2].cell_x;
     int y = mk_chess_pdata->cursors[2].cell_y;
-    MkObj* cursor = (MkObj*)mk_chess_live_spell_bar_cursor();
+    MkObj* cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
     ScreenObj* paper;
     unsigned char alpha;
     float top_forward, top_right, top_up;
@@ -7659,7 +7613,7 @@ static void mk_chess_set_up_zoom_cam(Vec* target);
 static void mk_chess_set_up_zoom_cam_return(Vec* destination);
 float p_mk_chess_cam_bezier_controller(void);
 
-/* TODO: [breakthrough needed] 81.02734%; quadrant call restored; camera and timeout scheduling remain. */
+/* TODO: [breakthrough needed] 90.25%; quadrant call restored; camera and timeout scheduling remain. */
 static void mk_chess_monitor_cam_zoom_scenerios(ChessInputPdata* input) {
     ChessCameraInfo* info = mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -7674,8 +7628,9 @@ static void mk_chess_monitor_cam_zoom_scenerios(ChessInputPdata* input) {
     if ((info->field_50 != 0 || info->field_4C != 0 || manager->input_state != 0) && info->field_4C != 0) {
         info->field_4C = 0;
         if (info->field_50 == 0) {
-            CameraObj* camera = camera_live_node(&camera_item);
+            CameraObj* camera = camera_item.node;
             Vec target = {0.0f, 0.0f, 0.0f};
+            camera = MK_HDR_LIVE(camera, camera_item.instance);
             set_camera_position(&info->saved_position);
             if (camera != 0) mk_chess_set_viewing_quadrant(camera);
             look_at_target(&target);
@@ -7688,9 +7643,10 @@ static void mk_chess_monitor_cam_zoom_scenerios(ChessInputPdata* input) {
     if (info->field_50 == 0 && info->field_4C == 0) {
         if (!((float)mk_chess_pdata->turn_timeout < 660.0f * game_speed) && check_switch(pad, 1) != 0) {
             ChessManagerInfo* current = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-            CameraObj* camera = camera_live_node(&camera_item);
+            CameraObj* camera = camera_item.node;
             ChessCursor* cursor = &mk_chess_pdata->cursors[current->active_side];
             ChessCameraInfo* completion_info;
+            camera = MK_HDR_LIVE(camera, camera_item.instance);
             info->field_50 = 1;
             if (mk_chess_pdata->turn_timeout > 10) {
                 mk_chess_pdata->turn_timeout = -(5.0f * game_speed - (float)mk_chess_pdata->turn_timeout);
@@ -8040,22 +7996,10 @@ static inline int mk_chess_hud_spell_available(ChessPiece* caster, unsigned int 
 /* TODO: [near miss] 98.83%; ordinal/access paths agree; local scheduling/coloring remains. */
 void mk_chess_spell_hud_retract_all_for_targetting(ChessHudState* hud);
 
-static inline ScreenObj* mk_chess_live_spell_cursor(void)
-{
-    ScreenObj* cursor = mk_chess_pdata->manager.hud_cursor;
-    if (cursor != 0) {
-        if (cursor->instance == mk_chess_pdata->manager.hud_cursor_instance) {
-            return cursor;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 static inline void mk_chess_start_pick_image_fade(ChessHudState* hud, float (*completed)(void))
 {
     ChessImageFadePdata* fade;
-    mk_insert((MkHdr*)mk_chess_live_spell_cursor(), &hud->images);
+    mk_insert((MkHdr*)MK_LIVE(mk_chess_pdata->manager.hud_cursor, mk_chess_pdata->manager.hud_cursor_instance), &hud->images);
     if (_create_mkproc_generic_tinystack(0xC022, 31, p_mk_chess_fade_images,
             sizeof(ChessImageFadePdata), (MkHdr**)&fade) != 0) {
         fade->images = &hud->images;
@@ -8101,14 +8045,15 @@ static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide);
 static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     int target, int* direction);
 
-/* TODO: [near miss] 99.38%; spell-table base/cursor take r29 (retail r31) and pdata is reloaded between the cursor cell stores. */
+/* TODO: [near miss] 99.75%; pdata/board take r5/r6 swapped (retail r6/r5); inlined fade-start arg temp uses r3 (retail r0). */
 static float p_mk_chess_spell_targetting_hud(void)
 {
-    int finished = 0;
     ChessHudState* hud = (ChessHudState*)apdata;
+    int finished = 0;
     int direction = 2;
     MkHdr* initial_cursor;
     MkObj* cursor;
+    ChessModeState* pdata;
     ChessBoardRow* board;
     unsigned int result;
     hud->target_rules = g_board_game_controller.class_definitions[hud->caster->type]
@@ -8123,12 +8068,13 @@ static float p_mk_chess_spell_targetting_hud(void)
         mk_chess_spell_hud_show_page(hud, 0);
         hud->state = 17;
     }
-    initial_cursor = mk_chess_live_spell_bar_cursor();
+    initial_cursor = MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
     unhide_obj(initial_cursor);
-    board = mk_chess_pdata->board;
-    cursor = (MkObj*)mk_chess_live_spell_bar_cursor();
-    mk_chess_pdata->cursors[2].cell_x = 5;
-    mk_chess_pdata->cursors[2].cell_y = 5;
+    pdata = mk_chess_pdata;
+    board = pdata->board;
+    cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
+    pdata->cursors[2].cell_x = 5;
+    pdata->cursors[2].cell_y = 5;
     cursor->pos.value.x = board[5].cells[5].position.x;
     cursor->pos.value.y = board[5].cells[5].position.y;
     cursor->pos.value.z = board[5].cells[5].position.z;
@@ -8192,7 +8138,7 @@ static float p_mk_chess_spell_targetting_hud(void)
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.63%; cursor/slot take r29/r27 where retail uses r27/r28; stop at coloring. */
+/* TODO: [near miss] 99.93%; cursor/slot take r29/r27 where retail uses r27/r28; stop at coloring. */
 static void mk_chess_spell_hud_pick_a_spell_input(ChessHudState* hud)
 {
     ScreenObj* cursor;
@@ -8200,7 +8146,7 @@ static void mk_chess_spell_hud_pick_a_spell_input(ChessHudState* hud)
     switch (hud->input_state) {
     case 1:
         snd_req(0x392);
-        cursor = mk_chess_live_spell_cursor();
+        cursor = MK_LIVE(mk_chess_pdata->manager.hud_cursor, mk_chess_pdata->manager.hud_cursor_instance);
         if (hud->cursor_slot != 0 && mk_chess_place_spell_hud_cursor_at_open_slot(
                 cursor, hud->side, hud->cursor_slot - 1) == 1) {
             hud->cursor_slot--;
@@ -8216,7 +8162,7 @@ static void mk_chess_spell_hud_pick_a_spell_input(ChessHudState* hud)
         break;
     case 2:
         snd_req(0x392);
-        cursor = mk_chess_live_spell_cursor();
+        cursor = MK_LIVE(mk_chess_pdata->manager.hud_cursor, mk_chess_pdata->manager.hud_cursor_instance);
         if (hud->cursor_slot + 1 < 8 && mk_chess_place_spell_hud_cursor_at_open_slot(
                 cursor, hud->side, hud->cursor_slot + 1) == 1) {
             hud->cursor_slot++;
@@ -8551,7 +8497,7 @@ static void mk_chess_set_up_zoom_cam_return(Vec* destination) {
     Vec to;
     int position_class;
     int return_class;
-    CameraObj* camera = camera_live_node(&camera_item);
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     ChessCameraInfo* info = mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
     int timing;
 
@@ -8672,7 +8618,7 @@ static int mk_chess_hide_all_except_selected_pieces_cb(
                     effect->sound_instance = 0;
                 }
                 if (effect->flags.bits.bit6) {
-                    object = mk_chess_live_imprison_object(effect);
+                    object = MK_HDR_LIVE(effect->object, effect->object_instance);
                     if (object != 0) {
                         hide_obj(object);
                     }
@@ -8915,15 +8861,15 @@ static float mk_chess_continue_pre_fight_chores(void) {
     screen_engine_cleanup();
     destroy_mkprocs_pid(0x9030);
     mk_chess_save_current_state(first, other->cell_x, other->cell_y);
-    header = mk_chess_cursor_live_header(&mk_chess_pdata->cursors[0]);
+    header = MK_LIVE(mk_chess_pdata->cursors[0].object, mk_chess_pdata->cursors[0].object_instance);
     if (header->instance != 0) {
         header->typed_vtbl->destroy(header);
     }
-    header = mk_chess_cursor_live_header(&mk_chess_pdata->cursors[1]);
+    header = MK_LIVE(mk_chess_pdata->cursors[1].object, mk_chess_pdata->cursors[1].object_instance);
     if (header->instance != 0) {
         header->typed_vtbl->destroy(header);
     }
-    header = mk_chess_cursor_live_header(&mk_chess_pdata->cursor);
+    header = MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance);
     if (header->instance != 0) {
         header->typed_vtbl->destroy(header);
     }
@@ -9384,19 +9330,11 @@ void mk_chess_spell_hud_retract_all_during_deadpool_select(
     }
 }
 
-static inline ScreenObj* mk_chess_latched_screen(ChessScreenRef* ref) {
-    ScreenObj* screen = ref->screen;
-    if (screen != 0 && screen->instance != ref->instance) {
-        screen = 0;
-    }
-    return screen;
-}
-
-/* TODO: [near miss] 92.11%; motion/clamps and completion recovered; latch branch lowering remains. */
+/* TODO: [near miss] 99.55%; motion/clamps and completion recovered; latch branch lowering remains. */
 unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) {
     int direction = 1;
     int finished = 0;
-    ScreenObj* screen = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_28);
+    ScreenObj* screen = MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance);
 
     if (hud->side != 0) {
         direction = -1;
@@ -9409,7 +9347,7 @@ unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) {
     } else if (screen->x < screen_width - 255 && direction == -1) {
         screen->x = screen_width - 255;
     }
-    screen = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_30);
+    screen = MK_LIVE(mk_chess_pdata->manager.bar_30.screen, mk_chess_pdata->manager.bar_30.instance);
     unhide_screen_obj(screen);
     screen->x += hud->countdown;
     if (screen->x > -35 && direction == 1) {
@@ -9424,7 +9362,7 @@ unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) {
         hud->state = 1;
         hud->countdown = (-10.0f * game_speed);
         hud->field_14 = 0;
-        screen = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_38);
+        screen = MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance);
         unhide_screen_obj(screen);
         screen->scale_y = 0.25f;
         screen->y = ((screen_height / 2) * 2 - 32) / 2;
@@ -9939,7 +9877,7 @@ void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active) {
                 if (effect->kind == 2) {
                     effect->expiry_clock = 0xFFFFFFFF;
                 } else {
-                    MkObj* object = mk_chess_live_imprison_object(effect);
+                    MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
                     if (object != 0 && object->hdr.instance != 0) {
                         object->hdr.typed_vtbl->destroy(&object->hdr);
                     }
@@ -11428,7 +11366,7 @@ void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned ch
                     if (effect->kind == 2) {
                         effect->expiry_clock = 0xFFFFFFFF;
                     } else {
-                        MkObj* object = mk_chess_live_imprison_object(effect);
+                        MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
                         if (object != 0 && object->hdr.instance != 0) {
                             object->hdr.typed_vtbl->destroy(&object->hdr);
                         }
@@ -11527,18 +11465,8 @@ void mk_chess_cursor_tracker_update(ChessSideHudState* hud) {
     cursor->pos.value.z += direction.z;
 }
 
-static inline MkObj* mk_chess_cursor_live_object(ChessCursor* cursor) {
-    MkObj* object = (MkObj*)cursor->object;
-    if (object != 0) {
-        if (object->hdr.instance == cursor->object_instance) {
-            return object;
-        }
-    }
-    return 0;
-}
-
 static inline void mk_chess_prepare_reset_cursor(ChessCursor* cursor) {
-    MkObj* object = mk_chess_cursor_live_object(cursor);
+    MkObj* object = (MkObj*)MK_LIVE(cursor->object, cursor->object_instance);
     MkSobj* sobj;
     obj_create_sobjs(object);
     sobj = obj_first_sobj(object);
@@ -11552,8 +11480,9 @@ static inline void mk_chess_prepare_reset_cursor(ChessCursor* cursor) {
 }
 
 static inline void mk_chess_position_reset_cursor(ChessCursor* cursor, unsigned char x, unsigned char y) {
-    MkObj* object = mk_chess_cursor_live_object(cursor);
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
+    MkObj* object = (MkObj*)cursor->object;
+    object = MK_HDR_LIVE(object, cursor->object_instance);
     cursor->cell_x = x;
     cursor->cell_y = y;
     object->pos.value.x = cell->position.x;
@@ -11562,14 +11491,14 @@ static inline void mk_chess_position_reset_cursor(ChessCursor* cursor, unsigned 
     update_obj_pos(object);
 }
 
-/* TODO: [breakthrough needed] 83.14218%; setup and scan recovered; latch branches and address scheduling remain. */
+/* TODO: [near miss] 99.19%; setup, scan and latch recovered; localized codegen residue remains. */
 void mk_chess_reset_cursors(void) {
     ChessPiece* piece;
     unsigned char x;
     unsigned char y;
 
-    hide_obj(mk_chess_cursor_live_object(&mk_chess_pdata->cursors[0]));
-    hide_obj(mk_chess_cursor_live_object(&mk_chess_pdata->cursors[1]));
+    hide_obj((MkObj*)MK_LIVE(mk_chess_pdata->cursors[0].object, mk_chess_pdata->cursors[0].object_instance));
+    hide_obj((MkObj*)MK_LIVE(mk_chess_pdata->cursors[1].object, mk_chess_pdata->cursors[1].object_instance));
     mk_chess_prepare_reset_cursor(&mk_chess_pdata->cursors[2]);
     mk_chess_prepare_reset_cursor(&mk_chess_pdata->cursor);
     piece = mk_chess_find_piece_on_board(mk_chess_pdata->manager.active_side);
@@ -11582,7 +11511,7 @@ void mk_chess_reset_cursors(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 73.333336%; selection and tie-break recovered; absolute-value and cursor-address lowering remain. */
+/* TODO: [breakthrough needed] 83.84%; selection and tie-break recovered; absolute-value and cursor-address lowering remain. */
 static void mk_chess_move_cursor_to_next_diagnal_piece(unsigned int side, unsigned int direction) {
     ChessPiece* selected = 0;
     unsigned char current_y = mk_chess_pdata->cursors[side].cell_y;
@@ -11673,7 +11602,7 @@ static inline void mk_chess_scan_cursor_candidates(unsigned int side, unsigned i
     }
 }
 
-/* TODO: [breakthrough needed] 72.1443%; directional and two-region search recovered; scan and cursor-address lowering remain. */
+/* TODO: [breakthrough needed] 85.06%; directional and two-region search recovered; scan and cursor-address lowering remain. */
 static void mk_chess_move_cursor_to_next_piece(unsigned int side, unsigned int direction) {
     ChessCursor* cursor = &mk_chess_pdata->cursors[side];
     int x = cursor->cell_x;
@@ -11802,7 +11731,7 @@ static void mk_chess_set_up_zoom_cam(Vec* target) {
     Vec middle_1;
     Vec middle_2;
     Vec to;
-    CameraObj* camera = camera_live_node(&camera_item);
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     ChessCameraInfo* info = mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     int side_sign = -1;
@@ -12198,7 +12127,7 @@ static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, 
     Vec axis;
     Vec normal = {0.0f, 0.0f, 0.0f};
     Vec center;
-    CameraObj* camera = camera_live_node(&camera_item);
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     ChessCameraInfo* info = mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
     float inverse_length;
     float normal_x, normal_z, approach_x, approach_z, dot;
@@ -12752,7 +12681,7 @@ static void mk_chess_alive_pieces_initialize(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 90.477066%; HUD argument recovered; text/list scheduling remains. */
+/* TODO: [breakthrough needed] 92.33%; HUD argument recovered; text/list scheduling remains. */
 static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
     int text_x = 118;
     int marker_x = 70;
@@ -12774,7 +12703,7 @@ static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
             for (spell = 0; spell < 4; spell++) {
                 StringObj* string;
                 if (mk_chess_hud_spell_available(caster, spell) == 0) {
-                    ScreenObj* image = mk_chess_latched_screen(&mk_chess_pdata->manager.spell_hud[marker]);
+                    ScreenObj* image = MK_LIVE(mk_chess_pdata->manager.spell_hud[marker].screen, mk_chess_pdata->manager.spell_hud[marker].instance);
                     image->pfx2d->verts[0].a = 255;
                     image->x = marker_x - image->pfx2d->tex_w / 2;
                     image->y = screen_height / 2 + 82 - row_offset;
@@ -12891,7 +12820,7 @@ static void mk_chess_game_over(void) {
     gamelogic_jump(5, p_mk_chess_game_over);
 }
 
-/* TODO: [breakthrough needed] 86.20548%; low-byte rule fixed; captured search and HUD scheduling remain. */
+/* TODO: [breakthrough needed] 87.75%; low-byte rule fixed; captured search and HUD scheduling remain. */
 static void mk_chess_request_for_target(ChessHudState* hud) {
     int text_x = 118;
     unsigned int side = hud->side;
@@ -12917,13 +12846,13 @@ static void mk_chess_request_for_target(ChessHudState* hud) {
         int has_strings = 0;
         MkHdr* allocation;
         hud->images = 0;
-        image = mk_chess_latched_screen(&mk_chess_pdata->manager.spell_hud[11]);
+        image = MK_LIVE(mk_chess_pdata->manager.spell_hud[11].screen, mk_chess_pdata->manager.spell_hud[11].instance);
         image->x = text_x - image->pfx2d->tex_w / 2 + 8;
         image->y = 155;
         image->pfx2d->verts[0].a = 255;
         unhide_screen_obj(image);
         mk_insert((MkHdr*)image, &hud->images);
-        image = mk_chess_latched_screen(&mk_chess_pdata->sides[piece->side]->portraits[piece->type]);
+        image = MK_LIVE(mk_chess_pdata->sides[piece->side]->portraits[piece->type].screen, mk_chess_pdata->sides[piece->side]->portraits[piece->type].instance);
         image->pfx2d->verts[0].a = 255;
         hud->image_58 = (MkHdr*)image;
         hud->rescue_piece_type = piece->type;
@@ -13067,15 +12996,9 @@ static void start_magic_rings_effect(Vec* position, Vec* scale, const char* mode
     hide_obj(objects[1]);
 }
 
-static inline MkObj* mk_chess_live_ring(ChessRingObjectRef* ref) {
-    MkObj* object = ref->object;
-    if (object != 0 && object->hdr.instance == ref->instance) return object;
-    return 0;
-}
-
 static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned int index) {
     RwRGBA color = {255, 255, 255, 255};
-    MkObj* object = mk_chess_live_ring(&data->rings[index]);
+    MkObj* object = MK_HDR_LIVE(data->rings[index].object, data->rings[index].instance);
     if (object == 0) {
         data->active[index] = 0;
     } else {
@@ -13095,7 +13018,6 @@ static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned in
     }
 }
 
-/* TODO: [breakthrough needed] 97.08145%; restart and fade flow recovered; latch and register scheduling remain. */
 static float p_magic_rings_fx(void) {
     RwRGBA color = {255, 255, 255, 255};
     ChessMagicRingsPdata* data = (ChessMagicRingsPdata*)apdata;
@@ -13103,7 +13025,7 @@ static float p_magic_rings_fx(void) {
     if (data->mode > 0) data->mode--;
     for (i = 0; i < 2; i++) {
         if (data->active[i] != 0) {
-            MkObj* object = mk_chess_live_ring(&data->rings[i]);
+            MkObj* object = MK_HDR_LIVE(data->rings[i].object, data->rings[i].instance);
             float scale;
             if (object == 0) data->active[i] = 0;
             scale = data->elapsed[i] * data->scale_per_tick;
@@ -13244,7 +13166,7 @@ static inline void mk_chess_suspend_side_selection(ChessSideHudState* hud) {
     }
 }
 
-/* TODO: [breakthrough needed] 79.81%; typed slide-state stores improved; allocation reloads and image scheduling remain. */
+/* TODO: [breakthrough needed] 84.75%; typed slide-state stores improved; allocation reloads and image scheduling remain. */
 static void mk_chess_show_spell_hud(unsigned int side) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessCursor* cursor = &mk_chess_pdata->cursors[manager->active_side];
@@ -13271,12 +13193,12 @@ static void mk_chess_show_spell_hud(unsigned int side) {
         hud->selected_name = 0;
         hud->cursor_slot = 0;
         hud->field_54 = 0;
-        image = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_28);
+        image = MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance);
         if (hud->side == 0) image->x = -255;
         else image->x = screen_width;
         unhide_screen_obj(image);
         image->y = screen_height / 2;
-        image = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_30);
+        image = MK_LIVE(mk_chess_pdata->manager.bar_30.screen, mk_chess_pdata->manager.bar_30.instance);
         unhide_screen_obj(image);
         image->y = screen_height / 2 - 32;
         if (hud->side == 0) {
@@ -13286,12 +13208,12 @@ static void mk_chess_show_spell_hud(unsigned int side) {
             hud->countdown = (-12.0f * game_speed);
             hud->field_14 = (-2.0f * game_speed);
         }
-        image = mk_chess_latched_screen(&mk_chess_pdata->manager.bar_38);
+        image = MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance);
         hide_screen_obj(image);
         image->y = 370;
         if (hud->side == 0) image->x = 0;
         else image->x = screen_width - 255;
-        image = mk_chess_latched_screen(&mk_chess_pdata->manager.spell_hud[11]);
+        image = MK_LIVE(mk_chess_pdata->manager.spell_hud[11].screen, mk_chess_pdata->manager.spell_hud[11].instance);
         hide_screen_obj(image);
         image->pfx2d->verts[0].a = 255;
         image->y = 341;
@@ -14283,7 +14205,7 @@ static inline void mk_chess_position_mode_cursor(ChessCursor* owner,
     unsigned char x, unsigned char y)
 {
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
-    MkObj* object = (MkObj*)mk_chess_cursor_live_header(owner);
+    MkObj* object = (MkObj*)MK_LIVE(owner->object, owner->object_instance);
     owner->cell_x = x;
     owner->cell_y = y;
     object->pos.value.x = cell->position.x;
@@ -14346,7 +14268,7 @@ void mk_chess_set_game_mode(int mode)
         unhide_obj(mk_chess_cursor_live_header(
             &mk_chess_pdata->cursors[mk_chess_pdata->manager.active_side]));
         hide_obj(mk_chess_cursor_live_header(&mk_chess_pdata->cursors[other_side]));
-        hide_obj(mk_chess_cursor_live_header(&mk_chess_pdata->cursor));
+        hide_obj(MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance));
         manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
         cursor = &mk_chess_pdata->cursors[manager->active_side];
         mk_chess_hud_set_piece_portrait(mk_chess_pdata->board[cursor->cell_x].cells[cursor->cell_y].piece);
@@ -14360,9 +14282,9 @@ void mk_chess_set_game_mode(int mode)
         ChessPiece* piece;
         ChessPieceMoveMap* moves;
         unsigned int index;
-        hide_obj(mk_chess_cursor_live_header(&mk_chess_pdata->cursors[0]));
-        hide_obj(mk_chess_cursor_live_header(&mk_chess_pdata->cursors[1]));
-        unhide_obj(mk_chess_cursor_live_header(&mk_chess_pdata->cursor));
+        hide_obj(MK_LIVE(mk_chess_pdata->cursors[0].object, mk_chess_pdata->cursors[0].object_instance));
+        hide_obj(MK_LIVE(mk_chess_pdata->cursors[1].object, mk_chess_pdata->cursors[1].object_instance));
+        unhide_obj(MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance));
         mk_chess_pdata->cursor_track = 0;
         cursor = &mk_chess_pdata->cursors[mk_chess_pdata->manager.active_side];
         mk_chess_pdata->manager.event_data.piece = mk_chess_pdata->board[cursor->cell_x].cells[cursor->cell_y].piece;
@@ -14530,7 +14452,8 @@ static void mk_chess_bottom_hud_snap_update(ChessSideHudState* hud, int force)
     portrait = mk_chess_live_screen(&mk_chess_pdata->sides[piece->side]->portraits[piece->type]);
     unhide_screen_obj(portrait);
     if (force == 0) {
-        MkObj* cursor = (MkObj*)mk_chess_cursor_live_header(&mk_chess_pdata->cursors[hud->side]);
+        ChessCursor* owner = &mk_chess_pdata->cursors[hud->side];
+        MkObj* cursor = (MkObj*)MK_LIVE(owner->object, owner->object_instance);
         if (cursor != 0) {
             float up, right, forward;
             int obscured = 0;
@@ -14604,7 +14527,7 @@ static inline int mk_chess_expire_team_effect(ChessPieceEffect* effect)
     if (effect->flags.bits.bit6) {
         if (effect->kind == 2) effect->expiry_clock = 0xFFFFFFFF;
         else {
-            MkObj* object = mk_chess_live_imprison_object(effect);
+            MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
             if (object != 0 && object->hdr.instance != 0) object->hdr.typed_vtbl->destroy(&object->hdr);
             if (effect->hdr.instance != 0) effect->hdr.typed_vtbl->destroy(&effect->hdr);
         }
@@ -14664,7 +14587,7 @@ static float p_team_monitor(void)
     }
     if (hud->flags & 0x80) mk_chess_cursor_tracker_update(hud);
     if (hud->flags & 0x40) {
-        MkObj* cursor = (MkObj*)mk_chess_cursor_live_header(&mk_chess_pdata->cursor);
+        MkObj* cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance);
         if (!cursor->flags_08_bits.scale_active) {
             if (hud->cursor_scale_step > 0.0f) hud->flag_bits.cursor_scaling = 0;
             else {
@@ -14681,7 +14604,7 @@ static float p_team_monitor(void)
         }
     }
     if (hud->flags & 0x20) {
-        MkObj* cursor = (MkObj*)mk_chess_cursor_live_header(&mk_chess_pdata->cursor);
+        MkObj* cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance);
         switch ((hud->flags >> 3) & 3) {
         case 0:
             cursor->flags_08_bits.scale_active = 1;
@@ -14733,7 +14656,7 @@ static float p_team_monitor(void)
                 link = next;
             } else {
                 if (!mk_chess_expire_team_effect(effect)) {
-                    MkObj* object = mk_chess_live_imprison_object(effect);
+                    MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
                     if (object != 0) {
                         object->pos.value.x = cell->position.x;
                         object->pos.value.z = cell->position.z;
@@ -14983,7 +14906,7 @@ void mk_chess_timeout_msg(int message, unsigned int side)
 
 float p_idle_camera(void);
 
-/* TODO: [breakthrough needed] 80.84%; typed cursor flags improved; owner/latch and camera scheduling remain. */
+/* TODO: [breakthrough needed] 82.36%; typed cursor flags improved; owner/latch and camera scheduling remain. */
 float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
     unsigned char y, int forced)
 {
@@ -14991,7 +14914,7 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
     ChessModeState* owner = mk_chess_pdata;
     ChessCameraInfo* camera = owner != 0 ? &owner->camera : 0;
     ChessManagerInfo* manager = owner != 0 ? &owner->manager : 0;
-    CameraObj* camera_object = camera_live_node(&camera_item);
+    CameraObj* camera_object = camera_item.node;
     CmdScript* script;
     CmdScript* previous_script;
     MkPtr* link;
@@ -15007,6 +14930,7 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
     MkObj* cursor;
     MkHdr* allocation = 0;
     ChessSceneFadePdata* fade;
+    camera_object = MK_HDR_LIVE(camera_object, camera_item.instance);
     turn_controllers_off();
     mk_chess_pdata->saved_field_110 = mk_chess_pdata->manager.clock;
     if (camera->field_4C == 0 && camera->field_50 == 0)
@@ -15053,7 +14977,7 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
                     if (effect->kind == 2) {
                         effect->expiry_clock = 0xFFFFFFFF;
                     } else {
-                        MkObj* object = mk_chess_live_imprison_object(effect);
+                        MkObj* object = MK_HDR_LIVE(effect->object, effect->object_instance);
                         if (object != 0 && object->hdr.instance != 0) {
                             object->hdr.typed_vtbl->destroy(&object->hdr);
                         }
@@ -15082,8 +15006,8 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
     manager->event_data.other_piece = piece;
     manager->event_piece_24 = defender;
     mk_chess_set_vars_for_a_mk_fight();
-    hide_obj(mk_chess_cursor_live_object(&mk_chess_pdata->cursors[0]));
-    hide_obj(mk_chess_cursor_live_object(&mk_chess_pdata->cursors[1]));
+    hide_obj((MkObj*)MK_LIVE(mk_chess_pdata->cursors[0].object, mk_chess_pdata->cursors[0].object_instance));
+    hide_obj((MkObj*)MK_LIVE(mk_chess_pdata->cursors[1].object, mk_chess_pdata->cursors[1].object_instance));
     owner->fight_start_tick = exec_tick_ctr;
     if (forced == 0) {
         camera->zoom_sound_enabled = 1;
@@ -15099,7 +15023,7 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
         second = defender->object->pos.value;
         current_manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
         hud = mk_chess_pdata->sides[current_manager->active_side]->hud;
-        cursor = mk_chess_cursor_live_object(&mk_chess_pdata->cursor);
+        cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance);
         hud->flag_bits.cursor_scaling = 1;
         hud->flag_bits.cursor_moving = 0;
         hud->cursor_scale_step = 0.0f;
@@ -15299,7 +15223,7 @@ void start_protect_effect(ChessPiece* piece, int duration)
         effect->expiry_clock = (unsigned int)duration + (unsigned int)manager->clock;
         effect->flags.bits.bit7 = 1;
         effect->flags.bits.bit6 = 1;
-        object = mk_chess_live_imprison_object(effect);
+        object = MK_HDR_LIVE(effect->object, effect->object_instance);
         if (object != 0) {
             object->flags_08_bits.rotation_enabled = 1;
             object->flags_08_bits.angular_velocity_enabled = object->flags_08_bits.rotation_enabled;
@@ -15460,7 +15384,7 @@ static inline void mk_chess_move_trap_cursor(ChessDirectionState* hud,
     if (side == 0) move_cursor_based_on_quadrant(side, &x, &y, direction, 0, 5, 0);
     else move_cursor_based_on_quadrant(side, &x, &y, direction, 5, 10, 0);
     cell = &mk_chess_pdata->board[(unsigned char)x].cells[(unsigned char)y];
-    object = mk_chess_cursor_live_object(&hud->cursors[side]);
+    object = (MkObj*)MK_LIVE(hud->cursors[side].object, hud->cursors[side].object_instance);
     hud->cursors[side].cell_x = x;
     hud->cursors[side].cell_y = y;
     object->pos.value.x = cell->position.x;
@@ -15495,7 +15419,7 @@ static inline void mk_chess_scale_trap_ready(ScreenObj* image, unsigned int cent
     pdata->object->flag_bits.scaled = 1;
 }
 
-/* TODO: [breakthrough] 93.1089%; payloads typed; cursor live-object null tail (8 move cases), READY_MSG center scheduling and
+/* TODO: [breakthrough] 94.91%; payloads typed; cursor live-object null tail (8 move cases), READY_MSG center scheduling and
  * blink/show-side store order remain. */
 float p_mk_chess_place_traps(void)
 {
@@ -15597,7 +15521,7 @@ float p_mk_chess_place_traps(void)
     if (hud->title->instance != 0) ((MkHdr*)hud->title)->typed_vtbl->destroy((MkHdr*)hud->title);
     destroy_mkprocs_pid(0xC026);
     for (side = 0; side < 2; side++) {
-        MkObj* object = mk_chess_cursor_live_object(&hud->cursors[side]);
+        MkObj* object = (MkObj*)MK_LIVE(hud->cursors[side].object, hud->cursors[side].object_instance);
         remove_fgnd_mkobj(object);
         if (object->hdr.instance != 0) object->hdr.typed_vtbl->destroy(&object->hdr);
     }
@@ -15664,14 +15588,14 @@ static inline void mk_chess_return_selection_cursor(ChessCursor* cursor,
     unsigned char x, unsigned char y)
 {
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
-    MkObj* object = mk_chess_cursor_live_object(cursor);
+    MkObj* object = (MkObj*)MK_LIVE(cursor->object, cursor->object_instance);
     cursor->cell_x = x;
     cursor->cell_y = y;
     object->pos.value = cell->position;
     update_obj_pos(object);
 }
 
-/* TODO: [breakthrough] 61.45%; typed cursor flags improved; shared move/fight branches and cursor lowering remain. */
+/* TODO: [breakthrough] 63.34%; typed cursor flags improved; shared move/fight branches and cursor lowering remain. */
 float x_chess_3(void)
 {
     ChessPiece* target;

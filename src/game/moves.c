@@ -703,9 +703,7 @@ static float p_scorpion_scale(void) {
     MkObj* object;
 
     data = (MovesScalePdata*)pdata_of_proc(aproc);
-    object = data->object != 0
-        ? (data->object->hdr.instance == data->object_instance ? data->object : 0)
-        : 0;
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -2978,30 +2976,6 @@ void smoke_victory_entrance(void) {
     }
 }
 
-static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
-    MkObj* object = owner->sidekick_obj;
-    return object != 0
-               ? (object->hdr.instance == owner->sidekick_instance ? object
-                                                                   : 0)
-               : 0;
-}
-
-static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* player) {
-    MkProc* proc = player->sidekick_anim_proc;
-
-    return proc != 0
-               ? (proc->instance == player->sidekick_anim_instance ? proc : 0)
-               : 0;
-}
-
-static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
-    MkProc* object = owner->own_player_proc;
-
-    return object != 0
-        ? (object->instance == owner->own_player_proc_instance ? object : 0)
-        : 0;
-}
-
 static inline void moves_prepare_sidekick_entrance(
     AnimPdata* animation, MkObj* sidekick) {
     animation->flags &= ~8U;
@@ -3034,15 +3008,15 @@ static float p_plyr_smoke_entrance(void) {
     pdata = (MovesSidekickPdata*)apdata;
     player = pdata->player;
     actions = (MovesSidekickActionView*)player;
-    sidekick = player_live_sidekick_obj(player);
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     plyr_info = player->plyr_info;
     opponent_object = player->his_obj;
     main_object = plyr_info->slot.mirror_a;
-    anim = (AnimPdata*)pdata_of_proc(player_live_sidekick_anim_proc(player));
+    anim = (AnimPdata*)pdata_of_proc(MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance));
     moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
-    get_cmdscript_for_proc(player_live_own_player_proc(player));
+    get_cmdscript_for_proc(MK_LIVE(player->own_player_proc, player->own_player_proc_instance));
     tag_team_activate_player(sidekick, plyr_info->slot.pdata->sidekick_active);
     direction_z = main_object->pos.value.z - opponent_object->pos.value.z;
     direction_x = main_object->pos.value.x - opponent_object->pos.value.x;
@@ -3184,7 +3158,7 @@ static float p_sidekick_watchdog_launcher(void) {
     _mkproc_sleep_ticks = 300.0f;
     aproc->vtbl->sleep();
 
-    sidekick = player_live_sidekick_obj(player);
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     if (sidekick != 0 && !sidekick->hide_flag_bits.hidden) {
         hide_obj(sidekick);
     }
@@ -3203,8 +3177,8 @@ static float p_sidekick_exit_now(void) {
     pdata = (MovesSidekickPdata*)apdata;
     player = pdata->player;
 
-    sidekick = player_live_sidekick_obj(player);
-    anim_proc = player_live_sidekick_anim_proc(player);
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
+    anim_proc = MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance);
 
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     transition_to_anim_script(
@@ -3244,7 +3218,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     float position_z;
 
     state = plyr_pdata;
-    sidekick = player_live_sidekick_obj(plyr_pdata);
+    sidekick = MK_HDR_LIVE(plyr_pdata->sidekick_obj, plyr_pdata->sidekick_instance);
 
 
     plyr_obj->flags_09_bits.bit6 = 1;
@@ -3647,11 +3621,11 @@ static float p_plyr_noob_entrance(void) {
     pdata = (MovesSidekickPdata*)apdata;
     player = pdata->player;
     actions = (MovesSidekickActionView*)player;
-    sidekick = player_live_sidekick_obj(player);
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     info = player->plyr_info;
     opponent_object = player->his_obj;
     main_object = info->slot.mirror_a;
-    anim = (AnimPdata*)pdata_of_proc(player_live_sidekick_anim_proc(player));
+    anim = (AnimPdata*)pdata_of_proc(MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance));
     moves_prepare_sidekick_entrance(anim, sidekick);
     moves_prepare_sidekick_entrance(anim, sidekick);
 

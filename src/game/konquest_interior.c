@@ -1198,12 +1198,7 @@ void start_konquest_interior(
         return;
     }
     trigger = (KonquestTrigger*)pdata->obj;
-    if (trigger != 0) {
-        trigger =
-            (trigger->hdr.instance == pdata->obj_instance) ? trigger : 0;
-    } else {
-        trigger = 0;
-    }
+    trigger = MK_HDR_LIVE(trigger, pdata->obj_instance);
     if (trigger == 0) {
         return;
     }

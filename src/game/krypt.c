@@ -1654,10 +1654,7 @@ void init_heads_up_display(void) {
     for (i = 0; i < 6; i++) {
         format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
         string_obj = krypt_pdata->wallet_text[i].obj;
-        string_obj = string_obj != 0
-            ? (string_obj->instance == krypt_pdata->wallet_text[i].obj_instance
-                ? string_obj : 0)
-            : 0;
+        string_obj = MK_LIVE(string_obj, krypt_pdata->wallet_text[i].obj_instance);
         if (string_obj != 0) {
             update_string_obj(string_obj, 0, value);
         } else {

@@ -346,12 +346,7 @@ static float p_debug_damage_txt(void) {
     }
 
     if (pdata->delay > 0) {
-        object = pdata->object;
-        if (object != 0) {
-            object = object->instance == pdata->object_instance ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(pdata->object, pdata->object_instance);
         if (object != 0) {
             if (pdata->direction == 0) {
                 object->render_x--;
@@ -367,12 +362,7 @@ static float p_debug_damage_txt(void) {
 
     if (pdata->alpha > 0) {
         pdata->alpha -= 8;
-        object = pdata->object;
-        if (object != 0) {
-            object = object->instance == pdata->object_instance ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_LIVE(pdata->object, pdata->object_instance);
         if (object != 0) {
             alpha = pdata->alpha;
             part = &object->pfx.instance0;
@@ -394,12 +384,7 @@ static float p_debug_damage_txt(void) {
         return 1.0f;
     }
 
-    object = pdata->object;
-    if (object != 0) {
-        object = object->instance == pdata->object_instance ? object : 0;
-    } else {
-        object = 0;
-    }
+    object = MK_LIVE(pdata->object, pdata->object_instance);
     if (object != 0 && object->instance != 0) {
         object->typed_vtbl->destroy(object);
     }
@@ -846,22 +831,6 @@ int get_language_setting(void) {
     return language;
 }
 
-static inline ScreenObj* resolve_blink_object(
-    ScreenObj* object, unsigned int instance) {
-    ScreenObj* resolved;
-
-    if (object != 0) {
-        if (object->instance == instance) {
-            resolved = object;
-        } else {
-            resolved = 0;
-        }
-    } else {
-        resolved = 0;
-    }
-    return resolved;
-}
-
 static float p_blink_cursor(void) {
     int on_ticks;
     ScreenObj* live;
@@ -885,7 +854,7 @@ static float p_blink_cursor(void) {
     }
 
     for (;;) {
-        live = resolve_blink_object(object, instance);
+        live = MK_LIVE(object, instance);
         if (live != 0) {
             live->flag_bits.hidden = 0;
             _mkproc_sleep_ticks = on_ticks;
@@ -894,7 +863,7 @@ static float p_blink_cursor(void) {
             return kBlinkDoneTick;
         }
 
-        live = resolve_blink_object(object, instance);
+        live = MK_LIVE(object, instance);
         if (live != 0) {
             live->flag_bits.hidden = 1;
             _mkproc_sleep_ticks = off_ticks;
@@ -1017,15 +986,7 @@ void display_numerical_change(
                 int next;
 
                 tick_count = 0;
-                if (string != 0) {
-                    if (string->instance == instance) {
-                        live = string;
-                    } else {
-                        live = 0;
-                    }
-                } else {
-                    live = 0;
-                }
+                live = MK_LIVE(string, instance);
                 if (live == 0) {
                     return;
                 }
@@ -1422,23 +1383,6 @@ void create_fade_box(void) {
     }
 }
 
-static inline ScreenObj* resolve_fade_screen_object(FadeScreenPdata* pdata) {
-    ScreenObj* object;
-    ScreenObj* resolved;
-
-    object = pdata->screen_obj;
-    if (object != 0) {
-        if (object->instance == pdata->screen_instance) {
-            resolved = object;
-        } else {
-            resolved = 0;
-        }
-    } else {
-        resolved = 0;
-    }
-    return resolved;
-}
-
 static float p_fade_screen(void) {
     FadeScreenPdata* pdata;
     ScreenObj* obj;
@@ -1459,7 +1403,7 @@ static float p_fade_screen(void) {
         return kFadeDoneTick;
     }
 
-    obj = resolve_fade_screen_object(pdata);
+    obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
     if (obj == 0) {
         return kFadeDoneTick;
     }
@@ -1473,7 +1417,7 @@ static float p_fade_screen(void) {
             pdata->alpha = next_alpha;
         }
 
-        obj = resolve_fade_screen_object(pdata);
+        obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
         if (obj != 0) {
             alpha = pdata->alpha;
@@ -1508,7 +1452,7 @@ static float p_fade_screen(void) {
             pdata->alpha = next_alpha;
         }
 
-        obj = resolve_fade_screen_object(pdata);
+        obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
         if (obj != 0) {
             alpha = pdata->alpha;
@@ -1537,7 +1481,7 @@ static float p_fade_screen(void) {
         done = branch_done;
 
         if (done != 0) {
-            obj = resolve_fade_screen_object(pdata);
+            obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
             if (obj != 0 && obj->instance != 0) {
                 obj->typed_vtbl->destroy(obj);
             }
@@ -1618,12 +1562,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                         pdata->alpha = next_alpha;
                     }
 
-                    obj = pdata->screen_obj;
-                    if (obj != 0) {
-                        obj = obj->instance == pdata->screen_instance ? obj : 0;
-                    } else {
-                        obj = 0;
-                    }
+                    obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
                     if (obj != 0) {
                         alpha = pdata->alpha;
@@ -1651,12 +1590,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                             pdata->alpha - (unsigned char)pdata->frames;
                     }
 
-                    obj = pdata->screen_obj;
-                    if (obj != 0) {
-                        obj = obj->instance == pdata->screen_instance ? obj : 0;
-                    } else {
-                        obj = 0;
-                    }
+                    obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
                     if (obj != 0) {
                         alpha = pdata->alpha;
@@ -1944,23 +1878,6 @@ static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
 }
 #pragma dont_inline off
 
-static inline MkObj* resolve_uv_scroll_owner(UvScrollControl* ctrl) {
-    MkObj* owner;
-    MkObj* resolved;
-
-    owner = ctrl->owner;
-    if (owner != 0) {
-        if (owner->hdr.instance == ctrl->owner_instance) {
-            resolved = owner;
-        } else {
-            resolved = 0;
-        }
-    } else {
-        resolved = 0;
-    }
-    return resolved;
-}
-
 UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
     MkPtr* node;
     MkPtr* next;
@@ -1977,7 +1894,7 @@ UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
                 node = next;
                 continue;
             }
-            owner = resolve_uv_scroll_owner(ctrl);
+            owner = MK_HDR_LIVE(ctrl->owner, ctrl->owner_instance);
             if (owner == object) {
                 return ctrl;
             }
@@ -2004,7 +1921,7 @@ static float p_process_uvscrolling(void) {
                 node = next;
                 continue;
             }
-            owner = resolve_uv_scroll_owner(ctrl);
+            owner = MK_HDR_LIVE(ctrl->owner, ctrl->owner_instance);
             if (owner != 0) {
                 if (ctrl->target_is_atomic != 0) {
                     if (ctrl->target != 0) {

@@ -2468,9 +2468,7 @@ static inline BoneMatcherState* prepare_two_player_animation(
     BoneMatcherState* matcher;
 
     process = plyr_pdata->player_proc;
-    process = process != 0
-        ? (process->instance == plyr_pdata->player_proc_instance ? process : 0)
-        : 0;
+    process = MK_LIVE(process, plyr_pdata->player_proc_instance);
     if (process != 0) {
         xfer_proc(process, p_idle);
         his_pdata->previous_state = his_pdata->state;
@@ -2479,25 +2477,18 @@ static inline BoneMatcherState* prepare_two_player_animation(
 
     opponent = plyr_pdata->his_plyr_pdata;
     opponent_anim_proc = opponent->anim_proc;
-    opponent_anim_proc = opponent_anim_proc != 0
-        ? (opponent_anim_proc->instance == opponent->anim_proc_instance
-            ? opponent_anim_proc : 0)
-        : 0;
+    opponent_anim_proc =
+        MK_LIVE(opponent_anim_proc, opponent->anim_proc_instance);
     if (opponent_anim_proc != 0) {
         xfer_proc(opponent_anim_proc, p_anim_idle);
     }
 
     tracked_object = opponent->tracked_obj;
-    tracked_object = tracked_object != 0
-        ? (tracked_object->hdr.instance == opponent->tracked_obj_instance
-            ? tracked_object : 0)
-        : 0;
+    tracked_object =
+        MK_HDR_LIVE(tracked_object, opponent->tracked_obj_instance);
     if (tracked_object != 0) {
         process = opponent->transient_proc;
-        process = process != 0
-            ? (process->instance == opponent->transient_proc_instance
-                ? process : 0)
-            : 0;
+        process = MK_LIVE(process, opponent->transient_proc_instance);
         if (process != 0 && process != aproc && process->instance != 0) {
             process->vtbl->destroy(process);
         }
@@ -2518,11 +2509,8 @@ static inline BoneMatcherState* prepare_two_player_animation(
 
     opponent = plyr_pdata->his_plyr_pdata;
     held_by_object = opponent->held_by_object_latch.obj;
-    held_by_object = held_by_object != 0
-        ? (held_by_object->hdr.instance ==
-                   opponent->held_by_object_latch.instance
-            ? held_by_object : 0)
-        : 0;
+    held_by_object = MK_HDR_LIVE(
+        held_by_object, opponent->held_by_object_latch.instance);
     if (held_by_object == 0) {
         opponent->held_by_object_latch.obj = plyr_obj;
         plyr_pdata->his_plyr_pdata->held_by_object_latch.instance =
@@ -2531,10 +2519,8 @@ static inline BoneMatcherState* prepare_two_player_animation(
 
     opponent = plyr_pdata->his_plyr_pdata;
     opponent_anim_proc = opponent->anim_proc;
-    opponent_anim_proc = opponent_anim_proc != 0
-        ? (opponent_anim_proc->instance == opponent->anim_proc_instance
-            ? opponent_anim_proc : 0)
-        : 0;
+    opponent_anim_proc =
+        MK_LIVE(opponent_anim_proc, opponent->anim_proc_instance);
     if (opponent_anim_proc != 0) {
         opponent_anim = (AnimPdata*)pdata_of_proc(opponent_anim_proc);
         if (opponent_anim != 0) {
@@ -3297,10 +3283,7 @@ static inline void start_plyr_force(
 
     force_data = 0;
     process = plyr_pdata->transient_proc;
-    process = process != 0
-        ? (process->instance == plyr_pdata->transient_proc_instance
-            ? process : 0)
-        : 0;
+    process = MK_LIVE(process, plyr_pdata->transient_proc_instance);
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);
     }

@@ -542,7 +542,7 @@ static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
 
 
 
-/* TODO: [breakthrough needed] 91.084910%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 93.16%; CFG agrees except pid temp (retail mr r31,r0 after sign load) and allow_restart join blocks; macro latch form regresses (moveset/player r29/r30 swap). */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     FightingStyleSignPdata* pdata;
     ScreenObj* sign;
@@ -551,19 +551,10 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     int winner;
     int allow_restart;
 
-    if (moveset == 0) {
+    if (moveset == 0 || mode_of_play == 6 || g_game_info.flag_bits.high_res_path == 1) {
         return;
     }
-    if (mode_of_play == 6) {
-        return;
-    }
-    if (g_game_info.flag_bits.high_res_path == 1) {
-        return;
-    }
-    if (player < 0) {
-        return;
-    }
-    if (player > 1) {
+    if (player < 0 || player > 1) {
         return;
     }
 
@@ -1173,11 +1164,7 @@ void unfreeze_player(void) {
     player->state_flags.bits.frozen = 0;
 
     object_latch = &player->mirror_slots->weapon[0].primary;
-    object = object_latch->obj != 0
-                 ? (object_latch->obj->hdr.instance == object_latch->instance
-                        ? object_latch->obj
-                        : 0)
-                 : 0;
+    object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
         object->flags_0B_bits.special_texture = 0;

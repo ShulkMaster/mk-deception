@@ -418,7 +418,7 @@ static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
 
 
 static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
-    MkObj* weapon = weapon_latch_object(latch);
+    MkObj* weapon = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (weapon != 0) {
         MkHdr* trail_hdr = first_mkhdr(&weapon->list_44);
@@ -618,7 +618,6 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
 
 
 
-/* TODO: [near miss] 98.77%; the two latch checks resolve through a temporary (extra mr) where retail validates in place with bne/b; early-return helpers rotate every saved GPR. */
 static int plyr_obj_item_grab(PlyrPdata* player,
                        PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
@@ -627,37 +626,19 @@ static int plyr_obj_item_grab(PlyrPdata* player,
                        int insert_at_head) {
     MkObj* player_object;
     MkObj* current_item;
-    MkObj* object;
     RwMatrix* bone_matrix;
     MkBone* bone;
     WeaponBoneMatcherState* matcher;
     MkHdr* item_hdr;
 
     matcher = 0;
-    object = player->tracked_obj_latch.obj;
-    if (object != 0) {
-        if (object->hdr.instance == player->tracked_obj_latch.instance) {
-            player_object = object;
-        } else {
-            player_object = 0;
-        }
-    } else {
-        player_object = 0;
-    }
+    player_object = MK_HDR_LIVE(
+        player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
     if (player_object == 0) {
         return 0;
     }
 
-    object = item_latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance == item_latch->instance) {
-            current_item = object;
-        } else {
-            current_item = 0;
-        }
-    } else {
-        current_item = 0;
-    }
+    current_item = MK_HDR_LIVE(item_latch->obj, item_latch->instance);
     if (current_item == item) {
         plyr_obj_item_release(player, item_latch, secondary_latch);
     } else {
@@ -749,12 +730,13 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
     MkPtr* link_ptr;
     MkPtr* next;
 
-    player_object = weapon_latch_object(&player->tracked_obj_latch);
+    player_object = MK_HDR_LIVE(
+        player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
     if (player_object == 0) {
         return 0;
     }
 
-    item = weapon_latch_object(item_latch);
+    item = MK_HDR_LIVE(item_latch->obj, item_latch->instance);
     if (item != 0) {
         MkHdr* object_to_destroy;
 
@@ -764,7 +746,8 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
         if (secondary_latch != 0) {
             MkObj* secondary_object;
 
-            secondary_object = weapon_latch_object(secondary_latch);
+            secondary_object =
+                MK_HDR_LIVE(secondary_latch->obj, secondary_latch->instance);
             object_to_destroy = (MkHdr*)secondary_object;
         } else {
             object_to_destroy = 0;
@@ -835,16 +818,8 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
     }
 
     if (player->character_id == 0x12) {
-        object = player->tracked_obj_latch.obj;
-        if (object != 0) {
-            if (object->hdr.instance == player->tracked_obj_latch.instance) {
-                object = player->tracked_obj_latch.obj;
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = MK_HDR_LIVE(
+            player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
         if (object != 0) {
             if (player->plyr_info->flags_14_bits.alternate_costume) {
                 obj_hide_material_by_id(object, 0x83);
@@ -910,12 +885,8 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 
     if (player->character_id == 0x12) {
-        object = player->tracked_obj_latch.obj;
-        if (object != 0) {
-            object = object->hdr.instance == player->tracked_obj_latch.instance ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = MK_HDR_LIVE(
+            player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
         if (object != 0) {
             if (player->plyr_info->flags_14_bits.alternate_costume) {
                 obj_unhide_material_by_id(object, 0x83);
@@ -982,7 +953,7 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough] 84.10%; aligned rotation matrix and weapon latch shape match; nonvolatile homes (retail trail_model r31) and loop register layout differ. */
+/* TODO: [breakthrough] 84.71%; aligned rotation matrix and weapon latch shape match; nonvolatile homes (retail trail_model r31) and loop register layout differ. */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
@@ -1000,15 +971,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     int* chain_root;
     int map_index;
 
-    weapon = (MkObj*)trail_model->parent_hdr;
-    if (weapon != 0) {
-        if (weapon->hdr.instance == trail_model->parent_inst) {
-        } else {
-            weapon = 0;
-        }
-    } else {
-        weapon = 0;
-    }
+    weapon = MK_HDR_LIVE((MkObj*)trail_model->parent_hdr, trail_model->parent_inst);
     do {
         if (weapon == 0 || weapon->field_5C == 0 ||
             trail_model->field_5C == 0) {

@@ -774,33 +774,18 @@ static inline int npc_is_visible_model_active(KonquestNpc* npc) {
     return 1;
 }
 
-static inline KonquestNpc* npc_get_latched(
-    KonquestNpc* npc, const unsigned int* instance) {
-    if (npc != 0) {
-        if (npc->hdr.instance == *instance) {
-            return npc;
-        }
-        npc = 0;
-    } else {
-        npc = 0;
-    }
-    return npc;
-}
-
 static inline KonquestNpc* npc_find_by_data_inline(
     KonquestNpcData* data) {
     KonquestNpc* candidate;
     KonquestNpc* result;
     MkPtr* link;
 
-    candidate = npc_get_latched(konquest_pdata->monk_npc,
-                                &konquest_pdata->monk_npc_instance);
+    candidate = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
 
-    candidate = npc_get_latched(konquest_pdata->hero_npc,
-                                &konquest_pdata->hero_npc_instance);
+    candidate = MK_HDR_LIVE(konquest_pdata->hero_npc, konquest_pdata->hero_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
@@ -829,8 +814,7 @@ static inline KonquestNpc* npc_find_by_data_inline(
 }
 
 static inline KonquestNpc* npc_find_by_table_index_inline(unsigned int table_index) {
-    KonquestNpc* npc = npc_get_latched(
-        konquest_pdata->monk_npc, &konquest_pdata->monk_npc_instance);
+    KonquestNpc* npc = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
     MkPtr* link;
     if (npc != 0 && npc->data_table_index == table_index) {
         return npc;
@@ -867,26 +851,19 @@ static inline void npc_switch_camera_focus_inline(int focus_mode) {
     switch (focus_mode) {
     case 2:
         focus = konquest_pdata->monk;
-        focus = focus != 0
-            ? (focus->hdr.instance == konquest_pdata->monk_instance ? focus : 0)
-            : 0;
+        focus = MK_HDR_LIVE(focus, konquest_pdata->monk_instance);
         camera_set_lookat_focus(focus);
         camera_set_movement_focus_obj(g_active_npc->animation->object);
         break;
     case 0:
         camera_set_lookat_focus(g_active_npc->animation->object);
         focus = konquest_pdata->monk;
-        focus = focus != 0
-            ? (focus->hdr.instance == konquest_pdata->monk_instance ? focus : 0)
-            : 0;
+        focus = MK_HDR_LIVE(focus, konquest_pdata->monk_instance);
         camera_set_movement_focus_obj(focus);
         break;
     case 1:
         focus = konquest_pdata->camera_target;
-        focus = focus != 0
-            ? (focus->hdr.instance == konquest_pdata->camera_target_instance
-                ? focus : 0)
-            : 0;
+        focus = MK_HDR_LIVE(focus, konquest_pdata->camera_target_instance);
         camera_set_lookat_focus(focus);
         camera_set_movement_focus_obj(g_active_npc->animation->object);
         break;
@@ -1190,16 +1167,6 @@ void npc_sleep_until_model_loaded(void);
 void cleanup_npc_manager(void);
 
 
-static inline KonquestNpc* konquest_npc_pdata_live_hero_npc(KonquestNpcPdata* owner) {
-    KonquestNpc* object = owner->hero_npc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->hero_npc_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 void make_damashi_npc(MkObj* object);
 void npc_wait_for_wake_up(void);
 void npc_set_wake_up_time(int unit, int amount);
@@ -1223,27 +1190,11 @@ void npc_fire_trigger(unsigned int trigger_id);
 KonquestNpcData* get_active_npc_data(void);
 
 
-static inline AniTextureControl* konquest_lip_sync_pdata_live_texture(KonquestLipSyncPdata* owner) {
-    AniTextureControl* object = owner->texture;
-    if (object != 0) {
-        if (object->instance == owner->texture_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_play_random_dialog_sequence(void);
 void npc_set_random_dialog_and_anim_sequence(int dialog, int animation);
 static int npc_dialog_wait_for_widescreen_bars(void);
 void npc_attack(int attack_arg_a, int attack_arg_b);
 
-
-static inline KonquestNpc* konquest_npc_pdata_validate_monk_npc(KonquestNpc* object, KonquestNpcPdata* owner) {
-    return (object != 0) ? ((object->hdr.instance == owner->monk_npc_instance) ? object : 0) : 0;
-}
 
 static inline MkObj* konquest_npc_pdata_live_monk(KonquestNpcPdata* owner) {
     MkObj* object = owner->monk;
@@ -1258,9 +1209,6 @@ static inline MkObj* konquest_npc_pdata_live_monk(KonquestNpcPdata* owner) {
     return object;
 }
 
-static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
-    return (owner->proc != 0) ? ((owner->proc->instance == owner->proc_instance) ? owner->proc : 0) : 0;
-}
 KonquestNpc* konquest_make_monk_an_npc(void);
 void npc_set_gravity(float gravity);
 void npc_set_my_ground_level(float ground_level);
@@ -1277,18 +1225,6 @@ void npc_set_dialog_anim(int animation);
 void hero_handle_conversation(void);
 
 
-static inline KonquestNpc* konquest_npc_pdata_live_monk_npc(KonquestNpcPdata* owner) {
-    KonquestNpc* object = owner->monk_npc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_npc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_play_conversation_part( int dialog_id, int animation_id, int conversation_mode);
 void conversation_term(void);
 void conversation_init(int mode);
@@ -1312,18 +1248,6 @@ static inline void npc_queue_active_animation(int animation_id, int flags) {
     }
 }
 
-static inline KonquestNpc* npc_live_monk_npc(KonquestNpcPdata* owner) {
-    KonquestNpc* object = owner->monk_npc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_npc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_play_two_player_one_shot_anims(int npc_animation_id, int monk_animation_id);
 int is_this_the_monk_npc(KonquestNpc* npc);
 void npc_stop_goro_bone_match(void);
@@ -1341,18 +1265,6 @@ float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 
 void kill_lip_sync_procs(void);
 
-static inline AniTextureControl* lip_sync_live_texture(KonquestLipSyncPdata* owner) {
-    AniTextureControl* object = owner->texture;
-    if (object != 0) {
-        if (object->instance == owner->texture_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes);
 static void npc_update_current_direction( KonquestNpc* npc, const Vec* navigation_direction);
 void npc_face_current_waypoint_angle(void);
@@ -1375,33 +1287,9 @@ static float p_turn_and_face(void);
 void npc_turn_and_face_next_waypoint(void);
 void npc_set_pinanim_flag(int enabled);
 
-static inline MkObj* npc_live_monk(KonquestNpcPdata* owner) {
-    MkObj* object = owner->monk;
-    if (object != 0) {
-        if (object->hdr.instance == owner->monk_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void hero_turn_to_face_position(const Vec* position);
 
 
-static inline MkProc* konquest_npc_live_turn_proc(KonquestNpc* owner) {
-    MkProc* object = owner->turn_proc;
-    if (object != 0) {
-        if (object->instance == owner->turn_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void npc_turn_and_face_player(int turn_player);
 int npc_get_collision_direction_in_script(void);
 void npc_shove_reaction_standard_shutdown(void);
@@ -2676,7 +2564,7 @@ void npc_shadow_update(void) {
 
         shadow->hide_flag_bits.hidden = 1;
         if (npc != 0) {
-            KonquestNpc* monk = konquest_npc_pdata_live_monk_npc(konquest_pdata);
+            KonquestNpc* monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
             if (npc->data != monk->data) {
                 int active = npc_event_has_active_animation(npc);
@@ -3362,7 +3250,6 @@ float p_npc_manager(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.05195%; lookup and store agree; nonvolatile GPR coloring remains. */
 void npc_enable_his_event(
     KonquestNpcData* data, int event_index, int enabled) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -3378,11 +3265,11 @@ void npc_enable_event(int event_index, int enabled) {
     }
 }
 
-/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
+/* TODO: [near miss] 98.82%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_near_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = npc_live_monk(pdata);
+    MkObj* monk = MK_HDR_LIVE(pdata->monk, pdata->monk_instance);
     int is_near;
 
     if (monk == 0) {
@@ -3396,11 +3283,11 @@ static int plyr_near_check(float distance) {
     return is_near != 0;
 }
 
-/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
+/* TODO: [near miss] 98.82%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_leave_area_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = npc_live_monk(pdata);
+    MkObj* monk = MK_HDR_LIVE(pdata->monk, pdata->monk_instance);
     int is_near;
 
     if (monk == 0) {
@@ -3475,10 +3362,7 @@ int npc_hit_by_punch(
     Vec angles;
     float difference;
 
-    monk = konquest_pdata->monk != 0
-        ? (konquest_pdata->monk->hdr.instance == konquest_pdata->monk_instance
-               ? konquest_pdata->monk : 0)
-        : 0;
+    monk = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
     if (monk == 0) {
         return 0;
     }
@@ -3799,8 +3683,7 @@ static void npc_resolve_events(KonquestNpc* npc) {
 
     found = 0;
     mode = get_konquest_game_mode();
-    monk = npc_get_latched(
-        konquest_pdata->monk_npc, &konquest_pdata->monk_npc_instance);
+    monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
     if (mode == 4 || mode == 3) {
         return;
     }
@@ -3843,7 +3726,7 @@ static void npc_pre_wake(void) {
 
     g_active_npc = npc;
     if (process->update_enabled != 0) {
-        KonquestNpc* monk = npc_live_monk_npc(konquest_pdata);
+        KonquestNpc* monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
 
         if (monk != npc ||
@@ -4007,7 +3890,7 @@ float p_npc_proc(void) {
 }
 
 static inline int npc_is_live_monk(KonquestNpc* npc) {
-    return npc_live_monk_npc(konquest_pdata) == npc;
+    return MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance) == npc;
 }
 
 static void npc_post_sleep(void) {
@@ -4109,14 +3992,12 @@ KonquestNpc* find_npc_by_data(KonquestNpcData* data) {
     KonquestNpc* result;
     MkPtr* link;
 
-    candidate = npc_get_latched(konquest_pdata->monk_npc,
-                                &konquest_pdata->monk_npc_instance);
+    candidate = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
 
-    candidate = npc_get_latched(konquest_pdata->hero_npc,
-                                &konquest_pdata->hero_npc_instance);
+    candidate = MK_HDR_LIVE(konquest_pdata->hero_npc, konquest_pdata->hero_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
@@ -4288,7 +4169,7 @@ void npc_punch_reaction_standard_shutdown(void) {
 void npc_snap_to_face_monk(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = npc_live_monk(konquest_pdata);
+    MkObj* monk = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
 
     if (monk != 0 && reaction != 0 && reaction->object != 0) {
         reaction->object->ang.y = gxMathArcTanYX(
@@ -4341,7 +4222,7 @@ void npc_run_punch_animation(
 int npc_punch_reaction_check_data(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = npc_live_monk(konquest_pdata);
+    MkObj* monk = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
 
     if (reaction == 0 || monk == 0) {
         return 0;
@@ -4403,7 +4284,7 @@ void npc_shove_reaction_standard_shutdown(void) {
 int npc_get_collision_direction_in_script(void) {
     KonquestObjectScriptPdata* pdata =
         (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
-    MkObj* hero = konquest_npc_pdata_live_monk(konquest_pdata);
+    MkObj* hero = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
     int direction;
 
     direction = 0;
@@ -4434,7 +4315,7 @@ int npc_get_collision_direction_in_script(void) {
 }
 
 void npc_turn_and_face_player(int turn_player) {
-    MkObj* monk = konquest_npc_pdata_live_monk(konquest_pdata);
+    MkObj* monk = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
     KonquestNpcAnimState* state;
     int has_active_animation;
 
@@ -4447,7 +4328,7 @@ void npc_turn_and_face_player(int turn_player) {
         has_active_animation = state->proc != 0;
     }
     if (has_active_animation != 0) {
-        MkProc* turn_proc = konquest_npc_live_turn_proc(g_active_npc);
+        MkProc* turn_proc = MK_LIVE(g_active_npc->turn_proc, g_active_npc->turn_proc_instance);
         TurnAndFacePdata* pdata;
 
         if (turn_proc == 0) {
@@ -4491,7 +4372,7 @@ void npc_turn_and_face_player(int turn_player) {
             }
         }
 
-        while (konquest_npc_live_turn_proc(g_active_npc) != 0) {
+        while (MK_LIVE(g_active_npc->turn_proc, g_active_npc->turn_proc_instance) != 0) {
             npc_ani_1_frame();
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
@@ -4504,7 +4385,7 @@ void npc_turn_and_face_player(int turn_player) {
 
 
 void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
-    MkProc* turn_proc = konquest_npc_live_turn_proc(npc);
+    MkProc* turn_proc = MK_LIVE(npc->turn_proc, npc->turn_proc_instance);
 
     if (turn_proc == 0) {
         KonquestNpcAnimState* state = npc->animation;
@@ -4546,7 +4427,7 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
             }
         }
 
-        while (konquest_npc_live_turn_proc(npc) != 0) {
+        while (MK_LIVE(npc->turn_proc, npc->turn_proc_instance) != 0) {
             npc_ani_1_frame();
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
@@ -4654,7 +4535,7 @@ void npc_turn_and_face_next_waypoint(void) {
     if (g_active_npc->path == 0) {
         return;
     }
-    if (konquest_npc_live_turn_proc(g_active_npc) != 0) {
+    if (MK_LIVE(g_active_npc->turn_proc, g_active_npc->turn_proc_instance) != 0) {
         return;
     }
     active = npc_event_has_active_animation(g_active_npc);
@@ -4678,7 +4559,7 @@ void npc_turn_and_face_next_waypoint(void) {
         g_active_npc->turn_proc = proc;
         g_active_npc->turn_proc_instance = proc->instance;
     }
-    while (konquest_npc_live_turn_proc(g_active_npc) != 0) {
+    while (MK_LIVE(g_active_npc->turn_proc, g_active_npc->turn_proc_instance) != 0) {
         npc_ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
@@ -5332,10 +5213,7 @@ static inline int npc_reached_path_target(void) {
 static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
     MkObj* monk = konquest_pdata->monk;
 
-    monk = monk != 0
-               ? (monk->hdr.instance == konquest_pdata->monk_instance ? monk
-                                                                      : 0)
-               : 0;
+    monk = MK_HDR_LIVE(monk, konquest_pdata->monk_instance);
     if (monk != 0 && npc->animation != 0 && npc->animation->object != 0) {
         float delta_x = monk->pos.value.x - npc->animation->object->pos.value.x;
         float delta_z = monk->pos.value.z - npc->animation->object->pos.value.z;
@@ -5605,7 +5483,7 @@ float p_do_lip_synch(void) {
                         lip->animation, animation, 3, 0.15f);
                 }
             } else {
-                AniTextureControl* texture = lip_sync_live_texture(lip);
+                AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
 
 
                 if (texture != 0) {
@@ -5617,7 +5495,7 @@ float p_do_lip_synch(void) {
     }
     if (lip->mode == 1) {
         if (mslSoundIsValid(lip->sound_handle) == 0) {
-            AniTextureControl* texture = lip_sync_live_texture(lip);
+            AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
 
 
             if (texture != 0) {
@@ -5631,7 +5509,7 @@ float p_do_lip_synch(void) {
             AniTextureControl* texture;
 
             snd_stop(lip->sound_handle);
-            texture = lip_sync_live_texture(lip);
+            texture = MK_LIVE(lip->texture, lip->texture_instance);
 
             if (texture != 0) {
                 set_ani_texture_frame(texture, 0);
@@ -5667,7 +5545,7 @@ static inline void npc_start_lip_synch(
         target->texture_instance = texture_instance;
         lip->sound_handle = sound_id;
 
-        texture = lip_sync_live_texture(lip);
+        texture = MK_LIVE(lip->texture, lip->texture_instance);
 
         if (texture != 0) {
             lip->keyframes = keyframes;
@@ -5702,7 +5580,7 @@ void kill_lip_sync_procs(void) {
                     KonquestLipSyncPdata* lip =
                         (KonquestLipSyncPdata*)pdata_of_proc(proc);
                     unsigned int sound_handle = lip->sound_handle;
-                    AniTextureControl* texture = lip_sync_live_texture(lip);
+                    AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
 
                     if (sound_handle != 0) {
                         snd_stop(sound_handle);
@@ -5950,8 +5828,6 @@ void vdestroy_path_data_struct(KonquestPathData* path) {
     mkhdr_memfree(&path->hdr);
 }
 
-/* TODO: [near miss] 96.07527%; shared NPC lookup and caller keep
- * different nonvolatile registers; inspect typed lifetimes. */
 void npc_start_goro_bone_match(KonquestNpcData* data) {
     KonquestObjectScriptPdata* pdata =
         (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
@@ -6096,7 +5972,7 @@ static inline void npc_stop_lip_sync_procs(void) {
                     KonquestLipSyncPdata* lip =
                         (KonquestLipSyncPdata*)pdata_of_proc(proc);
                     unsigned int sound_handle = lip->sound_handle;
-                    texture = lip_sync_live_texture(lip);
+                    texture = MK_LIVE(lip->texture, lip->texture_instance);
 
                     if (sound_handle != 0) {
                         snd_stop(sound_handle);
@@ -6157,8 +6033,7 @@ void npc_wait_for_dialog(void) {
 }
 
 int is_this_the_monk_npc(KonquestNpc* npc) {
-    KonquestNpc* monk = npc_get_latched(
-        konquest_pdata->monk_npc, &konquest_pdata->monk_npc_instance);
+    KonquestNpc* monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
     if (npc_is_same(monk, npc)) {
         return 1;
@@ -6197,7 +6072,7 @@ void npc_play_two_player_one_shot_anims(int npc_animation_id,
             monk_animation_proc =
                 MK_LIVE(konquest_pdata->monk_animation->proc, konquest_pdata->monk_animation->proc_instance);
 
-            monk_npc = npc_live_monk_npc(konquest_pdata);
+            monk_npc = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
             xfer_proc(monk_animation_proc, p_animate);
             monk_animation->step = 1.0f;
@@ -6269,7 +6144,7 @@ void npc_play_conversation_part(
 
                 npc_switch_camera_focus_inline(pdata->conversation_mode_a);
                 konquest_pdata->conversation_mode_b = pdata->conversation_mode_a;
-                monk = konquest_npc_pdata_live_monk_npc(konquest_pdata);
+                monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
                 xfer_proc(
                     monk->animation->proc, p_animate);
@@ -6718,7 +6593,7 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     MkObj* monk;
     Vec position;
 
-    npc = konquest_npc_pdata_validate_monk_npc(npc, konquest_pdata);
+    npc = MK_HDR_LIVE(npc, konquest_pdata->monk_npc_instance);
     if (npc != 0) {
         return npc;
     }
@@ -6816,7 +6691,7 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
             animation->editor_object = 0;
             animation->dialog_anim = 0;
             monk_animation = konquest_pdata->monk_animation;
-            animation_proc = anim_pdata_live_proc(monk_animation);
+            animation_proc = MK_LIVE(monk_animation->proc, monk_animation->proc_instance);
 
             animation->proc = animation_proc;
         }
@@ -6985,7 +6860,7 @@ void npc_play_random_dialog_sequence(void) {
                 target->texture = texture;
                 target->texture_instance = texture_instance;
                 lip->sound_handle = sound_id;
-                texture = konquest_lip_sync_pdata_live_texture(lip);
+                texture = MK_LIVE(lip->texture, lip->texture_instance);
 
                 if (texture != 0) {
                     lip->keyframes = keyframes;
@@ -7474,13 +7349,12 @@ void npc_wait_for_wake_up(void) {
 
 
 
-/* TODO: [near miss] 99.75%; live hero-NPC validation CFG matches; only konquest_pdata/npc r5/r6 swap remains. */
 void make_damashi_npc(MkObj* object) {
     KonquestNpc* npc;
     KonquestNpcAnimState* animation;
 
     animation = 0;
-    npc = konquest_npc_pdata_live_hero_npc(konquest_pdata);
+    npc = MK_HDR_LIVE(konquest_pdata->hero_npc, konquest_pdata->hero_npc_instance);
 
     if (npc == 0) {
         npc = (KonquestNpc*)get_mkhdr(

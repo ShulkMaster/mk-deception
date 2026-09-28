@@ -827,7 +827,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 67.22%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
+/* TODO: [near miss] 74.63%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
 static float p_subzero_ice_chunk(void) {
     FatalityIceChunkPdata* data;
     FatalityIceChunkPebble* chunk;
@@ -845,8 +845,7 @@ static float p_subzero_ice_chunk(void) {
     if (data == 0) {
         return -1.0f;
     }
-    if (data->owner != 0 &&
-        data->owner->hdr.instance == data->owner_instance) {
+    if (MK_HDR_LIVE(data->owner, data->owner_instance) != 0) {
         fix_index = 0;
         for (chunk_index = 0; chunk_index < 9; chunk_index++) {
             chunk = data->chunks[chunk_index];
@@ -1829,9 +1828,7 @@ static float p_raiden_summon_lightning_bolt(void) {
     if (data == 0) {
         return -1.0f;
     }
-    bolt = data->bolt != 0
-               ? (data->bolt->hdr.instance == data->bolt_instance ? data->bolt : 0)
-               : 0;
+    bolt = MK_HDR_LIVE(data->bolt, data->bolt_instance);
     if (bolt == 0) {
         return -1.0f;
     }
@@ -1853,13 +1850,8 @@ static float p_raiden_summon_lightning_bolt(void) {
         bolt->hide_flag_bits.hidden = 1;
     } else {
         bolt->hide_flag_bits.hidden = 0;
-        owner_object =
-            data->owner->tracked_obj != 0
-                ? (data->owner->tracked_obj->hdr.instance ==
-                           data->owner->tracked_obj_instance
-                       ? data->owner->tracked_obj
-                       : 0)
-                : 0;
+        owner_object = MK_HDR_LIVE(
+            data->owner->tracked_obj, data->owner->tracked_obj_instance);
         if (owner_object == 0) {
             data->bone_id = -1;
         }
@@ -1917,9 +1909,7 @@ void fix_axe_angle(const Vec* angles) {
 
     latch = &fatality_state.player->mirror_slots->weapon[0].secondary;
     axe = latch->obj;
-    axe = axe != 0
-              ? (axe->hdr.instance == latch->instance ? axe : 0)
-              : 0;
+    axe = MK_HDR_LIVE(axe, latch->instance);
 
     if (axe != 0) {
         YXZ_angles_to_quat(angles, &axe->orientation_quat);

@@ -1208,31 +1208,11 @@ void create_shadow_proc(int pid, PlyrPdata* controller, MkObj* source,
 }
 
 static void shadow_update_pair(ShadowObjPair* pair) {
-    MkObj* raw_source;
-    MkObj* raw_shadow;
     MkObj* source;
     MkObj* shadow;
 
-    raw_source = pair->source;
-    if (raw_source != 0) {
-        if (raw_source->hdr.instance == pair->source_instance) {
-            source = raw_source;
-        } else {
-            source = 0;
-        }
-    } else {
-        source = 0;
-    }
-    raw_shadow = pair->shadow;
-    if (raw_shadow != 0) {
-        if (raw_shadow->hdr.instance == pair->shadow_instance) {
-            shadow = raw_shadow;
-        } else {
-            shadow = 0;
-        }
-    } else {
-        shadow = 0;
-    }
+    source = MK_HDR_LIVE(pair->source, pair->source_instance);
+    shadow = MK_HDR_LIVE(pair->shadow, pair->shadow_instance);
     if (source != 0 && shadow != 0) {
         memcpy(shadow->field_24, &source->bones[0]->matrix,
                sizeof(RwMatrix));
@@ -1243,17 +1223,7 @@ static void shadow_update_pair(ShadowObjPair* pair) {
     }
 }
 
-static inline MkObj* shadow_validate_obj(MkObj* raw,
-                                         unsigned int expected_instance) {
-    if (raw != 0) {
-        if (raw->hdr.instance == expected_instance) {
-            return raw;
-        }
-        return 0;
-    }
-    return 0;
-}
-
+/* TODO: [near miss] 98.00%; bone-map loop register numbering (r27/r28) and pair lookup scheduling differ. */
 static float p_shadow_obj(void) {
     ShadowPdata* pdata;
     PlyrMirrorBoneMap* map;
@@ -1265,11 +1235,11 @@ static float p_shadow_obj(void) {
     int i;
 
     pdata = (ShadowPdata*)apdata;
-    source = shadow_validate_obj(pdata->source, pdata->source_instance);
+    source = MK_HDR_LIVE(pdata->source, pdata->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    shadow = shadow_validate_obj(pdata->shadow, pdata->shadow_instance);
+    shadow = MK_HDR_LIVE(pdata->shadow, pdata->shadow_instance);
     if (shadow == 0) {
         return -1.0f;
     }
@@ -2322,23 +2292,14 @@ static void update_mkhdr_sobj(MkHdr* hdr) {
     update_mksobj((MkSobj*)hdr);
 }
 
+/* TODO: [near miss] 90.53%; bound latch branch layout (retail uses explicit merge branches) and r4/r5 coloring differ. */
 void vdestroy_mksobj(MkSobj* sobj) {
     MkSobj* mksobj;
-    MkHdr* raw_bound;
     MkHdr* bound;
 
     mksobj = sobj;
     mksobj->hdr.instance = 0;
-    raw_bound = mksobj->bound_hdr;
-    if (raw_bound != 0) {
-        if (raw_bound->instance == mksobj->bound_instance) {
-            bound = raw_bound;
-        } else {
-            bound = 0;
-        }
-    } else {
-        bound = 0;
-    }
+    bound = MK_LIVE(mksobj->bound_hdr, mksobj->bound_instance);
     if (bound != 0) {
         bound = mksobj->bound_hdr;
         if (bound->instance != 0) {
@@ -3300,17 +3261,7 @@ void* start_scale_proc(void* obj, void* script) {
     return pdata;
 }
 
-static inline MkObj* scale_validate_obj(MkObj* obj,
-                                        unsigned int expected_instance) {
-    if (obj != 0) {
-        if (obj->hdr.instance == expected_instance) {
-            return obj;
-        }
-        return 0;
-    }
-    return 0;
-}
-
+/* TODO: [near miss] 99.70%; FPR numbering (f0/f1) in elapsed accumulate and divide differs. */
 static float p_scale(void) {
     ScalePdata* pdata;
     MkObj* obj;
@@ -3323,7 +3274,7 @@ static float p_scale(void) {
     if (aproc->pid != 0x5022 || pdata == 0) {
         return -1.0f;
     }
-    obj = scale_validate_obj(pdata->obj, pdata->obj_instance);
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
     if (obj == 0) {
         return -1.0f;
     }

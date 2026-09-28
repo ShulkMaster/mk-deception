@@ -611,19 +611,6 @@ int plyr_pdata_sidekick_active(PlyrPdata* pdata) {
     return pdata->sidekick_active;
 }
 
-static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
-    MkObj* object = owner->sidekick_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->sidekick_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 MkObj* plyr_pdata_get_sidekick_obj(PlyrPdata* pdata) {
     return MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 }
@@ -1571,7 +1558,7 @@ static inline void initialize_player_shadow(
     }
 }
 
-/* TODO: [near miss] 99.19%; runtime/shadow r29/r30 coloring swap remains. */
+/* TODO: [near miss] 99.52%; runtime/shadow r29/r30 coloring swap remains. */
 float p_plyr_start(void) {
     FighterRuntimeData* runtime;
     MkObj* shadow = 0;
@@ -1698,10 +1685,9 @@ float p_plyr_start(void) {
     }
     saved_object = plyr_obj;
     if (plyr_pdata->sidekick_available != 0) {
-        sidekick = player_live_sidekick_obj(plyr_pdata);
-
-        plyr_obj = sidekick;
         runtime = plyr_pdata->runtime_data;
+        sidekick = MK_HDR_LIVE(plyr_pdata->sidekick_obj, plyr_pdata->sidekick_instance);
+        plyr_obj = sidekick;
         if (plyr_pdata->plyr_info->flags_14_bits.alternate_costume) {
             sidekick->ground_colls = runtime->alternate_ground_collision;
             start_script = runtime->alternate_start_script;
@@ -3273,12 +3259,11 @@ void release_other_player(void) {
     release_other_player_inline();
 }
 
-/* TODO: [breakthrough] 94.75%; hand-transition offsets fixed; validation branch/frame differences remain. */
 int check_release_other_player(void) {
-    MkProc* hold_proc = plyr_pdata->hold_proc;
+    MkProc* hold_proc =
+        MK_LIVE(plyr_pdata->hold_proc, (int)plyr_pdata->hold_proc_instance);
 
-    if (hold_proc != 0 &&
-        hold_proc->instance == (int)plyr_pdata->hold_proc_instance) {
+    if (hold_proc != 0) {
         release_other_player_inline();
         return 1;
     }

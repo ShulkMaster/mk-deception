@@ -579,40 +579,6 @@ void spawn_bld_splat(
 MslSoundHandle plyr_snd_req(int sound);
 MslSoundHandle random_voice(int sound);
 
-static inline MkObj* ncs_live_tracked_obj(PlyrPdata* owner) {
-    return owner->tracked_obj != 0
-               ? (owner->tracked_obj->hdr.instance == owner->tracked_obj_instance
-                      ? owner->tracked_obj
-                      : 0)
-               : 0;
-}
-
-
-
-static inline NcsSpearEffect* ncs_get_spear_effect(void) {
-    return pdata_sc_spear->effect != 0
-               ? (pdata_sc_spear->effect->hdr.instance ==
-                          pdata_sc_spear->effect_instance
-                      ? pdata_sc_spear->effect
-                      : 0)
-               : 0;
-}
-
-static inline NcsSpearEffect* ncs_live_spear_effect(SpearProcPdata* owner) {
-    NcsSpearEffect* effect;
-
-    effect = owner->effect;
-    if (effect != 0) {
-        if (effect->hdr.instance == owner->effect_instance) {
-            return effect;
-        }
-        effect = 0;
-    } else {
-        effect = 0;
-    }
-    return effect;
-}
-
 static float p_mkpfx_fadingrun(void);
 float p_sc_spear1(void);
 static void sc_spear_prewake(void);
@@ -701,18 +667,9 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     Vec delta;
 
     proc = 0;
-    camera = camera_item.node != 0
-                 ? (camera_item.node->hdr.instance == camera_item.instance
-                        ? camera_item.node
-                        : 0)
-                 : 0;
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera != 0) {
-        weapon = player->aux_weapon_latch.obj != 0
-                     ? (player->aux_weapon_latch.obj->hdr.instance ==
-                                player->aux_weapon_latch.instance
-                            ? player->aux_weapon_latch.obj
-                            : 0)
-                     : 0;
+        weapon = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
         if (weapon != 0) {
             if (weapon->field_60 == 0) {
                 weapon->field_60 = 1;
@@ -852,7 +809,7 @@ float p_sc_spear1(void) {
 
     sc_spear_obj->flags_08_bits.gravity_enabled = 1;
     plyr_aux_weapon_release(pdata_sc_spear->owner);
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -940,7 +897,7 @@ static float p_sc_spear2(void) {
     int collision;
     int outcome;
 
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -968,7 +925,7 @@ static float p_sc_spear2(void) {
             NcsSpearEffect* effect;
 
             outcome = 1;
-            effect = ncs_get_spear_effect();
+            effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
             if (effect != 0) {
                 effect->field_2A0 = 0.75f;
                 effect->field_2A8 = 0.005f;
@@ -1082,7 +1039,7 @@ static float p_sc_spear2_victory(void) {
         sc_spear_obj->pos_vel.z = 0.0f;
         sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.x = 0.0f;
-        effect = ncs_get_spear_effect();
+        effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
         if (effect != 0) {
             effect->field_2A0 = 0.75f;
             effect->field_2A8 = 0.005f;
@@ -1100,7 +1057,7 @@ static float p_sc_spear2_getup(void) {
         sc_spear_obj->pos_vel.z = 0.0f;
         sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.x = 0.0f;
-        effect = ncs_live_spear_effect(pdata_sc_spear);
+        effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
         if (effect != 0) {
             effect->field_2A0 = 0.75f;
             effect->field_2A8 = 0.005f;
@@ -1112,11 +1069,7 @@ static float p_sc_spear2_getup(void) {
 float p_sc_spear_blocked(void) {
     NcsSpearEffect* effect;
 
-    effect = pdata_sc_spear->effect != 0
-                 ? (pdata_sc_spear->effect->hdr.instance == pdata_sc_spear->effect_instance
-                        ? pdata_sc_spear->effect
-                        : 0)
-                 : 0;
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1232,7 +1185,7 @@ static float p_sc_spear3_pre(void) {
 static float p_sc_spear3(void) {
     NcsSpearEffect* effect;
 
-    effect = ncs_live_spear_effect(pdata_sc_spear);
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect != 0) {
         effect->field_298 = 1.0f;
         effect->field_29C = 0.0f;
@@ -1249,7 +1202,7 @@ static float p_sc_spear4(void) {
     MkObj* target;
     int collision;
 
-    target = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1321,7 +1274,7 @@ static float p_sc_spear4_victory(void) {
     float direction_squared;
     float inverse_length;
 
-    target_object = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target_object = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target_object == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1384,7 +1337,7 @@ static float p_sc_spear4_getup(void) {
     float speed;
     float inverse_length;
 
-    target_object = ncs_live_tracked_obj(pdata_sc_spear->owner);
+    target_object = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target_object == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1422,7 +1375,7 @@ static float p_sc_spear4_getup(void) {
 float p_sc_spear_kill(void) {
     NcsSpearEffect* effect;
 
-    effect = ncs_get_spear_effect();
+    effect = MK_HDR_LIVE(pdata_sc_spear->effect, pdata_sc_spear->effect_instance);
     if (effect != 0 && effect->hdr.instance != 0) {
         ((NcsDestroyable*)effect)->vtbl->destroy((NcsDestroyable*)effect);
     }

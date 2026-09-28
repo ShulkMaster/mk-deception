@@ -587,17 +587,6 @@ static inline ScreenObj* validated_screen_instance(
     return MK_LIVE(object, instance);
 }
 
-static inline MkHdr* validated_plyr_screen(PlyrScreenLatch* latch) {
-    MkHdr* object = latch->object;
-
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
 
 
 static inline void center_fight_effect(ScreenObj* object) {
@@ -1331,7 +1320,7 @@ void do_win_effect(void) {
         active_profiles = game_count_active_players();
         if (active_profiles == 2) {
             if (victor != 0 && g_game_info.pselect.field_1dc > 0) {
-                icon_x = validated_plyr_screen(&victor->name_latch) != 0
+                icon_x = MK_LIVE((MkHdr*)victor->name_latch.object, victor->name_latch.instance) != 0
                              ? 0x58
                              : 0x3F;
                 show_koin_award(
@@ -1353,7 +1342,7 @@ void do_win_effect(void) {
              (round_winner == 2 && g_game_info.plyr1.player_state == 2)) &&
             ((round_winner == 1 && p1_profile_status == 1) ||
              (round_winner == 2 && p2_profile_status == 1))) {
-            icon_x = validated_plyr_screen(&victor->name_latch) != 0
+            icon_x = MK_LIVE((MkHdr*)victor->name_latch.object, victor->name_latch.instance) != 0
                          ? 0x58
                          : 0x3F;
             show_koin_award(
@@ -1967,9 +1956,7 @@ void game_init(void) {
     create_wall_monitor();
 
     timer = game_timer_item.obj;
-    timer = timer != 0
-                ? (timer->instance == game_timer_item.obj_instance ? timer : 0)
-                : 0;
+    timer = MK_LIVE(timer, game_timer_item.obj_instance);
     if (timer != 0 && timer->instance != 0) {
         timer->typed_vtbl->destroy(timer);
     }
@@ -2124,9 +2111,7 @@ static float p_load_screen(void) {
 
     pdata = (LoadScreenPdata*)apdata;
     meter = pdata->meter;
-    meter = meter != 0
-                ? (meter->instance == pdata->meter_instance ? meter : 0)
-                : 0;
+    meter = MK_LIVE(meter, pdata->meter_instance);
 
     if (meter == 0) {
         ScreenObj* image;
