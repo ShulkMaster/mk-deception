@@ -13976,16 +13976,10 @@ void pickup_pui(KonquestPuiDefinition* item) {
     if (item->type >= 3 && item->type <= 8) {
         award = 0;
         if (find_mkproc_pid(0x8247) != 0) {
-            object = konquest_pdata->award_text.object != 0
-                         ? (konquest_pdata->award_text.object->instance ==
-                                    konquest_pdata->award_text.instance
-                                ? konquest_pdata->award_text.object : 0)
-                         : 0;
-            art_object = konquest_pdata->award_art.object != 0
-                             ? (konquest_pdata->award_art.object->instance ==
-                                        konquest_pdata->award_art.instance
-                                    ? konquest_pdata->award_art.object : 0)
-                             : 0;
+            object = MK_LIVE(konquest_pdata->award_text.object,
+                             konquest_pdata->award_text.instance);
+            art_object = MK_LIVE(konquest_pdata->award_art.object,
+                                 konquest_pdata->award_art.instance);
             if (object != 0) {
                 if (object->instance != 0) {
                     object->typed_vtbl->destroy(object);
@@ -14098,16 +14092,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
     MkSobj* child;
     MkSobj* effect_child;
 
-    object = pui->object;
-    if (object != 0) {
-        if (object->hdr.instance == pui->object_instance) {
-            object = pui->object;
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(pui->object, pui->object_instance);
     if (object == 0) {
         return;
     }

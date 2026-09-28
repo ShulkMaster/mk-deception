@@ -15074,18 +15074,6 @@ int get_chess_coin_award(int coin_index);
 int get_chess_leader_won_coin_award(void);
 const char* get_rnd_chess_koin_type(int difficulty);
 
-static inline ScreenObj* validated_plyr_screen(PlyrScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    if (object != 0) {
-        if (object->instance == latch->instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 /* TODO: [near miss] 99.997%; code exact; only the "WIN_SQUARE" string-pool offset differs (TU data layout). */
 void mk_chess_game_just_ended(void)
 {
@@ -15171,7 +15159,7 @@ void mk_chess_game_just_ended(void)
                 g_game_info.pselect.field_1ec += get_chess_leader_won_coin_award();
             get_rnd_chess_koin_type((board_game_save_data.ai_settings_halves[0] >> 7) & 15);
         }
-        name = validated_plyr_screen(&winner_info->name_latch);
+        name = MK_LIVE((ScreenObj*)winner_info->name_latch.object, winner_info->name_latch.instance);
         award_y = name != 0 ? 88 : 63;
         show_koin_award(round_winner - 1, g_game_info.pselect.field_1ec, g_game_info.pselect.field_1e4, award_y);
         award_koins_to_player(round_winner - 1, g_game_info.pselect.field_1ec, g_game_info.pselect.field_1e4);
