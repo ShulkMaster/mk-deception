@@ -1202,16 +1202,7 @@ void update_plyr_medals(void) {
 
 
 static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
-    MkProc* object = owner->object;
-    if (object != 0) {
-        if (object->instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->object, owner->instance);
 }
 
 

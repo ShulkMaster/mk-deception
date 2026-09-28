@@ -127,7 +127,7 @@ static const RpMTEffect* GameCubeMTEffectStreamWrite(
     header.count40 = config->count40;
     header.count20 = config->count20;
     header.packedFields =
-        (((unsigned char)config->field_0x54 & 0xF) * 0x10) |
+        (((unsigned char)config->field_0x54 & 0xF) << 4) |
         ((unsigned char)config->field_0x58 & 0xF);
     memcpy(header.bytes, config->bytes, sizeof(header.bytes));
     memcpy(header.values, config->values, sizeof(header.values));
@@ -187,7 +187,7 @@ static const RpMTEffect* GameCubeMTEffectStreamWrite(
         encoded.field_0x18 = (unsigned int)entry->field_0x60;
         RwMemLittleEndian32(&encoded.field_0x18, sizeof(encoded.field_0x18));
         if ((entry->field_0x54 & 0x100) != 0) {
-            encoded.value[23] |= 0x80;
+            encoded.value[23] |= (unsigned char)0x80;
         }
         if (RwStreamWrite(stream, &encoded, sizeof(encoded)) == 0) {
             return 0;
@@ -310,19 +310,19 @@ static RpMTEffect* GameCubeMTEffectStreamRead(
         entry->field_0x20 = encoded.value[8];
         entry->field_0x24 = encoded.value[9];
         entry->field_0x28 = encoded.value[10];
-        entry->field_0x2C = encoded.value[11];
+        entry->field_0x2C = (unsigned char)encoded.value[11];
         entry->field_0x30 = encoded.value[12];
         entry->field_0x34 = encoded.value[13];
         entry->field_0x38 = encoded.value[14];
         entry->field_0x3C = encoded.value[15];
-        entry->field_0x40 = encoded.value[16];
+        entry->field_0x40 = (unsigned char)encoded.value[16];
         entry->field_0x44 = encoded.value[17];
         entry->field_0x48 = encoded.value[18];
         entry->field_0x4C = encoded.value[19];
         entry->field_0x50 = encoded.value[20];
         entry->field_0x54 = encoded.value[21];
         entry->field_0x58 = encoded.value[22];
-        entry->field_0x5C = encoded.value[23];
+        entry->field_0x5C = (unsigned char)encoded.value[23];
         RwMemNative32(&encoded.field_0x18, sizeof(encoded.field_0x18));
         entry->field_0x60 = (int)encoded.field_0x18;
         if ((entry->field_0x5C & 0x80) != 0) {

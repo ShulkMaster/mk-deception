@@ -2729,16 +2729,7 @@ static float p_force_reaction(void) {
 
 
 static inline PuzzleProcess* puzzle_reaction_transfer_data_live_opponent_proc(PuzzleReactionTransferData* owner) {
-    PuzzleProcess* object = owner->opponent_proc;
-    if (object != 0) {
-        if (object->instance == owner->opponent_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->opponent_proc, owner->opponent_proc_instance);
 }
 
 static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
@@ -2759,7 +2750,7 @@ static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 
 
 
-/* TODO: [near miss] 95.16%; compiler CSEs the table entry (r30) where retail keeps
+/* TODO: [near miss] 95.48%; compiler CSEs the table entry (r30) where retail keeps
  * the scaled index and rematerializes tbl_xfer_addresses; GPR allocation remains. */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;

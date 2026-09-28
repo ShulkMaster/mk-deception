@@ -656,16 +656,7 @@ void general_flash_fx(
 }
 
 static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* fighter) {
-    MkObj* object = fighter->primary_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == fighter->primary_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(fighter->primary_weapon, fighter->primary_weapon_instance);
 }
 
 static inline void start_blade_clash_fx(
@@ -686,7 +677,7 @@ static inline void start_blade_clash_fx(
     }
 }
 
-/* TODO: [near miss] 99.23%; player/blade homes (r30/r31) and the third
+/* TODO: [near miss] 99.58%; player/blade homes (r30/r31) and the third
  * clash-fx expansion's effect/weapon homes swap; stop at coloring. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
@@ -723,16 +714,7 @@ void fight_fx_blades_clash(PlyrPdata* player) {
 
 
 static inline MkProc* reaction_transfer_pdata_live_opponent_proc(ReactionTransferPdata* owner) {
-    MkProc* object = owner->opponent_proc;
-    if (object != 0) {
-        if (object->hdr.instance == owner->opponent_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->opponent_proc, owner->opponent_proc_instance);
 }
 
 static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
@@ -748,16 +730,7 @@ static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
 
 /* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
 static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
 }
 
 

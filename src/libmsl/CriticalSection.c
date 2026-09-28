@@ -2,9 +2,9 @@
 #include "dolphin/mutex.h"
 #include "msl/mslsupport.h"
 
-MslCriticalSection* g_CriticalSectionDebug_List;
-OSMutex s_CriticalSectionDebug_SystemMutex;
 int s_CriticalSectionDebug_SystemMutexInitialized;
+OSMutex s_CriticalSectionDebug_SystemMutex;
+MslCriticalSection* g_CriticalSectionDebug_List;
 
 static int AddRequestingCS_ByThread(
     MslCriticalSection* requested, void* thread);

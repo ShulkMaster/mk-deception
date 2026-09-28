@@ -418,15 +418,7 @@ static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
 
 static inline MkObj* weapon_trail_parent(MkObj* trail) {
     MkObj* parent = (MkObj*)trail->parent_hdr;
-    if (parent != 0) {
-        if (parent->hdr.instance == trail->parent_inst) {
-            return parent;
-        }
-        parent = 0;
-    } else {
-        parent = 0;
-    }
-    return parent;
+    return MK_HDR_LIVE(parent, trail->parent_inst);
 }
 
 static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
@@ -627,15 +619,7 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
 
 static inline WeaponBoneMatcherState* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
     WeaponBoneMatcherState* object = (WeaponBoneMatcherState*) owner->obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(object, owner->instance);
 }
 
 
@@ -758,16 +742,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
 }
 
 static inline MkObj* weapon_bone_matcher_state_live_child_latch_obj(WeaponBoneMatcherState* owner) {
-    MkObj* object = owner->child_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->child_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->child_obj, owner->child_instance);
 }
 
 /* TODO: [breakthrough needed] 87.398380%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */

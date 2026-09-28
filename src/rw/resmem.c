@@ -48,8 +48,6 @@ int _rwResHeapClose(RwResHeap* heap) {
 }
 
 void _rwResHeapFree(void* memory) {
-    /* TODO: Retail reuses r4 for both staged merge sizes; MWCC assigns these
-     * equivalent block-local values r28/r27. Recheck register allocation. */
     RwResHeapBlock* block =
         (RwResHeapBlock*)((unsigned char*)memory - 0x20);
     RwResHeapBlock* previous;
@@ -63,35 +61,27 @@ void _rwResHeapFree(void* memory) {
         block->heap->firstFreeBlock = block;
     }
     if (previous != 0 && (int)(~previous->flags & 1) != 0) {
-        unsigned int mergedSize;
-
         previous->next = next;
         if (next != 0) {
             next->prev = previous;
         }
-        mergedSize = previous->size + block->size;
-        previous->size = mergedSize + 0x20;
+        previous->size += block->size + 0x20;
         block = previous;
     }
     if (next != 0 && (int)(~next->flags & 1) != 0) {
-        unsigned int mergedSize;
-
         block->next = next->next;
         if (next->next != 0) {
             next->next->prev = block;
         }
-        mergedSize = block->size + next->size;
-        block->size = mergedSize + 0x20;
+        block->size += next->size + 0x20;
     }
 }
 
-void* _rwResHeapAlloc(RwResHeap* heap, unsigned int size) {
+void* _rwResHeapAlloc(RwResHeap* heapArg, unsigned int size) {
+    RwResHeap* heap = heapArg;
     RwResHeapBlock* cursor;
     RwResHeapBlock* block;
 
-    /* TODO: The allocator body matches retail after alignment; MWCC still
-     * keeps heap in r31 and uses scalar saves instead of retail's stack home
-     * and _savegpr_28/_restgpr_28 helpers. Recheck compiler emission. */
     size += 0x1F;
     size &= ~0x1F;
     block = 0;

@@ -506,16 +506,7 @@ void setup_vomit_slip_sound(void) {
 }
 
 static inline MkProc* player_live_animation_proc(PlyrPdata* owner) {
-    MkProc* process = owner->anim_proc;
-    if (process != 0) {
-        if (process->instance == (int)owner->anim_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
+    return MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance);
 }
 
 int plyr_in_spin_react(PlyrPdata* pdata) {
@@ -684,16 +675,7 @@ void set_player_state(PlyrInfo* player, int state) {
 }
 
 static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->primary_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == owner->primary_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->primary_weapon, owner->primary_weapon_instance);
 }
 
 static inline MkObj* moveset_live_secondary_weapon(GlobalMoveset* owner) {
@@ -723,16 +705,7 @@ static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
 }
 
 static inline MkObj* moveset_live_reflection_weapon(GlobalMoveset* owner) {
-    MkObj* object = owner->reflection_weapon;
-    if (object != 0) {
-        if (object->hdr.instance == owner->reflection_weapon_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->reflection_weapon, owner->reflection_weapon_instance);
 }
 
 void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
@@ -806,30 +779,11 @@ void register_baraka_cb_functions(void) {
 }
 
 static inline MkObj* baraka_live_object(PlyrMirrorObjLatch* latch) {
-    MkObj* object = latch->obj;
-
-    if (object != 0) {
-        if (object->hdr.instance == latch->instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(latch->obj, latch->instance);
 }
 
 static inline MkProc* player_live_blades_monitor(PlyrPdata* owner) {
-    MkProc* process = owner->baraka_blades_monitor;
-    if (process != 0) {
-        if (process->instance == (int)owner->baraka_blades_monitor_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
+    return MK_LIVE(owner->baraka_blades_monitor, (int)owner->baraka_blades_monitor_instance);
 }
 
 
@@ -890,7 +844,6 @@ static inline void baraka_extend_blades(PlyrPdata* pdata) {
     }
 }
 
-/* TODO: [near miss] 99.51681%; retail null exits restored; register and literal identity residue remains */
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context) {
     MkObj* object;
@@ -1050,16 +1003,7 @@ void start_baraka_jaw_monitor(void) {
 }
 
 static inline AnimPdata* baraka_jaw_live_animation(BarakaJawPdata* owner) {
-    AnimPdata* object = owner->animation;
-    if (object != 0) {
-        if (object->hdr.instance == owner->animation_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->animation, owner->animation_instance);
 }
 
 /* TODO: [near miss] 98.769230%; relocation offsets, instruction scheduling; one-trial ceiling. */
@@ -1185,42 +1129,15 @@ int get_player_number(MkObj* object) {
 
 
 static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
-    MkObj* object = owner->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
 }
 
 static inline MkObj* plyr_pdata_live_aux_weapon_latch_obj(PlyrPdata* owner) {
-    MkObj* object = owner->aux_weapon_latch.obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->aux_weapon_latch.instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
 }
 
 static inline MkObj* plyr_pdata_live_mirror_obj_obj(PlyrPdata* owner) {
-    MkObj* object = owner->mirror_obj.obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->mirror_obj.instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->mirror_obj.obj, owner->mirror_obj.instance);
 }
 
 
@@ -1614,29 +1531,11 @@ void ps_plyr(void) {
 }
 
 static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance);
 }
 
 static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->sidekick_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->sidekick_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->sidekick_anim_proc, (int)owner->sidekick_anim_instance);
 }
 
 static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
@@ -1653,16 +1552,7 @@ static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
 }
 
 static inline MkProc* player_live_right_hand_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->right_hand_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->right_hand_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->right_hand_anim_proc, (int)owner->right_hand_anim_instance);
 }
 
 static inline void pw_plyr_inline(void) {
@@ -2785,16 +2675,7 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
 }
 
 static inline MkProc* player_live_own_process(PlyrPdata* owner) {
-    MkProc* process = owner->own_player_proc;
-    if (process != 0) {
-        if (process->instance == owner->own_player_proc_instance) {
-            return process;
-        }
-        process = 0;
-    } else {
-        process = 0;
-    }
-    return process;
+    return MK_LIVE(owner->own_player_proc, owner->own_player_proc_instance);
 }
 
 float active_sidekick_swap_change_style(PlyrPdata* pdata) {
@@ -2813,7 +2694,7 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
 
 
 
-/* TODO: [near miss] 95.74%; validators go through the live helpers; sidekick/player r30/r31
+/* TODO: [near miss] 96.11%; validators go through the live helpers; sidekick/player r30/r31
  * and saved-state register coloring remain (declaration order is neutral). */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
@@ -3033,30 +2914,12 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
 
 static inline MkProc* sidekick_proc_live_player_sidekick_anim_proc(
     PlyrSidekickProcPdata* owner) {
-    MkProc* object = owner->player->sidekick_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->player->sidekick_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->player->sidekick_anim_proc, (int)owner->player->sidekick_anim_instance);
 }
 
 static inline MkObj* sidekick_proc_live_player_sidekick_obj(
     PlyrSidekickProcPdata* owner) {
-    MkObj* object = owner->player->sidekick_obj;
-    if (object != 0) {
-        if (object->hdr.instance == owner->player->sidekick_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_HDR_LIVE(owner->player->sidekick_obj, owner->player->sidekick_instance);
 }
 
 static float p_plyr_sidekick(void) {
@@ -3459,29 +3322,11 @@ static inline MkObj* plyr_pdata_live_held_opponent_latch_obj(PlyrPdata* owner) {
 }
 
 static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
-    MkProc* object = owner->hold_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->hold_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->hold_proc, (int)owner->hold_proc_instance);
 }
 
 static inline MkProc* plyr_pdata_live_his_plyr_pdata_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->his_plyr_pdata->anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->his_plyr_pdata->anim_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(owner->his_plyr_pdata->anim_proc, (int)owner->his_plyr_pdata->anim_proc_instance);
 }
 
 
@@ -3525,12 +3370,11 @@ static inline void release_other_player_inline(void) {
     }
 }
 
-/* TODO: [breakthrough] 97.40196%; hand-transition offsets fixed; hold-latch branch folding remains. */
 void release_other_player(void) {
     release_other_player_inline();
 }
 
-/* TODO: [breakthrough] 92.56303%; hand-transition offsets fixed; validation branch/frame differences remain. */
+/* TODO: [breakthrough] 94.75%; hand-transition offsets fixed; validation branch/frame differences remain. */
 int check_release_other_player(void) {
     MkProc* hold_proc = plyr_pdata->hold_proc;
 

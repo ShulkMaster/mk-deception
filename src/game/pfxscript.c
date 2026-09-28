@@ -474,17 +474,7 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
 }
 
 static inline PfxBank* pfx_live_bank(const PfxBankLatch* latch) {
-    PfxBank* bank = latch->bank;
-
-    if (bank != 0) {
-        if (bank->hdr.instance == latch->bank_instance) {
-            return bank;
-        }
-        bank = 0;
-    } else {
-        bank = 0;
-    }
-    return bank;
+    return MK_HDR_LIVE(latch->bank, latch->bank_instance);
 }
 static inline PfxScriptEffect* pfx_live_effect(const PfxEffectLatch* latch) {
     PfxScriptEffect* effect = latch->effect;
