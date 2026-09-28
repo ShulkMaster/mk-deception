@@ -139,8 +139,6 @@ static inline void L2Enable(void) {
     PPCMtl2cr((PPCMfl2cr() | 0x80000000) & ~0x00200000UL);
 }
 
-/* TODO: [blocked] 96.72%; retail calls ICEnable/DCEnable, whose bodies are still empty placeholders for
- * privileged asm, so ours inlines them away; resolves once those routines exist. */
 void __OSCacheInit(void) {
     if (!(PPCMfhid0() & 0x00008000)) {
         ICEnable();

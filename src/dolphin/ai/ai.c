@@ -189,19 +189,15 @@ unsigned char AIGetStreamVolRight(void)
     return GET_REG_FIELD(AI_REGS[1], 8, 8);
 }
 
-/* TODO: [near miss] 99.34%; timer-scale math matches retail except r9/r10 coloring; stop pending new source evidence. */
 void AIInit(void* callback_stack)
 {
-    unsigned long timer_scale;
-
     if (__AI_init_flag != 1) {
         OSRegisterVersion(__AIVersion);
-        timer_scale = OS_TIMER_CLOCK / 125000;
-        bound_32KHz = (31524 * timer_scale) / 8000;
-        bound_48KHz = (42024 * timer_scale) / 8000;
-        min_wait = (42000 * timer_scale) / 8000;
-        max_wait = (63000 * timer_scale) / 8000;
-        buffer = (3000 * timer_scale) / 8000;
+        bound_32KHz = OSNanosecondsToTicks(31524);
+        bound_48KHz = OSNanosecondsToTicks(42024);
+        min_wait = OSNanosecondsToTicks(42000);
+        max_wait = OSNanosecondsToTicks(63000);
+        buffer = OSNanosecondsToTicks(3000);
         AISetStreamVolRight(0);
         AISetStreamVolLeft(0);
         AI_REGS[3] = 0;

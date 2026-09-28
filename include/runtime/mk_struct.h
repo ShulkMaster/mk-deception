@@ -29,6 +29,9 @@ struct MkHdr {
     unsigned int instance;
 };
 
+#define MK_LIVE(p, inst) ((p) != 0 ? ((p)->instance == (inst) ? (p) : 0) : 0)
+#define MK_HDR_LIVE(p, inst) ((p) != 0 ? ((p)->hdr.instance == (inst) ? (p) : 0) : 0)
+
 typedef struct MkHdrLatch {
     MkHdr* hdr;
     unsigned int instance;

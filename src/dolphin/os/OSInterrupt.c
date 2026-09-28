@@ -221,7 +221,6 @@ OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
-/* TODO: [near miss] 99.95%; with peephole off the dispatch CFG and handler lowering agree; one row remains. */
 void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 {
     unsigned long interrupt_status;
@@ -232,7 +231,8 @@ void __OSDispatchInterrupt(__OSException exception, OSContext* context)
     __OSInterrupt interrupt;
     __OSInterruptHandler handler;
 
-    interrupt_status = PI_REGS[0] & ~0x00010000;
+    interrupt_status = PI_REGS[0];
+    interrupt_status &= ~0x00010000;
     if (!interrupt_status || !(interrupt_status & PI_REGS[1])) {
         OSLoadContext(context);
     }

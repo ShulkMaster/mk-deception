@@ -12,7 +12,6 @@ volatile unsigned long __PIRegs[] : 0xCC003000;
 unsigned char __gUnknown800030E3 : 0x800030E3;
 extern OSTime __OSStartTime;
 
-/* TODO: [near miss] 86.54%; SDK debounce CFG agrees; retail schedules the HoldDown stores after the tick math, reachable only with a steering temp; stop. */
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     OSResetCallback callback;
@@ -35,8 +34,6 @@ void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
     __PIRegs[0] = 2;
 }
 
-/* TODO: [near miss] 98.584335%; debounce CFG agrees with the SDK; the local
- * headers use an ABI-equivalent int, and timer-scale/register residue remains. */
 int OSGetResetButtonState(void)
 {
     int enabled;
@@ -72,15 +69,13 @@ int OSGetResetButtonState(void)
 
     LastState = state;
     if (__gUnknown800030E3 & 0x1F) {
-        unsigned long timer_clock;
         OSTime fire;
 
         fire = (__gUnknown800030E3 & 0x1F) * 60;
-        timer_clock = OS_TIMER_CLOCK;
-        fire = __OSStartTime + fire * timer_clock;
+        fire = __OSStartTime + OSSecondsToTicks(fire);
         if (fire < now) {
             now -= fire;
-            now = (now / timer_clock) / 2;
+            now = OSTicksToSeconds(now) / 2;
             if ((now & 1) == 0) {
                 state = 1;
             } else {

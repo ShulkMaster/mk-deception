@@ -45,20 +45,16 @@ static unsigned long __OSExceptionLocations[OS_EXCEPTION_COUNT] = {
 /* Architectural register initialization is not expressible in portable C. */
 asm void __OSFPRInit(void) { SEQ___OSFPRInit(); }
 
-/* TODO: [blocked] 54.285713%; HID2/cache ordering matches the donor, but
- * retail's eight GQR writes are privileged assembly with no honest C form. */
-void __OSPSInit(void)
-{
-    PPCMthid2(PPCMfhid2() | 0xA0000000);
-    ICFlashInvalidate();
-    PPCSync();
-}
-
 unsigned long OSGetConsoleType(void)
 {
     if (BootInfo == 0 || BootInfo->console_type == 0) return 0x10000002;
     return BootInfo->console_type;
 }
+
+static void OSExceptionInit(void);
+
+static void OSExceptionInit(void);
+void OSDefaultExceptionHandler(__OSException exception, OSContext* context);
 
 static inline void ClearArena(void)
 {
@@ -109,13 +105,8 @@ void __OSDBINTEND(void) {}
 void __OSDBJUMPSTART(void) {}
 void __OSDBJUMPEND(void) {}
 
-void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
-{
-    __OSUnhandledException(exception, context, 0, 0);
-}
-
-/* TODO: [breakthrough] 92.006250%; NOP-pointer lifetime matches the retail
- * frame; r4/r19 coloring and helper residue remain. */
+/* TODO: [breakthrough] 94.85%; __sync intrinsic and retail function order restored; retail computes
+ * the integrator size before the first DBPrintf and its strings sit at +0x160 in the pool. */
 static void OSExceptionInit(void)
 {
     __OSException exception;
@@ -132,12 +123,12 @@ static void OSExceptionInit(void)
         DBPrintf("Installing OSDBIntegrator\n");
         memcpy(destination, (void*)__OSDBINTSTART, size);
         DCFlushRangeNoSync(destination, size);
-        PPCSync();
+        __sync();
         ICInvalidateRange(destination, size);
     }
     for (exception = 0; exception < OS_EXCEPTION_COUNT; exception++) {
         unsigned long size;
-        int offset;
+        unsigned long offset;
         if (BI2DebugFlag && *BI2DebugFlag >= 2 &&
             __DBIsExceptionMarked(exception)) {
             DBPrintf(">>> OSINIT: exception %d commandeered by TRK\n", exception);
@@ -151,14 +142,14 @@ static void OSExceptionInit(void)
             memcpy((void*)__DBVECTOR, (void*)__OSDBJUMPSTART, size);
         } else {
             unsigned long* db_vector = (unsigned long*)__DBVECTOR;
-            for (offset = 0; offset < (int)size; offset += 4) {
+            for (offset = 0; offset < size; offset += 4) {
                 *db_vector++ = NOP_INSTRUCTION;
             }
         }
-        destination = (void*)(0x80000000 | __OSExceptionLocations[exception]);
+        destination = (void*)(0x80000000 + __OSExceptionLocations[exception]);
         memcpy(destination, handler, handler_size);
         DCFlushRangeNoSync(destination, handler_size);
-        PPCSync();
+        __sync();
         ICInvalidateRange(destination, handler_size);
     }
     OSExceptionTable = (OSExceptionHandler*)0x80003000;
@@ -180,6 +171,20 @@ OSExceptionHandler __OSSetExceptionHandler(__OSException exception,
 OSExceptionHandler __OSGetExceptionHandler(__OSException exception)
 {
     return OSExceptionTable[exception];
+}
+
+void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
+{
+    __OSUnhandledException(exception, context, 0, 0);
+}
+
+/* TODO: [blocked] 54.285713%; HID2/cache ordering matches the donor, but
+ * retail's eight GQR writes are privileged assembly with no honest C form. */
+void __OSPSInit(void)
+{
+    PPCMthid2(PPCMfhid2() | 0xA0000000);
+    ICFlashInvalidate();
+    PPCSync();
 }
 
 /* TODO: [breakthrough needed] 82.56410%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
