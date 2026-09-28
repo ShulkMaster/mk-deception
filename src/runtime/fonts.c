@@ -1,41 +1,21 @@
-/*
- * fonts.o - UI string table, pfxfont text objects, and font slot loading.
- *
- * Retail .rodata/.data generated in fonts_data.inc (tools/gen_fonts_data.py).
- *
- * Retail call contract (B16 P0 - see fonts.h): PRESS START path is
- * load_font(0) -> string_center_xy(get_string(1), ...) -> render_string_obj
- * via render_2d_objs. string_*_xy / load_font / load_font_in_slot 100%;
- * load_named_font soft-ceiling; TU NonMatching.
- */
 #include "runtime/fonts.h"
 
 #include "runtime/image.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 
-extern MkVtable5 vtbl_mkpdata_string_obj;
 
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
 
-extern int suppress_normal_2d_items;
 
 int stricmp(const char* a, const char* b);
-/* Same symbol as asset load_tga(handle, art_oid); font_table path field is often 0. */
 FontFace* load_tga(int handle, unsigned int art_oid);
-FontMetrics* load_binary_block(char* path, int id, int* out);
+void* load_binary_block(int handle, unsigned int art_oid, int* out_size);
 static const float kZeroHeight = 0.0f;
-
-#if !defined(TARGET_PC)
-#pragma section sdata_type ".sdata" ".sbss" data_mode=sda_rel
-__declspec(section ".sdata") static int gap_07_8050F9E4_sdata;
-#pragma section sdata_type
-#else
-static int gap_07_8050F9E4_sdata;
-#endif
 
 static int oid_to_kill_mask;
 static int oid_to_kill;
@@ -72,10 +52,8 @@ static int fonts_find_key(const char* keys, char key) {
     return -1;
 }
 
-/* --- retail order below --- */
 
-/* Soft ceiling: rewrite_button_string (~95.43%). The inlined key-index helper and
- * repeated swap guard reproduce retail CFG; remaining differences are pure GPR coloring. */
+/* TODO: [near miss] 95.43%; CFG agrees; GPR coloring remains around the key-index helper. */
 void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
     char key;
     int key_idx;
@@ -89,9 +67,8 @@ void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
             bit = 1;
             out_bit = 0;
             code = map[key_idx * 3];
-            /* Retail remaps only when swap != 0 (0x2000 <-> 0x8000 via cmplwi). */
             if (swap != 0 && code == 0x2000) {
-                code = (int)0x8000;
+                code = 0x8000;
             } else if (swap != 0 && (unsigned int)code == 0x8000u) {
                 code = 0x2000;
             }
@@ -108,7 +85,6 @@ void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
 const char* get_string(int id) {
     int size;
     int lang;
-    /* Load size before the call so MWCC emits stmw r30 (id + size). */
     size = string_tbl_size;
     lang = get_language_setting();
     if (id < 0 || id > size) {
@@ -123,7 +99,6 @@ const char* get_string_ext(const char** table, int max_id, int id) {
 
     lang = get_language_setting();
     if (id < 0 || id > max_id) {
-        /* Retail returns global string_table[0], not table[0]. */
         return string_table[0].langs[0];
     }
     rows = (FontStringRow*)table;
@@ -147,7 +122,7 @@ void render_string_obj(StringObj* obj) {
         return;
     }
     pfxfont_begin_render();
-    pfxfont_string_render(&obj->pfx, (float)obj->render_x, (float)obj->render_y);
+    pfxfont_string_render(&obj->pfx, obj->render_x, obj->render_y);
     pfxfont_end_render();
 }
 
@@ -156,7 +131,6 @@ static void _destroy_string_obj_oid_mask(MkHdr* hdr) {
     int oid;
     int mask;
 
-    /* Retail: vtbl match -> keep ptr in r31, else NULL; then cmplwi. */
     if (hdr->vtbl == &vtbl_mkpdata_string_obj) {
         obj = (StringObj*)hdr;
     } else {
@@ -181,8 +155,6 @@ void del_string_obj_by_id(int oid) {
     MkPtr* head;
     int mask;
 
-    /* Retail: mask in r0, load head, store oid, cmplwi head, store mask, then
-     * also require head->hdr != NULL before apply_to_mklist. */
     mask = -1;
     head = screen_obj_list;
     oid_to_kill = oid;
@@ -198,7 +170,6 @@ int vdestroy_string_obj(StringObj* obj) {
     }
     obj->instance = 0;
     mkhdr_memfree((MkHdr*)obj);
-    /* Retail leaves r3 from mkhdr_memfree (no li r3,0). */
 }
 
 void destroy_string_obj(StringObj* obj) {
@@ -237,7 +208,6 @@ void destroy_fonts(void) {
 float get_font_height(int font) {
     FontMetrics* metrics;
 
-    /* Retail reads font_table[slot].slot.metrics (+0x14). */
     metrics = font_table[font].slot.metrics;
     if (metrics != NULL) {
         return fonts_metrics_height(metrics);
@@ -256,60 +226,52 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
         text = fonts_default_text();
     }
     obj->text = text;
-    pfxfont_string_set(&obj->pfx, font, text, (float)obj->wrap_w, obj->halign);
+    pfxfont_string_set(&obj->pfx, font, text, obj->wrap_w, obj->halign);
     obj->text_w = obj->pfx.width;
     obj->text_h = obj->pfx.height;
-    /* Retail: keep halign in r3; beq to right case, bge skip lattice. */
     halign = obj->halign;
     obj->render_x = obj->x;
     if (obj->wrap_w == 0) {
-        if (halign != 2) {
-            if (halign < 2) {
-                if (halign < 1) {
-                    /* skip */
-                } else {
-                    obj->render_x = obj->render_x - (obj->text_w / 2);
-                }
-            }
-        } else {
+        switch (halign) {
+        case 1:
+            obj->render_x = obj->render_x - (obj->text_w / 2);
+            break;
+        case 2:
             obj->render_x = obj->render_x - obj->text_w;
+            break;
         }
     }
-    /*
-     * Retail: lwz valign, lfs/fctiwz height, stw render_y, lwz y_off;
-     * y_off!=0 block first (beq to y_off==0 tail); valign==1 via beq to tail.
-     */
     valign = obj->valign;
     h = font->metrics->cell_height;
     obj->render_y = obj->y;
-    font_height = (int)h;
+    font_height = h;
     y_off = obj->y_off;
     if (y_off != 0) {
-        if (valign != 1) {
-            if (valign < 1) {
-                if (valign >= 0) {
-                    obj->render_y = obj->render_y - font_height;
-                }
-            } else if (valign < 3) {
-                obj->render_y = obj->render_y - y_off;
-            }
-        } else {
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
             obj->render_y =
                 (obj->text_h / 2) + (obj->y - (y_off / 2)) - font_height;
-        }
-    } else if (valign != 1) {
-        if (valign < 1) {
-            if (valign >= 0) {
-                obj->render_y = obj->render_y - font_height;
-            }
+            break;
+        case 2:
+            obj->render_y = obj->render_y - y_off;
+            break;
         }
     } else {
-        obj->render_y = obj->render_y - (font_height / 2);
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
+            obj->render_y = obj->render_y - (font_height / 2);
+            break;
+        }
     }
 }
 
-/* Soft ceiling: update_string_obj ~87.6% -- font_table rematerialize
- * (addi r0 vs r3) + valign bge/blt peephole; algo OK. Stop. */
+/* TODO: [near miss] 96.47%; switch lattice matches; font_table rematerialization (addi r0) and render_y store slot remain. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
@@ -322,52 +284,50 @@ void update_string_obj(StringObj* obj, int font, const char* text) {
         text = fonts_default_text();
     }
     obj->text = text;
-    pfxfont_string_set(&obj->pfx, &font_table[font].slot, text, (float)obj->wrap_w,
+    pfxfont_string_set(&obj->pfx, &font_table[font].slot, text, obj->wrap_w,
                        obj->halign);
     obj->text_w = obj->pfx.width;
     obj->text_h = obj->pfx.height;
     halign = obj->halign;
     obj->render_x = obj->x;
     if (obj->wrap_w == 0) {
-        if (halign != 2) {
-            if (halign < 2) {
-                if (halign < 1) {
-                    /* skip */
-                } else {
-                    obj->render_x = obj->render_x - (obj->text_w / 2);
-                }
-            }
-        } else {
+        switch (halign) {
+        case 1:
+            obj->render_x = obj->render_x - (obj->text_w / 2);
+            break;
+        case 2:
             obj->render_x = obj->render_x - obj->text_w;
+            break;
         }
     }
     valign = obj->valign;
     metrics = font_table[font].slot.metrics;
     h = metrics->cell_height;
     obj->render_y = obj->y;
-    font_height = (int)h;
+    font_height = h;
     y_off = obj->y_off;
     if (y_off != 0) {
-        if (valign != 1) {
-            if (valign < 1) {
-                if (valign >= 0) {
-                    obj->render_y = obj->render_y - font_height;
-                }
-            } else if (valign < 3) {
-                obj->render_y = obj->render_y - y_off;
-            }
-        } else {
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
             obj->render_y =
                 (obj->text_h / 2) + (obj->y - (y_off / 2)) - font_height;
-        }
-    } else if (valign != 1) {
-        if (valign < 1) {
-            if (valign >= 0) {
-                obj->render_y = obj->render_y - font_height;
-            }
+            break;
+        case 2:
+            obj->render_y = obj->render_y - y_off;
+            break;
         }
     } else {
-        obj->render_y = obj->render_y - (font_height / 2);
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
+            obj->render_y = obj->render_y - (font_height / 2);
+            break;
+        }
     }
 }
 
@@ -375,7 +335,7 @@ float get_string_width_by_font_num(int font, const char* text) {
     int w;
 
     w = pfxfont_get_width(font_table[font].slot.metrics, text);
-    return (float)w;
+    return w;
 }
 
 void string_obj_set_valign(StringObj* obj, PfxFontSlot* font, int valign) {
@@ -383,64 +343,54 @@ void string_obj_set_valign(StringObj* obj, PfxFontSlot* font, int valign) {
     int font_height;
     float h;
 
-    /* Retail: lfs, stw valign, fctiwz, stw render_y; height in r7, y_off in r6. */
     h = font->metrics->cell_height;
     obj->valign = valign;
     obj->render_y = obj->y;
-    font_height = (int)h;
+    font_height = h;
     y_off = obj->y_off;
     if (y_off != 0) {
-        if (valign != 1) {
-            if (valign < 1) {
-                if (valign >= 0) {
-                    obj->render_y = obj->render_y - font_height;
-                }
-            } else if (valign < 3) {
-                obj->render_y = obj->render_y - y_off;
-            }
-        } else {
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
             obj->render_y =
                 (obj->text_h / 2) + (obj->y - (y_off / 2)) - font_height;
-        }
-    } else if (valign != 1) {
-        if (valign < 1) {
-            if (valign >= 0) {
-                obj->render_y = obj->render_y - font_height;
-            }
+            break;
+        case 2:
+            obj->render_y = obj->render_y - y_off;
+            break;
         }
     } else {
-        obj->render_y = obj->render_y - (font_height / 2);
+        switch (valign) {
+        case 0:
+            obj->render_y = obj->render_y - font_height;
+            break;
+        case 1:
+            obj->render_y = obj->render_y - (font_height / 2);
+            break;
+        }
     }
 }
 
 void string_obj_set_halign(StringObj* obj, int halign) {
     obj->halign = halign;
     obj->render_x = obj->x;
-    /* Retail: bnelr; beq to right; bgelr; bltlr; center fallthrough. */
-    if (obj->wrap_w != 0) {
-        return;
-    }
-    if (halign != 2) {
-        if (halign >= 2) {
-            return;
+    if (obj->wrap_w == 0) {
+        switch (halign) {
+        case 1:
+            obj->render_x = obj->render_x - obj->text_w / 2;
+            break;
+        case 2:
+            obj->render_x = obj->render_x - obj->text_w;
+            break;
         }
-        if (halign < 1) {
-            return;
-        }
-        obj->render_x = obj->render_x - (obj->text_w / 2);
-        return;
     }
-    obj->render_x = obj->render_x - obj->text_w;
 }
 
-/* Soft ceiling: create_wrapped_string (~94%). Leftover: r5/r6 height vs
- * y_off coloring / halign switch layout; stop - no trash C.
- * Title PRESS START uses string_center_xy, not this. */
 StringObj* create_wrapped_string(int oid, PfxFontSlot* font, const char* text, int x, int y,
                                  int wrap_w, int y_off, int halign, int valign) {
     StringObj* obj;
-    int font_height;
-    FontMetrics* metrics;
 
     obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
     if (obj != NULL) {
@@ -460,7 +410,7 @@ StringObj* create_wrapped_string(int oid, PfxFontSlot* font, const char* text, i
     obj->oid = oid;
     obj->text = text;
     pfxfont_string_init(&obj->pfx);
-    pfxfont_string_set(&obj->pfx, font, text, (float)wrap_w, halign);
+    pfxfont_string_set(&obj->pfx, font, text, wrap_w, halign);
     obj->wrap_w = wrap_w;
     obj->y_off = y_off;
     obj->x = x;
@@ -469,7 +419,6 @@ StringObj* create_wrapped_string(int oid, PfxFontSlot* font, const char* text, i
     obj->text_h = obj->pfx.height;
     obj->halign = halign;
     obj->render_x = obj->x;
-    /* Retail adjusts X only when wrap_w == 0 (switch lattice on halign). */
     if (obj->wrap_w == 0) {
         switch (halign) {
         case 1:
@@ -480,50 +429,16 @@ StringObj* create_wrapped_string(int oid, PfxFontSlot* font, const char* text, i
             break;
         }
     }
-    metrics = font->metrics;
-    {
-        float h;
-
-        h = metrics->cell_height;
-        obj->valign = valign;
-        font_height = (int)h;
-    }
-    obj->render_y = obj->y;
-    /* Retail: y_off!=0 block first; valign==1 via beq to case body. */
-    if (obj->y_off != 0) {
-        if (valign != 1) {
-            if (valign < 1) {
-                if (valign >= 0) {
-                    obj->render_y = obj->render_y - font_height;
-                }
-            } else if (valign < 3) {
-                obj->render_y = obj->render_y - obj->y_off;
-            }
-        } else {
-            obj->render_y =
-                obj->text_h / 2 + (obj->y - obj->y_off / 2) - font_height;
-        }
-    } else if (valign != 1) {
-        if (valign < 1) {
-            if (valign >= 0) {
-                obj->render_y = obj->render_y - font_height;
-            }
-        }
-    } else {
-        obj->render_y = obj->render_y - font_height / 2;
-    }
+    string_obj_set_valign(obj, font, valign);
     return obj;
 }
 
 StringObj* string_center_xy(int oid, int font, const char* text, int x, int y, int priority) {
-    /* PRESS START: oid 0x2010, font 0, text=get_string(1), y=0x41, pri=0x1D. */
     StringObj* obj;
     const char* str;
     PfxFontSlot* slot;
     FontTableEntry* entry;
 
-    /* Early copy keeps text live for the NULL check while str is the working
-     * pointer - retail mr r26,r25 then reuses the text NV for &entry->slot. */
     str = text;
     obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
     if (obj != NULL) {
@@ -677,11 +592,7 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/*
- * Soft ceiling: load_named_font ~77.0% -- typed walk++ + indexed table access;
- * leftover loop NV coloring blocks the retail destructive mulli + stwu.
- * Stop -- no void-star-star or register coax.
- */
+/* TODO: [breakthrough needed] 89.39%; recover destructive mulli/stwu loop addressing and nonvolatile coloring. */
 PfxFontSlot* load_named_font(const char* name) {
     int i;
     int offset;
@@ -690,7 +601,7 @@ PfxFontSlot* load_named_font(const char* name) {
     FontFace* face;
     int binary_id;
     int tga_arg;
-    char* path;
+    int handle;
     FontFace* tga;
     FontMetrics* bin;
     int flag;
@@ -705,12 +616,11 @@ PfxFontSlot* load_named_font(const char* name) {
             face = entry->slot.face;
             binary_id = entry->binary_id;
             tga_arg = entry->tga_arg;
-            path = entry->path;
+            handle = (int)entry->path;
             if (face == NULL) {
                 flag = 0;
-                tga = load_tga((int)(unsigned long)path, (unsigned int)tga_arg);
-                bin = load_binary_block(path, binary_id, &flag);
-                /* Rematerialize the indexed slot for the retail store schedule. */
+                tga = load_tga(handle, tga_arg);
+                bin = load_binary_block(handle, binary_id, &flag);
                 dest = &font_table[i].slot;
                 tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
                 tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
@@ -730,11 +640,7 @@ void unload_font(int slot) {
     font_table[slot].slot.metrics = NULL;
 }
 
-/*
- * load_font / load_font_in_slot: fill font_table[slot].slot when NULL.
- * Install via PfxFontSlot* dest live across flag writes (emits retail stwu pair).
- */
-PfxFontSlot* load_font_in_slot(int slot, char* path, int tga_arg, int binary_id) {
+PfxFontSlot* load_font_in_slot(int slot, int handle, int tga_arg, int binary_id) {
     FontFace* tga;
     FontMetrics* bin;
     int flag;
@@ -742,9 +648,8 @@ PfxFontSlot* load_font_in_slot(int slot, char* path, int tga_arg, int binary_id)
 
     if (font_table[slot].slot.face == NULL) {
         flag = 0;
-        tga = load_tga((int)(unsigned long)path, (unsigned int)tga_arg);
-        bin = load_binary_block(path, binary_id, &flag);
-        /* Keep &slot live across flag writes so schedule tracks retail. */
+        tga = load_tga(handle, tga_arg);
+        bin = load_binary_block(handle, binary_id, &flag);
         dest = &font_table[slot].slot;
         tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
         tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
@@ -756,8 +661,7 @@ PfxFontSlot* load_font_in_slot(int slot, char* path, int tga_arg, int binary_id)
 
 PfxFontSlot* load_font(int slot) {
     FontFace* face;
-    /* Decl order: later of path/binary_id gets lower NV (r28). Retail: r28=binary_id, r29=path. */
-    char* path;
+    int handle;
     int binary_id;
     int tga_arg;
     FontFace* tga;
@@ -768,11 +672,11 @@ PfxFontSlot* load_font(int slot) {
     face = font_table[slot].slot.face;
     binary_id = font_table[slot].binary_id;
     tga_arg = font_table[slot].tga_arg;
-    path = font_table[slot].path;
+    handle = (int)font_table[slot].path;
     if (face == NULL) {
         flag = 0;
-        tga = load_tga((int)(unsigned long)path, (unsigned int)tga_arg);
-        bin = load_binary_block(path, binary_id, &flag);
+        tga = load_tga(handle, tga_arg);
+        bin = load_binary_block(handle, binary_id, &flag);
         dest = &font_table[slot].slot;
         tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
         tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
