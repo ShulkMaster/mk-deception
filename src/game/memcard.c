@@ -176,11 +176,11 @@ static inline void load_mc_icon_list(GVTexturePair out, int device) {
     }
 }
 
-void create_right_mc_icon_list(GVTexturePair out) {
+void create_right_mc_icon_list(GVTexturePair out, int count) {
     load_mc_icon_list(out, wls_device_cursor + 1);
 }
 
-void create_left_mc_icon_list(GVTexturePair out) {
+void create_left_mc_icon_list(GVTexturePair out, int count) {
     load_mc_icon_list(out, wls_device_cursor);
 }
 
@@ -704,8 +704,7 @@ void end_save_message(int mode, int result, int device, int flag) {
     }
 }
 
-/* TODO: [breakthrough needed] 67.29457%; retail string arguments restored;
- * remaining retry/dispatch codegen needs structural comparison. */
+/* TODO: [breakthrough needed] 68.64%; retail's region range check and retry/dispatch CFG differ; needs structural comparison. */
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes) {
@@ -742,7 +741,7 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
             }
 
             _mkproc_sleep_ticks = kThree;
-            ((MkVtableMkproc*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
 
             tries = 2;
             while (tries-- != 0 && result != 0) {
@@ -836,13 +835,12 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 90.93%; retry subi schedule, progress add order, mode-4
- * branch sense and prologue homes remain. */
+/* TODO: [near miss] 97.97%; stringBase0 pool alias (literals ""/"MKD" land in .sdata), progress add order and retry-loop coloring remain. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
-    unsigned int* deviceFreeBlocks;
     int* deviceFreeBytes;
+    unsigned int* deviceFreeBlocks;
     unsigned int modeMinus1;
     unsigned int modeMinus6;
     int result;
@@ -860,8 +858,9 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     deviceFreeBlocks = &dev->freeBlocks;
     modeMinus1 = mode - 1;
     modeMinus6 = mode - 6;
+    result = 0;
 
-    do {
+    for (;;) {
         result = 0;
         cont = 0;
         f_writing_to_memcard = 1;
@@ -908,8 +907,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 strs = (char*)stringBase0;
                 tries = 2;
                 result = 4;
-                while (tries != 0 && result != 0) {
-                    tries -= 1;
+                while (tries-- != 0 && result != 0) {
                     result = save_to_memcard2(device, 0, 0, flag, strs + 8, strs + 9, settings,
                                               STORAGE_LOAD_SIZE, freeBlocks, freeBytes, 1, 0, mode,
                                               0);
@@ -929,8 +927,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                         while (chunk < 8 && result == 0) {
                             tries = 2;
                             result = 4;
-                            while (tries != 0 && result != 0) {
-                                tries -= 1;
+                            while (tries-- != 0 && result != 0) {
                                 result = save_to_memcard2(
                                     device, 0,
                                     profile * SAVE_PROFILE_STRIDE + chunkOff + STORAGE_LOAD_SIZE, 0,
@@ -955,8 +952,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 strs = (char*)stringBase0;
                 tries = 2;
                 result = 4;
-                while (tries != 0 && result != 0) {
-                    tries -= 1;
+                while (tries-- != 0 && result != 0) {
                     result = save_to_memcard2(device, 0, 0, 0, strs + 8, strs + 9, settings,
                                               STORAGE_LOAD_SIZE, freeBlocks, freeBytes, 0, flag,
                                               mode, 0);
@@ -973,30 +969,34 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 
             mcard_msg_middle_sleep(mode, 0);
             end_save_message(mode, result, device, 0);
-            if (mode == 4) {
-                cont = 1;
-            } else if (get_mode_of_play() == 7 && (mode == 2 || mode == 8)) {
-                cont = check_save_region_data_result(&result, device, mode);
-            } else if (modeMinus1 <= 1 || modeMinus6 <= 1 || mode == 8) {
-                cont = check_save_profile_result(&result, device, 1);
+            if (mode != 4) {
+                if (get_mode_of_play() == 7 && (mode == 2 || mode == 8)) {
+                    cont = check_save_region_data_result(&result, device, mode);
+                } else if (modeMinus1 <= 1 || modeMinus6 <= 1 || mode == 8) {
+                    cont = check_save_profile_result(&result, device, 1);
+                } else {
+                    cont = check_save_profile_result(&result, device, flag);
+                }
             } else {
-                cont = check_save_profile_result(&result, device, flag);
+                cont = 1;
             }
             mcard_msg_end();
         }
 
-        if (get_mode_of_play() != 7 || (mode != 2 && mode != 8)) {
-            if (result == 0) {
-                return 1;
+        if (get_mode_of_play() == 7 && (mode == 2 || mode == 8)) {
+            if (result != 0) {
+                if (bad_save_region_data_result_resolution(&result, device) != 0) {
+                    return 0;
+                }
+                continue;
             }
-            return 0;
+            return 1;
         }
         if (result == 0) {
             return 1;
         }
-        cont = bad_save_region_data_result_resolution(&result, device);
-    } while (cont == 0);
-    return 0;
+        return 0;
+    }
 }
 #pragma dont_inline reset
 

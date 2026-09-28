@@ -19,30 +19,6 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 
-/*
- * pselect.o - B19 Wave B/C/D NonMatching chrome + confirm/back + Get* leaves.
- * Rest of TU stays ASM on GC (NonMatching = not linked). Soft ceilings OK.
- *
- * Retail emission order among lifted symbols:
- *   is_pselect_mode -> is_char_locked
- *   -> pselect_bgnd_has_* -> pselect_get_arena_index
- *   -> get_background_select_textures -> get_pselect_body_textures
- *   -> get_num_pselect_body_textures -> get_bg_pselect_team_textures
- *   -> get_pselect_head_textures
- *   -> pselect_get_style_name -> pselect_get_difficulty_level
- *   -> pselect_get_arena_name -> pselect_get_player_name
- *   -> pselect_player_moved -> bg_pselect_player_canceled
- *   -> pselect_player_canceled -> resolve_alternate_palettes
- *   -> pselect_player_selected
- *   -> p_load_alternate_body -> p_play_name_sound -> p_name_sound_die
- *   -> pselect_get_body_texture_index
- *   -> pselect_get_selbox_pos -> pselect_update_selbox_pos
- *   -> bg_pselect_get_stage -> bg_pselect_get_offender_class
- *   -> p_bg_pselect -> p_pz_pselect -> p_pselect
- *   -> pselect_init / init_startup_selboxes (order debt: init before
- *      startup walk so MWCC emits bl; retail is walk then init)
- */
-
 #pragma use_lmw_stmw on
 
 typedef struct MkVtableMkprocLocal {
@@ -159,14 +135,11 @@ typedef struct BgPselectPdata {
     int focus1;   /* +0x4C */
 } BgPselectPdata;
 
-extern MkProc* aproc;
-extern float _mkproc_sleep_ticks;
 extern int menu_player;
 extern int target_game_mode;
 extern ProfileUnlockBits64 default_char_bits;
 extern ProfileUnlockBits64 default_alt_char_bits;
 extern ProfileUnlockBits64 default_pz_char_bits;
-extern CameraObj* camera_obj;
 extern LightDef* pselect_light_list[3];
 extern PselectCharEntry pselect_char_tbl[];
 extern PselectCharEntry pselect_pz_char_tbl[];
@@ -185,7 +158,6 @@ void wait_for_sound_banks_to_load(void);
 void set_player_state(PlyrInfo* plyr, int state);
 void disable_all_ports_but_me(int port);
 void ck_for_controller_removed(void);
-void fire_screen_studio_event(int event, int flag);
 void set_default_button_repeat_time(void);
 void set_button_repeat_time(int ticks);
 void init_current_ladder_char(void);
@@ -193,7 +165,6 @@ int get_next_bgnd(void);
 void unassign_player(PlyrInfo* plyr);
 void assign_player(int port);
 void ck_do_profile_save(void);
-void destroy_mkprocs_pid(int pid);
 void refresh_active_screen(void);
 void refresh_screen_by_name(char* name);
 void check_reset_player_selection(int player, int start_pos);
@@ -217,7 +188,6 @@ static float p_random_player_select(void);
 static float p_wager_save_profiles(void);
 static float p_save_bg_profile(void);
 
-float p_main_menu(void);
 float p_gamelogic(void);
 float p_ladder_select(void);
 float p_puzzle_fighter(void);
@@ -295,7 +265,6 @@ static int rnd_sleep_tbl[19] = {
 #define PSELECT_ALT_SLOT_P2 0x17006C
 
 static void pselect_init(void);
-void resolve_alternate_palettes(PlyrInfo* plyr);
 
 static inline void mkproc_sleep_one(void) {
     MkVtableMkprocLocal* vtbl;
@@ -320,14 +289,14 @@ static inline int pselect_char_id_at(int slot) {
 }
 
 static inline int pselect_grid_cols(void) {
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         return 6;
     }
     return 9;
 }
 
 static inline int pselect_grid_cells(void) {
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         return 0xC;
     }
     return 0x1B;
@@ -337,7 +306,6 @@ static inline BgPselectTeamView* bg_team_view(BgPselectPdata* pdata, int team) {
     return (BgPselectTeamView*)((char*)pdata + team * 0x24);
 }
 
-/* Focus index of char_id in team chars[0..count-2]; -1 if absent. */
 static inline int bg_team_focus_of(BgPselectPdata* pdata, int team, int char_id) {
     BgPselectTeamView* teamv;
     int i;
@@ -357,8 +325,6 @@ static inline int bg_team_focus_of(BgPselectPdata* pdata, int team, int char_id)
     return -1;
 }
 
-/* Soft ceiling: is_pselect_mode ~80% -- retail subic/subfe bool;
- * MWCC emits neg/or/srwi (same as ScreenEvent). Stop. */
 int is_pselect_mode(void) {
     return is_game_state_in_stack(4) != 0;
 }
@@ -369,7 +335,7 @@ void pselect_update_profile_settings(void) {
         return;
     }
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 0:
     case 1:
         refresh_screen_by_name((char*)STR_P_SELECT);
@@ -399,7 +365,7 @@ int pselect_background_select_available(void) {
         return g_game_info.feature_flags.bits.pad_6 != 0;
     }
 
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         players = 0;
         if (g_game_info.plyr0.player_state != 0) {
             players = 1;
@@ -410,7 +376,7 @@ int pselect_background_select_available(void) {
         if (players == 2) {
             return 1;
         }
-    } else if ((int)mode_of_play != 0) {
+    } else if (mode_of_play != 0) {
         return 1;
     }
     return 0;
@@ -497,7 +463,7 @@ static float p_random_player_select(void) {
     }
 
     pselect_update_selbox_pos(pdata->player, slot);
-    return (float)rnd_sleep_tbl[pdata->step++];
+    return rnd_sleep_tbl[pdata->step++];
 }
 
 void award_bet(void) {
@@ -556,8 +522,8 @@ static float p_wager_save_profiles(void) {
     int koin;
 
     turn_controllers_off();
-    p1_saved = ((int (*)(int, int))save_profile)(0, 2);
-    p2_saved = ((int (*)(int, int))save_profile)(1, 2);
+    p1_saved = (save_profile)(0, 2);
+    p2_saved = (save_profile)(1, 2);
     if (p1_saved == 0 || p2_saved == 0) {
         amount = g_game_info.pselect.field_1d8;
         if (amount > 0) {
@@ -797,15 +763,14 @@ void ck_increment_bet(void) {
         return;
     }
 
-    next_amount = (unsigned int)(g_game_info.pselect.field_1d8 +
-                                 g_game_info.pselect.field_1f0);
+    next_amount = g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
     p1_count = p1_profile.koins[koin];
     p2_count = p2_profile.koins[koin];
     if (next_amount > (unsigned int)p1_count ||
         next_amount > (unsigned int)p2_count) {
         return;
     }
-    g_game_info.pselect.field_1d8 = (int)next_amount;
+    g_game_info.pselect.field_1d8 = next_amount;
 
     proc = find_mkproc_pid(0x20A4);
     if (proc == 0) {
@@ -844,11 +809,10 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    mop = (int)mode_of_play;
+    mop = mode_of_play;
     if (mop != 1 && mop != 0) {
         return 0;
     }
-    /* These retail exclusions are redundant after the 0/1 gate. */
     if (mop == 7 || mop == 4) {
         return 0;
     }
@@ -997,8 +961,6 @@ static inline int pselect_character_id_valid(int char_id) {
     return valid;
 }
 
-/* Locked when the character bit is clear in (gp_data | defaults). */
-
 /* TODO: [breakthrough needed] 97.910446%; retained validity join; explicit-return trials regress shared consumers. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
@@ -1008,7 +970,7 @@ int is_char_locked(int char_id, int alt_bit) {
         return 1;
     }
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 6:
         mask = gp_data.pz_chars.value;
         mask |= default_pz_char_bits.value;
@@ -1040,12 +1002,6 @@ void pselect_bgnd_select_done(void) {
     f_arena_select_active = 0;
 }
 
-/*
- * Wave D GetInt leaves (mkGameVariables):
- *   0x1FE9 weapon / 0x1FE8 level-transition / 0x1FE7 deathtrap
- *   0x1F94 arena index
- * Retail seeds table base from wager_koin_order (+0x18 / +0x120 / +0x15c).
- */
 /* TODO: [near miss] 98.42857%; mode switch and table owner recovered;
  * bound/selection register coloring remains; stop without new lifetime evidence. */
 int pselect_bgnd_has_weapon(void) {
@@ -1219,7 +1175,7 @@ void pselect_set_arena(int new_pos) {
     background_selbox_pos = new_pos;
     for (;;) {
         force_bgnd_num = table[background_selbox_pos].bgnd_id;
-        if ((int)mode_of_play == 9 || !is_bgnd_locked(force_bgnd_num)) {
+        if (mode_of_play == 9 || !is_bgnd_locked(force_bgnd_num)) {
             break;
         }
         background_selbox_pos += direction;
@@ -1328,8 +1284,8 @@ void get_pselect_body_textures(PselectTexOut out) {
         tbl = pselect_char_tbl;
     }
 
-    memset(out.colors, 0, (unsigned long)(n * sizeof(*out.colors)));
-    memset(out.alphas, 0, (unsigned long)(n * sizeof(*out.alphas)));
+    memset(out.colors, 0, n * sizeof(*out.colors));
+    memset(out.alphas, 0, n * sizeof(*out.alphas));
 
     for (i = 0; i < n; i++) {
         name = tbl[i].body_name;
@@ -1359,7 +1315,7 @@ void get_pselect_body_textures(PselectTexOut out) {
 }
 
 int get_num_pselect_body_textures(void) {
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 6:
         return 0xC;
     case 9:
@@ -1381,7 +1337,7 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     RwTexture* tex;
     PselectCharEntry* ent;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -1428,7 +1384,7 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     if (pselect_mode != 1) {
         return;
     }
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -1480,7 +1436,6 @@ void get_pselect_head_textures(PselectTexOut out) {
     }
 }
 
-/* Wave D GetString leaves (ScreenEngine name/style/arena chrome). Soft OK. */
 char* pselect_get_style_name(int player, int style_idx) {
     int pos;
 
@@ -1557,10 +1512,10 @@ char* pselect_get_player_name(int player) {
     } else {
         char_id = pselect_char_tbl[pos].char_id;
     }
-    return (char*)global_player_data[char_id].name;
+    return global_player_data[char_id].name;
 }
 
-/* Soft ceiling: pselect_player_moved -- bg team focus refresh. Soft OK. */
+/* TODO: [near miss] 86.68%; bg team focus refresh agrees; residue is code emission. */
 void pselect_player_moved(int player) {
     BgPselectPdata* pdata;
     BgPselectTeamView* teamv;
@@ -1572,7 +1527,7 @@ void pselect_player_moved(int player) {
     if (pselect_mode != 1) {
         return;
     }
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -1584,7 +1539,6 @@ void pselect_player_moved(int player) {
         sel_pos = p1_selbox_pos;
     }
 
-    /* Retail re-reads pselect_mode for pz vs normal char_id. */
     if (pselect_mode == 2) {
         char_id = pselect_pz_char_tbl[sel_pos].char_id;
     } else {
@@ -1597,11 +1551,11 @@ void pselect_player_moved(int player) {
         teamv->colors[count - 1] = tex;
     }
 
-    teamv->focus = bg_team_focus_of((BgPselectPdata*)get_screen_pdata(), player,
+    teamv->focus = bg_team_focus_of(get_screen_pdata(), player,
                                     char_id);
 }
 
-/* Soft ceiling: bg_pselect_player_canceled -- team slot pop + HEAD_PROXY. */
+/* TODO: [near miss] 66.04%; team slot pop and HEAD_PROXY reload agree; residue is code emission. */
 void bg_pselect_player_canceled(int player) {
     BgPselectPdata* pdata;
     BgPselectTeamView* teamv;
@@ -1613,7 +1567,7 @@ void bg_pselect_player_canceled(int player) {
     if (pselect_mode != 1) {
         return;
     }
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -1635,15 +1589,12 @@ void bg_pselect_player_canceled(int player) {
         teamv->chars[count - 2] = 0x2C;
         char_id = pselect_char_at(sel_pos)->char_id;
         teamv->focus =
-            bg_team_focus_of((BgPselectPdata*)get_screen_pdata(), player,
+            bg_team_focus_of(get_screen_pdata(), player,
                              char_id);
     }
 }
 
-/*
- * Soft ceiling: pselect_player_canceled -- other-player state gate /
- * cntlzw other index. Soft OK.
- */
+/* TODO: [near miss] 81.50%; other-player state gate agrees; residue around the cntlzw other-index computation. */
 void pselect_player_canceled(int player) {
     PlyrInfo* plyrs;
     PlyrInfo* other;
@@ -1673,7 +1624,7 @@ void pselect_player_canceled(int player) {
     }
 
     refresh_active_screen();
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         other->player_state = 0;
     }
     fire_screen_studio_event(0x1FEC, player + 1);
@@ -1681,10 +1632,7 @@ void pselect_player_canceled(int player) {
     check_reset_player_selection(player, start);
 }
 
-/*
- * Soft ceiling: resolve_alternate_palettes -- field_14 bit6 rlwimi.
- * Soft OK.
- */
+/* TODO: [near miss] 90.03%; residue is the field_14 bit6 rlwimi store. */
 void resolve_alternate_palettes(PlyrInfo* plyr) {
     PlyrInfo* other;
     PselectPlyrFlags* flags;
@@ -1711,8 +1659,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
         oflags->palette = 0;
     } else if (plyr->player_state == 0 && other->player_state == 0) {
         bit = randu0(2) & 1;
-        flags->palette = (unsigned char)bit;
-        oflags->palette = (unsigned char)(1 - bit);
+        flags->palette = bit;
+        oflags->palette = 1 - bit;
     } else {
         if (plyr->player_state == 0 || plyr->player_state == 3) {
             flags->palette = 1;
@@ -1726,8 +1674,6 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
         }
     }
 }
-
-/* Publishes player selection, alternate costume, name sound and model load. */
 
 /* TODO: [breakthrough needed] 62.51%; retail has the lock-bit and palette logic inline;
  * check how is_char_locked/resolve_alternate_palettes expand, then the early-return CFG. */
@@ -1846,11 +1792,6 @@ void pselect_player_selected(PlyrInfo* plyr) {
     }
 }
 
-/*
- * Wave D: load alternate body SEC into per-player slot, stash BODY_ALT
- * TGA into p1/p2_alternate (+ alpha). Spawned from pselect_player_selected
- * when confirm holds switch 0xB and alt unlocked.
- */
 /* TODO: [near miss] 93.03278%; typed texture globals recovered; table/slot register allocation remains. */
 static float p_load_alternate_body(void) {
     AltBodyPdata* pdata;
@@ -1919,18 +1860,12 @@ static float p_play_name_sound(void) {
     return sleep_ticks_name;
 }
 
-/* Soft ceiling: p_name_sound_die ~99.3% -- sdata2 float pool label. Soft OK. */
 static float p_name_sound_die(void) {
     name_sound_active = 0;
     name_sound_state += 1;
     return sleep_ticks_neg_one;
 }
 
-/*
- * ScreenEngine body-panel index via mkGameVariables::GetInt
- * (ids 0x1FFB / 0x1FFC). Alternate costume (field_14 bit7) maps to the
- * extra slots get_pselect_body_textures fills at n / n+1 (0x1B / 0x1C).
- */
 int pselect_get_body_texture_index(int player) {
     int pos;
 
@@ -1946,7 +1881,6 @@ int pselect_get_body_texture_index(int player) {
     return p1_selbox_pos;
 }
 
-/* Soft ceiling: pselect_get_selbox_pos -- retail subic/subfe for player==1. */
 int pselect_get_selbox_pos(int player) {
     if (player == 0) {
         return p1_selbox_pos;
@@ -1972,12 +1906,12 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     int mop;
 
     if (player == 0) {
-        if ((int)mode_of_play != 4 && g_game_info.plyr0.player_state == 0) {
+        if (mode_of_play != 4 && g_game_info.plyr0.player_state == 0) {
             return;
         }
         pos_p = &p1_selbox_pos;
     } else if (player == 1) {
-        if ((int)mode_of_play != 4 && g_game_info.plyr1.player_state == 0) {
+        if (mode_of_play != 4 && g_game_info.plyr1.player_state == 0) {
             return;
         }
         pos_p = &p2_selbox_pos;
@@ -1985,7 +1919,7 @@ void pselect_update_selbox_pos(int player, int new_pos) {
         return;
     }
 
-    mop = (int)mode_of_play;
+    mop = mode_of_play;
     if (mop == 6) {
         cols = 6;
         n_cells = 0xC;
@@ -2082,14 +2016,11 @@ void check_reset_player_selection(int player, int start_pos) {
     }
 }
 
-/*
- * GetInt: 0x1F7A / 0x1771 stage; 0x1F78 / 0x1F79 offender class.
- */
 #pragma opt_propagation off
 int bg_pselect_get_stage(int team) {
     BgPselectPdata* pdata;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata != 0) {
         return bg_team_view(pdata, team)->count;
     }
@@ -2099,7 +2030,7 @@ int bg_pselect_get_stage(int team) {
 int bg_pselect_get_offender_class(int team) {
     BgPselectPdata* pdata;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata != 0) {
         return bg_team_view(pdata, team)->focus;
     }
@@ -2114,7 +2045,7 @@ void bg_pselect_set_character(int team) {
     int sel_pos;
     int char_id;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -2128,7 +2059,7 @@ void bg_pselect_set_character(int team) {
         char_id = pselect_char_at(sel_pos)->char_id;
         teamv->chars[teamv->count - 1] = char_id;
         teamv->focus = bg_team_focus_of(
-            (BgPselectPdata*)get_screen_pdata(), team, char_id);
+            get_screen_pdata(), team, char_id);
     }
 }
 
@@ -2138,7 +2069,7 @@ void bg_pselect_set_stage(int team, int stage) {
     BgPselectTeamView* teamv;
     PlyrInfo* plyr;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -2164,7 +2095,7 @@ void bg_pselect_save_team(int team) {
     MkProc* proc;
     int i;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
@@ -2207,7 +2138,7 @@ static float p_save_bg_profile(void) {
 
     pdata = (WagerRepeatPdata*)apdata;
     player = pdata->ticks;
-    saved = ((int (*)(int, int))save_profile)(player, 1);
+    saved = (save_profile)(player, 1);
     _mkproc_sleep_ticks = sleep_ticks_one;
     ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
     if (saved != 0) {
@@ -2248,7 +2179,7 @@ static inline int bg_load_saved_team(BgPselectPdata* pdata, int team) {
 void bg_pselect_load_team(int team) {
     BgPselectPdata* pdata;
 
-    pdata = (BgPselectPdata*)get_screen_pdata();
+    pdata = get_screen_pdata();
     if (pdata != 0) {
         if (bg_load_saved_team(pdata, team)) {
             fire_screen_studio_event(team + 0x1FE1, team + 1);
@@ -2258,10 +2189,7 @@ void bg_pselect_load_team(int team) {
     }
 }
 
-/*
- * Soft ceiling: p_bg_pselect ~86% -- team-fill ctr/bdnz vs for-unroll;
- * NV frame coloring. Soft OK.
- */
+/* TODO: [near miss] 89.04%; residue is the team-fill loop (retail mtctr 5/bdnz vs unrolled) and NV frame coloring. */
 float p_bg_pselect(void) {
     BgPselectPdata* pdata;
     GameInfo* gi;
@@ -2283,7 +2211,6 @@ float p_bg_pselect(void) {
     mk_insert(&pdata->hdr, &aproc->pdata_list);
     zero_pdata_payload(0x50, &pdata->hdr);
 
-    /* Retail: mtctr 5 / store team0[i]+team1[i] via byte offset. */
     i = 0;
     do {
         pdata->team0[i] = 0x2C;
@@ -2320,7 +2247,7 @@ float p_bg_pselect(void) {
 
             wait = 0xB4;
             n_done = 0;
-            if ((int)mode_of_play != 9) {
+            if (mode_of_play != 9) {
                 mkproc_sleep_one();
                 if (gi->plyr0.player_state == 2 || gi->plyr0.player_state == 3) {
                     n_done = 1;
@@ -2351,7 +2278,6 @@ float p_bg_pselect(void) {
             }
         }
 
-        /* Back: target_game_mode 5 -> menu. */
         if (target_game_mode == 5) {
             wait_for_screen_close();
             turn_controllers_off();
@@ -2414,7 +2340,7 @@ float p_pz_pselect(void) {
 
             wait = 0xB4;
             n_done = 0;
-            if ((int)mode_of_play != 9) {
+            if (mode_of_play != 9) {
                 mkproc_sleep_one();
                 if (gi->plyr0.player_state == 2 || gi->plyr0.player_state == 3) {
                     n_done = 1;
@@ -2448,7 +2374,6 @@ float p_pz_pselect(void) {
             }
         }
 
-        /* Back: target_game_mode 5 -> menu. */
         if (target_game_mode == 5) {
             wait_for_screen_close();
             turn_controllers_off();
@@ -2466,7 +2391,6 @@ float p_pz_pselect(void) {
 }
 #pragma opt_common_subs reset
 
-/* pads[2].flags bit6 -- retail rlwimi (MSB-first overlay). */
 typedef struct PselectPadConnFlags {
     unsigned char bit7 : 1;
     unsigned char connected : 1;
@@ -2615,21 +2539,13 @@ float p_pselect(void) {
     return sleep_ticks_one;
 }
 
-/*
- * MUST-run init before SSF/screen load. Sound banks deferred.
- * Soft ceiling: pselect_init -- float pool labels / NV frame leftovers.
- *
- * Order debt (Matching): retail emits init_startup_selboxes then pselect_init
- * after p_pselect. Here pselect_init is defined first with a forward decl of
- * init_startup_selboxes so MWCC emits bl (and does not inline the walk).
- */
+/* TODO: [near miss] 100% bytes; TU order differs: retail emits init_startup_selboxes before pselect_init. */
 static void init_startup_selboxes(void);
 
 static void pselect_init(void) {
     init_startup_selboxes();
     set_section_memory_scheme(0xA);
     set_menu_mode(-1);
-    /* Deferred: audio. */
     setup_sound_banks(1);
     wait_for_sound_banks_to_load();
 
@@ -2653,7 +2569,7 @@ static void pselect_init(void) {
     p1_alternate_alpha = 0;
     p2_alternate_alpha = 0;
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         g_game_info.plyr0.field_04 = 0;
         g_game_info.plyr1.field_04 = 1;
     }
@@ -2674,7 +2590,6 @@ static void pselect_init(void) {
     camera_obj->ang.y = 3.1415927f;
 
     g_game_info.bgnd_id = 0x23;
-    /* Retail zero order: 1d4, 1d8, 1dc, then 1d0. */
     g_game_info.pselect.field_1d4 = 0;
     g_game_info.pselect.field_1d8 = 0;
     g_game_info.pselect.field_1dc = 0;
@@ -2687,15 +2602,13 @@ static void pselect_init(void) {
     init_current_ladder_char();
 }
 
-/* Walk from default start slots to first unlocked cell. */
-
 /* TODO: [breakthrough needed] 85.85549%; retained validity join; explicit-return trials regress shared consumers. */
 static void init_startup_selboxes(void) {
     int max_col;
     int pos;
     int mop;
 
-    mop = (int)mode_of_play;
+    mop = mode_of_play;
     p1_selbox_start_pos = 2;
     p2_selbox_start_pos = 6;
     if (mop == 6) {

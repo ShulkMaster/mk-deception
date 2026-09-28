@@ -9,8 +9,6 @@ static PfxStreamBufferInfo streambuffer_info[STREAM_COUNT];
 static unsigned char render_memory[STREAM_MEMORY_SIZE];
 static unsigned char property_memory[STREAM_MEMORY_SIZE];
 
-/* Soft ceiling: streams.o ~91.93% -- equivalent register allocation and
- * instruction scheduling differences. */
 void* streampool_lock(int stream, int size) {
     PfxStreamBufferInfo* info;
 
@@ -117,6 +115,7 @@ void* streampool_alloc(int stream, int size) {
     return result - size;
 }
 
+/* TODO: [near miss] 85.71%; retail keeps a redundant clrlwi after the xori (compiler-version lead for libmkparticle). */
 void streampool_skiprenderstream(void) {
     streambuffer_info[0].reverse ^= 1;
 }

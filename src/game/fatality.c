@@ -1,3 +1,4 @@
+/* TODO: [blocked] link: retail has anonymous 4-byte gaps in .data, .bss and .sbss and a 2-byte .rodata gap with no symbol users or relocations. */
 #include "runtime/mk_obj.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api.h"
@@ -35,7 +36,6 @@ extern AnimPdata* plyr_anim_pdata;
 extern MkProc* plyr_anim_proc;
 extern PlyrPdata* his_pdata;
 extern int f_fatality_was_done;
-extern float game_speed;
 extern unsigned short GXMathSqrtTable[];
 extern float do_my_fatality(void);
 extern float do_my_2nd_fatality(void);
@@ -480,12 +480,6 @@ float raiden_lightning_sleep1[2] = {10.0f, 500.0f};
 float raiden_lightning_speed2[2] = {1.0f, 0.01f};
 float raiden_lightning_sleep2[2] = {15.0f, 500.0f};
 
-/*
- * Soft ceiling: retail appends anonymous 4-byte gaps to .data, .bss, and
- * .sbss plus a 2-byte .rodata gap. They have no symbol users or relocations;
- * portable C would classify explicit gap objects into small-data sections,
- * so the gaps remain linker-emission residue instead of forced sections.
- */
 
 static FatalityState fatality_state;
 static float SD_SONIC_WAVES_TBS = 8.0f;
@@ -499,8 +493,6 @@ extern float fog_distance;
 extern float fog_color_real[4];
 extern int fog_on;
 extern int fog_type;
-extern CameraObj* camera_obj;
-extern CameraItem camera_item;
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle snd_req(int sound);
 void freeze_player(void);
@@ -529,7 +521,6 @@ void active_projectile_setup_done(void);
 float subzero_freeze_victim(void);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 void advance_active_moveset(PlyrPdata* player);
-void release_other_player(void);
 float p_animate(void);
 int is_my_chest_to_screen(void);
 void head_tracking_off(void);
@@ -569,8 +560,6 @@ void calc_bone_world_mat(MkObj* object, int bone_id);
 void glitch_to_stance(AnimPdata* animation, float blend);
 void face_opponent_now(void);
 int is_local_plyr(void);
-MkHdr* pdata_of_proc(MkProc* process);
-void push_game_state(int state);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_shadowbox(PlyrInfo* player);
 void start_gore2_update(void);
@@ -838,13 +827,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     }
 }
 
-/*
- * Soft ceiling: retail's nine chunk/count checks and all fifteen corrected
- * severed-limb transforms are preserved. The remaining frame/register delta
- * comes from retail's 16-byte-aligned stack matrix; this portable declaration
- * intentionally avoids a function-local alignment attribute used only to
- * force that compiler emission.
- */
+/* TODO: [near miss] 67.22%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
 static float p_subzero_ice_chunk(void) {
     FatalityIceChunkPdata* data;
     FatalityIceChunkPebble* chunk;
@@ -924,10 +907,7 @@ static float p_subzero_ice_chunk(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: model/process ownership, mirrored placement, material list,
- * color ramp initialization, and failure cleanup follow the retail routine.
- */
+/* TODO: [near miss] 82.97%; behavior follows retail; residue is register allocation and scheduling. */
 MkObj* subzero_start_iceman(void) {
     static const int material_ids[9] = {
         0xA, 0x32, 0x14, 0x82, 0x79, 0x64, 0x5B, 0x8C, -1
@@ -1001,10 +981,7 @@ MkObj* subzero_start_iceman(void) {
     return iceman;
 }
 
-/*
- * Soft ceiling: retail loop bounds, alpha progression, material mapping, and
- * object-instance validation are recovered; remaining differences are emit.
- */
+/* TODO: [near miss] 93.63%; loop bounds, alpha and validation agree; residue is code emission. */
 static float p_subzero_iceblock_alpha(void) {
     FatalityIceblockAlphaPdata* data;
     MkObj* object;
@@ -1045,13 +1022,9 @@ static float p_subzero_iceblock_alpha(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: the victim-relative placement, mirrored lateral offset,
- * character-specific rise, scale process, color, and priority match retail.
- */
 MkObj* subzero_start_iceblock(void) {
-    FatalityScalePdata* scale_data;
     RwRGBA color;
+    FatalityScalePdata* scale_data;
     MkObj* iceblock;
     Vec at;
     Vec right;
@@ -1074,17 +1047,19 @@ MkObj* subzero_start_iceblock(void) {
         obj_set_color_for_all_materials(iceblock, &color);
         obj_set_all_sobjs_priority(iceblock, 0x13);
         iceblock->light_flags = fatality_state.victim_object->light_flags;
-        iceblock->pos.value = fatality_state.victim_object->pos.value;
+        iceblock->pos.value.x = fatality_state.victim_object->pos.value.x;
+        iceblock->pos.value.y = fatality_state.victim_object->pos.value.y;
+        iceblock->pos.value.z = fatality_state.victim_object->pos.value.z;
         mkobj_get_matrix_at(fatality_state.victim_object, &at);
         mkobj_get_matrix_right(fatality_state.victim_object, &right);
         if (fatality_state.mirror_camera != 0) {
-            right.x *= 0.1f;
-            right.y *= 0.1f;
-            right.z *= 0.1f;
+            right.x = 0.1f * right.x;
+            right.y = 0.1f * right.y;
+            right.z = 0.1f * right.z;
         } else {
-            right.x *= -0.1f;
-            right.y *= -0.1f;
-            right.z *= -0.1f;
+            right.x = -0.1f * right.x;
+            right.y = -0.1f * right.y;
+            right.z = -0.1f * right.z;
         }
         iceblock->pos.value.y = g_game_info.field_34;
         if (fatality_state.opponent->character_id == 0xA) {
@@ -1100,7 +1075,7 @@ MkObj* subzero_start_iceblock(void) {
         iceblock->pos.value.z -= at.z * forward;
         iceblock->pos.value.x += right.x;
         iceblock->pos.value.z += right.z;
-        iceblock->flags_08 |= 0x02;
+        iceblock->flags_08_bits.scale_active = 1;
         iceblock->scale.x = 1.0f;
         iceblock->scale.y = 0.05f;
         iceblock->scale.z = 1.0f;
@@ -1160,7 +1135,6 @@ void mks_start_fatality_iceball(int mode) {
     }
 }
 
-/* Retail uses compact nonvolatile saves for this projectile setup. */
 static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     MkObj* iceball;
@@ -1185,7 +1159,7 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     iceball->ang.y += 1.57f;
     iceball->flags_08_bits.angular_velocity_enabled = 1;
 
-    subobject = (MkSobj*)obj_create_sobjs_by_id(iceball, 1);
+    subobject = obj_create_sobjs_by_id(iceball, 1);
     if (subobject != 0) {
         subobject->flags_08_bits.bit3 = 1;
         subobject->flags_08_bits.angular_velocity_enabled = 1;
@@ -1193,14 +1167,14 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
         subobject->z_offset = -50.0f;
     }
 
-    subobject = (MkSobj*)obj_create_sobjs_by_id(iceball, 2);
+    subobject = obj_create_sobjs_by_id(iceball, 2);
     if (subobject != 0) {
         subobject->flags_08_bits.bit4 = 1;
         subobject->flags09_bits.bit7 = 1;
         subobject->flags_08_bits.bit0 = 0;
     }
 
-    subobject = (MkSobj*)obj_create_sobjs_by_id(iceball, 3);
+    subobject = obj_create_sobjs_by_id(iceball, 3);
     if (subobject != 0) {
         subobject->flags09_bits.bit5 = 1;
         subobject->flags09_bits.bit7 = 1;
@@ -1238,10 +1212,7 @@ float sz_kill_myself(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: exact retail size and branches; the residue is register
- * allocation/scheduling around the object-instance validation paths.
- */
+/* TODO: [near miss] 86.71%; exact size and branches; residue is register allocation around instance validation. */
 static float p_3d_distance_handler(void) {
     FatalityProjectilePdata* data;
     MkObj* object;
@@ -1325,10 +1296,7 @@ void sindel_scream_react_sound_start(void) {
     }
 }
 
-/*
- * Soft ceiling: all five wave objects, projectile userdata, transform seeds,
- * sounds, player mask, and complete failure cleanup follow retail.
- */
+/* TODO: [near miss] 87.89%; all five wave objects and cleanup follow retail; residue is code emission. */
 FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
     static const Vec emitter_offset = {0.0f, 0.075f, 0.23f};
     FatalitySonicWavePdata* data;
@@ -1357,9 +1325,9 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 data->waves[index].obj = wave;
                 data->waves[index].instance = wave->hdr.instance;
                 wave->flags_word_08 = 0;
-                wave->flags_08 |= 0x40;
-                wave->flags_08 |= 0x08;
-                wave->flags_08 |= 0x02;
+                wave->flags_08_bits.airborne = 1;
+                wave->flags_08_bits.angular_velocity_enabled = 1;
+                wave->flags_08_bits.scale_active = 1;
                 wave->pos.value.x = 0.0f;
                 wave->pos.value.y = -10000.0f;
                 wave->pos.value.z = 0.0f;
@@ -1368,7 +1336,7 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 wave->ang_vel.x = 0.0f;
                 wave->ang_vel.y = 0.0f;
                 if (f_fatality_was_done != 0) {
-                    wave->flags_08 |= 0x04;
+                    wave->flags_08_bits.rotation_enabled = 1;
                     wave->ang.z = angle;
                     angle += 3.1415927f;
                     wave->ang_vel.z = 0.9424778f;
@@ -1446,10 +1414,7 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
     return 0;
 }
 
-/*
- * Soft ceiling: exact retail size with the projectile model, pebble userdata,
- * parent link, render flags, and failure cleanup; residue is register emission.
- */
+/* TODO: [near miss] 99.26%; exact size; residue is register emission. */
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data) {
     MkObj* projectile;
@@ -1459,7 +1424,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
         "SN_SPARKS", plyr_pdata->plyr_num, 0x6012, 1);
     if (projectile != 0) {
         obj_create_sobjs(projectile);
-        subobject = (MkSobj*)obj_first_sobj(projectile);
+        subobject = obj_first_sobj(projectile);
         if (subobject != 0) {
             data->pebble = (MkHdr*)create_pebble_userdata(subobject, 5, 0);
             if (data->pebble != 0) {
@@ -1469,12 +1434,12 @@ static void sindel_load_projectile_obj_for_sonic_waves(
                 projectile->light_flags = plyr_obj->light_flags;
                 mk_insert(&projectile->hdr, &plyr_obj->child_list);
                 subobject->flags_08 = 0;
-                subobject->flags_08 |= 0x40;
-                subobject->flags_08 &= ~0x01;
-                subobject->flags09 |= 0x80;
-                subobject->flags09 |= 0x10;
-                subobject->flags09 |= 0x08;
-                subobject->flags09 |= 0x02;
+                subobject->flags_08_bits.bit6 = 1;
+                subobject->flags_08_bits.bit0 = 0;
+                subobject->flags09_bits.bit7 = 1;
+                subobject->flags09_bits.bit4 = 1;
+                subobject->flags09_bits.bit3 = 1;
+                subobject->flags09_bits.has_pebbles = 1;
                 subobject->z_offset = 0.0f;
                 sobj_set_priority(subobject, 0x12);
                 return;
@@ -1486,11 +1451,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
     }
 }
 
-/*
- * Soft ceiling: the five-slot launch cadence, both gameplay/cinematic growth
- * modes, alpha fade, render matrices, expiry, cleanup, and sound teardown are
- * fully recovered; remaining differences are MWCC allocation and scheduling.
- */
+/* TODO: [near miss] 74.15%; behavior fully recovered; residue is register allocation and scheduling. */
 static float p_sd_sonic_waves(void) {
     FatalitySonicWavePdata* data;
     FatalitySonicPebble* pebble;
@@ -1757,9 +1718,9 @@ float p_raiden_lightning_flash(void) {
     range = data->flash_range;
     if ((data->frame & 1) != 0) {
         range += 5.0f;
-        object->hide_flags |= 0x20;
+        object->hide_flag_bits.hidden = 1;
     } else {
-        object->hide_flags &= ~0x20;
+        object->hide_flag_bits.hidden = 0;
         if (data->scroll != 0) {
             data->scroll->step =
                 randu0(3) == 0
@@ -1769,10 +1730,7 @@ float p_raiden_lightning_flash(void) {
     return frand(range);
 }
 
-/*
- * Soft ceiling: exact scale-key lookup, scalar-process setup, object update,
- * and frame return semantics; residue is register/load scheduling only.
- */
+/* TODO: [near miss] 95.35%; behavior agrees; residue is register/load scheduling. */
 static float p_raiden_lightning_scrolling(void) {
     FatalityLightningScrollPdata* data;
     FatalityObjectScalarPdata* scalar;
@@ -1801,7 +1759,7 @@ static float p_raiden_lightning_scrolling(void) {
             sizeof(FatalityObjectScalarPdata), &scalar->hdr);
         scalar->object = object;
         scalar->object_instance = object->hdr.instance;
-        object->flags_08 |= 0x02;
+        object->flags_08_bits.scale_active = 1;
         scalar->start.x = data->scalar_start.x;
         scalar->start.y = data->scalar_start.y;
         scalar->start.z = data->scalar_start.z;
@@ -1820,10 +1778,7 @@ static float p_raiden_lightning_scrolling(void) {
     return data->scaling->z[data->frame - 1];
 }
 
-/*
- * Soft ceiling: allocation, slot selection, ownership latch, render setup,
- * and cleanup paths follow retail; remaining differences are code emission.
- */
+/* TODO: [near miss] 95.55%; allocation, slot selection and cleanup follow retail; residue is code emission. */
 RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
     PlyrPdata* player, int bone_id, const char* model_name) {
     RaidenLightningBoltPdata* data;
@@ -1844,7 +1799,7 @@ RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
     slot = player->plyr_num == 0 ? 0x3000B : 0x4000B;
     model = load_named_model_from_slot(slot, model_name, 0x2099, 0);
     if (model != 0) {
-        subobject = (MkSobj*)obj_create_sobjs_by_id(model, 1);
+        subobject = obj_create_sobjs_by_id(model, 1);
         if (subobject != 0) {
             parent = player->tracked_obj;
             if (parent != 0 &&
@@ -1858,10 +1813,10 @@ RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
                 insert_fgnd_mkobj(model);
                 sobj_set_priority(subobject, 0x12);
                 subobject->z_offset = -5.0f;
-                model->hide_flags |= 0x20;
-                model->flags_08 |= 0x40;
-                model->flags_08 |= 0x08;
-                model->flags_08 |= 0x02;
+                model->hide_flag_bits.hidden = 1;
+                model->flags_08_bits.airborne = 1;
+                model->flags_08_bits.angular_velocity_enabled = 1;
+                model->flags_08_bits.scale_active = 1;
                 model->scale.x = 0.25f;
                 model->scale.y = 0.25f;
                 model->scale.z = 0.25f;
@@ -1886,10 +1841,6 @@ void kill_raiden_summon_lightning_bolt(
     lightning->bone_id = -1;
 }
 
-/*
- * Soft ceiling: the retail flash/fade state machine, owner latch, bone
- * placement, four orientations, and sleep result are fully represented.
- */
 static float p_raiden_summon_lightning_bolt(void) {
     static float y_offset = 15.3f;
     RaidenLightningBoltPdata* data;
@@ -1903,10 +1854,9 @@ static float p_raiden_summon_lightning_bolt(void) {
     if (data == 0) {
         return -1.0f;
     }
-    bolt = data->bolt;
-    if (bolt != 0 && bolt->hdr.instance != data->bolt_instance) {
-        bolt = 0;
-    }
+    bolt = data->bolt != 0
+               ? (data->bolt->hdr.instance == data->bolt_instance ? data->bolt : 0)
+               : 0;
     if (bolt == 0) {
         return -1.0f;
     }
@@ -1925,15 +1875,16 @@ static float p_raiden_summon_lightning_bolt(void) {
     random_ticks = randu0(3);
     if ((data->frame & 1) != 0) {
         result = random_ticks + 2;
-        bolt->hide_flags |= 0x20;
+        bolt->hide_flag_bits.hidden = 1;
     } else {
-        bolt->hide_flags &= ~0x20;
-        owner_object = data->owner->tracked_obj;
-        if (owner_object != 0 &&
-            owner_object->hdr.instance !=
-                data->owner->tracked_obj_instance) {
-            owner_object = 0;
-        }
+        bolt->hide_flag_bits.hidden = 0;
+        owner_object =
+            data->owner->tracked_obj != 0
+                ? (data->owner->tracked_obj->hdr.instance ==
+                           data->owner->tracked_obj_instance
+                       ? data->owner->tracked_obj
+                       : 0)
+                : 0;
         if (owner_object == 0) {
             data->bone_id = -1;
         }
@@ -1944,7 +1895,7 @@ static float p_raiden_summon_lightning_bolt(void) {
             return -1.0f;
         }
 
-        get_bone_world_pos(bolt, data->bone_id, &bolt->pos.value);
+        get_bone_world_pos(owner_object, data->bone_id, &bolt->pos.value);
         get_camera_angle(&camera_angle);
         bolt->ang.y = camera_angle.y;
         switch (data->orientation) {
@@ -1974,11 +1925,11 @@ static float p_raiden_summon_lightning_bolt(void) {
         if (data->alpha != 0) {
             data->alpha--;
             if (data->alpha == 0) {
-                data->fade_step = randu0(7) + 0x14;
+                data->fade_step = (unsigned short)randu0(7) + 0x14;
                 data->alpha = 0xFF;
             }
         } else {
-            data->alpha = randu0(2) + 2;
+            data->alpha = (unsigned short)randu0(2) + 2;
         }
     }
     data->frame++;
@@ -2003,10 +1954,7 @@ void fix_axe_angle(const Vec* angles) {
     }
 }
 
-/*
- * Soft ceiling: the veil material, animation process, bone table, attachment
- * offset, and visibility flags follow retail; remaining differences are emit.
- */
+/* TODO: [near miss] 82.73%; behavior follows retail; residue is code emission. */
 void ft_mileena_start_veil_ripoff(void) {
     static const Vec veil_offset = {0.0f, 0.075f, -0.14f};
     AnimPdata* animation;
@@ -2031,7 +1979,7 @@ void ft_mileena_start_veil_ripoff(void) {
         insert_fgnd_mkobj(veil);
         animation->obj = veil;
         animation->obj_instance = veil->hdr.instance;
-        set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
+        set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
         set_anim_script(
             animation, plyr_pdata->mileena_veil_animation, 3);
         obj_match_pos_ang_to_src_obj(
@@ -2041,8 +1989,8 @@ void ft_mileena_start_veil_ripoff(void) {
         get_bone_offset_world_pos(
             fatality_state.attacker_object, bone_id,
             &veil_offset, &veil->pos.value);
-        veil->flags_09 &= ~0x80;
-        veil->flags_09 &= ~0x40;
+        veil->flags_09_bits.launched = 0;
+        veil->flags_09_bits.bit6 = 0;
     }
 }
 
@@ -2065,7 +2013,7 @@ void fat_goro_fold_arms(
             animation, player->goro_fold_animation, transition);
         animation->step = speed;
         set_root_and_obj_movement_weights(
-            0.0f, 1.0f, animation);
+            animation, 0.0f, 1.0f);
     }
 }
 
@@ -2146,17 +2094,14 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
         fatality_state.range34.fields34.bone_matcher = &matcher->hdr;
         matcher->flags.value |= 0x40;
         YXZ_angles_to_MKMATRIX(
-            angles, (MKMATRIX*)jug->bones[0]->parent_matrix);
+            angles, jug->bones[0]->parent_matrix);
         YXZ_angles_to_quat(angles, &jug->bones[0]->rotation);
         bone_matcher_parent_set_offset(matcher, offset);
     }
     return jug;
 }
 
-/*
- * Soft ceiling: exact retail size and effect/texture setup; the remaining
- * delta is register allocation and equivalent early-return scheduling.
- */
+/* TODO: [near miss] 93.06%; exact size; residue is register allocation and early-return scheduling. */
 FatalityEffectHandle fatality_boraicho_light_fart_torch(MkObj* torch) {
     FatalityEffectHandle emitter;
     MkPfx* effect;
@@ -2192,10 +2137,7 @@ FatalityEffectHandle fatality_boraicho_light_fart_torch(MkObj* torch) {
     return emitter;
 }
 
-/*
- * Soft ceiling: exact retail size, branches, and matcher setup; remaining
- * differences are register allocation and load scheduling.
- */
+/* TODO: [near miss] 91.49%; exact size and branches; residue is register allocation and load scheduling. */
 MkObj* fatality_boraicho_get_torch(
     const Vec* parent_offset, const Vec* rotation) {
     static const int torch_bone_tag = 1;
@@ -2233,10 +2175,7 @@ MkObj* fatality_boraicho_get_torch(
     return torch;
 }
 
-/*
- * Soft ceiling: exact retail size and object/matcher setup; remaining
- * differences are GPR allocation and load scheduling.
- */
+/* TODO: [near miss] 91.71%; exact size; residue is GPR allocation and load scheduling. */
 MkObj* fatality_ashrah_get_doll(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation) {
@@ -2314,7 +2253,7 @@ void start_bodyslam_bodysplat(
     }
     slot = fatality_state.player->plyr_num == 0
                ? 0x3000B : 0x4000B;
-    object = (MkObj*)load_named_model_from_slot(
+    object = load_named_model_from_slot(
         slot, "BODYSPLAT", 0x6008, 0);
     if (object != 0) {
         data->object = object;
@@ -2323,7 +2262,7 @@ void start_bodyslam_bodysplat(
         object->pos.value.x = x;
         object->pos.value.y = g_game_info.field_34 + 0.001f;
         object->pos.value.z = z;
-        object->flags_08 |= 2;
+        object->flags_08_bits.scale_active = 1;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
         object->scale.z = 1.0f;
@@ -2356,10 +2295,7 @@ MkObj* load_cloth_boned_model(
     return object;
 }
 
-/*
- * Soft ceiling: every validated severed-limb latch, conditional bone choice,
- * blood script, delay, and meat-chunk emitter follows the retail sequence.
- */
+/* TODO: [near miss] 75.72%; sequence follows retail; residue is code emission. */
 void fatality_explode_victim(PlyrInfo* player_info) {
     FighterMirror* fighter;
     PlyrPdata* player;
@@ -2405,10 +2341,7 @@ void fatality_explode_victim(PlyrInfo* player_info) {
     fatality_spawn_limb_blood(fighter, player, 9, 1, 2);
 }
 
-/*
- * Soft ceiling: exact retail size and emitter operations. Remaining deltas
- * are GPR allocation/save style and equivalent loop-induction scheduling.
- */
+/* TODO: [near miss] 88.97%; exact size; residue is GPR save style and loop-induction scheduling. */
 void fire_multi_emitter_pfx_via_tbl(
     const char* effect_name, const FatalityEmitterBind* table,
     MkObj* object, FatalityEffectHandle* handles) {
@@ -2476,7 +2409,7 @@ FatalityEffectHandle pfxhandle_bgnd_spawn_at_sobj_id(
     if (effect == 0) {
         return 0;
     }
-    sobj = (MkSobj*)obj_find_sobj_by_id(
+    sobj = obj_find_sobj_by_id(
         g_game_info.bgnd_obj, sobj_id);
     if (sobj == 0) {
         return 0;
@@ -2554,10 +2487,7 @@ float p_fatality_cam(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: exact retail size and cleanup/sleep control flow; remaining
- * differences are register allocation and inlined-helper scheduling.
- */
+/* TODO: [near miss] 89.23%; exact size and control flow; residue is register allocation and inlined-helper scheduling. */
 static float end_of_fatality(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     if (g_game_info.field_200 != 3) {
@@ -2597,10 +2527,7 @@ void fkbm_obj_face_obj(
     }
 }
 
-/*
- * Soft ceiling: exact retail size, validation, and open-coded vector math;
- * remaining differences are register allocation and branch scheduling.
- */
+/* TODO: [near miss] 88.71%; exact size; residue is register allocation and branch scheduling. */
 static float p_face_obj(void) {
     FatalityFaceObjectPdata* data;
     MkObj* source;
@@ -2650,10 +2577,7 @@ static float p_face_obj(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: exact retail size and matcher reset semantics; residue is
- * register allocation and equivalent bitfield/load scheduling.
- */
+/* TODO: [near miss] 87.11%; exact size; residue is register allocation and bitfield/load scheduling. */
 void reset_fake_bone_matcher(
     FatalityFakeBoneMatcher* matcher, const Vec* parent_offset,
     const Vec* child_offset, const Vec* rotation, int child_bone,
@@ -2707,10 +2631,7 @@ void reset_fake_bone_matcher(
     }
 }
 
-/*
- * Soft ceiling: exact retail size and creation/validation behavior; residue
- * is register allocation and repeated pdata-load scheduling.
- */
+/* TODO: [near miss] 90.18%; exact size; residue is register allocation and repeated pdata-load scheduling. */
 FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     MkObj* parent, MkObj* child, int child_bone,
     const Vec* parent_offset, const Vec* child_offset,
@@ -2773,10 +2694,7 @@ FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     return matcher;
 }
 
-/*
- * Soft ceiling: exact retail size and matrix/blend behavior; remaining
- * differences are register allocation and instruction scheduling.
- */
+/* TODO: [near miss] 80.09%; exact size; residue is register allocation and instruction scheduling. */
 static float p_fake_bone_matcher_proc(void) {
     FatalityFakeBoneMatcher* matcher;
     MkObj* parent;
@@ -2904,10 +2822,10 @@ void obj_grnd_bounce(
         if (velocity != 0) {
             object->pos_vel = *velocity;
         }
-        object->flags_08 |= 0x20;
+        object->flags_08_bits.gravity_enabled = 1;
         object->gravity = gravity;
         if (gravity != 0.0f) {
-            object->flags_08 |= 1;
+            object->flags_08_bits.moving = 1;
         }
         data->ground_offset = ground_offset;
         data->bounce_count = bounces;
@@ -2916,12 +2834,7 @@ void obj_grnd_bounce(
     }
 }
 
-/*
- * Soft ceiling: retail m2c confirms the retained four-way sound switch,
- * bounce response, completion flags, ground snap, and process return values.
- * Source is eight bytes smaller; residue is latch/save-register allocation,
- * branch scheduling, and float relocation labels.
- */
+/* TODO: [near miss] 81.41%; source is 8 bytes smaller; residue is latch/save-register allocation and branch scheduling. */
 float p_obj_grnd_bounce(void) {
     FatalityGroundBouncePdata* data;
     MkObj* object;
@@ -2976,11 +2889,7 @@ float p_obj_grnd_bounce(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: retail's object latch, nine scalar stores, initial object
- * scale, and update call are exact. The remaining delta is GPR allocation and
- * an 8-byte lmw/stmw frame-emission difference.
- */
+/* TODO: [near miss] 73.77%; stores exact; residue is GPR allocation and an 8-byte lmw/stmw frame difference. */
 void start_obj_scalar_proc(
     MkObj* object, const Vec* start,
     const Vec* target, const Vec* step) {
@@ -2994,7 +2903,7 @@ void start_obj_scalar_proc(
             sizeof(FatalityObjectScalarPdata), &data->hdr);
         data->object = object;
         data->object_instance = object->hdr.instance;
-        object->flags_08 |= 2;
+        object->flags_08_bits.scale_active = 1;
         data->start.x = start->x;
         data->start.y = start->y;
         data->start.z = start->z;
@@ -3011,15 +2920,23 @@ void start_obj_scalar_proc(
     }
 }
 
-/*
- * Soft ceiling: all three retail open-coded scalar axes and signed flag-bit
- * extractions are recovered. Source is 12 bytes smaller; residue is the
- * compiler's inline latch join, register allocation, branches, and relocs.
- */
+static inline MkObj* obj_scalar_live_object(FatalityObjectScalarPdata* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
     MkObj* object;
-    int active;
+    int active = 0;
     float step;
     float swap;
 
@@ -3027,12 +2944,10 @@ float p_obj_scalar_proc(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = fatality_resolve_object_latch(
-        data->object, data->object_instance);
+    object = obj_scalar_live_object(data);
     if (object == 0) {
         return -1.0f;
     }
-    active = 0;
     if (object->scale.x != data->target.x) {
         active = 1;
         if (data->flag_bits.multiply != 0) {
@@ -3096,8 +3011,10 @@ float p_obj_scalar_proc(void) {
     if (active != 0) {
         return 1.0f;
     }
-    if (data->flag_bits.stop_when_complete != 0 ||
-        data->flag_bits.ping_pong == 0) {
+    if (data->flag_bits.stop_when_complete != 0) {
+        return -1.0f;
+    }
+    if (data->flag_bits.ping_pong == 0) {
         return -1.0f;
     }
     data->step.x = -data->step.x;
@@ -3200,7 +3117,7 @@ void obj_hide_material_by_id(MkObj* object, int id) {
 
 void bone_matcher_reset_dest_mat_rot(MkObj* object, int bone_index) {
     MKMatrixSetIdentity(
-        (MKMATRIX*)object->bones[bone_index]->parent_matrix);
+        object->bones[bone_index]->parent_matrix);
     object->bones[bone_index]->rotation.x = 0.0f;
     object->bones[bone_index]->rotation.y = 0.0f;
     object->bones[bone_index]->rotation.z = 0.0f;
@@ -3214,7 +3131,7 @@ void bone_matcher_set_ang_pos(
     if (angles != 0) {
         YXZ_angles_to_MKMATRIX(
             angles,
-            (MKMATRIX*)object->bones[bone_index]->parent_matrix);
+            object->bones[bone_index]->parent_matrix);
         YXZ_angles_to_quat(
             angles, &object->bones[bone_index]->rotation);
     }
@@ -3244,10 +3161,7 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
     return object;
 }
 
-/*
- * Soft ceiling: exact retail size and attachment/bone setup; remaining
- * differences are register allocation and equivalent load scheduling.
- */
+/* TODO: [near miss] 72.16%; exact size; residue is register allocation and load scheduling. */
 FatalityWeaponAttachment* regrab_weapon(
     int secondary, MkObj* object, MkHdr* bound_object, int bone_id,
     const Vec* angles, const Vec* scale, const Vec* position) {
@@ -3318,10 +3232,7 @@ void weapon_reflection_show_hide(
     }
 }
 
-/*
- * Soft ceiling: exact retail size and style/latch/reflection behavior;
- * remaining differences are GPR allocation and branch scheduling.
- */
+/* TODO: [near miss] 74.69%; exact size; residue is GPR allocation and branch scheduling. */
 MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
     PlyrWeaponStyle* style;
     PlyrMirrorObjLatch* latch;
@@ -3334,13 +3245,13 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
             player->player_slot = 0;
         }
         style = player->weapon_styles[player->player_slot];
-        player->fighter_definition = (PlyrFighterDefinition*)style;
+        player->fighter_definition = style;
         player->mirror_slots = &style->mirror_slots;
         player->fighter_definition_instance = style->instance;
     }
 
     weapon = 0;
-    style = (PlyrWeaponStyle*)player->fighter_definition;
+    style = player->fighter_definition;
     if (secondary == 0) {
         latch = &style->mirror_slots.weapon[0].primary;
         weapon = latch->obj;
@@ -3351,7 +3262,7 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
             plyr_weapon_grab(player, weapon);
             weapon->hide_flags &= (unsigned char)~0x20;
             if ((g_game_info.section->flags70 & 8) != 0) {
-                style = (PlyrWeaponStyle*)plyr_pdata->fighter_definition;
+                style = plyr_pdata->fighter_definition;
                 latch = &style->mirror_slots.weapon[0].mirror;
                 reflection = latch->obj;
                 if (reflection != 0 &&
@@ -3365,7 +3276,7 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
         }
     }
     if (weapon == 0) {
-        style = (PlyrWeaponStyle*)player->fighter_definition;
+        style = player->fighter_definition;
         latch = &style->mirror_slots.weapon[1].primary;
         weapon = latch->obj;
         if (weapon != 0 && weapon->hdr.instance != latch->instance) {
@@ -3375,7 +3286,7 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
             plyr_weapon2_grab(player, weapon);
             weapon->hide_flags &= (unsigned char)~0x20;
             if ((g_game_info.section->flags70 & 8) != 0) {
-                style = (PlyrWeaponStyle*)plyr_pdata->fighter_definition;
+                style = plyr_pdata->fighter_definition;
                 latch = &style->mirror_slots.weapon[1].mirror;
                 reflection = latch->obj;
                 if (reflection != 0 &&
@@ -3635,26 +3546,22 @@ void fade_fatality_screen(void) {
     }
 }
 
-/*
- * Soft ceiling: exact retail size and instruction-equivalent control flow;
- * remaining differences are register allocation and instruction scheduling.
- */
+/* TODO: [near miss] 96.25%; retail shares the zero for flag stores and the blend call arg (r7); camera script is a 0x318-based table indexed 0x2f/0x30 (no such array view yet). */
 void run_fatality_sequence(
     unsigned int main_script, unsigned int victim_script) {
     FatalityBgndScriptView* section_script;
-    FatalityBgndScriptView* active_script;
     CmdScript* victim_cmdscript;
 
-    plyr_obj->flags_09 &= ~0x08;
-    his_obj->flags_09 &= ~0x08;
-    plyr_obj->flags_09 &= ~0x02;
-    his_obj->flags_09 &= ~0x02;
-    plyr_obj->flags_09 &= ~0x20;
-    his_obj->flags_09 &= ~0x20;
-    plyr_obj->flags_09 &= ~0x10;
-    his_obj->flags_09 &= ~0x10;
-    plyr_obj->hide_flags &= ~0x80;
-    his_obj->hide_flags &= ~0x80;
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    his_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    his_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    his_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags_09_bits.bit4 = 0;
+    his_obj->flags_09_bits.bit4 = 0;
+    plyr_obj->hide_flag_bits.still_move = 0;
+    his_obj->hide_flag_bits.still_move = 0;
     plyr_pdata->blocking_disabled = 1;
     his_pdata->blocking_disabled = 1;
 
@@ -3664,23 +3571,22 @@ void run_fatality_sequence(
         plyr_obj, 0, 1.0f, 0.0f, 3.1415927f);
     if (is_my_chest_to_screen() == 0) {
         plyr_anim_pdata->flags ^= 0x08;
-        plyr_obj->hide_flags ^= 0x40;
+        plyr_obj->hide_flag_bits.bit6 ^= 1;
     }
 
-    /* Background data tables share this script-function prefix at +0x08. */
     section_script = (FatalityBgndScriptView*)g_game_info.section->misc;
-    active_script = (FatalityBgndScriptView*)g_game_info.misc;
     if (section_script != 0 && section_script->function != 0 &&
-        active_script->function != 0) {
+        ((FatalityBgndScriptView*)g_game_info.misc)->function != 0) {
         cmdscript_set_parameters(active_cmdscript, 1, &fatality_state);
         cmdscript_setup_execution(
-            g_game_info.cmdscript, active_script->function);
+            g_game_info.cmdscript,
+            ((FatalityBgndScriptView*)g_game_info.misc)->function);
         cmdscript_execute(g_game_info.cmdscript);
     }
 
     head_tracking_off();
-    his_obj->flags_09 |= 0x80;
-    his_obj->flags_09 |= 0x40;
+    his_obj->flags_09_bits.launched = 1;
+    his_obj->flags_09_bits.bit6 = 1;
     if (is_pal_mode() != 0) {
         fatality_anim_script = plyr_pdata->fatality_camera_pal;
     } else {
@@ -3696,19 +3602,19 @@ void run_fatality_sequence(
     FATALITY_SLEEP(1.0f);
     release_other_player();
     fatality_state.animation->movement_scale = 1.0f;
-    his_obj->flags_09 &= ~0x80;
-    his_obj->flags_09 &= ~0x10;
-    his_obj->flags_09 &= ~0x02;
-    his_obj->flags_09 &= ~0x20;
-    his_obj->flags_09 &= ~0x08;
-    plyr_obj->flags_09 &= ~0x80;
-    plyr_obj->flags_09 &= ~0x10;
-    plyr_obj->flags_09 &= ~0x02;
-    plyr_obj->flags_09 &= ~0x20;
-    plyr_obj->flags_09 &= ~0x08;
+    his_obj->flags_09_bits.launched = 0;
+    his_obj->flags_09_bits.bit4 = 0;
+    his_obj->flags_09_bits.head_tracking = 0;
+    his_obj->flags_09_bits.tightrope_restricted = 0;
+    his_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags_09_bits.bit4 = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags_09_bits.face_opponent = 0;
     xfer_proc(fatality_state.attacker_proc, p_animate);
-    plyr_obj->flags_09 |= 0x80;
-    his_obj->flags_09 |= 0x80;
+    plyr_obj->flags_09_bits.launched = 1;
+    his_obj->flags_09_bits.launched = 1;
 
     if (victim_script != 0) {
         victim_cmdscript = get_cmdscript_for_proc(fatality_state.victim_proc);
@@ -3727,10 +3633,7 @@ void run_fatality_sequence(
     cmdscript_execute(plyr_pdata->cmo);
 }
 
-/*
- * Soft ceiling: exact player/process capture, instance validation, state reset,
- * mirror shutdown, auxiliary-object hiding, and fatality screen setup.
- */
+/* TODO: [near miss] 84.57%; behavior follows retail; residue is code emission. */
 static int init_fatality_world(void) {
     MkObj* object;
 
@@ -3746,7 +3649,7 @@ static int init_fatality_world(void) {
     } else {
         face_opponent_now();
         if (is_my_chest_to_screen() == 0) {
-            plyr_obj->hide_flags ^= 0x40;
+            plyr_obj->hide_flag_bits.bit6 ^= 1;
         }
     }
     if (is_local_plyr() != 0) {
@@ -3800,7 +3703,7 @@ static int init_fatality_world(void) {
         object = 0;
     }
     if (object != 0) {
-        object->hide_flags |= 0x20;
+        object->hide_flag_bits.hidden = 1;
     }
     object = fatality_state.opponent->mirror_obj.obj;
     if (object != 0 &&
@@ -3809,17 +3712,14 @@ static int init_fatality_world(void) {
         object = 0;
     }
     if (object != 0) {
-        object->hide_flags |= 0x20;
+        object->hide_flag_bits.hidden = 1;
     }
     start_gore2_update();
     setup_screen_for_fatality();
     return 1;
 }
 
-/*
- * Soft ceiling: the retail state transition, animation-slot ownership,
- * cleanup sequence, script sentinels, and terminal jump-sleep are preserved.
- */
+/* TODO: [near miss] 79.74%; state transition and cleanup preserved; residue is code emission. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     FatalityBgndScriptView* active_script;
@@ -3836,7 +3736,7 @@ float start_suicide(void) {
             definition->suicide_script != 0xFFFEFFFF) {
             if (is_my_chest_to_screen() == 0) {
                 plyr_anim_pdata->flags ^= 0x08;
-                plyr_obj->hide_flags ^= 0x40;
+                plyr_obj->hide_flag_bits.bit6 ^= 1;
             }
             section_script =
                 (FatalityBgndScriptView*)g_game_info.section->misc;
@@ -3850,9 +3750,9 @@ float start_suicide(void) {
                 cmdscript_execute(g_game_info.cmdscript);
             }
             head_tracking_off();
-            fatality_state.attacker_object->flags_09 &= ~0x20;
-            fatality_state.attacker_object->flags_09 &= ~0x10;
-            fatality_state.attacker_object->flags_0B &= ~0x40;
+            fatality_state.attacker_object->flags_09_bits.tightrope_restricted = 0;
+            fatality_state.attacker_object->flags_09_bits.bit4 = 0;
+            fatality_state.attacker_object->flags_0B_bits.bit6 = 0;
             plyr_turn_off_mirrorguy(fatality_state.context);
             plyr_turn_off_shadowbox(fatality_state.context);
 
@@ -3905,10 +3805,7 @@ float start_suicide(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the secondary section, script validation, sidekick gate, and
- * shared retail teardown are recovered; residue is compiler inlining order.
- */
+/* TODO: [near miss] 77.07%; behavior recovered; residue is compiler inlining order. */
 float start_2nd_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3934,10 +3831,7 @@ float start_2nd_fatality(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: the primary section, script validation, sidekick gate, and
- * shared retail teardown are recovered; residue is compiler inlining order.
- */
+/* TODO: [near miss] 77.07%; behavior recovered; residue is compiler inlining order. */
 float start_fatality(void) {
     FatalityDefinition* definition;
 

@@ -26,8 +26,6 @@
 
 void run_reaction_cleanup_function(PlyrPdata* player);
 
-extern void fade_to_black(int ticks, int sleep);
-extern void save_both_profiles(int mode);
 extern int trial_check_state(void);
 typedef struct GameObjectLatch {
     MkHdr* obj;
@@ -60,12 +58,10 @@ extern int trial_get_round_length(void);
 extern int screen_width;
 extern int screen_height;
 extern int snd_req(int sound_id);
-extern int force_midpoint_calculation_update;
 extern int target_game_mode;
 extern int pause_player;
 extern float p_pselect(void);
 extern float p_pz_pselect(void);
-extern float p_main_menu(void);
 extern void move_player(MkObj* object, const Vec* position, const Vec* angles);
 extern void show_player(PlyrPdata* player);
 extern void bgnd_swap_level(int level);
@@ -191,7 +187,7 @@ typedef struct EndingTiming {
     float normal_intro;
     float normal_hold;
     float normal_tail;
-} EndingTiming; /* 0x24 */
+} EndingTiming;
 
 typedef struct DeathtrapEndingTiming {
     int arena_id;
@@ -237,8 +233,6 @@ typedef struct GameProfileRoundStats {
     int ladder_completions;
 } GameProfileRoundStats;
 
-extern int is_big_boss(PlyrPdata* pdata);
-extern int get_blood_level(void);
 extern int snd_req_delay(int sound_id, int ticks);
 extern void init_pwr_bars(void);
 extern void turn_switch_log_on(void);
@@ -248,7 +242,6 @@ extern void bleed_startup(void);
 extern void create_wall_monitor(void);
 extern void reset_camera_paths(void);
 extern void screen_engine_cleanup(void);
-extern float game_speed;
 extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
 extern GameProfileRoundStats p1_profile;
@@ -535,7 +528,6 @@ extern int g_big_boss_intro_tap_out_f;
 extern float p_animate(void);
 extern float p_animated_intro_done(void);
 extern float p_attract_camera(void);
-extern float p_camera_proc(void);
 extern float p_ladder_select(void);
 extern float big_boss_taunt_cam_cut(void);
 extern void show_wins_in_a_row(void);
@@ -543,7 +535,6 @@ extern void extend_powerbars(void);
 extern void sidekick_intro_check(void);
 extern void bgnd_anim_camera_setup(void);
 extern void bgnd_anim_camera_ended(void);
-extern void skip_camera_intro(void);
 extern int intro_done(void);
 extern void trial_start_new_round(void);
 extern void trial_round_init(void);
@@ -556,14 +547,11 @@ extern float mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
 extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
-extern void set_section_memory_scheme(int scheme);
-extern void ck_for_controller_removed(void);
 extern void trial_setup_fight(void);
 extern void mk_chess_in_fight_setup(void);
 extern int ladder_get_current_bgnd(void);
 extern int load_background(int bgnd_id);
 extern void setup_sound_banks(int mode);
-extern void start_plyrs(void);
 extern void wait_for_sound_banks_to_load(void);
 extern void start_first_pass_render(void);
 extern void end_first_pass_render(void);
@@ -574,12 +562,10 @@ extern int f_p1_warning_given;
 extern int f_p2_warning_given;
 extern void unimpale_victim(PlyrPdata* player);
 extern void reload_fan(PlyrPdata* player);
-extern void reset_severed_limbs(int player);
 extern void bleed_restart(void);
 extern void advance_active_moveset(PlyrPdata* player);
 extern void start_mkpfx_FadeSnapShot(void);
 extern void start_constrain_proc(void);
-extern void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 extern float glitch_to_stance_j_exit(void);
 extern float blend_to_stance_j_exit(void);
 extern float getup_from_ground(void);
@@ -593,7 +579,7 @@ static inline StringObj* validated_game_string(GameObjectLatch* latch) {
     StringObj* string = (StringObj*)latch->obj;
 
     if (string != 0) {
-        if ((unsigned int)string->instance == latch->obj_instance) {
+        if (string->instance == latch->obj_instance) {
             return string;
         }
         return 0;
@@ -605,7 +591,7 @@ static inline ScreenObj* validated_game_screen(GameObjectLatch* latch) {
     ScreenObj* object = (ScreenObj*)latch->obj;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->obj_instance) {
+        if (object->instance == latch->obj_instance) {
             return object;
         }
         return 0;
@@ -616,7 +602,7 @@ static inline ScreenObj* validated_game_screen(GameObjectLatch* latch) {
 static inline StringObj* validated_string_instance(
     StringObj* object, unsigned int instance) {
     if (object != 0) {
-        if ((unsigned int)object->instance == instance) {
+        if (object->instance == instance) {
             return object;
         }
         return 0;
@@ -627,7 +613,7 @@ static inline StringObj* validated_string_instance(
 static inline ScreenObj* validated_screen_instance(
     ScreenObj* object, unsigned int instance) {
     if (object != 0) {
-        if ((unsigned int)object->instance == instance) {
+        if (object->instance == instance) {
             return object;
         }
         return 0;
@@ -636,10 +622,10 @@ static inline ScreenObj* validated_screen_instance(
 }
 
 static inline MkHdr* validated_plyr_screen(PlyrScreenLatch* latch) {
-    MkHdr* object = (MkHdr*)latch->object;
+    MkHdr* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
+        if (object->instance == latch->instance) {
             return object;
         }
         return 0;
@@ -651,7 +637,7 @@ static inline MkProc* validated_anim_proc(PlyrPdata* player) {
     MkProc* proc = player->anim_proc;
 
     if (proc != 0) {
-        if ((unsigned int)proc->instance == player->anim_proc_instance) {
+        if (proc->instance == player->anim_proc_instance) {
             return proc;
         }
         return 0;
@@ -686,10 +672,10 @@ int is_timer_off(void) {
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void do_fight_effect(void) {
+    int i;
     ScreenObj* round;
     ScreenObj* round_number;
     ScreenObj* fight;
-    int i;
     int material;
 
     round =
@@ -719,6 +705,7 @@ static void do_fight_effect(void) {
             if (round_number->instance != 0) {
                 round_number->typed_vtbl->destroy(round_number);
             }
+            return;
         }
         return;
     }
@@ -804,7 +791,7 @@ int check_for_winner(void) {
     int winner;
 
     winner = 0;
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         winner = trial_check_state();
         if (winner == 1) {
             if (g_game_info.plyr1.field_0C != 0.0f) {
@@ -859,7 +846,7 @@ int check_for_winner(void) {
             }
         }
 
-        if ((int)mode_of_play == 4 && get_level_fatality_done_flag_state() != 0) {
+        if (mode_of_play == 4 && get_level_fatality_done_flag_state() != 0) {
             if (g_game_info.plyr0.player_state != 0) {
                 winner = 1;
             } else {
@@ -868,7 +855,7 @@ int check_for_winner(void) {
         }
     }
 
-    if ((int)mode_of_play == 10 && winner == 3) {
+    if (mode_of_play == 10 && winner == 3) {
         if ((randu0(2) & 0xFFFF) == 0) {
             winner = 1;
             g_game_info.plyr1.field_0C = 0.0f;
@@ -958,11 +945,11 @@ float do_join_in(void) {
 int ok_to_join_in(void) {
     int state;
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         return 0;
     }
     if ((unsigned int)(mode_of_play - 7) <= 1 ||
-        (int)mode_of_play == 10) {
+        mode_of_play == 10) {
         return 0;
     }
     state = get_game_state();
@@ -1105,7 +1092,7 @@ void move_plyrs_to_round_start(void) {
             &player2_angles);
     }
 
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         if (g_game_info.pselect.field_1f4 != 1) {
             show_player(g_game_info.plyr0.slot.pdata);
             show_player(g_game_info.plyr1.slot.pdata);
@@ -1443,7 +1430,7 @@ void reset_fight(int death_trap) {
     }
 
     if (death_trap != 0) {
-        if ((int)mode_of_play == 8) {
+        if (mode_of_play == 8) {
             start_mkpfx_FadeSnapShot();
         } else {
             fade_to_black(20, 0);
@@ -1475,7 +1462,7 @@ void reset_fight(int death_trap) {
                 &player2_angles);
         }
 
-        if ((int)mode_of_play == 8) {
+        if (mode_of_play == 8) {
             if (g_game_info.pselect.field_1f4 != 1) {
                 show_player(g_game_info.plyr0.slot.pdata);
                 show_player(g_game_info.plyr1.slot.pdata);
@@ -1550,29 +1537,29 @@ void reset_fight(int death_trap) {
     if (round_winner == 1) {
         if (is_big_boss(g_game_info.plyr1.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc, getup_from_ground);
+                g_game_info.plyr1.idle_proc, getup_from_ground);
         }
         if (is_big_boss(g_game_info.plyr0.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc, give_some_distance);
+                g_game_info.plyr0.idle_proc, give_some_distance);
         }
     } else if (round_winner == 2) {
         if (is_big_boss(g_game_info.plyr0.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc, getup_from_ground);
+                g_game_info.plyr0.idle_proc, getup_from_ground);
         }
         if (is_big_boss(g_game_info.plyr1.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc, give_some_distance);
+                g_game_info.plyr1.idle_proc, give_some_distance);
         }
     } else {
         if (is_big_boss(g_game_info.plyr0.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr0.idle_proc, getup_from_ground);
+                g_game_info.plyr0.idle_proc, getup_from_ground);
         }
         if (is_big_boss(g_game_info.plyr1.slot.pdata) == 0) {
             xfer_player_proc(
-                (MkProc*)g_game_info.plyr1.idle_proc, getup_from_ground);
+                g_game_info.plyr1.idle_proc, getup_from_ground);
         }
     }
 }
@@ -1589,7 +1576,7 @@ int round_over(void) {
         turn_controllers_off();
         return 1;
     }
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         return trial_end_round() == 0;
     }
 
@@ -1598,7 +1585,7 @@ int round_over(void) {
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
 
-    if ((int)mode_of_play != 4 && (int)mode_of_play != 10 &&
+    if (mode_of_play != 4 && mode_of_play != 10 &&
         !g_game_info.feature_flags.bits.high_bit &&
         g_game_info.plyr0.field_0C + g_game_info.plyr1.field_0C ==
             g_game_info.plyr0.field_10 + g_game_info.plyr1.field_10) {
@@ -1624,7 +1611,7 @@ int round_over(void) {
     }
 
     if (round_winner_info != 0) {
-        switch ((int)mode_of_play) {
+        switch (mode_of_play) {
         case 4:
         case 8:
             round_winner_info->field_44 = 0;
@@ -1637,7 +1624,7 @@ int round_over(void) {
                 rounds_to_win = game_settings.round_time;
             }
             if (round_winner_info->field_40 >= rounds_to_win ||
-                (int)mode_of_play == 10) {
+                mode_of_play == 10) {
                 winner = round_winner;
                 g_game_info.pause_flag_bits.fatality_window = 1;
                 round_winner_info->field_44++;
@@ -1652,7 +1639,7 @@ int round_over(void) {
     if (g_game_info.pause_flag_bits.fatality_window) {
         active_players = game_count_active_players();
 
-        if (active_players == 1 && (int)mode_of_play == 0) {
+        if (active_players == 1 && mode_of_play == 0) {
             if (round_winner == 1 &&
                 g_game_info.plyr0.player_state == 2) {
                 award_koins_to_player(
@@ -1678,7 +1665,7 @@ int round_over(void) {
     }
 
     turn_controllers_off();
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 4:
     case 8:
         break;
@@ -1698,7 +1685,7 @@ int round_over(void) {
 
     if (active_players == 1 &&
         g_game_info.pause_flag_bits.fatality_window &&
-        (int)mode_of_play == 0) {
+        mode_of_play == 0) {
         ladder_advanced = 0;
         if ((g_game_info.plyr0.player_state == 2 && round_winner == 1) ||
             (g_game_info.plyr1.player_state == 2 && round_winner == 2)) {
@@ -1706,7 +1693,7 @@ int round_over(void) {
             g_game_info.pause_flag_bits.ladder_complete = ladder_advanced;
         }
 
-        if ((int)mode_of_play == 0) {
+        if (mode_of_play == 0) {
             if (winner == 1) {
                 if (p1_profile_status == 1) {
                     p1_profile.arcade_wins++;
@@ -1735,7 +1722,7 @@ int round_over(void) {
         active_players = game_count_active_players();
 
         if (active_players == 2 &&
-            ((int)mode_of_play == 1 || (int)mode_of_play == 0)) {
+            (mode_of_play == 1 || mode_of_play == 0)) {
             int winning_side = winner;
 
             if (!g_game_info.feature_flags.bits.high_bit) {
@@ -1771,7 +1758,7 @@ int round_over(void) {
             }
         }
 
-        if ((int)mode_of_play == 0) {
+        if (mode_of_play == 0) {
             active_players = game_count_active_players();
             if (active_players == 2) {
                 if (winner == 1) {
@@ -1819,7 +1806,7 @@ int round_over(void) {
         return 1;
     }
 
-    if ((int)mode_of_play == 4) {
+    if (mode_of_play == 4) {
         end_music();
         reset_fight(g_game_info.flag_bits.level_fatality_done);
         _mkproc_sleep_ticks = 100.0f;
@@ -1827,7 +1814,7 @@ int round_over(void) {
     } else {
         reset_fight(g_game_info.flag_bits.level_fatality_done);
     }
-    if ((int)mode_of_play != 4) {
+    if (mode_of_play != 4) {
         g_game_info.pselect.field_1f4++;
     }
     return 0;
@@ -1841,7 +1828,7 @@ void reset_game_timer(void) {
         timer->typed_vtbl->destroy(timer);
     }
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 8:
         g_game_info.field_204 = trial_get_round_length();
         break;
@@ -1872,14 +1859,15 @@ void reset_game_timer(void) {
 
 #pragma dont_inline on
 
+/* TODO: [near miss] 99.59%; start-position blocks swap volatile r3/r6 (mirror object vs misc pointer). */
 void round_init(void) {
-    if (g_game_info.plyr0.field_10 == 0.0f) {
+    if (!g_game_info.plyr0.field_10) {
         g_game_info.plyr0.field_10 = 1.0f;
     }
-    if (g_game_info.plyr1.field_10 == 0.0f) {
+    if (!g_game_info.plyr1.field_10) {
         g_game_info.plyr1.field_10 = 1.0f;
     }
-    if ((int)mode_of_play != 10 && (int)mode_of_play != 8) {
+    if (mode_of_play != 10 && mode_of_play != 8) {
         g_game_info.plyr0.field_0C = g_game_info.plyr0.field_10;
         g_game_info.plyr1.field_0C = g_game_info.plyr1.field_10;
     }
@@ -1915,8 +1903,8 @@ void round_init(void) {
     }
 
     if (g_game_info.pselect.field_1f4 == 1) {
-        Vec player1_angles;
         Vec player2_angles;
+        Vec player1_angles;
 
         if (g_game_info.plyr0.slot.mirror_a != 0) {
             RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
@@ -1944,7 +1932,7 @@ void round_init(void) {
                 &starts->player2_position,
                 &player2_angles);
         }
-        if ((int)mode_of_play == 8) {
+        if (mode_of_play == 8) {
             if (g_game_info.pselect.field_1f4 != 1) {
                 show_player(g_game_info.plyr0.slot.pdata);
                 show_player(g_game_info.plyr1.slot.pdata);
@@ -1974,10 +1962,10 @@ void round_init(void) {
     if (find_mkproc_pid(0x1003) == 0) {
         start_constrain_proc();
     }
-    if ((int)mode_of_play != 8) {
+    if (mode_of_play != 8) {
         reset_game_timer();
     }
-    if ((int)mode_of_play != 6) {
+    if (mode_of_play != 6) {
         start_tunes();
     }
 }
@@ -1997,7 +1985,7 @@ void game_init(void) {
     f_fatality_available = 0;
     set_level_fatality_done_flag_state(0);
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 8:
         trial_game_init();
         break;
@@ -2008,7 +1996,7 @@ void game_init(void) {
         load_font(7);
         break;
     default:
-        if (((int)mode_of_play == 0 || (int)mode_of_play == 10) &&
+        if ((mode_of_play == 0 || mode_of_play == 10) &&
             g_game_info.feature_flags.bits.powerbars_locked) {
             reset_game_timer();
         } else {
@@ -2282,7 +2270,7 @@ static float p_load_screen(void) {
         return 1.0f;
     }
 
-    if (g_game_info.flag_bits.pad_bit1) {
+    if (g_game_info.flag_bits.load_complete) {
         meter->scale_x = 91.0f;
         _mkproc_sleep_ticks = 6.0f;
         ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
@@ -2315,7 +2303,7 @@ void display_load_meter(int section_slot) {
     int* image_index;
     int current_index;
 
-    g_game_info.flag_bits.pad_bit1 = 0;
+    g_game_info.flag_bits.load_complete = 0;
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
 
@@ -2327,28 +2315,28 @@ void display_load_meter(int section_slot) {
 
     pdata->meter = 0;
     pdata->meter_instance = 0;
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 0:
     case 10:
         table = loading_fight_pic_tbl;
-        image_index = &game_settings.pad_3C;
+        image_index = &game_settings.fight_loading_image;
         break;
     case 6:
         table = loading_puzzle_pic_tbl;
-        image_index = &game_settings.pad_44[1];
+        image_index = &game_settings.puzzle_loading_image;
         break;
     case 9:
         table = loading_chess_pic_tbl;
-        image_index = &game_settings.pad_44[0];
+        image_index = &game_settings.chess_loading_image;
         break;
     case 7:
     case 8:
-        image_index = &game_settings.konquest_latch;
+        image_index = &game_settings.konquest_loading_image;
         table = get_loading_table();
         break;
     default:
         table = loading_fight_pic_tbl;
-        image_index = &game_settings.pad_3C;
+        image_index = &game_settings.fight_loading_image;
         break;
     }
 
@@ -2389,7 +2377,7 @@ float do_continue(void) {
     screen_engine_cleanup();
     if (target_game_mode == 6) {
         g_GameLossesInARow++;
-        if ((int)mode_of_play == 6) {
+        if (mode_of_play == 6) {
             gamelogic_jump(1, p_pz_pselect);
         } else {
             gamelogic_jump(1, p_pselect);
@@ -2440,13 +2428,16 @@ int ck_fatality_available(void) {
     } else {
         return 0;
     }
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         return 0;
     }
     if (g_game_info.flag_bits.level_fatality_done) {
         return 0;
     }
-    return get_blood_level() != 0;
+    if (get_blood_level() == 0) {
+        return 0;
+    }
+    return 1;
 }
 
 static float p_say_finish_him(void) {
@@ -2520,28 +2511,27 @@ static float p_say_finish_him(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 93.771126%; inlined availability guard boundary fixed;
- * paired-single save frame confirmed; defer remaining caller recovery. */
+/* TODO: [near miss] 99.28%; first ending-timing lookup colors base/index r4/r3 (retail r3/r5); loop and declaration forms measured neutral. */
 static void ck_do_fatality(void) {
-    PlyrInfo* victim;
+    int fatality_occurred = 0;
     PlyrInfo* victor;
+    PlyrInfo* victim;
     MkHdr* spawned_pdata;
     int timeout;
-    int fatality_occurred = 0;
     int timing_index;
     float ending_ticks;
 
-    if ((int)mode_of_play == 10 && mk_chess_check_for_fatality() == 0) {
+    if (mode_of_play == 10 && mk_chess_check_for_fatality() == 0) {
         return;
     }
 
     f_fatality_finished = 0;
     if (winner == 1) {
-        victim = &g_game_info.plyr1;
         victor = &g_game_info.plyr0;
+        victim = &g_game_info.plyr1;
     } else if (winner == 2) {
-        victim = &g_game_info.plyr0;
         victor = &g_game_info.plyr1;
+        victim = &g_game_info.plyr0;
     } else {
         return;
     }
@@ -2562,8 +2552,8 @@ static void ck_do_fatality(void) {
         timeout = 420;
         while (victim->slot.pdata->state != 0x4203 && timeout != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
             timeout--;
+            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
 
         timeout = 300;
@@ -2572,8 +2562,8 @@ static void ck_do_fatality(void) {
                 break;
             }
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
             timeout--;
+            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
     }
 
@@ -2586,7 +2576,7 @@ static void ck_do_fatality(void) {
     if (is_big_boss(victim->slot.pdata) != 0) {
         f_fatality_finished = 0;
         f_fatality_was_done = 1;
-        xfer_proc((MkProc*)victim->idle_proc,
+        xfer_proc(victim->idle_proc,
                   (MkProcEntryFn)big_boss_death);
     } else if (!fatality_occurred) {
         end_music();
@@ -2597,13 +2587,13 @@ static void ck_do_fatality(void) {
         return;
     }
 
-    timing_index = 0;
-    while (plyr_ending_timings[timing_index].character_id !=
-           victor->player_index) {
-        if (plyr_ending_timings[timing_index].character_id < 0) {
+    for (timing_index = 0;
+         plyr_ending_timings[timing_index].character_id >= 0;
+         timing_index++) {
+        if (victor->player_index ==
+            plyr_ending_timings[timing_index].character_id) {
             break;
         }
-        timing_index++;
     }
 
     switch (g_game_info.field_200) {
@@ -2614,13 +2604,13 @@ static void ck_do_fatality(void) {
         ending_ticks = plyr_ending_timings[timing_index].alternate;
         break;
     case 3:
-        timing_index = 0;
-        while (plyr_ending_timings[timing_index].character_id !=
-               victim->player_index) {
-            if (plyr_ending_timings[timing_index].character_id < 0) {
+        for (timing_index = 0;
+             plyr_ending_timings[timing_index].character_id >= 0;
+             timing_index++) {
+            if (victim->player_index ==
+                plyr_ending_timings[timing_index].character_id) {
                 break;
             }
-            timing_index++;
         }
         ending_ticks = plyr_ending_timings[timing_index].defeated;
         break;
@@ -2794,7 +2784,6 @@ float p_game_loop(void) {
         if (trial_show_standard_fight_messages() == 0) {
             break;
         }
-        /* fall through: trial fights show the standard message */
     default:
         do_fight_effect();
         break;
@@ -2928,12 +2917,12 @@ float p_gamelogic(void) {
     const char* pause_name;
 
     turn_controllers_off();
-    start_time = (unsigned int)debug_get_msec_timer();
+    start_time = debug_get_msec_timer();
     g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.pause_flag_bits.fatality_window = 0;
     f_fatality_was_done = 0;
     round_winner = 0;
-    if ((int)mode_of_play == 10) {
+    if (mode_of_play == 10) {
         set_section_memory_scheme(5);
     } else {
         set_section_memory_scheme(0);
@@ -2946,7 +2935,7 @@ float p_gamelogic(void) {
         push_game_state(7);
     }
 
-    g_game_info.flag_bits.pad_bit1 = 0;
+    g_game_info.flag_bits.load_complete = 0;
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
     if (_create_mkproc_generic_bigstack(
@@ -2954,28 +2943,28 @@ float p_gamelogic(void) {
             (MkHdr**)&pdata) != 0) {
         pdata->meter = 0;
         pdata->meter_instance = 0;
-        switch ((int)mode_of_play) {
+        switch (mode_of_play) {
         case 0:
         case 10:
             table = loading_fight_pic_tbl;
-            image_index = &game_settings.pad_3C;
+            image_index = &game_settings.fight_loading_image;
             break;
         case 6:
             table = loading_puzzle_pic_tbl;
-            image_index = &game_settings.pad_44[1];
+            image_index = &game_settings.puzzle_loading_image;
             break;
         case 9:
             table = loading_chess_pic_tbl;
-            image_index = &game_settings.pad_44[0];
+            image_index = &game_settings.chess_loading_image;
             break;
         case 7:
         case 8:
-            image_index = &game_settings.konquest_latch;
+            image_index = &game_settings.konquest_loading_image;
             table = get_loading_table();
             break;
         default:
             table = loading_fight_pic_tbl;
-            image_index = &game_settings.pad_3C;
+            image_index = &game_settings.fight_loading_image;
             break;
         }
         if (table[*image_index].left_image == (char*)-1) {
@@ -3005,7 +2994,7 @@ float p_gamelogic(void) {
     load_font(0x11);
     set_process_as_scriptable(aproc);
 
-    switch ((int)mode_of_play) {
+    switch (mode_of_play) {
     case 8:
         trial_setup_fight();
         break;
@@ -3029,7 +3018,7 @@ float p_gamelogic(void) {
         if (g_game_info.plyr1.player_state == 2) {
             active_players++;
         }
-        if (active_players == 1 && (int)mode_of_play == 0) {
+        if (active_players == 1 && mode_of_play == 0) {
             g_game_info.bgnd_id = ladder_get_current_bgnd();
         }
     }
@@ -3045,7 +3034,7 @@ float p_gamelogic(void) {
     setup_sound_banks(2);
     wait_for_sound_banks_to_load();
     _mkproc_sleep_ticks = 6.0f;
-    g_game_info.flag_bits.pad_bit1 = 1;
+    g_game_info.flag_bits.load_complete = 1;
     ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
     start_first_pass_render();
     _mkproc_sleep_ticks = 3.0f;

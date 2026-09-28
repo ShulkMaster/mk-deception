@@ -19,7 +19,9 @@ typedef union ArenaObstacleFlags {
         unsigned char repel : 1;
         unsigned char disabled : 1;
         unsigned char danger_zone : 1;
-        unsigned char pad : 5;
+        unsigned char inverted : 1;
+        unsigned char callback_handled : 1;
+        unsigned char pad : 3;
     } bits;
 } ArenaObstacleFlags;
 

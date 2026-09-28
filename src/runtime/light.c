@@ -264,67 +264,58 @@ RpLight* get_specular_light(void) {
     return 0;
 }
 
+/* TODO: [near miss] 92.56%; CFG matches; defs/list and def/light nonvolatile homes are swapped (retail defs r28, list r25). */
 void load_back_in_lights(LightDef** defs, MkPtr** list) {
-    LightDef* def;
+    RpLight* light;
     MkxRpLight* entry;
     MkObj* obj;
-    RpLight* light;
-    int spotIndex;
+    LightDef* def;
     int index;
+    unsigned int spotIndex;
 
     spotIndex = 0;
-    for (index = 0; index < 3;) {
+    for (index = 0; index < 3; index++) {
         def = *defs;
-        if (def == 0) {
-            defs++;
-            index++;
-            continue;
-        }
-        if (def->type == 2 || def->type == 4 || def->type == 5) {
-            index++;
-            continue;
-        }
-        if (def->type == 0 || def->type >= 6) {
-            defs++;
-            index++;
-            continue;
-        }
-        if (def->type == 1) {
-            entry = fetch_light(list, 1, 0);
-            light = entry->light;
-            if (light == 0) {
-                index++;
+        if (def != 0) {
+            switch (def->type) {
+            case 0:
+                break;
+            case 2:
+            case 4:
+            case 5:
                 continue;
+            case 1:
+                light = fetch_light(list, 1, 0)->light;
+                if (light == 0) {
+                    continue;
+                }
+                RpLightSetColor(light, &def->color);
+                if (RpLightGetWorld(light) == 0) {
+                    RpWorldAddLight(World, light);
+                }
+                break;
+            case 3:
+                entry = fetch_light(list, 3, spotIndex);
+                light = entry->light;
+                if (light == 0) {
+                    continue;
+                }
+                spotIndex++;
+                RpLightSetColor(light, &def->color);
+                if (RpLightGetWorld(light) == 0) {
+                    RpWorldAddLight(World, light);
+                }
+                obj = valid_linked_obj(entry);
+                if (obj != 0) {
+                    obj->dir_x = def->field1C;
+                    obj->dir_y = def->field20;
+                    obj->dir_z = def->field24;
+                    update_mkobj(obj);
+                }
+                break;
             }
-            RpLightSetColor(light, &def->color);
-            if (RpLightGetWorld(light) == 0) {
-                RpWorldAddLight(World, light);
-            }
-            defs++;
-            index++;
-            continue;
-        }
-        /* type 3 */
-        entry = fetch_light(list, 3, (unsigned int)spotIndex);
-        light = entry->light;
-        if (light == 0) {
-            index++;
-            continue;
-        }
-        spotIndex++;
-        RpLightSetColor(light, &def->color);
-        if (RpLightGetWorld(light) == 0) {
-            RpWorldAddLight(World, light);
-        }
-        obj = valid_linked_obj(entry);
-        if (obj != 0) {
-            obj->dir_x = def->field1C;
-            obj->dir_y = def->field20;
-            obj->dir_z = def->field24;
-            update_mkobj(obj);
         }
         defs++;
-        index++;
     }
 }
 

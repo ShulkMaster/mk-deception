@@ -32,10 +32,8 @@
 /* Krypt and Kontent gameplay for the GQNE5D retail object. */
 
 /* --- callees outside this TU (prototypes only) --- */
-int get_coffin_bit(const unsigned char* bits, unsigned int index);
 void set_player_state(PlyrInfo* plyr, int state);
 void gamelogic_jump(int action, MkProcEntryFn logic);
-float p_atm_loop(void);
 int get_menu_mode_sub_var(void);
 void turn_controllers_on(void);
 void disable_all_ports_but_me(int port);
@@ -48,12 +46,8 @@ int check_switch_edge(int player, int action);
 int check_switch(int player, int action);
 void scan_switches(void);
 int run_ending(int fighter);
-int play_movie(int movie, int (*tapout)(void));
 char* get_ending_thumbnail_name(int fighter);
-RwTexture* load_named_tga_from_slot(int slot, const char* name);
-RwTexture* load_tga(int slot, unsigned int oid);
 int pan_snd_req(int sound_id, float pan);
-float get_pan_value(const Vec* position);
 void fx_set(unsigned int handle, int parameter, float value);
 unsigned int fx_next_emitter(unsigned int handle);
 int emitter_id_from_handle(unsigned int handle);
@@ -63,8 +57,7 @@ void insert_particle_mkobj(MkObj* object);
 AnimScript* get_animation(int animation_id);
 void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags, float blend);
-MkProc* create_mkproc_anim(int pid, MkProcEntryFn entry, AnimPdata** out_animation);
-void set_root_and_obj_movement_weights(float root_weight, float obj_weight, AnimPdata* animation);
+void set_root_and_obj_movement_weights(AnimPdata* animation, float root_weight, float obj_weight);
 void build_bones_tbl(MkObj* object, const int* tags);
 void insert_ground_me_mkobj(MkObj* object);
 char* strlwr(char* string);
@@ -122,8 +115,6 @@ extern MkFileEntry kon_unique_npcs_file_table[];
 extern int konquest_human_bones[];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern char monk_ground_colls[];
-extern float _mkproc_sleep_ticks;
-extern CmdScript* active_cmdscript;
 extern GlobalPlayerEntry global_player_data[];
 extern MkFileInfo sec_krypt_screen_art;
 extern MkFileInfo sec_krypt_award_art;
@@ -215,7 +206,6 @@ static int deduct_koins(int amount, unsigned int koin_type);
 static void start_opening_coffin_effects(Vec* origin);
 static void update_use_key_string(void);
 float p_fog_follow_camera(void);
-void remove_prize_description(void);
 
 static inline void mkproc_jump_sleep(MkProcEntryFn entry) {
     aproc->vtbl->jump_sleep(entry, 0.0f);
@@ -309,8 +299,8 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
     unsigned int dirt_effect;
     unsigned int dust_effect;
     unsigned int emitter;
-    MkPfx* particle;
     MkObj* object;
+    MkPfx* particle;
     int i;
 
     dirt_effect = fx_by_owner("dirt_fountain", 4);
@@ -424,8 +414,7 @@ void get_gallery_page_number_string(char* out) {
             (kontent_pdata->item_count - 1) / 12 + 1);
 }
 
-/* TODO: [near miss] 98.809525%; both local declaration orders are neutral;
- * retain table snapshot and stop at owner-register coloring. */
+/* TODO: [near miss] 98.809525%; kontent and coffin table pointers swap r4/r5 in five rows. */
 char* get_long_coffin_description(void) {
     int coffin;
     CoffinEntry* entries;
@@ -463,16 +452,14 @@ char* get_coffin_blurb(void) {
     }
     return "";
 }
-/* TODO: [near miss] 99.45%; branch and table snapshot recovered;
- * section-scope trial regresses; stop at section/OID and index coloring. */
 void create_fullscreen_gallery_image_list(GVTexturePair out, int count) {
-    int i;
     int coffin;
-    unsigned int oid;
     MkFileInfo* section;
+    unsigned int oid;
+    int gallery_art;
+    int i;
     StringObj* text;
     CoffinEntry* entry;
-    int gallery_art;
 
     coffin = kontent_pdata->items[kontent_pdata->current_selection];
     entry = coffin_data;
@@ -496,7 +483,7 @@ void create_fullscreen_gallery_image_list(GVTexturePair out, int count) {
         load_string_bank(0x20000, "bio_strings_eng.mko");
         load_ssf(bios_file_table);
         load_art_section(0x11005C, &sec_eu_biofont);
-        load_font_in_slot(0x10, (char*)0x11005C, 0x1490001, 0x1490000);
+        load_font_in_slot(0x10, 0x11005C, 0x1490001, 0x1490000);
         entry = &coffin_data[coffin];
         text = put_bio_text(entry->unlock_or_movie, entry->kontent_type != 0xD);
         if (text != 0) {
@@ -641,7 +628,6 @@ int get_number_kontent_items(void) {
                 kontent_pdata->item_count++;
             }
         }
-        /* fall through */
     default:
     case 3:
         for (i = 0; i < 400; i++) {
@@ -659,15 +645,34 @@ int get_number_kontent_items(void) {
     return kontent_pdata->item_count;
 }
 
-/* TODO: [breakthrough] 99.43396%; restored retail -1 return value;
- * allocation and relocation-loop register coloring remains. */
-float p_kontent_setup(void) {
+static inline void krypt_load_gallery_data(void) {
     int stringLength;
     char* strings;
     MkFileEntry* file;
-    int length;
     int i;
 
+    file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
+    if (file != 0) {
+        stringLength = mk_file_length(file) - 0x4498;
+        strings = get_mem(stringLength);
+        if (strings != 0) {
+            coffin_data = get_mem(0x4498);
+            if (coffin_data != 0) {
+                mk_file_read(coffin_data, 0x28, 0x1B7, file);
+                mk_file_read(strings, 1, stringLength, file);
+                mk_file_close(file);
+                for (i = 0; i < 0x1B7; i++) {
+                    coffin_data[i].blurb = strings + (unsigned int)coffin_data[i].blurb;
+                    coffin_data[i].long_description =
+                        strings + (unsigned int)coffin_data[i].long_description;
+                }
+                gallery_data_loaded = 1;
+            }
+        }
+    }
+}
+
+float p_kontent_setup(void) {
     zero_pdata_payload(0x704, (MkHdr*)kontent_pdata);
     mode_of_play = 5;
     if (menu_player == 0) {
@@ -688,27 +693,7 @@ float p_kontent_setup(void) {
     kontent_pdata->category = get_menu_mode_sub_var() - 0x2BE;
     load_ssf(galleryart_file_table);
     if (gallery_data_loaded == 0) {
-        file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
-        if (file != 0) {
-            length = mk_file_length(file);
-            stringLength = length - 0x4498;
-            strings = (char*)get_mem(stringLength);
-            if (strings != 0) {
-                coffin_data = (CoffinEntry*)get_mem(0x4498);
-                if (coffin_data != 0) {
-                    mk_file_read(coffin_data, 0x28, 0x1B7, file);
-                    mk_file_read(strings, 1, stringLength, file);
-                    mk_file_close(file);
-                    /* File pointers hold 32-bit offsets into the trailing string block. */
-                    for (i = 0; i < 0x1B7; i++) {
-                        coffin_data[i].blurb = strings + (unsigned int)coffin_data[i].blurb;
-                        coffin_data[i].long_description =
-                            strings + (unsigned int)coffin_data[i].long_description;
-                    }
-                    gallery_data_loaded = 1;
-                }
-            }
-        }
+        krypt_load_gallery_data();
     }
     switch (kontent_pdata->category) {
     case 2:
@@ -880,8 +865,6 @@ static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
 
 
 
-/* TODO: [near miss] 96.6875%; direct latch condition preserves code;
- * retail post-latch process reload remains unresolved. */
 static float p_run_character_animation(void) {
     KryptCharacterAnimProcPdata* pdata;
     MkHdr* obj;
@@ -897,8 +880,8 @@ static float p_run_character_animation(void) {
     obj = krypt_character_anim_proc_pdata_live_obj(pdata);
 
     if (obj != 0) {
-        animation = krypt_pdata->anim_pdata;
-        if (anim_pdata_live_proc(animation) != 0) {
+        if (anim_pdata_live_proc(krypt_pdata->anim_pdata) != 0) {
+            animation = krypt_pdata->anim_pdata;
             if (animation->proc->instance != 0) {
                 animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
             }
@@ -923,12 +906,12 @@ static inline MkObj* load_krypt_character_model(char* character_name) {
     sprintf(section_name, "kon_%s.sec", character_name);
     strlwr(section_name);
     load_art_section_by_name(0x140065, section_name);
-    object = (MkObj*)load_named_model_from_slot(0x140065, "NPC", 0x8312, 0);
+    object = load_named_model_from_slot(0x140065, "NPC", 0x8312, 0);
     if (object != 0) {
         Vec scale = {1.7f, 1.7f, 1.7f};
 
         obj_create_sobjs(object);
-        sobj = (MkSobj*)obj_first_sobj(object);
+        sobj = obj_first_sobj(object);
         if (sobj != 0) {
             sobj->flags09_bits.bit4 = 0;
             sobj->flags09_bits.bit2 = 0;
@@ -951,7 +934,7 @@ static inline MkObj* load_krypt_character_model(char* character_name) {
         if (krypt_pdata->anim_proc != 0) {
             krypt_pdata->anim_pdata->obj = object;
             krypt_pdata->anim_pdata->obj_instance = object->hdr.instance;
-            set_root_and_obj_movement_weights(0.0f, 1.0f, krypt_pdata->anim_pdata);
+            set_root_and_obj_movement_weights(krypt_pdata->anim_pdata, 0.0f, 1.0f);
             krypt_pdata->anim_pdata->step = 1.0f;
             set_anim_script(
                 krypt_pdata->anim_pdata,
@@ -1003,8 +986,6 @@ static float p_krypt_animate(void) {
         if (animation->high_frame == 76.0f) {
             frame_delta = animation->frame -
                           (float)footstep_frames[0][krypt_pdata->footstep_frame_index];
-            /* Retail negates unordered deltas too (fcmpo/cror at 0x80169094
-             * and 0x80169190); a negative-only test changes that behavior. */
             frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
             if (frame_delta < animation->step) {
                 object = animation_live_obj(animation);
@@ -1057,9 +1038,9 @@ static float p_monitor_krypt_characters(void) {
         return -1.0f;
     }
     if (pdata->elapsed_ticks >= pdata->delay_ticks && camera->flags_bits.pos_done != 0) {
-        character_names = (char**)get_data_table_by_name("krypt_character_names");
+        character_names = get_data_table_by_name("krypt_character_names");
         character_scripts =
-            (unsigned int*)get_data_table_by_name("krypt_character_info_table");
+            get_data_table_by_name("krypt_character_info_table");
         object = load_krypt_character_impl(
             character_names[(unsigned short)randu0((unsigned short)get_row_count_for_table_by_pointer(
                 g_game_info.cmdscript, character_names))]);
@@ -1096,29 +1077,20 @@ static float p_monitor_krypt_characters(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 95.520836%; full-TU search yields redundant aliases;
- * selected-sound register lifetime remains at the honest-source ceiling. */
 static float p_play_random_noise(void) {
     static unsigned short number_of_sounds_left = 35;
-    int* end;
-    int count;
     unsigned short index;
-    unsigned short remaining;
+    unsigned int sound;
     int last_sound;
-    int sound;
     float pan;
     unsigned int delay;
 
-    index = (unsigned short)randu0(number_of_sounds_left);
-    count = number_of_sounds_left;
-    end = &background_sounds[count];
-    remaining = count - 1;
+    index = randu0(number_of_sounds_left);
     sound = background_sounds[index];
-    last_sound = end[-1];
-    number_of_sounds_left = remaining;
-    end[-1] = sound;
+    last_sound = background_sounds[number_of_sounds_left - 1];
+    background_sounds[number_of_sounds_left - 1] = background_sounds[index];
     background_sounds[index] = last_sound;
-    if (remaining == 0) {
+    if (--number_of_sounds_left == 0) {
         number_of_sounds_left = 35;
     }
 
@@ -1132,12 +1104,6 @@ static float p_play_random_noise(void) {
 /* Cluster C - tombstone HUD pfx and coffin-grid pebbles                     */
 /* ========================================================================= */
 
-/*
- * Shared update path for letter/number/koin tombstone particle systems.
- * While krypt_pdata->tombstone_hud_ticks != 0, rebuild layouts via set_*;
- * otherwise copy positions and scalar fields from the -1 slot into the -2 slot.
- * The field API returns byte strides, so each typed stream advances in bytes.
- */
 static inline float update_tombstone_common(void (*rebuild)(void* pfx)) {
     PfxVm* pfx;
     Vec* src_position;
@@ -1153,11 +1119,11 @@ static inline float update_tombstone_common(void (*rebuild)(void* pfx)) {
         rebuild(pfx);
         krypt_pdata->tombstone_hud_ticks -= 1;
     } else {
-        dst_f = (float*)pfx_get_field(pfx, -2, 0x301);
-        src_f = (float*)pfx_get_field(pfx, -1, 0x301);
+        dst_f = pfx_get_field(pfx, -2, 0x301);
+        src_f = pfx_get_field(pfx, -1, 0x301);
         stride_f = pfx_get_struct_size(pfx, 0x301);
-        src_position = (Vec*)pfx_get_field(pfx, -1, 0x100);
-        dst_position = (Vec*)pfx_get_field(pfx, -2, 0x100);
+        src_position = pfx_get_field(pfx, -1, 0x100);
+        dst_position = pfx_get_field(pfx, -2, 0x100);
         position_stride = pfx_get_struct_size(pfx, 0x100);
 
         for (i = 0; i < pfx->particle_cursor; i++) {
@@ -1184,11 +1150,9 @@ float update_tombstone_koins(void) {
     return update_tombstone_common(set_koin_positions_and_colors);
 }
 
-static inline void init_tombstone_common(void* pfx_arg, int particle_count, float scale,
+static inline void init_tombstone_common(PfxVm* pfx, int particle_count, float scale,
                                   void* tex_name, int anim_a, int anim_b, int anim_c,
                                   int anim_d) {
-    PfxVm* pfx;
-    pfx = (PfxVm*)pfx_arg;
     pfx->particle_capacity = particle_count;
     pfx->particle_cursor = particle_count;
 
@@ -1213,23 +1177,19 @@ static inline void init_tombstone_common(void* pfx_arg, int particle_count, floa
     pfx->light_attenuation_k2 = 0.0125f;
     pfx_native_set_rgba(&pfx->light_color, 255.0f, 255.0f, 255.0f, 0.0f);
 
-    /* Texture path/name are retail immediates (section-relative ids). */
     set_pfx_texture(pfx, (void*)0x00140064, tex_name);
     pfx_texture_animate(pfx, anim_a, anim_b, anim_c, anim_d, 1.0f);
     pfx->texture_mode = 0;
 }
 
-/* TODO: [near miss] 96.47059%; canonical RGBA contract confirmed; stop at first-color address scheduling. */
 void init_tombstone_letters(void* pfx) {
     init_tombstone_common(pfx, 0x48, 0.3f, (void*)0x012a0005, 0x100, 0x20, 0x20, 0x40);
 }
 
-/* TODO: [near miss] 96.47059%; canonical RGBA contract confirmed; stop at first-color address scheduling. */
 void init_tombstone_numbers(void* pfx) {
     init_tombstone_common(pfx, 0x90, 0.18f, (void*)0x012a0006, 0x80, 0x20, 0x2a, 0xa);
 }
 
-/* TODO: [near miss] 96.47059%; canonical RGBA contract confirmed; stop at first-color address scheduling. */
 void init_tombstone_koins(void* pfx) {
     init_tombstone_common(pfx, 0x24, 0.4f, (void*)0x012a0004, 0x80, 0x2a, 0x2a, 0x8);
 }
@@ -1270,8 +1230,7 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 95.983604%; declaration order and inner-loop bias scope improve allocation;
- * localized constant/register scheduling remains. */
+/* TODO: [near miss] 96.03825%; PFX field owners, inner-loop GPR/FPR coloring, and constant-pool order remain. */
 static void set_letter_positions_and_values(void* pfx) {
     float z_far;
     int col;
@@ -1291,9 +1250,9 @@ static void set_letter_positions_and_values(void* pfx) {
     int coffin_idx;
     int is_near;
 
-    uv = (float*)pfx_get_field(pfx, -2, 0x301);
+    uv = pfx_get_field(pfx, -2, 0x301);
     uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = (Vec*)pfx_get_field(pfx, -2, 0x100);
+    pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
     base_x = tombstone_col_x(view_col);
@@ -1364,9 +1323,9 @@ static void set_number_positions_and_values(void* pfx) {
     int particle;
 
     particle = 0;
-    uv = (float*)pfx_get_field(pfx, -2, 0x301);
+    uv = pfx_get_field(pfx, -2, 0x301);
     uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = (Vec*)pfx_get_field(pfx, -2, 0x100);
+    pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
     base_x = tombstone_col_x(view_col);
@@ -1487,8 +1446,7 @@ static void set_number_positions_and_values(void* pfx) {
 
 
 
-/* TODO: [near miss] 95.838326%; declaration-only search improves register allocation;
- * constant/conversion scheduling remains at the honest-source ceiling. */
+/* TODO: [near miss] 96.01797%; row conversion stack order and FPR constant coloring remain. */
 static void set_koin_positions_and_colors(void* pfx) {
     int pos_stride;
     int view_row;
@@ -1508,13 +1466,13 @@ static void set_koin_positions_and_colors(void* pfx) {
     int is_near;
     float* uv;
 
-    uv = (float*)pfx_get_field(pfx, -2, 0x301);
+    uv = pfx_get_field(pfx, -2, 0x301);
     uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = (Vec*)pfx_get_field(pfx, -2, 0x100);
+    pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    base_x = tombstone_col_x(view_col);
     base_z = tombstone_row_z(view_row);
+    base_x = tombstone_col_x(view_col);
 
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
@@ -1582,6 +1540,19 @@ static inline StringObj* krypt_wallet_text_at(int index) {
     return object;
 }
 
+static inline StringObj* krypt_live_wallet_text(KryptPdata* pdata, int koin_type) {
+    StringObj* object = pdata->wallet_text[koin_type].obj;
+    if (object != 0) {
+        if (object->instance == pdata->wallet_text[koin_type].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline StringObj* krypt_wallet_text(const KryptStringObjLatch* latch) {
     StringObj* object = latch->obj;
     if (object != 0) {
@@ -1597,12 +1568,25 @@ static inline StringObj* krypt_wallet_text(const KryptStringObjLatch* latch) {
 
 /* Keep the retail dialog call while expanding the explicit latch helper. */
 #pragma auto_inline off
-/* TODO: [breakthrough] 97.94215%; latch qualifier trial is neutral; address/index allocation remains. */
+static inline void krypt_set_wallet_text_y(int y) {
+    KryptStringObjLatch* wallet_text;
+    StringObj* text;
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        wallet_text = krypt_pdata->wallet_text;
+        text = krypt_wallet_text(&wallet_text[i]);
+        if (text != 0) {
+            text->y = y;
+        }
+    }
+}
+
 void force_wallet_to_open_position(void) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
     StringObj* text;
-    /* The formatter emits at most seven characters plus its terminator. */
+    KryptStringObjLatch* wallet_text;
     char value[8];
     int i;
 
@@ -1615,16 +1599,12 @@ void force_wallet_to_open_position(void) {
         wallet_front->y = 0;
     }
 
-    for (i = 0; i < 6; i++) {
-        text = krypt_wallet_text(&krypt_pdata->wallet_text[i]);
-        if (text != 0) {
-            text->y = 0x22;
-        }
-    }
+    krypt_set_wallet_text_y(0x22);
 
     for (i = 0; i < 6; i++) {
         format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
-        text = krypt_wallet_text(&krypt_pdata->wallet_text[i]);
+        wallet_text = krypt_pdata->wallet_text;
+        text = krypt_wallet_text(&wallet_text[i]);
         if (text != 0) {
             update_string_obj(text, 0, value);
         } else {
@@ -1749,7 +1729,7 @@ static inline StringObj* krypt_pdata_live_use_key_string_obj(KryptPdata* owner) 
 
 
 
-/* TODO: [near miss] 97.321240%; bounded permuter candidates violate lifetimes/read order; retain latch form and coloring ceiling. */
+/* TODO: [near miss] 97.321243%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1829,7 +1809,6 @@ void init_heads_up_display(void) {
     ScreenObj* award_frame;
     StringObj* right_label;
     StringObj* right_text;
-    /* The formatter emits at most seven characters plus its terminator. */
     char value[8];
     char* string;
 
@@ -1933,11 +1912,25 @@ void init_heads_up_display(void) {
 /* Cluster D - coffin open and FX                                            */
 /* ========================================================================= */
 
+static inline const char* prize_description_text(CoffinEntry* entries, int index, int last_index,
+                                           int available) {
+    char* description;
+
+    if (!available) {
+        description = 0;
+    } else if (index < 0 || index > last_index) {
+        description = 0;
+    } else {
+        description = entries[index].blurb;
+    }
+    return description;
+}
+
 static inline void display_prize_description_impl(
     CoffinEntry* entries, int index, int last_index, int available,
     unsigned int string_bank, int priority) {
     const char* title;
-    char* description;
+    const char* description;
     StringObj* description_obj;
     int kontent_type;
 
@@ -1952,13 +1945,7 @@ static inline void display_prize_description_impl(
     string_center_xy(
         0xA00F, 9, title, screen_width / 2,
         screen_height / 2 + 0x8A, priority);
-    if (!available) {
-        description = 0;
-    } else if (index < 0 || index > last_index) {
-        description = 0;
-    } else {
-        description = entries[index].blurb;
-    }
+    description = prize_description_text(entries, index, last_index, available);
     if ((unsigned int)entries[index].kontent_type == 0xC &&
         (get_language() == 0 || get_language() == 5)) {
         char* separator = strchr(description, ':');
@@ -2001,9 +1988,9 @@ static inline void move_picture_to_camera_impl(KryptScreenObjLatch* picture_latc
         picture->scale_x += 0.1f;
         picture->scale_y += 0.1f;
         picture->x = screen_width / 2 -
-            (int)(256.0f * picture->scale_x * 0.5f);
+            (int)(256.0f * picture->scale_x / 2.0f);
         picture->y = screen_height / 2 -
-            (int)(256.0f * picture->scale_y * 0.5f);
+            (int)(256.0f * picture->scale_y / 2.0f);
         _mkproc_sleep_ticks = 1.0f;
         mkproc_sleep();
     }
@@ -2013,12 +2000,28 @@ static inline void move_picture_to_camera_impl(KryptScreenObjLatch* picture_latc
 }
 
 
-/* TODO: [breakthrough] 96.93901%; aggregate payload order now matches retail;
- * counter addresses and local register scheduling remain. */
+static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index) {
+    unsigned int art_oid;
+    MkFileInfo* art_section;
+
+    if (krypt_data_loaded == 0) {
+        return 0;
+    }
+    art_oid = entries[index].gallery_art;
+    art_section = get_mk_file_info_from_current_ssf(art_oid);
+    if (is_section_loading_or_loaded(0x150067, art_section) == 0) {
+        unload_section_slot(0x150067);
+    }
+    load_art_section(0x150067, art_section);
+    return (art_oid + 0x3EA) << 16;
+}
+
+/* TODO: [near miss] 98.76%; frame, award-art and wallet-latch shape match; koin totals fold
+ * into profile+k*4 (retail keeps lwzx base), GPR r24-r29 and f28/f31 coloring remain. */
 static float p_move_camera_and_open_coffin(void) {
+    Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
     Vec camera_offset = s_coffin_camera_offset;
-    Vec coffin_position;
     CameraPdata* camera;
     CoffinEntry* entry;
     MkSobj* coffin;
@@ -2029,9 +2032,8 @@ static float p_move_camera_and_open_coffin(void) {
     ScreenObj* notice_right;
     ScreenObj* notice_bottom;
     StringObj* wallet_text;
-    MkFileInfo* section;
     unsigned int art_oid;
-    unsigned int koin_type;
+    int koin_type;
     unsigned int old_total;
     int selected;
 
@@ -2044,12 +2046,14 @@ static float p_move_camera_and_open_coffin(void) {
     heads_up_display_visible(0);
 
     {
-        Vec coffin_offset = s_coffin_offset;
         int column = krypt_pdata->current_column;
         int row = krypt_pdata->current_row;
+        Vec coffin_offset;
+
         coffin_position.x = 3.0f * column + -28.5f;
         coffin_position.y = 0.0f;
         coffin_position.z = -(5.0f * row - 50.0f);
+        coffin_offset = s_coffin_offset;
 
         coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
         if (coffin != 0) {
@@ -2117,19 +2121,9 @@ static float p_move_camera_and_open_coffin(void) {
 
     if (krypt_pdata->award_image_left == 0) {
         load_ssf(krypt_art_file_table);
-        entry = &coffin_data[
-            krypt_pdata->current_column + krypt_pdata->current_row * 20];
-        if (krypt_data_loaded == 0) {
-            art_oid = 0;
-        } else {
-            art_oid = entry->gallery_art;
-            section = get_mk_file_info_from_current_ssf(art_oid);
-            if (is_section_loading_or_loaded(0x150067, section) == 0) {
-                unload_section_slot(0x150067);
-            }
-            load_art_section(0x150067, section);
-            art_oid = (art_oid + 0x3EA) << 16;
-        }
+        art_oid = coffin_award_art_oid(
+            coffin_data,
+            krypt_pdata->current_column + krypt_pdata->current_row * 20);
         krypt_pdata->award_image_left = load_2d_pfxobj_xy(
             0x150067, 0x830F, (char*)art_oid, 0,
             screen_width / 2 - 0xC0, screen_height / 2 - 0x80, 0x4C);
@@ -2230,7 +2224,6 @@ static float p_move_camera_and_open_coffin(void) {
 
     if (krypt_pdata->award_applied == 0) {
         ProfileCommon* profile;
-        unsigned int* totals;
         int amount;
 
         entry = &coffin_data[
@@ -2239,19 +2232,18 @@ static float p_move_camera_and_open_coffin(void) {
             profile = krypt_pdata->profile_common;
             amount = entry->unlock_or_movie;
             koin_type = entry->movie_kind - 100;
-            totals = profile->koin_totals;
-            old_total = totals[koin_type];
-            totals[koin_type] += amount;
+            old_total = profile->koin_totals[koin_type];
+            profile->koin_totals[koin_type] += amount;
             profile->koin_earned[koin_type] += amount;
             if (save_profile(menu_player, 2) == 0) {
-                totals[koin_type] -= amount;
+                profile->koin_totals[koin_type] -= amount;
                 profile->koin_earned[koin_type] -= amount;
                 _mkproc_sleep_ticks = 1.0f;
                 mkproc_sleep();
             } else {
                 _create_mkproc_generic_tinystack(
                     0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-                wallet_text = krypt_wallet_text(&krypt_pdata->wallet_text[koin_type]);
+                wallet_text = krypt_live_wallet_text(krypt_pdata, koin_type);
                 display_numerical_change(
                     wallet_text, 0, old_total, amount, 1, 0x14);
                 destroy_mkprocs_pid(0x8246);
@@ -2281,8 +2273,6 @@ static float p_fade_fog(void) {
             alpha = 0;
         }
 
-        /* Retail adds before yielding (0x8016C138) and tests unsigned range.
-         * Preserve wraparound and the zero-step nonterminating fade. */
         while (alpha <= 0xFF) {
             obj_set_sobj_alpha(g_game_info.bgnd_obj, 0x46, alpha);
             _mkproc_sleep_ticks = 1.0f;
@@ -2296,19 +2286,17 @@ static float p_fade_fog(void) {
 void remove_prize_description(void) {
     del_string_obj_by_id(0xA00F);
 }
-/* TODO: [near miss] 98.68687%; bounded description-query helper neutral; return-register lifetime remains. */
+/* TODO: [near miss] 98.69%; retail builds description in r3 and copies it to r30 after index's last use; ours keeps it in r28. */
 void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
                                unsigned int string_bank, int priority) {
     display_prize_description_impl(
         entries, index, last_index, available, string_bank, priority);
 }
-/* TODO: [near miss] 99.4%; screen latch join recovered; scale-product operand
- * trial neutral; constant allocation and multiplication operands remain. */
 void move_picture_to_camera(KryptScreenObjLatch* picture_latch) {
     move_picture_to_camera_impl(picture_latch);
 }
-/* TODO: [near miss] 97.338234%; early implementation restores aggregate order;
- * wrapper boundary control is unnecessary; register/copy scheduling remains. */
+/* TODO: [near miss] 97.59559%; typed object/particle declaration order improved;
+ * aggregate stack slots and register coloring remain. */
 static void start_opening_coffin_effects(Vec* origin) {
     opening_coffin_effects_impl(origin);
 }
@@ -2535,7 +2523,7 @@ static float handle_controller_input(void) {
                     entry = &coffin_data[index];
                     if ((unsigned int)entry->movie_kind != 0 &&
                         (unsigned int)entry->movie_kind < 20) {
-                        mark_as_unlocked((PlayerProfile*)krypt_pdata->player_profile,
+                        mark_as_unlocked(krypt_pdata->player_profile,
                                          entry->movie_kind, entry->unlock_or_movie);
                     }
                     if (deduct_koins(cost, kind) != 0) {
@@ -2553,7 +2541,7 @@ static float handle_controller_input(void) {
                         entry = &coffin_data[index];
                         if ((unsigned int)entry->movie_kind != 0 &&
                             (unsigned int)entry->movie_kind < 20) {
-                            mark_as_locked((PlayerProfile*)krypt_pdata->player_profile,
+                            mark_as_locked(krypt_pdata->player_profile,
                                            entry->movie_kind, entry->unlock_or_movie);
                         }
                     }
@@ -2665,23 +2653,21 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.018814%; constrained declaration search regressed real-TU score; retain recovered CFG and coloring ceiling. */
+/* TODO: [near miss] 99.52%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
 static int do_dialog(int dialog_type) {
+    int result;
     ScreenObj* dialog_left;
     ScreenObj* dialog_right;
-    ScreenObj* dialog_bottom;
     ScreenObj* yes_button;
-    ScreenObj* no_button;
+    ScreenObj* no_button = 0;
     ScreenObj* ok_button;
     ScreenObj* hud_icon_a;
     ScreenObj* hud_icon_b;
+    ScreenObj* dialog_bottom = 0;
     StringObj* dialog_text;
     const char* message;
-    int result;
 
-    dialog_bottom = 0;
     yes_button = 0;
-    no_button = 0;
     ok_button = 0;
     hud_icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
     hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
@@ -2813,8 +2799,8 @@ static float p_single_move_footstep_proc(void) {
     snd_req(0x3CC);
     return -1.0f;
 }
-/* TODO: [near miss] 95.25%; full-TU owner search yields aliases or invalid lifetimes;
- * retained totals-base/index lowering remains at the honest-source ceiling. */
+/* TODO: [near miss] 96.48%; wallet latch now indexes krypt_pdata directly;
+ * koin totals base/index lowering (retail lwzx on profile+0x38) remains. */
 static int deduct_koins(int amount, unsigned int koin_type) {
     ProfileCommon* profile;
     StringObj* wallet_text;
@@ -2848,7 +2834,6 @@ static int deduct_koins(int amount, unsigned int koin_type) {
     old_total = profile->koin_totals[koin_type];
     profile->koin_totals[koin_type] = old_total - amount;
     profile->koin_spent[koin_type] += amount;
-    /* Undo only this payment on the retained profile; do not restore old_total. */
     if (save_profile(menu_player, 2) == 0) {
         profile->koin_totals[koin_type] += amount;
         profile->koin_spent[koin_type] -= amount;
@@ -2857,7 +2842,7 @@ static int deduct_koins(int amount, unsigned int koin_type) {
 
     _create_mkproc_generic_tinystack(
         0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-    wallet_text = krypt_wallet_text(&krypt_pdata->wallet_text[koin_type]);
+    wallet_text = krypt_live_wallet_text(krypt_pdata, koin_type);
     display_numerical_change(wallet_text, 0, old_total, -amount, 1, 0x14);
     destroy_mkprocs_pid(0x8246);
     _mkproc_sleep_ticks = 30.0f;
@@ -2936,7 +2921,6 @@ void set_pebble_positions_for_row(int row, int start_col, int count, Vec* origin
             pebble->pebbles[lid_count].matrix.pos.x = position->x + lid_offset.x;
             pebble->pebbles[lid_count].matrix.pos.y = position->y + lid_offset.y;
             pebble->pebbles[lid_count].matrix.pos.z = position->z + lid_offset.z;
-            /* Retail then forces Y to 0. */
             pebble->pebbles[lid_count].matrix.pos.y = 0.0f;
             pebble->count++;
         }
@@ -3086,7 +3070,7 @@ void setup_tombstones(void) {
         sobj->flags_08_bits.bit6 = 1;
         fog_pdata = 0;
         if (_create_mkproc_generic_tinystack(
-                0x823a, 0x1f, (MkProcEntryFn)p_fog_follow_camera, 0x10,
+                0x823a, 0x1f, p_fog_follow_camera, 0x10,
                 (MkHdr**)&fog_pdata) != 0 && fog_pdata != 0) {
             fog_pdata->obj = (MkHdr*)sobj;
             fog_pdata->obj_instance = ((MkHdr*)sobj)->instance;
@@ -3299,7 +3283,6 @@ int load_binary_data(
     mk_file_close(file);
 
     for (i = 0; i < entry_count; i++) {
-        /* File records contain offsets into the trailing string block. */
         (*entries)[i].blurb = strings + (unsigned int)(*entries)[i].blurb;
         (*entries)[i].long_description =
             strings + (unsigned int)(*entries)[i].long_description;
@@ -3314,8 +3297,7 @@ static inline int find_available_konquest_key(void) {
     int index;
     int opened;
 
-    index = 1;
-    for (;;) {
+    for (index = 1; index < 400; index++) {
         entry = &coffin_data[index];
         if ((unsigned int)entry->prize_kind == 6) {
             if (entry->cost > krypt_pdata->konquest_key_max) {
@@ -3332,17 +3314,14 @@ static inline int find_available_konquest_key(void) {
                 }
             }
         }
-        index++;
-        if (index >= 400) {
-            return 0;
-        }
     }
+    return 0;
 }
 
 /* Preserve the retail init call while expanding its explicit search helper. */
 #pragma auto_inline off
 static void init_konquest_keys(void) {
-    krypt_pdata->konquest_key_table = (int*)get_data_table_by_name("konquest_keys");
+    krypt_pdata->konquest_key_table = get_data_table_by_name("konquest_keys");
     if (krypt_pdata->konquest_key_table != 0) {
         krypt_pdata->konquest_key_max = get_row_count_for_table_by_pointer(
             g_game_info.cmdscript, krypt_pdata->konquest_key_table);
@@ -3359,8 +3338,7 @@ static void init_konquest_keys(void) {
 
 
 
-/* TODO: [near miss] 99.12371%; UI pointer declaration move is neutral;
- * index/stride and retained UI pointer registers remain at coloring ceiling. */
+/* TODO: [near miss] 99.12%; UI pointer and search index/stride differ only in GPR coloring. */
 static void update_use_key_string(void) {
     StringObj* use_key_text;
     const char* use_key_label;
@@ -3380,8 +3358,7 @@ static void update_use_key_string(void) {
     }
 }
 
-/* TODO: [near miss] 99.784485%; named row-origin copy regresses;
- * retain local initializer and row-end/conversion coloring ceiling. */
+/* TODO: [near miss] 99.78%; row end and float-conversion bias swap r30/r31. */
 float p_krypt_loop(void) {
     handle_controller_input();
     if (krypt_pdata->layout_dirty != 0) {
@@ -3392,11 +3369,10 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.66102%; lid constant placement improves aggregate references;
- * localized register/constant placement differences remain. */
+/* TODO: [near miss] 99.77%; coffin offset loop and row-bound register coloring remains. */
 float p_setup_krypt(void) {
-    MkFileEntry* file;
     char* string_pool;
+    MkFileEntry* file;
     int file_len;
     int string_len;
     int i;
@@ -3421,12 +3397,11 @@ float p_setup_krypt(void) {
             string_len = file_len - 0x4498;
             string_pool = get_mem(string_len);
             if (string_pool != 0) {
-                coffin_data = (CoffinEntry*)get_mem(0x4498);
+                coffin_data = get_mem(0x4498);
                 if (coffin_data != 0) {
                     mk_file_read(coffin_data, 0x28, 0x1B7, file);
                     mk_file_read(string_pool, 1, (unsigned int)string_len, file);
                     mk_file_close(file);
-                    /* File pointers hold 32-bit offsets into the trailing string block. */
                     for (i = 0; i < 0x1B7; i++) {
                         coffin_data[i].blurb =
                             string_pool + (unsigned int)coffin_data[i].blurb;
@@ -3468,7 +3443,7 @@ float p_setup_krypt(void) {
     krypt_pdata->pfx_numbers->flag_bits.visible = 1;
 
     krypt_pdata->footstep_frame_index = 0;
-    light = load_light((LightDef*)&camera_point_light, (MkPtr**)&point_light_list, 0);
+    light = load_light((LightDef*)&camera_point_light, &point_light_list, 0);
     if (light != 0) {
         light->flags_08_bits.airborne = 1;
     }

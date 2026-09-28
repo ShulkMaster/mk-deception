@@ -4,7 +4,7 @@
 int check_for_dead_movement(void);
 float j_duck_block_loop(void);
 float jump_away_opponent(void);
-void jump_towards_opponent(void);
+float jump_towards_opponent(void);
 float step_backward(void);
 float step_forward(void);
 float step_left(void);

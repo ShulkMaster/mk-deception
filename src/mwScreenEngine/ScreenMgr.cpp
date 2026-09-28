@@ -1,13 +1,3 @@
-/*
- * ScreenMgr.o - screen stack orchestrator (mwScreenEngine).
- *
- * NonMatching readable lift. Soft ceilings OK on near-miss codegen.
- * Compile with -O4,s -use_lmw_stmw on (see configure.py) for stmw matches.
- *
- * Pointer tables: use typed members (m_stack[i], m_branch[i], m_confirm[i])
- * at retail offsets -- never this+0x1a8 / off+=4 over pointer slots.
- */
-
 #include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/ScreenClient.h"
@@ -20,7 +10,6 @@ char* strtok(char* s, const char* delim);
 int stricmp(const char* a, const char* b);
 }
 
-/* Open-event payload for InsertScreen (retail OpenEventData$346). */
 static unsigned int s_openEventData[7] = {
     0x430, 0, 0, 0, 0, 0, 0,
 };
@@ -47,10 +36,9 @@ ScreenMgr::~ScreenMgr() {
     }
 }
 
-/* Keep Reset out-of-line so Init/Dispose match retail bl Reset. */
 #pragma dont_inline on
+/* TODO: [near miss] 87.59%; retail addresses the "" literal via @stringBase0 lis/addi, ours via SDA; TU string pool. */
 void ScreenMgr::Reset() {
-    /* Soft ceiling: Reset ~87.6% -- @stringBase0 lis/addi vs SDA ""; stop. */
     int i;
 
     m_rootSet = 0;
@@ -93,7 +81,6 @@ void ScreenMgr::Dispose(unsigned int flags) {
 }
 
 Screen* ScreenMgr::GetActiveScreen() {
-    /* Retail: bge path first, null late. */
     if (m_activeCount >= 0) {
         return m_stack[m_activeCount];
     }
@@ -101,15 +88,6 @@ Screen* ScreenMgr::GetActiveScreen() {
 }
 
 int ScreenMgr::LoadScreen(char* path, unsigned int flags) {
-    /*
-     * Retail layout: LoadCompleted path first, then shared InitBranchPath.
-     * Use && so MWCC emits that order (|| put Init first and dropped fuzzy).
-     * Needs -O4,s for stmw r29 (100% with configure ScreenMgr flags).
-     *
-     * DoneLoading path: DoneLoadingSet -> ScreenSet::DoneLoadingScreens
-     * eventually hits virtual LoadCompleted, which AppendScreen/OpenScreens
-     * the leaf in m_screenName when set == m_currentSet.
-     */
     Screen* found;
 
     if (strlen(m_loadPath) == 0) {
@@ -129,7 +107,6 @@ int ScreenMgr::LoadScreen(char* path, unsigned int flags) {
             }
         }
     } else {
-        /* Retail: sequential cmplwi on pendingOpen then found (r4 preserved). */
         if (m_pendingOpen != 0) {
             if (found != 0) {
                 AppendScreen(found);
@@ -162,9 +139,8 @@ int ScreenMgr::InitBranchPath() {
 #pragma dont_inline reset
 
 #pragma dont_inline on
+/* TODO: [near miss] 81.11%; algorithm matches; create/dispose nonvolatile register schedule differs. */
 int ScreenMgr::UpdateBranchPath(char* path) {
-    /* Soft ceiling: UpdateBranchPath -- create/dispose NV schedule; stop. */
-    /* pathCopy large first so reverse-decl puts parts @ low (retail sp+8). */
     char pathCopy[0x100];
     char* parts[10];
     int nParts;
@@ -195,7 +171,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
         walk = m_branch[matched + 1];
     }
 
-    /* Dispose sets from current down to keepParent (retail call order). */
     cur = m_currentSet;
     if (cur != 0) {
         while (cur != keepParent) {
@@ -209,7 +184,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
         m_currentSet = keepParent;
     }
 
-    /* Create / attach remaining path components (except leaf screen name). */
     depth = matched;
     parent = keepParent;
     child = 0;
@@ -218,7 +192,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
             child = parent->GetChild(parts[depth]);
         }
         if (child == 0) {
-            /* Retail: SetName/m_mgr even if operator new returned null. */
             child = new ScreenSet();
             child->SetName(parts[depth]);
             child->m_mgr = this;
@@ -235,7 +208,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
     if (nParts > 0) {
         m_branchDepth = limit;
         if (m_branchDepth > 0) {
-            /* Retail: this + depth*4 + 0x18 == m_branch[depth - 1]. */
             m_currentSet = m_branch[m_branchDepth - 1];
         }
         strcpy(m_screenName, parts[m_branchDepth]);
@@ -245,35 +217,27 @@ int ScreenMgr::UpdateBranchPath(char* path) {
 }
 #pragma dont_inline reset
 
+/* TODO: [near miss] 96.79%; error-report/open branch scheduling differs. */
 void ScreenMgr::LoadCompleted(ScreenSet* set) {
-    /* Soft ceiling: LoadCompleted 95.0% -- error/open branch scheduling; stop. */
-    /* Split compares to match retail cmplw / cmplwi+beq (not OR-early-out). */
-    if (set == m_currentSet) {
-        if (set != 0) {
-            Screen* screen;
+    if (set == m_currentSet && set != 0) {
+        Screen* screen;
 
-            screen = set->GetScreen(m_screenName);
-            if (screen == 0) {
-                ScreenUtil::ReportError((char*)"Load screen failed. Screen not found",
-                                        (char*)"ScreenMgr.cpp", 0x1cb);
-            }
-            if (m_pendingOpen != 0) {
-                if (screen != 0) {
-                    AppendScreen(screen);
-                    OpenScreen(screen);
-                    m_pendingOpen = 0;
-                }
-            }
+        screen = set->GetScreen(m_screenName);
+        if (screen == 0) {
+            ScreenUtil::ReportError((char*)"Load screen failed. Screen not found",
+                                    (char*)"ScreenMgr.cpp", 0x1cb);
+        }
+        if (m_pendingOpen != 0 && screen != 0) {
+            AppendScreen(screen);
+            OpenScreen(screen);
+            m_pendingOpen = 0;
         }
     }
 }
 
 #pragma dont_inline on
+/* TODO: [near miss] 89.02%; stack slot order and the IsInited chain differ. */
 int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
-    /* Soft ceiling: FindScreen ~89% -- stack leaf / IsInited chain; stop. */
-    /* Retail stack (low->high): depth @sp+8, parts[10] @sp+0xc, pathCopy @sp+0x34.
-     * MWCC allocates locals roughly reverse-decl, so declare large->small.
-     * Retail lwzx &depth + nParts*4 == parts[nParts-1] (parts follows depth). */
     char pathCopy[0x100];
     char* parts[10];
     int depth;
@@ -296,20 +260,14 @@ int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
+/* TODO: [near miss] 91.92%; child recursion loop and shared null epilogue scheduling differ. */
 ScreenSet* ScreenMgr::FindParent(ScreenSet* set, char** parts, int nParts, int& depth) {
-    /* Soft ceiling: FindParent ~84% -- child recurse / shared null epilogue; stop. */
     int i;
     int nChildren;
     ScreenSet* child;
     ScreenSet* found;
 
-    if (set == 0) {
-        return 0;
-    }
-    if (depth >= nParts) {
-        return 0;
-    }
-    if (stricmp(set->GetName(), parts[depth]) != 0) {
+    if (set == 0 || depth >= nParts || stricmp(set->GetName(), parts[depth]) != 0) {
         return 0;
     }
     depth += 1;
@@ -328,24 +286,21 @@ ScreenSet* ScreenMgr::FindParent(ScreenSet* set, char** parts, int nParts, int& 
 }
 #pragma dont_inline reset
 
+/* TODO: [near miss] 90.47%; strtok loop and maxParts exit branch layout differ. */
 int ScreenMgr::SplitPath(char* path, const char* delim, char** outParts, int maxParts) {
-    /* Soft ceiling: SplitPath ~84% -- strtok / maxParts branch shape; stop. */
     int count = 0;
-    char* tok = strtok(path, delim);
+    char* tok;
 
-    while (tok != 0) {
+    for (tok = strtok(path, delim); tok != 0; tok = strtok(0, delim)) {
         if (count >= maxParts) {
-            return count;
+            break;
         }
-        outParts[count] = tok;
-        count += 1;
-        tok = strtok(0, delim);
+        outParts[count++] = tok;
     }
     return count;
 }
 
 int ScreenMgr::GetScreenIndex(Screen* screen) {
-    /* Retail temps: found in r7, i in r8 -- decl found before i. */
     int found = -1;
     int i;
 
@@ -359,8 +314,8 @@ int ScreenMgr::GetScreenIndex(Screen* screen) {
 }
 
 #pragma dont_inline on
+/* TODO: [near miss] 94.88%; stack-shift loop and root event scheduling differ. */
 int ScreenMgr::RemoveScreen(Screen* screen) {
-    /* Soft ceiling: RemoveScreen ~94.88% -- stack shift/root event schedule; stop. */
     int found = -1;
     int shifted = 0;
     int i;
@@ -369,7 +324,6 @@ int ScreenMgr::RemoveScreen(Screen* screen) {
         return -1;
     }
 
-    /* Retail inlines stack-top compare (no GetActiveScreen call). */
     if (m_activeCount != -1 && m_stack[m_activeCount] == screen) {
         ScreenObject* root = screen->GetRoot();
         if (root != 0) {
@@ -396,7 +350,6 @@ int ScreenMgr::RemoveScreen(Screen* screen) {
     }
 
     if (m_activeCount != -1) {
-        /* Retail: ProcessEvent with no null check on GetRoot. */
         m_stack[m_activeCount]->GetRoot()->ProcessEvent(this, 0x3ec, 0);
     }
     return found;
@@ -447,8 +400,8 @@ void ScreenMgr::AppendScreen(Screen* screen) {
 }
 #pragma dont_inline reset
 
+/* TODO: [near miss] 91.66%; duplicate scan and inlined GetActiveScreen scheduling differ. */
 void ScreenMgr::InsertScreen(Screen* screen, int index) {
-    /* Soft ceiling: InsertScreen ~91.7% -- duplicate scan / GetActiveScreen; stop. */
     int i;
     ScreenAction* action;
 
@@ -522,7 +475,6 @@ void ScreenMgr::OpenScreen(Screen* screen) {
     if (screen == 0) {
         return;
     }
-    /* Retail cmplwi on m_opened (+0x4). */
     if ((unsigned int)screen->m_opened == 0) {
         screen->BroadcastEvent(this, 0x3e8, 0);
         screen->m_opened = 1;
@@ -533,8 +485,8 @@ void ScreenMgr::OpenScreen(Screen* screen) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
+/* TODO: [near miss] 94.62%; child recursion and delete path scheduling differ. */
 void ScreenMgr::DisposeSet(ScreenSet* set, unsigned int flags) {
-    /* Soft ceiling: DisposeSet ~93% -- recurse/delete path; stop. */
     int n = set->GetNumChildren();
     ScreenSet* parent;
     int i;
@@ -573,12 +525,8 @@ void ScreenMgr::DisposeSet(ScreenSet* set, unsigned int flags) {
 
 #pragma dont_inline on
 void ScreenMgr::FireEvent(int event, int arg, unsigned int force) {
-    /* Soft ceiling: FireEvent ~97.4% -- eventsEnabled bne/b vs beq; stop. */
     if (force == 0) {
-        if (m_actionStack.IsActionBlockingEvents() != 0) {
-            return;
-        }
-        if (m_eventsEnabled == 0) {
+        if (m_actionStack.IsActionBlockingEvents() != 0 || m_eventsEnabled == 0) {
             return;
         }
     }
@@ -588,15 +536,14 @@ void ScreenMgr::FireEvent(int event, int arg, unsigned int force) {
     }
 
     if (m_activeCount >= 0) {
-        Screen* screen = m_stack[m_activeCount];
-        screen->FireEvent(this, event, arg, 1);
+        m_stack[m_activeCount]->FireEvent(this, event, arg, 1);
         m_eventLatch = 1;
     }
 }
 #pragma dont_inline reset
 
+/* TODO: [breakthrough needed] 81.56%; broadcast loop shape differs from retail's countdown. */
 void ScreenMgr::BroadcastEvent(int event, int activeOnly, int arg) {
-    /* Soft ceiling: BroadcastEvent ~82% -- GetActiveScreen inline / loop shape; stop. */
     int count = m_activeCount;
 
     if (count < 0) {
@@ -604,13 +551,7 @@ void ScreenMgr::BroadcastEvent(int event, int activeOnly, int arg) {
     }
 
     if (activeOnly != 0) {
-        /* Retail re-checks count (already known >=0) then indexes stack. */
-        Screen* screen;
-        if (count >= 0) {
-            screen = m_stack[count];
-        } else {
-            screen = 0;
-        }
+        Screen* screen = GetActiveScreen();
         if (screen != 0) {
             screen->BroadcastEvent(this, event, arg);
         }
@@ -624,10 +565,6 @@ void ScreenMgr::BroadcastEvent(int event, int activeOnly, int arg) {
 }
 
 void ScreenMgr::Idle(int dt) {
-    /* Matched: clears latch, Process action stack, then ProcessIdleEvent on
-     * every live screen when events are not blocked. Per-frame anim FX also
-     * need UpdateAnimations (separate); host must call Idle. SeRef/idle-list
-     * SEGV is a port reloc issue, not missing retail C here. */
     m_eventLatch = 0;
     InitBranchPath();
     m_actionStack.Process(this, dt);
@@ -675,7 +612,6 @@ void ScreenMgr::SetConfirmUser(int index, unsigned int value, int checkCount) {
     m_confirm[index] = value;
 
     for (i = 0; i < checkCount; i++) {
-        /* Retail cmpwi on confirm word (signed zero test). */
         if ((int)m_confirm[i] == 0) {
             allSet = 0;
             break;
@@ -714,11 +650,8 @@ void ScreenMgr::SetStage(int index, int value) {
     m_confirm[index - 1] = (unsigned int)value;
 }
 
+/* TODO: [near miss] 86.16%; register-table walk: table reload, count register and id scheduling differ. */
 int ScreenMgr::ProcessRegisterActions(const ScreenAction* action) {
-    /*
-     * Soft ceiling: ProcessRegisterActions ~86.17% -- typed stride-8 table
-     * walk; leftover table reload, NV count, and slwi-from-count id scheduling.
-     */
     int i;
     unsigned int id;
     ScreenRegisterEntry* table;

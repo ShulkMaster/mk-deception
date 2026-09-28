@@ -17,7 +17,7 @@ typedef struct KonquestWaypoint {
     Vec position;                /* +0x00 */
     float angle;                 /* +0x0C */
     unsigned int flags;          /* +0x10 */
-    int script_function;         /* +0x14 */
+    unsigned int script_function; /* +0x14 */
 } KonquestWaypoint;              /* 0x18 */
 
 typedef struct LipSyncKeyframe {

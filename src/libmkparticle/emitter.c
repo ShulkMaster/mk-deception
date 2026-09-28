@@ -7,8 +7,7 @@ int pfx_get_struct_size(PfxVm* pfx, int description);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
 void _pfxvm_execute_spawn(PfxVm* pfx, int emitter_index);
 
-/* Soft ceiling: 99.80% -- one equivalent zero-comparison operand order. */
-/* TODO: [near miss] 99.80%; equivalent equality operand order remains; stop after pure operand trial. */
+/* TODO: [near miss] 99.79%; equivalent equality operand order remains; stop after pure operand trial. */
 int pfx_emitter_exhausted(PfxVmEmitter* emitter)
 {
     int final_cycle;
@@ -41,27 +40,22 @@ int pfx_emitter_exhausted(PfxVmEmitter* emitter)
     return 0;
 }
 
-/* Soft ceiling: 89.29% -- float-load order and one fused bit test. */
+/* TODO: [near miss] 89.28%; retail loads the field before the 0.0f constant and tests the bitfield with extrwi + cmplwi (unfused). */
 int pfx_emitter_unused(PfxVmEmitter* emitter)
 {
-    float cycle_position;
-    unsigned int cycle_paused;
-
-    cycle_position = emitter->cycle_position;
-    if (cycle_position != 0.0f) {
+    if (emitter->cycle_position != 0.0f) {
         return 0;
     }
     if (emitter->cycle_index != 0) {
         return 0;
     }
-    cycle_paused = emitter->flags.bits.cycle_paused;
-    if (cycle_paused == 0) {
+    if (emitter->flags.bits.cycle_paused == 0) {
         return 0;
     }
     return emitter->birth_count == 0;
 }
 
-/* Soft ceiling: 99.83% -- one equivalent base-register selection. */
+/* TODO: [near miss] 99.82%; one equivalent base-register selection differs. */
 int pfx_emitter_restart_cycle(PfxVmEmitter* emitter)
 {
     int cycle_index;
@@ -76,7 +70,7 @@ int pfx_emitter_restart_cycle(PfxVmEmitter* emitter)
     return 1;
 }
 
-/* Soft ceiling: 98.85% -- equivalent pre-call emitter base coloring. */
+/* TODO: [near miss] 98.84%; pre-call emitter base register coloring differs. */
 void pfx_emitter_reset(PfxVmEmitter* emitter)
 {
     float variation;
@@ -93,7 +87,7 @@ void pfx_emitter_reset(PfxVmEmitter* emitter)
     emitter->flags.bits.cycle_paused = 1;
 }
 
-/* Soft ceiling: 93.82% -- two fused bit tests and local load scheduling. */
+/* TODO: [near miss] 93.82%; two bit tests are fused (retail extrwi + cmplwi) and local load scheduling differs. */
 int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
                                 float frame_time)
 {
@@ -158,7 +152,7 @@ int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
     return birth_count;
 }
 
-/* Soft ceiling: 95.48% -- one fused bit test and GPR allocation only. */
+/* TODO: [near miss] 95.48%; one bit test is fused (retail extrwi + cmplwi) and GPR allocation differs. */
 void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time)
 {
     PfxFieldBuffer destination;

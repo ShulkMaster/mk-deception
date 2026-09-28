@@ -1754,8 +1754,7 @@ static float r_block_hit_projectile(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.53%; Vec local stack-slot order and template-copy
- * scheduling remain. */
+/* TODO: [near miss] 99.97%; hit_position/world_position stack slots swapped (retail inlined helper allocation order). */
 static float r_combo_broken_part2(void) {
     ReactionImageFaderPdata* fader;
     PlyrInfo* source;
@@ -1781,12 +1780,12 @@ static float r_combo_broken_part2(void) {
             effect, hit_position.x, hit_position.y, hit_position.z);
     }
 
+    source = plyr_pdata->plyr_info;
     {
-        Vec world_position;
         Vec bone_offset = {0.0f, 0.0f, 0.0f};
+        Vec world_position;
         ReactionScreenPos screen_position;
 
-        source = plyr_pdata->plyr_info;
         image = load_named_2d_pfxobj(
             0x10005, 0xC021, "BREAKER", 0, 0x2F);
         get_bone_offset_world_pos(
@@ -2770,11 +2769,11 @@ static float r_summon_flames(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.84%; scratch register naming in the demo-flag select. */
 static float r_subzero_iceball(void) {
     int his_character;
     int my_character;
     int collision;
+    int demo_interrupt = 0;
 
     medium_flash_check();
     destroy_subzero_decoy();
@@ -2788,7 +2787,7 @@ static float r_subzero_iceball(void) {
         aproc->vtbl->jump_sleep(j_exit, 0.0f);
         return 0.0f;
     }
-    if (g_game_info.feature_flags.bits.high_bit == 0 ? 0 : collision) {
+    if (g_game_info.feature_flags.bits.high_bit == 0 ? 0 : demo_interrupt) {
         aproc->vtbl->jump_sleep(blend_to_stance_j_exit, 0.0f);
         return 0.0f;
     }

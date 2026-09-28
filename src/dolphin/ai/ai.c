@@ -189,7 +189,7 @@ unsigned char AIGetStreamVolRight(void)
     return GET_REG_FIELD(AI_REGS[1], 8, 8);
 }
 
-/* TODO: [near miss] 99.34066%; OSNanosecondsToTicks donor rewrite tested at 53.45055%; retain manual timer-scale form and stop at r9/r10 coloring. */
+/* TODO: [near miss] 99.34%; timer-scale math matches retail except r9/r10 coloring; stop pending new source evidence. */
 void AIInit(void* callback_stack)
 {
     unsigned long timer_scale;

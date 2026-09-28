@@ -364,15 +364,29 @@ static float p_ending_script_in_proc(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 91.00%; duplicated retail good/bad selection retained (both routes name the same two champion panes). */
+static inline int is_champion_bad_guy(int champion) {
+    int index;
+
+    for (index = 0; index < 2; index++) {
+        if (champion == champion_bad_guys[index]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static inline int ending_skip_pressed(int port) {
+    return check_switch_edge(port, 6) != 0;
+}
+
+/* TODO: [near miss] 91.68%; retail's @stringBase0 has ~0xb0a bytes of TU strings before
+ * "bio_strings_eng.mko"; ours starts there, so the pool base is CSE'd into r31 (TU data layout). */
 float p_champion_screen(void) {
     const char* image_a;
     const char* image_b;
     int champion;
-    int is_bad;
     int screen_x;
     int ticks;
-    int index;
     int port;
 
     push_game_state(0xC);
@@ -405,14 +419,7 @@ float p_champion_screen(void) {
         load_art_section(0x140064, &sec_ending_champion);
         snd_req(0x1AAB);
 
-        is_bad = 0;
-        for (index = 0; index < 2; index++) {
-            if (champion_bad_guys[index] == champion) {
-                is_bad = 1;
-                break;
-            }
-        }
-        if (is_bad) {
+        if (is_champion_bad_guy(champion)) {
             image_a = "CHAMPION_A";
             image_b = "CHAMPION_B";
         } else {
@@ -451,7 +458,7 @@ float p_champion_screen(void) {
             } else {
                 port = g_game_info.plyr1.pad_index;
             }
-            if (check_switch_edge(port, 6) == 1) {
+            if (ending_skip_pressed(port)) {
                 ticks = 0x320;
             }
             _mkproc_sleep_ticks = 1.0f;
@@ -481,8 +488,9 @@ void ending_show_image(int image) {
     fade_to_black(8, 1);
 }
 
-/* TODO: [near miss] 96.03%; lookups and flag bits match; parameter homes differ (retail image r23/ticks r30, ours r30/r31) and shift the nonvolatile set. */
+/* TODO: [near miss] 96.71%; lookups, flags and loop counter match; image param takes r31 (retail r23) and shifts the image/step nonvolatiles. */
 static void fade_ending_screen_images(int image, int ticks) {
+    int remaining;
     unsigned char current_alpha;
     ScreenObj* image_1a;
     ScreenObj* image_1b;
@@ -492,8 +500,8 @@ static void fade_ending_screen_images(int image, int ticks) {
     ScreenObj* image_3b;
     unsigned char current_step;
     unsigned char next_step;
-    unsigned char next_alpha;
     unsigned char current_final;
+    unsigned char next_alpha;
     unsigned char next_final;
 
     image_1a = ending_item_live_object(&ending_image_1a_item);
@@ -532,7 +540,7 @@ static void fade_ending_screen_images(int image, int ticks) {
         next_final = 0xFF;
     }
 
-    while (ticks != 0) {
+    for (remaining = ticks; remaining != 0; remaining--) {
         current_alpha += current_step;
         next_alpha += next_step;
 
@@ -573,7 +581,6 @@ static void fade_ending_screen_images(int image, int ticks) {
         image_2b = ending_item_live_object(&ending_image_2b_item);
         image_3a = ending_item_live_object(&ending_image_3a_item);
         image_3b = ending_item_live_object(&ending_image_3b_item);
-        ticks--;
     }
 
     if (image == 3) {

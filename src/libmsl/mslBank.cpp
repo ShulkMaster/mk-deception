@@ -28,8 +28,7 @@ static void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
 mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
-/* Soft ceiling: ~98.44% -- one pooled-string address instruction remains. */
-/* TODO: [breakthrough needed] 98.44% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 98.51%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
@@ -63,7 +62,6 @@ extern "C" mslAssetWave* mslBankFileEntryFind(
     return 0;
 }
 
-/* 100%: signed serialized token vs relocated pointer overlay preserves cmpw. */
 extern "C" mslBankWaveEntry* mslBankWavesFind(
     mslLoadedBank* bank, const char* name) {
     int i;
@@ -86,14 +84,7 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
     return 0;
 }
 
-/*
- * Tear down a live bank in retail ownership order: unlink it from the MSL
- * system, stop its active sounds, unload constructed bank sounds, release
- * asset/file/ARAM storage, then free the bank itself.
- * Soft ceiling: ~98.47% -- exact retail size and control flow; remaining
- * differences are one scheduled instruction and pure GPR coloring.
- */
-/* TODO: [breakthrough needed] 98.47% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 98.51%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
@@ -245,14 +236,7 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     return 0;
 }
 
-/*
- * Complete a resident-wave upload. The callback ABI supplies an opaque
- * payload, but it is the same typed async-bank state used by the surrounding
- * file callbacks.
- * Soft ceiling: ~97.43% -- retail shared-string addressing adds one
- * instruction; the remaining differences are nested-loop GPR coloring.
- */
-/* TODO: [breakthrough needed] 97.43% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 97.52%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
@@ -315,15 +299,7 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
 static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
     unsigned long request_address);
 
-/*
- * Move a resident wave chunk from the stream buffer into the bank's ARAM
- * block, returning ordinary buffers immediately and deferring final bank
- * publication to the game-thread callback queue.
- * Soft ceiling: ~93.55% -- retail buffer/callback-owner publication order is
- * recovered; the remaining delta is partial-TU string pooling and one
- * callback/final-chunk nonvolatile-register lifetime.
- */
-/* TODO: [breakthrough needed] 93.55% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 94.48%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
@@ -377,17 +353,7 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
         mslBankLoadResidentARamUploadComplete, callback_data);
 }
 
-/*
- * Asset-header publication: fix the serialized name and sound-table
- * references, assign resident ARAM addresses, then publish the bank when no
- * resident upload is pending.
- *
- * The entry count is signed in all three serialized-wave loops. Reload bank
- * and asset ownership at the retail processing stages; sound-table setup
- * only modifies its own entries, and file-command deletion is deferred while
- * its completion callback is active.
- */
-/* TODO: [near miss] 97.60%; retail owner reloads and scoped state recovered;
+/* TODO: [near miss] 97.68%; retail owner reloads and scoped state recovered;
  * pointer/index scheduling, GPR homes and diagnostic-pool offsets remain. */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -553,10 +519,7 @@ static void mslBankReadAssetHeaderComplete(
     }
 }
 
-/* Soft ceiling: mslBankReadWavesComplete ~99.71% -- four relocation-label
- * argument differences remain; operations and control flow are exact.
- */
-/* TODO: [blocked] 99.71%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.95%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -597,14 +560,7 @@ static void mslBankReadWavesComplete(
     }
 }
 
-/*
- * Sound-bank read completion: close the .mbg handle, launch the 0x1c-byte
- * asset-header read from .msg, publish the waves handle into the loaded bank,
- * then validate and relocate the v11 bank body.
- * Soft ceiling: ~99.62% -- the complete callback contract is recovered; only
- * eight pooled-string relocation arguments remain.
- */
-/* TODO: [blocked] 99.62%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.93%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -662,10 +618,7 @@ static void mslBankReadSoundsComplete(
     }
 }
 
-/* Soft ceiling: mslBankOpenWavesComplete ~99.75% -- two diagnostic-string
- * relocation arguments remain.
- */
-/* TODO: [blocked] 99.75%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.95%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -691,10 +644,7 @@ void mslBankOpenWavesComplete(
     }
 }
 
-/* Soft ceiling: mslBankOpenSoundsComplete ~99.67% -- six pooled-string
- * relocation arguments remain; operations and control flow are exact.
- */
-/* TODO: [blocked] 99.67%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.94%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -757,10 +707,7 @@ void mslBankOpenSoundsComplete(
     }
 }
 
-/* Soft ceiling: mslBankLoadAsyncInternal ~99.83% -- two pooled-string
- * relocation arguments remain.
- */
-/* TODO: [blocked] 99.83%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.97%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
@@ -792,7 +739,7 @@ void mslBankLoadAsyncInternal(
     }
 }
 
-/* TODO: [blocked] 99.94%; pooled string addends only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.99%; pooled string addends only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
@@ -1011,7 +958,7 @@ static inline void mslBankFinishPlayInline(
     }
 }
 
-/* TODO: [near miss] 98.12%; pooled string layout and an early gMsi load differ; resolve across the TU. */
+/* TODO: [near miss] 98.11%; pooled string layout and an early gMsi load differ; resolve across the TU. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
@@ -1117,13 +1064,7 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
     return 0;
 }
 
-/*
- * Release one bank-owned reference. LOD sounds (flag 0x2) are unloaded when
- * their last live copy goes away; ordinary resident sounds remain cached.
- * Soft ceiling: ~98.14% -- one pooled-string address instruction and six
- * relocation/register arguments remain.
- */
-/* TODO: [breakthrough needed] 98.14% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 98.47%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
@@ -1195,11 +1136,7 @@ _ListNode* mslBankSoundUse(
     return node;
 }
 
-/*
- * Soft ceiling: mslBankUse ~99.94% -- typed inlined wave lookup and saved
- * register allocation are exact; one pooled diagnostic relocation remains.
- */
-/* TODO: [blocked] 99.94%; pooled string addend only: retail .rodata keeps strings of
+/* TODO: [blocked] 99.99%; pooled string addend only: retail .rodata keeps strings of
  * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
@@ -1296,10 +1233,7 @@ void callbackPlay(
     }
 }
 
-/* Soft ceiling: asyncLoadSound ~96.25% -- two pooled-string address
- * instructions and one relocation argument remain.
- */
-/* TODO: [breakthrough needed] 96.25% retained; complete-pool scratch
+/* TODO: [breakthrough needed] 96.34%; complete-pool scratch
  * regresses TU code; resolve pooled addressing without losing matches. */
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,

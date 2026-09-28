@@ -122,8 +122,8 @@ typedef struct CameraInfo {
 float p_krypt_camera_loop(void);
 float p_krypt_camera_proc(void);
 float p_konquest_camera_proc(void);
-void set_camera_angle(const CamVec3* ang);
-void set_camera_position(const CamVec3* pos);
+void set_camera_angle(CamVec3* ang);
+void set_camera_position(CamVec3* pos);
 void get_camera_angle(CamVec3* ang);
 void get_camera_position(CamVec3* pos);
 void xfer_camera(MkProcEntryFn entry, int reset_projection);
@@ -132,14 +132,14 @@ void adj_cam_pos(void);
 void turn_camera_on(void);
 void turn_camera_off(void);
 void camera_idle(void);
-void set_camera_destination(const CamVec3* position);
+void set_camera_destination(CamVec3* position);
 void set_camera_target_angle(CamVec3* angle);
-void set_camera_velocity(const CamVec3* velocity);
+void set_camera_velocity(CamVec3* velocity);
 void get_camera_velocity(CamVec3* velocity);
-void look_at_target(const Vec* target);
-void go_to_camera_cut_with_angle(const CamVec3* position,
-                                 const CamVec3* angle);
-void go_to_camera_cut(const CamVec3* position, const Vec* target);
+void look_at_target(Vec* target);
+void go_to_camera_cut_with_angle(CamVec3* position,
+                                 CamVec3* angle);
+void go_to_camera_cut(CamVec3* position, Vec* target);
 void add_widescreen_bars(float height);
 float p_hold_camera_in_place(void);
 void remove_camera_offsets(void);

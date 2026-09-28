@@ -69,7 +69,6 @@ void __CARDExtHandler(s32 chan, OSContext* context)
     }
 }
 
-/* Soft ceiling: retail's shared unlock block is 12 bytes smaller. */
 void __CARDExiHandler(s32 chan, OSContext* context)
 {
     CARDControl* card;

@@ -8,7 +8,8 @@
  * Midway's matrix type is layout-compatible with RwMatrix:
  * right/up/at/pos vectors, each followed by a flags/padding word (0x40 bytes).
  */
-typedef RwMatrix MKMATRIX;
+typedef RwMatrix MKMATRIX __attribute__((aligned(16)));
+typedef Vec MKVECTOR __attribute__((aligned(16)));
 
 /* Shared retail constants and scratch storage from mk_math.o. */
 extern Vec Xaxis;

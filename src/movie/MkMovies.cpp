@@ -27,7 +27,6 @@ static const char stringBase0[] = "MFS:%08x.%08x\0%s";
 
 static MkMovieTexPlayer _mmp_data[2] = {0};
 
-/* Retail packs screen_poly / saved_texture pairs from offset 0x30 (stride 4). */
 static inline void* mmp_screen_poly_at(MkMovieTexPlayer* player, int screen_offset) {
     return *(void**)((char*)&player->screen_poly + screen_offset);
 }
@@ -39,23 +38,17 @@ static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int scre
 void mkMovieTexPlayerIdleUpdate(void) {
     unsigned char anyPlaying;
     int index;
-    int byteOffset;
-    MkMovieTexPlayer* player;
 
     anyPlaying = 0;
-    byteOffset = 0;
-    for (index = 0; index < 2; index++, byteOffset += sizeof(MkMovieTexPlayer)) {
-        player = (MkMovieTexPlayer*)((char*)_mmp_data + byteOffset);
-        if (player->movie != 0 && MovieIsPlaying(player->movie) != 0) {
+    for (index = 0; index < 2; index++) {
+        if (_mmp_data[index].movie != 0 && MovieIsPlaying(_mmp_data[index].movie) != 0) {
             anyPlaying = 1;
         }
     }
     if (anyPlaying == 1) {
-        byteOffset = 0;
-        for (index = 0; index < 2; index++, byteOffset += sizeof(MkMovieTexPlayer)) {
-            player = (MkMovieTexPlayer*)((char*)_mmp_data + byteOffset);
-            if (player->movie != 0) {
-                MovieUpdate(player->movie);
+        for (index = 0; index < 2; index++) {
+            if (_mmp_data[index].movie != 0) {
+                MovieUpdate(_mmp_data[index].movie);
             }
         }
     }

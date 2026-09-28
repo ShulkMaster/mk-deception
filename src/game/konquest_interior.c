@@ -598,7 +598,18 @@ float get_ir_cam_pos_x(int include_offset) {
 
 
 
-/* TODO: [breakthrough needed] 94.327160%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 99.94%; only the zero-Vec initializer pool offsets differ (retail +0x48 vs ours +0xc): TU data layout. */
+static inline const char* room_sobj_name(unsigned int id) {
+    KonquestRoomSobj* entry;
+
+    for (entry = room_sobj_list; entry->id != 0; entry++) {
+        if (entry->id == id) {
+            return entry->name;
+        }
+    }
+    return 0;
+}
+
 static void place_interior_room_objects(KonquestRoomObject* rec) {
     MkObj* interior_object = konq_interior_save_data.interior_object;
 
@@ -616,16 +627,16 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
         Vec base_angle = {0.0f, 0.0f, 0.0f};
         Vec position = {0.0f, 0.0f, 0.0f};
         Vec angle = {0.0f, 0.0f, 0.0f};
+        MkSobj* sobj;
         KonquestRoomObjectTexture* tex;
-        KonquestRoomSobj* entry;
         const char* name;
 
         if (interior_object != 0) {
             if (rec != 0) {
                 for (; rec->id != 0; rec++) {
-                    MkSobj* sobj =
-                        obj_find_sobj_by_id(interior_object, rec->id);
                     unsigned int artid;
+
+                    sobj = obj_find_sobj_by_id(interior_object, rec->id);
 
                     if (sobj == 0) {
                         continue;
@@ -664,13 +675,7 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
                     angle.z = base_angle.z;
                     angle.y = base_angle.y + rec->angle;
                     rec->collision_list = 0;
-                    name = 0;
-                    for (entry = room_sobj_list; entry->id != 0; entry++) {
-                        if (entry->id == rec->id) {
-                            name = entry->name;
-                            break;
-                        }
-                    }
+                    name = room_sobj_name(rec->id);
                     if (name != 0) {
                         artid = get_artid_of_named_item_in_slot(
                             0xA002F, name, 1);
@@ -969,7 +974,21 @@ static inline CameraObj* camera_live_node(CameraItem* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.441500%; relocation offsets, register coloring; one-trial ceiling. */
+static inline void konq_interior_hide_room_sobjs(MkObj* object) {
+    KonquestRoomSobj* entry = room_sobj_list;
+
+    if (object != 0) {
+        for (; entry->id != 0; entry++) {
+            MkSobj* sobj = obj_find_sobj_by_id(object, entry->id);
+
+            if (sobj != 0) {
+                hide_sobj(sobj);
+            }
+        }
+    }
+}
+
+/* TODO: [near miss] 99.59%; TU rodata/string order (Vec initializers +0x54, BACKGROUND/standard_ir_exit) and model/entry r28/r29 swap remain. */
 static float p_konq_interior_entry_point(void) {
     MkObj* hero = interior_live_hero_object(konquest_pdata);
 
@@ -979,9 +998,8 @@ static float p_konq_interior_entry_point(void) {
     Vec monk_position = {0.0f, 0.0f, 0.0f};
     Vec monk_angles = {0.0f, 0.0f, 0.0f};
     Vec monk_angle_base = {0.0f, 0.0f, 0.0f};
-    MkObj* model;
     MkObj* interior_object;
-    KonquestRoomSobj* entry;
+    MkObj* model;
     int* npc_data;
     unsigned int npc_count;
     unsigned int index;
@@ -1022,16 +1040,7 @@ static float p_konq_interior_entry_point(void) {
                 model->pos.value.x = konquest_pdata->camera_offset_x;
                 model->pos.value.y = konquest_pdata->camera_offset_y;
                 model->pos.value.z = konquest_pdata->camera_offset_z;
-                entry = room_sobj_list;
-                if (model != 0) {
-                    for (; entry->id != 0; entry++) {
-                        MkSobj* sobj = obj_find_sobj_by_id(model, entry->id);
-
-                        if (sobj != 0) {
-                            hide_sobj(sobj);
-                        }
-                    }
-                }
+                konq_interior_hide_room_sobjs(model);
                 model->light_flags = 1;
             }
         }
@@ -1105,9 +1114,9 @@ static float p_konq_interior_entry_point(void) {
                 konq_interior_save_data.current_interior->camera_angle.z;
             set_camera_position(&camera_position);
             set_camera_angle(&camera_angle);
-        }
-        if (camera != 0) {
-            update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
+            if (camera != 0) {
+                update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
+            }
         }
     }
 
@@ -1128,16 +1137,7 @@ static float p_konq_interior_entry_point(void) {
             interior_object != 0 ? as_mkhdr(&interior_object->hdr) : 0);
     }
     konquest_hide_hud(1);
-    entry = room_sobj_list;
-    if (interior_object != 0) {
-        for (; entry->id != 0; entry++) {
-            MkSobj* sobj = obj_find_sobj_by_id(interior_object, entry->id);
-
-            if (sobj != 0) {
-                hide_sobj(sobj);
-            }
-        }
-    }
+    konq_interior_hide_room_sobjs(interior_object);
     place_interior_room_objects(
         konq_interior_save_data.current_interior->room_objects);
     place_interior_room_objects(
@@ -1168,7 +1168,7 @@ static float p_konq_interior_entry_point(void) {
     if (npc_data != 0) {
         npc_count = get_row_count_for_table_by_pointer(
             konquest_pdata->script_owner, npc_data);
-        for (index = 0; index < npc_count; ++index) {
+        for (index = 0; index < npc_count; index++, npc_data++) {
             KonquestNpcRecord* npc;
 
             add_npc(*npc_data);
@@ -1176,7 +1176,6 @@ static float p_konq_interior_entry_point(void) {
             if (npc != 0) {
                 npc->flags_1D_bits.in_interior = 1;
             }
-            npc_data++;
         }
     }
 
@@ -1202,7 +1201,29 @@ static float p_konq_interior_entry_point(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.08%; found-flag init is not sunk to the search-loop exit (retail shares the idp register) and NV homes shift. */
+static inline int konq_interior_id_in_list(unsigned int* list, unsigned int id) {
+    if (list != 0) {
+        for (; *list != 0; list++) {
+            if (*list == id) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static inline void konq_interior_apply_textures(
+    KonquestRoomObject* robj, KonquestRoomObjectTexture* table,
+    unsigned int* list) {
+    if (table != 0 && robj != 0) {
+        for (; robj->id != 0; robj++) {
+            if (konq_interior_id_in_list(list, robj->id) != 0) {
+                robj->textures = table;
+            }
+        }
+    }
+}
+
 void start_konquest_interior(
     KonquestInteriorRoom* interior, KonquestRoomObject* script_objects,
     const void** items, int* npc_data,
@@ -1211,7 +1232,6 @@ void start_konquest_interior(
     MkObjLatch* pdata;
     KonquestTrigger* trigger;
     KonquestRoomObjectTexture* table;
-    KonquestRoomObject* robj;
     MkProc* proc;
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
@@ -1259,25 +1279,7 @@ void start_konquest_interior(
     if (table == 0) {
         return;
     }
-    robj = interior->room_objects;
-    if (table != 0 && robj != 0) {
-        for (; robj->id != 0; robj++) {
-            unsigned int* idp = wall_id_list;
-            int found = 0;
-
-            if (idp != 0) {
-                for (; *idp != 0; idp++) {
-                    if (*idp == robj->id) {
-                        found = 1;
-                        break;
-                    }
-                }
-            }
-            if (found != 0) {
-                robj->textures = table;
-            }
-        }
-    }
+    konq_interior_apply_textures(interior->room_objects, table, wall_id_list);
 
     table = floor_textures != 0
                 ? floor_textures
@@ -1285,25 +1287,7 @@ void start_konquest_interior(
     if (table == 0) {
         return;
     }
-    robj = interior->room_objects;
-    if (table != 0 && robj != 0) {
-        for (; robj->id != 0; robj++) {
-            unsigned int* idp = floor_id_list;
-            int found = 0;
-
-            if (idp != 0) {
-                for (; *idp != 0; idp++) {
-                    if (*idp == robj->id) {
-                        found = 1;
-                        break;
-                    }
-                }
-            }
-            if (found != 0) {
-                robj->textures = table;
-            }
-        }
-    }
+    konq_interior_apply_textures(interior->room_objects, table, floor_id_list);
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {

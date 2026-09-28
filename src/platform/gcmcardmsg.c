@@ -1,49 +1,29 @@
 #include "platform/gcmcardmsg.h"
 
 #include "game/memcard.h"
+#include "game/mcardmsg.h"
+#include "game/nbc.h"
+#include "platform/gcmcard.h"
+#include "platform/io.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
+#include "runtime/sound.h"
+#include "runtime/utils.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
-
-/*
- * gcmcardmsg.o - Midway GC memcard popup/message bodies (B20 + B21 PPWLS).
- * NonMatching: ASM still linked for DOL. Function order = retail emission.
- * Campaign history: docs/campaigns/index.md (B20-B22)
- */
+#include "msl/mslcore.h"
+#include "dolphin/gx.h"
+#include "dolphin/vi.h"
+#include "dolphin/os.h"
 
 #pragma use_lmw_stmw on
 
-void mcard_msg_remove_screen(void);
-void mcmsg_nothing(void);
-void recover_from_message(void);
-void init_memcard_msg_screen(void);
-void set_memcard_popup_message_title_text(const char* text);
-void set_memcard_popup_message_body_text(const char* text);
-void set_memcard_popup_message_options_text(const char* text);
-void set_memcard_popup_message_type(int type);
-void fire_up_memcard_mesage_screen(void);
-void prepare_for_haulting_message(void);
-void prepare_for_sleeping_message(void);
-const char* nbc_find_text(int index, int table);
-int sprintf(char* dest, const char* fmt, ...);
-char* strcpy(char* dest, const char* src);
-char* strcat(char* dest, const char* src);
-unsigned long strlen(const char* s);
-int get_p1_pad(void);
-int get_p2_pad(void);
-int check_switch_action(int pad, int action);
-void eat_switch_action(int pad, int action);
-int check_switch_edge(int pad, int action);
-void eat_switch_edge(int pad, int action);
-void snd_req(int id);
-void pause_procs(int pause);
-int update_storage_status(int flag);
-int nbc_get_language(void);
 
 extern int mcard_msg_active;
 extern int mcard_hault_msg_active;
 extern int f_writing_to_memcard;
+extern _mslSystem* msi;
 
-/* Retail gcmcardmsg-owned strings, including the memory-card NBC table. */
 static const char stringBase0[] =
 #include "platform/gcmcardmsg_stringBase0.inc"
 ;
@@ -60,18 +40,12 @@ static const char stringBase0[] =
 #define STR_MC_FMT_S (&stringBase0[0x5ED3])
 #define STR_MC_FMT_KONQUEST_BODY (&stringBase0[0x5EF6])
 
-/* Confirmed retail compatibility bug: message_buffer is only 30 bytes at
- * 0x803D36E0. mcard_msg_save's sprintf crosses +0x20 into cardstat (0x803D3700);
- * longer messages also reach icon_buffer (0x803D376C). Preserve these extents
- * and the unbounded write; see docs/decomp/profile-ui-retrofeed.md. */
 static char message_buf_temp2[0x1e];
 static char message_buf_temp1[0x1e];
 static char message_buffer[0x1e];
 
-/* .sdata: NBC text ids Slot A / Slot B (shared with gcmcard get_device_reference_name). */
 int gc_mc_default_name[2] = {0x6a, 0x6b};
 
-/* .sbss answers for format flow (retail). */
 int msg_format_confirmation_answer;
 int msg_format_failed_answer;
 int mcard_msg_card_changed_at_format_answer;
@@ -101,10 +75,8 @@ static int msg_save_no_card_konq_region_hault_player;
 int msg_quit_confirmation_answer;
 int msg_save_error_konq_region_answer;
 
-/* Once-flag: PPWLS boot no-card / space popup already shown. */
 static int low_storage_slot_message_done;
 
-/* Shared source helpers for operations expanded directly in retail callers. */
 static inline int pad_action_pressed(int action) {
     if (check_switch_action(get_p1_pad(), action) != 0) {
         return 1;
@@ -134,9 +106,6 @@ static inline void sleep_aproc(float ticks) {
 }
 
 
-/*
- * Halt-message id classifier shared by is_this_a_hault_message / mcard_msg_end.
- */
 static inline int is_hault_message_id(int id) {
     if (id < 0x14) {
         if (id == 3) {
@@ -177,11 +146,7 @@ static inline int is_hault_message_id(int id) {
     return 1;
 }
 
-/*
- * Soft ceiling: gc_no_space_routine -- no-space popup + answer; OSResetSystem
- * reboot path left soft (host must not hard-reset). Algo OK for menu path.
- */
-/* TODO: [breakthrough needed] 60.85165%; retail pool restored; remaining call/branch lowering needs comparison. */
+/* TODO: [breakthrough] 66.09%; retail reboot calls restored; compare answer CFG and register lifetimes. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     const char* a;
@@ -197,7 +162,7 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
 
     ret = 1;
     if (device < 0 || device >= 2) {
-        /* fall through to cleanup */
+
     } else {
         name = nameOrNull;
         if (name == 0) {
@@ -228,10 +193,14 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
 
     if (mcard_msg_no_space_answer == 2) {
         ret = 1;
-    } else if (mcard_msg_no_space_answer < 2 || mcard_msg_no_space_answer > 3) {
-        ret = 0;
+    } else if (mcard_msg_no_space_answer == 3) {
+        mslStopAll(msi);
+        GXDrawDone();
+        VISetBlack(1);
+        VIFlush();
+        VIWaitForRetrace();
+        OSResetSystem(1, 0, 1);
     } else {
-        /* Soft: retail OSResetSystem(1,0,1) reboot; skip on host. */
         ret = 0;
     }
 
@@ -326,6 +295,7 @@ int is_this_a_hault_message(void) {
     return is_hault_message_id(mcard_msg_active);
 }
 
+/* TODO: [breakthrough needed] 63.42%; shared halt classifier emits a different CFG; compare retail call order. */
 void mcard_msg_end(void) {
     int active;
 
@@ -333,7 +303,6 @@ void mcard_msg_end(void) {
     if (active == 0) {
         return;
     }
-    /* Soft ceiling: ~emit vs compact classifier; algo matches retail. */
     if (is_hault_message_id(active) == 0 && active != 0) {
         _mkproc_sleep_ticks = 0.0f;
         aproc->vtbl->sleep();
@@ -356,8 +325,8 @@ void mcard_msg_middle_sleep(int mode, int caller) {
     }
 }
 
+/* TODO: [breakthrough needed] 73.65%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_card_change_at_format_rtn(void) {
-    /* Soft ceiling: pad poll schedule; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_card_changed_at_format_answer, 2);
@@ -898,8 +867,8 @@ static void mcard_msg_debug_rtn(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 74.91%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_format_failed_rtn(void) {
-    /* Soft ceiling: pad poll schedule; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&msg_format_failed_answer, 1);
@@ -983,8 +952,8 @@ void mcard_msg_formating(int device) {
     sleep_aproc(60.0f);
 }
 
+/* TODO: [breakthrough needed] 74.91%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_format_confirmation_rtn(void) {
-    /* Soft ceiling: pad poll schedule; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&msg_format_confirmation_answer, 1);
@@ -1023,8 +992,8 @@ void mcard_msg_format_confirmation(int device) {
     }
 }
 
+/* TODO: [breakthrough needed] 73.34%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_no_file_rtn(void) {
-    /* Soft ceiling: pad poll schedule; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&msg_no_file_answer, 1);
@@ -1060,8 +1029,8 @@ void mcard_msg_no_file(int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [breakthrough needed] 90.68%; player pad poll schedule differs; compare retail call order. */
 static void mcard_msg_card_gone_rtn(void) {
-    /* Soft ceiling: player-split pad poll; algo OK. */
     if (msg_card_gone_player == 0) {
         if (check_switch_action(get_p1_pad(), 0) != 0) {
             eat_switch_action(get_p1_pad(), 0);
@@ -1120,8 +1089,8 @@ void mcard_msg_card_gone(const char* profileName, int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [breakthrough needed] 82.56%; pad and edge poll schedule differs; compare retail call order. */
 static void mcard_msg_crc_failure_rtn(void) {
-    /* Soft ceiling: pad/edge poll schedule; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&msg_crc_failure_answer, 1);
@@ -1222,8 +1191,8 @@ void mcard_msg_incompatible_card(const char* nameOrNull, int device) {
     sleep_aproc(1.0f);
 }
 
+/* TODO: [breakthrough needed] 74.04%; pad and edge poll schedule differs; compare retail call order. */
 static void mcard_msg_no_space_rtn(void) {
-    /* Soft ceiling: pad/edge poll; algo OK. */
     if (pad_action_pressed(0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_no_space_answer, 1);
@@ -1745,7 +1714,6 @@ void mcard_msg_save(int device) {
     sleep_aproc(90.0f);
 }
 
-/* Retail dispatch table precedes gc_mc_msg_text in .data. */
 void (*msg_routine_table[])(void) = {
     mcmsg_nothing,
     mcmsg_nothing,

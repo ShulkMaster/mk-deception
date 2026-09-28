@@ -17,9 +17,9 @@ Released by Midway in February 2005, *Mortal Kombat: Deception* is the sixth ent
 This repository does **not** contain any game assets or assembly. An existing copy of the game is required.
 
 Coding agents should read [AGENTS.md](AGENTS.md) before modifying the project. It
-covers repository rules, initialization, the ranked decomp books, m2c recovery,
-source permutation, objdiff inspection, DTK and compiler tools, and the required
-self-validation checks.
+covers repository rules, initialization, the ranked decomp books, DecompStudio
+m2c recovery and permutation, objdiff inspection, DTK and compiler tools, and
+the required self-validation checks.
 
 Supported versions:
 
@@ -48,9 +48,8 @@ py -3 tools\init.py --iso "C:\path\to\Mortal Kombat - Deception.iso"
 ```
 
 The script performs the complete setup in one pass. It validates the retail
-input, initializes Git submodules when present, installs or updates m2c under
-`build/m2c`, downloads the configured CodeWarrior compilers and matching tools
-under `build/`, generates the build files, and runs the full Ninja build.
+input, initializes Git submodules when present, downloads the configured
+CodeWarrior compilers and matching tools under `build/`, generates the build files, and runs the full Ninja build.
 Missing host programs such as Git or Ninja are reported in the final checklist.
 There are no dry-run, offline, or skip-build modes.
 
@@ -74,8 +73,6 @@ The final output provides an explicit readiness checklist:
 [x] ISO game ID
 [x] Retail main.dol SHA-1
 [x] DTK retail input
-[x] m2c update
-[x] m2c smoke test
 [x] Tool: compilers
 [x] Tool: dtk
 [x] Tool: objdiff-cli

@@ -28,26 +28,18 @@
 #include "rw/rwframe.h"
 #include "rw/rphanim.h"
 #include "rw/rplight.h"
+#include "rw/rpworld_types.h"
 
-extern void destroy_fade_box(void);
 extern void GProfile_GCN_GxDrawDone(void);
 extern RpWorld* RpClumpGetWorld(RpClump* clump);
-extern RpWorld* RpWorldRemoveClump(RpWorld* world, RpClump* clump);
-extern RpWorld* RpWorldAddClump(RpWorld* world, RpClump* clump);
-extern int RwTextureDestroy(RwTexture* texture);
 extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
 extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
 extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
 extern int RwImageDestroy(RwImage* image);
-extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
-extern int RpWorldDestroy(RpWorld* world);
 extern void update_fog_render_states(void);
-extern void init_debug_message_handler(void);
-extern int select_display_device(void);
 extern int fog_on;
-extern int RpWorldPluginAttach(void);
 extern int RpSkinPluginAttach(void);
 extern int RpSpecularPluginAttach(void);
 extern int specskin_plugin_attach(void);
@@ -229,7 +221,7 @@ void TakeCameraSnapShot(void) {
             Camera = saved_camera;
         }
         if (camera != 0) {
-            RwFrame* old_frame = (RwFrame*)camera->object.object.parent;
+            RwFrame* old_frame = camera->object.object.parent;
             if (old_frame != 0) {
                 _rwObjectHasFrameSetFrame(camera, 0);
                 RwFrameDestroy(old_frame);
@@ -258,7 +250,7 @@ RpLight* destroy_light(RpLight* light, void* data) {
     RpWorld* world = data;
     RpWorldRemoveLight(world, light);
     if (light->object.object.parent != 0) {
-        RwFrameDestroy((RwFrame*)light->object.object.parent);
+        RwFrameDestroy(light->object.object.parent);
     }
     RpLightDestroy(light);
     return light;
@@ -292,6 +284,7 @@ static float halt_during_screen_save(void) {
     return -1.0f;
 }
 
+/* TODO: [near miss] 98.39%; camera/raster register coloring and stack-frame size differ. */
 static float _print_screen_to_tga(void) {
     char filename[64];
     int width;
@@ -352,7 +345,7 @@ static float _print_screen_to_tga(void) {
                 Camera = saved_camera;
             }
             if (camera != 0) {
-                frame = (RwFrame*)camera->object.object.parent;
+                frame = camera->object.object.parent;
                 if (frame != 0) {
                     _rwObjectHasFrameSetFrame(camera, 0);
                     RwFrameDestroy(frame);
@@ -499,7 +492,7 @@ void Render(void) {
             RwCameraShowRaster(Camera, 0, 1);
         }
     } else {
-        RwFrameOrthoNormalize((RwFrame*)Camera->object.object.parent);
+        RwFrameOrthoNormalize(Camera->object.object.parent);
         force_rw_lights();
         if (reseed_rnd_tbl != 0) {
             reload_rnd_tbl();

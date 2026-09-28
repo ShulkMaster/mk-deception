@@ -2,7 +2,7 @@
 
 #include "mw/mwMemPriv.h"
 
-/* Soft ceiling: identical six-instruction leaf sequence with GPR coloring only. */
+/* TODO: [near miss] 99.13%; only GPR coloring differs. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
     u32 block_prefix;
@@ -79,8 +79,7 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     return result;
 }
 
-/* Soft ceiling: identical free-list CFG and memory operations; loop-local GPR
- * coloring plus one separately materialized zero leave one extra instruction. */
+/* TODO: [near miss] 95.21%; free-list CFG matches; loop GPR coloring and one separately materialized zero remain. */
 void hdrlessHeapResetHeap(_mwMemHeap* heap) {
     u32 alignment_mask;
     u32 alignment_inverse;
@@ -151,7 +150,7 @@ void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) 
     hdrlessHeapResetHeap(heap);
 }
 
-/* Soft ceiling: identical arithmetic with equivalent destination-GPR reuse. */
+/* TODO: [near miss] 97.70%; same arithmetic; destination GPR reuse differs. */
 u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     u32 alignment;
     u32 alignment_mask;

@@ -46,11 +46,7 @@ void native2d_reset_renderstate(void) {
     reset_tev_stages();
 }
 
-/*
- * Soft ceiling: native2d_draw ~97.95% -- first alpha lwz from r3 (not r31);
- * y/WGPIPE r4<->r3 coloring only (same ops: lha/lis/sth/extsh). A named
- * MMIO base regressed to ~92.5%; narrowing y compiled identically. Stop.
- */
+/* TODO: [near miss] 97.94%; first alpha lwz uses r3 instead of r31 and y/WGPIPE r3/r4 coloring differs. */
 /* Retail native2d_draw requires O2 locally; applying O2 to the full object
  * regresses native2d_instance_geometry by 12.81 percentage points. */
 #pragma optimization_level 2
@@ -115,11 +111,7 @@ void native2d_draw(Pfx2dObj* obj) {
     WGPIPE_F32 = vt;
 }
 
-/*
- * Soft ceiling: native2d_instance_geometry ~92.1% -- raster r5 vs r4 reuse;
- * FPR/lis 4330 coloring; ptr++ walk vs li offs+add (byte-off/do-while
- * loses mtctr ~89%). Full mismatch remains one allocation phase. Stop.
- */
+/* TODO: [near miss] 92.05%; raster r5/r4 reuse, FPR and lis 0x4330 coloring, and the vertex walk form differ. */
 #pragma optimization_level 4
 void native2d_instance_geometry(Pfx2dObj* obj) {
     float tex_w;

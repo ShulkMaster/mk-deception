@@ -357,6 +357,7 @@ typedef struct MkObj {
     union {
         void* field_5C;
         MkObjItemAttachData* item_attach_data;
+        struct WeaponDefinition* weapon_definition;
     }; /* +0x5C - cleared during destruction / item attachment data */
     int field_60;
     float bone_angle_64;

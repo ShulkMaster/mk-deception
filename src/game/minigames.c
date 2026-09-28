@@ -95,7 +95,6 @@ void show_koin_award(int player, int amount, int koin_type, int y);
 int pz_fighter_fatality_over(void);
 int pz_fighter_is_round_over(void);
 void atm_reset_current_page(int page);
-const char* get_string(int index);
 int advance_ladder_position(void);
 void ck_do_profile_save(void);
 float do_continue(void);
@@ -793,7 +792,6 @@ int __mini_game_display_ctrl;
 static PuzzleControl* puzzle_ctrl;
 extern PuzzleFightersEngine g_pz_fighters_engine;
 extern SwitchPdata* switch_pdata;
-extern int game_tick_ctr;
 extern MkFileInfo sec_pz_bgnd_beetlelair;
 extern MkFileInfo sec_pz_bgnd_hellsfoundry;
 extern MkFileInfo sec_pz_bgnd_lukangtomb;
@@ -985,7 +983,6 @@ static float p_pz_mode_fill(void);
 static float p_pz_mode_play(void);
 static void pzsm_ai_get_data(PuzzleAiData* data);
 static float p_pzsm_invisible(void);
-int check_switch(int pad, int switch_id);
 static int pz_ai_decide_move(PuzzlePlayerState* player);
 static void pz_ai_decide_match(PuzzlePlayerState* player);
 static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player);
@@ -1009,15 +1006,9 @@ void reset_effect(const char* effect_name);
 void pfx_2d_obj_set_alpha(ScreenObj* object, unsigned char alpha);
 void snd_stop(unsigned int sound_handle);
 int sprintf(char* destination, const char* format, ...);
-void destroy_string_obj(StringObj* string_object);
-void pull_string_obj(StringObj* string_object);
-StringObj* string_right_xy(int font, int alignment, const char* text, int x,
-                           int y, int color);
 void cleanup_pz_fatality_stuff(void);
-void* get_data_table(ScriptSlot* slot, unsigned int index);
 int get_blood_level(void);
 int get_puzzle_rounds_to_win(void);
-void free_mem(void* memory);
 static float p_pz_mode_start(void);
 static float p_puzzle_music_fade(void);
 static int puzzle_fighter_mode_start(int message);
@@ -1164,20 +1155,23 @@ static inline PuzzlePlayerState*
 puzzle_switch_select_player(PlyrPdata* fighter_pdata) {
     PuzzlePlayerState* player;
 
-    player = puzzle_ctrl->players[0];
-    if (fighter_pdata->plyr_num != 0) {
-        if (puzzle_mode_net == 0 || is_pz_net_master == 0) {
-            player = puzzle_ctrl->players[1];
-        }
-    } else {
+    if (fighter_pdata->plyr_num == 0) {
+    local_seat:
         if (puzzle_mode_net != 0 && is_pz_net_master == 0) {
             player = puzzle_ctrl->players[1];
+        } else {
+            player = puzzle_ctrl->players[0];
         }
+    } else {
+        if (puzzle_mode_net != 0) {
+            goto local_seat;
+        }
+        player = puzzle_ctrl->players[1];
     }
     return player;
 }
 
-static inline float puzzle_switch_set_command(int command) {
+static inline float puzzle_switch_set_movement(int command) {
     PlyrInfo* switch_state;
     PuzzlePlayerState* player;
 
@@ -1274,7 +1268,6 @@ static inline int
 puzzle_fighter_pair_position_open(PuzzlePlayerState* player,
                                   PuzzleBoardCell* pivot) {
     PuzzleBoardCell* cell;
-    PuzzlePieceLayout* layout;
     int check_below;
     int index;
 
@@ -1282,13 +1275,12 @@ puzzle_fighter_pair_position_open(PuzzlePlayerState* player,
     if (pivot == player->active_cell) {
         return 0;
     }
-    layout = &puzzle_piece_layout[player->rotation_state];
     for (;;) {
         for (index = 0; index < 2; index++) {
             cell = pivot;
             if (index != 0) {
-                cell += layout->column;
-                cell += layout->row * 8;
+                cell += puzzle_piece_layout[player->rotation_state].column;
+                cell += puzzle_piece_layout[player->rotation_state].row * 8;
             }
             if (cell < player->board_end && cell->type != 0) {
                 return 0;
@@ -1605,19 +1597,39 @@ float puzzle_fighter_get_super_bar_level(unsigned int player) {
     return level;
 }
 
-/* TODO: [near miss] 93.848595%; typed feature bits and global flag publication
- * align retail; retry-local lifetimes and art/render base formation remain after five trials. */
+static inline void pz_pick_random_character(PlyrInfo* plyr) {
+    int character;
+    int alternate;
+    int attempts;
+
+    alternate = 0;
+    attempts = 100;
+    do {
+        character = randu0(44);
+        attempts--;
+    } while (is_char_locked(character, 0) != 0 && attempts != 0);
+    if (attempts == 0) {
+        alternate = 0;
+        character = alternate;
+    }
+    plyr->player_index = character;
+    plyr->flags_14_bits.alternate_palette = alternate;
+    if (character == 0x15) {
+        plyr->flags_14_bits.alternate_costume = 1;
+    } else {
+        plyr->flags_14_bits.alternate_costume = 0;
+    }
+}
+
+/* TODO: [near miss] instructions exact; script-name reloc targets puzzle_strings, retail @stringBase0 (TU string pool). */
 float p_puzzle_fighter(void) {
     GameInfo* game;
     ScriptSlot* script;
     BgndDataTable* section;
-    int character;
-    int attempts;
 
     set_game_switch_maps();
     set_section_memory_scheme(2);
-    game = &g_game_info;
-    if (game->feature_flags.bits.powerbars_locked != 0) {
+    if (g_game_info.feature_flags.bits.powerbars_locked != 0) {
         push_game_state(3);
     } else {
         push_game_state(0x12);
@@ -1629,8 +1641,7 @@ float p_puzzle_fighter(void) {
     script = cmdscript_loadfile_by_name(
         11, PUZZLE_STRINGS + PUZZLE_SCRIPT_STRING);
     g_game_info.cmdscript = script;
-    section = (BgndDataTable*)get_data_table(
-        script, script->table_count);
+    section = get_data_table(script, script->table_count);
     g_game_info.section = section;
     g_game_info.misc = section->misc;
     if (section->misc->lights_bgnd != 0) {
@@ -1650,7 +1661,7 @@ float p_puzzle_fighter(void) {
     turn_camera_on();
     mode_of_play = 6;
     puzzle_mode_net = 0;
-    if (game->feature_flags.bits.high_bit == 0) {
+    if (g_game_info.feature_flags.bits.high_bit == 0) {
         pz_preinit_world(is_pz_net_master);
     }
 
@@ -1663,38 +1674,9 @@ float p_puzzle_fighter(void) {
     }
     init_weapon_trail_light_list();
 
-    if (game->feature_flags.bits.powerbars_locked != 0) {
-        attempts = 100;
-        do {
-            character = randu0(44);
-            attempts--;
-        } while (is_char_locked(character, 0) != 0 && attempts != 0);
-        if (attempts == 0) {
-            character = 0;
-        }
-        g_game_info.plyr0.player_index = character;
-        g_game_info.plyr0.flags_14_bits.alternate_palette = 0;
-        if (character == 0x15) {
-            g_game_info.plyr0.flags_14_bits.alternate_costume = 1;
-        } else {
-            g_game_info.plyr0.flags_14_bits.alternate_costume = 0;
-        }
-
-        attempts = 100;
-        do {
-            character = randu0(44);
-            attempts--;
-        } while (is_char_locked(character, 0) != 0 && attempts != 0);
-        if (attempts == 0) {
-            character = 0;
-        }
-        g_game_info.plyr1.player_index = character;
-        g_game_info.plyr1.flags_14_bits.alternate_palette = 0;
-        if (character == 0x15) {
-            g_game_info.plyr1.flags_14_bits.alternate_costume = 1;
-        } else {
-            g_game_info.plyr1.flags_14_bits.alternate_costume = 0;
-        }
+    if (g_game_info.feature_flags.bits.powerbars_locked != 0) {
+        pz_pick_random_character(&g_game_info.plyr0);
+        pz_pick_random_character(&g_game_info.plyr1);
         resolve_alternate_palettes(&g_game_info.plyr1);
     }
 
@@ -1725,12 +1707,13 @@ float p_puzzle_fighter(void) {
     load_art_section(0x70038, &sec_pz_plyr_art);
     pz_event.type = 1;
     pz_fighter_event(&pz_event);
-    g_game_info.flags |= 2;
+    g_game_info.flag_bits.load_complete = 1;
     start_first_pass_render();
     _mkproc_sleep_ticks = 3.0f;
     ((PuzzleProcVtable*)aproc->vtbl)->sleep();
     end_first_pass_render();
     turn_camera_off();
+    game = &g_game_info;
     while (game->flag_bits.high_res_path != 0) {
         _mkproc_sleep_ticks = 1.0f;
         ((PuzzleProcVtable*)aproc->vtbl)->sleep();
@@ -1817,8 +1800,6 @@ void xfer_puzzle_exit(int request_exit) {
     }
 }
 
-/* TODO: [near miss] 99.21384%; permuter found only artificial access/helper
- * variants; one zero-store rematerialization and float labels remain. */
 static float p_pz_mode_exit(void) {
     PuzzlePlayerState* player0 = puzzle_ctrl->players[0];
     PuzzlePlayerState* player1 = puzzle_ctrl->players[1];
@@ -1844,8 +1825,8 @@ static float p_pz_mode_exit(void) {
             puzzle_ctrl->result_message->typed_vtbl->destroy(
                 puzzle_ctrl->result_message);
         }
-        puzzle_ctrl->result_message = 0;
     }
+    puzzle_ctrl->result_message = 0;
 
     __mini_game_display_ctrl = 0;
     pz_update_plyr_profile_status();
@@ -1890,16 +1871,15 @@ static float p_pz_mode_exit(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.79%; fade-loop alpha/index GPR coloring and one shared
- * BSS base (r30+0x58 vs +0x10) remain. */
+/* TODO: [near miss] 99.99%; code exact; only .bss offsets of pz_event/__pz_start_msg/temp_80_char from the shared base differ (TU data layout). */
 static float p_pz_mode_endofgame(void) {
+    int alpha;
+    int index;
     PuzzleLocalizedImagePlacement* winner_placement;
     PuzzleLocalizedImagePlacement* loser_placement;
     PuzzleWagerProfile* winning_profile;
     PuzzleWagerProfile* losing_profile;
     unsigned int winner_index;
-    int alpha;
-    int index;
     int timeout;
 
     game_save_loop_count++;
@@ -2455,8 +2435,6 @@ static float p_pz_mode_play(void) {
     return 1.0f;
 }
 
-/* Near miss: exact size and instruction sequence; objdiff reports only
- * register operands and shared constant/string relocation labels. */
 /* TODO: [near miss] 99.513275%; natural const-data placement changes relocations;
  * retain ordinary declarations without section attributes. */
 static float p_pz_mode_start(void) {
@@ -2765,24 +2743,18 @@ float p_puzzle_switch_drop(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 91.854164%; direct preloaded-player/network CFG
- * regressed siblings to 85.208336% and was reverted; shared join remains. */
 float p_puzzle_switch_4(void) {
-    return puzzle_switch_set_command(4);
+    return puzzle_switch_set_movement(4);
 }
 
-/* TODO: [breakthrough needed] 91.854164%; retail network/player selector join
- * differs; sibling m2c review supports behavior, prior helper trials regressed. */
 float p_puzzle_switch_3(void) {
-    return puzzle_switch_set_command(5);
+    return puzzle_switch_set_movement(5);
 }
 
 float p_puzzle_switch_2(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 92.43137%; retail network/player selector join
- * differs; no-edit CFG review confirms supermove dispatch, retain helper. */
 float p_puzzle_switch_1(void) {
     PlyrInfo* switch_state;
     PuzzlePlayerState* player;
@@ -2807,41 +2779,23 @@ float p_puzzle_switch_1(void) {
     return puzzle_switch_sleep;
 }
 
-/* TODO: [breakthrough needed] 91.854164%; retail network/player selector join
- * differs; sibling m2c review supports behavior, prior helper trials regressed. */
 float p_puzzle_switch_down(void) {
-    return puzzle_switch_set_command(3);
+    return puzzle_switch_set_movement(3);
 }
 
-/* TODO: [breakthrough needed] 91.854164%; shared network/player selector join differs;
- * m2c recheck adds no evidence beyond the exhausted structured-helper trials. */
 float p_puzzle_switch_up(void) {
-    return puzzle_switch_set_command(9);
+    return puzzle_switch_set_movement(9);
 }
 
-/* TODO: [breakthrough needed] 91.854164%; retail network/player selector join
- * differs; sibling m2c review supports behavior, prior helper trials regressed. */
 float p_puzzle_switch_right(void) {
-    return puzzle_switch_set_command(2);
+    return puzzle_switch_set_movement(2);
 }
 
-/* TODO: [breakthrough needed] 91.854164%; retail network/player selector join
- * differs; sibling m2c review supports behavior, prior helper trials regressed. */
 float p_puzzle_switch_left(void) {
-    return puzzle_switch_set_command(1);
+    return puzzle_switch_set_movement(1);
 }
 
-/* Recovery in progress: retail reevaluates the signed AI-input guard for each
- * switch query, its zero-result path clears quick_drop_repeat for AI players,
- * and both collision tests reuse one two-phase pair scan. Those behaviors are
- * recovered, including the AI quick-drop exit (83.66%, retail 0x868/current
- * 0x87C). The remaining 0x14 is the irreducible shared left/right repeat-tail
- * layout and its register-color cascade; a typed-helper attempt duplicated the
- * tail four times and was rejected at the bounded clean-C limit. This remains
- * structural, not an emission-only near miss. */
-/* TODO: [breakthrough needed] 83.66357%; declaration-order coloring trial was
- * neutral; shared repeat-tail layout remains structurally different, so retain
- * typed collision/AI flow and stop before duplication. */
+/* TODO: [breakthrough needed] 86.38%; left/right repeat tails and AI register lifetimes still differ; recover two-tail CFG. */
 static int
 puzzle_fighter_mode_play__drop_sequence(PuzzlePlayerState* player,
                                         PuzzlePlayerState* opponent) {
@@ -2859,8 +2813,8 @@ puzzle_fighter_mode_play__drop_sequence(PuzzlePlayerState* player,
 
     rotated = 0;
     command = player->input_command;
-    candidate = player->active_cell;
     player->flags4_bits.drop_active = 1;
+    candidate = player->active_cell;
 
     do {
         if (player->input_command == 0 && player->previous_input_command == 3) {
@@ -2907,10 +2861,9 @@ puzzle_fighter_mode_play__drop_sequence(PuzzlePlayerState* player,
 
                     moved = 0;
                     if (player->super_active != 0) {
-                        super_target = puzzle_ctrl->players[0];
-                        if (player != super_target) {
-                            super_target = puzzle_ctrl->players[1];
-                        }
+                        super_target = player == puzzle_ctrl->players[0]
+                                           ? puzzle_ctrl->players[0]
+                                           : puzzle_ctrl->players[1];
                         super_check =
                             pz_ai_super_move_table[player->equipped_supermove];
                         if (super_check == 0 ||
@@ -3770,12 +3723,7 @@ static int pzsm_ai_antibreakers(PuzzlePlayerState* player,
     }
     return 1;
 }
-/* Emission-only near match (91.93%, retail 0x47C/current 0x48C). m2c and every
- * state-table access confirm the horizontal, rotation, timed-drop, pause, and
- * sequence-reset algorithms. The four-instruction residue is duplicated
- * command-tail layout plus cascading register allocation; extracting the
- * typed common tail reaches retail size but worsens both expansions. */
-/* TODO: [near miss] 93.271774%; signed random-result compares now match retail; command-tail CFG and table relocations remain. */
+/* TODO: [near miss] 97.16%; horizontal branches jump to one shared command tail in retail (no command != 0 test); player r29/r28 coloring follows. */
 static int pz_ai_decide_move(PuzzlePlayerState* player) {
     int random_direction;
     int sequence_value;
@@ -3925,31 +3873,24 @@ static int pz_ai_decide_move(PuzzlePlayerState* player) {
         return player->input_command;
     }
 
-    switch (sequence_value) {
-    case 0:
+    if (sequence_value == 0) {
         player->input_command = 0;
         player->ai_pause_ticks = player->ai_pause_base;
-        break;
-    case 4:
+    } else if (sequence_value == 4) {
         player->input_command = 0;
         player->ai_drop_sequence_index = -1;
         player->ai_pause_ticks = player->ai_pause_base;
-        break;
-    case 2:
+    } else if (sequence_value == 2) {
         player->input_command = 9;
         player->ai_pause_ticks = 30;
-        break;
-    default:
+    } else {
         player->input_command = 3;
         player->ai_pause_ticks = player->ai_pause_base * 3;
-        break;
     }
     player->ai_drop_sequence_index++;
     return player->input_command;
 }
 
-/* TODO: [breakthrough needed] 91.229164%; explicit band-arm loops regressed to
- * 74.895836% and were reverted; shared five-cell/default join remains. */
 static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
     PuzzleBoardCell* row;
     int band;
@@ -3960,64 +3901,48 @@ static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
     result = 1;
     row = &player->board[88];
 
-    do {
-        if (band < 2) {
-            if (row[3].type != 0) {
-                result = 0;
-            }
-            break;
+    if (band < 2) {
+        if (row[3].type != 0) {
+            result = 0;
         }
-
-        if (band < 4) {
-            if (band <= 2) {
-                for (i = 2; i < 5; i++) {
-                    if (row[i].type != 0) {
-                        result = 0;
-                        break;
-                    }
+    } else if (band < 4) {
+        if (band <= 2) {
+            for (i = 2; i < 5; i++) {
+                if (row[i].type != 0) {
+                    result = 0;
+                    break;
                 }
-                break;
-            }
-        } else if (band < 6) {
-            if (band > 2) {
-                result = 0;
-                break;
             }
         } else {
+            goto check_five;
+        }
+    } else if (band < 6) {
+        if (band > 2) {
+            result = 0;
+        } else {
+            goto check_five;
+        }
+    } else {
+        goto invalid_band;
+    }
+    goto done;
+
+check_five:
+    for (i = 1; i < 6; i++) {
+        if (row[i].type != 0) {
             result = 0;
             break;
         }
-
-        for (i = 1; i < 6; i++) {
-            if (row[i].type != 0) {
-                result = 0;
-                break;
-            }
-        }
-    } while (0);
+    }
+    goto done;
+invalid_band:
+    result = 0;
+done:
     return result;
 }
 
-/*
- * Recovery in progress: retail tries both adjacent columns before invalidating
- * an interior candidate. Keeping its four distinct invalidation leaves and
- * early equal-color value restores retail's major block ownership. Direct
- * adjacent matches now feed duplicated score expressions, allowing MWCC to
- * recover retail's backward scoring join without a synthetic boolean. Scoping
- * the initial score scan independently removes one false cross-region
- * lifetime. Retaining the selected piece's placement-row base through all four
- * invalidation leaves removes repeated address reconstruction. Vertical and
- * adjacent bonus matches now converge on retail's single score block. A typed
- * fallback helper plus a single selection loop restores retail's one fallback
- * body and backward unsafe-equal-color join. Selection now occurs after the
- * fallback guard, matching retail block ownership. Dispatch uses the published
- * target column rather than carrying the pre-publication selection through the
- * remaining branches, restoring retail's per-arm reloads and index formation
- * (87.05%, retail 0xB70/current 0xB7C). The stack frame and r21-r31 save range
- * are exact. The remaining 12-byte excess is structural and is not classified
- * as a near miss.
- */
-/* TODO: [breakthrough needed] 87.053276%; fallback/selection CFG remains 12 bytes over retail; retain typed placement scans and stop before duplication. */
+/* TODO: [breakthrough needed] 87.05%; fallback and selection CFG adds 12 bytes;
+ * verify the selection join against retail before tuning register coloring. */
 static void pz_ai_decide_match(PuzzlePlayerState* player) {
     enum {
         PUZZLE_AI_SELECTION_FALLBACK = -1,
@@ -4074,7 +3999,6 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
 
         {
             PuzzleAiPlacement* scan_placement;
-            PuzzleBoardCell* scan_cell;
             unsigned int scan_raw_type;
             unsigned int scan_piece_breaker;
             unsigned int scan_landing_breaker;
@@ -4099,9 +4023,8 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                     if (scan_placement->match_score < 0) {
                         continue;
                     }
-                    scan_cell = &player->board_rows[scan_placement->row]
-                                                      [scan_column];
-                    scan_cell_type = scan_cell->type;
+                    scan_cell_type = player->board_rows[scan_placement->row]
+                                                        [scan_column].type;
                     scan_landing_breaker =
                         scan_cell_type >= 4 &&
                                 scan_cell_type != PUZZLE_BLOCK_WILDCARD
@@ -4600,8 +4523,7 @@ static inline void puzzle_match_right_neighbor_ai(
     }
 }
 
-/* TODO: [near miss] 99.15888%; neighbor pointer/type registers are swapped;
- * helper declaration-order trial is neutral; retain recursive boundaries. */
+/* TODO: [near miss] 99.15888%; inlined neighbor pointer/type register coloring remains; stop at coloring. */
 static int puzzle_fighter_match_left_right__ai(PuzzleMatchContext* context) {
     PuzzleMatchContext next;
     int matched = 0;
@@ -4663,9 +4585,10 @@ static int puzzle_fighter_match_above_below__ai(
     return matched;
 }
 
-/* TODO: [near miss] 92.38%; bitfield union is confirmed (mask flattening regressed);
- * duplicated outcome-tail layout and vertical-scan register lifetime remain. */
+/* TODO: [near miss] 97.93%; candidate-scan GPR coloring (index r6/r7, below_type r8) and one duplicated rot1/col-- tail remain. */
 static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
+    PuzzleBoardCell* left_cell = 0;
+    PuzzleBoardCell* right_cell = 0;
     PuzzleAiData data;
     int move0_columns[] = {3, 4, 2, 5, -1};
     int move0_rows[] = {7, 7, 3, 3, -1};
@@ -4675,6 +4598,11 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
     int move2_columns[] = {4, 1, 6, -1};
     int move2_alternate_columns[] = {7, 0, 3, 5, 2, -1};
     int move2_rows[] = {6, 6, 6, 4, 4, -1};
+    int* columns;
+    int* alternate_columns;
+    int* rows;
+    unsigned int left_type;
+    unsigned int right_type;
     union {
         unsigned int word;
         struct {
@@ -4685,14 +4613,7 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
             unsigned char pad_bytes[3];
         } bits;
     } flags;
-    PuzzleBoardCell* left_cell = 0;
-    PuzzleBoardCell* right_cell = 0;
-    int* columns;
-    int* alternate_columns;
-    int* rows;
     unsigned int below_type;
-    unsigned int left_type;
-    unsigned int right_type;
     unsigned int type;
     int candidate;
     int column;
@@ -4718,8 +4639,7 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
         rows = move2_rows;
         break;
     default:
-        player->ai_move = 3;
-        return;
+        goto give_up;
     }
 
     player->ai_target_rotation = 0;
@@ -4759,15 +4679,15 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
                     PuzzleBoardCell* below_cell;
 
                     column = columns[candidate];
-                    row = rows[candidate];
-                    if (player->board_rows[row][column].type != 0) {
+                    below_cell = &player->board_rows[rows[candidate]][column];
+                    if (below_cell->type != 0) {
                         continue;
                     }
                     player->ai_target_column = column;
 
-                    row = rows[candidate];
-                    for (; row >= 0; row--) {
-                        below_cell = &player->board_rows[row][column];
+                    for (row = rows[candidate]; row >= 0; row--) {
+                        below_cell =
+                            &player->board_rows[row][columns[candidate]];
                         if (below_cell->type != 0) {
                             break;
                         }
@@ -4859,11 +4779,8 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
                                         type = 0;
                                     }
                                 }
-                                if (left_type == type) {
-                                    player->ai_target_rotation = 1;
-                                } else {
-                                    player->ai_target_rotation = 3;
-                                }
+                                player->ai_target_rotation =
+                                    left_type == type ? 1 : 3;
                             }
                             return;
                         }
@@ -4900,10 +4817,9 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
                             player->ai_target_rotation = 3;
                         } else if (right_type == type || left_type == (unsigned int)-16) {
                             player->ai_target_rotation = 1;
-                        } else if (left_type == (unsigned int)-1) {
-                            player->ai_target_rotation = 3;
                         } else {
-                            player->ai_target_rotation = 1;
+                            player->ai_target_rotation =
+                                left_type == (unsigned int)-1 ? 3 : 1;
                         }
                         return;
                     }
@@ -4924,15 +4840,13 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
                         player->ai_target_rotation = 1;
                         player->ai_target_column--;
                     } else if (right_type == type ||
-                               left_type == (unsigned int)-16) {
+                               left_type == (unsigned int)-16 ||
+                               left_type != (unsigned int)-1) {
                         player->ai_target_rotation = 3;
                         player->ai_target_column++;
-                    } else if (left_type == (unsigned int)-1) {
+                    } else {
                         player->ai_target_rotation = 1;
                         player->ai_target_column--;
-                    } else {
-                        player->ai_target_rotation = 3;
-                        player->ai_target_column++;
                     }
                     return;
                 }
@@ -4940,6 +4854,7 @@ static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
         }
     }
 
+give_up:
     player->ai_move = 3;
 }
 
@@ -5224,8 +5139,6 @@ static int pzsm_kancel(PuzzlePlayerState* player,
                        PuzzlePlayerState* opponent) {
     return 0;
 }
-/* TODO: [near miss] 98.68%; permuter produced only dead-condition/temporary
- * variants; retain typed rows and stop at address decomposition/register coloring. */
 static int pzsm_raise_up(PuzzlePlayerState* player,
                          PuzzlePlayerState* opponent) {
     int row;
@@ -5247,8 +5160,7 @@ static int pzsm_raise_up(PuzzlePlayerState* player,
     player->supermove_delay_ticks = 15;
     if (opponent->active_cell != 0) {
         if (opponent->active_row >= 13) {
-            PuzzleBoardCell* top_row = &opponent->board[12 * 8];
-            if (top_row[opponent->active_column].type != 0) {
+            if (((PuzzleBoardRow*)opponent->board)[12][opponent->active_column].type != 0) {
                 opponent->active_cell = 0;
                 opponent->saved_mode_step =
                     puzzle_fighter_mode_play__supermove_im_dead;
@@ -5270,18 +5182,16 @@ static int pzsm_raise_up(PuzzlePlayerState* player,
         }
     }
     for (column = 0; column < 8; column++) {
-        PuzzleBoardCell* cell = &opponent->board[column];
-        int sequence_index;
         int type;
+        PuzzleBoardCell* cell = &opponent->board[column];
 
         do {
             if (player->counter_sequence_index < 0) {
                 player->counter_sequence_index =
                     puzzle_ctrl->piece_sequence_length - 1;
             }
-            sequence_index = player->counter_sequence_index;
-            type = puzzle_ctrl->piece_sequence[sequence_index];
-            player->counter_sequence_index = sequence_index - 1;
+            type = puzzle_ctrl->piece_sequence[player->counter_sequence_index];
+            player->counter_sequence_index--;
         } while (type == PUZZLE_BLOCK_SUPERBREAKER);
 
         if (type >= 4 && type != PUZZLE_BLOCK_WILDCARD) {
@@ -5306,9 +5216,10 @@ static inline int pzsm_place_rain_blocks(PuzzlePlayerState* player,
     int placed_count;
     PuzzleBoardCell* drop_row;
 
+    row = 0;
     placed_count = 0;
     drop_row = &opponent->board[12 * 8];
-    for (row = 0; row < 14; row++) {
+    for (; row < 14; row++) {
         for (column = 0; column < 8; column++) {
             PuzzleBoardCell* cell = &opponent->board_rows[row][column];
             int previous_row;
@@ -5384,8 +5295,8 @@ static inline int pzsm_place_rain_blocks(PuzzlePlayerState* player,
     return row;
 }
 
-/* TODO: [breakthrough needed] 95.93284%; retail branches owner 2/1 after an early
- * @stringBase0 address; needs the TU pool as anonymous literals, not puzzle_strings. */
+/* TODO: [near miss] 97.57%; storm string uses puzzle_strings instead of the TU
+ * literal pool (owner branch timing follows it); rain-block loop IV/address residue. */
 static int pzsm_rain_dance(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
     int row;
@@ -5445,14 +5356,11 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
             player->event_player == 0 ? 1 : 2);
         if (storm_handle != 0) {
             MkPfx* storm = pfx_from_handle(storm_handle);
-            PfxVmEmitter* emitter = pfx_get_emitter(
-                (PfxVm*)storm->matrix, 0);
-            float storm_x;
 
-            emitter->flags.bits.cycle_paused = 0;
-            storm_x = 1.55f * opponent->sound_pan;
-            emitter = pfx_get_emitter((PfxVm*)storm->matrix, 0);
-            emitter->pfx_transform->elements[12] = storm_x;
+            pfx_get_emitter((PfxVm*)storm->matrix, 0)
+                ->flags.bits.cycle_paused = 0;
+            pfx_get_emitter((PfxVm*)storm->matrix, 0)
+                ->pfx_transform->elements[12] = 1.55f * opponent->sound_pan;
         }
     }
 
@@ -5468,8 +5376,6 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
     }
 
     if (pzsm_raindance_data.phase == 2) {
-        int next_tick;
-
         if ((player->counter_drop_delay & 0x38) != 0) {
             int burst_tick = player->counter_drop_delay & 7;
 
@@ -5486,9 +5392,7 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
                 pan_snd_req(0x1B01, opponent->sound_pan);
             }
         }
-        next_tick = player->counter_drop_delay + 1;
-        player->counter_drop_delay = next_tick;
-        if (next_tick < 60) {
+        if (++player->counter_drop_delay < 60) {
             return 1;
         }
         player->counter_drop_delay = 0;
@@ -5523,15 +5427,12 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
 
     row = pzsm_place_rain_blocks(player, opponent);
 
-    {
-        int target_y = art_puzzle_fighter_static_tbl
-                           .placements[opponent->event_player + 1]
-                           .y +
-                       (row + 1) * 25;
-
-        if (pzsm_raindance_data.rain_object->y < target_y) {
-            pzsm_raindance_data.rain_object->y += 5;
-        }
+    if (pzsm_raindance_data.rain_object->y <
+        art_puzzle_fighter_static_tbl
+                .placements[opponent->event_player + 1]
+                .y +
+            (row + 1) * 25) {
+        pzsm_raindance_data.rain_object->y += 5;
     }
     if (player->counter_drop_delay == 0) {
         opponent->active_cell = 0;
@@ -5541,12 +5442,7 @@ static int pzsm_rain_dance(PuzzlePlayerState* player,
     return 1;
 }
 
-/*
- * Near match: pzsm_rain_dance_cleanup 99.67%, exact size and instructions;
- * the remaining three argument mismatches are storm-string relocation labels.
- */
-/* TODO: [near miss] 99.666664%; natural const-data placement changes relocations;
- * retain ordinary declarations without section attributes. */
+/* TODO: [near miss] 99.67%; three storm-string argument relocation labels differ (TU string pool layout). */
 static void pzsm_rain_dance_cleanup(void) {
     reset_effect(PUZZLE_STRINGS + PUZZLE_STORM_EFFECT_STRING);
 
@@ -5616,8 +5512,6 @@ static int pzsm_lower_down(PuzzlePlayerState* player,
     return 1;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 static float p_pzsm_invisible(void) {
     PuzzleInvisiblePdata* pdata = (PuzzleInvisiblePdata*)apdata;
     PuzzlePlayerState* player;
@@ -5689,8 +5583,6 @@ static int pzsm_invisible(PuzzlePlayerState* player,
     return 1;
 }
 
-/* TODO: [near miss] 98.44512%; cell/count allocation recovered; independent
- * store scheduling and scan-color registers remain after five attempts. */
 static int pzsm_jumble(PuzzlePlayerState* player,
                        PuzzlePlayerState* opponent) {
     int color_counts[8];
@@ -5728,8 +5620,8 @@ static int pzsm_jumble(PuzzlePlayerState* player,
     }
     for (row = 0; row < 14; row++) {
         for (column = 0; column < 8; column++) {
-            type = opponent->board[row * 8 + column].type;
-            if (type == 0) {
+            cell = &opponent->board[row * 8 + column];
+            if (cell->type == 0) {
                 continue;
             }
             for (color = 0; color < 8; color++) {
@@ -5737,7 +5629,7 @@ static int pzsm_jumble(PuzzlePlayerState* player,
                 if (color != 0) {
                     compared_type = color;
                 }
-                if (type == compared_type) {
+                if (cell->type == compared_type) {
                     occupied_count++;
                     color_counts[color]++;
                 }
@@ -5781,10 +5673,10 @@ static int pzsm_jumble(PuzzlePlayerState* player,
             if (selected_color != 0) {
                 type = selected_color;
             }
-            occupied_count--;
             cell->type = type;
-            color_counts[selected_color]--;
             cell->visual = 0;
+            color_counts[selected_color]--;
+            occupied_count--;
             if (occupied_count == 0) {
                 break;
             }
@@ -5838,21 +5730,20 @@ static int pzsm_freeze(PuzzlePlayerState* player,
     return 0;
 }
 
-/* TODO: [breakthrough needed] 90.02286%; explicit pointer walks regressed to
- * 83.07429% and were reverted; retain row/column scans pending CFG recovery. */
+/* TODO: [near miss] 99.69%; nine rows of low-half and phase-count register coloring remain. */
 static int pzsm_float(PuzzlePlayerState* player,
                       PuzzlePlayerState* opponent) {
     PuzzleBoardCell* cell;
-    int remaining;
+    int column;
     int selected_count;
     int raised_count;
+    int remaining;
     int visited_count;
     int previous_row;
     int previous_column;
     int distance;
     int scan_complete;
     int row;
-    int column;
 
     if (player->supermove_state == 0) {
         player->supermove_state = 19;
@@ -5867,7 +5758,7 @@ static int pzsm_float(PuzzlePlayerState* player,
         player->counter_drop_delay--;
         for (row = 13; row >= 0; row--) {
             for (column = 7; column >= 0; column--) {
-                cell = &player->board[row * 8 + column];
+                cell = &player->board_rows[row][column];
                 if (cell->type != 0 && cell->fall_ticks != 0) {
                     cell->fall_ticks += 20;
                 }
@@ -5879,7 +5770,7 @@ static int pzsm_float(PuzzlePlayerState* player,
     if (player->supermove_phase_ticks == 0) {
         for (row = 13; row >= 0; row--) {
             for (column = 7; column >= 0; column--) {
-                cell = &player->board[row * 8 + column];
+                cell = &player->board_rows[row][column];
                 if (cell->type != 0 && cell->fall_ticks != 0) {
                     memset(cell, 0, sizeof(*cell));
                 }
@@ -5894,7 +5785,7 @@ static int pzsm_float(PuzzlePlayerState* player,
     visited_count = 0;
     for (row = 13; row >= 0; row--) {
         for (column = 7; column >= 0; column--) {
-            cell = &player->board[row * 8 + column];
+            cell = &player->board_rows[row][column];
             if (cell->type == 0) {
                 continue;
             }
@@ -5919,7 +5810,7 @@ static int pzsm_float(PuzzlePlayerState* player,
             if (cell->fall_ticks == 0) {
                 if (selected_count < 3) {
                     selected_count++;
-                    cell->fall_ticks = 20;
+                    cell->fall_ticks += 20;
                     if (player->supermove_phase_ticks - visited_count >= 3 &&
                         player->supermove_delay_ticks >= 0) {
                         player->supermove_delay_ticks =
@@ -5936,14 +5827,11 @@ static int pzsm_float(PuzzlePlayerState* player,
                 raised_count++;
             }
             if (remaining == 0 || selected_count >= 3) {
-                break;
+                goto scan_done;
             }
         }
-        if (remaining == 0 || selected_count >= 3) {
-            break;
-        }
     }
-
+scan_done:
     if (raised_count >= player->supermove_phase_ticks) {
         player->supermove_phase_ticks = 0;
     } else {
@@ -5960,13 +5848,19 @@ static int pzsm_float(PuzzlePlayerState* player,
     return 1;
 }
 
-/* TODO: [near miss] 98.56481%; declaration order improves changed/index registers;
- * object-slot scope trial neutral; cell/color-loop allocation remains. */
+/* TODO: [near miss] 99.47%; remaining residue is local GPR allocation in the
+ * edge board walk. */
 static int pzsm_edge_clear(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
+    int is_wildcard;
+    unsigned int color;
+    PuzzleBoardCell* cell;
+    int edge_index;
+    unsigned int type;
+    unsigned int current;
+    PuzzleBoardCell* row;
     int object_index;
     int changed;
-    int edge_index;
 
     changed = 0;
     if (player->supermove_state == 0) {
@@ -5977,21 +5871,19 @@ static int pzsm_edge_clear(PuzzlePlayerState* player,
         pzsm_edger_data.step_count = 0;
 
         for (object_index = 0; object_index < 2; object_index++) {
-            ScreenObj* loaded_object = load_2d_pfxobj(
+            pzsm_edger_data.edge_objects[object_index] = load_2d_pfxobj(
                 player->pfx_slot, 0x6020, (char*)0x080C0001, 0, 0x3A);
-            ScreenObj** object =
-                &pzsm_edger_data.edge_objects[object_index];
-
-            *object = loaded_object;
-            if (*object != 0) {
-                (*object)->x = art_puzzle_fighter_static_tbl
-                                   .placements[player->event_player + 1]
-                                   .x +
-                               6;
+            if (pzsm_edger_data.edge_objects[object_index] != 0) {
+                pzsm_edger_data.edge_objects[object_index]->x =
+                    art_puzzle_fighter_static_tbl
+                            .placements[player->event_player + 1]
+                            .x +
+                    6;
                 if (object_index != 0) {
-                    (*object)->x += 175;
+                    pzsm_edger_data.edge_objects[object_index]->x += 175;
                 }
-                (*object)->y = screen_height - 50;
+                pzsm_edger_data.edge_objects[object_index]->y =
+                    screen_height - 50;
             }
         }
         player->supermove_cleanup = pzsm_edger_cleanup;
@@ -6039,32 +5931,27 @@ static int pzsm_edge_clear(PuzzlePlayerState* player,
         return 1;
     }
 
-    {
-        for (edge_index = 0; edge_index < 2; edge_index++) {
-            PuzzleBoardCell* row =
-                &player->board[player->supermove_phase_ticks * 8];
-            PuzzleBoardCell* cell = &row[edge_index * 7];
+    for (edge_index = 0; edge_index < 2; edge_index++) {
+        row = &player->board[player->supermove_phase_ticks * 8];
+        cell = &row[edge_index * 7];
 
-            if (cell->type != 0) {
-                int color;
+        if (cell->type != 0) {
+            cell->state = 0x2B;
+            cell->flag_bits.matched = 0;
+            cell->flag_bits.effect_bit = 0;
+            for (color = 0; color < 4; color++) {
+                is_wildcard = color == 0;
+                type = PUZZLE_BLOCK_WILDCARD;
+                if (!is_wildcard) {
+                    type = color;
+                }
 
-                cell->state = 0x2B;
-                cell->flag_bits.matched = 0;
-                cell->flag_bits.effect_bit = 0;
-                for (color = 0; color < 4; color++) {
-                    int is_wildcard = color == 0;
-                    unsigned int type = is_wildcard
-                                            ? PUZZLE_BLOCK_WILDCARD
-                                            : (unsigned int)color;
-
-                    if (cell->type == type ||
-                        cell->type == (unsigned int)color + 4) {
-                        cell->visual = puzzle_ctrl->block_visuals[color];
-                        cell->type = is_wildcard ? PUZZLE_BLOCK_WILDCARD
-                                                 : (unsigned int)color;
-                        changed = 1;
-                        break;
-                    }
+                current = cell->type;
+                if (current == type || current == color + 4) {
+                    cell->visual = puzzle_ctrl->block_visuals[color];
+                    cell->type = is_wildcard ? PUZZLE_BLOCK_WILDCARD : color;
+                    changed = 1;
+                    break;
                 }
             }
         }
@@ -6078,9 +5965,6 @@ static int pzsm_edge_clear(PuzzlePlayerState* player,
     player->supermove_delay_ticks = 2;
     return 1;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
-
 static void pzsm_edger_cleanup(void) {
     ScreenObj** object;
     int object_index;
@@ -6339,8 +6223,6 @@ static int pzsm_clear_blue(PuzzlePlayerState* player,
     return puzzle_fighter_fill_holes(player) != 0;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 static int pzsm_klear_kore(PuzzlePlayerState* player, unsigned int color) {
     int cleared = 0;
     unsigned int breaker_color = color + 4;
@@ -6379,11 +6261,8 @@ static int pzsm_klear_kore(PuzzlePlayerState* player, unsigned int color) {
     }
     return cleared;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
-
-/* TODO: [breakthrough needed] 92.55357%; allowing an exhausted search to advance
- * is behaviorally aligned but compiler-neutral; retail shared CFG remains. */
+/* TODO: [breakthrough needed] 93.75%; first scan and replacement search still
+ * have extra exit tests; recover the retail shared-exit CFG before coloring. */
 static int pzsm_arrange(PuzzlePlayerState* player,
                         PuzzlePlayerState* opponent) {
     int start_row = 0;
@@ -6443,20 +6322,24 @@ static int pzsm_arrange(PuzzlePlayerState* player,
             PuzzleBoardCell* cell =
                 &player->board[start_row * 8 + start_column];
             unsigned int type = cell->type;
+            int zero_phase;
 
-            if (type == 0 ||
-                type == (player->supermove_phase_ticks == 0
+            if (type == 0) {
+                continue;
+            }
+            zero_phase = player->supermove_phase_ticks == 0;
+            if (type == (zero_phase
                              ? PUZZLE_BLOCK_WILDCARD
                              : (unsigned int)player->supermove_phase_ticks)) {
                 continue;
             }
             if (type == (unsigned int)player->supermove_phase_ticks + 4) {
-                cell->type = player->supermove_phase_ticks == 0
+                cell->type = zero_phase
                                  ? PUZZLE_BLOCK_WILDCARD
                                  : (unsigned int)player->supermove_phase_ticks;
             } else {
-                int search_column = start_column;
                 int search_row = start_row;
+                int search_column = start_column;
                 PuzzleBoardCell* search_cell;
 
                 for (; search_column < 8; search_column++) {
@@ -6466,7 +6349,7 @@ static int pzsm_arrange(PuzzlePlayerState* player,
 
                         if (search_cell->type != 0 &&
                             (search_cell->type ==
-                                 (player->supermove_phase_ticks == 0
+                                 (zero_phase
                                       ? PUZZLE_BLOCK_WILDCARD
                                       : (unsigned int)
                                             player->supermove_phase_ticks) ||
@@ -6624,10 +6507,7 @@ pz_display_supermove_msg_sideways(PuzzlePlayerState* player) {
     return pdata;
 }
 
-/* TODO: [near miss] 99.625%; scan declarations and index operand order recovered;
- * board-pointer lifetime was neutral at attempt four; address coloring remains. */
 static void puzzle_fighter_calc_center_weight(PuzzlePlayerState* player) {
-    int row_offset;
     int row;
     int column;
     int total_weight = 0;
@@ -6639,9 +6519,8 @@ static void puzzle_fighter_calc_center_weight(PuzzlePlayerState* player) {
     for (column = 0; column < 8; column++) {
         found = 0;
 
-        for (row = 13, row_offset = 104; row >= 0;
-             row--, row_offset -= 8) {
-            if (player->board[column + row_offset].type != 0) {
+        for (row = 13; row >= 0; row--) {
+            if (player->board[row * 8 + column].type != 0) {
                 found = 1;
                 total_weight += row + 1;
                 if (row > 9) {
@@ -6689,8 +6568,8 @@ static void puzzle_fighter_calc_center_weight(PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 94.95918%; both board scans and output stores agree;
- * operand/declaration controls are neutral; stop at register allocation. */
+/* TODO: [near miss] 95.16327%; board scans and stores agree; remaining
+ * row/column GPR coloring has no evidence-backed source change. */
 void puzzle_fighter_get_num_blocks_on_screen(unsigned int* player1_blocks,
                                              unsigned int* player2_blocks) {
     PuzzlePlayerState* player;
@@ -6699,8 +6578,9 @@ void puzzle_fighter_get_num_blocks_on_screen(unsigned int* player1_blocks,
     int total;
 
     total = 0;
+    column = 0;
     player = puzzle_ctrl->players[0];
-    for (column = 0; column < 8; column++) {
+    for (; column < 8; column++) {
         row = 13;
         for (;;) {
             if (player->board[row * 8 + column].type != 0) {
@@ -6797,8 +6677,6 @@ int puzzle_fighter_plyr_winning_big_based_on_points(void) {
     return 2;
 }
 
-/* Near miss: body and layout match; one saved-proc move, validation branch
- * polarity, and string relocation labels remain compiler-emission residue. */
 static inline StringObj* puzzle_message_live_text(PuzzleMessagePdata* owner) {
     StringObj* object = owner->text;
     if (object != 0) {
@@ -6812,8 +6690,7 @@ static inline StringObj* puzzle_message_live_text(PuzzleMessagePdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.17683%; the escalated permuter search found no supported
- * candidate; retain the readable guard structure and stop at register/string relocation residue. */
+/* TODO: [near miss] 99.39%; retail repeats the old-process null branch (beq 8c) once more; needs evidence of an inlined null-checking kill helper. */
 static void puzzle_fighter_display_block_count_msg(
     PuzzlePlayerState* player) {
     PuzzleMessagePdata* pdata;
@@ -6822,8 +6699,8 @@ static void puzzle_fighter_display_block_count_msg(
     int placement_index;
 
     if (player->block_count_message_proc != 0) {
-        proc = player->block_count_message_proc;
-        pdata = (PuzzleMessagePdata*)pdata_of_proc(proc);
+        pdata = (PuzzleMessagePdata*)pdata_of_proc(
+            proc = player->block_count_message_proc);
         text = puzzle_message_live_text(pdata);
 
         if (text != 0) {
@@ -6889,8 +6766,8 @@ static void puzzle_fighter_display_block_count_msg(
     }
 }
 
-/* TODO: [near miss] 99.583336%; typed art ownership and dispatch agree;
- * message-field register allocation and pooled-art base remain. */
+/* TODO: [near miss] Report 100% instructions; art-table relocation target differs
+ * (.data.0 versus art_puzzle_fighter_static_tbl); verify link exactness. */
 static void puzzle_fighter_display_chain_msg(PuzzlePlayerState* player) {
     PuzzleArtPlacement* placements;
     PuzzleMessagePdata* pdata;
@@ -6959,10 +6836,8 @@ static void puzzle_fighter_display_chain_msg(PuzzlePlayerState* player) {
     chain_image->x = x + 25;
     chain_image->y = y;
 
-    sound_index = 4;
-    if (player->best_chain_count < 5) {
-        sound_index = player->best_chain_count - 1;
-    }
+    sound_index = player->best_chain_count < 5
+                      ? player->best_chain_count - 1 : 4;
     pan_snd_req(chain_sound_burst_table[sound_index], player->sound_pan);
 }
 
@@ -7078,9 +6953,12 @@ static inline ScreenObj* puzzle_message_pdata_live_primary_image(PuzzleMessagePd
     return object;
 }
 
-/* Retail dereferences null pdata on the invalid callback path; this C returns before that access. */
-/* TODO: [breakthrough needed] 96.89759%; null-data cleanup dereference differs;
- * no defined source contract supports reproducing the retail invalid path. */
+static inline void puzzle_message_release_player(PuzzleMessagePdata* pdata) {
+    if (pdata->player != 0) {
+        pdata->player->block_count_message_proc = 0;
+    }
+}
+
 static float p_puzzle_fighter_chain_msg(void) {
     PuzzleMessagePdata* pdata = (PuzzleMessagePdata*)apdata;
     StringObj* text;
@@ -7088,6 +6966,7 @@ static float p_puzzle_fighter_chain_msg(void) {
     ScreenObj* primary;
 
     if (pdata == 0) {
+        puzzle_message_release_player(pdata);
         return -1.0f;
     }
 
@@ -7153,9 +7032,7 @@ static float p_puzzle_fighter_chain_msg(void) {
         pull_string_obj(text);
         destroy_string_obj(text);
     }
-    if (pdata->player != 0) {
-        pdata->player->block_count_message_proc = 0;
-    }
+    puzzle_message_release_player(pdata);
     return -1.0f;
 }
 
@@ -7383,10 +7260,8 @@ static int puzzle_fighter_find_match(PuzzlePlayerState* player) {
     return any_activity;
 }
 
-#pragma dont_inline on
-#pragma optimize_for_size on
-/* TODO: [breakthrough needed] 95.024536%; explicit while search regressed to
- * 92.45399% and was reverted; retain typed nested scan pending CFG recovery. */
+/* TODO: [breakthrough needed] 95.05521%; first scan has extra post-loop checks;
+ * recover a structured branch into superbreaker processing. */
 static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player) {
     PuzzleBoardCell* cell;
     PuzzleBoardCell* superbreaker;
@@ -7486,8 +7361,6 @@ static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player) {
     superbreaker->type = base_type;
     return marked;
 }
-#pragma optimize_for_size reset
-#pragma dont_inline reset
 
 #pragma auto_inline off
 static inline void puzzle_match_left_neighbor(
@@ -7784,7 +7657,6 @@ static inline unsigned short puzzle_prepare_spawn_cell(PuzzlePlayerState* player
     return blocked;
 }
 
-#pragma optimize_for_size on
 static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
     PuzzleBoardCell* saved_pair;
     unsigned short next_type;
@@ -7838,9 +7710,6 @@ static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
     player->best_chain_count = 0;
     return !blocked;
 }
-#pragma optimize_for_size reset
-
-/* Retail @4772 is -1.0f: retire this nostack process when the message ends. */
 /* TODO: [near miss] 99.7619%; return values verified; remaining float-pool relocation identity. */
 static float p_puzzle_fighter_fight_msg(void) {
     if (puzzle_ctrl->fight_message == 0) {
@@ -7871,10 +7740,6 @@ static float p_puzzle_fighter_fight_msg(void) {
     return 1.0f;
 }
 
-/* Near miss: message selection, object/process ownership, and animation setup
- * agree with retail. The remaining four bytes are placement of the shared
- * 120-tick switch return ahead of the default animation block. */
-/* TODO: [near miss] 98.17416%; direct returns regressed; retain shared break/return layout and stop at branch placement. */
 static int puzzle_fighter_mode_start(int message) {
     MkHdr* proc_data;
     MkProc* proc;
@@ -7899,21 +7764,22 @@ static int puzzle_fighter_mode_start(int message) {
         puzzle_ctrl->players[0]->mode_result = 0;
         puzzle_ctrl->players[1]->mode_result = 0;
         snd_req(0x46);
-        break;
+        goto common_return;
     case 2:
         puzzle_ctrl->players[0]->mode_result = 1;
         puzzle_ctrl->players[1]->mode_result = 1;
         snd_req(0x47);
-        break;
+        goto common_return;
     case 3:
         puzzle_ctrl->players[0]->mode_result = 2;
         puzzle_ctrl->players[1]->mode_result = 2;
         snd_req(0x48);
-        break;
+        goto common_return;
     case 0:
         puzzle_ctrl->fight_message->x = 95;
         puzzle_ctrl->fight_message->y = 275;
-        break;
+    common_return:
+        return 120;
     default:
         puzzle_ctrl->fight_message->x = 290;
         puzzle_ctrl->fight_message->y = 250;
@@ -7945,22 +7811,20 @@ static int puzzle_fighter_mode_start(int message) {
         mk_insert((MkHdr*)proc, &puzzle_ctrl->fight_message_processes);
         return 1;
     }
-    return 120;
 }
 
-/* TODO: [near miss] 98.83%; ice-block create args fixed; register coloring around build.name/emitter stores remains. */
 static int init_pz_pfx_2d(void) {
     PfxBuildInfo build;
     MkPfx* puzzle_effect = 0;
     MkPfx* ice_effect = 0;
     MkProc* proc;
     PfxEmitter* emitter;
-    float emitter_lifetime;
+    float birth_rate;
     int ice_count;
 
     memset(&build, 0, sizeof(build));
-    build.emitter_count = 1;
     build.name = (char*)(PUZZLE_STRINGS + PUZZLE_BLOCKS_STRING);
+    build.emitter_count = 1;
     proc = new_pfx_create_raw_userdata(
         &build, 0, pfx_2d_elements_tbl.particle_capacity,
         pfx_2d_elements_tbl.field_214, pfx_2d_elements_tbl.field_A0, 0,
@@ -7971,8 +7835,8 @@ static int init_pz_pfx_2d(void) {
     mk_insert(&proc->hdr, &puzzle_ctrl->fight_message_processes);
     proc->priority = 45;
 
-    ice_count = (g_game_info.plyr0.player_index == 3) +
-                (g_game_info.plyr1.player_index == 3);
+    ice_count = g_game_info.plyr0.player_index == 3;
+    ice_count += g_game_info.plyr1.player_index == 3;
     if (ice_count != 0) {
         build.name = (char*)(PUZZLE_STRINGS + PUZZLE_ICE_BLOCKS_STRING);
         proc = new_pfx_create_raw_userdata(
@@ -7994,15 +7858,15 @@ static int init_pz_pfx_2d(void) {
         pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
         1.0f);
     puzzle_effect->emitter_enabled = pfx_2d_elements_tbl.emitter_enabled;
-    emitter_lifetime = pfx_2d_elements_tbl.emitter_lifetime;
     ((PfxVm*)puzzle_effect->matrix)->flag150_20 = 1;
     ((PfxVm*)puzzle_effect->matrix)->flag150_02 = 1;
     ((PfxVm*)puzzle_effect->matrix)->billboard_size =
         pfx_2d_elements_tbl.billboard_size;
+    birth_rate = pfx_2d_elements_tbl.emitter_lifetime;
     puzzle_effect->flag_bits.visible = 1;
     emitter = pfx_get_emitter(
         (PfxVm*)puzzle_effect->matrix, 0);
-    emitter->lifetime = emitter_lifetime;
+    emitter->birth_rate = birth_rate;
     puzzle_effect->depth_bias = 50.0f;
     puzzle_effect->effect_state = 0;
     puzzle_ctrl->puzzle_pfx = (PfxVm*)puzzle_effect->matrix;
@@ -8025,15 +7889,15 @@ static int init_pz_pfx_2d(void) {
         pfx_2d_elements_tbl.frame_height, pfx_2d_elements_tbl.frame_count,
         1.0f);
     ice_effect->emitter_enabled = pfx_2d_elements_tbl.emitter_enabled;
-    emitter_lifetime = pfx_2d_elements_tbl.emitter_lifetime;
     ((PfxVm*)ice_effect->matrix)->flag150_20 = 1;
     ((PfxVm*)ice_effect->matrix)->flag150_02 = 1;
     ((PfxVm*)ice_effect->matrix)->billboard_size =
         pfx_2d_elements_tbl.billboard_size;
+    birth_rate = pfx_2d_elements_tbl.emitter_lifetime;
     ice_effect->flag_bits.visible = 1;
     emitter = pfx_get_emitter(
         (PfxVm*)ice_effect->matrix, 0);
-    emitter->lifetime = emitter_lifetime;
+    emitter->birth_rate = birth_rate;
     ice_effect->depth_bias = 40.0f;
     ice_effect->effect_state = 0;
     puzzle_ctrl->ice_pfx = (PfxVm*)ice_effect->matrix;
@@ -8046,11 +7910,24 @@ static int init_pz_pfx_2d(void) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 92.37113%; direct shared-error returns regressed to
- * 87.78351% and were reverted; retain the validity latch pending CFG recovery. */
-static float p_pzpfx_copy_iceblock_data(void) {
-    int fields_valid = 1;
+static inline int pzpfx_setup_ice_fields(void) {
+    if (puzzle_ctrl->ice_pfx != 0) {
+        puzzle_ctrl->ice_positions =
+            pfx_get_field(puzzle_ctrl->ice_pfx, -2, 0x100);
+        puzzle_ctrl->ice_timers =
+            pfx_get_field(puzzle_ctrl->ice_pfx, -2, 0x301);
+        if (puzzle_ctrl->ice_positions == 0 ||
+            puzzle_ctrl->ice_timers == 0) {
+            return 0;
+        }
+        puzzle_ctrl->ice_pfx->particle_cursor = 0;
+    }
+    return 1;
+}
 
+/* TODO: [near miss] 94.64%; retail branches both field failures straight into one shared
+ * error block (goto-style); the ice-setup inline still materializes its bool. */
+static float p_pzpfx_copy_iceblock_data(void) {
     if (apfx->effect_state != 0 || __mini_game_display_ctrl == 0) {
         return 1.0f;
     }
@@ -8059,20 +7936,8 @@ static float p_pzpfx_copy_iceblock_data(void) {
         pfx_get_field(puzzle_ctrl->puzzle_pfx, -2, 0x100);
     puzzle_ctrl->particle_timers =
         pfx_get_field(puzzle_ctrl->puzzle_pfx, -2, 0x301);
-    if (puzzle_ctrl->ice_pfx != 0) {
-        puzzle_ctrl->ice_positions =
-            pfx_get_field(puzzle_ctrl->ice_pfx, -2, 0x100);
-        puzzle_ctrl->ice_timers =
-            pfx_get_field(puzzle_ctrl->ice_pfx, -2, 0x301);
-        if (puzzle_ctrl->ice_positions == 0 ||
-            puzzle_ctrl->ice_timers == 0) {
-            fields_valid = 0;
-        } else {
-            puzzle_ctrl->ice_pfx->particle_cursor = 0;
-        }
-    }
-
-    if (fields_valid == 0 || puzzle_ctrl->particle_positions == 0 ||
+    if (pzpfx_setup_ice_fields() == 0 ||
+        puzzle_ctrl->particle_positions == 0 ||
         puzzle_ctrl->particle_timers == 0) {
         puzzle_ctrl->pfx_bits.pfx_error = 1;
         return -1.0f;
@@ -8124,8 +7989,8 @@ static float p_pzpfx_copy_data(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.55%; typed pair indexing preserves retail stride;
- * placement-base formation and integer-to-float/register scheduling remain. */
+/* TODO: [near miss] 99.87%; only the event_player/placement-index registers
+ * differ (retail r3/r0/r6); declaration placement and index order tried. */
 static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
     const PuzzleArtPlacement* preview_placement;
     const PuzzleArtPlacement* board_placement;
@@ -8141,28 +8006,24 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
     PuzzleBoardCell* next_piece;
     PuzzleBoardCell* current_piece;
     int piece;
-    int preview_y_offset;
+    int event_player;
 
     if (shake_enabled != 0 && movement_active != 0) {
         signrand(3);
         signrand(3);
     }
 
+    event_player = player->event_player;
     preview_placement =
-        &art_puzzle_fighter_static_tbl
-             .placements[player->event_player + 3];
+        &art_puzzle_fighter_static_tbl.placements[event_player + 3];
     board_placement =
-        &art_puzzle_fighter_static_tbl
-             .placements[player->event_player + 1];
-    piece = 0;
-    preview_y_offset = 0;
+        &art_puzzle_fighter_static_tbl.placements[event_player + 1];
     preview_x = &preview_placement->x;
     preview_y = &preview_placement->y;
     board_x = &board_placement->x;
     board_y = &board_placement->y;
 
-    for (; piece < 2;
-         piece++, preview_y_offset += 25) {
+    for (piece = 0; piece < 2; piece++) {
         unsigned int type;
 
         if (shake_enabled == 0 && movement_active != 0) {
@@ -8173,7 +8034,7 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
         next_piece = &player->next_pair[piece];
         puzzle_ctrl->particle_positions->x = (float)(*preview_x + 4);
         puzzle_ctrl->particle_positions->y =
-            (float)(*preview_y + preview_y_offset + 3);
+            (float)(*preview_y + 3 + piece * 25);
         puzzle_ctrl->particle_positions->z = 100.0f;
         type = next_piece->type;
         if (type < 15) {
@@ -8204,6 +8065,8 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
             base_x = *board_x + player->active_column * 25 + 4;
             gravity_ticks = player->gravity_ticks;
             drop_interval = player->drop_interval;
+            fall_offset =
+                25.0f * ((float)gravity_ticks / (float)drop_interval);
             current_piece = &player->current_pair[piece];
             puzzle_ctrl->particle_positions->x = (float)base_x;
             base_y = *board_y + player->active_row * 25 + 5;
@@ -8213,8 +8076,6 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
                         (rotation_steps[player->rotation_state]
                              .column *
                          25));
-            fall_offset =
-                25.0f * ((float)gravity_ticks / (float)drop_interval);
             puzzle_ctrl->particle_positions->y += fall_offset +
                 (float)(piece *
                         (rotation_steps[player->rotation_state]
@@ -8412,9 +8273,8 @@ static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 94.995834%; m2c confirms reset/cleanup/AI setup; shared AI-tail layout and register coloring remain after no-edit review. */
+/* TODO: [near miss] 98.41%; only the AI branch's ai_move tail is not cross-jumped into the powerbars copy (retail b 0x574). */
 static void puzzle_fighter_mode_clear(void) {
-    PuzzlePlayerState* ai_player = 0;
     PuzzlePlayerState* player0 = puzzle_ctrl->players[0];
     PuzzlePlayerState* player1 = puzzle_ctrl->players[1];
     PuzzleSupermoveBalance* supermove_balance;
@@ -8424,10 +8284,12 @@ static void puzzle_fighter_mode_clear(void) {
     int player1_result = player1->round_result_value;
     void (*player0_cleanup)(void) = player0->supermove_cleanup;
     void (*player1_cleanup)(void) = player1->supermove_cleanup;
+    PuzzlePlayerState* ai_player = 0;
     PuzzleProfileStats* player0_stats = player0->profile_stats;
     PuzzleProfileStats* player1_stats = player1->profile_stats;
     int speed;
-    unsigned int loss_adjustments;
+    int losses;
+    int loss_count;
 
     if (player0->block_count_font_11 != 0) {
         destroy_string_obj(player0->block_count_font_11);
@@ -8457,9 +8319,9 @@ static void puzzle_fighter_mode_clear(void) {
     puzzle_ctrl->players[0]->board = puzzle_ctrl->boards[0];
     puzzle_ctrl->players[1]->board = puzzle_ctrl->boards[1];
     puzzle_ctrl->players[0]->board_end =
-        &puzzle_ctrl->boards[0][PUZZLE_BOARD_CELLS - 1];
+        &puzzle_ctrl->players[0]->board[PUZZLE_BOARD_CELLS - 1];
     puzzle_ctrl->players[1]->board_end =
-        &puzzle_ctrl->boards[1][PUZZLE_BOARD_CELLS - 1];
+        &puzzle_ctrl->players[1]->board[PUZZLE_BOARD_CELLS - 1];
     puzzle_ctrl->players[0]->current_pair = puzzle_ctrl->current_pairs[0];
     puzzle_ctrl->players[1]->current_pair = puzzle_ctrl->current_pairs[1];
     puzzle_ctrl->players[0]->next_pair = puzzle_ctrl->next_pairs[0];
@@ -8479,7 +8341,7 @@ static void puzzle_fighter_mode_clear(void) {
     puzzle_fighter_get_new_playpieces(puzzle_ctrl->players[1]);
     puzzle_ctrl->speedup_ticks = 0;
     supermove_balance =
-        (PuzzleSupermoveBalance*)get_data_table(g_game_info.cmdscript, 9);
+        get_data_table(g_game_info.cmdscript, 9);
     puzzle_ctrl->players[0]->equipped_supermove =
         g_game_info.plyr0.slot.pdata->runtime_data->puzzle_supermove_index;
     puzzle_ctrl->players[1]->equipped_supermove =
@@ -8559,27 +8421,28 @@ static void puzzle_fighter_mode_clear(void) {
         if (ai_player != 0) {
             ai_player->ai_no_pause_band = get_ladder_position();
             if (game_settings.puzzle_difficulty <= 2) {
-                loss_adjustments = pz_loss_in_a_row / 5;
-                if (pz_loss_in_a_row >= 5) {
-                    do {
-                        if (ai_player->ai_no_pause_band != 0) {
-                            ai_player->ai_no_pause_band--;
-                        }
-                        if (ai_player->ai_no_pause_band == 0) {
-                            break;
-                        }
-                    } while (--loss_adjustments != 0);
+                loss_count = pz_loss_in_a_row;
+                for (losses = 5; losses <= loss_count; losses += 5) {
+                    if (ai_player->ai_no_pause_band != 0) {
+                        ai_player->ai_no_pause_band--;
+                    }
+                    if (ai_player->ai_no_pause_band == 0) {
+                        break;
+                    }
                 }
             }
-            if (game_settings.puzzle_difficulty <= 2) {
-                ai_player->ai_fallback_move =
-                    ai_state_type[(puzzle_ctrl->players[0]
-                                       ->round_result_value ^
-                                   puzzle_ctrl->players[1]
-                                       ->round_result_value) +
-                                  ai_player->ai_no_pause_band * 2];
-            } else {
-                ai_player->ai_fallback_move = 3;
+            {
+                int state_index =
+                    puzzle_ctrl->players[0]->round_result_value ^
+                    puzzle_ctrl->players[1]->round_result_value;
+
+                state_index += ai_player->ai_no_pause_band * 2;
+
+                if (game_settings.puzzle_difficulty <= 2) {
+                    ai_player->ai_fallback_move = ai_state_type[state_index];
+                } else {
+                    ai_player->ai_fallback_move = 3;
+                }
             }
             ai_player->ai_move = ai_player->ai_fallback_move;
             speed = (8 - ai_player->ai_no_pause_band) -
@@ -8621,7 +8484,6 @@ void cleanup_minigame_system(void) {
 static void render_wiffs(PuzzlePlayerState* player);
 static void render_UI(PuzzlePlayerState* player);
 
-/* Near match: load_puzzle_champion_screen 99.49%; pool identities only. */
 /* TODO: [near miss] 99.55696%; natural const-data placement changes relocations;
  * retain ordinary declarations without section attributes. */
 void load_puzzle_champion_screen(void) {
@@ -8660,13 +8522,11 @@ void load_puzzle_champion_screen(void) {
     }
 }
 
-/* TODO: [near miss] 99.95924%; process-list next_item/process_item declaration
- * order fixed 8 of 11 rows; remaining 3 are hdr-instance vs item-instance load
- * coloring (r0/r4) in the same comparison, insensitive to caching/cast forms. */
 static void minigame_puzzlefighter_destroy(void) {
     MkPtr* next_item;
     MkPtr* process_item;
     MkPtr** process_list;
+    MkHdr* hdr;
     int index;
 
     if (puzzle_ctrl->fight_message != 0) {
@@ -8679,9 +8539,8 @@ static void minigame_puzzlefighter_destroy(void) {
         if (process_list != 0) {
             process_item = *process_list;
             while (process_item != 0) {
-                MkHdr* hdr = process_item->hdr;
-
-                if (hdr->instance != process_item->instance) {
+                if ((hdr = process_item->hdr)->instance !=
+                    process_item->instance) {
                     next_item = process_item->next;
                     process_item->hdr = 0;
                     destroy_mkptr(process_item);
@@ -8850,26 +8709,8 @@ static void minigame_puzzlefighter_destroy(void) {
     unload_font(0xA);
 }
 
-/*
- * Recovery in progress: minigame_puzzlefighter_setup 89.91%, retail 0x980/current
- * 0x9F0. Allocation order, layouts, art loads, localized placements, sequence
- * validation, and all consumers agree with retail. The static-art terminator
- * now distinguishes normal completion from a failure break without a status
- * flag, recovering retail's exact r24-r31 save range. Retail branches directly
- * from five nested resource loops to one failure tail. The victory and
- * super-bar phases share one typed index-returning helper, so the one-round
- * victory exit falls naturally into super-bar setup. UI and wiff setup share a
- * second typed count-returning helper; background setup returns its completed
- * induction count into the same failure condition. The remaining helper exits emit
- * repeated status/exit control flow. Bounded
- * UI, super-bar, and victory-loop open-coding attempts either regressed
- * alignment or grew the body; open-coding all four helpers together grew the
- * body by 0x10 and fell to 83.73%, while directly aborting from the static-art
- * loop grew it by 0x14 and fell to 86.85%. The helpers are therefore retained.
- * This is too large and structural to classify as an
- * emission-only near miss.
- */
-/* TODO: [breakthrough needed] 89.9079%; nested resource/helper exit CFG remains structurally different; retain typed helpers and stop before open-coding. */
+/* TODO: [breakthrough needed] 90.38%; sequence validation and localized
+ * selection improved; nested resource exits and BSS layout remain. */
 static void minigame_puzzlefighter_setup(void) {
     PuzzleLocalizedImagePlacement* localized;
     PuzzleArtPlacement* placement;
@@ -8964,7 +8805,7 @@ static void minigame_puzzlefighter_setup(void) {
     if (sequence != 0) {
         __pz_feed_rand_msg.sequence = sequence;
         sequence_length = 0;
-        while ((value = sequence[sequence_length]) >= 0) {
+        while ((value = __pz_feed_rand_msg.sequence[sequence_length]) >= 0) {
             if (value == 0) {
                 ((PuzzleProcVtable*)aproc->vtbl)
                     ->transfer(p_pz_mode_exit, 0.0f);
@@ -9000,8 +8841,9 @@ static void minigame_puzzlefighter_setup(void) {
             localized_index = 1;
         }
         if (localized_index >= 0) {
-            localized = &pzlang_image_table[localized_index]
-                             .language[get_language()];
+            PuzzleLocalizedImagePlacement* language_options =
+                pzlang_image_table[localized_index].language;
+            localized = &language_options[get_language()];
             if (placement->x == -2 && localized->player2_x < 0) {
                 index++;
                 continue;
@@ -9137,18 +8979,16 @@ void render_minigame_list(void) {
 const char puzzle_strings[] =
     PUZZLE_STRING_DATA;
 
-/* TODO: [near miss] 99.63856%; signed flags, predecrement, and placement aliases
- * match retail; only harmless shake/placement register coloring remains. */
+/* TODO: [near miss] 99.63856%; hoisted placement field addresses take r30/r29
+ * above board_moving/match_active (retail r28/r27); coloring only. */
 static void render_wiffs(PuzzlePlayerState* player) {
     int board_moving = 1;
     int match_active;
-    int shake_x;
-    int shake_y;
+    int placement;
     int row;
     int column;
-    PuzzleArtPlacement* placement;
-    int* placement_x;
-    int* placement_y;
+    int shake_x;
+    int shake_y;
 
     if (puzzle_ctrl->flag_bits.large_color_clear == 0 &&
         player->flags2_bits.board_shift_active == 0) {
@@ -9167,10 +9007,7 @@ static void render_wiffs(PuzzlePlayerState* player) {
         shake_y = 0;
     }
 
-    placement = &art_puzzle_fighter_static_tbl
-                     .placements[player->event_player + 1];
-    placement_x = &placement->x;
-    placement_y = &placement->y;
+    placement = player->event_player + 1;
     for (row = 0; row < 14; row++) {
         for (column = 0; column < 8; column++) {
             PuzzleBoardCell* cell = &player->board[row * 8 + column];
@@ -9193,9 +9030,11 @@ static void render_wiffs(PuzzlePlayerState* player) {
                         ScreenObj* object = puzzle_ctrl->breaker_objects[color];
 
                         object->pfx2d->x =
-                            *placement_x + column * 25 + 4 + shake_x;
+                            art_puzzle_fighter_static_tbl.placements[placement].x +
+                            column * 25 + 4 + shake_x;
                         object->pfx2d->y =
-                            *placement_y + row * 25 + 5 + shake_y;
+                            art_puzzle_fighter_static_tbl.placements[placement].y +
+                            row * 25 + 5 + shake_y;
                         object->pfx2d->x -= 16;
                         object->pfx2d->y -= 16;
                         object->pfx2d->texture = get_ani_texture_rwtexture(
@@ -9220,19 +9059,12 @@ static void render_wiffs(PuzzlePlayerState* player) {
     }
 }
 
-/* Emission-only near match (93.19853%, retail 0x220/current 0x214). Retail
- * 0x8010F7DC tests flags3 bit6 (counter display), matching its producer at
- * 0x8010AC54; bit7 hides the defeated player's piece independently. The
- * remaining three-instruction deficit is placement-base CSE and register
- * coloring; scoped aliases and retail-ordered assignments compile identically. */
-/* TODO: [near miss] 93.19853%; typed draw/update flow agrees; final placement
- * base CSE and saved-register coloring remain after five bounded trials. */
+/* TODO: [near miss] 94.17647%; placement-base CSE and saved-register coloring remain. */
 static void render_UI(PuzzlePlayerState* player) {
     int placement_index = player->event_player + 1;
-    PuzzleArtPlacement* placement;
-    ScreenObj* object;
-
     if (player->flags3_bits.counter_drops_active != 0) {
+        ScreenObj* object;
+        PuzzleArtPlacement* placement;
         StringObj* block_count;
 
         if (g_game_info.pause_flag_bits.controller_disable_guard == 0 &&
@@ -9270,22 +9102,26 @@ static void render_UI(PuzzlePlayerState* player) {
         pfxfont_end_render();
     }
 
-    placement =
-        &art_puzzle_fighter_static_tbl.placements[placement_index];
-    object = puzzle_ctrl->ui_objects[2];
-    object->pfx2d->x = placement[10].x + 7;
-    object->pfx2d->y = placement[10].y + 24;
-    pfx2d_begin_render();
-    pfx2d_render(object->pfx2d);
-    pfx2d_end_render();
+    {
+        PuzzleArtPlacement* middle_placement =
+            &art_puzzle_fighter_static_tbl.placements[placement_index];
+        ScreenObj* middle_object = puzzle_ctrl->ui_objects[2];
+        middle_object->pfx2d->x = middle_placement[10].x + 7;
+        middle_object->pfx2d->y = middle_placement[10].y + 24;
+        pfx2d_begin_render();
+        pfx2d_render(middle_object->pfx2d);
+        pfx2d_end_render();
+    }
 
-    placement =
-        &art_puzzle_fighter_static_tbl.placements[placement_index];
-    object = puzzle_ctrl->ui_objects[1];
-    object->pfx2d->x = placement->x + 4;
-    object->pfx2d->y = placement->y + 5;
-    object->pfx2d->y += 300;
-    pfx2d_begin_render();
-    pfx2d_render(object->pfx2d);
-    pfx2d_end_render();
+    {
+        PuzzleArtPlacement* last_placement =
+            &art_puzzle_fighter_static_tbl.placements[placement_index];
+        ScreenObj* last_object = puzzle_ctrl->ui_objects[1];
+        last_object->pfx2d->x = last_placement->x + 4;
+        last_object->pfx2d->y = last_placement->y + 5;
+        last_object->pfx2d->y += 300;
+        pfx2d_begin_render();
+        pfx2d_render(last_object->pfx2d);
+        pfx2d_end_render();
+    }
 }

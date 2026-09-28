@@ -2,17 +2,6 @@
 #include "math/gxMath.h"
 #include "runtime/cmath.h"
 
-/*
- * Soft ceilings (Wave D polish -- NonMatching; ASM still linked):
- *   ang_sub_ang ~98.5% -- ops match; sdata2 reloc/pool leftover
- *   normalize_xz / normalize_v3 ~93-94% -- invsqrt f6/cror schedule
- *   normalize_v3_length ~83% -- sqrt-table + 1/len schedule
- *   leaf schedule: parametric_ray / scale_xz / v3_sub/add* (~40-50%)
- *   xz_to_y_ang ~79% -- mtlr spill schedule
- *   ray_cyl / interp_quat / YXZ_angles_to_quat / mat_x_mat -- algorithmically
- *     reconstructed; remaining differences are source shape and FP scheduling
- */
-
 Vec Xaxis = {1.0f, 0.0f, 0.0f};
 Vec Yaxis = {0.0f, 1.0f, 0.0f};
 Vec Zaxis = {0.0f, 0.0f, 1.0f};
@@ -44,7 +33,6 @@ static const float kV3ToQuatAntiParallel = -0.9999f;
 static const float kHugeNeg = -1.0e21f;
 static const float kHugePos = 1.0e21f;
 
-/* Fast reciprocal sqrt (Quake-style) used by normalize_* / unit helpers. */
 static float mk_inv_sqrt(float x) {
     union {
         float f;
@@ -65,7 +53,6 @@ static float mk_inv_sqrt(float x) {
     return kInvSqrtScale * guess * t3 * (kNewton12 - (t1 * t3 * t3));
 }
 
-/* GXMathSqrtTable sqrt used by length_* / dist_* (same pattern as cam.c). */
 static float mk_sqrt_table(float x) {
     union {
         float f;
@@ -80,7 +67,6 @@ static float mk_sqrt_table(float x) {
     }
     pun.f = x;
     bits = pun.u;
-    /* Retail lhzx uses a byte offset; this array index counts halfwords. */
     mantissa_exp = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
     mantissa_exp |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     pun.u = mantissa_exp;
@@ -88,6 +74,7 @@ static float mk_sqrt_table(float x) {
     return kHalf * guess * (kThree - (guess * guess) / x);
 }
 
+/* TODO: [breakthrough needed] 74.62%; FP scheduling differs; see mk_math.o compiler/flag note. */
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {
     float dx;
     float dz;
@@ -111,17 +98,14 @@ int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b)
     return 1;
 }
 
-/* Soft ceiling: parametric_ray_to_point ~50% -- MWCC -O4,p interleaves loads vs retail
- * sequential fmadds/stfs; algo matches ASM. */
+/* TODO: [breakthrough needed] 49.77%; retail keeps load/op/store order per component; needs mk_math.o compiler/flag fix (unit note). */
 void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float t) {
     out->x = dir->x * t + origin->x;
     out->y = dir->y * t + origin->y;
     out->z = dir->z * t + origin->z;
 }
 
-/* Retail infinite-cylinder/ray solver. */
-/* TODO: [breakthrough] 23.35776%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 23.48%; sqrt table indexing corrected; source-shape/FP differences need a localized retail audit. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float ax = cylAxis->x;
@@ -133,7 +117,6 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float ox = origin->x - cylPos->x;
     float oy = origin->y - cylPos->y;
     float oz = origin->z - cylPos->z;
-    /* N is perpendicular to both the ray direction and cylinder axis. */
     float nx = dy * az - dz * ay;
     float ny = dz * ax - dx * az;
     float nz = dx * ay - dy * ax;
@@ -167,7 +150,6 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         }
         hit = (dist <= radius);
         if (hit) {
-            /* F lies in the ray/axis plane and is perpendicular to the axis. */
             fx = ny * az - nz * ay;
             fy = nz * ax - nx * az;
             fz = nx * ay - ny * ax;
@@ -176,7 +158,6 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
             if (kZero < lenQ) {
                 invQ = mk_inv_sqrt(lenQ);
             }
-            /* Closest approach parameter along ray (retail cross form). */
             tMid = -((ox * ay - oy * ax) * nz + (oy * az - oz * ay) * nx +
                      (oz * ax - ox * az) * ny);
             tMid *= invLen;
@@ -197,7 +178,6 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         return hit;
     }
 
-    /* Degenerate parallel case: compare the ray's radial distance to the cylinder. */
     dist = -(ox * ax + oy * ay + oz * az);
     ox = ax * dist + ox;
     oy = ay * dist + oy;
@@ -218,12 +198,12 @@ float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
-/* TODO: [breakthrough] 28.162163%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 28.29%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float dist_xz_to_xz(const Vec* a, const Vec* b) {
     return mk_sqrt_table(dist2_xz_to_xz(a, b));
 }
 
+/* TODO: [breakthrough needed] 41.09%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void rotate_xz(Vec* out, const Vec* v, float ang) {
     float c = gxMathCos(ang);
     float s = gxMathSin(ang);
@@ -233,20 +213,20 @@ void rotate_xz(Vec* out, const Vec* v, float ang) {
     out->z = z * c - x * s;
 }
 
+/* TODO: [breakthrough needed] 76.66%; retail keeps load/op/store order; see mk_math.o compiler/flag note. */
 void xz_x_v_add_xz(Vec* dst, const Vec* v, float s) {
     dst->x = v->x * s + dst->x;
     dst->z = v->z * s + dst->z;
 }
 
-/* Soft ceiling: normalize_xz ~93% -- invsqrt inline near-miss (f6 x-keep / cror). */
+/* TODO: [near miss] 93.10%; inlined mk_inv_sqrt keeps x in f6 and a cror differs. */
 void normalize_xz(Vec* v) {
     float inv = mk_inv_sqrt(v->x * v->x + v->z * v->z);
     v->x *= inv;
     v->z *= inv;
 }
 
-/* TODO: [breakthrough] 33.588234%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 33.73%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float length_xz(const Vec* v) {
     return mk_sqrt_table(v->x * v->x + v->z * v->z);
 }
@@ -255,6 +235,7 @@ float xz_dot_xz(const Vec* a, const Vec* b) {
     return a->x * b->x + a->z * b->z;
 }
 
+/* TODO: [breakthrough needed] 76.91%; FP scheduling around inlined mk_inv_sqrt differs. */
 float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -267,6 +248,7 @@ float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to) {
     return inv;
 }
 
+/* TODO: [breakthrough needed] 76.36%; FP scheduling around inlined mk_inv_sqrt differs. */
 void xz_unit_vector(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -278,17 +260,18 @@ void xz_unit_vector(Vec* out, const Vec* from, const Vec* to) {
     out->z *= inv;
 }
 
-/* Soft ceiling: xz_to_y_ang ~79% -- mtlr spill vs load schedule only. */
+/* TODO: [near miss] 79.40%; mtlr/load schedule only; exact with scheduling off (mk_math.o flag note). */
 float xz_to_y_ang(const Vec* v) {
     return gxMathArcTanYX(v->x, v->z);
 }
 
-/* Soft ceiling: scale_xz ~41% -- MWCC parallel lfs/fmuls vs retail f0 reuse. */
+/* TODO: [breakthrough needed] 41.42%; retail keeps load/op/store order; see mk_math.o compiler/flag note. */
 void scale_xz(Vec* out, const Vec* v, float s) {
     out->x = v->x * s;
     out->z = v->z * s;
 }
 
+/* TODO: [breakthrough needed] 34.76%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void midpoint_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = kHalf * (a->x + b->x);
     out->y = kHalf * (a->y + b->y);
@@ -302,8 +285,7 @@ float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-/* TODO: [breakthrough] 15.658537%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 15.78%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float dist_v3_to_v3(const Vec* a, const Vec* b) {
     return mk_sqrt_table(dist2_v3_to_v3(a, b));
 }
@@ -314,6 +296,7 @@ void uv_from_angle_y(Vec* out, float angY) {
     out->z = gxMathCos(angY);
 }
 
+/* TODO: [breakthrough needed] 78.32%; FP scheduling around the sin/cos calls differs. */
 void uv_from_angles_xy(Vec* out, float angX, float angY) {
     float cx;
     float sx;
@@ -325,8 +308,7 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
-/* TODO: [breakthrough] 55.615383%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 55.76%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     float len;
     float inv;
@@ -344,6 +326,7 @@ float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     return len;
 }
 
+/* TODO: [breakthrough needed] 68.29%; FP scheduling around inlined mk_inv_sqrt differs. */
 void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -356,15 +339,14 @@ void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
     out->z *= inv;
 }
 
+/* TODO: [breakthrough needed] 46.54%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const Vec* c) {
     out->x = weights->z * c->x + weights->x * a->x + weights->y * b->x;
     out->y = weights->z * c->y + weights->x * a->y + weights->y * b->y;
     out->z = weights->z * c->z + weights->x * a->z + weights->y * b->z;
 }
 
-/* Returns the pre-normalization length, as required by retail callers. */
-/* TODO: [breakthrough] 71.92453%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 72.11%; sqrt table indexing corrected; sqrt-table and 1/len scheduling differ. */
 float normalize_v3_length(Vec* v) {
     float len = mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
     float inv = kZero;
@@ -377,7 +359,7 @@ float normalize_v3_length(Vec* v) {
     return len;
 }
 
-/* Soft ceiling: normalize_v3 ~94% -- invsqrt inline near-miss (f6 x-keep / cror). */
+/* TODO: [near miss] 94.06%; inlined mk_inv_sqrt keeps x in f6 and a cror differs. */
 void normalize_v3(Vec* v) {
     float inv = mk_inv_sqrt(v->x * v->x + v->y * v->y + v->z * v->z);
     v->x *= inv;
@@ -391,12 +373,12 @@ void zero_v3(Vec* v) {
     v->x = kZero;
 }
 
-/* TODO: [breakthrough] 28.162163%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 28.29%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
 float length_v3(const Vec* v) {
     return mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
 }
 
+/* TODO: [breakthrough needed] 32.04%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_cross_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->y * b->z - a->z * b->y;
     out->y = a->z * b->x - a->x * b->z;
@@ -407,20 +389,21 @@ float v3_dot_v3(const Vec* a, const Vec* b) {
     return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 
-/* Soft ceiling: v3_sub_v3 / v3_add_v3 / v3_add_v3_scaled ~50% -- schedule only;
- * arg/store order matches retail ASM. */
+/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
 void v3_sub_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->x - b->x;
     out->y = a->y - b->y;
     out->z = a->z - b->z;
 }
 
+/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
 void v3_add_v3_scaled(Vec* out, const Vec* a, const Vec* b, float s) {
     out->x = b->x * s + a->x;
     out->y = b->y * s + a->y;
     out->z = b->z * s + a->z;
 }
 
+/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
 void v3_add_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->x + b->x;
     out->y = a->y + b->y;
@@ -433,12 +416,14 @@ void v3_x_v_add_v3(Vec* dst, const Vec* v, float s) {
     dst->z = v->z * s + dst->z;
 }
 
+/* TODO: [breakthrough needed] 37.90%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
 void scale_v3(Vec* out, const Vec* v, float s) {
     out->x = v->x * s;
     out->y = v->y * s;
     out->z = v->z * s;
 }
 
+/* TODO: [breakthrough needed] 40.05%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
     float s = kOne - t;
     out->x = a->x * t + b->x * s;
@@ -446,6 +431,7 @@ void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
     out->z = a->z * t + b->z * s;
 }
 
+/* TODO: [breakthrough needed] 16.10%; retail inlines norm_angle three times with different scheduling. */
 void norm_angles_v3(Vec* ang) {
     ang->x = norm_angle(ang->x);
     ang->y = norm_angle(ang->y);
@@ -456,8 +442,7 @@ float norm_angle(float ang) {
     return ((int)(ang * kAngToFixed) & 0xFFFFF) * kFixedToAng;
 }
 
-/* TODO: [breakthrough] 61.36%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 61.36%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
 void v3_to_xz_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = gxMathArcTanYX(v->y, v->x);
@@ -466,8 +451,7 @@ void v3_to_xz_ang(Vec* ang, const Vec* v) {
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
-/* TODO: [breakthrough] 64.87931%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 64.87%; sqrt table indexing corrected; FP scheduling around the atan2 calls differs. */
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
@@ -476,8 +460,7 @@ void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     ang->x = -(float)atan2((double)v->y, (double)len);
 }
 
-/* TODO: [breakthrough] 64.26923%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 64.26%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
 void v3_to_xy_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
@@ -486,6 +469,7 @@ void v3_to_xy_ang(Vec* ang, const Vec* v) {
     ang->x = -gxMathArcTanYX(v->y, len);
 }
 
+/* TODO: [breakthrough needed] 55.84%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale) {
     out->right.x = m->right.x * scale->x;
     out->right.y = m->right.y * scale->x;
@@ -499,30 +483,35 @@ void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale) {
     out->flags &= ~1U;
 }
 
+/* TODO: [breakthrough needed] 45.27%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_x_mat_sub_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* sub) {
     out->x = (v->z * m->at.x + v->x * m->right.x + v->y * m->up.x) - sub->x;
     out->y = (v->z * m->at.y + v->x * m->right.y + v->y * m->up.y) - sub->y;
     out->z = (v->z * m->at.z + v->x * m->right.z + v->y * m->up.z) - sub->z;
 }
 
+/* TODO: [breakthrough needed] 49.48%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_x_mat_add_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* add) {
     out->x = add->x + v->z * m->at.x + v->x * m->right.x + v->y * m->up.x;
     out->y = add->y + v->z * m->at.y + v->x * m->right.y + v->y * m->up.y;
     out->z = add->z + v->z * m->at.z + v->x * m->right.z + v->y * m->up.z;
 }
 
+/* TODO: [breakthrough needed] 46.74%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_x_mat(Vec* out, const Vec* v, const MKMATRIX* m) {
     out->x = v->z * m->at.x + v->x * m->right.x + v->y * m->up.x;
     out->y = v->z * m->at.y + v->x * m->right.y + v->y * m->up.y;
     out->z = v->z * m->at.z + v->x * m->right.z + v->y * m->up.z;
 }
 
+/* TODO: [breakthrough needed] 49.45%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void p3_x_mat(Vec* out, const Vec* p, const MKMATRIX* m) {
     out->x = m->pos.x + p->z * m->at.x + p->x * m->right.x + p->y * m->up.x;
     out->y = m->pos.y + p->z * m->at.y + p->x * m->right.y + p->y * m->up.y;
     out->z = m->pos.z + p->z * m->at.z + p->x * m->right.z + p->y * m->up.z;
 }
 
+/* TODO: [breakthrough needed] 0.00%; size/scheduling differ (54% with scheduling off); see mk_math.o compiler/flag note. */
 void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b) {
     out->right.x = a->right.z * b->at.x + a->right.x * b->right.x + a->right.y * b->up.x;
     out->right.y = a->right.z * b->at.y + a->right.x * b->right.y + a->right.y * b->up.y;
@@ -540,7 +529,6 @@ void set_mat(MKMATRIX* dst, const MKMATRIX* src) {
     *dst = *src;
 }
 
-/* Soft ceiling: ang_sub_ang ~98.5% -- instruction-identical; sdata2 reloc/pool leftover. */
 float ang_sub_ang(float a, float b) {
     float d = a - b;
     if (d > kPi) {
@@ -554,6 +542,7 @@ float ang_sub_ang(float a, float b) {
     return d;
 }
 
+/* TODO: [breakthrough needed] 49.37%; branch layout and FP scheduling differ. */
 float quat_extract_ang_y(const Quat* q) {
     float t = -(kTwo * (q->x * q->x + q->y * q->y) - kOne);
     float s = kTwo * (q->z * q->x + q->w * q->y);
@@ -579,6 +568,7 @@ float quat_extract_ang_y(const Quat* q) {
     }
 }
 
+/* TODO: [breakthrough] 84.12%; slerp structure matches; FP scheduling differs. */
 void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     float sign = kOne;
     float oneMinusT;
@@ -623,6 +613,7 @@ void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
 }
 
+/* TODO: [breakthrough needed] 77.89%; FP operation order/scheduling differs. */
 void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     float ax = a->x;
     float ay = a->y;
@@ -638,8 +629,7 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = -(az * bz - -(ay * by - (aw * bw - ax * bx)));
 }
 
-/* TODO: [breakthrough] 70.271355%; sqrt table indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 70.62%; sqrt table indexing corrected; FP scheduling differs. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
     float ax;
@@ -687,6 +677,7 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     out->w = mk_sqrt_table(half);
 }
 
+/* TODO: [breakthrough needed] 67.87%; FP operation order/scheduling differs. */
 void quat_to_mat(MKMATRIX* out, const Quat* q) {
     float x = q->x;
     float y = q->y;
@@ -704,6 +695,7 @@ void quat_to_mat(MKMATRIX* out, const Quat* q) {
     out->flags = 3;
 }
 
+/* TODO: [breakthrough needed] 14.78%; matrix build order/scheduling differs from retail. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float cx;
     float sx;
@@ -717,7 +709,6 @@ void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
 
-    /* Same YXZ rotation matrix as YXZ_angles_to_MKMATRIX, then Quat. */
     m.right.x = sx * sy * sz + cy * cz;
     m.right.y = cx * sz;
     m.right.z = cy * sz * sx - cz * sy;

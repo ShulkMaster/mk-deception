@@ -424,21 +424,20 @@ void controller_removed(int port) {
     }
 }
 
-/* TODO: [near miss] 98.26%; retail recomputes port*0x1c inside the inlined controller_removed instead of reusing it (one extra saved GPR here). */
 void ck_for_controller_removed(void) {
     int port;
 
     if (g_game_info.plyr0.player_state != 0) {
         port = g_game_info.plyr0.pad_index;
         if (port >= 0 && !g_game_info.pads[port].flag_bits.connected) {
-            controller_removed(port);
+            controller_removed(g_game_info.plyr0.pad_index);
         }
     }
 
     if (g_game_info.plyr1.player_state != 0) {
         port = g_game_info.plyr1.pad_index;
         if (port >= 0 && !g_game_info.pads[port].flag_bits.connected) {
-            controller_removed(port);
+            controller_removed(g_game_info.plyr1.pad_index);
         }
     }
 }

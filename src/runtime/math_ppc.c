@@ -32,12 +32,12 @@ static inline int classify_float(float value)
 __declspec(weak) float sqrtf(float x)
 {
     if (x > 0.0f) {
-        double estimate = __frsqrte((double)x);
+        double estimate = __frsqrte(x);
 
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * x);
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * x);
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * x);
-        return (float)(x * estimate);
+        return x * estimate;
     }
 
     if (x < 0.0)
@@ -50,20 +50,20 @@ __declspec(weak) float sqrtf(float x)
 
 __declspec(weak) float fmodf(float x, float y)
 {
-    return (float)fmod((double)x, (double)y);
+    return fmod(x, y);
 }
 
 __declspec(weak) float powf(float x, float y)
 {
-    return (float)pow((double)x, (double)y);
+    return pow(x, y);
 }
 
 __declspec(weak) float sinf(float x)
 {
-    return (float)sin((double)x);
+    return sin(x);
 }
 
 __declspec(weak) float cosf(float x)
 {
-    return (float)cos((double)x);
+    return cos(x);
 }

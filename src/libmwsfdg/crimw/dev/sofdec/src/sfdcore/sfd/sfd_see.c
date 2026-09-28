@@ -69,7 +69,6 @@ static inline SfdSeeWork* sfsee_GetSource(SfdHandle* handle)
     return handle->seek_state.work;
 }
 
-/* Soft ceiling: inlined users omit one redundant retail source-rate reload. */
 static inline void sfsee_UpdateByteRate(SfdHandle* handle)
 {
     SfdSeeWork* source = sfsee_GetSource(handle);

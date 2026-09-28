@@ -25,7 +25,6 @@ typedef struct RwFileInterface {
 } RwFileInterface;
 
 extern RwFileInterface* RwOsGetFileInterface(void);
-extern int strcmp(const char* left, const char* right);
 static int renderware_fs_not_implemented(void);
 static MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user);

@@ -354,6 +354,7 @@ static inline int mwsfcre_UsesAudio(int file_type)
     case 3:
         uses_audio = 0;
         break;
+    case 4:
     default:
         uses_audio = 1;
         break;
@@ -805,7 +806,7 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [near miss] 94.77%; retail keeps an unfolded size test in the 0x4000/0x700 allocations;
+/* TODO: [near miss] 95.41%; retail keeps an unfolded size test in the 0x4000/0x700 allocations;
  * FrmTbl frame_size/pointer r22/r20 swap, pool-base scheduling and mpvpara store order remain. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     const MwsCreateParams* params)
@@ -985,6 +986,9 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     switch (file_type) {
     case 1:
         SFD_SetAdxtPara(&mwsfd_adxtpara);
+        break;
+    case 2:
+    case 3:
         break;
     }
     sfd = SFD_Create(&create, 0);

@@ -529,7 +529,7 @@ static int find_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 94.71%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
+/* TODO: [near miss] 95.66%; first-day record: retail loads current->hour/minute after the other stores and needs no saved GPRs (frame 0x20 vs 0x30). */
 static int find_next_day_of_week_and_month_in_a_year(
     int day_of_week, int month, int year,
     const KonquestTime* current, KonquestTime* result) {
@@ -563,8 +563,8 @@ static int find_next_day_of_week_and_month_in_a_year(
             amount += 12;
         }
         if (amount > 0) {
-            days_to_add =
-                ((30 - result->day_of_month + (amount - 1) * 30 + 6) / 7) * 7;
+            days_to_add = 30 - result->day_of_month + (amount - 1) * 30;
+            days_to_add = ((days_to_add + 6) / 7) * 7;
             result->day_of_month += days_to_add;
             result->day_of_week =
                 (result->day_of_week + days_to_add) % 7;
@@ -612,8 +612,8 @@ static int find_next_day_of_week_and_month_in_a_year(
             amount += 12;
         }
         if (amount > 0) {
-            days_to_add =
-                ((30 - result->day_of_month + (amount - 1) * 30 + 6) / 7) * 7;
+            days_to_add = 30 - result->day_of_month + (amount - 1) * 30;
+            days_to_add = ((days_to_add + 6) / 7) * 7;
             result->day_of_month += days_to_add;
             result->day_of_week =
                 (result->day_of_week + days_to_add) % 7;
@@ -630,7 +630,7 @@ static int find_next_day_of_week_and_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 94.71%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
+/* TODO: [near miss] 99.56%; retail reads current->hour/minute (r6) after the first-day stores; reading current hoists the loads, result-> keeps order but frees r6. */
 static int find_next_day_of_month_and_month_in_a_year(
     int day_of_month, int month, int year,
     const KonquestTime* current, KonquestTime* result) {
@@ -677,9 +677,9 @@ static int find_next_day_of_month_and_month_in_a_year(
         first_day.year = year;
         first_day.month = 0;
         first_day.day_of_month = 0;
-        first_day.day_of_week = (year * 3) % 7;
-        first_day.hour = current->hour;
-        first_day.minute = current->minute;
+        first_day.day_of_week = year * 3 % 7;
+        first_day.hour = result->hour;
+        first_day.minute = result->minute;
 
         *result = first_day;
 
@@ -712,7 +712,7 @@ static int find_next_day_of_month_and_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 95.12%; stack-frame and temporary GPR allocation remain in the first-day construction branch. */
+/* TODO: [near miss] 99.59%; retail reads current->hour/minute (r6) after the first-day stores; reading them from current hoists the loads, result-> keeps order but frees r6. */
 static int find_next_day_of_week_and_day_of_month_in_a_year(
     int day_of_week, int day_of_month, int year,
     const KonquestTime* current, KonquestTime* result) {
@@ -766,9 +766,9 @@ static int find_next_day_of_week_and_day_of_month_in_a_year(
         first_day.year = year;
         first_day.month = 0;
         first_day.day_of_month = 0;
-        first_day.day_of_week = (year * 3) % 7;
-        first_day.hour = current->hour;
-        first_day.minute = current->minute;
+        first_day.day_of_week = year * 3 % 7;
+        first_day.hour = result->hour;
+        first_day.minute = result->minute;
 
         *result = first_day;
 

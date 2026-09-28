@@ -16,8 +16,8 @@ int stricmp(const char* a, const char* b);
 void* memcpy(void* dst, const void* src, unsigned long n);
 }
 
+/* TODO: [near miss] 82.85%; retail's "" literal comes from the .rodata string pool (TU data layout). */
 ScreenSet::ScreenSet() {
-    /* Soft ceiling: ~83% - retail string pool in .rodata; m_mgr left uninit. */
     m_numChildren = 0;
     m_parent = 0;
     strcpy(m_name, "");
@@ -54,9 +54,7 @@ void ScreenSet::DoneLoadingScreens() {
 
 void ScreenSet::Dispose() {
     if (m_screens != 0) {
-        int n;
-        /* Retail countdown: Dispose ScreenAt(base, n-1) after m_numScreens--. */
-        while ((n = m_numScreens, m_numScreens = n - 1, n != 0)) {
+        while (m_numScreens-- != 0) {
             ScreenAt(m_screens, m_numScreens)->Dispose();
         }
         ScreenUtil::Free(m_screens);
@@ -74,8 +72,7 @@ void ScreenSet::Dispose() {
 }
 
 int ScreenSet::IsInited() const {
-    unsigned int bit = m_inited & 1;
-    return ((unsigned int)(-bit) & ~bit) >> 31;
+    return (m_inited & 1) > 0;
 }
 
 char* ScreenSet::GetName() {
@@ -121,15 +118,14 @@ int ScreenSet::GetChildIndex(char* name) {
     return found;
 }
 
+/* TODO: [near miss] 87.20%; countdown loop and memcpy address formation differ. */
 void ScreenSet::RemoveChild(ScreenSet* child) {
-    /* Soft ceiling: ~63% - countdown/memcpy addressing near-miss. */
     int n = m_numChildren;
     int i = n;
 
     while (i != 0) {
         i -= 1;
         if (m_children[i] == child) {
-            /* retail copies (n - i) pointers (one past logical end) */
             memcpy(&m_children[i], &m_children[i + 1],
                    (unsigned long)(n - i) * sizeof(ScreenSet*));
             m_numChildren -= 1;
@@ -139,12 +135,9 @@ void ScreenSet::RemoveChild(ScreenSet* child) {
 }
 
 void ScreenSet::AddChild(ScreenSet* child) {
-    /* Soft ceiling: ~79% - stmw vs split stw prologue leftover. */
     if ((unsigned int)m_numChildren < SCREEN_SET_MAX_CHILDREN) {
         child->SetParent(this);
-        int idx = m_numChildren;
-        m_numChildren = idx + 1;
-        m_children[idx] = child;
+        m_children[m_numChildren++] = child;
     }
 }
 
@@ -168,7 +161,6 @@ Screen* ScreenSet::GetScreen(char* name) {
 }
 
 int ScreenSet::GetScreenIndex(char* name) {
-    /* Soft ceiling: GetScreenIndex ~99.3% -- i/offset addi order; stop. */
     int found = -1;
     int i;
 
@@ -182,7 +174,6 @@ int ScreenSet::GetScreenIndex(char* name) {
 }
 
 void ScreenSet::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
-    /* Q16: decl n before i -> n@r30, i@r29 (was flipped). */
     int n;
     int i;
 
@@ -195,8 +186,8 @@ void ScreenSet::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     }
 }
 
+/* TODO: [near miss] 79.23%; retail "SS-Set" is @stringBase0+1 in .rodata, ours lands in .sdata (TU data layout). */
 void* ScreenSet::operator new(unsigned long size) {
-    /* Soft ceiling: ~79% - retail @stringBase0+1; our strings land in sdata. */
     return ScreenUtil::Malloc(size, SCREEN_SET_ALLOC_TAG, (char*)"SS-Set");
 }
 

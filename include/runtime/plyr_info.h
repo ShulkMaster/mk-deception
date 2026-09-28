@@ -272,8 +272,8 @@ typedef struct PlyrInfo {
     PlyrScreenLatch name_latch; /* +0x4C */
     int player_index; /* +0x54 - character / roster id latch */
     FighterSlot slot; /* +0x58 */
-    void* idle_proc;  /* +0x64 */
-    void* field_68;   /* +0x68 */
+    MkProc* idle_proc;  /* +0x64 */
+    MkProc* field_68;   /* +0x68 */
 } PlyrInfo; /* 0x6C */
 
 /* Historical name in GameInfo / movelist. */

@@ -129,15 +129,8 @@ static inline int nav_begin_area_search(int startArea) {
     if (startArea < 0 || startArea >= areaCount) {
         return -1;
     }
-    i = 0;
-    if (areaCount > 0) {
-        int remaining = areaCount;
-
-        do {
-            konquest_pdata->areaPredecessors[i] = -1;
-            i++;
-            remaining--;
-        } while (remaining != 0);
+    for (i = 0; i < areaCount; i++) {
+        konquest_pdata->areaPredecessors[i] = -1;
     }
     konquest_pdata->areaPredecessors[startArea] = startArea;
     return areaCount;
@@ -163,12 +156,14 @@ static inline int nav_area_contains_point(NavArea* area, const Vec* position) {
 static inline int nav_find_area_in_tile(const Vec* position) {
     int tileIndex = get_tile_from_position(position);
     NavTile* tile;
-    int i = 0;
-    int areaOffset = 0;
+    int i;
+    int areaOffset;
 
     if (tileIndex < 0) {
         return -1;
     }
+    i = 0;
+    areaOffset = 0;
     tile = &konquest_pdata->navTiles[tileIndex];
     while (i < tile->navigationCount) {
         int areaIndex = tile->navigationAreas[areaOffset];
@@ -183,11 +178,7 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
-/*
- * Soft ceiling: nav_get_unit_vector_to_nav_portal ~93.69% -- validation,
- * portal traversal, side test, normalization, and stores match retail. Residue
- * is GPR coloring and pointer-versus-offset induction for the portal list.
- */
+/* TODO: [near miss] 94.02%; structure matches; GPR coloring and portal-list base induction (retail uses a byte cursor) remain. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     KonquestPdata* pdata = konquest_pdata;
     KonquestNavData* nav = pdata->navData;
@@ -208,8 +199,8 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
     area = nav_get_area(nav, areaIndex);
     portals = nav_get_portals(area);
-    portal = portals->entries;
-    for (i = 0; i < portals->count; i++, portal++) {
+    for (i = 0; i < portals->count; i++) {
+        portal = &portals->entries[i];
         if (portal->adjacentArea == portalId) {
             float length = portal->length;
             float halfLength = 0.5f * length;
@@ -234,8 +225,7 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
-/* Clear predecessor state before breadth-first traversal and backtracking. */
-/* TODO: [breakthrough needed] 89.67%; counted-clear lowering and queue/portal lifetimes remain. */
+/* TODO: [near miss] 95.74%; portal-list induction and queue register lifetimes differ (indexed portals regress to 93%). */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
     int i;
@@ -331,7 +321,6 @@ void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
         return;
     }
     count = nav->areaCount;
-    /* Variable-size area records follow the area-pointer table in the NAV blob. */
     area = (NavArea*)&nav->areas[count];
     for (areaIndex = 0; areaIndex < count; areaIndex++) {
         area = unit_vector_to_area(area, &nearestNormal, &nearestDistance,
@@ -451,8 +440,8 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
     return (NavArea*)boundary;
 }
 
-/* Try the hint and adjacent areas before falling back to the tile search. */
-/* TODO: [breakthrough needed] 90.41%; counted-clear and byte-indexed tile-scan lowering remain. */
+/* TODO: [near miss] 96.64%; retail reuses nav_get_area's areaCount load in the
+ * area search (ours reloads it); boundary-test FPR coloring and portal loop IVs differ. */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     KonquestNavData* nav;
     NavArea* area;
@@ -498,13 +487,13 @@ void konquest_nav_init(void) {
 
     artId = get_artid_of_named_item_in_slot(0x60029, konquestNavStrings, 0);
     if (artId != 0) {
-        nav = (KonquestNavData*)get_nav_data(0x60029, artId);
+        nav = get_nav_data(0x60029, artId);
         if (nav != 0) {
             konquest_pdata->navData = nav;
             allocationSize = nav->areaCount * (int)sizeof(int);
-            konquest_pdata->areaQueue = (int*)get_mem(allocationSize);
+            konquest_pdata->areaQueue = get_mem(allocationSize);
             if (konquest_pdata->areaQueue != 0) {
-                konquest_pdata->areaPredecessors = (int*)get_mem(allocationSize);
+                konquest_pdata->areaPredecessors = get_mem(allocationSize);
                 if (konquest_pdata->areaPredecessors != 0) {
                     setup_per_tile_navigations();
                 }
@@ -515,7 +504,6 @@ void konquest_nav_init(void) {
     }
 }
 
-/* Build bounded tile navigation lists from polygon containment and edge intersections. */
 /* TODO: [breakthrough needed] 87.59%; geometry-loop induction and counted-loop scheduling remain. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;

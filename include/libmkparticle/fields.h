@@ -49,4 +49,7 @@ int get_field_offset(PfxTableRegistry* registry, int description);
 int has_field_description(PfxTableRegistry* registry, int description);
 void* pfx_get_field(PfxVm* pfx, int particle, unsigned int description);
 
+#define PFX_FIELD_AT(field, byte_offset)                                  \
+    ((void*)((unsigned char*)(field) + (byte_offset)))
+
 #endif

@@ -113,7 +113,7 @@ char* get_script_string_arg(int index);
 void* get_function_attributes_table(ScriptSlot* slot, int func_index);
 void* get_data_table_by_name(const char* name);
 int get_script_function_by_name(ScriptSlot* slot, const char* name);
-int check_script_function_exists(ScriptSlot* slot, const char* name);
+unsigned int check_script_function_exists(ScriptSlot* slot, const char* name);
 char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table);
 char* get_name_of_table(ScriptSlot* slot, unsigned int index);
 unsigned int get_table_index_by_pointer(ScriptSlot* slot, void* table);

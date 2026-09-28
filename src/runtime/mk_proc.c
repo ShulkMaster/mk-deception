@@ -5,9 +5,17 @@
 #include "game/game_info.h"
 #include "platform/main.h"
 #include "runtime/plyr_pdata.h"
+#include "runtime/mk_cmdscript.h"
 #include "runtime/utils.h"
 
 #include "runtime/asm_sequences.inc"
+
+enum {
+    MKPROC_BIGSTACK_BYTES = 0x4000,
+    MKPROC_TINYSTACK_BYTES = 0x200,
+    MKPROC_BIGSTACK_RESERVE = 0x18,
+    MKPROC_ALLOC_FLAGS = 0x80
+};
 
 static void _destroy_proc_pid_mask(MkHdr* hdr);
 static void dispatch_proc_list(MkPtr** list);
@@ -15,9 +23,6 @@ static void dispatch_proc_list(MkPtr** list);
 static inline int proc_list_available(MkPtr** list) {
     return list != 0;
 }
-
-void activate_cmdscript(void);
-void deactivate_cmdscript(void);
 
 static float zero_float = 0.0f;
 int _paused = 0;
@@ -45,9 +50,8 @@ void mkproc_die(void) {
     aproc->vtbl->destroy(aproc);
 }
 
+/* TODO: [blocked] 72.79%; retail LR/SP context switch needs function-specific assembly authorization. */
 void dispatch_nostack(void) {
-    /* Soft ceiling: 72.79412% -- retail saves/restores LR/SP and performs
-     * indirect transfers through LR; clean C uses a frame and CTR. */
     MkProc* proc = aproc;
     float sleep_ticks;
 
@@ -79,7 +83,6 @@ asm void jump_sleep_nostack(MkProcEntryFn entry, float ticks) {
     SEQ_jump_sleep_nostack();
 }
 
-/* Exceptional retail-derived platform context-switch boundaries. */
 asm void dispatch_tinystack(void) {
     SEQ_dispatch_tinystack();
 }
@@ -121,7 +124,6 @@ asm void mkproc_dispatch(void) {
 }
 
 static void dispatch_proc_list(MkPtr** list) {
-    /* The indirect dispatcher may swap process context; keep traversal state in memory. */
     MkPtr* volatile link;
     int* volatile paused = &_paused;
 
@@ -135,7 +137,7 @@ static void dispatch_proc_list(MkPtr** list) {
     link = *list;
     while (link != 0) {
         MkProc* current = MKPROC_FROM_HDR(link->hdr);
-        if (link->instance != (unsigned int)current->instance) {
+        if (link->instance != current->instance) {
             MkPtr* next = link->next;
             link->hdr = 0;
             destroy_mkptr(link);
@@ -206,9 +208,9 @@ MkHdr* next_apdata(void) {
     return apdata;
 }
 
-/* Soft ceiling: 99.67742% -- four operand-register coloring records only. */
+/* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
 MkProc* get_mkproc_bigstack(int* flags) {
-    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
+    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
 
     if (proc != 0) {
@@ -226,9 +228,9 @@ MkProc* get_mkproc_bigstack(int* flags) {
         MkVtableMkproc* vtbl = &vtbl_mkproc_bigstack;
         proc->vtbl = vtbl;
         proc->flags = proc_flags;
-        stack = _mwMemMalloc(bigstack_heap, 0x4000, 0x80, 0, 0, 0);
+        stack = _mwMemMalloc(bigstack_heap, MKPROC_BIGSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
         if (stack != 0) {
-            stack += 0x3FE8;
+            stack += MKPROC_BIGSTACK_BYTES - MKPROC_BIGSTACK_RESERVE;
         }
         proc->stack_top = stack;
         proc->stack_ptr = proc->stack_top;
@@ -241,9 +243,9 @@ MkProc* get_mkproc_bigstack(int* flags) {
     return proc;
 }
 
-/* Soft ceiling: 99.67742% -- four operand-register coloring records only. */
+/* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
 MkProc* get_mkproc_tinystack(int* flags) {
-    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
+    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
 
     if (proc != 0) {
@@ -261,9 +263,9 @@ MkProc* get_mkproc_tinystack(int* flags) {
         MkVtableMkproc* vtbl = &vtbl_mkproc_tinystack;
         proc->vtbl = vtbl;
         proc->flags = proc_flags;
-        stack = _mwMemMalloc(tinystack_heap, 0x200, 0x80, 0, 0, 0);
+        stack = _mwMemMalloc(tinystack_heap, MKPROC_TINYSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
         if (stack != 0) {
-            stack += 0x200;
+            stack += MKPROC_TINYSTACK_BYTES;
         }
         proc->stack_top = stack;
         proc->stack_ptr = proc->stack_top;
@@ -276,9 +278,9 @@ MkProc* get_mkproc_tinystack(int* flags) {
     return proc;
 }
 
-/* Soft ceiling: 99.30232% -- five operand-register coloring records only. */
+/* TODO: [near miss] 99.30%; five operand-register coloring differences remain. */
 MkProc* get_mkproc_nostack(int* flags) {
-    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
+    MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
 
     if (proc != 0) {
         proc->vtbl = 0;
@@ -314,7 +316,7 @@ MkProc* find_mkproc_pid(int pid) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != (unsigned int)proc->instance) {
+            if (link->instance != proc->instance) {
                 MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
@@ -360,7 +362,7 @@ static void _destroy_proc_pid_mask(MkHdr* hdr) {
 void vdestroy_mkproc_bigstack(MkProc* proc) {
     if (proc != aproc_nodestroy && !proc->flags_bits.no_destroy) {
         proc->instance = 0;
-        _mwMemFree(proc->stack_top - 0x3FE8, 0, 0);
+        _mwMemFree(proc->stack_top - (MKPROC_BIGSTACK_BYTES - MKPROC_BIGSTACK_RESERVE), 0, 0);
         destroy_list(&proc->pdata_list);
         destroy_list(&proc->pdata_list_b);
         proc->instance = 0;
@@ -371,7 +373,7 @@ void vdestroy_mkproc_bigstack(MkProc* proc) {
 void vdestroy_mkproc_tinystack(MkProc* proc) {
     if (proc != aproc_nodestroy && !proc->flags_bits.no_destroy) {
         proc->instance = 0;
-        _mwMemFree(proc->stack_top - 0x200, 0, 0);
+        _mwMemFree(proc->stack_top - MKPROC_TINYSTACK_BYTES, 0, 0);
         destroy_list(&proc->pdata_list);
         destroy_list(&proc->pdata_list_b);
         proc->instance = 0;
@@ -399,7 +401,7 @@ void destroy_mkproc_nostack(MkProc* proc) {
     }
 }
 
-/* Soft ceiling: 98.57143% -- nine cursor/owner GPR-coloring records only. */
+/* TODO: [near miss] 98.57%; nine cursor/owner register-coloring differences remain. */
 void destroy_all_mkprocs(void) {
     MkPtr* link;
 
@@ -408,7 +410,7 @@ void destroy_all_mkprocs(void) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != (unsigned int)proc->instance) {
+            if (link->instance != proc->instance) {
                 MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
@@ -457,10 +459,7 @@ MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, 
     return proc;
 }
 
-/*
- * Soft ceiling: 98.181816% -- stable ordering and stale-link CFG agree;
- * residue is eight GPR operands plus one equivalent branch encoding.
- */
+/* TODO: [near miss] 98.18%; eight GPR operands and one equivalent branch differ. */
 void mkproc_change_priority(MkProc* proc, int priority) {
     int new_priority;
     MkPtr* insert;
@@ -476,7 +475,7 @@ void mkproc_change_priority(MkProc* proc, int priority) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != (unsigned int)current->instance) {
+            if (link->instance != current->instance) {
                 MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
@@ -498,10 +497,7 @@ void mkproc_change_priority(MkProc* proc, int priority) {
     }
 }
 
-/*
- * Soft ceiling: 97.95918% -- stable ordering and stale-link CFG agree;
- * residue is eight GPR operands plus one equivalent branch encoding.
- */
+/* TODO: [near miss] 97.96%; eight GPR operands and one equivalent branch differ. */
 void insert_new_mkproc(MkProc* proc) {
     int priority = proc->priority;
     MkPtr* insert = get_mkptr_owns_mkhdr(&proc->hdr);
@@ -512,7 +508,7 @@ void insert_new_mkproc(MkProc* proc) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != (unsigned int)current->instance) {
+            if (link->instance != current->instance) {
                 MkPtr* next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);

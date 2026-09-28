@@ -27,7 +27,7 @@ typedef struct PfxSlot {
     union {
         unsigned char flags; /* +0x08 -- bit7 destroys the bound header on teardown */
         struct {
-            unsigned char owns_bind : 1;
+            signed char owns_bind : 1;
             unsigned char flags_rest : 7;
         } flag_bits;
     };
@@ -170,8 +170,8 @@ void mkpfx_camera_end(void);
 void mkpfx_camera_begin(void);
 void mkpfx_set_environment(void);
 MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index);
-int vdestroy_pfx_clone(PfxClone* clone);
-int vdestroy_pfx(MkPfx* pfx);
+void vdestroy_pfx_clone(PfxClone* clone);
+void vdestroy_pfx(MkPfx* pfx);
 void render_pfx_clone(PfxClone* clone);
 void render_pfx(MkPfx* pfx);
 void hide_pfx(MkPfx* pfx, int hide);

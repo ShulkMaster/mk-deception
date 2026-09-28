@@ -49,10 +49,6 @@ int nativefont_instance_geometry(NativeFontInstance* inst) {
 
 __declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
 
-/*
- * Soft ceiling: nativefont_string_render ~99.83% -- upload texture lwz uses
- * incoming r3 instead of the equivalent saved r29; constant-label relocs.
- */
 void nativefont_string_render(NativeFontString* ctx, float x, float y) {
     NativeFontInstance* inst;
     Mtx pos;

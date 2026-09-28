@@ -77,8 +77,6 @@ static float p_load_plyr_model_async(void);
 static float p_animate_weapon_rest_lp(void);
 static void load_player_anim_files(PlyrPdata* pdata);
 static void create_sidekick(int player_index, PlyrInfo* player);
-extern MkVtable5 vtbl_mkpdata_plyr;
-extern MkVtable5 vtbl_mkobj;
 extern MslSoundHandle plyr_snd_req(int sound);
 extern void snd_stop(MslSoundHandle handle);
 static int baraka_advance_active_moveset(
@@ -112,7 +110,6 @@ extern int is_load_meter_active(void);
 extern void damage_p1(float damage);
 extern void damage_p2(float damage);
 extern void drone_ai_watcher(void);
-extern void setup_sound_banks(int bank);
 extern float p_plyr_start(void);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern int is_char_locked(int character, int alternate);
@@ -139,7 +136,6 @@ extern MkProc* create_mkproc_headtracking(
 extern void player_initialize_chores(void);
 extern int shadow_bones[37];
 extern float p_plyr_pz_fighter_start(void);
-extern float drone_start(void);
 extern float p_joy_start(void);
 
 #define DECLARE_PLAYER_FILES(name_)           \
@@ -276,11 +272,10 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
 extern float r_call_script_function(void);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern void term_player_collision(PlyrInfo* player);
-extern void unload_script(int slot);
 extern void transition_to_anim_script(
     AnimPdata* animation, AniData* script, int flags, float blend);
 extern void obj_set_gravity(MkObj* object, float gravity);
-extern void snd_req_delay(int sound, int delay, int flags);
+extern void snd_req_delay(int sound, int delay);
 extern void animpdata_ani_to_frame_x(
     AnimPdata* animation, float frame);
 extern void animpdata_ani_loop_more_frames(
@@ -365,10 +360,7 @@ static float p_plyr_aux2(void);
 
 int fetch_shujinko_special_number_for(unsigned int move_id);
 
-/*
- * Soft ceiling: retail behavior and ABI recovered. Remaining differences are
- * branch-arm layout, one helper-result register copy, and predicate lowering.
- */
+/* TODO: [near miss] 98.33%; behavior and ABI agree; residue is branch-arm layout, one helper-result register copy and predicate lowering. */
 int is_special_move_available(PlyrPdata* pdata, int move_id) {
     void* profile = p1_profile;
     int special_number;
@@ -611,10 +603,10 @@ PlyrPdata* get_plyr_pdata_plyr_num(int player) {
 
 MkObj* get_plyr_obj_plyr_num(int player) {
     if (player == 0) {
-        return (MkObj*)g_game_info.plyr0.slot.mirror_a;
+        return g_game_info.plyr0.slot.mirror_a;
     }
     if (player == 1) {
-        return (MkObj*)g_game_info.plyr1.slot.mirror_a;
+        return g_game_info.plyr1.slot.mirror_a;
     }
     return 0;
 }
@@ -786,7 +778,7 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
 
             if (reflection == 0) {
                 reflection = load_bgnd_weapon_reflection(
-                    (WeaponDefinition*)primary->field_5C);
+                    primary->field_5C);
                 if (reflection != 0) {
                     moveset->reflection_weapon = reflection;
                     moveset->reflection_weapon_instance =
@@ -923,7 +915,7 @@ static int baraka_advance_active_moveset(
 }
 
 static inline void plyr_start_script_in_slot(
-    ScriptSlot* script, int proc_id, unsigned int function) {
+    PlyrPdata* owner, int proc_id, unsigned int function) {
     PlyrScriptProcPdata* pdata;
     MkProc* proc;
 
@@ -931,7 +923,7 @@ static inline void plyr_start_script_in_slot(
         proc_id, 0x1F, p_plyr_script_in_proc, sizeof(*pdata),
         (MkHdr**)&pdata);
     if (proc != 0 && pdata != 0) {
-        pdata->script = script;
+        pdata->script = owner->cmo;
         pdata->func_index = function;
         set_process_as_scriptable(proc);
     }
@@ -963,7 +955,6 @@ void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade) {
     }
 }
 
-/* Soft ceiling: 99.94% - typed retail Baraka blade monitor setup. */
 void start_baraka_blades_monitor(void) {
     BarakaBladesPdata* controller = 0;
     MkProc* proc = _create_mkproc_generic_nostack(
@@ -1074,7 +1065,7 @@ static inline AnimPdata* baraka_jaw_live_animation(BarakaJawPdata* owner) {
 /* TODO: [near miss] 98.769230%; relocation offsets, instruction scheduling; one-trial ceiling. */
 static float p_baraka_jaw_controller(void) {
     BarakaJawPdata* pdata = (BarakaJawPdata*)apdata;
-    MKMATRIX matrix __attribute__((aligned(16)));
+    MKMATRIX matrix;
     Quat rotation;
     AnimPdata* animation;
     int next_ticks;
@@ -1135,7 +1126,7 @@ static float p_baraka_jaw_controller(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: 96.86% - facial damage and texture stages recovered. */
+/* TODO: [near miss] 97.21%; facial damage and texture stages recovered; residue is code emission. */
 void add_facial_damage(float amount) {
     PlyrPdata* player = plyr_pdata;
     AniTextureControl* texture;
@@ -1277,9 +1268,7 @@ void show_player(PlyrPdata* player) {
                 link = next;
             } else {
                 object = (MkObj*)link->hdr;
-                if (object->hdr.vtbl == &vtbl_mkobj) {
-                    /* Keep the object-typed link. */
-                } else {
+                if (object->hdr.vtbl != &vtbl_mkobj) {
                     object = 0;
                 }
                 if (object != 0 && object->oid != 0x1008) {
@@ -1348,9 +1337,7 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
                 link = next;
             } else {
                 object = (MkObj*)link->hdr;
-                if (object->hdr.vtbl == &vtbl_mkobj) {
-                    /* Keep the object-typed link. */
-                } else {
+                if (object->hdr.vtbl != &vtbl_mkobj) {
                     object = 0;
                 }
                 if (object != 0) {
@@ -1369,7 +1356,7 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
     }
 }
 
-/* Soft ceiling: 94.80% - teleport and constraint latch update recovered. */
+/* TODO: [near miss] 94.80%; teleport and constraint latch update recovered; residue is code emission. */
 void move_player(
     MkObj* object,
     const Vec* position,
@@ -1392,7 +1379,7 @@ void move_player(
     }
 }
 
-/* Soft ceiling: 92.53% - clean typed movement; float scheduling differs. */
+/* TODO: [near miss] 92.53%; typed movement agrees; float scheduling differs. */
 void move_player_no_constrain_update(
     MkObj* object,
     const Vec* position,
@@ -1435,7 +1422,7 @@ int load_plyr_model_async(int player, int char_id, int* flags) {
         return 0;
     }
 
-    flag_word = (unsigned int)*flags;
+    flag_word = *flags;
     pdata_out.loader->player = player;
     pdata_out.loader->char_id = char_id;
     pdata_out.loader->flags.word = flag_word;
@@ -1483,7 +1470,7 @@ static float p_load_plyr_model_async(void) {
     if (script->table_count == 0) {
         return -1.0f;
     }
-    data = (FighterRuntimeData*)get_data_table(
+    data = get_data_table(
         script, script->table_count);
     if (alternate != 0) {
         if (flags.bits.alternate_costume) {
@@ -1529,15 +1516,13 @@ int load_player_style_scripts(PlyrPdata* pdata) {
                     pdata->runtime_data->style_scripts[index]);
             if (pdata->weapon_styles[index]->script->table_count != 0) {
                 pdata->weapon_styles[index]->definition =
-                    (PlyrStyleDefinition*)get_data_table(
+                    get_data_table(
                         pdata->weapon_styles[index]->script,
                         pdata->weapon_styles[index]->script->table_count);
                 pdata->weapon_styles[index]->animation_header =
                     pdata->weapon_styles[index]
                         ->definition->animation_header;
-                if (is_weapon_style(
-                        (PlyrFighterDefinition*)
-                            pdata->weapon_styles[index]) != 0) {
+                if (is_weapon_style(pdata->weapon_styles[index]) != 0) {
                     PlyrWeaponStyle* style =
                         pdata->weapon_styles[index];
                     MkObj* player_object =
@@ -1632,6 +1617,19 @@ static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
     MkProc* object = owner->anim_proc;
     if (object != 0) {
         if (object->instance == (int)owner->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->sidekick_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->sidekick_anim_instance) {
             return object;
         }
         object = 0;
@@ -1755,8 +1753,7 @@ static inline void initialize_player_shadow(
     }
 }
 
-/* TODO: [near miss] 97.93%; runtime/shadow r29/r30 coloring swap and the prologue
- * float-constant load order remain. */
+/* TODO: [near miss] 99.19%; runtime/shadow r29/r30 coloring swap remains. */
 float p_plyr_start(void) {
     FighterRuntimeData* runtime;
     MkObj* shadow = 0;
@@ -1769,7 +1766,7 @@ float p_plyr_start(void) {
     int player_state;
 
     runtime = plyr_pdata->runtime_data;
-    set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
+    set_root_and_obj_movement_weights(plyr_anim_pdata, 0.0f, 1.0f);
     set_anim_script(
         plyr_anim_pdata,
         plyr_pdata->fighter_definition->duck_exit_animation,
@@ -1831,7 +1828,7 @@ float p_plyr_start(void) {
         }
         plyr_pdata->opponent_proc = g_game_info.plyr1.idle_proc;
         plyr_pdata->opponent_proc_instance =
-            ((MkProc*)g_game_info.plyr1.idle_proc)->instance;
+            g_game_info.plyr1.idle_proc->instance;
         plyr_pdata->his_plyr_pdata = g_game_info.plyr1.slot.pdata;
         plyr_pdata->his_obj = g_game_info.plyr1.slot.mirror_a;
     } else {
@@ -1842,7 +1839,7 @@ float p_plyr_start(void) {
         }
         plyr_pdata->opponent_proc = g_game_info.plyr0.idle_proc;
         plyr_pdata->opponent_proc_instance =
-            ((MkProc*)g_game_info.plyr0.idle_proc)->instance;
+            g_game_info.plyr0.idle_proc->instance;
         plyr_pdata->his_plyr_pdata = g_game_info.plyr0.slot.pdata;
         plyr_pdata->his_obj = g_game_info.plyr0.slot.mirror_a;
     }
@@ -2027,8 +2024,8 @@ void delete_player(int player_index) {
             destroy_mkprocs_pid(0xC029);
         }
         player->slot.pdata = 0;
-        destroy_mkprocs_pid(((MkProc*)player->idle_proc)->pid);
-        destroy_mkprocs_pid(((MkProc*)player->field_68)->pid);
+        destroy_mkprocs_pid(player->idle_proc->pid);
+        destroy_mkprocs_pid(player->field_68->pid);
         destroy_mkprocs_pid(0x1003);
         kill_fstyle_signs_for_plyr(player);
         term_player_collision(player);
@@ -2115,12 +2112,12 @@ static void setup_plyr_anims(PlyrPdata* pdata) {
     moveset_base = pdata == g_game_info.plyr0.slot.pdata ? 0 : 3;
     for (index = 0; index < sizeof(pdata->weapon_styles) / sizeof(pdata->weapon_styles[0]); index++) {
         pdata->weapon_styles[index] =
-            (PlyrWeaponStyle*)&global_movesets[index + moveset_base];
+            &global_movesets[index + moveset_base];
     }
     load_player_style_scripts(pdata);
     advance_active_moveset(pdata);
 
-    mode = (int)mode_of_play;
+    mode = mode_of_play;
     if ((mode == 0 || mode == 10) &&
         g_game_info.feature_flags.bits.powerbars_locked) {
         load_signs = 0;
@@ -2170,7 +2167,7 @@ static void load_player_anim_files(PlyrPdata* pdata) {
         add_anim_section_async(
             slot, section, pdata->animation_data, 0, 0);
     }
-    if ((int)mode_of_play == 6) {
+    if (mode_of_play == 6) {
         PlyrWeaponStyle* style = pdata->weapon_styles[0];
 
         section = find_section_by_name(
@@ -2212,7 +2209,7 @@ static inline MkObj* loaded_model_as_mkobj(void* model) {
     MkObj* object;
 
     if (model != 0) {
-        object = (MkObj*)model;
+        object = model;
     } else {
         object = 0;
     }
@@ -2222,7 +2219,7 @@ static inline MkObj* loaded_model_as_mkobj(void* model) {
 static inline MkObj* create_player_load_costume(PlyrInfo* player) {
     PlyrPdata* pdata = player->slot.pdata;
     MkObj* object = 0;
-    int pid = ((MkProc*)player->idle_proc)->pid;
+    int pid = player->idle_proc->pid;
     FighterRuntimeData* runtime = pdata->runtime_data;
     const char* art_section;
 
@@ -2241,14 +2238,14 @@ static inline MkObj* create_player_load_costume(PlyrInfo* player) {
         if (runtime->shared_art_section != 0) {
             load_art_section_by_name(0x3000B, runtime->shared_art_section);
         }
-        object = (MkObj*)load_named_model_from_slot(
+        object = load_named_model_from_slot(
             0x3000A, "COSTUME", pid, 1);
     } else if (pid == 0x1002) {
         load_art_section_by_name(0x4000A, art_section);
         if (runtime->shared_art_section != 0) {
             load_art_section_by_name(0x4000B, runtime->shared_art_section);
         }
-        object = (MkObj*)load_named_model_from_slot(
+        object = load_named_model_from_slot(
             0x4000A, "COSTUME", pid, 1);
     }
     return loaded_model_as_mkobj(object);
@@ -2296,7 +2293,7 @@ static inline void create_player_attach_face_texture(PlyrInfo* player) {
         return;
     }
     texture = append_wiff_to_clump_material(
-        art_slot, (char*)face_art_id, (RpClump*)object->clump,
+        art_slot, (char*)face_art_id, object->clump,
         (char*)face_texture);
     if (texture == 0) {
         return;
@@ -2314,9 +2311,9 @@ static inline void create_player_attach_face_texture(PlyrInfo* player) {
 /* TODO: [near miss] 99.92481%; effect-bank loop GPR coloring remains (banks/index
  * land in r26/r28, retail r27/r26); declaration order and loop forms measured. */
 void create_player(int player_index, PlyrInfo* player) {
-    PlyrProcCreateFlags flags_arg;
+    int flags_arg;
     PlyrProcCreateFlags flags;
-    PlyrProcCreateFlags aux_flags_arg;
+    int aux_flags_arg;
     PlyrProcCreateFlags aux_flags;
     MkProc* player_proc;
     MkProc* aux_proc;
@@ -2354,8 +2351,8 @@ void create_player(int player_index, PlyrInfo* player) {
 
     flags.word = 0;
     flags.bits.defer_run = 1;
-    flags_arg = flags;
-    player_proc = get_mkproc_bigstack(&flags_arg.word);
+    flags_arg = flags.word;
+    player_proc = get_mkproc_bigstack(&flags_arg);
     if (player_proc != 0) {
         player->slot.pdata = get_mkpdata_plyr();
         player_proc = create_mkproc(
@@ -2365,25 +2362,25 @@ void create_player(int player_index, PlyrInfo* player) {
     }
     player->idle_proc = player_proc;
 
-    player->slot.pdata->own_player_proc = (MkProc*)player->idle_proc;
+    player->slot.pdata->own_player_proc = player->idle_proc;
     player->slot.pdata->own_player_proc_instance =
-        ((MkProc*)player->idle_proc)->instance;
+        player->idle_proc->instance;
     player->slot.pdata->plyr_info = player;
     player->slot.pdata->mirror_slots = 0;
 
     aux_flags.word = 0;
     aux_flags.bits.defer_run = 1;
-    aux_flags_arg = aux_flags;
-    aux_proc = get_mkproc_nostack(&aux_flags_arg.word);
+    aux_flags_arg = aux_flags.word;
+    aux_proc = get_mkproc_nostack(&aux_flags_arg);
     if (aux_proc != 0) {
         aux_proc = create_mkproc(
             8, aux_proc, aux_pid, player_sleep_forever,
             (MkHdr*)player->slot.pdata);
     }
     player->field_68 = aux_proc;
-    player->slot.pdata->aux_player_proc = (MkProc*)player->field_68;
+    player->slot.pdata->aux_player_proc = player->field_68;
     player->slot.pdata->aux_player_proc_instance =
-        ((MkProc*)player->field_68)->instance;
+        player->field_68->instance;
     player->slot.pdata->saved_anim_script_word = 0;
     player->slot.pdata->plyr_num = player_index;
     player->field_04 = player_index;
@@ -2413,7 +2410,7 @@ void create_player(int player_index, PlyrInfo* player) {
         }
     }
     if (loaded == 0) {
-        delete_player(((MkProc*)player->idle_proc)->pid);
+        delete_player(player->idle_proc->pid);
         return;
     }
 
@@ -2479,12 +2476,12 @@ void create_player(int player_index, PlyrInfo* player) {
         player->slot.mirror_a->hide_flag_bits.bit6 = 1;
     }
 
-    ((MkProc*)player->idle_proc)->pre_destroy = pw_plyr;
-    ((MkProc*)player->idle_proc)->destroy_cb = ps_plyr;
+    player->idle_proc->pre_destroy = pw_plyr;
+    player->idle_proc->destroy_cb = ps_plyr;
     if (player->field_68 != 0) {
-        ((MkProc*)player->field_68)->pre_destroy = pw_plyr;
-        ((MkProc*)player->field_68)->destroy_cb = ps_plyr;
-        xfer_proc((MkProc*)player->field_68, p_plyr_aux);
+        player->field_68->pre_destroy = pw_plyr;
+        player->field_68->destroy_cb = ps_plyr;
+        xfer_proc(player->field_68, p_plyr_aux);
     }
     player->slot.pdata->controller_port = player->pad_index;
 
@@ -2543,7 +2540,7 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
 
     object = 0;
     pdata->sidekick_available = 1;
-    player_pid = ((MkProc*)player->idle_proc)->pid;
+    player_pid = player->idle_proc->pid;
     runtime = pdata->runtime_data;
     if (pdata->plyr_info->flags_14_bits.alternate_costume) {
         art_section = pdata->plyr_info->flags_14_bits.alternate_palette
@@ -2603,7 +2600,7 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
             if (face_art_id != 0) {
                 texture = append_wiff_to_clump_material(
                     art_slot, (char*)face_art_id,
-                    (RpClump*)object->clump, (char*)face_texture);
+                    object->clump, (char*)face_texture);
                 if (texture != 0) {
                     frame_count = get_ani_texture_numframes(texture);
                     if (frame_count != 4 && frame_count != 5) {
@@ -2671,7 +2668,7 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
         transition_to_anim_script(
             animation, pdata->fighter_definition->duck_exit_animation,
             0, 0.1f);
-        xfer_proc(animation_proc, (MkProcEntryFn)p_animate);
+        xfer_proc(animation_proc, p_animate);
         object->flags_09_bits.bit6 = 1;
         object->flags_09_bits.launched = 1;
         update_bone_hierarchy(
@@ -2790,7 +2787,7 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
 static inline MkProc* player_live_own_process(PlyrPdata* owner) {
     MkProc* process = owner->own_player_proc;
     if (process != 0) {
-        if ((unsigned int)process->instance == owner->own_player_proc_instance) {
+        if (process->instance == owner->own_player_proc_instance) {
             return process;
         }
         process = 0;
@@ -2816,10 +2813,11 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
 
 
 
-/* TODO: [breakthrough needed] 94.788734%; FP ordering and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 95.74%; validators go through the live helpers; sidekick/player r30/r31
+ * and saved-state register coloring remain (declaration order is neutral). */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
-    MkObj* sidekick;
     PlyrInfo* player;
+    MkObj* sidekick;
     MkProc* process;
     AnimPdata* sidekick_animation;
     AnimPdata* player_animation;
@@ -2838,40 +2836,12 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     float ang_y;
     float ang_z;
 
-    sidekick = pdata->sidekick_obj;
     player = pdata->plyr_info;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance == pdata->sidekick_instance) {
-            /* Keep the live object. */
-        } else {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
-    process = pdata->sidekick_anim_proc;
-    if (process != 0) {
-        if (process->instance ==
-            (int)pdata->sidekick_anim_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
-    sidekick_animation = (AnimPdata*)pdata_of_proc(process);
-    process = pdata->anim_proc;
-    if (process != 0) {
-        if (process->instance == (int)pdata->anim_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
-    player_animation = (AnimPdata*)pdata_of_proc(process);
+    sidekick = player_live_sidekick_obj(pdata);
+    sidekick_animation =
+        (AnimPdata*)pdata_of_proc(player_live_sidekick_anim_proc(pdata));
+    player_animation =
+        (AnimPdata*)pdata_of_proc(player_live_anim_proc(pdata));
 
     unhide_obj(sidekick);
     sidekick->pos_vel.z = 0.0f;
@@ -2920,9 +2890,9 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     player->slot.mirror_a->ang.y = ang_y;
     player->slot.mirror_a->ang.z = ang_z;
     set_root_and_obj_movement_weights(
-        0.0f, player_animation->weight, sidekick_animation);
+        sidekick_animation, 0.0f, player_animation->weight);
     set_root_and_obj_movement_weights(
-        0.0f, saved_weight, player_animation);
+        player_animation, 0.0f, saved_weight);
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     update_mkobj(
         player->slot.mirror_a != 0
@@ -3000,20 +2970,7 @@ static inline void plyr_sleep(float ticks) {
     ((PlyrProcVtable*)aproc->vtbl)->sleep();
 }
 
-static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* owner) {
-    MkProc* object = owner->sidekick_anim_proc;
-    if (object != 0) {
-        if (object->instance == (int)owner->sidekick_anim_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 
-/* TODO: [near miss] 96.379810%; instruction lowering, register coloring; one-trial ceiling. */
 float sidekick_cool_vanish(PlyrPdata* pdata) {
     MkObj* sidekick;
     MkProc* anim_proc;
@@ -3047,7 +3004,7 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
         if (sidekick->hide_flag_bits.hidden == 0) {
             function = get_script_function_by_name(
                 actions->cmo, "sidekick_swap_pfx");
-            plyr_start_script_in_slot(actions->cmo, 0xC025, function);
+            plyr_start_script_in_slot(pdata, 0xC025, function);
         }
         plyr_sleep(30.0f);
         obj_set_gravity(sidekick, 0.0f);
@@ -3062,11 +3019,11 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
         }
         sidekick->flags_09_bits.bit6 = 0;
         sidekick->flags_09_bits.launched = 0;
-        snd_req_delay(0x33B, 0x10, 0);
+        snd_req_delay(0x33B, 0x10);
         if (sidekick->hide_flag_bits.hidden == 0) {
             function = get_script_function_by_name(
                 actions->cmo, "sidekick_swap_pfx");
-            plyr_start_script_in_slot(actions->cmo, 0xC025, function);
+            plyr_start_script_in_slot(pdata, 0xC025, function);
         }
         plyr_sleep(30.0f);
     }
@@ -3152,8 +3109,8 @@ void start_plyrs(void) {
     setup_sound_banks(0xC);
     create_player(1, &g_game_info.plyr1);
     setup_sound_banks(0xD);
-    xfer_proc((MkProc*)g_game_info.plyr0.idle_proc, p_plyr_start);
-    xfer_proc((MkProc*)g_game_info.plyr1.idle_proc, p_plyr_start);
+    xfer_proc(g_game_info.plyr0.idle_proc, p_plyr_start);
+    xfer_proc(g_game_info.plyr1.idle_proc, p_plyr_start);
 }
 
 static inline void randomize_player(PlyrInfo* player) {
@@ -3328,7 +3285,7 @@ PlyrPdata* get_mkpdata_plyr(void) {
     int index;
 
     if (pdata != 0) {
-        free_mkpdata_plyrs = (PlyrPdata*)pdata->vtbl;
+        free_mkpdata_plyrs = pdata->vtbl;
         pdata->vtbl = &vtbl_mkpdata_plyr;
         mk_set_instance(&pdata->instance);
         pdata->tracked_obj = 0;
@@ -3462,7 +3419,6 @@ float p_animate_weapon_rest(void) {
     anim_pdata->rest_ticks = 10;
     ((PlyrProcVtable*)aproc->vtbl)
         ->jump_sleep(p_animate_weapon_rest_lp, 1.0f);
-    /* Retail process continuation value. */
     return 1.0f;
 }
 
@@ -3611,26 +3567,40 @@ static inline void set_object_flip(
 
 
 
-/* TODO: [breakthrough] 91.97143%; canonical matcher fields and flags restored;
- * branch/load placement and register allocation remain. */
 MkHdr* plyr_grab_other_flip_states(
     int player_flip, int opponent_flip) {
-    MkObj* opponent = plyr_pdata->his_obj;
-    AnimPdata* opponent_animation = 0;
+    MkObj* opponent;
+    AnimPdata* opponent_animation;
     MkObj* held;
     MkProc* hold_proc;
     MkProc* opponent_anim_proc;
     GrabBoneMatcher* matcher;
 
-    set_object_flip(plyr_obj, plyr_anim_pdata, player_flip);
+    switch (player_flip) {
+    case 1:
+        if (plyr_obj->hide_flag_bits.bit6 != 0) {
+            plyr_obj->hide_flag_bits.bit6 = 0;
+            plyr_anim_pdata->flags ^= 8;
+        }
+        break;
+    case 2:
+        if (plyr_obj->hide_flag_bits.bit6 == 0) {
+            plyr_obj->hide_flag_bits.bit6 = 1;
+            plyr_anim_pdata->flags ^= 8;
+        }
+        break;
+    }
 
     held = plyr_pdata_live_held_opponent_latch_obj(plyr_pdata);
 
     hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
 
     if (held != 0 || hold_proc != 0) {
-        return 0;
+        return (MkHdr*)hold_proc;
     }
+
+    opponent = plyr_pdata->his_obj;
+    opponent_animation = 0;
 
     if (opponent_flip != 0) {
         opponent_anim_proc = plyr_pdata_live_his_plyr_pdata_anim_proc(plyr_pdata);
@@ -3653,7 +3623,7 @@ MkHdr* plyr_grab_other_flip_states(
     plyr_pdata->held_opponent_latch.obj = opponent;
     plyr_pdata->held_opponent_latch.instance =
         opponent->hdr.instance;
-    matcher = (GrabBoneMatcher*)start_bone_matcher(
+    matcher = start_bone_matcher(
         plyr_obj,
         plyr_obj->fallback_bone_index,
         opponent,

@@ -90,8 +90,6 @@ u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header) {
     return 0;
 }
 
-/* Soft ceiling: 94.5% - all ten operations and branches agree; only GPR
- * coloring differs. */
 u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
     u32 size = 0;
     if (header != 0) {

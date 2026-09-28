@@ -163,17 +163,30 @@ static inline float fast_inverse_sqrt(float length_squared) {
     float correction;
     float result;
 
-    if (length_squared <= kZero) {
-        result = kZero;
+    if (length_squared <= 0.0f) {
+        result = 0.0f;
     } else {
         inverse.value = length_squared;
         inverse.bits = 0x5F375A00U - (inverse.bits >> 1);
         product = inverse.value * (length_squared * inverse.value);
-        correction = kThree - product;
-        result = kInvSqrtCoeffA * inverse.value * correction *
-                 -(correction * (product * correction) - kInvSqrtCoeffB);
+        correction = 3.0f - product;
+        result = 0.0625f * inverse.value * correction *
+                 -(correction * (product * correction) - 12.0f);
     }
     return result;
+}
+
+static inline void specular_normalize(RwV3d* vector) {
+    float x = vector->x;
+    float x_squared = x * x;
+    float y_squared = vector->y * vector->y;
+    float z_squared = vector->z * vector->z;
+    float inverse_length =
+        fast_inverse_sqrt(z_squared + (x_squared + y_squared));
+
+    vector->x = x * inverse_length;
+    vector->y *= inverse_length;
+    vector->z *= inverse_length;
 }
 
 static RpMaterial* restore_specular_texture_material_callback(RpMaterial* material, void* data) {
@@ -246,7 +259,7 @@ RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,
     return atomic;
 }
 
-/* TODO: [near miss] 90.02%; FPR scheduling and matrix-copy addressing remain. */
+/* TODO: [near miss] 99.98%; the two inlined inverse-sqrt input slots (0x10/0x14) are swapped vs retail. */
 void SpecularMaterialCalcMatrix(void* material) {
     SpecularMaterialExt* spec;
     RwMatrix* light_matrix;
@@ -255,16 +268,11 @@ void SpecularMaterialCalcMatrix(void* material) {
     RwMatrix matrix;
     float dot;
     float reflection_scale;
-    float length_squared;
-    float inverse_length;
     float cross_length_squared;
     float inverse_cross_length;
     float scaled_x;
     float scaled_y;
     float scaled_z;
-    unsigned int* source;
-    unsigned int* destination;
-    int copy_count;
 
     spec = specular_material_ext(material);
     if (spec->light != 0 && spec->light->frame != 0) {
@@ -287,20 +295,11 @@ void SpecularMaterialCalcMatrix(void* material) {
         matrix.at.x = reflected.x + light_matrix->at.x;
         matrix.at.y = reflected.y + light_matrix->at.y;
         matrix.at.z = reflected.z + light_matrix->at.z;
-        length_squared = matrix.at.z * matrix.at.z +
-                         (matrix.at.x * matrix.at.x +
-                          matrix.at.y * matrix.at.y);
-        inverse_length = fast_inverse_sqrt(length_squared);
-        scaled_x = matrix.at.x * inverse_length;
-        scaled_y = matrix.at.y * inverse_length;
-        scaled_z = matrix.at.z * inverse_length;
-        matrix.at.x = scaled_x;
-        matrix.at.y = scaled_y;
-        matrix.at.z = scaled_z;
+        specular_normalize(&matrix.at);
 
-        matrix.right.x = Yaxis.y * scaled_z - Yaxis.z * scaled_y;
-        matrix.right.y = Yaxis.z * scaled_x - Yaxis.x * scaled_z;
-        matrix.right.z = Yaxis.x * scaled_y - Yaxis.y * scaled_x;
+        matrix.right.x = Yaxis.y * matrix.at.z - Yaxis.z * matrix.at.y;
+        matrix.right.y = Yaxis.z * matrix.at.x - Yaxis.x * matrix.at.z;
+        matrix.right.z = Yaxis.x * matrix.at.y - Yaxis.y * matrix.at.x;
         cross_length_squared = matrix.right.z * matrix.right.z +
                                (matrix.right.x * matrix.right.x +
                                 matrix.right.y * matrix.right.y);
@@ -313,14 +312,7 @@ void SpecularMaterialCalcMatrix(void* material) {
         matrix.up.y = matrix.at.z * matrix.right.x - matrix.at.x * matrix.right.z;
         matrix.up.z = matrix.at.x * matrix.right.y - matrix.at.y * matrix.right.x;
         RwMatrixUpdate(&matrix);
-        source = (unsigned int*)&matrix;
-        destination = (unsigned int*)&SpecularMatrix;
-        for (copy_count = 0; copy_count < 8; copy_count++) {
-            destination[0] = source[0];
-            destination[1] = source[1];
-            source += 2;
-            destination += 2;
-        }
+        SpecularMatrix = matrix;
     }
 }
 
