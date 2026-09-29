@@ -2994,12 +2994,7 @@ float p_gamelogic(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 95%; initializer is register-only r3/r4 coloring;
- * retain the existing prefix view and stop without new ownership evidence. */
 void init_game_info_struct(void) {
-    GameInfoInitPrefix* prefix;
-
-    prefix = (GameInfoInitPrefix*)&g_game_info;
-    prefix->word = 0;
-    prefix->bits.flag_6 = 0;
+    ((GameInfoInitPrefix*)&g_game_info)->word = 0;
+    ((GameInfoInitPrefix*)&g_game_info)->bits.flag_6 = 0;
 }

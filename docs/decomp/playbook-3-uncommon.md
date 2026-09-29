@@ -189,6 +189,15 @@ definitions, declarations, and every caller. Local snapshots alone can
 optimize back. Do not keep incompatible per-TU declarations to hide a caller
 residue.
 
+- Script wrappers in `script_functions.c`: the retail load order of
+  `current_args` slots is the callee's parameter order. Reorder the callee's
+  parameters to ascending slot order, drop fake `current_args` or
+  `void* script_args` parameters, and apply the change to every declaration
+  and caller. Confirm the callers stay neutral: `got_hit_fx` callers
+  regressed, so its int-first order is real. A wrapper that calls
+  `get_animation` first rereads `current_args` after that call
+  (`_launch_n_land_ani`, `_two_player_animation`).
+
 ## M12
 
 Alias analysis changes the access schedule. REQUIRE actual mutability and

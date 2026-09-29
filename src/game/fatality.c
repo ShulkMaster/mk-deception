@@ -2759,8 +2759,8 @@ MkProc* get_fake_bone_matcher_proc(FatalityFakeBoneMatcher* matcher) {
 }
 
 void obj_grnd_bounce(
-    MkObj* object, const Vec* velocity, int bounces,
-    float gravity, float ground_offset, float restitution) {
+    MkObj* object, const Vec* velocity, float gravity,
+    float ground_offset, int bounces, float restitution) {
     FatalityGroundBouncePdata* data;
 
     if (_create_mkproc_generic_nostack(
@@ -2973,7 +2973,7 @@ float p_obj_scalar_proc(void) {
 }
 
 void obj_match_obj_pos(
-    MkObj* source, MkObj* destination, int snap, float blend) {
+    MkObj* source, MkObj* destination, float blend, int snap) {
     FatalityObjectMatcherPdata* data;
 
     if (_create_mkproc_generic_nostack(

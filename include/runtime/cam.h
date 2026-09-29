@@ -152,19 +152,17 @@ float get_pan_value(const Vec* position);
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration);
-void interaction_cam_set_target_info(int duration, float angle_a,
-                                     float field_14, float field_18,
-                                     float angle_b, float field_20,
-                                     float field_24);
-void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
-                             MkObj* target, MkObj* reference_object,
-                             float orbit_yaw_offset, float orbit_radius,
-                             float camera_height, float look_yaw_offset,
-                             float look_pitch);
-void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
-                            float orbit_yaw_offset, float orbit_radius,
-                            float camera_height, float look_yaw_offset,
-                            float look_pitch);
+void interaction_cam_set_target_info(
+    float angle_a, float field_14, float field_18, float angle_b,
+    float field_20, float field_24, int duration);
+void special_move_cam_setup2(
+    float orbit_yaw_offset, float orbit_radius, float camera_height,
+    float look_yaw_offset, float look_pitch, int ease_ticks, int total_ticks,
+    int unused, MkObj* target, MkObj* reference_object);
+void special_move_cam_setup(
+    float orbit_yaw_offset, float orbit_radius, float camera_height,
+    float look_yaw_offset, float look_pitch, int ease_ticks, int total_ticks,
+    int unused);
 void cam_set_ground_plane(float ground_plane);
 float camera_get_pos(unsigned int axis);
 float camera_wait_for_pos_and_ang_move_done(void);

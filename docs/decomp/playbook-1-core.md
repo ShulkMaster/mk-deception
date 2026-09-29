@@ -76,6 +76,7 @@ Tool preparation:
 | Missing or extra reload of a global/owner | H05, M12 |
 | Retail keeps a value/address that source recomputes, or the reverse | H06 |
 | Extra or missing `bl`, inlining differs | H07, M13 |
+| Retail compares a value with itself before a shared inlined loop | H07 |
 | Pointer+instance latch diamond | H08, H25 |
 | Loop entry/latch, CTR use | H09 |
 | Switch, jump table, compare tree | H10 |

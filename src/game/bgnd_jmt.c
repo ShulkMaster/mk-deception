@@ -746,11 +746,10 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
 void mks_set_rotate_update_by_group(void) {
 }
 
-void mks_set_sin_update_by_group(int group_id, int blend_ticks,
-                                 int update_flags, int extra_flags,
-                                 float start_value, float end_value,
-                                 float start_speed, float speed_param,
-                                 float sin_rate, float sin_phase) {
+void mks_set_sin_update_by_group(
+    int group_id, int blend_ticks, int update_flags, float start_value,
+    float end_value, float start_speed, float speed_param, float sin_rate,
+    float sin_phase, int extra_flags) {
     MkPtr** list;
     MkProc* proc;
     BgndUpdateData* update;
@@ -836,15 +835,12 @@ void start_sobj_ctrl_proc(void) {
     }
 }
 
-/* TODO: [near miss] 96.56%; residue is the latch branch layout (retail bne/b around the kept arm). */
 void destroy_sobj_ctrl_proc(void) {
     MkProc* proc;
 
     proc = sobj_ctrl_proc_item.proc;
     if (proc != 0) {
-        if (proc->instance != sobj_ctrl_proc_item.instance) {
-            proc = 0;
-        }
+        proc = proc->instance == sobj_ctrl_proc_item.instance ? proc : 0;
     } else {
         proc = 0;
     }

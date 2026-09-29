@@ -4080,7 +4080,7 @@ float r_beetle_lair_transition(void) {
     obj_set_pos_vel(g_game_info.player_objects[0], &velocity);
     tightrope_restrictions_off();
     plyr_obj->flags_0B_bits.bit6 = 1;
-    special_move_cam_setup(1, 0xC8, 0, 0.35f, 4.0f, 2.0f, -2.67f, 0.2f);
+    special_move_cam_setup(0.35f, 4.0f, 2.0f, -2.67f, 0.2f, 1, 0xC8, 0);
     launch_me_up(0.025f, 0.0f);
     blend_to_ani(*(AniData**)&shared_ani[0x194], 0, 0.1f);
     set_ani_speed(1.0f);
@@ -4475,17 +4475,16 @@ extern void face_opponent_now(void);
 extern void avoid_double_ani(void);
 extern void init_air_move(void);
 extern void launch_n_land_ani(
-    AniData* animation, int landing_animation, float launch_frame,
-    float launch_step, float landing_frame, float velocity_y, float gravity,
-    float blend);
-extern void shake_hit_voice(
-    int shake_ticks, int hit_voice, int fighter_voice, float rumble_scale);
+    AniData* animation, float launch_frame, float launch_step,
+    float landing_frame, int landing_animation, float velocity_y,
+    float gravity, float blend);
+extern void shake_hit_voice(int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 extern void set_ani_speed(float speed);
 extern void ani_to_frame_x(float frame);
 extern void face_position_now(Vec* position);
 extern void bulvan_function(int command);
-extern void force_away(int duration, int interval, float velocity,
-                       float damping);
+extern void force_away(float velocity, int duration, float damping,
+                       int interval);
 extern void plyr_bleed_mouth(PlyrPdata* player);
 extern void glitch_to_ani(AniData* animation, int flags);
 extern void ani_loop_more_frames(float frames);
@@ -4529,7 +4528,7 @@ static float winner_watching_him_fall(void) {
     force_forward(0x78, 0x14, 0.1325f, 0.9f);
     animation = *(AniData**)&shared_ani[0x3C];
     launch_n_land_ani(
-        animation, 0, 0.0f, 0.0f, 28.0f, 0.12f, -0.0035f, 0.2f);
+        animation, 0.0f, 0.0f, 28.0f, 0, 0.12f, -0.0035f, 0.2f);
 
     get_bone_world_pos(plyr_obj, 0xA, &bone_position);
     bone_position.y = g_game_info.field_34 + 0.015f;
@@ -4568,7 +4567,7 @@ static float winner_watching_him_fall(void) {
     unhide_obj(g_bgnd_preloaded_models[7]);
 
     init_ground_move();
-    shake_hit_voice(3, -1, 7, 0.03f);
+    shake_hit_voice(3, 0.03f, -1, 7);
     snd_req(0x90);
     bl_front_wall_effect_at(
         "dust_aland_gnd_pnd", plyr_obj->pos.value.x,
@@ -4600,7 +4599,7 @@ static float victim_fall_down_a_level(void) {
     face_target.y = plyr_obj->pos.value.y;
     face_position_now(&face_target);
     plyr_obj->pos_vel.y = 0.05f;
-    force_away(0x50, 0x1E, 0.22f, 0.9f);
+    force_away(0.22f, 0x50, 0.9f, 0x1E);
 
     get_bone_world_pos(plyr_obj, 0, &follower_position);
     bl_front_wall_effect_at(
@@ -5082,8 +5081,8 @@ static float p_beetle_lair_column_breaking(void) {
     data->direction.z *= scale;
 
     if (data->use_camera != 0) {
-        special_move_cam_setup2(30, 100, 0, target, reference,
-                                2.2f, 2.6f, 2.0f, -0.5f, 0.2f);
+        special_move_cam_setup2(
+            2.2f, 2.6f, 2.0f, -0.5f, 0.2f, 30, 100, 0, target, reference);
     }
 
     if (data->side == 0) {
@@ -6463,7 +6462,7 @@ void bgnd_set_sobj_launch_params(
 void bgnd_launch_sobj(
     int model_index, unsigned int object_id, unsigned int position_index,
     unsigned int velocity_index, unsigned int angular_velocity_index,
-    unsigned int angle_index, unsigned int scale_index, float parameter) {
+    unsigned int angle_index, float parameter, unsigned int scale_index) {
     BgndSobjLaunchEntry* entry;
     MkObj* model;
     MkSobj* object;
@@ -7319,8 +7318,8 @@ void bgnd_pebble_change_current_end_behavior(int end_behavior) {
     g_current_pebble->end_behavior = end_behavior;
 }
 void bgnd_pebble_change_current_behavior_to_bounce(
-    unsigned int ticks, int bounce_param, float velocity_x, float velocity_y,
-    float velocity_z, float angular_x, float angular_y, float angular_z) {
+    float velocity_x, float velocity_y, float velocity_z, float angular_x,
+    float angular_y, float angular_z, unsigned int ticks, int bounce_param) {
     if (velocity_x != 555999.6f) {
         g_current_pebble->velocity.x = velocity_x;
     }
@@ -7351,8 +7350,8 @@ void bgnd_pebble_change_current_behavior_to_bounce(
     g_current_pebble->end_behavior = 4;
 }
 void bgnd_pebble_change_current_behavior(
-    unsigned int ticks, int behavior_param, float velocity_x, float velocity_y,
-    float velocity_z, float angular_x, float angular_y, float angular_z) {
+    float velocity_x, float velocity_y, float velocity_z, float angular_x,
+    float angular_y, float angular_z, unsigned int ticks, int behavior_param) {
     if (velocity_x != 555999.6f) {
         g_current_pebble->velocity.x = velocity_x;
     }
@@ -7383,9 +7382,9 @@ void bgnd_pebble_change_current_behavior(
 }
 /* TODO: [near miss] 99.91453%; pebble-array base uses r7 instead of retail r29; stop at coloring. */
 void bgnd_pebble_launch_at_time(
-    int player, int index, unsigned int delay, int behavior_param,
-    float position_x, float position_y, float position_z, float scale_x,
-    float scale_y, float scale_z, float angle_x, float angle_y, float angle_z) {
+    int player, int index, float position_x, float position_y, float position_z,
+    float scale_x, float scale_y, float scale_z, float angle_x, float angle_y,
+    float angle_z, unsigned int delay, int behavior_param) {
     BgndPebbleControl* pebble;
 
     unhide_sobj(g_pebbles_pdata[player]->sobj);
@@ -10075,24 +10074,24 @@ float bgnd_process_collision_info(
     case 4:
         if (g_game_info.collision_player_side != 0) {
             special_move_cam_setup2(
-                (int)value6, (int)value7, (int)value8,
-                g_game_info.player_objects[1], g_game_info.player_objects[0],
-                value1, value2, value3, value4, value5);
+                value1, value2, value3, value4, value5, (int)value6,
+                (int)value7, (int)value8, g_game_info.player_objects[1],
+                g_game_info.player_objects[0]);
         }
         break;
     case 0x3C:
         if (g_active_obstacle_event_data->flag_bits.player_side) {
             special_move_cam_setup2(
-                (int)value6, (int)value7, (int)value8,
-                g_game_info.player_objects[1], g_game_info.player_objects[0],
-                value1, value2, value3, value4, value5);
+                value1, value2, value3, value4, value5, (int)value6,
+                (int)value7, (int)value8, g_game_info.player_objects[1],
+                g_game_info.player_objects[0]);
         }
         break;
     case 0x28:
         special_move_cam_setup2(
-            (int)value6, (int)value7, (int)value8,
-            g_game_info.player_objects[1], g_game_info.player_objects[0],
-            value1, value2, value3, value4, value5);
+            value1, value2, value3, value4, value5, (int)value6, (int)value7,
+            (int)value8, g_game_info.player_objects[1],
+            g_game_info.player_objects[0]);
         break;
 
     case 5: {
@@ -10802,8 +10801,8 @@ void pulsate_object(
     }
 }
 void bgnd_pulsate_object(
-    int object_id, int max_hold_ticks, int min_hold_ticks, void* script_args,
-    float fade_in_step, float fade_out_step) {
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step) {
     BgndPulsateData* data;
     MkProc* process;
     MkSobj* object;
@@ -10812,7 +10811,6 @@ void bgnd_pulsate_object(
     RpGeometry* geometry;
     unsigned int alpha;
 
-    (void)script_args;
     data = 0;
     object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
     if (object != 0) {
@@ -10856,9 +10854,8 @@ void bgnd_pulsate_object(
     }
 }
 void bgnd_pulsate_object_with_caps_and_scale(
-    int object_id, int max_hold_ticks, int min_hold_ticks,
-    unsigned int min_alpha, unsigned int max_alpha, void* script_args,
-    float fade_in_step, float fade_out_step,
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step, unsigned int min_alpha, unsigned int max_alpha,
     float scale_step_xz, float scale_step_y,
     float min_scale_xz, float min_scale_y,
     float max_scale_xz, float max_scale_y) {
@@ -10870,7 +10867,6 @@ void bgnd_pulsate_object_with_caps_and_scale(
     RpGeometry* geometry;
     unsigned int alpha;
 
-    (void)script_args;
     data = 0;
     object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
     if (object != 0) {
@@ -10917,9 +10913,8 @@ void bgnd_pulsate_object_with_caps_and_scale(
     }
 }
 void bgnd_pulsate_object_with_caps(
-    int object_id, int max_hold_ticks, int min_hold_ticks,
-    unsigned int min_alpha, unsigned int max_alpha,
-    float fade_in_step, float fade_out_step) {
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step, unsigned int min_alpha, unsigned int max_alpha) {
     BgndPulsateData* data;
     MkProc* process;
     MkSobj* object;
@@ -11704,8 +11699,8 @@ int bgnd_launch_plyr_up_and_forward_running(void) {
     return 0;
 }
 void bgnd_launch_plyr_up_and_forward(
-    int duration, int animation, float ground_y, float gravity,
-    float vertical_velocity, float forward_velocity, float damping) {
+    float ground_y, float gravity, float vertical_velocity,
+    float forward_velocity, int duration, float damping, int animation) {
     plyr_obj->ground_colls_y = ground_y;
     plyr_obj->flags_08_bits.gravity_enabled = 1;
     plyr_obj->flags_08_bits.moving = 1;

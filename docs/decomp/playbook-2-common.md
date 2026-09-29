@@ -30,6 +30,10 @@ ABI: wrong argument/return registers. REQUIRE all callers and the callee ABI.
   first. A preceding store can leave its object address in r3; do not add it
   when the callee reads only globals (Puzzle random-fatality check). Fix the
   prototype and every caller together.
+- IF a TU-local prototype adds an argument whose register is only a leftover
+  from a preceding store, REQUIRE the callee definition and retail register
+  consumption. TRY correcting that prototype and call together; the phantom
+  argument can cause an extra owner reload (`r_pz_fighter_block_hi`).
 - Unused-argument addendum: IF a caller reloads a constant before a call where
   retail reuses an earlier register, REQUIRE callee ASM proving the parameter
   is never read plus an independent signature source, TRY removing it from
@@ -304,6 +308,10 @@ settings. Verify emitted calls, helper symbols, and every consumer.
   (`sfmps_UpdateStreamBounds`). An unrolled clear plus folded status tail is a
   status-returning helper (`MPS_Init`); stop if every honest form erases dead
   retail branches.
+- IF a wrapper loads an endpoint then compares it with itself before a shared
+  inlined loop, REQUIRE the same clamp shape in sibling wrappers and the same
+  loop body. TRY passing that endpoint through the existing inline clamp before
+  entering the loop (`ani_to_end` and `animpdata_ani_to_end`).
 - Inline limits: test `inline_max_size` and `inline_max_total_size` together in
   an isolated diagnostic. This proves expansion, not retail pragma values.
   Prefer a typed inline helper over a macro when the macro changes reference
@@ -364,6 +372,10 @@ Latch diamond. REQUIRE null-before-instance reads and no call in between.
 
 - Use a typed accessor returning the validated pointer or null; pass the owner
   if argument evaluation hoists reads. No empty valid arm.
+- IF retail explicitly skips a null assignment on the valid instance arm,
+  REQUIRE the separate null-owner arm and the same pointer test. TRY selecting
+  the validated pointer with `condition ? pointer : 0`
+  (`destroy_sobj_ctrl_proc`).
 - Reuse an existing accessor before adding a latch view; its success return
   keeps the branch an open-coded empty arm folds away (Konquest grounding). A
   shared owner-typed process accessor can replace a padded latch view.
@@ -388,6 +400,9 @@ Loops. REQUIRE zero-iteration behavior and test/update order.
   do/while/`!=`. An unsigned ascending index keeps `cmplwi`/`ble` + CTR.
 - A rotated top test may need a top guard. Keep polling, sleep, and countdown
   order, including the final input recheck.
+- IF retail tests a frame bound at loop entry and exact equality after the
+  sleep, REQUIRE both edges and zero-iteration behavior. TRY a pretested loop
+  with an equality `break` after the sleep (`ani_to_frame_x_call`).
 - Check the first edge into a counted search: a branch to the initial compare
   means a pretested loop that can skip every iteration.
 - Table scan to the first matching ID: bounded `for` with a found `break`.
@@ -451,6 +466,10 @@ Joins. REQUIRE actual branch destinations and effect ownership.
 - Final integer Booleans: `!= 0` and `== 1` differ even when the value is 0/1.
   Test arm order separately; a two-value selection uses the real conditional,
   whose zero-first vs nonzero-first order picks different carry code.
+- IF retail keeps one tested state word live through multiple bit tests, then
+  loads 1 or 0 in separate arms, REQUIRE the same input value and branches.
+  TRY a block-local state sample with explicit result arms instead of a compact
+  `&&` assignment (`is_he_blocking_throw`).
 - A null-failure block before independent gates: positive pointer guard with
   an else-return, then the gates.
 - Merge null/invalid failures with `||` only when retail shares the return;
@@ -532,7 +551,9 @@ carousel or invented uses.
   `sample_count * (channel_count << 1)` (`ADXB_ExecOneAiff16`). Ceiling division
   `length + size` then decrement: name the count, add, decrement, divide.
 - Two-call sum: `A() + B()` evaluates B first; a staging local keeps the old
-  order (`ADXSTM_Create`).
+  order (`ADXSTM_Create`). Nested call arguments behave the same: in
+  `f(g(1), g(2))` MWCC calls `g(2)` first, so a staged local for the second
+  string argument is residue (`_trial_add_required_sequence`).
 - Select spelling: `x = p ? 0 : C;` vs `x = C; if (p) x = 0;` give identical
   instructions but different allocation (`gc_aram_mwmem_heap_setup`).
 - Scaled argument: `MEMPRINT(fmt, size_kb *= 1.0f / 1024.0f, name)`
