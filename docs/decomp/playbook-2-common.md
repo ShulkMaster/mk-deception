@@ -574,6 +574,14 @@ carousel or invented uses.
   it does not transfer to branch conditions.
 - Declarations: swap two real scalar coordinate declarations; declare a slot
   pointer beside its index.
+- Volatile FPRs around an inlined helper: the helper's temporaries take the
+  lowest FPRs and the caller's float locals that live across it take the next
+  ones in declaration order (earliest lowest). Give each value its own local
+  (position, delta) instead of reusing one, name the square products, and
+  write the dot product in retail operand order. These levers are coupled:
+  each alone is neutral or reversed, so search them jointly on the host
+  (`mks_get_victim_to_tr_dot`: normalized components declared first, z before
+  x).
 - Remove redundant aliases: read a mirrored field directly
   (`SFCON_UpdateConcatTime`); write through a single-use global owner at the
   final store (`GXSetZTexture`); keep owner selection at the lazy validation

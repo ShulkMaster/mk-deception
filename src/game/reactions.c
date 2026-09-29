@@ -1692,7 +1692,7 @@ static float r_block_hit_projectile(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.97%; hit_position/world_position stack slots swapped (retail inlined helper allocation order). */
+/* TODO: [near miss] 99.97%; hit/world Vec stack slots swapped; both declaration orders regress. */
 static float r_combo_broken_part2(void) {
     ReactionImageFaderPdata* fader;
     PlyrInfo* source;
@@ -2374,7 +2374,7 @@ static float r_sidehead3_dive(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.49%; float-guard branch layout (bne+b vs inverted beq). */
+/* TODO: [near miss] 98.49%; float-guard bne+b layout remains; ternary assignment regresses. */
 static float r_sidehead3_spin(void) {
     float flight_ticks;
 

@@ -1099,7 +1099,7 @@ config.libs = [
             Object(NonMatching, "ai.o", source="game/ai.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "jmt.o", source="game/jmt.c",
+            Object(Matching, "jmt.o", source="game/jmt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "projectile.o", source="game/projectile.c"),

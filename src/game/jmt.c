@@ -1204,15 +1204,18 @@ void plyr_set_gravity(float gravity) {
     plyr_obj->flags_09_bits.launched = 1;
 }
 
-/* TODO: [near miss] 98.87%; 12 FPR coloring rows; TU-wide flags and helper splits measured, none closes. */
 float mks_get_victim_to_tr_dot(int player) {
     MkObj* victim;
     MkObj* target;
-    float x;
-    float z;
-    float inverse_length;
-    float victim_x;
     float victim_z;
+    float victim_x;
+    float z;
+    float x;
+    float delta_z;
+    float delta_x;
+    float x_squared;
+    float z_squared;
+    float inverse_length;
     float result;
 
     result = 0.0f;
@@ -1224,19 +1227,19 @@ float mks_get_victim_to_tr_dot(int player) {
         target = g_game_info.plyr1.slot.mirror_a;
     }
     if (victim != 0 && target != 0) {
-        inverse_length = jmt_fast_inverse_sqrt(
-            victim->pos.value.x * victim->pos.value.x +
-            victim->pos.value.z * victim->pos.value.z);
         x = victim->pos.value.x;
         z = victim->pos.value.z;
+        x_squared = x * x;
+        z_squared = z * z;
+        inverse_length = jmt_fast_inverse_sqrt(x_squared + z_squared);
         victim_x = x * inverse_length;
         victim_z = z * inverse_length;
-        x = target->pos.value.x - x;
-        z = target->pos.value.z - z;
-        inverse_length = jmt_fast_inverse_sqrt(x * x + z * z);
-        x *= inverse_length;
-        z *= inverse_length;
-        result = victim_x * x + z * victim_z;
+        delta_x = target->pos.value.x - x;
+        delta_z = target->pos.value.z - z;
+        inverse_length = jmt_fast_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
+        delta_x *= inverse_length;
+        delta_z *= inverse_length;
+        result = delta_x * victim_x + delta_z * victim_z;
     }
     return result;
 }

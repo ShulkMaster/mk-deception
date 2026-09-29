@@ -222,7 +222,7 @@ static inline DSError TRKReadBuffer1_ui32(MessageBuffer* message, u32* value) {
     return error;
 }
 
-/* TODO: [near miss] 98.88%; inlined bounds check compares an immediate where retail compares the length register. */
+/* TODO: [near miss] 98.88%; retail compares the length register; scoped propagation off regresses. */
 DSError TRKReadBuffer1_ui64(MessageBuffer* message, u64* value) {
     DSError error;
     u8* big_endian_data;
