@@ -2,17 +2,20 @@
 #include "dolphin/os.h"
 #include "dolphin/types.h"
 #include "dolphin/vm.h"
+#include "runtime/asm_sequences.inc"
 
 typedef struct VMPageTableEntry {
     u32 virtual_page;
     u32 physical_page;
 } VMPageTableEntry;
 
-VMPageTableEntry* g_vmBasePageTable;
-u32* g_vmBaseVMReversePageTable;
-u8* g_vmBaseLockedPageTable;
-void (*cbVMSwapPageIn)(u32);
-u32 g_baseInitialized;
+static VMPageTableEntry* g_vmBasePageTable;
+static u32* g_vmBaseVMReversePageTable;
+static u8* g_vmBaseLockedPageTable;
+static void (*cbVMSwapPageIn)(u32);
+static u32 g_baseInitialized;
+static u32 g_originalSR7;
+static u32 g_originalSDR1;
 
 void __VMBASEClearPageFromTLB(u32 virtual_address);
 void __VMBASESetVirtualAddressForPageInMRAM(u32 physical_page,
@@ -26,6 +29,19 @@ void __VMBASEInitLockedPageTable(void);
 void __VMBASEInitReversePageTable(void);
 void __VMBASESetupExceptionHandlers(void);
 void __VMBASESetupVMRegisters(void);
+static void __VMBASESetupSDR1(u32 msr, u32 sdr1);
+static void __VMBASEDSIExceptionHandler(void);
+static void __VMBASEISIExceptionHandler(void);
+void __VMBASEDSIServiceExceptionPrep(void);
+void* __VMBASEDSIServiceException(void);
+void __VMBASEISIServiceExceptionPrep(void);
+void* __VMBASEISIServiceException(void);
+void __VMBASESetupVMRegisters_SetSDR1(void);
+void __VMBASESetupVMRegisters_End(void);
+void __VMBASEDSIExceptionHandler_SetOriginalInstruction(void);
+void __VMBASEDSIExceptionHandler_SetBranchBack(void);
+void __VMBASEISIExceptionHandler_SetOriginalInstruction(void);
+void __VMBASEISIExceptionHandler_SetBranchBack(void);
 
 void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
                 u32 pages_in_mram, BOOL enable_page_locking)
@@ -141,10 +157,12 @@ void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced)
     OSRestoreInterrupts(interrupts);
 }
 
-void __VMBASEClearPageFromTLB(u32 virtual_address)
+#pragma push
+asm void __VMBASEClearPageFromTLB(u32 virtual_address)
 {
-    (void)virtual_address;
+    SEQ___VMBASEClearPageFromTLB();
 }
+#pragma pop
 
 u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page)
 {
@@ -223,38 +241,37 @@ VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address)
     return 0;
 }
 
-void __VMBASEInvalidateEntireTLB(void)
+#pragma push
+asm void __VMBASEInvalidateEntireTLB(void)
 {
-    /* Implemented by the retail architecture-specific TLB routine. */
+    SEQ___VMBASEInvalidateEntireTLB();
 }
 
-void __VMBASESetupVMRegisters(void)
+asm void __VMBASESetupVMRegisters(void)
 {
-    /* TODO: Missing canonical function implementation. */
+    SEQ___VMBASESetupVMRegisters();
 }
 
-void *__VMBASESetupSDR1(void)
+static asm void __VMBASESetupSDR1(u32 msr, u32 sdr1)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASESetupSDR1();
 }
 
-void __VMBASESetupExceptionHandlers(void)
+asm void __VMBASESetupExceptionHandlers(void)
 {
-    /* TODO: Missing canonical function implementation. */
+    SEQ___VMBASESetupExceptionHandlers();
 }
 
-void *__VMBASEDSIExceptionHandler(void)
+static asm void __VMBASEDSIExceptionHandler(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASEDSIExceptionHandler();
 }
 
-void *__VMBASEDSIServiceExceptionPrep(void)
+asm void __VMBASEDSIServiceExceptionPrep(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASEDSIServiceExceptionPrep();
 }
+#pragma pop
 
 void *__VMBASEDSIServiceException(void)
 {
@@ -262,17 +279,17 @@ void *__VMBASEDSIServiceException(void)
     return 0;
 }
 
-void *__VMBASEISIExceptionHandler(void)
+#pragma push
+static asm void __VMBASEISIExceptionHandler(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASEISIExceptionHandler();
 }
 
-void *__VMBASEISIServiceExceptionPrep(void)
+asm void __VMBASEISIServiceExceptionPrep(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASEISIServiceExceptionPrep();
 }
+#pragma pop
 
 void *__VMBASEISIServiceException(void)
 {
@@ -280,14 +297,16 @@ void *__VMBASEISIServiceException(void)
     return 0;
 }
 
+/* TODO: [blocked] 3.89%; approved for a sequence, but MWCC 1.2.5n asm hits an internal
+ * compiler error on `lwz rX, code_label@l(rY)`; retail likely reads the patch slot from C. */
 void *__VMBASERestoreExceptionHandlers(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *__VMBASERestoreVMRegisters(void)
+#pragma push
+asm void __VMBASERestoreVMRegisters(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___VMBASERestoreVMRegisters();
 }
+#pragma pop

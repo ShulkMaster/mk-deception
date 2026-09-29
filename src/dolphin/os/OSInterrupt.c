@@ -45,9 +45,9 @@ extern void* memset(void* destination, int value, unsigned long size);
 
 static __OSInterruptHandler* InterruptHandlerTable;
 
-volatile unsigned long __OSLastInterruptSrr0;
-volatile __OSInterrupt __OSLastInterrupt;
 volatile OSTime __OSLastInterruptTime;
+volatile __OSInterrupt __OSLastInterrupt;
+volatile unsigned long __OSLastInterruptSrr0;
 
 static OSInterruptMask InterruptPrioTable[] = {
     0x00000100, 0x00000040, 0xF8000000, 0x00000200,
@@ -307,8 +307,8 @@ void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 }
 
 /* Retail saves volatile GPR and GQR state in a privileged assembly leaf. */
-static void ExternalInterruptHandler(__OSException exception,
+static asm void ExternalInterruptHandler(__OSException exception,
                                      OSContext* context)
 {
-    __OSDispatchInterrupt(exception, context);
+    SEQ_ExternalInterruptHandler();
 }

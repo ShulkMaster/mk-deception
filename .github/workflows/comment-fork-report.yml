@@ -22,6 +22,13 @@ jobs:
         version: [GQNE5D]
 
     steps:
+    # Only the base repository's trusted script is checked out; the fork's
+    # code never runs with this workflow's write token.
+    - name: Checkout report script
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: .github/scripts
+
     - name: Download objdiff report
       uses: actions/download-artifact@v4
       with:
@@ -32,39 +39,28 @@ jobs:
 
     - name: Publish objdiff report to PR
       uses: actions/github-script@v9
-      env:
-        REPORT_PATH: report/github_report.md
-        REPORT_VERSION: ${{ matrix.version }}
       with:
         script: |
-          const fs = require('fs');
-          const pullRequests = context.payload.workflow_run.pull_requests;
-          if (pullRequests.length !== 1) {
-            core.setFailed(`Expected one pull request, found ${pullRequests.length}`);
+          // workflow_run.pull_requests is empty for pull requests from forks,
+          // so find the open PR whose head is the built commit.
+          const run = context.payload.workflow_run;
+          const pulls = await github.paginate(github.rest.pulls.list, {
+            ...context.repo,
+            state: 'open',
+            head: `${run.head_repository.owner.login}:${run.head_branch}`,
+            per_page: 100,
+          });
+          const matches = pulls.filter(pull => pull.head.sha === run.head_sha);
+          if (matches.length !== 1) {
+            core.setFailed(`Expected one pull request for ${run.head_sha}, found ${matches.length}`);
             return;
           }
 
-          const marker = `<!-- objdiff-function-report:${process.env.REPORT_VERSION} -->`;
-          const report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
-          const body = `${marker}\n${report}`;
-          const issue_number = pullRequests[0].number;
-          const comments = await github.paginate(
-            github.rest.issues.listComments,
-            { ...context.repo, issue_number, per_page: 100 },
-          );
-          const previous = comments.find(
-            comment => comment.user?.type === 'Bot' && comment.body?.includes(marker),
-          );
-          if (previous) {
-            await github.rest.issues.updateComment({
-              ...context.repo,
-              comment_id: previous.id,
-              body,
-            });
-          } else {
-            await github.rest.issues.createComment({
-              ...context.repo,
-              issue_number,
-              body,
-            });
-          }
+          const post = require('./.github/scripts/post_report.js');
+          await post({
+            github,
+            context,
+            issueNumber: matches[0].number,
+            version: '${{ matrix.version }}',
+            dir: 'report/github_comments',
+          });

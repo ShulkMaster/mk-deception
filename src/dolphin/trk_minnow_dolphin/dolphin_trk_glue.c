@@ -55,7 +55,7 @@ int udp_cc_peek(void);
 int udp_cc_pre_continue(void);
 int udp_cc_post_stop(void);
 
-/* Handwritten privileged context restore; tracked in asm.md. */
+/* Handwritten privileged context restore; tracked in following.md. */
 void TRKLoadContext(OSContext* context, u32 exception_id);
 
 DBCommTable gDBCommTable;
