@@ -69,9 +69,6 @@ static asm void Run(void* entry_point)
     SEQ_Run();
 }
 
-/* The boot/exec C code from here on was built without the peephole pass. */
-#pragma peephole off
-
 static void ReadDisc(void* address, signed long length, signed long offset)
 {
     DVDCommandBlock block;

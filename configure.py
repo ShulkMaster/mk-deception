@@ -2721,7 +2721,7 @@ config.libs = [
     DolphinLib(
         "base",
         [
-            Object(NonMatching, "base.a/PPCArch.o", source="dolphin/base/PPCArch.c"),
+            Object(Matching, "base.a/PPCArch.o", source="dolphin/base/PPCArch.c"),
         ],
     ),
     DolphinLib(
@@ -2732,12 +2732,11 @@ config.libs = [
             Object(Matching, "os.a/OSError.o", source="dolphin/os/OSError.c"),
             Object(Matching, "os.a/OSAlarm.o", source="dolphin/os/OSAlarm.c"),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/OSInterrupt.o",
                 source="dolphin/os/OSInterrupt.c",
-                extra_cflags=["-opt nopeephole"],
             ),
-            Object(NonMatching, "os.a/OSContext.o", source="dolphin/os/OSContext.c"),
+            Object(Matching, "os.a/OSContext.o", source="dolphin/os/OSContext.c"),
             Object(Matching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
             Object(Matching, "os.a/OSFont.o", source="dolphin/os/OSFont.c"),
             Object(Matching, "os.a/OSRtc.o", source="dolphin/os/OSRtc.c"),
@@ -2765,7 +2764,6 @@ config.libs = [
                 Matching,
                 "os.a/OSTime.o",
                 source="dolphin/os/OSTime.c",
-                extra_cflags=["-opt nopeephole"],
             ),
             Object(
                 Matching,
@@ -3021,7 +3019,7 @@ config.libs = [
             Object(NonMatching, "gx.a/GXLight.o", source="dolphin/gx/GXLight.c",
                    extra_cflags=["-fp_contract off"]),
             Object(Matching, "gx.a/GXTev.o", source="dolphin/gx/GXTev.c"),
-            Object(NonMatching, "gx.a/GXTransform.o", source="dolphin/gx/GXTransform.c",
+            Object(Matching, "gx.a/GXTransform.o", source="dolphin/gx/GXTransform.c",
                    extra_cflags=["-fp_contract off"]),
             Object(Matching, "gx.a/GXTexture.o", source="dolphin/gx/GXTexture.c"),
             Object(Matching, "gx.a/GXPerf.o", source="dolphin/gx/GXPerf.c"),

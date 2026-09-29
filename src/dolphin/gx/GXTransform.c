@@ -1,112 +1,31 @@
 #include <dolphin/gx.h>
 #include "__gx.h"
+#include "runtime/asm_sequences.inc"
 
-/*
- * Soft ceiling: retail uses SDK psq_l/psq_st helpers here. MWCC 1.2.5n
- * exposes no callable paired-single intrinsic, so keep the typed scalar form;
- * the authentic donor's register-qualified inline assembly is prohibited.
- */
-static inline void Copy6Floats(const f32* source, f32* destination) {
-    destination[0] = source[0]; destination[1] = source[1];
-    destination[2] = source[2]; destination[3] = source[3];
-    destination[4] = source[4]; destination[5] = source[5];
+static const f32 GXProjectionZero = 0.0f;
+static const f32 GXProjectionOne = 1.0f;
+
+#pragma push
+asm void GXSetProjection(const Mtx44 mtx, GXProjectionType type) {
+    SEQ_GXSetProjection();
 }
 
-static inline void __GXSetProjection(void) {
-    GX_WRITE_U8(0x10);
-    GX_WRITE_U32(0x00061020);
-    GX_WRITE_F32(__GXData->projMtx[0]); GX_WRITE_F32(__GXData->projMtx[1]);
-    GX_WRITE_F32(__GXData->projMtx[2]); GX_WRITE_F32(__GXData->projMtx[3]);
-    GX_WRITE_F32(__GXData->projMtx[4]); GX_WRITE_F32(__GXData->projMtx[5]);
-    GX_WRITE_U32(__GXData->projType);
+asm void GXSetProjectionv(const f32* ptr) {
+    SEQ_GXSetProjectionv();
 }
 
-static inline void WriteMTX4x3(const f32 mtx[3][4]) {
-    u32 row, column;
-    for (row = 0; row < 3; row++)
-        for (column = 0; column < 4; column++) GX_WRITE_F32(mtx[row][column]);
-}
-static inline void WriteMTX3x3from3x4(const f32 mtx[3][4]) {
-    u32 row, column;
-    for (row = 0; row < 3; row++)
-        for (column = 0; column < 3; column++) GX_WRITE_F32(mtx[row][column]);
-}
-static inline void WriteMTX4x2(const f32 mtx[3][4]) {
-    u32 row, column;
-    for (row = 0; row < 2; row++)
-        for (column = 0; column < 4; column++) GX_WRITE_F32(mtx[row][column]);
+asm void GXGetProjectionv(f32* ptr) {
+    SEQ_GXGetProjectionv();
 }
 
-/* TODO: [blocked] 63.902440%; matrix fields and CFG match retail; six
- * paired-single FIFO transfers require an unauthorized assembly sequence. */
-void GXSetProjection(const Mtx44 mtx, GXProjectionType type) {
-    CHECK_GXBEGIN(295, "GXSetProjection");
-
-    __GXData->projType = type;
-    __GXData->projMtx[0] = mtx[0][0];
-    __GXData->projMtx[2] = mtx[1][1];
-    __GXData->projMtx[4] = mtx[2][2];
-    __GXData->projMtx[5] = mtx[2][3];
-    if (type == GX_ORTHOGRAPHIC) {
-        __GXData->projMtx[1] = mtx[0][3];
-        __GXData->projMtx[3] = mtx[1][3];
-    } else {
-        __GXData->projMtx[1] = mtx[0][2];
-        __GXData->projMtx[3] = mtx[1][2];
-    }
-
-    __GXSetProjection();
-    __GXData->bpSentNot = 1;
+asm void GXLoadPosMtxImm(const Mtx mtx, u32 id) {
+    SEQ_GXLoadPosMtxImm();
 }
 
-void GXSetProjectionv(const f32* ptr) {
-    CHECK_GXBEGIN(339, "GXSetProjectionv");
-
-    __GXData->projType = ptr[0] == 0.0f ? GX_PERSPECTIVE : GX_ORTHOGRAPHIC;
-
-    Copy6Floats(&ptr[1], __GXData->projMtx);
-
-    __GXSetProjection();
-    __GXData->bpSentNot = 1;
+asm void GXLoadNrmMtxImm(const Mtx mtx, u32 id) {
+    SEQ_GXLoadNrmMtxImm();
 }
-
-void GXGetProjectionv(f32* ptr) {
-    ASSERTMSGLINE(370, ptr, "GXGet*: invalid null pointer");
-
-    ptr[0] = (u32)__GXData->projType != GX_PERSPECTIVE ? 1.0f : 0.0f;
-
-    Copy6Floats(__GXData->projMtx, &ptr[1]);
-}
-
-void GXLoadPosMtxImm(const Mtx mtx, u32 id) {
-    u32 reg;
-    u32 addr;
-
-    CHECK_GXBEGIN(507, "GXLoadPosMtxImm");
-
-    addr = id * 4;
-    reg = addr | 0xB0000;
-
-    GX_WRITE_U8(0x10);
-    GX_WRITE_U32(reg);
-    WriteMTX4x3(mtx);
-}
-
-
-void GXLoadNrmMtxImm(const Mtx mtx, u32 id) {
-    u32 reg;
-    u32 addr;
-
-    CHECK_GXBEGIN(588, "GXLoadNrmMtxImm");
-
-    addr = id * 3 + 0x400;
-    reg = addr | 0x80000;
-
-    GX_WRITE_U8(0x10);
-    GX_WRITE_U32(reg);
-    WriteMTX3x3from3x4(mtx);
-}
-
+#pragma pop
 
 void GXSetCurrentMtx(u32 id) {
     CHECK_GXBEGIN(708, "GXSetCurrentMtx");
@@ -114,31 +33,11 @@ void GXSetCurrentMtx(u32 id) {
     __GXSetMatrixIndex(GX_VA_PNMTXIDX);
 }
 
-void GXLoadTexMtxImm(const f32 mtx[][4], u32 id, GXTexMtxType type) {
-    u32 reg;
-    u32 addr;
-    u32 count;
-
-    CHECK_GXBEGIN(741, "GXLoadTexMtxImm");
-
-    if (id >= GX_PTTEXMTX0) {
-        addr = (id - GX_PTTEXMTX0) * 4 + 0x500;
-        ASSERTMSGLINE(751, type == GX_MTX3x4, "GXLoadTexMtx: Invalid matrix type");
-    } else {
-        addr = id * 4;
-    }
-    count = (type == GX_MTX2x4) ? 8 : 12;
-    reg = addr | ((count - 1) << 16);
-
-    GX_WRITE_U8(0x10);
-    GX_WRITE_U32(reg);
-    if (type == GX_MTX3x4) {
-        WriteMTX4x3(mtx);
-    } else {
-        WriteMTX4x2(mtx);
-    }
+#pragma push
+asm void GXLoadTexMtxImm(const f32 mtx[][4], u32 id, GXTexMtxType type) {
+    SEQ_GXLoadTexMtxImm();
 }
-
+#pragma pop
 
 void __GXSetViewport(void) {
     f32 sx;
@@ -195,12 +94,11 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
     GXSetViewportJitter(left, top, wd, ht, nearz, farz, 1);
 }
 
-void GXGetViewportv(f32* vp) {
-    ASSERTMSGLINE(968, vp, "GXGet*: invalid null pointer");
-
-    Copy6Floats(&__GXData->vpLeft, vp);
+#pragma push
+asm void GXGetViewportv(f32* vp) {
+    SEQ_GXGetViewportv();
 }
-
+#pragma pop
 
 void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
     u32 tp;
@@ -228,7 +126,6 @@ void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
     GX_WRITE_RAS_REG(__GXData->suScis1);
     __GXData->bpSentNot = 0;
 }
-
 
 void GXSetScissorBoxOffset(s32 x_off, s32 y_off) {
     u32 reg = 0;

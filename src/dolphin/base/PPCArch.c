@@ -25,6 +25,10 @@ asm void PPCMtl2cr(unsigned long value) {
     SEQ_PPCMtl2cr();
 }
 
+__declspec(weak) asm void PPCMtdec(unsigned long value) {
+    SEQ_PPCMtdec();
+}
+
 asm void PPCSync(void) {
     SEQ_PPCSync();
 }
@@ -55,6 +59,14 @@ asm void PPCMtpmc3(unsigned long value) {
 
 asm void PPCMtpmc4(unsigned long value) {
     SEQ_PPCMtpmc4();
+}
+
+asm unsigned long PPCMffpscr(void) {
+    SEQ_PPCMffpscr();
+}
+
+asm void PPCMtfpscr(unsigned long value) {
+    SEQ_PPCMtfpscr();
 }
 
 asm unsigned long PPCMfhid2(void) {

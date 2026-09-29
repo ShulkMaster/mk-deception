@@ -25,9 +25,9 @@ static asm void __OSSaveFPUContext(unsigned long exception, unsigned long unused
     SEQ___OSSaveFPUContext();
 }
 
-void OSSaveFPUContext(OSContext* context)
+asm void OSSaveFPUContext(OSContext* context)
 {
-    __OSSaveFPUContext(0, 0, context);
+    SEQ_OSSaveFPUContext();
 }
 
 asm void OSSetCurrentContext(OSContext* context)
@@ -50,13 +50,9 @@ asm void OSLoadContext(OSContext* context)
     SEQ_OSLoadContext();
 }
 
-/* TODO: [blocked] 70.000000%; retail is a two-instruction r1 leaf, but MWCC
- * lowers __builtin_frame_address as an out-of-line call; no clean C form
- * exposes the stack pointer and assembly is not authorized. */
-void* OSGetStackPointer(void)
+asm void* OSGetStackPointer(void)
 {
-    /* The retail leaf returns r1 directly. */
-    return 0;
+    SEQ_OSGetStackPointer();
 }
 
 void OSClearContext(OSContext* context)
@@ -68,53 +64,10 @@ void OSClearContext(OSContext* context)
     }
 }
 
-void OSInitContext(OSContext* context, unsigned long program_counter,
-                   unsigned long stack_pointer)
+asm void OSInitContext(OSContext* context, unsigned long program_counter,
+                       unsigned long stack_pointer)
 {
-    context->srr0 = program_counter;
-    context->gpr[1] = stack_pointer;
-    context->srr1 = 0x00009032;
-    context->cr = 0;
-    context->xer = 0;
-    context->gpr[2] = (unsigned long)_SDA2_BASE_;
-    context->gpr[13] = (unsigned long)_SDA_BASE_;
-    context->gpr[3] = 0;
-    context->gpr[4] = 0;
-    context->gpr[5] = 0;
-    context->gpr[6] = 0;
-    context->gpr[7] = 0;
-    context->gpr[8] = 0;
-    context->gpr[9] = 0;
-    context->gpr[10] = 0;
-    context->gpr[11] = 0;
-    context->gpr[12] = 0;
-    context->gpr[14] = 0;
-    context->gpr[15] = 0;
-    context->gpr[16] = 0;
-    context->gpr[17] = 0;
-    context->gpr[18] = 0;
-    context->gpr[19] = 0;
-    context->gpr[20] = 0;
-    context->gpr[21] = 0;
-    context->gpr[22] = 0;
-    context->gpr[23] = 0;
-    context->gpr[24] = 0;
-    context->gpr[25] = 0;
-    context->gpr[26] = 0;
-    context->gpr[27] = 0;
-    context->gpr[28] = 0;
-    context->gpr[29] = 0;
-    context->gpr[30] = 0;
-    context->gpr[31] = 0;
-    context->gqr[0] = 0;
-    context->gqr[1] = 0;
-    context->gqr[2] = 0;
-    context->gqr[3] = 0;
-    context->gqr[4] = 0;
-    context->gqr[5] = 0;
-    context->gqr[6] = 0;
-    context->gqr[7] = 0;
-    OSClearContext(context);
+    SEQ_OSInitContext();
 }
 
 void OSDumpContext(OSContext* context)

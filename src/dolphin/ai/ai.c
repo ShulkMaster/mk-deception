@@ -258,7 +258,6 @@ static asm void __AICallbackStackSwitch(AIDCallback callback)
     SEQ___AICallbackStackSwitch();
 }
 
-#pragma peephole off
 static void __AI_SRC_INIT(void)
 {
     OSTime rising_32khz = 0;
@@ -309,4 +308,3 @@ static void __AI_SRC_INIT(void)
     }
     while (rising_48khz + temp > OSGetTime()) {}
 }
-#pragma peephole reset

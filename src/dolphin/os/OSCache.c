@@ -47,9 +47,6 @@ static inline void L2Disable(void) {
     __sync();
 }
 
-/* The L2/DMA-error C code from here on was built without the peephole pass. */
-#pragma peephole off
-
 void L2GlobalInvalidate(void) {
     L2Disable();
     PPCMtl2cr(PPCMfl2cr() | 0x00200000);

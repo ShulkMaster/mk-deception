@@ -188,13 +188,9 @@ asm void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
     SEQ_OSDefaultExceptionHandler();
 }
 
-/* TODO: [blocked] 54.285713%; HID2/cache ordering matches the donor, but
- * retail's eight GQR writes are privileged assembly with no honest C form. */
-void __OSPSInit(void)
+asm void __OSPSInit(void)
 {
-    PPCMthid2(PPCMfhid2() | 0xA0000000);
-    ICFlashInvalidate();
-    PPCSync();
+    SEQ___OSPSInit();
 }
 
 /* TODO: [breakthrough needed] 82.56410%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
