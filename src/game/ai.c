@@ -4823,9 +4823,9 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
         if ((g_DroneOverrideInfo.flags & 8) != 0) {
             reversal_likelihood = 0;
         } else {
-            reversal_likelihood = (unsigned int)(
+            reversal_likelihood =
                 (float)reversal_likelihood *
-                g_DroneOverrideInfo.likelihood_scale);
+                g_DroneOverrideInfo.likelihood_scale;
         }
         do_reversal =
             (unsigned short)randu0(100) < reversal_likelihood;

@@ -363,12 +363,12 @@ static inline void clear_screen_latch(ScreenLatch* latch) {
     latch->instance = 0;
 }
 
-/* TODO: [breakthrough needed] 93.08%; compare medal string placement and latch calls. */
 void show_wins_in_a_row(void) {
     StringObj* string = 0;
     ScreenLatch* latch;
     char text[0x50];
     int wins;
+    int right_x;
 
     del_string_obj_by_id(0x201E);
     wins = g_game_info.plyr0.field_44;
@@ -382,9 +382,10 @@ void show_wins_in_a_row(void) {
                 latch->instance = string->instance;
             }
         } else {
+            right_x = screen_width - 0x14;
             sprintf(text, get_string(5), g_game_info.plyr1.field_44);
             string = string_right_xy(
-                0x201E, 0, text, screen_width - 0x14, 0x3D, 0x1D);
+                0x201E, 0, text, right_x, 0x3D, 0x1D);
             if (string != 0) {
                 latch = &g_game_info.plyr1.name_latch;
                 latch->object = (ScreenObj*)string;

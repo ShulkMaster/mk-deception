@@ -181,10 +181,10 @@ int trial_block_callback(int player);
 void show_damage_text(int player, int combo_hits, int displayed_damage);
 void trial_register_combo(
     int player, int hit_count, PlyrPdata* pdata, float damage);
-void force_away(int duration, int animation, float force, float damping);
+void force_away(float force, int duration, float damping, int animation);
 float ani_to_frame_x_col(
-    int attack_region, int reaction, int collision_ticks,
-    float frame, float x, float y, float z);
+    float frame, int attack_region, float x, float y, int reaction, float z,
+    int collision_ticks);
 int is_he_blocking_throw(void);
 void* start_scale_proc(void* object, const unsigned int* script);
 float joy_duck_loop(void);
@@ -528,9 +528,13 @@ int is_he_blocking_throw(void) {
         blocking = 1;
     }
     if (plyr_pdata->drone_request != 0) {
-        duck_blocking =
-            (plyr_pdata->state & 0x800) != 0 &&
-            (plyr_pdata->state & 0x100) != 0;
+        int drone_state = plyr_pdata->state;
+        if ((drone_state & 0x800) != 0 &&
+            (drone_state & 0x100) != 0) {
+            duck_blocking = 1;
+        } else {
+            duck_blocking = 0;
+        }
     } else if (is_plyr_blocking(plyr_pdata) == 0) {
         duck_blocking = 0;
     } else {
@@ -1127,8 +1131,8 @@ void land_chores(
 /* TODO: [breakthrough needed] 93.12%; flag bitfields fixed; discriminant still
  * fuses to fnmsubs (retail fmuls+fsubs) and frame advancement homes differ. */
 void launch_n_land_ani(
-    AniData* animation, int landing_animation, float launch_frame,
-    float launch_step, float landing_frame, float velocity_y,
+    AniData* animation, float launch_frame, float launch_step,
+    float landing_frame, int landing_animation, float velocity_y,
     float gravity, float blend) {
     float discriminant;
     float flight_ticks;
@@ -1658,10 +1662,7 @@ static inline void ani_advance_to_blend_frame(
 }
 
 static inline void ani_advance_to_end(AnimPdata* anim) {
-    float target_frame;
-
-    target_frame = anim->high_frame;
-    EJB_ADVANCE_TO_FRAME(anim, target_frame);
+    ani_clamped_advance_to_frame(anim, anim->high_frame);
 }
 
 static inline void ani_advance_more_frames(AnimPdata* anim, float frames) {
@@ -1714,16 +1715,15 @@ void if_collision_slow_ani_x(float speed, float frame) {
     plyr_anim_pdata->step = old_speed;
 }
 
+/* TODO: [near miss] 98.00%; generic clamp matches; owner load still uses r3 then moves to r30. */
 void slow_ani_end(float speed) {
     float old_speed;
-    float target_frame;
     AnimPdata* anim;
 
     old_speed = plyr_anim_pdata->step;
     plyr_anim_pdata->step = speed;
     anim = plyr_anim_pdata;
-    target_frame = anim->high_frame;
-    EJB_ADVANCE_TO_FRAME(anim, target_frame);
+    ani_advance_to_end(anim);
     plyr_anim_pdata->step = old_speed;
 }
 
@@ -1777,7 +1777,7 @@ void ani_to_frame_x_aniproc(float frame) {
 }
 
 void ani_to_fall_to_frame(
-    int sound_id, float landing_frame, float target_frame) {
+    float landing_frame, int sound_id, float target_frame) {
     AnimPdata* animation;
     float frame;
 
@@ -1802,7 +1802,7 @@ void ani_to_fall_to_frame(
 }
 
 void ani_to_frame_sound(
-    int sound_id, float target_frame, float sound_frame) {
+    float target_frame, float sound_frame, int sound_id) {
     AnimPdata* animation;
     float frame;
 
@@ -1824,11 +1824,8 @@ void ani_to_frame_sound(
 }
 
 void animpdata_ani_to_end_at1(AnimPdata* anim) {
-    float target_frame;
-
     anim->step = 1.0f;
-    target_frame = anim->high_frame;
-    EJB_ADVANCE_TO_FRAME(anim, target_frame);
+    ani_advance_to_end(anim);
 }
 
 void ani_through_end(void) {
@@ -1849,7 +1846,6 @@ void animpdata_ani_to_end(AnimPdata* anim) {
     ani_advance_to_end(anim);
 }
 
-/* TODO: [near miss] 95.22%; inlined advance loop matches except FPR/GPR homes. */
 void ani_to_end(void) {
     ani_advance_to_end(plyr_anim_pdata);
 }
@@ -1894,9 +1890,13 @@ void ani_to_frame_x_call(
         callback();
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
+        if (plyr_anim_pdata->frame == target_frame) {
+            break;
+        }
     }
 }
 
+/* TODO: [near miss] 91.73%; pointer/frame parameter staging remains; direct wrapper expansion is neutral. */
 void animpdata_ani_to_frame_x(AnimPdata* anim, float frame) {
     ani_clamped_advance_to_frame(anim, frame);
 }
@@ -1945,8 +1945,8 @@ static inline void ejb_anim_advance_to_clamped_frame(
 }
 
 void newani_to_frame_x(
-    AniData* animation, int flip_mode, float frame, float step,
-    float weight, float blend) {
+    AniData* animation, float frame, float step,
+    float weight, float blend, int flip_mode) {
     int other_flip;
     int flags;
 
@@ -2002,7 +2002,7 @@ int should_weapon_block(PlyrPdata* player) {
     return is_weapon_style(player->fighter_definition) != 0;
 }
 
-/* TODO: [near miss] 99.695656%; equivalent switch return-arm order remains; guard and case-order trials reverted. */
+/* TODO: [near miss] 99.70%; return-arm branch polarity remains; zero-first if/result forms regress. */
 int should_i_weapon_block(void) {
     PlyrPdata* player;
 
@@ -2639,9 +2639,7 @@ float two_player_animation_flip(
     return 0.0f;
 }
 
-void two_player_animation(
-    AniData* animation, void* unused, float attacker_blend) {
-    (void)unused;
+void two_player_animation(AniData* animation, float attacker_blend) {
     two_player_animation_blend(
         animation, 1, 0, attacker_blend, 0.0f);
 }
@@ -2689,9 +2687,8 @@ void idle_victim(void) {
 
 /* TODO: [near miss] 99.93079%; only initial collision-result register coloring remains; stop after one lifetime control */
 int ani_col_abort(
-    int attack_region, int reaction, int strength,
-    float target_frame, float region_scale,
-    float attack_scale, float reaction_rate) {
+    float target_frame, int attack_region, float region_scale,
+    float attack_scale, int reaction, float reaction_rate, int strength) {
     int passed_target;
     int collision_blocked;
     int counter_allowed;
@@ -2871,9 +2868,8 @@ static inline int ejb_attack_collide(int attack_region, float horizontal) {
 /* TODO: [near miss] 99.92%; plyr_pdata and the opponent state swap r4/r5
  * across the collision checks; stop at coloring. */
 float ani_to_frame_x_col(
-    int attack_region, int reaction, int strength,
-    float target_frame, float horizontal_scale,
-    float vertical_scale, float reaction_rate) {
+    float target_frame, int attack_region, float horizontal_scale,
+    float vertical_scale, int reaction, float reaction_rate, int strength) {
     int passed_target;
     int advance_result;
     int collision_result;
@@ -3317,8 +3313,7 @@ void force_forward(
     start_plyr_force(duration, animation, damping);
 }
 
-void force_away(
-    int duration, int animation, float force, float damping) {
+void force_away(float force, int duration, float damping, int animation) {
     myvel_my_angle_y(3.1428f, force, force);
     start_plyr_force(duration, animation, damping);
 }
@@ -3419,6 +3414,7 @@ void stop_me(void) {
     object->gravity = 0.0f;
 }
 
+/* TODO: [near miss] 97.31%; z/x delta FPR coloring remains; scalar declaration swap is neutral. */
 float xz_distance_between_players(void) {
     MkObj* player_one;
     MkObj* player_two;
@@ -3980,11 +3976,11 @@ float j_exit(void) {
 }
 
 void special_move_cam_him(
-    int mode, int ticks, int flags, float x, float y, float z,
-    float distance, float speed) {
+    float x, float y, float z, float distance, float speed, int mode, int ticks,
+    int flags) {
     swap_active_plyr_proc();
     special_move_cam_setup(
-        mode, ticks, flags, x, y, z, distance, speed);
+        x, y, z, distance, speed, mode, ticks, flags);
     swap_active_plyr_proc();
 }
 
@@ -4149,8 +4145,8 @@ void random_hit_n_voice(int hit_group, int voice_group) {
 }
 
 void shake_hit_voice(
-    int shake_ticks, int hit_voice, int fighter_voice,
-    float rumble_scale) {
+    int shake_ticks, float rumble_scale, int hit_voice,
+    int fighter_voice) {
     int rumble_strength;
 
     if (shake_ticks != 0) {
@@ -4318,7 +4314,7 @@ void drift_downwards(void) {
     plyr_obj->gravity = -0.005f;
 }
 
-/* TODO: [near miss] 99.72973%; only f1/f3 allocation in the life calculation and literal identities remain. */
+/* TODO: [near miss] 99.80%; life-scale f1/f3 allocation remains; explicit snapshot leaves two FP operand swaps. */
 static void taunt_raise_my_life_bar(void) {
     float life_amount;
 
@@ -4381,8 +4377,8 @@ void break_point(void) {
 }
 
 int player_area_collision_check(
-    int reaction, int reaction_flags, float radius, float height,
-    float reaction_scale) {
+    float radius, float height, int reaction, float reaction_scale,
+    int reaction_flags) {
     if (local_collision_allowed(plyr_pdata) == 0) {
         return 0;
     }
@@ -4824,7 +4820,7 @@ float back_rollup_check(void) {
 }
 
 float back_to_crouch(void) {
-    force_away(10, 6, 0.05f, 0.8f);
+    force_away(0.05f, 10, 0.8f, 6);
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.back_getup_6,
         3, 0.1f);
@@ -5238,7 +5234,7 @@ float step_throw_into_check(void) {
         target_frame = animation->high_frame;
     }
     EJB_ADVANCE_TO_FRAME(animation, target_frame);
-    ani_to_frame_x_col(9, 0xAD, 6, 10.0f, 1.0f, 0.0f, 0.0f);
+    ani_to_frame_x_col(10.0f, 9, 1.0f, 0.0f, 0xAD, 0.0f, 6);
     if (plyr_pdata->collision_result == 0) {
         aproc->vtbl->jump_sleep(step_throw_outof_retract, 0.0f);
         return 0.0f;

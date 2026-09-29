@@ -91,16 +91,14 @@ void bgnd_replace_tex_with_wiff_and_ani(
     int object_id, const char* wiff_name, float frame_rate,
     int first_frame, int texture_type);
 void bgnd_pulsate_object(
-    int object_id, int max_hold_ticks, int min_hold_ticks, void* script_args,
-    float fade_in_step, float fade_out_step);
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step);
 void bgnd_pulsate_object_with_caps(
-    int object_id, int max_hold_ticks, int min_hold_ticks,
-    unsigned int min_alpha, unsigned int max_alpha,
-    float fade_in_step, float fade_out_step);
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step, unsigned int min_alpha, unsigned int max_alpha);
 void bgnd_pulsate_object_with_caps_and_scale(
-    int object_id, int max_hold_ticks, int min_hold_ticks,
-    unsigned int min_alpha, unsigned int max_alpha, void* script_args,
-    float fade_in_step, float fade_out_step,
+    int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks,
+    float fade_out_step, unsigned int min_alpha, unsigned int max_alpha,
     float scale_step_xz, float scale_step_y,
     float min_scale_xz, float min_scale_y,
     float max_scale_xz, float max_scale_y);

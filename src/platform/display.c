@@ -149,7 +149,7 @@ void DeleteCameraSnapShot(void) {
     }
     if (fading_screen.fade_obj != 0) {
         if (fading_screen.fade_obj->instance != 0) {
-            fading_screen.fade_obj->vtbl->destroy();
+            fading_screen.fade_obj->typed_vtbl->destroy(fading_screen.fade_obj);
         }
         fading_screen.fade_obj = 0;
     }

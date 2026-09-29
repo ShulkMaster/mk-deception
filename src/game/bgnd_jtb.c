@@ -176,9 +176,9 @@ static inline float nb_fast_inverse_sqrt(float squared) {
 
 /* TODO: [near miss] 99.59%; remaining-frames and velocity-delta FPR coloring (f0/f2/f3 rotation) remains. */
 void lower_mines_ani_to_point(
-    void* script, int landing_sound, Vec* target, unsigned int frame_offset,
-    float start_frame, float animation_step, float end_frame,
-    float vertical_velocity, float gravity, float transition) {
+    void* script, float start_frame, float animation_step, float end_frame,
+    int landing_sound, float vertical_velocity, float gravity,
+    float transition, Vec* target, unsigned int frame_offset) {
     MkHdr* object_header;
     float root;
     float radicand;

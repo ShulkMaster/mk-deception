@@ -443,7 +443,7 @@ static void increment_required_moves_progress(
 MkObj* trial_get_monk(void);
 void trial_show_monk(int show);
 void trial_show_text_window(
-    int string_id, int style, int flags, float x, float y, float scale);
+    int string_id, float x, float y, float scale, int style, int flags);
 static float failed_trial_drone_wrapup(void);
 static float successful_trial_drone_wrapup(void);
 static float successful_trial_player_wrapup(void);
@@ -845,9 +845,8 @@ void drone_set_damage_multiplier(int player, float multiplier) {
 }
 
 void show_text(
-    int font, unsigned int color, unsigned int string_id,
-    unsigned int prompt_flags, int duration,
-    float x, float y, float scale) {
+    int font, unsigned int color, unsigned int string_id, float x, float y,
+    float scale, unsigned int prompt_flags, int duration) {
     KonquestTrialWindowPdata* pdata;
 
     if (_create_mkproc_generic_bigstack(
@@ -856,7 +855,7 @@ void show_text(
         zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
         pdata->visible_item_count = 0;
         pdata->top = 0;
-        pdata->left = (int)((float)screen_width * x);
+        pdata->left = (float)screen_width * x;
         pdata->bottom = (int)(480.0f - (480.0f * y));
         pdata->priority = 4;
         pdata->width = (int)((float)screen_width * scale);
@@ -1713,7 +1712,7 @@ void trial_do_dialog(
     unsigned int ticks, int wait) {
     unsigned int instance;
     MkProc* dialog;
-    int scaled_ticks = (int)((float)ticks * inverse_game_speed);
+    int scaled_ticks = (float)ticks * inverse_game_speed;
 
     dialog = konquest_set_dialog_text(
         get_string_by_id(string_id), 0);
@@ -1737,7 +1736,7 @@ void trial_show_spoken_text_window(
     if (sound >= 0) {
         voice = snd_req(sound);
     }
-    trial_show_text_window(string_id, style, flags, x, y, scale);
+    trial_show_text_window(string_id, x, y, scale, style, flags);
     if (voice != 0) {
         snd_stop(voice);
     }
@@ -1745,7 +1744,7 @@ void trial_show_spoken_text_window(
 
 /* TODO: [near miss] 97.69%; one zero store (top) and the width fctiwz are scheduled differently around the stack round-trip. */
 void trial_show_text_window(
-    int string_id, int style, int flags, float x, float y, float scale) {
+    int string_id, float x, float y, float scale, int style, int flags) {
     KonquestMissionState* state;
     KonquestTrialWindowPdata* pdata;
     const char* text;
@@ -3335,7 +3334,7 @@ static float failed_trial_drone_wrapup(void) {
         transition_to_anim_script(
             0.1f, plyr_anim_pdata, animation, 3);
         animation_duration =
-            (float)((KonquestAnimScriptView*)animation)->frame_count;
+            ((KonquestAnimScriptView*)animation)->frame_count;
         if (animation_duration > 10.0f) {
             animation_duration -= 10.0f;
         }
@@ -3452,7 +3451,7 @@ static float successful_trial_drone_wrapup(void) {
         transition_to_anim_script(
             0.1f, plyr_anim_pdata, animation, 0x4003);
         animation_duration =
-            (float)((KonquestAnimScriptView*)animation)->frame_count;
+            ((KonquestAnimScriptView*)animation)->frame_count;
         if (animation_duration > 10.0f) {
             animation_duration -= 10.0f;
         }

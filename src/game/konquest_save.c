@@ -190,7 +190,6 @@ KonquestTrigger* find_trigger_by_id(unsigned int id);
 int spawn_dynamic_pui_at_pos(
     PuiItem* item, int source_type, const Vec* position, void* source,
     int critical);
-void destroy_mkptr(MkPtr* node);
 PathData* get_new_path_data_struct(void);
 int get_tile_from_position(const Vec* position);
 KonquestWaypoint* get_door_path(int id);

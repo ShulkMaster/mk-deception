@@ -2183,7 +2183,9 @@ static inline float konquest_inverse_length(float length_squared) {
 static inline int konquest_has_list(MkPtr** list) {
     return list != 0;
 }
-void konquest_use_portal( int uid, Vec* target_offset, int direction_mode, float camera_y_offset, float hero_distance, float camera_distance);
+void konquest_use_portal(
+    int uid, Vec* target_offset, float camera_y_offset, float hero_distance,
+    float camera_distance, int direction_mode);
 void npc_play_teleported_sound(void);
 void konquest_teleport_hero_to_location(const Vec* target);
 static inline void run_konquest_teleport_script(const char* name) {
@@ -2523,15 +2525,12 @@ float p_konquest_switch_R1(void);
 float p_konquest_switch_1(void);
 void handle_controller_input(void);
 
-/* Retail calls this symbol from turn_to_face_exterior_door. */
 static float p_adjust_sky(void);
 static void update_sun_moon_position(float angle);
 
 
 
 
-/* Retail change_monk_age calls this leaf out of line under the TU's -inline
- * auto mode; keep that observed call boundary scoped to this definition. */
 void set_monk_age(int age);
 int get_monk_age(void);
 
@@ -3215,7 +3214,9 @@ static float p_adjust_compass(void);
 static void init_heads_up_display(void);
 void attach_pfx_to_object_by_uid( int uid, const char* effect_name, const Vec* offset, int keep_attached);
 void enable_attached_sound_by_uid(int uid, int enabled);
-void attach_sound_to_object_by_uid( int uid, int sound_id, int positional_pan, int tracking_enabled, float min_dist, float max_dist);
+void attach_sound_to_object_by_uid(
+    int uid, int sound_id, float min_dist, float max_dist, int positional_pan,
+    int tracking_enabled);
 void attach_wiff_to_konquest_object_by_uid( int uid, char* name, float frame_rate);
 void set_konquest_object_render_order_priority_by_uid( int uid, int priority);
 void disable_konquest_object_zwrite_by_uid(int uid);
@@ -4143,7 +4144,7 @@ float p_konquest_loop(void) {
             update_all = 1;
         }
         konquest_pdata->current_time.hour =
-            (int)konquest_pdata->time_of_day;
+            konquest_pdata->time_of_day;
         konquest_pdata->current_time.minute =
             (int)(60.0f *
                   (konquest_pdata->time_of_day -
@@ -4324,7 +4325,7 @@ void start_konquest_ambient_sounds(void) {
         fade->step_b = 0.0f;
         fade->volume_a = 0.0f;
         fade->volume_b = 0.0f;
-        fade->delay = (float)((unsigned short)randu0(0x384) + 0x12C);
+        fade->delay = ((unsigned short)randu0(0x384) + 0x12C);
     }
 }
 
@@ -4627,8 +4628,8 @@ void attach_wiff_to_konquest_object_by_uid(
 }
 
 void attach_sound_to_object_by_uid(
-    int uid, int sound_id, int positional_pan, int tracking_enabled,
-    float min_dist, float max_dist) {
+    int uid, int sound_id, float min_dist, float max_dist, int positional_pan,
+    int tracking_enabled) {
     KonquestUidObject* object;
     KonquestRenderRecord* record;
 
@@ -4794,7 +4795,7 @@ static float p_cross_fade_ambient_sounds(void) {
         return 1.0f;
     }
 
-    hour = (int)konquest_pdata->time_of_day;
+    hour = konquest_pdata->time_of_day;
     if ((float)hour == 5.0f &&
         konquest_pdata->ambient_sound_a == 0) {
         konquest_pdata->ambient_sound_a = snd_req_vol(
@@ -7111,7 +7112,7 @@ static float p_konquest_open_door(void) {
     if (pdata->remain_open != 0) {
         return -1.0f;
     }
-    _mkproc_sleep_ticks = (float)pdata->open_ticks;
+    _mkproc_sleep_ticks = pdata->open_ticks;
     ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
     object_transition_to_state(pdata->door, 0, 1);
     return -1.0f;
@@ -8399,7 +8400,7 @@ int get_monk_age(void) {
 }
 
 void set_monk_age(int age) {
-    p1_profile_konquest->fields.hero_age = (unsigned char)age;
+    p1_profile_konquest->fields.hero_age = age;
 }
 void set_monk_position(float x, float y, float z, float angle) {
     CameraPdata* camera;
@@ -9324,7 +9325,7 @@ static void update_sun_moon_position(float angle) {
                 }
                 material = sobj_find_material_by_id(fade_object, 3);
                 if (material != 0) {
-                    material->color.alpha = (unsigned char)(255.0f * alpha);
+                    material->color.alpha = 255.0f * alpha;
                 }
             }
         }
@@ -9340,7 +9341,7 @@ static void update_sun_moon_position(float angle) {
                 }
                 material = sobj_find_material_by_id(fade_object, 3);
                 if (material != 0) {
-                    material->color.alpha = (unsigned char)(255.0f * alpha);
+                    material->color.alpha = 255.0f * alpha;
                 }
             }
         }
@@ -9369,7 +9370,7 @@ static void update_sun_moon_position(float angle) {
                 }
                 material = sobj_find_material_by_id(fade_object, 2);
                 if (material != 0) {
-                    material->color.alpha = (unsigned char)(255.0f * alpha);
+                    material->color.alpha = 255.0f * alpha;
                 }
             }
         }
@@ -9385,7 +9386,7 @@ static void update_sun_moon_position(float angle) {
                 }
                 material = sobj_find_material_by_id(fade_object, 2);
                 if (material != 0) {
-                    material->color.alpha = (unsigned char)(255.0f * alpha);
+                    material->color.alpha = 255.0f * alpha;
                 }
             }
         }
@@ -11870,7 +11871,7 @@ static float p_konquest_dialog(void) {
                 strncat(line_text, token + character_index, 1);
                 update_string_obj(current_line, pdata->font, line_text);
                 if (pdata->print_speed != 0 && pdata->skip_print_delay == 0) {
-                    _mkproc_sleep_ticks = (float)pdata->print_speed;
+                    _mkproc_sleep_ticks = pdata->print_speed;
                     ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
                 }
             }
@@ -15529,7 +15530,7 @@ void set_konquest_region_number(int region) {
         return;
     }
     p1_profile_konquest->raw[0x5e] = p1_profile_konquest->raw[0x5d];
-    p1_profile_konquest->raw[0x5d] = (unsigned char)region;
+    p1_profile_konquest->raw[0x5d] = region;
     *(int*)&p1_profile_konquest->raw[0x64] = 0;
     game_settings.konquest_loading_image = 0;
 }
@@ -15545,7 +15546,7 @@ void transition_to_region(int region) {
     current_region = p1_profile_konquest->raw[0x5D];
     if (current_region != region) {
         p1_profile_konquest->raw[0x5E] = current_region;
-        p1_profile_konquest->raw[0x5D] = (unsigned char)region;
+        p1_profile_konquest->raw[0x5D] = region;
         p1_profile_konquest->fields.objective_index = 0;
         game_settings.konquest_loading_image = 0;
     }
@@ -16493,8 +16494,8 @@ static float p_hero_use_portal(void) {
 
 /* TODO: [near miss] 97.71%; param coloring (uid/target/mode r29-r31 rotated), hud arrow latch tail-merge, portal_instance zeroed via mr remain. */
 void konquest_use_portal(
-    int uid, Vec* target_offset, int direction_mode,
-    float camera_y_offset, float hero_distance, float camera_distance) {
+    int uid, Vec* target_offset, float camera_y_offset, float hero_distance,
+    float camera_distance, int direction_mode) {
     KonquestPortalPdata* portal_pdata;
     ScreenObj* arrow;
     MkObj* beam;

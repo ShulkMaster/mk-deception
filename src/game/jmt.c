@@ -16,29 +16,15 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 
-static const Vec kabal_smoke_angles = {-1.57079637f, 0.0f, 0.0f};
-static const Vec subzero_decoy_angles = {-1.57079637f, 0.0f, 0.0f};
-
-typedef struct JmtEffectNames {
-    char ermac_eye_left[6];
-    char ermac_eye_right[6];
-    char kabal_smoke[11];
-    char decoy_model[6];
-    char decoy_mist[11];
-    char decoy_mist_head[16];
-    char decoy_mist_left[14];
-    char decoy_mist_right[14];
-    char decoy_mist_shin[16];
-    char bow_model[4];
-    char bow_magic[9];
-    char bow_magic_sparks[15];
-} JmtEffectNames;
-
-static const JmtEffectNames jmt_effect_names = {
-    "eyelt", "eyert", "kabalsmoke", "DECOY", "decoy_mist",
-    "decoy_mist_head", "decoy_mist_lt", "decoy_mist_rt",
-    "decoy_mist_shin", "BOW", "bowmagic", "bowmagicsparks"
-};
+static inline void jmt_init_decoy_visuals(
+    Vec* angles, RwRGBA* light, RwRGBA* dark) {
+    Vec angle_value = {-1.57079637f, 0.0f, 0.0f};
+    RwRGBA light_value = {0xE1, 0xE1, 0xFF, 0xC8};
+    RwRGBA dark_value = {0x80, 0x80, 0xFF, 0xC8};
+    *angles = angle_value;
+    *light = light_value;
+    *dark = dark_value;
+}
 
 typedef union JmtFloatBits {
     float f;
@@ -92,8 +78,7 @@ int clone_bones[] = {
 
 typedef struct JmtKabalSmokePdata {
     MkHdr hdr;
-    MkProc* player_proc;
-    unsigned int player_proc_instance;
+    PlyrProcLatch player_proc_latch;
     PlyrPdata* his_plyr_pdata;
     MkObj* his_obj;
     MkObj* owner;
@@ -162,7 +147,7 @@ void trial_state_collision_check(int collision_result, int player);
 
 int local_collision_allowed(PlyrPdata* player);
 int player_area_collision_check(
-    int region, int flags, float radius, float height, float depth);
+    float radius, float height, int region, float depth, int flags);
 int collision_2(int region, float radius, float height);
 void check_to_register_miss(void);
 void ani_1_frame(void);
@@ -181,8 +166,7 @@ void random_hit(int type);
 void ani_to_blend_frame(float frame);
 void face_opponent_now(void);
 void init_air_move(void);
-void force_away(
-    int duration, int animation, float force, float damping);
+void force_away(float force, int duration, float damping, int animation);
 void blend_to_stance(float blend);
 float j_exit(void);
 void idle_victim(void);
@@ -279,18 +263,17 @@ float get_adjusted_speed(float speed, float adjustment) {
 }
 
 void player_area_collision_ticks(
-    int region, int flags, void* script_args,
-    float radius, float height, float depth, float ticks) {
+    float radius, float height, int region, float depth, int flags,
+    float ticks) {
     JmtProcVtable* proc_vtbl;
     float elapsed;
 
-    (void)script_args;
     elapsed = 0.0f;
     plyr_pdata->collision_result = -1;
     while (elapsed < ticks) {
         if (local_collision_allowed(plyr_pdata) != 0) {
             if (player_area_collision_check(
-                    region, flags, radius, height, depth) != 0) {
+                    radius, height, region, depth, flags) != 0) {
                 break;
             }
         } else if (plyr_pdata->collision_result != -1 &&
@@ -307,18 +290,28 @@ void player_area_collision_ticks(
     check_to_register_miss();
 }
 
-/* TODO: [breakthrough needed] 92.77%; animation/position load ownership and exit-branch scheduling remain. */
+static inline int jmt_collide_and_react(
+    int region, float radius, float height, int reaction, int strength,
+    float reaction_rate) {
+    if (collision_2(region, radius, height) != 0) {
+        set_collision_made_flag();
+        reaction_xfer_him(reaction, reaction_rate, strength);
+        return 1;
+    }
+    return 0;
+}
+
 void flying_collision(
-    int region, int reaction, int strength, void* script_args,
-    float radius, float height, float reaction_rate,
+    int region, float radius, float height, int reaction, int strength,
+    float reaction_rate,
     float exit_height, float collision_height, float max_frame,
     float max_ticks) {
     JmtProcVtable* proc_vtbl;
     float object_y;
     float ground_y;
     float elapsed;
+    float frame;
 
-    (void)script_args;
     plyr_pdata->collision_result = -1;
     start_plyr_attack(0.0f);
     object_y = plyr_obj->pos.value.y;
@@ -330,16 +323,15 @@ void flying_collision(
         proc_vtbl = (JmtProcVtable*)aproc->vtbl;
         proc_vtbl->sleep(proc_vtbl);
         ani_1_frame();
-        ground_y = g_game_info.field_34;
         object_y = plyr_obj->pos.value.y;
+        frame = plyr_anim_pdata->frame;
+        ground_y = g_game_info.field_34;
 
-        if (object_y > ground_y + collision_height &&
-            plyr_anim_pdata->frame < max_frame) {
+        if (object_y > ground_y + collision_height && frame < max_frame) {
             if (local_collision_allowed(plyr_pdata) != 0) {
-                if (collision_2(region, radius, height) != 0) {
-                    set_collision_made_flag();
-                    reaction_xfer_him(
-                        reaction, reaction_rate, strength);
+                if (jmt_collide_and_react(
+                        region, radius, height, reaction, strength,
+                        reaction_rate) != 0) {
                     break;
                 }
             } else if (plyr_pdata->collision_result != -1 &&
@@ -364,8 +356,8 @@ void set_constrain_last_pos_pdata(const Vec* position) {
 
 void kill_ermac_eyes(void) {
     if (plyr_pdata != 0 && plyr_pdata->character_id == 6) {
-        fx_reset(fx(jmt_effect_names.ermac_eye_left));
-        fx_reset(fx(jmt_effect_names.ermac_eye_right));
+        fx_reset(fx("eyelt"));
+        fx_reset(fx("eyert"));
     }
 }
 
@@ -374,8 +366,8 @@ void dizzy_kill_pfx(
     if (plyr_pdata != 0) {
         switch (plyr_pdata->character_id) {
         case 6:
-            fx_reset(fx(jmt_effect_names.ermac_eye_left));
-            fx_reset(fx(jmt_effect_names.ermac_eye_right));
+            fx_reset(fx("eyelt"));
+            fx_reset(fx("eyert"));
             break;
         }
     }
@@ -431,50 +423,48 @@ static float kabal_collide_victim_falldown(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 83.16%; sleep-loop scheduling and saved-local allocation remain. */
+#pragma opt_common_subs off
 static float kabal_collide_victim(void) {
-    JmtProcVtable* proc_vtbl;
     JmtKabalAnimations* animations;
     int ticks;
 
+    ticks = 0;
     face_opponent_now();
     init_air_move();
     animations = (JmtKabalAnimations*)his_pdata;
     blend_to_ani(animations->collide_start, 3, 0.1f);
     plyr_anim_pdata->step = 2.0f;
-    force_away(15, 6, 0.11f, 0.975f);
+    force_away(0.11f, 15, 0.975f, 6);
     ani_to_frame_x(15.0f);
-    force_away(15, 20, -0.18f, 0.975f);
+    force_away(-0.18f, 15, 0.975f, 20);
     ani_to_blend_frame(15.0f);
 
-    proc_vtbl = (JmtProcVtable*)aproc->vtbl;
-    for (ticks = 0; ticks < 50; ticks++) {
+    do {
         _mkproc_sleep_ticks = 2.0f;
-        proc_vtbl->sleep(proc_vtbl);
+        ((JmtProcVtable*)aproc->vtbl)->sleep((JmtProcVtable*)aproc->vtbl);
         if (his_pdata != 0 && his_pdata->state != 0x1200) {
             blend_to_stance(0.1f);
-            proc_vtbl->jump_sleep(j_exit, 0.0f);
+            ((JmtProcVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
             return 0.0f;
         }
-    }
+        ticks++;
+    } while (ticks < 50);
 
-    animations = (JmtKabalAnimations*)his_pdata;
-    blend_to_ani(animations->collide_recover, 3, 0.2f);
+    blend_to_ani(((JmtKabalAnimations*)his_pdata)->collide_recover, 3, 0.2f);
     ani_to_frame_x(20.0f);
     blend_to_ani(shared_ani.kabal_falldown, 3, 0.1f);
     ani_to_blend_frame(10.0f);
-    proc_vtbl->jump_sleep(j_getup_back_6, 0.0f);
+    ((JmtProcVtable*)aproc->vtbl)->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
+#pragma opt_common_subs reset
 
 void jmt_debug_script(int command, int value, const void* args, float scalar) {
 }
 
-/* TODO: [breakthrough needed] 89.84%; process-creation output ownership and initialization schedule remain. */
 void start_kabal_smoke(void* script_args, float duration) {
     JmtKabalSmokePdata* pdata;
     MkProc* proc;
-    int* emitter;
     int index;
 
     (void)script_args;
@@ -507,8 +497,7 @@ void start_kabal_smoke(void* script_args, float duration) {
         return;
     }
 
-    pdata->player_proc = plyr_pdata->player_proc;
-    pdata->player_proc_instance = plyr_pdata->player_proc_instance;
+    pdata->player_proc_latch = plyr_pdata->player_proc_latch;
     pdata->his_plyr_pdata = plyr_pdata->his_plyr_pdata;
     pdata->his_obj = plyr_pdata->his_obj;
     pdata->owner = plyr_obj;
@@ -516,15 +505,13 @@ void start_kabal_smoke(void* script_args, float duration) {
     pdata->origin.x = plyr_obj->pos.value.x;
     pdata->origin.y = plyr_obj->pos.value.y;
     pdata->origin.z = plyr_obj->pos.value.z;
-    emitter = pdata->emitters;
     for (index = 0; index < 10; index++) {
-        *emitter++ = 0;
+        pdata->emitters[index] = 0;
     }
     start_kabal_smoke_pfx(pdata);
     drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
-/* TODO: [breakthrough needed] 98.97%; string-pool addressing and loop latch expansion remain. */
 static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     MkObj* object;
     unsigned int effect;
@@ -536,7 +523,7 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     if (object == 0) {
         return;
     }
-    effect = fx(jmt_effect_names.kabal_smoke);
+    effect = fx("kabalsmoke");
     if (effect != 0) {
         fx_reset_emit(effect);
     }
@@ -610,6 +597,10 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
         get_bone_world_pos(object, 0x14, &position);
         fx_set_param_v3(effect, 0x202, position.x, position.y, position.z);
     }
+    if (emitter_count >=
+        (int)(sizeof(pdata->emitters) / sizeof(pdata->emitters[0]))) {
+        return;
+    }
 }
 
 void destroy_kabal_smoke(void) {
@@ -647,9 +638,8 @@ void destroy_kabal_smoke(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.17%; vector copy and active-process reload ordering remain. */
 static float p_kabal_smoke(void) {
-    Vec angles = kabal_smoke_angles;
+    Vec angles = {-1.57079637f, 0.0f, 0.0f};
     Vec center;
     JmtKabalSmokePdata* pdata;
     PlyrInfo* player;
@@ -689,7 +679,6 @@ static float p_kabal_smoke(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: decoy model name reloc targets jmt_effect_names instead of retail @stringBase0 (TU string pool). */
 void start_subzero_decoy(void* script_args, float duration) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -717,7 +706,7 @@ void start_subzero_decoy(void* script_args, float duration) {
         art_slot = 0x3000A;
     }
     decoy = load_named_model_from_slot(
-        art_slot, jmt_effect_names.decoy_model, 0xD003, 0);
+        art_slot, "DECOY", 0xD003, 0);
     if (decoy == 0) {
         return;
     }
@@ -819,7 +808,6 @@ void destroy_subzero_decoy(void) {
 
 
 
-/* TODO: [near miss] 99.69%; source/index nonvolatile register swap (r27 vs r28) in the tail; stop at coloring. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
     MkObj* source;
@@ -835,10 +823,10 @@ static float p_create_decoy(void) {
     if (decoy == 0) {
         return -1.0f;
     }
-    source = pdata->source_object;
-    if (source == 0) {
+    if (pdata->source_object == 0) {
         return -1.0f;
     }
+    source = pdata->source_object;
     if (pdata->bone_copy_count > 20) {
         return -1.0f;
     }
@@ -862,7 +850,7 @@ static float p_create_decoy(void) {
     RwFrameUpdateObjects(decoy->frame);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist,
+        "decoy_mist",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[0] =
@@ -871,14 +859,14 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 2);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_head,
+        "decoy_mist_head",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[2] =
         pfxhandle_spawn_at_bid_next(effect, decoy, 9);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_left,
+        "decoy_mist_lt",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[3] =
@@ -887,7 +875,7 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 0x12);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_right,
+        "decoy_mist_rt",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[5] =
@@ -896,7 +884,7 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 0x13);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_shin,
+        "decoy_mist_shin",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[7] =
@@ -915,16 +903,16 @@ static float p_create_decoy(void) {
 
 
 
-/* TODO: [near miss] 97.51%; angles copy loads precede the color constants; a literal Vec initializer matches .text but moves .rodata (TU data layout). */
 static float p_decoy(void) {
-    Vec angles = subzero_decoy_angles;
+    Vec angles;
     JmtDecoyPdata* pdata;
     MkObj* decoy;
     PlyrInfo* player;
     Vec center;
-    RwRGBA light_color = {0xE1, 0xE1, 0xFF, 0xC8};
-    RwRGBA dark_color = {0x80, 0x80, 0xFF, 0xC8};
+    RwRGBA light_color;
+    RwRGBA dark_color;
 
+    jmt_init_decoy_visuals(&angles, &light_color, &dark_color);
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
     decoy = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
@@ -1044,7 +1032,7 @@ void start_bow(int bone, float duration) {
 
     pdata = 0;
     bow = load_named_model_for_player(
-        jmt_effect_names.bow_model, plyr_pdata->plyr_num, 0xD002, 0);
+        "BOW", plyr_pdata->plyr_num, 0xD002, 0);
     if (bow == 0) {
         return;
     }
@@ -1077,14 +1065,14 @@ void start_bow(int bone, float duration) {
     bow->ang.y = pdata->owner->ang.y;
     pdata->scale = 0.0f;
 
-    handle = fx(jmt_effect_names.bow_magic);
+    handle = fx("bowmagic");
     effect = find_pfx_by_handle(handle);
     if (effect != 0) {
         pfx_bind_emitter_to_obj(effect, bow, 0);
         fx_reset(handle);
         fx_resume_emit(handle);
     }
-    handle = fx(jmt_effect_names.bow_magic_sparks);
+    handle = fx("bowmagicsparks");
     effect = find_pfx_by_handle(handle);
     if (effect != 0) {
         pfx_bind_emitter_to_obj(effect, bow, 0);
@@ -1167,9 +1155,8 @@ static float p_bow_retract(void) {
 }
 
 int single_frame_collision_check(
-    int region, int reaction, int strength, void* script_args,
-    float radius, float height, float reaction_rate) {
-    (void)script_args;
+    int region, float radius, float height, int reaction, int strength,
+    float reaction_rate) {
     if (collision_2(region, radius, height) != 0) {
         set_collision_made_flag();
         reaction_xfer_him(reaction, reaction_rate, strength);
@@ -1220,12 +1207,15 @@ void plyr_set_gravity(float gravity) {
 float mks_get_victim_to_tr_dot(int player) {
     MkObj* victim;
     MkObj* target;
-    float victim_x;
     float victim_z;
-    float target_x;
-    float target_z;
-    float victim_inverse_length;
-    float target_inverse_length;
+    float victim_x;
+    float z;
+    float x;
+    float delta_z;
+    float delta_x;
+    float x_squared;
+    float z_squared;
+    float inverse_length;
     float result;
 
     result = 0.0f;
@@ -1237,18 +1227,19 @@ float mks_get_victim_to_tr_dot(int player) {
         target = g_game_info.plyr1.slot.mirror_a;
     }
     if (victim != 0 && target != 0) {
-        victim_x = victim->pos.value.x;
-        victim_z = victim->pos.value.z;
-        victim_inverse_length =
-            jmt_fast_inverse_sqrt(victim_x * victim_x + victim_z * victim_z);
-        target_z = target->pos.value.z - victim_z;
-        target_x = target->pos.value.x - victim_x;
-        target_inverse_length =
-            jmt_fast_inverse_sqrt(target_x * target_x + target_z * target_z);
-        result = (target_x * target_inverse_length) *
-                     (victim_x * victim_inverse_length) +
-                 (target_z * target_inverse_length) *
-                     (victim_z * victim_inverse_length);
+        x = victim->pos.value.x;
+        z = victim->pos.value.z;
+        x_squared = x * x;
+        z_squared = z * z;
+        inverse_length = jmt_fast_inverse_sqrt(x_squared + z_squared);
+        victim_x = x * inverse_length;
+        victim_z = z * inverse_length;
+        delta_x = target->pos.value.x - x;
+        delta_z = target->pos.value.z - z;
+        inverse_length = jmt_fast_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
+        delta_x *= inverse_length;
+        delta_z *= inverse_length;
+        result = delta_x * victim_x + delta_z * victim_z;
     }
     return result;
 }
@@ -1385,18 +1376,15 @@ void mks_plyr_stop(int player) {
     }
 }
 
-/* TODO: [breakthrough] 87.78%; sqrt byte-offset indexing corrected;
- * audit the remaining consumer CFG/ABI differences separately. */
-void mks_set_plyr_to_center_ang_offset(
-    int player, void* script_args, float angle_offset) {
+void mks_set_plyr_to_center_ang_offset(int player, float angle_offset) {
     MkObj* object;
     float length;
     float inverse_length;
-    float normalized_x;
-    float normalized_z;
-    int angle_bits;
+    float direction_z;
+    float direction_x;
+    float angle_sum;
+    Vec* position;
 
-    (void)script_args;
     object = g_game_info.plyr0.slot.mirror_a;
     if (player == 1) {
         object = g_game_info.plyr1.slot.mirror_a;
@@ -1408,30 +1396,31 @@ void mks_set_plyr_to_center_ang_offset(
     length = gxMathFastSqrt(
         object->pos.value.x * object->pos.value.x +
         object->pos.value.z * object->pos.value.z);
-    if (length <= 0.0f) {
-        inverse_length = length;
-    } else {
+    if (length > 0.0f) {
         inverse_length = 1.0f / length;
+    } else {
+        inverse_length = length;
     }
-    if (length != 0.0f) {
-        normalized_x = -object->pos.value.x * inverse_length;
-        normalized_z = -object->pos.value.z * inverse_length;
-        angle_bits = (166886.1f *
-            (angle_offset + gxMathArcTanYX(normalized_x, normalized_z)));
-        angle_bits &= 0xFFFFF;
-        object->ang.y = 0.000005992112f * (float)angle_bits;
+    position = &object->pos.value;
+    direction_x = position->x * inverse_length;
+    direction_z = position->z * inverse_length;
+    if (length) {
+        direction_x = -1.0f * direction_x;
+        direction_z = -1.0f * direction_z;
+        angle_sum = angle_offset + gxMathArcTanYX(direction_x, direction_z);
+        object->ang.y = 0.000005992112f *
+            (float)(((int)(166886.1f * angle_sum)) & 0xFFFFF);
     }
 }
 
-/* TODO: [breakthrough] 82.75%; sqrt byte-offset indexing corrected;
- * audit the remaining consumer CFG/ABI differences separately. */
-void mks_bgnd_cam_offset_away(
-    void* script_args, float distance, float height) {
+void mks_bgnd_cam_offset_away(float distance, float height) {
     MkObj* victim;
     float length;
     float inverse_length;
+    float direction_x;
+    float direction_z;
+    RwMatrixPosition* position;
 
-    (void)script_args;
     victim = camera_get_victim();
     if (victim == 0) {
         return;
@@ -1440,26 +1429,25 @@ void mks_bgnd_cam_offset_away(
     length = gxMathFastSqrt(
         victim->pos.value.x * victim->pos.value.x +
         victim->pos.value.z * victim->pos.value.z);
-    if (length <= 0.0f) {
-        inverse_length = length;
-    } else {
+    if (length > 0.0f) {
         inverse_length = 1.0f / length;
+    } else {
+        inverse_length = length;
     }
-    if (length != 0.0f) {
+    position = &victim->pos;
+    direction_x = position->value.x * inverse_length;
+    direction_z = position->value.z * inverse_length;
+    if (length) {
         camera_set_movement_offset_explicit(
-            victim->pos.value.x * inverse_length * distance,
-            height,
-            victim->pos.value.z * inverse_length * distance);
+            direction_x * distance, height, direction_z * distance);
     }
 }
 
-/* TODO: [breakthrough needed] 93.44%; zero-value ownership across flag publication remains. */
 void mks_bgnd_pfx_bind_to_sobj(
     const char* effect_name, unsigned int sobj_id) {
     MkSobj* sobj;
     void* effect;
     MkPfx* pfx;
-    PfxEmitterFlagsView* emitter;
 
     sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
     if (sobj != 0) {
@@ -1468,9 +1456,8 @@ void mks_bgnd_pfx_bind_to_sobj(
             restart_effect_ppfx(effect);
             pfx = effect;
             pfx_bind_emitter_to_sobj(pfx, sobj, 0);
-            emitter = (PfxEmitterFlagsView*)pfx_get_emitter(
-                (PfxEmitterTableView*)pfx->matrix, 0);
-            emitter->high_bit = 0;
+            ((PfxEmitterFlagsView*)pfx_get_emitter(
+                (PfxEmitterTableView*)pfx->matrix, 0))->high_bit = 0;
         }
     }
 }

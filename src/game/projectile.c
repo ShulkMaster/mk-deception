@@ -126,7 +126,7 @@ void set_active_projectile_end_script(unsigned int script_index);
 void set_active_projectile_block_script(unsigned int script_index);
 void set_active_projectile_hit_script(unsigned int script_index);
 void set_active_projectile_collision_info(
-    int enabled, float radius, float height, float depth);
+    float radius, int enabled, float height, float depth);
 void set_active_projectile_random_rot(float x, float y, float z);
 void set_active_projectile_random_pos(float x, float y, float z);
 void set_active_projectile_continue_thru_hit(void);
@@ -515,7 +515,7 @@ void set_active_projectile_hit_script(unsigned int script_index) {
 }
 
 void set_active_projectile_collision_info(
-    int enabled, float radius, float height, float depth) {
+    float radius, int enabled, float height, float depth) {
     if (proj_pdata != 0) {
         if (enabled != 0) {
             proj_pdata->setup_bits.collision_info_set = 1;

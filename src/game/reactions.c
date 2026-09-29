@@ -143,7 +143,7 @@ int reaction_xfer_him(int reaction, float rate, int strength);
 void stop_me(void);
 void init_ground_move(void);
 void blocked_fx(int type, int bone, int third, int fourth, int fifth);
-void force_away(int direction, int ticks, float speed, float damping);
+void force_away(float speed, int direction, float damping, int ticks);
 void disable_my_attacks(int ticks);
 void adjust_my_damage_multiplier(float multiplier);
 void got_hit_fx(
@@ -224,8 +224,8 @@ static float r_face3_onback(void);
 void set_ani_speed(float speed);
 void set_anim_hiframe(float frame);
 void special_move_cam_setup(
-    int mode, int ticks, int flags, float x, float y, float z,
-    float distance, float speed);
+    float x, float y, float z, float distance, float speed, int mode, int ticks,
+    int flags);
 void update_bone_hierarchy(MkHdr* object);
 void ground_me(MkHdr* object);
 void wall_eligible_on(void);
@@ -242,7 +242,7 @@ float j_getup_sit_12(void);
 float j_exit_blend_stance(void);
 float j_stay_down_dead(void);
 void ani_to_fall_to_frame(
-    int sound_id, float landing_frame, float target_frame);
+    float landing_frame, int sound_id, float target_frame);
 void back_rollup_check(void);
 void danger_zone_eligible_on(void);
 void face_bleed_me(int size);
@@ -251,15 +251,14 @@ void land_chores(
     int land_sound, int second_sound,
     float shake_ticks, float shake_strength);
 void launch_n_land_ani(
-    void* animation, int flags, float x, float z, float frame,
-    float speed, float gravity, float blend);
+    void* animation, float launch_frame, float launch_step,
+    float landing_frame, int landing_animation, float velocity_y,
+    float gravity, float blend);
 void myvel_his_angle_y(float y, float x, float z);
-void newani_to_frame_x(
-    void* animation, int flags, float frame, float x, float z, float blend);
+void newani_to_frame_x(void* animation, float frame, float x, float z, float blend, int flags);
 void player_feet_land_chores(void);
 void shake_camera(int ticks, float strength);
-void shake_hit_voice(
-    int shake_ticks, int hit_voice, int fighter_voice, float rumble_scale);
+void shake_hit_voice(int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 void start_blood_particles(
     int script, int bone, PlyrPdata* player, MkObj* object);
 int stay_down_check(void);
@@ -1438,7 +1437,7 @@ static float r_chest2_separate(void) {
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(9, 8, 0.1f, 0.9f);
+    force_away(0.1f, 9, 0.9f, 8);
     plyr_anim_pdata->weight = 1.0f;
     plyr_anim_pdata->step = 0.7f;
     glitch_to_ani(shared_ani.chest_stumble, 3);
@@ -1479,7 +1478,7 @@ float r_obstacle_falldown(void) {
     got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
     myvel_his_angle_y(0.0f, 0.045f, 0.045f);
     launch_n_land_ani(
-        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
+        shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.004f, 0.2f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (large_ground_fx != 0) {
@@ -1597,10 +1596,10 @@ static float r_fan_lift(void) {
     random_voice(5);
     blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
     plyr_anim_pdata->step = 1.0f;
-    force_away(8, 8, 0.1f, 0.85f);
+    force_away(0.1f, 8, 0.85f, 8);
     _mkproc_sleep_ticks = 30.0f;
     aproc->vtbl->sleep();
-    force_away(0x64, 0xA, -0.03f, 0.95f);
+    force_away(-0.03f, 0x64, 0.95f, 0xA);
     _mkproc_sleep_ticks = 120.0f;
     aproc->vtbl->sleep();
     aproc->vtbl->jump_sleep(p_blend_to_stance_in_10, 0.0f);
@@ -1613,7 +1612,7 @@ float j_counter_caught(void) {
     init_ground_move_no_aniproc();
     stop_me();
     random_voice(9);
-    shake_hit_voice(2, 6, 5, 0.02f);
+    shake_hit_voice(2, 0.02f, 6, 5);
     disable_blocking();
     reaction = plyr_pdata->script_exit_value_int;
     switch (reaction) {
@@ -1674,7 +1673,7 @@ static float r_post_surf_throw(void) {
         aproc->vtbl->jump_sleep(j_stay_down_dead, 0.0f);
         return 0.0f;
     }
-    force_away(0xA, 0x10, 0.1f, 0.9f);
+    force_away(0.1f, 0xA, 0.9f, 0x10);
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep();
     tightrope_restrictions_on();
@@ -1688,12 +1687,12 @@ static float r_block_hit_projectile(void) {
     stop_me();
     init_ground_move();
     blocked_fx(5, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
+    force_away(0.25f, 2, 0.4f, 5);
     aproc->vtbl->jump_sleep(j_block_common_reaction, 0.0f);
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.97%; hit_position/world_position stack slots swapped (retail inlined helper allocation order). */
+/* TODO: [near miss] 99.97%; hit/world Vec stack slots swapped; both declaration orders regress. */
 static float r_combo_broken_part2(void) {
     ReactionImageFaderPdata* fader;
     PlyrInfo* source;
@@ -1760,7 +1759,7 @@ static float r_combo_broken_part2(void) {
     wall_eligible_on();
     start_blood_particles_scripts(0x39, 0x10);
     got_hit_fx(0, 2, 4, 1, 0, 0, 0.0f);
-    force_away(0x14, 8, 0.025f, 0.9f);
+    force_away(0.025f, 0x14, 0.9f, 8);
     blend_to_ani(shared_ani.combo_broken_launch, 3, 0.5f);
     set_ani_speed(0.6f);
     ani_to_frame_x(13.0f);
@@ -1819,7 +1818,7 @@ static float r_block_hit_p5(void) {
     stop_me();
     init_ground_move();
     blocked_fx(0xB, 5, 0, 0, 0);
-    force_away(3, 8, 0.2f, 0.85f);
+    force_away(0.2f, 3, 0.85f, 8);
     aproc->vtbl->jump_sleep(j_block_common_reaction, 0.0f);
     return 0.0f;
 }
@@ -1828,7 +1827,7 @@ static float r_block_hit_p3(void) {
     stop_me();
     init_ground_move();
     blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
+    force_away(0.25f, 2, 0.4f, 5);
     aproc->vtbl->jump_sleep(j_block_common_reaction, 0.0f);
     return 0.0f;
 }
@@ -1837,7 +1836,7 @@ static float r_block_hit_p1(void) {
     stop_me();
     init_ground_move();
     blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 4, 0.15f, 0.5f);
+    force_away(0.15f, 2, 0.5f, 4);
     disable_my_attacks(6);
     aproc->vtbl->jump_sleep(j_block_common_reaction, 0.0f);
     return 0.0f;
@@ -1847,7 +1846,7 @@ static float r_block_hit_p0(void) {
     stop_me();
     init_ground_move();
     blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
+    force_away(0.25f, 2, 0.4f, 5);
     disable_my_attacks(6);
     aproc->vtbl->jump_sleep(j_block_common_reaction, 0.0f);
     return 0.0f;
@@ -1864,7 +1863,7 @@ static float j_block_common_reaction(void) {
         trial_increment_state_value(plyr_pdata->plyr_num, 0x13, 0);
         init_ground_move();
         set_my_state(0xF00);
-        force_away(2, 8, 0.15f, 0.85f);
+        force_away(0.15f, 2, 0.85f, 8);
         if (should_i_weapon_block() != 0) {
             xfer_proc(plyr_anim_proc, p_anim_idle);
             blend_to_ani(
@@ -1947,7 +1946,7 @@ static float r_nightwolf_lightning(void) {
     random_voice(0x13);
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
-        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
+        shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (large_ground_fx != 0) {
@@ -2017,7 +2016,7 @@ static float r_nightwolf_charge(void) {
     }
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
-        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
+        shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (large_ground_fx != 0) {
@@ -2047,7 +2046,7 @@ static float r_face3_onback(void) {
     }
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
-        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
+        shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (large_ground_fx != 0) {
@@ -2098,7 +2097,7 @@ static float r_cyrax_blade(void) {
     face_bleed_me(1);
     face_opponent_now();
     snd_req(0xD81);
-    force_away(3, 8, 0.2f, 0.8f);
+    force_away(0.2f, 3, 0.8f, 8);
     blend_to_ani(shared_ani.cyrax_blade, 3, 0.5f);
     set_ani_speed(0.5f);
     ani_to_frame_x(20.0f);
@@ -2142,7 +2141,7 @@ float r_jump_slambounce_final_hit(void) {
     stop_me();
     init_air_move();
     special_move_cam_setup(
-        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
+        1.47f, 4.1f, 1.0f, -1.75f, -0.15f, 0xA, 0x3C, 0);
     reaction_xfer_him(0xDB, 0.0f, 2);
     got_hit_fx(0, 2, 1, 1, 0, 0, 0.05f);
     blend_to_ani(shared_ani.jump_slambounce, 3, 0.2f);
@@ -2159,7 +2158,7 @@ float r_jump_slambounce_final_hit(void) {
 
 float r_jump_chin3_final_hit(void) {
     special_move_cam_setup(
-        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
+        1.47f, 4.1f, 1.0f, -1.75f, -0.15f, 0xA, 0x3C, 0);
     reaction_xfer_him(0xDC, 0.0f, 2);
     face_opponent_now();
     plyr_pdata->blocking_disabled = 0;
@@ -2168,7 +2167,7 @@ float r_jump_chin3_final_hit(void) {
     stop_me();
     init_air_move();
     plyr_obj->flags_09_bits.launched = 0;
-    shake_hit_voice(2, 4, 3, 0.02f);
+    shake_hit_voice(2, 0.02f, 4, 3);
     start_blood_particles_scripts(0x39, 0x10);
     start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
     set_my_state(0x605);
@@ -2219,7 +2218,7 @@ static float r_popup_final_hitter(void) {
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     if (xz_distance_between_players() < 1.0f) {
-        force_away(9, 8, 0.1f, 0.9f);
+        force_away(0.1f, 9, 0.9f, 8);
     }
     xfer_proc(plyr_anim_proc, p_animate);
     set_ani_speed(0.33f);
@@ -2243,13 +2242,13 @@ float r_enough_air_already(void) {
     plyr_obj->flags_09_bits.launched = 0;
     start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
     face_bleed_me(3);
-    shake_hit_voice(2, 1, 0xD, 0.02f);
+    shake_hit_voice(2, 0.02f, 1, 0xD);
     random_hit(4);
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
-        shared_ani.enough_air, 0xCA1, 0.0f, 0.0f, 28.0f,
+        shared_ani.enough_air, 0.0f, 0.0f, 28.0f, 0xCA1,
         0.05f, -0.008f, 0.33f);
-    shake_hit_voice(2, 9, 8, 0.02f);
+    shake_hit_voice(2, 0.02f, 9, 8);
     back_rollup_check();
     plyr_anim_pdata->step = 1.0f;
     ani_to_end();
@@ -2261,7 +2260,7 @@ static float r_airborn_small_lift(void) {
     medium_flash_check();
     face_opponent_now();
     plyr_obj->flags_09_bits.launched = 0;
-    shake_hit_voice(0, 0, 4, 0.0f);
+    shake_hit_voice(0, 0.0f, 0, 4);
     if (plyr_pdata->reaction_hit_count == 2) {
         plyr_pdata->f_constrained = 0;
     }
@@ -2271,9 +2270,9 @@ static float r_airborn_small_lift(void) {
     }
     myvel_his_angle_y(0.0f, 0.06f, 0.06f);
     launch_n_land_ani(
-        shared_ani.airborn_small_lift, 0xCA1, 0.0f, 0.0f, 31.0f,
+        shared_ani.airborn_small_lift, 0.0f, 0.0f, 31.0f, 0xCA1,
         0.0325f, -0.006f, 0.33f);
-    shake_hit_voice(2, 9, 8, 0.02f);
+    shake_hit_voice(2, 0.02f, 9, 8);
     back_rollup_check();
     plyr_anim_pdata->step = 1.0f;
     ani_to_frame_x(36.0f);
@@ -2285,7 +2284,7 @@ static float r_hit_airborn1(void) {
     medium_flash_check();
     face_opponent_now();
     plyr_obj->flags_09_bits.launched = 0;
-    shake_hit_voice(0, 1, 3, 0.0f);
+    shake_hit_voice(0, 0.0f, 1, 3);
     if (plyr_pdata->reaction_hit_count == 2) {
         plyr_pdata->f_constrained = 0;
     }
@@ -2299,10 +2298,10 @@ static float r_hit_airborn1(void) {
         myvel_his_angle_y(0.0f, 0.04f, 0.04f);
     }
     launch_n_land_ani(
-        shared_ani.airborn_small_lift, 0xCA1, 0.0f, 0.0f, 31.0f,
+        shared_ani.airborn_small_lift, 0.0f, 0.0f, 31.0f, 0xCA1,
         0.08f, -0.006f, 0.33f);
     enable_all_my_blocking();
-    shake_hit_voice(2, 9, 8, 0.02f);
+    shake_hit_voice(2, 0.02f, 9, 8);
     back_rollup_check();
     plyr_anim_pdata->step = 1.0f;
     ani_to_frame_x(36.0f);
@@ -2316,7 +2315,7 @@ static float r_corner_repell_ani(void) {
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(0x12, 8, 0.15f, 0.9f);
+    force_away(0.15f, 0x12, 0.9f, 8);
     ani_to_blend_frame(2.0f);
     blend_to_stance(0.05f);
     aproc->vtbl->jump_sleep(j_exit, 0.0f);
@@ -2329,7 +2328,7 @@ static float r_corner_repell(void) {
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(9, 8, 0.1f, 0.9f);
+    force_away(0.1f, 9, 0.9f, 8);
     _mkproc_sleep_ticks = 20.0f;
     aproc->vtbl->sleep();
     blend_to_stance(0.05f);
@@ -2345,13 +2344,12 @@ static float r_sidehead3_dive_opposite(void) {
     plyr_obj->flags_09_bits.launched = 0;
     start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
     face_bleed_me(2);
-    newani_to_frame_x(
-        shared_ani.side_head_dive, 2, 22.0f, 1.0f, 1.0f, 0.2f);
+    newani_to_frame_x(shared_ani.side_head_dive, 22.0f, 1.0f, 1.0f, 0.2f, 2);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
     land_chores(0, 0, 0.0f, 0.0f);
-    shake_hit_voice(2, 9, 7, 0.02f);
+    shake_hit_voice(2, 0.02f, 9, 7);
     ani_to_end();
     aproc->vtbl->jump_sleep(j_getup_back_3, 0.0f);
     return 0.0f;
@@ -2365,8 +2363,7 @@ static float r_sidehead3_dive(void) {
     plyr_obj->flags_09_bits.launched = 0;
     face_bleed_me(2);
     start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
-    newani_to_frame_x(
-        shared_ani.side_head_dive, 1, 22.0f, 1.0f, 1.0f, 0.2f);
+    newani_to_frame_x(shared_ani.side_head_dive, 22.0f, 1.0f, 1.0f, 0.2f, 1);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
@@ -2377,7 +2374,7 @@ static float r_sidehead3_dive(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.49%; float-guard branch layout (bne+b vs inverted beq). */
+/* TODO: [near miss] 98.49%; float-guard bne+b layout remains; ternary assignment regresses. */
 static float r_sidehead3_spin(void) {
     float flight_ticks;
 
@@ -2485,7 +2482,7 @@ static float r_feet1a(void) {
     low_flash_check();
     face_opponent_now();
     got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
-    force_away(3, 8, 0.1f, 0.9f);
+    force_away(0.1f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
     ani_to_blend_frame(10.0f);
     aproc->vtbl->jump_sleep(p_blend_to_stance_in_10, 0.0f);
@@ -2496,7 +2493,7 @@ static float r_feet1_stay_close(void) {
     low_flash_check();
     face_opponent_now();
     got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
-    force_away(3, 8, 0.04f, 0.9f);
+    force_away(0.04f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
     ani_to_blend_frame(10.0f);
     aproc->vtbl->jump_sleep(p_blend_to_stance_in_10, 0.0f);
@@ -2541,13 +2538,13 @@ static float r_gut3_onbutt(void) {
     face_opponent_now();
     got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
     plyr_obj->flags_09_bits.launched = 0;
-    force_away(3, 8, 0.1f, 0.9f);
+    force_away(0.1f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.gut_on_butt, 3, 0.33f);
     ani_to_frame_x(18.0f);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
-    ani_to_fall_to_frame(0xD7F, 24.0f, plyr_anim_pdata->high_frame);
+    ani_to_fall_to_frame(24.0f, 0xD7F, plyr_anim_pdata->high_frame);
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep();
     aproc->vtbl->jump_sleep(j_getup_sit_12, 0.0f);
@@ -2869,7 +2866,7 @@ float r_hit_wall(void) {
     plyr_pdata->hit_count++;
     plyr_pdata->hit_streak++;
     plyr_pdata->his_plyr_pdata->hit_streak = 0;
-    shake_hit_voice(2, 9, 8, 0.02f);
+    shake_hit_voice(2, 0.02f, 9, 8);
     blend_to_ani(shared_ani.wall_hit, 3, 0.5f);
     plyr_anim_pdata->step = 0.8f;
     ani_to_frame_x(7.0f);

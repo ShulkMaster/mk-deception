@@ -152,8 +152,6 @@ typedef struct AniData {
     char pad00[0x18];
     unsigned int last_frame; /* +0x18 */
 } AniData;
-typedef RpMaterial* (*KonquestMaterialCallback)(
-    RpMaterial* material, void* data);
 
 typedef struct KonquestNpc {
     MkHdr hdr;
@@ -606,8 +604,6 @@ KonquestTileOrigin* get_nth_tile_struct(int index);
 int get_tile_from_position(const Vec* position);
 void npc_set_his_flags(KonquestNpcData* data, int flags, int enabled);
 KonquestWaypoint* get_door_path(int door_id);
-RpGeometry* RpGeometryForAllMaterials(
-    RpGeometry* geometry, KonquestMaterialCallback callback, void* data);
 int get_konquest_game_mode(void);
 int is_game_mode_in_stack(int mode);
 void npc_ani_1_frame(void);
@@ -1070,7 +1066,7 @@ static inline void npc_manager_setup_model(MkObj* object) {
     if (sobj->atomic->geometry != 0) {
         RpGeometryForAllMaterials(
             sobj->atomic->geometry,
-            (KonquestMaterialCallback)material_store_texture_pointer, 0);
+            (RpMaterialCallBack)material_store_texture_pointer, 0);
     }
     object->flags_08_bits.airborne = 1;
     object->flags_08_bits.angular_velocity_enabled = 1;
@@ -1489,7 +1485,7 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
 
 static RpMaterial* hide_npc_materials(
     RpMaterial* material, void* data) {
-    int* material_ids = (int*)data;
+    int* material_ids = data;
     unsigned int material_id =
         MK_MATERIAL_PLUGIN(material)->flags & 0xFFF;
 
@@ -1528,7 +1524,7 @@ static void material_restore_texture_pointer(RpMaterial* material) {
 
 static RpMaterial* MaterialFindTextureWithRootString(
     RpMaterial* material, void* data) {
-    KonquestTextureSearch* search = (KonquestTextureSearch*)data;
+    KonquestTextureSearch* search = data;
 
     if (material->texture != 0 && search->root != 0 &&
         strnicmp(
@@ -2053,7 +2049,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
                 if (sobj->atomic->geometry != 0) {
                     RpGeometryForAllMaterials(
                         sobj->atomic->geometry,
-                        (KonquestMaterialCallback)
+                        (RpMaterialCallBack)
                             material_restore_texture_pointer,
                         0);
                 }
@@ -2691,10 +2687,10 @@ void npc_shadow_set_alpha(int alpha) {
             obj_find_material_by_id(npc_shadows.objects[index], 0);
         RwRGBA color = {0, 0, 0, 0};
 
-        color.red = (unsigned char)shadow_alpha;
-        color.blue = (unsigned char)shadow_alpha;
-        color.green = (unsigned char)shadow_alpha;
-        color.alpha = (unsigned char)shadow_alpha;
+        color.red = shadow_alpha;
+        color.blue = shadow_alpha;
+        color.green = shadow_alpha;
+        color.alpha = shadow_alpha;
         material->color = color;
     }
     npc_shadows.alpha = shadow_alpha;
@@ -3757,7 +3753,7 @@ static void npc_pre_wake(void) {
                         alpha = 1.0f;
                     }
                     npc->animation->alpha =
-                        (unsigned int)(255.0f * alpha);
+                        (255.0f * alpha);
                     obj_for_all_atomics_set_material_alpha(
                         npc->animation->object, npc->animation->alpha);
                 } else if (state->alpha < 255) {
@@ -4025,7 +4021,7 @@ KonquestNpc* find_npc_by_data(KonquestNpcData* data) {
 
 void npc_change_path_speed(float speed) {
     if (g_active_npc->path != 0) {
-        g_active_npc->path->speed = (float)(int)speed;
+        g_active_npc->path->speed = (int)speed;
     }
 }
 void npc_set_ani_speed(float speed) {
@@ -4855,7 +4851,7 @@ void npc_ani_for_x_ticks(int ticks) {
             npc_suspend_animation_wait();
         }
     } else {
-        float remaining = (float)ticks;
+        float remaining = ticks;
 
         while (remaining > 0.0f) {
             npc_ani_1_frame();

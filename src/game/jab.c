@@ -529,7 +529,7 @@ float p_dk_death_shake(void) {
 
 void jab_attach_wiff_to_sobj(
     MkObj* object, int sobj_id, const char* wiff_name,
-    const char* texture_name, int section, int frame, float rate) {
+    const char* texture_name, int section, float rate, int frame) {
     AniTextureControl* control;
     MkSobj* sobj;
 

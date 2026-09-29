@@ -589,7 +589,7 @@ void mk_chess_blend_to_ani(int animation, int flags, float blend, float speed);
 void mk_chess_air_move(void);
 void mk_chess_blend_to_my_cell_pos(float distance);
 void mk_chess_snap_into_cell_orgin_over_x_frames(float frames);
-void mk_chess_put_active_piece_at_cell(int snap, float x, float y);
+void mk_chess_put_active_piece_at_cell(float x, float y, int snap);
 void mk_chess_blend_to_desired_cell_position_setting(float blend);
 void mk_chess_queue_up_piece_event(int event, int delay);
 void mk_chess_blend_to_normal_stance(void);
