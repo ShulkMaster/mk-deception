@@ -16,29 +16,15 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 
-static const Vec kabal_smoke_angles = {-1.57079637f, 0.0f, 0.0f};
-static const Vec subzero_decoy_angles = {-1.57079637f, 0.0f, 0.0f};
-
-typedef struct JmtEffectNames {
-    char ermac_eye_left[6];
-    char ermac_eye_right[6];
-    char kabal_smoke[11];
-    char decoy_model[6];
-    char decoy_mist[11];
-    char decoy_mist_head[16];
-    char decoy_mist_left[14];
-    char decoy_mist_right[14];
-    char decoy_mist_shin[16];
-    char bow_model[4];
-    char bow_magic[9];
-    char bow_magic_sparks[15];
-} JmtEffectNames;
-
-static const JmtEffectNames jmt_effect_names = {
-    "eyelt", "eyert", "kabalsmoke", "DECOY", "decoy_mist",
-    "decoy_mist_head", "decoy_mist_lt", "decoy_mist_rt",
-    "decoy_mist_shin", "BOW", "bowmagic", "bowmagicsparks"
-};
+static inline void jmt_init_decoy_visuals(
+    Vec* angles, RwRGBA* light, RwRGBA* dark) {
+    Vec angle_value = {-1.57079637f, 0.0f, 0.0f};
+    RwRGBA light_value = {0xE1, 0xE1, 0xFF, 0xC8};
+    RwRGBA dark_value = {0x80, 0x80, 0xFF, 0xC8};
+    *angles = angle_value;
+    *light = light_value;
+    *dark = dark_value;
+}
 
 typedef union JmtFloatBits {
     float f;
@@ -304,7 +290,6 @@ void player_area_collision_ticks(
     check_to_register_miss();
 }
 
-/* TODO: [near miss] 96.75%; retail schedules the plyr_anim_pdata load before the plyr_obj y load in the loop test; statement order neutral. */
 static inline int jmt_collide_and_react(
     int region, float radius, float height, int reaction, int strength,
     float reaction_rate) {
@@ -371,8 +356,8 @@ void set_constrain_last_pos_pdata(const Vec* position) {
 
 void kill_ermac_eyes(void) {
     if (plyr_pdata != 0 && plyr_pdata->character_id == 6) {
-        fx_reset(fx(jmt_effect_names.ermac_eye_left));
-        fx_reset(fx(jmt_effect_names.ermac_eye_right));
+        fx_reset(fx("eyelt"));
+        fx_reset(fx("eyert"));
     }
 }
 
@@ -381,8 +366,8 @@ void dizzy_kill_pfx(
     if (plyr_pdata != 0) {
         switch (plyr_pdata->character_id) {
         case 6:
-            fx_reset(fx(jmt_effect_names.ermac_eye_left));
-            fx_reset(fx(jmt_effect_names.ermac_eye_right));
+            fx_reset(fx("eyelt"));
+            fx_reset(fx("eyert"));
             break;
         }
     }
@@ -438,7 +423,7 @@ static float kabal_collide_victim_falldown(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.22%; retail reloads his_pdata for the recovery animation after the loop; ours reuses the loop test's load. */
+#pragma opt_common_subs off
 static float kabal_collide_victim(void) {
     JmtKabalAnimations* animations;
     int ticks;
@@ -472,6 +457,7 @@ static float kabal_collide_victim(void) {
     ((JmtProcVtable*)aproc->vtbl)->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
+#pragma opt_common_subs reset
 
 void jmt_debug_script(int command, int value, const void* args, float scalar) {
 }
@@ -526,7 +512,6 @@ void start_kabal_smoke(void* script_args, float duration) {
     drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
-/* TODO: [breakthrough needed] 98.97%; string-pool addressing and loop latch expansion remain. */
 static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     MkObj* object;
     unsigned int effect;
@@ -538,7 +523,7 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     if (object == 0) {
         return;
     }
-    effect = fx(jmt_effect_names.kabal_smoke);
+    effect = fx("kabalsmoke");
     if (effect != 0) {
         fx_reset_emit(effect);
     }
@@ -612,6 +597,10 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
         get_bone_world_pos(object, 0x14, &position);
         fx_set_param_v3(effect, 0x202, position.x, position.y, position.z);
     }
+    if (emitter_count >=
+        (int)(sizeof(pdata->emitters) / sizeof(pdata->emitters[0]))) {
+        return;
+    }
 }
 
 void destroy_kabal_smoke(void) {
@@ -649,9 +638,8 @@ void destroy_kabal_smoke(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.17%; vector copy and active-process reload ordering remain. */
 static float p_kabal_smoke(void) {
-    Vec angles = kabal_smoke_angles;
+    Vec angles = {-1.57079637f, 0.0f, 0.0f};
     Vec center;
     JmtKabalSmokePdata* pdata;
     PlyrInfo* player;
@@ -691,7 +679,6 @@ static float p_kabal_smoke(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: decoy model name reloc targets jmt_effect_names instead of retail @stringBase0 (TU string pool). */
 void start_subzero_decoy(void* script_args, float duration) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -719,7 +706,7 @@ void start_subzero_decoy(void* script_args, float duration) {
         art_slot = 0x3000A;
     }
     decoy = load_named_model_from_slot(
-        art_slot, jmt_effect_names.decoy_model, 0xD003, 0);
+        art_slot, "DECOY", 0xD003, 0);
     if (decoy == 0) {
         return;
     }
@@ -821,7 +808,6 @@ void destroy_subzero_decoy(void) {
 
 
 
-/* TODO: [near miss] 99.69%; source/index nonvolatile register swap (r27 vs r28) in the tail; stop at coloring. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
     MkObj* source;
@@ -864,7 +850,7 @@ static float p_create_decoy(void) {
     RwFrameUpdateObjects(decoy->frame);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist,
+        "decoy_mist",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[0] =
@@ -873,14 +859,14 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 2);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_head,
+        "decoy_mist_head",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[2] =
         pfxhandle_spawn_at_bid_next(effect, decoy, 9);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_left,
+        "decoy_mist_lt",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[3] =
@@ -889,7 +875,7 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 0x12);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_right,
+        "decoy_mist_rt",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[5] =
@@ -898,7 +884,7 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 0x13);
 
     effect = fx_by_owner(
-        jmt_effect_names.decoy_mist_shin,
+        "decoy_mist_shin",
         pfx_plyr_bankowner(pdata->owner_info));
     fx_reset(effect);
     pdata->effect_handles[7] =
@@ -917,16 +903,16 @@ static float p_create_decoy(void) {
 
 
 
-/* TODO: [near miss] 97.51%; angles copy loads precede the color constants; a literal Vec initializer matches .text but moves .rodata (TU data layout). */
 static float p_decoy(void) {
-    Vec angles = subzero_decoy_angles;
+    Vec angles;
     JmtDecoyPdata* pdata;
     MkObj* decoy;
     PlyrInfo* player;
     Vec center;
-    RwRGBA light_color = {0xE1, 0xE1, 0xFF, 0xC8};
-    RwRGBA dark_color = {0x80, 0x80, 0xFF, 0xC8};
+    RwRGBA light_color;
+    RwRGBA dark_color;
 
+    jmt_init_decoy_visuals(&angles, &light_color, &dark_color);
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
     decoy = MK_HDR_LIVE(pdata->decoy_object, pdata->decoy_instance);
@@ -1046,7 +1032,7 @@ void start_bow(int bone, float duration) {
 
     pdata = 0;
     bow = load_named_model_for_player(
-        jmt_effect_names.bow_model, plyr_pdata->plyr_num, 0xD002, 0);
+        "BOW", plyr_pdata->plyr_num, 0xD002, 0);
     if (bow == 0) {
         return;
     }
@@ -1079,14 +1065,14 @@ void start_bow(int bone, float duration) {
     bow->ang.y = pdata->owner->ang.y;
     pdata->scale = 0.0f;
 
-    handle = fx(jmt_effect_names.bow_magic);
+    handle = fx("bowmagic");
     effect = find_pfx_by_handle(handle);
     if (effect != 0) {
         pfx_bind_emitter_to_obj(effect, bow, 0);
         fx_reset(handle);
         fx_resume_emit(handle);
     }
-    handle = fx(jmt_effect_names.bow_magic_sparks);
+    handle = fx("bowmagicsparks");
     effect = find_pfx_by_handle(handle);
     if (effect != 0) {
         pfx_bind_emitter_to_obj(effect, bow, 0);
@@ -1218,16 +1204,15 @@ void plyr_set_gravity(float gravity) {
     plyr_obj->flags_09_bits.launched = 1;
 }
 
-/* TODO: [near miss] 89.76%; length sum now unfused like retail; FPR allocation of the two inlined inverse-sqrt expansions differs (retail keeps x/z in f9/f8). */
+/* TODO: [near miss] 98.87%; 12 FPR coloring rows; TU-wide flags and helper splits measured, none closes. */
 float mks_get_victim_to_tr_dot(int player) {
     MkObj* victim;
     MkObj* target;
+    float x;
+    float z;
+    float inverse_length;
     float victim_x;
     float victim_z;
-    float target_x;
-    float target_z;
-    float victim_inverse_length;
-    float target_inverse_length;
     float result;
 
     result = 0.0f;
@@ -1239,19 +1224,19 @@ float mks_get_victim_to_tr_dot(int player) {
         target = g_game_info.plyr1.slot.mirror_a;
     }
     if (victim != 0 && target != 0) {
-        victim_inverse_length = jmt_fast_inverse_sqrt(
+        inverse_length = jmt_fast_inverse_sqrt(
             victim->pos.value.x * victim->pos.value.x +
             victim->pos.value.z * victim->pos.value.z);
-        victim_x = victim->pos.value.x;
-        victim_z = victim->pos.value.z;
-        target_z = target->pos.value.z - victim_z;
-        target_x = target->pos.value.x - victim_x;
-        target_inverse_length =
-            jmt_fast_inverse_sqrt(target_x * target_x + target_z * target_z);
-        result = (target_x * target_inverse_length) *
-                     (victim_x * victim_inverse_length) +
-                 (target_z * target_inverse_length) *
-                     (victim_z * victim_inverse_length);
+        x = victim->pos.value.x;
+        z = victim->pos.value.z;
+        victim_x = x * inverse_length;
+        victim_z = z * inverse_length;
+        x = target->pos.value.x - x;
+        z = target->pos.value.z - z;
+        inverse_length = jmt_fast_inverse_sqrt(x * x + z * z);
+        x *= inverse_length;
+        z *= inverse_length;
+        result = victim_x * x + z * victim_z;
     }
     return result;
 }
@@ -1394,7 +1379,7 @@ void mks_set_plyr_to_center_ang_offset(int player, float angle_offset) {
     float inverse_length;
     float direction_z;
     float direction_x;
-    int angle_bits;
+    float angle_sum;
     Vec* position;
 
     object = g_game_info.plyr0.slot.mirror_a;
@@ -1419,10 +1404,9 @@ void mks_set_plyr_to_center_ang_offset(int player, float angle_offset) {
     if (length) {
         direction_x = -1.0f * direction_x;
         direction_z = -1.0f * direction_z;
-        angle_bits = (166886.1f *
-            (angle_offset + gxMathArcTanYX(direction_x, direction_z)));
-        angle_bits &= 0xFFFFF;
-        object->ang.y = 0.000005992112f * (float)angle_bits;
+        angle_sum = angle_offset + gxMathArcTanYX(direction_x, direction_z);
+        object->ang.y = 0.000005992112f *
+            (float)(((int)(166886.1f * angle_sum)) & 0xFFFFF);
     }
 }
 

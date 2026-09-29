@@ -143,6 +143,32 @@ Do not continue matching unless setup ends in `READY` and the build prints:
 build/GQNE5D/main.dol: OK
 ```
 
+## Connect to DecompStudio
+
+DecompStudio is the shared MCP coordinator at `http://127.0.0.1:7777/mcp`
+(server name `core`, so Claude Code tools are `mcp__core__<tool>`). Call
+`status` first: it returns your identity and the pinned brief.
+
+- **Profiles hide tools.** The URL's `?profile=` decides which tools exist for
+  your connection: `core` (default; no `permute`), `match` (slim worker; has
+  `permute`, no `list_functions`/`spawn_identity`), `janitor` (match plus
+  cleanup tools), `full` (everything, including `queue_work`, `review`,
+  `wiki`, `sandbox_*`). Claude Code uses `full`; Codex uses `core`. If a tool
+  is missing, it is the profile, not a bug; you cannot change it yourself.
+- **Claude Code defers MCP tools.** Load schemas before calling, e.g.
+  `ToolSearch "select:mcp__core__status,mcp__core__lease,mcp__core__try"`.
+- **Separate processes** get their own identity automatically; set role in the
+  URL (`?agent=janitor-1&profile=janitor&tier=2`, `kind=observer` for
+  coordinators).
+- **In-process sub-agents** share the parent's connection and act as the
+  parent unless the parent calls `spawn_identity {count: N}` and gives each
+  sub-agent one `session` id that it passes on **every** call. Children are
+  tier 1 with the parent's profile; launch a separate process for anything
+  else.
+
+Full guide (URL parameters, per-profile tool table, sub-agent prompt template,
+work queues): [docs/decomp/decompstudio.md](docs/decomp/decompstudio.md).
+
 ## Use the decomp books
 
 Read [the conventions book](docs/decomp/conventiond.md) before reconstructing a

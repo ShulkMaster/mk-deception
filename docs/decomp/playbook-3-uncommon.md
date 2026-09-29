@@ -40,6 +40,11 @@ baselines.
 - A constant FP load or pooled string address moved across a selection
   branch: propagation off, tested separately from scheduling and CSE (AI
   avoidance reset, Puzzle burn controller).
+- A global pointer reloaded after a loop where retail retains the load but
+  built code reuses the loop test's register: try function-scoped
+  `opt_common_subs off` with an immediate reset and whole-TU comparison.
+  `opt_propagation off` was byte-neutral for `kabal_collide_victim`; the
+  CSE setting restored its retail `his_pdata` reload.
 - A multi-row field where retail adds the offset to a reloaded owner before
   `stfsx`: a typed row-array pointer plus propagation off (Puzzle crusher).
 - A fixed-count array copy lowered to two advancing pointers where retail has
@@ -75,6 +80,10 @@ FP operands and schedule. REQUIRE the same math, grouping, and rounding.
   output bits.
 - Mixed fused and separate operations: narrow function-scoped `fp_contract`;
   lexical toggles inside a function may do nothing.
+- If a vector is normalized before a second vector's deltas are formed, require
+  retail multiplies before the delta subtracts; name the normalized components
+  at that point. In `mks_get_victim_to_tr_dot`, this recovered the first
+  inverse-sqrt result's consumers without changing the arithmetic.
 - Constant width comes from `lfs`/`lfd` and pool bytes, not decompiler casts.
   A folded expression can differ from its decimal spelling: `3.0f * 0.075f`
   is 0x3e666667, `0.225f` is 0x3e666666.
@@ -87,6 +96,12 @@ operands.
 
 - Try equivalent thresholds, ternaries, or guarded assignments for the observed
   join. Bitwise Boolean evaluation evaluates both operands.
+- A final `cmpwi` with no consuming branch before a void epilogue can come
+  from a terminal return guard. REQUIRE a real validity or capacity condition
+  and a same-compiler reference with this lowering; try that guard before
+  forcing a dead instruction. `start_kabal_smoke_pfx` checks its ten-slot
+  emitter capacity, and exact `bgnd_append_texture_to_material` shows the
+  same no-branch compare from a terminal return guard.
 - `subic`/`subfe` normalization of a call result: a Boolean local
   (`opened = get_coffin_bit(...) != 0`). `subfic`/`cntlzw`/`srwi` field
   queries: an explicit inline success/failure return. A ternary can match
@@ -289,7 +304,10 @@ relocation addends, and use. Use `-c functionRelocDiffs=data_value`.
   (`global_background_data`).
 - An unused inline body can still emit initializer data.
 - Before modeling a terminal `gap_*`, check whether linker alignment already
-  produces the extent.
+  produces the extent. In `jmt`, retail split `gap_*` symbols occupy the final
+  four bytes of `.data` and `.sdata2`; the built sections stop at those symbols'
+  offsets, and both sections have 8-byte alignment. Do not add fake source
+  objects merely to reproduce split padding.
 - High-bit bytes in plain `char` pools: adjacent literals with fixed-width
   octal escapes, keeping embedded NULs.
 - Float pools: retail `lis`/`lfs` per literal vs one pooled base: object-level
@@ -298,6 +316,17 @@ relocation addends, and use. Use `-c functionRelocDiffs=data_value`.
 - Split literals: `@stringBase0 + n` from separate literals with object-scope
   `-str reuse,pool,readonly` (`mk_obj`). A one-character literal in `.rodata`
   instead of `.sdata2`: `-sdata2 0 -str reuse,readonly` (`adx_errs`).
+- In `jmt`, first-use ordered effect-name literals with that object-scope flag
+  produce the retail `@stringBase0` symbol and preserve its bytes. Keep the
+  two angle vectors before the string pool; file-scope stand-ins preserved
+  bytes but changed aggregate-copy scheduling. Their bytes are identical,
+  so data-value matching alone missed crossed relocations: a typed inline
+  decoy-visual initializer preserved both functions' text while giving
+  `p_decoy` `.rodata+0` and `p_kabal_smoke` `.rodata+12` as retail does.
+  A typed angle-sum local with the nested scale expression from matched
+  `r_cyrax_blade` preserved exact text and ordered the two final `.sdata2`
+  float words as retail. Compare normalized relocation section/offset/type
+  targets as well as raw section bytes before claiming link equivalence.
 - Deferred order: parse-time symbols numbered backwards through `.text`
   (`tools/deferred_scan.py`, Kendall tau < -0.5) mean `-inline deferred`;
   functions are emitted in reverse source order. Try `-inline noauto,deferred`
