@@ -1,5 +1,6 @@
 #include "dolphin/ai.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 #ifdef __MWERKS__
 #define AI_AT_ADDRESS(address) : (address)
@@ -252,12 +253,9 @@ static void __AIDHandler(__OSInterrupt interrupt, OSContext* context)
     OSSetCurrentContext(context);
 }
 
-static void __AICallbackStackSwitch(AIDCallback callback)
+static asm void __AICallbackStackSwitch(AIDCallback callback)
 {
-    /* Retail invokes this callback on __CallbackStack. Portable C cannot
-     * express a stack-pointer swap, so this boundary intentionally preserves
-     * the callback behavior without importing the SDK's embedded assembly. */
-    callback();
+    SEQ___AICallbackStackSwitch();
 }
 
 #pragma peephole off

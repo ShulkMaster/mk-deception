@@ -127,7 +127,10 @@ def load_manifest(path: Path, version: str) -> tuple[Path, Path, list[dict[str, 
 
 
 def emit_macro(
-    sequence: Sequence, sda_symbols: dict[str, str], entries: tuple[str, ...] = ()
+    sequence: Sequence,
+    sda_symbols: dict[str, str],
+    entries: tuple[str, ...] = (),
+    end_entries: tuple[str, ...] = (),
 ) -> list[str]:
     lines = [f"#define SEQ_{sequence.name}() \\", "    nofralloc; \\"]
     # Exported entry labels inside the sequence, at their retail offsets.
@@ -138,7 +141,8 @@ def emit_macro(
     for index, (word, assembly) in enumerate(sequence.instructions):
         for label in entry_at.get(4 * index, []):
             lines.append(f"    entry {label}; \\")
-        suffix = " \\" if index + 1 < len(sequence.instructions) else ""
+        last = index + 1 == len(sequence.instructions) and not end_entries
+        suffix = "" if last else " \\"
         if "@sda21" in assembly:
             for retail_symbol, source_symbol in sda_symbols.items():
                 assembly = assembly.replace(
@@ -162,6 +166,10 @@ def emit_macro(
             lines.append(f"    {assembly};{suffix}")
         else:
             lines.append(f"    opword 0x{word:08X};{suffix}")
+    # Labels that mark the address just past the last instruction.
+    for index, label in enumerate(end_entries):
+        suffix = " \\" if index + 1 < len(end_entries) else ""
+        lines.append(f"    entry {label};{suffix}")
     return lines
 
 
@@ -234,7 +242,26 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                 raise ValueError(f"{name}.entries: {label} is not a retail label inside {name}")
             if not SYMBOL_RE.fullmatch(label):
                 raise ValueError(f"{name}.entries: invalid label {label!r}")
-        lines.extend(emit_macro(sequence, sda_symbols, tuple(raw_entries)))
+        raw_end_entries = entry.get("end_entries", [])
+        if not isinstance(raw_end_entries, list) or not all(
+            isinstance(e, str) for e in raw_end_entries
+        ):
+            raise ValueError(f"{name}.end_entries: expected a list of label names")
+        end_address = sequence.address + size
+        for label in raw_end_entries:
+            if not SYMBOL_RE.fullmatch(label):
+                raise ValueError(f"{name}.end_entries: invalid label {label!r}")
+            # A label retail does name must sit exactly at the function's end.
+            for other in available.values():
+                for other_label, offset in other.labels:
+                    if other_label == label and other.address + offset != end_address:
+                        raise ValueError(
+                            f"{name}.end_entries: retail {label} is at "
+                            f"0x{other.address + offset:X}, not 0x{end_address:X}"
+                        )
+        lines.extend(
+            emit_macro(sequence, sda_symbols, tuple(raw_entries), tuple(raw_end_entries))
+        )
         lines.append("")
 
     return build_root / version / "include" / output_relative, "\n".join(lines)

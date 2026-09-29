@@ -19,5 +19,13 @@ void PPCMtfpscr(unsigned long value);
 void PPCMtdec(unsigned long value);
 void PPCSync(void);
 void PPCHalt(void);
+void PPCMtmmcr0(unsigned long value);
+void PPCMtmmcr1(unsigned long value);
+void PPCMtpmc1(unsigned long value);
+void PPCMtpmc2(unsigned long value);
+void PPCMtpmc3(unsigned long value);
+void PPCMtpmc4(unsigned long value);
+void PPCDisableSpeculation(void);
+void PPCSetFpNonIEEEMode(void);
 
 #endif

@@ -94,19 +94,17 @@ static inline void DisableWriteGatherPipe(void)
     PPCMthid2(PPCMfhid2() & ~0x40000000);
 }
 
-/* Retail implements these symbols as copied exception-vector instruction
- * templates. Empty C leaves preserve their linkage without embedding asm. */
-void __OSEVStart(void) {}
-void __OSEVSetNumber(void) {}
-void __DBVECTOR(void) {}
-void __OSEVEnd(void) {}
-void __OSDBINTSTART(void) {}
-void __OSDBINTEND(void) {}
-void __OSDBJUMPSTART(void) {}
-void __OSDBJUMPEND(void) {}
+void __OSEVStart(void);
+void __OSEVSetNumber(void);
+void __DBVECTOR(void);
+void __OSEVEnd(void);
+void __OSDBINTSTART(void);
+void __OSDBINTEND(void);
+void __OSDBJUMPSTART(void);
+void __OSDBJUMPEND(void);
 
-/* TODO: [breakthrough] 94.85%; __sync intrinsic and retail function order restored; retail computes
- * the integrator size before the first DBPrintf and its strings sit at +0x160 in the pool. */
+/* TODO: [breakthrough] 94.35%; retail computes the integrator size before the first DBPrintf and its
+ * strings sit at +0x160 in the pool; __OSDBINTEND relocs name retail's same-address __OSDBJUMPSTART. */
 static void OSExceptionInit(void)
 {
     __OSException exception;
@@ -160,6 +158,14 @@ static void OSExceptionInit(void)
     DBPrintf("Exceptions initialized...\n");
 }
 
+static asm void __OSDBIntegrator(void) {
+    SEQ___OSDBIntegrator();
+}
+
+static asm void __OSDBJump(void) {
+    SEQ___OSDBJump();
+}
+
 OSExceptionHandler __OSSetExceptionHandler(__OSException exception,
                                             OSExceptionHandler handler)
 {
@@ -173,9 +179,13 @@ OSExceptionHandler __OSGetExceptionHandler(__OSException exception)
     return OSExceptionTable[exception];
 }
 
-void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
+static asm void OSExceptionVector(void) {
+    SEQ_OSExceptionVector();
+}
+
+asm void OSDefaultExceptionHandler(__OSException exception, OSContext* context)
 {
-    __OSUnhandledException(exception, context, 0, 0);
+    SEQ_OSDefaultExceptionHandler();
 }
 
 /* TODO: [blocked] 54.285713%; HID2/cache ordering matches the donor, but

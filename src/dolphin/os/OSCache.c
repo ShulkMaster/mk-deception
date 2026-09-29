@@ -1,76 +1,44 @@
 #include "dolphin/cache.h"
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 extern void DBPrintf(const char* format, ...);
 
-static inline void privilegedCacheTodo(void) {
-    /* TODO: This privileged routine may have originated as assembly; recover an
-     * intrinsic-based source form that emits the retail instruction sequence. */
+asm void DCEnable(void) {
+    SEQ_DCEnable();
 }
 
-void DCEnable(void) {
-    privilegedCacheTodo();
+asm void DCInvalidateRange(void* addr, unsigned long nBytes) {
+    SEQ_DCInvalidateRange();
 }
 
-void DCInvalidateRange(void* addr, unsigned long nBytes) {
-    privilegedCacheTodo();
+asm void DCFlushRange(void* addr, unsigned long nBytes) {
+    SEQ_DCFlushRange();
 }
 
-void DCFlushRange(void* addr, unsigned long nBytes) {
-    unsigned long blocks;
-
-    if (nBytes > 0) {
-        blocks = (nBytes + ((unsigned long)addr & 0x1F) + 0x1F) >> 5;
-        do {
-            __dcbf(addr, 0);
-            addr = (unsigned char*)addr + 0x20;
-        } while (--blocks != 0);
-        /* TODO: This routine may have originated as assembly; recover an
-         * intrinsic-based expression for the retail terminal sc instruction. */
-    }
+asm void DCStoreRange(void* addr, unsigned long nBytes) {
+    SEQ_DCStoreRange();
 }
 
-void DCStoreRange(void* addr, unsigned long nBytes) {
-    unsigned long blocks;
-
-    if (nBytes > 0) {
-        blocks = (nBytes + ((unsigned long)addr & 0x1F) + 0x1F) >> 5;
-        do {
-            __dcbst(addr, 0);
-            addr = (unsigned char*)addr + 0x20;
-        } while (--blocks != 0);
-        /* TODO: This routine may have originated as assembly; recover an
-         * intrinsic-based expression for the retail terminal sc instruction. */
-    }
+asm void DCFlushRangeNoSync(void* addr, unsigned long nBytes) {
+    SEQ_DCFlushRangeNoSync();
 }
 
-void DCFlushRangeNoSync(void* addr, unsigned long nBytes) {
-    unsigned long blocks;
-
-    if (nBytes > 0) {
-        blocks = (nBytes + ((unsigned long)addr & 0x1F) + 0x1F) >> 5;
-        do {
-            __dcbf(addr, 0);
-            addr = (unsigned char*)addr + 0x20;
-        } while (--blocks != 0);
-    }
+asm void ICInvalidateRange(void* addr, unsigned long nBytes) {
+    SEQ_ICInvalidateRange();
 }
 
-void ICInvalidateRange(void* addr, unsigned long nBytes) {
-    privilegedCacheTodo();
+asm void ICFlashInvalidate(void) {
+    SEQ_ICFlashInvalidate();
 }
 
-void ICFlashInvalidate(void) {
-    privilegedCacheTodo();
+asm void ICEnable(void) {
+    SEQ_ICEnable();
 }
 
-void ICEnable(void) {
-    privilegedCacheTodo();
-}
-
-void LCDisable(void) {
-    privilegedCacheTodo();
+asm void LCDisable(void) {
+    SEQ_LCDisable();
 }
 
 static inline void L2Disable(void) {

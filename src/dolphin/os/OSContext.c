@@ -19,11 +19,10 @@ static asm void __OSLoadFPUContext(unsigned long exception, OSContext* context)
     SEQ___OSLoadFPUContext();
 }
 
-static void __OSSaveFPUContext(unsigned long exception, unsigned long unused,
-                               OSContext* context)
+static asm void __OSSaveFPUContext(unsigned long exception, unsigned long unused,
+                                   OSContext* context)
 {
-    /* Retail stores the live FPR/FPSCR/PS register banks here. */
-    context->state |= OS_CONTEXT_STATE_FPSAVED;
+    SEQ___OSSaveFPUContext();
 }
 
 void OSSaveFPUContext(OSContext* context)
@@ -31,38 +30,24 @@ void OSSaveFPUContext(OSContext* context)
     __OSSaveFPUContext(0, 0, context);
 }
 
-#pragma dont_inline on
-void OSSetCurrentContext(OSContext* context)
+asm void OSSetCurrentContext(OSContext* context)
 {
-    OS_CURRENT_CONTEXT = context;
-    OS_CURRENT_CONTEXT_PHYSICAL = (unsigned long)context & 0x3FFFFFFF;
-    if (OS_FPU_CONTEXT == context) {
-        context->srr1 |= 0x2000;
-    } else {
-        context->srr1 &= ~0x2000;
-    }
+    SEQ_OSSetCurrentContext();
 }
-#pragma dont_inline reset
 
 OSContext* OSGetCurrentContext(void)
 {
     return (OSContext*)OS_CURRENT_CONTEXT;
 }
 
-unsigned long OSSaveContext(OSContext* context)
+asm unsigned long OSSaveContext(OSContext* context)
 {
-    /* Retail saves nonvolatile GPRs and special registers before returning 0. */
-    context->gpr[3] = 1;
-    return 0;
+    SEQ_OSSaveContext();
 }
 
-void OSLoadContext(OSContext* context)
+asm void OSLoadContext(OSContext* context)
 {
-    /* Retail restores registers and returns from interrupt with rfi. */
-    if (context->state & OS_CONTEXT_STATE_EXCEPTION) {
-        context->state &= ~OS_CONTEXT_STATE_EXCEPTION;
-    }
-    OSSetCurrentContext(context);
+    SEQ_OSLoadContext();
 }
 
 /* TODO: [blocked] 70.000000%; retail is a two-instruction r1 leaf, but MWCC
@@ -187,19 +172,9 @@ void OSDumpContext(OSContext* context)
     }
 }
 
-static void OSSwitchFPUContext(__OSException exception, OSContext* context)
+static asm void OSSwitchFPUContext(__OSException exception, OSContext* context)
 {
-    OSContext* previous = (OSContext*)OS_FPU_CONTEXT;
-
-    context->srr1 |= 0x2000;
-    OS_FPU_CONTEXT = context;
-    if (previous != context) {
-        if (previous) {
-            __OSSaveFPUContext(exception, 0, previous);
-        }
-        __OSLoadFPUContext(exception, context);
-    }
-    context->state &= ~OS_CONTEXT_STATE_EXCEPTION;
+    SEQ_OSSwitchFPUContext();
 }
 
 void __OSContextInit(void)

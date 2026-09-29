@@ -2719,6 +2719,12 @@ config.libs = [
         ],
     ),
     DolphinLib(
+        "base",
+        [
+            Object(NonMatching, "base.a/PPCArch.o", source="dolphin/base/PPCArch.c"),
+        ],
+    ),
+    DolphinLib(
         "os",
         [
             Object(NonMatching, "os.a/OS.o", source="dolphin/os/OS.c"),
@@ -2732,12 +2738,12 @@ config.libs = [
                 extra_cflags=["-opt nopeephole"],
             ),
             Object(NonMatching, "os.a/OSContext.o", source="dolphin/os/OSContext.c"),
-            Object(NonMatching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
+            Object(Matching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
             Object(Matching, "os.a/OSFont.o", source="dolphin/os/OSFont.c"),
             Object(Matching, "os.a/OSRtc.o", source="dolphin/os/OSRtc.c"),
             Object(Matching, "os.a/OSThread.o", source="dolphin/os/OSThread.c"),
             Object(Matching, "os.a/OSArena.o", source="dolphin/os/OSArena.c"),
-            Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c", extra_cflags=["-inline noauto"]),
+            Object(Matching, "os.a/OSCache.o", source="dolphin/os/OSCache.c", extra_cflags=["-inline noauto"]),
             Object(
                 Matching,
                 "os.a/OSAudioSystem.o",
@@ -2756,7 +2762,7 @@ config.libs = [
             ),
             Object(Matching, "os.a/OSReboot.o", source="dolphin/os/OSReboot.c"),
             Object(
-                NonMatching,
+                Matching,
                 "os.a/OSTime.o",
                 source="dolphin/os/OSTime.c",
                 extra_cflags=["-opt nopeephole"],
@@ -2899,7 +2905,7 @@ config.libs = [
     DolphinLib(
         "ai",
         [
-            Object(NonMatching, "ai.a/ai.o", source="dolphin/ai/ai.c"),
+            Object(Matching, "ai.a/ai.o", source="dolphin/ai/ai.c"),
         ],
     ),
     DolphinLib(

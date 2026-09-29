@@ -3,6 +3,7 @@
 #include "dolphin/dvd.h"
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
+#include "runtime/asm_sequences.inc"
 
 extern void* memset(void* destination, int value, unsigned long size);
 extern void* memcpy(void* destination, const void* source, unsigned long size);
@@ -63,10 +64,9 @@ static int PackArgs(void* address, int argc, char** argv)
 
 /* The retail leaf transfers through LR after sync/isync.  C expresses the
  * control transfer, but cannot reproduce those privileged ordering opcodes. */
-static void Run(void* entry_point)
+static asm void Run(void* entry_point)
 {
-    ICFlashInvalidate();
-    ((void (*)(void))entry_point)();
+    SEQ_Run();
 }
 
 /* The boot/exec C code from here on was built without the peephole pass. */

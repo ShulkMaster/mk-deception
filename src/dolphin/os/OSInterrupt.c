@@ -307,8 +307,8 @@ void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 }
 
 /* Retail saves volatile GPR and GQR state in a privileged assembly leaf. */
-static void ExternalInterruptHandler(__OSException exception,
+static asm void ExternalInterruptHandler(__OSException exception,
                                      OSContext* context)
 {
-    __OSDispatchInterrupt(exception, context);
+    SEQ_ExternalInterruptHandler();
 }
