@@ -150,25 +150,31 @@ function. It describes high-level source shapes observed in game code, SDK code,
 and bundled libraries. Use it to form a hypothesis, then confirm that hypothesis
 against retail evidence.
 
-For a localized mismatch, use the mechanical playbooks in this order:
+For a localized mismatch, use the mechanical playbooks. They are tiered by how
+rare the situation is; read tier 1 every time and open a deeper tier only when
+its triage table points there:
 
-1. [High occurrence](docs/decomp/playbook-high-occurrence.md) — common type,
-   ABI, layout, lifetime, CFG, and register-coloring causes. Start here.
-2. [Mid occurrence](docs/decomp/playbook-mid-occurrence.md) — localized
-   lowering, aggregate, ownership, scheduling, and compiler-mode causes.
-3. [Niche / fallback](docs/decomp/playbook-niche.md) — rare compiler quirks and
-   explicit stop conditions. Use only when the first two books do not fit.
+1. [Core](docs/decomp/playbook-1-core.md) — protocol, acceptance gates,
+   symptom-to-rule triage, the H-rule index, and stop rules. Start here.
+2. [Common](docs/decomp/playbook-2-common.md) — detail for H01-H25: type, ABI,
+   layout, lifetime, CFG, and register-coloring causes.
+3. [Uncommon](docs/decomp/playbook-3-uncommon.md) — M01-M17: compiler modes,
+   FP, aggregate/ABI shape, inline/macro boundaries, and data/link layout.
+4. [Rare](docs/decomp/playbook-4-rare.md) — N01-N12, hard stops, compiler
+   revisions, and permuter search.
 
-Keep these playbooks slim enough to read and use during a task. Amend the
-existing diagnostic instead of appending repeated examples; put attempt history,
-scores, and campaign evidence in linked reports. Preserve distinct preconditions,
-safety/stop rules, rule IDs, and useful links when summarizing.
+Each rule has its own `## ID` section in tiers 2-4, so one rule can be read
+alone (DecompStudio `docs` read with `section`). Rule IDs are stable across
+tiers. Keep the tiers compact: amend the existing rule with its precondition,
+action, and one exemplar symbol; put attempt history, scores, and campaign
+evidence in linked reports. Preserve distinct preconditions, safety/stop
+rules, and rule IDs when summarizing.
 
 Each rule is an `IF / REQUIRE / TRY` diagnostic. Apply it only when its preconditions
 match the assembly and call-site evidence. Try one mechanical edit, rebuild, and
 measure. Never stack speculative tricks merely because one improves fuzzy score.
-If only harmless register coloring remains, follow the niche book's soft-ceiling
-rule and stop.
+If only harmless register coloring remains, follow the tier-4 hard-stop
+(soft-ceiling) rule and stop.
 
 ## Recover a function with m2c
 
@@ -204,7 +210,7 @@ fake `volatile`, invented lifetimes, incorrect types, or reordered side effects.
 Apply only one understandable candidate insight to `src/`, rebuild the affected
 object, and inspect the same symbol with objdiff. A permuter score of zero still
 requires an honest-source review, the full build, and the retail SHA-1 gate. If
-only harmless coloring remains, keep the niche playbook's soft ceiling instead
+only harmless coloring remains, keep the tier-4 hard-stop soft ceiling instead
 of landing permutation residue.
 
 ## Build and inspect the diff
