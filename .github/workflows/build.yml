@@ -101,48 +101,39 @@ jobs:
             --output build/${{ matrix.version }}/report_changes.json
         python3 tools/github_report.py \
             build/${{ matrix.version }}/report_changes.json \
-            --output build/${{ matrix.version }}/github_report.md
-        cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
+            --title "Objdiff report · ${{ matrix.version }}" \
+            --output build/${{ matrix.version }}/github_report.md \
+            --comments-dir build/${{ matrix.version }}/github_comments
+        # Step summaries are limited to 1 MiB; the artifact always has the
+        # full report.
+        if [ "$(wc -c < build/${{ matrix.version }}/github_report.md)" -lt 1000000 ]; then
+          cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
+        else
+          cat build/${{ matrix.version }}/github_comments/comment-1.md >> "${GITHUB_STEP_SUMMARY}"
+          echo "Full report is in the ${{ matrix.version }}_github_report artifact." >> "${GITHUB_STEP_SUMMARY}"
+        fi
 
     - name: Upload PR diff report
       if: github.event_name == 'pull_request'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.version }}_github_report
-        path: build/${{ matrix.version }}/github_report.md
+        path: |
+          build/${{ matrix.version }}/github_report.md
+          build/${{ matrix.version }}/github_comments/
 
     - name: Publish objdiff report to PR
-      # Tokens for pull requests from forks are read-only. Those builds still
-      # publish the report as an artifact and in the workflow summary.
+      # Tokens for pull requests from forks are read-only. Those reports are
+      # published by the Comment fork report workflow.
       if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/github-script@v9
-      env:
-        REPORT_PATH: build/${{ matrix.version }}/github_report.md
-        REPORT_VERSION: ${{ matrix.version }}
       with:
         script: |
-          const fs = require('fs');
-          const marker = `<!-- objdiff-function-report:${process.env.REPORT_VERSION} -->`;
-          const report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
-          const body = `${marker}\n${report}`;
-          const issue_number = context.issue.number;
-          const comments = await github.paginate(
-            github.rest.issues.listComments,
-            { ...context.repo, issue_number, per_page: 100 },
-          );
-          const previous = comments.find(
-            comment => comment.user?.type === 'Bot' && comment.body?.includes(marker),
-          );
-          if (previous) {
-            await github.rest.issues.updateComment({
-              ...context.repo,
-              comment_id: previous.id,
-              body,
-            });
-          } else {
-            await github.rest.issues.createComment({
-              ...context.repo,
-              issue_number,
-              body,
-            });
-          }
+          const post = require('./.github/scripts/post_report.js');
+          await post({
+            github,
+            context,
+            issueNumber: context.issue.number,
+            version: '${{ matrix.version }}',
+            dir: 'build/${{ matrix.version }}/github_comments',
+          });
