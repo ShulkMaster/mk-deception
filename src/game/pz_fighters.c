@@ -186,7 +186,7 @@ void attack_to_frame_x(
     AniScript* animation, int field0C, int field10, int field14,
     float frame1, float frame2, float frame3, float frame4);
 void force_forward(int duration, int interval, float velocity, float damping);
-void force_away(int duration, int interval, float velocity, float damping);
+void force_away(float velocity, int duration, float damping, int interval);
 void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
 unsigned int randu0(unsigned int max);
 void puzzle_fighter_get_num_blocks_on_screen(
@@ -3015,7 +3015,7 @@ void pz_fighter_startup_attack(
                  gxMathFastSqrt(desired_distance)) /
                 5.0f;
             if (correction < 0.0f) {
-                force_away(5, 3, -1.0f * correction, 0.9f);
+                force_away(-1.0f * correction, 5, 0.9f, 3);
             } else {
                 force_forward(5, 3, correction, 0.9f);
             }

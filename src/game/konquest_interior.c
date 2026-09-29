@@ -592,7 +592,6 @@ float get_ir_cam_pos_x(int include_offset) {
 }
 
 
-/* The unguarded tail flag store on the latched, possibly null object follows retail behavior. */
 
 
 

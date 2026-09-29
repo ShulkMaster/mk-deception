@@ -568,10 +568,9 @@ static float p_limb_sever_update(void);
 NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id);
 MkObj* limb_sever_set_motion(
-    MkObj* owner, int limb, const Vec* velocity,
-    NcsLimbUpdatePdata* motion, int enable_ground,
-    int ground_value, int field_18, int include_children,
-    float gravity, float ground_offset, float field_11C);
+    MkObj* owner, int limb, const Vec* velocity, float gravity,
+    NcsLimbUpdatePdata* motion, int enable_ground, float ground_offset,
+    int ground_value, float field_11C, int field_18, int include_children);
 void limb_sever_explode_apart(PlyrInfo* player);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void spawn_bld_splat(
@@ -3353,10 +3352,9 @@ MkProc* plyr_spawn_his_anim_limb(
 }
 
 MkObj* limb_sever_set_motion(
-    MkObj* owner, int limb, const Vec* velocity,
-    NcsLimbUpdatePdata* motion, int enable_ground,
-    int ground_value, int field_18, int include_children,
-    float gravity, float ground_offset, float field_11C) {
+    MkObj* owner, int limb, const Vec* velocity, float gravity,
+    NcsLimbUpdatePdata* motion, int enable_ground, float ground_offset,
+    int ground_value, float field_11C, int field_18, int include_children) {
     return limb_sever_set_motion_inline(
         owner, limb, velocity, motion, enable_ground, ground_value,
         field_18, include_children, gravity, ground_offset, field_11C);

@@ -2735,10 +2735,9 @@ static float p_run_interaction_camera(void) {
 }
 
 
-void interaction_cam_set_target_info(int duration, float angle_a,
-                                     float field_14, float field_18,
-                                     float angle_b, float field_20,
-                                     float field_24) {
+void interaction_cam_set_target_info(
+    float angle_a, float field_14, float field_18, float angle_b,
+    float field_20, float field_24, int duration) {
     MkObj* hero;
     InteractionNpc* movement_npc;
     MkObj* target;
@@ -3236,11 +3235,10 @@ void special_move_cam_end(void) {
     xfer_camera_impl(p_camera_proc, 1);
 }
 
-void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
-                             MkObj* target, MkObj* reference_object,
-                             float orbit_yaw_offset, float orbit_radius,
-                             float camera_height, float look_yaw_offset,
-                             float look_pitch) {
+void special_move_cam_setup2(
+    float orbit_yaw_offset, float orbit_radius, float camera_height,
+    float look_yaw_offset, float look_pitch, int ease_ticks, int total_ticks,
+    int unused, MkObj* target, MkObj* reference_object) {
     if (!g_game_info.feature_flags.bits.powerbars_locked) {
         if (am_i_on_the_left2(target, reference_object) != 0) {
             orbit_yaw_offset = -orbit_yaw_offset;
@@ -3259,10 +3257,10 @@ void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
     }
 }
 
-void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
-                            float orbit_yaw_offset, float orbit_radius,
-                            float camera_height, float look_yaw_offset,
-                            float look_pitch) {
+void special_move_cam_setup(
+    float orbit_yaw_offset, float orbit_radius, float camera_height,
+    float look_yaw_offset, float look_pitch, int ease_ticks, int total_ticks,
+    int unused) {
     if (!g_game_info.feature_flags.bits.powerbars_locked) {
         if (am_i_on_the_left() != 0) {
             orbit_yaw_offset = -orbit_yaw_offset;

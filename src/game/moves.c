@@ -352,8 +352,9 @@ void set_attackers_attack_region(int region);
 void attack_to_frame_x(AniData* animation, unsigned int voice_event,
                        unsigned int whoosh_event, int transition, float frame,
                        float blend_rate, float step, float weight);
-void ani_to_frame_x_col(int region, int reaction, unsigned int collision_ticks,
-                        float frame, float x, float y, float z);
+void ani_to_frame_x_col(
+    float frame, int region, float x, float y, int reaction, float z,
+    unsigned int collision_ticks);
 void whoosh_fx(int sound);
 float p_sc_spear_retract(void);
 float p_sc_spear_kill(void);
@@ -1268,7 +1269,7 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     plyr_pdata->active_pickup = pickup;
     disable_bgnd_obj_repel(&pickup->hdr);
     special_move_cam_setup(
-        0x19, 0x46, 0, 2.5f, 3.5f, 2.0f, -0.4f, 0.15f);
+        2.5f, 3.5f, 2.0f, -0.4f, 0.15f, 0x19, 0x46, 0);
 
     angle = gxMathArcTanYX(offset->x, offset->z) - plyr_obj->ang.y;
     if (angle > 0.0f) {
@@ -2528,7 +2529,7 @@ float x_attack_1(void) {
     return 1.0f;
 }
 
-void sidekick_switch_style_swap(unsigned int count) {
+void sidekick_switch_style_swap(float unread_arg, unsigned int count) {
     while (count != 0) {
         ani_loop_more_frames(1.0f);
         face_opponent_now();
@@ -6314,8 +6315,7 @@ void attack_opponent_with(
         info->attack_frame, info->blend_rate, info->step, info->weight);
     plyr_pdata->throw_restriction = 2;
     ani_to_frame_x_col(
-        info->attack_region, reaction, info->block_requirement,
-        info->collision_frame, info->collision_x, info->collision_y,
-        info->collision_z);
+        info->collision_frame, info->attack_region, info->collision_x,
+        info->collision_y, reaction, info->collision_z, info->block_requirement);
     plyr_pdata->throw_restriction = 3;
 }

@@ -893,8 +893,8 @@ void bgnd_sobj_set_texture_kl_values(
     float l, int k);
 char* get_script_string_arg(int argument);
 void jab_attach_wiff_to_sobj(
-    int object, int sobj, const char* wiff, const char* animation,
-    int flags, int mode, float scale);
+    MkObj* object, int sobj_id, const char* wiff_name,
+    const char* texture_name, int section, float rate, int frame);
 MkObj* start_projectile_from_sidekick_bone(
     int bone, MkObj* existing_object, const char* projectile,
     float speed, float tolerance, const Vec* bone_offset);
@@ -2298,31 +2298,32 @@ void bgnd_launch_fx_at_plyr_pos_and_y(const char*, float);
 void bgnd_set_fx_z_offset(const char *, float);
 
 /* Typed declarations used by imported script wrappers. */
-int ani_col_abort(int, int, int, float, float, float, float);
-int ani_to_fall_to_frame(int, void *, float, float);
-int ani_to_frame_sound(int, float, float);
-int ani_to_frame_x_col(int, int, int, float, float, float, float);
+int ani_col_abort(float, int, float, float, int, float, int);
+void ani_to_fall_to_frame(
+    float landing_frame, int sound_id, float target_frame);
+void ani_to_frame_sound(float target_frame, float sound_frame, int sound_id);
+int ani_to_frame_x_col(float, int, float, float, int, float, int);
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
     float frame);
-void attach_sound_to_object_by_uid(int, int, int, int, float, float);
+void attach_sound_to_object_by_uid(int, int, float, float, int, int);
 void attach_wiff_to_konquest_object_by_uid(int, char*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
                              float, unsigned int);
 void bgnd_launch_fx_at_plyr_bid(const char*, int);
 void bgnd_launch_fx_to_sobj(const char*, int);
-void bgnd_launch_plyr_up_and_forward(int, int, float, float, float, float,
-                                     float);
+void bgnd_launch_plyr_up_and_forward(
+    float, float, float, float, int, float, int);
 void bgnd_launch_sobj(int, unsigned int, unsigned int, unsigned int,
-                      unsigned int, unsigned int, unsigned int, float);
-void bgnd_pebble_change_current_behavior(unsigned int, int, float, float,
-                                         float, float, float, float);
+                      unsigned int, unsigned int, float, unsigned int);
+void bgnd_pebble_change_current_behavior(
+    float, float, float, float, float, float, unsigned int, int);
 void bgnd_pebble_change_current_behavior_to_bounce(
-    unsigned int, int, float, float, float, float, float, float);
-void bgnd_pebble_launch_at_time(int, int, unsigned int, int, float, float,
-                                float, float, float, float, float, float,
-                                float);
+    float, float, float, float, float, float, unsigned int, int);
+void bgnd_pebble_launch_at_time(
+    int, int, float, float, float, float, float, float, float, float, float,
+    unsigned int, int);
 void bgnd_place_weapon_at_position(
     int, int, int, int, int, int, int,
     float, float, float, float, float, float, float, float,
@@ -2338,34 +2339,43 @@ int display_konquest_text(
     unsigned int, unsigned int, float, float, float);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
-int force_away(int, int, float, float);
+void force_away(float, int, float, int);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
-void konquest_use_portal(int, Vec*, int, float, float, float);
-int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
-int mk_chess_ani_until_reached_destination(int, float, float, float, float, float);
-void mk_chess_force_away(int, int, float, float);
-int mk_chess_launch_n_land_ani_with_xz(int, int, int, float, float, float, float, float, float, float, float);
-int mk_chess_place_special_cell_at(int, int, int, int, float, float, float, float);
-void mk_chess_put_active_piece_at_cell(int, float, float);
-int mk_chess_rotate_towards_cell(int, void *, float, float, float, float);
+void konquest_use_portal(int, Vec*, float, float, float, int);
+int limb_sever_set_motion(int, int, int, float, int, int, float, int, float, int, int);
+int mk_chess_ani_until_reached_destination(float, float, float, float, float, int);
+void mk_chess_force_away(float speed, int delay, float damping, int frames);
+void mk_chess_launch_n_land_ani_with_xz(
+    int animation_id, float launch_frame, float initial_speed,
+    float landing_frame, float vertical_speed, float gravity, float blend,
+    float start_x, float start_y, float target_x, float target_y, int turn,
+    unsigned int sound);
+int mk_chess_place_special_cell_at(int, int, int, float, float, float, float, int);
+void mk_chess_put_active_piece_at_cell(float x, float y, int snap);
+void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other, float offset);
 void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, float, int, float, int, float, int, float);
 int mks_set_rotate_update_by_group(int, int, int, float, float, float);
-int mks_set_sin_update_by_group(int, int, int, int, float, float, float, float, float, float);
-int obj_grnd_bounce(int, int, int, void *, float, float, float);
-int obj_match_obj_pos(int, int, int, float);
+int mks_set_sin_update_by_group(int, int, int, float, float, float, float, float, float, int);
+void obj_grnd_bounce(MkObj* object, const Vec* velocity, float gravity,
+                     float ground_offset, int bounces, float restitution);
+void obj_match_obj_pos(
+    MkObj* source, MkObj* destination, float blend, int snap);
 int parse_args(void*, ...);
 int plyr_spawn_his_anim_limb(
     int, int, int, void*, int, ScriptProcEntryFn, unsigned char*, float);
-int player_area_collision_check(int, int, float, float, float);
+int player_area_collision_check(float, float, int, float, int);
 float pz_fighter_inline_force_away_with_ani(
     float, unsigned int, float, unsigned int);
-int set_active_projectile_collision_info(int, void *, float, float, float);
-int shake_hit_voice(int, int, int, float);
-void show_text(int, unsigned int, unsigned int, unsigned int, int, float, float, float);
-int sidekick_switch_style_swap(int, float);
-int single_frame_collision_check(int, int, int, void *, float, float, float);
-int special_move_cam_him(int, int, int, float, float, float, float, float);
+void set_active_projectile_collision_info(
+    float radius, int enabled, float height, float depth);
+void shake_hit_voice(int, float, int, int);
+void show_text(int, unsigned int, unsigned int, float, float, float, unsigned int, int);
+void sidekick_switch_style_swap(float unread_arg, unsigned int count);
+int single_frame_collision_check(
+    int region, float radius, float height, int reaction, int strength,
+    float reaction_rate);
+int special_move_cam_him(float, float, float, float, float, int, int, int);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, const Vec* velocity,
@@ -2375,7 +2385,7 @@ void start_gore2_pebbles(
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
 void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
-void trial_show_text_window(int, int, int, float, float, float);
+void trial_show_text_window(int, float, float, float, int, int);
 float two_player_animation_blend(int, int, float, float);
 
 /* Data used by imported script wrappers. */
@@ -2388,15 +2398,22 @@ int trial_set_move_message(char*);
 /* Typed declarations used by imported script wrappers. */
 void attack_to_frame_x(AniData*, unsigned int, unsigned int, int,
                        float, float, float, float);
-int launch_n_land_ani(void*, int, void*, float, float, float, float, float, float);
-int lower_mines_ani_to_point(void*, int, int, int, float, float, float, float, float, float);
-int newani_to_frame_x(void*, int, float, float, float, float);
+void launch_n_land_ani(
+    AniData* animation, float launch_frame, float launch_step,
+    float landing_frame, int landing_animation, float velocity_y,
+    float gravity, float blend);
+void lower_mines_ani_to_point(
+    void* script, float start_frame, float animation_step, float end_frame,
+    int landing_sound, float vertical_velocity, float gravity,
+    float transition, Vec* target, unsigned int frame_offset);
+void newani_to_frame_x(void*, float, float, float, float, int);
 void pz_fighter_startup_attack(
     void*, int, int, int, unsigned int,
     float, float, float, float, float);
-int two_player_animation(void*, void*, float);
-int two_player_animation_flip(void*, void*, float);
-int two_player_animation_match_attacker(void*, void*, float);
+void two_player_animation(AniData* animation, float attacker_blend);
+float two_player_animation_flip(AniData* animation, float attacker_step);
+float two_player_animation_match_attacker(
+    AniData* animation, float attacker_step);
 void* get_function_attributes_table(ScriptDistanceSlot*, int);
 void trial_register_script_function(unsigned int);
 
@@ -2802,91 +2819,6 @@ void _my_attack_hit(void) {
     script.integer->value = 0;
 }
 
-/* TODO: [near miss] 94.88372%; pointer/integer address grouping did not change decrement scheduling; retained original form. */
-void _hit_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 1) {
-        return;
-    }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
-}
-
-void _check_his_state(void) {
-    unsigned int function_index;
-
-    if (his_pdata->state == ((ScriptRawArgs*)current_args)->slots[0].i) {
-        return;
-    }
-    function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
-}
-
-void _block_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 2) {
-        return;
-    }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
-}
-
-void _miss_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 0) {
-        return;
-    }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
-}
-
 void _pz_fighter_startup_attack(void) {
     ScriptArgsRef args;
 
@@ -3044,6 +2976,27 @@ void _attack_opponent_with(void) {
 void _drone_combo(void) {
 }
 
+void _check_his_state(void) {
+    unsigned int function_index;
+
+    if (his_pdata->state == ((ScriptRawArgs*)current_args)->slots[0].i) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
 void _drone_xfer_him(void) {
     reaction_xfer_him_nohit(((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
@@ -3061,6 +3014,28 @@ void _xfer_camera(void) {
     xfer_camera(
         script_callable_function_table[function_index - 1],
         reset_projection);
+}
+
+void _camera_set_movement_focus(void) {
+    MkObj* object;
+
+    switch (((ScriptRawArgs*)current_args)->slots[0].i) {
+    case 0:
+        object = g_game_info.plyr0.slot.mirror_a;
+        break;
+    case 1:
+        object = g_game_info.plyr1.slot.mirror_a;
+        break;
+    case 2:
+        object = camera_get_victim();
+        break;
+    case 3:
+        object = camera_get_attacker();
+        break;
+    default:
+        return;
+    }
+    camera_set_movement_focus_obj(object);
 }
 
 void _camera_setup_for_custom_orbit_to_relative_point(void) {
@@ -3206,28 +3181,6 @@ void _camera_set_lookat_focus(void) {
     camera_set_lookat_focus(object);
 }
 
-void _camera_set_movement_focus(void) {
-    MkObj* object;
-
-    switch (((ScriptRawArgs*)current_args)->slots[0].i) {
-    case 0:
-        object = g_game_info.plyr0.slot.mirror_a;
-        break;
-    case 1:
-        object = g_game_info.plyr1.slot.mirror_a;
-        break;
-    case 2:
-        object = camera_get_victim();
-        break;
-    case 3:
-        object = camera_get_attacker();
-        break;
-    default:
-        return;
-    }
-    camera_set_movement_focus_obj(object);
-}
-
 void _camera_set_lookat_offset_obj_rel(void) {
     ScriptArgsRef args;
     Vec offset;
@@ -3270,6 +3223,31 @@ void _camera_set_movement_offset(void) {
     offset.y = args.raw->slots[1].f;
     offset.z = args.raw->slots[2].f;
     camera_set_movement_offset(&offset, current_args);
+}
+
+void _if_switching_to(void) {
+    PlyrPdata* player;
+    unsigned int command;
+    int style;
+    int result;
+
+    player = plyr_pdata;
+    command = ((ScriptRawArgs*)current_args)->slots[0].u;
+    style = player->player_slot + 1;
+    if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
+        style = 0;
+    }
+
+    result = 0;
+    if (command == player->weapon_styles[style]->animation_header) {
+        if (player->drone_request != 0) {
+            result = drone_ai_check_switching_to(command) != 0;
+        } else if (was_button_pressed(2) != 0) {
+            player->round_attack_stage++;
+            result = 1;
+        }
+    }
+    ((ScriptCommandView*)active_cmdscript)->result = result;
 }
 
 void _branch_next_style(void) {
@@ -3319,28 +3297,44 @@ void _true_branch_next_style(void) {
     }
 }
 
-void _branch(void) {
-    unsigned int function_index;
+void _was_i_hit_x_times(void) {
+    ScriptArgsRef args;
+    ScriptResultRef script;
+    int result;
 
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
+    args.bytes = current_args;
+    result = was_i_hit_x_times(args.single_int->value);
+    script.bytes = active_cmdscript;
+    script.command->result = result;
 }
 
-void _true_branch(void) {
+void _ani_col_abort(void) {
+    ScriptArgsRef args;
+
+    args.bytes = current_args;
+    ((ScriptRawResult*)active_cmdscript)->value.i = ani_col_abort(
+        args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f,
+        args.raw->slots[6].i);
+}
+
+void _was_button_and_direction(void) {
+    ScriptArgsRef args;
+    ScriptResultRef script;
+    int result;
+
+    args.bytes = current_args;
+    result = was_button_and_direction(args.two_int->first,
+                                      args.two_int->second);
+    script.bytes = active_cmdscript;
+    script.command->result = result;
+}
+
+/* TODO: [near miss] 94.88372%; pointer/integer address grouping did not change decrement scheduling; retained original form. */
+void _hit_branch(void) {
     unsigned int function_index;
 
-    if (((ScriptCommandView*)active_cmdscript)->result == 0) {
+    if ((plyr_pdata)->collision_result != 1) {
         return;
     }
     function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
@@ -3358,59 +3352,46 @@ void _true_branch(void) {
         1;
 }
 
-void _if_switching_to(void) {
-    PlyrPdata* player;
-    unsigned int command;
-    int style;
-    int result;
+void _block_branch(void) {
+    unsigned int function_index;
 
-    player = plyr_pdata;
-    command = ((ScriptRawArgs*)current_args)->slots[0].u;
-    style = player->player_slot + 1;
-    if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
-        style = 0;
+    if ((plyr_pdata)->collision_result != 2) {
+        return;
     }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
 
-    result = 0;
-    if (command == player->weapon_styles[style]->animation_header) {
-        if (player->drone_request != 0) {
-            result = drone_ai_check_switching_to(command) != 0;
-        } else if (was_button_pressed(2) != 0) {
-            player->round_attack_stage++;
-            result = 1;
-        }
+void _miss_branch(void) {
+    unsigned int function_index;
+
+    if ((plyr_pdata)->collision_result != 0) {
+        return;
     }
-    ((ScriptCommandView*)active_cmdscript)->result = result;
-}
-
-void _was_i_hit_x_times(void) {
-    ScriptArgsRef args;
-    ScriptResultRef script;
-    int result;
-
-    args.bytes = current_args;
-    result = was_i_hit_x_times(args.single_int->value);
-    script.bytes = active_cmdscript;
-    script.command->result = result;
-}
-
-void _ani_col_abort(void) {
-    ScriptArgsRef args;
-
-    args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = ani_col_abort(args.raw->slots[1].i, args.raw->slots[4].i, args.raw->slots[6].i, args.raw->slots[0].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f);
-}
-
-void _was_button_and_direction(void) {
-    ScriptArgsRef args;
-    ScriptResultRef script;
-    int result;
-
-    args.bytes = current_args;
-    result = was_button_and_direction(args.two_int->first,
-                                      args.two_int->second);
-    script.bytes = active_cmdscript;
-    script.command->result = result;
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
 }
 
 void _disable_grounding(void) {
@@ -3439,7 +3420,11 @@ void _newani_to_frame_x(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    newani_to_frame_x(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[5].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    args.bytes = current_args;
+    newani_to_frame_x(
+        ((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].f, args.raw->slots[5].i);
 }
 
 void _blend_to_ani_inout(void) {
@@ -3584,7 +3569,12 @@ void _lower_mines_ani_to_point(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    lower_mines_ani_to_point(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[4].i, args.raw->slots[8].i, args.raw->slots[9].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f);
+    args.bytes = current_args;
+    lower_mines_ani_to_point(
+        ((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].f,
+        args.raw->slots[7].f, args.raw->slots[8].pointer, args.raw->slots[9].u);
 }
 
 void _launch_n_land_ani(void) {
@@ -3592,7 +3582,12 @@ void _launch_n_land_ani(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    launch_n_land_ani(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[4].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f);
+    args.bytes = current_args;
+    launch_n_land_ani(
+        ((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].f,
+        args.raw->slots[7].f);
 }
 
 void _attack_to_frame_x(void) {
@@ -3608,7 +3603,7 @@ void _two_player_animation_match_attacker(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    two_player_animation_match_attacker(((ScriptCommandView*)active_cmdscript)->animation, current_args, args.raw->slots[1].f);
+    two_player_animation_match_attacker(((ScriptCommandView*)active_cmdscript)->animation, ((ScriptRawArgs*)current_args)->slots[1].f);
 }
 
 void _two_player_animation_flip(void) {
@@ -3616,7 +3611,7 @@ void _two_player_animation_flip(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    two_player_animation_flip(((ScriptCommandView*)active_cmdscript)->animation, current_args, args.raw->slots[1].f);
+    two_player_animation_flip(((ScriptCommandView*)active_cmdscript)->animation, ((ScriptRawArgs*)current_args)->slots[1].f);
 }
 
 void _two_player_animation(void) {
@@ -3624,7 +3619,7 @@ void _two_player_animation(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    two_player_animation(((ScriptCommandView*)active_cmdscript)->animation, current_args, args.raw->slots[1].f);
+    two_player_animation(((ScriptCommandView*)active_cmdscript)->animation, ((ScriptRawArgs*)current_args)->slots[1].f);
 }
 
 void _is_fast_getup(void) {
@@ -3707,6 +3702,23 @@ void _script_exit(void) {
     ((ScriptCommandView*)active_cmdscript)->state = 2;
 }
 
+void _script_return(void) {
+    ((ScriptCommandView*)active_cmdscript)->exit = 0;
+    ((ScriptCommandView*)active_cmdscript)->state = 2;
+}
+
+void _print_v(void) {
+}
+
+void _print_f(void) {
+}
+
+void _print_i(void) {
+}
+
+void _print_s(void) {
+}
+
 void _gosub(void) {
     int function_index;
 
@@ -3724,21 +3736,43 @@ void _gosub(void) {
         1;
 }
 
-void _script_return(void) {
-    ((ScriptCommandView*)active_cmdscript)->exit = 0;
-    ((ScriptCommandView*)active_cmdscript)->state = 2;
+void _branch(void) {
+    unsigned int function_index;
+
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
 }
 
-void _print_v(void) {
-}
+void _true_branch(void) {
+    unsigned int function_index;
 
-void _print_f(void) {
-}
-
-void _print_i(void) {
-}
-
-void _print_s(void) {
+    if (((ScriptCommandView*)active_cmdscript)->result == 0) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
 }
 
 void _true_xfer_him(void) {
@@ -5367,7 +5401,11 @@ void _limb_sever_set_motion(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = limb_sever_set_motion(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[7].i, args.raw->slots[9].i, args.raw->slots[10].i, args.raw->slots[3].f, args.raw->slots[6].f, args.raw->slots[8].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i = limb_sever_set_motion(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].i,
+        args.raw->slots[6].f, args.raw->slots[7].i, args.raw->slots[8].f,
+        args.raw->slots[9].i, args.raw->slots[10].i);
 }
 
 void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].f); }
@@ -5419,19 +5457,21 @@ void _check_to_register_miss(void) { check_to_register_miss(); }
 
 void _auto_ani_off(void) { auto_ani_off(); }
 
+#pragma push
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void _ncs_bgnd_preload_named_model(void) {
-    const char* model;
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    model = get_script_string_arg(2);
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
         ncs_bgnd_preload_named_model(
-        get_script_string_arg(1), model, args.raw->slots[2].i,
-        args.raw->slots[3].i,
-        args.raw->slots[4].pointer, args.raw->slots[5].pointer,
-        args.raw->slots[6].pointer);
+            get_script_string_arg(1), get_script_string_arg(2),
+            args.raw->slots[2].i, args.raw->slots[3].i,
+            args.raw->slots[4].pointer, args.raw->slots[5].pointer,
+            args.raw->slots[6].pointer);
 }
+#pragma pop
 
 void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
     ncs_dkp_camera_konqchar_show_hide_alpha(((ScriptRawArgs*)current_args)->slots[0].i,
@@ -5464,7 +5504,7 @@ void _obj_grnd_bounce(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    obj_grnd_bounce(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[4].i, current_args, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f);
+    obj_grnd_bounce(args.raw->slots[0].pointer, args.raw->slots[1].pointer, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f);
 }
 
 void _start_obj_scalar_proc(void) {
@@ -5476,7 +5516,7 @@ void _obj_match_obj_pos(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    obj_match_obj_pos(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[2].f);
+    obj_match_obj_pos(args.raw->slots[0].pointer, args.raw->slots[1].pointer, args.raw->slots[2].f, args.raw->slots[3].i);
 }
 
 void _insert_particle_mkobj(void) {
@@ -6730,14 +6770,14 @@ void _mks_set_plyr_to_center_ang_offset(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_set_plyr_to_center_ang_offset(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    mks_set_plyr_to_center_ang_offset(args.raw->slots[0].i, args.raw->slots[1].f);
 }
 
 void _mks_bgnd_cam_offset_away(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_bgnd_cam_offset_away(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    mks_bgnd_cam_offset_away(args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _mks_bgnd_pfx_bind_to_sobj(void) {
@@ -6799,7 +6839,11 @@ void _mks_set_sin_update_by_group(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_set_sin_update_by_group(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[9].i, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f);
+    mks_set_sin_update_by_group(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f,
+        args.raw->slots[9].i);
 }
 
 void _bgnd_init_timers(void) {
@@ -6835,7 +6879,7 @@ void _set_active_projectile_collision_info(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_active_projectile_collision_info(args.raw->slots[1].i, current_args, args.raw->slots[0].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    set_active_projectile_collision_info(args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _set_active_projectile_tracking_light(void) {
@@ -7090,14 +7134,16 @@ void _player_area_collision_check(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = player_area_collision_check(args.raw->slots[2].i, args.raw->slots[4].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[3].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i = player_area_collision_check(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].i,
+        args.raw->slots[3].f, args.raw->slots[4].i);
 }
 
 void _single_frame_collision_check(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = single_frame_collision_check(args.raw->slots[0].i, args.raw->slots[3].i, args.raw->slots[4].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[5].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i = single_frame_collision_check(args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].f);
 }
 
 void _is_he_airborn(void) {
@@ -7354,14 +7400,14 @@ void _flying_collision(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    flying_collision(args.raw->slots[0].i, args.raw->slots[3].i, args.raw->slots[4].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f, args.raw->slots[9].f);
+    flying_collision(args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f, args.raw->slots[9].f);
 }
 
 void _player_area_collision_ticks(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    player_area_collision_ticks(args.raw->slots[2].i, args.raw->slots[4].i, current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[3].f, args.raw->slots[5].f);
+    player_area_collision_ticks(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].i, args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f);
 }
 
 void _get_adjusted_speed(void) {
@@ -7661,14 +7707,16 @@ void _mk_chess_ani_until_reached_destination(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_ani_until_reached_destination(args.raw->slots[5].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    mk_chess_ani_until_reached_destination(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].i);
 }
 
 void _mk_chess_rotate_towards_cell(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_rotate_towards_cell(args.raw->slots[3].i, current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[4].f);
+    mk_chess_rotate_towards_cell(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].i, args.raw->slots[4].f);
 }
 
 void _mk_chess_request_piece_script_for_action(void) {
@@ -7686,18 +7734,19 @@ void _mk_chess_put_active_piece_at_cell(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_put_active_piece_at_cell(args.raw->slots[2].i, args.raw->slots[0].f, args.raw->slots[1].f);
+    mk_chess_put_active_piece_at_cell(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].i);
 }
 
 void _mk_chess_launch_n_land_ani_with_xz(void) {
     ScriptArgsRef args;
-    float spC;
-    float sp8;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[9].f;
-    spC = args.raw->slots[10].f;
-    mk_chess_launch_n_land_ani_with_xz(args.raw->slots[0].i, args.raw->slots[11].i, args.raw->slots[12].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f);
+    mk_chess_launch_n_land_ani_with_xz(
+        args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f,
+        args.raw->slots[9].f, args.raw->slots[10].f, args.raw->slots[11].i,
+        args.raw->slots[12].u);
 }
 
 void _mk_chess_stop_me(void) {
@@ -7726,7 +7775,7 @@ void _mk_chess_force_away(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_force_away(args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[0].f, args.raw->slots[2].f);
+    mk_chess_force_away(args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].i);
 }
 
 void _mk_chess_add_movement_skill(void) {
@@ -7796,7 +7845,10 @@ void _mk_chess_place_special_cell_at(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_place_special_cell_at(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[7].i, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f);
+    mk_chess_place_special_cell_at(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].f, args.raw->slots[7].i);
 }
 
 void _mk_chess_piece_event_from_script(void) {
@@ -8194,7 +8246,10 @@ void _bgnd_pebble_change_current_behavior_to_bounce(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_pebble_change_current_behavior_to_bounce(args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f);
+    bgnd_pebble_change_current_behavior_to_bounce(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].i, args.raw->slots[7].i);
 }
 
 void _bgnd_start_preload_sobj_morph(void) {
@@ -8389,7 +8444,10 @@ void _bgnd_pebble_change_current_behavior(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_pebble_change_current_behavior(args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f);
+    bgnd_pebble_change_current_behavior(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].i, args.raw->slots[7].i);
 }
 
 void _bgnd_init_pebbles(void) {
@@ -8465,7 +8523,12 @@ void _bgnd_pebble_launch_at_time(void) {
 
     args.bytes = current_args;
     sp8 = args.raw->slots[10].f;
-    bgnd_pebble_launch_at_time(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[11].i, args.raw->slots[12].i, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f, args.raw->slots[9].f, args.raw->slots[10].f);
+    bgnd_pebble_launch_at_time(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].f, args.raw->slots[7].f, args.raw->slots[8].f,
+        args.raw->slots[9].f, args.raw->slots[10].f, args.raw->slots[11].i,
+        args.raw->slots[12].i);
 }
 
 void _bgnd_jtb_debug_info(void) {
@@ -9001,7 +9064,7 @@ void _bgnd_launch_sobj(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_launch_sobj(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[7].i, args.raw->slots[6].f);
+    bgnd_launch_sobj(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[6].f, args.raw->slots[7].i);
 }
 
 void _bgnd_set_collision_plane_for_launched_sobj(void) {
@@ -9091,7 +9154,10 @@ void _bgnd_launch_plyr_up_and_forward(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_launch_plyr_up_and_forward(args.raw->slots[4].i, args.raw->slots[6].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f);
+    bgnd_launch_plyr_up_and_forward(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f,
+        args.raw->slots[6].i);
 }
 
 void _bgnd_register_danger_zone_callback(void) {
@@ -9485,7 +9551,7 @@ void _bgnd_replace_tex_with_wiff_and_ani(void) {
 
     args.bytes = current_args;
     bgnd_replace_tex_with_wiff_and_ani(
-        args.raw->slots[0].i, get_script_string_arg(2),
+        ((ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2),
         args.raw->slots[2].f, args.raw->slots[3].i,
         args.raw->slots[4].i);
 }
@@ -9494,21 +9560,24 @@ void _bgnd_pulsate_object_with_caps_and_scale(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_pulsate_object_with_caps_and_scale(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[5].i, args.raw->slots[6].i, current_args, args.raw->slots[2].f, args.raw->slots[4].f, args.raw->slots[7].f, args.raw->slots[8].f, args.raw->slots[9].f, args.raw->slots[10].f, args.raw->slots[11].f, args.raw->slots[12].f);
+    bgnd_pulsate_object_with_caps_and_scale(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].i, args.raw->slots[4].f, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].f, args.raw->slots[8].f, args.raw->slots[9].f, args.raw->slots[10].f, args.raw->slots[11].f, args.raw->slots[12].f);
 }
 
 void _bgnd_pulsate_object_with_caps(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_pulsate_object_with_caps(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[2].f, args.raw->slots[4].f);
+    bgnd_pulsate_object_with_caps(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f,
+        args.raw->slots[3].i, args.raw->slots[4].f, args.raw->slots[5].i,
+        args.raw->slots[6].i);
 }
 
 void _bgnd_pulsate_object(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_pulsate_object(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[3].i, current_args, args.raw->slots[2].f, args.raw->slots[4].f);
+    bgnd_pulsate_object(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].i, args.raw->slots[4].f);
 }
 
 void _bgnd_turn_on_backface_culling(void) {
@@ -10084,7 +10153,7 @@ void _sidekick_switch_style_swap(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    sidekick_switch_style_swap(args.raw->slots[1].i, args.raw->slots[0].f);
+    sidekick_switch_style_swap(args.raw->slots[0].f, args.raw->slots[1].u);
 }
 
 void _dk_voice_call(void) {
@@ -10102,13 +10171,11 @@ void _special_move_cam_setup2(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    special_move_cam_setup2(args.raw->slots[5].i, args.raw->slots[6].i,
-                            args.raw->slots[7].i,
-                            args.raw->slots[8].pointer,
-                            args.raw->slots[9].pointer,
-                            args.raw->slots[0].f,
-                            args.raw->slots[1].f, args.raw->slots[2].f,
-                            args.raw->slots[3].f, args.raw->slots[4].f);
+    special_move_cam_setup2(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].i,
+        args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].pointer,
+        args.raw->slots[9].pointer);
 }
 
 void _rd_set_impact_vector(void) {
@@ -10620,17 +10687,10 @@ void _start_constrain_proc(void) {
     start_constrain_proc();
 }
 
-/* TODO: [near miss] 94.166664%; three-argument ABI restored; extra return-value
- * move before the second string lookup remains; stop at coloring. */
 void _credits_add_text(void) {
-    ScriptArgsRef args;
-    const char* right_text;
-    const char* center_text;
-
-    right_text = get_script_string_arg(2);
-    center_text = get_script_string_arg(1);
-    args.bytes = current_args;
-    credits_add_text(center_text, right_text, args.raw->slots[2].i);
+    credits_add_text(
+        get_script_string_arg(1), get_script_string_arg(2),
+        ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _trial_state_collision_check(void) {
@@ -10761,7 +10821,10 @@ void _show_text(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    show_text(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f);
+    show_text(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].i, args.raw->slots[7].i);
 }
 
 void _trial_set_next_mission(void) {
@@ -10863,12 +10926,9 @@ void _trial_set_combo_requirement(void) {
     trial_set_combo_requirement(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
 }
 
-/* TODO: [near miss] 93.44%; one extra return-value move remains. */
 void _trial_add_required_sequence(void) {
-    char* message_parameter = get_script_string_arg(2);
-
     trial_add_required_sequence(
-        get_script_string_arg(1), message_parameter);
+        get_script_string_arg(1), get_script_string_arg(2));
 }
 
 void _trial_setup_onscreen_display_items(void) {
@@ -10913,7 +10973,9 @@ void _trial_show_text_window(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    trial_show_text_window(args.raw->slots[0].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    trial_show_text_window(
+        args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].i);
 }
 
 void _trial_set_ending_functions(void) {
@@ -11000,17 +11062,19 @@ void _fade_fatality_screen(void) {
     fade_fatality_screen();
 }
 
+#pragma push
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void _jab_attach_wiff_to_sobj(void) {
     ScriptArgsRef args;
-    const char* animation;
 
     args.bytes = current_args;
-    animation = get_script_string_arg(4);
     jab_attach_wiff_to_sobj(
-        args.raw->slots[0].i, args.raw->slots[1].i,
-        get_script_string_arg(3), animation, args.raw->slots[4].i,
-        args.raw->slots[6].i, args.raw->slots[5].f);
+        args.raw->slots[0].pointer, args.raw->slots[1].i,
+        get_script_string_arg(3), get_script_string_arg(4),
+        args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].i);
 }
+#pragma pop
 
 void _jab_destroy_drink_obj_in_hand(void) {
     jab_destroy_drink_obj_in_hand();
@@ -11129,9 +11193,8 @@ void _konquest_use_portal(void) {
 
     args.bytes = current_args;
     konquest_use_portal(
-        args.raw->slots[0].i, args.raw->slots[1].pointer,
-        args.raw->slots[5].i, args.raw->slots[2].f, args.raw->slots[3].f,
-        args.raw->slots[4].f);
+        args.raw->slots[0].i, args.raw->slots[1].pointer, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].i);
 }
 
 void _konquest_teleport_hero_to_location(void) {
@@ -11167,7 +11230,10 @@ void _interaction_cam_set_target_info(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    interaction_cam_set_target_info(args.raw->slots[6].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f);
+    interaction_cam_set_target_info(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].i);
 }
 
 void _set_movement_npc(void) {
@@ -12073,7 +12139,9 @@ void _attach_sound_to_object_by_uid(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    attach_sound_to_object_by_uid(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[2].f, args.raw->slots[3].f);
+    attach_sound_to_object_by_uid(
+        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].i);
 }
 
 void _start_konquest_ambient_sounds(void) {
@@ -12605,10 +12673,10 @@ void _special_move_cam_setup(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    special_move_cam_setup(args.raw->slots[5].i, args.raw->slots[6].i,
-                           args.raw->slots[7].i, args.raw->slots[0].f,
-                           args.raw->slots[1].f, args.raw->slots[2].f,
-                           args.raw->slots[3].f, args.raw->slots[4].f);
+    special_move_cam_setup(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].i,
+        args.raw->slots[6].i, args.raw->slots[7].i);
 }
 
 void _whoosh_fx(void) {
@@ -12969,7 +13037,10 @@ void _ani_to_frame_x_col(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_to_frame_x_col(args.raw->slots[1].i, args.raw->slots[4].i, args.raw->slots[6].i, args.raw->slots[0].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[5].f);
+    ani_to_frame_x_col(
+        args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].f,
+        args.raw->slots[6].i);
 }
 
 void _if_collision_autoface_him(void) {
@@ -13256,7 +13327,10 @@ void _special_move_cam_him(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    special_move_cam_him(args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    special_move_cam_him(
+        args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].i,
+        args.raw->slots[6].i, args.raw->slots[7].i);
 }
 
 void _plyr_rotate_obj_y180(void) {
@@ -13332,7 +13406,7 @@ void _shake_hit_voice(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    shake_hit_voice(args.raw->slots[0].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[1].f);
+    shake_hit_voice(args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].i, args.raw->slots[3].i);
 }
 
 void _pan_vol_pitch_random_snd_req(void) {
@@ -13416,7 +13490,7 @@ void _ani_to_fall_to_frame(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_to_fall_to_frame(args.raw->slots[1].i, current_args, args.raw->slots[0].f, args.raw->slots[2].f);
+    ani_to_fall_to_frame(args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f);
 }
 
 void _shake_camera(void) {
@@ -13430,7 +13504,7 @@ void _force_away(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    force_away(args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[0].f, args.raw->slots[2].f);
+    force_away(args.raw->slots[0].f, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].i);
 }
 
 void _play_sound_2(void) {
@@ -13603,7 +13677,7 @@ void _ani_to_frame_sound(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ani_to_frame_sound(args.raw->slots[2].i, args.raw->slots[0].f, args.raw->slots[1].f);
+    ani_to_frame_sound(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].i);
 }
 
 void _blend_to_stance(void) {

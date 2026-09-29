@@ -448,9 +448,9 @@ ChessPiece* mk_chess_move_piece_from_deadpool_to(unsigned int side,
                                           unsigned int x, unsigned int y);
 float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
                                   unsigned char y, int forced);
-void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type,
-                                    int restored, float px,
-                                    float py, float pz, float scale);
+void mk_chess_place_special_cell_at(
+    unsigned int x, unsigned int y, int type, float px, float py, float pz,
+    float scale, int restored);
 static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud);
 static int mk_chess_place_spell_hud_cursor_at_open_slot(
     ScreenObj* cursor, int side, unsigned int slot);
@@ -1177,8 +1177,8 @@ float p_mk_chess_game_setup(void)
         mk_chess_pdata->sides[0]->desired_y = 4;
         mk_chess_pdata->sides[1]->desired_x = 5;
         mk_chess_pdata->sides[1]->desired_y = 5;
-        mk_chess_place_special_cell_at(4, 4, 2, 0, 0.0f, 0.0f, 0.0f, 0.0f);
-        mk_chess_place_special_cell_at(5, 5, 2, 0, 1.0f, 0.0f, 0.0f, 0.0f);
+        mk_chess_place_special_cell_at(4, 4, 2, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+        mk_chess_place_special_cell_at(5, 5, 2, 1.0f, 0.0f, 0.0f, 0.0f, 0);
         mk_chess_set_game_mode(0);
         ((ChessProcVtable*)aproc->vtbl)->jump_sleep(p_mk_chess_loop, 0.0f);
         return 0.0f;
@@ -5389,7 +5389,7 @@ void mk_chess_snap_to_my_cell_now(void) {
 
 
 /* TODO: [near miss] 95.90%; conversions and stores agree; stop at board-address scheduling and pointer coloring. */
-void mk_chess_put_active_piece_at_cell(int snap, float x, float y) {
+void mk_chess_put_active_piece_at_cell(float x, float y, int snap) {
     ChessPiece* piece = g_active_piece;
     ChessCell* previous = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
     ChessCell* cell = &mk_chess_pdata->board[(unsigned char)x].cells[(unsigned char)y];
@@ -6199,11 +6199,11 @@ void mk_chess_restore_board(void) {
     for (x = 0; x < 10; x++) {
         for (y = 0; y < 10; y++) {
             mk_chess_place_special_cell_at(
-                x, y, board_game_save_data.cells[x][y].type, 1,
+                x, y, board_game_save_data.cells[x][y].type,
                 board_game_save_data.cells[x][y].x,
                 board_game_save_data.cells[x][y].y,
                 board_game_save_data.cells[x][y].z,
-                board_game_save_data.cells[x][y].scale);
+                board_game_save_data.cells[x][y].scale, 1);
         }
     }
 }
@@ -8442,7 +8442,7 @@ static inline float mk_chess_inverse_vector_length(float squared_length) {
 }
 
 /* TODO: [near miss] 91.485435%; force/payload flow recovered; FP register scheduling and allocator-output reloads remain. */
-void mk_chess_force_away(int delay, int frames, float speed, float damping) {
+void mk_chess_force_away(float speed, int delay, float damping, int frames) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessPiece* other = manager->event_data.other_piece;
     MkHdr* allocation = 0;
@@ -12437,7 +12437,7 @@ static float p_mk_chess_move_line(void) {
 float ang_sub_ang(float first, float second);
 
 /* TODO: [breakthrough needed] 88.552%; rotation loops recovered; FP scheduling and coordinate conversion remain. */
-void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step, float offset) {
+void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other, float offset) {
     ChessCell* target_cell = &mk_chess_pdata->board[(unsigned int)x].cells[(unsigned int)y];
     ChessPiece* other = mk_chess_pdata->board[(unsigned char)(int)x].cells[(unsigned char)(int)y].piece;
     ChessCell* start_cell = &mk_chess_pdata->board[g_active_piece->cell_x].cells[g_active_piece->cell_y];
@@ -12507,8 +12507,9 @@ void mk_chess_rotate_towards_cell(int track_other, float x, float y, float step,
 
 /* TODO: [breakthrough needed] 95.35%; movement phases and board load order recovered;
  * callee-saved GPR assignment and pos_vel store scheduling remain. */
-void mk_chess_ani_until_reached_destination(int airborne, float start_x, float start_y,
-    float target_x, float target_y, float frames) {
+void mk_chess_ani_until_reached_destination(
+    float start_x, float start_y, float target_x, float target_y, float frames,
+    int airborne) {
     ChessCell* target = &mk_chess_pdata->board[(unsigned int)target_x].cells[(unsigned int)target_y];
     ChessCell* start = &mk_chess_pdata->board[(unsigned int)start_x].cells[(unsigned int)start_y];
     float start_height = g_active_piece->object->pos.value.y;
@@ -13644,8 +13645,9 @@ static inline void mk_chess_start_cell_emitter(unsigned int emitter, float x, fl
 }
 
 /* TODO: [breakthrough needed] 85.16726%; restore flag behavior recovered; branch/register and string lowering remain. */
-void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type,
-    int restored, float px, float py, float pz, float scale)
+void mk_chess_place_special_cell_at(
+    unsigned int x, unsigned int y, int type, float px, float py, float pz,
+    float scale, int restored)
 {
     ChessCell* cell;
     if (x >= 10 || y >= 10 || (unsigned int)type >= 3) return;
@@ -13706,9 +13708,11 @@ void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type,
 }
 
 /* TODO: [near miss] 95.82%; discriminant product still fused (retail separate fmuls/fsubs, stores it before the sqrt threshold test); FPR constant coloring. */
-void mk_chess_launch_n_land_ani_with_xz(int animation_id, int turn, unsigned int sound,
-    float launch_frame, float initial_speed, float landing_frame, float vertical_speed,
-    float gravity, float blend, float start_x, float start_y, float target_x, float target_y)
+void mk_chess_launch_n_land_ani_with_xz(
+    int animation_id, float launch_frame, float initial_speed,
+    float landing_frame, float vertical_speed, float gravity, float blend,
+    float start_x, float start_y, float target_x, float target_y, int turn,
+    unsigned int sound)
 {
     AnimPdata* animation = g_active_piece->animation;
     ChessCell* target = &mk_chess_pdata->board[(unsigned int)target_x].cells[(unsigned int)target_y];
@@ -15489,8 +15493,8 @@ float p_mk_chess_place_traps(void)
     for (side = 0; side < 2; side++) {
         mk_chess_pdata->sides[side]->desired_x = hud->trap_x[side];
         mk_chess_pdata->sides[side]->desired_y = hud->trap_y[side];
-        mk_chess_place_special_cell_at(hud->trap_x[side], hud->trap_y[side], 2, 0,
-            side, 0.0f, 0.0f, 0.0f);
+        mk_chess_place_special_cell_at(
+            hud->trap_x[side], hud->trap_y[side], 2, side, 0.0f, 0.0f, 0.0f, 0);
     }
     fade_to_black(5, 0);
     link = hud->strings;

@@ -388,7 +388,8 @@ void transition_to_anim_script(
     PuzzleAnimPdata* animation, PuzzleAnimation* script, int flags,
     float blend);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
-void shake_hit_voice(float strength, int flags, int voice, int group);
+void shake_hit_voice(
+    int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 void pan_snd_req(int sound, float pan);
 void snd_req_delay(int sound, int delay);
 void pz_fighter_get_grinder_post(int player, Vec* post);
@@ -446,15 +447,13 @@ void ground_me(void* object);
 void rotate_towards_him(float rate);
 int get_his_attack_counter(void);
 void force_forward(
-    int duration, int interval, PuzzleAnimPdata* animation,
-    float velocity, float damping);
+    int duration, int animation, float force, float damping);
 void nudge_towards_him(float distance);
 void ani_to_blend_frame(float frame);
 void ani_to_frame_x(float frame);
 void blend_to_stance(float blend);
 void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
-void force_away(
-    int duration, int interval, float velocity, float damping);
+void force_away(float velocity, int duration, float damping, int interval);
 void pz_fighter_attack(
     PuzzleAnimation* animation, PuzzleAttackParameters* attack, int reaction);
 PuzzleFighterMove* pz_get_fighter_move(void);
@@ -1223,7 +1222,7 @@ float pz_fighter_dummy_propell(void) {
     ani_to_frame_x(10.0f);
     snd_req(0xD7E);
     ani_to_end();
-    force_away(20, 4, -0.03f, 0.9f);
+    force_away(-0.03f, 20, 0.9f, 4);
     set_ani_speed(1.5f);
     glitch_to_ani(pz_shared_ani.propell_air, 0);
     xfer_proc(plyr_anim_proc, p_animate);
@@ -1253,7 +1252,7 @@ float pz_fighter_light_propell(void) {
     ani_to_frame_x(10.0f);
     snd_req(0xD7E);
     ani_to_end();
-    force_away(20, 4, -0.03f, 0.9f);
+    force_away(-0.03f, 20, 0.9f, 4);
     set_ani_speed(1.5f);
     glitch_to_ani(pz_shared_ani.propell_air, 0);
     xfer_proc(plyr_anim_proc, p_animate);
@@ -1284,7 +1283,7 @@ static float pz_fighter_propell(void) {
     ani_to_frame_x(10.0f);
     snd_req(0xD7E);
     ani_to_end();
-    force_away(20, 4, -0.03f, 0.9f);
+    force_away(-0.03f, 20, 0.9f, 4);
     set_ani_speed(1.5f);
     glitch_to_ani(pz_shared_ani.propell_air, 0);
     xfer_proc(plyr_anim_proc, p_animate);
@@ -1315,7 +1314,7 @@ static float pz_fighter_far_propell(void) {
     ani_to_frame_x(10.0f);
     snd_req(0xD7E);
     ani_to_end();
-    force_away(30, 4, -0.065f, 0.9f);
+    force_away(-0.065f, 30, 0.9f, 4);
     set_ani_speed(1.5f);
     glitch_to_ani(pz_shared_ani.propell_air, 0);
     xfer_proc(plyr_anim_proc, p_animate);
@@ -1726,7 +1725,7 @@ float pz_fighter_whatever2(void) {
     }
 
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    force_away(5, 5, 0.01f, 0.9f);
+    force_away(0.01f, 5, 0.9f, 5);
     head_tracking_on();
     blend_to_ani(pz_shared_ani.whatever2, flags, 0.1f);
     set_ani_speed(0.7f);
@@ -2906,17 +2905,17 @@ static float r_pz_fighter_spear_hit(void) {
 
 static float r_pz_fighter_almost_in_grinder(void) {
     face_opponent_now();
-    shake_hit_voice(0.02f, 0, 0, 4);
+    shake_hit_voice(0, 0.02f, 0, 4);
 
     if (plyr_obj->x > -1.45f && plyr_obj->x < 1.45f) {
         if (plyr_obj->x < -1.35f || plyr_obj->x > 1.35f) {
-            force_away(6, 4, 0.03f, 0.9f);
+            force_away(0.03f, 6, 0.9f, 4);
         } else if (plyr_obj->x < -1.2f || plyr_obj->x > 1.2f) {
-            force_away(6, 4, 0.0415f, 0.8f);
+            force_away(0.0415f, 6, 0.8f, 4);
         } else if (plyr_obj->x < -1.1f || plyr_obj->x > 1.1f) {
-            force_away(6, 4, 0.05f, 0.8f);
+            force_away(0.05f, 6, 0.8f, 4);
         } else {
-            force_away(6, 4, 0.06f, 0.8f);
+            force_away(0.06f, 6, 0.8f, 4);
         }
     }
 
@@ -3020,7 +3019,7 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
     wall_eligible_on();
     got_hit_fx(0, 1, 0, 2, 0, 0, 0.0f);
     snd_major_hit_voice();
-    force_away(2, 2, 0.04f, 0.4f);
+    force_away(0.04f, 2, 0.4f, 2);
     blend_to_ani(pz_shared_ani.dizzyfall_holdface, 0xB, 0.1f);
     ani_to_frame_x(95.0f);
     got_hit_fx(0, 0xC, 0, 4, 0, 1, 0.0f);
@@ -3077,8 +3076,6 @@ static float r_pz_fighter_block_lo(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.4375%; extra animation-owner reload before force_forward;
- * cached-owner trial moved argument setup earlier; retained direct accesses. */
 static float r_pz_fighter_block_hi(void) {
     stop_me();
     init_ground_move();
@@ -3088,7 +3085,7 @@ static float r_pz_fighter_block_hi(void) {
     blend_to_ani(shared_ani.block_high, 0, 0.5f);
     xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = 1.0f;
-    force_forward(6, 3, plyr_anim_pdata, 0.01f, 0.5f);
+    force_forward(6, 3, 0.01f, 0.5f);
     for (;;) {
         nudge_towards_him(0.2f);
         _mkproc_sleep_ticks = 1.0f;
@@ -3266,11 +3263,10 @@ void pz_fighter_allow_continuation(void) {
     g_pz_fighters_engine.flag_bits.continuation_allowed = 1;
 }
 
-/* TODO: [near miss] 97.50%; both force stores agree; zero uses f0 instead of
- * retail f1. Stop at FPR coloring; callers do not establish a float return. */
-void pz_fighter_clear_out_external_forces(void) {
+float pz_fighter_clear_out_external_forces(void) {
     plyr_obj->external_force_x = 0.0f;
     plyr_obj->external_force_z = 0.0f;
+    return 0.0f;
 }
 
 void pz_fighter_clear_out_all_external_forces(

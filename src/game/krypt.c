@@ -431,7 +431,7 @@ char* get_coffin_blurb(void) {
     coffin = kontent_pdata->items[selection];
     if (selection < kontent_pdata->item_count) {
         if (kontent_pdata->category == 2) {
-            return (char*)global_player_data[coffin].name;
+            return global_player_data[coffin].name;
         }
         entries = coffin_data;
         if (gallery_data_loaded == 0) {
@@ -762,7 +762,7 @@ void transition_to_krypt_character_anim_script(
     krypt_pdata->footstep_frame_index = 0;
     transition_to_anim_script(
         krypt_pdata->anim_pdata, get_animation(animation_id), flags, 0.1f);
-    krypt_pdata->anim_pdata->step = (float)step;
+    krypt_pdata->anim_pdata->step = step;
 }
 void set_krypt_character_anim_script(
     int animation_id, int flags, void* script_args, float step) {
@@ -1034,7 +1034,7 @@ static float p_play_random_noise(void) {
     pan = sfrand(2.0f);
     delay = (unsigned short)randu0(180) + 480;
     pan_snd_req(sound, pan);
-    return (float)delay;
+    return delay;
 }
 
 /* ========================================================================= */
@@ -3201,7 +3201,7 @@ float p_setup_krypt(void) {
 
     bgnd_anim_camera_setup();
     cam_set_intro_cam_pause_ticks(60.0f);
-    camera_init_animation(*(void**)((char*)bgnd_animations + 0x78), 0);
+    camera_init_animation((AniData*)bgnd_animations[30], 0);
     camera_run_animation(0);
     turn_camera_on();
     fade_from_black(0x14, 0);

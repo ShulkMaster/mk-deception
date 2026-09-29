@@ -460,7 +460,8 @@ void ani_to_blend_frame(float frame);
 void ani_loop_more_frames(float frames);
 void ani_1_frame(void);
 void set_my_state(int state);
-void shake_hit_voice(float strength, int flags, int voice, int group);
+void shake_hit_voice(
+    int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 float pz_fighter_inline_force_away_with_ani(
     float velocity, unsigned int coast_ticks, float damping,
     unsigned int damping_ticks);
@@ -470,7 +471,7 @@ void slow_ani_x(float speed, float frame);
 void obj_set_bone_collapse_flag(
     PuzzleFighterRenderObject* object, int bone);
 void calc_bone_world_mat(PuzzleFighterRenderObject* object, int bone);
-void pz_fighter_clear_out_external_forces(void);
+float pz_fighter_clear_out_external_forces(void);
 void random_voice(int group);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect, PuzzleFighterRenderObject* object, int bone);
@@ -1292,7 +1293,7 @@ static float pz_fighter_fatality_victim_to_exact_spot(void) {
 
 float r_pz_fighter_rx_get_to_point(void) {
     face_opponent_now();
-    shake_hit_voice(0.02f, 0, 0, 4);
+    shake_hit_voice(0, 0.02f, 0, 4);
     blend_to_ani(shared_ani.walk_forward, 3, 0.1f);
     set_ani_speed(0.55f);
     pz_fighter_inline_force_away_with_ani(0.063f, 50, 0.5f, 8);
