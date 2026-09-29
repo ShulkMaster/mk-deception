@@ -226,6 +226,10 @@ boundary.
   the producer (`sfmps_CopyDstBuft`).
 - A global loaded once and tested in both arms: one local before the branch
   (`round_over`).
+- Owner fields reread after an inlined helper that writes the stack (fast
+  sqrt): take a typed position pointer after the helper and read through it
+  (`mks_bgnd_cam_offset_away`). A field null-tested before it is cached is
+  tested directly, then assigned (`p_create_decoy`).
 - A callback and its opaque object loaded before state mutation: snapshot both
   (`SFXLIB_Error`).
 - Input combinations across a process transfer: keep every button read and
