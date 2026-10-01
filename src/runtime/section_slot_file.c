@@ -40,12 +40,12 @@ static inline int is_ssf_request_pending(MkFileEntry* ssf_file) {
 
     if (ssf_file != 0) {
         request = ssf_req_CurrentItem;
-        if (request != 0 && request->ssf_file == ssf_file) {
+        if (request != 0 && ssf_file == request->ssf_file) {
             found = 1;
         }
         request = ssf_req_Queue.head.next;
         while (request != 0 && found == 0) {
-            if (request->ssf_file == ssf_file) {
+            if (ssf_file == request->ssf_file) {
                 found = 1;
             }
             request = request->link.next;
@@ -387,14 +387,17 @@ static void sec_slot_file_queue_open_callback(void* user,
     }
 }
 
+/* TODO: [near miss] 90.22%; index initialized before queue publication;
+ * remaining zero-copy/pool-base GPR scheduling differs. */
 void init_sec_slot_files(void) {
     int index;
 
+    index = 0;
     ssf_req_Queue.head.next = 0;
     ssf_req_Queue.tail = &ssf_req_Queue.head;
     ssf_req_CurrentItem = 0;
     ssf_req_FreeList = ssf_req_Pool;
-    for (index = 0; index < 39; index++) {
+    for (; index < 39; index++) {
         ssf_req_Pool[index].link.next = &ssf_req_Pool[index + 1];
     }
     ssf_req_Pool[39].link.next = 0;
