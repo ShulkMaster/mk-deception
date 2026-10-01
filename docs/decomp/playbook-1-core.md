@@ -28,8 +28,9 @@ history (the pre-tier high/mid/niche books are at commit 4abd1af).
 - Preserve math, stores, call order, access widths, and lazy null checks.
 - Never: forced registers, fake `volatile`, dead sinks, empty arms, invented
   fields/lifetimes/padding, wrong prototypes, undefined returns, asm
-  workarounds, `(void)param`. `goto` only under the AGENTS.md last-resort
-  exception. Real MMIO stays `volatile`.
+  workarounds, `(void)param`, bare `{ }` blocks (no `if`/loop/`else` owner)
+  added to shorten or isolate a local's lifetime. `goto` only under the
+  AGENTS.md last-resort exception. Real MMIO stays `volatile`.
 
 Acceptance gates for any gain:
 
@@ -144,8 +145,9 @@ Core statement only; each rule's detail is its `## Hxx` section in tier 2.
 - **H13 Intrusive list** | link accesses differ | link ownership, callback
   effects | exact reciprocal-store order; save next before a mutating callback.
 - **H14 Stack** | slots or store order differ | address-taken locals, offsets,
-  lifetimes | reorder declarations/aggregates or narrow scope; addressed locals
-  get slots in reverse declaration order. No padding locals.
+  lifetimes | reorder declarations/aggregates, or narrow scope into a block the
+  CFG already has; addressed locals get slots in reverse declaration order. No
+  padding locals, no bare `{ }` lifetime scopes.
 - **H15 Coloring** | same operations, registers swapped | same CFG and memory
   accesses | check expression association and staging first, then at most one
   honest lifetime/declaration insight, then stop.

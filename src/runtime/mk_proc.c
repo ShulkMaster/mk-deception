@@ -39,6 +39,8 @@ float _mkproc_sleep_ticks = 0.0f;
 MkPtr* active_proc_list = 0;
 int network_pause_procs = 0;
 
+/* TODO: [blocked] 56.43%; retail restores _slpx_sp/_slpx_pc explicitly;
+ * process stack-switch assembly requires function-specific authorization. */
 void mkproc_die(void) {
     if (aproc->destroy_cb != 0) {
         aproc->destroy_cb();
@@ -260,8 +262,7 @@ MkProc* get_mkproc_tinystack(int* flags) {
     }
     if (proc != 0) {
         int proc_flags = *flags;
-        MkVtableMkproc* vtbl = &vtbl_mkproc_tinystack;
-        proc->vtbl = vtbl;
+        proc->vtbl = &vtbl_mkproc_tinystack;
         proc->flags = proc_flags;
         stack = _mwMemMalloc(tinystack_heap, MKPROC_TINYSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
         if (stack != 0) {
@@ -293,8 +294,11 @@ MkProc* get_mkproc_nostack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        MkVtableMkproc* vtbl = &vtbl_mkproc_nostack;
-        int proc_flags = *flags;
+        int proc_flags;
+        MkVtableMkproc* vtbl;
+
+        vtbl = &vtbl_mkproc_nostack;
+        proc_flags = *flags;
         proc->vtbl = vtbl;
         proc->flags = proc_flags;
         proc->stack_top = 0;
@@ -459,12 +463,13 @@ MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, 
     return proc;
 }
 
-/* TODO: [near miss] 98.18%; eight GPR operands and one equivalent branch differ. */
+/* TODO: [near miss] 98.90909%; only zero copy mr r31,r28 vs li r31,0 remains. */
 void mkproc_change_priority(MkProc* proc, int priority) {
-    int new_priority;
-    MkPtr* insert;
-    MkPtr* previous;
+    MkPtr* next;
     MkPtr* link;
+    int new_priority;
+    MkPtr* previous;
+    MkPtr* insert;
 
     mk_pull_discard(&proc->hdr, &active_proc_list);
     proc->priority = priority;
@@ -476,18 +481,18 @@ void mkproc_change_priority(MkProc* proc, int priority) {
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != current->instance) {
-                MkPtr* next = link->next;
+                next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
-            } else {
-                if (new_priority < current->priority) {
-                    insert_mkptr_before(insert, link);
-                    return;
-                }
-                previous = link;
-                link = link->next;
+                continue;
             }
+            if (new_priority < current->priority) {
+                insert_mkptr_before(insert, link);
+                return;
+            }
+            previous = link;
+            link = link->next;
         }
     }
     if (previous != 0) {
@@ -497,30 +502,35 @@ void mkproc_change_priority(MkProc* proc, int priority) {
     }
 }
 
-/* TODO: [near miss] 97.96%; eight GPR operands and one equivalent branch differ. */
+/* TODO: [near miss] 98.77551%; only zero copy mr r31,r28 vs li r31,0 remains. */
 void insert_new_mkproc(MkProc* proc) {
-    int priority = proc->priority;
-    MkPtr* insert = get_mkptr_owns_mkhdr(&proc->hdr);
-    MkPtr* previous = 0;
+    MkPtr* next;
     MkPtr* link;
+    int priority;
+    MkPtr* previous;
+    MkPtr* insert;
+
+    priority = proc->priority;
+    insert = get_mkptr_owns_mkhdr(&proc->hdr);
+    previous = 0;
 
     if (proc_list_available(&active_proc_list)) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != current->instance) {
-                MkPtr* next = link->next;
+                next = link->next;
                 link->hdr = 0;
                 destroy_mkptr(link);
                 link = next;
-            } else {
-                if (priority < current->priority) {
-                    insert_mkptr_before(insert, link);
-                    return;
-                }
-                previous = link;
-                link = link->next;
+                continue;
             }
+            if (priority < current->priority) {
+                insert_mkptr_before(insert, link);
+                return;
+            }
+            previous = link;
+            link = link->next;
         }
     }
     if (previous != 0) {

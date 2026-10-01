@@ -46,10 +46,10 @@ static inline MkxRpLight* probe_mkx(MkHdr* hdr) {
             ok = 1;
         }
     }
-    if (ok == 0) {
-        return 0;
+    if (ok != 0) {
+        return MKX_RPLIGHT_FROM_HDR(hdr);
     }
-    return MKX_RPLIGHT_FROM_HDR(hdr);
+    return 0;
 }
 
 static inline MkObj* valid_linked_obj(MkxRpLight* mkx) {
@@ -218,14 +218,20 @@ static inline RpLight* find_specular_light(MkPtr** list, LightDef* def) {
     return 0;
 }
 
+/* TODO: [near miss] 85.11%; positive validated-hdr selection restored;
+ * loop/owner staging and GPR scheduling remain. */
 RpLight* create_default_bgnd_specular_light(void) {
     return find_specular_light(&bgnd_spec_light_list, (LightDef*)&default_bgnd_specular_light_def);
 }
 
+/* TODO: [near miss] 85.11%; positive validated-hdr selection restored;
+ * loop/owner staging and GPR scheduling remain. */
 RpLight* create_default_specular_light(void) {
     return find_specular_light(&plyr_light_list, (LightDef*)&default_specular_light_def);
 }
 
+/* TODO: [near miss] 98.82%; positive validated-hdr selection restored;
+ * pointer propagation and node/hdr GPR roles remain. */
 RpLight* get_bgnd_specular_light(void) {
     MkPtr* node;
     MkxRpLight* mkx;
@@ -246,13 +252,14 @@ RpLight* get_bgnd_specular_light(void) {
 }
 
 RpLight* get_specular_light(void) {
-    MkPtr* node;
+    MkPtr* node = plyr_light_list;
     MkxRpLight* mkx;
     RpLight* light;
+    MkHdr* hdr;
 
-    node = plyr_light_list;
     while (node != 0) {
-        mkx = probe_mkx(node->hdr);
+        hdr = node->hdr;
+        mkx = probe_mkx(hdr);
         if (mkx != 0) {
             light = mkx->light;
             if ((int)light->object.object.subType == 1) {
@@ -323,8 +330,8 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
     MkPtr* node;
     MkPtr* next;
     MkxRpLight* mkx;
-    MkHdr* hdr;
     int ok;
+    MkHdr* hdr;
     int lightType;
 
     if (list != 0) {
@@ -351,8 +358,8 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
                 if (mkx != 0) {
                     lightType = (int)mkx->light->object.object.subType;
                     switch (lightType) {
-                    case 0x80:
-                        if (type == 2) {
+                    case 1:
+                        if (type == 3) {
                             if (index-- == 0) {
                                 return mkx;
                             }
@@ -365,8 +372,8 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
                             }
                         }
                         break;
-                    case 1:
-                        if (type == 3) {
+                    case 0x80:
+                        if (type == 2) {
                             if (index-- == 0) {
                                 return mkx;
                             }
@@ -396,10 +403,12 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
 }
 
 void clear_all_lights_in(MkPtr** list) {
-    MkPtr* node;
     MkPtr* next;
-    MkxRpLight* mkx;
+    MkPtr* node;
+
     RpLight* light;
+    MkxRpLight* mkx;
+    MkxRpLight* validated;
 
     if (list == 0) {
         return;
@@ -414,9 +423,9 @@ void clear_all_lights_in(MkPtr** list) {
             node = next;
             continue;
         }
-        mkx = probe_mkx(node->hdr);
-        if (mkx != 0) {
-            light = mkx->light;
+        validated = probe_mkx(node->hdr);
+        if (validated != 0) {
+            light = validated->light;
             if (light != 0 && RpLightGetWorld(light) != 0) {
                 RpWorldRemoveLight(World, light);
             }
@@ -487,7 +496,7 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
 
 
 
-/* TODO: [breakthrough needed] 89.20%; call/inlining boundary needs recovery (bl RwFrameDestroy); no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 89.14%; call/inlining boundary needs recovery (bl RwFrameDestroy); no further evidence-backed source change. */
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;
@@ -700,6 +709,8 @@ static void post_light(void) {
     light_obj = 0;
 }
 
+/* TODO: [near miss] 92.67%; instance validation branch differs;
+ * nested live-handle selection regresses; retain typed validation. */
 static void pre_light(void) {
     LightPdata* pd;
     MkObj* obj;

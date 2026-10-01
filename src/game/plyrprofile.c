@@ -20,8 +20,6 @@
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
 
-#pragma use_lmw_stmw on
-
 char* nbc_find_text(int a, int b);
 void load_screen(const char* path, int slot, int a, int b);
 int update_storage_status(int flag);
@@ -54,7 +52,6 @@ extern int menu_player;
 extern char konq_region_data_buffer[];
 
 char player_name[0xB];
-
 
 typedef struct MkVtableMkprocLocal {
     int (*fn0)(void);
@@ -1705,7 +1702,6 @@ static inline int profile_fully_matches(
     return live->idChecksum == slot->idChecksum;
 }
 
-
 void check_new_mu_for_in_use_profiles(int device) {
     int slot;
     int identity_matches;
@@ -1771,13 +1767,13 @@ static inline void advance_device_slot(int* device, int* slot) {
     }
 }
 
-/* TODO: [near miss] 99.67%; first profile_fully_matches slot/pin pointers r8/r6 vs retail r6/r8 remain. */
+/* TODO: [near miss] 99.67%; bare-scope slot temp removed (force matching); first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
 int validate_save_location(int player) {
-    StorageProfileSlot* slot;
     PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
     StorageProfileSlot* found;
+    StorageProfileSlot* slot;
     int device;
     int slotIndex;
     int scanDevice;
@@ -1922,14 +1918,13 @@ int validate_konq_save_location(int player) {
     }
 }
 
-/* TODO: [near miss] 99.57%; exact size; first profile compare rotates
- * live pin/slot/stored pin across r7-r9; slot local placement tried. */
+/* TODO: [near miss] 99.57%; bare-scope slot temp removed (force matching); first profile_fully_matches swaps pin/slot temps r7/r8, coloring only. */
 int validate_konq_load_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
-    StorageProfileSlot* slot;
     StorageProfileSlot* found;
+    StorageProfileSlot* slot;
     StorageDevice* deviceStatus;
     int device;
     int slotIndex;
@@ -2771,12 +2766,18 @@ void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
     }
 }
 
-/* TODO: [near miss] 98.46%; only the slw operand register coloring differs. */
+/* TODO: [near miss] 98.46%; shift operands use swapped registers;
+ * mask-first AND is neutral; stop at coloring. */
 int get_coffin_bit(const unsigned char* bits, unsigned int index) {
+    int mask;
+    unsigned int shift;
+
     if (index >= COFFIN_BIT_COUNT) {
         return 0;
     }
-    return (bits[index >> 3] & (1 << (index & 7))) != 0;
+    shift = index & 7;
+    mask = 1 << shift;
+    return (mask & bits[index >> 3]) != 0;
 }
 
 /* TODO: [near miss] 96.59574%; typed default masks preserve codegen; loop scheduling remains. */

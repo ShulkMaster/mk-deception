@@ -896,6 +896,7 @@ static char* float2str(long double num, char* buff, print_format format)
 	return p;
 }
 
+/* TODO: [breakthrough needed] 94.30%; formatter failure CFG and va_arg lifetimes differ; TU function order is also wrong. */
 static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* WriteProcArg, const char* format_str, va_list arg)
 {
 	int num_chars, chars_written, field_width;

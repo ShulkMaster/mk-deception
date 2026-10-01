@@ -519,7 +519,9 @@ lifetimes.
   declarations when retail runs the other way; size a genuine buffer from the
   frame gap once its maximum write fits (`p_setup_konquest_map`).
 - Declaration order and block scope interact; measure each and the
-  combination with initialization fixed.
+  combination with initialization fixed. Block scope means an existing
+  `if`/loop/`else` body: a bare `{ }` added only to scope a temporary is force
+  matching, not honest source (`validate_save_location`'s dummy slot local).
 - MWCC keeps stack-member stores in source order. Same instruction count, a
   different store interleave, and a different `stmw` set are store-order
   evidence: write members in retail's `stw` offset order
