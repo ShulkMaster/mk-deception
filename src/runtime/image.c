@@ -255,8 +255,7 @@ void pull_screen_obj(ScreenObj* obj) {
     }
     ptr = find_in_mklist(hdr, &screen_obj_list);
     if (ptr != 0) {
-        ptr->hdr = 0;
-        destroy_mkptr(ptr);
+        discard_stale_mkptr(ptr);
     }
 }
 
@@ -407,8 +406,7 @@ AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned in
             atc = (AniTextureControl*)ptr->hdr;
             if (ptr->instance != atc->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 mat = atc->materials[0];
@@ -618,8 +616,7 @@ ScreenObj* insert_2d_obj(ScreenObj* obj) {
             cur = (ScreenObj*)ptr->hdr;
             if (ptr->instance != cur->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 vtbl = cur->vtbl;
@@ -716,8 +713,7 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
             cur = (ScreenObj*)ptr->hdr;
             if (ptr->instance != cur->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 cur_vtbl = cur->vtbl;
@@ -811,8 +807,7 @@ ScreenObj* insert_screen_obj(ScreenObj* obj) {
             cur = (ScreenObj*)ptr->hdr;
             if (ptr->instance != cur->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 vtbl = cur->vtbl;
@@ -871,8 +866,7 @@ void render_2d_objs(int layer) {
             obj = (ScreenObj*)ptr->hdr;
             if (ptr->instance != obj->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 vtbl = obj->vtbl;

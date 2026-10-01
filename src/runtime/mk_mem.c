@@ -18,8 +18,7 @@ void purge_delayed_mem_frees(void) {
             delay = (int)entry->instance;
             if (--delay <= 0) {
                 _mwMemFree(entry->hdr, 0, 0);
-                entry->hdr = 0;
-                destroy_mkptr(entry);
+                discard_stale_mkptr(entry);
             } else {
                 entry->instance = (unsigned int)delay;
             }
@@ -40,8 +39,7 @@ void do_delayed_mem_frees(void) {
         delay = (int)entry->instance;
         if (--delay <= 0) {
             _mwMemFree(entry->hdr, 0, 0);
-            entry->hdr = 0;
-            destroy_mkptr(entry);
+            discard_stale_mkptr(entry);
         } else {
             entry->instance = (unsigned int)delay;
         }
