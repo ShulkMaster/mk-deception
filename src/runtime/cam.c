@@ -596,7 +596,7 @@ static inline int kick_camera_move_to_position(const Vec* target) {
     return 0;
 }
 
-/* TODO: [near miss] 99.0243%; movement-loop FPR coloring and sqrt scratch slots remain. */
+/* TODO: [near miss] 99.07%; movement-loop FPR coloring and sqrt scratch slots remain. */
 static float kick_camera(void) {
     CameraObj* camera;
     CameraObj* camera_check;
@@ -669,7 +669,7 @@ static float kick_camera(void) {
         look_position.z = 2.0f * cam_forward_uv.z;
         look_position.x += camera->pos.x;
         look_position.y += camera->pos.y;
-        look_position.z += camera->pos.z;
+        look_position.z = camera->pos.z + look_position.z;
     }
 
     while (kick_camera_move_to_position(&target_position) == 0) {
@@ -709,12 +709,11 @@ static float kick_camera(void) {
 
 static float generic_victory_camera(void);
 
-/* TODO: [near miss] 97.125%; camera_proc loads via r0 then mr r31 where retail loads r31 directly; only a dead-code probe reproduces it. */
 void do_victory_camera(VictoryCameraConfig* config) {
-    MkProc* camera_proc = camera_info.proc;
+    MkProc* camera_proc;
     CameraPdata* pdata = camera_info.pdata;
 
-    if (camera_proc != 0) {
+    if ((camera_proc = camera_info.proc) != 0) {
         pdata = (CameraPdata*)pdata_of_proc(camera_proc);
     }
     if (pdata != 0 && mode_of_play != 8) {
@@ -738,7 +737,7 @@ static inline void camera_halt_movement(void) {
                                 0.0f);
 }
 
-/* TODO: [breakthrough needed] 83.92%; retail uses 9 saved FPRs (f23-f31) and a 0x1b0 frame; radial/side vectors, the frsp'd look height and loop FPR layout still differ. */
+/* TODO: [breakthrough] 84.24%; recovered the cached look-step norm; retail 0x1b0 frame, radial/side vector storage and saved-FPR lifetimes still differ. */
 static float generic_victory_camera(void) {
     CameraPdata* pdata = camera_info.pdata;
     CameraObj* initial_camera;
@@ -771,6 +770,10 @@ static float generic_victory_camera(void) {
     float yaw_delta;
     float roll_delta;
     float step_length;
+    float step_x_squared;
+    float step_y_squared;
+    float step_z_squared;
+    float step_length_squared;
     float remaining_length;
     float inverse_length;
     int rotation_ticks;
@@ -778,9 +781,8 @@ static float generic_victory_camera(void) {
 
     initial_camera = camera_item.node;
     if (initial_camera != 0) {
-        if (initial_camera->hdr.instance != camera_item.instance) {
-            initial_camera = 0;
-        }
+        initial_camera = initial_camera->hdr.instance != camera_item.instance
+                             ? 0 : initial_camera;
     } else {
         initial_camera = 0;
     }
@@ -831,12 +833,11 @@ static float generic_victory_camera(void) {
     } else {
         side_axis = (Vec){1.0f, 0.0f, 0.0f};
         rotate_xz(&side_axis, &side_axis, attacker->ang.y);
+        side_is_left = 0;
         if (cam_forward_uv.z * side_axis.x -
                 cam_forward_uv.x * side_axis.z <
             0.0f) {
             side_is_left = 1;
-        } else {
-            side_is_left = 0;
         }
     }
     if (side_is_left != 0) {
@@ -920,12 +921,14 @@ static float generic_victory_camera(void) {
 
     get_target_movement_vector_impl(&moving_look_target, &look_target,
                                     &look_step, travel_time);
+    step_x_squared = (float)(look_step.x * look_step.x);
+    step_y_squared = (float)(look_step.y * look_step.y);
+    step_z_squared = (float)(look_step.z * look_step.z);
+    step_length_squared = step_x_squared + step_y_squared + step_z_squared;
 
     while (move_to_end_point(&destination, &initial_speed, &final_speed, 0,
                              travel_time) == 0) {
-        step_length = gxMathFastSqrt(look_step.x * look_step.x +
-                                  look_step.y * look_step.y +
-                                  look_step.z * look_step.z);
+        step_length = gxMathFastSqrt(step_length_squared);
         direction.x = look_target.x - moving_look_target.x;
         direction.y = look_target.y - moving_look_target.y;
         direction.z = look_target.z - moving_look_target.z;
@@ -1079,16 +1082,16 @@ void BezierCamera_Init(BezierCamera* camera, float step, Vec* p0, Vec* p1,
     camera->phase = 0;
 }
 
-/* TODO: [near miss] 99.72%; five coefficient FPR/pool rows remain in the polynomial path. */
+/* TODO: [near miss] 99.84252%; four coefficient FPR rows remain after honest p1 polynomial-term staging. */
 static int BezierCamera_GetNextPoint(BezierCamera* camera, Vec* point) {
     float t;
     float t2;
     float t3;
-    float p1_weight;
-    float p0_weight;
     float p2_weight;
+    float p0_weight;
     float three_t;
     float three_t2;
+    float p1_weight;
 
     t = camera->time;
     if (t > 1.0f) {
@@ -1120,7 +1123,8 @@ static int BezierCamera_GetNextPoint(BezierCamera* camera, Vec* point) {
     three_t2 = 3.0f * t2;
     p2_weight = (-3.0f * t3) + three_t2;
     p0_weight = 1.0f + (((-1.0f * t3) + three_t2) - three_t);
-    p1_weight = (3.0f * t3) - (6.0f * t2) + three_t;
+    p1_weight = 6.0f * t2;
+    p1_weight = (3.0f * t3) - p1_weight + three_t;
 
     point->x = camera->control[0].x * p0_weight + camera->control[1].x * p1_weight +
                camera->control[2].x * p2_weight + camera->control[3].x * t3;
@@ -1153,20 +1157,18 @@ static int BezierCamera_GetNextPoint(BezierCamera* camera, Vec* point) {
     return 0;
 }
 
-/* TODO: [near miss] 99.59535%; FPR coloring differs in side offset and first normalization; stop at coloring. */
 float p_mk_chess_cam_chase_cursor(void) {
     ChessCameraInfo* chess_camera = mk_chess_fetch_camera_info();
     ChessManagerInfo* manager = mk_chess_fetch_manager_info();
     ChessPiece* piece = mk_chess_fetch_piece_at_cursor();
     CameraObj* camera;
     Vec destination;
-    Vec movement;
     Vec angles;
     Vec direction;
+    Vec movement;
     float distance;
     float inverse_length;
     float camera_x;
-    int side;
 
     if (piece == 0 || (unsigned int)manager->input_state != 0) {
         return 1.0f;
@@ -1183,8 +1185,10 @@ float p_mk_chess_cam_chase_cursor(void) {
     destination.x = piece->object->pos.value.x;
     destination.y = piece->object->pos.value.y;
     destination.z = piece->object->pos.value.z;
-    side = mk_chess_fetch_current_side_based_on_ones(manager->active_side);
-    destination.z = 14.0f * -(float)side + destination.z;
+
+    destination.z =
+        -(float)mk_chess_fetch_current_side_based_on_ones(manager->active_side) *
+        14.0f + destination.z;
     destination.y += 11.0f;
     distance = dist_v3_to_v3(&destination, &camera->pos);
     if (distance > 0.25f) {
@@ -1195,8 +1199,8 @@ float p_mk_chess_cam_chase_cursor(void) {
     }
 
     chess_camera->viewing_camera = 0;
-    camera_x = camera->pos.x;
-    movement.x = destination.x - camera_x;
+
+    movement.x = destination.x - (camera_x = camera->pos.x);
     movement.y = destination.y - camera->pos.y;
     movement.z = destination.z - camera->pos.z;
     inverse_length = camera_inv_sqrt(
@@ -1586,7 +1590,8 @@ void camera_wait_for_animation_completion(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.87425%; bone-load join has an extra null check; final anim handle uses different register. */
+/* TODO: [breakthrough] 99.10%; failed bone load reaches retail shared tail;
+ * initial camera-info base and final anim handle register differ. */
 void camera_run_animation_start_end(float start_frame, float end_frame, int wait_flag,
                                     int use_frame_range) {
     CameraInfo* info = &camera_info;
@@ -1600,29 +1605,29 @@ void camera_run_animation_start_end(float start_frame, float end_frame, int wait
         : 0;
     if (bone == 0) {
         bone = load_named_model_from_slot(0, "CAM_BONE", 0x900D, 0);
-        if (bone != 0) {
-            mk_insert(&bone->hdr, &camera_obj->child_list);
-            info->pdata->bone_obj = bone;
-            info->pdata->bone_instance = bone->hdr.instance;
-            build_bones_tbl(bone, camera_bones);
-            bone->flags_0B_bits.force_anim_speed = 1;
+        if (bone == 0) {
+            goto apply_animation;
         }
+        mk_insert(&bone->hdr, &camera_obj->child_list);
+        info->pdata->bone_obj = bone;
+        info->pdata->bone_instance = bone->hdr.instance;
+        build_bones_tbl(bone, camera_bones);
+        bone->flags_0B_bits.force_anim_speed = 1;
     }
 
-    if (bone != 0) {
-        anim = MK_HDR_LIVE(info->pdata->anim_pdata, info->pdata->anim_instance);
-        if (anim == 0) {
-            anim = get_mkpdata_anim();
-            anim->obj = bone;
-            anim->obj_instance = bone->hdr.instance;
-            set_root_and_obj_movement_weights(anim, 0.0f, 0.0f);
-            anim->step = info->pdata->speed;
-            mk_insert(&anim->hdr, &bone->child_list);
-            info->pdata->anim_pdata = anim;
-            info->pdata->anim_instance = anim->hdr.instance;
-        }
+    anim = MK_HDR_LIVE(info->pdata->anim_pdata, info->pdata->anim_instance);
+    if (anim == 0) {
+        anim = get_mkpdata_anim();
+        anim->obj = bone;
+        anim->obj_instance = bone->hdr.instance;
+        set_root_and_obj_movement_weights(anim, 0.0f, 0.0f);
+        anim->step = info->pdata->speed;
+        mk_insert(&anim->hdr, &bone->child_list);
+        info->pdata->anim_pdata = anim;
+        info->pdata->anim_instance = anim->hdr.instance;
     }
 
+apply_animation:
     anim = info->pdata->anim_pdata;
     anim = MK_HDR_LIVE(anim, info->pdata->anim_instance);
     if (use_frame_range == 0) {
@@ -2215,7 +2220,7 @@ void initialize_background_danger_zones(void) {
     memset(background_danger_zones, 0, sizeof(background_danger_zones));
 }
 
-/* TODO: [breakthrough] 94.61%; squared-distance stack slot aligns; resolve sqrt FPR schedule and camera pointer coloring. */
+/* TODO: [near miss] 96.94%; pdata capture and pitch/roll structure agree; saved camera-pointer registers and sqrt FPR coloring remain. */
 float p_krypt_camera_loop(void) {
     union {
         float f;
@@ -2231,14 +2236,16 @@ float p_krypt_camera_loop(void) {
     float dz;
     float dist_sq;
     float dist;
+    float target_pitch;
+    float old_pitch;
     float d_ang_x;
     float d_ang_y;
     float roll_delta;
     float ang_err_sq;
-    unsigned int bits;
     float guess;
     int pos_done;
 
+    pdata = camera_info.pdata;
     default_pos.words[0] = kDefaultPos.words[0];
     default_pos.words[1] = kDefaultPos.words[1];
     default_pos.words[2] = kDefaultPos.words[2];
@@ -2246,7 +2253,6 @@ float p_krypt_camera_loop(void) {
     default_ang.words[1] = kDefaultAng.words[1];
     default_ang.words[2] = kDefaultAng.words[2];
 
-    pdata = camera_info.pdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -2275,17 +2281,17 @@ float p_krypt_camera_loop(void) {
         dy = pdata->target_pos.y - cam->pos.y;
         dx = pdata->target_pos.x - cam->pos.x;
         dz = pdata->target_pos.z - cam->pos.z;
-        dist_sq = dx * dx + dy * dy + dz * dz;
+        dist_sq = dy * dy;
+        dist_sq = dx * dx + dist_sq + dz * dz;
         value_bits.f = dist_sq;
 
         if (dist_sq <= 0.0f) {
             dist = 0.0f;
         } else {
-            bits = value_bits.u;
             guess_bits.u =
-                (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
+                (unsigned int)GXMathSqrtTable[(value_bits.u >> 11) & 0x1FFF] << 8;
             guess_bits.u |=
-                (((bits & 0x7F800000U) + 0x3F800000U) >> 1) &
+                (((value_bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
                 0x7F800000U;
             guess = guess_bits.f;
             guess *= 3.0f - (guess * guess) / dist_sq;
@@ -2316,7 +2322,9 @@ float p_krypt_camera_loop(void) {
         speed_scale = 0.1f * pdata->speed;
         RESOLVE_CAMERA_OBJ(cam);
 
-        d_ang_x = pdata->target_ang.x - cam->ang.x;
+        target_pitch = pdata->target_ang.x;
+        old_pitch = cam->ang.x;
+        d_ang_x = target_pitch - old_pitch;
         if (d_ang_x > 3.1415927f) {
             d_ang_x = d_ang_x - 6.2831855f;
         } else if (d_ang_x < -3.1415927f) {
@@ -2333,14 +2341,15 @@ float p_krypt_camera_loop(void) {
         ang_err_sq = d_ang_x * d_ang_x + d_ang_y * d_ang_y;
 
         if (ang_err_sq < 1.0e-6f) {
-            cam->ang.x = pdata->target_ang.x;
+            cam->ang.x = target_pitch;
             cam->ang.y = pdata->target_ang.y;
             cam->ang.z = pdata->target_ang.z;
         } else {
             d_ang_x *= speed_scale;
             d_ang_y *= speed_scale;
-            roll_delta = 0.0f * speed_scale;
-            cam->ang.x += d_ang_x;
+            roll_delta = 0.0f;
+            roll_delta *= speed_scale;
+            cam->ang.x = old_pitch + d_ang_x;
             cam->ang.y += d_ang_y;
             cam->ang.z += roll_delta;
         }
@@ -2378,7 +2387,7 @@ float p_krypt_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.41%; loop camera r5/r6 swap and camera_sqrt stack-slot order (0x8/0xc) remain. */
+/* TODO: [near miss] 99.42%; loop camera r5/r6 swap and camera_sqrt stack-slot order (0x8/0xc) remain. */
 static float konquest_interior_camera_loop(void) {
     CameraObj* camera;
     Vec target_position = {0.0f, 0.0f, 0.0f};
@@ -2462,8 +2471,10 @@ float p_konquest_interior_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.73%; retail CFG agrees; smoothing pointer/FPR coloring, one snap reload, and TU data layout remain. */
+/* TODO: [near miss] 97.88%; mode-8 movement/snap owners and facing stages improve;
+ * smoothing FPR/pointer lifetimes and initializer pool offsets remain. */
 float konquest_camera_loop(void) {
+    float facing_dz;
     Vec orbit_vector = {0.0f, 2.0f, -3.0f};
     Vec forward = {0.0f, 0.0f, 1.0f};
     Vec focus_position = {0.0f, 0.0f, 0.0f};
@@ -2480,6 +2491,7 @@ float konquest_camera_loop(void) {
     float yaw_delta;
     float roll_delta;
     int position_done;
+    float facing_dx;
 
     if (camera_info.pdata == 0) {
         return -1.0f;
@@ -2507,11 +2519,10 @@ float konquest_camera_loop(void) {
     camera_info.pdata->target_pos.z += focus_position.z;
     camera_info.pdata->target_pos.y = orbit_vector.y + focus->ground_colls_y;
 
-    if ((camera->pos.x - camera_info.pdata->target_pos.x) *
-                camera->field_24->at.x +
-            (camera->pos.z - camera_info.pdata->target_pos.z) *
-                camera->field_24->at.z <
-        0.0f) {
+    facing_dz = camera->pos.z - camera_info.pdata->target_pos.z;
+    facing_dx = camera->pos.x - camera_info.pdata->target_pos.x;
+    if (facing_dx * camera->field_24->at.x +
+        facing_dz * camera->field_24->at.z < 0.0f) {
         camera_info.pdata->flags_bits.konquest_mode = 1;
     }
     if (camera_info.pdata->flags_bits.konquest_mode) {
@@ -2575,26 +2586,26 @@ float konquest_camera_loop(void) {
 
             {
                 CameraPdata* pdata = camera_info.pdata;
-            speed = 0.1f * pdata->speed;
-            RESOLVE_CAMERA_OBJ(camera);
-            dy = pdata->target_pos.y - camera->pos.y;
-            dx = pdata->target_pos.x - camera->pos.x;
-            dz = pdata->target_pos.z - camera->pos.z;
-            distance = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
-            if (distance < 0.01f) {
-                position_done = 1;
-                camera->pos.x = pdata->target_pos.x;
-                camera->pos.y = pdata->target_pos.y;
-                camera->pos.z = pdata->target_pos.z;
-            } else {
-                position_done = 0;
-                dx *= speed;
-                dy *= speed;
-                dz *= speed;
-                camera->pos.x += dx;
-                camera->pos.y += dy;
-                camera->pos.z += dz;
-            }
+                speed = 0.1f * pdata->speed;
+                RESOLVE_CAMERA_OBJ(camera);
+                dy = pdata->target_pos.y - camera->pos.y;
+                dx = pdata->target_pos.x - camera->pos.x;
+                dz = pdata->target_pos.z - camera->pos.z;
+                distance = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
+                if (distance < 0.01f) {
+                    position_done = 1;
+                    camera->pos.x = pdata->target_pos.x;
+                    camera->pos.y = pdata->target_pos.y;
+                    camera->pos.z = pdata->target_pos.z;
+                } else {
+                    position_done = 0;
+                    dx *= speed;
+                    dy *= speed;
+                    dz *= speed;
+                    camera->pos.x += dx;
+                    camera->pos.y += dy;
+                    camera->pos.z += dz;
+                }
             }
             if (position_done != 0) {
                 camera_info.pdata->flags_bits.pos_done = 1;
@@ -2626,15 +2637,17 @@ float konquest_camera_loop(void) {
                 camera->ang.z += roll_delta;
             }
         } else {
+            CameraPdata* movement = camera_info.pdata;
             RESOLVE_CAMERA_OBJ(camera);
-            dy = camera_info.pdata->target_pos.y - camera->pos.y;
-            dx = camera_info.pdata->target_pos.x - camera->pos.x;
-            dz = camera_info.pdata->target_pos.z - camera->pos.z;
+            dy = movement->target_pos.y - camera->pos.y;
+            dx = movement->target_pos.x - camera->pos.x;
+            dz = movement->target_pos.z - camera->pos.z;
             distance = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
             if (distance < 0.01f) {
-                camera->pos.x = camera_info.pdata->target_pos.x;
-                camera->pos.y = camera_info.pdata->target_pos.y;
-                camera->pos.z = camera_info.pdata->target_pos.z;
+                CameraPdata* snap = camera_info.pdata;
+                camera->pos.x = snap->target_pos.x;
+                camera->pos.y = snap->target_pos.y;
+                camera->pos.z = snap->target_pos.z;
             } else {
                 speed = 1.0f;
                 dx *= speed;
@@ -2786,7 +2799,7 @@ void interaction_cam_set_target_info(
 
 
 
-/* TODO: [breakthrough needed] 86.23%; Vec slots and angle exit improved; resolve midpoint/offset data layout and orbit FPR lifetimes. */
+/* TODO: [breakthrough needed] 86.26%; tick predicate staging improved; resolve midpoint/offset data layout and orbit FPR lifetimes. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
@@ -2817,7 +2830,8 @@ static float p_interaction_cam(void) {
     check_reverse_interaction_cam_targets();
     entry_camera = camera_item.node;
     g_ic_data.created_process = 0;
-    snap_angles = g_ic_data.ticks == 1;
+    snap_angles = g_ic_data.ticks;
+    snap_angles = snap_angles == 1;
     entry_camera = MK_HDR_LIVE(entry_camera, camera_item.instance);
 
     if (entry_camera == 0) {
@@ -3285,8 +3299,6 @@ void special_move_cam_setup(
 
 
 
-/* TODO: [near miss] 99.68%; FPR ranks match; orbit-angle constant loads (late pool labels)
- * and target-vs-camera angle load order after norm_angles_v3 remain. */
 static float p_special_move_cam(void) {
     MkObj* target;
     CameraObj* camera;
@@ -3332,11 +3344,10 @@ static float p_special_move_cam(void) {
         return 0.0f;
     }
 
+    orbit_angle = target->ang.y + smc_data.orbit_yaw_offset;
     orbit_angle =
         0.000005992112f *
-        (float)((int)(166886.1f *
-                      (target->ang.y + smc_data.orbit_yaw_offset)) &
-                0xFFFFF);
+        (float)((int)(166886.1f * orbit_angle) & 0xFFFFF);
     orbit_sin = gxMathSin(orbit_angle);
     orbit_cos = gxMathCos(orbit_angle);
     desired_pos_x = orbit_sin * smc_data.orbit_radius;
@@ -3353,26 +3364,26 @@ static float p_special_move_cam(void) {
     start_pos_x = camera->pos.x;
     start_pos_y = camera->pos.y;
     start_pos_z = camera->pos.z;
-    start_ang_x = camera->ang.x;
     delta_pos_x = desired_pos_x - start_pos_x;
     delta_pos_y = camera_height - start_pos_y;
     delta_pos_z = desired_pos_z - start_pos_z;
 
-    delta_ang_x = target_angles.x - start_ang_x;
+    delta_ang_x = target_angles.x -
+        (start_ang_x = camera->ang.x);
     if (delta_ang_x > 3.1415927f) {
         delta_ang_x -= 6.2831855f;
     } else if (delta_ang_x < -3.1415927f) {
         delta_ang_x += 6.2831855f;
     }
-    start_ang_y = camera->ang.y;
-    delta_ang_y = target_angles.y - start_ang_y;
+    delta_ang_y = target_angles.y -
+        (start_ang_y = camera->ang.y);
     if (delta_ang_y > 3.1415927f) {
         delta_ang_y -= 6.2831855f;
     } else if (delta_ang_y < -3.1415927f) {
         delta_ang_y += 6.2831855f;
     }
-    start_ang_z = camera->ang.z;
-    delta_ang_z = target_angles.z - start_ang_z;
+    delta_ang_z = target_angles.z -
+        (start_ang_z = camera->ang.z);
     if (delta_ang_z > 3.1415927f) {
         delta_ang_z -= 6.2831855f;
     } else if (delta_ang_z < -3.1415927f) {
@@ -3606,8 +3617,7 @@ static float p_run_camera_script(void) {
     if (((CameraScriptPdata*)apdata)->flags == 0) {
         memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
         {
-            float final_speed = 0.0f;
-            float initial_speed = 0.0f;
+            float final_speed = 0.0f, initial_speed = 0.0f;
             Vec endpoint = {0.0f, 0.0f, 0.0f};
 
             move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
@@ -3707,8 +3717,10 @@ static inline int scripted_camera_turn_toward(Vec* angles, float rate,
     return 0;
 }
 
-/* TODO: [near miss] 98.38%; initializer templates sit at .rodata+0x30 in retail (TU layout); orbit arg load order and turn-helper FPR/zero-constant residue remain. */
+/* TODO: [near miss] 98.50%; snap predicate staging improves turn lowering;
+ * initializer pool offsets, orbit argument order and turn FPRs remain. */
 float p_scripted_camera(void) {
+    float inverse_length;
     Vec target_position = {0.0f, 0.0f, 0.0f};
     Vec look_target = {0.0f, 0.0f, 0.0f};
     Vec target_angles = {0.0f, 0.0f, 0.0f};
@@ -3718,7 +3730,6 @@ float p_scripted_camera(void) {
     Vec direction;
     CameraObj* camera;
     MkObj* focus;
-    float inverse_length;
 
     cam_ang_offset.x = cam_ang_offset.y = cam_ang_offset.z = 0.0f;
     cam_pos_offset.x = cam_pos_offset.y = cam_pos_offset.z = 0.0f;
@@ -3885,10 +3896,11 @@ float p_scripted_camera(void) {
                     camera->ang.z = target_angles.z;
                     scripted_camera_data.ang_move_done = 1;
                 } else {
+                    int snap_angles = scripted_camera_data.look_mode == 2;
                     scripted_camera_data.ang_move_done =
                         scripted_camera_turn_toward(
                             &target_angles, scripted_camera_data.rotation_rate,
-                            scripted_camera_data.look_mode == 2);
+                            snap_angles);
                 }
             } else if (scripted_camera_data.glitch != 0 ||
                        scripted_camera_data.look_mode == 8 ||
@@ -4198,7 +4210,7 @@ void camera_set_lookat_offset_obj_rel(const Vec* offset, void* script_args) {
     }
 }
 
-void camera_set_lookat_offset(Vec* offset, void* script_args) {
+void camera_set_lookat_offset(Vec* offset) {
     offset->y += g_game_info.field_34;
     scripted_camera_data.lookat_offset.x = offset->x;
     scripted_camera_data.lookat_offset.y = offset->y;
@@ -4386,13 +4398,10 @@ void camera_set_radial_movement(int enabled) {
     scripted_camera_data.radial_movement = enabled;
 }
 
-/* TODO: [near miss] 53.88%; only the global-base addi schedules one instruction early. */
-void camera_set_center_of_rotation(const CamVec3* center) {
-    Vec* rotation_center = &scripted_camera_data.center_of_rotation;
-
-    rotation_center->x = center->x;
-    rotation_center->y = center->y;
-    rotation_center->z = center->z;
+void camera_set_center_of_rotation(CamVec3* center) {
+    scripted_camera_data.center_of_rotation.x = center->x;
+    scripted_camera_data.center_of_rotation.y = center->y;
+    scripted_camera_data.center_of_rotation.z = center->z;
 }
 
 void camera_set_travel_time(float time) {
@@ -4426,7 +4435,7 @@ void camera_set_movement_offset_obj_rel(const Vec* offset, void* script_args) {
     }
 }
 
-void camera_set_movement_offset(Vec* offset, void* script_args) {
+void camera_set_movement_offset(Vec* offset) {
     offset->y += g_game_info.field_34;
     scripted_camera_data.movement_offset.x = offset->x;
     scripted_camera_data.movement_offset.y = offset->y;
@@ -4608,14 +4617,16 @@ static void attract_default_glitch_move(AttractCameraState* state) {
     state->camera->ang.z = state->current_angles.z;
 }
 
-/* TODO: [near miss] 98.73%; retail keeps the 0.0f * angle_rate roll multiply that MWCC folds here, shifting f3/f5 coloring. */
+/* TODO: [near miss] 99.66%; real roll delta/step restores multiply;
+ * only angle-rate/old-X f3/f5 coloring remains. */
 static void attract_move_flyby(AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;
     float delta_x;
     float delta_y;
-    float angle_rate;
     float roll_delta;
+    float angle_rate;
+    float roll_step;
 
     direction.x = state->target_position.x - state->camera->pos.x;
     direction.y = state->target_position.y - state->camera->pos.y;
@@ -4644,10 +4655,11 @@ static void attract_move_flyby(AttractCameraState* state) {
     if (!(delta_x * delta_x + delta_y * delta_y < 1.0e-6f)) {
         delta_x *= angle_rate;
         delta_y *= angle_rate;
-        roll_delta = 0.0f * angle_rate;
+        roll_delta = 0.0f;
+        roll_step = roll_delta * angle_rate;
         camera->ang.x = camera->ang.x + delta_x;
         camera->ang.y = camera->ang.y + delta_y;
-        camera->ang.z = camera->ang.z + roll_delta;
+        camera->ang.z = camera->ang.z + roll_step;
     }
 }
 
@@ -5368,7 +5380,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
     return 0;
 }
 
-/* TODO: [near miss] 98.2429%; shared sqrt lowering improved; remaining caller CFG/FPR layout needs review. */
+/* TODO: [near miss] 99.69%; initial-speed snapshot and coordinate order agree; absolute-distance selection retains one move and FPR result residue. */
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
                       float* final_speed, int reset, float time) {
     static unsigned int num_ticks;
@@ -5398,8 +5410,8 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
     unsigned int ticks_remaining;
 
     RESOLVE_CAMERA_OBJ(camera);
-    dy = endpoint->y - camera->pos.y;
     dx = endpoint->x - camera->pos.x;
+    dy = endpoint->y - camera->pos.y;
     dz = endpoint->z - camera->pos.z;
     distance_squared = dz * dz + (dx * dx + dy * dy);
     remaining_distance = gxMathFastSqrt(distance_squared);
@@ -5415,6 +5427,8 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
     }
 
     if (initializing != 0) {
+        float initial_value;
+
         num_ticks = (unsigned int)(60.0f * time);
         distance = gxMathFastSqrt(distance_squared);
         inverse_distance = camera_inv_sqrt(distance_squared);
@@ -5431,13 +5445,14 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
         }
         blending_ticks = (unsigned int)(0.2f * (float)num_ticks);
 
-        if (*initial_speed == -1.0f) {
+        initial_value = *initial_speed;
+        if (initial_value == -1.0f) {
             current_speed = desired_speed;
             speed_increment = 0.0f;
         } else {
+            current_speed = initial_value;
             speed_increment =
-                (desired_speed - *initial_speed) / (float)blending_ticks;
-            current_speed = *initial_speed;
+                (desired_speed - initial_value) / (float)blending_ticks;
         }
 
         if (*final_speed == -1.0f) {
@@ -5451,9 +5466,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
                     final_speed_increment * (float)tick + desired_speed;
             }
             distance -= deceleration_distance_sum;
-            if (distance < 0.0f) {
-                distance = -distance;
-            }
+            distance = distance >= 0.0f ? distance : -distance;
             decelerate_distance = distance;
         }
         initializing = 0;
@@ -6257,7 +6270,11 @@ static RwCamera* CameraCreate(int width, int height) {
     return 0;
 }
 
+/* TODO: [near miss] 99.43%; restore object string pooling/readonly for +9 suffix;
+ * float pool offsets also differ under strict relocation comparison. */
 int init_camera(void) {
+    int height;
+    MkProc* process;
     int proc_flags;
     union {
         int word;
@@ -6268,7 +6285,6 @@ int init_camera(void) {
             unsigned char pad_bytes[3];
         } bits;
     } flags;
-    MkProc* process;
     RwCamera* camera;
 
     memset(&camera_info, 0, sizeof(camera_info));
@@ -6277,8 +6293,8 @@ int init_camera(void) {
     if (Camera != 0) {
         return 0;
     }
-
-    camera = CameraCreate(screen_width, screen_height);
+    height = screen_height;
+    camera = CameraCreate(screen_width, height);
     Camera = camera;
     if (camera == 0) {
         debug_error_message("Cannot create camera.");

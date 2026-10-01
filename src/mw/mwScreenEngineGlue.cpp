@@ -993,7 +993,26 @@ void screen_engine_process_events(void) {
     Idle__9ScreenMgrFi(screen_manager, 0);
 }
 
-/* TODO: [breakthrough needed] 81.39%; drain-loop register setup and the deferred flag packing (retail subic/subfe + add.) differ. */
+static inline void queue_paused_studio_event(int event, int flags) {
+    int i;
+
+    for (i = 0; i < 12; i++) {
+        if (paused_event_queue[i].event == 0) {
+            paused_event_queue[i].event = event;
+            if (flags >= 0) {
+                paused_event_queue[i].flags = flags & 0xFF;
+            } else {
+                paused_event_queue[i].flags = flags;
+            }
+            return;
+        }
+        if ((unsigned int)event == paused_event_queue[i].event) {
+            return;
+        }
+    }
+}
+
+/* TODO: [breakthrough needed] 85.28%; drain-loop initialization and generic deferred flag packing codegen differ. */
 int broadcast_screen_studio_event(int event, int flag) {
     int deferred;
     int i;
@@ -1009,9 +1028,8 @@ int broadcast_screen_studio_event(int event, int flag) {
     }
 
     if (deferred == 0) {
-        i = 0;
         base = paused_event_queue;
-        do {
+        for (i = 0; i < 12;) {
             entry = &base[i];
             if (entry->event == 0) {
                 break;
@@ -1021,7 +1039,7 @@ int broadcast_screen_studio_event(int event, int flag) {
             if (flags < 0) {
                 BroadcastEvent__9ScreenMgrFiii(
                     screen_manager, entry->event,
-                    __cntlzw(-1 - flags) >> 5, 0);
+                    flags == -1, 0);
             } else {
                 FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event, flags & 0xFF,
                                            ((flags >> 8) & 0xFF));
@@ -1029,33 +1047,12 @@ int broadcast_screen_studio_event(int event, int flag) {
             i += 1;
             entry->event = 0;
             *flags_ptr = 0;
-        } while (i < 12);
+        }
     }
 
     if (deferred != 0) {
         if ((unsigned int)event < 0x3EEu || (unsigned int)event > 0x405u) {
-            int left;
-
-            base = paused_event_queue;
-            i = 0;
-            left = 12;
-            do {
-                entry = &base[i];
-                if (entry->event == 0) {
-                    entry->event = event;
-                    if ((flag != 0) - 2 < 0) {
-                        entry->flags = -1 - (flag == 0);
-                    } else {
-                        entry->flags = (0xFFFFFFFFu - (unsigned int)(flag == 0)) & 0xFFu;
-                    }
-                    break;
-                }
-                if ((unsigned int)event == entry->event) {
-                    break;
-                }
-                i += 1;
-                left -= 1;
-            } while (left != 0);
+            queue_paused_studio_event(event, (flag != 0) - 2);
         }
         return 0;
     }

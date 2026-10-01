@@ -575,9 +575,9 @@ static void render_text_without_clear(char* text, int x, int y) {
 /* TODO: [near miss] 99.954025%; by-value GXColor copy slots remain reversed; named
  * per-call locals coalesce, and a shared inline with display_dragon_with_text regresses. */
 static void render_image(void* unused) {
-    GXColor black;
     int w;
     int h;
+    GXColor black;
 
     save_projection_matrix();
     set_2d_projection();

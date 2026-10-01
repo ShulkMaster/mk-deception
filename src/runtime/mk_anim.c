@@ -772,7 +772,7 @@ static inline void compose_bone_rotation(
 
 
 
-/* TODO: [near miss] 97.82%; instructions agree; child_obj/child_bid (r28/r30), parent bone/bid and compose FPR numbering differ. */
+/* TODO: [near miss] 97.84%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -846,7 +846,7 @@ static float p_bone_matcher(void) {
         bone_map = parent_obj->flipped_bone_map;
         if (bone_map != 0 && parent_bid < bone_map->count) {
             mapped_bid = bone_map->bone_indices[parent_bid];
-            if (mapped_bid != parent_bid) {
+            if (parent_bid != mapped_bid) {
                 parent_bid = mapped_bid;
                 if (matcher->flags_08.bits.preserve_bone_matrix == 0) {
                     child_bone = child_obj->bones[child_bid];
@@ -1056,18 +1056,18 @@ static float p_anim_reset_weight_idle(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.67%; shared transition CFG matches; only hand script
- * pointer and frame load order differs at the call; stop at scheduling. */
 static float p_pose_handanim(void) {
     if (anim_pdata->hand_transition > 0.0f) {
+        AnimScript* hand_script;
+
+        hand_script = anim_pdata->hand_anim_script;
         if (anim_pdata->hand_anim_script != 0 &&
             anim_pdata->next_hand_script != 0 &&
             anim_pdata->hand_transition_frames < 1.0f &&
             anim_pdata->old_script != anim_pdata->next_hand_script) {
             anim_pdata->script = anim_pdata->next_hand_script;
             anim_pdata->flags = anim_pdata->hand_flags | 0x80;
-            anim_pdata->frame = 0.0f;
-            anim_pdata->low_frame = 0.0f;
+            anim_pdata->low_frame = anim_pdata->frame = 0.0f;
             anim_pdata->high_frame =
                 (float)(anim_pdata->script->frame_count - 1);
             anim_pdata->step = 1.0f;
@@ -1079,18 +1079,15 @@ static float p_pose_handanim(void) {
                    anim_pdata->script != anim_pdata->hand_anim_script) {
             if (anim_pdata->hand_transition_frames < 1.0f) {
 transition_hand:
-                transition_to_anim_script_frame(
-                    anim_pdata->hand_transition_frames,
-                    0.0f,
-                    anim_pdata,
-                    anim_pdata->hand_anim_script,
-                    anim_pdata->hand_flags | 0x80);
+                {
+                    hand_script = anim_pdata->hand_anim_script;
+                    transition_to_anim_script_frame(
+                        anim_pdata->hand_transition_frames, 0.0f,
+                        anim_pdata, hand_script, anim_pdata->hand_flags | 0x80);
+                }
             } else {
                 set_anim_script_frame(
-                    0.0f,
-                    anim_pdata,
-                    anim_pdata->hand_anim_script,
-                    anim_pdata->hand_flags | 0x80);
+                    0.0f, anim_pdata, hand_script, anim_pdata->hand_flags | 0x80);
             }
         } else if (anim_pdata->script != 0) {
             anim_pdata->transition_weight =
@@ -1099,8 +1096,7 @@ transition_hand:
                 anim_pdata->old_script == 0) {
                 anim_pdata->transition_weight = 1.0f;
             }
-            anim_pdata->old_frame = 0.0f;
-            anim_pdata->frame = 0.0f;
+            anim_pdata->frame = anim_pdata->old_frame = 0.0f;
             pose_anim(anim_pdata, 1);
         }
     }

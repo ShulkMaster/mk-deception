@@ -662,13 +662,15 @@ void turn_port_off(int port) {
     g_game_info.pads[port].flag_bits.disabled = 1;
 }
 
+/* TODO: [near miss] 98.03571%; clear stores align; global/zero GPR roles differ. */
 void turn_controllers_off(void) {
+    int disabled = g_game_info.pause_flag_bits.controller_disable_guard;
     int port;
-    if (!g_game_info.pause_flag_bits.controller_disable_guard) {
+    if (!disabled) {
         for (port = 0; port < 3; port++) {
-            g_game_info.pads[port].prev_buttons =
+            g_game_info.pads[port].edge =
                 g_game_info.pads[port].buttons =
-                    g_game_info.pads[port].edge = 0;
+                    g_game_info.pads[port].prev_buttons = 0;
         }
         g_game_info.pause_flag_bits.controllers_disabled = 1;
         update_cnt_removed_controller_state();

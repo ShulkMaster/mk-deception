@@ -182,13 +182,14 @@ void init_file_loading_table(void) {
     num_files_loaded = 0;
 }
 
+/* TODO: [breakthrough needed] 80.28%; redundant sentinel exit test remains;
+ * infinite-loop and direct-return forms regress; inspect shared-exit lowering. */
 MkFileInfo* offset_mk_file_info(MkFileInfo* info, int language) {
     MkFileEntry* cursor;
     MkFileEntry* ssf_file = current_ssf.ssf_file;
     int index = 0;
 
     cursor = ssf_file + 1;
-
     while (cursor->info != 0) {
         if (cursor->info == info) {
             break;

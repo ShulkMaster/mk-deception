@@ -376,8 +376,6 @@ static inline void mpvhdec_ConsumeDelim(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-/* TODO: [near miss] 95.91%; retail forms (data + offset) then adds 4 for the entry name;
- * MWCC reassociates every source form tried to data + (offset + 4). */
 static int mpvhdec_DecSeqUdsc(MPVContext* context, const u8* data, int length)
 {
     const char* current;
@@ -387,8 +385,8 @@ static int mpvhdec_DecSeqUdsc(MPVContext* context, const u8* data, int length)
     result = 0;
     offset = 0;
     while (offset < length - 4) {
-        current = (const char*)(data + offset) + 4;
-        if (strncmp(current, "IDCPREC", 7) == 0) {
+        current = (const char*)(data + offset);
+        if (strncmp(current = current + 4, "IDCPREC", 7) == 0) {
             if (atoi(current + 0x10) == 0) {
                 context->field_1314 = 0;
             } else {

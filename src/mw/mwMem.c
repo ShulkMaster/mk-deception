@@ -1017,7 +1017,7 @@ int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
 }
 
 #pragma inline_depth(2)
-/* TODO: [near miss] 99.68%; two-word parameter-copy destination coloring remains. */
+/* TODO: [near miss] 99.68%; two-word copy load/store registers remain; snapshot declaration changes are neutral. */
 int mwMemSystemSetParams(MwMemSystemParams* params) {
     MwMemSystemParams defaults;
 
