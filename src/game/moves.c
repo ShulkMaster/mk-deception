@@ -334,8 +334,7 @@ void player_feet_land_chores(void);
 void ani_to_frame_x(float frame);
 void ani_to_end(void);
 void ani_1_frame(void);
-void got_hit_fx(int type, int sound_group, int blood, int arg3, int arg4,
-                int arg5, float rate);
+void got_hit_fx(int type, int sound_group, int blood, int arg3, int arg4, float rate, int arg5);
 int trial_show_standard_fight_messages(void);
 int drone_ai_should_roll(int mode);
 void play_sound_1(int sound_id);
@@ -349,9 +348,9 @@ MkProc* start_scorpion_spear(int field_34);
 int trial_change_style_callback(int player);
 void start_gore2_update(void);
 void set_attackers_attack_region(int region);
-void attack_to_frame_x(AniData* animation, unsigned int voice_event,
-                       unsigned int whoosh_event, int transition, float frame,
-                       float blend_rate, float step, float weight);
+void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
+                       float step, float weight, unsigned int voice_event,
+                       unsigned int whoosh_event, int transition);
 void ani_to_frame_x_col(
     float frame, int region, float x, float y, int reaction, float z,
     unsigned int collision_ticks);
@@ -995,11 +994,12 @@ static float p_watch_weapon(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.11%; only player/slots r30/r31 coloring is swapped. */
 static float p_hide_and_die(void) {
     MovesWeaponWatchPdata* pdata;
-    PlyrPdata* player;
+
     PlyrMirrorSlots* slots;
+    PlyrPdata* player;
+
     MkProc* player_proc;
 
     pdata = (MovesWeaponWatchPdata*)apdata;
@@ -1254,8 +1254,31 @@ static float x_pickup(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.99%; retail inlines fetch_grab_anim_ptr (r0 result + mr r26 join per switch),
- * but it is defined later in the TU so MWCC cannot inline it without deferred inlining. */
+static inline AniData* fetch_grab_anim_ptr_inline(unsigned int grab_type) {
+    switch (grab_type) {
+    case 0:
+        return shared_ani.grab_animations[0];
+    case 1:
+        return shared_ani.grab_animations[1];
+    case 2:
+        return shared_ani.grab_animations[2];
+    case 3:
+        return shared_ani.grab_animations[3];
+    case 4:
+        return shared_ani.grab_animations[4];
+    case 5:
+        return shared_ani.grab_animations[5];
+    case 6:
+        return shared_ani.grab_animations[6];
+    case 7:
+        return shared_ani.grab_animations[7];
+    case 8:
+        return shared_ani.grab_animations[8];
+    default:
+        return shared_ani.grab_animations[0];
+    }
+}
+
 static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     AniData* animation;
     float angle;
@@ -1290,71 +1313,11 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     }
 
     if (flipped == 1) {
-        switch ((unsigned int)weapon_grab_table[sector].flipped_grab_type) {
-        case 0:
-            animation = shared_ani.grab_animations[0];
-            break;
-        case 1:
-            animation = shared_ani.grab_animations[1];
-            break;
-        case 2:
-            animation = shared_ani.grab_animations[2];
-            break;
-        case 3:
-            animation = shared_ani.grab_animations[3];
-            break;
-        case 4:
-            animation = shared_ani.grab_animations[4];
-            break;
-        case 5:
-            animation = shared_ani.grab_animations[5];
-            break;
-        case 6:
-            animation = shared_ani.grab_animations[6];
-            break;
-        case 7:
-            animation = shared_ani.grab_animations[7];
-            break;
-        case 8:
-            animation = shared_ani.grab_animations[8];
-            break;
-        default:
-            animation = shared_ani.grab_animations[0];
-            break;
-        }
+        animation = fetch_grab_anim_ptr_inline(
+            (unsigned int)weapon_grab_table[sector].flipped_grab_type);
     } else {
-        switch ((unsigned int)weapon_grab_table[sector].normal_grab_type) {
-        case 0:
-            animation = shared_ani.grab_animations[0];
-            break;
-        case 1:
-            animation = shared_ani.grab_animations[1];
-            break;
-        case 2:
-            animation = shared_ani.grab_animations[2];
-            break;
-        case 3:
-            animation = shared_ani.grab_animations[3];
-            break;
-        case 4:
-            animation = shared_ani.grab_animations[4];
-            break;
-        case 5:
-            animation = shared_ani.grab_animations[5];
-            break;
-        case 6:
-            animation = shared_ani.grab_animations[6];
-            break;
-        case 7:
-            animation = shared_ani.grab_animations[7];
-            break;
-        case 8:
-            animation = shared_ani.grab_animations[8];
-            break;
-        default:
-            animation = shared_ani.grab_animations[0];
-            break;
-        }
+        animation = fetch_grab_anim_ptr_inline(
+            (unsigned int)weapon_grab_table[sector].normal_grab_type);
     }
 
     xfer_proc(plyr_anim_proc, p_idle);
@@ -1375,9 +1338,9 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
         moves_sleep(10.0f);
         if ((flipped == 1 && sector - 1 <= 1) ||
             (flipped == 0 && (sector == 7 || sector == 6))) {
-            blend_to_fstance(0.2f);
+            blend_to_fstance(0.05f);
         } else {
-            blend_to_stance(0.2f);
+            blend_to_stance(0.05f);
         }
         return;
     }
@@ -1386,9 +1349,9 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
                        &g_game_info.field_64) == 0) {
         if ((flipped == 1 && sector - 1 <= 1) ||
             (flipped == 0 && (sector == 7 || sector == 6))) {
-            blend_to_fstance(0.2f);
+            blend_to_fstance(0.05f);
         } else {
-            blend_to_stance(0.2f);
+            blend_to_stance(0.05f);
         }
         return;
     }
@@ -1411,7 +1374,7 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
             hide_sobj(pickup->transform_b);
         }
         set_ani_weight(1.0f);
-        blend_to_stance(0.2f);
+        blend_to_stance(0.05f);
         return;
     }
 
@@ -1425,7 +1388,7 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
         active_cmdscript->unk28 = pickup->pickup_script;
         moves_jump(bgnd_call_script_function);
     } else {
-        blend_to_stance(0.2f);
+        blend_to_stance(0.05f);
     }
 }
 
@@ -2767,7 +2730,7 @@ void sidekick_intro_check(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.54%; resolve vector stack layout and sidekick/player GPR lifetimes after latch CFG fixes. */
+/* TODO: [breakthrough] 94.55%; restored live mirror angle/yaw reloads; defined vector Y zeros and pointer/FPR lifetimes remain. */
 static float p_plyr_sidekick_intro(void) {
     union {
         float f;
@@ -2780,6 +2743,7 @@ static float p_plyr_sidekick_intro(void) {
     MkProc* player_proc;
     MkObj* sidekick;
     MkObj* main_object;
+    MkObj* angle_object;
     MkObj* opponent_object;
     AnimPdata* anim;
     Vec direction;
@@ -2834,12 +2798,13 @@ static float p_plyr_sidekick_intro(void) {
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
         sidekick, player_info->slot.pdata->sidekick_active);
+    angle_object = player_info->slot.mirror_a;
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
-    angle_x = main_object->ang.x;
-    angle_y = main_object->ang.y;
-    angle_z = main_object->ang.z;
+    angle_x = angle_object->ang.x;
+    angle_y = angle_object->ang.y;
+    angle_z = angle_object->ang.z;
 
     length_sq = direction.x * direction.x + direction.z * direction.z;
     if (length_sq <= 0.0f) {
@@ -2906,7 +2871,7 @@ static float p_plyr_sidekick_intro(void) {
     unhide_obj(sidekick);
     wrapped_angle =
         0.000005992112f *
-        (float)(((int)(166886.1f * main_object->ang.y)) & 0xFFFFF);
+        (float)(((int)(166886.1f * player->plyr_info->slot.mirror_a->ang.y)) & 0xFFFFF);
     gxMathSin(wrapped_angle);
     gxMathCos(wrapped_angle);
     moves_sleep(120.0f + (float)(unsigned short)randu0(30));
@@ -3198,8 +3163,8 @@ static float p_sidekick_exit_now(void) {
 }
 
 
-/* TODO: [near miss] 99.43%; retail uses fresh per-function float labels (@2945 0.0f, @2949 -2.0f vs our shared @43/@79, TU-wide),
- * plus FPR coloring through the inverse-sqrt inline and swapped bit-cast/exit_data stack homes. */
+/* TODO: [near miss] 99.62%; inverse-sqrt FPR coloring and bit-cast/exit_data stack homes differ;
+ * fresh retail float-pool targets remain a TU layout check. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     PlyrPdata* state;
     MovesSidekickPdata* exit_data;
@@ -3212,8 +3177,6 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     float opponent_x;
     float opponent_z;
     float inverse_distance;
-    float normalized_x;
-    float normalized_z;
     float position_x;
     float position_y;
     float position_z;
@@ -3240,10 +3203,10 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     position_y = plyr_obj->pos.value.y;
     inverse_distance =
         moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
-    normalized_x = delta_x * inverse_distance;
-    normalized_z = delta_z * inverse_distance;
-    position_x = -2.0f * normalized_x;
-    position_z = -2.0f * normalized_z;
+    delta_x *= inverse_distance;
+    delta_z *= inverse_distance;
+    position_x = -2.0f * delta_x;
+    position_z = -2.0f * delta_z;
     position_x += opponent_x;
     position_z += opponent_z;
     sidekick->pos.value.x = position_x;
@@ -3923,9 +3886,9 @@ int is_weapon_style(PlyrFighterDefinition* style) {
 
 /* TODO: [near miss] 99.78%; only r3/r4 coloring around the two animation
  * field stores remains; stop at coloring. */
-void attack_to_frame_x(AniData* animation, unsigned int voice_event,
-                       unsigned int whoosh_event, int transition, float frame,
-                       float blend_rate, float step, float weight) {
+void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
+                       float step, float weight, unsigned int voice_event,
+                       unsigned int whoosh_event, int transition) {
     float whoosh_frame;
     float voice_frame;
 
@@ -4156,6 +4119,21 @@ static float drahmin_dash_back(void) {
     return 0.0f;
 }
 
+static inline void victory_wait_for_pre_animation(void) {
+    PlyrFighterDefinition* fighter = plyr_pdata->fighter_definition;
+    int ticks = 240;
+
+    if (plyr_anim_pdata->script ==
+        (AnimScript*)fighter->duck_exit_animation) {
+        return;
+    }
+    while (plyr_anim_pdata->frame < plyr_anim_pdata->high_frame &&
+           plyr_pdata->state != 0x4200 && ticks != 0) {
+        ticks--;
+        moves_sleep(1.0f);
+    }
+}
+
 float joy_dash_back(void) {
     avoid_double_ani();
     init_ground_move_no_aniproc();
@@ -4189,6 +4167,90 @@ float joy_dash_back(void) {
     blend_to_fstance(0.1f);
     disable_this_move_exec(0x6208, 0x28);
     moves_jump(j_exit);
+    return 0.0f;
+}
+
+// TODO: sus repeated pattern for (;;) infinite loops
+float victory(void) {
+    int ticks;
+    PlyrPdata* opponent;
+    AnimPdata* opponent_anim;
+    MkProc* opponent_anim_proc;
+
+    if (mode_of_play == 8) {
+        blend_to_stance(0.1f);
+        for (;;) {
+            moves_sleep(60.0f);
+        }
+    }
+    if (g_game_info.flag_bits.level_fatality_active ||
+        g_game_info.flag_bits.level_fatality_done) {
+        for (;;) {
+            moves_sleep(60.0f);
+        }
+    }
+
+    victory_proper_flip_flags = 0;
+    set_my_state(0x4201);
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags_0B_bits.bit6 = 1;
+    plyr_obj->flags_09_bits.bit4 = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+
+    victory_wait_for_pre_animation();
+
+    plyr_weapon_hide(plyr_pdata, 0, plyr_pdata->mirror_slots);
+    if (((MovesVictoryData*)plyr_pdata->status_flags)->victory_script == 0) {
+        clear_both_face_opponent_flags();
+        xfer_proc(plyr_anim_proc, p_animate);
+        blend_to_stance(0.1f);
+        set_my_state(0x4253);
+        for (;;) {
+            moves_sleep(60.0f);
+        }
+    }
+
+    set_ani_speed(1.0f);
+    if (f_fatality_finished != 0) {
+        face_opponent_now();
+    } else {
+        blend_to_stance(0.1f);
+        moves_sleep(20.0f);
+        rotate_towards_him(0.2f);
+    }
+
+    ticks = 240;
+    opponent = plyr_pdata->his_plyr_pdata;
+    opponent_anim_proc = MK_LIVE(opponent->anim_proc,
+                                         opponent->anim_proc_instance);
+    opponent_anim = (AnimPdata*)pdata_of_proc(opponent_anim_proc);
+    while (opponent_anim->frame < opponent_anim->high_frame &&
+           opponent->state != 0x4200 &&
+           opponent->state != 0 &&
+           opponent->state != 0x4203 && ticks != 0) {
+        ticks--;
+        moves_sleep(1.0f);
+    }
+
+    clear_both_face_opponent_flags();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    if (is_big_boss(plyr_pdata) != 0) {
+        active_cmdscript->unk28 =
+            ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
+        moves_jump(r_call_player_char_script_function);
+        return 0.0f;
+    }
+    if (is_my_chest_to_screen() == 0) {
+        if ((plyr_anim_pdata->flags & 8) == 0) {
+            victory_proper_flip_flags = 8;
+        }
+        blend_to_ani(
+            shared_ani.victory_turn, victory_proper_flip_flags | 3, 0.1f);
+        ani_to_blend_frame(10.0f);
+    }
+    active_cmdscript->unk28 =
+        ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
+    moves_jump(r_call_player_char_script_function);
     return 0.0f;
 }
 
@@ -4249,7 +4311,6 @@ static inline int moves_dead_movement(void) {
     return 0;
 }
 
-/* TODO: [near miss] 100% bytes; only moves.c whole-TU function order differs (not a local fix). */
 static float walk_right(void) {
     int pad_position = my_pad_position();
 
@@ -4277,7 +4338,6 @@ static float walk_right(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 100% bytes; only moves.c whole-TU function order differs (not a local fix). */
 static float walk_left(void) {
     int pad_position;
 
@@ -4533,11 +4593,11 @@ float step_left(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.98%; retail reuses the bitfield 0/1 constant registers as dizzy_kill_pfx args 2 and 4; source shape for that sharing unknown. */
+/* TODO: [near miss] 98.59%; opponent snapshot fixed; shared bitfield/call 0/1 registers and TU order remain. */
 float dizzy(void) {
     MovesSwitchLogEntry* entry;
     PlyrPdata* player;
-
+    MkObj* opponent;
     if (plyr_pdata->character_id == 1) {
         if (is_local_plyr() != 0) {
             while (is_weapon_style(plyr_pdata->fighter_definition)) {
@@ -4562,9 +4622,9 @@ float dizzy(void) {
     player->state_flags.bits.dizzy = 1;
     plyr_obj->flags_09_bits.head_tracking = 0;
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    dizzy_kill_pfx(
-        g_game_info.plyr1.slot.mirror_a, 0, player, 1);
+    opponent = g_game_info.plyr1.slot.mirror_a;
+    opponent->flags_09_bits.tightrope_restricted = 0;
+    dizzy_kill_pfx(opponent, 0, player, 1);
     if (plyr_pdata->character_id == 0x1E) {
         blend_to_ani(plyr_pdata->dizzy_animation, 0, 0.1f);
     } else {
@@ -4822,222 +4882,6 @@ float jump_away_opponent(void) {
     return 0.0f;
 }
 
-int check_for_dead_movement(void) {
-    if (plyr_pdata == 0) {
-        return 0;
-    }
-    if (round_winner == 0) {
-        return 0;
-    }
-    if (round_winner == 2 && plyr_pdata->plyr_num == 0 &&
-        g_game_info.plyr0.field_0C <= 0.0f) {
-        return 1;
-    }
-    if (round_winner == 1 && plyr_pdata->plyr_num == 1 &&
-        g_game_info.plyr1.field_0C <= 0.0f) {
-        return 1;
-    }
-    return 0;
-}
-
-float fall_dead(void) {
-    init_ground_move_no_aniproc();
-    set_my_state(0x4200);
-    plyr_pdata->death_type = 1;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    if (mode_of_play == 8 &&
-        trial_show_standard_fight_messages() == 0) {
-        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(trial_run_loser_animation_script, 0.0f);
-        return 0.0f;
-    }
-    blend_to_ani(shared_ani.fall_dead, 3, 0.1f);
-    ani_to_frame_x(49.0f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
-    ani_to_end();
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_stay_down_dead, 0.0f);
-    return 0.0f;
-}
-
-static inline void victory_wait_for_pre_animation(void) {
-    PlyrFighterDefinition* fighter = plyr_pdata->fighter_definition;
-    int ticks = 240;
-
-    if (plyr_anim_pdata->script ==
-        (AnimScript*)fighter->duck_exit_animation) {
-        return;
-    }
-    while (plyr_anim_pdata->frame < plyr_anim_pdata->high_frame &&
-           plyr_pdata->state != 0x4200 && ticks != 0) {
-        ticks--;
-        moves_sleep(1.0f);
-    }
-}
-
-float victory(void) {
-    int ticks;
-    PlyrPdata* opponent;
-    AnimPdata* opponent_anim;
-    MkProc* opponent_anim_proc;
-
-    if (mode_of_play == 8) {
-        blend_to_stance(0.1f);
-        for (;;) {
-            moves_sleep(60.0f);
-        }
-    }
-    if (g_game_info.flag_bits.level_fatality_active ||
-        g_game_info.flag_bits.level_fatality_done) {
-        for (;;) {
-            moves_sleep(60.0f);
-        }
-    }
-
-    victory_proper_flip_flags = 0;
-    set_my_state(0x4201);
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_0B_bits.bit6 = 1;
-    plyr_obj->flags_09_bits.bit4 = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-
-    victory_wait_for_pre_animation();
-
-    plyr_weapon_hide(plyr_pdata, 0, plyr_pdata->mirror_slots);
-    if (((MovesVictoryData*)plyr_pdata->status_flags)->victory_script == 0) {
-        clear_both_face_opponent_flags();
-        xfer_proc(plyr_anim_proc, p_animate);
-        blend_to_stance(0.1f);
-        set_my_state(0x4253);
-        for (;;) {
-            moves_sleep(60.0f);
-        }
-    }
-
-    set_ani_speed(1.0f);
-    if (f_fatality_finished != 0) {
-        face_opponent_now();
-    } else {
-        blend_to_stance(0.1f);
-        moves_sleep(20.0f);
-        rotate_towards_him(0.2f);
-    }
-
-    ticks = 240;
-    opponent = plyr_pdata->his_plyr_pdata;
-    opponent_anim_proc = MK_LIVE(opponent->anim_proc,
-                                         opponent->anim_proc_instance);
-    opponent_anim = (AnimPdata*)pdata_of_proc(opponent_anim_proc);
-    while (opponent_anim->frame < opponent_anim->high_frame &&
-           opponent->state != 0x4200 &&
-           opponent->state != 0 &&
-           opponent->state != 0x4203 && ticks != 0) {
-        ticks--;
-        moves_sleep(1.0f);
-    }
-
-    clear_both_face_opponent_flags();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    if (is_big_boss(plyr_pdata) != 0) {
-        active_cmdscript->unk28 =
-            ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
-        moves_jump(r_call_player_char_script_function);
-        return 0.0f;
-    }
-    if (is_my_chest_to_screen() == 0) {
-        if ((plyr_anim_pdata->flags & 8) == 0) {
-            victory_proper_flip_flags = 8;
-        }
-        blend_to_ani(
-            shared_ani.victory_turn, victory_proper_flip_flags | 3, 0.1f);
-        ani_to_blend_frame(10.0f);
-    }
-    active_cmdscript->unk28 =
-        ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
-    moves_jump(r_call_player_char_script_function);
-    return 0.0f;
-}
-
-/* TODO: [near miss] 97.55%; retail passes r3=1 into the four ani_1_frame calls and truncates randu0's result (u16 return). */
-float big_boss_end_of_round(void) {
-    int ticks;
-
-    if (do_i_have_life_left() == 0 || does_he_have_life_left() == 0) {
-        init_ground_move_no_aniproc();
-        set_my_state(0x4200);
-        if (is_my_chest_to_screen() == 0) {
-            ticks = 30;
-            while (--ticks > 0) {
-                force_midpoint_calculation_update = 1;
-                ani_1_frame();
-                moves_sleep(1.0f);
-            }
-            blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->walk_animation, 3, 0.1f);
-            set_ani_speed(1.2f);
-            ticks = 30;
-            while (--ticks > 0) {
-                force_midpoint_calculation_update = 1;
-                ani_1_frame();
-                moves_sleep(1.0f);
-            }
-            ani_to_blend_frame(40.0f);
-            random_dk_foot();
-            ani_to_blend_frame(10.0f);
-            set_ani_speed(1.0f);
-            blend_to_fstance(0.05f);
-        }
-
-        ticks = 30;
-        while (--ticks > 0) {
-            force_midpoint_calculation_update = 1;
-            ani_1_frame();
-            moves_sleep(1.0f);
-        }
-        camera_idle();
-        if (randu0(100) < 50) {
-            snd_req(0x1B4);
-        } else {
-            snd_req(0x1B5);
-        }
-        blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->end_round_animation, 3, 0.1f);
-        ani_to_blend_frame(20.0f);
-        xfer_camera(p_camera_proc, 0);
-
-        if (xz_distance_between_players() < 7.5f) {
-            blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->walk_animation, 3, 0.1f);
-            set_ani_speed(1.2f);
-            ticks = 30;
-            while (--ticks > 0) {
-                force_midpoint_calculation_update = 1;
-                ani_1_frame();
-                moves_sleep(1.0f);
-            }
-            ani_to_blend_frame(40.0f);
-            random_dk_foot();
-            ani_to_blend_frame(10.0f);
-            set_ani_speed(1.0f);
-            blend_to_fstance(0.05f);
-        }
-        if (do_i_have_life_left() == 0 && (g_game_info.flags & 1) != 0) {
-            moves_jump(j_stay_down_dead);
-            return 0.0f;
-        }
-        blend_to_stance(0.05f);
-    }
-
-    while (does_he_have_life_left() == 0 ||
-           g_game_info.flag_bits.lens_flare_enabled == 0) {
-        ani_loop_more_frames(1.0f);
-    }
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
-    plyr_obj->flags_0B_bits.bit6 = 0;
-    if (plyr_pdata->drone_request != 0) {
-        moves_jump(drone_start);
-        return 0.0f;
-    }
-    moves_jump(j_exit);
-    return 0.0f;
-}
-
 float jump_towards_opponent(void) {
     MkHdr* object;
     float flight_ticks;
@@ -5172,6 +5016,125 @@ static float jump_landing_j_exit(void) {
     return 0.0f;
 }
 
+int check_for_dead_movement(void) {
+    if (plyr_pdata == 0) {
+        return 0;
+    }
+    if (round_winner == 0) {
+        return 0;
+    }
+    if (round_winner == 2 && plyr_pdata->plyr_num == 0 &&
+        g_game_info.plyr0.field_0C <= 0.0f) {
+        return 1;
+    }
+    if (round_winner == 1 && plyr_pdata->plyr_num == 1 &&
+        g_game_info.plyr1.field_0C <= 0.0f) {
+        return 1;
+    }
+    return 0;
+}
+
+float fall_dead(void) {
+    init_ground_move_no_aniproc();
+    set_my_state(0x4200);
+    plyr_pdata->death_type = 1;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    if (mode_of_play == 8 &&
+        trial_show_standard_fight_messages() == 0) {
+        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(trial_run_loser_animation_script, 0.0f);
+        return 0.0f;
+    }
+    blend_to_ani(shared_ani.fall_dead, 3, 0.1f);
+    ani_to_frame_x(49.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
+    ani_to_end();
+    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_stay_down_dead, 0.0f);
+    return 0.0f;
+}
+
+/* TODO: [near miss] 98.06%; function order restored; four retail ani_1_frame
+ * calls set r3=1 despite the void prototype; verify the callee ABI. */
+float big_boss_end_of_round(void) {
+    int ticks;
+
+    if (do_i_have_life_left() == 0 || does_he_have_life_left() == 0) {
+        init_ground_move_no_aniproc();
+        set_my_state(0x4200);
+        if (is_my_chest_to_screen() == 0) {
+            ticks = 30;
+            while (--ticks > 0) {
+                force_midpoint_calculation_update = 1;
+                ani_1_frame();
+                moves_sleep(1.0f);
+            }
+            blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->walk_animation, 3, 0.1f);
+            set_ani_speed(1.2f);
+            ticks = 30;
+            while (--ticks > 0) {
+                force_midpoint_calculation_update = 1;
+                ani_1_frame();
+                moves_sleep(1.0f);
+            }
+            ani_to_blend_frame(40.0f);
+            random_dk_foot();
+            ani_to_blend_frame(10.0f);
+            set_ani_speed(1.0f);
+            blend_to_fstance(0.05f);
+        }
+
+        ticks = 30;
+        while (--ticks > 0) {
+            force_midpoint_calculation_update = 1;
+            ani_1_frame();
+            moves_sleep(1.0f);
+        }
+        camera_idle();
+        if ((unsigned short)randu0(100) < 50) {
+            snd_req(0x1B4);
+        } else {
+            snd_req(0x1B5);
+        }
+        blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->end_round_animation, 3, 0.1f);
+        ani_to_blend_frame(20.0f);
+        xfer_camera(p_camera_proc, 0);
+
+        if (xz_distance_between_players() < 7.5f) {
+            blend_to_ani(((MovesBossAnimationView*)plyr_pdata)->walk_animation, 3, 0.1f);
+            set_ani_speed(1.2f);
+            ticks = 30;
+            while (--ticks > 0) {
+                force_midpoint_calculation_update = 1;
+                ani_1_frame();
+                moves_sleep(1.0f);
+            }
+            ani_to_blend_frame(40.0f);
+            random_dk_foot();
+            ani_to_blend_frame(10.0f);
+            set_ani_speed(1.0f);
+            blend_to_fstance(0.05f);
+        }
+        if (do_i_have_life_left() == 0 && (g_game_info.flags & 1) != 0) {
+            moves_jump(j_stay_down_dead);
+            return 0.0f;
+        }
+        blend_to_stance(0.05f);
+    }
+
+    while (does_he_have_life_left() == 0 ||
+           g_game_info.flag_bits.lens_flare_enabled == 0) {
+        ani_loop_more_frames(1.0f);
+    }
+    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags_0B_bits.bit6 = 0;
+    if (plyr_pdata->drone_request != 0) {
+        moves_jump(drone_start);
+        return 0.0f;
+    }
+    moves_jump(j_exit);
+    return 0.0f;
+}
+
 float wall_dodge(void) {
     int side;
     int use_b;
@@ -5228,7 +5191,7 @@ void update_my_last_switch(void) {
     p2_current_switch_time = switch_value;
 }
 
-/* TODO: [near miss] switch-log field addressing differs (retail lwzx off base and base+4; here element address + lwz). */
+/* TODO: [near miss] 98.41%; retail indexes field bases; entry staging still folds to lwz. */
 static float j_flying_kick2_early(void) {
     MkHdr* object;
     MovesSwitchLogEntry* entry;
@@ -5248,14 +5211,16 @@ static float j_flying_kick2_early(void) {
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
+        entry = p1_switch_log;
+        entry += p1_log_index;
         p1_last_switch_bit = entry->switch_id;
         p1_last_switch_time = entry->switch_value;
         p1_current_switch_bit = entry->switch_id;
         p1_current_switch_time = entry->switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
+        entry = p2_switch_log;
+        entry += p2_log_index;
         p2_last_switch_bit = entry->switch_id;
         p2_last_switch_time = entry->switch_value;
         p2_current_switch_bit = entry->switch_id;
@@ -5388,7 +5353,7 @@ float j_flying_kick2(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.34%; only switch-log field addressing differs (retail lwzx off base and base+4; here element address + lwz). */
+/* TODO: [near miss] 98.43%; six switch-log column loads still use element addressing instead of retail indexed field bases. */
 static float j_flying_kick1_early(void) {
     MkHdr* object;
     MovesSwitchLogEntry* entry;
@@ -5406,14 +5371,16 @@ static float j_flying_kick1_early(void) {
     set_my_state(0x3200);
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
+        entry = p1_switch_log;
+        entry += p1_log_index;
         p1_last_switch_bit = entry->switch_id;
         p1_last_switch_time = entry->switch_value;
         p1_current_switch_bit = entry->switch_id;
         p1_current_switch_time = entry->switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
+        entry = p2_switch_log;
+        entry += p2_log_index;
         p2_last_switch_bit = entry->switch_id;
         p2_last_switch_time = entry->switch_value;
         p2_current_switch_bit = entry->switch_id;
@@ -5509,7 +5476,7 @@ static inline void j_flying_kick_airborne(void) {
     }
 }
 
-/* TODO: [near miss] 98.75%; only the inlined update_my_last_switch field addressing differs; fix it there. */
+/* TODO: [near miss] 98.79%; inlined update_my_last_switch needs independent base/base+4 address trees; shared helper source unresolved. */
 float j_flying_kick(void) {
     MkHdr* object;
     float attack_ticks;
@@ -5547,7 +5514,8 @@ float j_flying_kick(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.34%; switch-log fields use indexed loads in retail; typed entry access folds each address first. */
+/* TODO: [near miss] 98.43%; real log-base/index staging restored; retail field-base
+ * indexed loads differ from folded entry loads; stop without alias/layout evidence. */
 static float j_flying_punch_early(void) {
     MkHdr* object;
     MovesSwitchLogEntry* entry;
@@ -5565,14 +5533,16 @@ static float j_flying_punch_early(void) {
     set_my_state(0x3200);
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
+        entry = p1_switch_log;
+        entry += p1_log_index;
         p1_last_switch_bit = entry->switch_id;
         p1_last_switch_time = entry->switch_value;
         p1_current_switch_bit = entry->switch_id;
         p1_current_switch_time = entry->switch_value;
     } else {
         p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
+        entry = p2_switch_log;
+        entry += p2_log_index;
         p2_last_switch_bit = entry->switch_id;
         p2_last_switch_time = entry->switch_value;
         p2_current_switch_bit = entry->switch_id;
@@ -5624,10 +5594,60 @@ static float j_flying_punch_early(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 87.26821%; collision float ABI fixed; remaining body/frame differences need review. */
+static inline void flying_punch_airborne(void) {
+    while (plyr_anim_pdata->frame < 10.0f) {
+        ani_1_frame();
+        if (plyr_pdata->collision_result == -1 &&
+            collision_2(7, 1.0f, 0.0f) != 0) {
+            stop_me();
+            set_collision_made_flag();
+            reaction_xfer_him(0x2B, 0.1f, 0);
+        }
+        if (plyr_obj->pos.value.y < plyr_obj->ground_colls_y + 1.0f ||
+            !plyr_obj->flags_08_bits.moving) {
+            return;
+        }
+        moves_sleep(1.0f);
+    }
+    if (plyr_pdata->collision_result != -1) {
+        air_collision_pause(5, 12.0f, -0.01f);
+    }
+    plyr_anim_pdata->step = 0.5f;
+    if (plyr_obj->pos.value.y < plyr_obj->ground_colls_y + 1.0f ||
+        !plyr_obj->flags_08_bits.moving) {
+        return;
+    }
+    moves_sleep(1.0f);
+    if (plyr_obj->pos.value.y < plyr_obj->ground_colls_y + 1.0f ||
+        !plyr_obj->flags_08_bits.moving) {
+        return;
+    }
+    moves_sleep(1.0f);
+    while (plyr_anim_pdata->frame < 13.0f) {
+        if (plyr_obj->pos.value.y < plyr_obj->ground_colls_y + 1.0f ||
+            !plyr_obj->flags_08_bits.moving) {
+            return;
+        }
+        ani_1_frame();
+        moves_sleep(1.0f);
+    }
+    plyr_obj->flags_08_bits.moving = 1;
+    plyr_anim_pdata->step = 1.0f;
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
+           plyr_obj->flags_08_bits.moving == 1 &&
+           plyr_obj->gravity != 0.0f) {
+        ani_1_frame();
+        moves_sleep(1.0f);
+    }
+}
+
+/* TODO: [near miss] 98.84%; airborne landing CFG aligns; typed input-log indexed loads remain. */
 static float j_flying_punch(void) {
     MkHdr* object;
-    MovesSwitchLogEntry* entry;
+    int log_index;
+    int switch_time;
+    int switch_bit;
+    float attack_ticks = 9.833333f;
 
     plyr_pdata->attack_counter++;
     plyr_pdata->pending_reaction = 0x2B;
@@ -5636,21 +5656,25 @@ static float j_flying_punch(void) {
     trial_increment_state_value(plyr_pdata->plyr_num, 5, 0);
     set_my_state(0x3200);
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        p1_current_log_index = p1_log_index;
-        entry = &p1_switch_log[p1_log_index];
-        p1_last_switch_bit = entry->switch_id;
-        p1_last_switch_time = entry->switch_value;
-        p1_current_switch_bit = entry->switch_id;
-        p1_current_switch_time = entry->switch_value;
+        log_index = p1_log_index;
+        p1_current_log_index = log_index;
+        switch_bit = p1_switch_log[log_index].switch_id;
+        switch_time = p1_switch_log[log_index].switch_value;
+        p1_last_switch_bit = switch_bit;
+        p1_last_switch_time = switch_time;
+        p1_current_switch_bit = switch_bit;
+        p1_current_switch_time = switch_time;
     } else {
-        p2_current_log_index = p2_log_index;
-        entry = &p2_switch_log[p2_log_index];
-        p2_last_switch_bit = entry->switch_id;
-        p2_last_switch_time = entry->switch_value;
-        p2_current_switch_bit = entry->switch_id;
-        p2_current_switch_time = entry->switch_value;
+        log_index = p2_log_index;
+        p2_current_log_index = log_index;
+        switch_bit = p2_switch_log[log_index].switch_id;
+        switch_time = p2_switch_log[log_index].switch_value;
+        p2_last_switch_bit = switch_bit;
+        p2_last_switch_time = switch_time;
+        p2_current_switch_bit = switch_bit;
+        p2_current_switch_time = switch_time;
     }
-    plyr_pdata->shared_attack_until = exec_tick_ctr + (int)9.833333f;
+    plyr_pdata->shared_attack_until = exec_tick_ctr + (int)attack_ticks;
     plyr_pdata->attack_counter++;
     plyr_anim_pdata->flags |= 0x40;
     blend_to_ani(shared_ani.flying_punch, 0x43, 0.1f);
@@ -5660,48 +5684,13 @@ static float j_flying_punch(void) {
     random_hit(7);
     while (plyr_anim_pdata->frame < 7.0f) {
         ani_1_frame();
-        if (plyr_obj->gravity != 0.0f) {
-            moves_sleep(1.0f);
+        if (plyr_obj->gravity == 0.0) {
+            break;
         }
+        moves_sleep(1.0f);
     }
     start_plyr_attack(0.0f);
-    while (plyr_anim_pdata->frame < 10.0f) {
-        ani_1_frame();
-        if (plyr_pdata->collision_result == -1 && collision_2(7, 1.0f, 0.0f) != 0) {
-            stop_me();
-            set_collision_made_flag();
-            reaction_xfer_him(0x2B, 0.1f, 0);
-        }
-        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
-            plyr_obj->flags_08_bits.moving) {
-            moves_sleep(1.0f);
-        }
-    }
-    if (plyr_pdata->collision_result != -1) {
-        air_collision_pause(5, 12.0f, -0.01f);
-    }
-    plyr_anim_pdata->step = 0.5f;
-    if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
-        plyr_obj->flags_08_bits.moving) {
-        moves_sleep(1.0f);
-        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
-            plyr_obj->flags_08_bits.moving) {
-            moves_sleep(1.0f);
-            while (plyr_anim_pdata->frame < 13.0f &&
-                   plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
-                   plyr_obj->flags_08_bits.moving) {
-                ani_1_frame();
-                moves_sleep(1.0f);
-            }
-        }
-    }
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_anim_pdata->step = 1.0f;
-    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
-           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame();
-        moves_sleep(1.0f);
-    }
+    flying_punch_airborne();
     player_feet_land_chores();
     init_ground_move();
     stop_me();
@@ -6294,8 +6283,6 @@ void idle_his_anim_proc(void) {
     }
 }
 
-/* TODO: [breakthrough] 83.05085%; player and collision-parameter reloads restored;
- * mixed integer/FP argument-load order remains; recover call source shape. */
 void attack_opponent_with(
     AniData* animation, MovesAttackInfo* info, int reaction) {
     unsigned int block_requirement;
@@ -6311,8 +6298,8 @@ void attack_opponent_with(
     }
     plyr_pdata->block_requirement = block_requirement;
     attack_to_frame_x(
-        animation, info->voice_event, info->whoosh_event, info->transition,
-        info->attack_frame, info->blend_rate, info->step, info->weight);
+        animation, info->attack_frame, info->blend_rate, info->step,
+        info->weight, info->voice_event, info->whoosh_event, info->transition);
     plyr_pdata->throw_restriction = 2;
     ani_to_frame_x_col(
         info->collision_frame, info->attack_region, info->collision_x,

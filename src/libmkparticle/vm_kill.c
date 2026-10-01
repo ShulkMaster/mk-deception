@@ -35,24 +35,24 @@ void move_particle_to_behavior(PfxBehavior* source, int particle,
     destination->active_particle_count++;
 }
 
+#pragma peephole off
 void kill_behavior_particle(PfxBehavior* behavior, int particle)
 {
     int stride;
-
+    unsigned char *last_slot;
     stride = behavior->current_stream_100_stride;
-    memcpy(behavior->stream_100 + stride * particle,
-           behavior->stream_100 + stride * (behavior->particle_count - 1),
-           stride);
+    last_slot = behavior->stream_100 + stride * (behavior->particle_count - 1);
+    memcpy(behavior->stream_100 + stride * particle, last_slot, stride);
 
     stride = behavior->current_stream_300_stride;
     if (stride != 0) {
-        memcpy(behavior->stream_300 + stride * particle,
-               behavior->stream_300 +
-                   stride * (behavior->particle_count - 1),
-               stride);
+        last_slot = behavior->stream_300;
+        last_slot += stride * (behavior->particle_count - 1);
+        memcpy(behavior->stream_300 + stride * particle, last_slot, stride);
     }
     behavior->particle_count--;
 }
+#pragma peephole reset
 
 static void kill_on_int_field_less_than(PfxBehavior* behavior, int* field,
                                         int stride, int value)

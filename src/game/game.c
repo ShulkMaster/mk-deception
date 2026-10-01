@@ -1803,7 +1803,6 @@ void reset_game_timer(void) {
 
 #pragma dont_inline on
 
-/* TODO: [near miss] 99.59%; start-position blocks swap volatile r3/r6 (mirror object vs misc pointer). */
 void round_init(void) {
     if (!g_game_info.plyr0.field_10) {
         g_game_info.plyr0.field_10 = 1.0f;
@@ -1851,29 +1850,28 @@ void round_init(void) {
         Vec player1_angles;
 
         if (g_game_info.plyr0.slot.mirror_a != 0) {
-            RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
+            BgndMisc* starts = g_game_info.misc;
 
-            player1_angles.x = starts->player1_angles.x;
-            player1_angles.y = starts->player1_angles.y;
-            player1_angles.z = starts->player1_angles.z;
-            starts->player1_position.y =
+            player1_angles.x = g_game_info.misc->player0_angles.x;
+            player1_angles.y = g_game_info.misc->player0_angles.y;
+            player1_angles.z = starts->player0_angles.z;
+            starts->player0_start.y =
                 g_game_info.plyr0.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr0.slot.mirror_a,
-                &starts->player1_position,
+                &starts->player0_start,
                 &player1_angles);
         }
         if (g_game_info.plyr1.slot.mirror_a != 0) {
-            RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
+            BgndMisc* starts = g_game_info.misc;
 
-            player2_angles.x = starts->player2_angles.x;
-            player2_angles.y = starts->player2_angles.y;
-            player2_angles.z = starts->player2_angles.z;
-            starts->player2_position.y =
-                g_game_info.plyr1.slot.mirror_a->pos.value.y;
+            player2_angles.x = g_game_info.misc->player1_angles.x;
+            player2_angles.y = g_game_info.misc->player1_angles.y;
+            player2_angles.z = g_game_info.misc->player1_angles.z;
+            g_game_info.misc->player1_start.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr1.slot.mirror_a,
-                &starts->player2_position,
+                &starts->player1_start,
                 &player2_angles);
         }
         if (mode_of_play == 8) {
@@ -2451,14 +2449,14 @@ static float p_say_finish_him(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.28%; first ending-timing lookup colors base/index r4/r3 (retail r3/r5); loop and declaration forms measured neutral. */
+
 static void ck_do_fatality(void) {
     int fatality_occurred = 0;
     PlyrInfo* victor;
     PlyrInfo* victim;
     MkHdr* spawned_pdata;
     int timeout;
-    int timing_index;
+
     float ending_ticks;
 
     if (mode_of_play == 10 && mk_chess_check_for_fatality() == 0) {
@@ -2526,33 +2524,30 @@ static void ck_do_fatality(void) {
         f_fatality_finished = 1;
         return;
     }
-
-    for (timing_index = 0;
-         plyr_ending_timings[timing_index].character_id >= 0;
-         timing_index++) {
-        if (victor->player_index ==
-            plyr_ending_timings[timing_index].character_id) {
+    timeout = 0;
+    while (plyr_ending_timings[timeout].character_id >= 0) {
+             if (victor->player_index == plyr_ending_timings[timeout].character_id) {
             break;
         }
-    }
+             timeout++;
+         }
 
     switch (g_game_info.field_200) {
     case 1:
-        ending_ticks = plyr_ending_timings[timing_index].standard;
+        ending_ticks = plyr_ending_timings[timeout].standard;
         break;
     case 2:
-        ending_ticks = plyr_ending_timings[timing_index].alternate;
+        ending_ticks = plyr_ending_timings[timeout].alternate;
         break;
     case 3:
-        for (timing_index = 0;
-             plyr_ending_timings[timing_index].character_id >= 0;
-             timing_index++) {
-            if (victim->player_index ==
-                plyr_ending_timings[timing_index].character_id) {
+        for (timeout = 0;
+             plyr_ending_timings[timeout].character_id >= 0;
+             timeout++) {
+            if (victim->player_index == plyr_ending_timings[timeout].character_id) {
                 break;
             }
         }
-        ending_ticks = plyr_ending_timings[timing_index].defeated;
+        ending_ticks = plyr_ending_timings[timeout].defeated;
         break;
     default:
         ending_ticks = 0.0f;

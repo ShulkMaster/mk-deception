@@ -30,10 +30,18 @@ baselines.
   `optimize_for_size`, arithmetic unchanged.
 - Isolated integer-register save mismatch in an identical body:
   `optimize_for_size` and `use_lmw_stmw` together (projectile sound setter).
+  When retail instead uses `_savefpr_29`/`_restfpr_29` with matching scalar
+  FP operations, the same supported local profile can restore compact FPR
+  helpers (`fxsys_set_v3` in `pfxscript`). Require the actual helper calls,
+  immediate push/pop scope, and comparison of every sibling; do not change
+  FP expression grouping to compensate for a save-only difference.
 - Typed vector copies that preload where retail interleaves loads, stores, and
   owner reloads: consumer-scoped scheduling off. Reject it if the epilogue
   restore order or aligned-frame setup regresses; that is a ceiling, not a
-  body-only match.
+  body-only match. If sibling leaf vector arithmetic repeats the same
+  component load/op/store pattern, scope the supported scheduling mode with
+  push/pop and verify every sibling (`v3_add_v3` in `mk_math`); a whole-unit
+  mode can regress unrelated functions.
 - Folded indexed accesses (`lwzx`/`stwx`) where retail does multiply/add/`lwz`:
   real category/base locals plus consumer-scoped `opt_propagation off`; both
   are needed, and the pragma alone may do nothing (move-list getter).
@@ -296,6 +304,11 @@ relocation addends, and use. Use `-c functionRelocDiffs=data_value`.
   string bounds. Equal pool sizes do not prove correct strings (Krypt's swapped
   coffin/dirt names). A relocation may name the first aggregate as a
   section-wide base; check later base-plus-offset loads.
+- A generic DecompStudio pool-name warning needs an independent
+  `functionRelocDiffs=all` check (`calc_cloth_dwp` passes despite that warning).
+  Compare effective consumer offsets as well as whole-pool bytes:
+  `konquest_make_monk_an_npc` addresses the correct `hero_npc` suffix while
+  unrelated later strings keep its whole-pool data-value comparison below 100.
 - Trace aggregate copies and each scalar load to its consumer; a named
   aggregate comparison does not show which vector a caller uses.
 - Nonzero words inside reconstructed padding are initializer data; keep them

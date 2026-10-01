@@ -390,13 +390,12 @@ static float dist_from_plyr_pos_to_arena_edge(
     return distance;
 }
 
-/* TODO: [breakthrough] 99.78%; sqrt halfword indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius) {
     float length;
     float along_ray;
     float radicand;
+    float circle_distance;
     float distance;
 
     length = length_xz(ray_origin);
@@ -411,11 +410,11 @@ float xz_ray_circle_intersection_dist(
         radius * radius -
         (length * length - along_ray * along_ray);
     if (radicand > 0.0f) {
-        distance = gxMathFastSqrt(radicand);
+        circle_distance = gxMathFastSqrt(radicand);
     } else {
-        distance = 0.0f;
+        circle_distance = 0.0f;
     }
-    distance -= along_ray;
+    distance = circle_distance - along_ray;
     if (distance > 0.0f) {
         return distance;
     }

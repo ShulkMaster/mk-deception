@@ -524,10 +524,9 @@ void advance_active_moveset(PlyrPdata* player);
 float p_animate(void);
 int is_my_chest_to_screen(void);
 void head_tracking_off(void);
-void two_player_animation_blend(
-    AniData* animation, int attacker_mode, int victim_mode,
-    MkObj* attacker, int victim_arg, float attacker_blend,
-    float victim_blend, float victim_angle);
+float two_player_animation_blend(
+    AniData* animation, float attacker_step, float victim_frame,
+    int attacker_mode, int victim_mode);
 static float p_face_obj(void);
 FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     MkObj* parent, MkObj* child, int child_bone,
@@ -3483,11 +3482,15 @@ void fade_fatality_screen(void) {
     }
 }
 
-/* TODO: [near miss] 96.25%; retail shares the zero for flag stores and the blend call arg (r7); camera script is a 0x318-based table indexed 0x2f/0x30 (no such array view yet). */
+/* TODO: [near miss] 99.99%; camera-script array base is +0x3A8, while retail indexes the broader +0x318 animation table; recover that typed view. */
 void run_fatality_sequence(
     unsigned int main_script, unsigned int victim_script) {
     FatalityBgndScriptView* section_script;
     CmdScript* victim_cmdscript;
+    unsigned int camera_script;
+    MkObj* attacker;
+    int pal_mode;
+    unsigned int camera_index;
 
     plyr_obj->flags_09_bits.face_opponent = 0;
     his_obj->flags_09_bits.face_opponent = 0;
@@ -3502,10 +3505,11 @@ void run_fatality_sequence(
     plyr_pdata->blocking_disabled = 1;
     his_pdata->blocking_disabled = 1;
 
-    his_obj->ang.y = plyr_obj->ang.y + 3.1415927f;
+    attacker = plyr_obj;
+    his_obj->ang.y = attacker->ang.y + 3.1415927f;
     two_player_animation_blend(
-        plyr_pdata->fatality_animation, 0, fatality_state.mirror_camera,
-        plyr_obj, 0, 1.0f, 0.0f, 3.1415927f);
+        plyr_pdata->fatality_animation, 1.0f, 0.0f,
+        0, fatality_state.mirror_camera);
     if (is_my_chest_to_screen() == 0) {
         plyr_anim_pdata->flags ^= 0x08;
         plyr_obj->hide_flag_bits.bit6 ^= 1;
@@ -3524,11 +3528,11 @@ void run_fatality_sequence(
     head_tracking_off();
     his_obj->flags_09_bits.launched = 1;
     his_obj->flags_09_bits.bit6 = 1;
-    if (is_pal_mode() != 0) {
-        fatality_anim_script = plyr_pdata->fatality_camera_pal;
-    } else {
-        fatality_anim_script = plyr_pdata->fatality_camera_ntsc;
-    }
+    pal_mode = is_pal_mode();
+    camera_index = 11;
+    if (pal_mode != 0) camera_index = 12;
+    camera_script = plyr_pdata->fatality_camera_scripts[camera_index];
+    fatality_anim_script = camera_script;
     if (fatality_anim_script != 0) {
         camera_init_animation(
             (void*)fatality_anim_script, p_animate_and_freeze);

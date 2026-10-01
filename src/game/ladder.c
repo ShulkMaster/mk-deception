@@ -128,17 +128,17 @@ extern int p2_profile_status;
 extern LightDef ladder_skinned_obj_light_def;
 extern LightDef ladder_skinned_obj_ambient_light_def;
 extern unsigned char ladder_piece_ground_colls[];
-extern unsigned char ladder_piece_bones[];
+extern const int ladder_piece_bones[];
 extern LadderBgndAnimations bgnd_animations;
 
 void insert_ground_me_mkobj(MkObj* object);
 AnimPdata* animate_obj(
     MkObj* object,
     AnimScript* script,
-    float speed,
-    void* bones,
-    int start_frame,
+    const int* bones,
+    MkFlippedBoneMap* flipped_bones,
     void* ground_collisions,
+    float playback_rate,
     int active);
 static int ladder_data_tbl_offset = -1;
 static int curr_ladder_pos;
@@ -604,10 +604,10 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     animation = animate_obj(
         object,
         piece_animation,
-        1.0f,
         ladder_piece_bones,
         0,
         ladder_piece_ground_colls,
+        1.0f,
         1);
     if (curr_ladder_pos > position) {
         if (alternate_model != 0) {

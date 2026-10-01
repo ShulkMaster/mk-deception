@@ -5648,7 +5648,8 @@ static void mk_chess_remove_piece_from_board(ChessPiece* piece) {
 }
 
 
-/* TODO: [breakthrough needed] 90.53%; resolve retail lwz r6, mk_chess_pdata@sda21 and its surrounding ownership/CFG before further tuning. */
+/* TODO: [near miss] 90.53%; typed manager/cursor/board accesses agree;
+ * GPR/address grouping and function order remain. */
 ChessPiece* mk_chess_fetch_piece_at_cursor(void) {
     ChessManagerInfo* manager;
     ChessCursor* cursor;
@@ -8011,11 +8012,10 @@ static inline void mk_chess_start_pick_image_fade(ChessHudState* hud, float (*co
 static inline int mk_chess_start_pick_string_fade(ChessHudState* hud,
     float step, float (*completed)(void))
 {
-    MkPtr** strings = &hud->strings;
     int has_strings = 0;
     ChessStringFadePdata* fade;
-    if (strings != 0) {
-        MkPtr* link = *strings;
+    if (&hud->strings != 0) {
+        MkPtr* link = hud->strings;
         while (link != 0) {
             StringObj* string = (StringObj*)link->hdr;
             if (link->instance != string->instance) {
@@ -8045,7 +8045,8 @@ static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide);
 static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     int target, int* direction);
 
-/* TODO: [near miss] 99.75%; pdata/board take r5/r6 swapped (retail r6/r5); inlined fade-start arg temp uses r3 (retail r0). */
+/* TODO: [near miss] 99.89%; cached-owner trial is neutral; stop at pdata/board
+ * coloring; TU order remains unresolved. */
 static float p_mk_chess_spell_targetting_hud(void)
 {
     ChessHudState* hud = (ChessHudState*)apdata;
@@ -8070,8 +8071,8 @@ static float p_mk_chess_spell_targetting_hud(void)
     }
     initial_cursor = MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
     unhide_obj(initial_cursor);
+    board = mk_chess_pdata->board;
     pdata = mk_chess_pdata;
-    board = pdata->board;
     cursor = (MkObj*)MK_LIVE(mk_chess_pdata->cursors[2].object, mk_chess_pdata->cursors[2].object_instance);
     pdata->cursors[2].cell_x = 5;
     pdata->cursors[2].cell_y = 5;
@@ -8138,7 +8139,7 @@ static float p_mk_chess_spell_targetting_hud(void)
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.93%; cursor/slot take r29/r27 where retail uses r27/r28; stop at coloring. */
+
 static void mk_chess_spell_hud_pick_a_spell_input(ChessHudState* hud)
 {
     ScreenObj* cursor;
@@ -10830,20 +10831,24 @@ static inline int mk_chess_rebuild_piece_path_moves(ChessPiece* piece) {
     return 0;
 }
 
-/* TODO: [near miss] 94.68%; retail hoists &piece->access_restrictions[1] (r27) and spills the y offset/x shift; GPR coloring follows. */
+/* TODO: [near miss] 94.88%; retail hoists &piece->access_restrictions[1] (r27) and spills the y offset/x shift; GPR coloring follows. */
 static int mk_chess_drone_piece_best_path_to(
     ChessPiece* piece, unsigned int target_x, unsigned int target_y,
     unsigned int* capture, unsigned int* rating, int* next_x, int* next_y) {
+    unsigned int x;
+    unsigned int y;
+    unsigned char old_x;
+    unsigned char old_y;
+    ChessPiece* captured;
     int found = 0;
-    unsigned int x, y;
     *capture = *rating = 0;
     for (x = 0; x < 10; x++) {
         for (y = 0; y < 10; y++) {
             unsigned int move = (piece->move_map->rows[y] >> (3 * x)) & 7;
             if (move != 0) {
-                ChessPiece* captured = move == 2 ? mk_chess_pdata->board[x].cells[y].piece : 0;
-                unsigned char old_x = piece->cell_x;
-                unsigned char old_y = piece->cell_y;
+                captured = move == 2 ? mk_chess_pdata->board[x].cells[y].piece : 0;
+                old_x = piece->cell_x;
+                old_y = piece->cell_y;
                 mk_chess_pdata->board[x].cells[y].piece = piece;
                 mk_chess_pdata->board[old_x].cells[old_y].piece = 0;
                 piece->cell_x = x;

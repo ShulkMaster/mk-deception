@@ -902,8 +902,8 @@ void bulvan_function(int command) {
     PlyrPdata* opponent_data;
     MkPfx* smoke;
     MkPfx* lift_smoke;
-    MkProc* process;
     MkObj* tracked_object;
+    MkProc* process;
 
     switch (command) {
     case 1:
@@ -1574,36 +1574,36 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.86%; retail frame is 0x10 larger (source timer/scale field
+/* TODO: [breakthrough needed] 94.74%; retail frame is 0x10 larger (source timer/scale field
  * pointers spilled twice at 0x28-0x34); find the variable split that causes it. */
 float pfx_sh_grinder_meat_spew(void) {
     JabFloatBits inverse;
-    PfxVm* vm;
+    float* destination_angles;
     PfxEmitter* emitter;
-    MkObj* emitter_object;
-    Vec* source_positions;
-    Vec* destination_positions;
+    float* destination_timers;
+    unsigned char* last_color;
     Vec* source_velocities;
     Vec* destination_velocities;
-    Vec* last_position;
-    Vec* last_velocity;
-    float* source_timers;
-    float* destination_timers;
-    float* source_scales;
-    float* destination_scales;
-    float* source_angles;
-    float* destination_angles;
-    float* last_timer;
-    float* last_scale;
     float* last_angle;
-    unsigned char* source_colors;
+    int initial_cursor;
+    Vec* destination_positions;
+    float* source_timers;
+    Vec* source_positions;
     unsigned char* destination_colors;
-    unsigned char* last_color;
+    unsigned char* source_colors;
+    PfxVm* vm;
+    MkObj* emitter_object;
+    float* last_timer;
+    float* source_scales;
+    float* source_angles;
+    int index;
     int field_stride;
     int vector_stride;
-    int initial_cursor;
+    Vec* last_velocity;
+    float* destination_scales;
+    float* last_scale;
     int last_index;
-    int index;
+    Vec* last_position;
     Vec splat_position;
     float length_sq;
     float inverse_length;
@@ -1818,8 +1818,8 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
     }
 }
 
-/* TODO: [near miss] 97.63%; CFG and arithmetic agree; remaining residue is
- * particle-pointer GPR coloring, which follows local declaration order. */
+/* TODO: [near miss] 97.65%; particle-pointer coloring remains; natural field
+ * grouping regresses; stop unless pointer lifetime evidence changes. */
 float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     PfxVm* vm;
     PfxEmitter* emitter;
@@ -1916,8 +1916,8 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
             destination_velocities->y = source_velocities->y;
             destination_velocities->z = source_velocities->z;
 
-            source_colors += field_stride;
             destination_colors += field_stride;
+            source_colors += field_stride;
             source_scales = PFX_FIELD_AT(source_scales, field_stride);
             destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
             source_positions = PFX_FIELD_AT(source_positions, field_stride);

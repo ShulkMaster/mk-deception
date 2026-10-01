@@ -107,7 +107,7 @@ void pulsate_object(
     float fade_in_step, float fade_out_step);
 float p_track_cam_ang_y_light(void);
 MkObj* bgnd_place_point_light_for_ticks(
-    LightDef* light_def, int ticks, int offset_from_tightrope, float radius_step);
+    LightDef* light_def, int ticks, float radius_step, int offset_from_tightrope);
 void skytemple_arrange_fence_pebbles_around_pos(
     int player, unsigned int count, Vec* position);
 void skytemple_set_fence_pebble_vel(

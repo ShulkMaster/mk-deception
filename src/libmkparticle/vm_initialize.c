@@ -146,6 +146,7 @@ void pfxvm_initial_reflect(PfxBehavior* behavior, unsigned int field)
     add_init_insn(behavior, 1, field);
 }
 
+#pragma opt_propagation off
 void pfxvm_initial_set_float_range(PfxBehavior* behavior, unsigned int field,
                                    PfxFloatRange* range)
 {
@@ -154,6 +155,7 @@ void pfxvm_initial_set_float_range(PfxBehavior* behavior, unsigned int field,
 
     memcpy(destination, range, sizeof(*range));
 }
+#pragma opt_propagation reset
 
 void pfxvm_initial_multiply_float_range(PfxBehavior* behavior,
                                         unsigned int field,

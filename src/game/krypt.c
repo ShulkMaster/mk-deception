@@ -487,14 +487,12 @@ void create_fullscreen_gallery_image_list(GVTexturePair out, int count) {
 
 static int kontent_gallery_movie_tapout(void);
 
-/* TODO: [near miss] 99.72973%; explicit loaded snapshot is neutral;
- * stop at loaded-flag/table-base register coloring. */
 void start_loading_kontent_image(void) {
+    CoffinEntry* entries;
     int coffin;
     int type;
     int movie;
     MkFileInfo* section;
-    CoffinEntry* entries;
 
     coffin = kontent_pdata->items[kontent_pdata->current_selection];
     if (kontent_pdata->item_count == 0) {
@@ -518,7 +516,7 @@ void start_loading_kontent_image(void) {
     } else if (coffin < 0 || coffin > 0x1B7) {
         type = -1;
     } else {
-        type = entries[coffin].kontent_type;
+        type = coffin_data[coffin].kontent_type;
     }
     if (type == 5 || type == 9) {
         if (gallery_data_loaded == 0) {

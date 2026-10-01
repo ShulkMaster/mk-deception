@@ -536,7 +536,7 @@ static inline int* spec_priority_slot(
     return (int*)((unsigned char*)base + byte_offset);
 }
 
-/* TODO: [near miss] 96.84%; CFG agrees; global coloring (atomic r28, display_lists r31) and display_lists address fold remain. */
+/* TODO: [near miss] 97.35%; declaration order improves coloring; header address staging and inlined material load schedule remain. */
 static void SpecSkinProcessMaterialList(
     RpAtomic* atomic, SpecResourceEntry* resource) {
     SpecMesh* alpha_meshes[64];
@@ -544,15 +544,15 @@ static void SpecSkinProcessMaterialList(
     int reflection_priority[64];
     SpecMeshHeader* mesh_header;
     SpecDisplayHeader* display_header;
+    unsigned int num_meshes;
+    SpecMesh* mesh;
     SpecDisplayList* display_lists;
     SpecMesh* first_mesh;
-    int reflection_count = 0;
     unsigned int mesh_index;
-    SpecMesh* mesh;
-    unsigned int num_meshes;
     int alpha_count = 0;
-    unsigned int reflection_offset = 0;
+    int reflection_count = 0;
     int i;
+    unsigned int reflection_offset = 0;
 
     display_header = &resource->display_resource->header;
     bLastMatUploadedRoot = 1;
@@ -739,8 +739,8 @@ static inline void setup_base_z_compare(RwTexture* texture) {
 
 /* TODO: [near miss] 92.36%; stack slot order of the channel/specular colors and material/specular r31/r30 swap remain. */
 static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
-    SpecularMaterialPluginData* specular;
     RpMaterial* material = mesh->material;
+    SpecularMaterialPluginData* specular;
     SpecLight* light;
     RwTexture* base_texture;
     RwTexture* specular_texture;

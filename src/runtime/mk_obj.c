@@ -270,7 +270,7 @@ void* ft_fake_bone_matcher(
 static float p_obj(void);
 static float p_bone_hierarchy(void);
 static void limb_bone_calc_world_pos(MkHdr* data);
-static void set_bone_world_pos_xz(void* obj, int bone, void* pos);
+static void set_bone_world_pos_xz(MkObj* obj, int bone, Vec* pos);
 void set_bone_world_pos(void* obj, int bone, void* pos);
 
 void update_bone_hierarchy(void* obj);
@@ -1573,13 +1573,10 @@ void calc_bone_world_mat(MkObj* obj, int bone) {
 
     if (bone < (int)obj->bone_count) {
         mkbone = obj->bones[bone];
-        if (mkbone == 0) {
+        if (mkbone == 0 || mkbone->parent_matrix == 0) {
             return;
         }
-        if (mkbone->parent_matrix != 0) {
-            if (mkbone->flags_54_bits.calculation_locked != 0) {
-                return;
-            }
+        if (mkbone->flags_54_bits.calculation_locked == 0) {
             objectMatrix = obj->field_24;
             gxMat33x33(
                 (Mat33*)&mkbone->matrix, (Mat33*)mkbone->parent_matrix,
@@ -1632,9 +1629,8 @@ void get_bone_offset_world_pos(
              offset->z * mkbone->matrix.at.z + mkbone->matrix.pos.z;
 }
 
-/* TODO: [near miss] 99.72656%; only six r6/r7 owner/index substitutions remain; one scope control already neutral. */
 static void set_bone_world_pos_xz(
-    void* obj, int bone, void* pos) {
+    MkObj* obj, int bone, Vec* pos) {
     MkObj* mkobj;
     MkBone* mkbone;
     RwMatrix* parent;
@@ -1644,7 +1640,9 @@ static void set_bone_world_pos_xz(
     MkSobj* sobj;
     Vec current;
     Vec* target;
+    RwMatrix* matrices;
     int i;
+    int matrix_i;
     int matrix_index;
 
     mkobj = obj;
@@ -1682,13 +1680,13 @@ static void set_bone_world_pos_xz(
         }
     }
     if (mkobj->matrix_count > 1) {
-        RwMatrix* matrices;
-
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
         if (sobj != 0 && (matrices = sobj->matrices) != 0) {
-            for (i = 1; i < (int)mkobj->matrix_count; i++) {
-                matrix_index = mkobj->matrix_indices[i];
+            matrix_i = 1;
+            while (matrix_i < (int)mkobj->matrix_count) {
+                matrix_index = mkobj->matrix_indices[matrix_i];
                 matrices[matrix_index].pos = matrix->pos;
+                matrix_i++;
             }
         }
     }
@@ -2028,7 +2026,7 @@ static inline RpMaterial* find_geometry_material_by_id(
     for (i = 0; i < count; i++) {
         material =
             *(RpMaterial**)((char*)geometry->matList.materials + offset);
-        if ((MK_MATERIAL_PLUGIN(material)->flags & 0xFFF) == id) {
+        if (id == (MK_MATERIAL_PLUGIN(material)->flags & 0xFFF)) {
             return material;
         }
         offset += sizeof(material);
@@ -2036,10 +2034,10 @@ static inline RpMaterial* find_geometry_material_by_id(
     return 0;
 }
 
+/* TODO: [near miss] 99.875%; geometry argument folded; one material-id compare operand row remains. */
 MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
                       unsigned int material_id, int frames) {
     MkSobj* sobj;
-    RpGeometry* geometry;
     RpMaterial* material;
     FadeMaterialPdata* pdata;
     MkProc* proc;
@@ -2050,8 +2048,7 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
         return 0;
     }
 
-    geometry = sobj->atomic->geometry;
-    material = find_geometry_material_by_id(geometry, material_id);
+    material = find_geometry_material_by_id(sobj->atomic->geometry, material_id);
     if (material == 0) {
         return 0;
     }
@@ -2598,6 +2595,7 @@ void material_set_zbias(void* material, float zbias) {
     spec->gloss = zbias;
 }
 
+/* TODO: [near miss] 99.13%; geometry/plugin GPR allocation and comparison operands remain. */
 RpMaterial* obj_find_material_by_id(MkObj* obj, int id) {
     MkPtr* ptr;
     MkSobj* sobj;
@@ -2620,7 +2618,22 @@ RpMaterial* obj_find_material_by_id(MkObj* obj, int id) {
 }
 
 RpMaterial* sobj_find_material_by_id(MkSobj* sobj, unsigned int id) {
-    return find_geometry_material_by_id(sobj->atomic->geometry, id);
+    RpGeometry* geometry;
+    RpMaterial* material;
+    unsigned int count;
+    unsigned int i;
+    unsigned int material_id;
+
+    geometry = sobj->atomic->geometry;
+    count = geometry->matList.numMaterials;
+    for (i = 0; i < count; i++) {
+        material = geometry->matList.materials[i];
+        material_id = MK_MATERIAL_PLUGIN(material)->flags & 0xFFF;
+        if (material_id == id) {
+            return material;
+        }
+    }
+    return 0;
 }
 
 RpMaterial* sobj_find_material_with_texture(
@@ -2803,13 +2816,12 @@ void obj_match_pos_ang_to_src_obj(MkObj* dst_obj, MkObj* src_obj) {
     dst_obj->light_flags = src_obj->light_flags;
 }
 
-/* TODO: [near miss] 99.51389%; seven matrix-loop register substitutions only; bounded permuter control neutral, stop at coloring */
 void update_obj_pos(MkObj* mkobj) {
     RwMatrix* matrix;
-    RwMatrix* matrices;
     RwFrame* frame;
     RwMatrix* frame_matrix;
     MkSobj* sobj;
+    RwMatrix* matrices;
     int i;
     int matrix_index;
 
@@ -2828,9 +2840,8 @@ void update_obj_pos(MkObj* mkobj) {
 
     if (mkobj->matrix_count > 1) {
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
-        if (sobj != 0 && sobj->matrices != 0) {
-            matrices = sobj->matrices;
-            for (i = 1; i < (int)mkobj->matrix_count; i++) {
+        if (sobj != 0 && (matrices = sobj->matrices) != 0) {
+            for (i = 1; (int)mkobj->matrix_count > i; i++) {
                 matrix_index = mkobj->matrix_indices[i];
                 matrices[matrix_index].pos = matrix->pos;
             }
@@ -3261,7 +3272,6 @@ void* start_scale_proc(void* obj, void* script) {
     return pdata;
 }
 
-/* TODO: [near miss] 99.70%; FPR numbering (f0/f1) in elapsed accumulate and divide differs. */
 static float p_scale(void) {
     ScalePdata* pdata;
     MkObj* obj;
@@ -3284,8 +3294,8 @@ static float p_scale(void) {
     if ((flags & 0x10000) != 0) {
         return -1.0f;
     }
-    elapsed = pdata->elapsed + game_speed;
-    pdata->elapsed = elapsed;
+    elapsed = pdata->elapsed;
+    elapsed = pdata->elapsed = elapsed + game_speed;
     if (elapsed > script->duration) {
         t = 1.0f;
     } else {

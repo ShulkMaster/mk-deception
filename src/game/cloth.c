@@ -1696,12 +1696,12 @@ static void calc_cloth_stretch(ClothBone* bone) {
     }
 }
 
-/* TODO: [near miss] 99.84%; only the grandparent/cloth-link volatile register pair (r4/r3 vs retail r3/r4) differs. */
 static void calc_cloth_dwp(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
     MkBone* grandparent_bone;
     ClothBone* parent_cloth;
+    ClothBone* grandparent_cloth;
     const RwMatrix* target_matrix;
     const Vec* target_origin;
     MKVECTOR velocity;
@@ -1745,8 +1745,8 @@ static void calc_cloth_dwp(ClothBone* bone) {
             }
             grandparent_bone = parent_bone->transform_parent;
             if (grandparent_bone != 0 &&
-                grandparent_bone->cloth_link != 0 &&
-                grandparent_bone->cloth_link->target_bone != 0) {
+                (grandparent_cloth = grandparent_bone->cloth_link) != 0 &&
+                grandparent_cloth->target_bone != 0) {
                 target_matrix = &grandparent_bone->matrix;
             } else {
                 target_matrix = &parent_bone->matrix;

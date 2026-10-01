@@ -156,8 +156,8 @@ float p_force_away(void);
 static void pw_plyr_force(void);
 void ps_plyr_force(void);
 float two_player_animation_blend(
-    AniData* animation, int attacker_mode, int victim_mode,
-    float attacker_blend, float victim_blend);
+    AniData* animation, float attacker_blend, float victim_blend,
+    int attacker_mode, int victim_mode);
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player);
 float p_konquest_register_bleeding(void);
 int drone_ai_check_button_direction(int direction);
@@ -563,16 +563,13 @@ int is_he_blocking_throw(void) {
 }
 
 
-/* TODO: [near miss] 99.29%; only state/object volatile coloring (r4/r5 swapped) remains. */
 int is_plyr_blocking(PlyrPdata* player) {
+    int state = player->state;
     MkObj* object;
-    int state;
-
-    state = player->state;
-    if (state == 0x605) {
+    if (player->state == 0x605) {
         return 0;
     }
-    if (state == 0x3202) {
+    if (player->state == 0x3202) {
         return 0;
     }
     if (player->drone_request != 0) {
@@ -2445,25 +2442,25 @@ void ejb_release_other_player(int reaction) {
 void ejb_too_close_repell(void) {
     MkObj* player_one;
     MkObj* player_two;
-    float delta_z;
     float delta_x;
+    float delta_z;
 
     player_one = g_game_info.plyr0.slot.mirror_a;
     player_two = g_game_info.plyr1.slot.mirror_a;
-    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     delta_x = player_one->pos.value.x - player_two->pos.value.x;
+    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     if (delta_x * delta_x + delta_z * delta_z < 1.0f) {
-        reaction_xfer_him(0x135, 2.0f, 0);
+        reaction_xfer_him(0x135, 2.0f, 2);
     }
 }
 
 static inline BoneMatcherState* prepare_two_player_animation(
     int self_flip_mode, int flip_opponent, int animate_opponent) {
+    MkObj* held_by_object;
     PlyrPdata* opponent;
     MkProc* process;
     MkProc* opponent_anim_proc;
     MkObj* tracked_object;
-    MkObj* held_by_object;
     AnimPdata* opponent_anim;
     BoneMatcherState* matcher;
 
@@ -2539,7 +2536,6 @@ static inline BoneMatcherState* prepare_two_player_animation(
 
 
 
-/* TODO: [near miss] 99.73%; held-object latch arms now match; only its base/object registers swap (r5/r6). */
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step) {
     PlyrPdata* opponent;
@@ -2575,9 +2571,9 @@ float two_player_animation_match_attacker(
         plyr_grab_other_flip_states(0, 1);
     }
     plyr_obj->hide_flag_bits.still_move = 0;
-    opponent = plyr_pdata->his_plyr_pdata;
-    if (MK_HDR_LIVE(opponent->held_by_object_latch.obj, opponent->held_by_object_latch.instance) == 0) {
-        opponent->held_by_object_latch.obj = plyr_obj;
+    if (MK_HDR_LIVE(plyr_pdata->his_plyr_pdata->held_by_object_latch.obj,
+                    plyr_pdata->his_plyr_pdata->held_by_object_latch.instance) == 0) {
+        plyr_pdata->his_plyr_pdata->held_by_object_latch.obj = plyr_obj;
         plyr_pdata->his_plyr_pdata->held_by_object_latch.instance =
             plyr_obj->hdr.instance;
     }
@@ -2604,8 +2600,8 @@ float two_player_animation_match_attacker(
 /* TODO: [near miss] 99.76%; held-object latch swaps r5/r6 with the reloaded
  * opponent pointer; stop at coloring. */
 float two_player_animation_blend(
-    AniData* animation, int attacker_mode, int victim_mode,
-    float attacker_step, float victim_frame) {
+    AniData* animation, float attacker_step, float victim_frame,
+    int attacker_mode, int victim_mode) {
     prepare_two_player_animation(1, victim_mode, attacker_mode);
     plyr_anim_pdata->hand_transition_step = 0.1f;
     plyr_anim_pdata->hand_transition = 0.1f;
@@ -2641,13 +2637,8 @@ float two_player_animation_flip(
 
 void two_player_animation(AniData* animation, float attacker_blend) {
     two_player_animation_blend(
-        animation, 1, 0, attacker_blend, 0.0f);
+        animation, attacker_blend, 0.0f, 1, 0);
 }
-
-
-
-
-
 
 
 void idle_victim(void) {
@@ -3308,7 +3299,7 @@ static inline void start_plyr_force(
 }
 
 void force_forward(
-    int duration, int animation, float force, float damping) {
+    float force, int duration, float damping, int animation) {
     myvel_my_angle_y(0.0f, force, force);
     start_plyr_force(duration, animation, damping);
 }
@@ -4314,7 +4305,6 @@ void drift_downwards(void) {
     plyr_obj->gravity = -0.005f;
 }
 
-/* TODO: [near miss] 99.80%; life-scale f1/f3 allocation remains; explicit snapshot leaves two FP operand swaps. */
 static void taunt_raise_my_life_bar(void) {
     float life_amount;
 
@@ -4322,7 +4312,8 @@ static void taunt_raise_my_life_bar(void) {
     if (plyr_pdata->taunt_life_scale > 1.0f) {
         plyr_pdata->taunt_life_scale = 1.0f;
     }
-    life_amount = plyr_pdata->taunt_life_scale * 0.1f;
+    life_amount = 0.1f;
+    life_amount = plyr_pdata->taunt_life_scale * life_amount;
     plyr_pdata->taunt_life_scale *= 0.8f;
     if (g_game_info.plyr0.field_0C != 0.0f &&
         g_game_info.plyr1.field_0C != 0.0f) {
@@ -4398,10 +4389,10 @@ int player_area_collision_check(
     return 0;
 }
 
-/* TODO: [near miss] 99.60%; three FP operand registers differ; retain the codegen-relevant flag cast. */
 void scorpion_summon_collide(void) {
     float delta_x;
     float delta_z;
+    int summon_state;
     float distance_x;
     float distance_z;
 
@@ -4409,7 +4400,9 @@ void scorpion_summon_collide(void) {
     delta_z = his_obj->pos.value.z - plyr_pdata->summon_position_z;
     distance_x = delta_x * delta_x;
     distance_z = delta_z * delta_z;
-    if ((((unsigned char)his_pdata->state_flags.raw >> 1) & 1U) != 1U) {
+    summon_state = (unsigned char)his_pdata->state_flags.raw >> 1;
+    summon_state &= 1U;
+    if (summon_state != 1U) {
         if (local_collision_allowed_plyr_pdata() != 0 &&
             distance_x + distance_z < 0.25f) {
             trial_state_collision_check(1, his_pdata->plyr_num);

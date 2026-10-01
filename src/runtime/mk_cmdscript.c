@@ -29,6 +29,7 @@ void mk_hwfile_wait_for_completion(void* req);
 extern _mwMemHeap* SystemSwappableHeap;
 extern void** script_callable_function_table;
 extern int number_of_script_functions;
+extern MkProc* saved_aproc;
 
 typedef void (*ScriptBuiltinFn)(void);
 
@@ -223,7 +224,7 @@ static inline void execute_cmdscript(ScriptSlot* slot) {
 }
 
 
-/* TODO: [breakthrough needed] 70.527275%; typed pdata allocation is neutral;
+/* TODO: [breakthrough needed] 86.27%; typed pdata allocation is neutral;
  * remaining process-call/CFG differences need retail reconstruction audit. */
 void one_shot_script_func(void* a, unsigned int b, int wait) {
     MkProc* proc;
@@ -250,7 +251,7 @@ void one_shot_script_func(void* a, unsigned int b, int wait) {
 }
 
 
-/* TODO: [breakthrough needed] 58.88%; 101 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 63.31%; 101 rows differ; inspect retail CFG and operand types. */
 float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
@@ -332,12 +333,11 @@ void cmdscript_step_backward(void) {
     cs->pc = cs->prev_pc;
 }
 
-/* TODO: [breakthrough needed] 66.87%; 8 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 86.75%; frame-pointer subtraction regresses;
+ * retail unsigned divide/shift lowering needs compiler-mode evidence. */
 unsigned int get_script_stack_depth(void) {
-    CmdScript* cs;
-
-    cs = active_cmdscript;
-    return ((unsigned int)cs->stack_sp - (unsigned int)cs->stack_mem) /
+    return (unsigned int)((unsigned char*)active_cmdscript->stack_sp -
+                          (unsigned char*)active_cmdscript->stack_mem) /
            sizeof(CmdScriptStackFrame);
 }
 
@@ -360,7 +360,7 @@ void register_c_table(const char* name, void* table) {
 }
 
 
-/* TODO: [breakthrough needed] 78.65%; 60 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 82.64%; 60 rows differ; inspect retail CFG and operand types. */
 void parse_args(const char* fmt, ...) {
     __va_list ap;
     unsigned int arg_offset;
@@ -413,24 +413,23 @@ void parse_args(const char* fmt, ...) {
     va_end(ap);
 }
 
-/* TODO: [breakthrough needed] 76.38%; 8 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 88.33%; string guard/load roles match; final address
+ * add/subtract is reassociated; reject redundant 64-bit-mask search. */
 char* get_script_string_arg(int index) {
-    unsigned int val;
-    unsigned int base;
-    unsigned int limit;
-    ScriptSlot* mko;
+    unsigned int value;
+    ScriptSlot* script;
+    char* strings;
 
-    val = current_args[index];
-    if (val == 0) {
+    value = current_args[index];
+    if (value == 0) {
         return 0;
     }
-    mko = active_cmdscript->mko;
-    base = mko->string_base;
-    limit = mko->string_limit;
-    if (val < base && val < limit) {
-        return (char*)(base + (val - 1));
+    script = active_cmdscript->mko;
+    strings = (char*)script->string_base;
+    if (value < (unsigned int)strings && value < script->string_limit) {
+        return &strings[(int)value - 1];
     }
-    return (char*)val;
+    return (char*)value;
 }
 
 /* TODO: [breakthrough needed] 62.96%; 13 rows differ; inspect retail CFG and operand types. */
@@ -441,7 +440,7 @@ void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     return resolve_table_row(slot, attrs_id);
 }
 
-/* TODO: [near miss] 98.52%; 13 localized rows differ; compare retail operands. */
+/* TODO: [near miss] 99.09%; 13 localized rows differ; compare retail operands. */
 void* get_data_table_by_name(const char* name) {
     ScriptTableDef* def;
     ScriptSlot* slot;
@@ -473,40 +472,33 @@ void* get_data_table_by_name(const char* name) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 56.54%; 23 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 93.06%; owner-indexed lookup and compact saves align;
+ * string address reassociation remains; integer staging regresses;
+ * permuter helpers and unsupported propagation mode rejected. */
 int get_script_function_by_name(ScriptSlot* slot, const char* name) {
     unsigned int i;
-    ScriptFuncDef* def;
     char* function_name;
 
-    i = 0;
-    def = slot->func_defs;
-    while (i < slot->func_count) {
-        function_name = (char*)(def->name_offset + slot->string_reloc);
+    for (i = 0; i < slot->func_count; i++) {
+        function_name = (char*)(slot->func_defs[i].name_offset + slot->string_reloc);
         if (strcmp(name, function_name - 1) == 0) {
             return (int)i + 1;
         }
-        i++;
-        def++;
     }
     return 0;
 }
 
-/* TODO: [breakthrough needed] 56.54%; 23 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 93.06%; owner-indexed lookup and compact saves align;
+ * string address reassociation remains, as get_script_function_by_name. */
 unsigned int check_script_function_exists(ScriptSlot* slot, const char* name) {
     unsigned int i;
-    ScriptFuncDef* def;
     char* function_name;
 
-    i = 0;
-    def = slot->func_defs;
-    while (i < slot->func_count) {
-        function_name = (char*)(def->name_offset + slot->string_reloc);
+    for (i = 0; i < slot->func_count; i++) {
+        function_name = (char*)(slot->func_defs[i].name_offset + slot->string_reloc);
         if (strcmp(name, function_name - 1) == 0) {
-            return (int)i + 1;
+            return i + 1;
         }
-        i++;
-        def++;
     }
     return 0;
 }
@@ -535,19 +527,22 @@ char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 71.66%; 7 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 86.67%; signed table index recovered; final name
+ * relocation add/subtract scheduling differs after integer-offset control. */
 char* get_name_of_table(ScriptSlot* slot, unsigned int index) {
+    int table_index;
     char* table_name;
 
     if (index > slot->max_table || index == 0) {
         return 0;
     }
-    table_name = slot->table_defs[index - 1].name + slot->string_reloc;
+    table_index = index - 1;
+    table_name = slot->table_defs[table_index].name + slot->string_reloc;
     table_name--;
     return table_name;
 }
 
-/* TODO: [breakthrough needed] 76.13%; 12 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 83.63%; 12 rows differ; inspect retail CFG and operand types. */
 unsigned int get_table_index_by_pointer(ScriptSlot* slot, void* table) {
     unsigned int base;
     unsigned int id;
@@ -601,7 +596,7 @@ void* get_data_table(ScriptSlot* slot, unsigned int index) {
 }
 
 
-/* TODO: [breakthrough needed] 62.83%; 91 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 66.91%; 91 rows differ; inspect retail CFG and operand types. */
 void cmdscript_execute(ScriptSlot* slot) {
     CmdScript* cs;
     CmdScriptStackFrame* stack_base;
@@ -657,7 +652,7 @@ void cmdscript_execute(ScriptSlot* slot) {
     cs->state = 0;
 }
 
-/* TODO: [breakthrough needed] 71.86%; 39 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 77.85%; 39 rows differ; inspect retail CFG and operand types. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
 
@@ -679,7 +674,7 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     }
 }
 
-/* TODO: [breakthrough needed] 72.51%; 26 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 92.00%; 26 rows differ; inspect retail CFG and operand types. */
 void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     __va_list ap;
     unsigned int i;
@@ -695,7 +690,7 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     }
 }
 
-/* TODO: [breakthrough needed] 64.55%; 98 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 67.33%; 98 rows differ; inspect retail CFG and operand types. */
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
@@ -706,7 +701,7 @@ float call_player_script_function(ScriptSlot* slot) {
     return kZero;
 }
 
-/* TODO: [breakthrough needed] 77.41%; 14 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 89.29%; 14 rows differ; inspect retail CFG and operand types. */
 void cmdscript_unload(ScriptSlot* slot) {
     ScriptSlotEntry* entry;
     MkProc* saved;
@@ -747,7 +742,7 @@ int vdestroy_cmdscript(CmdScript* script) {
     mkhdr_memfree((MkHdr*)script);
 }
 
-/* TODO: [breakthrough needed] 78.00%; 28 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 88.31%; 28 rows differ; inspect retail CFG and operand types. */
 void unload_script(int slot_index) {
     ScriptSlotEntry* entry;
     int state;
@@ -759,53 +754,50 @@ void unload_script(int slot_index) {
     }
 }
 
-/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name) {
     MkFileInfo* section;
 
     section = find_section_by_name(name);
-    if (section == 0) {
-        return 0;
+    if (section != 0) {
+        return cmdscript_loadfile_language_async(language, section);
     }
-    return cmdscript_loadfile_language_async(language, section);
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name) {
     MkFileInfo* section;
 
     section = find_section_by_name(name);
-    if (section == 0) {
-        return 0;
+    if (section != 0) {
+        return cmdscript_loadfile_language(language, section);
     }
-    return cmdscript_loadfile_language(language, section);
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 77.22%; 5 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name) {
-    MkFileInfo* section;
-
-    section = find_section_by_name(name);
-    if (section == 0) {
-        return 0;
+    MkFileInfo* section = find_section_by_name(name);
+    if (section != 0) {
+        return cmdscript_loadfile(language, section);
     }
-    return cmdscript_loadfile(language, section);
+    return 0;
 }
 
-/* TODO: [breakthrough needed] 80.32%; 40 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 95.77%; shared process/file reloads and compact saves align;
+ * entry/info GPR colors and rb string pooling remain; owner-accessor trials regress. */
 ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_info) {
-    MkFileInfo* info;
     ScriptSlotEntry* entry;
     ScriptSlot* body;
+    MkFileInfo* info;
     MkProc* saved;
-    MkFileEntry* file;
     int length;
+    int selected_language;
     unsigned int size;
-    void* buf;
 
-    info = offset_mk_file_info(file_info, get_language());
+    selected_language = get_language();
+    info = offset_mk_file_info(file_info, selected_language);
     saved = aproc;
     aproc = 0;
+    saved_aproc = saved;
     entry = slot_entry_at(language);
     body = &entry->body;
     if (info->name != (char*)body) {
@@ -814,29 +806,28 @@ ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_inf
     entry->state = 1;
     entry->file_info = info;
     body->slot_index = language;
-    file = mk_file_open(info, "rb", (void*)3);
-    entry->file = file;
-    if (file == 0) {
+    entry->file = mk_file_open(info, "rb", (void*)3);
+    if (entry->file == 0) {
         body = 0;
     } else {
-        length = mk_file_length(file);
+        length = mk_file_length(entry->file);
         size = (unsigned int)(length + 0x7ff) & 0xfffff800;
-        buf = _mwMemMalloc(SystemSwappableHeap, size, 5, 0, 0, 0);
-        body->load_buf = buf;
+        body->load_buf = _mwMemMalloc(SystemSwappableHeap, size, 5, 0, 0, 0);
         body->load_size = size;
-        entry->async_req = mk_file_read_async(buf, 1, size, file);
-        mk_file_close(file);
+        entry->async_req = mk_file_read_async(body->load_buf, 1, size, entry->file);
+        mk_file_close(entry->file);
         entry->file = 0;
     }
-    aproc = saved;
+    aproc = saved_aproc;
     return body;
 }
 
-/* TODO: [breakthrough needed] 70.00%; 10 rows differ; inspect retail CFG and operand types. */
 ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info) {
     MkFileInfo* info;
+    int selected_language;
 
-    info = offset_mk_file_info(file_info, get_language());
+    selected_language = get_language();
+    info = offset_mk_file_info(file_info, selected_language);
     return cmdscript_loadfile(language, info);
 }
 
@@ -885,7 +876,7 @@ ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info) {
     return body;
 }
 
-/* TODO: [breakthrough] 73.85%; byte-count arithmetic fixed; inspect slot layout and load CFG. */
+/* TODO: [breakthrough] 75.57%; byte-count arithmetic fixed; inspect slot layout and load CFG. */
 ScriptSlot* cmdscript_finish_load(int slot_index) {
     ScriptSlotEntry* entry;
     ScriptSlot* slot;
@@ -956,7 +947,7 @@ void deactivate_cmdscript(void) {
     active_cmdscript = 0;
 }
 
-/* TODO: [breakthrough needed] 73.22%; 14 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 89.72%; 14 rows differ; inspect retail CFG and operand types. */
 void activate_cmdscript(void) {
     active_cmdscript = find_cmdscript_in_list(&aproc->pdata_list);
 }
@@ -1006,7 +997,7 @@ void set_process_as_scriptable(MkProc* proc) {
     }
 }
 
-/* TODO: [breakthrough needed] 65.75%; 16 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 82.25%; 16 rows differ; inspect retail CFG and operand types. */
 CmdScript* get_cmdscript_for_proc(MkProc* proc) {
     return find_cmdscript_in_list(&proc->pdata_list);
 }
@@ -1022,7 +1013,7 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
-/* TODO: [breakthrough needed] 84.16%; 92 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 86.14%; 92 rows differ; inspect retail CFG and operand types. */
 void fixup_data_tables(ScriptSlot* slot) {
     unsigned int table_index;
 
@@ -1120,7 +1111,7 @@ void fixup_data_tables(ScriptSlot* slot) {
     slot->tables_fixed_up = 1;
 }
 
-/* TODO: [breakthrough needed] 87.33%; 40 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 90.51%; 40 rows differ; inspect retail CFG and operand types. */
 void script_system_reset(void) {
     int i;
     ScriptSlotEntry* entry;
@@ -1157,7 +1148,8 @@ void _set_bit_field(void) {
     *dst = (*dst & ~mask) | (src << shift);
 }
 
-/* TODO: [breakthrough needed] 60.25%; 17 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 60.25%; owner-relative address grouping and scheduling differ;
+ * direct expression and full operand capture are neutral; stop at compiler ceiling. */
 void _get_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1232,7 +1224,6 @@ void _unconditional_branch(void) {
     cs->pc = base + rel;
 }
 
-/* TODO: [near miss] 80.36%; 4 localized rows differ; compare retail operands. */
 void _conditional_branch(void) {
     CmdScript* cs;
     unsigned int* args;
@@ -1241,10 +1232,10 @@ void _conditional_branch(void) {
 
     cs = active_cmdscript;
     args = current_args;
+    rel = args[1];
     if (cs->regs[0] != 0) {
         return;
     }
-    rel = args[1];
     base = cs->pc;
     cs->pc = base + rel;
 }
@@ -1592,16 +1583,15 @@ void _copy_constant_to_variable(void) {
     stack_words[args[1]] = args[2];
 }
 
-/* TODO: [near miss] 89.09%; 2 localized rows differ; compare retail operands. */
+/* TODO: [near miss] 89.09%; two register-array address-grouping rows differ;
+ * typed direct copy retains retail operations and access widths. */
 void _copy_register_to_variable(void) {
-    unsigned int* args;
-    CmdScript* cs;
-    unsigned int* stack_words;
+    CmdScript* script = active_cmdscript;
+    int variable_index = current_args[1];
+    int register_index = current_args[2];
+    unsigned int* variables = (unsigned int*)script->stack_sp;
 
-    args = current_args;
-    cs = active_cmdscript;
-    stack_words = (unsigned int*)cs->stack_sp;
-    stack_words[args[1]] = cs->regs[args[2]];
+    variables[variable_index] = script->regs[register_index];
 }
 
 /* TODO: [breakthrough needed] 85.90%; 7 rows differ; inspect retail CFG and operand types. */
@@ -1616,7 +1606,8 @@ void _copy_variable_to_register(void) {
     cs->regs[args[1]] = stack_words[args[2]];
 }
 
-/* TODO: [breakthrough needed] 80.45%; 10 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 80.45%; register-array base grouping and GPR roles differ;
+ * signed index/value staging is byte-neutral; stop at compiler ceiling. */
 void _copy_register_to_register(void) {
     CmdScript* cs;
 
@@ -1624,12 +1615,10 @@ void _copy_register_to_register(void) {
     cs->regs[current_args[1]] = cs->regs[current_args[2]];
 }
 
-/* TODO: [breakthrough needed] 81.25%; 7 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 81.25%; register-store address grouping/GPR roles differ;
+ * frame, scalar and array staging are neutral; reject CSE/empty-guard search. */
 void _copy_constant_to_register(void) {
-    CmdScript* cs;
-
-    cs = active_cmdscript;
-    cs->regs[current_args[1]] = current_args[2];
+    active_cmdscript->regs[current_args[1]] = current_args[2];
 }
 
 /* TODO: [near miss] 89.09%; 2 localized rows differ; compare retail operands. */

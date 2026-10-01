@@ -584,9 +584,7 @@ static void ft_fleshchunk_postsleep(void);
 static void ft_fleshchunk_prewake(void);
 void freeze_player(void);
 void unfreeze_player(void);
-void got_hit_fx(
-    int strength, int bone, int blood, int unused1, int unused2, int active,
-    float scale);
+void got_hit_fx(int strength, int bone, int blood, int unused1, int unused2, float scale, int active);
 void hide_obj(PuzzleFighterRenderObject* object);
 void insert_fgnd_mkobj(PuzzleFighterRenderObject* object);
 void obj_set_pos(PuzzleFighterRenderObject* object, Vec* position);
@@ -612,7 +610,7 @@ void obj_add_to_skinned_obj_light_list_with_ambient(
 PuzzleAnimPdata* animate_obj(
     PuzzleFighterRenderObject* object, AniScript* animation,
     const int* bone_tags, MkFlippedBoneMap* flipped_bones,
-    void* ground_collisions, int active, float playback_rate);
+    void* ground_collisions, float playback_rate, int active);
 PuzzleFatalityHazardObject* obj_first_sobj(
     PuzzleFighterRenderObject* object);
 void sobj_set_priority(PuzzleFatalityHazardObject* object, int priority);
@@ -1357,8 +1355,6 @@ void pz_fighter_get_grinder_post(int player, Vec* post) {
     post->z = g_pz_fighters_engine.fighter_posts[0].z;
 }
 
-/* TODO: [near miss] 99.40972%; branch-local object lifetime recovered;
- * object GPR coloring and automatic-vector relocations remain. */
 static float p_grinder_meat_throw_controller(void) {
     PuzzleGrinderMeatController* meat =
         apdata;
@@ -1409,19 +1405,23 @@ static float p_grinder_meat_throw_controller(void) {
         meat->phase = 1;
     } else {
         if (meat->direction == 0) {
-            object = meat->object;
-            if (object->x < -1.8f && object->y < 0.8f) {
+            PuzzleFighterRenderObject* left_object;
+
+            left_object = meat->object;
+            if (left_object->x < -1.8f && left_object->y < 0.8f) {
                 snd_req(0x1ADB);
                 bgnd_launch_fx_at_position(
-                    "chunk_at_left_grinder", object->x, object->y, object->z);
+                    "chunk_at_left_grinder", left_object->x, left_object->y, left_object->z);
                 return -1.0f;
             }
         } else {
-            object = meat->object;
-            if (object->x > 1.8f && object->y < 0.8f) {
+            PuzzleFighterRenderObject* right_object;
+
+            right_object = meat->object;
+            if (right_object->x > 1.8f && right_object->y < 0.8f) {
                 snd_req(0x1ADB);
                 bgnd_launch_fx_at_position(
-                    "chunk_at_right_grinder", object->x, object->y, object->z);
+                    "chunk_at_right_grinder", right_object->x, right_object->y, right_object->z);
                 return -1.0f;
             }
         }
@@ -1900,14 +1900,13 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.90385%; controller-before-array declaration order was
- * neutral; secondary register coloring and pooled relocations remain after
- * three attempts. */
+/* TODO: [near miss] 99.90385%; secondary grinder r29/r30 coloring remains;
+ * direct snapshot regresses bytes and two ng runs yield no honest closure. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* grinders[2];
-    PuzzleFatalityController* controller;
     unsigned int i;
+    PuzzleFatalityController* controller;
 
     load_art_section(0x70036, &sec_pz_danger_grinder);
     effect_context.art_handle = 0x70036;
@@ -2928,8 +2927,7 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.42424%; coordinate accumulation recovers FPR shape;
- * prologue registers and constant/string references remain. */
+/* TODO: [near miss] 99.77778%; prologue owner registers and two TU blood-effect string offsets remain. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     Vec blood_offset = {0.05f, 0.0f, 0.0f};
     float blood_x;
@@ -3400,8 +3398,8 @@ static void pz_fighter_chomper2_entering_fatality(
     i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
     g_pz_fighter_fatality_engine.controller->active = 1;
-    g_pz_fighter_fatality_engine.controller->substate = 0;
-    g_pz_fighter_fatality_engine.controller->state = 0;
+    g_pz_fighter_fatality_engine.controller->state =
+        g_pz_fighter_fatality_engine.controller->substate = 0;
     g_pz_fighter_fatality_engine.controller->attacker_player = attacker;
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
@@ -4341,7 +4339,7 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     ani_to_frame_x(30.0f);
     snd_req(0x1ABE);
     ani_to_frame_x(49.0f);
-    got_hit_fx(4, 9, 1, 0, 0, 1, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 1);
     ani_to_end();
     snd_req(0x1ABF);
 
@@ -4637,7 +4635,7 @@ static inline void pz_snake_start_victim_anim(void) {
       1.0f);
 }
 
-/* TODO: [near miss] 97.90%; engine/game_info lis order and transition_to_anim_script_frame argument registers remain. */
+/* TODO: [near miss] 97.97%; entry global-base order agrees; transition_to_anim_script_frame argument registers and load schedule remain. */
 static float pz_fighters_snake_fatality_prep(void) {
   static int attack_begun;
   static int loser_anim;
@@ -4645,8 +4643,8 @@ static float pz_fighters_snake_fatality_prep(void) {
   PuzzleFighterMove *victim_move;
   PuzzlePlayerData *victim_data;
   PuzzlePlayerData *attacker_data;
-  float target_x;
   float target_z;
+  float target_x;
   float delta_x;
   float delta_z;
   float signed_distance;
@@ -4659,12 +4657,13 @@ static float pz_fighters_snake_fatality_prep(void) {
   unsigned int animation_flags;
 
   {
-    int attacker = g_pz_fighters_engine.fatality_attacker;
+    int attacker;
     float attacker_x;
 
     victim_data = g_game_info.player1;
     attacker_data = g_game_info.player2;
-    attacker_object = pz_fighter_get_player_obj(attacker);
+    attacker_object = pz_fighter_get_player_obj(
+        attacker = g_pz_fighters_engine.fatality_attacker);
     direction = 1;
     target_z = 0.0f;
     if (screen_width > 650) {
@@ -4786,15 +4785,15 @@ static float pz_fighters_snake_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.94%; primary/secondary object stores load snakes[0] before snakes[1] (retail loads snakes[1] first). */
 static float pz_fighter_load_and_place_initial_snake(void) {
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
     PuzzleAnimPdata* snake_pdata[2];
-    PuzzleFatalityController* controller;
     unsigned int i;
+    PuzzleFatalityController* controller;
     PuzzleParticleEffect* particle_effect;
     void* effect;
+    PuzzleFighterRenderObject* secondary_snake;
 
     load_art_section(0x70036, &sec_pz_danger_snake);
     effect_context.art_handle = 0x70036;
@@ -4825,15 +4824,16 @@ static float pz_fighter_load_and_place_initial_snake(void) {
         insert_fgnd_mkobj(snakes[i]);
         snake_pdata[i] = animate_obj(
             snakes[i], pz_shared_ani.snake_idle, pz_snake_bones,
-            0, 0, 1, 1.0f);
+            0, 0, 1.0f, 1);
     }
 
     obj_add_to_skinned_obj_light_list_with_ambient(
         snakes[0], &skinned_obj_ambient_light_def);
-    g_pz_fighter_fatality_engine.secondary_object = snakes[1];
+    secondary_snake = snakes[1];
+    g_pz_fighter_fatality_engine.secondary_object = secondary_snake;
     g_pz_fighter_fatality_engine.primary_object = snakes[0];
     obj_create_sobjs(snakes[0]);
-    obj_create_sobjs(snakes[1]);
+    obj_create_sobjs(secondary_snake);
     sobj_set_priority(obj_first_sobj(snakes[0]), 0x12);
     sobj_set_priority(obj_first_sobj(snakes[1]), 0x12);
 
@@ -4867,7 +4867,7 @@ static float pz_fighter_load_and_place_initial_snake(void) {
     load_pz_fighter_fatality_bank(0x86);
 
     SETUP_SNAKE_EFFECT("saliva1", snakes[0], 0);
-    SETUP_SNAKE_EFFECT("saliva2", snakes[1], 0);
+    SETUP_SNAKE_EFFECT("saliva2", secondary_snake, 0);
     SETUP_SNAKE_EFFECT("saliva_burst1", snakes[0], 1);
     SETUP_SNAKE_EFFECT("saliva_burst2", snakes[1], 1);
     SETUP_SNAKE_EFFECT("bloody_mouth_dripping1", snakes[0], 1);
@@ -5054,7 +5054,7 @@ static float r_pz_fighter_summon_burn(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.71%; direction init placement fixed; distance FPR coloring (zero-constant copy) and the effect-block attacker reload remain. */
+/* TODO: [breakthrough] 98.52%; effect-block attacker reload restored; distance FPR roles and zero-constant copy remain. */
 static float pz_fighters_burn_fatality_prep(void) {
     static int start_burn;
     static int attack_begun;
@@ -5073,11 +5073,9 @@ static float pz_fighters_burn_fatality_prep(void) {
     attacker = g_pz_fighters_engine.fatality_attacker;
     attacker_object = pz_fighter_get_player_obj(attacker);
     direction = 1;
-    if (screen_width > 650) {
-        target_x = attacker == 0 ? -2.3f : 2.3f;
-    } else {
-        target_x = attacker == 0 ? -1.8f : 1.8f;
-    }
+    target_x = screen_width > 650 ?
+        (attacker == 0 ? -2.3f : 2.3f) :
+        (attacker == 0 ? -1.8f : 1.8f);
 
     delta_x = target_x - attacker_object->x;
     delta_z = 0.0f;
@@ -5094,6 +5092,7 @@ static float pz_fighters_burn_fatality_prep(void) {
 
     if (start_burn == 0) {
         start_burn = 1;
+        attacker = g_pz_fighters_engine.fatality_attacker;
         if (screen_width > 650) {
             effect_x = attacker == 0 ? -2.3f : 2.3f;
         } else {

@@ -1,3 +1,5 @@
+/* BUILD: -O4,s -use_lmw_stmw on object-wide: replaces per-wrapper optimize_for_size/use_lmw_stmw
+ * pragmas; every exact wrapper stays exact and three flag getters improve. */
 #include "game/pz_fighters.h"
 #include "runtime/bone_matcher.h"
 /*
@@ -29,7 +31,6 @@
 #include "runtime/asset.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
-extern unsigned char exit_table_340[];
 extern unsigned char* plyr_obj;
 extern unsigned char* plyr_anim_pdata;
 extern PlyrPdata* his_pdata;
@@ -101,6 +102,54 @@ typedef struct ScriptMkObjResult {
 
 typedef void (*ScriptEntryFn)(void);
 typedef float (*ScriptProcEntryFn)(void);
+
+float p_blend_to_stance_in_10(void);
+float p_reverse_to_stance_in_10(void);
+float p_blend_to_fstance_in_10(void);
+float p_chamber_to_stance(void);
+float p_chamber_to_stance_2(void);
+float p_comboexit_to_stance(void);
+float j_exit(void);
+float j_getup_back_3(void);
+float j_getup_back_6(void);
+float j_getup_back_9(void);
+float j_getup_back_12(void);
+float j_getup_front_12(void);
+float j_getup_front_4(void);
+float j_getup_sit_12(void);
+float j_getup_sit_6(void);
+float j_blend_to_stance_in_x(void);
+float j_blend_to_fstance_in_x(void);
+float j_sleep_forever(void);
+float j_call_player_script_function(void);
+float j_getup_front_6(void);
+float j_getup_front_10(void);
+float joy_dash_back(void);
+
+static ScriptProcEntryFn exit_table[22] = {
+    p_blend_to_stance_in_10,
+    p_reverse_to_stance_in_10,
+    p_blend_to_fstance_in_10,
+    p_chamber_to_stance,
+    p_chamber_to_stance_2,
+    p_comboexit_to_stance,
+    j_exit,
+    j_getup_back_3,
+    j_getup_back_6,
+    j_getup_back_9,
+    j_getup_back_12,
+    j_getup_front_12,
+    j_getup_front_4,
+    j_getup_sit_12,
+    j_getup_sit_6,
+    j_blend_to_stance_in_x,
+    j_blend_to_fstance_in_x,
+    j_sleep_forever,
+    j_call_player_script_function,
+    j_getup_front_6,
+    j_getup_front_10,
+    joy_dash_back,
+};
 extern ScriptProcEntryFn script_callable_function_table[];
 
 typedef struct ExitFloatIntArgs {
@@ -643,10 +692,16 @@ typedef struct ScriptObjectRef {
 typedef struct ScriptGroundObjView {
     MkHdr header;
     unsigned char flags08;
-    unsigned char flags09;
+    union {
+        unsigned char flags09;
+        struct {
+            unsigned char launched : 1;
+            unsigned char : 7;
+        } flags09_bits;
+    };
 } ScriptGroundObjView;
 
-typedef void (*ScriptDestroyFn)(MkVtable5* vtable);
+typedef void (*ScriptDestroyFn)(MkHdr* object);
 
 typedef struct ScriptDestroyVtable {
     MkVtblFn fn0;
@@ -683,9 +738,12 @@ typedef struct ScriptNpcHandle {
     ScriptNpcBody* body;
 } ScriptNpcHandle;
 
+typedef struct KonquestNpc KonquestNpc;
+typedef struct KonquestNpcData KonquestNpcData;
+
 typedef struct ScriptNpcCameraArgs {
     unsigned int header;
-    int npc_id;
+    KonquestNpcData* npc_data;
     union {
         float movement_x;
         float orbit_speed;
@@ -721,6 +779,24 @@ typedef struct ScriptPlaceSlaveArgs {
     float field_8C;
 } ScriptPlaceSlaveArgs;
 
+
+typedef struct ScriptPlaceWeaponArgs {
+    unsigned int header;
+    int primary_object_id;
+    int secondary_object_id;
+    int primary_sobj_id;
+    int secondary_sobj_id;
+    int paired;
+    Vec primary_position;
+    Vec primary_angles;
+    Vec secondary_position;
+    Vec secondary_angles;
+    int pickup_sobj_id;
+    float radius;
+    float height;
+    Vec collision_center;
+    int permanent;
+} ScriptPlaceWeaponArgs;
 
 typedef union ScriptRawArg {
     int i;
@@ -829,7 +905,7 @@ extern float inverse_game_speed;
 void update_bone_hierarchy(void* object);
 void ground_me(void* object);
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func);
-ScriptNpcHandle* find_npc_by_data(int npc_id, void* args, float value);
+KonquestNpc* find_npc_by_data(KonquestNpcData* data);
 void nb_place_slave_in_bgnd(
     int npc_id, int rope_model_index, const char* model_name, int model_id,
     float anchor_x, float anchor_y, float anchor_z, float rope_length,
@@ -1023,7 +1099,7 @@ void create_y_mirror_effect(int effect);
 void z_bias(float value);
 void particle_size(float value);
 void face_y(void);
-void set_decal_plane(const float* plane);
+void set_decal_plane(float* plane);
 void bind_to_bone(int bone);
 void create_step_effect(int effect);
 void parametric_update(const struct PfxParametricEffectDescription* value);
@@ -1940,7 +2016,7 @@ int konquest_fade_from_black(int, int);
 int konquest_fade_to_black(int, int);
 void konquest_open_door(int, int);
 int konquest_run_camera_script(int, int);
-void konquest_teleport_hero_to_location(const Vec*);
+void konquest_teleport_hero_to_location(Vec*);
 void konquest_transition_object_to_state(int, int, int);
 int land_chores(int, int, void *, float, float);
 void launch_me_up(float, float);
@@ -2305,8 +2381,8 @@ void ani_to_frame_sound(float target_frame, float sound_frame, int sound_id);
 int ani_to_frame_x_col(float, int, float, float, int, float, int);
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
-    MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
-    float frame);
+    MkFlippedBoneMap* flipped_bones, void* ground_collisions,
+    float playback_rate, int active);
 void attach_sound_to_object_by_uid(int, int, float, float, int, int);
 void attach_wiff_to_konquest_object_by_uid(int, char*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
@@ -2325,9 +2401,9 @@ void bgnd_pebble_launch_at_time(
     int, int, float, float, float, float, float, float, float, float, float,
     unsigned int, int);
 void bgnd_place_weapon_at_position(
-    int, int, int, int, int, int, int,
+    int, int, int, int, int,
     float, float, float, float, float, float, float, float,
-    float, float, float, float, float, float, float, float, float);
+    float, float, float, float, int, float, float, float, float, float, int);
 MkObj* bgnd_preload_named_model(const char*, unsigned int);
 void bgnd_set_sobj_uv_scroll_abs_values(
     float, float, float, float, unsigned int);
@@ -2336,12 +2412,12 @@ void bgnd_set_sobj_uv_scroll_rate_values(
 int bgnd_start_sobj_uv_scroll_w_control(
     int, float, float, float, float, unsigned int, unsigned int);
 int display_konquest_text(
-    unsigned int, unsigned int, float, float, float);
+    float, float, float, unsigned int, unsigned int);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
 void force_away(float, int, float, int);
-int force_forward(int, int, float, float);
-int got_hit_fx(int, int, int, int, int, int, float);
+void force_forward(float, int, float, int);
+void got_hit_fx(int, int, int, int, int, float, int);
 void konquest_use_portal(int, Vec*, float, float, float, int);
 int limb_sever_set_motion(int, int, int, float, int, int, float, int, float, int, int);
 int mk_chess_ani_until_reached_destination(float, float, float, float, float, int);
@@ -2355,15 +2431,16 @@ int mk_chess_place_special_cell_at(int, int, int, float, float, float, float, in
 void mk_chess_put_active_piece_at_cell(float x, float y, int snap);
 void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other, float offset);
 void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, float, int, float, int, float, int, float);
-int mks_set_rotate_update_by_group(int, int, int, float, float, float);
+void mks_set_rotate_update_by_group(int, int, float, float, float, int);
 int mks_set_sin_update_by_group(int, int, int, float, float, float, float, float, float, int);
 void obj_grnd_bounce(MkObj* object, const Vec* velocity, float gravity,
                      float ground_offset, int bounces, float restitution);
 void obj_match_obj_pos(
     MkObj* source, MkObj* destination, float blend, int snap);
 int parse_args(void*, ...);
-int plyr_spawn_his_anim_limb(
-    int, int, int, void*, int, ScriptProcEntryFn, unsigned char*, float);
+typedef struct NcsLimbOwner NcsLimbOwner;
+MkProc* plyr_spawn_his_anim_limb(
+    NcsLimbOwner*, int, int, AniData*, int, MkProcEntryFn, float);
 int player_area_collision_check(float, float, int, float, int);
 float pz_fighter_inline_force_away_with_ani(
     float, unsigned int, float, unsigned int);
@@ -2382,22 +2459,23 @@ void start_gore2_pebbles(
     const Vec* rotation, const Vec* scale,
     const Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
-int transition_to_anim_script_frame(int, void*, int, void*, float, float);
+int transition_to_anim_script_frame(
+    float, float, AnimPdata*, AnimScript*, unsigned int);
 void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
 void trial_show_text_window(int, float, float, float, int, int);
-float two_player_animation_blend(int, int, float, float);
+float two_player_animation_blend(AniData*, float, float, int, int);
 
 /* Data used by imported script wrappers. */
 float p_animated_intro_done(void);
 
 /* Typed declarations used by imported script wrappers. */
 void credits_add_text(const char* center_text, const char* right_text, int monochrome);
-int trial_set_move_message(char*);
+void trial_set_move_message(const char* message, const char* parameter);
 
 /* Typed declarations used by imported script wrappers. */
-void attack_to_frame_x(AniData*, unsigned int, unsigned int, int,
-                       float, float, float, float);
+void attack_to_frame_x(AniData*, float, float, float, float,
+                       unsigned int, unsigned int, int);
 void launch_n_land_ani(
     AniData* animation, float launch_frame, float launch_step,
     float landing_frame, int landing_animation, float velocity_y,
@@ -2408,8 +2486,8 @@ void lower_mines_ani_to_point(
     float transition, Vec* target, unsigned int frame_offset);
 void newani_to_frame_x(void*, float, float, float, float, int);
 void pz_fighter_startup_attack(
-    void*, int, int, int, unsigned int,
-    float, float, float, float, float);
+    void*, float, float, float, float, unsigned int, unsigned int,
+    int, unsigned int, float);
 void two_player_animation(AniData* animation, float attacker_blend);
 float two_player_animation_flip(AniData* animation, float attacker_step);
 float two_player_animation_match_attacker(
@@ -2447,18 +2525,15 @@ void _npc_set_anim_proc(void) {
 }
 
 void _animate_obj(void) {
-    ScriptArgsRef args;
-    int temp_r31_91;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    MkObj* object = args->slots[0].pointer;
+    AnimScript* script = get_animation(args->slots[1].i);
 
-    args.bytes = current_args;
-    temp_r31_91 = args.raw->slots[0].i;
-    ((ScriptRawResult*)active_cmdscript)->value.i = (int)animate_obj(
-        (MkObj*)temp_r31_91,
-        get_animation(args.raw->slots[1].i),
-        (const int*)args.raw->slots[2].i,
-        (MkFlippedBoneMap*)args.raw->slots[3].i,
-        (void*)args.raw->slots[4].i, args.raw->slots[6].i,
-        args.raw->slots[5].f);
+    args = (ScriptRawArgs*)current_args;
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = animate_obj(
+        object, script, args->slots[2].pointer,
+        args->slots[3].pointer, args->slots[4].pointer,
+        args->slots[5].f, args->slots[6].i);
 }
 
 void _start_gusher(void) {
@@ -2472,59 +2547,60 @@ void _start_gusher(void) {
         (const Vec*)args.raw->slots[4].i);
 }
 
-/* TODO: [near miss] 65.12%; call and arguments agree; residue is argument-load scheduling around the typed call. */
 void _plyr_spawn_his_anim_limb(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i =
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    AniData* animation = get_animation(args->slots[3].i);
+
+    args = (ScriptRawArgs*)current_args;
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_spawn_his_anim_limb(
-            ((ScriptRawArgs*)current_args)->slots[0].i,
-            ((ScriptRawArgs*)current_args)->slots[1].i,
-            ((ScriptRawArgs*)current_args)->slots[2].i,
-            get_animation(((ScriptRawArgs*)current_args)->slots[3].i),
-            ((ScriptRawArgs*)current_args)->slots[4].i,
-            script_callable_function_table[
-                ((ScriptRawArgs*)current_args)->slots[5].i - 1],
-            current_args, ((ScriptRawArgs*)current_args)->slots[6].f);
+            args->slots[0].pointer, args->slots[1].i, args->slots[2].i,
+            animation, args->slots[4].i,
+            (script_callable_function_table + args->slots[5].i)[-1],
+            args->slots[6].f);
 }
 
 void _xfer_proc(void) {
-    int idx;
-    char* tbl;
-    ScriptRawArgs* args;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
 
-    args = (ScriptRawArgs*)current_args;
-    idx = args->slots[1].i;
-    tbl = (char*)script_callable_function_table;
     xfer_proc(args->slots[0].pointer,
-              *(void**)(tbl + idx * 4 - 0x4));
+              (script_callable_function_table + args->slots[1].i)[-1]);
 }
 
+/* TODO: [breakthrough] 90.23%; canonical five-argument ABI recovered;
+ * staged flags/FP loads are neutral; source parameter order needs evidence. */
 void _transition_to_anim_script_frame(void) {
-    ScriptArgsRef args;
-    int temp_r31_191;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    AnimPdata* animation = args->slots[0].pointer;
+    AnimScript* script = get_animation(args->slots[1].i);
 
-    args.bytes = current_args;
-    temp_r31_191 = args.raw->slots[0].i;
-    ((ScriptRawResult*)active_cmdscript)->value.i = transition_to_anim_script_frame(temp_r31_191, get_animation(args.raw->slots[1].i), args.raw->slots[2].i, current_args, args.raw->slots[3].f, args.raw->slots[4].f);
+    args = (ScriptRawArgs*)current_args;
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        transition_to_anim_script_frame(
+            args->slots[3].f, args->slots[4].f,
+            animation, script, args->slots[2].i);
 }
 
 void _two_player_animation_blend(void) {
-    ScriptArgsRef args;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    AniData* animation = get_animation(args->slots[0].i);
 
-    args.bytes = current_args;
-    get_animation(args.raw->slots[0].i);
-    ((ScriptRawResult*)active_cmdscript)->value.f = two_player_animation_blend(args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[1].f, args.raw->slots[2].f);
+    args = (ScriptRawArgs*)current_args;
+    ((ScriptRawResult*)active_cmdscript)->value.f = two_player_animation_blend(
+        animation, args->slots[1].f, args->slots[2].f,
+        args->slots[3].i, args->slots[4].i);
 }
 
 void _set_anim_script(void) {
     ScriptArgsRef args;
     AnimPdata* animation;
+    AnimScript* script;
 
     args.bytes = current_args;
     animation = args.raw->slots[0].pointer;
-    set_anim_script(
-        animation,
-        get_animation(args.raw->slots[1].i),
-        args.raw->slots[2].i);
+    script = get_animation(args.raw->slots[1].i);
+    set_anim_script(animation, script,
+        ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _anim_pdata_for_proc(void) {
@@ -2587,55 +2663,37 @@ void _set_obj_flag(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 80.62%; typed nonzero test is equivalent;
+ * positive/signed forms are neutral, branch stores regress; resolve bool lowering. */
 void _get_obj_flag(void) {
-    unsigned int flags;
-    int bit;
+    ScriptFlagArgs* args = (ScriptFlagArgs*)current_args;
+    unsigned int mask = 1U << (31 - args->bit);
 
-    flags = *(unsigned int*)(*(char**)(current_args + 4) + 8);
-    bit = ((ScriptRawArgs*)current_args)->slots[1].i;
     ((ScriptRawResult*)active_cmdscript)->value.i =
-        (flags & (1U << (31 - bit))) != 0;
+        (args->object->flags & mask) != 0;
 }
 
 void _get_limb_obj(void) {
-    GetLimbObjArgs* args;
-    LimbRuntime* runtime;
-    LimbProcLatch* latch;
-    MkHdr* object;
-    unsigned int bone_index;
+    GetLimbObjArgs* args = (GetLimbObjArgs*)current_args;
+    unsigned int bone_index = args->bone_index;
+    LimbRuntime* runtime = args->runtime;
+    MkHdr* object = MK_LIVE(runtime->bone_procs[bone_index].hdr,
+                            runtime->bone_procs[bone_index].instance);
 
-    args = (GetLimbObjArgs*)current_args;
-    bone_index = args->bone_index;
-    runtime = args->runtime;
-    latch = &runtime->bone_procs[bone_index];
-    object = latch->hdr;
-    if (object != 0) {
-        if (object->instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
     ((ScriptPointerResult*)active_cmdscript)->value = object;
 }
 
+/* TODO: [breakthrough] 93.14%; destructor now receives object in r3;
+ * live-latch CFG agrees, but compiler folds the retail raw-reference reload. */
 void _destroy_item_obj(void) {
-    ScriptArgsRef args;
-    ScriptObjectRef* ref;
-    MkHdr* object;
-    ScriptDestroyVtable* vtable;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    ScriptObjectRef* ref = args->slots[0].pointer;
 
-    args.bytes = current_args;
-    ref = args.raw->slots[0].pointer;
-    object = ref->object;
-    if (object != 0 && object->instance != ref->instance) {
-        object = 0;
-    }
-    if (object != 0) {
-        object = ref->object;
+    if (MK_LIVE(ref->object, ref->instance) != 0) {
+        MkHdr* object = ref->object;
         if (object->instance != 0) {
-            vtable = (ScriptDestroyVtable*)object->vtbl;
-            vtable->destroy(object->vtbl);
+            ScriptDestroyVtable* vtable = (ScriptDestroyVtable*)object->vtbl;
+            vtable->destroy(object);
         }
         ref->object = 0;
         ref->instance = 0;
@@ -2651,19 +2709,11 @@ void _init_item_obj(void) {
 }
 
 void _ck_item_obj(void) {
-    ScriptArgsRef args;
-    ScriptResultRef result;
-    ScriptObjectRef* ref;
-    MkHdr* object;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    ScriptObjectRef* ref = args->slots[0].pointer;
+    MkHdr* object = MK_LIVE(ref->object, ref->instance);
 
-    args.bytes = current_args;
-    result.bytes = active_cmdscript;
-    ref = args.raw->slots[0].pointer;
-    object = ref->object;
-    if (object != 0 && object->instance != ref->instance) {
-        object = 0;
-    }
-    result.pointer->value = object;
+    ((ScriptPointerResult*)active_cmdscript)->value = object;
 }
 
 void _insert_item_obj(void) {
@@ -2686,9 +2736,9 @@ void _nis_init(void) {
     int arg0;
     int arg1;
 
-    script = (ScriptActiveState*)active_cmdscript;
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x14,
                &arg0, &arg1);
+    script = (ScriptActiveState*)active_cmdscript;
     nis_init(script->state, arg0, arg1);
 }
 
@@ -2821,15 +2871,15 @@ void _my_attack_hit(void) {
 
 void _pz_fighter_startup_attack(void) {
     ScriptArgsRef args;
-
+    ((ScriptCommandView*)active_cmdscript)->animation =
+        get_animation(((ScriptRawArgs*)current_args)->slots[0].i);
     args.bytes = current_args;
-    ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
     pz_fighter_startup_attack(
         ((ScriptCommandView*)active_cmdscript)->animation,
-        args.raw->slots[5].i, args.raw->slots[6].i,
-        args.raw->slots[7].i, args.raw->slots[8].i,
         args.raw->slots[1].f, args.raw->slots[2].f,
         args.raw->slots[3].f, args.raw->slots[4].f,
+        args.raw->slots[5].u, args.raw->slots[6].u,
+        args.raw->slots[7].i, args.raw->slots[8].u,
         args.raw->slots[9].f);
 }
 
@@ -2937,24 +2987,21 @@ void _pz_fighter_attack(void) {
                       args.attack->arg3);
 }
 
-/* TODO: [near miss] 45.3125%; named exit owners retain retail stores;
- * cached argument/player bases differ from repeated retail global loads. */
 void _exit_attack_with(void) {
-    ScriptArgsRef args;
-    ScriptResultRef result;
-    PlyrPdata* player;
-
-    args.bytes = current_args;
-    result.bytes = active_cmdscript;
-    player = plyr_pdata;
-    player->script_exit_value_int = args.exit_args->exit_value;
-    player->script_exit_args[0] = args.exit_args->exit_arg0;
-    player->input_unlock_tick = args.exit_args->input_unlock_tick;
-    player->blocking_disable_tick_1 = args.exit_args->blocking_tick;
-    player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player->script_exit_arg_2 = args.exit_args->exit_arg2;
-    result.exit->exit = j_exit_6;
-    result.exit->state = 2;
+    plyr_pdata->script_exit_value_int =
+        CURRENT_EXIT_ARGS->exit_value;
+    plyr_pdata->script_exit_args[0] =
+        CURRENT_EXIT_ARGS->exit_arg0;
+    plyr_pdata->input_unlock_tick =
+        CURRENT_EXIT_ARGS->input_unlock_tick;
+    plyr_pdata->blocking_disable_tick_1 =
+        CURRENT_EXIT_ARGS->blocking_tick;
+    plyr_pdata->script_exit_args[1] =
+        CURRENT_EXIT_ARGS->exit_arg1;
+    plyr_pdata->script_exit_arg_2 =
+        CURRENT_EXIT_ARGS->exit_arg2;
+    ACTIVE_SCRIPT_EXIT->exit = j_exit_6;
+    ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
 void _attack_opponent_with(void) {
@@ -2976,13 +3023,19 @@ void _attack_opponent_with(void) {
 void _drone_combo(void) {
 }
 
+/* TODO: [near miss] 95.00%; state/index capture recovered;
+ * name-address ADD/SUB reassociation remains; integer staging is neutral. */
 void _check_his_state(void) {
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     unsigned int function_index;
+    int state;
 
-    if (his_pdata->state == ((ScriptRawArgs*)current_args)->slots[0].i) {
+    state = args->slots[0].i;
+    function_index = args->slots[1].u;
+
+    if (his_pdata->state == state) {
         return;
     }
-    function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
     ACTIVE_DISTANCE_SCRIPT->program_counter =
         ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
         ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
@@ -2993,8 +3046,7 @@ void _check_his_state(void) {
     ACTIVE_DISTANCE_SCRIPT->function_name =
         (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
                     .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation - 1U);
 }
 
 void _drone_xfer_him(void) {
@@ -3017,139 +3069,139 @@ void _xfer_camera(void) {
 }
 
 void _camera_set_movement_focus(void) {
-    MkObj* object;
-
     switch (((ScriptRawArgs*)current_args)->slots[0].i) {
     case 0:
-        object = g_game_info.plyr0.slot.mirror_a;
+        camera_set_movement_focus_obj(g_game_info.plyr0.slot.mirror_a);
         break;
     case 1:
-        object = g_game_info.plyr1.slot.mirror_a;
+        camera_set_movement_focus_obj(g_game_info.plyr1.slot.mirror_a);
         break;
     case 2:
-        object = camera_get_victim();
+        camera_set_movement_focus_obj(camera_get_victim());
         break;
     case 3:
-        object = camera_get_attacker();
+        camera_set_movement_focus_obj(camera_get_attacker());
         break;
-    default:
-        return;
     }
-    camera_set_movement_focus_obj(object);
 }
 
 void _camera_setup_for_custom_orbit_to_relative_point(void) {
-    ScriptNpcCameraArgs* args;
+    ScriptNpcCameraArgs* args = (ScriptNpcCameraArgs*)current_args;
+    KonquestNpcData* data = args->npc_data;
     ScriptNpcHandle* npc;
-    ScriptNpcBody* body;
     Vec movement;
     Vec lookat;
+    float travel_time;
+    float initial_speed;
+    float final_speed;
+    int direction;
+    int mode;
 
-    args = (ScriptNpcCameraArgs*)current_args;
     movement.x = args->movement_x;
     movement.y = args->movement_y;
     movement.z = args->movement_z;
+    lookat.z = 0.0f;
     lookat.x = 0.0f;
     lookat.y = args->lookat_y;
-    lookat.z = 0.0f;
-    npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
-    body = npc->body;
-    if (body != 0) {
-        camera_set_movement_focus_obj((MkObj*)body->camera_object);
-        camera_set_lookat_focus((MkObj*)body->camera_object);
+    travel_time = args->travel_time;
+    initial_speed = args->initial_speed;
+    final_speed = args->final_speed;
+    direction = args->rotation_direction;
+    mode = args->movement_mode;
+    npc = (ScriptNpcHandle*)find_npc_by_data(data);
+    if (npc->body != 0) {
+        camera_set_movement_focus_obj((MkObj*)npc->body->camera_object);
+        camera_set_lookat_focus((MkObj*)npc->body->camera_object);
         camera_set_look_mode(8);
-        camera_set_movement_mode(args->movement_mode);
-        camera_set_movement_offset(&movement, current_args);
-        camera_set_lookat_offset(&lookat, current_args);
-        camera_set_initial_speed(args->initial_speed);
-        camera_set_final_speed(args->final_speed);
-        camera_set_rotation_direction(args->rotation_direction);
-        camera_set_travel_time(args->travel_time);
-        camera_set_center_of_rotation(&body->camera_object->pos);
+        camera_set_movement_mode(mode);
+        camera_set_movement_offset(&movement);
+        camera_set_lookat_offset(&lookat);
+        camera_set_initial_speed(initial_speed);
+        camera_set_final_speed(final_speed);
+        camera_set_rotation_direction(direction);
+        camera_set_travel_time(travel_time);
+        camera_set_center_of_rotation(&npc->body->camera_object->pos);
         camera_set_radial_movement(1);
         camera_set_custom_camera_movement_flag(1);
     }
 }
 
 void _camera_set_position_relative_to_npc(void) {
-    ScriptNpcCameraArgs* args;
+    ScriptNpcCameraArgs* args = (ScriptNpcCameraArgs*)current_args;
+    KonquestNpcData* data = args->npc_data;
     ScriptNpcHandle* npc;
-    ScriptNpcBody* body;
     Vec movement;
     Vec lookat;
+    int mode;
 
-    args = (ScriptNpcCameraArgs*)current_args;
     movement.x = args->movement_x;
     movement.y = args->movement_y;
     movement.z = args->movement_z;
+    lookat.z = 0.0f;
     lookat.x = 0.0f;
     lookat.y = args->lookat_y;
-    lookat.z = 0.0f;
-    npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
-    body = npc->body;
-    if (body != 0) {
-        camera_set_movement_focus_obj((MkObj*)body->camera_object);
-        camera_set_lookat_focus((MkObj*)body->camera_object);
+    mode = args->position_mode;
+    npc = (ScriptNpcHandle*)find_npc_by_data(data);
+    if (npc->body != 0) {
+        camera_set_movement_focus_obj((MkObj*)npc->body->camera_object);
+        camera_set_lookat_focus((MkObj*)npc->body->camera_object);
         camera_set_look_mode(9);
-        camera_set_movement_mode(args->position_mode);
-        camera_set_movement_offset(&movement, current_args);
-        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_movement_mode(mode);
+        camera_set_movement_offset(&movement);
+        camera_set_lookat_offset(&lookat);
         camera_set_glitch_flag();
     }
 }
 
 void _camera_setup_for_tracking_npc(void) {
-    ScriptNpcCameraArgs* args;
+    ScriptNpcCameraArgs* args = (ScriptNpcCameraArgs*)current_args;
+    KonquestNpcData* data = args->npc_data;
     ScriptNpcHandle* npc;
-    ScriptNpcBody* body;
     Vec movement;
     Vec lookat;
 
-    args = (ScriptNpcCameraArgs*)current_args;
     movement.x = args->movement_x;
     movement.y = args->movement_y;
     movement.z = args->movement_z;
+    lookat.z = 0.0f;
     lookat.x = 0.0f;
     lookat.y = args->lookat_y;
-    lookat.z = 0.0f;
-    npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
-    body = npc->body;
-    if (body != 0) {
-        camera_set_movement_focus_obj((MkObj*)body->camera_object);
-        camera_set_lookat_focus((MkObj*)body->camera_object);
+    npc = (ScriptNpcHandle*)find_npc_by_data(data);
+    if (npc->body != 0) {
+        camera_set_movement_focus_obj((MkObj*)npc->body->camera_object);
+        camera_set_lookat_focus((MkObj*)npc->body->camera_object);
         camera_set_look_mode(0);
         camera_set_movement_mode(2);
-        camera_set_movement_offset(&movement, current_args);
-        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_movement_offset(&movement);
+        camera_set_lookat_offset(&lookat);
         camera_set_movement_rate(0.1f);
     }
 }
 
 void _camera_setup_for_orbiting_npc(void) {
-    ScriptNpcCameraArgs* args;
+    ScriptNpcCameraArgs* args = (ScriptNpcCameraArgs*)current_args;
+    KonquestNpcData* data = args->npc_data;
+    float speed = args->orbit_speed;
+    int direction = args->orbit_direction;
     ScriptNpcHandle* npc;
-    ScriptNpcBody* body;
     Vec movement;
     Vec lookat;
 
-    args = (ScriptNpcCameraArgs*)current_args;
+    movement.z = 0.0f;
     movement.x = 0.0f;
     movement.y = args->movement_z;
-    movement.z = 0.0f;
+    lookat.z = 0.0f;
     lookat.x = 0.0f;
     lookat.y = args->lookat_y;
-    lookat.z = 0.0f;
-    npc = find_npc_by_data(args->npc_id, current_args, 0.0f);
-    body = npc->body;
-    if (body != 0) {
-        camera_set_movement_focus_obj((MkObj*)body->camera_object);
-        camera_set_lookat_focus((MkObj*)body->camera_object);
-        camera_setup_simple_rotation(args->orbit_direction,
-                                     args->orbit_speed);
+    npc = (ScriptNpcHandle*)find_npc_by_data(data);
+    if (npc->body != 0) {
+        camera_set_movement_focus_obj((MkObj*)npc->body->camera_object);
+        camera_set_lookat_focus((MkObj*)npc->body->camera_object);
+        camera_setup_simple_rotation(direction, speed);
         camera_set_look_mode(8);
         camera_set_movement_mode(7);
-        camera_set_movement_offset(&movement, current_args);
-        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_movement_offset(&movement);
+        camera_set_lookat_offset(&lookat);
         camera_set_movement_rate(0.1f);
     }
 }
@@ -3160,25 +3212,20 @@ void _camera_set_lookat_focus_obj(void) {
 }
 
 void _camera_set_lookat_focus(void) {
-    MkObj* object;
-
     switch (((ScriptRawArgs*)current_args)->slots[0].i) {
     case 0:
-        object = g_game_info.plyr0.slot.mirror_a;
+        camera_set_lookat_focus(g_game_info.plyr0.slot.mirror_a);
         break;
     case 1:
-        object = g_game_info.plyr1.slot.mirror_a;
+        camera_set_lookat_focus(g_game_info.plyr1.slot.mirror_a);
         break;
     case 2:
-        object = camera_get_victim();
+        camera_set_lookat_focus(camera_get_victim());
         break;
     case 3:
-        object = camera_get_attacker();
+        camera_set_lookat_focus(camera_get_attacker());
         break;
-    default:
-        return;
     }
-    camera_set_lookat_focus(object);
 }
 
 void _camera_set_lookat_offset_obj_rel(void) {
@@ -3200,7 +3247,7 @@ void _camera_set_lookat_offset(void) {
     offset.x = args.raw->slots[0].f;
     offset.y = args.raw->slots[1].f;
     offset.z = args.raw->slots[2].f;
-    camera_set_lookat_offset(&offset, current_args);
+    camera_set_lookat_offset(&offset);
 }
 
 void _camera_set_movement_offset_obj_rel(void) {
@@ -3222,32 +3269,33 @@ void _camera_set_movement_offset(void) {
     offset.x = args.raw->slots[0].f;
     offset.y = args.raw->slots[1].f;
     offset.z = args.raw->slots[2].f;
-    camera_set_movement_offset(&offset, current_args);
+    camera_set_movement_offset(&offset);
 }
 
 void _if_switching_to(void) {
-    PlyrPdata* player;
-    unsigned int command;
-    int style;
-    int result;
+    PlyrPdata* player = plyr_pdata;
+    int command = ((ScriptRawArgs*)current_args)->slots[0].i;
+    int style = player->player_slot + 1;
 
-    player = plyr_pdata;
-    command = ((ScriptRawArgs*)current_args)->slots[0].u;
-    style = player->player_slot + 1;
     if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
         style = 0;
     }
-
-    result = 0;
-    if (command == player->weapon_styles[style]->animation_header) {
+    if (command == (int)player->weapon_styles[style]->animation_header) {
         if (player->drone_request != 0) {
-            result = drone_ai_check_switching_to(command) != 0;
+            if (drone_ai_check_switching_to(command) != 0) {
+                ((ScriptCommandView*)active_cmdscript)->result = 1;
+                ((ScriptCommandView*)active_cmdscript)->result = 1;
+                return;
+            }
         } else if (was_button_pressed(2) != 0) {
-            player->round_attack_stage++;
-            result = 1;
+            plyr_pdata->round_attack_stage++;
+            ((ScriptCommandView*)active_cmdscript)->result = 1;
+            ((ScriptCommandView*)active_cmdscript)->result = 1;
+            return;
         }
     }
-    ((ScriptCommandView*)active_cmdscript)->result = result;
+    ((ScriptCommandView*)active_cmdscript)->result = 0;
+    ((ScriptCommandView*)active_cmdscript)->result = 0;
 }
 
 void _branch_next_style(void) {
@@ -3395,7 +3443,7 @@ void _miss_branch(void) {
 }
 
 void _disable_grounding(void) {
-    plyr_obj[9] &= 0x7f;
+    ((ScriptGroundObjView*)plyr_obj)->flags09_bits.launched = 0;
 }
 
 void _set_player_hiframe(void) {
@@ -3431,10 +3479,12 @@ void _blend_to_ani_inout(void) {
     ScriptArgsRef args;
     ScriptCommandView* script;
 
-    args.bytes = current_args;
+    ((ScriptCommandView*)active_cmdscript)->animation =
+        get_animation(((ScriptRawArgs*)current_args)->slots[0].i);
+    ((ScriptCommandView*)active_cmdscript)->secondary_animation =
+        get_animation(((ScriptRawArgs*)current_args)->slots[1].i);
     script = (ScriptCommandView*)active_cmdscript;
-    script->animation = get_animation(args.raw->slots[0].i);
-    script->secondary_animation = get_animation(args.raw->slots[1].i);
+    args.bytes = current_args;
     blend_to_ani_INOUT(
         script->animation, script->animation, args.raw->slots[2].f,
         args.raw->slots[3].f, args.raw->slots[4].f);
@@ -3471,26 +3521,19 @@ void _blend_to_ani_frame(void) {
 }
 
 void _glitch_him_to_ani(void) {
-    ScriptArgsRef args;
-    ScriptResultRef script;
-    PlyrPdata* player;
-    ScriptOpponentProcLatch* opponent;
+    PlyrPdata* opponent;
     MkProc* proc;
     AnimPdata* pdata;
 
-    args.bytes = current_args;
-    script.bytes = active_cmdscript;
-    script.command->animation = get_animation(args.raw->slots[0].i);
-    player = plyr_pdata;
-    opponent = (ScriptOpponentProcLatch*)player->his_plyr_pdata;
-    proc = opponent->proc;
-    if (proc != 0 && proc->instance != opponent->proc_instance) {
-        proc = 0;
-    }
+    ((ScriptCommandView*)active_cmdscript)->animation =
+        get_animation(((ScriptRawArgs*)current_args)->slots[0].i);
+    opponent = plyr_pdata->his_plyr_pdata;
+    proc = MK_LIVE(opponent->anim_proc, opponent->anim_proc_instance);
     if (proc != 0) {
         pdata = (AnimPdata*)pdata_of_proc(proc);
-        set_anim_script(pdata, script.command->animation,
-                        args.raw->slots[1].i);
+        set_anim_script(pdata,
+                        ((ScriptCommandView*)active_cmdscript)->animation,
+                        ((ScriptRawArgs*)current_args)->slots[1].i);
     }
 }
 
@@ -3512,8 +3555,8 @@ void _enable_grounding(void) {
     ScriptGroundObjView* player;
     MkHdr* object;
 
+    ((ScriptGroundObjView*)plyr_obj)->flags09_bits.launched = 1;
     player = (ScriptGroundObjView*)plyr_obj;
-    player->flags09 |= 0x80;
     object = player != 0 ? as_mkhdr((MkHdr*)player) : 0;
     update_bone_hierarchy(object);
     player = (ScriptGroundObjView*)plyr_obj;
@@ -3592,10 +3635,13 @@ void _launch_n_land_ani(void) {
 
 void _attack_to_frame_x(void) {
     ScriptArgsRef args;
-
+    ((ScriptCommandView*)active_cmdscript)->animation =
+        get_animation(((ScriptRawArgs*)current_args)->slots[0].i);
     args.bytes = current_args;
-    ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    attack_to_frame_x(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    attack_to_frame_x(((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f,
+        args.raw->slots[5].u, args.raw->slots[6].u, args.raw->slots[7].i);
 }
 
 void _two_player_animation_match_attacker(void) {
@@ -3647,24 +3693,15 @@ void _blend_to_ani(void) {
         args.animation->frame);
 }
 
-/* TODO: [near miss] 45.3125%; named exit owners retain retail stores;
- * cached argument/player bases differ from repeated retail global loads. */
 void _exit_react(void) {
-    ScriptArgsRef args;
-    ScriptResultRef result;
-    PlyrPdata* player;
-
-    args.bytes = current_args;
-    result.bytes = active_cmdscript;
-    player = plyr_pdata;
-    player->script_exit_value_int = args.exit_args->exit_value;
-    player->script_exit_args[0] = args.exit_args->exit_arg0;
-    player->input_unlock_tick = args.exit_args->input_unlock_tick;
-    player->blocking_disable_tick_2 = args.exit_args->blocking_tick;
-    player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player->script_exit_arg_2 = args.exit_args->exit_arg2;
-    result.exit->exit = j_exit_react;
-    result.exit->state = 2;
+    CURRENT_PLAYER_PDATA->script_exit_value_int = CURRENT_EXIT_ARGS->exit_value;
+    CURRENT_PLAYER_PDATA->script_exit_args[0] = CURRENT_EXIT_ARGS->exit_arg0;
+    CURRENT_PLAYER_PDATA->input_unlock_tick = CURRENT_EXIT_ARGS->input_unlock_tick;
+    CURRENT_PLAYER_PDATA->blocking_disable_tick_2 = CURRENT_EXIT_ARGS->blocking_tick;
+    CURRENT_PLAYER_PDATA->script_exit_args[1] = CURRENT_EXIT_ARGS->exit_arg1;
+    CURRENT_PLAYER_PDATA->script_exit_arg_2 = CURRENT_EXIT_ARGS->exit_arg2;
+    ACTIVE_SCRIPT_EXIT->exit = j_exit_react;
+    ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
 void _exit_6(void) {
@@ -3679,27 +3716,19 @@ void _exit_6(void) {
 }
 
 void _exit_float_int(void) {
-    ScriptArgsRef args;
-    ScriptResultRef script;
-    PlyrPdata* player;
-    ScriptProcEntryFn* exits;
-
-    args.bytes = current_args;
-    script.bytes = active_cmdscript;
-    player = plyr_pdata;
-    exits = (ScriptProcEntryFn*)exit_table_340;
-
-    script.exit->exit = exits[args.exit_float_int->exit_index];
-    player->summon_position_x = args.exit_float_int->float_value;
-    player->script_exit_value_int = args.exit_float_int->int_value;
-    script.exit->state = 2;
+    ACTIVE_SCRIPT_EXIT->exit =
+        exit_table[((ExitFloatIntArgs*)current_args)->exit_index];
+    CURRENT_PLAYER_PDATA->summon_position_x =
+        ((ExitFloatIntArgs*)current_args)->float_value;
+    CURRENT_PLAYER_PDATA->script_exit_value_int =
+        ((ExitFloatIntArgs*)current_args)->int_value;
+    ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
 void _script_exit(void) {
-    ((ScriptCommandView*)active_cmdscript)->exit =
-        ((ScriptEntryFn*)exit_table_340)
-            [((ScriptRawArgs*)current_args)->slots[0].i];
-    ((ScriptCommandView*)active_cmdscript)->state = 2;
+    ACTIVE_SCRIPT_EXIT->exit =
+        exit_table[((ScriptRawArgs*)current_args)->slots[0].i];
+    ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
 void _script_return(void) {
@@ -3736,6 +3765,8 @@ void _gosub(void) {
         1;
 }
 
+/* TODO: [near miss] 94.36%; name-address ADD/SUB reassociation remains;
+ * staging/O3 are neutral, whole-TU O2 regresses exact siblings. */
 void _branch(void) {
     unsigned int function_index;
 
@@ -3776,8 +3807,11 @@ void _true_branch(void) {
 }
 
 void _true_xfer_him(void) {
-    if (((ScriptRawResult*)active_cmdscript)->value.i != 0) {
-        reaction_xfer_him_nohit(((ScriptRawArgs*)current_args)->slots[0].pointer);
+    int condition = ((ScriptRawResult*)active_cmdscript)->value.i;
+    void* reaction = ((ScriptRawArgs*)current_args)->slots[0].pointer;
+
+    if (condition != 0) {
+        reaction_xfer_him_nohit(reaction);
     }
 }
 
@@ -3791,7 +3825,7 @@ void _script_sleep(void) {
     aproc->vtbl->sleep();
 }
 
-void j_sleep_forever(void) {
+float j_sleep_forever(void) {
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep();
@@ -3811,17 +3845,15 @@ float j_call_player_script_function(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 92.675674%; canonical banks retain selector load scheduling differences. */
 void* get_animation(int animation_id) {
-    PlyrPdata* player;
     void** animations;
 
-    if ((unsigned int)animation_id + 0x60000U == 0x4BFA ||
-        animation_id < 0) {
+    if ((unsigned int)animation_id + 0x60000U == 0x4BFA) {
         return 0;
     }
-
-    player = plyr_pdata;
+    if (animation_id < 0) {
+        return 0;
+    }
     if (animation_id >= 3000) {
         animations = bgnd_animation_table;
         animation_id -= 3000;
@@ -3844,13 +3876,13 @@ void* get_animation(int animation_id) {
         animations = (void**)his_pdata->fighter_definition->alternate_animations;
         animation_id -= 500;
     } else if (animation_id >= 400) {
-        animations = (void**)player->animation_data;
+        animations = (void**)plyr_pdata->animation_data;
         animation_id -= 400;
     } else if (animation_id >= 100) {
         animations = shared_ani;
         animation_id -= 100;
     } else {
-        animations = (void**)player->fighter_definition->primary_animations;
+        animations = (void**)plyr_pdata->fighter_definition->primary_animations;
     }
 
     return animations[animation_id];
@@ -4823,12 +4855,8 @@ void _konquest_load_interior_art(void) {
 }
 
 void _konquest_start_nis_anims_load(void) {
-    char* second;
-    char* first;
-
-    second = get_script_string_arg(2);
-    first = get_script_string_arg(1);
-    konquest_start_nis_anims_load(first, second);
+    konquest_start_nis_anims_load(
+        get_script_string_arg(1), get_script_string_arg(2));
 }
 
 void _konquest_nis_anims_loaded(void) {
@@ -5029,11 +5057,11 @@ void _fatality_ashrah_get_doll(void) {
 }
 
 void _fire_multi_emitter_pfx_via_tbl(void) {
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
     fire_multi_emitter_pfx_via_tbl(
-        name, ((ScriptRawArgs*)current_args)->slots[1].pointer,
-        ((ScriptRawArgs*)current_args)->slots[2].pointer,
-        ((ScriptRawArgs*)current_args)->slots[3].pointer);
+        name, args->slots[1].pointer,
+        args->slots[2].pointer, args->slots[3].pointer);
 }
 
 void _pfxhandle_spawn_at_bid_next_bind_render(void) {
@@ -5050,10 +5078,10 @@ void _pfxhandle_bgnd_spawn_at_sobj_id(void) {
 }
 
 void _pfxhandle_spawn_at_bid(void) {
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
     ((ScriptRawResult*)active_cmdscript)->value.i =
-        pfxhandle_spawn_at_bid(name, ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                               ((ScriptRawArgs*)current_args)->slots[2].i);
+        pfxhandle_spawn_at_bid(name, args->slots[1].pointer, args->slots[2].i);
 }
 
 void _pfxhandle_spawn_at_bid_next(void) {
@@ -5064,8 +5092,10 @@ void _pfxhandle_spawn_at_bid_next(void) {
 }
 
 void _pfx_spawn_at_bid(void) {
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
-    pfx_spawn_at_bid(name, ((ScriptRawArgs*)current_args)->slots[1].i, ((ScriptRawArgs*)current_args)->slots[2].i);
+
+    pfx_spawn_at_bid(name, args->slots[1].i, args->slots[2].i);
 }
 
 void _limb_sever_throw_away(void) {
@@ -5192,8 +5222,10 @@ void _spawn_blood_pool_at_bid(void) {
 }
 
 void _spawn_bld_splat(void) {
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
-    spawn_bld_splat(name, ((ScriptRawArgs*)current_args)->slots[1].i, ((ScriptRawArgs*)current_args)->slots[2].i);
+
+    spawn_bld_splat(name, args->slots[1].i, args->slots[2].i);
 }
 
 void _plyr_weapon2_release(void) {
@@ -5457,9 +5489,6 @@ void _check_to_register_miss(void) { check_to_register_miss(); }
 
 void _auto_ani_off(void) { auto_ani_off(); }
 
-#pragma push
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void _ncs_bgnd_preload_named_model(void) {
     ScriptArgsRef args;
 
@@ -5471,7 +5500,6 @@ void _ncs_bgnd_preload_named_model(void) {
             args.raw->slots[4].pointer, args.raw->slots[5].pointer,
             args.raw->slots[6].pointer);
 }
-#pragma pop
 
 void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
     ncs_dkp_camera_konqchar_show_hide_alpha(((ScriptRawArgs*)current_args)->slots[0].i,
@@ -6832,7 +6860,10 @@ void _mks_set_rotate_update_by_group(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_set_rotate_update_by_group(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[5].i, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    mks_set_rotate_update_by_group(
+        args.raw->slots[0].i, args.raw->slots[1].i,
+        args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].f, args.raw->slots[5].i);
 }
 
 void _mks_set_sin_update_by_group(void) {
@@ -7044,10 +7075,10 @@ void _bgnd_unhide_preload_obj(void) {
 }
 
 void _load_bgnd_style(void) {
-    ScriptArgsRef args;
+    const char* name = get_script_string_arg(2);
 
-    args.bytes = current_args;
-    load_bgnd_style(args.raw->slots[0].i, get_script_string_arg(2), current_args);
+    load_bgnd_style(((ScriptRawArgs*)current_args)->slots[0].i,
+                    name, current_args);
 }
 
 void _mks_set_cb1_target_bone_cb2(void) {
@@ -8731,11 +8762,10 @@ void _kill_shard_pfx_now(void) {
 }
 
 void _bgnd_set_fx_z_offset(void) {
-    ScriptArgsRef args;
+    const char* name = get_script_string_arg(1);
 
-    args.bytes = current_args;
-    get_script_string_arg(1);
-    bgnd_set_fx_z_offset((const char*)current_args, args.raw->slots[1].f);
+    bgnd_set_fx_z_offset(name,
+        ((ScriptRawArgs*)current_args)->slots[1].f);
 }
 
 void _bgnd_force_plyr_ground_plane(void) {
@@ -9288,37 +9318,20 @@ void _bgnd_set_new_ground_plane(void) {
 }
 
 void _bgnd_place_weapon_at_position(void) {
-    ScriptArgsRef args;
-    float sp28;
-    float sp24;
-    float sp20;
-    float sp1C;
-    float sp18;
-    float sp14;
-    float sp10;
-    float spC;
-    float sp8;
+    ScriptPlaceWeaponArgs* args = (ScriptPlaceWeaponArgs*)current_args;
 
-    args.bytes = current_args;
-    sp8 = args.raw->slots[13].f;
-    spC = args.raw->slots[14].f;
-    sp10 = args.raw->slots[15].f;
-    sp14 = args.raw->slots[16].f;
-    sp18 = args.raw->slots[18].f;
-    sp1C = args.raw->slots[19].f;
-    sp20 = args.raw->slots[20].f;
-    sp24 = args.raw->slots[21].f;
-    sp28 = args.raw->slots[22].f;
     bgnd_place_weapon_at_position(
-        args.raw->slots[0].i, args.raw->slots[1].i,
-        args.raw->slots[2].i, args.raw->slots[3].i,
-        args.raw->slots[4].i, args.raw->slots[17].i,
-        args.raw->slots[23].i, args.raw->slots[5].f,
-        args.raw->slots[6].f, args.raw->slots[7].f,
-        args.raw->slots[8].f, args.raw->slots[9].f,
-        args.raw->slots[10].f, args.raw->slots[11].f,
-        args.raw->slots[12].f, sp8, spC, sp10, sp14, sp18, sp1C,
-        sp20, sp24, sp28);
+        args->primary_object_id, args->secondary_object_id,
+        args->primary_sobj_id, args->secondary_sobj_id, args->paired,
+        args->primary_position.x, args->primary_position.y,
+        args->primary_position.z, args->primary_angles.x,
+        args->primary_angles.y, args->primary_angles.z,
+        args->secondary_position.x, args->secondary_position.y,
+        args->secondary_position.z, args->secondary_angles.x,
+        args->secondary_angles.y, args->secondary_angles.z,
+        args->pickup_sobj_id, args->radius, args->height,
+        args->collision_center.x, args->collision_center.y,
+        args->collision_center.z, args->permanent);
 }
 
 void _bgnd_clean_slaughterhouse(void) {
@@ -9785,13 +9798,12 @@ void _high_flash_check(void) {
 }
 
 void _bgnd_place_point_light_for_ticks(void) {
-    ScriptArgsRef args;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
 
-    args.bytes = current_args;
     ((ScriptRawResult*)active_cmdscript)->value.i =
         (int)bgnd_place_point_light_for_ticks(
-            (LightDef*)args.raw->slots[0].i, args.raw->slots[1].i,
-            args.raw->slots[3].i, args.raw->slots[2].f);
+            (LightDef*)args->slots[0].pointer, args->slots[1].i,
+            args->slots[2].f, args->slots[3].i);
 }
 
 void _bgnd_delete_danger_zone(void) {
@@ -10124,17 +10136,12 @@ void _forced_step_forward(void) {
 }
 
 void _start_projectile_from_sidekick_bone(void) {
-    ScriptArgsRef args;
-    ScriptResultRef result;
+    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
+    MkObj* projectile = start_projectile_from_sidekick_bone(
+        args->slots[0].i, args->slots[1].pointer, get_script_string_arg(3),
+        args->slots[3].f, args->slots[4].f, args->slots[5].pointer);
 
-    args.bytes = current_args;
-    result.bytes = active_cmdscript;
-    result.mkobj->value = start_projectile_from_sidekick_bone(
-        args.raw->slots[0].i,
-        args.raw->slots[1].pointer,
-        get_script_string_arg(3), args.raw->slots[3].f,
-        args.raw->slots[4].f,
-        args.raw->slots[5].pointer);
+    ((ScriptMkObjResult*)active_cmdscript)->value = projectile;
 }
 
 void _noobsmoke_fire_projectile_request(void) {
@@ -10905,11 +10912,8 @@ void _trial_start_countdown(void) {
 }
 
 void _trial_set_move_message(void) {
-    char* temp_r31_20333;
-
-    temp_r31_20333 = get_script_string_arg(2);
-    get_script_string_arg(1);
-    trial_set_move_message(temp_r31_20333);
+    trial_set_move_message(
+        get_script_string_arg(1), get_script_string_arg(2));
 }
 
 void _trial_set_next_setup_function(void) {
@@ -11062,9 +11066,6 @@ void _fade_fatality_screen(void) {
     fade_fatality_screen();
 }
 
-#pragma push
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void _jab_attach_wiff_to_sobj(void) {
     ScriptArgsRef args;
 
@@ -11074,7 +11075,6 @@ void _jab_attach_wiff_to_sobj(void) {
         get_script_string_arg(3), get_script_string_arg(4),
         args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].i);
 }
-#pragma pop
 
 void _jab_destroy_drink_obj_in_hand(void) {
     jab_destroy_drink_obj_in_hand();
@@ -11619,7 +11619,6 @@ void _konquest_camera_return_to_normal(void) {
     konquest_camera_return_to_normal();
 }
 
-/* TODO: [near miss] 73.75%; exact size; argument loads, call and result store agree; residue is load scheduling and base GPR. */
 void _display_konquest_text(void) {
     ScriptArgsRef args;
     float left_fraction;
@@ -11636,8 +11635,8 @@ void _display_konquest_text(void) {
     prompt_flags = args.raw->slots[4].i;
     ((ScriptRawResult*)active_cmdscript)->value.i =
         display_konquest_text(
-            string_id, prompt_flags, left_fraction,
-            bottom_fraction, width_fraction);
+            left_fraction, bottom_fraction, width_fraction,
+            string_id, prompt_flags);
 }
 
 void _hero_stop_moving(void) {
@@ -12708,7 +12707,7 @@ void _got_hit_fx(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    got_hit_fx(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[6].i, args.raw->slots[5].f);
+    got_hit_fx(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].f, args.raw->slots[6].i);
 }
 
 void _camera_set_animation_parent_position(void) {
@@ -13184,7 +13183,8 @@ void _force_forward(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    force_forward(args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[0].f, args.raw->slots[2].f);
+    force_forward(args.raw->slots[0].f, args.raw->slots[1].i,
+                  args.raw->slots[2].f, args.raw->slots[3].i);
 }
 
 void _ejb_call(void) {

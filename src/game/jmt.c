@@ -158,9 +158,7 @@ void blend_to_ani(void* animation, int transition, float blend);
 void ani_to_frame_x(float frame);
 void slow_ani_x(float speed, float frame);
 void stop_me(void);
-void got_hit_fx(
-    int type, int region, int arg2, int arg3, int arg4, int arg5,
-    float scale);
+void got_hit_fx(int type, int region, int arg2, int arg3, int arg4, float scale, int arg5);
 void set_ani_speed(float speed);
 void random_hit(int type);
 void ani_to_blend_frame(float frame);
@@ -410,13 +408,13 @@ static float kabal_collide_victim_falldown(void) {
     ani_to_frame_x(6.0f);
     slow_ani_x(0.8f, 12.0f);
     stop_me();
-    got_hit_fx(0, 2, 4, 3, 2, 0, 0.0f);
+    got_hit_fx(0, 2, 4, 3, 2, 0.0f, 0);
     ani_to_frame_x(20.0f);
     set_ani_speed(1.0f);
     blend_to_ani(shared_ani.kabal_falldown, 3, 0.1f);
     ani_to_frame_x(50.0f);
     random_hit(5);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     ani_to_blend_frame(10.0f);
     proc_vtbl = (JmtProcVtable*)aproc->vtbl;
     proc_vtbl->jump_sleep(j_getup_back_6, 0.0f);

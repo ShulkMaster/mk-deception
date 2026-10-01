@@ -360,33 +360,36 @@ int get_slot_file_count(int handle) {
     return get_sec_slot_from_handle(handle)->file_count;
 }
 
+static inline SecSlotGroup* find_sec_slot_group(int group_id) {
+    SecSlotGroup* group;
+
+    for (group = sec_sys_state.group_list; group != 0; group = group->next) {
+        if (group->group_id == group_id) {
+            return group;
+        }
+    }
+    return 0;
+}
+
 static SecSlot* get_sec_slot_from_handle(int handle) {
     unsigned short slot_id;
     int group_id;
-    SecSlotGroup* group = sec_sys_state.group_list;
+    SecSlotGroup* group;
     SecSlot* slot;
-    unsigned int remaining;
+    unsigned int count;
+    unsigned int index;
 
     group_id = handle >> 16;
     slot_id = (unsigned short)handle;
 
-    while (group != 0) {
-        if (group->group_id == group_id) {
-            break;
-        }
-        group = group->next;
-    }
-    if (group == 0) {
-        group = 0;
-    }
-    remaining = group->slot_count;
+    group = find_sec_slot_group(group_id);
+    count = group->slot_count;
     slot = group->slots;
-    while (remaining != 0) {
+    for (index = 0; index < count; index++) {
         if (slot->slot_id == slot_id) {
             return slot;
         }
         slot++;
-        remaining--;
     }
     return 0;
 }

@@ -146,9 +146,7 @@ void blocked_fx(int type, int bone, int third, int fourth, int fifth);
 void force_away(float speed, int direction, float damping, int ticks);
 void disable_my_attacks(int ticks);
 void adjust_my_damage_multiplier(float multiplier);
-void got_hit_fx(
-    int first, int second, int third, int fourth, int fifth, int sixth,
-    float value);
+void got_hit_fx(int first, int second, int third, int fourth, int fifth, float value, int sixth);
 void random_hit(int group);
 static float j_block_common_reaction(void);
 float j_block_loop(void);
@@ -370,8 +368,8 @@ void run_reaction_cleanup_function(PlyrPdata* player) {
 
 /* TODO: [near miss] 99.48%; r3/r4 scratch roles in the destroy tail; stop at coloring. */
 static float p_image_fader(void) {
-    ReactionImageFaderPdata* pdata;
     ScreenObj* object;
+    ReactionImageFaderPdata* pdata;
 
     pdata = (ReactionImageFaderPdata*)apdata;
     if (pdata == 0) {
@@ -477,11 +475,10 @@ void flash_hit_at_bid_with_y(float y_offset) {
 
 /* TODO: [near miss] 99.42%; object/effect nonvolatile pair swapped (r30/r31); stop at coloring. */
 void flash_hit_at_bid(int bone) {
+    MkObj* object = plyr_obj;
     unsigned int effect;
-    MkObj* object;
     Vec position;
 
-    object = plyr_obj;
     if (plyr_pdata->plyr_num == 0) {
         effect = fx_by_owner("hit_fx", 1);
     } else {
@@ -1432,7 +1429,7 @@ static float r_chest2_separate(void) {
     medium_flash_check();
     face_opponent_now();
     wall_eligible_on();
-    got_hit_fx(2, 4, 0, 0xA, 0, 0, 0.025f);
+    got_hit_fx(2, 4, 0, 0xA, 0, 0.025f, 0);
     plyr_obj->flags_09_bits.launched = 1;
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -1451,10 +1448,10 @@ static float r_chest2_separate(void) {
 static float r_cyrus_stomp(void) {
     face_opponent_now();
     disable_both_repel_flags();
-    got_hit_fx(2, 5, 1, 0xA, 0, 0, 0.05f);
+    got_hit_fx(2, 5, 1, 0xA, 0, 0.05f, 0);
     blend_to_ani(shared_ani.cyrus_stomp, 3, 0.2f);
     ani_to_frame_x_call(same_xz, 8.0f);
-    got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 8, 1, 0, 0, 0.0f, 0);
     init_ground_move();
     ani_to_end();
     _mkproc_sleep_ticks = 20.0f;
@@ -1475,12 +1472,12 @@ float r_obstacle_falldown(void) {
     danger_zone_eligible_on();
     tightrope_restrictions_off();
     plyr_obj->flags_09_bits.launched = 0;
-    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+    got_hit_fx(0, 2, 1, 3, 0, 0.05f, 0);
     myvel_his_angle_y(0.0f, 0.045f, 0.045f);
     launch_n_land_ani(
         shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.004f, 0.2f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
@@ -1546,13 +1543,13 @@ static float r_complete_ermac_slam(void) {
     adjust_my_damage_multiplier(0.6f);
     set_my_state(0x3203);
     init_air_move();
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
     plyr_anim_pdata->step = 0.6f;
     launch_me_up(0.08f, -0.003f);
     myvel_my_angle_y(3.1428f, -0.04f, -0.04f);
     ani_to_frame_x(34.0f);
     set_my_state(0x600);
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
     random_hit(9);
     bulvan_function(0);
     init_ground_move();
@@ -1563,7 +1560,7 @@ static float r_complete_ermac_slam(void) {
 }
 
 static float r_shujinko_slam(void) {
-    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
+    got_hit_fx(2, 0xD, 4, 0, 0, 0.0f, 2);
     init_air_move();
     face_opponent_now();
     stop_me();
@@ -1575,7 +1572,7 @@ static float r_shujinko_slam(void) {
 }
 
 static float r_ermac_slam(void) {
-    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
+    got_hit_fx(2, 0xD, 4, 0, 0, 0.0f, 2);
     init_air_move();
     face_opponent_now();
     stop_me();
@@ -1758,12 +1755,12 @@ static float r_combo_broken_part2(void) {
     face_opponent_now();
     wall_eligible_on();
     start_blood_particles_scripts(0x39, 0x10);
-    got_hit_fx(0, 2, 4, 1, 0, 0, 0.0f);
+    got_hit_fx(0, 2, 4, 1, 0, 0.0f, 0);
     force_away(0.025f, 0x14, 0.9f, 8);
     blend_to_ani(shared_ani.combo_broken_launch, 3, 0.5f);
     set_ani_speed(0.6f);
     ani_to_frame_x(13.0f);
-    got_hit_fx(4, 8, 0, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 8, 0, 0, 0, 0.0f, 0);
     back_rollup_check();
     ani_x_more_frames(5.0f);
     blend_to_ani(shared_ani.combo_broken_recover, 3, 0.1f);
@@ -1796,7 +1793,7 @@ static float r_combo_breaker(void) {
     plyr_anim_pdata->weight = 1.3f;
     plyr_anim_pdata->step = 0.7f;
     face_opponent_now();
-    got_hit_fx(2, 5, 2, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 2, 0, 0, 0.0f, 0);
     reaction_xfer_him(0x79, 0.0f, 2);
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep();
@@ -1805,7 +1802,7 @@ static float r_combo_breaker(void) {
     set_ani_speed(1.0f);
     ani_to_frame_x(11.0f);
     reaction_xfer_him(0x7A, 0.0f, 2);
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     set_ani_speed(0.5f);
     ani_to_frame_x(25.0f);
     ani_to_blend_frame(3.0f);
@@ -1942,13 +1939,13 @@ static float r_nightwolf_lightning(void) {
     face_opponent_now();
     wall_eligible_on();
     plyr_obj->flags_09_bits.launched = 0;
-    got_hit_fx(0, 2, 1, 3, 0, 1, 0.05f);
+    got_hit_fx(0, 2, 1, 3, 0, 0.05f, 1);
     random_voice(0x13);
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
         shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
@@ -2012,13 +2009,13 @@ static float r_nightwolf_charge(void) {
         start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
         face_bleed_me(3);
     } else {
-        got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+        got_hit_fx(0, 2, 1, 3, 0, 0.05f, 0);
     }
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
         shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
@@ -2042,13 +2039,13 @@ static float r_face3_onback(void) {
         start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
         face_bleed_me(3);
     } else {
-        got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+        got_hit_fx(0, 2, 1, 3, 0, 0.05f, 0);
     }
     myvel_his_angle_y(0.0f, 0.07f, 0.07f);
     launch_n_land_ani(
         shared_ani.falling_back, 0.0f, 0.0f, 24.0f, 0,
         0.1f, -0.007f, 0.2f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
@@ -2108,7 +2105,7 @@ static float r_cyrax_blade(void) {
 static float r_head3_onback(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(0, 0, 0, 3, 0, 3, 0.05f);
+    got_hit_fx(0, 0, 0, 3, 0, 0.05f, 3);
     r_top_of_head_slam();
     blend_to_ani(shared_ani.head_slam_fall, 3, 0.2f);
     plyr_anim_pdata->step = 0.8f;
@@ -2116,7 +2113,7 @@ static float r_head3_onback(void) {
     if (large_ground_fx != 0) {
         large_ground_fx();
     }
-    got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 8, 1, 0, 0, 0.0f, 0);
     back_rollup_check();
     ani_to_end();
     aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
@@ -2126,7 +2123,7 @@ static float r_head3_onback(void) {
 static void r_top_of_head_slam(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.05f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.05f, 0);
     random_hit(3);
     blend_to_ani(shared_ani.top_of_head_slam, 3, 0.5f);
     plyr_anim_pdata->step = 1.5f;
@@ -2143,13 +2140,13 @@ float r_jump_slambounce_final_hit(void) {
     special_move_cam_setup(
         1.47f, 4.1f, 1.0f, -1.75f, -0.15f, 0xA, 0x3C, 0);
     reaction_xfer_him(0xDB, 0.0f, 2);
-    got_hit_fx(0, 2, 1, 1, 0, 0, 0.05f);
+    got_hit_fx(0, 2, 1, 1, 0, 0.05f, 0);
     blend_to_ani(shared_ani.jump_slambounce, 3, 0.2f);
     set_ani_speed(0.7f);
     ani_to_frame_x(6.0f);
     init_ground_move();
     ani_to_frame_x(50.0f);
-    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
+    got_hit_fx(4, 0, 1, 0, 0, 0.0f, 1);
     ani_to_end();
     check_for_combo_message();
     aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
@@ -2180,7 +2177,7 @@ float r_jump_chin3_final_hit(void) {
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
+    got_hit_fx(4, 0, 1, 0, 0, 0.0f, 1);
     set_my_state(0x600);
     back_rollup_check();
     ani_to_frame_x(60.0f);
@@ -2339,7 +2336,7 @@ static float r_corner_repell(void) {
 static float r_sidehead3_dive_opposite(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(0, 2, 1, 0, 0, 0, 0.05f);
+    got_hit_fx(0, 2, 1, 0, 0, 0.05f, 0);
     tightrope_restrictions_off();
     plyr_obj->flags_09_bits.launched = 0;
     start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
@@ -2358,7 +2355,7 @@ static float r_sidehead3_dive_opposite(void) {
 static float r_sidehead3_dive(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(0, 2, 1, 0, 0, 0, 0.05f);
+    got_hit_fx(0, 2, 1, 0, 0, 0.05f, 0);
     tightrope_restrictions_off();
     plyr_obj->flags_09_bits.launched = 0;
     face_bleed_me(2);
@@ -2368,7 +2365,7 @@ static float r_sidehead3_dive(void) {
         large_ground_fx();
     }
     land_chores(0xCA1, 0xCA1, 2.0f, 0.02f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     ani_to_end();
     aproc->vtbl->jump_sleep(j_getup_back_3, 0.0f);
     return 0.0f;
@@ -2380,7 +2377,7 @@ static float r_sidehead3_spin(void) {
 
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+    got_hit_fx(0, 2, 1, 3, 0, 0.05f, 0);
     tightrope_restrictions_off();
     plyr_obj->flags_09_bits.launched = 0;
     myvel_his_angle_y(-0.71f, 0.03f, 0.03f);
@@ -2406,7 +2403,7 @@ static float r_sidehead3_spin(void) {
 static float r_feet3_sweptout_rev(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.tightrope_restricted = 0;
@@ -2424,7 +2421,7 @@ static float r_feet3_sweptout_rev(void) {
 static float r_feet3_swept_in(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     plyr_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.tightrope_restricted = 0;
     blend_to_ani_INOUT(
@@ -2444,7 +2441,7 @@ static float r_feet3_swept_in(void) {
 static float r_feet3_swept_out(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     plyr_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.tightrope_restricted = 0;
     blend_to_ani_INOUT(
@@ -2465,7 +2462,7 @@ static float r_feet3_swept_out(void) {
 static float r_feet3_sweptin_rev(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     tightrope_restrictions_off();
     blend_to_ani_INOUT(
         shared_ani.swept_reverse, shared_ani.swept_in,
@@ -2481,7 +2478,7 @@ static float r_feet3_sweptin_rev(void) {
 static float r_feet1a(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 4, 0, 0, 0, 0.0f, 0x10);
     force_away(0.1f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
     ani_to_blend_frame(10.0f);
@@ -2492,7 +2489,7 @@ static float r_feet1a(void) {
 static float r_feet1_stay_close(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 4, 0, 0, 0, 0.0f, 0x10);
     force_away(0.04f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
     ani_to_blend_frame(10.0f);
@@ -2503,7 +2500,7 @@ static float r_feet1_stay_close(void) {
 static float r_gut3_onfeet_hard(void) {
     medium_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     plyr_obj->flags_09_bits.launched = 0;
     blend_to_ani(shared_ani.gut_on_feet, 3, 0.33f);
     plyr_anim_pdata->step = 0.85f;
@@ -2522,7 +2519,7 @@ static float r_gut3_onfeet_hard(void) {
 static float r_gut3_onfeet(void) {
     medium_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     plyr_obj->flags_09_bits.launched = 0;
     blend_to_ani(shared_ani.gut_on_feet, 3, 0.33f);
     plyr_anim_pdata->step = 0.85f;
@@ -2536,7 +2533,7 @@ static float r_gut3_onfeet(void) {
 static float r_gut3_onbutt(void) {
     medium_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     plyr_obj->flags_09_bits.launched = 0;
     force_away(0.1f, 3, 0.9f, 8);
     blend_to_ani(shared_ani.gut_on_butt, 3, 0.33f);
@@ -2554,7 +2551,7 @@ static float r_gut3_onbutt(void) {
 static float r_jax_piston_hi(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(0, 1, 5, 4, 0, 0, 0.025f);
+    got_hit_fx(0, 1, 5, 4, 0, 0.025f, 0);
     blend_to_ani(shared_ani.jax_piston_high, 3, 0.33f);
     plyr_anim_pdata->weight = 0.0f;
     ani_to_blend_frame(10.0f);
@@ -2565,7 +2562,7 @@ static float r_jax_piston_hi(void) {
 static float r_jax_piston_lo(void) {
     low_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 4, 5, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 4, 5, 0, 0, 0.0f, 0);
     adjust_my_damage_multiplier(0.75f);
     blend_to_ani(shared_ani.jax_piston_low, 3, 0.2f);
     plyr_anim_pdata->weight = 0.0f;
@@ -2578,7 +2575,7 @@ static float r_jax_piston_lo(void) {
 static float r_chest2_stumble_shake(void) {
     adjust_my_damage_multiplier(0.75f);
     face_opponent_now();
-    got_hit_fx(2, 2, 1, 0xB, 0, 0, 0.0f);
+    got_hit_fx(2, 2, 1, 0xB, 0, 0.0f, 0);
     random_hit(5);
     aproc->vtbl->jump_sleep(chest_stumble_both, 0.0f);
     return 0.0f;
@@ -2587,7 +2584,7 @@ static float r_chest2_stumble_shake(void) {
 float r_chest2_stumble(void) {
     medium_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 4, 0, 0, 0, 0.0f, 0);
     aproc->vtbl->jump_sleep(chest_stumble_both, 0.0f);
     return 0.0f;
 }
@@ -2636,7 +2633,7 @@ static float r_esp1_B(void) {
     ani_loop_more_frames(7.0f);
     blend_to_ani(his_pdata->reaction_animation_c, 3, 0.1f);
     ani_to_frame_x(19.0f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 0);
     if (plyr_pdata != 0) {
         if (aproc->pid == 0x1001) {
             damage = 0.14f;
@@ -2678,7 +2675,7 @@ static float r_esp1_B(void) {
 static float r_esp1_A(void) {
     high_flash_check();
     face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 2, 0.0f);
+    got_hit_fx(2, 4, 0, 0, 0, 0.0f, 2);
     blend_to_ani(his_pdata->esp1_reaction_animation, 3, 0.1f);
     plyr_obj->gravity = -0.0075f;
     plyr_anim_pdata->step = 0.8f;
@@ -2743,7 +2740,7 @@ static float r_subzero_iceball(void) {
         plyr_pdata->blocking_disabled = 0;
         plyr_pdata->blocking_disabled_2 = 0;
         set_my_state(0);
-        got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
+        got_hit_fx(4, 8, 1, 0, 0, 0.0f, 0);
         face_opponent_now();
         plyr_pdata->summon_position_x = plyr_obj->pos.value.x;
         plyr_pdata->summon_position_z = plyr_obj->pos.value.z;
@@ -2933,7 +2930,7 @@ static float r_scorpion_spear_1(void) {
     init_air_move();
     ejb_call(0x31);
     set_my_state(0x603);
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     start_blood_particles(0x20, 9, plyr_pdata, plyr_obj);
     blend_to_ani(his_pdata->scorpion_spear_hit, 3, 0.1f);
     ani_to_frame_x(83.0f);

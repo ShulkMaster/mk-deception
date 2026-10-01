@@ -77,12 +77,14 @@ int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b)
     return 1;
 }
 
-/* TODO: [breakthrough needed] 49.77%; retail keeps load/op/store order per component; needs mk_math.o compiler/flag fix (unit note). */
+#pragma push
+#pragma scheduling off
 void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float t) {
     out->x = dir->x * t + origin->x;
     out->y = dir->y * t + origin->y;
     out->z = dir->z * t + origin->z;
 }
+#pragma pop
 
 /* TODO: [breakthrough] 26.12%; sqrt table indexing corrected; source-shape/FP differences need a localized retail audit. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
@@ -192,11 +194,13 @@ void rotate_xz(Vec* out, const Vec* v, float ang) {
     out->z = z * c - x * s;
 }
 
-/* TODO: [breakthrough needed] 76.66%; retail keeps load/op/store order; see mk_math.o compiler/flag note. */
+#pragma push
+#pragma scheduling off
 void xz_x_v_add_xz(Vec* dst, const Vec* v, float s) {
     dst->x = v->x * s + dst->x;
     dst->z = v->z * s + dst->z;
 }
+#pragma pop
 
 /* TODO: [near miss] 93.10%; inlined mk_inv_sqrt keeps x in f6 and a cror differs. */
 void normalize_xz(Vec* v) {
@@ -244,18 +248,24 @@ float xz_to_y_ang(const Vec* v) {
     return gxMathArcTanYX(v->x, v->z);
 }
 
-/* TODO: [breakthrough needed] 41.42%; retail keeps load/op/store order; see mk_math.o compiler/flag note. */
+#pragma push
+#pragma scheduling off
 void scale_xz(Vec* out, const Vec* v, float s) {
     out->x = v->x * s;
     out->z = v->z * s;
 }
+#pragma pop
 
-/* TODO: [breakthrough needed] 34.76%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+#pragma push
+#pragma scheduling off
+/* TODO: [near miss] 92.35%; component schedule aligns; half-constant load
+ * precedes x operands; used x-sum staging is neutral. */
 void midpoint_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = kHalf * (a->x + b->x);
     out->y = kHalf * (a->y + b->y);
     out->z = kHalf * (a->z + b->z);
 }
+#pragma pop
 
 float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     float dx = b->x - a->x;
@@ -318,12 +328,16 @@ void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
     out->z *= inv;
 }
 
-/* TODO: [breakthrough needed] 46.54%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const Vec* c) {
-    out->x = weights->z * c->x + weights->x * a->x + weights->y * b->x;
-    out->y = weights->z * c->y + weights->x * a->y + weights->y * b->y;
-    out->z = weights->z * c->z + weights->x * a->z + weights->y * b->z;
+#pragma push
+#pragma scheduling off
+/* TODO: [near miss] 74.65%; nested fused association and mutable weight reloads
+ * restored; operand/FPR scheduling remains, blend staging regresses. */
+void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c) {
+    out->x = weights->z * c->x + (weights->x * a->x + weights->y * b->x);
+    out->y = weights->z * c->y + (weights->x * a->y + weights->y * b->y);
+    out->z = weights->z * c->z + (weights->x * a->z + weights->y * b->z);
 }
+#pragma pop
 
 /* TODO: [breakthrough] 95.75%; sqrt table indexing corrected; sqrt-table and 1/len scheduling differ. */
 float normalize_v3_length(Vec* v) {
@@ -357,8 +371,7 @@ float length_v3(const Vec* v) {
     return gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
 }
 
-/* TODO: [breakthrough needed] 32.04%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void v3_cross_v3(Vec* out, const Vec* a, const Vec* b) {
+void v3_cross_v3(Vec* out, Vec* a, Vec* b) {
     out->x = a->y * b->z - a->z * b->y;
     out->y = a->z * b->x - a->x * b->z;
     out->z = a->x * b->y - a->y * b->x;
@@ -368,26 +381,32 @@ float v3_dot_v3(const Vec* a, const Vec* b) {
     return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 
-/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
+#pragma push
+#pragma scheduling off
 void v3_sub_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->x - b->x;
     out->y = a->y - b->y;
     out->z = a->z - b->z;
 }
+#pragma pop
 
-/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
+#pragma push
+#pragma scheduling off
 void v3_add_v3_scaled(Vec* out, const Vec* a, const Vec* b, float s) {
     out->x = b->x * s + a->x;
     out->y = b->y * s + a->y;
     out->z = b->z * s + a->z;
 }
+#pragma pop
 
-/* TODO: [breakthrough needed] 49.76%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
+#pragma push
+#pragma scheduling off
 void v3_add_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->x + b->x;
     out->y = a->y + b->y;
     out->z = a->z + b->z;
 }
+#pragma pop
 
 void v3_x_v_add_v3(Vec* dst, const Vec* v, float s) {
     dst->x = v->x * s + dst->x;
@@ -395,20 +414,32 @@ void v3_x_v_add_v3(Vec* dst, const Vec* v, float s) {
     dst->z = v->z * s + dst->z;
 }
 
-/* TODO: [breakthrough needed] 37.90%; retail keeps load/op/store order; needs mk_math.o compiler/flag fix (unit note). */
+#pragma push
+#pragma scheduling off
 void scale_v3(Vec* out, const Vec* v, float s) {
     out->x = v->x * s;
     out->y = v->y * s;
     out->z = v->z * s;
 }
+#pragma pop
 
-/* TODO: [breakthrough needed] 40.05%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+#pragma push
+#pragma scheduling off
+/* TODO: [near miss] 90.56%; component math aligns after scoped scheduling;
+ * complementary weight and b/a load order differ; stop at FP allocation ceiling. */
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
-    float s = kOne - t;
-    out->x = a->x * t + b->x * s;
-    out->y = a->y * t + b->y * s;
-    out->z = a->z * t + b->z * s;
+    float s;
+    float component;
+
+    component = b->x;
+    s = kOne - t;
+    out->x = a->x * t + component * s;
+    component = b->y;
+    out->y = a->y * t + component * s;
+    component = b->z;
+    out->z = a->z * t + component * s;
 }
+#pragma pop
 
 /* TODO: [breakthrough needed] 16.10%; retail inlines norm_angle three times with different scheduling. */
 void norm_angles_v3(Vec* ang) {
@@ -525,25 +556,23 @@ float ang_sub_ang(float a, float b) {
 float quat_extract_ang_y(const Quat* q) {
     float t = -(kTwo * (q->x * q->x + q->y * q->y) - kOne);
     float s = kTwo * (q->z * q->x + q->w * q->y);
+    float ang;
+
     if (t >= kZero) {
         if (t < kTiny) {
             return kNegHalfPi;
         }
-        {
-            float ang = gxMathArcTan(s / t);
-            if (ang < kZero) {
-                ang = kTwoPi + ang;
-            }
-            return ang;
+        ang = gxMathArcTan(s / t);
+        if (ang < kZero) {
+            ang = kTwoPi + ang;
         }
+        return ang;
     } else {
         if (-t < kTiny) {
             return kHalfPi;
         }
-        {
-            float ang = gxMathArcTan(s / t);
-            return kPi + ang;
-        }
+        ang = gxMathArcTan(s / t);
+        return kPi + ang;
     }
 }
 

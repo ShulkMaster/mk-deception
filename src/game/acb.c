@@ -237,23 +237,16 @@ static int vdestroy_movelist(void* self) {
     mkhdr_memfree(self);
 }
 
-
-
-
-
-
-/* TODO: [near miss] 99.61%; row_index/style and style_slot/slot-offset
- * register pairs are swapped (r26/r29, r29/r30); declaration order tried. */
 static void init_movelist(MovelistPdata* movelist_pdata) {
     int row_count;
-    int row_index;
+    MovelistStyleSlot* style;
     int style_slot;
     GameInfoPlyr* screen_wrapper;
     FighterMirror* char_data;
     void* move_table;
     MovelistPdata* screen_pdata;
     MovelistRow* row;
-    MovelistStyleSlot* style;
+    int row_index;
     MovelistMoveEntry* move_entry;
     MovelistPfxObj* pfx_obj;
     MovelistPfxObj* named_pfx;
@@ -288,7 +281,8 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
             screen_pdata = get_screen_pdata();
             if (screen_pdata != 0) {
                 style = &screen_pdata->styles[row_style_index];
-                move_entry = &style->moves[style->max_move];
+                move_entry = screen_pdata->styles[row_style_index].moves;
+                move_entry += style->max_move;
                 move_entry->field_00 = row_field;
                 move_entry->rewrite_src = row_rewrite_src;
                 if (row_style_index >= screen_pdata->style_count) {

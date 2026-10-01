@@ -508,6 +508,8 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
+/* TODO: [near miss] 87.50%; zero callback argument schedules before movie-ID load;
+ * used ID staging is neutral, scoped scheduling off regresses. */
 void screen_engine_play_movie(int index) {
     if (index >= 0xC8) {
         index -= 0xC8;
@@ -539,16 +541,14 @@ void get_point_on_circle(float* center, float radius, float angle, float* out) {
 void award_koins_to_player(int player, int amount, int koin_type) {
     PlayerProfile* profile;
 
-    if (koin_type >= 0) {
-        if (koin_type >= 6) {
-            return;
-        }
-        if (amount >= 0) {
-            profile = player == 0 ? &p1_profile : &p2_profile;
-            profile->koins[koin_type] += amount;
-            profile->lifetime_koins[koin_type] += amount;
-            g_game_info.pselect.field_1ec = g_game_info.pselect.field_1e8;
-        }
+    if (koin_type < 0 || koin_type >= 6) {
+        return;
+    }
+    if (amount >= 0) {
+        profile = player == 0 ? &p1_profile : &p2_profile;
+        profile->koins[koin_type] += amount;
+        profile->lifetime_koins[koin_type] += amount;
+        g_game_info.pselect.field_1ec = g_game_info.pselect.field_1e8;
     }
 }
 
@@ -1043,24 +1043,25 @@ typedef struct MaterialColorById {
 
 RpAtomic* set_atomic_material_color_by_id(
     RpAtomic* atomic, MaterialColorById* color_by_id) {
+    RpMaterial* material;
     RpGeometry* geometry;
+    MkmaterialPluginData* plugin;
     unsigned int count;
     int found;
-    int i;
+    unsigned int i;
 
     geometry = atomic->geometry;
     if (geometry != 0) {
         found = 0;
-        i = 0;
-        for (count = geometry->matList.numMaterials;
-             count > 0; count--) {
-            RpMaterial* material = geometry->matList.materials[i];
-            if ((MK_MATERIAL_PLUGIN(material)->flags & 0xFFF) ==
+        count = geometry->matList.numMaterials;
+        for (i = 0; i < count; i++) {
+            material = geometry->matList.materials[i];
+            plugin = MK_MATERIAL_PLUGIN(material);
+            if ((plugin->flags & 0xFFF) ==
                 (unsigned int)color_by_id->id) {
                 found = 1;
                 material->color = color_by_id->color;
             }
-            i++;
         }
         if (found != 0) {
             geometry->flags |= 0x40;
@@ -1988,7 +1989,6 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     return 0;
 }
 
-/* TODO: [near miss] 99.78836%; only four reversed FP equality operands remain; stop at documented lowering limit */
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;
@@ -2052,10 +2052,10 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
         ctrl->rateU2 = u2;
         ctrl->rateV2 = v2;
         ctrl->pass_flags = 0;
-        if (u1 != 0.0f || v1 != 0.0f) {
+        if (u1 || v1) {
             ctrl->pass_flags |= kUvPass1;
         }
-        if (u2 != 0.0f || v2 != 0.0f) {
+        if (u2 || v2) {
             ctrl->pass_flags |= kUvPass2;
         }
         ctrl->atomic = subobject->atomic;
@@ -2081,6 +2081,7 @@ UvScrollControl* start_sobj_uv_scroll(
     return result;
 }
 
+/* TODO: [near miss] 96.55173%; retail unreachable extra branch to shared result exit; combined guard regresses. */
 AniTextureControl* replace_sobj_texture_with_named_wiff(
     MkSobj* sobj, int handle, const char* texture, const char* wiff) {
     unsigned int art_oid;
@@ -2146,16 +2147,19 @@ float sfrand(float max) {
     return scaled - max;
 }
 
-/* TODO: [near miss] 99.41%; or-operand order and one FPR allocation differ (__fabs regresses to 81%). */
 float frand(float max) {
     float range;
+    float fraction;
     unsigned int random_low;
     unsigned int random_value;
 
     range = max >= 0.0f ? max : -max;
     random_low = (unsigned char)genlrand();
-    random_value = ((unsigned char)genlrand() << 8) | random_low;
-    return range * ((float)random_value / 65535.0f);
+    random_value = (unsigned char)genlrand() << 8;
+    random_value = random_value | random_low;
+    fraction = (float)random_value;
+    fraction /= 65535.0f;
+    return range * fraction;
 }
 
 /* TODO: [near miss] 97.76%; GPR coloring and scheduling remain. */

@@ -1493,9 +1493,7 @@ MslSoundHandle random_block_hit(
     return result;
 }
 
-void got_hit_fx(
-    int hit_type, int hit_group, int camera_strength, int blood_level,
-    int sweat, int flags, float facial_damage) {
+void got_hit_fx(int hit_type, int hit_group, int camera_strength, int blood_level, int sweat, float facial_damage, int flags) {
     WeaponDefinition* move_flags;
     unsigned int weapon_flags;
     int resolved_region;
@@ -4610,7 +4608,8 @@ static inline int ai_count_charge_moves(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.66038%; style-count owner/sum coloring remains; definition-owner local regresses; retain direct guarded access. */
+/* TODO: [near miss] 99.66038%; style-count owner/sum GPR coloring;
+ * count staging, retained owners and guard rewrites yield no gain. */
 int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
     unsigned short roll;
     int taunt_count;
@@ -5445,8 +5444,8 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.47%; drone/immediate and category-index GPR coloring;
- * shared count-helper and direct-access forms regress; signed helper types are neutral. */
+/* TODO: [near miss] 99.46932%; drone/immediate and table-index GPR coloring;
+ * eligibility, scopes and guarded table access yield no gain. */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     PlyrMoveBlendData* move_data;
     AiFightstyleAttack* script;
@@ -5934,7 +5933,8 @@ static int drone_ai_victim_throw_attempt(void) {
 /* Retail reloads coordinates across the expanded square roots while retaining
  * both object pointers. Scope CSE suppression to this calculation. */
 #pragma opt_common_subs off
-/* TODO: [near miss] 99.44444%; object/square-root GPR coloring remains; combined estimate expression regresses; retain staged OR. */
+/* TODO: [near miss] 99.44444%; object and square-root GPR coloring;
+ * owner, scope and normalization variants yield no gain. */
 static int drone_ai_victim_avoid(void) {
     DroneAI* drone;
     MkObj* player;
@@ -8170,8 +8170,8 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.15%; character search needs a tail LICM preheader;
- * recover its loop-entry CFG while preserving distinct match/sentinel returns. */
+/* TODO: [near miss] 97.15%; character load remains before the search loop;
+ * roll scope/branch rewrites leave the preheader; initialization moves regress. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
@@ -8189,6 +8189,7 @@ int drone_ai_fetch_next_AIState(DroneAI* drone) {
         drone->difficulty_index > 2) {
         drone->charge_cooldown_tick = exec_tick_ctr;
     }
+
     if (drone->charge_cooldown_tick > exec_tick_ctr) {
         return drone->movement_state;
     }

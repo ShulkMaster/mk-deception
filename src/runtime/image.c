@@ -59,18 +59,10 @@ void insert_ani_texture_control_item(AniTextureControl* atc, AniTextureControlIt
     item->instance = atc->instance;
 }
 
-/* TODO: [breakthrough needed] 91.54%; failure-path join differs; resolve the r5 branch shape. */
 AniTextureControl* ck_ani_texture_control_item(AniTextureControlItem* item) {
     AniTextureControl* atc;
 
-    atc = item->atc;
-    if (atc != 0) {
-        if (atc->instance != (unsigned int)item->instance) {
-            atc = 0;
-        }
-    } else {
-        atc = 0;
-    }
+    atc = MK_LIVE(item->atc, (unsigned int)item->instance);
     return atc;
 }
 
@@ -1010,7 +1002,8 @@ atc->flag_bits.filter = 1;
     return atc;
 }
 
-/* TODO: [near miss] 98.51%; zero-sharing register shape remains; inspect index and offset lifetimes. */
+/* TODO: [near miss] 98.51%; index/texture/material-address GPR roles differ;
+ * pre-capture index initialization is neutral; stop at coloring. */
 AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, ImageMkSobj* mkobj) {
     AniTextureControl* atc;
     ImageClumpExt* clump_ext;
@@ -1043,11 +1036,11 @@ AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, Ima
         mkhdr_memfree((MkHdr*)atc);
         return 0;
     }
-        fbits = &atc->flag_bits;
+    i = 0;
+    fbits = &atc->flag_bits;
     count = fbits->count;
     tex = atc->textures[atc->frame];
     alpha = atc->alpha_textures[atc->frame];
-    i = 0;
     for (; i < count; i += 1) {
         fbits = &atc->flag_bits;
         material_set_texture_pointer(atc->materials[i], tex, fbits->filter);
@@ -1115,11 +1108,12 @@ AniTextureControl* attach_wiff_to_atomic_material(
     return atc;
 }
 
-/* TODO: [breakthrough needed] 82.97%; recover the retail bdnz shift loop. */
+/* TODO: [near miss] 90.93%; reverse for loop restores retail CTR;
+ * texture address grouping remains; scoped propagation is neutral. */
 AniTextureControl* append_wiff_to_clump_material(int slot, char* name, RpClump* clump,
                                                  char* tex_name) {
-    ImageClumpExt* clump_ext;
     AniTextureControl* atc;
+    ImageClumpExt* clump_ext;
     int n;
     int i;
     RpMaterial* mat;
@@ -1132,7 +1126,7 @@ AniTextureControl* append_wiff_to_clump_material(int slot, char* name, RpClump* 
     if (atc == 0) {
         return 0;
     }
-atc->flag_bits.multi = 1;
+    atc->flag_bits.multi = 1;
     atc->name = tex_name;
     atc->framerate = kZero;
     RpClumpForAllAtomics(clump, AtomicFindAniTexture, atc);
@@ -1145,11 +1139,8 @@ atc->flag_bits.multi = 1;
     n = atc->numframes;
     i = n - 1;
     atc->numframes = n + 1;
-    if (i >= 0) {
-        do {
-            atc->textures[i + 1] = atc->textures[i];
-            i -= 1;
-        } while (i >= 0);
+    for (; i >= 0; i--) {
+        atc->textures[i + 1] = atc->textures[i];
     }
     atc->textures[0] = mat->texture;
     mk_insert((MkHdr*)atc, &ani_texture_control_list);

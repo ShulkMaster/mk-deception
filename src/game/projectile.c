@@ -335,7 +335,8 @@ void active_projectile_setup_done(void) {
 }
 
 #pragma scheduling off
-/* TODO: [near miss] 88.23529%; scalar copies agree; li/load order in flag assignment remains. */
+/* TODO: [near miss] 88.24%; li/lbz order remains; scheduling-on
+ * regresses vector copies; stop pending flag-store lowering evidence. */
 void set_active_projectile_velocity_damp(const Vec* damping) {
     if (proj_pdata != 0) {
         proj_pdata->behavior_bits.velocity_damping_set = 1;
@@ -422,8 +423,6 @@ void set_active_projectile_dn_sound(int sound) {
     }
 }
 
-#pragma use_lmw_stmw on
-#pragma optimize_for_size on
 void set_active_projectile_sound(
     int start_sound, int flight_sound, int impact_sound) {
     if (proj_pdata != 0) {
@@ -439,8 +438,6 @@ void set_active_projectile_sound(
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 
 /* TODO: [near miss] 97.701300%; FP ordering and register allocation remain; no further evidence-backed source change. */
@@ -651,7 +648,7 @@ void set_active_projectile_rx_info(
     }
 }
 
-/* TODO: [breakthrough needed] 66.23%; retail keeps stmw prologue, a word store at +0xB0 and a cached pdata pointer; CFG of object load differs. */
+/* TODO: [breakthrough needed] 65.30%; retail keeps stmw prologue, a word store at +0xB0 and a cached pdata pointer; CFG of object load differs. */
 static MkObj* start_projectile_from_specific_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
     float speed, float tolerance, const Vec* bone_offset,
@@ -806,7 +803,7 @@ static void pw_projectile(void) {
     proj_pdata = (ProjectilePdata*)pdata_of_proc(aproc);
 }
 
-/* TODO: [breakthrough] 90.89%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 93.83%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 void retarget_projectile(ProjectilePdata* pdata) {
     ProjectilePdata* source;
@@ -912,7 +909,7 @@ static void projectile_set_velocity_angy_tol(
     object->pos_vel.z *= speed;
 }
 
-/* TODO: [breakthrough needed] 82.77%; typed BoneMatcherState flags; body/frame differences remain. */
+/* TODO: [breakthrough needed] 84.45%; typed BoneMatcherState flags; body/frame differences remain. */
 static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     ProjectileImpaleInfo* info = pdata->impale_info;
     BoneMatcherState* matcher;
@@ -987,7 +984,7 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08_bits.gravity_enabled = 0;
 }
 
-/* TODO: [breakthrough] 67.13%; sqrt byte-offset indexing corrected;
+/* TODO: [breakthrough] 67.38%; sqrt byte-offset indexing corrected;
  * audit the remaining consumer CFG/ABI differences separately. */
 static float p_projectile_handler(void) {
     ProjectilePdata* projectile = proj_pdata;
@@ -1205,7 +1202,7 @@ static float p_projectile_handler(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 61.24%; collision result mapping follows retail; latch/register scheduling remains. */
+/* TODO: [near miss] 73.35%; collision result mapping follows retail; latch/register scheduling remains. */
 static float p_projectile_continue(void) {
     MkObj* object;
     MkObj* target;
@@ -1244,7 +1241,7 @@ static float p_projectile_continue(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 67.52%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
+/* TODO: [breakthrough needed] 69.63%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
 static float p_ground_target(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1430,7 +1427,7 @@ static float p_projectile_launch_upward(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 65.90%; body recovered; large scheduling and CFG differences remain. */
+/* TODO: [breakthrough needed] 66.79%; body recovered; large scheduling and CFG differences remain. */
 static float p_projectile_downward(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1592,7 +1589,7 @@ static float p_projectile_impaled(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 63.15%; teardown sequence follows retail; helper inlining and register allocation remain. */
+/* TODO: [near miss] 66.60%; teardown sequence follows retail; helper inlining and register allocation remain. */
 float p_projectile_die(void) {
     ProjectilePdata* projectile;
     ProjectileScriptPdata* script_data;

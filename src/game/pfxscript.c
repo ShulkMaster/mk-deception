@@ -418,8 +418,6 @@ MkPfx* pfx_from_handle(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 unsigned int fx_next_emitter(unsigned int handle) {
     PfxResolvedHandle resolved;
     PfxScriptEffect* effect;
@@ -458,9 +456,6 @@ unsigned int fx_next_emitter(unsigned int handle) {
     return 0;
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 MkPfx* pfx_from_emitter(unsigned int handle) {
     PfxResolvedHandle resolved;
     int type;
@@ -473,10 +468,7 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-
 /* TODO: [near miss] 96.36364%; effect/latch coloring and handle packing remain. */
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 unsigned int fx_by_id(int effect_id, unsigned int owner) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
@@ -507,9 +499,6 @@ unsigned int fx_by_id(int effect_id, unsigned int owner) {
     }
     return 0;
 }
-
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 unsigned int fx_by_owner(const char* name, unsigned int owner) {
     return banks_find_owned_fx(name, owner);
@@ -567,7 +556,7 @@ unsigned int fx(const char* name) {
     return banks_find_owned_fx(name, owner);
 }
 
-/* TODO: [near miss] 71.92%; latch search agrees; prologue saves (stmw vs stw) and register coloring remain. */
+/* TODO: [near miss] 81.11%; latch search agrees; prologue saves (stmw vs stw) and register coloring remain. */
 unsigned int fx2(unsigned int bank_handle, const char* name) {
     PfxBankLatch* bank_latch;
     PfxEffectLatch* effect_latch;
@@ -633,7 +622,6 @@ void fx_set(unsigned int handle, int field, float value) {
     }
 }
 
-/* TODO: [near miss] 84.51%; vector parameter read recovered; residue is code emission. */
 void fx_get_v3(unsigned int handle, int field, Vec* value) {
     PfxResolvedHandle resolved;
     Vec* source;
@@ -654,31 +642,39 @@ void fx_get_v3(unsigned int handle, int field, Vec* value) {
     }
 }
 
-/* TODO: [near miss] 54.53%; equal 308-byte body; residue is saved GPR/FPR allocation, branch polarity and relocation labels. */
 void fx_set_param_v3(
     unsigned int handle, int parameter, float x, float y, float z) {
     PfxScriptEffect* effect;
-    Vec* target;
+    PfxVec3* target;
 
     target = 0;
     if ((parameter & 0xF00) == 0x200) {
         effect = resolve_effect_handle(handle);
         if (effect != 0) {
             if (parameter == 0x202) {
+                PfxVm* runtime;
+                PfxVmEmitter* emitter;
                 int emitter_index;
 
                 effect = resolve_effect_handle(handle);
-                if (effect != 0) {
+                runtime = (PfxVm*)effect->emitters;
+                if (runtime == 0) {
+                    emitter = 0;
+                } else {
                     emitter_index = (handle >> 16) & 0xF;
-                    if (emitter_index < effect->emitter_count) {
-                        target = (Vec*)&effect->emitter[emitter_index];
+                    if (emitter_index < 0 || emitter_index >= runtime->emitter_count) {
+                        emitter = 0;
+                    } else {
+                        emitter = &runtime->emitters[emitter_index];
                     }
+                }
+                if (emitter != 0) {
+                    target = &emitter->position;
                 }
             } else {
                 target = pfx_get_field(
                     (PfxVm*)effect->emitters, -2, parameter);
             }
-
             if (target != 0) {
                 target->x = x;
                 target->y = y;
@@ -706,7 +702,6 @@ void fx_set_render_priority(unsigned int handle, int priority) {
     }
 }
 
-/* TODO: [near miss] 90.21%; clone/render views recovered; residue is code emission. */
 void create_y_mirror_effect(int field_28) {
     PfxScriptEnvironment* environment;
     PfxClone* clone;
@@ -741,7 +736,7 @@ void set_vertex_color(const PfxVertexColorArgs* color) {
     }
 }
 
-/* TODO: [near miss] 53.65%; size and algorithm exact; residue is the unrolled three-vector copy. */
+/* TODO: [near miss] 71.01%; size and algorithm exact; residue is the unrolled three-vector copy. */
 void set_light(const PfxLightArgs* light) {
     PfxScriptEnvironment* environment = 0;
     PfxScriptVm* effect;
@@ -808,17 +803,18 @@ void particle_size(float size) {
     }
 }
 
-/* TODO: [near miss] 91.15%; residue is plane-copy scheduling (retail alternates lfs/stfs through f0). */
-void set_decal_plane(const float* plane) {
+void set_decal_plane(float* plane) {
     PfxScriptVm* effect;
-    int index;
 
     effect = active_pfx_environment()->effect;
     if (effect != 0) {
         effect->flags.decal_plane_enabled = 1;
-        for (index = 0; index < 6; index++) {
-            effect->decal_plane[index] = plane[index];
-        }
+        effect->decal_plane[0] = plane[0];
+        effect->decal_plane[1] = plane[1];
+        effect->decal_plane[2] = plane[2];
+        effect->decal_plane[3] = plane[3];
+        effect->decal_plane[4] = plane[4];
+        effect->decal_plane[5] = plane[5];
     }
 }
 
@@ -939,11 +935,11 @@ void kill_on_y_less_than_field(int field, int reference_field) {
 }
 
 void change_on_y_less_than_field(int field, int source) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
-    if (environment->behavior != 0 && environment->next_behavior != 0) {
-        pfxvm_change_on_y_less_than_field(
-            environment->behavior, field, source, environment->next_behavior);
+    if (behavior != 0 && next_behavior != 0) {
+        pfxvm_change_on_y_less_than_field(behavior, field, source, next_behavior);
     }
 }
 
@@ -1190,17 +1186,13 @@ void update_bounce(int field, int velocity_field, int bounce_count_field,
 }
 
 void update_add(int destination, int source) {
-    PfxScriptEnvironment* environment;
     PfxBehavior* behavior;
 
-    environment = active_pfx_environment();
-    if (environment != 0) {
-        behavior = environment->behavior;
-        if (behavior != 0) {
-            pfxvm_update_add(behavior, destination, source);
-            if ((source & 0xF00) != 0x200) {
-                pfxvm_update_copy(behavior, source);
-            }
+    behavior = active_pfx_environment()->behavior;
+    if (behavior != 0) {
+        pfxvm_update_add(behavior, destination, source);
+        if ((source & 0xF00) != 0x200) {
+            pfxvm_update_copy(behavior, source);
         }
     }
 }
@@ -1214,8 +1206,6 @@ void update_attract(int field, int target_field, float strength) {
     }
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
                                     char* name, int emitter_count) {
     char* saved;
@@ -1229,11 +1219,6 @@ void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
     char* saved;
 
@@ -1245,11 +1230,6 @@ void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void create_multiemit_step_fx(PfxStepEffectDescription* effect,
                               char* name, int emitter_count) {
     char* saved;
@@ -1262,11 +1242,6 @@ void create_multiemit_step_fx(PfxStepEffectDescription* effect,
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void create_step_fx(PfxStepEffectDescription* effect, char* name) {
     char* saved;
 
@@ -1278,16 +1253,13 @@ void create_step_fx(PfxStepEffectDescription* effect, char* name) {
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 void create_step_effect(const PfxStepEffectDescription* effect) {
     if (effect != 0) {
         build_step_effect(active_cmdscript->mko, effect, 1);
     }
 }
 
-/* TODO: [breakthrough needed] 53.897903%; step table scalar types and owner/VM
+/* TODO: [breakthrough needed] 56.48%; step table scalar types and owner/VM
  * bases corrected; remaining control-flow/register reconstruction needs evidence. */
 static void build_step_effect(
     ScriptSlot* script, const PfxStepEffectDescription* description,
@@ -1573,8 +1545,7 @@ static void build_step_effect(
 }
 
 /* TODO: [near miss] 91.5614%; zero materialization, flag-load scheduling and constant name remain. */
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
+/* TODO: [near miss] 91.64912%; only shared-zero materialization and flag-load scheduling remain; stop at coloring. */
 void reset_effect(const char* name) {
     PfxScriptEffect* effect;
     int emitter_index;
@@ -1613,10 +1584,7 @@ void reset_effect(const char* name) {
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
-/* TODO: [near miss] 79.38%; residue is split nonvolatile saves only. */
+/* TODO: [near miss] 98.70%; residue is split nonvolatile saves only. */
 void reset_effect_ppfx(PfxScriptEffect* effect) {
     PfxVm* runtime;
     PfxVmEmitter* emitter;
@@ -1651,9 +1619,7 @@ void reset_effect_ppfx(PfxScriptEffect* effect) {
     runtime->elapsed_time = 0.0f;
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
-/* TODO: [near miss] 98.21429%; loop-zero materialization and float-constant name remain. */
+/* TODO: [near miss] 98.33334%; only equivalent loop-zero materialization differs; stop at shared-zero coloring. */
 void fx_reset(unsigned int handle) {
     PfxResolvedHandle resolved;
     PfxScriptEffect* effect;
@@ -1683,28 +1649,25 @@ void fx_reset(unsigned int handle) {
     runtime->elapsed_time = 0.0f;
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 static inline PfxVmEmitter* emitter_from_handle(unsigned int handle) {
     PfxScriptEffect* effect;
     PfxVm* runtime;
-    unsigned int emitter_index;
+    int emitter_index;
 
     effect = resolve_effect_handle(handle);
-    if (effect == 0) {
+    runtime = (PfxVm*)effect->emitters;
+    if (runtime == 0) {
         return 0;
     }
 
-    runtime = (PfxVm*)effect->emitters;
     emitter_index = (handle >> 16) & 0xF;
-    if (emitter_index >= (unsigned int)runtime->emitter_count) {
+    if (emitter_index < 0 || emitter_index >= runtime->emitter_count) {
         return 0;
     }
     return &runtime->emitters[emitter_index];
 }
 
-/* TODO: [near miss] 81.55%; four-instruction inline lookup branch residue. */
+/* TODO: [near miss] 99.50%; runtime/index domain recovered; compact saves plus shared helper coloring remain; pause control stops at coloring. */
 void fx_restart_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
     PfxScriptEffect* effect;
@@ -1719,7 +1682,7 @@ void fx_restart_emit(unsigned int handle) {
     }
 }
 
-/* TODO: [near miss] 79.50%; three-instruction inline lookup branch residue. */
+/* TODO: [near miss] 99.44%; runtime/index domain recovered; compact saves and helper coloring remain. */
 void fx_reset_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
 
@@ -1768,7 +1731,7 @@ void resume_effect(const char* name) {
     }
 }
 
-/* TODO: [near miss] 77.86%; three-instruction inline lookup branch residue. */
+/* TODO: [near miss] 99.40000%; runtime/index domain and compact saves agree; helper register coloring remains. */
 void fx_pause_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
 
@@ -1779,7 +1742,7 @@ void fx_pause_emit(unsigned int handle) {
     }
 }
 
-/* TODO: [near miss] 80.57%; three-instruction inline lookup branch residue. */
+/* TODO: [near miss] 99.47%; runtime/index domain recovered; compact saves and helper coloring remain. */
 void fx_resume_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
     PfxScriptEffect* effect;
@@ -1835,7 +1798,7 @@ void set_cycle_length(float length, float position) {
     }
 }
 
-/* TODO: [breakthrough needed] 76.225%; retail registry-index argument restored;
+/* TODO: [breakthrough needed] 80.44%; retail registry-index argument restored;
  * remaining table-slot control-flow/register reconstruction needs evidence. */
 void spawn_random_size(const float* table) {
     PfxScriptEnvironment* environment;
@@ -1892,21 +1855,16 @@ void set_drag_coefficient(float coefficient) {
     }
 }
 
-/* TODO: [near miss] 94.85%; spawn line and rotation flag agree; residue is code emission. */
 void set_rotation(float angle, float variance) {
-    PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
     PfxVmEmitter* emitter;
 
-    environment = active_pfx_environment();
-    if (environment != 0) {
-        effect = environment->effect;
-        if (effect != 0) {
-            emitter = pfx_get_emitter((PfxVm*)effect, 0);
-            pfxvm_spawn_line_1f(emitter, 0, angle - variance,
-                                angle + variance);
-            effect->orientation_flags.rotation_enabled = 1;
-        }
+    effect = active_pfx_environment()->effect;
+    if (effect != 0) {
+        emitter = pfx_get_emitter((PfxVm*)effect, 0);
+        pfxvm_spawn_line_1f(emitter, 0x403, angle - variance,
+                            angle + variance);
+        effect->orientation_flags.rotation_enabled = 1;
     }
 }
 
@@ -2015,11 +1973,10 @@ void emit_cylindrical(
     }
 }
 
-/* TODO: [near miss] 98.478264%; commutative FP operands and constant relocation
- * remain; reversed source operands are neutral; stop at coloring. */
 void emit_cartesian(
     int field, float x, float y, float z,
     float width, float height, float depth) {
+    float half = 0.5f;
     PfxScriptEnvironment* environment = 0;
 
     if (pfxscript_environment.active != 0) {
@@ -2028,8 +1985,8 @@ void emit_cartesian(
     if (environment->emitter != 0) {
         pfxvm_spawn_box(
             environment->emitter, field,
-            -(width * 0.5f - x), -(height * 0.5f - y),
-            -(depth * 0.5f - z), width, height, depth);
+            -(width * half - x), -(height * half - y),
+            -(depth * half - z), width, height, depth);
     }
 }
 
@@ -2140,15 +2097,14 @@ void emit_spherical(int field, float radius) {
     }
 }
 
-/* TODO: [near miss] 98.793106%; retail emitter guard restored;
- * FP register/commutative operand residue remains; stop at coloring. */
 void emit_cuboid(int field, float x, float y, float z) {
+    float half = 0.5f;
     PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_box(
             environment->emitter, field,
-            -x * 0.5f, -y * 0.5f, -z * 0.5f, x, y, z);
+            -x * half, -y * half, -z * half, x, y, z);
     }
 }
 
@@ -2192,7 +2148,7 @@ void emit_uv(int field, float u, float v) {
     }
 }
 
-/* TODO: [near miss] 99.375%; commutative FP operands and constant relocation
+/* TODO: [near miss] 99.58%; commutative FP operands and constant relocation
  * remain; reversed source operands are neutral; stop at coloring. */
 void emit_in_range(int unused, float center, float width) {
     PfxScriptEnvironment* environment = 0;
@@ -2259,7 +2215,7 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 94.50000%; only two equivalent early-exit branch pairs differ; positive-guard control neutral; stop at lowering */
+/* TODO: [near miss] 94.50000%; two equivalent early-exit branch pairs differ; positive guards and explicit returns neutral; stop at lowering. */
 void bind_to_bone(int bone_index) {
     PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2281,8 +2237,6 @@ void bind_to_bone(int bone_index) {
     }
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void fx_bind_emitter_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
     PfxResolvedHandle resolved;
@@ -2294,9 +2248,6 @@ void fx_bind_emitter_to_obj_bone(
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
     PfxResolvedHandle resolved;
 
@@ -2306,8 +2257,6 @@ void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
     }
 }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void fx_bind_render_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
     PfxResolvedHandle resolved;
@@ -2319,9 +2268,6 @@ void fx_bind_render_to_obj_bone(
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 void parametric_update(const PfxParametricEffectDescription* effect) {
     if (effect != 0) {
         build_parametric_effect_from_table(
@@ -2329,10 +2275,8 @@ void parametric_update(const PfxParametricEffectDescription* effect) {
     }
 }
 
-
 /* TODO: [near miss] 94.65116%; zero materialization and clear-loop register coloring remain. */
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
+/* TODO: [near miss] 94.65116%; zero-copy materialization and clear-loop register coloring only; stop. */
 void unload_all_effect_banks(void) {
     int index;
 
@@ -2349,9 +2293,6 @@ void unload_all_effect_banks(void) {
         banks[index].bank_instance = 0;
     }
 }
-
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 int load_effect_bank(char* name) {
     CmdScript* script;
@@ -2388,7 +2329,7 @@ static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
     }
 }
 
-/* TODO: [breakthrough needed] 59.66%; retail bank-latch handle validation
+/* TODO: [breakthrough needed] 73.07%; retail bank-latch handle validation
  * restored; remaining cleanup expansion and control-flow/register differences
  * need local evidence. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
@@ -2597,7 +2538,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     pfx_cleanup_load_script(&load);
 }
 
-/* TODO: [breakthrough needed] 39.81594%; builder frame, scheduling and bitfield
+/* TODO: [breakthrough needed] 48.88%; builder frame, scheduling and bitfield
  * lowering remain after the canonical pointer parameter correction. */
 static void build_parametric_effect_from_table(
     ScriptSlot* script, const PfxParametricEffectDescription* description, int update) {
@@ -2856,7 +2797,6 @@ MkPfx* find_pfx_by_handle(unsigned int handle) {
 }
 
 /* Retail emits both public lookup wrappers out of line and byte-exact. */
-#pragma dont_inline on
 MkPfx* find_pfx_by_name_by_bankowner(
     const char* name, unsigned int owner) {
     PfxResolvedHandle resolved;
@@ -2875,7 +2815,6 @@ PfxScriptEffect* find_pfx_by_name(const char* name) {
     resolve_pfx_handle(handle, &resolved);
     return resolved.effect;
 }
-#pragma dont_inline reset
 
 /* TODO: [near miss] 93.21%; environment/effect/emitter setup recovered; residue is code emission. */
 static void initialize_effect(PfxScriptVm* effect) {
@@ -2925,7 +2864,6 @@ static void initialize_effect(PfxScriptVm* effect) {
 }
 
 /* TODO: [near miss] 95.55556%; bank-clear zero reuse and register coloring remain. */
-#pragma optimize_for_size on
 void pfxscript_initialize(void) {
     union {
         int word;
@@ -2951,11 +2889,9 @@ void pfxscript_initialize(void) {
                   p_update_effects, 0);
 }
 
-#pragma optimize_for_size reset
-
 /* TODO: [near miss] 93.93939%; loop-zero initialization and return relocation remain. */
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
+/* TODO: [near miss] 93.94%; zero sharing differs (mr versus li);
+ * real do-loop control is neutral; stop at compiler ceiling. */
 static float p_update_effects(void) {
     int index;
 
@@ -2970,12 +2906,6 @@ static float p_update_effects(void) {
     return 1.0f;
 }
 
-
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void fxbanks_unload_by_owner(unsigned int owner_flags) {
     int index;
 
@@ -2996,9 +2926,6 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
     }
 }
 
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
-
 static inline void bank_destroy(MkHdr* bank) {
     PfxBankVtablePrefix* vtbl;
 
@@ -3008,7 +2935,7 @@ static inline void bank_destroy(MkHdr* bank) {
     }
 }
 
-/* TODO: [near miss] 93.24%; exact runtime loop; one-instruction residue. */
+/* TODO: [near miss] 96.47%; exact runtime loop; one-instruction residue. */
 static void bank_run_fx(PfxBank* bank) {
     PfxEffectLatch* effect_latch;
     PfxScriptEffect* effect;
@@ -3069,7 +2996,7 @@ static void bank_run_fx(PfxBank* bank) {
     }
 }
 
-/* TODO: [near miss] 79.35%; exact owned-effect search; four-instruction residue. */
+/* TODO: [near miss] 85.35%; exact owned-effect search; four-instruction residue. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner) {
     PfxBankLatch* bank_latch;
@@ -3106,7 +3033,6 @@ static unsigned int banks_find_owned_fx(
     return 0;
 }
 
-
 static inline PfxScriptEffect* pfx_checked_effect_type(PfxScriptEffect* effect) {
     if (effect != 0) {
         if (effect->hdr.vtbl == &vtbl_pfx) {
@@ -3118,8 +3044,6 @@ static inline PfxScriptEffect* pfx_checked_effect_type(PfxScriptEffect* effect) 
 }
 
 /* TODO: [breakthrough needed] 92.84%; validator joins and loop-zero lifetimes remain. */
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 static void vdestroy_effectbank(PfxBank* bank) {
     PfxEffectLatch* effect_latch;
     PfxScriptEffect* effect;
@@ -3137,9 +3061,6 @@ static void vdestroy_effectbank(PfxBank* bank) {
     bank->hdr.instance = 0;
     mkhdr_memfree(&bank->hdr);
 }
-
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 /* TODO: [near miss] 86.00%; retail invalid-handle early return kept; residue not yet classified. */
 static void resolve_pfx_handle(
