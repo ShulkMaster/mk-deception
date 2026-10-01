@@ -49,7 +49,7 @@ typedef struct ProjectilePdata {
     ProjectileImpaleInfo* impale_info;   /* +0x7C */
     Vec random_position;                /* +0x80 */
     Vec random_rotation;                /* +0x8C */
-    int sound_handle;                   /* +0x98 */
+    MslSoundHandle sound_handle;        /* +0x98 */
     MkObj* tracking_light;              /* +0x9C */
     unsigned int tracking_light_instance; /* +0xA0 */
     int flight_sound;                   /* +0xA4 */
@@ -259,36 +259,30 @@ static inline MkProc* projectile_start_end_script(
 static inline MkProc* projectile_start_script_snapshot(
     ProjectilePdata* projectile, unsigned int script_index) {
     ProjectileScriptPdata* script_data;
-    PlyrPdata* owner;
     MkObj* source;
     MkObj* object;
     MkProc* process;
 
-    source = projectile->source_object;
-    if (source != 0 &&
-        source->hdr.instance != projectile->source_object_instance) {
-        source = 0;
-    }
+    source = MK_HDR_LIVE(
+        projectile->source_object, projectile->source_object_instance);
     if (source == 0) {
         return 0;
     }
     if (source == g_game_info.plyr0.slot.mirror_a) {
-        owner = g_game_info.plyr0.slot.pdata;
+        process = projectile_start_end_script(
+            g_game_info.plyr0.slot.pdata, projectile->impaled_target,
+            script_index);
     } else {
-        owner = g_game_info.plyr1.slot.pdata;
+        process = projectile_start_end_script(
+            g_game_info.plyr1.slot.pdata, projectile->impaled_target,
+            script_index);
     }
-    process = projectile_start_end_script(
-        owner, projectile->impaled_target, script_index);
     if (process == 0) {
         return 0;
     }
 
     script_data = (ProjectileScriptPdata*)pdata_of_proc(process);
-    object = projectile->object;
-    if (object != 0 &&
-        object->hdr.instance != projectile->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(projectile->object, projectile->object_instance);
     if (script_data != 0 && object != 0) {
         script_data->last_position.x = object->pos.value.x;
         script_data->last_position.y = object->pos.value.y;
@@ -365,7 +359,7 @@ void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
 }
 
-/* TODO: [breakthrough] 91.70%; named gravity bitfield store; audit the remaining consumer CFG/ABI differences separately. */
+/* TODO: [breakthrough] 93.01%; named gravity bitfield store; audit the remaining consumer CFG/ABI differences separately. */
 void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     MkObj* object;
     float speed;
@@ -984,11 +978,10 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08_bits.gravity_enabled = 0;
 }
 
-/* TODO: [breakthrough] 67.38%; sqrt byte-offset indexing corrected;
- * audit the remaining consumer CFG/ABI differences separately. */
+/* TODO: [breakthrough] 93.44%; retail reads each script index inside the player branch
+ * (ours before it) and reuses the pos_vel.x load when normalizing; check the snapshot helper shape. */
 static float p_projectile_handler(void) {
-    ProjectilePdata* projectile = proj_pdata;
-    PlyrPdata* owner;
+    ProjectilePdata* projectile;
     PlyrPdata* victim;
     MkObj* object;
     MkObj* target;
@@ -1001,201 +994,205 @@ static float p_projectile_handler(void) {
     int collision;
     int collision_result;
     int impale;
-    int player;
 
-    object = projectile->object;
-    if (object != 0 &&
-        object->hdr.instance != projectile->object_instance) {
-        object = 0;
-    }
-    if (object == 0) {
-        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
-        return 0.0f;
-    }
-    projectile->max_ticks -= game_speed;
-    if (projectile->max_ticks < 0.0f) {
-        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
-        return 0.0f;
-    }
+    object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
+    if (object != 0) {
+        proj_pdata->max_ticks -= game_speed;
+        if (!(proj_pdata->max_ticks < 0.0f)) {
+            if (proj_pdata->behavior_bits.velocity_damping_set) {
+                object->pos_vel.x *= proj_pdata->velocity_damping.x;
+                object->pos_vel.y *= proj_pdata->velocity_damping.y;
+                object->pos_vel.z *= proj_pdata->velocity_damping.z;
+            }
+            if (proj_pdata->behavior_bits.track_2d) {
+                get_bone_world_pos(
+                    proj_pdata->retarget_object, 0x10, &bone_position);
+                dx = proj_pdata->retarget_object->pos.value.x - object->pos.value.x;
+                dz = proj_pdata->retarget_object->pos.value.z - object->pos.value.z;
+                if (dx * dx + dz * dz < 3.0f) {
+                    speed = gxMathFastSqrt(
+                        object->pos_vel.x * object->pos_vel.x +
+                        object->pos_vel.y * object->pos_vel.y +
+                        object->pos_vel.z * object->pos_vel.z);
+                    object->pos_vel.y =
+                        (bone_position.y - object->pos.value.y) / 5.0f;
+                    inverse_length = projectile_fast_inverse_sqrt(
+                        object->pos_vel.x * object->pos_vel.x +
+                        object->pos_vel.y * object->pos_vel.y +
+                        object->pos_vel.z * object->pos_vel.z);
+                    object->pos_vel.x *= inverse_length;
+                    object->pos_vel.y *= inverse_length;
+                    object->pos_vel.z *= inverse_length;
+                    object->pos_vel.x *= speed;
+                    object->pos_vel.y *= speed;
+                    object->pos_vel.z *= speed;
+                }
+            }
+            if (proj_pdata->behavior_bits.track_3d) {
+                get_bone_world_pos(
+                    proj_pdata->retarget_object, 0x10, &bone_position);
+                dx = proj_pdata->retarget_object->pos.value.x - object->pos.value.x;
+                dz = proj_pdata->retarget_object->pos.value.z - object->pos.value.z;
+                distance_squared = dx * dx + dz * dz;
+                if (distance_squared < 0.25f) {
+                    proj_pdata->behavior_bits.track_3d = 0;
+                } else if (distance_squared < 3.0f) {
+                    speed = gxMathFastSqrt(
+                        object->pos_vel.x * object->pos_vel.x +
+                        object->pos_vel.y * object->pos_vel.y +
+                        object->pos_vel.z * object->pos_vel.z);
+                    object->pos_vel.x = dx;
+                    object->pos_vel.z = dz;
+                    inverse_length = projectile_fast_inverse_sqrt(
+                        object->pos_vel.x * object->pos_vel.x +
+                        object->pos_vel.y * object->pos_vel.y +
+                        object->pos_vel.z * object->pos_vel.z);
+                    object->pos_vel.x *= inverse_length;
+                    object->pos_vel.y *= inverse_length;
+                    object->pos_vel.z *= inverse_length;
+                    object->pos_vel.x *= speed;
+                    object->pos_vel.y *= speed;
+                    object->pos_vel.z *= speed;
+                }
+            }
 
-    if (projectile->behavior_bits.velocity_damping_set) {
-        object->pos_vel.x *= projectile->velocity_damping.x;
-        object->pos_vel.y *= projectile->velocity_damping.y;
-        object->pos_vel.z *= projectile->velocity_damping.z;
-    }
-    if (projectile->behavior_bits.track_2d) {
-        get_bone_world_pos(
-            projectile->retarget_object, 0x10, &bone_position);
-        dx = projectile->retarget_object->pos.value.x - object->pos.value.x;
-        dz = projectile->retarget_object->pos.value.z - object->pos.value.z;
-        if (dx * dx + dz * dz < 3.0f) {
-            speed = gxMathFastSqrt(
-                object->pos_vel.x * object->pos_vel.x +
-                object->pos_vel.y * object->pos_vel.y +
-                object->pos_vel.z * object->pos_vel.z);
-            object->pos_vel.y = (bone_position.y - object->pos.value.y) / 5.0f;
-            inverse_length = projectile_fast_inverse_sqrt(
-                object->pos_vel.x * object->pos_vel.x +
-                object->pos_vel.y * object->pos_vel.y +
-                object->pos_vel.z * object->pos_vel.z);
-            object->pos_vel.x *= inverse_length;
-            object->pos_vel.y *= inverse_length;
-            object->pos_vel.z *= inverse_length;
-            object->pos_vel.x *= speed;
-            object->pos_vel.y *= speed;
-            object->pos_vel.z *= speed;
-        }
-    }
-    if (projectile->behavior_bits.track_3d) {
-        get_bone_world_pos(
-            projectile->retarget_object, 0x10, &bone_position);
-        dx = projectile->retarget_object->pos.value.x - object->pos.value.x;
-        dz = projectile->retarget_object->pos.value.z - object->pos.value.z;
-        distance_squared = dx * dx + dz * dz;
-        if (distance_squared < 0.25f) {
-            projectile->behavior_bits.track_3d = 0;
-        } else if (distance_squared < 3.0f) {
-            speed = gxMathFastSqrt(
-                object->pos_vel.x * object->pos_vel.x +
-                object->pos_vel.y * object->pos_vel.y +
-                object->pos_vel.z * object->pos_vel.z);
-            object->pos_vel.x = dx;
-            object->pos_vel.z = dz;
-            inverse_length = projectile_fast_inverse_sqrt(
-                object->pos_vel.x * object->pos_vel.x +
-                object->pos_vel.y * object->pos_vel.y +
-                object->pos_vel.z * object->pos_vel.z);
-            object->pos_vel.x *= inverse_length;
-            object->pos_vel.y *= inverse_length;
-            object->pos_vel.z *= inverse_length;
-            object->pos_vel.x *= speed;
-            object->pos_vel.y *= speed;
-            object->pos_vel.z *= speed;
-        }
-    }
+            target = proj_pdata->impaled_target->his_obj;
+            victim = proj_pdata->impaled_target->his_plyr_pdata;
+            collision = simple_3d_projectile_collision(
+                &target->pos.value, &proj_pdata->retarget_object->pos.value,
+                &object->pos.value,
+                proj_pdata->setup_bits.collision_info_set != 0,
+                proj_pdata->collision_radius, proj_pdata->collision_depth,
+                proj_pdata->collision_height);
+            proj_pdata->impaled_target->his_plyr_pdata->duck_reaction_active = 1;
+            proj_pdata->impaled_target->his_plyr_pdata->saved_position_x =
+                object->pos.value.x;
+            proj_pdata->impaled_target->his_plyr_pdata->saved_position_y =
+                object->pos.value.y;
+            proj_pdata->impaled_target->his_plyr_pdata->saved_position_z =
+                object->pos.value.z;
 
-    owner = projectile->impaled_target;
-    victim = owner->his_plyr_pdata;
-    target = owner->his_obj;
-    collision = simple_3d_projectile_collision(
-        &target->pos.value, &projectile->retarget_object->pos.value, &object->pos.value,
-        projectile->setup_bits.collision_info_set != 0,
-        projectile->collision_radius, projectile->collision_depth,
-        projectile->collision_height);
-    victim->duck_reaction_active = 1;
-    victim->saved_position_x = object->pos.value.x;
-    victim->saved_position_y = object->pos.value.y;
-    victim->saved_position_z = object->pos.value.z;
-    player = target == g_game_info.plyr0.slot.mirror_a;
-
-    if (object->pos.value.y < 0.2f + g_game_info.field_34) {
-        trial_state_collision_check(0, player);
-        victim->duck_reaction_active = 0;
-        if (projectile->sound_handle != 0) {
-            snd_stop(projectile->sound_handle);
-            projectile->sound_handle = 0;
-        }
-        if (projectile->setup_bits.ground_script_set) {
-            projectile_start_script_snapshot(
-                projectile, projectile->ground_script_index);
-        }
-        if (projectile->flight_sound != 0) {
-            snd_req(projectile->flight_sound);
-        }
-        aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
-        return 0.0f;
-    }
-
-    if (collision == 0 && !projectile->behavior_bits.not_duckable &&
-        (owner->state == 0x101 || owner->state == 0x302 ||
-         owner->state == 0x900 || owner->state == 0x1300) &&
-        projectile->reaction_flags != 1) {
-        collision = 4;
-    }
-    if (victim->state_flags.bits.projectile_invulnerable && collision == 0) {
-        collision = 1;
-    } else if (collision == 0 &&
-               collide_sphere_vs_plyr(
-                   owner->plyr_info, &object->pos.value,
-                   projectile->collision_radius) == 0) {
-        collision = 4;
-    }
-    switch (collision) {
-    case 1:
-    case 2:
-        trial_state_collision_check(0, player);
-        break;
-    case 0:
-        trial_state_collision_check(1, player);
-        break;
-    }
-
-    switch (collision) {
-    case 0:
-        if (owner->state == 0x1222) {
-            retarget_projectile(projectile);
-            return 1.0f;
-        }
-        projectile->behavior_bits.track_2d = 0;
-        projectile->behavior_bits.track_3d = 0;
-        victim->duck_reaction_active = 0;
-        if (projectile->sound_handle != 0) {
-            snd_stop(projectile->sound_handle);
-            projectile->sound_handle = 0;
-        }
-        if (projectile->setup_bits.hit_script_set) {
-            projectile_start_script_snapshot(
-                projectile, projectile->hit_script_index);
-        }
-
-        collision_result = 0;
-        if (projectile->reaction != -1) {
-            if (mode_of_play != 6) {
-                reaction_xfer_him(
-                    projectile->reaction, projectile->reaction_scale,
-                    projectile->reaction_flags);
+            if (object->pos.value.y < 0.2f + g_game_info.field_34) {
+                trial_state_collision_check(
+                    0, target == g_game_info.plyr0.slot.mirror_a);
+                projectile = proj_pdata;
+                projectile->impaled_target->his_plyr_pdata
+                    ->duck_reaction_active = 0;
+                if (projectile->sound_handle != 0) {
+                    snd_stop(projectile->sound_handle);
+                    projectile->sound_handle = 0;
+                }
+                if (projectile->setup_bits.ground_script_set) {
+                    projectile_start_script_snapshot(
+                        projectile, projectile->ground_script_index);
+                }
+                if (proj_pdata->flight_sound != 0) {
+                    snd_req(proj_pdata->flight_sound);
+                }
             } else {
-                pz_fighter_reaction_xfer_him(projectile->reaction);
+                if (collision == 0 &&
+                    !proj_pdata->behavior_bits.not_duckable &&
+                    (proj_pdata->impaled_target->state == 0x101 ||
+                     proj_pdata->impaled_target->state == 0x302 ||
+                     proj_pdata->impaled_target->state == 0x900 ||
+                     proj_pdata->impaled_target->state == 0x1300) &&
+                    proj_pdata->reaction_flags != 1) {
+                    collision = 4;
+                }
+                if (proj_pdata->impaled_target->state_flags.bits
+                        .projectile_invulnerable &&
+                    collision == 0) {
+                    collision = 1;
+                } else if (collision == 0 &&
+                           collide_sphere_vs_plyr(
+                               proj_pdata->impaled_target->plyr_info,
+                               &object->pos.value,
+                               proj_pdata->collision_radius) == 0) {
+                    collision = 4;
+                }
+                if (collision == 1 || collision == 2) {
+                    trial_state_collision_check(
+                        0, target == g_game_info.plyr0.slot.mirror_a);
+                } else if (collision == 0) {
+                    trial_state_collision_check(
+                        1, target == g_game_info.plyr0.slot.mirror_a);
+                }
+
+                if (collision == 0) {
+                    impale = 0;
+                    collision_result = 0;
+                    if (proj_pdata->impaled_target->state == 0x1222) {
+                        retarget_projectile(proj_pdata);
+                        return 1.0f;
+                    }
+                    proj_pdata->behavior_bits.track_2d = 0;
+                    proj_pdata->behavior_bits.track_3d = 0;
+                    projectile = proj_pdata;
+                    projectile->impaled_target->his_plyr_pdata
+                        ->duck_reaction_active = 0;
+                    if (projectile->sound_handle != 0) {
+                        snd_stop(projectile->sound_handle);
+                        projectile->sound_handle = 0;
+                    }
+                    if (projectile->setup_bits.hit_script_set) {
+                        projectile_start_script_snapshot(
+                            projectile, projectile->hit_script_index);
+                    }
+                    if (proj_pdata->reaction != -1) {
+                        if (mode_of_play != 6) {
+                            reaction_xfer_him(
+                                proj_pdata->reaction,
+                                proj_pdata->reaction_scale,
+                                proj_pdata->reaction_flags);
+                        } else {
+                            pz_fighter_reaction_xfer_him(proj_pdata->reaction);
+                        }
+                        collision_result = victim->collision_result;
+                    }
+                    if (collision_result == 1 &&
+                        proj_pdata->setup_bits.impale_info_set == 1 &&
+                        victim->his_plyr_pdata->impaled_projectile_state < 3) {
+                        impale = 1;
+                    }
+                    if (collision_result == 1) {
+                        if (proj_pdata->flight_sound != 0) {
+                            snd_req(proj_pdata->flight_sound);
+                        }
+                    } else if (collision_result == 2) {
+                        if (proj_pdata->impact_sound != 0) {
+                            snd_req(proj_pdata->impact_sound);
+                        }
+                        projectile = proj_pdata;
+                        projectile->impaled_target->his_plyr_pdata
+                            ->duck_reaction_active = 0;
+                        if (projectile->sound_handle != 0) {
+                            snd_stop(projectile->sound_handle);
+                            projectile->sound_handle = 0;
+                        }
+                        if (projectile->setup_bits.block_script_set) {
+                            projectile_start_script_snapshot(
+                                projectile, projectile->block_script_index);
+                        }
+                    }
+                    if (impale) {
+                        projectile_impale(proj_pdata, object);
+                        victim->his_plyr_pdata->impaled_projectile_state++;
+                        aproc->vtbl->jump_sleep(p_projectile_impaled, 0.0f);
+                        return 0.0f;
+                    }
+                    if (proj_pdata->behavior_bits.continue_through_hit) {
+                        aproc->vtbl->jump_sleep(p_projectile_continue, 0.0f);
+                        return 0.0f;
+                    }
+                } else if (collision == 4) {
+                    return 1.0f;
+                } else if (collision == 1) {
+                    proj_pdata->impaled_target->his_plyr_pdata
+                        ->duck_reaction_active = 0;
+                    return 1.0f;
+                }
             }
-            collision_result = victim->collision_result;
         }
-        impale = collision_result == 1 &&
-                 projectile->setup_bits.impale_info_set &&
-                 victim->his_plyr_pdata->impaled_projectile_state < 3;
-        if (collision_result == 1) {
-            if (projectile->flight_sound != 0) {
-                snd_req(projectile->flight_sound);
-            }
-        } else if (collision_result == 2) {
-            if (projectile->impact_sound != 0) {
-                snd_req(projectile->impact_sound);
-            }
-            victim->duck_reaction_active = 0;
-            if (projectile->sound_handle != 0) {
-                snd_stop(projectile->sound_handle);
-                projectile->sound_handle = 0;
-            }
-            if (projectile->setup_bits.block_script_set) {
-                projectile_start_script_snapshot(
-                    projectile, projectile->block_script_index);
-            }
-        }
-        if (impale) {
-            projectile_impale(projectile, object);
-            victim->his_plyr_pdata->impaled_projectile_state++;
-            aproc->vtbl->jump_sleep(p_projectile_impaled, 0.0f);
-            return 0.0f;
-        }
-        if (projectile->behavior_bits.continue_through_hit) {
-            aproc->vtbl->jump_sleep(p_projectile_continue, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 4:
-        return 1.0f;
-    case 1:
-        victim->duck_reaction_active = 0;
-        return 1.0f;
     }
 
     aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
@@ -1241,7 +1238,7 @@ static float p_projectile_continue(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 69.63%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
+/* TODO: [breakthrough needed] 69.88%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
 static float p_ground_target(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1427,7 +1424,7 @@ static float p_projectile_launch_upward(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 66.79%; body recovered; large scheduling and CFG differences remain. */
+/* TODO: [breakthrough needed] 67.99%; body recovered; large scheduling and CFG differences remain. */
 static float p_projectile_downward(void) {
     ProjectilePdata* projectile = proj_pdata;
     ProjectileScriptPdata* script_data;
@@ -1589,7 +1586,7 @@ static float p_projectile_impaled(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 66.60%; teardown sequence follows retail; helper inlining and register allocation remain. */
+/* TODO: [near miss] 67.00%; teardown sequence follows retail; helper inlining and register allocation remain. */
 float p_projectile_die(void) {
     ProjectilePdata* projectile;
     ProjectileScriptPdata* script_data;

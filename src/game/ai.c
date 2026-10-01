@@ -5936,24 +5936,6 @@ static int drone_ai_victim_throw_attempt(void) {
     return 0;
 }
 
-static inline float ai_fast_sqrt(float value) {
-    AiFloatBits out;
-    float guess;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    out.u = (unsigned int)GXMathSqrtTable[((*(unsigned int*)&value) >> 11) &
-                                          0x1FFF]
-            << 8;
-    out.u |= ((((*(unsigned int*)&value) & 0x7F800000U) + 0x3F800000U) >> 1) &
-             0x7F800000U;
-    guess = out.f;
-    correction = 3.0f - (guess * guess) / value;
-    return 0.5f * (guess * correction);
-}
-
 static int drone_ai_victim_avoid(void) {
     DroneAI* drone;
     float target_x;
@@ -5980,14 +5962,14 @@ static int drone_ai_victim_avoid(void) {
         target_x = drone->avoidance_position[0] - plyr_obj->pos.value.x;
         target_z = drone->avoidance_position[2] - plyr_obj->pos.value.z;
         target_squared_distance = target_x * target_x + target_z * target_z;
-        target_distance = ai_fast_sqrt(target_squared_distance);
+        target_distance = gxMathFastSqrt(target_squared_distance);
         if (target_distance == 0.0f) {
             return 0;
         }
         enemy_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
         enemy_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
         enemy_squared_distance = enemy_x * enemy_x + enemy_z * enemy_z;
-        enemy_distance = ai_fast_sqrt(enemy_squared_distance);
+        enemy_distance = gxMathFastSqrt(enemy_squared_distance);
         inverse_distance = enemy_distance > 0.0f
                                ? 1.0f / enemy_distance
                                : enemy_distance;

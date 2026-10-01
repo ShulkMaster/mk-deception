@@ -21,16 +21,15 @@ static inline float gxMathFastSqrt(float value) {
     union {
         float f;
         unsigned int u;
-    } in, out;
+    } out;
     float guess;
     float correction;
 
-    in.f = value;
     if (value <= 0.0f) {
         return 0.0f;
     }
-    out.u = (unsigned int)GXMathSqrtTable[(in.u >> 11) & 0x1FFF] << 8;
-    out.u |= (((in.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
+    out.u = (unsigned int)GXMathSqrtTable[(*(unsigned int*)&value >> 11) & 0x1FFF] << 8;
+    out.u |= (((*(unsigned int*)&value & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     guess = out.f;
     correction = 3.0f - (guess * guess) / value;
     return 0.5f * (guess * correction);

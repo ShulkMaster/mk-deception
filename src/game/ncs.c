@@ -1329,7 +1329,6 @@ static inline float ncs_inv_sqrt(float value) {
            -(correction * (product * correction) - 12.0f);
 }
 
-/* TODO: [near miss] 99.69%; only r5/r6 coloring of sc_spear_obj vs sqrt bits remains. */
 static float p_sc_spear4_getup(void) {
     MkObj* target_object;
     Vec target;
