@@ -108,6 +108,25 @@ Do not automatically merge these into one compound expression or cleanup label.
 Separate guards preserve which work has happened and often mirror distinct retail
 branch regions.
 
+### Shared list cleanup keeps traversal state in the caller
+
+`discard_stale_mkptr` clears a node's `hdr` before calling `destroy_mkptr`, so
+the referenced game object is not destroyed. Callers retain the next-pointer
+declaration and load before destroying the node:
+
+```c
+MkPtr* next = link->next;
+discard_stale_mkptr(link);
+link = next;
+```
+
+Moving `next` into a returning inline helper changes register allocation in
+callers such as `unhide_tile`; sharing only the clear/destroy pair preserves
+the caller's existing lifetime. Check scoped pragmas too:
+`bgnd_make_displayed_item_pickupable_at_active_sobj_pos` is under
+`dont_inline on` and needs the explicit pair to retain its call boundary.
+Use H07 and H21, and measure every consumer before consolidating a pattern.
+
 ### Globals are authoritative owners
 
 Game code often accesses `g_game_info`, player slots, globals, or current process

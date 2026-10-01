@@ -97,7 +97,22 @@ C path and record it as blocked. No `opword`: the relocation would be lost.
 After the applicable honest source check, stop at:
 
 - GPR/FPR coloring, parameter nonvolatile homes, or permutations rotating the
-  residue.
+  residue. IF only two parameter homes are exchanged (retail gives the later
+  parameter the higher saved register; `drone_ai_check_attack` r30/r31),
+  REQUIRE the MWCC simplify model before spending attempts: each pass scans
+  webs in ascending virtual-register order and pushes every web whose current
+  degree is below 29 (physical registers and webs coalesced into them never
+  decrement); select pops the stack and takes the lowest free color, claiming
+  r31 downward on demand. Parameter homes are the highest-numbered webs, so
+  they are examined last in every pass and pop first; a parameter pushed one
+  pass later than its sibling claims r31. TRY a deletion bisection in a
+  scratch TU that reports the entry `mr` pair per variant: a flip names the
+  webs holding the first parameter's degree at exactly 29. A flip that also
+  drops a `category`-like local to the lowest saved register is the same
+  threshold crossed twice, not retail. Stream-neutral levers (helper
+  boundaries, staged call arguments, scopes, variable identity, inline depth,
+  pragmas, K&R order, TU isolation) were all neutral there; without a
+  capture-based replay of the allocator the pair is a hard stop.
 - `li 0` vs copying an already-zero register; commutative scratch encodings.
 - Frameless PLATFORM `mtlr`/`blrl` emission.
 - Anonymous relocation labels with verified identical payloads and targets.

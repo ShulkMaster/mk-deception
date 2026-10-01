@@ -413,6 +413,13 @@ Loops. REQUIRE zero-iteration behavior and test/update order.
 - Check the first edge into a counted search: a branch to the initial compare
   means a pretested loop that can skip every iteration.
 - Table scan to the first matching ID: bounded `for` with a found `break`.
+- IF retail places a hoisted loop-invariant load in a block after the final
+  return (`b tail` ... `tail: lwz; b header`), REQUIRE an otherwise matching
+  `for(;;)` block order. TRY a pretested loop whose condition only becomes
+  constant after optimization, such as `while (!found)` on a flag zeroed at
+  entry. The front end rotates it, so backend LICM appends the new preheader at
+  the function end. `for(;;)`, `while (1)` and `(1 == 1)` are folded too early
+  and keep the preheader inline (`drone_ai_fetch_next_AIState`).
 - Delimiter scan: a typed inline scanner returning right after the count store
   (`sfmps_DecodeOneUnit`, no `goto`).
 - Fixed ramp: a paired CTR loop from a single-entry `for` when the donor has
@@ -663,6 +670,29 @@ An inlined helper loop whose fresh locals color above the loop temps while
 retail reuses dead outer registers: open-code it and reuse the function's
 existing locals; MWCC colors a reused local's second web after the loop temps
 (`AddRequestingCS_ByThread`).
+
+If inlined table accessors preserve the operations but miscolor the scaled
+index and table owners, check whether unrelated branch definitions share one
+caller local. Try a named runtime-table base with typed indexing and scope each
+definition owner to the branch that uses it. Fold a single-use owner directly
+into its call argument when appropriate; do not retain an unused assignment
+inside the argument. This recovered the table registers in
+`drone_ai_check_attack`; its remaining parameter nonvolatile swap is a hard stop
+(tier 4 Hard stops: simplify threshold).
+
+IF a function sits under consumer-scoped `opt_propagation off` and the only
+residue is volatile coloring inside an inlined helper (same loads, owner and
+partial-sum registers shifted by one, e.g. retail `plyr_pdata` r5/count r4 vs
+built r4/r3), REQUIRE that the residue vanishes with the pragma removed while
+another region then regresses (whole-TU control). TRY making the shared helper
+copy-free: a ternary body instead of `if (p) return x; return 0;`, and direct
+member expressions as call arguments instead of a staged `style` local. With
+propagation off, each inline expansion keeps its parameter and return copies,
+and the allocator colors around them; propagation-on users are unaffected, so
+the helper edit is safe for its other callers (`ai_weapon_style_move_count` in
+`drone_ai_check_dont_touch_attack_phase2`). Both edits are needed; either alone
+is neutral. The same rewrite regressed `drone_ai_check_attack`, whose residue
+is a parameter pair, not helper copies.
 
 ## H22
 

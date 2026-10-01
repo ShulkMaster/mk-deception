@@ -4200,25 +4200,19 @@ int drone_ai_check_all_over_ground(DroneAI* drone) {
 }
 
 static inline int ai_weapon_style_move_count(PlyrWeaponStyle* style, int category) {
-    if (style->definition != 0) {
-        return style->definition->ai_tables[category].usable_row_count;
-    }
-    return 0;
+    return style->definition != 0
+               ? style->definition->ai_tables[category].usable_row_count : 0;
 }
 
 static inline int ai_count_taunt_moves(void) {
-    PlyrWeaponStyle* style;
     int count;
 
     if (!fight_style_restriction_table.taunt_allowed()) {
         return 0;
     }
-    style = plyr_pdata->weapon_styles[0];
-    count = ai_weapon_style_move_count(style, 7);
-    style = plyr_pdata->weapon_styles[1];
-    count += ai_weapon_style_move_count(style, 7);
-    style = plyr_pdata->weapon_styles[2];
-    count += ai_weapon_style_move_count(style, 7);
+    count = ai_weapon_style_move_count(plyr_pdata->weapon_styles[0], 7);
+    count += ai_weapon_style_move_count(plyr_pdata->weapon_styles[1], 7);
+    count += ai_weapon_style_move_count(plyr_pdata->weapon_styles[2], 7);
     return count;
 }
 
@@ -4590,26 +4584,19 @@ int drone_ai_check_dont_touch_attack_phase1(DroneAI* drone) {
 }
 
 static inline int ai_count_charge_moves(void) {
-    PlyrWeaponStyle* style;
     int count;
 
     if (!fight_style_restriction_table.charge_allowed()) {
         return 0;
     }
-
-    style = plyr_pdata->weapon_styles[0];
-    count = ai_weapon_style_move_count(style, 8);
-    style = plyr_pdata->weapon_styles[1];
-    count += ai_weapon_style_move_count(style, 8);
-    style = plyr_pdata->weapon_styles[2];
-    count += ai_weapon_style_move_count(style, 8);
+    count = ai_weapon_style_move_count(plyr_pdata->weapon_styles[0], 8);
+    count += ai_weapon_style_move_count(plyr_pdata->weapon_styles[1], 8);
+    count += ai_weapon_style_move_count(plyr_pdata->weapon_styles[2], 8);
     return count;
 }
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.66038%; style-count owner/sum GPR coloring;
- * count staging, retained owners and guard rewrites yield no gain. */
 int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
     unsigned short roll;
     int taunt_count;
@@ -5444,10 +5431,10 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.46932%; drone/immediate and table-index GPR coloring;
- * eligibility, scopes and guarded table access yield no gain. */
+/* TODO: [near miss] 99.79%; only the drone/immediate saved pair differs: MWCC
+ * simplify keeps drone at degree 29 one pass past immediate; no stream-neutral
+ * lever moves it (helper boundaries, staging, scopes, identity, nesting). */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
-    PlyrMoveBlendData* move_data;
     AiFightstyleAttack* script;
     unsigned int special_count;
     unsigned int fightstyle_count;
@@ -5503,6 +5490,7 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 1) {
+        PlyrMoveBlendData* move_data;
         unsigned int state1_fightstyle_count;
         unsigned int state1_special_count;
         PlyrFighterDefinition* fighter;
@@ -5559,53 +5547,68 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
             attack_flags |= 0x100;
         }
         if (drone->opponent_distance > 14.6f) {
+            FighterAiTable* tables;
+
             category = 2;
             attack_flags |= 8;
             fightstyle_count = 0;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
         } else if (drone->opponent_distance > 5.9457946f) {
+            FighterAiTable* tables;
+            PlyrMoveBlendData* move_data;
+
             category = 1;
             attack_flags |= 4;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
             move_data = plyr_pdata->fighter_definition->move_blend_data;
             fightstyle_count =
                 ai_move_table_row_count(move_data, category);
         } else if (drone->opponent_distance > 2.8103173f) {
+            FighterAiTable* tables;
+
             category = 1;
             attack_flags |= 2;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
-            move_data = plyr_pdata->fighter_definition->move_blend_data;
-            fightstyle_count =
-                ai_move_table_row_count(move_data, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
+            fightstyle_count = ai_move_table_row_count(
+                plyr_pdata->fighter_definition->move_blend_data, category);
             if (drone->opponent_distance < 4.378056f &&
                 low_attack == 1) {
                 category = 3;
                 attack_flags |= 1;
-                special_count = ai_table_row_count(
-                    plyr_pdata->ai_tables->tables, category);
+                tables = plyr_pdata->ai_tables->tables;
+                special_count = tables[category].usable_row_count;
                 fightstyle_count = ai_fighter_table_row_count(
                     plyr_pdata->fighter_definition, category);
             }
         } else if ((his_pdata->state & 0x900) != 0) {
+            FighterAiTable* tables;
+            PlyrMoveBlendData* move_data;
+
             category = 3;
             attack_flags |= 1;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
             move_data = plyr_pdata->fighter_definition->move_blend_data;
             fightstyle_count =
                 ai_move_table_row_count(move_data, category);
         } else if (his_obj->pos.value.y < 0.4f + g_game_info.field_34) {
+            FighterAiTable* tables;
+            PlyrMoveBlendData* move_data;
+
             category = 3;
             attack_flags |= 1;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
             move_data = plyr_pdata->fighter_definition->move_blend_data;
             fightstyle_count =
                 ai_move_table_row_count(move_data, category);
         } else {
+            FighterAiTable* tables;
+            PlyrMoveBlendData* move_data;
+
             attack_flags |= 1;
             category = 0;
             if ((unsigned short)randu0(100) < 10) {
@@ -5617,16 +5620,19 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
                 attack_flags |= 1;
                 category = 3;
             }
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
             move_data = plyr_pdata->fighter_definition->move_blend_data;
             fightstyle_count =
                 ai_move_table_row_count(move_data, category);
         }
         if (is_he_airborn() && (attack_flags & 3) != 0) {
+            FighterAiTable* tables;
+            PlyrMoveBlendData* move_data;
+
             category = 12;
-            special_count = ai_table_row_count(
-                plyr_pdata->ai_tables->tables, category);
+            tables = plyr_pdata->ai_tables->tables;
+            special_count = tables[category].usable_row_count;
             move_data = plyr_pdata->fighter_definition->move_blend_data;
             fightstyle_count =
                 ai_move_table_row_count(move_data, category);
@@ -5934,7 +5940,7 @@ static int drone_ai_victim_throw_attempt(void) {
  * both object pointers. Scope CSE suppression to this calculation. */
 #pragma opt_common_subs off
 /* TODO: [near miss] 99.44444%; object and square-root GPR coloring;
- * owner, scope and normalization variants yield no gain. */
+ * remaining object and bitword registers differ; keep the measured coloring ceiling. */
 static int drone_ai_victim_avoid(void) {
     DroneAI* drone;
     MkObj* player;
@@ -8137,9 +8143,11 @@ static int drone_ai_should_evade_attack(DroneAI* drone) {
 static inline int ai_state_weight(DroneAI* drone, int state) {
     int difficulty_group;
     int character_state_index;
+    int found;
 
     difficulty_group = 0;
     character_state_index = 0;
+    found = 0;
 
     if (drone->match_stage == 0) {
         return g_likelihoodOfChangingStateE3FingEasyLevel[state];
@@ -8154,7 +8162,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
         if (drone->difficulty_index > 5) {
             difficulty_group = 1;
         }
-        for (;;) {
+        while (!found) {
             if (g_likelihoodOfPCHRChangingState[character_state_index]
                     .character_id == drone->player->character_id) {
                 return g_likelihoodOfPCHRChangingState[character_state_index]
@@ -8170,8 +8178,6 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.15%; character load remains before the search loop;
- * roll scope/branch rewrites leave the preheader; initialization moves regress. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;

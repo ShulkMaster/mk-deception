@@ -44,7 +44,10 @@ baselines.
   mode can regress unrelated functions.
 - Folded indexed accesses (`lwzx`/`stwx`) where retail does multiply/add/`lwz`:
   real category/base locals plus consumer-scoped `opt_propagation off`; both
-  are needed, and the pragma alone may do nothing (move-list getter).
+  are needed, and the pragma alone may do nothing (move-list getter). The
+  pragma also keeps every inlined helper's parameter and return copies in that
+  consumer; if those recolor an otherwise exact region, spell the shared helper
+  copy-free (H21) rather than dropping the pragma.
 - A constant FP load or pooled string address moved across a selection
   branch: propagation off, tested separately from scheduling and CSE (AI
   avoidance reset, Puzzle burn controller).

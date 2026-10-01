@@ -80,6 +80,7 @@ Tool preparation:
 | Retail compares a value with itself before a shared inlined loop | H07 |
 | Pointer+instance latch diamond | H08, H25 |
 | Loop entry/latch, CTR use | H09 |
+| Loop preheader placed after the final return | H09 |
 | Switch, jump table, compare tree | H10 |
 | Return/cleanup join, materialized Boolean | H11, H19, M04, M08 |
 | POD copy loop | H12 |
@@ -161,8 +162,10 @@ Core statement only; each rule's detail is its `## Hxx` section in tier 2.
   predicate | `if (c) return 1; return 0;` or macro `(c) == 0 ? 0 : 1`.
 - **H20 State struct** | whole-function rotation around an inlined state struct |
   retail colors state first | declared scalar locals driven by macros.
-- **H21 Helper locals** | inlined loop locals colored above loop temps | retail
-  reuses dead outer registers | open-code and reuse existing outer locals.
+- **H21 Helper locals** | inlined loop locals colored above loop temps, or
+  helper owner/sum coloring under `opt_propagation off` | retail reuses dead
+  outer registers; propagation off keeps inline copies | open-code and reuse
+  existing outer locals; make the shared helper copy-free (ternary, direct args).
 - **H22 One-row residue** | operand, constant, or copy residue in one row |
   single localized row | try one listed spelling at a time.
 - **H23 Unit-owned data** | base rematerialized at each use | symbol lives in
