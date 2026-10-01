@@ -2860,8 +2860,7 @@ void limb_sever_bone_attach(
         if (link->instance != process->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             NcsLimbAttachPdata* candidate = process != 0
@@ -3228,8 +3227,7 @@ void limb_sever_destroy_existing_attach_proc(
             if (link->instance != object->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 MkProc* proc = (MkProc*)object;
@@ -3266,8 +3264,7 @@ NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
         if (link->instance != proc->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             NcsLimbAttachPdata* attach_pdata = proc != 0

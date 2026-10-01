@@ -2355,8 +2355,7 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (pui != 0 && pui->id == id) {
@@ -2558,8 +2557,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (trigger->owned_data == definition) {
@@ -2577,8 +2575,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (trigger->owned_data == definition) {
@@ -2611,8 +2608,7 @@ static inline KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
                     MkPtr* next;
 
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                     continue;
                 }
@@ -2650,8 +2646,7 @@ static inline KonquestObject* find_object_by_uid_inline(int uid) {
                     MkPtr* next;
 
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                 } else if (object->uid == uid) {
                     return object;
@@ -2680,8 +2675,7 @@ static inline KonquestChildObject* find_child_by_enumeration_inline(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 int index;
@@ -2723,8 +2717,7 @@ static inline KonquestUidObject* find_tile_object_by_uid(int uid) {
                     MkPtr* next;
 
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                     continue;
                 }
@@ -2752,8 +2745,7 @@ static inline KonquestChildObject* find_object_child_by_enumeration(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -2821,8 +2813,7 @@ static inline KonquestChildObject* find_trigger_door(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -2862,8 +2853,7 @@ static inline KonquestChildObject* find_door_partner_inline(
             candidate = (KonquestChildObject*)link->hdr;
             if (link->instance != candidate->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 int candidate_uid;
@@ -3115,8 +3105,7 @@ static inline unsigned int find_sobj_art_id_by_uid(int uid) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -3141,8 +3130,7 @@ static inline KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -3913,8 +3901,7 @@ void pui_update(void) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 pui = (KonquestPuiRuntime*)link->hdr;
@@ -3967,7 +3954,7 @@ static void check_and_act_on_trigger_timed_action(
 
 
 
-/* TODO: [near miss] 97.56%; script-proc latch polarity, periodic header r3 vs r4 and PUI guard branches remain. */
+/* TODO: [near miss] 97.56%; script-proc latch polarity, periodic header r3 vs r4 and PUI guard branches remain; preserve traversal locals. */
 void trigger_update(int force) {
     MkObj* hero;
     MkPtr* link;
@@ -3988,8 +3975,7 @@ void trigger_update(int force) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -4061,8 +4047,7 @@ void trigger_update(int force) {
                     MkPtr* next;
 
                     next = trigger_link->next;
-                    trigger_link->hdr = 0;
-                    destroy_mkptr(trigger_link);
+                    discard_stale_mkptr(trigger_link);
                     trigger_link = next;
                     continue;
                 }
@@ -4370,8 +4355,7 @@ void* find_konquest_object_struct_by_uid(int uid) {
                     MkPtr* next;
 
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                     continue;
                 }
@@ -4400,8 +4384,7 @@ static void show_konquest_object(KonquestUidObject* object) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -4668,8 +4651,7 @@ void enable_attached_sound_by_uid(int uid, int enabled) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (sound->uid == uid) {
@@ -5447,8 +5429,7 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
             object = (KonquestUidObject*)object_link->hdr;
             if (object_link->instance != object->hdr.instance) {
                 object_next = object_link->next;
-                object_link->hdr = 0;
-                destroy_mkptr(object_link);
+                discard_stale_mkptr(object_link);
                 object_link = object_next;
                 continue;
             }
@@ -5464,8 +5445,7 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
                     if (record_link->instance != record->hdr.instance) {
                         MkPtr* record_next = record_link->next;
 
-                        record_link->hdr = 0;
-                        destroy_mkptr(record_link);
+                        discard_stale_mkptr(record_link);
                         record_link = record_next;
                         continue;
                     }
@@ -5899,8 +5879,7 @@ KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door) {
             candidate = (KonquestChildObject*)link->hdr;
             if (link->instance != candidate->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 int candidate_uid;
@@ -5934,8 +5913,7 @@ static inline KonquestTriggerStruct* find_trigger_by_owned_id(int id) {
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (trigger->owned_data->field_20 == id) {
@@ -6021,7 +5999,7 @@ static void generate_door_trigger(
     }
 }
 
-/* TODO: [breakthrough needed] 91.63%; model-latch polarity and center/partner stores differ; script-string pool addends also remain. */
+/* TODO: [breakthrough needed] 91.63%; model-latch polarity and center/partner stores differ; script-string pool addends remain; preserve traversal locals. */
 static void generate_door_paths(void) {
     KonquestWaypoint* waypoints;
     MkPtr* link;
@@ -6048,8 +6026,7 @@ static void generate_door_paths(void) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -6223,8 +6200,7 @@ KonquestWaypoint* get_door_path(int door_id) {
             door = (KonquestDoorObject*)link->hdr;
             if (link->instance != door->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 int enumeration_index;
@@ -6452,8 +6428,7 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (trigger->id == id) {
@@ -6471,8 +6446,7 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
             trigger = (KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (trigger->id == id) {
@@ -6588,8 +6562,7 @@ void delete_triggers_from_tile(int tile_index) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -6899,8 +6872,7 @@ KonquestChildObject* find_child_subobject_by_enumeration(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 int index;
@@ -7201,7 +7173,7 @@ void konquest_open_door(int enumeration, int remain_open) {
 
 
 
-/* TODO: [breakthrough needed] 87.78%; path projection FP scheduling and hero-latch coloring remain; inspect helper source shape. */
+/* TODO: [breakthrough needed] 87.78%; path projection FP scheduling and hero-latch coloring remain; inspect helper shape while preserving traversal locals. */
 void turn_to_face_exterior_door(void) {
     KonquestObject* building;
     KonquestChildObject* door;
@@ -7767,8 +7739,7 @@ static void generate_collisions_for_tile_and_tile_objects(
                     MkPtr* next;
 
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                 } else {
                     KonquestRenderRecord* record;
@@ -7808,8 +7779,7 @@ static void remove_collisions_from_tile_and_tile_objects(
             if (link->instance != link->hdr->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestUidObject* object = (KonquestUidObject*)link->hdr;
@@ -7918,8 +7888,7 @@ static void unhide_tile(KonquestTileRecord* tile) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 show_konquest_object((KonquestUidObject*)link->hdr);
@@ -10139,8 +10108,7 @@ static inline int konquest_fire_temporary_triggers(KonquestPdata* pdata) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -10499,8 +10467,8 @@ static float p_konquest_inventory(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.44%; string offsets agree; pdata/hero/right_panel/fade
- * colors rotate (retail r29/r28/r30/r31); declaration order is insensitive. */
+/* TODO: [near miss] 99.49%; string offsets agree; pdata/hero/right_panel/fade
+ * colors rotate; preserve traversal locals and check supported lifetimes. */
 static float p_konquest_map_screen(void) {
     KonquestPdata* pdata;
     MkObj* hero;
@@ -10635,8 +10603,7 @@ static float p_konquest_map_screen(void) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -11936,8 +11903,7 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
             entry = link->hdr;
             if (link->instance != entry->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestNpc* npc = (KonquestNpc*)entry;
@@ -11999,8 +11965,7 @@ void nis_end_scene(void) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -12126,8 +12091,7 @@ void nis_remove_non_participants(void) {
             hdr = link->hdr;
             if (link->instance != hdr->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 npc = (KonquestNpc*)hdr;
@@ -13161,8 +13125,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }

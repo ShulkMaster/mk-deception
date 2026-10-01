@@ -483,8 +483,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
@@ -520,8 +519,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id) {
@@ -576,8 +574,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
@@ -627,8 +624,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
@@ -694,8 +690,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {
@@ -774,8 +769,7 @@ void mks_set_sin_update_by_group(
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (update->group_id == group_id || group_id == -1) {

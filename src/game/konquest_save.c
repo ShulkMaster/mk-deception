@@ -471,8 +471,7 @@ int load_konq_memory_from_krd_buffer(void) {
             npc = (KonquestNpc*)node->hdr;
             if (node->instance != npc->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }
@@ -568,8 +567,7 @@ int save_konq_memory_to_krd_buffer(int region) {
             trigger = (KonquestTrigger*)node->hdr;
             if (node->instance != trigger->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }
@@ -599,8 +597,7 @@ int save_konq_memory_to_krd_buffer(int region) {
         while (node != 0) {
             if (node->instance != node->hdr->instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }
@@ -638,8 +635,7 @@ int save_konq_memory_to_krd_buffer(int region) {
             npc = (KonquestNpc*)node->hdr;
             if (node->instance != npc->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }

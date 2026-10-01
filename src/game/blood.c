@@ -1408,8 +1408,7 @@ void gusher_destroy_list(void) {
             hdr = ptr->hdr;
             if (ptr->instance != hdr->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
                 continue;
             }
@@ -2539,8 +2538,7 @@ static float p_bleed(void) {
             pdata = (BleedPdata*)item->hdr;
             if (item->instance != pdata->hdr.instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -2922,8 +2920,7 @@ int obj_spawn_bld(
         hdr = item->hdr;
         if (item->instance != hdr->instance) {
             next = item->next;
-            item->hdr = 0;
-            destroy_mkptr(item);
+            discard_stale_mkptr(item);
             item = next;
             continue;
         }

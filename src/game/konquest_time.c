@@ -468,16 +468,7 @@ static int find_next_day_of_month_in_a_year(
         if (amount < 0) {
             amount += 30;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
         if (result->year != year) {
             return 0;
         }
@@ -547,16 +538,7 @@ static int find_next_day_of_week_and_month_in_a_year(
         if (amount < 0) {
             amount += 7;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = month - result->month;
         if (amount < 0) {
@@ -565,17 +547,7 @@ static int find_next_day_of_week_and_month_in_a_year(
         if (amount > 0) {
             days_to_add = 30 - result->day_of_month + (amount - 1) * 30;
             days_to_add = ((days_to_add + 6) / 7) * 7;
-            result->day_of_month += days_to_add;
-            result->day_of_week =
-                (result->day_of_week + days_to_add) % 7;
-            if (result->day_of_month >= 30) {
-                result->month += result->day_of_month / 30;
-                result->day_of_month %= 30;
-                if (result->month >= 12) {
-                    result->year += result->month / 12;
-                    result->month %= 12;
-                }
-            }
+            advance_days(result, days_to_add);
         }
         if (result->year != year) {
             return 0;
@@ -596,16 +568,7 @@ static int find_next_day_of_week_and_month_in_a_year(
         if (amount < 0) {
             amount += 7;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = month - result->month;
         if (amount < 0) {
@@ -614,17 +577,7 @@ static int find_next_day_of_week_and_month_in_a_year(
         if (amount > 0) {
             days_to_add = 30 - result->day_of_month + (amount - 1) * 30;
             days_to_add = ((days_to_add + 6) / 7) * 7;
-            result->day_of_month += days_to_add;
-            result->day_of_week =
-                (result->day_of_week + days_to_add) % 7;
-            if (result->day_of_month >= 30) {
-                result->month += result->day_of_month / 30;
-                result->day_of_month %= 30;
-                if (result->month >= 12) {
-                    result->year += result->month / 12;
-                    result->month %= 12;
-                }
-            }
+            advance_days(result, days_to_add);
         }
     }
     return 1;
@@ -647,16 +600,7 @@ static int find_next_day_of_month_and_month_in_a_year(
         if (amount < 0) {
             amount += 30;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = month - result->month;
         if (amount < 0) {
@@ -687,16 +631,7 @@ static int find_next_day_of_month_and_month_in_a_year(
         if (amount < 0) {
             amount += 30;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = month - result->month;
         if (amount < 0) {
@@ -730,16 +665,7 @@ static int find_next_day_of_week_and_day_of_month_in_a_year(
         if (amount < 0) {
             amount += 30;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = day_of_week - result->day_of_week;
         if (amount < 0) {
@@ -776,16 +702,7 @@ static int find_next_day_of_week_and_day_of_month_in_a_year(
         if (amount < 0) {
             amount += 30;
         }
-        result->day_of_month += amount;
-        result->day_of_week = (result->day_of_week + amount) % 7;
-        if (result->day_of_month >= 30) {
-            result->month += result->day_of_month / 30;
-            result->day_of_month %= 30;
-            if (result->month >= 12) {
-                result->year += result->month / 12;
-                result->month %= 12;
-            }
-        }
+        advance_days(result, amount);
 
         amount = day_of_week - result->day_of_week;
         if (amount < 0) {

@@ -62,13 +62,6 @@ typedef struct PuzzleFighterStartFlags {
     unsigned char unused : 3;
 } PuzzleFighterStartFlags;
 
-typedef struct PuzzleFighterStartFlagGroups {
-    unsigned char enabled_pad : 1; /* bit7 */
-    signed char players_started : 2; /* bits6-5 */
-    signed char players_scored : 2; /* bits4-3 */
-    signed char unused : 3;
-} PuzzleFighterStartFlagGroups;
-
 typedef struct PuzzleFightersEngine {
     float balance; /* +0x00 */
     Vec arena_axis; /* +0x04 */
@@ -113,11 +106,7 @@ typedef struct PuzzleFightersEngine {
     AniTextureControl* texture_controls[2]; /* +0x188 */
     unsigned int balance_update_timer; /* +0x190 */
     float pending_balance; /* +0x194 */
-    union {
-        unsigned char start_flags;
-        PuzzleFighterStartFlags start_flag_bits;
-        PuzzleFighterStartFlagGroups start_flag_groups;
-    }; /* +0x198 */
+    PuzzleFighterStartFlags start_flag_bits; /* +0x198 */
     char pad199[3];
     unsigned int immediate_request_player; /* +0x19C */
     unsigned int immediate_request_type; /* +0x1A0 */
