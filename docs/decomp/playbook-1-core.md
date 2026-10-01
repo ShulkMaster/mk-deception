@@ -162,10 +162,13 @@ Core statement only; each rule's detail is its `## Hxx` section in tier 2.
   predicate | `if (c) return 1; return 0;` or macro `(c) == 0 ? 0 : 1`.
 - **H20 State struct** | whole-function rotation around an inlined state struct |
   retail colors state first | declared scalar locals driven by macros.
-- **H21 Helper locals** | inlined loop locals colored above loop temps, or
-  helper owner/sum coloring under `opt_propagation off` | retail reuses dead
-  outer registers; propagation off keeps inline copies | open-code and reuse
-  existing outer locals; make the shared helper copy-free (ternary, direct args).
+- **H21 Helper locals** | inlined loop locals colored above loop temps, helper
+  owner/sum coloring under `opt_propagation off`, or a volatile rotation whose
+  webs differ in kind (temp, address local, helper local, named/CSE'd) | retail
+  reuses dead outer registers; propagation off keeps inline copies; kind sets
+  the web number | open-code and reuse existing outer locals; make the shared
+  helper copy-free (ternary, direct args); change a web's kind (address-taken
+  helper input, direct global reads) before sweeping declarations.
 - **H22 One-row residue** | operand, constant, or copy residue in one row |
   single localized row | try one listed spelling at a time.
 - **H23 Unit-owned data** | base rematerialized at each use | symbol lives in

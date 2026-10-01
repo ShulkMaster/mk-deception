@@ -232,7 +232,13 @@ boundary.
 - Owner fields reread after an inlined helper that writes the stack (fast
   sqrt): take a typed position pointer after the helper and read through it
   (`mks_bgnd_cam_offset_away`). A field null-tested before it is cached is
-  tested directly, then assigned (`p_create_decoy`).
+  tested directly, then assigned (`p_create_decoy`). IF the reread follows a
+  float-bits helper and a scoped `opt_common_subs off` reproduces it but
+  rotates the volatile GPRs, TRY a unit-private helper that reads the word
+  through `*(unsigned int*)&value` (address-taken input): its stack stores
+  kill the pointer-based CSE of `obj->pos` with CSE on, direct `plyr_obj` /
+  `his_obj` reads stay CSE'd, and no pragma is needed
+  (`drone_ai_victim_avoid`).
 - A callback and its opaque object loaded before state mutation: snapshot both
   (`SFXLIB_Error`).
 - Input combinations across a process transfer: keep every button read and
@@ -693,6 +699,23 @@ the helper edit is safe for its other callers (`ai_weapon_style_move_count` in
 `drone_ai_check_dont_touch_attack_phase2`). Both edits are needed; either alone
 is neutral. The same rewrite regressed `drone_ai_check_attack`, whose residue
 is a parameter pair, not helper copies.
+
+IF the residue is a rotation of volatile GPRs over identical operations and
+CFG, REQUIRE classifying each miscolored web by kind before any declaration
+sweep: MWCC colors the highest-numbered web first (lowest free volatile), and
+the number follows the web's kind, measured in `drone_ai_victim_avoid`: a
+codegen temp (union-member load inside an inlined sqrt) colors before an
+address-valued local (`drone = cond ? &g_A : &g_B`, unmoved by any declaration
+order), which colors before an inlined helper's named local, which colors
+before caller named locals (reverse declaration order; block-scoped ones
+last) and CSE'd global reads. TRY changing a web's kind, not its position:
+reading the helper's input word twice through `*(unsigned int*)&value` turns
+the bit-word temp into a CSE web that colors after the named/CSE'd objects;
+reading `plyr_obj` / `his_obj` directly instead of caching them turns the
+object owners into CSE webs. The union helper under `opt_common_subs off`
+(bits r5) was 99.44, a pointer-cast helper with a named `bits` local 99.72,
+CSE'd bits with cached owners 99.69, and CSE'd bits with direct global reads
+100 (retail drone r5, player r6, bits r7, opponent r8, second bits r6).
 
 ## H22
 

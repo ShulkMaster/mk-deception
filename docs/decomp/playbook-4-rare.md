@@ -112,7 +112,11 @@ After the applicable honest source check, stop at:
   threshold crossed twice, not retail. Stream-neutral levers (helper
   boundaries, staged call arguments, scopes, variable identity, inline depth,
   pragmas, K&R order, TU isolation) were all neutral there; without a
-  capture-based replay of the allocator the pair is a hard stop.
+  capture-based replay of the allocator the pair is a hard stop. A volatile
+  rotation under a scoped `opt_*` pragma is not a stop until the H21 web-kind
+  check and the pragma-free H05 mechanism were measured: `drone_ai_victim_avoid`
+  closed from a recorded 99.44 ceiling by replacing `opt_common_subs off` with
+  an address-taken sqrt input and direct global reads.
 - `li 0` vs copying an already-zero register; commutative scratch encodings.
 - Frameless PLATFORM `mtlr`/`blrl` emission.
 - Anonymous relocation labels with verified identical payloads and targets.

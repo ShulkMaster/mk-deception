@@ -55,7 +55,11 @@ baselines.
   built code reuses the loop test's register: try function-scoped
   `opt_common_subs off` with an immediate reset and whole-TU comparison.
   `opt_propagation off` was byte-neutral for `kabal_collide_victim`; the
-  CSE setting restored its retail `his_pdata` reload.
+  CSE setting restored its retail `his_pdata` reload. Qualifier: when the
+  reload follows an inlined float-bits helper, the pragma reproduces the
+  reload but renumbers the volatile webs (`drone_ai_victim_avoid` stalled at
+  99.44 under it); an address-taken helper input (H05, H21) gives the reload
+  with CSE on and closed the function without a pragma.
 - A multi-row field where retail adds the offset to a reloaded owner before
   `stfsx`: a typed row-array pointer plus propagation off (Puzzle crusher).
 - A fixed-count array copy lowered to two advancing pointers where retail has

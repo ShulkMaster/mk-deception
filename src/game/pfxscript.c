@@ -722,12 +722,9 @@ void create_y_mirror_effect(int field_28) {
 }
 
 void set_vertex_color(const PfxVertexColorArgs* color) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxScriptVm* effect;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     effect = environment->effect;
     if (effect != 0 && effect->flags.vertex_color_enabled) {
         pfx_native_set_rgba(
@@ -738,13 +735,10 @@ void set_vertex_color(const PfxVertexColorArgs* color) {
 
 /* TODO: [near miss] 71.01%; size and algorithm exact; residue is the unrolled three-vector copy. */
 void set_light(const PfxLightArgs* light) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxScriptVm* effect;
     int component;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     effect = environment->effect;
     if (effect != 0 && !effect->flags.light_enabled) {
         for (component = 0; component < 3; component++) {
@@ -764,10 +758,7 @@ void z_bias(float bias) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0) {
         effect->z_bias = bias;
@@ -778,10 +769,7 @@ void face_y(void) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0) {
         effect->orientation_flags.face_y = 1;
@@ -792,10 +780,7 @@ void particle_size(float size) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0 &&
         effect->flags.particle_size_enabled != 0) {
@@ -822,10 +807,7 @@ void set_aspect_ratio(float x, float y) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0) {
         effect->aspect_x = x;
@@ -837,10 +819,7 @@ void set_bounding_radius(float radius) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0) {
         effect->bounding_radius = radius;
@@ -853,12 +832,9 @@ void enable_profiling(int enabled) {
 }
 
 void initial_multiply_float(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
@@ -869,12 +845,9 @@ void initial_multiply_float(int unused, float minimum, float maximum) {
 }
 
 void initial_set_float(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
@@ -885,12 +858,9 @@ void initial_set_float(int unused, float minimum, float maximum) {
 }
 
 void initial_divert(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
@@ -903,10 +873,7 @@ void initial_divert(int unused, float minimum, float maximum) {
 void initial_add_v3(int destination, int source) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_initial_add_v3(
             environment->behavior, destination, source);
@@ -916,10 +883,7 @@ void initial_add_v3(int destination, int source) {
 void initial_reflect(int field) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_initial_reflect(environment->behavior, field);
     }
@@ -973,10 +937,7 @@ void change_on_greater(int field, float value) {
 void kill_roundrobin(int field) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_kill_roundrobin(environment->behavior, field);
     }
@@ -985,10 +946,7 @@ void kill_roundrobin(int field) {
 void kill_percent(float percent) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_kill_percent(environment->behavior, percent);
     }
@@ -997,10 +955,7 @@ void kill_percent(float percent) {
 void kill_on_greater(int field, float value) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_kill_on_greater(environment->behavior, field, value);
     }
@@ -1009,10 +964,7 @@ void kill_on_greater(int field, float value) {
 void udpate_roundrobin(int field) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_roundrobin(environment->behavior, field);
     }
@@ -1021,10 +973,7 @@ void udpate_roundrobin(int field) {
 void update_assign(int destination, int source) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_assign(
             environment->behavior, destination, source);
@@ -1117,10 +1066,7 @@ void update_fade_alpha(int color_field, int age_field, float start_time,
 void update_wrapbox(int field, float scale, float x, float y, float z) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_wrapbox(environment->behavior, field, scale, x, y, z);
     }
@@ -1129,10 +1075,7 @@ void update_wrapbox(int field, float scale, float x, float y, float z) {
 void update_mul_scalar(int field, float x, float y, float z) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_mul_scalar(environment->behavior, field, x, y, z);
     }
@@ -1141,10 +1084,7 @@ void update_mul_scalar(int field, float x, float y, float z) {
 void update_copy(int field) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_copy(environment->behavior, field);
     }
@@ -1153,10 +1093,7 @@ void update_copy(int field) {
 void update_add_constant(int field, float value) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_add_constant(environment->behavior, field, value);
     }
@@ -1165,10 +1102,7 @@ void update_add_constant(int field, float value) {
 void update_add_constant_v3(int field, float x, float y, float z) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->behavior != 0) {
         pfxvm_update_add_constant_v3(environment->behavior, field, x, y, z);
     }
@@ -1759,10 +1693,7 @@ void kill_at_plane(float plane) {
     PfxScriptEnvironment* environment;
     PfxScriptVm* effect;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     effect = environment->effect;
     if (effect != 0) {
         effect->kill_plane = plane;
@@ -1773,10 +1704,7 @@ void set_cycle_emission(int enabled) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     emitter = environment->emitter;
     if (emitter != 0) {
         emitter->birth_limit = enabled;
@@ -1787,10 +1715,7 @@ void set_cycle_length(float length, float position) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     emitter = environment->emitter;
     if (emitter != 0) {
         emitter->cycle_length = length;
@@ -1927,11 +1852,8 @@ void texture_animation(float horizontal_scale, int vertical_frames, float speed)
 }
 
 void spawn_color(int field, int red, int green, int blue, int alpha) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
             environment->emitter, field, red, green, blue, alpha);
@@ -1942,10 +1864,7 @@ void emission_duration(float duration) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     emitter = environment->emitter;
     if (emitter != 0) {
         emitter->cycle_length = duration;
@@ -1957,12 +1876,9 @@ void emission_duration(float duration) {
 void emit_cylindrical(
     int field, float x, float y, float z, float radius,
     float height, float start, float end) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         axis.x = x;
         axis.y = y;
@@ -1977,11 +1893,8 @@ void emit_cartesian(
     int field, float x, float y, float z,
     float width, float height, float depth) {
     float half = 0.5f;
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_box(
             environment->emitter, field,
@@ -1993,12 +1906,9 @@ void emit_cartesian(
 void emit_disc2(
     int field, float x, float y, float z,
     float inner_radius, float outer_radius) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         axis.x = x;
         axis.y = y;
@@ -2011,12 +1921,9 @@ void emit_disc2(
 
 void emit_disc(
     int field, float x, float y, float z, float outer_radius) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         axis.x = x;
         axis.y = y;
@@ -2031,10 +1938,7 @@ void emit_spherical_section(int field, float x, float y, float z,
                             float angle, float angle_spread) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->emitter != 0) {
         pfxvm_spawn_sphere_section(
             environment->emitter, field, x, y, z, radius,
@@ -2045,11 +1949,8 @@ void emit_spherical_section(int field, float x, float y, float z,
 void emit_from_pos_clamp_y(int field, int source, float x, float y, float z,
                            float minimum_length, float length_range,
                            float clamped_y) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_from_pos(
             environment->emitter, field, source, 1,
@@ -2059,11 +1960,8 @@ void emit_from_pos_clamp_y(int field, int source, float x, float y, float z,
 
 void emit_from_pos(int field, int source, float x, float y, float z,
                    float minimum_length, float length_range) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_from_pos(
             environment->emitter, field, source, 0,
@@ -2072,11 +1970,8 @@ void emit_from_pos(int field, int source, float x, float y, float z,
 }
 
 void emit_spherical_from_boundary(int field, float radius) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_sphere(
             environment->emitter, field, 0.0f, 0.0f, 0.0f,
@@ -2085,11 +1980,8 @@ void emit_spherical_from_boundary(int field, float radius) {
 }
 
 void emit_spherical(int field, float radius) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_sphere(
             environment->emitter, field, 0.0f, 0.0f, 0.0f,
@@ -2112,10 +2004,7 @@ void emit_from_point(float x, float y, float z) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     emitter = environment->emitter;
     if (emitter != 0) {
         emitter->position.x = x;
@@ -2125,11 +2014,8 @@ void emit_from_point(float x, float y, float z) {
 }
 
 void emit_color(int field, int red, int green, int blue, int alpha) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
             environment->emitter, field, red, green, blue, alpha);
@@ -2139,10 +2025,7 @@ void emit_color(int field, int red, int green, int blue, int alpha) {
 void emit_uv(int field, float u, float v) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->emitter != 0) {
         pfxvm_spawn_uv(environment->emitter, field, u, v);
     }
@@ -2151,12 +2034,9 @@ void emit_uv(int field, float u, float v) {
 /* TODO: [near miss] 99.58%; commutative FP operands and constant relocation
  * remain; reversed source operands are neutral; stop at coloring. */
 void emit_in_range(int unused, float center, float width) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
     float half_width;
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         half_width = width * 0.5f;
         pfxvm_spawn_line_1f(environment->emitter, unused,
@@ -2167,10 +2047,7 @@ void emit_in_range(int unused, float center, float width) {
 void emit_value(int field, float value) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->emitter != 0) {
         pfxvm_spawn_value(environment->emitter, field, value);
     }
@@ -2179,10 +2056,7 @@ void emit_value(int field, float value) {
 void emit_value_i(int field, int value) {
     PfxScriptEnvironment* environment;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     if (environment->emitter != 0) {
         pfxvm_spawn_line_1i(
             environment->emitter, field, value, value);
@@ -2193,10 +2067,7 @@ void emit_constant_rate(void) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
-    environment = 0;
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
+    environment = active_pfx_environment();
     emitter = environment->emitter;
     if (emitter != 0) {
         emitter->flags.bits.constant_rate = 1;
@@ -2204,11 +2075,8 @@ void emit_constant_rate(void) {
 }
 
 void emit_roundrobin_mechanism(int field, int source) {
-    PfxScriptEnvironment* environment = 0;
+    PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (pfxscript_environment.active != 0) {
-        environment = &pfxscript_environment;
-    }
     if (environment->emitter != 0) {
         pfxvm_spawn_roundrobin_mechanism(
             environment->emitter, field, source);
