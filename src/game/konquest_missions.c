@@ -3208,6 +3208,8 @@ int trial_end_round(void) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
+/* TODO: [near miss] 95.31%; real side staging is byte-neutral;
+ * only nonvolatile-free register coloring remains; stop here. */
 void skip_end_of_trial_wrapup(void) {
     if (mission_state->fight->animation_side ==
         (aproc->pid != 0x1001)) {

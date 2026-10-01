@@ -424,9 +424,10 @@ void pz_fighter_set_y_constrain(
     PuzzleFighterObject* fighter, int enabled, float height);
 void pz_fighter_dont_fudge_desired_distance(void);
 void pz_fighter_startup_attack(
-    PuzzleAnimation* animation, unsigned int start_flags,
-    unsigned int attack_flags, int blend_flags, int reaction,
-    float attack_frame, float blend, float speed, float force, float damping);
+    PuzzleAnimation* animation, float attack_frame, float blend,
+    float speed, float force, unsigned int start_flags,
+    unsigned int attack_flags, int blend_flags, unsigned int reaction,
+    float damping);
 void player_feet_land_chores(void);
 void random_hit(int sound);
 void random_voice(int sound);
@@ -437,9 +438,7 @@ float pz_fighter_ani_attack(
     int attack, unsigned int reaction, float active_frame, float hit_frame,
     float damage);
 void set_both_face_opponent_flags(void);
-void got_hit_fx(
-    int type, int bone, int strength, int flags, int blood, int sound,
-    float scale);
+void got_hit_fx(int type, int bone, int strength, int flags, int blood, float scale, int sound);
 void myvel_his_angle_y(float y, float x, float z);
 void init_air_move_no_aniproc(void);
 void update_bone_hierarchy(void* object);
@@ -447,7 +446,7 @@ void ground_me(void* object);
 void rotate_towards_him(float rate);
 int get_his_attack_counter(void);
 void force_forward(
-    int duration, int animation, float force, float damping);
+    float force, int duration, float damping, int animation);
 void nudge_towards_him(float distance);
 void ani_to_blend_frame(float frame);
 void ani_to_frame_x(float frame);
@@ -2442,8 +2441,8 @@ void pz_fighter_create_space_between_fighters(void) {
         head_tracking_off();
         pz_fighter_dont_fudge_desired_distance();
         pz_fighter_startup_attack(
-            pz_shared_ani.backflip, 0x10000, 0x10008, 3, 2, 14.0f,
-            0.1f, 0.6f, 0.3f, 0.8f);
+            pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+            0x10000, 0x10008, 3, 2, 0.8f);
         ani_to_frame_x(24.0f);
         player_feet_land_chores();
         init_ground_move();
@@ -2564,8 +2563,8 @@ float pz_fighter_backflip_and_point(void) {
     head_tracking_off();
     pz_fighter_dont_fudge_desired_distance();
     pz_fighter_startup_attack(
-        pz_shared_ani.backflip, 0x10000, 0x10008, 3, 2, 14.0f,
-        0.1f, 0.6f, 0.3f, 0.8f);
+        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+        0x10000, 0x10008, 3, 2, 0.8f);
     ani_to_frame_x(24.0f);
     player_feet_land_chores();
     init_ground_move();
@@ -2593,8 +2592,8 @@ float pz_fighter_just_backflip(void) {
     head_tracking_off();
     pz_fighter_dont_fudge_desired_distance();
     pz_fighter_startup_attack(
-        pz_shared_ani.backflip, 0x10000, 0x10008, 3, 2, 14.0f,
-        0.1f, 0.6f, 0.3f, 0.8f);
+        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+        0x10000, 0x10008, 3, 2, 0.8f);
     ani_to_frame_x(24.0f);
     player_feet_land_chores();
     init_ground_move();
@@ -2828,7 +2827,7 @@ static float pz_fighter_r_null(void) {
 }
 
 static float r_pz_ermac_slam(void) {
-    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
+    got_hit_fx(2, 0xD, 4, 0, 0, 0.0f, 2);
     init_air_move();
     face_opponent_now();
     stop_me();
@@ -2847,12 +2846,12 @@ static float r_pz_ermac_slam(void) {
     snd_req(0x1D7);
     set_my_state(0x3203);
     init_air_move();
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
     plyr_anim_pdata->step = 0.6f;
     launch_me_up(0.08f, -0.003f);
     ani_to_frame_x(34.0f);
     set_my_state(0x600);
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
     random_hit(9);
     bulvan_function(0);
     init_ground_move();
@@ -2894,7 +2893,7 @@ static float r_pz_fighter_spear_hit(void) {
     stop_me();
     init_air_move();
     set_my_state(0x603);
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
     blend_to_ani(his_pdata->fighter_definition->spear_hit, 3, 0.1f);
     ani_to_frame_x(83.0f);
     set_my_state(0x604);
@@ -2964,7 +2963,7 @@ static float r_pz_fighter_almost_in_grinder(void) {
 
 static float r_pz_fighter_feet3_swept_out(void) {
     face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     plyr_obj->movement_flags.face_opponent = 0;
     plyr_obj->movement_flags.tightrope_restricted = 0;
     pz_fighter_set_y_constrain(plyr_obj, 1, 0.0f);
@@ -3017,12 +3016,12 @@ void suspend_in_midair(float ticks) {
 static float r_pz_fighter_dizzyfall3_with_holdface(void) {
     face_opponent_now();
     wall_eligible_on();
-    got_hit_fx(0, 1, 0, 2, 0, 0, 0.0f);
+    got_hit_fx(0, 1, 0, 2, 0, 0.0f, 0);
     snd_major_hit_voice();
     force_away(0.04f, 2, 0.4f, 2);
     blend_to_ani(pz_shared_ani.dizzyfall_holdface, 0xB, 0.1f);
     ani_to_frame_x(95.0f);
-    got_hit_fx(0, 0xC, 0, 4, 0, 1, 0.0f);
+    got_hit_fx(0, 0xC, 0, 4, 0, 0.0f, 1);
     random_hit(9);
     ani_to_end();
     if (pz_fighter_should_he_breakout() == 0) {
@@ -3085,7 +3084,7 @@ static float r_pz_fighter_block_hi(void) {
     blend_to_ani(shared_ani.block_high, 0, 0.5f);
     xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = 1.0f;
-    force_forward(6, 3, 0.01f, 0.5f);
+    force_forward(0.01f, 6, 0.5f, 3);
     for (;;) {
         nudge_towards_him(0.2f);
         _mkproc_sleep_ticks = 1.0f;

@@ -115,8 +115,8 @@ void bgnd_npc_add_collision_shape(
 unsigned long random_hit(int group);
 void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int message);
-void get_player_proc(MkObj* object);
-void xfer_player_proc(void* script);
+MkProc* get_player_proc(MkObj* object);
+void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 int is_my_chest_to_screen(void);
 void bgnd_collision_if_disable_col(int list_id, unsigned int collision_id);
 void bgnd_collision_if_enable_col(int list_id, unsigned int collision_id);
@@ -142,7 +142,7 @@ int bgnd_pebble_set_current_pebble(int pebble, int index);
 int bgnd_pebble_set_current_info(int info, void* object, float value);
 
 extern MkObj* his_obj;
-extern unsigned char r_chest2_stumble[];
+float r_chest2_stumble(void);
 extern unsigned int exec_tick_ctr;
 
 
@@ -174,7 +174,6 @@ static inline float nb_fast_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
-/* TODO: [near miss] 99.59%; remaining-frames and velocity-delta FPR coloring (f0/f2/f3 rotation) remains. */
 void lower_mines_ani_to_point(
     void* script, float start_frame, float animation_step, float end_frame,
     int landing_sound, float vertical_velocity, float gravity,
@@ -183,11 +182,11 @@ void lower_mines_ani_to_point(
     float root;
     float radicand;
     float frames;
-    float root_a;
     float root_b;
     float inverse_frames;
     float delta_x;
     float delta_z;
+    float height_term;
 
     plyr_anim_pdata->flags |= 0x40;
     transition_to_anim_script(
@@ -206,32 +205,35 @@ void lower_mines_ani_to_point(
     plyr_obj->flags_09_bits.launched = 0;
 
     radicand = vertical_velocity * vertical_velocity;
-    radicand -= (2.0f * gravity) *
+    height_term = (2.0f * gravity) *
         ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
+    radicand -= height_term;
     root = 0.001f;
     if (radicand >= root) {
         root = radicand;
     }
     root = gxMathFastSqrt(root);
 
-    root_a = (root - vertical_velocity) / gravity;
+    radicand = (root - vertical_velocity) / gravity;
     root_b = (-root - vertical_velocity) / gravity;
-    if (root_a < 0.0f ||
-        (root_b > 0.0f && root_b < root_a)) {
-        root_a = root_b;
+    if (radicand < 0.0f ||
+        (root_b > 0.0f && root_b < radicand)) {
+        radicand = root_b;
     }
 
     frames = 1.0f;
-    radicand = root_a - (float)frame_offset;
+    radicand = radicand - (float)frame_offset;
     if (radicand >= frames) {
         frames = radicand;
     }
 
     plyr_anim_pdata->step = (end_frame - start_frame) / frames;
     inverse_frames = 1.0f / frames;
-    delta_x = target->x - plyr_obj->pos.value.x;
+    delta_x = target->x;
+    delta_x -= plyr_obj->pos.value.x;
     delta_z = target->z - plyr_obj->pos.value.z;
-    plyr_obj->pos_vel.x = delta_x * inverse_frames;
+    delta_x *= inverse_frames;
+    plyr_obj->pos_vel.x = delta_x;
     plyr_obj->pos_vel.z = delta_z * inverse_frames;
     ani_to_frame_x(end_frame);
 
@@ -259,7 +261,7 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [near miss] 93.90%; final momentum basis change: retail forms -1.0f*impact_scale and interleaves the axis copies; FPR coloring. */
+/* TODO: [breakthrough needed] 93.90%; final basis needs retail fused dot-product staging and full-vector publication (including Y); rebound factor/copy order unresolved. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     NbNpcState* npc;
@@ -429,8 +431,10 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     old_x = npc->momentum.x;
     old_z = npc->momentum.z;
     {
+        Vec local_z;
         Vec local_x = nb_collision_x_axis;
-        Vec local_z = nb_collision_z_axis;
+
+        local_z = nb_collision_z_axis;
 
         npc->momentum.x =
             old_x * (local_x.x * facing.x + local_x.z * facing.z) +
@@ -556,7 +560,8 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
 }
 
 
-/* TODO: [near miss] 98.72%; direction x/z FPR swap (f7/f6) and camera/npc-object r5/r7 swap remain; declaration order is neutral. */
+/* TODO: [near miss] 98.79%; transfer ABI corrected; direction x/z FPR
+ * and camera/npc register roles remain after measured lifetime trials. */
 static int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact) {
     MkObj* player_object;
@@ -646,8 +651,7 @@ static int nb_npc_hurt_player(
         return 1;
     }
     if (alignment > -1.55f && alignment < -0.55f) {
-        get_player_proc(player_object);
-        xfer_player_proc(r_chest2_stumble);
+        xfer_player_proc(get_player_proc(player_object), r_chest2_stumble);
     }
     return 0;
 }

@@ -609,6 +609,7 @@ static inline const char* room_sobj_name(unsigned int id) {
     return 0;
 }
 
+/* TODO: [near miss] 99.94%; all nine residues are TU initializer-pool offsets (0x48-0x68 versus 0x0c-0x2c); recover pool grouping. */
 static void place_interior_room_objects(KonquestRoomObject* rec) {
     MkObj* interior_object = konq_interior_save_data.interior_object;
 

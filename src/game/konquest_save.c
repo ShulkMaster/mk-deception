@@ -257,7 +257,7 @@ static inline void copy_common_konquest_profile_data(
     profile->profile_serial = 1;
 }
 
-/* TODO: [near miss] 98.49593%; shared storage fields recovered; remaining register/CFG lowering requires evidence. */
+#pragma opt_common_subs off
 int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     unsigned int bit;
     int result;
@@ -307,6 +307,7 @@ int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     f_writing_konquest_profile = 0;
     return 1;
 }
+#pragma opt_common_subs reset
 
 
 void full_konquest_load_from_memcard(void) {

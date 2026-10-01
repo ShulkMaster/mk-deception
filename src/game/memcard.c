@@ -520,18 +520,14 @@ void move_player_name(unsigned char* src, unsigned char* dest) {
     }
 }
 
-/* TODO: [near miss] 97.10%; base/index GPR coloring remains; stop at coloring. */
 void storage_status_change_calculations(int device) {
     int i;
-    StorageDevice* base;
-    unsigned char* profileCount;
 
-    base = DEVICE_AT(device);
-    profileCount = &base->profileCount;
-    *profileCount = 0;
+    DEVICE_AT(device)->profileCount = 0;
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        if (base->profiles[i].present != 0) {
-            *profileCount = *profileCount + 1;
+        if (DEVICE_AT(device)->profiles[i].present != 0) {
+            DEVICE_AT(device)->profileCount =
+                DEVICE_AT(device)->profileCount + 1;
         }
     }
 }

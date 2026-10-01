@@ -1406,6 +1406,8 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
+/* TODO: [breakthrough] 79.52%; count-first unordered-safe loop guard restored;
+ * spear FP lifetimes and shared pi pool placement remain. */
 static float p_pfx_sc_spear(void) {
     NcsSpearEffect* effect;
     SpearProcPdata* spear_pdata;
@@ -1478,8 +1480,8 @@ static float p_pfx_sc_spear(void) {
     phase = 0.0f;
     distance = 0.0f;
     particle_count = 0;
-    while (distance <= length - 0.05f &&
-           particle_count < pfx->field_90) {
+    while (particle_count < pfx->field_90 &&
+           !(distance > length - 0.05f)) {
         float step;
 
         if (effect->field_298 > 0.0f) {
@@ -2533,7 +2535,6 @@ static float p_watch_obj_for_gnd_coll(void);
 static float p_camera_wall_show_hide_alpha(void);
 static float p_limb_sever_attach(void);
 static float p_gore2_update(void);
-/* TODO: [near miss] 99.92%; only the glop velocity fmuls operand order (f30 first in retail) remains. */
 static void trigger_blood_glops(
     PlyrPdata* player, int bone, MkObj* source, int blood_type) {
     NcsGroundCollisionWatchPdata* watcher;
@@ -2566,6 +2567,7 @@ static void trigger_blood_glops(
                 Vec bone_at;
                 Vec bone_right;
                 float speed;
+                float direction;
 
                 effect = fx_next_emitter(effect);
                 if (effect == 0) {
@@ -2604,10 +2606,12 @@ static void trigger_blood_glops(
                 }
                 mkobj_get_matrix_right(source, &bone_right);
                 speed = 0.02f + frand(0.03f);
-                glop->pos_vel.x = speed * gxMathSin(angle);
+                direction = gxMathSin(angle);
+                glop->pos_vel.x = direction * speed;
                 glop->pos_vel.y = frand(0.005f);
                 speed = 0.02f + frand(0.03f);
-                glop->pos_vel.z = speed * gxMathCos(angle);
+                direction = gxMathCos(angle);
+                glop->pos_vel.z = direction * speed;
                 glop->gravity = -0.002f;
                 update_mkobj(glop);
                 watcher->objects[index].object = glop;

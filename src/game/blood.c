@@ -1809,6 +1809,7 @@ static inline MKMATRIX* decal_watcher_next_matrix(
     return &watcher->matrices[watcher->matrix_count];
 }
 
+/* TODO: [near miss] 97.30%; saved-register coloring and position Y-load scheduling remain; owner access uses the typed blood-owner path. */
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,
     const MKMATRIX* orientation, float angle) {
@@ -1876,7 +1877,7 @@ void spawn_decal_emitter(
     if (owner != 0) {
         int owner_index;
 
-        owner_index = ((PlyrPdata*)owner)->plyr_info->controller_slot;
+        owner_index = owner->blood_owner->owner_index;
         emitter = fx_by_owner(name, 1 << owner_index);
     } else {
         emitter = fx_by_owner(name, 4);
@@ -1991,8 +1992,7 @@ static inline MkProc* bleed_start_foot_prints(
     return foot_proc;
 }
 
-/* TODO: [near miss] 92.63%; footprint writes use the canonical player and use_game_speed bitfield; control-flow/register differences remain. */
-/* TODO: [near miss] 99.02%; stack slots: retail puts the footprint pdata locals (0x1c/0x18) above both nostack flag pairs; splat-list loop and player-arg register order. */
+/* TODO: [near miss] 99.02%; footprint output stack slots, splat-loop base/index and player-owner register roles differ. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;

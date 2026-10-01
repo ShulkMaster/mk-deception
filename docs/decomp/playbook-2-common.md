@@ -213,7 +213,10 @@ boundary.
   invariant displacement separately. Verify with a nonzero output mutation.
 - Qualifier: if retail stores through an output pointer before loading handle
   state but the compiler hoists the load, remove an unsupported `const` on the
-  handle (`SFH_AnlyNumElem*`). Keep genuine const (M12).
+  handle (`SFH_AnlyNumElem*`). For a vector setter with interleaved component
+  loads/stores, verify writable caller inputs and related setter signatures;
+  unsupported pointee const can hoist all source loads before destination
+  stores (`camera_set_center_of_rotation`). Keep genuine const (M12).
 - Pre-call snapshots: loads immediately before a call become typed locals at
   that boundary, one at a time (`sfmpv_DecodePicAtr`). Keep distinct reads
   across intervening calls instead of one long alias.
@@ -604,6 +607,15 @@ carousel or invented uses.
 Nest a single-use result; keep the original callback owner at an untyped
 boundary. Store forwarding: `g = f(); use(g);` forwards without a reload even
 under `-opt nocse` (`gc_aram_init`). No manufactured return contract.
+
+- IF a script wrapper moves a saved string result through an extra register,
+  REQUIRE retail's argument-fetch order. TRY direct producer expressions in
+  both call arguments, then verify the compiler preserves that order
+  (`_konquest_start_nis_anims_load`).
+- IF scalar script arguments follow a string resolver call, REQUIRE whether
+  retail retains the original argument frame or reloads `current_args`.
+  TRY the observed snapshot boundary: retain the frame for
+  `_pfx_spawn_at_bid`, reload it for `_bgnd_set_fx_z_offset`.
 
 ## H17
 

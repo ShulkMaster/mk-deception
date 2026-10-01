@@ -4297,6 +4297,8 @@ void term_collision_system(void) {
     destroy_mkprocs_pid(0x4001);
 }
 
+/* TODO: [breakthrough needed] 95.61%; retail initializes an extra stack word;
+ * allocator reads one flag only; original aggregate extent needs evidence. */
 void init_collision_system(void) {
     int flags;
     MkProc* proc;

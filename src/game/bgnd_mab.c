@@ -1270,13 +1270,6 @@ void p_statue_xpd_callback(MkSobj* object) {
 }
 
 
-
-
-
-
-
-
-/* TODO: [near miss] 99.55%; FPR numbering in the reflection block (normal.x/velocity temps shifted by one) remains. */
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     int frame;
@@ -1297,18 +1290,21 @@ static float p_xpd_obj_monitor(void) {
 
             if (object != 0) {
                 if (object->pos.value.y < 0.35f + g_game_info.field_34) {
+                    float velocity_x;
                     float reflection;
                     Vec bounce;
 
                     object->pos.value.y = 0.35f + g_game_info.field_34;
-                    reflection = 2.0f *
-                        (object->pos_vel.x * ground_normal.x +
-                         object->pos_vel.y * ground_normal.y +
-                         object->pos_vel.z * ground_normal.z);
+                    velocity_x = object->pos_vel.x;
+                    reflection =
+                        velocity_x * ground_normal.x +
+                        object->pos_vel.y * ground_normal.y +
+                        object->pos_vel.z * ground_normal.z;
+                    reflection = 2.0f * reflection;
                     bounce.x = ground_normal.x * reflection;
                     bounce.y = ground_normal.y * reflection;
                     bounce.z = ground_normal.z * reflection;
-                    object->pos_vel.x -= bounce.x;
+                    object->pos_vel.x = velocity_x - bounce.x;
                     object->pos_vel.y -= bounce.y;
                     object->pos_vel.z -= bounce.z;
                     scale_v3(

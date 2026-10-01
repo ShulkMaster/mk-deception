@@ -743,7 +743,8 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     }
 }
 
-void mks_set_rotate_update_by_group(void) {
+void mks_set_rotate_update_by_group(
+    int arg0, int arg1, float arg2, float arg3, float arg4, int arg5) {
 }
 
 void mks_set_sin_update_by_group(
@@ -812,7 +813,8 @@ void mks_set_sin_update_by_group(
     }
 }
 
-/* TODO: [near miss] 89.05%; residue is spawn-argument scheduling only. */
+/* TODO: [breakthrough needed] 89.05%; flag-pair initialization and spawn scheduling
+ * differ; allocator reads one flag, aggregate extent needs independent evidence. */
 void start_sobj_ctrl_proc(void) {
     int flags[2];
     MkProc* proc;
@@ -1296,33 +1298,22 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
-/* TODO: [near miss] 94.07%; residue is the validated-process latch branch and GPR coloring. */
+/* TODO: [near miss] 98.82%; live-handle validation aligns; proc/pdata GPR roles differ. */
 void bgnd_preload_obj_attach_rope(int model_index) {
-    MkHdr* rope_pdata;
-    MkObj* model;
     MkProc* rope_proc;
+    MkObj* model;
+    MkHdr* rope_pdata;
 
     model = g_bgnd_preloaded_models[model_index];
-    if (model == 0) {
-        return;
-    }
-
-    rope_proc = rope_proc_item.proc;
-    if (rope_proc != 0) {
-        if (rope_proc->instance != rope_proc_item.instance) {
-            rope_proc = 0;
+    if (model != 0) {
+        rope_proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
+        if (rope_proc != 0) {
+            rope_pdata = get_mkpdata_generic(0x1A0);
+            if (rope_pdata != 0) {
+                mk_insert(rope_pdata, &rope_proc->pdata_list);
+                rope_controller_init(rope_pdata, model);
+            }
         }
-    } else {
-        rope_proc = 0;
-    }
-    if (rope_proc == 0) {
-        return;
-    }
-
-    rope_pdata = get_mkpdata_generic(0x1A0);
-    if (rope_pdata != 0) {
-        mk_insert(rope_pdata, &rope_proc->pdata_list);
-        rope_controller_init(rope_pdata, model);
     }
 }
 

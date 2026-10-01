@@ -526,9 +526,9 @@ typedef union BgndCollisionItemFlags {
 typedef struct BgndCollisionItem {
     MkHdr hdr;                  /* +0x00 */
     unsigned int collision_id; /* +0x08 */
-    int monitor_mode;           /* +0x0C */
+    unsigned int monitor_mode; /* +0x0C */
     unsigned int script_function; /* +0x10 */
-    int collision_mode;         /* +0x14 */
+    unsigned int collision_mode; /* +0x14 */
     BgndCollisionItemFlags flags; /* +0x18 */
 } BgndCollisionItem;
 
@@ -684,8 +684,8 @@ extern void plyr_turn_off_shadowbox(PlyrInfo* player);
 extern void plyr_turn_on_mirrorguy(PlyrInfo* player);
 extern void plyr_turn_on_shadowbox(PlyrInfo* player);
 extern void run_camera_script(ScriptSlot* script, int argument, int flags);
-extern void force_forward(int duration, int animation, float force,
-                          float damping);
+extern void force_forward(float force, int duration, float damping,
+                          int animation);
 
 static inline void bgnd_copy_vector(Vec* destination, const Vec* source) {
     destination->x = source->x;
@@ -919,8 +919,8 @@ float script_fabs(float value) {
 }
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
-    MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
-    float playback_rate) {
+    MkFlippedBoneMap* flipped_bones, void* ground_collisions,
+    float playback_rate, int active) {
     AnimPdata* animation;
 
     animation = 0;
@@ -1743,8 +1743,8 @@ static float p_sh_bottom_floor_blood_fall(void) {
         pebbles, &data->active_splats, &data->origin, data->gravity);
     return 1.0f;
 }
-/* TODO: [breakthrough needed] 83.77%; state dispatch now matches; constant
- * vector materialization and normalization stack layout still differ. */
+/* TODO: [breakthrough needed] 83.77%; per-branch vector materialization and
+ * normalization stack ownership remain; whole-TU CSE-off regresses siblings. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, const Vec* origin,
     float gravity) {
@@ -1978,12 +1978,12 @@ static inline float sh_random_blood_pebble_direction(Vec* rotated_direction) {
     return angle;
 }
 
-/* TODO: [near miss] 99.62%; GPR assignment rotated (data retail r25, ours r31; pebble sets r30-r28). */
+/* TODO: [near miss] 99.67%; inlined direction/scale scratch stack homes and later range owner/index GPR allocation differ. */
 static void sh_init_bottom_floor_blood_fall_pebbles(
     ShBloodFallProcessData* data) {
-    PebbleData* large;
-    PebbleData* small;
     PebbleData* largest;
+    PebbleData* small;
+    PebbleData* large;
 
     large = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[1].instance);
 
@@ -1993,8 +1993,8 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
 
 
     if (large != 0) {
-        ShBloodPebbleControl* controls;
         int index;
+        ShBloodPebbleControl* controls;
 
         controls = large->user_data;
         index = 0;
@@ -2501,7 +2501,7 @@ static unsigned int next_beetle_exec_tick_counter;
 
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-/* TODO: [near miss] 99.97%; only the Vec initializer .rodata offsets (+0x204 retail vs +0x6c) remain: TU data layout. */
+/* TODO: [near miss] 99.97%; only nine Vec initializer .rodata load offsets differ; TU data layout remains. */
 static float p_bl_beetle_brains(void) {
     BlBeetlePdata* pdata;
     BlBeetleControl* beetle;
@@ -3731,8 +3731,8 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
-/* TODO: [breakthrough] 88.76%; ordered event-class checks and fighting-light
- * trigger stores match; wall-target and normalization stack layout remains. */
+/* TODO: [breakthrough needed] 88.76%; wall-target and normalization helper
+ * ownership remain; explicit smoke Vec add/scale regresses to 88.40%. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     BlColumnBreakData* column_data;
     BgndScriptProcData* script_data;
@@ -4208,7 +4208,7 @@ static inline void bl_front_wall_effect_at(
     }
 }
 
-/* TODO: [breakthrough needed] 89.94%; missing earlier Vec pool template shifts addends; launch FPR/copy scheduling remains. */
+/* TODO: [breakthrough] 90.12%; corrected launch velocity axes; earlier Vec pool template and launch copy/FPR scheduling remain. */
 static float p_beetle_lair_wall_breaking_controller(void) {
     Vec camera_start = {2.166f, -9.5f, 42.734f};
     Vec camera_end = {0.4512f, -0.5f, 18.8713f};
@@ -4273,7 +4273,6 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
 
     player = data->player;
-    camera_data = 0;
     process = _create_mkproc_generic_tinystack(
         0xC01C, 0x1F, p_beetle_lair_downstairs_wall_break_cam_control,
         sizeof(BlWallBreakCameraData), (MkHdr**)&camera_data);
@@ -4316,8 +4315,8 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
     position0 = (Vec){0.4512f, 0.8f, 18.2113f};
     velocity.x = 0.05f + camera_dx / 100.0f;
-    velocity.y = camera_dz / 100.0f;
-    velocity.z = 0.05f;
+    velocity.y = 0.05f;
+    velocity.z = camera_dz / 100.0f;
     angular_velocity.x = 0.05f;
     angular_velocity.y = 0.0f;
     angular_velocity.z = 0.0f;
@@ -4331,8 +4330,8 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
     position1 = (Vec){0.0f, 1.1f, 18.2113f};
     velocity.x = 0.0f;
-    velocity.y = 0.105f;
-    velocity.z = -0.01f;
+    velocity.y = -0.01f;
+    velocity.z = 0.105f;
     angular_velocity.x = 0.043f;
     angular_velocity.y = -0.07f;
     angular_velocity.z = 0.0f;
@@ -4346,8 +4345,8 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
     position2 = (Vec){0.6f, 1.3f, 18.2113f};
     velocity.x = camera_dx / 110.0f - 0.11f;
-    velocity.y = camera_dz / 110.0f;
-    velocity.z = 0.03f;
+    velocity.y = 0.03f;
+    velocity.z = camera_dz / 110.0f;
     angular_velocity.x = 0.05f;
     angular_velocity.y = 0.0f;
     angular_velocity.z = 0.18f;
@@ -4363,8 +4362,8 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
     position3 = (Vec){-0.8512f, 1.3f, 18.2113f};
     velocity.x = camera_dx / 300.0f - 0.05f;
-    velocity.y = camera_dz / 200.0f;
-    velocity.z = 0.2f;
+    velocity.y = 0.2f;
+    velocity.z = camera_dz / 200.0f;
     angular_velocity.x = 0.2f;
     angular_velocity.y = 0.0f;
     angular_velocity.z = 0.15f;
@@ -4378,8 +4377,8 @@ static float p_beetle_lair_wall_breaking_controller(void) {
 
     position4 = (Vec){-0.6f, 0.6f, 18.4313f};
     velocity.x = camera_dx / 110.0f;
-    velocity.y = camera_dz / 110.0f;
-    velocity.z = 0.03f;
+    velocity.y = 0.03f;
+    velocity.z = camera_dz / 110.0f;
     angular_velocity.x = 0.01f;
     angular_velocity.y = 0.1f;
     angular_velocity.z = 0.0f;
@@ -4525,7 +4524,7 @@ static float winner_watching_him_fall(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     set_my_state(0x3202);
     init_air_move();
-    force_forward(0x78, 0x14, 0.1325f, 0.9f);
+    force_forward(0.1325f, 0x78, 0.9f, 0x14);
     animation = *(AniData**)&shared_ani[0x3C];
     launch_n_land_ani(
         animation, 0.0f, 0.0f, 28.0f, 0, 0.12f, -0.0035f, 0.2f);
@@ -4786,7 +4785,7 @@ extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
 extern void get_current_target(Vec* target);
 
 
-/* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x180 higher than retail (TU data layout). */
+/* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x120 higher than retail (TU data layout). */
 static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     Vec cut_position = {4.996f, 2.0f, 27.5f};
     Vec fixed_position = {1.166f, -9.5f, 43.734f};
@@ -5024,8 +5023,8 @@ static inline void bl_spawn_launch_column_piece(MkSobj* piece,
     }
 }
 
-/* TODO: [breakthrough] 98.29%; launch spawns are an inline helper (retail output slots);
- * flip/final output slots, sqrt/inv-sqrt temp slots and length CSE remain. */
+/* TODO: [near miss] 99.38%; sqrt and process-output stack slots differ;
+ * normalization still fuses arithmetic where retail reloads/recomputes. */
 static float p_beetle_lair_column_breaking(void) {
     Vec axis = {0.0f, 1.0f, 0.0f};
     BlColumnBreakData* data;
@@ -5044,12 +5043,12 @@ static float p_beetle_lair_column_breaking(void) {
     float flip_z;
     float length;
     float random_base_x;
-    float random_base_z;
+
     float random_x;
     float random_z;
     float scale;
     float speed;
-
+    Vec* direction;
     data = (BlColumnBreakData*)apdata;
     _mkproc_sleep_ticks = 3.0f;
     aproc->vtbl->sleep();
@@ -5064,8 +5063,8 @@ static float p_beetle_lair_column_breaking(void) {
     if (reference == 0) {
         return -1.0f;
     }
-
-    length = bl_column_vector_length(&data->direction);
+    direction = &data->direction;
+    length = bl_column_vector_length(direction);
     speed = (2.0f * length) / 5.0f;
     bl_column_normalize_vector(&data->direction);
 
@@ -5165,9 +5164,9 @@ static float p_beetle_lair_column_breaking(void) {
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 2);
     bl_enable_column_piece_motion(piece);
     random_base_x = 1.05f * data->direction.x;
-    random_base_z = 1.05f * data->direction.z;
+    random_z = 1.05f * data->direction.z;
     random_x = random_base_x + sfrand(0.01f);
-    random_z = random_base_z + sfrand(0.01f);
+    random_z += sfrand(0.01f);
     piece->pos_vel.x = random_x;
     piece->pos_vel.y = 0.08f;
     piece->pos_vel.z = random_z;
@@ -5187,8 +5186,8 @@ static float p_beetle_lair_column_breaking(void) {
     bl_enable_column_piece_motion(piece);
     bl_set_vector(&piece->pos_vel, 0.35f * data->direction.x, 0.02f,
                   0.35f * data->direction.z);
-    piece->ang_vel.x = 0.0f;
     piece->ang_vel.y = 0.0f;
+    piece->ang_vel.x = 0.0f;
     piece->ang_vel.z = 0.01f;
     rotate_xz(&piece->pos_vel, &piece->pos_vel, -1.5707964f);
     {
@@ -6150,8 +6149,8 @@ static inline float bgnd_normalize_y_angle(float angle) {
 /* TODO: [near miss] 99.65%; coefficient and angle FPR coloring remains. */
 void bgnd_npc_set_pos_vel_heading(unsigned int npc_id, float speed) {
     BgndNpc* npc;
-    float heading;
     Vec direction;
+    float heading;
 
     npc = bgnd_find_npc(npc_id);
     npc->object->flags_08_bits.gravity_enabled = 1;
@@ -7380,7 +7379,6 @@ void bgnd_pebble_change_current_behavior(
     g_current_pebble->bounce_param = behavior_param;
     g_current_pebble->end_behavior = 4;
 }
-/* TODO: [near miss] 99.91453%; pebble-array base uses r7 instead of retail r29; stop at coloring. */
 void bgnd_pebble_launch_at_time(
     int player, int index, float position_x, float position_y, float position_z,
     float scale_x, float scale_y, float scale_z, float angle_x, float angle_y,
@@ -7388,7 +7386,8 @@ void bgnd_pebble_launch_at_time(
     BgndPebbleControl* pebble;
 
     unhide_sobj(g_pebbles_pdata[player]->sobj);
-    pebble = &g_pebbles_pdata[player]->collection->pebbles[index];
+    pebble = g_pebbles_pdata[player]->collection->pebbles;
+    pebble += index;
 
     pebble->angular_velocity.z = 0.0f;
     pebble->angular_velocity.y = 0.0f;
@@ -8845,7 +8844,6 @@ void bgnd_collision_if_disable_col(int list_index, unsigned int collision_id) {
         }
     }
 }
-/* TODO: [near miss] 97.44%; only signedness left: BgndCollisionItem monitor_mode/collision_mode should be unsigned int (retail cmplwi). */
 static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
     unsigned int list_index;
     BgndCollisionItem* item;
@@ -9447,13 +9445,13 @@ void bgnd_place_object_at_position(
 
 void bgnd_place_weapon_at_position(
     int primary_object_id, int secondary_object_id, int primary_sobj_id,
-    int secondary_sobj_id, int paired, int pickup_sobj_id, int permanent,
+    int secondary_sobj_id, int paired,
     float primary_x, float primary_y, float primary_z,
     float primary_angle_x, float primary_angle_y, float primary_angle_z,
     float secondary_x, float secondary_y, float secondary_z,
     float secondary_angle_x, float secondary_angle_y,
-    float secondary_angle_z, float radius, float height,
-    float collision_x, float collision_y, float collision_z) {
+    float secondary_angle_z, int pickup_sobj_id, float radius, float height,
+    float collision_x, float collision_y, float collision_z, int permanent) {
     BgndDisplayedItem* item;
     CollisionShape shape;
     Vec center;
@@ -9960,8 +9958,8 @@ static inline float bgnd_fast_sqrt(float value) {
 float spad_xz_cos_two_vectors(int first, int second) {
     Vec* first_vector;
     Vec* second_vector;
-    float first_length;
     float second_length;
+    float first_length;
 
     first_vector = &g_bgnd_scratch_pad_vectors[first];
     second_vector = &g_bgnd_scratch_pad_vectors[second];
@@ -10015,13 +10013,9 @@ void bgnd_xfer_attacker(int script_function) {
     xfer_player_proc(process, bgnd_call_script_function);
 }
 
-
-
-
-
-
-/* TODO: [near miss] 99.62%; rsqrt stack-slot order (retail groups inputs
- * above estimates), case 0xD cross-product and case 0x16/0x3A GPR coloring remain. */
+/* TODO: [near miss] 99.99%; eight rsqrt input/estimate stack-slot
+ * sus ramdon scoped created near the end, due to func size likely a inlined helper
+ * offsets remain; operations, branches and registers agree. */
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8) {
@@ -10160,26 +10154,28 @@ float bgnd_process_collision_info(
     case 0xD: {
         CameraObj* camera = camera_item.node;
         Vec target;
-
+        float delta_x;
+        float delta_z;
         camera = MK_HDR_LIVE(camera, camera_item.instance);
         get_current_target(&target);
         target.x -= camera->pos.x;
         target.z -= camera->pos.z;
         sh_normalize_xz(&target);
-        if ((plyr_obj->pos.value.x - camera->pos.x) * target.z +
-                (plyr_obj->pos.value.z - camera->pos.z) * -target.x > 0.0f) {
+        delta_x = plyr_obj->pos.value.x - camera->pos.x;
+        delta_z = plyr_obj->pos.value.z - camera->pos.z;
+        if (delta_x * target.z + delta_z * -target.x > 0.0f) {
             result = 1.0f;
         }
         break;
     }
 
     case 0x16: {
-        MkObj* first = g_active_obstacle_event_data->player_pdata->
-            plyr_info->slot.mirror_a;
+        MkObj* first;
         MkObj* second = g_active_obstacle_event_data->player_pdata->
             his_plyr_pdata->plyr_info->slot.mirror_a;
         Vec direction;
-
+        first = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
         direction.x = second->pos.value.x - first->pos.value.x;
         direction.y = second->pos.value.y - first->pos.value.y;
         direction.z = second->pos.value.z - first->pos.value.z;
@@ -10189,16 +10185,25 @@ float bgnd_process_collision_info(
         break;
     }
     case 0x3A: {
-        MkObj* first = g_active_obstacle_event_data->player_pdata->
-            plyr_info->slot.mirror_a;
         MkObj* second = g_active_obstacle_event_data->player_pdata->
             his_plyr_pdata->plyr_info->slot.mirror_a;
+        MkObj* first = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
+
         Vec direction = {0.0f, 0.0f, 0.0f};
 
-        direction.x = second->pos.value.x - first->pos.value.x;
-        direction.z = second->pos.value.z - first->pos.value.z;
-        result = value3 * direction.z +
-            (value1 * direction.x + value2 * direction.y);
+        direction.x = g_active_obstacle_event_data->player_pdata->
+            his_plyr_pdata->plyr_info->slot.mirror_a->pos.value.x -
+            first->pos.value.x;
+        direction.z = second->pos.value.z -
+            g_active_obstacle_event_data->player_pdata->plyr_info->
+                slot.mirror_a->pos.value.z;
+        {
+            float x_weight = value1;
+
+            result = value3 * direction.z +
+                (x_weight * direction.x + value2 * direction.y);
+        }
         break;
     }
 
@@ -10573,7 +10578,8 @@ void bgnd_rx_notify(
         }
     }
 }
-/* TODO: [near miss] 98.84%; case 7 differs only in g_game_info base / Vec word register coloring. */
+/* TODO: [breakthrough needed] 98.84%; case-7 event flag initialization
+ * contract is unresolved; remaining instructions differ in base/Vec coloring. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
@@ -11707,7 +11713,7 @@ void bgnd_launch_plyr_up_and_forward(
     plyr_obj->gravity = gravity;
     plyr_obj->pos_vel.y = vertical_velocity;
     if (duration != 0 && forward_velocity != 0.0f) {
-        force_forward(duration, animation, forward_velocity, damping);
+        force_forward(forward_velocity, duration, damping, animation);
     }
 }
 void bgnd_turn_off_backface_culling(void) {}
@@ -12088,17 +12094,16 @@ int bgnd_get_int(int value_id) {
 void bgnd_create_sobjs(void) {
     obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0);
 }
-/* TODO: [near miss] 97.67123%; z component and light_x swap f3/f5, and the
- * half-width operands load in swapped order; equivalent coloring/scheduling. */
+/* TODO: [near miss] 99.11%; perpendicular Z/light X FPRs and half-width product destination differ. */
 MkObj* bgnd_place_point_light_for_ticks(
-    LightDef* light_def, int ticks, int offset_from_tightrope,
-    float radius_step) {
+    LightDef* light_def, int ticks, float radius_step,
+    int offset_from_tightrope) {
     BgndPointLightLifeData* data;
     MkObj* light;
     MkProc* process;
     float perpendicular_x;
-    float perpendicular_z;
     float light_x;
+    float perpendicular_z;
     float half_width;
 
     data = 0;
@@ -12113,7 +12118,8 @@ MkObj* bgnd_place_point_light_for_ticks(
             perpendicular_x = -1.0f * perpendicular_x;
             perpendicular_z = -1.0f * perpendicular_z;
         }
-        half_width = light_def->field1C * 0.5f;
+        half_width = light_def->field1C;
+        half_width *= 0.5f;
         perpendicular_x *= half_width;
         perpendicular_z *= half_width;
         light_def->field20 = light_x + perpendicular_x;

@@ -678,7 +678,9 @@ static void atm_demo_chess(void) {
     gamelogic_jump(5, p_mk_chess);
 }
 
+/* TODO: [near miss] 99.53333%; demo-bit/timer-zero volatile registers differ. */
 static void atm_demo_fight(void) {
+    GiDemoFlag* flags;
     int bgnd;
 
     ATTRACT_PAGE_SETUP();
@@ -687,7 +689,8 @@ static void atm_demo_fight(void) {
     bgnd = get_next_bgnd();
     g_game_info.bgnd_id = bgnd;
     b_game_timer_off = 0;
-    set_game_info_flag_bit5(1);
+    flags = (GiDemoFlag*)&g_game_info.field_04;
+    flags->demo_mode = 1;
     set_mode_of_play(0);
     gamelogic_jump(2, p_gamelogic);
 }
