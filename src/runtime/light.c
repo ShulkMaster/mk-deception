@@ -340,8 +340,7 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
             hdr = node->hdr;
             if (node->instance != hdr->instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
             } else {
                 ok = 0;
@@ -418,8 +417,7 @@ void clear_all_lights_in(MkPtr** list) {
         mkx = MKX_RPLIGHT_FROM_HDR(node->hdr);
         if (node->instance != mkx->hdr.instance) {
             next = node->next;
-            node->hdr = 0;
-            destroy_mkptr(node);
+            discard_stale_mkptr(node);
             node = next;
             continue;
         }
@@ -536,8 +534,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
                 mkx = MKX_RPLIGHT_FROM_HDR(node->hdr);
                 if (node->instance != mkx->hdr.instance) {
                     next = node->next;
-                    node->hdr = 0;
-                    destroy_mkptr(node);
+                    discard_stale_mkptr(node);
                     node = next;
                 } else {
                     node = node->next;

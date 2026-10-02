@@ -1890,8 +1890,7 @@ UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
             ctrl = (UvScrollControl*)node->hdr;
             if (node->instance != ctrl->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }
@@ -1917,8 +1916,7 @@ static float p_process_uvscrolling(void) {
             ctrl = (UvScrollControl*)node->hdr;
             if (node->instance != ctrl->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
                 continue;
             }

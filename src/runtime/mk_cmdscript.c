@@ -139,8 +139,7 @@ static inline CmdScript* find_cmdscript_in_list(MkPtr** list) {
             hdr = ptr->hdr;
             if (ptr->instance != hdr->instance) {
                 MkPtr* next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 if (hdr->vtbl == &vtbl_cmdscript) {
@@ -968,8 +967,7 @@ void set_process_as_scriptable(MkProc* proc) {
             hdr = ptr->hdr;
             if (ptr->instance != hdr->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 if (hdr->vtbl != &vtbl_cmdscript) {

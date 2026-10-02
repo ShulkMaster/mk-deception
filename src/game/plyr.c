@@ -1116,8 +1116,7 @@ void show_player(PlyrPdata* player) {
         while (link != 0) {
             if (link->hdr->instance != link->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 object = (MkObj*)link->hdr;
@@ -1185,8 +1184,7 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
         while (link != 0) {
             if (link->hdr->instance != link->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 object = (MkObj*)link->hdr;

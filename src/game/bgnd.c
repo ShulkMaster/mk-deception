@@ -5761,8 +5761,7 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                             item = (BgndCollisionItem*)link->hdr;
                             if (link->instance != item->hdr.instance) {
                                 next = link->next;
-                                link->hdr = 0;
-                                destroy_mkptr(link);
+                                discard_stale_mkptr(link);
                                 link = next;
                             } else if (item->collision_id == obstacle_id) {
                                 item->flags.bits.disabled = 0;
@@ -5785,8 +5784,7 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                             item = (BgndCollisionItem*)link->hdr;
                             if (link->instance != item->hdr.instance) {
                                 next = link->next;
-                                link->hdr = 0;
-                                destroy_mkptr(link);
+                                discard_stale_mkptr(link);
                                 link = next;
                             } else if (item->collision_id == obstacle_id) {
                                 item->flags.bits.disabled = 1;
@@ -5953,8 +5951,7 @@ static float p_npc_track_colshape(void) {
             collision = (CollisionObj*)node->hdr;
             if (node->instance != collision->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
             } else {
                 center.x = object->pos.value.x;
@@ -5984,8 +5981,7 @@ static inline BgndNpc* bgnd_find_npc(unsigned int npc_id) {
             npc = (BgndNpc*)node->hdr;
             if (node->instance != npc->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
             } else {
                 if (npc->id == npc_id) {
@@ -6221,8 +6217,7 @@ BgndNpc* bgnd_fetch_npc(unsigned int npc_id) {
             npc = (BgndNpc*)node->hdr;
             if (node->instance != npc->hdr.instance) {
                 next = node->next;
-                node->hdr = 0;
-                destroy_mkptr(node);
+                discard_stale_mkptr(node);
                 node = next;
             } else {
                 if (npc->id == npc_id) {
@@ -8805,8 +8800,7 @@ void bgnd_collision_if_enable_col(int list_index, unsigned int collision_id) {
             item = (BgndCollisionItem*)link->hdr;
             if (link->instance != item->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (item->collision_id == collision_id) {
@@ -8831,8 +8825,7 @@ void bgnd_collision_if_disable_col(int list_index, unsigned int collision_id) {
             item = (BgndCollisionItem*)link->hdr;
             if (link->instance != item->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (item->collision_id == collision_id) {
@@ -8876,8 +8869,7 @@ static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
                 item = (BgndCollisionItem*)link->hdr;
                 if (link->instance != item->hdr.instance) {
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                     continue;
                 }
@@ -9211,8 +9203,7 @@ void bgnd_remove_wall_from_hider(unsigned int object_id) {
             runtime = (BgndWallHiderRuntime*)link->hdr;
             if (link->instance != runtime->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 index = 0;
@@ -9275,8 +9266,7 @@ static float p_hide_walls(void) {
             runtime = (BgndWallHiderRuntime*)link->hdr;
             if (link->instance != runtime->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (camera_radius_squared >= hide_distance) {
@@ -9658,8 +9648,7 @@ BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
             item = (BgndDisplayedItem*)link->hdr;
             if (link->instance != item->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (item->type == item_id) {
@@ -10354,7 +10343,7 @@ int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
         obstacle_id, &g_bgnd_scratch_pad_vectors[scratch_index]);
 }
 #pragma dont_inline on
-/* TODO: [near miss] 99.60674%; item ID and displayed-list head register coloring remains; check supported lifetimes. */
+/* TODO: [near miss] 99.60674%; item ID and displayed-list head coloring remains; preserve explicit discard under dont_inline. */
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** displayed_list;

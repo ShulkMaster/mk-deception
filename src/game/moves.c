@@ -1102,8 +1102,7 @@ static inline int moves_find_active_weapon(
             pickup = (MovesPickup*)link->hdr;
             if (link->instance != pickup->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -1200,8 +1199,7 @@ static inline int moves_find_nearby_pickup(
             pickup = (MovesPickup*)link->hdr;
             if (link->instance != pickup->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -4765,8 +4763,7 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
             pickup = (MovesPickup*)link->hdr;
             if (link->instance != pickup->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }

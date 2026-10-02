@@ -8498,8 +8498,7 @@ static void minigame_puzzlefighter_destroy(void) {
                 if ((hdr = process_item->hdr)->instance !=
                     process_item->instance) {
                     next_item = process_item->next;
-                    process_item->hdr = 0;
-                    destroy_mkptr(process_item);
+                    discard_stale_mkptr(process_item);
                     process_item = next_item;
                 } else {
                     if (hdr != 0 && hdr->instance != 0) {

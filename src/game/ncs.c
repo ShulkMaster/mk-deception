@@ -1329,7 +1329,6 @@ static inline float ncs_inv_sqrt(float value) {
            -(correction * (product * correction) - 12.0f);
 }
 
-/* TODO: [near miss] 99.69%; only r5/r6 coloring of sc_spear_obj vs sqrt bits remains. */
 static float p_sc_spear4_getup(void) {
     MkObj* target_object;
     Vec target;
@@ -2860,8 +2859,7 @@ void limb_sever_bone_attach(
         if (link->instance != process->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             NcsLimbAttachPdata* candidate = process != 0
@@ -3228,8 +3226,7 @@ void limb_sever_destroy_existing_attach_proc(
             if (link->instance != object->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 MkProc* proc = (MkProc*)object;
@@ -3266,8 +3263,7 @@ NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
         if (link->instance != proc->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             NcsLimbAttachPdata* attach_pdata = proc != 0

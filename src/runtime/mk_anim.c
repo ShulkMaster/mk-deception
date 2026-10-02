@@ -2918,8 +2918,7 @@ int transition_to_anim_script_frame(
                         child_link->instance) {
                         MkPtr* next = child_link->next;
 
-                        child_link->hdr = 0;
-                        destroy_mkptr(child_link);
+                        discard_stale_mkptr(child_link);
                         child_link = next;
                     } else {
                         for (i = 0; i < child->bone_count; i++) {

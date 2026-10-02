@@ -246,8 +246,7 @@ float p_track_sound(void) {
         sound = (TrackedSound*)node->hdr;
         if (node->instance != sound->hdr.instance) {
             next = node->next;
-            node->hdr = 0;
-            destroy_mkptr(node);
+            discard_stale_mkptr(node);
             node = next;
             continue;
         }

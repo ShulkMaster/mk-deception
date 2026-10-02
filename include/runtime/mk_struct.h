@@ -85,6 +85,11 @@ void discard_list(MkPtr** list);
 void discard_mkptrs(MkPtr* head);
 void destroy_mkptrs(MkPtr* head);
 void destroy_mkptr(MkPtr* ptr);
+
+static inline void discard_stale_mkptr(MkPtr* ptr) {
+    ptr->hdr = 0;
+    destroy_mkptr(ptr);
+}
 void mk_pull_destroy(MkHdr* hdr, MkPtr** list);
 void mk_pull_discard(MkHdr* hdr, MkPtr** list);
 MkPtr* mk_pull(MkHdr* hdr, MkPtr** list);

@@ -757,8 +757,7 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
 
                 if (link_ptr->instance != link_ptr->hdr->instance) {
                     next = link_ptr->next;
-                    link_ptr->hdr = 0;
-                    destroy_mkptr(link_ptr);
+                    discard_stale_mkptr(link_ptr);
                     link_ptr = next;
                     continue;
                 }
@@ -781,8 +780,7 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
         while (link_ptr != 0) {
             if (link_ptr->instance != link_ptr->hdr->instance) {
                 next = link_ptr->next;
-                link_ptr->hdr = 0;
-                destroy_mkptr(link_ptr);
+                discard_stale_mkptr(link_ptr);
                 link_ptr = next;
             } else {
                 link_ptr = link_ptr->next;

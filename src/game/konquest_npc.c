@@ -716,11 +716,9 @@ static void setup_current_and_next_events(KonquestNpc* npc, int initialize);
 static void npc_check_next_event(KonquestNpc* npc);
 static void npc_setup_path_for_event(
     KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path);
-static inline int npc_event_has_active_animation(KonquestNpc* npc) {
+static inline int npc_animation_is_active(KonquestNpcAnimState* state) {
     int active;
-    KonquestNpcAnimState* state;
 
-    state = npc->animation;
     if (state == 0) {
         active = 0;
     } else if (state->object == 0) {
@@ -729,6 +727,10 @@ static inline int npc_event_has_active_animation(KonquestNpc* npc) {
         active = state->proc != 0;
     }
     return active;
+}
+
+static inline int npc_event_has_active_animation(KonquestNpc* npc) {
+    return npc_animation_is_active(npc->animation);
 }
 
 static inline void npc_set_event_script(
@@ -804,8 +806,7 @@ static inline KonquestNpc* npc_find_by_data_inline(
             if (link->instance != linked_npc->hdr.instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (linked_npc->data == data) {
                 result = linked_npc;
@@ -834,8 +835,7 @@ static inline KonquestNpc* npc_find_by_table_index_inline(unsigned int table_ind
             if (link->instance != linked_npc->hdr.instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (linked_npc->data_table_index == table_index) {
                 npc = linked_npc;
@@ -3028,8 +3028,7 @@ static void npc_dispatch_timed_events_for_all_npcs(void) {
         if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             KonquestNpc* npc = (KonquestNpc*)header;
@@ -3094,8 +3093,7 @@ void npc_update(int update_all) {
             if (link->instance != npc->hdr.instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestTileOrigin* tile =
@@ -3124,8 +3122,7 @@ void npc_update(int update_all) {
             if (link->instance != header->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestNpc* npc = (KonquestNpc*)header;
@@ -3242,8 +3239,7 @@ float p_npc_manager(void) {
             entry = link->hdr;
             if (link->instance != entry->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestNpc* npc = (KonquestNpc*)entry;
@@ -3322,13 +3318,7 @@ static void npc_punched_setup(KonquestNpc* npc) {
     KonquestNpcAnimState* state = npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         KonquestAnimPdata* animation =
             (KonquestAnimPdata*)pdata_of_proc(state->proc);
@@ -3469,8 +3459,7 @@ void start_running_npcs(void) {
             KonquestNpc* npc = (KonquestNpc*)link->hdr;
             if (link->instance != npc->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (npc->name != 0 &&
@@ -3491,8 +3480,7 @@ void start_running_npcs(void) {
             KonquestNpc* npc = (KonquestNpc*)link->hdr;
             if (link->instance != npc->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (npc->data->events[7].startup_script != 0) {
@@ -3550,8 +3538,7 @@ void start_running_npcs(void) {
             visible_npc = (KonquestNpc*)visible_link->hdr;
             if (visible_link->instance != visible_npc->hdr.instance) {
                 MkPtr* next = visible_link->next;
-                visible_link->hdr = 0;
-                destroy_mkptr(visible_link);
+                discard_stale_mkptr(visible_link);
                 visible_link = next;
             } else {
                 KonquestTileOrigin* tile =
@@ -4022,8 +4009,7 @@ KonquestNpc* find_npc_by_data(KonquestNpcData* data) {
             KonquestNpc* linked_npc = (KonquestNpc*)link->hdr;
             if (link->instance != linked_npc->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (linked_npc->data == data) {
                 result = linked_npc;
@@ -4125,8 +4111,7 @@ static void npc_notify_nearby_npcs_that_player_hit_someone(
         if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             npc = (KonquestNpc*)header;
@@ -4358,13 +4343,7 @@ void npc_turn_and_face_player(int turn_player) {
     int has_active_animation;
 
     state = g_active_npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         MkProc* turn_proc = MK_LIVE(g_active_npc->turn_proc, g_active_npc->turn_proc_instance);
         TurnAndFacePdata* pdata;
@@ -4430,13 +4409,7 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
         int has_active_animation;
         int use_data;
 
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
+        has_active_animation = npc_animation_is_active(state);
         if (has_active_animation == 1) {
             use_data = !npc->wait_for_animation;
         } else {
@@ -4531,13 +4504,7 @@ void npc_set_pinanim_flag(int enabled) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
@@ -4705,13 +4672,7 @@ void npc_blend_to_ani(
         KonquestNpcAnimState* state = g_active_npc->animation;
         int has_active_animation;
 
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
+        has_active_animation = npc_animation_is_active(state);
         if (has_active_animation != 0) {
             AniData* target = get_animation(animation_id);
             KonquestAnimPdata* animation =
@@ -4733,13 +4694,7 @@ void npc_blend_to_ani_with_offset(
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
 
     if (has_active_animation != 0) {
         KonquestAnimPdata* animation =
@@ -4758,13 +4713,7 @@ void npc_blend_to_ani_with_offset(
         object->pos.value.z += animation->root_offset.z;
 
         state = g_active_npc->animation;
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
+        has_active_animation = npc_animation_is_active(state);
         if (has_active_animation == 1) {
             skip_sleep = !g_active_npc->wait_for_animation;
         } else {
@@ -4799,13 +4748,7 @@ void npc_set_ani_frame(float frame) {
     KonquestNpcAnimState* state = npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
 
     if (has_active_animation != 0) {
         KonquestAnimPdata* animation =
@@ -4855,13 +4798,7 @@ void npc_blend_to_ani_string(int* animation_ids) {
                 KonquestNpcAnimState* state = g_active_npc->animation;
                 int has_active_animation;
 
-                if (state == 0) {
-                    has_active_animation = 0;
-                } else if (state->object == 0) {
-                    has_active_animation = 0;
-                } else {
-                    has_active_animation = state->proc != 0;
-                }
+                has_active_animation = npc_animation_is_active(state);
                 if (has_active_animation != 0) {
                     AniData* target = get_animation(animation_id);
                     KonquestAnimPdata* current =
@@ -5018,13 +4955,7 @@ void npc_ani_1_frame(void) {
         KonquestNpcAnimState* state = g_active_npc->animation;
         int has_active_animation;
 
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
+        has_active_animation = npc_animation_is_active(state);
         if (has_active_animation != 0 && state->object->bone_count != 0) {
             AnimState* animation = (AnimState*)pdata_of_proc(state->proc);
 
@@ -5050,13 +4981,7 @@ void npc_ani_to_end(void) {
         KonquestNpcAnimState* state = g_active_npc->animation;
         int has_active_animation;
 
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
+        has_active_animation = npc_animation_is_active(state);
         if (has_active_animation != 0) {
             KonquestAnimPdata* animation =
                 (KonquestAnimPdata*)pdata_of_proc(state->proc);
@@ -5088,13 +5013,7 @@ void npc_set_snap_to_ground(int enabled) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         state->object->flags_09_bits.bit6 = enabled;
     }
@@ -5613,8 +5532,7 @@ void kill_lip_sync_procs(void) {
             if (link->instance != hdr->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 MkProc* proc = (MkProc*)hdr;
@@ -5677,13 +5595,7 @@ void npc_set_my_pos(float x, float y, float z) {
     npc->tile_index = get_tile_from_position(&position);
 
     state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
@@ -5709,13 +5621,7 @@ void npc_set_my_world_pos(float x, float y, float z) {
     npc->tile_index = get_tile_from_position(&position);
 
     state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         state->object->hide_flag_bits.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
@@ -5739,13 +5645,7 @@ void npc_set_his_world_pos(
     npc->data->position.z = position.z;
     npc->tile_index = get_tile_from_position(&position);
     state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         state->object->hide_flag_bits.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
@@ -5760,13 +5660,7 @@ void npc_set_my_ang_y(float angle) {
 
     g_active_npc->data->angle_y = angle;
     state = g_active_npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
@@ -5782,13 +5676,7 @@ void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
 
     npc->data->angle_y = angle;
     state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         state->object->hide_flag_bits.pin_animation = 0;
         npc->animation->object->ang.y = angle;
@@ -6006,8 +5894,7 @@ static inline void npc_stop_lip_sync_procs(void) {
             if (link->instance != proc->instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (proc->pid == 0x8232) {
@@ -6040,13 +5927,7 @@ void npc_wait_for_dialog(void) {
     int has_active_animation;
     int skip_wait;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation == 1) {
         skip_wait = !g_active_npc->wait_for_animation;
     } else {
@@ -6503,8 +6384,7 @@ void npc_open_door_at_waypoint(void) {
             if (link->instance != door->hdr.instance) {
                 MkPtr* next = link->next;
 
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (door->path_waypoints == waypoints) {
                 konquest_open_door_sobj(door, 0);
@@ -6566,8 +6446,7 @@ void remove_npc_list(KonquestNpcData* list) {
             npc = (KonquestNpc*)link->hdr;
             if (link->instance != npc->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 KonquestTileOrigin* tile =
@@ -6582,13 +6461,7 @@ void remove_npc_list(KonquestNpcData* list) {
                         KonquestNpcAnimState* state = npc->animation;
                         int has_active_animation;
 
-                        if (state == 0) {
-                            has_active_animation = 0;
-                        } else if (state->object == 0) {
-                            has_active_animation = 0;
-                        } else {
-                            has_active_animation = state->proc != 0;
-                        }
+                        has_active_animation = npc_animation_is_active(state);
                         if (has_active_animation != 0) {
                             mk_insert(
                                 &npc->hdr,
@@ -6614,13 +6487,7 @@ void npc_set_gravity(float gravity) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
 
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         state->object->gravity = gravity;
     }
@@ -7038,8 +6905,7 @@ void npc_reset_all_timed_events(void) {
                 MkPtr* next;
 
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (npc != 0) {
@@ -7246,13 +7112,7 @@ MkObj* npc_get_obj(KonquestNpcData* data) {
         return 0;
     }
     state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
+    has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
         return state->object;
     }

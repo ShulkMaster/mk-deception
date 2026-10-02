@@ -141,8 +141,7 @@ static void dispatch_proc_list(MkPtr** list) {
         MkProc* current = MKPROC_FROM_HDR(link->hdr);
         if (link->instance != current->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
             continue;
         }
@@ -322,8 +321,7 @@ MkProc* find_mkproc_pid(int pid) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != proc->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (proc->pid == pid) {
@@ -416,8 +414,7 @@ void destroy_all_mkprocs(void) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != proc->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 proc->flags_bits.no_destroy = 0;
@@ -482,8 +479,7 @@ void mkproc_change_priority(MkProc* proc, int priority) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != current->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }
@@ -520,8 +516,7 @@ void insert_new_mkproc(MkProc* proc) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != current->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
                 continue;
             }

@@ -146,8 +146,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
 
     matcher_proc = get_fake_bone_matcher_proc(bonematcher);
     list_item = find_in_mklist(owner != 0 ? as_mkhdr(&owner->hdr) : 0, &matcher_proc->pdata_list_b);
-    list_item->hdr = 0;
-    destroy_mkptr(list_item);
+    discard_stale_mkptr(list_item);
     mkscripts_destroy_fk_bonematcher(bonematcher);
     if (owner == 0) {
         return;

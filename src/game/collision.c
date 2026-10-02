@@ -553,8 +553,7 @@ static inline void update_all_collision_flags(
         object.hdr = item->hdr;
         if (item->instance != object.hdr->instance) {
             next = item->next;
-            item->hdr = 0;
-            destroy_mkptr(item);
+            discard_stale_mkptr(item);
             item = next;
         } else if (toggle != 0) {
             object.object->flags ^= flags;
@@ -597,8 +596,7 @@ int is_point_inside_shadow_exclusion_zone(
         list_object.hdr = list_item->hdr;
         if (list_item->instance != list_object.hdr->instance) {
             next = list_item->next;
-            list_item->hdr = 0;
-            destroy_mkptr(list_item);
+            discard_stale_mkptr(list_item);
             list_item = next;
             continue;
         }
@@ -611,8 +609,7 @@ int is_point_inside_shadow_exclusion_zone(
                 if (collision_item->instance !=
                     collision_object.hdr->instance) {
                     next = collision_item->next;
-                    collision_item->hdr = 0;
-                    destroy_mkptr(collision_item);
+                    discard_stale_mkptr(collision_item);
                     collision_item = next;
                     continue;
                 }
@@ -755,8 +752,7 @@ int segment_against_obstacle_list(
             obstacle = (ArenaObstacle*)obstacle_item->hdr;
             if (obstacle_item->instance != obstacle->hdr.instance) {
                 next = obstacle_item->next;
-                obstacle_item->hdr = 0;
-                destroy_mkptr(obstacle_item);
+                discard_stale_mkptr(obstacle_item);
                 obstacle_item = next;
                 continue;
             }
@@ -768,8 +764,7 @@ int segment_against_obstacle_list(
                     collision.hdr = collision_item->hdr;
                     if (collision_item->instance != collision.hdr->instance) {
                         next = collision_item->next;
-                        collision_item->hdr = 0;
-                        destroy_mkptr(collision_item);
+                        discard_stale_mkptr(collision_item);
                         collision_item = next;
                         continue;
                     }
@@ -993,8 +988,7 @@ int repel_shape_against_obstacle_list(
             obstacle = (ArenaObstacle*)obstacle_item->hdr;
             if (obstacle_item->instance != obstacle->hdr.instance) {
                 next = obstacle_item->next;
-                obstacle_item->hdr = 0;
-                destroy_mkptr(obstacle_item);
+                discard_stale_mkptr(obstacle_item);
                 obstacle_item = next;
                 continue;
             }
@@ -1008,8 +1002,7 @@ int repel_shape_against_obstacle_list(
                     collision.hdr = collision_item->hdr;
                     if (collision_item->instance != collision.hdr->instance) {
                         next = collision_item->next;
-                        collision_item->hdr = 0;
-                        destroy_mkptr(collision_item);
+                        discard_stale_mkptr(collision_item);
                         collision_item = next;
                         continue;
                     }
@@ -1141,8 +1134,7 @@ int collide_segment_against_global_collision_list_quads(
             collision.hdr = item->hdr;
             if (item->instance != collision.hdr->instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -1193,8 +1185,7 @@ int repel_point_against_global_collision_list_toward_target(
             collision.hdr = item->hdr;
             if (item->instance != collision.hdr->instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -1243,8 +1234,7 @@ int collide_segment_against_global_collision_list(
             collision.hdr = item->hdr;
             if (item->instance != collision.hdr->instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -1304,8 +1294,7 @@ int npc_repel_against_global_collision_list(
             collision.hdr = item->hdr;
             if (item->instance != collision.hdr->instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -1407,8 +1396,7 @@ int repel_cylinder_against_global_collision_list(
                 collision.hdr = item->hdr;
                 if (item->instance != collision.hdr->instance) {
                     next = item->next;
-                    item->hdr = 0;
-                    destroy_mkptr(item);
+                    discard_stale_mkptr(item);
                     item = next;
                     continue;
                 }
@@ -3169,8 +3157,7 @@ static int test_collision_vs_obstacles(
         obstacle = (ArenaObstacle*)obstacle_item->hdr;
         if (obstacle_item->instance != obstacle->hdr.instance) {
             next = obstacle_item->next;
-            obstacle_item->hdr = 0;
-            destroy_mkptr(obstacle_item);
+            discard_stale_mkptr(obstacle_item);
             obstacle_item = next;
             continue;
         }
@@ -3181,8 +3168,7 @@ static int test_collision_vs_obstacles(
                 if (shape_item->instance !=
                     collision_object.hdr->instance) {
                     next = shape_item->next;
-                    shape_item->hdr = 0;
-                    destroy_mkptr(shape_item);
+                    discard_stale_mkptr(shape_item);
                     shape_item = next;
                     continue;
                 }
@@ -3241,8 +3227,7 @@ int get_first_shape_center_for_obstacle_id(
         obstacle = (ArenaObstacle*)obstacle_item->hdr;
         if (obstacle_item->instance != obstacle->hdr.instance) {
             next = obstacle_item->next;
-            obstacle_item->hdr = 0;
-            destroy_mkptr(obstacle_item);
+            discard_stale_mkptr(obstacle_item);
             obstacle_item = next;
             continue;
         }
@@ -3254,8 +3239,7 @@ int get_first_shape_center_for_obstacle_id(
                 if (shape_item->instance !=
                     collision_object.hdr->instance) {
                     next = shape_item->next;
-                    shape_item->hdr = 0;
-                    destroy_mkptr(shape_item);
+                    discard_stale_mkptr(shape_item);
                     shape_item = next;
                     continue;
                 }
@@ -3576,8 +3560,7 @@ void render_collision_regions(void) {
                     shadow_list.hdr = item->hdr;
                     if (item->instance != shadow_list.hdr->instance) {
                         next = item->next;
-                        item->hdr = 0;
-                        destroy_mkptr(item);
+                        discard_stale_mkptr(item);
                         item = next;
                         continue;
                     }

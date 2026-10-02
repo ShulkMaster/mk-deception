@@ -1261,8 +1261,8 @@ void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* position);
 void calc_bone_world_mat(MkObj* object, int bone);
 void spawn_bld_fall(
-    const char* blood_type, MkBone* bone, const Vec* position,
-    const Vec* velocity, FighterMirror* owner);
+    const char* blood_type, MkBone* bone, Vec* position,
+    Vec* velocity, FighterMirror* owner);
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner);
 void plyr_bleed_large_ext(PlyrPdata* pdata, int bone, PlyrPdata* owner);
@@ -1408,8 +1408,7 @@ void gusher_destroy_list(void) {
             hdr = ptr->hdr;
             if (ptr->instance != hdr->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
                 continue;
             }
@@ -1540,20 +1539,20 @@ static float p_gusher(void) {
     return time;
 }
 
-/* TODO: [breakthrough] 80.76%; canonical player-info owner and sqrt index;
- * remaining consumer CFG/register differences need separate recovery. */
+/* TODO: [near miss] 98.68%; CFG and layout agree; residue is splat-loop
+ * coloring (list/sqrt volatile webs, tick and limit registers). */
 void spawn_bld_fall(
-    const char* blood_type, MkBone* bone, const Vec* position,
-    const Vec* velocity, FighterMirror* owner) {
+    const char* blood_type, MkBone* bone, Vec* position,
+    Vec* velocity, FighterMirror* owner) {
     BleedGroundWatcherPdata* watcher;
     BloodSplat* splat;
     MkObj* object;
     MkPfx* pfx;
     unsigned int effect;
-    unsigned int oldest_age;
-    int oldest_index;
     int nearby_index;
+    int oldest_index;
     int expired_nearby_count;
+    unsigned int oldest_age;
     int splat_limit;
     float nearby_radius;
     int index;
@@ -1585,17 +1584,17 @@ void spawn_bld_fall(
 
                     if (bone != 0) {
                         object->pos.value.x = bone->matrix.pos.x +
-                            position->x * bone->matrix.right.x +
-                            position->y * bone->matrix.up.x +
-                            position->z * bone->matrix.at.x;
+                            (position->x * bone->matrix.right.x +
+                             position->y * bone->matrix.up.x +
+                             position->z * bone->matrix.at.x);
                         object->pos.value.y = bone->matrix.pos.y +
-                            position->x * bone->matrix.right.y +
-                            position->y * bone->matrix.up.y +
-                            position->z * bone->matrix.at.y;
+                            (position->x * bone->matrix.right.y +
+                             position->y * bone->matrix.up.y +
+                             position->z * bone->matrix.at.y);
                         object->pos.value.z = bone->matrix.pos.z +
-                            position->x * bone->matrix.right.z +
-                            position->y * bone->matrix.up.z +
-                            position->z * bone->matrix.at.z;
+                            (position->x * bone->matrix.right.z +
+                             position->y * bone->matrix.up.z +
+                             position->z * bone->matrix.at.z);
                     } else {
                         object->pos.value.x = position->x;
                         object->pos.value.y = position->y;
@@ -1658,31 +1657,26 @@ void spawn_bld_fall(
                         expired_nearby_count < BLOOD_SPLAT_COUNT) {
                         splat = &ncs_blood_splat_list[oldest_index];
                         splat->reuse_count = 0;
+                    reset_splat:
                         splat->splat_count = 0;
                         splat->position.x = object->pos.value.x;
                         splat->position.y = object->pos.value.y;
                         splat->position.z = object->pos.value.z;
                         splat->expiry_tick =
                             (unsigned int)exec_tick_ctr + 180;
+                    add_splat:
                         splat->splat_count++;
                         watcher->create_decal = 1;
                     } else {
                         splat = &ncs_blood_splat_list[nearby_index];
                         if (splat->splat_count < splat_limit) {
-                            splat->splat_count++;
-                            watcher->create_decal = 1;
-                        } else if (splat->expiry_tick <
+                            goto add_splat;
+                        }
+                        if (splat->expiry_tick <
                             (unsigned int)exec_tick_ctr) {
                             splat->reuse_count++;
                             if (splat->reuse_count < 3) {
-                                splat->splat_count = 0;
-                                splat->position.x = object->pos.value.x;
-                                splat->position.y = object->pos.value.y;
-                                splat->position.z = object->pos.value.z;
-                                splat->expiry_tick =
-                                    (unsigned int)exec_tick_ctr + 180;
-                                splat->splat_count++;
-                                watcher->create_decal = 1;
+                                goto reset_splat;
                             }
                         }
                     }
@@ -2539,8 +2533,7 @@ static float p_bleed(void) {
             pdata = (BleedPdata*)item->hdr;
             if (item->instance != pdata->hdr.instance) {
                 next = item->next;
-                item->hdr = 0;
-                destroy_mkptr(item);
+                discard_stale_mkptr(item);
                 item = next;
                 continue;
             }
@@ -2922,8 +2915,7 @@ int obj_spawn_bld(
         hdr = item->hdr;
         if (item->instance != hdr->instance) {
             next = item->next;
-            item->hdr = 0;
-            destroy_mkptr(item);
+            discard_stale_mkptr(item);
             item = next;
             continue;
         }

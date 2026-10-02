@@ -2471,8 +2471,81 @@ float p_konquest_interior_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.88%; mode-8 movement/snap owners and facing stages improve;
- * smoothing FPR/pointer lifetimes and initializer pool offsets remain. */
+static inline void set_camera_position_impl(const Vec* position) {
+    CameraObj* camera;
+
+    RESOLVE_CAMERA_OBJ(camera);
+    camera->pos.x = position->x;
+    camera->pos.y = position->y;
+    camera->pos.z = position->z;
+}
+
+static inline void set_camera_angle_impl(const Vec* angle) {
+    CameraObj* camera;
+
+    RESOLVE_CAMERA_OBJ(camera);
+    camera->ang.x = angle->x;
+    camera->ang.y = angle->y;
+    camera->ang.z = angle->z;
+}
+
+static inline int scripted_camera_move_toward(Vec* target, float rate) {
+    CameraObj* camera;
+    Vec delta;
+    float distance;
+
+    RESOLVE_CAMERA_OBJ(camera);
+    delta.x = target->x - camera->pos.x;
+    delta.y = target->y - camera->pos.y;
+    delta.z = target->z - camera->pos.z;
+    distance = gxMathFastSqrt(delta.x * delta.x + delta.y * delta.y +
+                           delta.z * delta.z);
+    if (distance < 0.01f) {
+        camera->pos.x = target->x;
+        camera->pos.y = target->y;
+        camera->pos.z = target->z;
+        return 1;
+    }
+    delta.x *= rate;
+    delta.y *= rate;
+    delta.z *= rate;
+    camera->pos.x += delta.x;
+    camera->pos.y += delta.y;
+    camera->pos.z += delta.z;
+    return 0;
+}
+
+static inline int konquest_camera_turn_toward(const Vec* angles, float rate) {
+    CameraObj* camera;
+    Vec delta;
+
+    RESOLVE_CAMERA_OBJ(camera);
+    delta.x = angles->x - camera->ang.x;
+    if (delta.x > 3.1415927f) {
+        delta.x -= 6.2831855f;
+    } else if (delta.x < -3.1415927f) {
+        delta.x += 6.2831855f;
+    }
+    delta.y = angles->y - camera->ang.y;
+    if (delta.y > 3.1415927f) {
+        delta.y -= 6.2831855f;
+    } else if (delta.y < -3.1415927f) {
+        delta.y += 6.2831855f;
+    }
+    if (delta.x * delta.x + delta.y * delta.y < 1.0000001e-6f) {
+        return 1;
+    }
+    delta.x *= rate;
+    delta.y *= rate;
+    delta.z = 0.0f * rate;
+    camera->ang.x = camera->ang.x + delta.x;
+    camera->ang.y = camera->ang.y + delta.y;
+    camera->ang.z = camera->ang.z + delta.z;
+    return 0;
+}
+
+/* TODO: [near miss] 99.82%; first-branch turn folds retail's 0.0f * rate fmuls;
+ * entry Vec initializer pool offsets remain (TU data layout). */
 float konquest_camera_loop(void) {
     float facing_dz;
     Vec orbit_vector = {0.0f, 2.0f, -3.0f};
@@ -2482,14 +2555,6 @@ float konquest_camera_loop(void) {
     Vec collision_start;
     CameraObj* camera;
     MkObj* focus;
-    float dx;
-    float dy;
-    float dz;
-    float distance;
-    float speed;
-    float pitch_delta;
-    float yaw_delta;
-    float roll_delta;
     int position_done;
     float facing_dx;
 
@@ -2526,21 +2591,8 @@ float konquest_camera_loop(void) {
         camera_info.pdata->flags_bits.konquest_mode = 1;
     }
     if (camera_info.pdata->flags_bits.konquest_mode) {
-        CameraObj* current_camera;
-        RESOLVE_CAMERA_OBJ(current_camera);
-        {
-            CameraPdata* pdata = camera_info.pdata;
-            current_camera->pos.x = pdata->target_pos.x;
-            current_camera->pos.y = pdata->target_pos.y;
-            current_camera->pos.z = pdata->target_pos.z;
-        }
-        {
-            CameraPdata* pdata = camera_info.pdata;
-            RESOLVE_CAMERA_OBJ(current_camera);
-            current_camera->ang.x = pdata->target_ang.x;
-            current_camera->ang.y = pdata->target_ang.y;
-            current_camera->ang.z = pdata->target_ang.z;
-        }
+        set_camera_position_impl(&camera_info.pdata->target_pos);
+        set_camera_angle_impl(&camera_info.pdata->target_ang);
         update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
         camera_info.pdata->flags_bits.konquest_mode = 0;
     }
@@ -2584,104 +2636,21 @@ float konquest_camera_loop(void) {
                 camera_info.pdata->target_pos.z = collision_point.z;
             }
 
-            {
-                CameraPdata* pdata = camera_info.pdata;
-                speed = 0.1f * pdata->speed;
-                RESOLVE_CAMERA_OBJ(camera);
-                dy = pdata->target_pos.y - camera->pos.y;
-                dx = pdata->target_pos.x - camera->pos.x;
-                dz = pdata->target_pos.z - camera->pos.z;
-                distance = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
-                if (distance < 0.01f) {
-                    position_done = 1;
-                    camera->pos.x = pdata->target_pos.x;
-                    camera->pos.y = pdata->target_pos.y;
-                    camera->pos.z = pdata->target_pos.z;
-                } else {
-                    position_done = 0;
-                    dx *= speed;
-                    dy *= speed;
-                    dz *= speed;
-                    camera->pos.x += dx;
-                    camera->pos.y += dy;
-                    camera->pos.z += dz;
-                }
-            }
+            position_done = scripted_camera_move_toward(
+                &camera_info.pdata->target_pos, 0.1f * camera_info.pdata->speed);
             if (position_done != 0) {
                 camera_info.pdata->flags_bits.pos_done = 1;
             } else {
                 camera_info.pdata->flags_bits.pos_done = 0;
             }
 
-            speed = 0.1f * camera_info.pdata->speed;
-            RESOLVE_CAMERA_OBJ(camera);
-            pitch_delta = camera_info.pdata->target_ang.x - camera->ang.x;
-            if (pitch_delta > 3.1415927f) {
-                pitch_delta -= 6.2831855f;
-            } else if (pitch_delta < -3.1415927f) {
-                pitch_delta += 6.2831855f;
-            }
-            yaw_delta = camera_info.pdata->target_ang.y - camera->ang.y;
-            if (yaw_delta > 3.1415927f) {
-                yaw_delta -= 6.2831855f;
-            } else if (yaw_delta < -3.1415927f) {
-                yaw_delta += 6.2831855f;
-            }
-            if (!(pitch_delta * pitch_delta + yaw_delta * yaw_delta <
-                  1.0000001e-6f)) {
-                pitch_delta *= speed;
-                yaw_delta *= speed;
-                roll_delta = 0.0f * speed;
-                camera->ang.x += pitch_delta;
-                camera->ang.y += yaw_delta;
-                camera->ang.z += roll_delta;
-            }
+            konquest_camera_turn_toward(&camera_info.pdata->target_ang,
+                                        0.1f * camera_info.pdata->speed);
         } else {
-            CameraPdata* movement = camera_info.pdata;
-            RESOLVE_CAMERA_OBJ(camera);
-            dy = movement->target_pos.y - camera->pos.y;
-            dx = movement->target_pos.x - camera->pos.x;
-            dz = movement->target_pos.z - camera->pos.z;
-            distance = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
-            if (distance < 0.01f) {
-                CameraPdata* snap = camera_info.pdata;
-                camera->pos.x = snap->target_pos.x;
-                camera->pos.y = snap->target_pos.y;
-                camera->pos.z = snap->target_pos.z;
-            } else {
-                speed = 1.0f;
-                dx *= speed;
-                dy *= speed;
-                dz *= speed;
-                camera->pos.x += dx;
-                camera->pos.y += dy;
-                camera->pos.z += dz;
-            }
+            scripted_camera_move_toward(&camera_info.pdata->target_pos, 1.0f);
             camera_info.pdata->flags_bits.pos_done = 0;
 
-            RESOLVE_CAMERA_OBJ(camera);
-            pitch_delta = camera_info.pdata->target_ang.x - camera->ang.x;
-            if (pitch_delta > 3.1415927f) {
-                pitch_delta -= 6.2831855f;
-            } else if (pitch_delta < -3.1415927f) {
-                pitch_delta += 6.2831855f;
-            }
-            yaw_delta = camera_info.pdata->target_ang.y - camera->ang.y;
-            if (yaw_delta > 3.1415927f) {
-                yaw_delta -= 6.2831855f;
-            } else if (yaw_delta < -3.1415927f) {
-                yaw_delta += 6.2831855f;
-            }
-            if (!(pitch_delta * pitch_delta + yaw_delta * yaw_delta <
-                  1.0000001e-6f)) {
-                speed = 1.0f;
-                pitch_delta *= speed;
-                yaw_delta *= speed;
-                roll_delta = 0.0f * speed;
-                camera->ang.x += pitch_delta;
-                camera->ang.y += yaw_delta;
-                camera->ang.z += roll_delta;
-            }
+            konquest_camera_turn_toward(&camera_info.pdata->target_ang, 1.0f);
         }
 
         add_camera_offsets_impl();
@@ -3653,32 +3622,6 @@ static float p_run_camera_script(void) {
     camera_script_monitor_item.node = 0;
     camera_script_monitor_item.instance = 0;
     return -1.0f;
-}
-
-static inline int scripted_camera_move_toward(Vec* target, float rate) {
-    CameraObj* camera;
-    Vec delta;
-    float distance;
-
-    RESOLVE_CAMERA_OBJ(camera);
-    delta.x = target->x - camera->pos.x;
-    delta.y = target->y - camera->pos.y;
-    delta.z = target->z - camera->pos.z;
-    distance = gxMathFastSqrt(delta.x * delta.x + delta.y * delta.y +
-                           delta.z * delta.z);
-    if (distance < 0.01f) {
-        camera->pos.x = target->x;
-        camera->pos.y = target->y;
-        camera->pos.z = target->z;
-        return 1;
-    }
-    delta.x *= rate;
-    delta.y *= rate;
-    delta.z *= rate;
-    camera->pos.x += delta.x;
-    camera->pos.y += delta.y;
-    camera->pos.z += delta.z;
-    return 0;
 }
 
 static inline int scripted_camera_turn_toward(Vec* angles, float rate,
@@ -5578,21 +5521,11 @@ void get_camera_position(CamVec3* pos) {
 }
 
 void set_camera_angle(CamVec3* ang) {
-    CameraObj* cam;
-
-    RESOLVE_CAMERA_OBJ(cam);
-    cam->ang.x = ang->x;
-    cam->ang.y = ang->y;
-    cam->ang.z = ang->z;
+    set_camera_angle_impl(ang);
 }
 
 void set_camera_position(CamVec3* pos) {
-    CameraObj* cam;
-
-    RESOLVE_CAMERA_OBJ(cam);
-    cam->pos.x = pos->x;
-    cam->pos.y = pos->y;
-    cam->pos.z = pos->z;
+    set_camera_position_impl(pos);
 }
 
 static float p_shake_camera_y(void);

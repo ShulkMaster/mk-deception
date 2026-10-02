@@ -97,7 +97,42 @@ C path and record it as blocked. No `opword`: the relocation would be lost.
 After the applicable honest source check, stop at:
 
 - GPR/FPR coloring, parameter nonvolatile homes, or permutations rotating the
-  residue.
+  residue. IF only two parameter homes are exchanged (retail gives the later
+  parameter the higher saved register; `drone_ai_check_attack` r30/r31),
+  REQUIRE the MWCC simplify model before spending attempts. Virtual numbers:
+  parameters first in declaration order (`p1 < p2 < p3`, measured with a
+  three-parameter probe), named locals next in reverse declaration order
+  (block-scoped ones lowest), then front-end temps (inline copies,
+  lifetime-split ranges, inline result joins), then codegen temps. Each pass
+  scans ascending and pushes every web whose current degree is below the free
+  register count (29), decrementing its neighbours at once; select pops the
+  stack and takes the lowest free colour, claiming r31 downward, so two
+  parameters pushed in one pass give the later one the higher register.
+  Physical registers and coalesced webs never push and never decrement: a
+  call result that feeds a move (`x = call()` into a multi-def variable, an
+  inline `return 0 | return call()` join) stays as a never-pushed node; one
+  consumed by a compare or shift is copy-propagated away and does not count.
+  When no pushable web is left and both parameters sit at the threshold, the
+  stall is broken by the lowest spillCost/degree (reads x2, writes x1,
+  arg-init -1): the parameter with the fewest reads is pushed first and ends
+  with the lower register (`immediate`: five `cmpwi`, cost 9; `drone` ~37).
+  TRY two scratch probes that report the entry `mr` pair: twenty extra reads
+  of the cheap parameter through a global store (no new long-lived web)
+  flipping the pair proves the stall; deleting one never-pushed neighbour in
+  a region where both are live flipping it proves the threshold. Neither is
+  honest source. In a small reproducer the same pair flips by another route
+  (the middle parameter, vreg 33, is pushed between the examinations of 32
+  and 34 while both sit at a raw degree of exactly 29), so a reduced TU is
+  not evidence for the full function. Stream-neutral levers (declaration and
+  statement order, helper boundaries, staged call arguments, scopes, variable
+  identity, inline depth, `?:` vs if/else, pragmas, K&R order, TU isolation,
+  moving the third parameter to another slot, long-lived `force`) were all
+  neutral there; the pair is a hard stop unless a never-pushed neighbour can
+  be removed with the same stream. A volatile rotation under a scoped `opt_*`
+  pragma is not a stop until the H21 web-kind check and the pragma-free H05
+  mechanism were measured: `drone_ai_victim_avoid` closed from a recorded
+  99.44 ceiling by replacing `opt_common_subs off` with an address-taken sqrt
+  input and direct global reads.
 - `li 0` vs copying an already-zero register; commutative scratch encodings.
 - Frameless PLATFORM `mtlr`/`blrl` emission.
 - Anonymous relocation labels with verified identical payloads and targets.

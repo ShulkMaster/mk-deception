@@ -153,8 +153,7 @@ void set_background_obstacle_disable_flag(
             obstacle = (ArenaObstacle*)link->hdr;
             if (link->instance != obstacle->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if ((int)obstacle->obstacle_id == obstacle_id) {
@@ -178,8 +177,7 @@ void set_background_obstacle_repel_flag(
             obstacle = (ArenaObstacle*)link->hdr;
             if (link->instance != obstacle->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if ((int)obstacle->obstacle_id == obstacle_id) {
@@ -202,8 +200,7 @@ void delete_obstacle_from_background_by_id(int obstacle_id) {
             obstacle = (ArenaObstacle*)link->hdr;
             if (link->instance != obstacle->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if ((int)obstacle->obstacle_id == obstacle_id &&

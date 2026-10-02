@@ -761,8 +761,7 @@ void kill_head_tracking(void) {
             proc = (MkProc*)ptr->hdr;
             if (ptr->instance != proc->instance) {
                 next = ptr->next;
-                ptr->hdr = 0;
-                destroy_mkptr(ptr);
+                discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
                 if (proc->pid == 0x6005) {
@@ -3403,8 +3402,7 @@ void limb_sever_reset_limbs(PlyrInfo* player) {
             hdr = walk->hdr;
             if (walk->instance != hdr->instance) {
                 next = walk->next;
-                walk->hdr = 0;
-                destroy_mkptr(walk);
+                discard_stale_mkptr(walk);
                 walk = next;
             } else {
                 if (hdr != 0 && hdr != (MkHdr*)aproc &&
@@ -4187,8 +4185,7 @@ void obj_set_rw_lights(MkObj* obj) {
                 wrapper = (MkxRpLight*)ptr->hdr;
                 if (ptr->instance != wrapper->hdr.instance) {
                     next = ptr->next;
-                    ptr->hdr = 0;
-                    destroy_mkptr(ptr);
+                    discard_stale_mkptr(ptr);
                     ptr = next;
                     continue;
                 }

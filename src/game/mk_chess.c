@@ -4083,8 +4083,7 @@ static float p_mk_chess_spell_hud_string_fade(void) {
             string = (StringObj*)link->hdr;
             if (link->instance != string->instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 step = pdata->step;
@@ -4106,8 +4105,7 @@ static float p_mk_chess_spell_hud_string_fade(void) {
                 string = (StringObj*)link->hdr;
                 if (link->instance != string->instance) {
                     next = link->next;
-                    link->hdr = 0;
-                    destroy_mkptr(link);
+                    discard_stale_mkptr(link);
                     link = next;
                 } else {
                     destroy_string_obj(string);
@@ -4161,8 +4159,7 @@ static float p_mk_chess_fade_images(void) {
         while (image != 0) {
             if (image->instance != image->hdr->instance) {
                 MkPtr* next = image->next;
-                image->hdr = 0;
-                destroy_mkptr(image);
+                discard_stale_mkptr(image);
                 image = next;
             } else {
                 Pfx2dObj* effect = ((ScreenObj*)image->hdr)->pfx2d;
@@ -4181,8 +4178,7 @@ static float p_mk_chess_fade_images(void) {
             while (image != 0) {
                 if (image->instance != image->hdr->instance) {
                     MkPtr* next = image->next;
-                    image->hdr = 0;
-                    destroy_mkptr(image);
+                    discard_stale_mkptr(image);
                     image = next;
                 } else {
                     hide_screen_obj((ScreenObj*)image->hdr);
@@ -6299,8 +6295,7 @@ static inline int mk_chess_has_live_effect(MkPtr** effects, unsigned int kind) {
             effect = (ChessPieceEffect*)link->hdr;
             if (link->instance != effect->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if ((unsigned int)effect->kind == kind) {
@@ -8020,8 +8015,7 @@ static inline int mk_chess_start_pick_string_fade(ChessHudState* hud,
             StringObj* string = (StringObj*)link->hdr;
             if (link->instance != string->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 string->pfx.instance0.native_color.a = 255;
@@ -8597,8 +8591,7 @@ static int mk_chess_hide_all_except_selected_pieces_cb(
             effect = (ChessPieceEffect*)link->hdr;
             if (link->instance != effect->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (effect->flags.bits.bit7) {
@@ -8992,8 +8985,7 @@ static inline void mk_chess_save_effect_list(MkPtr** effects, ChessSavedPiece* s
             effect = (ChessPieceEffect*)link->hdr;
             if (link->instance != effect->hdr.instance) {
                 next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 saved_piece->effects[saved_piece->effect_count].kind = effect->kind;
@@ -9237,8 +9229,7 @@ void mk_chess_spell_hud_retract_all_for_targetting(ChessHudState* hud) {
         StringObj* string = (StringObj*)link->hdr;
         if (link->instance != string->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             string->pfx.instance0.native_color.a = 255;
@@ -9312,8 +9303,7 @@ void mk_chess_spell_hud_retract_all_during_deadpool_select(
         StringObj* string = (StringObj*)link->hdr;
         if (link->instance != string->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             string->pfx.instance0.native_color.a = 255;
@@ -9402,8 +9392,7 @@ static void mk_chess_spell_hud_show_page(ChessHudState* hud, int forward) {
         string = (StringObj*)link->hdr;
         if (link->instance != string->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             string->pfx.instance0.native_color.a = 0;
@@ -9853,8 +9842,7 @@ void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active) {
         ChessPieceEffect* effect = (ChessPieceEffect*)link->hdr;
         if (link->instance != effect->hdr.instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (effect->flags.bits.bit7) {
@@ -10341,8 +10329,7 @@ static void mk_chess_calc_all_attackers_for(
                     ChessAttackerInfo* entry = (ChessAttackerInfo*)link->hdr;
                     if (link->instance != entry->hdr.instance) {
                         MkPtr* next = link->next;
-                        link->hdr = 0;
-                        destroy_mkptr(link);
+                        discard_stale_mkptr(link);
                         link = next;
                     } else if (entry->piece == piece) {
                         existing = entry;
@@ -10395,8 +10382,7 @@ static inline ChessAttackerInfo* mk_chess_get_attacker_info(
             ChessAttackerInfo* entry = (ChessAttackerInfo*)link->hdr;
             if (link->instance != entry->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (entry->piece == piece) {
                 info = entry;
@@ -10483,8 +10469,7 @@ static void mk_chess_calc_all_attackers_in_turn(
                         ChessAttackerInfo* info = (ChessAttackerInfo*)link->hdr;
                         if (link->instance != info->hdr.instance) {
                             MkPtr* next = link->next;
-                            link->hdr = 0;
-                            destroy_mkptr(link);
+                            discard_stale_mkptr(link);
                             link = next;
                         } else {
                             if (best_counterattack < info->counterattack_rating) {
@@ -10531,8 +10516,7 @@ static inline ChessAttackerInfo* mk_chess_select_best_attack(
         ChessAttackerInfo* info = (ChessAttackerInfo*)link->hdr;
         if (link->instance != info->hdr.instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if ((info->attack_rating > best_rating ||
@@ -10602,8 +10586,7 @@ static inline unsigned int mk_chess_select_vulnerability_attack(
         ChessAttackerInfo* info = (ChessAttackerInfo*)link->hdr;
         if (link->instance != info->hdr.instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if ((info->attack_rating > best ||
@@ -11345,8 +11328,7 @@ void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned ch
         ChessPieceEffect* effect = (ChessPieceEffect*)link->hdr;
         if (link->instance != effect->hdr.instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (effect->kind == 1) {
@@ -12740,8 +12722,7 @@ static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
         StringObj* string = (StringObj*)link->hdr;
         if (link->instance != string->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             string->pfx.instance0.native_color.a = 0;
@@ -12887,8 +12868,7 @@ static void mk_chess_request_for_target(ChessHudState* hud) {
             string = (StringObj*)link->hdr;
             if (link->instance != string->instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 string->pfx.instance0.native_color.a = 0;
@@ -13990,8 +13970,7 @@ static inline void mk_chess_display_rescue_piece(ChessHudState* hud, ChessPiece*
         StringObj* string = (StringObj*)link->hdr;
         if (link->instance != string->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (strcmp(string->text, get_string_by_id(0x2001E)) != 0) {
@@ -14660,8 +14639,7 @@ static float p_team_monitor(void)
             ChessPieceEffect* effect = (ChessPieceEffect*)link->hdr;
             if (link->instance != effect->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else {
                 if (!mk_chess_expire_team_effect(effect)) {
@@ -14960,8 +14938,7 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
         ChessPieceEffect* effect = (ChessPieceEffect*)link->hdr;
         if (link->instance != effect->hdr.instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (effect->kind == 1) {
@@ -15507,8 +15484,7 @@ float p_mk_chess_place_traps(void)
         MkHdr* object = link->hdr;
         if (link->instance != object->instance) {
             MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
+            discard_stale_mkptr(link);
             link = next;
         } else {
             if (object->instance != 0) object->typed_vtbl->destroy(object);

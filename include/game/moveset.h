@@ -21,9 +21,9 @@ typedef struct PlyrStyleDefinition {
     unsigned int animation_header; /* +0x00 */
     WeaponDefinition* primary_weapon; /* +0x04 */
     WeaponDefinition* secondary_weapon; /* +0x08 */
-    union { const char* section_name_0C; const char* style_sign_name; }; /* +0x0C - MKO tag 4 */
+    const char* style_sign_name; /* +0x0C - MKO tag 4 */
     union { int display_width; int style_sign_width; }; /* +0x10 */
-    union { const char* section_name_14; const char* style_section_name; }; /* +0x14 - MKO tag 4 */
+    const char* style_section_name; /* +0x14 - MKO tag 4 */
     const char* animation_section_name; /* +0x18 */
     int use_fighting_stance; /* +0x1C */
     float fields_20[2]; /* +0x20 */
@@ -117,7 +117,7 @@ typedef struct GlobalMoveset {
                     AniData* strafe_left_loop; /* +0x90 */
                     AniData* strafe_right_loop; /* +0x94 */
                     AniData* weapon_block_animation; /* +0x98 */
-                    union { AniData* weapon_block_loop; MkPtr* object_list; }; /* +0x9C */
+                    AniData* weapon_block_loop; /* +0x9C */
                     AniData* animations_A0[2];
                     AniData* duck_block_intro; /* +0xA8 */
                     AniData* duck_block_animation; /* +0xAC */
