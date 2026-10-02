@@ -5432,8 +5432,10 @@ static inline unsigned int ai_fighter_table_row_count(
 
 #pragma opt_propagation off
 /* TODO: [near miss] 99.79%; only the drone/immediate saved pair differs: MWCC
- * simplify keeps drone at degree 29 one pass past immediate; no stream-neutral
- * lever moves it (helper boundaries, staging, scopes, identity, nesting). */
+ * simplify stalls with both at the colour threshold and breaks the stall by
+ * lowest spill cost, so immediate (5 reads) is pushed before drone and drone
+ * pops first into r31; every flip found (more immediate reads, one fewer
+ * never-pushed neighbour) changes the instruction stream. */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     AiFightstyleAttack* script;
     unsigned int special_count;

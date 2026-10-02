@@ -684,7 +684,7 @@ definition owner to the branch that uses it. Fold a single-use owner directly
 into its call argument when appropriate; do not retain an unused assignment
 inside the argument. This recovered the table registers in
 `drone_ai_check_attack`; its remaining parameter nonvolatile swap is a hard stop
-(tier 4 Hard stops: simplify threshold).
+(tier 4 Hard stops: simplify stall broken by spill cost).
 
 IF a function sits under consumer-scoped `opt_propagation off` and the only
 residue is volatile coloring inside an inlined helper (same loads, owner and
