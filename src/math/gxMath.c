@@ -3,7 +3,6 @@
  * layout; the bodies are NOT recovered source. Replace with genuine bodies if a source turns up. */
 #include "math/gxMath.h"
 
-/* Angle scale: 2^20 / (2*pi) and reciprocal 2*pi / 2^20 */
 #define kAngleToIndex 166886.05f
 #define kIndexToRad 0.0000059921126f
 #define kNegIndexToRad -0.0000059921126f
@@ -15,17 +14,14 @@
 #define kPi 3.1415927f
 #define kNegHalfPi -1.5707964f
 
-/* sin Taylor extras */
 #define kSinC6 -0.00019176333f
 #define kSinC4 0.008333334f
 #define kSinC2 -0.16666667f
 
-/* cos Taylor extras */
 #define kCosC6 -0.0013293402f
 #define kCosC4 0.041666668f
 #define kCosC2 -0.5f
 
-/* atan series odd-reciprocal coeffs (1/3 .. 1/27) */
 #define kAtan3 0.33333334f
 #define kAtan5 0.2f
 #define kAtan7 0.14285715f
@@ -40,7 +36,6 @@
 #define kAtan25 0.04f
 #define kAtan27 0.037037037f
 
-/* acos piecewise thresholds / linear fits / mid poly */
 #define kAcosLo0 -0.825f
 #define kAcosLo1 -0.911f
 #define kAcosLo2 -0.95f
@@ -123,12 +118,12 @@ float gxMathSin(float angle) {
     float x;
     float t;
 
-    bits = (unsigned int)(int)(angle * kAngleToIndex);
-    folded = (int)(bits & 0x3FFFFu);
+    bits = (int)(angle * kAngleToIndex);
+    folded = bits & 0x3FFFFu;
     if ((bits & 0x40000u) != 0) {
         folded = 0x40000 - folded;
     }
-    x = (float)folded;
+    x = folded;
     if ((bits & 0x80000u) != 0) {
         scale = kNegIndexToRad;
     } else {
@@ -136,7 +131,6 @@ float gxMathSin(float angle) {
     }
     x *= scale;
     x2 = x * x;
-    /* Horner: x * (x2 * ((c6*x2+c4)*x2+c2) + 1) -- fmadds operand order */
     t = kSinC6 * x2 + kSinC4;
     t = t * x2 + kSinC2;
     t = x2 * t + kOne;
@@ -157,13 +151,13 @@ void gxMathCosSin(float* cosOut, float* sinOut, float angle) {
     float sinV;
     float x;
 
-    bits = (unsigned int)(int)(angle * kAngleToIndex);
-    folded = (int)(bits & 0x3FFFFu);
+    bits = (int)(angle * kAngleToIndex);
+    folded = bits & 0x3FFFFu;
     if ((bits & 0x40000u) != 0) {
         folded = 0x40000 - folded;
     }
     doubled = bits + bits;
-    x = (float)folded;
+    x = folded;
     if ((bits & 0x80000u) != 0) {
         scale = kNegIndexToRad;
     } else {
@@ -202,8 +196,8 @@ float gxMathCos(float angle) {
     float x2;
     float t;
 
-    bits = (unsigned int)(int)(angle * kAngleToIndex);
-    folded = (int)(bits & 0x3FFFFu);
+    bits = (int)(angle * kAngleToIndex);
+    folded = bits & 0x3FFFFu;
     if ((bits & 0x40000u) != 0) {
         bits ^= 0x80000u;
         folded = 0x40000 - folded;
@@ -438,7 +432,6 @@ float gxMathArcCos(float x) {
         return kZero;
     }
 
-    /* |x| <= 0.825: pi/2 + x * P(x^2). fmadds order: C*x2, p*x2, then x2*p... */
     x2 = x * x;
     p = kAcosMidC6 * x2 + kAcosMidC5;
     p = p * x2 + kAcosMidC4;

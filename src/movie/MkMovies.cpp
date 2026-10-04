@@ -5,6 +5,8 @@
 
 #include "mw/mwMemHeap.h"
 #include "runtime/cstring.h"
+#include "runtime/cstdio.h"
+#include "rw/rwcore_types.h"
 
 extern "C" {
 
@@ -12,13 +14,6 @@ int GetArtSlot__Fv(void);
 #include "runtime/asset.h"
 RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
 void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
-int sprintf(char* dest, const char* fmt, ...);
-
-typedef struct RwRaster RwRaster;
-
-typedef struct RwTextureWithRaster {
-    RwRaster* raster;
-} RwTextureWithRaster;
 
 static const char stringBase0[] = "MFS:%08x.%08x\0%s";
 
@@ -35,6 +30,7 @@ static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int scre
     return *(RwTexture**)((char*)&player->saved_texture + screen_offset);
 }
 
+/* TODO: [breakthrough needed] 58.09524%; save/induction shape differs; object-mode evidence remains in notes. */
 void mkMovieTexPlayerIdleUpdate(void) {
     unsigned char anyPlaying;
     int index;
@@ -54,11 +50,9 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
-/* TODO: [breakthrough] 86.02%; structure-derived reset offsets retain retail layout;
- * remaining loop/save scheduling needs caller and lifetime analysis. */
+/* TODO: [breakthrough] 86.98077%; typed reset owners agree; loop/save scheduling remains. */
 void movie_player_reset(void) {
     int playerIndex;
-    int byteOffset;
     MkMovieTexPlayer* player;
     int screenCount;
     int screenIndex;
@@ -68,10 +62,9 @@ void movie_player_reset(void) {
     RwTexture* tex;
 
     playerIndex = 0;
-    byteOffset = 0;
     do {
         if (playerIndex < 2) {
-            player = (MkMovieTexPlayer*)((char*)_mmp_data + byteOffset);
+            player = &_mmp_data[playerIndex];
             if (player->movie != 0) {
                 MovieDelete(player->movie);
                 screenCount = player->screen_count;
@@ -92,7 +85,6 @@ void movie_player_reset(void) {
             }
         }
         playerIndex++;
-        byteOffset += sizeof(MkMovieTexPlayer);
     } while (playerIndex < 2);
     MovieShutdownSystem();
 }
@@ -108,8 +100,7 @@ void mkMovieTexStop(int index) {
     }
 }
 
-/* TODO: [breakthrough] 75.00%; typed binding offsets preserve native ownership;
- * remaining path/loop register scheduling needs retail CFG analysis. */
+/* TODO: [breakthrough] 76.76830%; typed screen bindings agree; path/loop scheduling remains. */
 void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
     MkMovieTexPlayer* player;
     RwTexture* tex;
@@ -122,9 +113,6 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
     int block_size;
     MkMovieTexPlayer* playable;
 
-    (void)unused1;
-    (void)unused2;
-    (void)unused3;
     if (index < 2) {
         player = &_mmp_data[index];
         if (player->movie != 0) {
@@ -151,7 +139,7 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
             if (use_mfs == 0) {
                 sprintf(player->path, STR_NAME_PATH_FMT, name);
             } else {
-                block = load_named_binary_block((int)GetArtSlot__Fv(), (char*)name, &block_size);
+                block = load_named_binary_block(GetArtSlot__Fv(), (char*)name, &block_size);
                 if (block == 0) {
                     sprintf(player->path, STR_NAME_PATH_FMT, name);
                     playable = 0;
@@ -166,6 +154,7 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
     }
 }
 
+/* TODO: [breakthrough needed] 79.04762%; canonical texture fields agree; save/argument scheduling remains. */
 void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
     MkMovieTexPlayer* player;
 
@@ -175,7 +164,7 @@ void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
         if (player->movie == 0) {
             player->texture = MovieNewTexture(width, height);
             player->movie = MovieNewModeSelect(
-                ((RwTextureWithRaster*)player->texture)->raster, width, height);
+                player->texture->raster, width, height);
             player->unk28 = -1;
             player->screen_count = 1;
             player->screen_poly = screen_poly;
