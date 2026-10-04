@@ -153,13 +153,19 @@ DecompStudio is the shared MCP coordinator at `http://127.0.0.1:7777/mcp`
   your connection: `core` (default; no `permute`), `match` (slim worker; has
   `permute`, no `list_functions`/`spawn_identity`), `janitor` (match plus
   cleanup tools), `full` (everything, including `queue_work`, `review`,
-  `wiki`, `sandbox_*`). Claude Code uses `full`; Codex uses `core`. If a tool
-  is missing, it is the profile, not a bug; you cannot change it yourself.
+  `wiki`, `sandbox_*`), `coordinator` (core plus queue/review/build tools).
+  Claude Code uses `coordinator`; Codex uses `full`. If a tool is missing,
+  it is the profile: switch live with `role {set: "full"}` (no reconnect).
+- **One coordinator seat.** `profile=coordinator` or `role {set:
+  "coordinator"}` claims it only while vacant; otherwise the session runs as
+  `core`, and `status` shows `role_warning` and the holder. Hand off with
+  `role {release_coordinator: true}`, then the next agent claims. Only the
+  holder may requeue, set tier budgets, or clear the queue
+  (`queue_work {clear: true, reason}`).
 - **Claude Code defers MCP tools.** Load schemas before calling, e.g.
   `ToolSearch "select:mcp__core__status,mcp__core__lease,mcp__core__try"`.
 - **Separate processes** get their own identity automatically; set role in the
-  URL (`?agent=janitor-1&profile=janitor&tier=2`, `kind=observer` for
-  coordinators).
+  URL (`?agent=janitor-1&profile=janitor&tier=2`).
 - **In-process sub-agents** share the parent's connection and act as the
   parent unless the parent calls `spawn_identity {count: N}` and gives each
   sub-agent one `session` id that it passes on **every** call. Children are
