@@ -39,18 +39,19 @@ static float mk_inv_sqrt(float x) {
         unsigned int u;
     } pun;
     float guess;
-    float t1;
-    float t3;
+    float scaled_input;
+    float correction;
 
-    if (!(kZero < x)) {
+    if (x <= kZero) {
         return kZero;
     }
     pun.f = x;
     pun.u = 0x5F375A00U - (pun.u >> 1);
     guess = pun.f;
-    t1 = guess * x * guess;
-    t3 = kThree - t1;
-    return kInvSqrtScale * guess * t3 * (kNewton12 - (t1 * t3 * t3));
+    scaled_input = guess * (x * guess);
+    correction = kThree - scaled_input;
+    guess = kInvSqrtScale * guess;
+    return guess * correction * (kNewton12 - (scaled_input * correction * correction));
 }
 
 /* TODO: [breakthrough needed] 74.62%; FP scheduling differs; see mk_math.o compiler/flag note. */
@@ -86,7 +87,7 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough] 26.12%; sqrt table indexing corrected; source-shape/FP differences need a localized retail audit. */
+/* TODO: [breakthrough] 26.76293%; inverse-sqrt ordered guard corrected; FP scheduling and source structure remain. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float ax = cylAxis->x;
@@ -202,10 +203,9 @@ void xz_x_v_add_xz(Vec* dst, const Vec* v, float s) {
 }
 #pragma pop
 
-/* TODO: [near miss] 93.10%; inlined mk_inv_sqrt keeps x in f6 and a cror differs. */
 void normalize_xz(Vec* v) {
     float inv = mk_inv_sqrt(v->x * v->x + v->z * v->z);
-    v->x *= inv;
+    v->x = v->x * inv;
     v->z *= inv;
 }
 
@@ -218,7 +218,7 @@ float xz_dot_xz(const Vec* a, const Vec* b) {
     return a->x * b->x + a->z * b->z;
 }
 
-/* TODO: [breakthrough needed] 76.91%; FP scheduling around inlined mk_inv_sqrt differs. */
+/* TODO: [breakthrough] 79.84782%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
 float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -231,7 +231,7 @@ float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to) {
     return inv;
 }
 
-/* TODO: [breakthrough needed] 76.36%; FP scheduling around inlined mk_inv_sqrt differs. */
+/* TODO: [breakthrough] 78.86957%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
 void xz_unit_vector(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -258,8 +258,7 @@ void scale_xz(Vec* out, const Vec* v, float s) {
 
 #pragma push
 #pragma scheduling off
-/* TODO: [near miss] 92.35%; component schedule aligns; half-constant load
- * precedes x operands; used x-sum staging is neutral. */
+/* TODO: [near miss] 92.35294%; only half-factor load precedes the x input loads. */
 void midpoint_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = kHalf * (a->x + b->x);
     out->y = kHalf * (a->y + b->y);
@@ -315,7 +314,7 @@ float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     return len;
 }
 
-/* TODO: [breakthrough needed] 68.29%; FP scheduling around inlined mk_inv_sqrt differs. */
+/* TODO: [breakthrough] 70.74545%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
 void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
     float inv;
 
@@ -339,12 +338,13 @@ void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c)
 }
 #pragma pop
 
-/* TODO: [breakthrough] 95.75%; sqrt table indexing corrected; sqrt-table and 1/len scheduling differ. */
 float normalize_v3_length(Vec* v) {
     float len = gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
-    float inv = kZero;
-    if (kZero < len) {
+    float inv;
+    if (len > kZero) {
         inv = kOne / len;
+    } else {
+        inv = len;
     }
     v->x *= inv;
     v->y *= inv;
@@ -352,10 +352,9 @@ float normalize_v3_length(Vec* v) {
     return len;
 }
 
-/* TODO: [near miss] 94.06%; inlined mk_inv_sqrt keeps x in f6 and a cror differs. */
 void normalize_v3(Vec* v) {
     float inv = mk_inv_sqrt(v->x * v->x + v->y * v->y + v->z * v->z);
-    v->x *= inv;
+    v->x = v->x * inv;
     v->y *= inv;
     v->z *= inv;
 }
@@ -425,14 +424,15 @@ void scale_v3(Vec* out, const Vec* v, float s) {
 
 #pragma push
 #pragma scheduling off
-/* TODO: [near miss] 90.56%; component math aligns after scoped scheduling;
- * complementary weight and b/a load order differ; stop at FP allocation ceiling. */
+/* TODO: [near miss] 97.222221%; unity-load register and y/z load order differ;
+ * whole-unit O2 control regresses matched consumers. */
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
     float s;
     float component;
 
+    s = kOne;
     component = b->x;
-    s = kOne - t;
+    s -= t;
     out->x = a->x * t + component * s;
     component = b->y;
     out->y = a->y * t + component * s;
@@ -466,8 +466,8 @@ void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
     len = gxMathFastSqrt(v->x * v->x + v->z * v->z);
-    ang->y = (float)atan2((double)v->x, (double)v->z);
-    ang->x = -(float)atan2((double)v->y, (double)len);
+    ang->y = atan2(v->x, v->z);
+    ang->x = -(float)atan2(v->y, len);
 }
 
 /* TODO: [breakthrough] 81.71%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
@@ -576,7 +576,7 @@ float quat_extract_ang_y(const Quat* q) {
     }
 }
 
-/* TODO: [breakthrough] 84.12%; slerp structure matches; FP scheduling differs. */
+/* TODO: [breakthrough] 84.98718%; ordered guard corrected; quaternion FP scheduling remains. */
 void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     float sign = kOne;
     float oneMinusT;
@@ -637,7 +637,7 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = -(az * bz - -(ay * by - (aw * bw - ax * bx)));
 }
 
-/* TODO: [breakthrough] 79.29%; sqrt table indexing corrected; FP scheduling differs. */
+/* TODO: [breakthrough] 81.57286%; ordered guard corrected; quaternion FP scheduling remains. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
     float ax;

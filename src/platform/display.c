@@ -2,16 +2,27 @@
 
 #include "dolphin/gx.h"
 #include "game/game_info.h"
+#include "game/bgnd.h"
+#include "game/plyr.h"
 #include "libmkparticle/pfxfont.h"
 #include "libmkparticle/particle.h"
 #include "math/mk_math.h"
 #include "platform/fast_rw.h"
+#include "platform/gprofile_gcn.h"
+#include "platform/fog.h"
+#include "game/minigames.h"
+#include "game/konquest.h"
+#include "game/gcspecskin.h"
+#include "runtime/instance_api.h"
+#include "runtime/mk_particle.h"
 #include "platform/gcInit.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
+#include "platform/io.h"
 #include "runtime/image.h"
 #include "runtime/cstdio.h"
 #include "runtime/mk_obj.h"
+#include "runtime/cam.h"
 #include "runtime/mk_render.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_plugins.h"
@@ -23,6 +34,11 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "rw/rwcore_types.h"
+#include "rw/rwimage.h"
+#include "rw/rpskin.h"
+#include "rw/rpmatfx.h"
+#include "rw/gamecube.h"
+#include "rw/rwengine.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwdevice.h"
 #include "rw/rwframe.h"
@@ -30,38 +46,8 @@
 #include "rw/rplight.h"
 #include "rw/rpworld_types.h"
 
-extern void GProfile_GCN_GxDrawDone(void);
-extern RpWorld* RpClumpGetWorld(RpClump* clump);
-extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern RwImage* RwImageAllocatePixels(RwImage* image);
-extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
-extern int RwImageDestroy(RwImage* image);
-extern void CameraDestroy(RwCamera* camera);
-extern void update_fog_render_states(void);
-extern int fog_on;
-extern int RpSkinPluginAttach(void);
-extern int RpSpecularPluginAttach(void);
-extern int specskin_plugin_attach(void);
-extern int RpMatFXPluginAttach(void);
-extern void debug_error_message(const char* message);
-extern int __mini_game_display_ctrl;
 extern int curr_pipeline_used;
 extern int last_pipeline_used;
-extern int uploaded_light_state;
-extern int reseed_rnd_tbl;
-extern void force_rw_lights(void);
-extern int get_bgnd_flags(void);
-extern void render_konquest_shadows(void);
-extern void render_minigame_list(void);
-extern void render_fgnd_mkobjs(void);
-extern void insert_PFXlist_in_transl_tree(void);
-extern void mkpfx_camera_begin(void);
-extern void mkpfx_camera_end(void);
-extern void render_collision_regions(void);
-extern void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata);
-extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
-extern void del_string_obj_by_id(int id);
 static const char display_text[] =                                             \
     "/hostwrite/%03d.tga\0"                                                   \
     "Tick = %02d\0"                                                           \
@@ -83,19 +69,7 @@ static void render_konquest_sky(void);
 static void render_sky(void);
 static void setup_default_render_state(void);
 
-typedef struct DisplayCameraItem {
-    MkObj* object;
-    unsigned int instance;
-} DisplayCameraItem;
 
-extern DisplayCameraItem camera_item;
-
-typedef struct DisplayEngineVtable {
-    void* slots_00[8];
-    int (*render_state_set)(int state, int value, void* engine);
-} DisplayEngineVtable;
-
-extern DisplayEngineVtable* RwEngineInstance;
 
 FadingScreen fading_screen = {0};
 MKMATRIX camera_facing_matrix_ay;
@@ -127,12 +101,12 @@ void end_first_pass_render(void) {
 
 
 void start_first_pass_render(void) {
-    MkObj* camera_object = MK_HDR_LIVE(camera_item.object, camera_item.instance);
+    CameraObj* camera_object = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera_object != 0) {
-        camera_object->pos.value.x = 0.0f;
-        camera_object->pos.value.y = 0.0f;
-        camera_object->pos.value.z = -50.0f;
+        camera_object->pos.x = 0.0f;
+        camera_object->pos.y = 0.0f;
+        camera_object->pos.z = -50.0f;
         camera_object->ang.x = 0.0f;
         camera_object->ang.y = 0.0f;
         camera_object->ang.z = 0.0f;
@@ -249,7 +223,7 @@ void display_shutdown(void) {
     pfxfont_system_shutdown();
     CameraDestroy(Camera);
     Camera = 0;
-    camera_item.object = 0;
+    camera_item.node = 0;
     camera_item.instance = 0;
     destroy_shadow_system();
     DeleteCameraSnapShot();
@@ -272,17 +246,18 @@ static float halt_during_screen_save(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.39%; camera/raster register coloring and stack-frame size differ. */
 static float _print_screen_to_tga(void) {
-    char filename[64];
-    int width;
-    int height;
-    RwRaster* raster;
-    RwRaster* z_raster;
-    RwFrame* frame;
-    RwCamera* camera;
-    RwTexture* texture;
+    char filename[80];
     RwCamera* saved_camera;
+    RwTexture* texture;
+    RwCamera* camera;
+    RwFrame* frame;
+    RwFrame* detached_frame;
+    int width;
+    RwRaster* z_raster;
+    RwRaster* capture_raster;
+    RwRaster* image_raster;
+    int height;
     RwImage* image;
     RpWorld* camera_world;
 
@@ -291,52 +266,60 @@ static float _print_screen_to_tga(void) {
         height = Camera->frameBuffer->height;
         fading_screen.fade_active = 1;
         save_screen = 0;
-        do {
-            raster = RwRasterCreate(0x280, 0x1E0, 0x20, 5);
-            if (raster != 0) {
-                z_raster = RwRasterCreate(0x280, 0x1E0, 0, 1);
-                if (z_raster != 0) {
-                    frame = RwFrameCreate();
-                    if (frame != 0) {
-                        camera = RwCameraCreate();
-                        RwFrameTransform(
-                            frame,
-                            &((RwFrame*)Camera->object.object.parent)->modelling,
-                            0);
-                        if (camera != 0) {
-                            camera->frameBuffer = raster;
-                            camera->zBuffer = z_raster;
-                            _rwObjectHasFrameSetFrame(camera, frame);
-                            RwCameraSetNearClipPlane(camera, Camera->nearPlane);
-                            RwCameraSetFarClipPlane(camera, Camera->farPlane);
-                            RwCameraSetViewWindow(camera, &Camera->viewWindow);
-                            RpWorldAddCamera(World, camera);
-                            break;
-                        }
-                        RwFrameDestroy(frame);
-                    }
-                    RwRasterDestroy(z_raster);
-                }
-                RwRasterDestroy(raster);
-            }
-            camera = 0;
-        } while (0);
+        capture_raster = RwRasterCreate(0x280, 0x1E0, 0x20, 5);
+        if (capture_raster == 0) {
+            goto capture_create_failed;
+        }
+        z_raster = RwRasterCreate(0x280, 0x1E0, 0, 1);
+        if (z_raster == 0) {
+            goto capture_destroy_raster;
+        }
+        frame = RwFrameCreate();
+        if (frame == 0) {
+            goto capture_destroy_z;
+        }
+        camera = RwCameraCreate();
+        RwFrameTransform(
+            frame,
+            &((RwFrame*)Camera->object.object.parent)->modelling,
+            0);
+        if (camera == 0) {
+            goto capture_destroy_frame;
+        }
+        camera->frameBuffer = capture_raster;
+        camera->zBuffer = z_raster;
+        _rwObjectHasFrameSetFrame(camera, frame);
+        RwCameraSetNearClipPlane(camera, Camera->nearPlane);
+        RwCameraSetFarClipPlane(camera, Camera->farPlane);
+        RwCameraSetViewWindow(camera, &Camera->viewWindow);
+        RpWorldAddCamera(World, camera);
+        goto capture_camera_ready;
+
+capture_destroy_frame:
+        RwFrameDestroy(frame);
+capture_destroy_z:
+        RwRasterDestroy(z_raster);
+capture_destroy_raster:
+        RwRasterDestroy(capture_raster);
+capture_create_failed:
+        camera = 0;
+capture_camera_ready:
         if (camera != 0) {
             texture = RwTextureCreate(camera->frameBuffer);
             if (texture != 0) {
-                raster = camera->frameBuffer;
+                capture_raster = camera->frameBuffer;
                 saved_camera = Camera;
                 Camera = camera;
                 Render();
-                RwGameCubeCameraTextureFlush(raster, 0);
+                RwGameCubeCameraTextureFlush(capture_raster, 0);
                 GProfile_GCN_GxDrawDone();
                 Camera = saved_camera;
             }
             if (camera != 0) {
-                frame = camera->object.object.parent;
-                if (frame != 0) {
+                detached_frame = camera->object.object.parent;
+                if (detached_frame != 0) {
                     _rwObjectHasFrameSetFrame(camera, 0);
-                    RwFrameDestroy(frame);
+                    RwFrameDestroy(detached_frame);
                 }
                 if (camera->zBuffer != 0) {
                     z_raster = camera->zBuffer;
@@ -355,11 +338,11 @@ static float _print_screen_to_tga(void) {
         } else {
             texture = 0;
         }
-        raster = texture->raster;
+        image_raster = texture->raster;
         texture->raster = 0;
         RwTextureDestroy(texture);
         fading_screen.fade_active = 0;
-        if (RwRasterLock(raster, 0, 2) == 0) {
+        if (RwRasterLock(image_raster, 0, 2) == 0) {
             return -1.0f;
         }
         image = RwImageCreate(width, height, 0x20);
@@ -367,12 +350,12 @@ static float _print_screen_to_tga(void) {
             sprintf(filename, display_text, capture_num);
             capture_num++;
             RwImageAllocatePixels(image);
-            RwImageSetFromRaster(image, raster);
-            RwRasterDestroy(raster);
+            RwImageSetFromRaster(image, image_raster);
+            RwRasterDestroy(image_raster);
             ImageWriteTGA(image, filename);
             RwImageDestroy(image);
         } else {
-            RwRasterUnlock(raster);
+            RwRasterUnlock(image_raster);
         }
     }
     return -1.0f;
@@ -561,7 +544,7 @@ void Render(void) {
             render_transl_atomics();
             setup_default_render_state();
         }
-        RwEngineInstance->render_state_set(0xE, 0, RwEngineInstance);
+        RwEngineInstance->dOpenDevice.fpRenderStateSet(0xE, 0);
         render_post_3D_effect();
         if (!g_game_info.flag_bits.high_res_path &&
             fading_screen.fade_active == 0) {
@@ -636,7 +619,7 @@ static void setup_default_render_state(void) {
     RwRenderStateSet_rwRENDERSTATECULLMODE(2);
     RwRenderStateSet_rwRENDERSTATEZWRITEENABLE(1);
     RwRenderStateSet_rwRENDERSTATEZTESTENABLE(1);
-    RwEngineInstance->render_state_set(7, 2, RwEngineInstance);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(7, 2);
     cached_rs_src_blend = 5;
     RwRenderStateSet_SRCBLEND_DESTBLEND(5, 6);
     update_fog_render_states();
@@ -655,8 +638,7 @@ int set_render_state(int state, int value) {
             RwRenderStateSet_rwRENDERSTATETEXTUREFILTER(value);
             return 1;
         default:
-            return RwEngineInstance->render_state_set(state, value,
-                                                       RwEngineInstance);
+            return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
         }
     }
     switch (state) {
@@ -672,15 +654,14 @@ int set_render_state(int state, int value) {
         RwRenderStateSet_rwRENDERSTATECULLMODE(value);
         return 1;
     default:
-        return RwEngineInstance->render_state_set(state, value,
-                                                   RwEngineInstance);
+        return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
     }
 }
 
 
 
 void update_camera_facing_matrix(void) {
-    MkObj* camera_object = MK_HDR_LIVE(camera_item.object, camera_item.instance);
+    CameraObj* camera_object = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera_object != 0) {
         Vec angles;
@@ -736,8 +717,7 @@ int init_display(void) {
     return 1;
 }
 
-void set_background_color(unsigned char red, unsigned char green,
-                          unsigned char blue) {
+void set_background_color(int red, int green, int blue, int alpha) {
     background_color.red = red;
     background_color.green = green;
     background_color.blue = blue;
