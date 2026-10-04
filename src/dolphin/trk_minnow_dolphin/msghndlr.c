@@ -16,10 +16,10 @@ extern void __TRK_reset(void);
 
 static BOOL IsTRKConnected;
 
-/* TODO: [near miss] 98.333336%; code and diagnostic bytes agree; only grouped string-table relocation identities differ. */
+/* TODO: [near miss] 98.57%; diagnostic bytes agree; label member addi versus pointer mr remains. */
 DSError TRKDoSetOption(MessageBuffer* message)
 {
-    static const struct {
+    static const struct TRKSerialOptionText {
         char label[32];
         char enabled[8];
         char disabled[9];
@@ -29,17 +29,17 @@ DSError TRKDoSetOption(MessageBuffer* message)
         "Disable\n"
     };
     TRKReplyPacket reply;
-    const char* text;
+    const struct TRKSerialOptionText* text;
     u8 value;
 
-    text = option_text.label;
+    text = &option_text;
     value = message->data[0x0C];
     if (message->data[0x08] == 1) {
-        usr_puts_serial(text);
+        usr_puts_serial(text->label);
         if (value != 0) {
-            usr_puts_serial(text + 32);
+            usr_puts_serial(text->enabled);
         } else {
-            usr_puts_serial(text + 40);
+            usr_puts_serial(text->disabled);
         }
         SetUseSerialIO(value);
     }
@@ -265,7 +265,7 @@ u32 GetTRKConnected(void)
     return IsTRKConnected;
 }
 
-/* TODO: [near miss] 98.095240%; loop, modulo, calls, and size match; static diagnostic symbols leave only nonvolatile coloring/relocation residue. */
+/* TODO: [near miss] 99.05%; loop, modulo and calls agree; diagnostic constant/cursor register allocation remains. */
 void OutputData(const u8* data, s32 length)
 {
     static const char output_format[] = "%02x ";

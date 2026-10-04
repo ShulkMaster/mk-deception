@@ -21,15 +21,14 @@ extern DSError TRKRequestSend(MessageBuffer* request,
                               MessageBufferID* reply_id, int retries,
                               int timeout, int blocking);
 
-/* TODO: [near miss] 95.603450%; request/reply ID slots and r30/r31 roles remain register-coloring residue; stop without forcing registers. */
 DSError HandleCloseFileSupportRequest(u32 handle, u32* io_result)
 {
     TRKCloseFileRequest request;
-    MessageBufferID request_id;
     MessageBufferID reply_id;
+    MessageBufferID request_id;
+    DSError error;
     MessageBuffer* request_buffer;
     MessageBuffer* reply_buffer;
-    DSError error;
 
     memset(&request, 0, sizeof(request));
     request.command = 0xD3;

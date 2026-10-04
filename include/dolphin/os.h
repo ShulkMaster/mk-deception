@@ -106,6 +106,7 @@ typedef struct OSBootInfo {
 extern unsigned long __OSBusClock : 0x800000F8;
 #define OS_TIMER_CLOCK (__OSBusClock / 4)
 #define OSTicksToSeconds(ticks) ((ticks) / OS_TIMER_CLOCK)
+#define OSTicksToMilliseconds(ticks) ((ticks) / (OS_TIMER_CLOCK / 1000))
 #define OSSecondsToTicks(seconds) ((seconds) * OS_TIMER_CLOCK)
 #define OSMillisecondsToTicks(milliseconds) \
     ((milliseconds) * (OS_TIMER_CLOCK / 1000))
@@ -212,7 +213,7 @@ OSErrorHandler OSSetErrorHandler(OSError error, OSErrorHandler handler);
 void __OSUnhandledException(__OSException exception, OSContext* context,
                             unsigned long cause, unsigned long address);
 extern OSErrorHandler __OSErrorTable[17];
-extern unsigned short __OSDeviceCode;
+extern unsigned short __OSDeviceCode : 0x800030E6;
 unsigned int OSGetResetCode(void);
 unsigned int OSGetProgressiveMode(void);
 void OSSetProgressiveMode(unsigned int mode);

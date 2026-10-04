@@ -26,6 +26,18 @@ baselines.
   scheduling separately. When compact saves and indexed-loop lowering recur
   together, try the profile before changing loop source; `-O4,p` to `-O4,s`
   alone closed credits text.
+- IF retail copies an argument into a retained register and then masks or
+  loads through that copy, while the build forwards the original argument,
+  REQUIRE sibling evidence such as separate mask/compare instructions and
+  compatible same-library compiler settings. TRY `-opt nopeephole` as a
+  whole-TU control (`get_field_offset` in libmkparticle). Compare every
+  function and data section, including jump tables; reject any regression.
+  Use the compiler-exposed `#pragma peephole off` for a control;
+  `opt_peephole` is unrecognized in the pinned GC compiler and can give a
+  misleading neutral result (`TRKDoSetOption`). Verify the control is active.
+  Land a supported mode at object scope, remove scratch control pragmas, and
+  verify the full build and retail SHA-1. A per-function pragma found by a
+  permuter is diagnostic evidence, not an acceptable source fix.
 - Signed divide by two as `srawi`/`addze`: function-scoped
   `optimize_for_size`, arithmetic unchanged.
 - Isolated integer-register save mismatch in an identical body:
@@ -85,6 +97,18 @@ before validation calls.
 
 ## M03
 
+IF an inverse-square-root guard differs by a CROR or operand reversal, REQUIRE
+tracing the unordered FP outcome as well as negative/zero inputs. `x <= 0` and
+`!(0 < x)` differ for NaN; preserve the retail predicate (`normalize_v3`). For
+the refinement, keep the rounded product tree and scale the existing estimate
+at its real phase boundary before adding new factor temporaries.
+
+IF normalization reloads its first component after refinement where retail
+retains it, TRY explicit `v->x = v->x * inverse` before adding a snapshot local.
+MWCC can retain the member read for the explicit assignment while reloading for
+compound assignment (`normalize_v3`). Verify the full FP instruction order and
+all shared inverse-square-root consumers.
+
 FP operands and schedule. REQUIRE the same math, grouping, and rounding.
 
 - Swap only commutative operands, or name genuine factors. Remove temporaries
@@ -100,6 +124,10 @@ FP operands and schedule. REQUIRE the same math, grouping, and rounding.
   at that point. In `mks_get_victim_to_tr_dot`, this recovered the first
   inverse-sqrt result's consumers without changing the arithmetic.
 - Constant width comes from `lfs`/`lfd` and pool bytes, not decompiler casts.
+- IF a three-component midpoint has correct separate multiply/add operations
+  but paired input loads or FP webs differ, REQUIRE the same difference, scale
+  and addition rounding. TRY a typed inline Vec output helper with explicit
+  subtraction, scaling and addition phases (`mk_chess_activate_piece_properties`).
   A folded expression can differ from its decimal spelling: `3.0f * 0.075f`
   is 0x3e666667, `0.225f` is 0x3e666666.
 - Check whether negation happens in FP before conversion or on the integer.
@@ -311,6 +339,11 @@ relocation addends, and use. Use `-c functionRelocDiffs=data_value`.
   string bounds. Equal pool sizes do not prove correct strings (Krypt's swapped
   coffin/dirt names). A relocation may name the first aggregate as a
   section-wide base; check later base-plus-offset loads.
+- IF a pooled-string addend differs, REQUIRE decoding the retail bytes at
+  that effective offset and comparing the selected literal. Identical pool
+  bytes with different consumer addends select different strings; TRY the
+  evidenced literal before classifying TU layout residue
+  (`pz_fighter_chomper2_victim_crushed`).
 - A generic DecompStudio pool-name warning needs an independent
   `functionRelocDiffs=all` check (`calc_cloth_dwp` passes despite that warning).
   Compare effective consumer offsets as well as whole-pool bytes:
@@ -374,6 +407,14 @@ compare `powerpc-eabi-nm -n -S` of retail and built objects.
   (`baim3d`, `fonts`). An uninitialized static among `= 0` globals follows all
   of them. Compiler 1.2.5n places explicitly zero-initialized globals before
   function statics (`GXInit` with `__piReg = NULL`).
+- IF a whole-TU deferred/noauto control changes tentative BSS allocation from
+  first use to reverse declaration order, REQUIRE each named object's retail
+  offset, size, alignment and binding. TRY reversing the complete tentative
+  declaration block along with the function definitions (M15), retaining the
+  explicit scalar-zero prefix (`ADXM_ShutdownThrd`). Reversing definitions
+  alone can put stacks before threads while fuzzy scores stay unchanged. Land
+  only after every function and the full BSS map agree or improve, using the
+  supported object flag and removing diagnostic source pragmas.
 - Explicit zero initializers in proven order can fix placement but may move an
   object to another section (`sfmpv_ta_adr_tbl`, SVM aggregates); verify the
   section.

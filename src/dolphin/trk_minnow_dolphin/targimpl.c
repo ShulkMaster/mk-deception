@@ -59,7 +59,6 @@ void TRKTargetAddExceptionInfo(MessageBuffer* message)
     TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }
 
-/* TODO: [breakthrough] 95.428570%; separate instruction temporary restored the retail stack/CFG; exception_id remains a 16-bit load versus the current packet field width. */
 void TRKTargetAddStopInfo(MessageBuffer* message)
 {
     TRKStopInfoPacket packet;
@@ -71,7 +70,7 @@ void TRKTargetAddStopInfo(MessageBuffer* message)
     packet.pc = gTRKCPUState.pc;
     TRKTargetReadInstruction(&instruction, gTRKCPUState.pc);
     packet.instruction = instruction;
-    packet.exception_id = gTRKCPUState.exception_id;
+    packet.exception_id = (u16)gTRKCPUState.exception_id;
     TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }
 

@@ -126,7 +126,7 @@ DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
     return 0;
 }
 
-/* TODO: [breakthrough] 88.741936%; ordered 2/1/0 CFG now matches retail; remaining differences are string-pool materialization and r29/r30 coloring. */
+/* TODO: [breakthrough needed] 89.84%; decoded strings agree; named rodata base retention and canonical TU placement remain. */
 int InitMetroTRKCommTable(int hardware_id)
 {
     int result = 1;
