@@ -1,10 +1,12 @@
 #include "runtime/fonts.h"
 
 #include "runtime/image.h"
+#include "runtime/asset.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
+#include "runtime/cstring.h"
 
 
 #ifndef NULL
@@ -12,15 +14,13 @@
 #endif
 
 
-int stricmp(const char* a, const char* b);
-FontFace* load_tga(int handle, unsigned int art_oid);
-void* load_binary_block(int handle, unsigned int art_oid, int* out_size);
+static void delayed_free(void* mem);
+
 static const float kZeroHeight = 0.0f;
 
 static int oid_to_kill_mask;
 static int oid_to_kill;
 
-static const double kFloat689 = 4503601774854144.0;
 
 #include "runtime/fonts_data.inc"
 
@@ -53,23 +53,22 @@ static int fonts_find_key(const char* keys, char key) {
 }
 
 
-/* TODO: [near miss] 95.43%; CFG agrees; GPR coloring remains around the key-index helper. */
+/* TODO: [near miss] 99.02%; seven key-search cursor/character register rows remain. */
 void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
-    char key;
     int key_idx;
-    int bit;
-    int code;
     int out_bit;
+    int code;
+    int bit;
 
-    while ((key = *text) != '\0') {
-        key_idx = fonts_find_key(keys, key);
+    while (*text != '\0') {
+        key_idx = fonts_find_key(keys, *text);
         if (key_idx >= 0) {
             bit = 1;
             out_bit = 0;
             code = map[key_idx * 3];
             if (swap != 0 && code == 0x2000) {
                 code = 0x8000;
-            } else if (swap != 0 && (unsigned int)code == 0x8000u) {
+            } else if (swap != 0 && code == 0x8000) {
                 code = 0x2000;
             }
             while (bit != code) {
@@ -95,13 +94,13 @@ const char* get_string(int id) {
 
 const char* get_string_ext(const char** table, int max_id, int id) {
     int lang;
-    FontStringRow* rows;
+    const FontStringRow* rows;
 
     lang = get_language_setting();
     if (id < 0 || id > max_id) {
         return string_table[0].langs[0];
     }
-    rows = (FontStringRow*)table;
+    rows = (const FontStringRow*)table;
     return rows[id].langs[lang];
 }
 
@@ -131,7 +130,7 @@ static void _destroy_string_obj_oid_mask(MkHdr* hdr) {
     int oid;
     int mask;
 
-    if (hdr->vtbl == &vtbl_mkpdata_string_obj) {
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
         obj = (StringObj*)hdr;
     } else {
         obj = NULL;
@@ -164,7 +163,7 @@ void del_string_obj_by_id(int oid) {
     }
 }
 
-int vdestroy_string_obj(StringObj* obj) {
+void vdestroy_string_obj(StringObj* obj) {
     if (obj->pfx.face != NULL) {
         pfxfont_string_cleanup(&obj->pfx);
     }
@@ -271,14 +270,13 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 96.47%; switch lattice matches; font_table rematerialization (addi r0) and render_y store slot remain. */
+/* TODO: [near miss] 96.50%; table-base and render_y scheduling restored;
+ * y_off load and compare move ahead of vertical metrics conversion. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
     int font_height;
     int y_off;
-    float h;
-    FontMetrics* metrics;
 
     if (text == NULL) {
         text = fonts_default_text();
@@ -300,12 +298,10 @@ void update_string_obj(StringObj* obj, int font, const char* text) {
             break;
         }
     }
-    valign = obj->valign;
-    metrics = font_table[font].slot.metrics;
-    h = metrics->cell_height;
-    obj->render_y = obj->y;
-    font_height = h;
     y_off = obj->y_off;
+    valign = obj->valign;
+    font_height = font_table[font].slot.metrics->cell_height;
+    obj->render_y = obj->y;
     if (y_off != 0) {
         switch (valign) {
         case 0:
@@ -392,7 +388,7 @@ StringObj* create_wrapped_string(int oid, PfxFontSlot* font, const char* text, i
                                  int wrap_w, int y_off, int halign, int valign) {
     StringObj* obj;
 
-    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
+    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, sizeof(StringObj));
     if (obj != NULL) {
         mk_insert((MkHdr*)obj, &master_clean_up_list);
         obj->flags = 0;
@@ -440,7 +436,7 @@ StringObj* string_center_xy(int oid, int font, const char* text, int x, int y, i
     FontTableEntry* entry;
 
     str = text;
-    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
+    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, sizeof(StringObj));
     if (obj != NULL) {
         mk_insert((MkHdr*)obj, &master_clean_up_list);
         obj->flags = 0;
@@ -494,7 +490,7 @@ StringObj* string_right_xy(int oid, int font, const char* text, int x, int y, in
     FontTableEntry* entry;
 
     str = text;
-    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
+    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, sizeof(StringObj));
     if (obj != NULL) {
         mk_insert((MkHdr*)obj, &master_clean_up_list);
         obj->flags = 0;
@@ -548,7 +544,7 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     FontTableEntry* entry;
 
     str = text;
-    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, 0xD0);
+    obj = (StringObj*)get_mkhdr(&vtbl_mkpdata_string_obj, sizeof(StringObj));
     if (obj != NULL) {
         mk_insert((MkHdr*)obj, &master_clean_up_list);
         obj->flags = 0;
@@ -592,11 +588,11 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [breakthrough needed] 89.39%; recover destructive mulli/stwu loop addressing and nonvolatile coloring. */
+/* TODO: [near miss] 98.389832%; indexed slot rematerialization recovered;
+ * search and load-path register allocation remains. */
 PfxFontSlot* load_named_font(const char* name) {
     int i;
     int offset;
-    FontTableEntry* entry;
     FontTableEntry* walk;
     FontFace* face;
     int binary_id;
@@ -612,18 +608,17 @@ PfxFontSlot* load_named_font(const char* name) {
     do {
         walk = (FontTableEntry*)((unsigned char*)font_table + offset);
         if (stricmp(name, walk->name) == 0) {
-            entry = &font_table[i];
-            face = entry->slot.face;
-            binary_id = entry->binary_id;
-            tga_arg = entry->tga_arg;
-            handle = (int)entry->path;
+            face = font_table[i].slot.face;
+            binary_id = font_table[i].binary_id;
+            tga_arg = font_table[i].tga_arg;
+            handle = (int)font_table[i].path;
             if (face == NULL) {
                 flag = 0;
                 tga = load_tga(handle, tga_arg);
                 bin = load_binary_block(handle, binary_id, &flag);
                 dest = &font_table[i].slot;
-                tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
-                tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
+                tga->filter_flags = (tga->filter_flags & 0xFFFFFF00u) | 1u;
+                tga->filter_flags = (tga->filter_flags & 0xFFFF00FFu) | 0x3300u;
                 dest->face = tga;
                 dest->metrics = bin;
             }
@@ -651,8 +646,8 @@ PfxFontSlot* load_font_in_slot(int slot, int handle, int tga_arg, int binary_id)
         tga = load_tga(handle, tga_arg);
         bin = load_binary_block(handle, binary_id, &flag);
         dest = &font_table[slot].slot;
-        tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
-        tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
+        tga->filter_flags = (tga->filter_flags & 0xFFFFFF00u) | 1u;
+        tga->filter_flags = (tga->filter_flags & 0xFFFF00FFu) | 0x3300u;
         dest->face = tga;
         dest->metrics = bin;
     }
@@ -678,20 +673,20 @@ PfxFontSlot* load_font(int slot) {
         tga = load_tga(handle, tga_arg);
         bin = load_binary_block(handle, binary_id, &flag);
         dest = &font_table[slot].slot;
-        tga->flags_50 = (tga->flags_50 & 0xFFFFFF00u) | 1u;
-        tga->flags_50 = (tga->flags_50 & 0xFFFF00FFu) | 0x3300u;
+        tga->filter_flags = (tga->filter_flags & 0xFFFFFF00u) | 1u;
+        tga->filter_flags = (tga->filter_flags & 0xFFFF00FFu) | 0x3300u;
         dest->face = tga;
         dest->metrics = bin;
     }
     return &font_table[slot].slot;
 }
 
-static void delayed_free(void* mem) {
-    free_mem_delayed(mem, 4);
-}
-
 void init_font_system(void) {
     pfxfont_system_init(get_mem, delayed_free);
+}
+
+static void delayed_free(void* mem) {
+    free_mem_delayed(mem, 4);
 }
 
 void unhide_string_obj(StringObj* obj) {

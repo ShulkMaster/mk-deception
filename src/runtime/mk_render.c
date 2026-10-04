@@ -1,4 +1,5 @@
 #include "runtime/mk_render.h"
+#include "runtime/cam.h"
 
 #include "platform/display.h"
 #include "rw/rwengine.h"
@@ -8,49 +9,43 @@
 #include "rw/rwframe.h"
 #include "rw/rwcamera_internal.h"
 
-typedef union TranslNodeFlags {
-    unsigned int word;
-    struct {
-        unsigned char red : 1;
-        unsigned char pfx : 1;
-        unsigned char pfx_clone : 1;
-        unsigned char pad_high : 5;
-        unsigned char pad[3];
-    } bits;
-} TranslNodeFlags;
+struct TranslNodeFlagBits {
+    unsigned char black : 1;
+    unsigned char pfx : 1;
+    unsigned char pfx_clone : 1;
+    unsigned char pad_high : 5;
+    unsigned char pad[3];
+};
 
-typedef struct TranslSortNode {
+union TranslNodeFlags {
+    unsigned int word;
+    struct TranslNodeFlagBits bits;
+};
+
+struct TranslSortNode {
     struct TranslSortNode* parent;
     struct TranslSortNode* left;
     struct TranslSortNode* right;
-    TranslNodeFlags flags;
+    union TranslNodeFlags flags;
     int priority;
     float depth;
     void* payload;
-} TranslSortNode; /* 0x1C */
+};
 
-extern RwMatrix* camera_mat;
 extern int curr_pipeline_used;
 extern int last_pipeline_used;
 
-void atomic_set_transl_flag(RpAtomic* atomic);
-void obj_set_rw_lights(MkObj* object);
-
-static TranslSortNode transl_sort_nodes[250];
-static TranslSortNode* BTREE_ROOT;
+static struct TranslSortNode transl_sort_nodes[250];
+static struct TranslSortNode* BTREE_ROOT;
 static int num_render_nodes;
 static int num_transl_callbacks;
 static int in_batch;
 
-static void BTreeInsert(TranslSortNode* node);
-static void btree_render(TranslSortNode* node);
+static void BTreeInsert(struct TranslSortNode* node);
+static void btree_render(struct TranslSortNode* node);
 
-static inline int node_precedes(const TranslSortNode* a, const TranslSortNode* b) {
-    return a->priority > b->priority || (a->priority == b->priority && a->depth >= b->depth);
-}
-
-static inline void rotate_left(TranslSortNode* node) {
-    TranslSortNode* right = node->right;
+static inline void rotate_left(struct TranslSortNode* node) {
+    struct TranslSortNode* right = node->right;
     node->right = right->left;
     if (right->left != 0) {
         right->left->parent = node;
@@ -67,8 +62,8 @@ static inline void rotate_left(TranslSortNode* node) {
     node->parent = right;
 }
 
-static inline void rotate_right(TranslSortNode* node) {
-    TranslSortNode* left = node->left;
+static inline void rotate_right(struct TranslSortNode* node) {
+    struct TranslSortNode* left = node->left;
     node->left = left->right;
     if (left->right != 0) {
         left->right->parent = node;
@@ -98,7 +93,7 @@ void render_transl_atomics(void) {
 }
 
 #pragma inline_depth(2)
-static void btree_render(TranslSortNode* node) {
+static void btree_render(struct TranslSortNode* node) {
     while (node != 0) {
         if (node->right != 0) {
             btree_render(node->right);
@@ -124,7 +119,7 @@ static void btree_render(TranslSortNode* node) {
             }
             obj_set_rw_lights(
                 MK_CLUMP_PLUGIN(((RpAtomic*)node->payload)->clump)->owner);
-            render_mkatomic((RpAtomic*)node->payload);
+            render_mkatomic(node->payload);
         }
         node = node->left;
     }
@@ -147,21 +142,24 @@ void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
     MkPfx* candidate;
     MkPfx* valid_pfx;
     PfxVm* runtime;
-    TranslSortNode* node;
+    struct TranslSortNode* node;
     struct {
-        TranslNodeFlags copy;
-        TranslNodeFlags source;
+        union TranslNodeFlags copy;
+        union TranslNodeFlags source;
     } flags;
-    PfxVec3* position;
+    PfxTransform* transform;
     RwMatrix* camera_matrix;
+    float delta_x;
+    float delta_y;
     float depth;
     int index;
     int node_index;
+    int priority;
     if (clone == 0) {
         return;
     }
     candidate = clone->parent;
-    if (candidate->hdr.vtbl == &vtbl_pfx) {
+    if (candidate->hdr.vtbl == MK_VTABLE_ADDRESS(vtbl_pfx)) {
         valid_pfx = candidate;
     } else {
         valid_pfx = 0;
@@ -177,52 +175,68 @@ void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
         return;
     }
     index = runtime->active_transform;
-    position = &runtime->transforms[index].position;
+    transform = &runtime->transforms[index];
     camera_matrix = camera_mat;
     flags.source.word = 0;
     flags.source.bits.pfx_clone = 1;
-    depth = (position->z - camera_matrix->pos.z) * camera_matrix->at.z +
-            ((position->x - camera_matrix->pos.x) * camera_matrix->at.x +
-             (position->y - camera_matrix->pos.y) * camera_matrix->at.y);
+    delta_y = transform->position.y;
+    delta_y -= camera_matrix->pos.y;
+    delta_x = transform->position.x;
+    delta_x -= camera_matrix->pos.x;
+    depth = transform->position.z;
+    depth -= camera_matrix->pos.z;
+    depth = depth * camera_matrix->at.z +
+            (delta_x * camera_matrix->at.x + delta_y * camera_matrix->at.y);
     flags.copy = flags.source;
+    priority = clone->priority;
     depth += clone->depth_bias;
     node_index = num_render_nodes;
-    if (node_index >= 250) {
+    if (node_index >= (int)(sizeof(transl_sort_nodes) / sizeof(transl_sort_nodes[0]))) {
         return;
     }
-    num_render_nodes = node_index + 1;
     node = &transl_sort_nodes[node_index];
+    num_render_nodes = node_index + 1;
     node->flags = flags.copy;
     node->payload = clone;
-    node->priority = clone->priority;
+    node->priority = priority;
     node->depth = depth;
     BTreeInsert(node);
 }
 
+static inline int translucent_pfx_priority(const MkPfx* pfx)
+{
+    return pfx->priority;
+}
+
 void InsertPFXInTranslTree(MkHdr* pfx_hdr) {
     MkPfx* pfx = (MkPfx*)pfx_hdr;
-    TranslSortNode* node;
-    TranslNodeFlags flags_pair[2];
+    struct TranslSortNode* node;
+    union TranslNodeFlags flags_pair[2];
     RwV3d origin;
     RwMatrix* camera_matrix;
     float depth;
     int node_index;
     int priority;
     if (pfx != 0 && !pfx->flag_bits.skip_translucent_sort && pfx->field_94 != 0) {
+        float delta_x;
+        float delta_y;
+
         mkpfx_get_origin(pfx, &origin.x);
         camera_matrix = camera_mat;
         flags_pair[1].word = 0;
         flags_pair[1].bits.pfx = 1;
-        depth = (origin.z - camera_matrix->pos.z) * camera_matrix->at.z +
-                ((origin.x - camera_matrix->pos.x) * camera_matrix->at.x +
-                 (origin.y - camera_matrix->pos.y) * camera_matrix->at.y);
+        depth = origin.z - camera_matrix->pos.z;
+        delta_x = origin.x - camera_matrix->pos.x;
+        delta_y = origin.y - camera_matrix->pos.y;
+        depth = depth * camera_matrix->at.z +
+                (delta_x * camera_matrix->at.x + delta_y * camera_matrix->at.y);
         flags_pair[0] = flags_pair[1];
         depth += pfx->depth_bias;
         node_index = num_render_nodes;
-        priority = pfx->priority;
-        if (node_index < 250) {
-            num_render_nodes = node_index + 1;
+        priority = translucent_pfx_priority(pfx);
+        if (node_index < (int)(sizeof(transl_sort_nodes) / sizeof(transl_sort_nodes[0]))) {
             node = &transl_sort_nodes[node_index];
+            num_render_nodes = node_index + 1;
             node->flags = flags_pair[0];
             node->payload = pfx;
             node->priority = priority;
@@ -232,69 +246,75 @@ void InsertPFXInTranslTree(MkHdr* pfx_hdr) {
     }
 }
 
-static void BTreeInsert(TranslSortNode* node) {
-    TranslSortNode* parent = 0;
-    TranslSortNode* current = BTREE_ROOT;
-    TranslSortNode* uncle;
+static void BTreeInsert(struct TranslSortNode* node) {
+    struct TranslSortNode* current = BTREE_ROOT;
+    struct TranslSortNode* parent = 0;
+    struct TranslSortNode* uncle;
     while (current != 0) {
         parent = current;
-        current = node_precedes(node, current) ? current->left : current->right;
+        if (node->priority > current->priority ||
+            (node->priority == current->priority && node->depth <= current->depth)) {
+            current = current->left;
+        } else {
+            current = current->right;
+        }
     }
     node->parent = parent;
     node->left = 0;
     node->right = 0;
     if (parent == 0) {
         BTREE_ROOT = node;
-    } else if (node_precedes(node, parent)) {
+    } else if (node->priority > parent->priority ||
+               (node->priority == parent->priority && node->depth <= parent->depth)) {
         parent->left = node;
     } else {
         parent->right = node;
     }
-    node->flags.bits.red = 1;
-    while (node != BTREE_ROOT && node->parent != 0 && node->parent->flags.bits.red) {
+    node->flags.bits.black = 0;
+    while (node != BTREE_ROOT && node->parent != 0 && !node->parent->flags.bits.black) {
         if (node->parent == node->parent->parent->left) {
             uncle = node->parent->parent->right;
-            if (uncle != 0 && uncle->flags.bits.red) {
-                node->parent->flags.bits.red = 0;
-                uncle->flags.bits.red = 0;
-                node->parent->parent->flags.bits.red = 1;
+            if (uncle != 0 && !uncle->flags.bits.black) {
+                node->parent->flags.bits.black = 1;
+                uncle->flags.bits.black = 1;
+                node->parent->parent->flags.bits.black = 0;
                 node = node->parent->parent;
             } else {
                 if (node == node->parent->right) {
                     node = node->parent;
                     rotate_left(node);
                 }
-                node->parent->flags.bits.red = 0;
-                node->parent->parent->flags.bits.red = 1;
+                node->parent->flags.bits.black = 1;
+                node->parent->parent->flags.bits.black = 0;
                 rotate_right(node->parent->parent);
             }
         } else {
             uncle = node->parent->parent->left;
-            if (uncle != 0 && uncle->flags.bits.red) {
-                node->parent->flags.bits.red = 0;
-                uncle->flags.bits.red = 0;
-                node->parent->parent->flags.bits.red = 1;
+            if (uncle != 0 && !uncle->flags.bits.black) {
+                node->parent->flags.bits.black = 1;
+                uncle->flags.bits.black = 1;
+                node->parent->parent->flags.bits.black = 0;
                 node = node->parent->parent;
             } else {
                 if (node == node->parent->left) {
                     node = node->parent;
                     rotate_right(node);
                 }
-                node->parent->flags.bits.red = 0;
-                node->parent->parent->flags.bits.red = 1;
+                node->parent->flags.bits.black = 1;
+                node->parent->parent->flags.bits.black = 0;
                 rotate_left(node->parent->parent);
             }
         }
     }
-    BTREE_ROOT->flags.bits.red = 0;
+    BTREE_ROOT->flags.bits.black = 1;
 }
 
-/* TODO: [near miss] 99.01%; returned state value uses a different temporary register. */
 void render_mkatomic(RpAtomic* atomic) {
     MkSobj* sobj;
+    RwSphere* sphere;
     unsigned char saved_flags = 0;
     int saved_state = 0;
-    RwFrameGetLTM((RwFrame*)atomic->object.parent);
+    RwFrameGetLTM(atomic->object.parent);
     sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj == 0) {
         set_render_state(0x14, 2);
@@ -303,8 +323,11 @@ void render_mkatomic(RpAtomic* atomic) {
             atomic->object.flags |= 4;
             atomic->renderCallBack(atomic);
             atomic->object.flags = saved_flags;
-        } else if (RwCameraFrustumTestSphere(Camera, RpAtomicGetWorldBoundingSphere(atomic)) != 0) {
-            atomic->renderCallBack(atomic);
+        } else {
+            sphere = RpAtomicGetWorldBoundingSphere(atomic);
+            if (RwCameraFrustumTestSphere(Camera, sphere) != 0) {
+                atomic->renderCallBack(atomic);
+            }
         }
         return;
     }
@@ -353,12 +376,30 @@ void render_mkatomic(RpAtomic* atomic) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.58%; object/subobject iterator ownership and render-loop allocation remain. */
+static inline void insert_translucent_atomic(const union TranslNodeFlags* source_flags,
+                                              RpAtomic* atomic, int priority, float depth)
+{
+    union TranslNodeFlags flags;
+    int node_index = num_render_nodes;
+    flags = *source_flags;
+    if (node_index < (int)(sizeof(transl_sort_nodes) / sizeof(transl_sort_nodes[0]))) {
+        struct TranslSortNode* node;
+        num_render_nodes = node_index + 1;
+        node = &transl_sort_nodes[node_index];
+        node->flags = flags;
+        node->payload = atomic;
+        node->priority = priority;
+        node->depth = depth;
+        BTreeInsert(node);
+    }
+}
+
+/* TODO: [breakthrough needed] 98.99%; dot product and sentinel recovered; flag slots and insertion/iterator coloring remain. */
 void render_mkobj(MkObj* object) {
-    TranslNodeFlags flags_pair[2];
+    RwLLLink* link;
+    RwLLLink* list_head;
     int clump_index;
     int priority;
-    int node_index;
     float depth_bias;
     float depth;
     RwMatrix* camera_matrix;
@@ -367,15 +408,15 @@ void render_mkobj(MkObj* object) {
         clump_index = 0;
         while (clump_index < object->clump_count) {
             RpClump* clump = object->clumps[clump_index];
-            RwLLLink* link;
             if (clump != 0) {
                 link = clump->atomicList.next;
-                while (link != &clump->atomicList) {
+                list_head = &clump->atomicList;
+                while (link != list_head) {
                     RpAtomic* atomic = rpAtomicFromClumpNode(link);
                     if ((atomic->object.flags & 4) != 0) {
                         MksobjPluginData* plugin = MK_ATOMIC_PLUGIN(atomic);
                         MkSobj* sobj = plugin->sobj;
-                        TranslSortNode* node;
+                        union TranslNodeFlags flags;
                         priority = 0x10;
                         depth_bias = 0.0f;
                         if (sobj != 0) {
@@ -384,29 +425,23 @@ void render_mkobj(MkObj* object) {
                         } else if ((plugin->flags & 0x80000000) != 0) {
                             priority = 0x12;
                         }
-                        flags_pair[0].word = 0;
+                        flags.word = 0;
                         if (priority == 0x12) {
+                            float delta_x, delta_y, delta_z;
                             camera_matrix = camera_mat;
-                            atomic_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+                            atomic_ltm = RwFrameGetLTM(atomic->object.parent);
+                            delta_x = atomic_ltm->pos.x - camera_matrix->pos.x;
+                            delta_y = atomic_ltm->pos.y - camera_matrix->pos.y;
+                            delta_z = atomic_ltm->pos.z - camera_matrix->pos.z;
                             depth =
-                                (atomic_ltm->pos.z - camera_matrix->pos.z) * camera_matrix->at.z +
-                                ((atomic_ltm->pos.x - camera_matrix->pos.x) * camera_matrix->at.x +
-                                 (atomic_ltm->pos.y - camera_matrix->pos.y) * camera_matrix->at.y) +
-                                depth_bias;
+                                delta_z * camera_matrix->at.z +
+                                (delta_x * camera_matrix->at.x +
+                                 delta_y * camera_matrix->at.y);
+                            depth += depth_bias;
                         } else {
                             depth = 0.0f;
                         }
-                        flags_pair[1] = flags_pair[0];
-                        node_index = num_render_nodes;
-                        if (node_index < 250) {
-                            num_render_nodes = node_index + 1;
-                            node = &transl_sort_nodes[node_index];
-                            node->flags = flags_pair[1];
-                            node->payload = atomic;
-                            node->priority = priority;
-                            node->depth = depth;
-                            BTreeInsert(node);
-                        }
+                        insert_translucent_atomic(&flags, atomic, priority, depth);
                     }
                     link = link->next;
                 }

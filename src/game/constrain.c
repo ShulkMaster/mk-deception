@@ -1,42 +1,42 @@
-#include "game/bgnd_types.h"
+#include "game/bgnd.h"
 #include "game/collision.h"
 #include "game/constrain.h"
 #include "game/game_info.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
+#include "runtime/cam.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_pdata.h"
 
-typedef struct ConstrainPlayerState {
+struct ConstrainPlayerState {
     Vec position;
     float projection;
-} ConstrainPlayerState;
+};
 
-typedef struct ConstrainState {
-    ConstrainPlayerState player[2];
+struct ConstrainState {
+    struct ConstrainPlayerState player[2];
     int separated;
-} ConstrainState;
+};
 
-typedef struct ObstacleInfo {
+struct ObstacleInfo {
     int type;
     unsigned int first_id;
     unsigned int last_id;
-} ObstacleInfo;
+};
 
-typedef struct ConstrainObstacleVtable {
+struct ConstrainObstacleVtable {
     MkVtableCastFn fn0;
     MkVtableCastFn fn1;
     MkVtableCastFn fn2;
     MkVtblFn fn3;
     void (*destroy)(ArenaObstacle*);
-} ConstrainObstacleVtable;
+};
 
-void vdestroy_obstacle(ArenaObstacle* obstacle);
 
-ConstrainObstacleVtable vtbl_obstacle = {
+struct ConstrainObstacleVtable vtbl_obstacle = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
@@ -44,7 +44,7 @@ ConstrainObstacleVtable vtbl_obstacle = {
     vdestroy_obstacle,
 };
 
-static ObstacleInfo obstacle_info_table[8] = {
+static struct ObstacleInfo obstacle_info_table[8] = {
     {0, 0x001, 0x00A},
     {1, 0x00B, 0x014},
     {2, 0x015, 0x01E},
@@ -55,7 +55,7 @@ static ObstacleInfo obstacle_info_table[8] = {
     {7, 0x100, 0x1FF},
 };
 
-ConstrainState constrain_state;
+struct ConstrainState constrain_state;
 Vec tightrope_perp_uv;
 Vec tightrope_uv;
 static int tightrope_set_this_tick;
@@ -71,36 +71,22 @@ static int p2_hit_side_of_arena;
 static int p1_hit_side_of_arena;
 static int tightrope_set;
 
-void generate_obstacles(
-    unsigned int flags,
-    BgndObstacleData* obstacle_data,
-    ConstrainInfo* info);
 static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction);
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius);
-CollisionObj* get_collision_obj(void);
-float repel_check_plyrs(void);
-int player_is_stationary(PlyrPdata* player);
-void bgnd_clear_danger_zone_callback(PlyrPdata* player);
-void repel_against_obstacle_list(
-    PlyrInfo* player,
-    const Vec* previous_position,
-    const Vec* movement,
-    Vec* position,
-    ConstrainInfo* info);
-void ground_me(MkObj* object);
-void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 
 static float p_constrain_players(void);
 static void repel_players(void);
 static void keep_players_on_tightrope(void);
 
+union ConstrainFloatBits {
+    float f;
+    unsigned int u;
+};
+
 static inline float constrain_inv_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } guess;
+    union ConstrainFloatBits guess;
     float product;
     float correction;
 
@@ -205,7 +191,7 @@ void delete_obstacle_from_background_by_id(int obstacle_id) {
             } else {
                 if ((int)obstacle->obstacle_id == obstacle_id &&
                     obstacle->hdr.instance != 0) {
-                    ((ConstrainObstacleVtable*)obstacle->hdr.vtbl)
+                    ((struct ConstrainObstacleVtable*)obstacle->hdr.vtbl)
                         ->destroy(obstacle);
                 }
                 link = link->next;
@@ -217,7 +203,9 @@ void delete_obstacle_from_background_by_id(int obstacle_id) {
 int get_obstacle_type_from_id(unsigned int obstacle_id) {
     int index;
 
-    for (index = 0; index < 8; index++) {
+    for (index = 0;
+         index < sizeof(obstacle_info_table) / sizeof(obstacle_info_table[0]);
+         index++) {
         if (obstacle_info_table[index].first_id <= obstacle_id &&
             obstacle_info_table[index].last_id >= obstacle_id) {
             return obstacle_info_table[index].type;
@@ -258,7 +246,7 @@ ArenaObstacle* add_shape_to_background_obstacle_list(
         mk_insert(&collision->hdr, &obstacle->shapes);
     } else {
         if (obstacle->hdr.instance != 0) {
-            ((ConstrainObstacleVtable*)obstacle->hdr.vtbl)
+            ((struct ConstrainObstacleVtable*)obstacle->hdr.vtbl)
                 ->destroy(obstacle);
         }
         return 0;
@@ -292,12 +280,11 @@ int local_collision_allowed_plyr_pdata(void) {
     return 1;
 }
 
-int local_collision_allowed(void) {
+int local_collision_allowed(PlyrPdata* player) {
     return 1;
 }
 
 int local_obstacle_callback(ArenaObstacle* obstacle) {
-    (void)obstacle;
     return 1;
 }
 
@@ -322,9 +309,9 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
 
     if (background->obstacle_data != 0) {
         if (mode_of_play == 10) {
-            generate_obstacles(0x8003D, background->obstacle_data, &constrain_info);
+            generate_obstacles(0x8003D, background->obstacle_data, &constrain_info.obstacles);
         } else {
-            generate_obstacles(0x2001E, background->obstacle_data, &constrain_info);
+            generate_obstacles(0x2001E, background->obstacle_data, &constrain_info.obstacles);
         }
     }
 }

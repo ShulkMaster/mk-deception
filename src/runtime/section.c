@@ -4,6 +4,8 @@
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "platform/gcutils.h"
+#include "platform/gcARam.h"
+#include "runtime/mk_cmdscript.h"
 #include "runtime/asset.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_proc.h"
@@ -11,10 +13,6 @@
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
-extern _mwMemHeap* SystemSwappableHeap;
-extern SectionSlotDef* section_memory_maps[];
-extern void load_string_bank(int bank, const char* name);
-extern void load_string_bank_async(int bank, const char* name);
 
 static SecSysState sec_sys_state;
 MkProc* saved_aproc;
@@ -23,7 +21,6 @@ static SecSlot* get_sec_slot_from_handle(int handle);
 static void free_all_slot_groups_after_pos(int position);
 static void free_all_slots_in_group(SecSlotGroup* group);
 
-/* The async file API carries the retail section type through its userdata slot. */
 #define SEC_FILE_USERDATA(type) ((void*)(type))
 
 static void append_slot_file(SecSlot* slot, SecSlotFileEntry* file) {
@@ -61,22 +58,20 @@ int load_systemart_phase_1(void) {
 }
 
 void load_art_section_by_name(int handle, const char* name) {
+    MkFileInfo* info;
     get_sec_slot_from_handle(handle);
-    {
-        MkFileInfo* info = find_section_by_name(name);
-        if (info != 0) {
-            load_art_section(handle, info);
-        }
+    info = find_section_by_name(name);
+    if (info != 0) {
+        load_art_section(handle, info);
     }
 }
 
 void load_art_section_by_name_async(int handle, const char* name) {
+    MkFileInfo* info;
     get_sec_slot_from_handle(handle);
-    {
-        MkFileInfo* info = find_section_by_name(name);
-        if (info != 0) {
-            load_art_section_async(handle, info);
-        }
+    info = find_section_by_name(name);
+    if (info != 0) {
+        load_art_section_async(handle, info);
     }
 }
 
@@ -90,7 +85,7 @@ int get_shared_art_section_for_plyr_pdata(PlyrPdata* pdata) {
     return -1;
 }
 
-int get_shared_art_section_for_player(SharedArtPlayer* player) {
+int get_shared_art_section_for_player(MkObj* player) {
     if (player->oid == 0x1001) {
         return 0x3000B;
     }
@@ -406,7 +401,7 @@ static SecSlot* get_sec_slot_from_handle(int handle) {
     unsigned int index;
 
     group_id = handle >> 16;
-    slot_id = (unsigned short)handle;
+    slot_id = handle;
 
     group = find_sec_slot_group(group_id);
     count = group->slot_count;

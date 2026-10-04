@@ -8,30 +8,14 @@
 #include "rw/native_internal.h"
 #include "rw/rpskin.h"
 #include "rw/rwresentry.h"
+#include "rw/rwengine.h"
+#include "rw/gamecube.h"
+#include "rw/rwstream.h"
+#include "rw/rwerror.h"
+#include "rw/batextur.h"
+#include "runtime/instance.h"
+#include "dolphin/cache.h"
 
-typedef struct GcInstanceEngine {
-    unsigned char pad_0x00[0x134];
-    void* (*allocate)(unsigned int size, unsigned int hint);
-    unsigned char pad_0x138[0x0C];
-    void* (*free_list_allocate)(void* free_list, unsigned int hint);
-} GcInstanceEngine;
-
-extern GcInstanceEngine* RwEngineInstance;
-extern void _rxGCResEntryWaitDone(RwResEntry* entry);
-
-extern int RwStreamFindChunk(RwStream* stream, unsigned int type,
-                             unsigned int* length, unsigned int* version);
-extern unsigned int RwStreamReadInt32(RwStream* stream, void* values,
-                                      unsigned int length);
-extern unsigned int RwStreamRead(RwStream* stream, void* destination,
-                                 unsigned int length);
-extern RwStream* RwStreamSkip(RwStream* stream, unsigned int offset);
-extern int PadSize32(unsigned int value);
-extern int _rwerror(int code, ...);
-extern RwError* RwErrorSet(RwError* error);
-extern void DCFlushRange(void* address, unsigned int length);
-extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
-/* RenderWare publishes this plugin at a runtime-selected offset. */
 static unsigned char* AlignPointer4(const void* pointer) {
     return (unsigned char*)(((unsigned int)pointer + 3) & ~3U);
 }
@@ -66,17 +50,17 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
         RwErrorSet(&error);
         return 0;
     }
-    if (!RwStreamReadInt32(stream, &platform, 4)) {
+    if (!RwStreamReadInt32(stream, &platform, sizeof(platform))) {
         return 0;
     }
     if (platform != 6) {
         return 0;
     }
 
-    skin = RwEngineInstance->free_list_allocate(_rpSkinGlobals.skinFreeList,
+    skin = RwEngineInstance->fpFreeListAlloc(_rpSkinGlobals.skinFreeList,
                                                  0x30116);
     memset(skin, 0, sizeof(RpSkin));
-    if (!RwStreamReadInt32(stream, &packed_counts, 4)) {
+    if (!RwStreamReadInt32(stream, &packed_counts, sizeof(packed_counts))) {
         return 0;
     }
     skin->numBones = (unsigned char)packed_counts;
@@ -87,7 +71,7 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
 
     if (skin->maxNumWeights > 1) {
         skin->platformWeights =
-            RwEngineInstance->allocate(chunk_length + 5, 0x30116);
+            RwEngineInstance->fpMalloc(chunk_length + 5, 0x30116);
         skin->platformIndices =
             (unsigned char*)skin->platformWeights +
             skin->maxNumWeights * vertex_count;
@@ -98,7 +82,7 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
         skin->skinToBoneMatrices =
             (RwMatrix*)AlignPointer4(skin->skinToBoneMatrices);
         skin->usedBoneList =
-            (unsigned char*)skin->skinToBoneMatrices + skin->numBones * 64;
+            (unsigned char*)skin->skinToBoneMatrices + skin->numBones * sizeof(*skin->skinToBoneMatrices);
 
         chunk_length = skin->numUsedBones;
         if (RwStreamRead(stream, skin->usedBoneList, chunk_length) != chunk_length) {
@@ -114,25 +98,25 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
             chunk_length) {
             return 0;
         }
-        chunk_length = skin->numBones * 64;
+        chunk_length = skin->numBones * sizeof(*skin->skinToBoneMatrices);
         if (RwStreamRead(stream, skin->skinToBoneMatrices, chunk_length) !=
             chunk_length) {
             return 0;
         }
     } else {
         skin->platformWeights =
-            RwEngineInstance->allocate(chunk_length + 3, 0x30116);
-        skin->skinToBoneMatrices = (RwMatrix*)skin->platformWeights;
+            RwEngineInstance->fpMalloc(chunk_length + 3, 0x30116);
+        skin->skinToBoneMatrices = skin->platformWeights;
         skin->skinToBoneMatrices =
             (RwMatrix*)AlignPointer4(skin->skinToBoneMatrices);
         skin->usedBoneList =
-            (unsigned char*)skin->skinToBoneMatrices + skin->numBones * 64;
+            (unsigned char*)skin->skinToBoneMatrices + skin->numBones * sizeof(*skin->skinToBoneMatrices);
 
         chunk_length = skin->numUsedBones;
         if (RwStreamRead(stream, skin->usedBoneList, chunk_length) != chunk_length) {
             return 0;
         }
-        chunk_length = skin->numBones * 64;
+        chunk_length = skin->numBones * sizeof(*skin->skinToBoneMatrices);
         if (RwStreamRead(stream, skin->skinToBoneMatrices, chunk_length) !=
             chunk_length) {
             return 0;
@@ -194,20 +178,20 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
         RwErrorSet(&error);
         return 0;
     }
-    if (!RwStreamReadInt32(stream, &platform, 4)) {
+    if (!RwStreamReadInt32(stream, &platform, sizeof(platform))) {
         return 0;
     }
     if (platform != 6) {
         return 0;
     }
-    if (!RwStreamReadInt32(stream, &resource_size, 4)) {
+    if (!RwStreamReadInt32(stream, &resource_size, sizeof(resource_size))) {
         return 0;
     }
-    if (!RwStreamReadInt32(stream, &display_list_size, 4)) {
+    if (!RwStreamReadInt32(stream, &display_list_size, sizeof(display_list_size))) {
         return 0;
     }
 
-    *entry = RwEngineInstance->allocate(resource_size + sizeof(RwResEntry),
+    *entry = RwEngineInstance->fpMalloc(resource_size + sizeof(RwResEntry),
                                          0x3050d);
     native_header = (GameCubeNativeMeshHeader*)((*entry) + 1);
     if (RwStreamRead(stream, native_header, resource_size) != resource_size) {
@@ -272,8 +256,7 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     if (raster == 0) {
         return 0;
     }
-    extension = (RwGameCubeRasterExt*)((unsigned char*)raster +
-                                       _RwGameCubeRasterExtOffset);
+    extension = RW_RASTER_PLATFORM_DATA(raster);
     extension->format = raster_header.tileMode;
     extension->paletteFormat = raster_header.paletteFormat;
     extension->hasAlpha = raster_header.hasAlpha != 0;
@@ -297,11 +280,9 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         RwStreamSkip(stream, (1 << raster->depth) * 2);
         extension->paletteData = stream_data;
         DCFlushRange(extension->paletteData, (1 << raster->depth) * 2);
-        /* The TLUT object is the extension's first member and retail passes
-         * the extension base directly here. */
-        GXInitTlutObj((GXTlutObj*)extension, extension->paletteData,
+        GXInitTlutObj(&extension->tlut, extension->paletteData,
                       extension->paletteFormat,
-                      (unsigned short)(1 << raster->depth));
+                      (1 << raster->depth));
     }
     GXInvalidateTexAll();
     raster->format |= raster_format_bit;
@@ -311,7 +292,6 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         RwRasterDestroy(raster);
         return 0;
     }
-    /* RwTextureSetFilterMode/SetAddressingU/SetAddressingV, expanded. */
     result->filter_flags = (result->filter_flags & ~0xff) |
                            ((unsigned char)texture_header.filterAddressing & 0xff);
     result->filter_flags = (result->filter_flags & ~0xf00) |
