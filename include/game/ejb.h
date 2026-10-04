@@ -17,6 +17,7 @@ float end_of_round_check(void);
 float get_my_angle_y_error(void);
 void head_tracking_on(void);
 void init_ground_move(void);
+float p_comboexit_to_stance(void);
 float j_exit(void);
 float j_exit_6(void);
 float j_exit_blend_stance(void);

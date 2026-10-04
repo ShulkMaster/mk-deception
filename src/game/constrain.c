@@ -27,21 +27,21 @@ typedef struct ObstacleInfo {
 } ObstacleInfo;
 
 typedef struct ConstrainObstacleVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
     void (*destroy)(ArenaObstacle*);
 } ConstrainObstacleVtable;
 
 void vdestroy_obstacle(ArenaObstacle* obstacle);
 
-MkVtable5 vtbl_obstacle = {
+ConstrainObstacleVtable vtbl_obstacle = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_obstacle,
+    vdestroy_obstacle,
 };
 
 static ObstacleInfo obstacle_info_table[8] = {
@@ -104,7 +104,7 @@ static inline float constrain_inv_sqrt(float value) {
     float product;
     float correction;
 
-    if (!(value > 0.0f)) {
+    if (value <= 0.0f) {
         return 0.0f;
     }
 
@@ -350,13 +350,18 @@ float dist_behind_me(void) {
     return distance;
 }
 
-/* TODO: [breakthrough] 94.30%; sqrt halfword indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+static inline float constrain_positive_distance(float distance) {
+    if (distance > 0.0f) {
+        return distance;
+    }
+    return 0.0f;
+}
+
+/* TODO: [near miss] 96.92%; retail FP predicates agree; sqrt return copies, stack slots and normalization registers remain. */
+
 static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction) {
     float length;
-    float along_ray;
-    float radicand;
     float distance;
     float inverse_length;
     float outward_dot;
@@ -365,14 +370,19 @@ static float dist_from_plyr_pos_to_arena_edge(
     if (length >= 12.0f) {
         distance = 0.0f;
     } else {
+        float radicand;
+        float along_ray;
+        float root;
+
+        root = 0.0f;
         along_ray =
             direction->x * position->x + direction->z * position->z;
         radicand =
             144.0f - (length * length - along_ray * along_ray);
-        distance = gxMathFastSqrt(radicand) - along_ray;
-        if (distance <= 0.0f) {
-            distance = 0.0f;
+        if (radicand > 0.0f) {
+            root = gxMathFastSqrt(radicand);
         }
+        distance = constrain_positive_distance(root - along_ray);
     }
 
     inverse_length =
@@ -451,14 +461,14 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [near miss] 96.32%; tightrope vectors now section-relative like retail; perp/uv .bss placement swapped and flags stack copy differ. */
+/* TODO: [near miss] 99.91%; flag-value ABI matches; five vector BSS +0x24/+0x30 offsets remain for layout steward. */
 void start_constrain_proc(void) {
-    int proc_flags;
+    MkProcInitFlags proc_flags;
 
-    proc_flags = 0;
+    proc_flags.value = 0;
     if (find_mkproc_pid(0x1003) == 0) {
         create_mkproc(
-            0x1A, get_mkproc_nostack(&proc_flags), 0x1003,
+            0x1A, get_mkproc_nostack(proc_flags), 0x1003,
             p_constrain_players, 0);
 
         tightrope_perp_uv.z = 0.0f;
@@ -784,71 +794,89 @@ static void repel_players(void) {
     }
 }
 
-/* TODO: [near miss] 90.36%; duplicated retail null checks and NV coloring around vector publication and the adjustment calls. */
+static inline void update_tightrope_plane(MkObj* player_1, MkObj* player_2) {
+    Vec direction;
+
+    if (player_1 == 0 || player_2 == 0) {
+        return;
+    }
+    if (xz_unit_vector_recip(
+            &direction, &player_1->pos.value, &player_2->pos.value) != 0.0f) {
+        if (tightrope_set &&
+            direction.x * tightrope_uv.x +
+                direction.z * tightrope_uv.z <
+                0.0f) {
+            direction.x = -direction.x;
+            direction.z = -direction.z;
+        }
+
+        tightrope_uv.x = direction.x;
+        tightrope_uv.y = direction.y;
+        tightrope_uv.z = direction.z;
+        tightrope_perp_uv.x = direction.z;
+        tightrope_perp_uv.z = -direction.x;
+        if (!g_game_info.feature_flags.bits.high_bit) {
+            tightrope_dist =
+                CONSTRAIN_P1_OBJECT->pos.value.x * tightrope_perp_uv.x +
+                CONSTRAIN_P1_OBJECT->pos.value.y * tightrope_perp_uv.y +
+                CONSTRAIN_P1_OBJECT->pos.value.z * tightrope_perp_uv.z;
+        }
+        tightrope_set = 1;
+        tightrope_set_this_tick = 1;
+    }
+}
+
+static inline void apply_tightrope_to_players(MkObj* player_1) {
+    MkObj* player_2;
+    float offset;
+
+    if (tightrope_set) {
+        offset =
+            xz_dot_xz(&player_1->pos.value, &tightrope_perp_uv) - tightrope_dist;
+        if (offset < -0.1f) {
+            xz_x_v_add_xz(
+                &player_1->pos.value, &tightrope_perp_uv, -(0.1f + offset));
+        } else if (offset > 0.1f) {
+            xz_x_v_add_xz(
+                &player_1->pos.value, &tightrope_perp_uv, 0.1f - offset);
+        }
+
+        player_2 = constrain_player_object(&g_game_info.plyr1);
+        offset =
+            xz_dot_xz(&player_2->pos.value, &tightrope_perp_uv) - tightrope_dist;
+        if (offset < -0.1f) {
+            xz_x_v_add_xz(
+                &player_2->pos.value, &tightrope_perp_uv, -(0.1f + offset));
+        } else if (offset > 0.1f) {
+            xz_x_v_add_xz(
+                &player_2->pos.value, &tightrope_perp_uv, 0.1f - offset);
+        }
+    }
+}
+
+/* TODO: [breakthrough] 98.65%; update/apply CFG and player reloads recovered;
+ * vector publication FP/FRSP and second-player GPR remain. */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;
-    Vec direction;
-    float offset;
 
     player_1 = constrain_player_object(&g_game_info.plyr0);
-    player_2 = constrain_player_object(&g_game_info.plyr1);
-    if (player_1 == 0 || player_2 == 0) {
+    if (player_1 == 0 ||
+        (player_2 = constrain_player_object(&g_game_info.plyr1)) == 0) {
         return;
     }
 
     if (!player_1->flags_09_bits.tightrope_restricted ||
         !player_2->flags_09_bits.tightrope_restricted ||
         !tightrope_set || update_tr_due_to_arena_edge) {
-        if (xz_unit_vector_recip(
-                &direction, &player_1->pos.value, &player_2->pos.value) != 0.0f) {
-            if (tightrope_set &&
-                direction.x * tightrope_uv.x +
-                    direction.z * tightrope_uv.z <
-                    0.0f) {
-                direction.x = -direction.x;
-                direction.z = -direction.z;
-            }
-
-            tightrope_uv.x = direction.x;
-            tightrope_uv.y = direction.y;
-            tightrope_uv.z = direction.z;
-            tightrope_perp_uv.x = direction.z;
-            tightrope_perp_uv.z = -direction.x;
-            if (!g_game_info.feature_flags.bits.high_bit) {
-                tightrope_dist =
-                    player_1->pos.value.y * tightrope_perp_uv.y +
-                    player_1->pos.value.x * tightrope_perp_uv.x +
-                    player_1->pos.value.z * tightrope_perp_uv.z;
-            }
-            tightrope_set = 1;
-            tightrope_set_this_tick = 1;
-        }
+        update_tightrope_plane(player_1, player_2);
         update_tr_due_to_arena_edge = 0;
         return;
     }
 
-    offset =
-        xz_dot_xz(&player_1->pos.value, &tightrope_perp_uv) - tightrope_dist;
-    if (offset < -0.1f) {
-        xz_x_v_add_xz(
-            &player_1->pos.value, &tightrope_perp_uv, -(0.1f + offset));
-    } else if (offset > 0.1f) {
-        xz_x_v_add_xz(
-            &player_1->pos.value, &tightrope_perp_uv, 0.1f - offset);
-    }
-
-    player_2 = constrain_player_object(&g_game_info.plyr1);
-    offset =
-        xz_dot_xz(&player_2->pos.value, &tightrope_perp_uv) - tightrope_dist;
-    if (offset < -0.1f) {
-        xz_x_v_add_xz(
-            &player_2->pos.value, &tightrope_perp_uv, -(0.1f + offset));
-    } else if (offset > 0.1f) {
-        xz_x_v_add_xz(
-            &player_2->pos.value, &tightrope_perp_uv, 0.1f - offset);
-    }
+    apply_tightrope_to_players(player_1);
 }
+
 
 float get_constrain_player_distance(void) {
     float distance =
@@ -860,8 +888,3 @@ float get_constrain_player_distance(void) {
     }
     return -distance;
 }
-
-/* Retail global .bss order: state, perpendicular axis, tightrope axis. */
-Vec tightrope_uv;
-Vec tightrope_perp_uv;
-ConstrainState constrain_state;

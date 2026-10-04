@@ -688,13 +688,13 @@ static inline void assign_pad_switch_map(PlyrInfo* player, SwitchMapEntry* map) 
     g_game_info.pads[port].switch_map = map;
 }
 
-/* TODO: [near miss] 95.93%; leaf shape and switch-map definitions match; per-player map addends/register order differ. */
+/* TODO: [near miss] 96.66%; selected-profile copies and loop registers remain; audit BSS first-use order. */
 void set_game_switch_map(PlyrInfo* player) {
-    PlayerProfile* profile;
-    SwitchMapEntry* profile_map;
-    SwitchMapEntry* temp_map;
-    int* profile_status;
     int* use_temp_map;
+    SwitchMapEntry* profile_map;
+    PlayerProfile* profile;
+    int* profile_status;
+    SwitchMapEntry* temp_map;
     int i;
 
     if (player->field_04 == 0) {
@@ -720,9 +720,11 @@ void set_game_switch_map(PlyrInfo* player) {
             profile = &p2_profile;
         }
         for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-            profile_map[i].mask = profile->switch_map[i];
-            profile_map[i].proc_fn = default_switch_map[i].proc_fn;
-            profile_map[i].label = default_switch_map[i].label;
+            SwitchMapEntry* entry = &profile_map[i];
+            const SwitchMapEntry* defaults = &default_switch_map[i];
+            entry->mask = profile->switch_map[i];
+            entry->proc_fn = defaults->proc_fn;
+            entry->label = defaults->label;
         }
         assign_pad_switch_map(player, profile_map);
     } else if (*use_temp_map != 0) {
@@ -759,7 +761,7 @@ void switch_map_unload_player_profile(PlyrInfo* player) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 91.59%; copy loops and flag stores match; volatile register numbering of the table/offset temporaries remains. */
+/* TODO: [near miss] 91.59%; table-copy behavior agrees; row-address GPR allocation and flag-store scheduling remain. */
 void init_player_switch_maps(void) {
     SwitchMapEntry* dest;
     SwitchMapEntry* src;

@@ -5,6 +5,9 @@
 
 typedef struct GusherPdata GusherPdata;
 typedef struct MkObj MkObj;
+typedef struct FighterMirror FighterMirror;
+
+void spawn_bld_splat(const char* name, FighterMirror* owner, const Vec* position);
 
 typedef struct GusherStep {
     const char* blood_type;

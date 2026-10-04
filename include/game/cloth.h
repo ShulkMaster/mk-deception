@@ -2,6 +2,7 @@
 #define GAME_CLOTH_H
 
 #include "runtime/mk_obj.h"
+#include "game/cloth_wind.h"
 
 typedef struct ClothInitEntry ClothInitEntry;
 

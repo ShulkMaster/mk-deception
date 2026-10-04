@@ -86,13 +86,8 @@ typedef struct BleedGroundWatcherPdata {
     MkObj* blood_object;
     unsigned int blood_object_instance;
     unsigned int effect_handle;
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char create_decal : 1;
-            unsigned char pad_flags : 7;
-        };
-    };
+    signed char create_decal : 1;
+    unsigned char pad_flags : 7;
 } BleedGroundWatcherPdata;
 
 typedef struct FootPrintPdata {
@@ -1257,8 +1252,6 @@ void spawn_decal_emitter(
     const MKMATRIX* orientation,
     float angle);
 void start_blood_splat_watcher(void);
-void get_bone_offset_world_pos(
-    MkObj* object, int bone, const Vec* offset, Vec* position);
 void calc_bone_world_mat(MkObj* object, int bone);
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, Vec* position,
@@ -1319,14 +1312,7 @@ static inline void queue_blood_spawn(
     MkProc* proc;
     BleedPdata* pdata;
 
-    proc = bleed_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance != bleed_proc_item.instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = MK_HDR_LIVE(bleed_proc_item.proc, bleed_proc_item.instance);
     if (proc != 0) {
         pdata = (BleedPdata*)get_mkpdata_generic(sizeof(*pdata));
         if (pdata != 0) {
@@ -1539,13 +1525,23 @@ static float p_gusher(void) {
     return time;
 }
 
-/* TODO: [near miss] 98.68%; CFG and layout agree; residue is splat-loop
- * coloring (list/sqrt volatile webs, tick and limit registers). */
+static inline float blood_splat_distance(const BloodSplat* splat, const MkObj* object) {
+    float x;
+    float y;
+    float z;
+
+    x = splat->position.x - object->pos.value.x;
+    y = splat->position.y - object->pos.value.y;
+    z = splat->position.z - object->pos.value.z;
+    return gxMathFastSqrt(x * x + y * y + z * z);
+}
+
+/* TODO: [near miss] 98.95%; scan CFG and layout agree; 32 register/operand rows and
+ * one signed zero-compare row remain; check tick/list/sqrt webs. */
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, Vec* position,
     Vec* velocity, FighterMirror* owner) {
     BleedGroundWatcherPdata* watcher;
-    BloodSplat* splat;
     MkObj* object;
     MkPfx* pfx;
     unsigned int effect;
@@ -1556,6 +1552,8 @@ void spawn_bld_fall(
     int splat_limit;
     float nearby_radius;
     int index;
+    BloodSplat* splat;
+    unsigned int tick;
 
     watcher = 0;
     object = 0;
@@ -1621,31 +1619,24 @@ void spawn_bld_fall(
                         splat_limit = 6;
                     }
 
+                    tick = (unsigned int)exec_tick_ctr;
                     for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
-                        float x;
-                        float y;
-                        float z;
-
-                        x = ncs_blood_splat_list[index].position.x -
-                            object->pos.value.x;
-                        y = ncs_blood_splat_list[index].position.y -
-                            object->pos.value.y;
-                        z = ncs_blood_splat_list[index].position.z -
-                            object->pos.value.z;
-                        if (gxMathFastSqrt(x * x + y * y + z * z) <
+                        splat = &ncs_blood_splat_list[index];
+                        if (blood_splat_distance(
+                                splat, object) <
                             nearby_radius) {
                             nearby_index = index;
                         }
-                        if (ncs_blood_splat_list[index].expiry_tick <
-                            (unsigned int)exec_tick_ctr) {
+                        if (splat->expiry_tick <
+                            tick) {
                             unsigned int age;
 
                             if (nearby_index == index) {
                                 nearby_index = -1;
                                 expired_nearby_count++;
                             }
-                            age = (unsigned int)exec_tick_ctr -
-                                ncs_blood_splat_list[index].expiry_tick;
+                            age = tick -
+                                splat->expiry_tick;
                             if (oldest_age < age) {
                                 oldest_age = age;
                                 oldest_index = index;
@@ -1672,8 +1663,7 @@ void spawn_bld_fall(
                         if (splat->splat_count < splat_limit) {
                             goto add_splat;
                         }
-                        if (splat->expiry_tick <
-                            (unsigned int)exec_tick_ctr) {
+                        if (splat->expiry_tick < tick) {
                             splat->reuse_count++;
                             if (splat->reuse_count < 3) {
                                 goto reset_splat;
@@ -1703,6 +1693,19 @@ void spawn_bld_fall(
     }
 }
 
+static inline MkObj* bleed_ground_object(BleedGroundWatcherPdata* pdata)
+{
+    MkObj* object = pdata->blood_object;
+
+    if (object != 0) {
+        if (object->hdr.instance == pdata->blood_object_instance) {
+            return object;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 static float p_watch_bleed_obj_for_gnd_coll(void) {
     BleedGroundWatcherPdata* pdata;
     MkObj* object;
@@ -1712,21 +1715,17 @@ static float p_watch_bleed_obj_for_gnd_coll(void) {
         return -1.0f;
     }
 
-    object = pdata->blood_object;
-    if (object != 0 &&
-        object->hdr.instance != pdata->blood_object_instance) {
-        object = 0;
-    }
+    object = bleed_ground_object(pdata);
     if (object != 0) {
         if (object->pos.value.y > g_game_info.field_34) {
             object->pos_vel.y -= 0.0015f * game_speed;
-            object->pos_vel.x *= 0.99f;
-            object->pos_vel.y *= 0.99f;
-            object->pos_vel.z *= 0.99f;
+            object->pos_vel.x = 0.99f * object->pos_vel.x;
+            object->pos_vel.y = 0.99f * object->pos_vel.y;
+            object->pos_vel.z = 0.99f * object->pos_vel.z;
             return 1.0f;
         }
-        if (object->pos.value.y >= g_game_info.field_34 - 1.0f &&
-            (pdata->flags & 0xC0) != 0) {
+        if (!(object->pos.value.y < g_game_info.field_34 - 1.0f) &&
+            pdata->create_decal) {
             object->pos.value.y = g_game_info.field_34 + 0.01f;
             spawn_decal_emitter(
                 "blsplat", pdata->decal_owner, &object->pos.value, 0, 0.0f);
@@ -1746,18 +1745,15 @@ static float p_foot_print_wait(void) {
 static float p_foot_print(void) {
     FootPrintPdata* pdata;
     MkObj* object;
+    int bone;
     Vec* previous_position;
     Vec position;
-    int bone;
     float angle;
     float delta_x;
     float delta_z;
 
     pdata = (FootPrintPdata*)apdata;
-    object = pdata->object;
-    if (object != 0 && object->hdr.instance != pdata->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
     if (object == 0) {
         return 60.0f;
     }
@@ -1774,10 +1770,13 @@ static float p_foot_print(void) {
 
     get_bone_offset_world_pos(
         object, bone, &pdata->bone_offset, &position);
-    if (position.y <= object->ground_colls_y + 0.1f) {
+    if (!(position.y > object->ground_colls_y + 0.1f)) {
         delta_x = previous_position->x - position.x;
         delta_z = previous_position->z - position.z;
-        if (delta_x * delta_x + delta_z * delta_z >= 0.5f) {
+        delta_x *= delta_x;
+        delta_z *= delta_z;
+        delta_x += delta_z;
+        if (!(delta_x < 0.5f)) {
             position.y = object->ground_colls_y + 0.005f;
             spawn_decal_emitter(
                 mkpfx_ncs_decal_array.names[5],
@@ -1986,12 +1985,12 @@ static inline MkProc* bleed_start_foot_prints(
     return foot_proc;
 }
 
-/* TODO: [near miss] 99.02%; footprint output stack slots, splat-loop base/index and player-owner register roles differ. */
+/* TODO: [near miss] 99.03%; flag-value ABI recovered; footprint slots, splat-loop indexing and player-owner registers remain. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
-    int bleed_flags[2];
-    int pfx_flags[2];
+    MkProcInitFlags bleed_flags;
+    MkProcInitFlags pfx_flags;
     int index;
 
     destroy_mkprocs_pid(0x5013);
@@ -2017,16 +2016,16 @@ void bleed_restart(void) {
     }
 
     bleed_startup__fire_off_splat_watcher_func = 0;
-    bleed_flags[1] = 0;
-    bleed_flags[0] = 0;
+
+    bleed_flags.value = 0;
     proc = create_mkproc(
         0x30, get_mkproc_nostack(bleed_flags), 0x5013, p_bleed, 0);
     if (proc != 0) {
         bleed_proc_item.proc = proc;
         bleed_proc_item.instance = proc->instance;
     }
-    pfx_flags[1] = 0;
-    pfx_flags[0] = 0;
+
+    pfx_flags.value = 0;
     proc = create_mkproc(
         0x2E, get_mkproc_nostack(pfx_flags), 0x5014, p_pfx_bleed, 0);
     if (proc != 0) {
@@ -2056,21 +2055,23 @@ void bleed_restart(void) {
     }
 }
 
+static inline MkProc* blood_create_proc(int priority, int pid, MkProcEntryFn entry) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    return create_mkproc(priority, get_mkproc_nostack(flags), pid, entry, 0);
+}
+
 void bleed_startup(void) {
     MkProc* proc;
-    int flags;
 
-    flags = 0;
-    proc = create_mkproc(
-        0x30, get_mkproc_nostack(&flags), 0x5013, p_bleed, 0);
+    proc = blood_create_proc(0x30, 0x5013, p_bleed);
     if (proc != 0) {
         bleed_proc_item.proc = proc;
         bleed_proc_item.instance = proc->instance;
     }
 
-    flags = 0;
-    proc = create_mkproc(
-        0x2E, get_mkproc_nostack(&flags), 0x5014, p_pfx_bleed, 0);
+    proc = blood_create_proc(0x2E, 0x5014, p_pfx_bleed);
     if (proc != 0) {
         bleed_pfx_proc_item.proc = proc;
         bleed_pfx_proc_item.instance = proc->instance;
@@ -2081,10 +2082,16 @@ void bleed_startup(void) {
     }
 }
 
-/* TODO: [near miss] 95.15625%; loop base/index coloring and generated constant name remain. */
-void bleed_init(void) {
+static inline void blood_reset_splats(void) {
     int index;
 
+    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
+    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
+        ncs_blood_splat_list[index].position.y = -10000.0f;
+    }
+}
+
+void bleed_init(void) {
     bleed_proc_item.proc = 0;
     bleed_proc_item.instance = 0;
     bleed_pfx_proc_item.proc = 0;
@@ -2092,10 +2099,7 @@ void bleed_init(void) {
     gusher_list = 0;
     bleed_startup__fire_off_splat_watcher_func = 1;
 
-    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
-    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
-        ncs_blood_splat_list[index].position.y = -10000.0f;
-    }
+    blood_reset_splats();
 }
 
 /* TODO: [breakthrough] 83.59%; retail path-preparation early exits restored; blood-path relocation/code-generation differences remain. */
@@ -2251,13 +2255,16 @@ void plyr_bleed_mouth(PlyrPdata* pdata) {
 
 
 
-/* TODO: [breakthrough needed] 89.688350%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+static inline unsigned int large_blood_art_for_player(PlyrPdata* owner) {
+    char* name = blood_map[4];
+    int section = get_shared_art_section_for_plyr_pdata(owner);
+
+    return get_artid_of_named_item_in_slot(section, name, 1);
+}
+
 void plyr_bleed_large_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
-    BloodSpawnState* spawn_state;
     MkObj* object;
-    char* blood_name;
-    int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
@@ -2267,41 +2274,37 @@ void plyr_bleed_large_ext(
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
-            blood_name = blood_map[4];
-            art_section = get_shared_art_section_for_plyr_pdata(owner);
-            blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_name, 1);
-            spawn_state = &pdata->blood_model;
+            blood_art_id = large_blood_art_for_player(owner);
 
             queue_blood_spawn(
-                object, armfrontL_bld_script2, spawn_state,
+                object, armfrontL_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 1);
             queue_blood_spawn(
-                object, frontL_bld_script2, spawn_state,
+                object, frontL_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 3);
             queue_blood_spawn(
-                object, sideL_bld_script2, spawn_state,
+                object, sideL_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 5);
             queue_blood_spawn(
-                object, backL_bld_script2, spawn_state,
+                object, backL_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 7);
             queue_blood_spawn(
-                object, armbackL_bld_script2, spawn_state,
+                object, armbackL_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 9);
             queue_blood_spawn(
-                object, armfrontR_bld_script2, spawn_state,
+                object, armfrontR_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 11);
             queue_blood_spawn(
-                object, frontR_bld_script2, spawn_state,
+                object, frontR_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 13);
             queue_blood_spawn(
-                object, sideR_bld_script2, spawn_state,
+                object, sideR_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 15);
             queue_blood_spawn(
-                object, backR_bld_script2, spawn_state,
+                object, backR_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 17);
             queue_blood_spawn(
-                object, armbackR_bld_script2, spawn_state,
+                object, armbackR_bld_script2, &pdata->blood_model,
                 bone, blood_art_id, owner, 19);
         }
     }
@@ -2313,13 +2316,9 @@ void plyr_bleed_large_ext(
 
 
 
-/* TODO: [breakthrough needed] 88.738840%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
     static int cycle_index;
-    BloodSpawnState* spawn_state;
     MkObj* object;
-    char* blood_name;
-    int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
@@ -2329,60 +2328,56 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
-            blood_name = blood_map[4];
-            art_section = get_shared_art_section_for_plyr_pdata(pdata);
-            blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_name, 1);
-            spawn_state = &pdata->blood_model;
+            blood_art_id = large_blood_art_for_player(pdata);
 
             switch (cycle_index) {
             case 0:
                 queue_blood_spawn(object, armfrontL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 1);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 1);
                 queue_blood_spawn(object, frontL_bld_script2,
-                    spawn_state, bone, blood_art_id, pdata, 3);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 3);
                 queue_blood_spawn(object, sideL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 5);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 5);
                 queue_blood_spawn(object, armbackL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 7);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 7);
                 queue_blood_spawn(object, armfrontR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 9);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 9);
                 queue_blood_spawn(object, sideR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 11);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 11);
                 queue_blood_spawn(object, backR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 13);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 13);
                 break;
             case 1:
                 queue_blood_spawn(object, armfrontL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 1);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 1);
                 queue_blood_spawn(object, sideL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 3);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 3);
                 queue_blood_spawn(object, backL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 5);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 5);
                 queue_blood_spawn(object, armfrontR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 7);
-                queue_blood_spawn(object, sideR_bld_script2,
-                    spawn_state, bone, blood_art_id, pdata, 9);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 7);
+                queue_blood_spawn(object, frontR_bld_script2,
+                    &pdata->blood_model, bone, blood_art_id, pdata, 9);
                 queue_blood_spawn(object, backR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 11);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 11);
                 queue_blood_spawn(object, armbackR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 13);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 13);
                 break;
             case 2:
                 queue_blood_spawn(object, armfrontL_bld_script2,
-                    spawn_state, bone, blood_art_id, pdata, 1);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 1);
                 queue_blood_spawn(object, frontL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 3);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 3);
                 queue_blood_spawn(object, backL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 5);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 5);
                 queue_blood_spawn(object, armbackL_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 7);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 7);
                 queue_blood_spawn(object, frontR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 9);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 9);
                 queue_blood_spawn(object, sideR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 11);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 11);
                 queue_blood_spawn(object, armbackR_bld_script1,
-                    spawn_state, bone, blood_art_id, pdata, 13);
+                    &pdata->blood_model, bone, blood_art_id, pdata, 13);
                 break;
             }
             cycle_index++;
@@ -2397,14 +2392,17 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
 
 
 
-/* TODO: [breakthrough needed] 89.97%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+static inline unsigned int blood_art_id_for_player(PlyrPdata* owner)
+{
+    char* blood_name = blood_map[4];
+    int art_section = get_shared_art_section_for_plyr_pdata(owner);
+    return get_artid_of_named_item_in_slot(art_section, blood_name, 1);
+}
+
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
     static int cycle_index;
-    BloodSpawnState* spawn_state;
     MkObj* object;
-    char* blood_name;
-    int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
@@ -2414,42 +2412,38 @@ void plyr_bleed_small_cycle_ext(
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
-            blood_name = blood_map[4];
-            art_section = get_shared_art_section_for_plyr_pdata(owner);
-            blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_name, 1);
-            spawn_state = &pdata->blood_model;
+            blood_art_id = blood_art_id_for_player(owner);
 
             switch (cycle_index) {
             case 0:
                 queue_blood_spawn(object, armfrontL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 1);
+                    &pdata->blood_model, bone, blood_art_id, owner, 1);
                 queue_blood_spawn(object, backL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 3);
+                    &pdata->blood_model, bone, blood_art_id, owner, 3);
                 queue_blood_spawn(object, frontR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 5);
+                    &pdata->blood_model, bone, blood_art_id, owner, 5);
                 queue_blood_spawn(object, armbackR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 7);
+                    &pdata->blood_model, bone, blood_art_id, owner, 7);
                 break;
             case 1:
                 queue_blood_spawn(object, frontL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 1);
+                    &pdata->blood_model, bone, blood_art_id, owner, 1);
                 queue_blood_spawn(object, frontR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 3);
+                    &pdata->blood_model, bone, blood_art_id, owner, 3);
                 queue_blood_spawn(object, armbackL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 5);
+                    &pdata->blood_model, bone, blood_art_id, owner, 5);
                 queue_blood_spawn(object, sideR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 7);
+                    &pdata->blood_model, bone, blood_art_id, owner, 7);
                 break;
             case 2:
                 queue_blood_spawn(object, armfrontL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 1);
+                    &pdata->blood_model, bone, blood_art_id, owner, 1);
                 queue_blood_spawn(object, sideL_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 3);
+                    &pdata->blood_model, bone, blood_art_id, owner, 3);
                 queue_blood_spawn(object, armfrontR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 5);
+                    &pdata->blood_model, bone, blood_art_id, owner, 5);
                 queue_blood_spawn(object, backR_bld_script1,
-                    spawn_state, bone, blood_art_id, owner, 7);
+                    &pdata->blood_model, bone, blood_art_id, owner, 7);
                 break;
             }
             cycle_index++;
@@ -2919,7 +2913,7 @@ int obj_spawn_bld(
             item = next;
             continue;
         }
-        if (hdr->vtbl == &vtbl_pfx &&
+        if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_pfx) &&
             ((MkPfx*)hdr)->field_288 == (int)art_id) {
             pfx = (MkPfx*)hdr;
             break;
@@ -3066,6 +3060,8 @@ int obj_spawn_bld(
     return spawned;
 }
 
+/* TODO: [borked] 93.21%; matrix projection and final publication agree;
+ * rounded weighted-vector interpolation still differs. */
 static int obj_set_bld_vel(
     MkObj* object, const Vec* position, BloodVelocityState* state) {
     BloodSurfaceRecord* record;
@@ -3117,8 +3113,8 @@ static int obj_set_bld_vel(
 
         calc_bone_world_mat(object, record->bone);
         matrix = &object->bones[record->bone]->matrix;
-        projection = direction.y * matrix->up.y +
-            direction.x * matrix->right.y +
+        projection = direction.x * matrix->right.y +
+            direction.y * matrix->up.y +
             direction.z * matrix->at.y;
         speed *= 1.0f - projection * inverse_distance;
         if (speed < 0.001f) {
@@ -3130,8 +3126,8 @@ static int obj_set_bld_vel(
                 result = 0;
             }
         }
-        if (position->y * matrix->up.y +
-                position->x * matrix->right.y +
+        if (position->x * matrix->right.y +
+                position->y * matrix->up.y +
                 position->z * matrix->at.y + matrix->pos.y <
             object->ground_colls_y + 0.2f) {
             result = 0;
@@ -3139,10 +3135,10 @@ static int obj_set_bld_vel(
         }
 
         inverse_distance = speed * inverse_distance;
-        state->travel_ticks = duration / speed;
         state->velocity.x = direction.x * inverse_distance;
         state->velocity.y = direction.y * inverse_distance;
         state->velocity.z = direction.z * inverse_distance;
+        state->travel_ticks = duration / speed;
         if (state->travel_ticks > 30.0f) {
             state->travel_ticks = 30.0f;
         }

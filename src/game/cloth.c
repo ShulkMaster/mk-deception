@@ -140,20 +140,16 @@ typedef struct ClothProcVtable {
 } ClothProcVtable;
 
 static inline ClothBone* find_cloth_bone_by_tag(MkObj* obj, int bone_id) {
-    ClothBone* bone;
-    unsigned int count;
+    ClothBone* bone = obj->cloth_bones;
     unsigned int index;
-
     bone_id &= 0xFFF;
-    bone = obj->cloth_bones;
-    count = obj->cloth_bone_count;
-    for (index = 0; index < count; index++) {
+    for (index = 0; index < obj->cloth_bone_count; index++) {
         if ((bone->bone->tag & 0xFFF) == bone_id) {
             return bone;
         }
         bone++;
     }
-    return 0;
+    return NULL;
 }
 
 void mks_debug_display_cloth_ontop(int enabled) {
@@ -471,7 +467,6 @@ void mks_cc1_insert_cb1(void) {
     cloth_volume_add_bone(mks_cc1, mks_cb1);
 }
 
-/* TODO: [near miss] 97.55102%; only independent constant/address preparation order differs; retail allocation, flags and normalization agree; stop at scheduling */
 void mks_ccp1_eq_insert_cloth_coll_plane(
     int bone_index, float distance,
     float normal_x, float normal_y, float normal_z) {
@@ -482,15 +477,16 @@ void mks_ccp1_eq_insert_cloth_coll_plane(
     plane = (ClothCollisionPlane*)get_mkhdr(
         &vtbl_cloth_coll_plane, sizeof(*plane));
     if (plane != 0) {
+        Vec* normal = &plane->normal;
         plane->reference_bone = object->bones[bone_index];
         plane->reference_bone->flags_54_bits.calculation_locked = 1;
         plane->bone_count = 0;
         plane->flags_storage = 0;
         plane->distance = distance;
-        plane->normal.x = normal_x;
-        plane->normal.y = normal_y;
-        plane->normal.z = normal_z;
-        PSVECNormalize(&plane->normal, &plane->normal);
+        normal->x = normal_x;
+        normal->y = normal_y;
+        normal->z = normal_z;
+        PSVECNormalize(normal, normal);
         mk_insert((MkHdr*)plane, &object->list_80);
     }
     mks_ccp1 = plane;
@@ -681,17 +677,20 @@ void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags) {
     cloth_bones_init_by_tbl(plyr_obj, table, flags);
 }
 
-/* TODO: [near miss] 98.50%; retail stores base_wind_v3 from the raw double arguments and wind_v3 from frsp copies; ours reuses the frsp values for both. */
-void mks_bgnd_start_wind(double x, double y, double z) {
+static inline void publish_current_wind(double x, double y, double z) {
+    wind_v3.x = x;
+    wind_v3.y = y;
+    wind_v3.z = z;
+}
+
+void mks_bgnd_start_wind(float x, float y, float z) {
     ClothWindPdata* pdata;
     MkProc* proc;
 
     base_wind_v3.x = x;
     base_wind_v3.y = y;
     base_wind_v3.z = z;
-    wind_v3.x = x;
-    wind_v3.y = y;
-    wind_v3.z = z;
+    publish_current_wind(x, y, z);
 
     proc = _create_mkproc_generic_nostack(
         0x500D,
@@ -701,7 +700,7 @@ void mks_bgnd_start_wind(double x, double y, double z) {
         (MkHdr**)&pdata);
     if (proc != 0) {
         if (g_game_info.bgnd_obj != 0) {
-            mk_insert((MkHdr*)proc, &g_game_info.bgnd_obj->child_list);
+            mk_insert(&proc->hdr, &g_game_info.bgnd_obj->child_list);
         }
         if (pdata != 0) {
             zero_pdata_payload(sizeof(ClothWindPdata), &pdata->hdr);
@@ -777,13 +776,13 @@ void vdestroy_cloth_coll(MkHdr* hdr) {
 }
 
 void start_cloth_proc(void) {
-    int flags[2];
+    MkProcInitFlags flags;
     MkProc* proc;
 
     cloth_mkobj_list = 0;
     cloth_ground_plane = 0.0f;
-    flags[1] = 0;
-    flags[0] = 0;
+
+    flags.value = 0;
     proc = get_mkproc_nostack(flags);
     create_mkproc(0x16, proc, 0x5003, p_cloth, 0);
 }
@@ -923,7 +922,7 @@ static void do_cloth_colls(MkHdr* collision) {
     float point_distance;
     unsigned int index;
 
-    if (collision->vtbl == &vtbl_cloth_coll) {
+    if (collision->vtbl == MK_VTABLE_ADDRESS(vtbl_cloth_coll)) {
         volume = (ClothCollisionVolume*)collision;
     } else {
         volume = 0;
@@ -958,7 +957,7 @@ static void do_cloth_colls(MkHdr* collision) {
             }
         }
     } else {
-        if (collision->vtbl == &vtbl_cloth_coll_plane) {
+        if (collision->vtbl == MK_VTABLE_ADDRESS(vtbl_cloth_coll_plane)) {
             plane = (ClothCollisionPlane*)collision;
         } else {
             plane = 0;
@@ -1049,7 +1048,7 @@ static void do_cloth_colls(MkHdr* collision) {
         } else {
             ClothCollisionVolume* unused_volume;
 
-            if (collision->vtbl == &vtbl_cloth_coll_volume) {
+            if (collision->vtbl == MK_VTABLE_ADDRESS(vtbl_cloth_coll_volume)) {
                 unused_volume = (ClothCollisionVolume*)collision;
             } else {
                 unused_volume = 0;
@@ -1262,27 +1261,27 @@ static void cloth_coll_vector_cyl(void) {
     }
 }
 
-/* TODO: [near miss] 88.51257%; Retail predicates, signed loop bounds and owner reloads agree; remaining 16-byte automatic vector stack, scratch-base materialization and register allocation. Stop pending recovered aligned type. */
+/* TODO: [breakthrough needed] 92.84%; vector stack recovered; restore four retail scratch globals before resolving address CSE. */
 static void cloth_coll_point_cyl_abs(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
+    MKVECTOR world_point;
+    RwMatrixPosition offset_point_0;
+    RwMatrixPosition radial_direction_0;
+    RwMatrixPosition axis_point_0;
+    RwMatrixPosition offset_point_1;
+    RwMatrixPosition radial_direction_1;
+    RwMatrixPosition axis_point_1;
     Vec axis_offset_0;
-    Vec axis_point_0;
-    Vec offset_point_0;
-    Vec radial_direction_0;
     Vec axis_offset_1;
-    Vec axis_point_1;
-    Vec offset_point_1;
-    Vec radial_direction_1;
-    Vec world_point;
     int index;
     int collided;
     float position_weight;
     float along_axis;
     float displacement_length;
 
-    scratch = &pt_displacement_v;
     force_position = &cloth_bone->force_position;
+    scratch = &pt_displacement_v;
     PSVECSubtract(
         force_position,
         &cloth_coll_bone->transform_parent->matrix.pos_vec,
@@ -1295,23 +1294,21 @@ static void cloth_coll_point_cyl_abs(void) {
              PSVECDotProduct(&scratch->bone_to_point, &scratch->bone_axis)) >
             cloth_coll->cylinder_bottom &&
         along_axis <= cloth_coll->cylinder_top) {
-        {
-            Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
-            PSVECScale(&scratch->bone_axis, &axis_offset_0, along_axis);
-            PSVECAdd(origin, &axis_offset_0, &axis_point_0);
-        }
+        Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
+        PSVECScale(&scratch->bone_axis, &axis_offset_0, along_axis);
+        PSVECAdd(origin, &axis_offset_0, &axis_point_0.value);
         gxMatV3MatAddV3(
-            &offset_point_0, &cloth_bone->collision_offset,
+            &offset_point_0.value, &cloth_bone->collision_offset,
             (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         gxVectUVV3ToV3(
-            &radial_direction_0, &axis_point_0, &offset_point_0);
+            &radial_direction_0.value, &axis_point_0.value, &offset_point_0.value);
         PSVECScale(
-            &radial_direction_0, &radial_direction_0,
+            &radial_direction_0.value, &radial_direction_0.value,
             cloth_coll->radius);
-        PSVECAdd(&axis_point_0, &radial_direction_0, &axis_point_0);
+        PSVECAdd(&axis_point_0.value, &radial_direction_0.value, &axis_point_0.value);
         PSVECSubtract(
-            &axis_point_0, force_position,
+            &axis_point_0.value, force_position,
             &scratch->displacement);
         displacement_length = PSVECMag(&scratch->displacement);
         if (displacement_length > cloth_bone->collision_amount) {
@@ -1345,23 +1342,21 @@ static void cloth_coll_point_cyl_abs(void) {
                  &scratch->bone_to_point, &scratch->bone_axis)) >
                 cloth_coll->cylinder_bottom &&
             along_axis <= cloth_coll->cylinder_top) {
-            {
-                Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
-                PSVECScale(&scratch->bone_axis, &axis_offset_1, along_axis);
-                PSVECAdd(origin, &axis_offset_1, &axis_point_1);
-            }
+            Vec* origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
+            PSVECScale(&scratch->bone_axis, &axis_offset_1, along_axis);
+            PSVECAdd(origin, &axis_offset_1, &axis_point_1.value);
             gxMatV3MatAddV3(
-                &offset_point_1, &cloth_bone->collision_offset,
+                &offset_point_1.value, &cloth_bone->collision_offset,
                 (Mat33*)&cloth_bone->bone->matrix, &world_point);
             gxVectUVV3ToV3(
-                &radial_direction_1, &axis_point_1, &offset_point_1);
+                &radial_direction_1.value, &axis_point_1.value, &offset_point_1.value);
             PSVECScale(
-                &radial_direction_1, &radial_direction_1,
+                &radial_direction_1.value, &radial_direction_1.value,
                 cloth_coll->radius);
             PSVECAdd(
-                &axis_point_1, &radial_direction_1, &axis_point_1);
+                &axis_point_1.value, &radial_direction_1.value, &axis_point_1.value);
             PSVECSubtract(
-                &axis_point_1, &world_point, &scratch->displacement);
+                &axis_point_1.value, &world_point, &scratch->displacement);
             displacement_length = PSVECMag(&scratch->displacement);
             if (displacement_length > cloth_bone->collision_amount) {
                 cloth_bone->collision_amount = displacement_length;
@@ -1926,7 +1921,6 @@ void start_cloth_bones(MkObj* obj) {
     }
 }
 
-/* TODO: [near miss] 98.68%; indexed rows and mirror_a compares match; inlined bone-search registers (r12/r11 vs r31/r12) differ. */
 void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count) {
     ClothBone* cloth_bone;
