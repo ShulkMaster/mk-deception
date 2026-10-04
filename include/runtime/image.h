@@ -9,8 +9,8 @@
 extern "C" {
 #endif
 
-extern MkVtable5 vtbl_ani_texture_control;
-extern MkVtable5 vtbl_mkpdata_screen_obj;
+extern MkVtableAniTextureControl vtbl_ani_texture_control;
+extern struct ScreenObjVtable vtbl_mkpdata_screen_obj;
 
 typedef struct AniTextureControl AniTextureControl;
 typedef struct AniTextureControlItem AniTextureControlItem;
@@ -20,11 +20,11 @@ typedef struct ImageMkSobj ImageMkSobj;
 typedef struct StringObj StringObj;
 
 typedef struct ScreenObjVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
-    int (*destroy)(ScreenObj* object);
+    void (*destroy)(ScreenObj* object);
 } ScreenObjVtable;
 
 /* ScreenObj +0x0C flags; the hide bit is 0x10. */
@@ -51,6 +51,12 @@ typedef struct AtcFlagBits {
     unsigned char count : 2;
     unsigned char pad : 3;
 } AtcFlagBits;
+
+typedef struct AtcMaterialIdBits {
+    unsigned short : 5;
+    unsigned short material_id : 8;
+    unsigned short : 3;
+} AtcMaterialIdBits;
 
 typedef struct AtcAlphaFlag {
     unsigned char pad0 : 1;
@@ -85,14 +91,17 @@ struct AniTextureControl {
             unsigned short flags_hi;
         };
         struct {
-            unsigned short flags;
+            union {
+                unsigned short flags;
+                AtcMaterialIdBits material_id_bits;
+            };
             unsigned short flags_hi_word;
         };
     };                               /* +0x0C */
     float frame_f;                   /* +0x10 */
     int numframes;                   /* +0x14 */
     float framerate;                 /* +0x18 */
-    char* name;                      /* +0x1C */
+    const char* name;                /* +0x1C */
     RpMaterial* materials[3];        /* +0x20 */
     RpAtomic* atomic;                /* +0x2C */
     ScreenObj* screen_obj;           /* +0x30 */
@@ -183,7 +192,7 @@ AniTextureControl* append_texture_by_name_to_atomic_material_id(
 AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, ImageMkSobj* mkobj);
 AniTextureControl* attach_wiff_to_atomic_material(
     int slot, unsigned int art_oid, RpAtomic* atomic, char* tex_name);
-AniTextureControl* append_wiff_to_clump_material(int slot, char* name, RpClump* clump, char* tex_name);
+AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid, RpClump* clump, const char* tex_name);
 AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClump* clump, unsigned short material_id);
 
 RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data);
@@ -208,7 +217,7 @@ float p_animate_textures(void);
 AniTextureControl* get_ani_texture_control(void);
 void pull_ani_texture_control(AniTextureControl* atc);
 void insert_ani_texture_control(AniTextureControl* atc);
-int vdestroy_ani_texture_control(AniTextureControl* atc);
+void vdestroy_ani_texture_control(AniTextureControl* atc);
 int destroy_ani_texture_control(AniTextureControl* atc);
 
 void render_2d_objs(int layer);
@@ -220,7 +229,7 @@ ScreenObj* load_2d_pfxobj_xy(int slot, int oid, char* name, int flags, int x, in
 ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, int priority);
 
 void delete_screen_obj_oid(int oid);
-int vdestroy_screen_obj(ScreenObj* obj);
+void vdestroy_screen_obj(ScreenObj* obj);
 int destroy_screen_obj(ScreenObj* obj);
 void pull_screen_obj(ScreenObj* obj);
 ScreenObj* insert_2d_obj(ScreenObj* obj);

@@ -1,7 +1,9 @@
 /* BUILD: -O4,s -use_lmw_stmw on object-wide: replaces per-wrapper optimize_for_size/use_lmw_stmw
  * pragmas; every exact wrapper stays exact and three flag getters improve. */
+#include "game/ncs.h"
 #include "game/pz_fighters.h"
 #include "runtime/bone_matcher.h"
+#include "runtime/mk_obj_bone.h"
 /*
  * MKO command-script native wrappers.
  *
@@ -12,6 +14,7 @@
 #include "game/pfxscript.h"
 #include "game/ai.h"
 #include "game/blood.h"
+#include "game/cloth_wind.h"
 #include "game/weapon.h"
 #include "game/pz_fatality.h"
 #include "game/projectile.h"
@@ -20,6 +23,7 @@
 #include "game/constrain.h"
 #include "game/bgnd.h"
 #include "game/jdn.h"
+#include "game/jab.h"
 #include "game/jmt.h"
 #include "game/mab.h"
 #include "game/plyr.h"
@@ -108,7 +112,6 @@ float p_reverse_to_stance_in_10(void);
 float p_blend_to_fstance_in_10(void);
 float p_chamber_to_stance(void);
 float p_chamber_to_stance_2(void);
-float p_comboexit_to_stance(void);
 float j_exit(void);
 float j_getup_back_3(void);
 float j_getup_back_6(void);
@@ -701,16 +704,6 @@ typedef struct ScriptGroundObjView {
     };
 } ScriptGroundObjView;
 
-typedef void (*ScriptDestroyFn)(MkHdr* object);
-
-typedef struct ScriptDestroyVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
-    MkVtblFn fn3;
-    ScriptDestroyFn destroy;
-} ScriptDestroyVtable;
-
 typedef struct ScriptActiveState {
     char pad00[8];
     ScriptSlot* state;
@@ -804,6 +797,15 @@ typedef union ScriptRawArg {
     float f;
     void* pointer;
 } ScriptRawArg;
+
+typedef struct ScriptTransitionFrameArgs {
+    unsigned int header;
+    AnimPdata* animation;
+    int animation_id;
+    unsigned int flags;
+    float transition_frames;
+    float frame;
+} ScriptTransitionFrameArgs;
 
 typedef struct ScriptRawArgs {
     unsigned int header;
@@ -1053,7 +1055,6 @@ void initial_divert(int object, float x, float y);
 void initial_reflect(int object);
 void set_cycle_emission(int value);
 void set_cycle_length(float start, float end);
-void fx_reset_emit(int effect);
 void fx_pause_emit(int effect);
 void fx_resume_emit(int effect);
 int fx_next_emitter(int effect);
@@ -1134,7 +1135,6 @@ int plyr_in_spin_react(void* pdata);
 void* force_calc_bone_world_mat(void* object, int bone);
 void obj_set_sobj_pos(void* object, int sobj, void* value);
 void get_bone_relative_pos(void* object, int bone, void* out);
-void get_bone_offset_world_pos(void* object, int bone, void* offset, void* out);
 void get_bone_world_pos(void* object, int bone, void* out);
 typedef struct BoneMatcherState BoneMatcherState;
 void bone_matcher_child_set_offset(BoneMatcherState* matcher, Vec* offset);
@@ -1207,8 +1207,9 @@ void* fatality_boraicho_light_fart_torch(int a);
 void* fatality_boraicho_get_torch(int a, int b);
 void show_baraka_one_blade_only(int a, int b);
 void* fatality_ashrah_get_doll(int a, int b, int c);
+typedef struct FatalityEmitterBind FatalityEmitterBind;
 void fire_multi_emitter_pfx_via_tbl(
-    const char* name, const void* table, MkObj* object, int* handles);
+    const char* name, FatalityEmitterBind* table, MkObj* object, int* handles);
 unsigned int pfxhandle_spawn_at_bid_next_bind_render(
     unsigned int effect, MkObj* object, int bone_id);
 unsigned int pfxhandle_bgnd_spawn_at_sobj_id(
@@ -1232,12 +1233,11 @@ void start_bodyslam_bodysplat(float a, float b, float c, float d, float e);
 void fatality_explode_victim(int a, float b, float c);
 void kill_gusher(int a);
 void start_sweat_particles_scripts(int a, int b);
-void* start_blood_particles_scripts(int a, int b);
+
 void start_sweat_particles(int a, int b, int c, int d);
 void* start_blood_particles(int a, int b, int c, int d);
 void mks_spawn_blood_pool_at_bid(int a, int b, int c, int d);
 void spawn_blood_pool_at_bid(int a, int b, int c);
-void spawn_bld_splat(char* name, int a, int b);
 void* plyr_weapon2_release(int a);
 void* plyr_weapon_release(int a);
 void bone_matcher_reset_dest_mat_rot(int a, int b);
@@ -1297,7 +1297,6 @@ void animpdata_ani_1_frame(void* anim);
 void check_to_register_miss(void);
 void auto_ani_off(void);
 void ncs_dkp_camera_konqchar_show_hide_alpha(int character_index, MkObj* character);
-void ncs_camera_wall_show_hide_alpha(void* regions);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 void* retrieve_bgnd_obj(void);
@@ -1451,7 +1450,6 @@ MkObj* start_projectile_from_plyr_bone(int bone_id, MkObj* existing_object,
 void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void mks_set_cb1_wind_normal(float x, float y, float z);
-void mks_bgnd_start_wind(float x, float y, float z);
 void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player);
@@ -2008,7 +2006,6 @@ int hide_player(int, int);
 int hit_START_chores(int, int, void *, float, float);
 int if_collision_slow_ani_x(void *, float, float);
 int jab_attach_drink_obj_to_hand(int, int, int);
-int jab_face_obj(int, int);
 int jab_flash_screen(int, void *, float, float);
 int jab_shake_dragon_king(void *, float, float);
 int jab_start_jade_boomerang_throw(int, int, void *, float);
@@ -2083,7 +2080,6 @@ int mks_shadow_scale(int, int, void *, float, float);
 int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
 void mks_victim_bleed(int, int);
 int move_player(int, int, int);
-int move_player_no_constrain_update(int, int, int);
 int myvel_his_angle_y(void *, float, float, float);
 int myvel_his_angle_y_inout(void *, float, float, float);
 int myvel_my_angle_y(void *, float, float, float);
@@ -2349,7 +2345,6 @@ int fire_spear_at_camera(int, int);
 int get_konq_profile_value(int, int);
 int is_character_unlocked_in_profile(int, int);
 int jab_attach_point_light_to_obj_bone(int, int, int);
-int jab_spawn_point_light_at_world_pos(int, int);
 MkObj* konquest_start_damashi(void*, float, float, float);
 int launch_fx_at_pos_with_obj(int, void *, float, float, float);
 int mk_chess_fetch_active_defined_teams_class(int);
@@ -2419,7 +2414,6 @@ void force_away(float, int, float, int);
 void force_forward(float, int, float, int);
 void got_hit_fx(int, int, int, int, int, float, int);
 void konquest_use_portal(int, Vec*, float, float, float, int);
-int limb_sever_set_motion(int, int, int, float, int, int, float, int, float, int, int);
 int mk_chess_ani_until_reached_destination(float, float, float, float, float, int);
 void mk_chess_force_away(float speed, int delay, float damping, int frames);
 void mk_chess_launch_n_land_ani_with_xz(
@@ -2567,18 +2561,17 @@ void _xfer_proc(void) {
               (script_callable_function_table + args->slots[1].i)[-1]);
 }
 
-/* TODO: [breakthrough] 90.23%; canonical five-argument ABI recovered;
- * staged flags/FP loads are neutral; source parameter order needs evidence. */
+/* TODO: [near miss] 90.22727%; post-resolver flag/FP argument staging differs. */
 void _transition_to_anim_script_frame(void) {
-    ScriptRawArgs* args = (ScriptRawArgs*)current_args;
-    AnimPdata* animation = args->slots[0].pointer;
-    AnimScript* script = get_animation(args->slots[1].i);
+    ScriptTransitionFrameArgs* args = (ScriptTransitionFrameArgs*)current_args;
+    AnimPdata* animation = args->animation;
+    AnimScript* script = get_animation(args->animation_id);
 
-    args = (ScriptRawArgs*)current_args;
+    args = (ScriptTransitionFrameArgs*)current_args;
     ((ScriptRawResult*)active_cmdscript)->value.i =
         transition_to_anim_script_frame(
-            args->slots[3].f, args->slots[4].f,
-            animation, script, args->slots[2].i);
+            args->transition_frames, args->frame,
+            animation, script, args->flags);
 }
 
 void _two_player_animation_blend(void) {
@@ -2683,16 +2676,24 @@ void _get_limb_obj(void) {
     ((ScriptPointerResult*)active_cmdscript)->value = object;
 }
 
-/* TODO: [breakthrough] 93.14%; destructor now receives object in r3;
- * live-latch CFG agrees, but compiler folds the retail raw-reference reload. */
+static inline MkHdr* script_live_item_object(const ScriptObjectRef* ref) {
+    MkHdr* object = ref->object;
+
+    if (object != 0) {
+        return object->instance == ref->instance ? object : 0;
+    }
+    return 0;
+}
+
+
 void _destroy_item_obj(void) {
     ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     ScriptObjectRef* ref = args->slots[0].pointer;
 
-    if (MK_LIVE(ref->object, ref->instance) != 0) {
+    if (script_live_item_object(ref) != 0) {
         MkHdr* object = ref->object;
         if (object->instance != 0) {
-            ScriptDestroyVtable* vtable = (ScriptDestroyVtable*)object->vtbl;
+            MkHdrVtable* vtable = object->typed_vtbl;
             vtable->destroy(object);
         }
         ref->object = 0;
@@ -2883,83 +2884,48 @@ void _pz_fighter_startup_attack(void) {
         args.raw->slots[9].f);
 }
 
-void _pz_fighter_distance_check_wo_super_check(void) {
-    unsigned int function_index;
-    int result;
+/* MKO name references are one byte ahead of the string start. */
+static inline char* script_function_name_reference(
+    const ScriptDistanceFuncDef* functions, unsigned int function_index,
+    int string_relocation)
+{
+    return (char*)(string_relocation + functions[function_index].name_offset);
+}
 
-    result = pz_fighter_distance_check_wo_super_check();
+static inline void script_distance_branch(unsigned int function_index) {
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1]
+            .code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes =
+        get_function_attributes_table(
+            ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name = script_function_name_reference(
+        ACTIVE_DISTANCE_SCRIPT->slot->functions, function_index,
+        ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) - 1;
+}
+
+/* TODO: [near miss] 99.73%; name-reference boundary recovered; two integer ADD operand rows remain. */
+void _pz_fighter_distance_check_wo_super_check(void) {
+    int result = pz_fighter_distance_check_wo_super_check();
+
     if (result == 1) {
-        function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-        ACTIVE_DISTANCE_SCRIPT->program_counter =
-            ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-            ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1]
-                .code_offset;
-        ACTIVE_DISTANCE_SCRIPT->attributes =
-            get_function_attributes_table(
-                ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-        trial_register_script_function(function_index);
-        function_index--;
-        ACTIVE_DISTANCE_SCRIPT->function_name =
-            (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                        .name_offset +
-                    ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-            1;
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     } else if (result == 2) {
-        function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
-        ACTIVE_DISTANCE_SCRIPT->program_counter =
-            ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-            ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1]
-                .code_offset;
-        ACTIVE_DISTANCE_SCRIPT->attributes =
-            get_function_attributes_table(
-                ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-        trial_register_script_function(function_index);
-        function_index--;
-        ACTIVE_DISTANCE_SCRIPT->function_name =
-            (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                        .name_offset +
-                    ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-            1;
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[1].u);
     }
 }
 
+/* TODO: [near miss] 99.73%; name-reference boundary recovered; two integer ADD operand rows remain. */
 void _pz_fighter_distance_check(void) {
-    unsigned int function_index;
-    int result;
+    int result = pz_fighter_distance_check();
 
-    result = pz_fighter_distance_check();
     if (result == 1) {
-        function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-        ACTIVE_DISTANCE_SCRIPT->program_counter =
-            ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-            ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1]
-                .code_offset;
-        ACTIVE_DISTANCE_SCRIPT->attributes =
-            get_function_attributes_table(
-                ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-        trial_register_script_function(function_index);
-        function_index--;
-        ACTIVE_DISTANCE_SCRIPT->function_name =
-            (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                        .name_offset +
-                    ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-            1;
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     } else if (result == 2) {
-        function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
-        ACTIVE_DISTANCE_SCRIPT->program_counter =
-            ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-            ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1]
-                .code_offset;
-        ACTIVE_DISTANCE_SCRIPT->attributes =
-            get_function_attributes_table(
-                ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-        trial_register_script_function(function_index);
-        function_index--;
-        ACTIVE_DISTANCE_SCRIPT->function_name =
-            (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                        .name_offset +
-                    ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-            1;
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[1].u);
     }
 }
 
@@ -3023,17 +2989,14 @@ void _attack_opponent_with(void) {
 void _drone_combo(void) {
 }
 
-/* TODO: [near miss] 95.00%; state/index capture recovered;
- * name-address ADD/SUB reassociation remains; integer staging is neutral. */
+/* TODO: [near miss] 95.00%; four final name-address ADD/SUB rows remain;
+ * full branch helpers are neutral; separate address locals regress. */
 void _check_his_state(void) {
     ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     unsigned int function_index;
-    int state;
-
-    state = args->slots[0].i;
     function_index = args->slots[1].u;
 
-    if (his_pdata->state == state) {
+    if (his_pdata->state == args->slots[0].i) {
         return;
     }
     ACTIVE_DISTANCE_SCRIPT->program_counter =
@@ -3046,7 +3009,7 @@ void _check_his_state(void) {
     ACTIVE_DISTANCE_SCRIPT->function_name =
         (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
                     .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation - 1U);
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation - 1);
 }
 
 void _drone_xfer_him(void) {
@@ -3378,68 +3341,25 @@ void _was_button_and_direction(void) {
     script.command->result = result;
 }
 
-/* TODO: [near miss] 94.88372%; pointer/integer address grouping did not change decrement scheduling; retained original form. */
+/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _hit_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 1) {
-        return;
+    if (plyr_pdata->collision_result == 1) {
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
 }
 
+/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand order remains. */
 void _block_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 2) {
-        return;
+    if (plyr_pdata->collision_result == 2) {
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
 }
 
+/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _miss_branch(void) {
-    unsigned int function_index;
-
-    if ((plyr_pdata)->collision_result != 0) {
-        return;
+    if (plyr_pdata->collision_result == 0) {
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
 }
 
 void _disable_grounding(void) {
@@ -3765,45 +3685,16 @@ void _gosub(void) {
         1;
 }
 
-/* TODO: [near miss] 94.36%; name-address ADD/SUB reassociation remains;
- * staging/O3 are neutral, whole-TU O2 regresses exact siblings. */
+/* TODO: [near miss] 99.74%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _branch(void) {
-    unsigned int function_index;
-
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
+    script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
 }
 
+/* TODO: [near miss] 99.76%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _true_branch(void) {
-    unsigned int function_index;
-
-    if (((ScriptCommandView*)active_cmdscript)->result == 0) {
-        return;
+    if (((ScriptCommandView*)active_cmdscript)->result != 0) {
+        script_distance_branch(((ScriptRawArgs*)current_args)->slots[0].u);
     }
-    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
 }
 
 void _true_xfer_him(void) {
@@ -5195,7 +5086,7 @@ void _kill_gusher(void) { kill_gusher(((ScriptRawArgs*)current_args)->slots[0].i
 void _start_sweat_particles_scripts(void) { start_sweat_particles_scripts(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i); }
 
 void _start_blood_particles_scripts(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+    ((ScriptRawResult*)active_cmdscript)->value.u =
         start_blood_particles_scripts(((ScriptRawArgs*)current_args)->slots[0].i,
                                       ((ScriptRawArgs*)current_args)->slots[1].i);
 }
@@ -5225,7 +5116,7 @@ void _spawn_bld_splat(void) {
     ScriptRawArgs* args = (ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
 
-    spawn_bld_splat(name, args->slots[1].i, args->slots[2].i);
+    spawn_bld_splat(name, args->slots[1].pointer, args->slots[2].pointer);
 }
 
 void _plyr_weapon2_release(void) {
@@ -5272,14 +5163,14 @@ void _show_single_weapon(void) {
 void _clone_my_weapon(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
         clone_my_weapon(
-            (WeaponDefinition*)((ScriptRawArgs*)current_args)->slots[0].i,
-            (FatalityWeaponSource*)((ScriptRawArgs*)current_args)->slots[1].i);
+            ((ScriptRawArgs*)current_args)->slots[0].pointer,
+            ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _clone_weapon_to_secondary(void) {
     clone_weapon_to_secondary(
-        (WeaponDefinition*)((ScriptRawArgs*)current_args)->slots[0].i,
-        (FatalityWeaponSource*)((ScriptRawArgs*)current_args)->slots[1].i);
+        ((ScriptRawArgs*)current_args)->slots[0].pointer,
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _advance_to_weapon_style(void) { advance_to_weapon_style(((ScriptRawArgs*)current_args)->slots[0].i); }
@@ -5433,9 +5324,9 @@ void _limb_sever_set_motion(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = limb_sever_set_motion(
-        args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i,
-        args.raw->slots[3].f, args.raw->slots[4].i, args.raw->slots[5].i,
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = limb_sever_set_motion(
+        args.raw->slots[0].pointer, args.raw->slots[1].i, args.raw->slots[2].pointer,
+        args.raw->slots[3].f, args.raw->slots[4].pointer, args.raw->slots[5].i,
         args.raw->slots[6].f, args.raw->slots[7].i, args.raw->slots[8].f,
         args.raw->slots[9].i, args.raw->slots[10].i);
 }
@@ -9959,7 +9850,9 @@ void _move_player_no_constrain_update(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    move_player_no_constrain_update(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i);
+    move_player_no_constrain_update(args.raw->slots[0].pointer,
+                                   args.raw->slots[1].pointer,
+                                   args.raw->slots[2].pointer);
 }
 
 void _show_player(void) {
@@ -11034,7 +10927,9 @@ void _jab_spawn_point_light_at_world_pos(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = jab_spawn_point_light_at_world_pos(args.raw->slots[0].i, args.raw->slots[1].i);
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        jab_spawn_point_light_at_world_pos(
+            args.raw->slots[0].pointer, args.raw->slots[1].pointer);
 }
 
 void _jab_attach_point_light_to_obj_bone(void) {
@@ -11091,7 +10986,7 @@ void _jab_face_obj(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    jab_face_obj(args.raw->slots[0].i, args.raw->slots[1].i);
+    jab_face_obj(args.raw->slots[0].pointer, args.raw->slots[1].pointer);
 }
 
 void _obj_scale_over_time(void) {

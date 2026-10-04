@@ -342,12 +342,10 @@ int UpdateShadowCameraLightSource(const float* angles) {
     return 1;
 }
 
-static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
-    RwCamera* camera;
-    void* frame;
+static inline void shadow_destroy_camera(RwCamera* camera) {
+    RwFrame* frame;
     RwRaster* raster;
 
-    camera = *camera_ptr;
     if (camera == NULL) {
         return;
     }
@@ -365,14 +363,12 @@ static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
         camera->frameBuffer = NULL;
     }
     RwCameraDestroy(camera);
-    *camera_ptr = NULL;
 }
 
 static inline RwCamera* shadow_create_camera(int resolution) {
     RwCamera* camera;
-    void* frame;
+    RwFrame* frame;
     RwRaster* raster;
-
     camera = RwCameraCreate();
     if (camera != NULL) {
         frame = RwFrameCreate();
@@ -385,29 +381,21 @@ static inline RwCamera* shadow_create_camera(int resolution) {
                 return camera;
             }
         }
-        frame = rwCameraParentFrame(camera);
-        if (frame != NULL) {
-            _rwObjectHasFrameSetFrame(camera, NULL);
-            RwFrameDestroy(frame);
-        }
-        raster = camera->zBuffer;
-        if (raster != NULL) {
-            camera->zBuffer = NULL;
-            RwRasterDestroy(raster);
-        }
-        if (camera->frameBuffer != NULL) {
-            camera->frameBuffer = NULL;
-        }
-        RwCameraDestroy(camera);
     }
+    shadow_destroy_camera(camera);
     return NULL;
 }
 
-/* TODO: [near miss] 91.13333%; saved z-buffer now reaches destruction;
- * inlined owner cleanup and register scheduling remain. */
+/* TODO: [breakthrough] 93.86667%; camera cleanup CFG agrees; compact save/restore mode needs whole-TU check. */
 void destroy_shadow_system(void) {
-    shadow_destroy_camera(&ShadowCamera);
-    shadow_destroy_camera(&ShadowIPCamera);
+    if (ShadowCamera != NULL) {
+        shadow_destroy_camera(ShadowCamera);
+        ShadowCamera = NULL;
+    }
+    if (ShadowIPCamera != NULL) {
+        shadow_destroy_camera(ShadowIPCamera);
+        ShadowIPCamera = NULL;
+    }
     if (ShadowCameraRaster != NULL) {
         RwRasterDestroy(ShadowCameraRaster);
         ShadowCameraRaster = NULL;
@@ -532,39 +520,37 @@ int SetupShadow(ShadowObject* shadow) {
     return 1;
 }
 
-/* TODO: [near miss] 90.166664%; AA width/height/depth restored from retail;
- * inline camera creation/cleanup lowering remains. */
+/* TODO: [near miss] 94.888885%; camera and AA control flow recovered;
+ * frame register and whole-TU compact-save mode remain. */
 int init_shadow_system(void) {
-    RwCamera* camera;
-    RwMatrix* frame_matrix;
+    RwFrame* frame;
     RwMatrix* dir_matrix;
-    int resolution;
-    int aa_resolution;
+    unsigned int resolution;
+    unsigned int aa_resolution;
     RwRaster* raster;
 
     if (ShadowCamera != NULL) {
         return 1;
     }
-    resolution = 1 << ShadowResolutionIndex;
-    aa_resolution = resolution;
+    resolution = 1U << ShadowResolutionIndex;
     if (ShadowAA != 0) {
         aa_resolution = resolution >> 1;
+    } else {
+        aa_resolution = resolution;
     }
-    camera = shadow_create_camera(resolution);
-    ShadowCamera = camera;
-    if (camera == NULL) {
+    ShadowCamera = shadow_create_camera(resolution);
+    if (ShadowCamera == NULL) {
         return 0;
     }
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &rwCameraParentFrame(camera)->modelling;
-    frame_matrix->right = dir_matrix->right;
-    frame_matrix->up = dir_matrix->up;
-    frame_matrix->at = dir_matrix->at;
-    RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(rwCameraParentFrame(camera));
-    camera = shadow_create_camera(aa_resolution);
-    ShadowIPCamera = camera;
-    if (camera == NULL) {
+    frame = rwCameraParentFrame(ShadowCamera);
+    frame->modelling.right = dir_matrix->right;
+    frame->modelling.up = dir_matrix->up;
+    frame->modelling.at = dir_matrix->at;
+    RwMatrixUpdate(&frame->modelling);
+    RwFrameUpdateObjects(frame);
+    ShadowIPCamera = shadow_create_camera(aa_resolution);
+    if (ShadowIPCamera == NULL) {
         return 0;
     }
     raster = RwRasterCreate(resolution, resolution, 0x20, 0x505);
@@ -647,46 +633,48 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
     return 1;
 }
 
-void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
-    RwLLLink* node;
-    RwLLLink* end;
+/* TODO: [near miss] 99.32098%; clear color and camera return match; node/atomic saved registers remain swapped. */
+RwCamera* ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
+    RwRGBA clear_color = {255, 255, 255, 0};
     RpAtomic* atomic;
+    RwLLLink* end;
+    RwLLLink* node;
     RpGeometry* geometry;
     unsigned int saved_flags;
 
     if (clear != 0) {
-        RwCameraClear(camera, &clear_color_black, 3);
+        RwCameraClear(camera, &clear_color, 3);
     }
     RwFrameOrthoNormalize(rwCameraParentFrame(camera));
-    if (RwCameraBeginUpdate(camera) == 0) {
-        return;
-    }
-    set_render_state(0xA, 5);
-    set_render_state(0xB, 6);
-    set_render_state(0x6, 0);
-    set_render_state(0x8, 0);
-    set_render_state(0xC, 0);
-    set_render_state(0xA, 2);
-    set_render_state(0xB, 1);
-    set_render_state(0x6, 1);
-    set_render_state(0x8, 1);
-    set_render_state(0xC, 1);
-    node = clump->atomicList.next;
-    end = &clump->atomicList;
-    while (node != end) {
-        atomic = rpAtomicFromClumpNode(node);
-        if (atomic->object.flags & 4) {
-            geometry = atomic->geometry;
-            saved_flags = geometry->flags;
-            geometry->flags = saved_flags & ~0x20;
-            RwFrameGetLTM(atomic->object.parent);
-            atomic->renderCallBack(atomic);
-            geometry->flags = saved_flags;
+    if (RwCameraBeginUpdate(camera) != 0) {
+        set_render_state(0xA, 5);
+        set_render_state(0xB, 6);
+        set_render_state(0x6, 0);
+        set_render_state(0x8, 0);
+        set_render_state(0xC, 0);
+        set_render_state(0xA, 2);
+        set_render_state(0xB, 1);
+        set_render_state(0x6, 1);
+        set_render_state(0x8, 1);
+        set_render_state(0xC, 1);
+        node = clump->atomicList.next;
+        end = &clump->atomicList;
+        while (node != end) {
+            atomic = rpAtomicFromClumpNode(node);
+            if (atomic->object.flags & 4) {
+                geometry = atomic->geometry;
+                saved_flags = geometry->flags;
+                geometry->flags = saved_flags & ~0x20;
+                RwFrameGetLTM(atomic->object.parent);
+                atomic->renderCallBack(atomic);
+                geometry->flags = saved_flags;
+            }
+            node = node->next;
         }
-        node = node->next;
+        RwCameraEndUpdate(camera);
+        RwGameCubeCameraTextureFlush(camera->frameBuffer, 0);
     }
-    RwCameraEndUpdate(camera);
-    RwGameCubeCameraTextureFlush(camera->frameBuffer, 0);
+    return camera;
 }
 
 static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,

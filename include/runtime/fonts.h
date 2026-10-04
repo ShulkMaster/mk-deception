@@ -2,6 +2,7 @@
 #define RUNTIME_FONTS_H
 
 #include "libmkparticle/pfxfont.h"
+#include "rw/rwcore_types.h"
 #include "runtime/mk_struct.h"
 
 /* MSB-first byte at +0x0C: hidden=0x80, keep_when_suppress=0x40 -> rlwimi/extrwi. */
@@ -14,11 +15,11 @@ typedef struct StringObjVisBits {
 struct StringObj;
 
 typedef struct StringObjVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
-    int (*destroy)(struct StringObj* object);
+    void (*destroy)(struct StringObj* object);
 } StringObjVtable;
 
 /*
@@ -61,18 +62,8 @@ typedef struct StringObj {
  *   3. string_center_xy(...)   - alloc StringObj, insert_2d_obj (oid 0x2010)
  *   4. Frame draw: render_2d_objs -> render_string_obj -> pfxfont_string_render
  *   5. p_flash_atm_text / hide_string_obj / unhide_string_obj toggle +0xC hidden
- * Soft ceiling: create_wrapped_string ~94%; load_named_font ~88.6%;
- *   render_string_obj 100%; get_string_width_by_font_num 100%;
- *   rewrite_button_string ~95%; update_string_obj ~88%; update_string_obj_pfx ~91%;
- *   set_valign ~84%.
- * Matched: load_font / load_font_in_slot / unload_font / init_font_system;
- *   string_center/right/left_xy; get_string / get_string_ext / vdestroy /
- *   del_by_id / pull; set_halign; _destroy oid mask; load_font returns PfxFontSlot*.
+ * load_font returns the PfxFontSlot associated with the selected font.
  */
-typedef struct FontFace {
-    char pad[0x50];
-    unsigned int flags_50; /* +0x50; load_font sets low bytes 0x01 / 0x33 */
-} FontFace;
 
 /*
  * One font_table[] row (0x18). The face + metrics pair is a typed PfxFontSlot
@@ -115,7 +106,7 @@ const char* get_string_ext(const char** table, int max_id, int id);
 
 void render_string_obj(StringObj* obj);
 void destroy_string_obj(StringObj* obj);
-int vdestroy_string_obj(StringObj* obj);
+void vdestroy_string_obj(StringObj* obj);
 void pull_string_obj(StringObj* obj);
 void del_string_obj_by_id(int oid);
 

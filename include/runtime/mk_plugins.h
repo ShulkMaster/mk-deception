@@ -32,6 +32,14 @@ typedef struct MkmaterialExtra {
     int* data;    /* +0x08 - points at inline ints after header */
 } MkmaterialExtra;
 
+/* Two texture-coordinate scroll rates, streamed as four float values. */
+typedef struct MkmaterialUvScroll {
+    float u1;
+    float v1;
+    float u2;
+    float v2;
+} MkmaterialUvScroll;
+
 /* Mkmaterial material plugin - 0x24 bytes (id 0x895303). */
 typedef struct MkmaterialPluginData {
     unsigned int flags;        /* +0x00 - low 12 bits material id */
@@ -42,10 +50,7 @@ typedef struct MkmaterialPluginData {
     };
     float field_0C;            /* +0x0C - default 5.0 */
     float z_bias;              /* +0x10 */
-    union {
-        float* vec4;               /* +0x14 - optional 4xfloat heap */
-        unsigned int* vec4_words;
-    };
+    MkmaterialUvScroll* vec4;  /* +0x14 - optional UV scroll rates */
     int field_18;              /* +0x18 - zeroed; not streamed */
     MkmaterialExtra* extra;    /* +0x1C */
     unsigned int field_20;     /* +0x20 */

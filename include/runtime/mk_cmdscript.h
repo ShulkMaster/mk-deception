@@ -68,6 +68,11 @@ typedef struct CmdScriptStackFrame {
     int args[17];        /* +0x0c .. frame stride 0x50 */
 } CmdScriptStackFrame;
 
+typedef union CmdScriptRegister {
+    unsigned int word;
+    float real;
+} CmdScriptRegister;
+
 typedef struct CmdScript {
     MkVtable5* vtbl;                /* +0x00 */
     unsigned int instance;          /* +0x04 */
@@ -80,7 +85,10 @@ typedef struct CmdScript {
     int state;                      /* +0x20 0=idle 1=run 2=overflow */
     void* attrs_table;              /* +0x24 */
     int unk28;                      /* +0x28 */
-    unsigned int regs[14];          /* +0x2c .. +0x63 */
+    union {
+        unsigned int regs[14];
+        CmdScriptRegister registers[14];
+    };                             /* +0x2c .. +0x63: integer/float script registers */
     CmdScriptStackFrame stack_mem[4]; /* +0x64 .. +0x1A3 */
     CmdScriptStackFrame* stack_sp;  /* +0x1A4 */
     CmdScriptStackFrame* stack_end; /* +0x1A8 */
@@ -98,7 +106,7 @@ extern CmdScript* active_cmdscript;
 extern unsigned int* current_args;
 extern CmdScript global_script_interpreter;
 
-void one_shot_script_func(void* script, unsigned int function, int wait);
+void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait);
 float p_run_one_shot_script(void);
 void load_string_bank_async(unsigned int bank, char* name);
 void load_string_bank(unsigned int bank, char* name);
@@ -125,7 +133,7 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index);
 void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...);
 float call_player_script_function(ScriptSlot* slot);
 void cmdscript_unload(ScriptSlot* slot);
-int vdestroy_cmdscript(CmdScript* script);
+void vdestroy_cmdscript(CmdScript* script);
 void unload_script(int slot_index);
 ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name);
 ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name);

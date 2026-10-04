@@ -19,5 +19,6 @@ MkProc* create_mkproc_face_anim(
 MkProc* create_mkproc_hand_anim(
     int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
 AnimPdata* get_mkpdata_anim(void);
+void vdestroy_mkpdata_anim(AnimPdata* animation);
 
 #endif

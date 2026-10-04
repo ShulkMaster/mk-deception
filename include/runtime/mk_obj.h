@@ -6,6 +6,7 @@
 #include "math/gxVect.h"
 #include "math/gxQuat.h"
 #include "runtime/limb.h"
+#include "runtime/mk_obj_bone.h"
 #include "runtime/mk_struct.h"
 #include "game/weapon_types.h"
 
@@ -461,6 +462,10 @@ int sobj_does_atomic_have_children(MkSobj* sobj);
 void set_true_clip_flag_on_sobj_and_children(MkSobj* sobj, int flag);
 void insert_fgnd_mkobj(void* obj);
 void update_mkobj(void* obj);
+void vdestroy_mksobj(MkSobj* sobj);
+void update_mksobj(MkSobj* sobj);
+void vdestroy_mkx_mem(MkxMem* mem);
+void vdestroy_mkobj(MkObj* obj);
 void update_obj_pos(MkObj* obj);
 void obj_set_pos(MkObj* obj, Vec* pos);
 void obj_get_pos(MkObj* obj, Vec* out);

@@ -12,18 +12,18 @@ static unsigned int mag01[2] = {0x0U, MATRIX_A};
 int mti;
 int reseed_rnd_tbl;
 
-/* TODO: [near miss] 97.22%; only GPR coloring in the tempering island differs. */
 unsigned int genlrand(void) {
     unsigned int y;
-    unsigned int idx;
+    int idx;
 
-    idx = (unsigned int)mti;
+    idx = mti;
     y = mt[idx];
-    mti = (int)(idx + 1U);
 
     y ^= y >> 11;
     y ^= (y << 7) & 0x9d2c5680U;
     y ^= (y << 15) & 0xefc60000U;
+    mti++;
+
     y ^= y >> 18;
     mt[idx] = y;
 
@@ -35,10 +35,11 @@ unsigned int genlrand(void) {
     return y;
 }
 
-/* TODO: [near miss] 97.96%; only GPR coloring in the final-element tail differs. */
+/* TODO: [near miss] 98.39%; final twist accumulation improved; zero, state base and remaining tail GPRs differ. */
 void reload_rnd_tbl(void) {
     int idx;
     unsigned int y;
+    unsigned int final_word;
 
     for (idx = 0; idx < N - M; idx++) {
         y = (mt[idx] & UPPER_MASK) | (mt[idx + 1] & LOWER_MASK);
@@ -51,12 +52,13 @@ void reload_rnd_tbl(void) {
     }
 
     mti = 0;
-    y = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+    final_word = mt[N - 1];
+    final_word = (final_word & UPPER_MASK) | (mt[0] & LOWER_MASK);
     reseed_rnd_tbl = 0;
-    mt[N - 1] = mt[M - 1] ^ (y >> 1) ^ mag01[y & 0x1U];
+    mt[N - 1] = (final_word >> 1) ^ mt[M - 1] ^ mag01[final_word & 0x1U];
 }
 
-/* TODO: [near miss] 95.45%; the first loop's count (li 0x26f) is scheduled one slot later than retail. */
+/* TODO: [near miss] 99.09%; constant setup order restored; first-loop r5/r6 allocation differs. */
 void sgenrand(unsigned int seed) {
     unsigned int x;
     int idx;
@@ -66,8 +68,8 @@ void sgenrand(unsigned int seed) {
         seed = 0x12345678U;
     }
     mt[0] = seed;
-    mti = 1;
-    for (idx = 1; idx < N; idx++) {
+    mti = idx = 1;
+    for (; idx < N; idx++) {
         mt[idx] = mt[idx - 1] * 69069U;
     }
 
