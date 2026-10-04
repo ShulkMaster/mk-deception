@@ -1,0 +1,15 @@
+[coordination]
+# RenderWare is off-limits for autonomous work: tier-3 managers never approve
+# or block drafts that touch these units or paths; only a human decides them.
+approval_excluded = [
+    "src/rw/",
+    "include/rw/",
+    "main/rwcore.a",
+    "main/rpworld.a",
+    "main/rpskin.a",
+    "main/rpmatfx.a",
+    "main/rphanim.a",
+    "main/rpspecular.a",
+    "main/rtanim.a",
+    "main/rtquat.a",
+]

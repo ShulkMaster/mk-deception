@@ -162,6 +162,15 @@ DecompStudio is the shared MCP coordinator at `http://127.0.0.1:7777/mcp`
   `role {release_coordinator: true}`, then the next agent claims. Only the
   holder may requeue, set tier budgets, or clear the queue
   (`queue_work {clear: true, reason}`).
+- **Mixed drafts: tier 3 or a human decides.** The coordinator seat grants no
+  approval right. A tier-3 manager lists pending drafts with
+  `drafts {pending_approval: true}`, then calls
+  `review {id, verdict: "approve", reason}` (lands via promote) or
+  `review {id, verdict: "block", indications, park?}`. A block requeues the
+  item with the indications in its `next_work` guidance and on the board
+  under "manager guidance"; read both before retrying. Managers never decide
+  their own (or parent/child/sibling) drafts, regressions, asm-sequence
+  requests, or paths in `decompstudio.toml` `approval_excluded` (RenderWare).
 - **Claude Code defers MCP tools.** Load schemas before calling, e.g.
   `ToolSearch "select:mcp__core__status,mcp__core__lease,mcp__core__try"`.
 - **Separate processes** get their own identity automatically; set role in the
