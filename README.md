@@ -19,6 +19,7 @@ This repository does **not** contain any game assets or assembly. An existing co
 Supported versions:
 
 - `GQNE5D`: USA
+- `SLUS_208.81`: PS2 USA, split units only (see [PS2 units](#ps2-units))
 
 ## Local setup
 
@@ -83,3 +84,25 @@ READY: retail input, matching tools, configuration, and build checks passed.
 A successful build also prints `build/GQNE5D/main.dol: OK`. Any required
 validation, download, configuration, or build failure produces `NOT READY` and
 a nonzero exit status.
+
+## PS2 units
+
+The PS2 release (`SLUS_208.81`) cross-checks shared source such as the `mw`
+memory library. Its ELF has no symbols and one merged section, so it is not
+linked or SHA-1 checked. Instead, `tools/ps2_split.py` disassembles only the
+units listed in `config/SLUS_208.81/splits.txt` into objdiff targets, and the
+same source files are compiled with the PS2 Metrowerks compiler.
+
+Copy the ELF from the disc to `orig/SLUS_208.81/SLUS_208.81` (SHA-1
+`7657eff03bbfd816c541693812ab6bea076f0cf9`), then:
+
+```sh
+python3 -m pip install -r tools/requirements-ps2.txt
+python3 configure.py --version SLUS_208.81
+ninja progress build/SLUS_208.81/report.json
+```
+
+`configure.py` writes `build.ninja` and `objdiff.json` for one version at a
+time; rerun it without `--version` to return to the GameCube build. Headers in
+`config/SLUS_208.81/include` stand in for GameCube SDK headers on PS2 (where
+`long` is 64-bit).

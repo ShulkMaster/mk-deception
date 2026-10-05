@@ -1,0 +1,14 @@
+Sections:
+	.text       type:code align:16
+	.data       type:data align:16
+	.rodata     type:rodata align:16
+	.sdata      type:data align:8
+	.sbss       type:bss align:8
+	.bss        type:bss align:16
+
+mwMem.o:
+	.text       start:0x003B9CF0 end:0x003BB9E0
+	.data       start:0x00569AA0 end:0x00569AAC
+	.rodata     start:0x005C69E0 end:0x005C6A20
+	.sbss       start:0x005D7148 end:0x005D7168
+	.bss        start:0x00738440 end:0x00738540

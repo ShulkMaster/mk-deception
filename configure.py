@@ -26,12 +26,15 @@ from tools.project import (
     generate_build,
     is_windows,
 )
+from tools import ps2_project
 
 # Game versions
 DEFAULT_VERSION = 0
 VERSIONS = [
     "GQNE5D",  # 0 -- USA (DOL-GQNE-USA)
+    "SLUS_208.81",  # 1 -- PS2 USA (SLUS-20881); split units only, see tools/ps2_project.py
 ]
+PS2_VERSIONS = ["SLUS_208.81"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -3258,7 +3261,57 @@ config.progress_report_args = [
     # "--config functionRelocDiffs=data_value",
 ]
 
-if args.mode == "configure":
+###
+# PS2 (SLUS_208.81)
+#
+# The retail ELF has no symbols and one merged section, so DTK cannot split it.
+# tools/ps2_split.py disassembles the units listed in config/SLUS_208.81/splits.txt
+# into target objects, and the shared source below is compiled with mwccps2.
+# The ELF's .comment names "MW MIPS C Compiler (2.4.1.01)"; decomp.me's
+# mwcps2-3.0, 3.0.1 and 3.0.3 compilers all report that front end.
+###
+ps2_config = ps2_project.Ps2ProjectConfig(
+    version=config.version,
+    build_dir=args.build_dir,
+    elf_sha1="7657eff03bbfd816c541693812ab6bea076f0cf9",
+    compiler="mwcps2-3.0.1-020123",
+    cflags=[
+        "-nodefaults",
+        "-nosyspath",
+        "-O4,p",
+        # PS2-only stand-ins for GC SDK headers (64-bit long, no Dolphin OS).
+        f"-i config/{config.version}/include",
+        "-i include",
+        "-DNDEBUG=1",
+        "-DVERSION_SLUS_208_81",
+    ],
+    asflags=["-EL", "-march=r5900", "-mabi=eabi", "-G0", "-no-pad-sections"],
+    objects=[
+        ps2_project.Ps2Object(
+            "mwMem.o",
+            "mw/mwMem.c",
+            extra_cflags=["-inline on", "-str reuse,pool,readonly"],
+            progress_category="game",
+        ),
+    ],
+    progress_categories=config.progress_categories,
+    binutils_path=args.binutils,
+    binutils_tag="v0.10",
+    compilers_path=args.compilers,
+    objdiff_path=args.objdiff,
+    objdiff_tag=config.objdiff_tag,
+    wrapper=getattr(args, "wrapper", None),
+    wibo_tag=config.wibo_tag,
+)
+
+if config.version in PS2_VERSIONS:
+    if args.mode == "configure":
+        ps2_project.generate_build(ps2_config)
+    elif args.mode == "progress":
+        ps2_project.calculate_progress(ps2_config)
+    else:
+        sys.exit("Unknown mode: " + args.mode)
+elif args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
 elif args.mode == "progress":

@@ -16,6 +16,7 @@ import os
 import platform
 import shutil
 import stat
+import tarfile
 import urllib.request
 import zipfile
 from typing import Callable, Dict
@@ -77,6 +78,28 @@ def sjiswrap_url(tag: str) -> str:
     return f"{repo}/releases/download/{tag}/sjiswrap-windows-x86.exe"
 
 
+def ps2_binutils_url(tag: str) -> str:
+    uname = platform.uname()
+    system = uname.system.lower()
+    arch = uname.machine.lower()
+    if system == "darwin":
+        system = "macos"
+    if arch in ("amd64", "x86_64"):
+        arch = "x86-64"
+    elif arch == "aarch64":
+        arch = "arm64"
+    ext = "zip" if system == "windows" else "tar.gz"
+
+    repo = "https://github.com/decompals/binutils-mips-ps2-decompals"
+    name = f"binutils-mips-ps2-decompals-{system}-{arch}.{ext}"
+    return f"{repo}/releases/download/{tag}/{name}"
+
+
+def ps2_compiler_url(tag: str) -> str:
+    repo = "https://github.com/decompme/compilers"
+    return f"{repo}/releases/download/compilers/{tag}.tar.gz"
+
+
 def wibo_url(tag: str) -> str:
     uname = platform.uname()
     arch = uname.machine.lower()
@@ -93,16 +116,26 @@ TOOLS: Dict[str, Callable[[str], str]] = {
     "compilers": compilers_url,
     "dtk": dtk_url,
     "objdiff-cli": objdiff_cli_url,
+    "ps2_binutils": ps2_binutils_url,
+    "ps2_compiler": ps2_compiler_url,
     "sjiswrap": sjiswrap_url,
     "wibo": wibo_url,
 }
 
 
 def download(url, response, output) -> None:
-    if url.endswith(".zip"):
+    if url.endswith((".zip", ".tar.gz")):
         data = io.BytesIO(response.read())
-        with zipfile.ZipFile(data) as f:
-            f.extractall(output)
+        if url.endswith(".zip"):
+            with zipfile.ZipFile(data) as f:
+                f.extractall(output)
+        else:
+            with tarfile.open(fileobj=data, mode="r:gz") as f:
+                # The extraction filter exists from Python 3.12 (and backports).
+                if hasattr(tarfile, "data_filter"):
+                    f.extractall(output, filter="data")
+                else:
+                    f.extractall(output)
         # Make all files executable
         for root, _, files in os.walk(output):
             for name in files:
