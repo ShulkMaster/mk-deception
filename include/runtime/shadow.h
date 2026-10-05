@@ -20,7 +20,7 @@ int init_shadow_system(void);
 
 int ShadowRasterBlur(RwRaster* srcRaster, RwRaster* dstRaster,
                      RwCamera* ipCamera, unsigned int passCount);
-void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear);
+RwCamera* ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear);
 
 extern float ShadowStrength;
 
