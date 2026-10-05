@@ -1,8 +1,6 @@
 #include "dolphin/os.h"
 
-typedef void (*OSResetCallback)(void);
-
-static OSResetCallback ResetCallback;
+static void (*ResetCallback)(void);
 static int Down;
 static int LastState;
 static OSTime HoldUp;
@@ -14,7 +12,7 @@ extern OSTime __OSStartTime;
 
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
-    OSResetCallback callback;
+    void (*callback)(void);
     OSTick debounce_ticks;
 
     HoldDown = __OSGetSystemTime();
