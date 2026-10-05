@@ -339,6 +339,7 @@ cflags_base = [
     "-multibyte",  # For Wii compilers, replace with `-enc SJIS`
     "-i include",
     f"-i build/{config.version}/include",
+    "-i extern/gameware/rw3.6.0.3/include",
     f"-DBUILD_VERSION={version_num}",
     f"-DVERSION_{config.version}",
 ]
@@ -411,7 +412,6 @@ cflags_renderware = [
     "-str reuse",
     "-common off",
     "-O4,p",
-    "-i extern/gameware/rw3.6.0.3/include",
 ]
 
 
@@ -3099,14 +3099,14 @@ config.libs = [
             Object(NonMatching, "rwcore.a/im3dpipe.obj", source="im3dpipe.c"),
             Object(NonMatching, "rwcore.a/bapipe.obj", source="bapipe.c"),
             Object(NonMatching, "rwcore.a/batypehf.obj", source="batypehf.c"),
-            Object(NonMatching, "rwcore.a/bafsys.obj", source="bafsys.c"),
+            Object(Matching, "rwcore.a/bafsys.obj", source="bafsys.c", extra_cflags=["-opt", "off", "-opt", "space"]),
             Object(NonMatching, "rwcore.a/bamatrix.obj", source="bamatrix.c"),
             Object(NonMatching, "rwcore.a/basync.obj", source="basync.c"),
             Object(NonMatching, "rwcore.a/bavector.obj", source="bavector.c"),
             Object(NonMatching, "rwcore.a/baimras.obj", source="baimras.c"),
             Object(NonMatching, "rwcore.a/baimage.obj", source="baimage.c"),
             Object(NonMatching, "rwcore.a/palquant.obj", source="palquant.c"),
-            Object(NonMatching, "rwcore.a/baerr.obj", source="baerr.c"),
+            Object(Matching, "rwcore.a/baerr.obj", source="baerr.c", extra_cflags=["-opt", "off"]),
             Object(NonMatching, "rwcore.a/rwgrp.obj", source="rwgrp.c"),
             Object(NonMatching, "rwcore.a/resmem.obj", source="resmem.c"),
             Object(NonMatching, "rwcore.a/baresour.obj", source="baresour.c"),
@@ -3114,7 +3114,7 @@ config.libs = [
             Object(NonMatching, "rwcore.a/baraster.obj", source="baraster.c"),
             Object(NonMatching, "rwcore.a/batextur.obj", source="batextur.c"),
             Object(Matching, "rwcore.a/osintf.obj", source="osintf.c", extra_cflags=["-opt", "off"]),
-            Object(NonMatching, "rwcore.a/babbox.obj", source="babbox.c"),
+            Object(Matching, "rwcore.a/babbox.obj", source="babbox.c", extra_cflags=["-opt", "off"]),
             Object(NonMatching, "rwcore.a/badevice.obj", source="badevice.c"),
             Object(NonMatching, "rwcore.a/baframe.obj", source="baframe.c"),
             Object(NonMatching, "rwcore.a/batkbin.obj", source="batkbin.c"),
