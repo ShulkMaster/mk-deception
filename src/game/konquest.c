@@ -1,4 +1,17 @@
 #include "runtime/mk_struct.h"
+#include "rw/rwresources.h"
+#include "game/bgnd.h"
+#include "game/nbc.h"
+#include "runtime/cstdio.h"
+#include "game/plyrprofile.h"
+#include "game/attract.h"
+#include "platform/main.h"
+#include "runtime/mk_cmdscript.h"
+#include "game/game.h"
+#include "runtime/anim_api.h"
+#include "game/pfxscript.h"
+#include "runtime/anim_api_ext.h"
+#include "game/pfxscript_api.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/asset.h"
 #include "runtime/image.h"
@@ -23,6 +36,9 @@
 #include "math/mk_math.h"
 #include "game/game_info.h"
 #include "game/konquest.h"
+#include "game/konquest_time.h"
+#include "game/menu.h"
+#include "platform/display.h"
 #include "game/konquest_items.h"
 #include "game/settings.h"
 #include "game/konquest_save.h"
@@ -35,8 +51,6 @@
 #include "mw/mwMemHeap.h"
 #include "rw/rplight.h"
 
-extern RwCamera* Camera;
-
 #define KONQUEST_OFFSETOF(type, member) \
     ((unsigned int)&((type*)0)->member)
 
@@ -48,9 +62,7 @@ extern RwCamera* Camera;
             : 0;                                            \
     } while (0)
 
-
-
-typedef union KonquestProfile {
+union KonquestProfile {
     unsigned char raw[0x2A0];
     struct {
         char pad00[8];
@@ -61,52 +73,34 @@ typedef union KonquestProfile {
         char pad5E[6];
         int objective_index; /* +0x64 */
     } fields;
-} KonquestProfile;
+};
 
-typedef struct KonquestCommonProfile {
+struct KonquestCommonProfile {
     char pad00[0x140];
     unsigned int character_bits[2]; /* +0x140 */
     unsigned int alternate_character_bits[2]; /* +0x148 */
-} KonquestCommonProfile;
+};
 
-typedef struct KonquestCharacterBits {
+struct KonquestCharacterBits {
     unsigned int high;
     unsigned int low;
-} KonquestCharacterBits;
+};
 
 typedef struct KonquestTileRecord KonquestTileRecord;
-typedef struct ScriptSlot ScriptSlot;
 typedef struct KonquestLightRow KonquestLightRow;
 
-typedef struct CmdScript {
-    char pad00[8];
-    ScriptSlot* mko;
-    char pad0C[0x1C];
-    unsigned int unk28;
-} CmdScript;
-
-typedef struct KonquestScriptSlotView {
-    char pad00[0x90];
-    int* section_context;
-} KonquestScriptSlotView;
-
-typedef struct KonquestScriptSlotHeaderView {
-    char pad00[0x58];
-    unsigned int table_count;
-} KonquestScriptSlotHeaderView;
-
-typedef struct KonquestObjectState {
+struct KonquestObjectState {
     int sound;
     Vec position_speed; /* +0x04 */
     Vec position; /* +0x10 */
     Vec angle_speed; /* +0x1C */
     Vec angles; /* +0x28 */
-} KonquestObjectState; /* 0x34 */
+}; /* 0x34 */
 
 typedef char KonquestObjectStateSizeCheck[
-    sizeof(KonquestObjectState) == 0x34 ? 1 : -1];
+    sizeof(struct KonquestObjectState) == 0x34 ? 1 : -1];
 
-typedef struct KonquestEnumerationEntry {
+struct KonquestEnumerationEntry {
     union {
         int partner_index;
         int locator_uid;
@@ -117,13 +111,13 @@ typedef struct KonquestEnumerationEntry {
         int field_04;
     }; /* +0x04 */
     int enumeration; /* +0x08 */
-    KonquestObjectState* states; /* +0x0C */
+    struct KonquestObjectState* states; /* +0x0C */
     float angle; /* +0x10 */
     float trigger_offset; /* +0x14 */
     float trigger_radius; /* +0x18 */
-} KonquestEnumerationEntry; /* 0x1C */
+}; /* 0x1C */
 
-typedef struct KonquestRegionTable {
+struct KonquestRegionTable {
     void* region_asset;
     const char* interior_art_name; /* +0x04 */
     const char* map_art_name; /* +0x08 */
@@ -134,12 +128,9 @@ typedef struct KonquestRegionTable {
     char pad24[4];
     unsigned int setup_function; /* +0x28 */
     char pad2C[8];
-    KonquestEnumerationEntry* enumerations; /* +0x34 */
+    struct KonquestEnumerationEntry* enumerations; /* +0x34 */
     char pad38[4];
-    union {
-        float far_clip_distance;
-        float objective_beam_threshold;
-    }; /* +0x3C */
+    float far_clip_distance; /* +0x3C */
     float fog_distance; /* +0x40 */
     float fog_density; /* +0x44 */
     KonquestLightRow* directional_light_table; /* +0x48 */
@@ -157,13 +148,13 @@ typedef struct KonquestRegionTable {
     void* pui_header; /* +0x84 */
     void* pui_footer; /* +0x88 */
     void* pui_event_table; /* +0x8C */
-} KonquestRegionTable;
+};
 
-typedef struct KonquestSkyRow {
+struct KonquestSkyRow {
     int hour;
     float alpha;
     RwRGBAReal color;
-} KonquestSkyRow; /* 0x18 */
+}; /* 0x18 */
 
 struct KonquestLightRow {
     int hour; /* +0x00 */
@@ -171,22 +162,22 @@ struct KonquestLightRow {
     RwRGBAReal color; /* +0x08 */
 }; /* 0x18 */
 
-typedef struct KonquestDirectionalLightRow {
+struct KonquestDirectionalLightRow {
     int hour;
     float strength;
     char pad08[0x10];
-} KonquestDirectionalLightRow; /* 0x18 */
+}; /* 0x18 */
 
 typedef struct KonquestChildObject KonquestChildObject;
 
-typedef struct KonquestTransitionPdata {
+struct KonquestTransitionPdata {
     MkHdr hdr;
     KonquestChildObject* object; /* +0x08 */
     int state;    /* +0x0C */
     int play_sound; /* +0x10 */
-} KonquestTransitionPdata;
+};
 
-typedef struct KonquestFadePdata {
+struct KonquestFadePdata {
     MkHdr hdr;
     int to_black; /* +0x08 */
     int ticks; /* +0x0C */
@@ -198,18 +189,18 @@ typedef struct KonquestFadePdata {
     unsigned char green; /* +0x21 */
     unsigned char blue; /* +0x22 */
     unsigned char alpha; /* +0x23 */
-} KonquestFadePdata;
+};
 
-typedef struct KonquestPortalRow {
+struct KonquestPortalRow {
     int uid;
     Vec target_offset;
     float camera_y_offset;
     float hero_distance;
     float camera_distance;
     int field_1C;
-} KonquestPortalRow; /* 0x20 */
+}; /* 0x20 */
 
-typedef struct KonquestPortalPdata {
+struct KonquestPortalPdata {
     MkHdr hdr;
     int uid;
     Vec target_offset;
@@ -217,34 +208,34 @@ typedef struct KonquestPortalPdata {
     float hero_distance;
     float camera_distance;
     int field_24;
-} KonquestPortalPdata; /* 0x28 */
+}; /* 0x28 */
 
-typedef struct KonquestTeleportPdata {
+struct KonquestTeleportPdata {
     MkHdr hdr;
     Vec target;
-} KonquestTeleportPdata; /* 0x14 */
+}; /* 0x14 */
 
-typedef struct KonquestFightMessagePdata {
+struct KonquestFightMessagePdata {
     MkHdr hdr;
     int message;
-} KonquestFightMessagePdata; /* 0x0C */
+}; /* 0x0C */
 
-typedef struct KonquestCameraScriptPdata {
+struct KonquestCameraScriptPdata {
     MkHdr hdr;
     void* owner;  /* +0x08 */
     int script; /* +0x0C */
-} KonquestCameraScriptPdata;
+};
 
 typedef struct KonquestDialogArt KonquestDialogArt;
 
-typedef struct KonquestStringLatch {
+struct KonquestStringLatch {
     StringObj* object;
     unsigned int instance;
-} KonquestStringLatch;
+};
 
-typedef struct KonquestDialogPdata {
+struct KonquestDialogPdata {
     MkHdr hdr;
-    KonquestStringLatch lines[3]; /* +0x08 */
+    struct KonquestStringLatch lines[3]; /* +0x08 */
     KonquestDialogArt* dialog_art; /* +0x20 */
     int skip_print_delay; /* +0x24 */
     int active; /* +0x28 */
@@ -254,25 +245,25 @@ typedef struct KonquestDialogPdata {
     int print_speed; /* +0x544 */
     int line_index; /* +0x548 */
     int print_ticks; /* +0x54C */
-} KonquestDialogPdata; /* 0x550 */
+}; /* 0x550 */
 
-typedef struct KonquestNpcData {
+struct KonquestNpcData {
     char pad00[0x4C];
     Vec position; /* +0x4C */
     float angle_y; /* +0x58 */
     char pad5C[0x48];
     int idle_animation; /* +0xA4 */
-} KonquestNpcData;
+};
 
-typedef struct KonquestNpcAnimationState {
+struct KonquestNpcAnimationState {
     MkHdr hdr;
     int state; /* +0x08 */
     MkObj* object; /* +0x0C */
     char pad10[0x10];
     MkProc* proc; /* +0x20 */
-} KonquestNpcAnimationState;
+};
 
-typedef struct KonquestNpcStateFlags {
+struct KonquestNpcStateFlags {
     unsigned char bit7 : 1;
     unsigned char bit6 : 1;
     unsigned char nis_participant : 1;
@@ -281,19 +272,19 @@ typedef struct KonquestNpcStateFlags {
     unsigned char bit2 : 1;
     unsigned char bit1 : 1;
     unsigned char bit0 : 1;
-} KonquestNpcStateFlags;
+};
 
-typedef union KonquestNpc {
+union KonquestNpc {
     unsigned char raw[0x264];
     struct {
         MkHdr hdr;
         char pad08[4];
-        KonquestNpcData* data; /* +0x0C */
+        struct KonquestNpcData* data; /* +0x0C */
         char pad10[4];
         union {
             MkSobj* dialog_owner;
             KonquestDialogArt* dialog_art;
-            KonquestNpcAnimationState* animation_state;
+            struct KonquestNpcAnimationState* animation_state;
         }; /* +0x14 */
         MkHdr* animation; /* +0x18 */
         union {
@@ -311,7 +302,7 @@ typedef union KonquestNpc {
         }; /* +0x1C */
         union {
             unsigned char state_flags;
-            KonquestNpcStateFlags state_flag_bits;
+            struct KonquestNpcStateFlags state_flag_bits;
         }; /* +0x1D */
         char pad1E[2];
         char pad20[0x38];
@@ -325,21 +316,21 @@ typedef union KonquestNpc {
         MkProc* turn_proc; /* +0x25C */
         unsigned int turn_proc_instance; /* +0x260 */
     } fields;
-} KonquestNpc;
+};
 
-typedef struct KonquestNpcSceneState {
+struct KonquestNpcSceneState {
     char pad00[0x0C];
     MkObj* object;
     char pad10[0x10];
     MkProc* process;
-} KonquestNpcSceneState;
+};
 
-typedef struct KonquestNpcRuntime {
+struct KonquestNpcRuntime {
     MkHdr hdr;
     char pad08[4];
     void* data;
     char pad10[4];
-    KonquestNpcSceneState* scene_state;
+    struct KonquestNpcSceneState* scene_state;
     char pad18[4];
     union {
         unsigned char flags;
@@ -351,7 +342,7 @@ typedef struct KonquestNpcRuntime {
     };
     union {
         unsigned char state_flags;
-        KonquestNpcStateFlags state_flag_bits;
+        struct KonquestNpcStateFlags state_flag_bits;
     };
     char pad1E[0x3A];
     int type;
@@ -359,22 +350,22 @@ typedef struct KonquestNpcRuntime {
     int conversation_count; /* +0x68 */
     char pad6C[0x1B0];
     unsigned int script_function;
-} KonquestNpcRuntime;
+};
 
-typedef struct KonquestNisParticipant {
+struct KonquestNisParticipant {
     MkHdr hdr;
     int type;
-    KonquestNpcRuntime* npc;
+    struct KonquestNpcRuntime* npc;
     char pad10[4];
     MkProcEntryFn resume_entry;
-} KonquestNisParticipant;
+};
 
-typedef struct KonquestSaveHeader {
+struct KonquestSaveHeader {
     char pad00[0x0C];
     int region; /* +0x0C */
-} KonquestSaveHeader;
+};
 
-typedef struct KonquestSavedState {
+struct KonquestSavedState {
     char pad00[8];
     int valid;              /* +0x08 */
     int region;             /* +0x0C */
@@ -389,9 +380,9 @@ typedef struct KonquestSavedState {
     char pad88[8];
     int preserve_word;      /* +0x90 */
     int progression;        /* +0x94 */
-} KonquestSavedState;
+};
 
-typedef struct KonquestRegionAsset {
+struct KonquestRegionAsset {
     MkFileEntry* fight_files;
     MkFileEntry* art_files; /* +0x04 */
     union {
@@ -400,9 +391,9 @@ typedef struct KonquestRegionAsset {
     }; /* +0x08 */
     const char* string_bank; /* +0x0C */
     const char* hud_art_name; /* +0x10 */
-} KonquestRegionAsset; /* 0x14 */
+}; /* 0x14 */
 
-typedef struct KonquestNpcCameraTarget {
+struct KonquestNpcCameraTarget {
     char pad00[0x0C];
     MkObj* focus_object; /* +0x0C */
     char pad10[4];
@@ -415,12 +406,12 @@ typedef struct KonquestNpcCameraTarget {
     }; /* +0x20 */
     char pad24[8];
     unsigned int alpha; /* +0x2C */
-} KonquestNpcCameraTarget;
+};
 
-typedef struct KonquestGrounding {
+struct KonquestGrounding {
     MkHdr hdr;
     char pad08[0x0C];
-    KonquestNpcCameraTarget* camera_target; /* +0x14 */
+    struct KonquestNpcCameraTarget* camera_target; /* +0x14 */
     char pad18[5];
     union {
         unsigned char flags;
@@ -435,14 +426,14 @@ typedef struct KonquestGrounding {
             unsigned char bit0 : 1;
         } flag_bits;
     }; /* +0x1D */
-} KonquestGrounding;
+};
 
-typedef struct KonquestObjectLatch {
+struct KonquestObjectLatch {
     MkHdr* object;
     unsigned int instance;
-} KonquestObjectLatch;
+};
 
-typedef struct KonquestDialogOwner {
+struct KonquestDialogOwner {
     char pad00[0x1C];
     union {
         unsigned char flags;
@@ -457,29 +448,29 @@ typedef struct KonquestDialogOwner {
             unsigned char bit0 : 1;
         } flag_bits;
     }; /* +0x1C */
-} KonquestDialogOwner;
+};
 
 struct KonquestDialogArt {
     char pad00[0x0C];
     unsigned int id_flags; /* +0x0C */
     char pad10[0x10];
     MkHdr* bound_hdr; /* +0x20 */
-    KonquestDialogOwner* owner; /* +0x24 */
+    struct KonquestDialogOwner* owner; /* +0x24 */
 };
 
-typedef struct KonquestAwardArtPdata {
+struct KonquestAwardArtPdata {
     MkHdr hdr;
     int mode; /* +0x08 */
     KryptScreenObjLatch art[6]; /* +0x0C */
-    KonquestStringLatch description; /* +0x3C */
+    struct KonquestStringLatch description; /* +0x3C */
     int complete; /* +0x44 */
     union {
         int value;
         KonquestPuiDefinition* item;
     }; /* +0x48 */
-} KonquestAwardArtPdata; /* 0x4C */
+}; /* 0x4C */
 
-typedef struct KonquestPdataFlags {
+struct KonquestPdataFlags {
     unsigned char region_loaded : 1;
     unsigned char triggers_active : 1;
     unsigned char bit5 : 1;
@@ -488,65 +479,46 @@ typedef struct KonquestPdataFlags {
     unsigned char bit2 : 1;
     unsigned char bit1 : 1;
     unsigned char bit0 : 1;
-} KonquestPdataFlags;
+};
 
-typedef struct KonquestTimePair {
-    unsigned int first;
-    unsigned int second;
-} KonquestTimePair;
-
-typedef struct KonquestTime {
-    union {
-        struct {
-            int year;         /* +0x00 */
-            int month;        /* +0x04, zero based */
-            int day_of_month; /* +0x08, zero based */
-            int day_of_week;  /* +0x0C */
-            int hour;         /* +0x10 */
-            int minute;       /* +0x14 */
-        };
-        KonquestTimePair pairs[3];
-    };
-} KonquestTime; /* 0x18 */
-
-typedef struct KonquestObjectiveState {
+struct KonquestObjectiveState {
     int visible;
     Vec position;
     int target_type;
     unsigned int trigger_id;
-    KonquestNpcData* npc_data;
+    struct KonquestNpcData* npc_data;
     Vec target_offset;
     float beam_scale; /* +0x28 */
     struct KonquestObjectiveRow* table; /* +0x2C */
-} KonquestObjectiveState;
+};
 
-typedef struct KonquestDirectionalLightDef {
+struct KonquestDirectionalLightDef {
     int type;
     MkProcEntryFn process;
     int flags;
     RwRGBAReal color;
     Vec angles;
-} KonquestDirectionalLightDef; /* 0x28 */
+}; /* 0x28 */
 
-typedef struct KonquestAmbientLightDef {
+struct KonquestAmbientLightDef {
     int type;
     MkProcEntryFn process;
     int flags;
     RwRGBAReal color;
-} KonquestAmbientLightDef; /* 0x1C */
+}; /* 0x1C */
 
-typedef struct KonquestPdata {
+struct KonquestPdata {
     char pad00[8];
     MkProc* region_load_proc;     /* +0x08 */
     union {
         unsigned char flags;
-        KonquestPdataFlags flag_bits;
+        struct KonquestPdataFlags flag_bits;
     };
     char pad0d[3];
     int game_modes[4];
     int game_mode_index;
     ScriptSlot* script_owner;    /* +0x24 */
-    KonquestRegionTable* region_table; /* +0x28 */
+    struct KonquestRegionTable* region_table; /* +0x28 */
     int interior_active;         /* +0x2C */
     MkPtr* triggers;             /* +0x30 */
     MkPtr* temporary_triggers;   /* +0x34 */
@@ -555,17 +527,17 @@ typedef struct KonquestPdata {
     MkPtr* visible_npc_list;    /* +0x40 */
     char pad44[4];
     int hud_visible;             /* +0x48 */
-    KonquestObjectLatch hud_objects[7]; /* +0x4C .. +0x83 */
+    struct KonquestObjectLatch hud_objects[7]; /* +0x4C .. +0x83 */
     KryptScreenObjLatch award_picture; /* +0x84 */
-    KonquestObjectLatch hud_labels[6]; /* +0x8C .. +0xBB */
+    struct KonquestObjectLatch hud_labels[6]; /* +0x8C .. +0xBB */
     char padBC[0x20];
-    KonquestObjectLatch hud_extra_label; /* +0xDC */
-    KonquestObjectLatch award_text; /* +0xE4 */
-    KonquestObjectLatch award_art;  /* +0xEC */
+    struct KonquestObjectLatch hud_extra_label; /* +0xDC */
+    struct KonquestObjectLatch award_text; /* +0xE4 */
+    struct KonquestObjectLatch award_art;  /* +0xEC */
     MkProc* collision_proc;      /* +0xf4 */
     MkObj* hero_object;          /* +0xf8 */
     unsigned int hero_instance;  /* +0xfc */
-    KonquestGrounding* hero_grounding; /* +0x100 */
+    struct KonquestGrounding* hero_grounding; /* +0x100 */
     unsigned int grounding_instance; /* +0x104 */
     AnimPdata* hero_anim;          /* +0x108 */
     int input_port;              /* +0x10C */
@@ -587,7 +559,7 @@ typedef struct KonquestPdata {
     MkPtr* sobj_infos;            /* +0x160 */
     MkHdr* tile_objects;           /* +0x164 */
     unsigned int tile_objects_instance; /* +0x168 */
-    KonquestObjectLatch tile_model; /* +0x16C */
+    struct KonquestObjectLatch tile_model; /* +0x16C */
     float field_174;
     unsigned int visible_tile_bits; /* +0x178 */
     int tile_width;              /* +0x17c */
@@ -595,22 +567,13 @@ typedef struct KonquestPdata {
     float tile_origin_x;         /* +0x184 */
     float tile_origin_z;         /* +0x188 */
     Vec fallback_tile_position; /* +0x18C */
-    KonquestDirectionalLightDef directional_light; /* +0x198 */
-    KonquestAmbientLightDef sky_ambient_light; /* +0x1C0 */
-    KonquestAmbientLightDef ambient_light; /* +0x1DC */
-    KonquestObjectLatch movement_npc; /* +0x1F8 */
+    struct KonquestDirectionalLightDef directional_light; /* +0x198 */
+    struct KonquestAmbientLightDef sky_ambient_light; /* +0x1C0 */
+    struct KonquestAmbientLightDef ambient_light; /* +0x1DC */
+    struct KonquestObjectLatch movement_npc; /* +0x1F8 */
     char pad200[0xB8];
-    KonquestObjectLatch objective_beam; /* +0x2B8 */
-    union {
-        KonquestObjectiveState objective; /* +0x2C0 */
-        struct {
-            int objective_visible; /* +0x2C0 */
-            Vec objective_position; /* +0x2C4 */
-            char pad2D0[0x18];
-            float objective_beam_scale; /* +0x2E8 */
-            void* objective_table; /* +0x2EC */
-        };
-    };
+    struct KonquestObjectLatch objective_beam; /* +0x2B8 */
+    struct KonquestObjectiveState objective; /* +0x2C0 */
     int objective_field_2F0;
     MkPtr* pui_list;             /* +0x2F4 */
     char pad2F8[4];
@@ -643,34 +606,34 @@ typedef struct KonquestPdata {
     MslSoundHandle ambient_sound_main; /* +0x43C */
     MkObj* damashi_object;          /* +0x440 */
     unsigned int damashi_instance; /* +0x444 */
-    KonquestNpc* hero_npc;          /* +0x448 */
+    union KonquestNpc* hero_npc;          /* +0x448 */
     unsigned int hero_npc_instance; /* +0x44C */
     MslSoundHandle damashi_sound;   /* +0x450 */
-} KonquestPdata;
+};
 
-typedef struct KonquestSwitchState {
+struct KonquestSwitchState {
     int input_port;
-} KonquestSwitchState;
+};
 
-typedef struct KonquestSwitchPdata {
+struct KonquestSwitchPdata {
     MkHdr hdr;
-    KonquestSwitchState* state;
-} KonquestSwitchPdata;
+    struct KonquestSwitchState* state;
+};
 
-typedef struct KonquestR1Pdata {
+struct KonquestR1Pdata {
     MkHdr hdr;
     PlyrInfo* player; /* +0x08 */
-} KonquestR1Pdata;
+};
 
-typedef struct KonquestHeadTrackingPdata {
+struct KonquestHeadTrackingPdata {
     MkHdr hdr;
     float angle_y; /* +0x08 */
-} KonquestHeadTrackingPdata; /* 0x0C */
+}; /* 0x0C */
 
 typedef char KonquestHeadTrackingPdataSizeCheck[
-    sizeof(KonquestHeadTrackingPdata) == 0x0C ? 1 : -1];
+    sizeof(struct KonquestHeadTrackingPdata) == 0x0C ? 1 : -1];
 
-typedef struct MonkStateData {
+struct MonkStateData {
     int animation_event_count; /* +0x00 */
     int animation_event_frames[4]; /* +0x04 */
     int animation_event_bones[4]; /* +0x14 */
@@ -679,27 +642,28 @@ typedef struct MonkStateData {
     float animation_step; /* +0x2C */
     int transition; /* +0x30 */
     MkProcEntryFn control_proc; /* +0x34 */
-} MonkStateData; /* 0x38 */
+}; /* 0x38 */
 
-typedef struct KonquestProcSleepVtable {
+/* TODO: [review] unused after canonical sleep migration; removal pending comment policy. */
+struct KonquestProcSleepVtable {
     char pad00[0x18];
     int (*sleep)(void); /* +0x18 */
-} KonquestProcSleepVtable;
+};
 
 typedef struct KonquestDestroyable KonquestDestroyable;
 typedef int (*KonquestDestroyFn)(KonquestDestroyable* object);
 
-typedef struct KonquestDestroyVtable {
+struct KonquestDestroyVtable {
     void* reserved[4];
     KonquestDestroyFn destroy; /* +0x10 */
-} KonquestDestroyVtable;
+};
 
 struct KonquestDestroyable {
-    KonquestDestroyVtable* vtbl;
+    struct KonquestDestroyVtable* vtbl;
     unsigned int instance;
 };
 
-typedef struct KonquestObject {
+struct KonquestObject {
     MkHdr hdr;
     int uid; /* +0x08 */
     char pad0C[0x0C];
@@ -707,14 +671,14 @@ typedef struct KonquestObject {
     char pad1C[0x30];
     MkPtr* list_4C;
     KonquestDestroyable* owned_object; /* +0x50 */
-} KonquestObject;
+};
 
-typedef struct KonquestSobj {
+struct KonquestSobj {
     MkHdr hdr;
     char pad08[0x40];
     KonquestDestroyable* owned_object; /* +0x48 */
     unsigned int owned_object_instance; /* +0x4C */
-} KonquestSobj;
+};
 
 struct KonquestTileRecord {
     int index; /* +0x00 */
@@ -737,7 +701,7 @@ struct KonquestTileRecord {
 typedef char KonquestTileRecordSizeCheck[
     sizeof(KonquestTileRecord) == 0x150 ? 1 : -1];
 
-typedef struct KonquestUidObject {
+struct KonquestUidObject {
     MkHdr hdr;
     int uid; /* +0x08 */
     int tile_index; /* +0x0C */
@@ -754,36 +718,36 @@ typedef struct KonquestUidObject {
     };
     MkPtr* render_records; /* +0x4C */
     TrackedSound* tracked_sound; /* +0x50 */
-} KonquestUidObject;
+};
 
 typedef struct KonquestRenderRecord KonquestRenderRecord;
-typedef struct KonquestSobjInfo KonquestSobjInfo;
+struct KonquestSobjInfo;
 
-typedef struct KonquestMatrixPalette {
+struct KonquestMatrixPalette {
     char pad00[8];
     MKMATRIX* matrices;              /* +0x08 */
     int count;                       /* +0x0C */
     int capacity;                    /* +0x10 */
     int field_14;                    /* +0x14 */
     KonquestRenderRecord** records;  /* +0x18 */
-} KonquestMatrixPalette;
+};
 
-typedef struct KonquestSobjBinding {
+struct KonquestSobjBinding {
     char pad00[0x0C];
     int enumeration_index; /* +0x0C */
-    KonquestMatrixPalette* palette; /* +0x10 */
+    struct KonquestMatrixPalette* palette; /* +0x10 */
     MkSobj* object; /* +0x14 */
     unsigned int object_instance; /* +0x18 */
     int hidden; /* +0x1C */
-} KonquestSobjBinding;
+};
 
 struct KonquestRenderRecord {
     MkHdr hdr;
-    KonquestUidObject* owner; /* +0x08 */
+    struct KonquestUidObject* owner; /* +0x08 */
     int matrix_index; /* +0x0C */
     union {
-        KonquestSobjBinding* binding;
-        KonquestSobjInfo* info;
+        struct KonquestSobjBinding* binding;
+        struct KonquestSobjInfo* info;
     }; /* +0x10 */
     union {
         Vec field_14;
@@ -801,13 +765,13 @@ struct KonquestRenderRecord {
     };
 };
 
-typedef struct KonquestTileObjectDefinition {
+struct KonquestTileObjectDefinition {
     int uid; /* +0x00 */
     int pebble_count; /* +0x04 */
     char* name; /* +0x08 */
-} KonquestTileObjectDefinition;
+};
 
-typedef struct KonquestSobjInfo {
+struct KonquestSobjInfo {
     MkHdr hdr;
     int uid; /* +0x08 */
     int enumeration_index; /* +0x0C */
@@ -817,22 +781,17 @@ typedef struct KonquestSobjInfo {
     int type; /* +0x1C */
     Vec position; /* +0x20 */
     unsigned int art_id; /* +0x2C */
-} KonquestSobjInfo; /* 0x30 */
+}; /* 0x30 */
 
-typedef union KonquestArtIdRef {
-    unsigned int id;
-    char* name;
-} KonquestArtIdRef;
-
-typedef struct KonquestDayOfWeek {
-    KonquestArtIdRef art;
+struct KonquestDayOfWeek {
+    unsigned int art;
     int flags;
-} KonquestDayOfWeek;
+};
 
-typedef struct KonquestChildDefinition {
+struct KonquestChildDefinition {
     char pad00[0x0C];
     int enumeration_index; /* +0x0C */
-} KonquestChildDefinition;
+};
 
 struct KonquestPuiDefinition {
     int type; /* +0x00 */
@@ -854,12 +813,12 @@ typedef char KonquestPuiDefinitionSizeCheck[
 
 struct KonquestChildObject {
     MkHdr hdr;
-    KonquestUidObject* owner; /* +0x08 */
+    struct KonquestUidObject* owner; /* +0x08 */
     int matrix_index; /* +0x0C */
     union {
-        KonquestChildDefinition* definition;
-        KonquestSobjBinding* binding;
-        KonquestSobjInfo* info;
+        struct KonquestChildDefinition* definition;
+        struct KonquestSobjBinding* binding;
+        struct KonquestSobjInfo* info;
     }; /* +0x10 */
     Vec position; /* +0x14 */
     Vec angles; /* +0x20 */
@@ -871,21 +830,21 @@ struct KonquestChildObject {
     KonquestWaypoint* path_waypoints; /* +0x50 */
 };
 
-typedef struct KonquestCollisionDefinition {
+struct KonquestCollisionDefinition {
     char pad00[0x2C];
     unsigned int art_id; /* +0x2C */
-} KonquestCollisionDefinition;
+};
 
-typedef struct KonquestCollisionPlacement {
+struct KonquestCollisionPlacement {
     MkHdr hdr;
     char pad08[8];
-    KonquestCollisionDefinition* definition; /* +0x10 */
+    struct KonquestCollisionDefinition* definition; /* +0x10 */
     char pad14[0x18];
     Vec position; /* +0x2C */
     Vec angles; /* +0x38 */
-} KonquestCollisionPlacement;
+};
 
-typedef struct KonquestCollisionVolume {
+struct KonquestCollisionVolume {
     MkHdr hdr;
     int uid; /* +0x08 */
     char pad0C[8];
@@ -893,30 +852,30 @@ typedef struct KonquestCollisionVolume {
     MkPtr* objects; /* +0x18 */
     char pad1C[0x30];
     MkPtr* placements; /* +0x4C */
-} KonquestCollisionVolume;
+};
 
-typedef struct KonquestCollisionOwner {
+struct KonquestCollisionOwner {
     MkHdr hdr;
     char pad08[8];
-    KonquestCollisionVolume* collision_volume; /* +0x10 */
-} KonquestCollisionOwner;
+    struct KonquestCollisionVolume* collision_volume; /* +0x10 */
+};
 
 typedef KonquestChildObject KonquestDoorObject;
 
-typedef struct KonquestRemoveCollisionPdata {
+struct KonquestRemoveCollisionPdata {
     MkHdr hdr;
-    KonquestCollisionOwner* owner; /* +0x08 */
+    struct KonquestCollisionOwner* owner; /* +0x08 */
     unsigned int owner_instance; /* +0x0C */
-} KonquestRemoveCollisionPdata;
+};
 
-typedef struct KonquestTriggerScriptArgument {
+struct KonquestTriggerScriptArgument {
     char pad00[0x10];
     int field_10;
-} KonquestTriggerScriptArgument;
+};
 
 typedef struct KonquestPuiRuntime KonquestPuiRuntime;
 
-typedef struct KonquestTriggerDefinition {
+struct KonquestTriggerDefinition {
     int type;
     unsigned int flags; /* +0x04 */
     Vec position; /* +0x08 */
@@ -925,24 +884,24 @@ typedef struct KonquestTriggerDefinition {
     int state; /* +0x1C */
     int field_20; /* +0x20 */
     union {
-        KonquestTriggerScriptArgument* field_24;
+        struct KonquestTriggerScriptArgument* field_24;
         KonquestPuiRuntime* pui;
     }; /* +0x24 */
-} KonquestTriggerDefinition;
+};
 
-typedef struct KonquestObjectiveRow {
+struct KonquestObjectiveRow {
     int target_type;
-    KonquestNpcData* npc_data;
-    KonquestTriggerDefinition* trigger;
+    struct KonquestNpcData* npc_data;
+    struct KonquestTriggerDefinition* trigger;
     Vec target_offset;
     int requirement_type;
     int requirement_index;
-} KonquestObjectiveRow;
+};
 
 typedef char KonquestTriggerDefinitionSizeCheck[
-    sizeof(KonquestTriggerDefinition) == 0x28 ? 1 : -1];
+    sizeof(struct KonquestTriggerDefinition) == 0x28 ? 1 : -1];
 
-typedef struct KonquestTriggerFlags {
+struct KonquestTriggerFlags {
     unsigned char bit7 : 1;
     unsigned char pressed : 1;
     unsigned char bit5 : 1;
@@ -951,26 +910,26 @@ typedef struct KonquestTriggerFlags {
     unsigned char bit2 : 1;
     unsigned char bit1 : 1;
     unsigned char bit0 : 1;
-} KonquestTriggerFlags;
+};
 
-typedef struct KonquestTriggerObject {
+struct KonquestTriggerObject {
     char pad00[0x4C];
     MkPtr* doors; /* +0x4C */
-} KonquestTriggerObject;
+};
 
 typedef struct KonquestTriggerRequirement KonquestTriggerRequirement;
 
-typedef struct KonquestTriggerStruct {
+struct KonquestTriggerStruct {
     MkHdr hdr;
     union {
-        KonquestTriggerDefinition* owned_data;
+        struct KonquestTriggerDefinition* owned_data;
         KonquestTriggerRequirement* requirement;
     }; /* +0x08 */
     char* table_name; /* +0x0C */
     union {
-        KonquestTriggerObject* object;
-        KonquestUidObject* uid_object;
-        KonquestUidObject* door_owner;
+        struct KonquestTriggerObject* object;
+        struct KonquestUidObject* uid_object;
+        struct KonquestUidObject* door_owner;
     }; /* +0x10 */
     unsigned int id; /* +0x14 */
     int tile_index; /* +0x18 */
@@ -978,76 +937,76 @@ typedef struct KonquestTriggerStruct {
     unsigned int script_proc_instance; /* +0x20 */
     union {
         unsigned char flags;
-        KonquestTriggerFlags flag_bits;
+        struct KonquestTriggerFlags flag_bits;
     }; /* +0x24 */
     char pad25[3];
     KonquestTime action_time; /* +0x28 */
     int timed_action; /* +0x40 */
-} KonquestTriggerStruct;
+};
 
-typedef struct KonquestTriggerScriptPdata {
+struct KonquestTriggerScriptPdata {
     MkHdr hdr;
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerStruct* trigger;
     unsigned int trigger_instance;
-} KonquestTriggerScriptPdata;
+};
 
-typedef struct KonquestSwitchModePdata {
+struct KonquestSwitchModePdata {
     MkHdr hdr;
     char pad08[0x1C];
     int switch_pressed; /* +0x24 */
-} KonquestSwitchModePdata;
+};
 
-typedef struct KonquestAmbientFadePdata {
+struct KonquestAmbientFadePdata {
     MkHdr hdr;
     float step_a;
     float step_b;
     float volume_a;
     float volume_b;
     float delay;
-} KonquestAmbientFadePdata;
+};
 
 typedef char KonquestAmbientFadePdataSizeCheck[
-    sizeof(KonquestAmbientFadePdata) == 0x1C ? 1 : -1];
+    sizeof(struct KonquestAmbientFadePdata) == 0x1C ? 1 : -1];
 
-typedef struct KonquestNisLoadPdata {
+struct KonquestNisLoadPdata {
     MkHdr hdr;
     int slot;
     char* animation_name;
     char* art_name;
-} KonquestNisLoadPdata;
+};
 
-typedef struct KonquestLightAdjustPdata {
+struct KonquestLightAdjustPdata {
     MkHdr hdr;
     RpLight* light;
     MkObj* object;
     unsigned int object_instance;
-} KonquestLightAdjustPdata;
+};
 
-typedef struct KonquestGameSpeedPdata {
+struct KonquestGameSpeedPdata {
     MkHdr hdr;
     float multiplier;
     float target_scale;
-} KonquestGameSpeedPdata;
+};
 
-typedef struct KonquestSoundFadePdata {
+struct KonquestSoundFadePdata {
     MkHdr hdr;
     float step;
     float current_volume;
     float target_volume;
-} KonquestSoundFadePdata;
+};
 
-typedef struct KonquestWeatherPdata {
+struct KonquestWeatherPdata {
     MkHdr hdr;
     char pad08[0x18];
     KonquestTime end_time; /* +0x20 */
     int initialized; /* +0x38 */
     MslSoundHandle sound; /* +0x3C */
-} KonquestWeatherPdata;
+};
 
 typedef char KonquestWeatherPdataSizeCheck[
-    sizeof(KonquestWeatherPdata) == 0x40 ? 1 : -1];
+    sizeof(struct KonquestWeatherPdata) == 0x40 ? 1 : -1];
 
-typedef struct KonquestTextWindowPdata {
+struct KonquestTextWindowPdata {
     MkHdr hdr;
     int left;                           /* +0x008 */
     int bottom;                         /* +0x00C */
@@ -1064,10 +1023,10 @@ typedef struct KonquestTextWindowPdata {
     char text[0x4B0];                   /* +0x038 */
     int visible_item_count;             /* +0x4E8 */
     int art_slot;                       /* +0x4EC */
-    KonquestStringLatch objects[14];    /* +0x4F0 */
-} KonquestTextWindowPdata; /* 0x560 */
+    struct KonquestStringLatch objects[14];    /* +0x4F0 */
+}; /* 0x560 */
 
-typedef struct AgeProgressionEntry {
+struct AgeProgressionEntry {
     MkFileEntry* file_table;
     const char* art_section;
     unsigned int first_string_id;
@@ -1077,118 +1036,108 @@ typedef struct AgeProgressionEntry {
     float left_fraction;
     float bottom_fraction;
     float width_fraction;
-} AgeProgressionEntry; /* 0x24 */
+}; /* 0x24 */
 
-extern AgeProgressionEntry age_progression_table[4];
+extern struct AgeProgressionEntry age_progression_table[4];
 
-typedef struct KonquestChestInteraction {
+struct KonquestChestInteraction {
     char pad00[8];
     Vec position; /* +0x08 */
     float radius; /* +0x14 */
     char pad18[4];
     int closed; /* +0x1C */
-} KonquestChestInteraction;
+};
 
-typedef struct KonquestChestOwner {
+struct KonquestChestOwner {
     MkHdr hdr;
-    KonquestChestInteraction* interaction;
-} KonquestChestOwner;
+    struct KonquestChestInteraction* interaction;
+};
 
-typedef struct KonquestChestPdata {
+struct KonquestChestPdata {
     MkHdr hdr;
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     unsigned int owner_instance;
     MkSobj* chest;
     int direction;
-} KonquestChestPdata;
+};
 
-typedef struct KonquestInteractionPdata {
+struct KonquestInteractionPdata {
     MkHdr hdr;
-    KonquestNpc* npc;
+    union KonquestNpc* npc;
     int separation_active;
     int facing_active;
     float separation;
     int separation_ticks;
     int position_initialized;
     Vec last_hero_position;
-} KonquestInteractionPdata;
+};
 
-typedef struct KonquestKoinAwardPdata {
+struct KonquestKoinAwardPdata {
     MkHdr hdr;
     int amount;
     unsigned int icon_offset;
-} KonquestKoinAwardPdata;
+};
 
-typedef struct KonquestPuiRuntime KonquestPuiDelayView;
-
-typedef struct KonquestSectionContext {
-    int slot;
-    MkHdr* owner;
-    int flags;
-} KonquestSectionContext;
-
-typedef union KonquestFloatBits {
+union KonquestFloatBits {
     float value;
     unsigned int bits;
-} KonquestFloatBits;
+};
 
-
-
-typedef struct KonquestTriggerAngle {
+struct KonquestTriggerAngle {
     char pad00[0x28];
     float angle;
-} KonquestTriggerAngle;
+};
 
-typedef struct KonquestTriggerOrientation {
+struct KonquestTriggerOrientation {
     char pad00[0x10];
-    KonquestTriggerAngle* angle;
-} KonquestTriggerOrientation;
+    struct KonquestTriggerAngle* angle;
+};
 
 struct KonquestTriggerRequirement {
     int type;
     int field_04;
     Vec position;
     char pad14[0x10];
-    KonquestTriggerOrientation* orientation;
+    struct KonquestTriggerOrientation* orientation;
 };
 
-typedef struct KonquestDialogKillPdata {
+struct KonquestDialogKillPdata {
     MkHdr hdr;
     int attempts;
-} KonquestDialogKillPdata;
+};
 
-typedef struct KonquestDynamicPuiPdata {
+struct KonquestDynamicPuiPdata {
     MkHdr hdr;
     KonquestPuiDefinition* item;
     int source_type;
     Vec position;
     union {
         void* source;
-        KonquestTriggerStruct* trigger_source;
-        KonquestNpc* npc_source;
+        struct KonquestTriggerStruct* trigger_source;
+        union KonquestNpc* npc_source;
     }; /* +0x1C */
     int critical;
-} KonquestDynamicPuiPdata;
+};
 
 typedef char KonquestDynamicPuiPdataSizeCheck[
-    sizeof(KonquestDynamicPuiPdata) == 0x24 ? 1 : -1];
+    sizeof(struct KonquestDynamicPuiPdata) == 0x24 ? 1 : -1];
 
-typedef struct KonquestDoorPdata {
+struct KonquestDoorPdata {
     MkHdr hdr;
     int open_ticks;
     int remain_open;
     KonquestChildObject* door;
     int play_sound;
-} KonquestDoorPdata;
+};
 
-typedef struct KonquestAttachedSound {
+struct KonquestAttachedSound {
     MkHdr hdr;
     char pad08[0x24];
     int enabled; /* +0x2C */
     int uid; /* +0x30 */
-} KonquestAttachedSound;
+};
 
-typedef struct KonquestTile {
+struct KonquestTile {
     char pad00[4];
     int visible; /* +0x04 */
     char pad08[0x0C];
@@ -1199,19 +1148,18 @@ typedef struct KonquestTile {
     MkPtr* collisions; /* +0x24 */
     CollisionObjList* collision_object_list; /* +0x28 */
     int collisions_active; /* +0x2C */
-} KonquestTile;
+};
 
 extern AnimPdata* anim_pdata;
-extern KonquestProfile* p1_profile_konquest;
-extern KonquestNpc* g_active_npc;
+extern union KonquestProfile* p1_profile_konquest;
+extern union KonquestNpc* g_active_npc;
 extern int mode_of_play;
 extern int screen_width;
 extern int screen_height;
 extern int pause_player;
-extern int target_game_mode;
 extern unsigned int monk_ground_colls[];
 extern unsigned int monk_laying_on_ground_colls[];
-extern KonquestRegionAsset konquest_region_data[9];
+extern struct KonquestRegionAsset konquest_region_data[9];
 extern MkFileEntry konquest_common_file_table[];
 extern MkFileEntry kon_earthrealm_0_file_table[];
 extern MkFileEntry kon_earthrealm_1_file_table[];
@@ -1238,28 +1186,62 @@ extern MkFileInfo sec_konquestdata;
 extern MkFileInfo sec_konquest_map_common;
 extern char danton20_charmap[];
 extern int text_window_state;
-extern KonquestSwitchPdata* switch_pdata;
-static MonkStateData monk_state_data[29];
-extern CmdScript* active_cmdscript;
-extern KonquestCommonProfile* p1_profile_common;
+extern struct KonquestSwitchPdata* switch_pdata;
+static struct MonkStateData monk_state_data[29];
+extern struct KonquestCommonProfile* p1_profile_common;
 extern unsigned long long default_char_bits;
 extern unsigned long long default_alt_char_bits;
 extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern int b_game_timer_off;
-extern MkVtable5 vtbl_konquest_pui;
-static MkVtable5 vtbl_konquest_sobj_struct;
-static MkVtable5 vtbl_konquest_obj;
-extern KonquestDayOfWeek days_of_week[7];
-typedef PlyrPdata KonquestShadowData;
-static KonquestShadowData pdata_monk;
+struct KonquestPuiVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(KonquestPuiRuntime* owner);
+};
+typedef char check_KonquestPuiVtable_size[(sizeof(struct KonquestPuiVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+struct KonquestSobjVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(struct KonquestSobj* owner);
+};
+typedef char check_KonquestSobjVtable_size[(sizeof(struct KonquestSobjVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+struct KonquestObjectVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(struct KonquestObject* owner);
+};
+typedef char check_KonquestObjectVtable_size[(sizeof(struct KonquestObjectVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+struct KonquestDialogVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(struct KonquestDialogPdata* owner);
+};
+typedef char check_KonquestDialogVtable_size[(sizeof(struct KonquestDialogVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+extern struct KonquestPuiVtable vtbl_konquest_pui;
+static struct KonquestSobjVtable vtbl_konquest_sobj_struct;
+static struct KonquestObjectVtable vtbl_konquest_obj;
+extern struct KonquestDayOfWeek days_of_week[7];
+static PlyrPdata pdata_monk;
 int konq_nis_anims[0x14];
-KonquestSavedState konquest_save_data;
+struct KonquestSavedState konquest_save_data;
 int konquest_animations[0x24];
 
 static int konquest_save_on_exit = 1;
 
-KonquestPdata* konquest_pdata;
+struct KonquestPdata* konquest_pdata;
 CoffinEntry* chest_data;
 void* konquest_prize_description_block;
 static MkPtr* nis_participants;
@@ -1277,25 +1259,16 @@ int konquest_data_loaded;
 int konquest_editor_mode_on;
 KonquestTime* g_pui_events;
 
-extern float game_speed;
 extern int menu_player;
 extern MkPtr* special_light_list;
 extern float fog_color_real[4];
 extern float fog_density;
 extern float fog_distance;
 extern int fog_type;
-extern unsigned long display_off;
 const char* get_pause_menu_name(void);
-int get_pause_menu_ssh(void);
-float p_main_menu(void);
-void unload_player_profiles(void);
 void wait_for_screen_close(void);
-void set_background_color(int red, int green, int blue, int alpha);
-void* get_data_table_by_name(const char* name);
-char* get_name_of_table(ScriptSlot* owner, unsigned int index);
 static Vec old_hero_position;
 
-int sprintf(char* destination, const char* format, ...);
 void* get_screen_pdata(void);
 static float p_konquest_fade_screen(void);
 static float p_hero_portal_in(void);
@@ -1307,17 +1280,16 @@ void run_interaction_camera_script(void* owner, void* script);
 void snd_req_delay(int sound, int delay);
 void random_snd_req_delay(int group, int delay);
 double pow(double base, double exponent);
-void set_game_speed(float speed);
 static void update_visible_tiles(void);
 static void hide_currently_visible_tiles(void);
 void cleanup_npc_manager(void);
 void npc_shadow_teardown(void);
 void destroy_konquest_shadow_collision_lists(void);
 void cleanup_mission_state(void);
-int is_this_the_monk_npc(KonquestNpc* npc);
-KonquestNpc* find_npc_by_data(KonquestNpcData* data);
-void npc_make_visible(KonquestNpcRuntime* npc);
-void npc_force_state_for_npc(KonquestNpcRuntime* npc, int state);
+int is_this_the_monk_npc(union KonquestNpc* npc);
+union KonquestNpc* find_npc_by_data(struct KonquestNpcData* data);
+void npc_make_visible(struct KonquestNpcRuntime* npc);
+void npc_force_state_for_npc(struct KonquestNpcRuntime* npc, int state);
 void npc_take_control_of_him(void* data, unsigned int script_function);
 void npc_set_wait_ticks(float ticks);
 void npc_suspend_cmdscript(void);
@@ -1328,7 +1300,6 @@ static float p_konquest_map_screen(void);
 static float p_transition_to_fight(void);
 static float p_load_hero_art_section(void);
 void insert_ground_me_mkobj(MkObj* object);
-void build_bones_tbl(MkObj* object, void* bones);
 void obj_apply_to_sobj_with_id(
     MkObj* object, int id, void (*callback)(void*));
 int load_effect_bank(const char* name);
@@ -1337,10 +1308,7 @@ static void generate_door_paths(void);
 static void generate_door_trigger(
     KonquestDoorObject* door, const Vec* position, float radius);
 int mslSoundIsValid(MslSoundHandle handle);
-MslSoundHandle snd_req_vol(int sound, float volume);
-int get_script_function_by_name(ScriptSlot* owner, const char* name);
 void sobj_use_material_color(MkSobj* object);
-void update_mksobj(MkSobj* object);
 void npc_shadow_set_alpha(int alpha);
 void npc_shadow_set_light_angle(const Vec* angles);
 void hide_atomic(void* atomic);
@@ -1358,8 +1326,8 @@ float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 double ceil(double value);
 static float p_konquest_dialog(void);
 static float p_konquest_pause_menu(void);
-static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata);
-static MkVtable5 vtbl_dialog_pdata;
+static void vdestroy_dialog_pdata(struct KonquestDialogPdata* pdata);
+static struct KonquestDialogVtable vtbl_dialog_pdata;
 float konquest_camera_loop(void);
 void npc_ani_1_frame(void);
 static float p_fade_ambient_sounds(void);
@@ -1369,32 +1337,25 @@ int spawn_dynamic_pui_at_pos(
     KonquestPuiDefinition* item, int source_type, const Vec* position,
     void* source, int critical);
 static int is_it_safe_to_spawn_pui(KonquestPuiDefinition* item);
-void set_process_as_scriptable(MkProc* proc);
-unsigned int check_script_function_exists(ScriptSlot* slot, const char* name);
-int transition_to_anim_script_frame(
-    float transition_frames, float frame, AnimPdata* animation,
-    AnimScript* script, unsigned int flags);
 void insert_on_collision_obj_list(
     MkHdr* object, CollisionObjList* list);
 
-
-typedef struct KonquestFadeDestroyVtable {
+struct KonquestFadeDestroyVtable {
     void* reserved[4];
     void (*destroy)(ScreenObj* object);
-} KonquestFadeDestroyVtable;
+};
 
-
-typedef struct KonquestInventoryImageList {
+struct KonquestInventoryImageList {
     RwTexture** images;
     RwTexture** alpha_images;
-} KonquestInventoryImageList;
+};
 
-typedef struct KonquestInventoryScreenPdata {
+struct KonquestInventoryScreenPdata {
     char pad00[0x2F8];
     int selected_item;
-} KonquestInventoryScreenPdata;
+};
 
-typedef struct KonquestPuiFlags {
+struct KonquestPuiFlags {
     unsigned char bit7 : 1;
     unsigned char bit6 : 1;
     unsigned char bit5 : 1;
@@ -1403,22 +1364,22 @@ typedef struct KonquestPuiFlags {
     unsigned char bit2 : 1;
     unsigned char saved : 1;
     unsigned char bit0 : 1;
-} KonquestPuiFlags;
+};
 
-typedef struct KonquestPuiEffectView {
+struct KonquestPuiEffectView {
     MkHdr hdr;
     char pad08[0x0C];
     MkObj* object;
     unsigned int object_instance;
-} KonquestPuiEffectView;
+};
 
 typedef struct KonquestPuiPfxSequenceRow KonquestPuiPfxSequenceRow;
 
 struct KonquestPuiRuntime {
     MkHdr hdr;
     union {
-        KonquestChestOwner* owner;
-        KonquestTriggerStruct* trigger_owner;
+        struct KonquestChestOwner* owner;
+        struct KonquestTriggerStruct* trigger_owner;
     }; /* +0x08 */
     unsigned int owner_instance; /* +0x0C */
     union {
@@ -1444,7 +1405,7 @@ struct KonquestPuiRuntime {
         struct {
             union {
                 unsigned char flags;
-                KonquestPuiFlags flag_bits;
+                struct KonquestPuiFlags flag_bits;
             };
             char flags_pad[3];
         };
@@ -1477,13 +1438,13 @@ struct KonquestPuiPfxSequenceRow {
     void* effect_owner;
 };
 
-typedef struct KonquestPuiPfxSequencePdata {
+struct KonquestPuiPfxSequencePdata {
     MkHdr hdr;
     Vec position;
     KonquestPuiPfxSequenceRow* sequence;
     float delay;
     unsigned int index;
-} KonquestPuiPfxSequencePdata;
+};
 
 /* Retail order requires these callees to be declared before earlier callers. */
 static void konquest_fade_screen(
@@ -1493,7 +1454,7 @@ static float p_pui_pfx_sequence(void);
 static KonquestPuiRuntime* create_new_konquest_pui(
     KonquestPuiDefinition* item, int behavior, int position_mode);
 static int konquest_pui_check_for_and_replace_old_chest(
-    KonquestPuiDelayView* new_pui);
+    struct KonquestPuiRuntime* new_pui);
 static float p_spawn_dynamic_pui(void);
 void kill_dynamic_pui(KonquestPuiDefinition* item);
 static float p_konquest_nis_housekeeping(void);
@@ -1501,31 +1462,20 @@ void nis_end_scene(void);
 float p_adjust_directional_light(void);
 float p_adjust_sky_ambient_light(void);
 float p_adjust_ambient_light(void);
-void execute_trigger(KonquestTriggerStruct* trigger);
-KonquestTriggerStruct* find_trigger_by_id(unsigned int id);
+void execute_trigger(struct KonquestTriggerStruct* trigger);
+struct KonquestTriggerStruct* find_trigger_by_id(unsigned int id);
 void* get_nth_tile_struct(int index);
 KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door);
 static RpAtomic* hide_an_atomic(RpAtomic* atomic, void* data);
 static void set_objective_beam_scale(float distance);
 void pui_update(void);
 
-typedef struct KonquestPuiListNode {
-    KonquestPuiDelayView* object;
+struct KonquestPuiListNode {
+    struct KonquestPuiRuntime* object;
     struct KonquestPuiListNode* next;
     char pad08[8];
     unsigned int object_instance; /* +0x10 */
-} KonquestPuiListNode;
-
-
-void add_days_to_time(void* time, int days);
-void add_hours_to_time(void* time, int hours);
-void add_minutes_to_time(void* time, int minutes);
-void add_months_to_time(void* time, int months);
-void add_years_to_time(void* time, int years);
-
-
-
-
+};
 
 void update_tile_grid(void);
 static float p_collide_monk(void);
@@ -1536,25 +1486,23 @@ int repel_against_global_collision_list(
 static MkProc* konquest_display_award_tga(
     KonquestPuiDefinition* item, int value, int mode);
 static float p_display_award_image(void);
-static void destroy_award_art(KonquestAwardArtPdata* pdata);
-static void load_art_for_inventory_award(KonquestAwardArtPdata* pdata);
+static void destroy_award_art(struct KonquestAwardArtPdata* pdata);
+static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata);
 int get_konquest_game_mode(void);
 int interaction_cam_glitched(void);
 static int adjust_sky_for_new_time_of_day(
-    KonquestSkyRow* sky_table, int last_row);
+    struct KonquestSkyRow* sky_table, int last_row);
 static void correct_camera_angle(MkObj* hero, int snap);
-static KonquestNpc* konquest_check_possible_interact_with_npc(
+static union KonquestNpc* konquest_check_possible_interact_with_npc(
     float* distance, float* facing_angle);
 static int check_additional_trigger_fire_requirements(
-    KonquestTriggerStruct* owner, MkObj* hero);
-void npc_signal_event(KonquestNpc* npc, int event_index);
+    struct KonquestTriggerStruct* owner, MkObj* hero);
+void npc_signal_event(union KonquestNpc* npc, int event_index);
 int npc_hit_by_punch(
-    KonquestNpc* npc, float maximum_distance, float maximum_angle);
+    union KonquestNpc* npc, float maximum_distance, float maximum_angle);
 void set_interior_cam_pos_and_ang(void);
 void snd_stop(MslSoundHandle sound);
 MslSoundHandle pan_vol_snd_req(int sound, float pan, float volume);
-void* get_data_table(ScriptSlot* owner, unsigned int index);
-ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name);
 static float p_display_konquest_title(void);
 float p_show_text_window(void);
 static float p_fade_konquest_hud(void);
@@ -1562,9 +1510,9 @@ static float p_close_konquest_chest(void);
 static MkProc* pui_set_chest_state(
     KonquestPuiDefinition* item, int direction);
 static void pui_restore_open_chests(KonquestPuiDefinition* item);
-static void handle_trigger_preprocess(KonquestTriggerStruct* trigger);
+static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger);
 static void check_and_act_on_trigger_timed_action(
-    KonquestTriggerStruct* trigger);
+    struct KonquestTriggerStruct* trigger);
 int is_pui_in_current_interior(const void* pui);
 void konquest_hide_hud(int unused);
 void load_objective_beam(void);
@@ -1579,25 +1527,20 @@ void start_weather_process(void);
 void create_konquest_light(void);
 void load_objective_table(void);
 void check_objective_table(void);
-void attach_objective_to_npc(KonquestNpcData* npc_data, int type);
+void attach_objective_to_npc(struct KonquestNpcData* npc_data, int type);
 void attach_objective_to_trigger(
-    KonquestTriggerDefinition* trigger, float x, float y, float z);
+    struct KonquestTriggerDefinition* trigger, float x, float y, float z);
 void scan_for_current_objective(void);
 void start_head_tracking(void);
 void update_map_coords(void);
 void init_ambient_sounds(void);
 void konquest_show_hud(void);
-void display_load_meter(int section_slot);
 void npc_shadow_init(void);
 void start_running_npcs(void);
 static void konquest_restore_saved_state(void);
-void gamelogic_jump(int mode, void* entry);
 float p_konquest_mode(void);
 static float p_init_konquest_mode(void);
 float p_setup_konquest_map(void);
-float p_atm_loop(void);
-void p_gamelogic(void);
-void RwResourcesSetArenaSize(int size);
 void set_global_collision_callback(int (*callback)(unsigned int*));
 int npc_collision_callback(unsigned int* collision_id);
 int get_building_id_for_exterior(void);
@@ -1607,8 +1550,7 @@ void generate_shadow_collision_objects(int handle, unsigned int art_id);
 void initialize_npc_data(void);
 void initialize_konquest_interior(void);
 void konquest_nav_init(void);
-KonquestNpc* konquest_make_monk_an_npc(void);
-char* get_string_by_id(unsigned int id);
+union KonquestNpc* konquest_make_monk_an_npc(void);
 static void hide_tile_objects(KonquestTileRecord* tile);
 static void unhide_tile(KonquestTileRecord* tile);
 static void hide_tile(KonquestTileRecord* tile);
@@ -1631,45 +1573,19 @@ void exclusive_or_flags_for_all_collisions(
 void purge_global_collision_list(void);
 void remove_collision_list_from_konquest_shadow_lists(MkHdr* collision_list);
 void insert_collision_list_on_konquest_shadow_lists(MkHdr* collision_list);
-static void show_konquest_object(KonquestUidObject* object);
+static void show_konquest_object(struct KonquestUidObject* object);
 static void object_transition_to_state(
     KonquestChildObject* object, int state, int play_sound);
 static void object_set_state(KonquestChildObject* record, int state);
-unsigned int fx(const char* name);
-unsigned int fx_by_owner(const char* name, unsigned int owner);
-unsigned int fx_next_emitter(unsigned int effect);
-int emitter_id_from_handle(unsigned int emitter);
-float get_game_speed(void);
-void fx_set_param_v3(
-    unsigned int effect, int param, float x, float y, float z);
-void fx_reset(unsigned int effect);
-void fx_reset_emit(unsigned int effect);
 void remove_fgnd_mkobj(MkObj* object);
 void fx_pause_emit(unsigned int effect);
-void fx_restart_emit(int effect);
 void fx_resume_emit(int effect);
-void get_bone_offset_world_pos(
-    MkObj* object, int bone, const Vec* offset, Vec* position);
 unsigned int pfxhandle_spawn_at_bid_next(
     unsigned int effect, MkObj* object, int bone);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void shake_camera(int ticks, float magnitude);
-unsigned int get_table_index_by_pointer(void* owner, void* item);
-char* get_name_of_table_by_pointer(ScriptSlot* owner, void* table);
-unsigned int get_row_count_for_table_by_pointer(
-    ScriptSlot* slot, void* table);
-void cmdscript_execute(ScriptSlot* slot);
-void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index);
-void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...);
-void set_u8_bit(unsigned char* bits, int count, int index, int value);
-int get_u8_bit(unsigned char* bits, int count, int index);
-int is_time_a_greater_than_time_b(void* a, void* b);
 static void exit_meditation(void);
-void pulsate_object(
-    MkHdr* object, int pulse_type, int rise_ticks, int fall_ticks,
-    float minimum, float maximum);
-AniData* get_animation(void);
 void transition_to_anim_script(
     AnimPdata* pdata, AniData* animation, int transition, float blend);
 static float p_cross_fade_ambient_sounds(void);
@@ -1684,7 +1600,6 @@ static void update_konquest_pui(KonquestPuiRuntime* pui);
 static void setup_konquest_pui(KonquestPuiRuntime* pui);
 static void update_time_screen_objs(int update_all);
 void npc_reset_all_timed_events(void);
-void increment_day(KonquestTime* time);
 void npc_update(int arg);
 void trigger_update(int arg);
 int nav_what_area_is_point_in(const Vec* position, int previous_area);
@@ -1702,31 +1617,27 @@ static float ramp_game_speed(void);
 static float p_monitor_meditation_time(void);
 static float p_monk_meditate(void);
 static void handle_monk_input(void);
-float p_animate(void);
-float p_anim_idle(void);
 float p_npc_idle(void);
 void npc_xfer(void* npc, MkProcEntryFn entry, int transition);
 void npc_restart_his_normal_behavior(void* npc_data);
 void hero_stop_moving(void);
 MkObj* trial_get_monk(void);
-void set_root_and_obj_movement_weights(
-    AnimPdata* animation, float root_weight, float object_weight);
-void npc_make_invisible(KonquestNpc* npc);
+void npc_make_invisible(union KonquestNpc* npc);
 void make_damashi_npc(MkObj* object);
 void vdestroy_konquest_pui(KonquestPuiRuntime* pui);
 static void vdestroy_konquest_sobj_info(MkHdr* object);
-static void vdestroy_konquest_sobj(KonquestSobj* object);
-static void vdestroy_konquest_obj(KonquestObject* object);
-static int is_in_range(KonquestTriggerStruct* trigger);
-static int is_button_pressed(KonquestTriggerStruct* button);
-static int is_leaving_area(KonquestTriggerStruct* trigger);
+static void vdestroy_konquest_sobj(struct KonquestSobj* object);
+static void vdestroy_konquest_obj(struct KonquestObject* object);
+static int is_in_range(struct KonquestTriggerStruct* trigger);
+static int is_button_pressed(struct KonquestTriggerStruct* button);
+static int is_leaving_area(struct KonquestTriggerStruct* trigger);
 
-MkVtable5 vtbl_konquest_pui = {
+struct KonquestPuiVtable vtbl_konquest_pui = {
     not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
-    (MkVtblFn)vdestroy_konquest_pui,
+    vdestroy_konquest_pui,
 };
 
-static MonkStateData monk_state_data[29] = {
+static struct MonkStateData monk_state_data[29] = {
     {0, {-1, -1, -1, -1}, {-1, -1, -1, -1}, 0, 0, 1.0f, 0,
      p_monk_move},
     {2, {20, 60, -1, -1}, {8, 7, -1, -1}, 2, 0, 1.0f, 0,
@@ -1757,14 +1668,14 @@ static MonkStateData monk_state_data[29] = {
      p_monk_unconscious},
 };
 
-KonquestDayOfWeek days_of_week[7] = {
-    {{0x0A8C000C}, 0x80}, {{0x0A8C000D}, 0x80},
-    {{0x0A8C000E}, 0x80}, {{0x0A8C000F}, 0x100},
-    {{0x0A8C0010}, 0x100}, {{0x0A8C0011}, 0x80},
-    {{0x0A8C0012}, 0x100},
+struct KonquestDayOfWeek days_of_week[7] = {
+    {0x0A8C000C, 0x80}, {0x0A8C000D, 0x80},
+    {0x0A8C000E, 0x80}, {0x0A8C000F, 0x100},
+    {0x0A8C0010, 0x100}, {0x0A8C0011, 0x80},
+    {0x0A8C0012, 0x100},
 };
 
-KonquestRegionAsset konquest_region_data[9] = {
+struct KonquestRegionAsset konquest_region_data[9] = {
     {kon_earthrealm_0_file_table, kq_er1_fight_file_table, {"er0.mko"},
      "er1_mission_dialog_eng.mko", "EARTHREALM"},
     {kon_earthrealm_1_file_table, kq_er1_fight_file_table, {"er1.mko"},
@@ -1785,7 +1696,7 @@ KonquestRegionAsset konquest_region_data[9] = {
      "nx1_mission_dialog_eng.mko", "NEXUS"},
 };
 
-AgeProgressionEntry age_progression_table[4] = {
+struct AgeProgressionEntry age_progression_table[4] = {
     {kon_earthrealm_2_file_table, "er2_time_progression_1.sec", 0x70,
      0x1C2, 0x71, 0x1C2, 0.05f, 0.84f, 0.9f},
     {kon_chaosrealm_1_file_table, "cr1_time_progression.sec", 0x72,
@@ -1799,24 +1710,24 @@ AgeProgressionEntry age_progression_table[4] = {
 static const char* inv_item_default_string = "";
 static const char* inv_item_empty_string = "";
 
-static MkVtable5 vtbl_konquest_sobj_info = {
+static MkHdrVtable vtbl_konquest_sobj_info = {
     not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
-    (MkVtblFn)vdestroy_konquest_sobj_info,
+    vdestroy_konquest_sobj_info,
 };
 
-typedef int (*KonquestTriggerPredicate)(KonquestTriggerStruct* trigger);
+typedef int (*KonquestTriggerPredicate)(struct KonquestTriggerStruct* trigger);
 static KonquestTriggerPredicate trigger_function_table[4] = {
     0, is_in_range, is_button_pressed, is_leaving_area,
 };
 
-static MkVtable5 vtbl_konquest_obj = {
+static struct KonquestObjectVtable vtbl_konquest_obj = {
     not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
-    (MkVtblFn)vdestroy_konquest_obj,
+    vdestroy_konquest_obj,
 };
 
-static MkVtable5 vtbl_konquest_sobj_struct = {
+static struct KonquestSobjVtable vtbl_konquest_sobj_struct = {
     not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
-    (MkVtblFn)vdestroy_konquest_sobj,
+    vdestroy_konquest_sobj,
 };
 
 static Vec old_hero_position = {0.0f, 500.0f, 0.0f};
@@ -1831,78 +1742,12 @@ unsigned int monk_laying_on_ground_colls[20] = {
     0, 0, 0, 0, 0x3D99999A, 0xFFFFFFFF, 0, 0, 0, 0,
 };
 
-static MkVtable5 vtbl_dialog_pdata = {
+static struct KonquestDialogVtable vtbl_dialog_pdata = {
     not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
-    (MkVtblFn)vdestroy_dialog_pdata,
+    vdestroy_dialog_pdata,
 };
 
 int koin_strings[6] = {0xA3, 0xA7, 0xA5, 0xA4, 0xA2, 0xA6};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 typedef unsigned char KonquestPuiActionBuffer[0xDB];
 
@@ -1915,84 +1760,38 @@ typedef struct KonquestPuiEventRow {
 static int pui_get_next_action(
     KonquestPuiDefinition* pui, KonquestPuiEventRow* event_table,
     unsigned int* index);
-int is_valid_event_time(const KonquestTime* time);
-int calc_next_occurrence_of_event(
-    KonquestTime* occurrence, const KonquestTime* event,
-    const KonquestTime* current_time);
 
-
-
-
-
-
-
-
-
-
-
-
-static const KonquestDirectionalLightDef konquest_directional_light_default = {
+static const struct KonquestDirectionalLightDef konquest_directional_light_default = {
     3, p_adjust_directional_light, 3,
     {0.0f, 0.0f, 0.0f, 1.0f},
     {0.6f, 0.0f, 0.0f}
 };
-static const KonquestAmbientLightDef konquest_sky_ambient_light_default = {
+static const struct KonquestAmbientLightDef konquest_sky_ambient_light_default = {
     1, p_adjust_sky_ambient_light, 8,
     {1.0f, 1.0f, 1.0f, 1.0f}
 };
-static const KonquestAmbientLightDef konquest_ambient_light_default = {
+static const struct KonquestAmbientLightDef konquest_ambient_light_default = {
     1, p_adjust_ambient_light, 2,
     {0.06f, 0.06f, 0.075f, 1.0f}
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static KonquestRenderRecord* create_konquest_sobj_for_konquest_obj(
-    KonquestUidObject* owner, int uid, Vec* position, float angle);
-
-
-
-
-
+    struct KonquestUidObject* owner, int uid, Vec* position, float angle);
 
 static int setup_sobj_for_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition);
+    MkSobj* object, struct KonquestTileObjectDefinition* definition);
 static int setup_pebble_system_for_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition);
+    MkSobj* object, struct KonquestTileObjectDefinition* definition);
 static int setup_locator_for_tile_object(
-    KonquestTileObjectDefinition* definition);
+    struct KonquestTileObjectDefinition* definition);
 static void setup_children_sobjs_of_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition);
+    MkSobj* object, struct KonquestTileObjectDefinition* definition);
 static void setup_children_pebbles_of_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition);
+    MkSobj* object, struct KonquestTileObjectDefinition* definition);
 void kill_konquest_dialog_procs(void);
 void konquest_fade_from_black(int ticks, int event);
 void konquest_fade_to_black(int ticks, int event);
-static inline MkObj* konquest_live_hero(KonquestPdata* owner) {
+static inline MkObj* konquest_live_hero(struct KonquestPdata* owner) {
     MkObj* object = owner->hero_object;
     if (object != 0) {
         if (object->hdr.instance == owner->hero_instance) {
@@ -2005,9 +1804,8 @@ static inline MkObj* konquest_live_hero(KonquestPdata* owner) {
     return object;
 }
 
-
-static inline KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* owner) {
-    KonquestChestOwner* object = owner->owner;
+static inline struct KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* owner) {
+    struct KonquestChestOwner* object = owner->owner;
     if (object != 0) {
         if (object->hdr.instance == owner->owner_instance) {
             return object;
@@ -2017,8 +1815,7 @@ static inline KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* ow
     return 0;
 }
 
-
-static inline int advance_konquest_fade_to_black(KonquestFadePdata* pdata) {
+static inline int advance_konquest_fade_to_black(struct KonquestFadePdata* pdata) {
     ScreenObj* object;
     float volume_step;
     float volume;
@@ -2053,7 +1850,7 @@ static inline int advance_konquest_fade_to_black(KonquestFadePdata* pdata) {
     }
 }
 
-static inline int advance_konquest_fade_from_black(KonquestFadePdata* pdata) {
+static inline int advance_konquest_fade_from_black(struct KonquestFadePdata* pdata) {
     ScreenObj* object;
     float volume_step;
     float volume;
@@ -2107,9 +1904,7 @@ static inline int konquest_current_game_mode(void) {
     return konquest_pdata->game_modes[konquest_pdata->game_mode_index];
 }
 
-
-
-static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(KonquestPdata* owner) {
+static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(struct KonquestPdata* owner) {
     ScreenObj* object = (ScreenObj*) owner->hud_objects[2].object;
     if (object != 0) {
         if (object->instance == owner->hud_objects[2].instance) {
@@ -2122,7 +1917,7 @@ static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(KonquestPdata*
     return object;
 }
 
-static inline MkObj* konquest_pdata_live_objective_beam_object(KonquestPdata* owner) {
+static inline MkObj* konquest_pdata_live_objective_beam_object(struct KonquestPdata* owner) {
     MkObj* object = (MkObj*) owner->objective_beam.object;
     if (object != 0) {
         if (object->hdr.instance == owner->objective_beam.instance) {
@@ -2135,7 +1930,7 @@ static inline MkObj* konquest_pdata_live_objective_beam_object(KonquestPdata* ow
     return object;
 }
 
-static inline MkObj* konquest_pdata_live_hero_object(KonquestPdata* owner) {
+static inline MkObj* konquest_pdata_live_hero_object(struct KonquestPdata* owner) {
     MkObj* object = owner->hero_object;
     if (object != 0) {
         if (object->hdr.instance == owner->hero_instance) {
@@ -2163,7 +1958,7 @@ static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
 
 void konquest_hero_portal_in(void);
 static inline float konquest_inverse_length(float length_squared) {
-    KonquestFloatBits estimate;
+    union KonquestFloatBits estimate;
     float product;
     float correction;
     float inverse;
@@ -2195,14 +1990,14 @@ static inline void run_konquest_teleport_script(const char* name) {
     cmdscript_execute(konquest_pdata->script_owner);
 }
 static inline void position_fight_message(ScreenObj* object, int y_offset) {
-    object->x = (int)((float)(screen_width / 2) -
+    object->x = ((float)(screen_width / 2) -
                       (float)(object->pfx2d->tex_w / 2) * object->scale_x);
     object->y = (int)((float)(screen_height / 2) -
                       (float)(object->pfx2d->tex_h / 2) * object->scale_y) +
                 y_offset;
 }
 
-void create_inventory_image_list( KonquestInventoryImageList list, int count);
+void create_inventory_image_list( struct KonquestInventoryImageList list, int count);
 const char* locate_inventory_text(int mode);
 void konquest_set_current_inventory_item(int item);
 int get_hero_state(void);
@@ -2218,8 +2013,8 @@ void transition_to_region(int region);
 int get_previous_konquest_region_number(void);
 void set_konquest_region_number(int region);
 
-static inline KonquestNpc* konquest_live_hero_npc(KonquestPdata* owner) {
-    KonquestNpc* object = owner->hero_npc;
+static inline union KonquestNpc* konquest_live_hero_npc(struct KonquestPdata* owner) {
+    union KonquestNpc* object = owner->hero_npc;
     if (object != 0) {
         if (object->fields.hdr.instance == owner->hero_npc_instance) {
             return object;
@@ -2242,23 +2037,21 @@ int konquest_nis_anims_loaded(void);
 void konquest_start_nis_anims_load( char* animation_name, char* art_name);
 void* get_konquest_region_table(void);
 
-
-
 void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg);
 void give_reward_to_player(KonquestPuiDefinition* award);
 void set_hero_position_relative_to_chest(void);
-static inline KonquestPuiDelayView* find_pui_runtime_by_id(
+static inline struct KonquestPuiRuntime* find_pui_runtime_by_id(
     KonquestPuiDefinition* item) {
-    KonquestPuiListNode* node;
+    struct KonquestPuiListNode* node;
 
     if (konquest_has_list(&konquest_pdata->pui_list)) {
-        node = (KonquestPuiListNode*)konquest_pdata->pui_list;
+        node = (struct KonquestPuiListNode*)konquest_pdata->pui_list;
         while (node != 0) {
-            KonquestPuiDelayView* pui;
+            struct KonquestPuiRuntime* pui;
 
             pui = node->object;
             if (node->object_instance != pui->hdr.instance) {
-                KonquestPuiListNode* next;
+                struct KonquestPuiListNode* next;
 
                 next = node->next;
                 node->object = 0;
@@ -2278,9 +2071,8 @@ void set_reference_pui(KonquestPuiDefinition* reference);
 void open_chest_and_unlock_kontent( KonquestPuiDefinition* item, int award_arg);
 void open_chest_and_give_item_to_player( KonquestPuiDefinition* chest_item, KonquestPuiDefinition* reward_item);
 
-
 static inline void set_award_display_alpha(
-    KonquestAwardArtPdata* pdata, float alpha) {
+    struct KonquestAwardArtPdata* pdata, float alpha) {
     ScreenObj* screen;
     StringObj* description;
 
@@ -2315,13 +2107,6 @@ static inline void set_award_display_alpha(
 }
 void stop_chest_camera_script(void);
 
-
-
-
-
-
-
-
 int is_character_unlocked_in_profile( int character, int alternate);
 void mini_mission_inactive(int mission);
 void mini_mission_completed(int mission);
@@ -2337,20 +2122,18 @@ void player_add_item_to_inventory(KonquestPuiDefinition* item);
 void player_remove_item_from_inventory(void* item);
 int player_has_item(void* item);
 
+static void update_dropped_pui(struct KonquestPuiRuntime* pui);
 
-
-static void update_dropped_pui(KonquestPuiDelayView* pui);
-
-static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
+static inline struct KonquestPuiRuntime* find_pui_runtime_by_numeric_id(
     unsigned int id) {
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->pui_list)) {
         link = konquest_pdata->pui_list;
         while (link != 0) {
-            KonquestPuiDelayView* pui;
+            struct KonquestPuiRuntime* pui;
 
-            pui = (KonquestPuiDelayView*)link->hdr;
+            pui = (struct KonquestPuiRuntime*)link->hdr;
             if (link->instance != pui->hdr.instance) {
                 MkPtr* next;
 
@@ -2369,7 +2152,6 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
 }
 void pui_set_color( unsigned int id, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
 
-
 static inline MkObj* konquest_pui_runtime_live_render_object(KonquestPuiRuntime* owner) {
     MkObj* object = owner->render_object;
     if (object != 0) {
@@ -2383,8 +2165,8 @@ static inline MkObj* konquest_pui_runtime_live_render_object(KonquestPuiRuntime*
     return object;
 }
 
-static inline KonquestChestOwner* konquest_pui_runtime_live_owner(KonquestPuiRuntime* owner) {
-    KonquestChestOwner* object = owner->owner;
+static inline struct KonquestChestOwner* konquest_pui_runtime_live_owner(KonquestPuiRuntime* owner) {
+    struct KonquestChestOwner* object = owner->owner;
     if (object != 0) {
         if (object->hdr.instance == owner->owner_instance) {
             return object;
@@ -2397,8 +2179,6 @@ static inline KonquestChestOwner* konquest_pui_runtime_live_owner(KonquestPuiRun
 }
 void pui_set_kill_time( KonquestPuiDefinition* item, int unit, int amount);
 void pui_delay_spawn(KonquestPuiDefinition* item, float delay);
-
-
 
 int spawn_dynamic_pui_critical(KonquestPuiDefinition* item);
 int spawn_dynamic_pui(KonquestPuiDefinition* item);
@@ -2421,9 +2201,7 @@ int is_pui_an_interior_item(const char* pui);
 
 static void update_pui_actions( KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous);
 static void scan_pui_events_and_determine_current_actions( KonquestPuiEventRow* event_table, KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous);
-int get_pui_inventory_bit_index(void* item);
 static float p_pui_timed_event_manager(void);
-int get_num_puis(void);
 void start_subobject_pulsing_effect(int pulse_type);
 void resume_hero_state_process(void);
 void suspend_hero_state_process(void);
@@ -2437,8 +2215,8 @@ void konquest_nis_init(int value);
 void nis_wait_for_region_load(void);
 void wait_for_region_load(void);
 void nis_remove_non_participants(void);
-static inline int is_npc_scene_active(KonquestNpcRuntime* npc) {
-    KonquestNpcSceneState* scene;
+static inline int is_npc_scene_active(struct KonquestNpcRuntime* npc) {
+    struct KonquestNpcSceneState* scene;
     int active;
 
     scene = npc->scene_state;
@@ -2460,7 +2238,6 @@ void nis_register_participant(int type, void* npc_data);
 void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
 MkProc* konquest_set_dialog_text( const char* text, const LipSyncKeyframe* lip_sync_keyframes);
 
-
 void konquest_end_npc_nis(void);
 static inline int is_dialog_art_active(KonquestDialogArt* dialog_art) {
     if (dialog_art == 0) {
@@ -2478,8 +2255,8 @@ void display_time_progression_images(int progression);
 void start_character_separation_process(float separation);
 void konquest_start_npc_interaction(void);
 
-static inline KonquestNpc* konquest_live_hero_grounding(KonquestPdata* owner) {
-    KonquestNpc* object = (KonquestNpc*) owner->hero_grounding;
+static inline union KonquestNpc* konquest_live_hero_grounding(struct KonquestPdata* owner) {
+    union KonquestNpc* object = (union KonquestNpc*) owner->hero_grounding;
     if (object != 0) {
         if (object->fields.hdr.instance == owner->grounding_instance) {
             return object;
@@ -2491,8 +2268,8 @@ static inline KonquestNpc* konquest_live_hero_grounding(KonquestPdata* owner) {
     return object;
 }
 
-static inline KonquestNpc* konquest_live_movement_npc_object(KonquestPdata* owner) {
-    KonquestNpc* object = (KonquestNpc*) owner->movement_npc.object;
+static inline union KonquestNpc* konquest_live_movement_npc_object(struct KonquestPdata* owner) {
+    union KonquestNpc* object = (union KonquestNpc*) owner->movement_npc.object;
     if (object != 0) {
         if (object->fields.hdr.instance == owner->movement_npc.instance) {
             return object;
@@ -2512,28 +2289,17 @@ void konquest_fade_hud(int fade_in);
 void konquest_transition_from_fight(void);
 void konquest_transition_to_fight(int save_progress);
 static float p_konquest_inventory(void);
-float p_konquest_inventory_switch(void);
-float p_switch_proc_start(void);
 int get_save_progress_flag(void);
 void set_save_progress_flag(int enabled);
 void npc_hide_skip_message(void);
 void npc_show_skip_message(void);
-float p_konquest_switch_4(void);
-float p_konquest_switch_3(void);
-float p_konquest_switch_R1(void);
-float p_konquest_switch_1(void);
 void handle_controller_input(void);
 
 static float p_adjust_sky(void);
 static void update_sun_moon_position(float angle);
 
-
-
-
 void set_monk_age(int age);
 int get_monk_age(void);
-
-
 
 void change_monk_age(int age);
 
@@ -2543,18 +2309,16 @@ int get_tile_from_position(Vec* position);
 void* get_visible_tile_set(int index);
 void play_beam_advance_sound(int delay);
 
-
-
-static inline KonquestTriggerStruct* find_trigger_by_definition(
-    KonquestTriggerDefinition* definition) {
+static inline struct KonquestTriggerStruct* find_trigger_by_definition(
+    struct KonquestTriggerDefinition* definition) {
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
                 discard_stale_mkptr(link);
@@ -2570,9 +2334,9 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
     if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
                 discard_stale_mkptr(link);
@@ -2587,8 +2351,8 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
     }
     return 0;
 }
-void trigger_set_time_for_enable(KonquestTriggerDefinition* definition, int unit, int amount, int action);
-static inline KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
+void trigger_set_time_for_enable(struct KonquestTriggerDefinition* definition, int unit, int amount, int action);
+static inline struct KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
     int tile_index;
 
     tile_index = 0;
@@ -2601,9 +2365,9 @@ static inline KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
         if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
-                KonquestCollisionVolume* volume;
+                struct KonquestCollisionVolume* volume;
 
-                volume = (KonquestCollisionVolume*)link->hdr;
+                volume = (struct KonquestCollisionVolume*)link->hdr;
                 if (link->instance != volume->hdr.instance) {
                     MkPtr* next;
 
@@ -2626,7 +2390,7 @@ void restore_collision_volume_on_object_with_uid(int uid);
 void restore_collision_volume_on_object(void);
 void remove_collision_volume_on_object_with_uid(int uid);
 void remove_collision_volume_on_object(void);
-static inline KonquestObject* find_object_by_uid_inline(int uid) {
+static inline struct KonquestObject* find_object_by_uid_inline(int uid) {
     int tile_index;
 
     tile_index = 0;
@@ -2639,9 +2403,9 @@ static inline KonquestObject* find_object_by_uid_inline(int uid) {
         if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
-                KonquestObject* object;
+                struct KonquestObject* object;
 
-                object = (KonquestObject*)link->hdr;
+                object = (struct KonquestObject*)link->hdr;
                 if (link->instance != object->hdr.instance) {
                     MkPtr* next;
 
@@ -2661,7 +2425,7 @@ static inline KonquestObject* find_object_by_uid_inline(int uid) {
 }
 
 static inline KonquestChildObject* find_child_by_enumeration_inline(
-    KonquestObject* object, int enumeration) {
+    struct KonquestObject* object, int enumeration) {
     KonquestChildObject* child;
 
     child = 0;
@@ -2694,9 +2458,7 @@ static inline KonquestChildObject* find_child_by_enumeration_inline(
 }
 void konquest_set_object_to_state(int uid, int enumeration, int state);
 
-
-
-static inline KonquestUidObject* find_tile_object_by_uid(int uid) {
+static inline struct KonquestUidObject* find_tile_object_by_uid(int uid) {
     int tile_index;
 
     for (tile_index = 0;
@@ -2710,9 +2472,9 @@ static inline KonquestUidObject* find_tile_object_by_uid(int uid) {
         if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
-                KonquestUidObject* object;
+                struct KonquestUidObject* object;
 
-                object = (KonquestUidObject*)link->hdr;
+                object = (struct KonquestUidObject*)link->hdr;
                 if (link->instance != object->hdr.instance) {
                     MkPtr* next;
 
@@ -2732,7 +2494,7 @@ static inline KonquestUidObject* find_tile_object_by_uid(int uid) {
 }
 
 static inline KonquestChildObject* find_object_child_by_enumeration(
-    KonquestUidObject* object, int enumeration) {
+    struct KonquestUidObject* object, int enumeration) {
     MkPtr* link;
 
     if (konquest_has_list(&object->render_records)) {
@@ -2800,7 +2562,7 @@ static inline float door_path_distance_squared(
 }
 void turn_to_face_exterior_door(void);
 static inline KonquestChildObject* find_trigger_door(
-    KonquestTriggerObject* object, int enumeration) {
+    struct KonquestTriggerObject* object, int enumeration) {
     MkPtr* link;
 
     if (konquest_has_list(&object->doors)) {
@@ -2875,11 +2637,11 @@ static inline KonquestChildObject* find_door_partner_inline(
     }
     return 0;
 }
-KonquestChildObject* find_child_subobject_by_enumeration( KonquestObject* object, int enumeration);
+KonquestChildObject* find_child_subobject_by_enumeration( struct KonquestObject* object, int enumeration);
 
-static inline void execute_trigger_inline(KonquestTriggerStruct* trigger) {
+static inline void execute_trigger_inline(struct KonquestTriggerStruct* trigger) {
     MkProc* proc;
-    KonquestTriggerScriptPdata* pdata;
+    struct KonquestTriggerScriptPdata* pdata;
 
     if (trigger->owned_data->type != 2 ||
         konquest_pdata->active_trigger == 0) {
@@ -2911,10 +2673,10 @@ static inline void execute_trigger_inline(KonquestTriggerStruct* trigger) {
         }
     }
 }
-void fire_trigger(KonquestTriggerDefinition* definition);
+void fire_trigger(struct KonquestTriggerDefinition* definition);
 static inline void play_pui_effect_now(
     KonquestPuiRuntime* pui, unsigned int handle) {
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkObj* emitter_object;
     MkSobj* child;
@@ -2952,10 +2714,10 @@ static inline void play_pui_effect_now(
 
 static inline void play_pui_effect_sequence_now(
     KonquestPuiRuntime* pui, KonquestPuiPfxSequenceRow* sequence) {
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
-    KonquestPuiPfxSequencePdata* pdata;
+    struct KonquestPuiPfxSequencePdata* pdata;
     RwSphere sphere;
 
     object = konquest_pui_runtime_live_render_object(pui);
@@ -2981,7 +2743,7 @@ static inline void play_pui_effect_sequence_now(
     }
 }
 static inline void remove_trigger_from_world(
-    KonquestTriggerStruct* trigger) {
+    struct KonquestTriggerStruct* trigger) {
     if (trigger != 0) {
         switch (trigger->owned_data->type) {
         case 2: {
@@ -3038,14 +2800,14 @@ static inline void remove_trigger_from_world(
 }
 void delete_triggers_from_tile(int tile_index);
 void add_trigger_list_to_world(void);
-void assign_obj_to_trigger(int object_uid, KonquestTriggerDefinition* definition);
-static inline KonquestUidObject* get_konquest_object_struct(void) {
-    KonquestUidObject* object;
+void assign_obj_to_trigger(int object_uid, struct KonquestTriggerDefinition* definition);
+static inline struct KonquestUidObject* get_konquest_object_struct(void) {
+    struct KonquestUidObject* object;
 
     object = _mwMemMalloc(
         konquest_objects_heap, sizeof(*object), 0x80, 0, 0, 0);
     if (object != 0) {
-        object->hdr.vtbl = &vtbl_konquest_obj;
+        object->hdr.vtbl = MK_VTABLE_ADDRESS(vtbl_konquest_obj);
         mk_set_instance(&object->hdr.instance);
         zero_pdata_payload(sizeof(*object), object);
     }
@@ -3055,9 +2817,9 @@ static inline KonquestUidObject* get_konquest_object_struct(void) {
 static inline void create_children_konquest_sobjs(KonquestRenderRecord* record) {
     RwLLLink* link;
     RwLLLink* sentinel;
-    KonquestUidObject* owner;
+    struct KonquestUidObject* owner;
     RwFrame* next_frame;
-    KonquestSobjBinding* binding;
+    struct KonquestSobjBinding* binding;
     MkSobj* model;
     RwFrame* frame;
 
@@ -3098,9 +2860,9 @@ static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     if (konquest_has_list(&konquest_pdata->sobj_infos)) {
         link = konquest_pdata->sobj_infos;
         while (link != 0) {
-            KonquestSobjInfo* info;
+            struct KonquestSobjInfo* info;
 
-            info = (KonquestSobjInfo*)link->hdr;
+            info = (struct KonquestSobjInfo*)link->hdr;
             if (link->instance != info->hdr.instance) {
                 MkPtr* next;
 
@@ -3117,15 +2879,15 @@ static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     }
     return 0;
 }
-static inline KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
+static inline struct KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->sobj_infos)) {
         link = konquest_pdata->sobj_infos;
         while (link != 0) {
-            KonquestSobjInfo* info;
+            struct KonquestSobjInfo* info;
 
-            info = (KonquestSobjInfo*)link->hdr;
+            info = (struct KonquestSobjInfo*)link->hdr;
             if (link->instance != info->hdr.instance) {
                 MkPtr* next;
 
@@ -3143,14 +2905,13 @@ static inline KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
     return 0;
 }
 
-static inline MkObj* konquest_live_tile_model_object(KonquestPdata* owner) {
+static inline MkObj* konquest_live_tile_model_object(struct KonquestPdata* owner) {
     MkObj* object = (MkObj*) owner->tile_model.object;
     return MK_HDR_LIVE(object, owner->tile_model.instance);
 }
 void set_tile_visibility(int tile_index, int state);
-void vdestroy_trigger_struct(KonquestTriggerStruct* trigger);
 KonquestWaypoint* get_door_path(int door_id);
-void load_tile_objects(KonquestTileObjectDefinition* definitions);
+void load_tile_objects(struct KonquestTileObjectDefinition* definitions);
 
 static inline int find_enumeration_index(int uid) {
     unsigned int row_count;
@@ -3165,27 +2926,21 @@ static inline int find_enumeration_index(int uid) {
     for (index = 0; index < row_count; index++) {
         if (konquest_pdata->region_table->enumerations[index].locator_uid ==
             uid) {
-            return (int)index;
+            return index;
         }
     }
     return -1;
 }
 void set_tile_grid_size(int width, int height);
 
-
 void start_time_passing(void);
 void stop_time_passing(void);
 void get_current_time(void* time);
 void set_current_time(const KonquestTime* time);
 
-
-
-
-
-
 static float p_adjust_objective_arrow_and_beam(void);
 
-static inline MkObj* konquest_live_objective_beam_object(KonquestPdata* owner) {
+static inline MkObj* konquest_live_objective_beam_object(struct KonquestPdata* owner) {
     MkObj* object = (MkObj*) owner->objective_beam.object;
     if (object != 0) {
         if (object->hdr.instance == owner->objective_beam.instance) {
@@ -3210,7 +2965,7 @@ void set_konquest_object_render_order_priority_by_uid( int uid, int priority);
 void disable_konquest_object_zwrite_by_uid(int uid);
 void set_konquest_object_face_y_by_uid(int uid);
 
-static inline void remove_konquest_subobject_from_pebble_list(KonquestMatrixPalette* palette,
+static inline void remove_konquest_subobject_from_pebble_list(struct KonquestMatrixPalette* palette,
                                            KonquestRenderRecord* record,
                                            int index) {
     KonquestRenderRecord** records;
@@ -3241,7 +2996,7 @@ void* find_konquest_object_struct_by_uid(int uid);
 void start_konquest_ambient_sounds(void);
 void stop_konquest_ambient_sounds(void);
 static inline int trigger_requirements_pass(
-    KonquestTriggerStruct* trigger) {
+    struct KonquestTriggerStruct* trigger) {
     int requirements;
     int index;
 
@@ -3266,8 +3021,6 @@ static inline int trigger_requirements_pass(
     return 1;
 }
 
-
-
 int get_konquest_pui_inventory_bit_index(const KonquestPuiRuntime* pui);
 
 void get_konquest_pui_object_pos(Vec* position, const MkSobj* sobj);
@@ -3276,7 +3029,6 @@ static void load_sky(void);
 void insert_collision_on_proper_tile_list(CollisionObj* object);
 MkSobj* get_tile_sobj_by_id(int id);
 int is_game_mode_in_stack(int game_mode);
-
 
 inline void create_konquest_heaps(void) {
     MwMemFixedParams fixed;
@@ -3327,16 +3079,15 @@ int get_konquest_game_mode(void) {
     return konquest_current_game_mode();
 }
 
-/* TODO: [near miss] 99.95%; only the light-default data offsets differ (retail anchor @586+0x80): TU data layout. */
 static inline void konquest_set_directional_light_def(
-    KonquestDirectionalLightDef* light, KonquestDirectionalLightDef* definition) {
+    struct KonquestDirectionalLightDef* light, struct KonquestDirectionalLightDef* definition) {
     if (definition->type == 3) {
         memcpy(light, definition, sizeof(*definition));
     }
 }
 
 static inline void konquest_set_ambient_light_def(
-    KonquestAmbientLightDef* light, KonquestAmbientLightDef* definition) {
+    struct KonquestAmbientLightDef* light, struct KonquestAmbientLightDef* definition) {
     if (definition->type == 1) {
         memcpy(light, definition, sizeof(*definition));
     }
@@ -3347,6 +3098,9 @@ static float p_init_konquest_mode(void) {
     PlyrInfo* player;
     int index;
     unsigned int bit;
+    struct KonquestDirectionalLightDef directional_light;
+    struct KonquestAmbientLightDef ambient_light;
+    struct KonquestAmbientLightDef sky_ambient_light;
 
     RwResourcesSetArenaSize(0x48000);
     gc_setup_feedback_buffer_for_konquest();
@@ -3379,22 +3133,16 @@ static float p_init_konquest_mode(void) {
     menu_player = 0;
     set_player_state(player, 2);
     set_player_state(&g_game_info.plyr1, 0);
-    {
-        KonquestDirectionalLightDef directional_light;
-        KonquestAmbientLightDef ambient_light;
-        KonquestAmbientLightDef sky_ambient_light;
+    directional_light = konquest_directional_light_default;
+    sky_ambient_light = konquest_sky_ambient_light_default;
+    ambient_light = konquest_ambient_light_default;
 
-        directional_light = konquest_directional_light_default;
-        sky_ambient_light = konquest_sky_ambient_light_default;
-        ambient_light = konquest_ambient_light_default;
-
-        konquest_set_directional_light_def(
-            &konquest_pdata->directional_light, &directional_light);
-        konquest_set_ambient_light_def(
-            &konquest_pdata->ambient_light, &ambient_light);
-        konquest_set_ambient_light_def(
-            &konquest_pdata->sky_ambient_light, &sky_ambient_light);
-    }
+    konquest_set_directional_light_def(
+        &konquest_pdata->directional_light, &directional_light);
+    konquest_set_ambient_light_def(
+        &konquest_pdata->ambient_light, &ambient_light);
+    konquest_set_ambient_light_def(
+        &konquest_pdata->sky_ambient_light, &sky_ambient_light);
     konquest_pdata->animation_event_index = 0;
     original_game_speed = game_speed;
     g_game_info.field_34 = 0.0f;
@@ -3411,7 +3159,7 @@ void konquest_state_init(void) {
 }
 
 MkHdr* get_konquest_tile_objects_obj(void) {
-    KonquestPdata* pdata = konquest_pdata;
+    struct KonquestPdata* pdata = konquest_pdata;
     MkHdr* object = 0;
 
     if (pdata != 0) {
@@ -3476,6 +3224,7 @@ static void load_and_init_konquest_map_specific_data(int region) {
     KonquestTileRecord* tile;
     unsigned int event_count;
     unsigned int shadow_art;
+    KonquestTime first_event_time;
 
     load_ssf(konquest_region_data[region].fight_files);
     if (konquest_editor_mode_on == 0) {
@@ -3566,33 +3315,31 @@ static void load_and_init_konquest_map_specific_data(int region) {
         konquest_pdata->script_owner,
         konquest_pdata->region_table->pui_footer);
 
-    {
-        KonquestTime first_event_time = {0};
+    first_event_time = (KonquestTime){0};
 
-        event_count = get_row_count_for_table_by_pointer(
-            konquest_pdata->script_owner,
-            konquest_pdata->region_table->pui_event_table);
-        if (event_count != 0) {
-            unsigned int index;
-            MkProc* proc;
-            KonquestPuiEventRow* event;
-            int allocation_size;
+    event_count = get_row_count_for_table_by_pointer(
+        konquest_pdata->script_owner,
+        konquest_pdata->region_table->pui_event_table);
+    if (event_count != 0) {
+        unsigned int index;
+        MkProc* proc;
+        KonquestPuiEventRow* event;
+        int allocation_size;
 
-            proc = _create_mkproc_generic_nostack(
-                0xA019, 0x1F, p_pui_timed_event_manager,
-                sizeof(*process_data), (void**)&process_data);
-            if (proc != 0) {
-                set_process_as_scriptable(proc);
-            }
-            allocation_size = event_count * sizeof(*g_pui_events);
-            event = konquest_pdata->region_table->pui_event_table;
-            g_pui_events = get_mem(allocation_size);
-            memset(g_pui_events, 0, allocation_size);
-            for (index = 0; index < event_count; index++, event++) {
-                calc_next_occurrence_of_event(
-                    &g_pui_events[index], &event->time,
-                    &first_event_time);
-            }
+        proc = _create_mkproc_generic_nostack(
+            0xA019, 0x1F, p_pui_timed_event_manager,
+            sizeof(*process_data), (void**)&process_data);
+        if (proc != 0) {
+            set_process_as_scriptable(proc);
+        }
+        allocation_size = event_count * sizeof(*g_pui_events);
+        event = konquest_pdata->region_table->pui_event_table;
+        g_pui_events = get_mem(allocation_size);
+        memset(g_pui_events, 0, allocation_size);
+        for (index = 0; index < event_count; index++, event++) {
+            calc_next_occurrence_of_event(
+                &g_pui_events[index], &event->time,
+                &first_event_time);
         }
     }
 }
@@ -3675,7 +3422,7 @@ float p_setup_konquest_map(void) {
         konquest_restore_saved_state();
         konquest_save_data.valid = 0;
         _mkproc_sleep_ticks = 2.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_editor_mode_on == 0) {
@@ -3686,13 +3433,13 @@ float p_setup_konquest_map(void) {
             camera_obj->pos.y = hero->pos.value.y;
             camera_obj->pos.z = hero->pos.value.z;
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             update_tile_grid();
         }
 
         xfer_camera(p_konquest_camera_proc, 1);
         _mkproc_sleep_ticks = 2.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     scan_for_current_objective();
@@ -3701,16 +3448,16 @@ float p_setup_konquest_map(void) {
 
     _mkproc_sleep_ticks = 6.0f;
     g_game_info.flag_bits.load_complete = 1;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     while (is_controller_removed() != 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     turn_camera_off();
 
-    if (active_cmdscript->unk28 != 0) {
+    if ((unsigned int)active_cmdscript->unk28 != 0) {
         cmdscript_setup_execution(
             konquest_pdata->script_owner,
             active_cmdscript->unk28);
@@ -3761,8 +3508,7 @@ inline void load_region_script(int region) {
         0xB, konquest_region_data[region].script_name);
     konquest_pdata->region_table = get_data_table(
         konquest_pdata->script_owner,
-        ((KonquestScriptSlotHeaderView*)konquest_pdata->script_owner)
-            ->table_count);
+        konquest_pdata->script_owner->table_count);
 }
 
 inline void load_and_init_konquest_common_data(void) {
@@ -3906,7 +3652,7 @@ void pui_update(void) {
             } else {
                 pui = (KonquestPuiRuntime*)link->hdr;
                 if (pui != 0) {
-                    KonquestChestOwner* owner;
+                    struct KonquestChestOwner* owner;
 
                     owner = konquest_live_pui_owner(pui);
                     if (owner == 0) {
@@ -3935,7 +3681,7 @@ void pui_update(void) {
 }
 
 static void check_and_act_on_trigger_timed_action(
-    KonquestTriggerStruct* trigger) {
+    struct KonquestTriggerStruct* trigger) {
     if (is_time_a_greater_than_time_b(
             &konquest_pdata->current_time, &trigger->action_time) != 0) {
         switch (trigger->timed_action) {
@@ -3949,10 +3695,6 @@ static void check_and_act_on_trigger_timed_action(
         trigger->timed_action = 0;
     }
 }
-
-
-
-
 
 /* TODO: [near miss] 97.56%; script-proc latch polarity, periodic header r3 vs r4 and PUI guard branches remain; preserve traversal locals. */
 void trigger_update(int force) {
@@ -3968,7 +3710,7 @@ void trigger_update(int force) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
             MkHdr* header;
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
             header = link->hdr;
             if (link->instance != header->instance) {
@@ -3979,7 +3721,7 @@ void trigger_update(int force) {
                 link = next;
                 continue;
             }
-            trigger = (KonquestTriggerStruct*)header;
+            trigger = (struct KonquestTriggerStruct*)header;
             if (trigger->timed_action != 0) {
                 check_and_act_on_trigger_timed_action(trigger);
             }
@@ -3989,7 +3731,7 @@ void trigger_update(int force) {
                 (trigger->owned_data->type != 2 ||
                  konquest_pdata->active_trigger == 0)) {
                 MkProc* proc;
-                KonquestTriggerScriptPdata* pdata;
+                struct KonquestTriggerScriptPdata* pdata;
 
                 proc = trigger->script_proc;
                 if (proc != 0) {
@@ -4040,7 +3782,7 @@ void trigger_update(int force) {
             trigger_link = konquest_pdata->triggers;
             while (trigger_link != 0) {
                 MkHdr* header;
-                KonquestTriggerStruct* trigger;
+                struct KonquestTriggerStruct* trigger;
 
                 header = trigger_link->hdr;
                 if (trigger_link->instance != header->instance) {
@@ -4051,9 +3793,9 @@ void trigger_update(int force) {
                     trigger_link = next;
                     continue;
                 }
-                trigger = (KonquestTriggerStruct*)trigger_link->hdr;
+                trigger = (struct KonquestTriggerStruct*)trigger_link->hdr;
                 if (trigger != 0) {
-                    KonquestTriggerDefinition* definition;
+                    struct KonquestTriggerDefinition* definition;
                     float range_squared;
                     float delta_x;
                     float delta_z;
@@ -4134,7 +3876,7 @@ float p_konquest_loop(void) {
         konquest_pdata->current_time.hour =
             konquest_pdata->time_of_day;
         konquest_pdata->current_time.minute =
-            (int)(60.0f *
+            (60.0f *
                   (konquest_pdata->time_of_day -
                    (float)konquest_pdata->current_time.hour));
         if (konquest_pdata->time_of_day >= 12.0f &&
@@ -4220,14 +3962,9 @@ float p_konquest_loop(void) {
     return 1.0f;
 }
 
-
-
-
-
-
 /* TODO: [near miss] 95.59633%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* render_object;
 
     if ((int)pui->effect_60 != 0) {
@@ -4301,7 +4038,7 @@ void stop_konquest_ambient_sounds(void) {
 }
 
 void start_konquest_ambient_sounds(void) {
-    KonquestAmbientFadePdata* fade;
+    struct KonquestAmbientFadePdata* fade;
 
     konquest_pdata->ambient_sound_main =
         snd_req(konquest_pdata->region_table->ambient_sound);
@@ -4318,7 +4055,7 @@ void start_konquest_ambient_sounds(void) {
 }
 
 inline void init_ambient_sounds(void) {
-    KonquestAmbientFadePdata* fade;
+    struct KonquestAmbientFadePdata* fade;
 
     konquest_pdata->ambient_sound_main =
         snd_req(konquest_pdata->region_table->ambient_sound);
@@ -4330,7 +4067,7 @@ inline void init_ambient_sounds(void) {
         fade->step_b = 0.0f;
         fade->volume_a = 0.0f;
         fade->volume_b = 0.0f;
-        fade->delay = (float)((unsigned short)randu0(0x384) + 0x12C);
+        fade->delay = ((unsigned short)randu0(0x384) + 0x12C);
     }
 }
 
@@ -4348,9 +4085,9 @@ void* find_konquest_object_struct_by_uid(int uid) {
         if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
-                KonquestUidObject* object;
+                struct KonquestUidObject* object;
 
-                object = (KonquestUidObject*)link->hdr;
+                object = (struct KonquestUidObject*)link->hdr;
                 if (link->instance != object->hdr.instance) {
                     MkPtr* next;
 
@@ -4369,7 +4106,7 @@ void* find_konquest_object_struct_by_uid(int uid) {
     return 0;
 }
 
-static void show_konquest_object(KonquestUidObject* object) {
+static void show_konquest_object(struct KonquestUidObject* object) {
     int record_number;
     KonquestRenderRecord* record;
     MkPtr* link;
@@ -4379,6 +4116,8 @@ static void show_konquest_object(KonquestUidObject* object) {
         konquest_has_list(&object->render_records)) {
         link = object->render_records;
         while (link != 0) {
+            struct KonquestSobjBinding* binding;
+            struct KonquestMatrixPalette* palette;
             record = (KonquestRenderRecord*)link->hdr;
             if (link->instance != record->hdr.instance) {
                 MkPtr* next;
@@ -4408,48 +4147,43 @@ static void show_konquest_object(KonquestUidObject* object) {
                 }
             }
 
-            {
-                KonquestSobjBinding* binding;
-                KonquestMatrixPalette* palette;
+            binding = record->binding;
+            palette = binding->palette;
+            if (palette != 0) {
+                if (palette->count != palette->capacity) {
+                    MKMATRIX matrix;
+                    float x;
+                    float y;
+                    float z;
 
-                binding = record->binding;
-                palette = binding->palette;
-                if (palette != 0) {
-                    if (palette->count != palette->capacity) {
-                        MKMATRIX matrix;
-                        float x;
-                        float y;
-                        float z;
+                    record->matrix_index = palette->count;
+                    palette->records[palette->count] = record;
+                    MKMatrixSetIdentity(&matrix);
+                    x = record->position.x;
+                    y = record->position.y;
+                    z = record->position.z;
+                    YXZ_angles_to_MKMATRIX(&record->angles, &matrix);
+                    set_mat(&palette->matrices[palette->count], &matrix);
+                    palette->matrices[palette->count].pos.x = x;
+                    palette->matrices[palette->count].pos.y = y;
+                    palette->matrices[palette->count].pos.z = z;
+                    palette->count++;
+                }
+            } else {
+                MkSobj* render_object;
 
-                        record->matrix_index = palette->count;
-                        palette->records[palette->count] = record;
-                        MKMatrixSetIdentity(&matrix);
-                        x = record->position.x;
-                        y = record->position.y;
-                        z = record->position.z;
-                        YXZ_angles_to_MKMATRIX(&record->angles, &matrix);
-                        set_mat(&palette->matrices[palette->count], &matrix);
-                        palette->matrices[palette->count].pos.x = x;
-                        palette->matrices[palette->count].pos.y = y;
-                        palette->matrices[palette->count].pos.z = z;
-                        palette->count++;
-                    }
-                } else {
-                    MkSobj* render_object;
-
-                    render_object = MK_HDR_LIVE(binding->object, binding->object_instance);
-                    if (render_object != 0 && binding->hidden != 0) {
-                        render_object->pos.x = record->position.x;
-                        render_object->pos.y = record->position.y;
-                        render_object->pos.z = record->position.z;
-                        render_object->ang.x = record->angles.x;
-                        render_object->ang.y = record->angles.y;
-                        render_object->ang.z = record->angles.z;
-                        update_mksobj(render_object);
-                        unhide_sobj_and_children(render_object);
-                        record->binding->hidden = 0;
-                        record->matrix_index = 0;
-                    }
+                render_object = MK_HDR_LIVE(binding->object, binding->object_instance);
+                if (render_object != 0 && binding->hidden != 0) {
+                    render_object->pos.x = record->position.x;
+                    render_object->pos.y = record->position.y;
+                    render_object->pos.z = record->position.z;
+                    render_object->ang.x = record->angles.x;
+                    render_object->ang.y = record->angles.y;
+                    render_object->ang.z = record->angles.z;
+                    update_mksobj(render_object);
+                    unhide_sobj_and_children(render_object);
+                    record->binding->hidden = 0;
+                    record->matrix_index = 0;
                 }
             }
 
@@ -4468,7 +4202,7 @@ static inline MkPtr* konquest_discard_stale_link(MkPtr* link) {
 }
 
 void hide_konquest_object_by_uid(int uid) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
 
     object = find_tile_object_by_uid(uid);
     if (object != 0 && object->hidden == 0) {
@@ -4495,8 +4229,8 @@ void hide_konquest_object_by_uid(int uid) {
                     }
 
                     if (record->matrix_index >= 0) {
-                        KonquestSobjBinding* binding;
-                        KonquestMatrixPalette* palette;
+                        struct KonquestSobjBinding* binding;
+                        struct KonquestMatrixPalette* palette;
 
                         binding = record->binding;
                         palette = binding->palette;
@@ -4522,7 +4256,7 @@ void hide_konquest_object_by_uid(int uid) {
 }
 
 void unhide_konquest_object_by_uid(int uid) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
 
     object = find_tile_object_by_uid(uid);
     if (object != 0 && object->hidden != 0) {
@@ -4537,7 +4271,7 @@ void unhide_konquest_object_by_uid(int uid) {
 }
 
 void set_konquest_object_face_y_by_uid(int uid) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
     MkSobj* render_object;
 
@@ -4554,7 +4288,7 @@ void set_konquest_object_face_y_by_uid(int uid) {
 }
 
 void disable_konquest_object_zwrite_by_uid(int uid) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
     MkSobj* render_object;
 
@@ -4572,9 +4306,9 @@ void disable_konquest_object_zwrite_by_uid(int uid) {
 
 void set_konquest_object_render_order_priority_by_uid(
     int uid, int priority) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
-    KonquestSobjBinding* binding;
+    struct KonquestSobjBinding* binding;
     MkSobj* render_object;
 
     object = find_tile_object_by_uid(uid);
@@ -4592,9 +4326,9 @@ void set_konquest_object_render_order_priority_by_uid(
 
 void attach_wiff_to_konquest_object_by_uid(
     int uid, char* name, float frame_rate) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
-    KonquestSobjBinding* binding;
+    struct KonquestSobjBinding* binding;
     MkSobj* render_object;
     AniTextureControl* control;
 
@@ -4616,7 +4350,7 @@ void attach_wiff_to_konquest_object_by_uid(
 void attach_sound_to_object_by_uid(
     int uid, int sound_id, float min_dist, float max_dist, int positional_pan,
     int tracking_enabled) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
 
     object = find_tile_object_by_uid(uid);
@@ -4640,13 +4374,13 @@ void attach_sound_to_object_by_uid(
 }
 
 void enable_attached_sound_by_uid(int uid, int enabled) {
-    KonquestAttachedSound* sound;
+    struct KonquestAttachedSound* sound;
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->attached_sounds)) {
         link = konquest_pdata->attached_sounds;
         while (link != 0) {
-            sound = (KonquestAttachedSound*)link->hdr;
+            sound = (struct KonquestAttachedSound*)link->hdr;
             if (link->instance != sound->hdr.instance) {
                 MkPtr* next;
 
@@ -4665,7 +4399,7 @@ void enable_attached_sound_by_uid(int uid, int enabled) {
 
 void attach_pfx_to_object_by_uid(
     int uid, const char* effect_name, const Vec* offset, int keep_attached) {
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
 
     object = find_tile_object_by_uid(uid);
     if (object != 0) {
@@ -4725,11 +4459,11 @@ void attach_pfx_to_object(
 }
 
 static float p_cross_fade_ambient_sounds(void) {
-    KonquestAmbientFadePdata* pdata;
+    struct KonquestAmbientFadePdata* pdata;
     int hour;
     int mode;
 
-    pdata = (KonquestAmbientFadePdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestAmbientFadePdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -4842,7 +4576,7 @@ static float p_cross_fade_ambient_sounds(void) {
             pan = sfrand(2.0f);
             volume = 0.5f + frand(0.4f);
             pdata->delay =
-                (float)((unsigned short)randu0(0x384) + 0x12C);
+                ((unsigned short)randu0(0x384) + 0x12C);
             sound = konquest_pdata->ambient_sound_a != 0
                         ? konquest_pdata->region_table->ambient_effect_a
                         : konquest_pdata->region_table->ambient_effect_b;
@@ -4857,13 +4591,13 @@ static float p_cross_fade_ambient_sounds(void) {
 }
 
 static float p_fade_ambient_sounds(void) {
-    KonquestSoundFadePdata* pdata;
+    struct KonquestSoundFadePdata* pdata;
     int sound_a;
     int sound_b;
     int sound_main;
     float volume;
 
-    pdata = (KonquestSoundFadePdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestSoundFadePdata*)pdata_of_proc(aproc);
     sound_a = konquest_pdata->region_table->ambient_sound_a;
     sound_b = konquest_pdata->region_table->ambient_sound_b;
     sound_main = konquest_pdata->region_table->ambient_sound;
@@ -4888,7 +4622,7 @@ static float p_fade_ambient_sounds(void) {
         }
         volume += pdata->step;
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (mslSoundIsValid(konquest_pdata->ambient_sound_a)) {
@@ -4921,12 +4655,12 @@ static void init_heads_up_display(void) {
     hide_screen_obj(object);
 
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C0014, 0,
+        0x60030, 0x8301, 0x0A8C0014, 0,
         screen_width - 0xE2, screen_height - 0xA8, 0x48);
     konquest_pdata->hud_objects[3].object = (MkHdr*)object;
     konquest_pdata->hud_objects[3].instance = object->instance;
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C0015, 0,
+        0x60030, 0x8301, 0x0A8C0015, 0,
         screen_width - 0xDA, screen_height - 0xA8, 0x48);
     konquest_pdata->hud_objects[4].object = (MkHdr*)object;
     konquest_pdata->hud_objects[4].instance = object->instance;
@@ -4934,18 +4668,18 @@ static void init_heads_up_display(void) {
         object->scale_x = 20.6f;
     }
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C0016, 0,
+        0x60030, 0x8301, 0x0A8C0016, 0,
         screen_width - 0x35, screen_height - 0xA8, 0x48);
     konquest_pdata->hud_objects[5].object = (MkHdr*)object;
     konquest_pdata->hud_objects[5].instance = object->instance;
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C0013, 0,
+        0x60030, 0x8301, 0x0A8C0013, 0,
         screen_width - 0x78, 0x26, 0x49);
     konquest_pdata->hud_objects[6].object = (MkHdr*)object;
     konquest_pdata->hud_objects[6].instance = object->instance;
 
     object = load_2d_pfxobj(
-        0x60030, 0x8301, days_of_week[0].art.name, 0, 0x44);
+        0x60030, 0x8301, days_of_week[0].art, 0, 0x44);
     if (object != 0) {
         object->x = (screen_width - 0x32) - object->pfx2d->tex_w;
         object->y = screen_height - 0x4A;
@@ -4975,12 +4709,12 @@ static void init_heads_up_display(void) {
     konquest_pdata->hud_extra_label.instance = label->instance;
 
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C0009, 0, 0x14,
+        0x60030, 0x8301, 0x0A8C0009, 0, 0x14,
         screen_height - 0x9B, 0x45);
     konquest_pdata->hud_objects[1].object = (MkHdr*)object;
     konquest_pdata->hud_objects[1].instance = object->instance;
     object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)0x0A8C000A, 0, 0x14,
+        0x60030, 0x8301, 0x0A8C000A, 0, 0x14,
         screen_height - 0x9B, 0x47);
     konquest_pdata->hud_objects[0].object = (MkHdr*)object;
     konquest_pdata->hud_objects[0].instance = object->instance;
@@ -5010,9 +4744,7 @@ static float p_adjust_compass(void) {
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
-
     compass = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
-
 
     for (index = 0; index < 4; index++) {
         float angle;
@@ -5027,79 +4759,69 @@ static float p_adjust_compass(void) {
 }
 
 static void set_objective_beam_scale(float distance) {
-    KonquestObjectiveState* objective;
+    struct KonquestObjectiveState* objective;
     MkObj* beam;
     MkSobj* scaled_object;
     float ratio;
+    Vec base_scale;
 
     beam = konquest_live_objective_beam_object(konquest_pdata);
 
-    {
-        Vec base_scale = {1.0f, 1.0f, 1.0f};
+    base_scale = (Vec){1.0f, 1.0f, 1.0f};
 
-        objective = &konquest_pdata->objective;
-        scaled_object = 0;
-        if (beam == 0 || objective == 0) {
-            return;
+    objective = &konquest_pdata->objective;
+    scaled_object = 0;
+    if (beam == 0 || objective == 0) {
+        return;
+    }
+    if (distance >=
+        konquest_pdata->region_table->far_clip_distance - 10.0f) {
+        MkSobj* beam_object;
+
+        beam_object = obj_find_sobj_by_id(beam, 1);
+        if (beam_object != 0) {
+            hide_sobj(beam_object);
         }
-        if (distance >=
-            konquest_pdata->region_table->objective_beam_threshold - 10.0f) {
-            MkSobj* beam_object;
+        if (g_game_info.sky != 0) {
+            MkSobj* sky_object;
 
-            beam_object = obj_find_sobj_by_id(beam, 1);
-            if (beam_object != 0) {
-                hide_sobj(beam_object);
-            }
-            if (g_game_info.sky != 0) {
-                MkSobj* sky_object;
-
-                sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
-                if (sky_object != 0) {
-                    unhide_sobj(sky_object);
-                    scaled_object = sky_object;
-                    sky_object->pos.x = objective->position.x;
-                    sky_object->pos.y = objective->position.y;
-                    sky_object->pos.z = objective->position.z;
-                }
-            }
-        } else {
-            if (g_game_info.sky != 0) {
-                MkSobj* sky_object;
-
-                sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
-                if (sky_object != 0) {
-                    hide_sobj(sky_object);
-                }
-            }
-            scaled_object = obj_find_sobj_by_id(beam, 1);
-            if (scaled_object != 0) {
-                unhide_sobj(scaled_object);
+            sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
+            if (sky_object != 0) {
+                unhide_sobj(sky_object);
+                scaled_object = sky_object;
+                sky_object->pos.x = objective->position.x;
+                sky_object->pos.y = objective->position.y;
+                sky_object->pos.z = objective->position.z;
             }
         }
+    } else {
+        if (g_game_info.sky != 0) {
+            MkSobj* sky_object;
+
+            sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
+            if (sky_object != 0) {
+                hide_sobj(sky_object);
+            }
+        }
+        scaled_object = obj_find_sobj_by_id(beam, 1);
         if (scaled_object != 0) {
-            ratio = distance / 500.0f;
-            objective->beam_scale = 4.0f * ratio + 1.0f;
-            scaled_object->scale.x = base_scale.x * objective->beam_scale;
-            scaled_object->scale.y = base_scale.y * objective->beam_scale;
-            scaled_object->scale.z = base_scale.z * objective->beam_scale;
-            update_mksobj(scaled_object);
+            unhide_sobj(scaled_object);
         }
     }
+    if (scaled_object != 0) {
+        ratio = distance / 500.0f;
+        objective->beam_scale = 4.0f * ratio + 1.0f;
+        scaled_object->scale.x = base_scale.x * objective->beam_scale;
+        scaled_object->scale.y = base_scale.y * objective->beam_scale;
+        scaled_object->scale.z = base_scale.z * objective->beam_scale;
+        update_mksobj(scaled_object);
+    }
 }
-
-
-
-
-
-
-
-
-
 
 static float p_adjust_objective_arrow_and_beam(void) {
     Vec angles;
     Vec direction;
-    KonquestPdata* pdata = konquest_pdata;
+    struct KonquestPdata* pdata = konquest_pdata;
     MkObj* hero = konquest_pdata_live_hero_object(pdata);
     Vec forward = {0.0f, 0.0f, 1.0f};
     CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
@@ -5132,9 +4854,11 @@ static float p_adjust_objective_arrow_and_beam(void) {
     }
 
     if (konquest_pdata->objective_field_2F0 != 0) {
+        ScreenObj* current_arrow;
+        MkObj* beam;
         switch (pdata->objective.target_type) {
         case 1: {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
             trigger = find_trigger_by_id(pdata->objective.trigger_id);
             if (trigger == 0) {
@@ -5150,7 +4874,7 @@ static float p_adjust_objective_arrow_and_beam(void) {
         }
         case 2:
         case 3: {
-            KonquestNpc* npc;
+            union KonquestNpc* npc;
 
             npc = find_npc_by_data(pdata->objective.npc_data);
             if (npc == 0) {
@@ -5164,35 +4888,30 @@ static float p_adjust_objective_arrow_and_beam(void) {
         }
 
         display_position = target_position;
-        {
-            ScreenObj* current_arrow;
-            MkObj* beam;
+        current_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
 
-            current_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
 
-            beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
-
-            if (current_arrow != 0 && beam != 0 &&
-                get_game_state() != 0x14) {
-                if (konquest_pdata->hud_visible != 0) {
-                    unhide_screen_obj(current_arrow);
-                }
-                unhide_obj(beam);
-                display_position.y = 0.0f;
-                konquest_pdata->objective.position.x = display_position.x;
-                konquest_pdata->objective.position.y = display_position.y;
-                konquest_pdata->objective.position.z = display_position.z;
-                beam->pos.value.x = display_position.x;
-                beam->pos.value.y = display_position.y;
-                beam->pos.value.z = display_position.z;
-                update_mkobj(beam != 0 ? as_mkhdr(&beam->hdr) : 0);
-                konquest_pdata->objective.visible = 1;
-                konquest_pdata->objective_field_2F0 = 1;
+        if (current_arrow != 0 && beam != 0 &&
+            get_game_state() != 0x14) {
+            if (konquest_pdata->hud_visible != 0) {
+                unhide_screen_obj(current_arrow);
             }
+            unhide_obj(beam);
+            display_position.y = 0.0f;
+            konquest_pdata->objective.position.x = display_position.x;
+            konquest_pdata->objective.position.y = display_position.y;
+            konquest_pdata->objective.position.z = display_position.z;
+            beam->pos.value.x = display_position.x;
+            beam->pos.value.y = display_position.y;
+            beam->pos.value.z = display_position.z;
+            update_mkobj(beam != 0 ? as_mkhdr(&beam->hdr) : 0);
+            konquest_pdata->objective.visible = 1;
+            konquest_pdata->objective_field_2F0 = 1;
         }
         konquest_pdata->objective_field_2F0 = 0;
     } else if (pdata->objective.target_type == 3) {
-        KonquestNpc* npc;
+        union KonquestNpc* npc;
         ScreenObj* current_arrow;
         MkObj* beam;
 
@@ -5278,14 +4997,13 @@ static void update_time_screen_objs(int update_all) {
 
     period_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
 
-
     if (update_all != 0 && day_object != 0) {
         if (day_object->instance != 0) {
             day_object->typed_vtbl->destroy(day_object);
         }
         day_object = load_2d_pfxobj(
             0x60030, 0x8301,
-            days_of_week[konquest_pdata->current_time.day_of_week].art.name,
+            days_of_week[konquest_pdata->current_time.day_of_week].art,
             0, 0x44);
         if (day_object != 0) {
             day_object->x =
@@ -5340,7 +5058,8 @@ void set_current_time(const KonquestTime* time) {
     if (time->year == -1 || time->month == -1 ||
         time->day_of_month == -1 || time->day_of_week == -1) {
         calc_next_occurrence_of_event(
-            &occurrence, time, &konquest_pdata->current_time);
+            &occurrence, (KonquestTime*)time,
+            &konquest_pdata->current_time);
         set_current_time(&occurrence);
     } else {
         if (time->year != -1) {
@@ -5362,7 +5081,7 @@ void set_current_time(const KonquestTime* time) {
             konquest_pdata->current_time.minute = time->minute;
         }
     }
-    hour = (float)time->hour;
+    hour = time->hour;
     konquest_pdata->time_of_day = hour + (float)time->minute / 60.0f;
     konquest_pdata->time_rate_changed = 1;
     update_time_screen_objs(1);
@@ -5382,12 +5101,8 @@ void start_time_passing(void) {
     konquest_pdata->time_passing = 1;
 }
 
-
-
-
-
 static inline void konquest_palette_remove_record(
-    KonquestMatrixPalette* palette, KonquestRenderRecord* record) {
+    struct KonquestMatrixPalette* palette, KonquestRenderRecord* record) {
     KonquestRenderRecord** records;
     KonquestRenderRecord* last;
     int index;
@@ -5418,15 +5133,15 @@ static inline void konquest_palette_remove_record(
 static void hide_tile_objects(KonquestTileRecord* tile) {
     MkPtr* record_link;
     KonquestRenderRecord* record;
-    KonquestMatrixPalette* palette;
+    struct KonquestMatrixPalette* palette;
     MkPtr* object_link;
     MkPtr* object_next;
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
 
     if (tile != 0 && konquest_has_list(&tile->objects)) {
         object_link = tile->objects;
         while (object_link != 0) {
-            object = (KonquestUidObject*)object_link->hdr;
+            object = (struct KonquestUidObject*)object_link->hdr;
             if (object_link->instance != object->hdr.instance) {
                 object_next = object_link->next;
                 discard_stale_mkptr(object_link);
@@ -5451,7 +5166,7 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
                     }
 
                     if (record->matrix_index >= 0) {
-                        KonquestSobjBinding* binding;
+                        struct KonquestSobjBinding* binding;
 
                         binding = record->binding;
                         palette = binding->palette;
@@ -5503,6 +5218,7 @@ static void initialize_tile_patch_sobj(MkSobj* object) {
 }
 
 /* TODO: [blocked] 99.98064%; control flow matches; three pooled string addends need TU donor layout. */
+/* TODO: [Scope warn] section-context block: removing it drops 99.98% -> 99.93%. */
 void load_konquest_tiles(void) {
     MkObj* model;
     unsigned int setup_function;
@@ -5513,7 +5229,7 @@ void load_konquest_tiles(void) {
 
     load_art_section_by_name(
         0x60029,
-        (const char*)konquest_pdata->region_table->region_asset);
+        konquest_pdata->region_table->region_asset);
     model = load_named_model_from_slot(0x60029, "TILES", 0x1004, 0);
     if (model != 0) {
         model->light_flags = 1;
@@ -5544,46 +5260,42 @@ void load_konquest_tiles(void) {
 
     if (konquest_pdata->region_table->effect_bank_name != 0) {
         MkHdr* tile_objects;
-        KonquestSectionContext context;
+        LoadBgndCtx context;
 
         tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
-        context.slot = 0x60029;
-        context.owner = tile_objects;
-        context.flags = 0;
+        context.art_id = 0x60029;
+        context.bgnd_obj = (MkObj*)tile_objects;
+        context.pad = 0;
         active_cmdscript->mko = konquest_pdata->script_owner;
-        ((KonquestScriptSlotView*)konquest_pdata->script_owner)
-            ->section_context = &context.slot;
+        konquest_pdata->script_owner->load_ctx = &context;
         load_effect_bank(
             konquest_pdata->region_table->effect_bank_name);
-        ((KonquestScriptSlotView*)konquest_pdata->script_owner)
-            ->section_context = 0;
+        konquest_pdata->script_owner->load_ctx = 0;
     }
 
     {
         MkHdr* tile_objects;
-        KonquestSectionContext context;
+        LoadBgndCtx context;
 
         tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
-        context.slot = 0x60030;
-        context.owner = tile_objects;
-        context.flags = 0;
+        context.art_id = 0x60030;
+        context.bgnd_obj = (MkObj*)tile_objects;
+        context.pad = 0;
         save_current_ssf();
         load_ssf((MkFileEntry*)konquest_common_file_table);
         active_cmdscript->mko = konquest_pdata->script_owner;
-        ((KonquestScriptSlotView*)konquest_pdata->script_owner)
-            ->section_context = &context.slot;
+        konquest_pdata->script_owner->load_ctx = &context;
         load_effect_bank("common_pfx.mko");
-        ((KonquestScriptSlotView*)konquest_pdata->script_owner)
-            ->section_context = 0;
+        konquest_pdata->script_owner->load_ctx = 0;
         restore_previous_ssf();
     }
 }
 
 /* TODO: [near miss] 99.99%; two cr1_time_progression.sec addends await TU string-pool layout evidence. */
 static int setup_pebble_system_for_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition) {
+    MkSobj* object, struct KonquestTileObjectDefinition* definition) {
     PebbleData* pebbles;
-    KonquestSobjInfo* info;
+    struct KonquestSobjInfo* info;
     int uid;
     char* name;
     int use_object_position;
@@ -5616,7 +5328,7 @@ static int setup_pebble_system_for_tile_object(
         }
 
         uid = object->id_flags & 0xFFF;
-        info = (KonquestSobjInfo*)get_mkhdr(
+        info = (struct KonquestSobjInfo*)get_mkhdr(
             &vtbl_konquest_sobj_info, sizeof(*info));
         if (info != 0) {
             zero_pdata_payload(sizeof(*info), info);
@@ -5655,7 +5367,7 @@ static int setup_pebble_system_for_tile_object(
 }
 
 static void setup_children_pebbles_of_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition) {
+    MkSobj* object, struct KonquestTileObjectDefinition* definition) {
     RwLLLink* next;
     RwLLLink* link;
     RwLLLink* sentinel;
@@ -5691,14 +5403,14 @@ static void setup_children_pebbles_of_tile_object(
 
 /* TODO: [blocked] 99.98666%; sole strcmp string addend needs missing TU donor layout evidence. */
 static int setup_locator_for_tile_object(
-    KonquestTileObjectDefinition* definition) {
+    struct KonquestTileObjectDefinition* definition) {
     const char* name;
     int uid;
-    KonquestSobjInfo* info;
+    struct KonquestSobjInfo* info;
 
     name = definition->name;
     uid = definition->uid;
-    info = (KonquestSobjInfo*)get_mkhdr(
+    info = (struct KonquestSobjInfo*)get_mkhdr(
         &vtbl_konquest_sobj_info, sizeof(*info));
     if (info != 0) {
         zero_pdata_payload(sizeof(*info), info);
@@ -5720,8 +5432,8 @@ static int setup_locator_for_tile_object(
 }
 
 static int setup_sobj_for_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition) {
-    KonquestSobjInfo* info;
+    MkSobj* object, struct KonquestTileObjectDefinition* definition) {
+    struct KonquestSobjInfo* info;
     unsigned int uid;
     char* name;
     int use_object_position;
@@ -5733,7 +5445,7 @@ static int setup_sobj_for_tile_object(
     } else {
         name = definition->name;
     }
-    info = (KonquestSobjInfo*)get_mkhdr(
+    info = (struct KonquestSobjInfo*)get_mkhdr(
         &vtbl_konquest_sobj_info, sizeof(*info));
     if (info != 0) {
         zero_pdata_payload(sizeof(*info), info);
@@ -5775,7 +5487,7 @@ static int setup_sobj_for_tile_object(
 }
 
 static void setup_children_sobjs_of_tile_object(
-    MkSobj* object, KonquestTileObjectDefinition* definition) {
+    MkSobj* object, struct KonquestTileObjectDefinition* definition) {
     RwLLLink* next;
     RwLLLink* link;
     RwLLLink* sentinel;
@@ -5810,11 +5522,11 @@ static void setup_children_sobjs_of_tile_object(
 }
 
 /* TODO: [near miss] 99.39%; index/SOBJ r27-r29 coloring and OBJECTS pool offset remain. */
-void load_tile_objects(KonquestTileObjectDefinition* definitions) {
+void load_tile_objects(struct KonquestTileObjectDefinition* definitions) {
     unsigned int row_count;
     MkObj* model;
     unsigned int index;
-    KonquestTileObjectDefinition* definition;
+    struct KonquestTileObjectDefinition* definition;
 
     row_count = get_row_count_for_table_by_pointer(
         konquest_pdata->script_owner, definitions);
@@ -5902,15 +5614,15 @@ KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door) {
     return 0;
 }
 
-static inline KonquestTriggerStruct* find_trigger_by_owned_id(int id) {
+static inline struct KonquestTriggerStruct* find_trigger_by_owned_id(int id) {
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next = link->next;
                 discard_stale_mkptr(link);
@@ -5931,8 +5643,8 @@ static void generate_door_trigger(
     KonquestDoorObject* door, const Vec* position, float radius) {
     unsigned int door_uid;
     unsigned int enumeration;
-    KonquestUidObject* owner;
-    KonquestTriggerStruct* trigger;
+    struct KonquestUidObject* owner;
+    struct KonquestTriggerStruct* trigger;
     char script_name[100];
 
     owner = door->owner;
@@ -5959,7 +5671,7 @@ static void generate_door_trigger(
             z = position->z;
             y = position->y;
             x = position->x;
-            trigger = (KonquestTriggerStruct*)get_mkhdr(
+            trigger = (struct KonquestTriggerStruct*)get_mkhdr(
                 &vtbl_trigger_struct, sizeof(*trigger));
             if (trigger != 0) {
                 zero_pdata_payload(sizeof(*trigger), trigger);
@@ -6019,6 +5731,17 @@ static void generate_door_paths(void) {
     if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
+            KonquestDoorObject* partner;
+            struct KonquestSobjInfo* info;
+            KonquestWaypoint* path;
+            MkSobj* model;
+            Vec forward;
+            Vec center;
+            Vec rotated_center;
+            Vec partner_center;
+            Vec direction;
+            float angle;
+            int enumeration_index;
             KonquestDoorObject* door;
 
             door = (KonquestDoorObject*)link->hdr;
@@ -6031,150 +5754,138 @@ static void generate_door_paths(void) {
                 continue;
             }
 
-            {
-                KonquestDoorObject* partner;
-                KonquestSobjInfo* info;
-                KonquestWaypoint* path;
-                MkSobj* model;
-                Vec forward = {0.0f, 0.0f, 1.0f};
-                Vec center;
-                Vec rotated_center;
-                Vec partner_center;
-                Vec direction;
-                float angle;
-                int enumeration_index;
+            forward = (Vec){0.0f, 0.0f, 1.0f};
 
-                partner = 0;
-                info = door->info;
-                enumeration_index = info->enumeration_index;
-                if (enumeration_index >= 0 && door->path_waypoints == 0) {
-                    model = info->object;
-                    if (model != 0) {
-                        if (model->hdr.instance != info->object_instance) {
-                            model = 0;
-                        }
-                    } else {
+            partner = 0;
+            info = door->info;
+            enumeration_index = info->enumeration_index;
+            if (enumeration_index >= 0 && door->path_waypoints == 0) {
+                model = info->object;
+                if (model != 0) {
+                    if (model->hdr.instance != info->object_instance) {
                         model = 0;
                     }
-                    if (model != 0) {
-                        rotate_xz(
-                            &rotated_center,
-                            (const Vec*)&RpAtomicGetWorldBoundingSphere(
-                                model->atomic)->center,
-                            door->base_angles.y);
-                        center.x = door->base_position.x + rotated_center.x;
-                        center.y = 0.0f;
-                        center.z = door->base_position.z + rotated_center.z;
-                    } else {
-                        center.x = 0.0f;
-                        center.y = 0.0f;
-                        center.z = 0.0f;
-                    }
+                } else {
+                    model = 0;
+                }
+                if (model != 0) {
+                    rotate_xz(
+                        &rotated_center,
+                        (const Vec*)&RpAtomicGetWorldBoundingSphere(
+                            model->atomic)->center,
+                        door->base_angles.y);
+                    center.x = door->base_position.x + rotated_center.x;
+                    center.y = 0.0f;
+                    center.z = door->base_position.z + rotated_center.z;
+                } else {
+                    center.x = 0.0f;
+                    center.y = 0.0f;
+                    center.z = 0.0f;
+                }
 
-                    if (konquest_pdata->region_table
-                            ->enumerations[enumeration_index]
-                            .partner_uid != -1) {
-                        partner = (KonquestDoorObject*)find_door_partner_inline(door);
-                        if (partner != 0) {
-                            MkSobj* partner_model;
-                            float partner_x;
-                            float partner_z;
+                if (konquest_pdata->region_table
+                        ->enumerations[enumeration_index]
+                        .partner_uid != -1) {
+                    partner = (KonquestDoorObject*)find_door_partner_inline(door);
+                    if (partner != 0) {
+                        MkSobj* partner_model;
+                        float partner_x;
+                        float partner_z;
 
-                            partner_model = partner->info->object;
-                            if (partner_model != 0) {
-                                if (partner_model->hdr.instance !=
-                                    partner->info->object_instance) {
-                                    partner_model = 0;
-                                }
-                            } else {
+                        partner_model = partner->info->object;
+                        if (partner_model != 0) {
+                            if (partner_model->hdr.instance !=
+                                partner->info->object_instance) {
                                 partner_model = 0;
                             }
-                            if (partner_model != 0) {
-                                rotate_xz(
-                                    &partner_center,
-                                    (const Vec*)&RpAtomicGetWorldBoundingSphere(
-                                        partner_model->atomic)->center,
-                                    partner->base_angles.y);
-                                partner_x =
-                                    partner->base_position.x + partner_center.x;
-                                partner_z =
-                                    partner->base_position.z + partner_center.z;
-                            } else {
-                                partner_x = 0.0f;
-                                partner_z = 0.0f;
-                            }
-                            center.x = 0.5f * (center.x + partner_x);
-                            center.z = 0.5f * (center.z + partner_z);
+                        } else {
+                            partner_model = 0;
                         }
+                        if (partner_model != 0) {
+                            rotate_xz(
+                                &partner_center,
+                                (const Vec*)&RpAtomicGetWorldBoundingSphere(
+                                    partner_model->atomic)->center,
+                                partner->base_angles.y);
+                            partner_x =
+                                partner->base_position.x + partner_center.x;
+                            partner_z =
+                                partner->base_position.z + partner_center.z;
+                        } else {
+                            partner_x = 0.0f;
+                            partner_z = 0.0f;
+                        }
+                        center.x = 0.5f * (center.x + partner_x);
+                        center.z = 0.5f * (center.z + partner_z);
                     }
+                }
 
-                    direction = (Vec){0.0f, 0.0f, 0.0f};
-                    if (door != 0) {
-                        angle = 0.000005992112f *
-                            ((int)(166886.1f *
-                                   (door->base_angles.y +
-                                    konquest_pdata->region_table
-                                        ->enumerations[enumeration_index]
-                                        .angle)) &
-                             0xFFFFF);
-                        rotate_xz(&direction, &forward, angle);
-                        forward.x = direction.x;
-                        forward.y = direction.y;
-                        forward.z = direction.z;
-                    } else {
-                        angle = 0.0f;
-                    }
+                direction = (Vec){0.0f, 0.0f, 0.0f};
+                if (door != 0) {
+                    angle = 0.000005992112f *
+                        ((int)(166886.1f *
+                               (door->base_angles.y +
+                                konquest_pdata->region_table
+                                    ->enumerations[enumeration_index]
+                                    .angle)) &
+                         0xFFFFF);
+                    rotate_xz(&direction, &forward, angle);
+                    forward.x = direction.x;
+                    forward.y = direction.y;
+                    forward.z = direction.z;
+                } else {
+                    angle = 0.0f;
+                }
 
-                    path = (KonquestWaypoint*)((char*)waypoints + waypoint_offset);
-                    v3_add_v3_scaled(&path[0].position, &center, &forward, 3.0f);
-                    path[0].angle = 3.1415927f + angle;
-                    path[0].angle = 0.000005992112f *
-                        ((int)(166886.1f * path[0].angle) & 0xFFFFF);
-                    path[0].flags = 0;
-                    path[0].script_function = get_script_function_by_name(
-                        konquest_pdata->script_owner, "open_door_and_enter");
+                path = (KonquestWaypoint*)((char*)waypoints + waypoint_offset);
+                v3_add_v3_scaled(&path[0].position, &center, &forward, 3.0f);
+                path[0].angle = 3.1415927f + angle;
+                path[0].angle = 0.000005992112f *
+                    ((int)(166886.1f * path[0].angle) & 0xFFFFF);
+                path[0].flags = 0;
+                path[0].script_function = get_script_function_by_name(
+                    konquest_pdata->script_owner, "open_door_and_enter");
 
-                    v3_add_v3_scaled(
-                        &waypoints[waypoint_index + 1].position,
-                        &center, &forward, -3.0f);
-                    path[1].angle = angle;
-                    path[1].flags = 0;
-                    path[1].script_function = 0;
-                    path[2].position.x = path[1].position.x;
-                    path[2].position.y = path[1].position.y;
-                    path[2].position.z = path[1].position.z;
-                    path[2].angle = angle;
-                    path[2].flags = 0;
-                    path[2].script_function = get_script_function_by_name(
-                        konquest_pdata->script_owner, "open_door_and_exit");
-                    path[3].position.x = path[0].position.x;
-                    path[3].position.y = path[0].position.y;
-                    path[3].position.z = path[0].position.z;
-                    path[3].angle = angle;
-                    path[3].flags = 0;
-                    path[3].script_function = get_script_function_by_name(
-                        konquest_pdata->script_owner, "npc_go_out_of_house");
+                v3_add_v3_scaled(
+                    &waypoints[waypoint_index + 1].position,
+                    &center, &forward, -3.0f);
+                path[1].angle = angle;
+                path[1].flags = 0;
+                path[1].script_function = 0;
+                path[2].position.x = path[1].position.x;
+                path[2].position.y = path[1].position.y;
+                path[2].position.z = path[1].position.z;
+                path[2].angle = angle;
+                path[2].flags = 0;
+                path[2].script_function = get_script_function_by_name(
+                    konquest_pdata->script_owner, "open_door_and_exit");
+                path[3].position.x = path[0].position.x;
+                path[3].position.y = path[0].position.y;
+                path[3].position.z = path[0].position.z;
+                path[3].angle = angle;
+                path[3].flags = 0;
+                path[3].script_function = get_script_function_by_name(
+                    konquest_pdata->script_owner, "npc_go_out_of_house");
 
-                    door->path_waypoints = path;
-                    if (partner != 0) {
-                        partner->path_waypoints = path;
-                    }
+                door->path_waypoints = path;
+                if (partner != 0) {
+                    partner->path_waypoints = path;
+                }
 
-                    v3_add_v3_scaled(
-                        &center, &center, &forward,
-                        -0.25f +
-                            konquest_pdata->region_table
-                                ->enumerations[enumeration_index]
-                                .trigger_offset);
-                    generate_door_trigger(
-                        door, &center,
+                v3_add_v3_scaled(
+                    &center, &center, &forward,
+                    -0.25f +
                         konquest_pdata->region_table
                             ->enumerations[enumeration_index]
-                            .trigger_radius);
-                    generated_count++;
-                    waypoint_index += 4;
-                    waypoint_offset += 4 * sizeof(*path);
-                }
+                            .trigger_offset);
+                generate_door_trigger(
+                    door, &center,
+                    konquest_pdata->region_table
+                        ->enumerations[enumeration_index]
+                        .trigger_radius);
+                generated_count++;
+                waypoint_index += 4;
+                waypoint_offset += 4 * sizeof(*path);
             }
             link = link->next;
         }
@@ -6220,7 +5931,7 @@ KonquestWaypoint* get_door_path(int door_id) {
     return 0;
 }
 
-void vdestroy_trigger_struct(KonquestTriggerStruct* trigger) {
+void vdestroy_trigger_struct(struct KonquestTriggerStruct* trigger) {
     if (((trigger->flags >> 4) & 1) && trigger->owned_data != 0) {
         free_mem(trigger->owned_data);
     }
@@ -6284,15 +5995,14 @@ void* get_nth_tile_struct(int index) {
 }
 #pragma auto_inline reset
 
-
 static KonquestRenderRecord* create_konquest_sobj_for_konquest_obj(
-    KonquestUidObject* owner, int uid, Vec* position, float angle) {
+    struct KonquestUidObject* owner, int uid, Vec* position, float angle) {
     KonquestRenderRecord* record;
 
     record = _mwMemMalloc(
         konquest_subobjects_heap, sizeof(*record), 0x80, 0, 0, 0);
     if (record != 0) {
-        record->hdr.vtbl = &vtbl_konquest_sobj_struct;
+        record->hdr.vtbl = MK_VTABLE_ADDRESS(vtbl_konquest_sobj_struct);
         mk_set_instance(&record->hdr.instance);
         zero_pdata_payload(sizeof(*record), record);
     }
@@ -6351,7 +6061,7 @@ void add_object_to_tile(
     int tile_index, int render_uid, int object_uid, float x, float y, float z,
     float angle) {
     KonquestTileRecord* tile;
-    KonquestUidObject* object;
+    struct KonquestUidObject* object;
     KonquestRenderRecord* record;
     Vec position;
 
@@ -6402,9 +6112,9 @@ void konquest_setup_pui_particle(
     }
 }
 
-void assign_obj_to_trigger(int object_uid, KonquestTriggerDefinition* definition) {
-    KonquestTriggerStruct* trigger;
-    KonquestUidObject* object;
+void assign_obj_to_trigger(int object_uid, struct KonquestTriggerDefinition* definition) {
+    struct KonquestTriggerStruct* trigger;
+    struct KonquestUidObject* object;
 
     trigger = find_trigger_by_definition(definition);
     if (trigger != 0) {
@@ -6416,16 +6126,16 @@ void assign_obj_to_trigger(int object_uid, KonquestTriggerDefinition* definition
 }
 
 #pragma auto_inline on
-KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
+struct KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
     MkPtr* link;
     MkPtr* next;
 
     if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 next = link->next;
                 discard_stale_mkptr(link);
@@ -6441,9 +6151,9 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
     if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 next = link->next;
                 discard_stale_mkptr(link);
@@ -6461,12 +6171,12 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
 #pragma auto_inline reset
 
 static inline void create_trigger(int table_index) {
-    KonquestTriggerDefinition* definition;
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerDefinition* definition;
+    struct KonquestTriggerStruct* trigger;
 
     definition = get_data_table(
         konquest_pdata->script_owner, table_index);
-    trigger = (KonquestTriggerStruct*)get_mkhdr(
+    trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
         zero_pdata_payload(sizeof(*trigger), trigger);
@@ -6496,9 +6206,9 @@ void add_trigger_list_to_world(void) {
 
     header = get_data_table_by_name("trigger_table_header");
     footer = get_data_table_by_name("trigger_table_footer");
-    first_index = (int)get_table_index_by_pointer(
+    first_index = get_table_index_by_pointer(
         konquest_pdata->script_owner, header);
-    last_index = (int)get_table_index_by_pointer(
+    last_index = get_table_index_by_pointer(
         konquest_pdata->script_owner, footer);
 
     if (last_index - first_index - 1 >= 0) {
@@ -6510,12 +6220,12 @@ void add_trigger_list_to_world(void) {
     }
 }
 
-KonquestTriggerStruct* add_temporary_trigger(
+struct KonquestTriggerStruct* add_temporary_trigger(
     int id, int type, unsigned int flags, int state,
     unsigned int script_index, float x, float y, float z, float radius) {
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerStruct* trigger;
 
-    trigger = (KonquestTriggerStruct*)get_mkhdr(
+    trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
         zero_pdata_payload(sizeof(*trigger), trigger);
@@ -6547,7 +6257,6 @@ KonquestTriggerStruct* add_temporary_trigger(
     return trigger;
 }
 
-
 void delete_triggers_from_tile(int tile_index) {
     MkPtr* link;
 
@@ -6555,7 +6264,7 @@ void delete_triggers_from_tile(int tile_index) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             MkHdr* header;
-            KonquestTriggerStruct* trigger;
+            struct KonquestTriggerStruct* trigger;
 
             header = link->hdr;
             if (link->instance != header->instance) {
@@ -6566,7 +6275,7 @@ void delete_triggers_from_tile(int tile_index) {
                 link = next;
                 continue;
             }
-            trigger = (KonquestTriggerStruct*)header;
+            trigger = (struct KonquestTriggerStruct*)header;
             if (trigger->tile_index == tile_index &&
                 trigger->flag_bits.bit4 &&
                 trigger->owned_data->type != 2) {
@@ -6582,9 +6291,9 @@ void delete_triggers_from_tile(int tile_index) {
 
 static float p_pui_pfx_sequence(void) {
     unsigned int row_count;
-    KonquestPuiPfxSequencePdata* pdata;
+    struct KonquestPuiPfxSequencePdata* pdata;
 
-    pdata = (KonquestPuiPfxSequencePdata*)apdata;
+    pdata = (struct KonquestPuiPfxSequencePdata*)apdata;
     row_count = get_row_count_for_table_by_pointer(
         konquest_pdata->script_owner, pdata->sequence);
     pdata->delay -= get_game_speed();
@@ -6593,6 +6302,7 @@ static float p_pui_pfx_sequence(void) {
         unsigned int emitter;
         MkPfx* particle;
         MkObj* object;
+        unsigned int next_index;
 
         effect = fx_by_owner(pdata->sequence[pdata->index].effect_owner, 4);
         emitter = fx_next_emitter(effect);
@@ -6608,34 +6318,19 @@ static float p_pui_pfx_sequence(void) {
         update_mkobj(object);
         fx_reset_emit(emitter);
         fx_resume_emit(emitter);
-        {
-            unsigned int next_index;
-
-            next_index = pdata->index + 1;
-            pdata->index = next_index;
-            if (next_index == row_count) {
-                return -1.0f;
-            }
+        next_index = pdata->index + 1;
+        pdata->index = next_index;
+        if (next_index == row_count) {
+            return -1.0f;
         }
         pdata->delay = pdata->sequence[pdata->index].delay;
     }
     return 1.0f;
 }
 
-
-
-
-
-
-
-
-
-/* TODO: [breakthrough] 92.64%; single-case switch restores type-guard CFG;
- * sus switch statment, rewrite some if as switch numeric cases then internal if for other checks, then compiler optimizations
- * flattens some of those into single ifs
- * frustum-result materialization and validated-owner register lifetimes remain. */
-static void handle_trigger_preprocess(KonquestTriggerStruct* trigger) {
-    KonquestTriggerDefinition* definition;
+/* TODO: [breakthrough] 92.64%; single-case switch restores type-guard CFG; frustum-result materialization and validated-owner register lifetimes remain. */
+static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
+    struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
     MkObj* object;
     MkSobj* attachment;
@@ -6730,12 +6425,12 @@ static void handle_trigger_preprocess(KonquestTriggerStruct* trigger) {
 }
 
 /* TODO: [near miss] 96.8421%; branch/register lowering remains; stop at trial cap. */
-void execute_trigger(KonquestTriggerStruct* trigger) {
+void execute_trigger(struct KonquestTriggerStruct* trigger) {
     execute_trigger_inline(trigger);
 }
 
-void fire_trigger(KonquestTriggerDefinition* definition) {
-    KonquestTriggerStruct* trigger;
+void fire_trigger(struct KonquestTriggerDefinition* definition) {
+    struct KonquestTriggerStruct* trigger;
 
     trigger = find_trigger_by_definition(definition);
     if (trigger != 0) {
@@ -6744,12 +6439,12 @@ void fire_trigger(KonquestTriggerDefinition* definition) {
 }
 
 static float p_run_trigger_script(void) {
-    KonquestTriggerScriptPdata* pdata;
+    struct KonquestTriggerScriptPdata* pdata;
     int clear_active_trigger;
-    KonquestTriggerStruct* trigger;
-    KonquestTriggerDefinition* definition;
+    struct KonquestTriggerStruct* trigger;
+    struct KonquestTriggerDefinition* definition;
 
-    pdata = (KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
     trigger = MK_HDR_LIVE(pdata->trigger, pdata->trigger_instance);
     clear_active_trigger = 0;
     if (trigger == 0) {
@@ -6788,7 +6483,7 @@ static float p_run_trigger_script(void) {
     return -1.0f;
 }
 
-static int is_in_range(KonquestTriggerStruct* trigger) {
+static int is_in_range(struct KonquestTriggerStruct* trigger) {
     Vec distance = {0.0f, 0.0f, 0.0f};
     MkObj* hero;
 
@@ -6807,7 +6502,7 @@ static int is_in_range(KonquestTriggerStruct* trigger) {
            trigger->owned_data->radius * trigger->owned_data->radius;
 }
 
-static int is_button_pressed(KonquestTriggerStruct* button) {
+static int is_button_pressed(struct KonquestTriggerStruct* button) {
     if (button == 0) {
         return 0;
     }
@@ -6818,33 +6513,32 @@ static int is_button_pressed(KonquestTriggerStruct* button) {
     return 0;
 }
 
-static int is_leaving_area(KonquestTriggerStruct* trigger) {
+static int is_leaving_area(struct KonquestTriggerStruct* trigger) {
     MkObj* hero;
     int in_range;
+    Vec distance;
 
     if (trigger == 0) {
         return 0;
     }
-    {
-        Vec distance = {0.0f, 0.0f, 0.0f};
+    distance = (Vec){0.0f, 0.0f, 0.0f};
 
-        hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
-        if (hero == 0) {
-            in_range = 0;
-        } else if (trigger == 0) {
-            in_range = 0;
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
+    if (hero == 0) {
+        in_range = 0;
+    } else if (trigger == 0) {
+        in_range = 0;
+    } else {
+        distance.x =
+            hero->pos.value.x - trigger->owned_data->position.x;
+        distance.z =
+            hero->pos.value.z - trigger->owned_data->position.z;
+        if (distance.x * distance.x + distance.y * distance.y +
+                distance.z * distance.z <
+            trigger->owned_data->radius * trigger->owned_data->radius) {
+            in_range = 1;
         } else {
-            distance.x =
-                hero->pos.value.x - trigger->owned_data->position.x;
-            distance.z =
-                hero->pos.value.z - trigger->owned_data->position.z;
-            if (distance.x * distance.x + distance.y * distance.y +
-                    distance.z * distance.z <
-                trigger->owned_data->radius * trigger->owned_data->radius) {
-                in_range = 1;
-            } else {
-                in_range = 0;
-            }
+            in_range = 0;
         }
     }
     if (in_range == 0) {
@@ -6859,7 +6553,7 @@ static int is_leaving_area(KonquestTriggerStruct* trigger) {
 }
 
 KonquestChildObject* find_child_subobject_by_enumeration(
-    KonquestObject* object, int enumeration) {
+    struct KonquestObject* object, int enumeration) {
     MkPtr* link;
 
     if (konquest_has_list(&object->list_4C)) {
@@ -6890,11 +6584,11 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     return 0;
 }
 
-/* TODO: [near miss] 98.38%; first fast-sqrt result is copied into position_ticks
+/* TODO: [near miss] 98.44%; first fast-sqrt result is copied into position_ticks
  * (fmr) instead of coalescing into the preloaded-zero f25; see notes. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
-    KonquestObjectState* state_data;
+    struct KonquestObjectState* state_data;
     Vec target_position;
     Vec target_angles;
     Vec* angles;
@@ -6913,6 +6607,8 @@ static void object_transition_to_state(
     float angle_speed;
     float inverse;
     int enumeration_index;
+        MKMATRIX* matrix;
+        MkSobj* object;
 
     if (konquest_pdata->region_table->enumerations == 0) {
         return;
@@ -6962,7 +6658,7 @@ static void object_transition_to_state(
         state_data->position_speed.z * state_data->position_speed.z);
     if (position_speed > 0.0f) {
         position_ticks /= position_speed;
-        position_ticks = (float)floor(position_ticks);
+        position_ticks = floor(position_ticks);
     }
     inverse = konquest_inverse_length(position_length_squared);
     position_x *= inverse;
@@ -6984,7 +6680,7 @@ static void object_transition_to_state(
         state_data->angle_speed.z * state_data->angle_speed.z);
     if (angle_speed > 0.0f) {
         angle_ticks /= angle_speed;
-        angle_ticks = (float)floor(angle_ticks);
+        angle_ticks = floor(angle_ticks);
     }
     inverse = konquest_inverse_length(angle_length_squared);
     angle_x *= inverse;
@@ -7048,7 +6744,7 @@ static void object_transition_to_state(
             matrix->pos.z = record->position.z;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     record->position.x = target_position.x;
@@ -7058,55 +6754,50 @@ static void object_transition_to_state(
     angles->y = target_angles.y;
     angles->z = target_angles.z;
 
-    {
-        MKMATRIX* matrix;
-        MkSobj* object;
-
-        matrix = 0;
-        if (record->matrix_index >= 0) {
-            if (record->binding->palette == 0) {
-                object = MK_HDR_LIVE(record->binding->object, record->binding->object_instance);
-                if (object != 0) {
-                    matrix = &object->frame->modelling;
-                }
-            } else if (record->matrix_index >= 0) {
-                matrix = &record->binding->palette
-                              ->matrices[record->matrix_index];
+    matrix = 0;
+    if (record->matrix_index >= 0) {
+        if (record->binding->palette == 0) {
+            object = MK_HDR_LIVE(record->binding->object, record->binding->object_instance);
+            if (object != 0) {
+                matrix = &object->frame->modelling;
             }
+        } else if (record->matrix_index >= 0) {
+            matrix = &record->binding->palette
+                          ->matrices[record->matrix_index];
         }
-        if (matrix != 0) {
-            YXZ_angles_to_MKMATRIX(&target_angles, matrix);
-            matrix->pos.x = record->position.x;
-            matrix->pos.y = record->position.y;
-            matrix->pos.z = record->position.z;
-        }
+    }
+    if (matrix != 0) {
+        YXZ_angles_to_MKMATRIX(&target_angles, matrix);
+        matrix->pos.x = record->position.x;
+        matrix->pos.y = record->position.y;
+        matrix->pos.z = record->position.z;
     }
     record->state = state;
 }
 
 static float p_konquest_open_door(void) {
-    KonquestDoorPdata* pdata;
+    struct KonquestDoorPdata* pdata;
 
-    pdata = (KonquestDoorPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestDoorPdata*)pdata_of_proc(aproc);
     object_transition_to_state(
         pdata->door, 1, pdata->play_sound);
     if (pdata->remain_open != 0) {
         return -1.0f;
     }
     _mkproc_sleep_ticks = pdata->open_ticks;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     object_transition_to_state(pdata->door, 0, 1);
     return -1.0f;
 }
 
 static inline void konquest_start_door_proc(KonquestChildObject* door,
                                             int remain_open) {
-    KonquestDoorPdata* pdata;
+    struct KonquestDoorPdata* pdata;
     MkProc* proc;
 
     proc = (MkProc*)MK_LIVE(door->state_object, door->state_object_instance);
     if (proc != 0) {
-        pdata = (KonquestDoorPdata*)pdata_of_proc(proc);
+        pdata = (struct KonquestDoorPdata*)pdata_of_proc(proc);
         pdata->open_ticks = 0x1E0;
         pdata->play_sound = 0;
         xfer_proc(proc, p_konquest_open_door);
@@ -7132,7 +6823,7 @@ void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestChildObject* partner;
     int partner_uid;
-    KonquestEnumerationEntry* entry;
+    struct KonquestEnumerationEntry* entry;
 
     konquest_start_door_proc(door, remain_open);
 
@@ -7149,13 +6840,12 @@ void konquest_open_door_sobj(
     konquest_start_door_proc(partner, remain_open);
 }
 
-
 void konquest_open_door(int enumeration, int remain_open) {
-    KonquestTriggerScriptPdata* pdata;
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerScriptPdata* pdata;
+    struct KonquestTriggerStruct* trigger;
     KonquestChildObject* door;
 
-    pdata = (KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
     trigger = MK_HDR_LIVE(pdata->trigger, pdata->trigger_instance);
     if (trigger != 0 && trigger->object != 0) {
         door = find_trigger_door(trigger->object, enumeration);
@@ -7165,17 +6855,9 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-
-
-
-
-
-
-
-
-/* TODO: [breakthrough needed] 87.78%; path projection FP scheduling and hero-latch coloring remain; inspect helper shape while preserving traversal locals. */
+/* TODO: [breakthrough needed] 89.71%; path projection FP scheduling and hero-latch coloring remain; inspect helper shape while preserving traversal locals. */
 void turn_to_face_exterior_door(void) {
-    KonquestObject* building;
+    struct KonquestObject* building;
     KonquestChildObject* door;
     KonquestWaypoint* path;
     MkObj* hero;
@@ -7188,6 +6870,12 @@ void turn_to_face_exterior_door(void) {
     float angle_difference;
     int turn_direction;
     int done;
+    float start_x;
+    float start_z;
+    float next_x;
+    float next_z;
+    float side_edge_x;
+    float side_edge_z;
 
     turn_direction = 1;
     done = 0;
@@ -7207,27 +6895,17 @@ void turn_to_face_exterior_door(void) {
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
-
-    {
-        float start_x;
-        float start_z;
-        float next_x;
-        float next_z;
-        float side_edge_x;
-        float side_edge_z;
-
-        start_x = path[0].position.x;
-        delta.x = hero->pos.value.x - start_x;
-        next_x = path[1].position.x;
-        next_z = path[1].position.z;
-        start_z = path[0].position.z;
-        side_edge_x = next_x - start_x;
-        side_edge_z = next_z - start_z;
-        delta.y = hero->pos.value.y - path[0].position.y;
-        delta.z = hero->pos.value.z - start_z;
-        if (side_edge_z * delta.x - side_edge_x * delta.z < 0.0f) {
-            turn_direction = 0;
-        }
+    start_x = path[0].position.x;
+    delta.x = hero->pos.value.x - start_x;
+    next_x = path[1].position.x;
+    next_z = path[1].position.z;
+    start_z = path[0].position.z;
+    side_edge_x = next_x - start_x;
+    side_edge_z = next_z - start_z;
+    delta.y = hero->pos.value.y - path[0].position.y;
+    delta.z = hero->pos.value.z - start_z;
+    if (side_edge_z * delta.x - side_edge_x * delta.z < 0.0f) {
+        turn_direction = 0;
     }
 
     if ((distance_squared = door_path_distance_squared(hero, path, &delta)) >
@@ -7279,14 +6957,14 @@ void turn_to_face_exterior_door(void) {
             }
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 }
 
 static float p_konquest_transition_to_state(void) {
-    KonquestTransitionPdata* pdata;
+    struct KonquestTransitionPdata* pdata;
 
-    pdata = (KonquestTransitionPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestTransitionPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -7295,42 +6973,34 @@ static float p_konquest_transition_to_state(void) {
     return -1.0f;
 }
 
-
 void konquest_transition_object_to_state(
     int object_uid, int enumeration, int state) {
-    KonquestTransitionPdata* pdata = 0;
-    KonquestUidObject* object;
+    struct KonquestTransitionPdata* pdata = 0;
+    struct KonquestUidObject* object;
 
     object = find_tile_object_by_uid(object_uid);
     if (object != 0) {
+        MkProc* proc;
         KonquestChildObject* child;
 
         child = find_object_child_by_enumeration(object, enumeration);
 
-        {
-            MkProc* proc;
-
-            proc = _create_mkproc_generic_tinystack(
-                0x8231, 0x1F, p_konquest_transition_to_state,
-                sizeof(*pdata), (void**)&pdata);
-            if (proc != 0) {
-                proc->flags_bits.use_game_speed = 1;
-                pdata->object = child;
-                pdata->state = state;
-                pdata->play_sound = 1;
-            }
+        proc = _create_mkproc_generic_tinystack(
+            0x8231, 0x1F, p_konquest_transition_to_state,
+            sizeof(*pdata), (void**)&pdata);
+        if (proc != 0) {
+            proc->flags_bits.use_game_speed = 1;
+            pdata->object = child;
+            pdata->state = state;
+            pdata->play_sound = 1;
         }
     }
 }
 
-
-
-
-
 /* TODO: [near miss] 98.18%; only state-object validity guard r3/r4
  * coloring and one pointer reload remain; stop at coloring. */
 static void object_set_state(KonquestChildObject* record, int state) {
-    KonquestObjectState* state_data;
+    struct KonquestObjectState* state_data;
     MkHdr* state_object;
     MkSobj* object;
     Vec* angles;
@@ -7405,9 +7075,8 @@ static void object_set_state(KonquestChildObject* record, int state) {
     record->state = state;
 }
 
-
 void konquest_set_object_to_state(int uid, int enumeration, int state) {
-    KonquestObject* object;
+    struct KonquestObject* object;
     KonquestChildObject* child;
 
     object = find_object_by_uid_inline(uid);
@@ -7416,11 +7085,11 @@ void konquest_set_object_to_state(int uid, int enumeration, int state) {
 }
 
 void remove_collision_volume_on_object(void) {
-    KonquestRemoveCollisionPdata* pdata;
-    KonquestCollisionOwner* owner;
-    KonquestCollisionVolume* volume;
+    struct KonquestRemoveCollisionPdata* pdata;
+    struct KonquestCollisionOwner* owner;
+    struct KonquestCollisionVolume* volume;
 
-    pdata = (KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
     owner = MK_HDR_LIVE(pdata->owner, pdata->owner_instance);
 
     if (owner != 0) {
@@ -7433,7 +7102,7 @@ void remove_collision_volume_on_object(void) {
 }
 
 void remove_collision_volume_on_object_with_uid(int uid) {
-    KonquestCollisionVolume* volume;
+    struct KonquestCollisionVolume* volume;
 
     volume = find_collision_volume_by_uid(uid);
     if (volume != 0) {
@@ -7443,19 +7112,19 @@ void remove_collision_volume_on_object_with_uid(int uid) {
 }
 
 void restore_collision_volume_on_object(void) {
-    KonquestRemoveCollisionPdata* pdata;
-    KonquestCollisionOwner* owner;
-    KonquestCollisionVolume* volume;
-    KonquestCollisionPlacement* placement;
+    struct KonquestRemoveCollisionPdata* pdata;
+    struct KonquestCollisionOwner* owner;
+    struct KonquestCollisionVolume* volume;
+    struct KonquestCollisionPlacement* placement;
 
-    pdata = (KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
     owner = MK_HDR_LIVE(pdata->owner, pdata->owner_instance);
 
     if (owner != 0) {
         volume = owner->collision_volume;
         if (volume != 0) {
             placement =
-                (KonquestCollisionPlacement*)first_mkhdr(&volume->placements);
+                (struct KonquestCollisionPlacement*)first_mkhdr(&volume->placements);
             if (placement->definition->art_id != 0) {
                 volume->art_id = placement->definition->art_id;
                 generate_collision_objects(
@@ -7468,15 +7137,14 @@ void restore_collision_volume_on_object(void) {
     }
 }
 
-
 void restore_collision_volume_on_object_with_uid(int uid) {
-    KonquestCollisionVolume* volume;
-    KonquestCollisionPlacement* placement;
+    struct KonquestCollisionVolume* volume;
+    struct KonquestCollisionPlacement* placement;
 
     volume = find_collision_volume_by_uid(uid);
     if (volume != 0) {
         placement =
-            (KonquestCollisionPlacement*)first_mkhdr(&volume->placements);
+            (struct KonquestCollisionPlacement*)first_mkhdr(&volume->placements);
         if (placement->definition->art_id != 0) {
             volume->art_id = placement->definition->art_id;
             generate_collision_objects(
@@ -7487,8 +7155,8 @@ void restore_collision_volume_on_object_with_uid(int uid) {
     }
 }
 
-void enable_trigger(KonquestTriggerDefinition* definition, int state) {
-    KonquestTriggerStruct* trigger;
+void enable_trigger(struct KonquestTriggerDefinition* definition, int state) {
+    struct KonquestTriggerStruct* trigger;
 
     if (konquest_pdata->flag_bits.triggers_active) {
         if (konquest_pdata->triggers != 0) {
@@ -7503,10 +7171,9 @@ void enable_trigger(KonquestTriggerDefinition* definition, int state) {
     definition->state = state;
 }
 
-
-void trigger_set_time_for_enable(KonquestTriggerDefinition* definition,
+void trigger_set_time_for_enable(struct KonquestTriggerDefinition* definition,
                                  int unit, int amount, int action) {
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerStruct* trigger;
     int timed_action;
 
     enable_trigger(definition, action == 0);
@@ -7538,8 +7205,8 @@ void trigger_set_time_for_enable(KonquestTriggerDefinition* definition,
 }
 
 inline void attach_objective_to_trigger(
-    KonquestTriggerDefinition* trigger, float x, float y, float z) {
-    KonquestObjectiveState* objective = &konquest_pdata->objective;
+    struct KonquestTriggerDefinition* trigger, float x, float y, float z) {
+    struct KonquestObjectiveState* objective = &konquest_pdata->objective;
 
     objective->target_type = 1;
     objective->trigger_id =
@@ -7550,8 +7217,8 @@ inline void attach_objective_to_trigger(
     objective->visible = 1;
 }
 
-inline void attach_objective_to_npc(KonquestNpcData* npc_data, int type) {
-    KonquestPdata* pdata = konquest_pdata;
+inline void attach_objective_to_npc(struct KonquestNpcData* npc_data, int type) {
+    struct KonquestPdata* pdata = konquest_pdata;
 
     pdata->objective.npc_data = npc_data;
     pdata->objective.target_type = type;
@@ -7576,12 +7243,8 @@ void hide_objective_arrow_and_beam(void) {
             hide_sobj(sky_object);
         }
     }
-    konquest_pdata->objective_visible = 0;
+    konquest_pdata->objective.visible = 0;
 }
-
-
-
-
 
 void show_objective_arrow_and_beam(void) {
     MkHdr* arrow;
@@ -7596,24 +7259,24 @@ void show_objective_arrow_and_beam(void) {
     if (p1_profile_konquest->fields.objective_index <
         (int)get_row_count_for_table_by_pointer(
             konquest_pdata->script_owner,
-            konquest_pdata->objective_table)) {
+            konquest_pdata->objective.table)) {
         if (konquest_pdata->hud_visible != 0) {
             unhide_screen_obj((ScreenObj*)arrow);
         }
         unhide_obj(beam);
-        konquest_pdata->objective_visible = 1;
+        konquest_pdata->objective.visible = 1;
     }
 }
 
 #pragma auto_inline on
 void load_objective_table(void) {
-    konquest_pdata->objective_table =
+    konquest_pdata->objective.table =
         get_data_table_by_name("objective_table");
 }
 
 void check_objective_table(void) {
-    KonquestObjectiveRow* table;
-    KonquestObjectiveRow* row;
+    struct KonquestObjectiveRow* table;
+    struct KonquestObjectiveRow* row;
 
     table = konquest_pdata->objective.table;
     if (table != 0) {
@@ -7669,8 +7332,8 @@ void check_objective_table(void) {
 }
 
 void scan_for_current_objective(void) {
-    KonquestObjectiveRow* objective_table;
-    KonquestObjectiveRow* objective_row;
+    struct KonquestObjectiveRow* objective_table;
+    struct KonquestObjectiveRow* objective_row;
     int objective_index;
 
     objective_table = konquest_pdata->objective.table;
@@ -7732,9 +7395,9 @@ static void generate_collisions_for_tile_and_tile_objects(
         if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
-                KonquestUidObject* object;
+                struct KonquestUidObject* object;
 
-                object = (KonquestUidObject*)link->hdr;
+                object = (struct KonquestUidObject*)link->hdr;
                 if (link->instance != object->hdr.instance) {
                     MkPtr* next;
 
@@ -7782,7 +7445,7 @@ static void remove_collisions_from_tile_and_tile_objects(
                 discard_stale_mkptr(link);
                 link = next;
             } else {
-                KonquestUidObject* object = (KonquestUidObject*)link->hdr;
+                struct KonquestUidObject* object = (struct KonquestUidObject*)link->hdr;
 
                 destroy_list(&object->collisions);
                 link = link->next;
@@ -7891,7 +7554,7 @@ static void unhide_tile(KonquestTileRecord* tile) {
                 discard_stale_mkptr(link);
                 link = next;
             } else {
-                show_konquest_object((KonquestUidObject*)link->hdr);
+                show_konquest_object((struct KonquestUidObject*)link->hdr);
                 link = link->next;
             }
         }
@@ -8017,14 +7680,14 @@ int get_tile_from_position(Vec* position) {
     if (position->x >= 1000.0f) {
         return konquest_pdata->tile_width * konquest_pdata->tile_height;
     }
-    row = (int)((position->z + konquest_pdata->tile_origin_z) / 60.0f);
+    row = ((position->z + konquest_pdata->tile_origin_z) / 60.0f);
     if (row < 0) {
         return -1;
     }
     if (row >= konquest_pdata->tile_height) {
         return -1;
     }
-    column = (int)((position->x + konquest_pdata->tile_origin_x) / 60.0f);
+    column = ((position->x + konquest_pdata->tile_origin_x) / 60.0f);
     if (column < 0) {
         return -1;
     }
@@ -8070,7 +7733,7 @@ void set_hero_punched_ground_collisions(int punched) {
 }
 
 void render_konquest_shadows(void) {
-    KonquestPdata* pdata;
+    struct KonquestPdata* pdata;
     CameraObj* camera;
     MkObj* candidate;
     MkObj* hero;
@@ -8117,9 +7780,9 @@ static float p_load_hero_art_section(void) {
         section_name, "konquest_monk_%d.sec",
         p1_profile_konquest->fields.hero_age + 1);
     if (mode_of_play == 8) {
-        KonquestSaveHeader* save;
+        struct KonquestSaveHeader* save;
 
-        save = (KonquestSaveHeader*)&konquest_save_data;
+        save = (struct KonquestSaveHeader*)&konquest_save_data;
         load_ssf(konquest_region_data[save->region].art_files);
         slot = 0x2001E;
         add_art_section_by_name_async(slot, section_name);
@@ -8144,7 +7807,7 @@ MkProc* load_hero_model(int animation_script) {
         0x4003, 0x1F, p_load_hero_art_section, 0, 0);
     do {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     } while (find_mkproc_pid(0x4003) != 0);
 
     slot = 0xB002A;
@@ -8220,15 +7883,11 @@ inline void load_konquest_monk(void) {
     setup_hero_model();
 }
 
-
-
-
-
 void change_monk_age(int age) {
     MkObj* hero;
     AnimPdata* animation;
     MkProc* animation_proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
     int slot;
     AniTextureControl* face_texture;
     char* face_art;
@@ -8242,7 +7901,8 @@ void change_monk_age(int age) {
     char texture_name[0x40];
 
     if (age >= 0 && age <= 4) {
-        KonquestNpcCameraTarget* target;
+        struct KonquestNpcCameraTarget* target;
+        struct KonquestPdata* pdata;
 
         hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
@@ -8250,19 +7910,17 @@ void change_monk_age(int age) {
         y = hero->pos.value.y;
         z = hero->pos.value.z;
         angle = hero->ang.y;
-        p1_profile_konquest->fields.hero_age = (unsigned char)age;
+        p1_profile_konquest->fields.hero_age = age;
 
-        {
-            KonquestPdata* pdata = konquest_pdata;
+        pdata = konquest_pdata;
 
-            if (konquest_pdata_live_hero_object(pdata) != 0) {
-                hero = pdata->hero_object;
-                if (hero->hdr.instance != 0) {
-                    hero->hdr.typed_vtbl->destroy(&hero->hdr);
-                }
-                konquest_pdata->hero_object = 0;
-                konquest_pdata->hero_instance = 0;
+        if (konquest_pdata_live_hero_object(pdata) != 0) {
+            hero = pdata->hero_object;
+            if (hero->hdr.instance != 0) {
+                hero->hdr.typed_vtbl->destroy(&hero->hdr);
             }
+            konquest_pdata->hero_object = 0;
+            konquest_pdata->hero_instance = 0;
         }
 
         animation = konquest_pdata->hero_anim;
@@ -8436,16 +8094,12 @@ static float p_control_konquest_monk(void) {
     return 0.0f;
 }
 
-
-
-
-
 /* TODO: [borked] 94.97%; dust offset y is zero vs retail -0.05 (mixed correction awaits approval);
  * table-base loop join and handle lifetimes also remain. */
 static float p_monk_move(void) {
     MkObj* hero;
     MkObj* effect_hero;
-    MonkStateData* state;
+    struct MonkStateData* state;
     Vec bone_offset;
     Vec effect_position;
     unsigned int effect;
@@ -8472,7 +8126,7 @@ static float p_monk_move(void) {
         transition_to_anim_script(
             anim_pdata, monk_state_data[konquest_pdata->hero_state].animation, monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     while (konquest_pdata->hero_state == initial_state) {
@@ -8498,23 +8152,21 @@ static float p_monk_move(void) {
                         konquest_pdata->region_table->effect_bank_name != 0) {
                         effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
-                        {
-                            bone_offset = (Vec){0.0f, 0.0f, 0.0f};
+                        bone_offset = (Vec){0.0f, 0.0f, 0.0f};
 
-                            bone = monk_state_data
-                                [konquest_pdata->hero_state]
-                                    .animation_event_bones
-                                        [konquest_pdata
-                                             ->animation_event_index];
-                            effect = fx_by_owner("dust_puff", 4);
-                            get_bone_offset_world_pos(
-                                effect_hero, bone, &bone_offset,
-                                &effect_position);
-                            fx_set_param_v3(
-                                effect, 0x202, effect_position.x,
-                                effect_position.y, effect_position.z);
-                            fx_restart_emit(effect);
-                        }
+                        bone = monk_state_data
+                            [konquest_pdata->hero_state]
+                                .animation_event_bones
+                                    [konquest_pdata
+                                         ->animation_event_index];
+                        effect = fx_by_owner("dust_puff", 4);
+                        get_bone_offset_world_pos(
+                            effect_hero, bone, &bone_offset,
+                            &effect_position);
+                        fx_set_param_v3(
+                            effect, 0x202, effect_position.x,
+                            effect_position.y, effect_position.z);
+                        fx_restart_emit(effect);
                     }
                 } else if (current_state == 1) {
                     random_snd_req(0x84);
@@ -8556,7 +8208,7 @@ static float p_monk_move(void) {
         }
 
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
@@ -8565,10 +8217,10 @@ static float p_monk_move(void) {
 
 static float p_monk_meditate(void) {
     MkHdr* monitor_pdata;
-    KonquestGameSpeedPdata* speed_pdata;
+    struct KonquestGameSpeedPdata* speed_pdata;
     MkObj* hero;
     MkObj* meditation_hero;
-    MonkStateData* state;
+    struct MonkStateData* state;
     int initial_state;
     int mode_index;
     int animation_complete;
@@ -8582,7 +8234,7 @@ static float p_monk_meditate(void) {
     transition_to_anim_script(
         anim_pdata, state->animation, state->transition | 0x20, 0.05f);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     while (konquest_pdata->hero_state == initial_state) {
         state = &monk_state_data[konquest_pdata->hero_state];
@@ -8627,11 +8279,11 @@ static float p_monk_meditate(void) {
                         if (refresh_rate() == 60) {
                             speed_pdata->multiplier = 2.0f;
                             speed_pdata->target_scale =
-                                (float)pow(2.0, 5.0);
+                                pow(2.0, 5.0);
                         } else {
                             speed_pdata->multiplier = 1.928f;
                             speed_pdata->target_scale =
-                                (float)pow(1.928f, 5.0);
+                                pow(1.928f, 5.0);
                         }
                     }
                     _create_mkproc_generic_tinystack(
@@ -8655,7 +8307,7 @@ static float p_monk_meditate(void) {
         }
 
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
@@ -8663,17 +8315,17 @@ static float p_monk_meditate(void) {
 }
 
 static float p_monitor_meditation_time(void) {
-    unsigned char target_time[0x18];
+    KonquestTime target_time;
 
     memcpy(
-        target_time, &konquest_pdata->current_time,
+        &target_time, &konquest_pdata->current_time,
         sizeof(target_time));
-    add_days_to_time(target_time, 7);
+    add_days_to_time(&target_time, 7);
 
     while (is_time_a_greater_than_time_b(
-               target_time, &konquest_pdata->current_time)) {
+               &target_time, &konquest_pdata->current_time)) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_pdata->interior_active == 0) {
@@ -8683,11 +8335,11 @@ static float p_monitor_meditation_time(void) {
 }
 
 static float ramp_game_speed(void) {
-    KonquestGameSpeedPdata* pdata;
+    struct KonquestGameSpeedPdata* pdata;
     float multiplier;
     float target;
 
-    pdata = (KonquestGameSpeedPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestGameSpeedPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -8703,7 +8355,7 @@ static float ramp_game_speed(void) {
     while ((target - game_speed >= 0.0f ? target - game_speed
                                         : -(target - game_speed)) > 0.3f) {
         _mkproc_sleep_ticks = 20.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
         game_speed *= multiplier;
         ticks_per_game_day = 60.0f * (600.0f / game_speed);
         ticks_per_hour = ticks_per_game_day / 24.0f;
@@ -8725,18 +8377,16 @@ static float ramp_game_speed(void) {
     return -1.0f;
 }
 
-
-
-
-
 static void exit_meditation(void) {
     MkObj* hero;
-    KonquestGameSpeedPdata* pdata;
+    struct KonquestGameSpeedPdata* pdata;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     pdata = 0;
     if (in_exit_meditation == 0 && hero != 0) {
+        struct KonquestPdata* mode_owner;
+        int mode_index;
         in_exit_meditation = 1;
         if (aproc->pid != 0x8238) {
             destroy_mkprocs_pid(0x8238);
@@ -8762,15 +8412,14 @@ static void exit_meditation(void) {
         }
         while (find_mkproc_pid(0x8233) != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
         hero->flags_0B_bits.force_anim_speed = 0;
-        {
-            KonquestPdata* mode_owner = konquest_pdata;
-            int mode_index = mode_owner->game_mode_index;
-            if (mode_index != 0) {
-                mode_owner->game_mode_index = mode_index - 1;
-            }
+        mode_owner = konquest_pdata;
+        mode_index = mode_owner->game_mode_index;
+
+        if (mode_index != 0) {
+            mode_owner->game_mode_index = mode_index - 1;
         }
         in_exit_meditation = 0;
     }
@@ -8778,10 +8427,11 @@ static void exit_meditation(void) {
 
 static float p_monk_punch(void) {
     MkObj* hero;
-    KonquestNpc* npc;
+    union KonquestNpc* npc;
     int checked_for_npc;
     int can_hit_npc;
     Vec direction;
+    struct MonkStateData* state;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     direction = (Vec){0.0f, 0.0f, 0.0f};
@@ -8796,15 +8446,11 @@ static float p_monk_punch(void) {
     hero->pos_vel.z = 0.0f;
     hero->pos_vel.y = 0.0f;
     hero->pos_vel.x = 0.0f;
-    {
-        MonkStateData* state;
-
-        state = &monk_state_data[konquest_pdata->hero_state];
-        transition_to_anim_script(
-            anim_pdata, state->animation, state->transition | 0x20, 0.2f);
-    }
+    state = &monk_state_data[konquest_pdata->hero_state];
+    transition_to_anim_script(
+        anim_pdata, state->animation, state->transition | 0x20, 0.2f);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     checked_for_npc = 0;
     anim_pdata->step =
@@ -8884,7 +8530,7 @@ static float p_monk_punch(void) {
         }
 
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     hero->pos_vel.z = 0.0f;
@@ -8912,7 +8558,7 @@ static float p_monk_punch_react(void) {
         konquest_pdata->hero_anim,
         monk_state_data[konquest_pdata->hero_state].animation, 3);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     hero->flags_09_bits.bit6 = 0;
     hero->pos.value.y = konquest_pdata->hero_anim->anim_offset.y;
@@ -8926,7 +8572,7 @@ static float p_monk_punch_react(void) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     hero->flags_09_bits.bit6 = 1;
@@ -8934,7 +8580,7 @@ static float p_monk_punch_react(void) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_pdata->hero_unconscious != 0) {
@@ -8947,19 +8593,16 @@ static float p_monk_punch_react(void) {
     return 0.0f;
 }
 
-
-
 static float p_monk_getup(void) {
     MkObj* hero;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
-
     transition_to_anim_script(
         konquest_pdata->hero_anim,
         monk_state_data[konquest_pdata->hero_state].animation, 3, 0.05f);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     konquest_pdata->hero_anim->step = 0.5f;
 
     while (konquest_pdata->hero_anim->frame <
@@ -8968,7 +8611,7 @@ static float p_monk_getup(void) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     hero->ground_colls = monk_ground_colls;
@@ -8991,7 +8634,7 @@ void set_camera_to_look_at_hero(void) {
 }
 
 static float p_monk_unconscious(void) {
-    KonquestGameSpeedPdata* speed_pdata = 0;
+    struct KonquestGameSpeedPdata* speed_pdata = 0;
     MkObj* hero;
     MkObj* camera_focus;
     float duration;
@@ -8999,13 +8642,13 @@ static float p_monk_unconscious(void) {
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     elapsed = 0.0f;
-    duration = (float)konquest_pdata->hero_unconscious;
+    duration = konquest_pdata->hero_unconscious;
 
     transition_to_anim_script(
         konquest_pdata->hero_anim,
         monk_state_data[konquest_pdata->hero_state].animation, 0, 0.05f);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     if (konquest_pdata->collision_proc != 0) {
         xfer_proc(konquest_pdata->collision_proc, p_idle);
@@ -9029,10 +8672,10 @@ static float p_monk_unconscious(void) {
         speed_pdata != 0) {
         if (refresh_rate() == 60) {
             speed_pdata->multiplier = 2.0f;
-            speed_pdata->target_scale = (float)pow(2.0, 5.0);
+            speed_pdata->target_scale = pow(2.0, 5.0);
         } else {
             speed_pdata->multiplier = 1.928f;
-            speed_pdata->target_scale = (float)pow(1.928f, 5.0);
+            speed_pdata->target_scale = pow(1.928f, 5.0);
         }
     }
 
@@ -9042,7 +8685,7 @@ static float p_monk_unconscious(void) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     snd_stop(meditate_stream);
@@ -9064,7 +8707,7 @@ static float p_monk_unconscious(void) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     hero->flags_0B_bits.force_anim_speed = 0;
@@ -9072,13 +8715,13 @@ static float p_monk_unconscious(void) {
         konquest_pdata->hero_anim, (AniData*)konquest_animations[13], 3,
         0.05f);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     while (konquest_pdata->hero_anim->frame <
            konquest_pdata->hero_anim->high_frame) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_pdata->collision_proc != 0) {
@@ -9163,15 +8806,10 @@ inline void attach_camera_to_monk(void) {
     }
 }
 
-
-
-
-
-
 /* TODO: [near miss] 98.43%; previous-row index/float register coloring and retail's dead `b` back to the loop preheader remain. */
 float p_adjust_directional_light(void) {
-    KonquestDirectionalLightRow* light_table;
-    KonquestLightAdjustPdata* pdata;
+    struct KonquestDirectionalLightRow* light_table;
+    struct KonquestLightAdjustPdata* pdata;
     MkObj* object;
     int last_row;
     int wrap_row;
@@ -9182,11 +8820,11 @@ float p_adjust_directional_light(void) {
     float interval_ticks;
     float elapsed_hours;
 
-    light_table = (KonquestDirectionalLightRow*)
+    light_table = (struct KonquestDirectionalLightRow*)
         konquest_pdata->region_table->directional_light_table;
     last_row = get_row_count_for_table_by_pointer(
                    konquest_pdata->script_owner, light_table) - 1;
-    pdata = (KonquestLightAdjustPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestLightAdjustPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -9197,6 +8835,7 @@ float p_adjust_directional_light(void) {
     }
 
     while (pdata != 0 && object != 0) {
+        Vec angles;
         current_index = adjust_light_for_new_time_of_day(
             pdata->light, (KonquestLightRow*)light_table, last_row);
         wrap_row = get_row_count_for_table_by_pointer(
@@ -9229,7 +8868,7 @@ float p_adjust_directional_light(void) {
         ShadowStrength = konquest_pdata->base_shadow_strength *
                          konquest_pdata->directional_light_strength;
         npc_shadow_set_alpha(
-            (int)(255.0f * konquest_pdata->directional_light_strength));
+            (255.0f * konquest_pdata->directional_light_strength));
 
         object->ang.y =
             3.1415927f * (2.0f * (-konquest_pdata->time_of_day / 24.0f));
@@ -9239,17 +8878,15 @@ float p_adjust_directional_light(void) {
             object->ang.y -= 3.1415927f;
         }
         update_mkobj(object != 0 ? as_mkhdr(&object->hdr) : 0);
-        {
-            Vec angles = {0.0f, 0.0f, 0.0f};
+        angles = (Vec){0.0f, 0.0f, 0.0f};
 
-            angles.x = object->ang.x;
-            angles.y = object->ang.y;
-            angles.z = object->ang.z;
-            UpdateShadowCameraLightSource((const float*)&angles);
-            npc_shadow_set_light_angle(&angles);
-        }
+        angles.x = object->ang.x;
+        angles.y = object->ang.y;
+        angles.z = object->ang.z;
+        UpdateShadowCameraLightSource((const float*)&angles);
+        npc_shadow_set_light_angle(&angles);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
@@ -9372,13 +9009,13 @@ static void update_sun_moon_position(float angle) {
 float p_adjust_ambient_light(void) {
     KonquestLightRow* light_table;
     int last_row;
-    KonquestLightAdjustPdata* pdata;
+    struct KonquestLightAdjustPdata* pdata;
 
     light_table = konquest_pdata->region_table->ambient_light_table;
     last_row = get_row_count_for_table_by_pointer(
                    konquest_pdata->script_owner, light_table) -
                1;
-    pdata = (KonquestLightAdjustPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestLightAdjustPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -9386,7 +9023,7 @@ float p_adjust_ambient_light(void) {
         adjust_light_for_new_time_of_day(
             pdata->light, light_table, last_row);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
@@ -9394,13 +9031,13 @@ float p_adjust_ambient_light(void) {
 float p_adjust_sky_ambient_light(void) {
     KonquestLightRow* light_table;
     int last_row;
-    KonquestLightAdjustPdata* pdata;
+    struct KonquestLightAdjustPdata* pdata;
 
     light_table = konquest_pdata->region_table->sky_ambient_light_table;
     last_row = get_row_count_for_table_by_pointer(
                    konquest_pdata->script_owner, light_table) -
                1;
-    pdata = (KonquestLightAdjustPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestLightAdjustPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -9408,7 +9045,7 @@ float p_adjust_sky_ambient_light(void) {
         adjust_light_for_new_time_of_day(
             pdata->light, light_table, last_row);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
@@ -9416,7 +9053,7 @@ float p_adjust_sky_ambient_light(void) {
 #pragma opt_loop_invariants off
 /* TODO: [near miss] 95.40%; row-stride hoist resolved; FPR/GPR coloring and float-pool labels remain. */
 static float p_adjust_sky(void) {
-    KonquestSkyRow* sky_table;
+    struct KonquestSkyRow* sky_table;
     MkSobj* sky_object;
     RpMaterial* material;
     int last_row;
@@ -9469,12 +9106,12 @@ static float p_adjust_sky(void) {
             }
             material = sobj_find_material_by_id(sky_object, 1);
             if (material != 0) {
-                material->color.alpha = (unsigned char)(255.0f * alpha);
+                material->color.alpha = (255.0f * alpha);
             }
         }
 
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
@@ -9482,8 +9119,8 @@ static float p_adjust_sky(void) {
 
 /* TODO: [near miss] 98.25%; row-offset init and current/previous row GPRs, tick-rate and red/green step FPRs differ. */
 static int adjust_sky_for_new_time_of_day(
-    KonquestSkyRow* sky_table, int last_row) {
-    KonquestSkyRow* previous_row;
+    struct KonquestSkyRow* sky_table, int last_row) {
+    struct KonquestSkyRow* previous_row;
     RwRGBAReal* current_color;
     int current_index;
     int previous_index;
@@ -9570,10 +9207,10 @@ static int adjust_sky_for_new_time_of_day(
     }
 
     set_background_color(
-        (int)(255.0f * fog_color_real[0]),
-        (int)(255.0f * fog_color_real[1]),
-        (int)(255.0f * fog_color_real[2]),
-        (int)(255.0f * fog_color_real[3]));
+        (255.0f * fog_color_real[0]),
+        (255.0f * fog_color_real[1]),
+        (255.0f * fog_color_real[2]),
+        (255.0f * fog_color_real[3]));
     return current_index;
 }
 
@@ -9724,7 +9361,7 @@ static void correct_camera_angle(MkObj* hero, int snap) {
 }
 void hero_stop_moving(void) {
     MkObj* hero;
-    MonkStateData* state;
+    struct MonkStateData* state;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
@@ -9745,7 +9382,7 @@ void hero_stop_moving(void) {
     if (aproc != 0 && aproc->pid != 0xA014 &&
         aproc->pid != 0xA002) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 }
 
@@ -9858,7 +9495,6 @@ static void handle_monk_input(void) {
         }
         camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
-
         if (magnitude > 0.01f) {
             konquest_pdata->npc_interaction_state = 0;
             target_angle = atan2(direction.y, direction.x);
@@ -9944,9 +9580,9 @@ static void handle_monk_input(void) {
 /* TODO: [near miss] 97.24%; post-cosine reload and dot grouping recovered;
  * case-2 component scheduling and FPR coloring remain. */
 static int check_additional_trigger_fire_requirements(
-    KonquestTriggerStruct* owner, MkObj* hero) {
+    struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
-    KonquestTriggerOrientation* orientation;
+    struct KonquestTriggerOrientation* orientation;
     float forward_z;
     float forward_x;
     float delta_x;
@@ -10028,7 +9664,7 @@ static int check_additional_trigger_fire_requirements(
 }
 
 float p_konquest_switch_1(void) {
-    KonquestSwitchState* input;
+    struct KonquestSwitchState* input;
     int game_mode;
 
     input = switch_pdata->state;
@@ -10056,7 +9692,7 @@ float p_konquest_switch_1(void) {
 }
 
 float p_konquest_switch_R1(void) {
-    KonquestR1Pdata* pdata;
+    struct KonquestR1Pdata* pdata;
     MkProc* proc;
 
     if (konquest_current_game_mode() != 0) {
@@ -10071,7 +9707,7 @@ float p_konquest_switch_R1(void) {
     if (find_mkproc_pid(0x208C) != 0) {
         return -1.0f;
     }
-    pdata = (KonquestR1Pdata*)apdata;
+    pdata = (struct KonquestR1Pdata*)apdata;
     if (pdata != 0 &&
         pdata->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -10089,10 +9725,10 @@ float p_konquest_switch_R1(void) {
     return -1.0f;
 }
 
-static inline int konquest_fire_temporary_triggers(KonquestPdata* pdata) {
+static inline int konquest_fire_temporary_triggers(struct KonquestPdata* pdata) {
     MkPtr** trigger_list;
     MkPtr* link;
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerStruct* trigger;
     MkObj* hero;
 
     hero = konquest_live_hero(pdata);
@@ -10103,7 +9739,7 @@ static inline int konquest_fire_temporary_triggers(KonquestPdata* pdata) {
     if (konquest_has_list(trigger_list)) {
         link = *trigger_list;
         while (link != 0) {
-            trigger = (KonquestTriggerStruct*)link->hdr;
+            trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
                 MkPtr* next;
 
@@ -10134,10 +9770,10 @@ static inline int konquest_fire_temporary_triggers(KonquestPdata* pdata) {
 
 /* TODO: [near miss] 99.52%; npc/hero/link coloring (retail r31/r27/r29) remains; permuter finds nothing. */
 float p_konquest_switch_3(void) {
-    KonquestSwitchState* input;
-    KonquestPdata* pdata;
+    struct KonquestSwitchState* input;
+    struct KonquestPdata* pdata;
     int can_interact;
-    KonquestNpc* npc;
+    union KonquestNpc* npc;
     int game_mode_index;
     float distance;
     float facing_angle;
@@ -10195,9 +9831,9 @@ float p_konquest_switch_3(void) {
 
         proc = find_mkproc_pid(0xA012);
         if (proc != 0) {
-            KonquestSwitchModePdata* proc_pdata;
+            struct KonquestSwitchModePdata* proc_pdata;
 
-            proc_pdata = (KonquestSwitchModePdata*)pdata_of_proc(proc);
+            proc_pdata = (struct KonquestSwitchModePdata*)pdata_of_proc(proc);
             proc_pdata->switch_pressed = 1;
             if (konquest_pdata != 0) {
                 konquest_pdata->flag_bits.bit4 = 1;
@@ -10225,7 +9861,7 @@ float p_konquest_switch_3(void) {
 }
 
 float p_konquest_switch_4(void) {
-    KonquestSwitchState* input;
+    struct KonquestSwitchState* input;
     int hero_state;
 
     input = switch_pdata->state;
@@ -10314,7 +9950,7 @@ static float p_konquest_pause_menu(void) {
     while (find_mkproc_pid(0x9011) != 0) {
         pause_procs(1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     wait_for_screen_close();
     if (target_game_mode == 5) {
@@ -10346,11 +9982,11 @@ static float p_konquest_pause_menu(void) {
 }
 
 float p_switch_proc_start(void) {
-    KonquestR1Pdata* input;
+    struct KonquestR1Pdata* input;
     MkProc* proc;
     int can_start;
 
-    input = (KonquestR1Pdata*)apdata;
+    input = (struct KonquestR1Pdata*)apdata;
     if (input != 0 &&
         input->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -10389,12 +10025,12 @@ float p_switch_proc_start(void) {
 }
 
 float p_konquest_inventory_switch(void) {
-    KonquestR1Pdata* input;
+    struct KonquestR1Pdata* input;
     MkProc* proc;
     int can_start;
 
     eat_switch_edge(konquest_pdata->input_port, 4);
-    input = (KonquestR1Pdata*)apdata;
+    input = (struct KonquestR1Pdata*)apdata;
     if (input != 0 &&
         input->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -10432,7 +10068,6 @@ float p_konquest_inventory_switch(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] Report 100% instructions; string-pool relocation at +0x9a differs; align konquest TU data. */
 static float p_konquest_inventory(void) {
     if ((konquest_pdata->game_mode_index < 0 ||
          konquest_current_game_mode() != 10) &&
@@ -10452,7 +10087,7 @@ static float p_konquest_inventory(void) {
     while (find_mkproc_pid(0x9011) != 0) {
         pause_procs(1);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     if (get_game_state() != 0x14) {
         konquest_show_hud();
@@ -10470,7 +10105,7 @@ static float p_konquest_inventory(void) {
 /* TODO: [near miss] 99.49%; string offsets agree; pdata/hero/right_panel/fade
  * colors rotate; preserve traversal locals and check supported lifetimes. */
 static float p_konquest_map_screen(void) {
-    KonquestPdata* pdata;
+    struct KonquestPdata* pdata;
     MkObj* hero;
     ScreenObj* right_panel;
     ScreenObj* fade;
@@ -10521,7 +10156,7 @@ static float p_konquest_map_screen(void) {
     right_panel = load_named_2d_pfxobj_xy(
         0x60027, 0x8313, "MAP_LEGEND", 0,
         map_left + 0x200, 0, 0x21);
-    fade = load_2d_pfxobj(0, 0x2098, (char*)0x10017, 0, 0x40);
+    fade = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0x40);
     if (fade != 0) {
         fade->x = -50;
         fade->y = -50;
@@ -10542,7 +10177,7 @@ static float p_konquest_map_screen(void) {
         map_scale_z = 7.0f;
     }
 
-    cursor_x = (int)(1.067f * (map_scale_x * hero->pos.value.x));
+    cursor_x = (1.067f * (map_scale_x * hero->pos.value.x));
     cursor = load_named_2d_pfxobj_xy(
         0x60027, 0x8313, "HERO", 0,
         map_center_x + cursor_x - 0x10,
@@ -10560,7 +10195,7 @@ static float p_konquest_map_screen(void) {
     blink_cursor(cursor, 0x8245, 0x1E, 0xA);
 
     if (konquest_pdata->objective.visible != 0) {
-        cursor_x = (int)(1.067f *
+        cursor_x = (1.067f *
             (map_scale_x * pdata->objective.position.x));
         cursor = load_named_2d_pfxobj_xy(
             0x60027, 0x8313, "OBJECTIVE", 0,
@@ -10686,7 +10321,7 @@ static float p_konquest_map_screen(void) {
            is_controller_removed() == 0 &&
            check_switch_edge(konquest_pdata->input_port, 7) == 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     snd_req(0x15A3);
     eat_switch_edge(konquest_pdata->input_port, 3);
@@ -10777,7 +10412,7 @@ void konquest_show_hud(void) {
     MkHdr* object;
 
     konquest_pdata->hud_visible = 1;
-    if (konquest_pdata->objective_visible != 0) {
+    if (konquest_pdata->objective.visible != 0) {
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[2], object);
         if (object != 0) unhide_screen_obj((ScreenObj*)object);
     }
@@ -10864,7 +10499,7 @@ static float p_fade_konquest_hud(void) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
@@ -10927,30 +10562,30 @@ static float p_display_konquest_title(void) {
 
     if (refresh_rate() == 60) {
         _mkproc_sleep_ticks = 600.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     } else {
         _mkproc_sleep_ticks = 530.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     for (alpha = 0; alpha < 253; alpha += 2) {
         pfx_2d_obj_set_alpha(title, alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (refresh_rate() == 60) {
         _mkproc_sleep_ticks = 100.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     } else {
         _mkproc_sleep_ticks = 20.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     for (alpha = 255; alpha > 2; alpha -= 2) {
         pfx_2d_obj_set_alpha(title, alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (title->instance != 0) {
@@ -10980,15 +10615,10 @@ void set_interaction_camera_script(void* script) {
     }
 }
 
-
-
-
-
-
 void set_look_at_npc(int target_type) {
-    KonquestNpc* npc;
-    KonquestNpc* candidate;
-    KonquestNpcAnimationState* animation;
+    union KonquestNpc* npc;
+    union KonquestNpc* candidate;
+    struct KonquestNpcAnimationState* animation;
     int valid;
 
     npc = 0;
@@ -11022,9 +10652,9 @@ void set_look_at_npc(int target_type) {
 }
 
 void set_movement_npc(int target_type) {
-    KonquestNpc* npc;
-    KonquestNpc* candidate;
-    KonquestNpcAnimationState* animation;
+    union KonquestNpc* npc;
+    union KonquestNpc* candidate;
+    struct KonquestNpcAnimationState* animation;
     int valid;
 
     npc = 0;
@@ -11060,7 +10690,7 @@ void set_movement_npc(int target_type) {
 /* TODO: [near miss] 99.70%; retail reloads turn_proc (r6) for the second latch check where our CSE reuses r3. */
 static float p_konquest_interaction(void) {
     MkObj* hero;
-    KonquestInteractionPdata* pdata;
+    struct KonquestInteractionPdata* pdata;
     MkProc* validated_turn_proc;
     MkProc* current_turn_proc;
     Vec movement;
@@ -11071,7 +10701,7 @@ static float p_konquest_interaction(void) {
     int hero_facing;
     int npc_facing;
 
-    pdata = (KonquestInteractionPdata*)apdata;
+    pdata = (struct KonquestInteractionPdata*)apdata;
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     hero_facing = 0;
     npc_facing = 0;
@@ -11223,8 +10853,8 @@ static float p_konquest_interaction(void) {
 }
 
 void konquest_start_npc_interaction(void) {
-    KonquestInteractionPdata* interaction;
-    KonquestSoundFadePdata* fade;
+    struct KonquestInteractionPdata* interaction;
+    struct KonquestSoundFadePdata* fade;
     MkProc* fade_proc;
     MkObj* hero;
 
@@ -11262,7 +10892,7 @@ void konquest_start_npc_interaction(void) {
             0, 0.1f, 1.0f);
         do {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             npc_ani_1_frame();
         } while (konquest_game_mode_in_stack(1) != 0);
 
@@ -11291,7 +10921,7 @@ void konquest_start_npc_interaction(void) {
     }
 
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     if (!g_active_npc->fields.state_flag_bits.bit6) {
         destroy_mkprocs_pid(0xA023);
@@ -11316,7 +10946,7 @@ void konquest_start_npc_interaction(void) {
 
     while (!is_dialog_art_active(g_active_npc->fields.dialog_art)) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (is_this_the_monk_npc(g_active_npc) == 0) {
@@ -11334,11 +10964,11 @@ void konquest_start_npc_interaction(void) {
     konquest_pdata->movement_npc.object = (MkHdr*)g_active_npc;
     konquest_pdata->movement_npc.instance =
         ((MkHdr*)g_active_npc)->instance;
-    ((KonquestNpcRuntime*)g_active_npc)->conversation_count++;
+    ((struct KonquestNpcRuntime*)g_active_npc)->conversation_count++;
 }
 
 void start_character_separation_process(float separation) {
-    KonquestInteractionPdata* pdata;
+    struct KonquestInteractionPdata* pdata;
 
     if (is_this_the_monk_npc(g_active_npc) == 0 &&
         g_active_npc->fields.flag_bits.flags_bit6) {
@@ -11350,7 +10980,7 @@ void start_character_separation_process(float separation) {
 
         while (!is_dialog_art_active(g_active_npc->fields.dialog_art)) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
 
         _create_mkproc_generic_tinystack(
@@ -11366,7 +10996,7 @@ void start_character_separation_process(float separation) {
 }
 
 void display_time_progression_images(int progression) {
-    AgeProgressionEntry* entry;
+    struct AgeProgressionEntry* entry;
     ScreenObj* left_image;
     ScreenObj* right_image;
     MslSoundHandle sound;
@@ -11417,7 +11047,7 @@ void set_age_progression(int progression) {
 }
 
 void konquest_end_npc_interaction(void) {
-    KonquestSoundFadePdata* fade;
+    struct KonquestSoundFadePdata* fade;
     MkProc* fade_proc;
     int mode_index;
 
@@ -11431,7 +11061,7 @@ void konquest_end_npc_interaction(void) {
         do {
             npc_ani_1_frame();
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } while (find_mkproc_pid(0x8229) != 0);
         destroy_mkprocs_pid(0xA023);
         _create_mkproc_generic_tinystack(
@@ -11468,7 +11098,7 @@ void konquest_end_npc_interaction(void) {
         }
         npc_ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     if (mode_index != 0) {
         konquest_pdata->game_mode_index--;
@@ -11478,7 +11108,7 @@ void konquest_end_npc_interaction(void) {
     if (konquest_pdata != 0) {
         konquest_pdata->flag_bits.bit4 = 0;
     }
-    if (((KonquestNpcRuntime*)g_active_npc)->type != 7) {
+    if (((struct KonquestNpcRuntime*)g_active_npc)->type != 7) {
         g_active_npc->fields.flag_bits.flags_bit3 = 0;
         g_active_npc->fields.flag_bits.flags_bit6 = 0;
     }
@@ -11486,12 +11116,11 @@ void konquest_end_npc_interaction(void) {
     konquest_pdata->movement_npc.instance = 0;
 }
 
-
 void konquest_start_npc_nis(void) {
     MkObj* hero;
     MkProc* fade_proc;
-    KonquestSoundFadePdata* fade;
-    MonkStateData* state;
+    struct KonquestSoundFadePdata* fade;
+    struct MonkStateData* state;
 
     if (g_active_npc != 0) {
         g_active_npc->fields.flag_bits.flags_bit6 = 1;
@@ -11523,7 +11152,7 @@ void konquest_start_npc_nis(void) {
         return;
     }
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     if (!g_active_npc->fields.state_flag_bits.bit6) {
         destroy_mkprocs_pid(0xA023);
@@ -11548,7 +11177,7 @@ void konquest_start_npc_nis(void) {
 
     while (!is_dialog_art_active(g_active_npc->fields.dialog_art)) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     konquest_pdata->movement_npc.object = (MkHdr*)g_active_npc;
     konquest_pdata->movement_npc.instance =
@@ -11556,7 +11185,7 @@ void konquest_start_npc_nis(void) {
 }
 
 void konquest_end_npc_nis(void) {
-    KonquestSoundFadePdata* fade;
+    struct KonquestSoundFadePdata* fade;
     MkProc* fade_proc;
 
     destroy_mkprocs_pid(0xA01F);
@@ -11600,7 +11229,7 @@ void konquest_end_npc_nis(void) {
         }
         npc_ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_pdata != 0) {
@@ -11608,7 +11237,7 @@ void konquest_end_npc_nis(void) {
     }
     g_active_npc->fields.flag_bits.flags_bit7 = 0;
     g_active_npc->fields.flag_bits.flags_bit2 = 0;
-    if (((KonquestNpcRuntime*)g_active_npc)->type != 7) {
+    if (((struct KonquestNpcRuntime*)g_active_npc)->type != 7) {
         g_active_npc->fields.flag_bits.flags_bit3 = 0;
         g_active_npc->fields.flag_bits.flags_bit6 = 0;
     }
@@ -11616,13 +11245,9 @@ void konquest_end_npc_nis(void) {
     konquest_pdata->movement_npc.instance = 0;
 }
 
-
-
-
-
-static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
+static void vdestroy_dialog_pdata(struct KonquestDialogPdata* pdata) {
     StringObj* object;
-    KonquestStringLatch* line;
+    struct KonquestStringLatch* line;
 
     if (pdata->dialog_art != 0 && pdata->dialog_art->owner != 0) {
         pdata->dialog_art->owner->flag_bits.dialog_active = 0;
@@ -11668,17 +11293,16 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
 static MkProc* create_dialog_proc(KonquestDialogArt* dialog_art,
                                   const char* text, int print_speed) {
     MkProc* proc;
-    KonquestDialogPdata* pdata;
+    struct KonquestDialogPdata* pdata;
     StringObj* line;
-    int flags;
-    int flags_arg;
+    MkProcInitFlags flags;
 
-    pdata = (KonquestDialogPdata*)get_mkhdr(&vtbl_dialog_pdata, sizeof(*pdata));
+    pdata = (struct KonquestDialogPdata*)get_mkhdr(&vtbl_dialog_pdata, sizeof(*pdata));
     if (pdata != 0) {
-        flags = 0;
-        ((MkProcCreateFlagBits*)&flags)->has_pdata = 1;
-        flags_arg = flags;
-        proc = create_mkproc(0x1F, get_mkproc_tinystack(&flags_arg), 0xA012,
+        flags.value = 0;
+        flags.bits.has_pdata = 1;
+
+        proc = create_mkproc(0x1F, get_mkproc_tinystack(flags), 0xA012,
                              p_konquest_dialog, &pdata->hdr);
     } else {
         return 0;
@@ -11750,7 +11374,7 @@ MkProc* konquest_set_dialog_text(
                 computed_speed = 10;
             } else {
                 int rounded_speed;
-                rounded_speed = (int)(float)ceil(duration_per_character);
+                rounded_speed = (float)ceil(duration_per_character);
                 computed_speed = rounded_speed;
             }
             print_speed = computed_speed;
@@ -11766,13 +11390,13 @@ MkProc* konquest_set_dialog_text(
 }
 
 void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
-    KonquestDialogPdata* pdata;
+    struct KonquestDialogPdata* pdata;
     int length;
     int speed;
     int clamped_speed;
 
     speed = 3;
-    pdata = (KonquestDialogPdata*)pdata_of_proc(dialog);
+    pdata = (struct KonquestDialogPdata*)pdata_of_proc(dialog);
     length = strlen(pdata->text);
     if (length > 0) {
         speed = ticks / (unsigned int)length;
@@ -11794,8 +11418,9 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     pdata->active = 1;
 }
 
+/* TODO: [Scope warn] delimiter-array block: removing it drops 100% -> 96.45%; in-place memcpy reaches 97.17%. */
 static float p_konquest_dialog(void) {
-    KonquestDialogPdata* pdata;
+    struct KonquestDialogPdata* pdata;
     char* token;
     char* line_text;
     StringObj* current_line;
@@ -11803,7 +11428,7 @@ static float p_konquest_dialog(void) {
     int character_index;
     int length;
 
-    pdata = (KonquestDialogPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestDialogPdata*)pdata_of_proc(aproc);
     {
         char delimiters[2] = " ";
 
@@ -11855,7 +11480,7 @@ static float p_konquest_dialog(void) {
                 update_string_obj(current_line, pdata->font, line_text);
                 if (pdata->print_speed != 0 && pdata->skip_print_delay == 0) {
                     _mkproc_sleep_ticks = pdata->print_speed;
-                    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                    aproc->vtbl->sleep();
                 }
             }
             token = strtok(0, delimiters);
@@ -11864,7 +11489,7 @@ static float p_konquest_dialog(void) {
     }
 
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     while (find_mkproc_pid(0x8232) != 0) {
         if (pdata->print_ticks > 0) {
             pdata->print_ticks--;
@@ -11873,21 +11498,17 @@ static float p_konquest_dialog(void) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     _mkproc_sleep_ticks = 5.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     return -1.0f;
 }
 
-
-
-
-
-static KonquestNpc* konquest_check_possible_interact_with_npc(
+static union KonquestNpc* konquest_check_possible_interact_with_npc(
     float* distance, float* facing_angle) {
     MkObj* hero;
-    KonquestNpc* selected;
+    union KonquestNpc* selected;
     MkPtr* next;
     MkPtr* link;
     MkHdr* entry;
@@ -11906,7 +11527,7 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
                 discard_stale_mkptr(link);
                 link = next;
             } else {
-                KonquestNpc* npc = (KonquestNpc*)entry;
+                union KonquestNpc* npc = (union KonquestNpc*)entry;
 
                 if (npc != 0 && npc->fields.animation_state != 0 &&
                     npc->fields.animation_state->object != 0) {
@@ -11954,13 +11575,13 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
 }
 
 void nis_end_scene(void) {
-    KonquestNisParticipant* participant;
+    struct KonquestNisParticipant* participant;
     MkPtr* link;
 
     if (konquest_has_list(&nis_participants)) {
         link = nis_participants;
         while (link != 0) {
-            participant = (KonquestNisParticipant*)link->hdr;
+            participant = (struct KonquestNisParticipant*)link->hdr;
             if (link->instance != participant->hdr.instance) {
                 MkPtr* next;
 
@@ -11973,7 +11594,7 @@ void nis_end_scene(void) {
             switch (participant->type) {
             case 0: {
                 MkSobj* first_sobj;
-                KonquestNpcSceneState* scene;
+                struct KonquestNpcSceneState* scene;
 
                 scene = participant->npc->scene_state;
                 if (participant->npc->type == 7 &&
@@ -12007,10 +11628,10 @@ void nis_end_scene(void) {
 }
 
 void nis_register_participant(int type, void* npc_data) {
-    KonquestNisParticipant* participant;
+    struct KonquestNisParticipant* participant;
 
-    participant = (KonquestNisParticipant*)get_mkhdr_generic(
-        sizeof(KonquestNisParticipant));
+    participant = (struct KonquestNisParticipant*)get_mkhdr_generic(
+        sizeof(struct KonquestNisParticipant));
     if (participant == 0) {
         return;
     }
@@ -12018,18 +11639,18 @@ void nis_register_participant(int type, void* npc_data) {
     participant->type = type;
     switch (type) {
     case 0: {
-        KonquestNpcRuntime* npc;
+        struct KonquestNpcRuntime* npc;
 
         if (konquest_pdata == 0) {
             break;
         }
-        npc = (KonquestNpcRuntime*)find_npc_by_data(
+        npc = (struct KonquestNpcRuntime*)find_npc_by_data(
             npc_data);
         if (npc == 0) {
             break;
         }
 
-        is_this_the_monk_npc((KonquestNpc*)npc);
+        is_this_the_monk_npc((union KonquestNpc*)npc);
         npc->state_flag_bits.nis_participant = 1;
         npc->nis_controlled = 1;
         npc_make_visible(npc);
@@ -12039,7 +11660,7 @@ void nis_register_participant(int type, void* npc_data) {
 
         while (is_npc_scene_active(npc) == 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
 
         if (npc->type == 7) {
@@ -12058,12 +11679,12 @@ void nis_register_participant(int type, void* npc_data) {
     }
     case 1: {
         MkObj* hero;
-        KonquestNpcRuntime* npc;
+        struct KonquestNpcRuntime* npc;
 
         if (konquest_pdata != 0) {
             hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
             if (hero != 0) {
-                npc = (KonquestNpcRuntime*)
+                npc = (struct KonquestNpcRuntime*)
                     MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
                 if (npc != 0) {
                     npc->state_flag_bits.nis_participant = 1;
@@ -12086,7 +11707,7 @@ void nis_remove_non_participants(void) {
         link = konquest_pdata->npc_list;
         while (link != 0) {
             MkHdr* hdr;
-            KonquestNpc* npc;
+            union KonquestNpc* npc;
 
             hdr = link->hdr;
             if (link->instance != hdr->instance) {
@@ -12094,7 +11715,7 @@ void nis_remove_non_participants(void) {
                 discard_stale_mkptr(link);
                 link = next;
             } else {
-                npc = (KonquestNpc*)hdr;
+                npc = (union KonquestNpc*)hdr;
                 if (npc != 0 && !npc->fields.state_flag_bits.nis_participant) {
                     MkSobj* owner;
                     int active;
@@ -12131,20 +11752,20 @@ static float p_konquest_nis_housekeeping(void) {
 void wait_for_region_load(void) {
     while (((konquest_pdata->flags >> 7) & 1) == 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 }
 
 void nis_wait_for_region_load(void) {
     while (((konquest_pdata->flags >> 7) & 1) == 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     xfer_proc(konquest_pdata->region_load_proc, p_idle);
 }
 
 void konquest_nis_init(int value) {
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
 
     if ((konquest_pdata->game_mode_index < 0 ||
          konquest_current_game_mode() != 3) &&
@@ -12177,7 +11798,7 @@ void konquest_nis_init(int value) {
 }
 
 void konquest_nis_end(void) {
-    KonquestPdata* pdata;
+    struct KonquestPdata* pdata;
     AnimPdata* animation;
     MkProc* proc;
     int mode_index;
@@ -12187,7 +11808,7 @@ void konquest_nis_end(void) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     pdata = konquest_pdata;
@@ -12233,7 +11854,7 @@ AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object) {
 }
 
 inline void start_head_tracking(void) {
-    KonquestHeadTrackingPdata* head_tracking;
+    struct KonquestHeadTrackingPdata* head_tracking;
 
     head_tracking = 0;
     if (_create_mkproc_generic_tinystack(
@@ -12246,7 +11867,7 @@ inline void start_head_tracking(void) {
 }
 
 static float p_head_tracking(void) {
-    KonquestHeadTrackingPdata* pdata;
+    struct KonquestHeadTrackingPdata* pdata;
     CameraObj* camera;
     MkObj* hero;
     RwMatrix* head_matrix;
@@ -12258,8 +11879,7 @@ static float p_head_tracking(void) {
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
-
-    pdata = (KonquestHeadTrackingPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestHeadTrackingPdata*)pdata_of_proc(aproc);
     if (hero == 0) {
         return 1.0f;
     }
@@ -12369,7 +11989,7 @@ void start_hero_collisions(void) {
 void transition_hero_to_anim_script(
     int script_id, int transition, float blend, float step) {
     transition_to_anim_script(
-        konquest_pdata->hero_anim, get_animation(), transition, blend);
+        konquest_pdata->hero_anim, get_animation(script_id), transition, blend);
     konquest_pdata->hero_anim->step = step;
 }
 
@@ -12403,7 +12023,7 @@ void suspend_hero_state_process(void) {
 
 void resume_hero_state_process(void) {
     MkProc* proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
 
     if (konquest_pdata->hero_anim != 0) {
         proc = MK_LIVE(konquest_pdata->hero_anim->proc, konquest_pdata->hero_anim->proc_instance);
@@ -12459,7 +12079,7 @@ void load_objective_beam(void) {
         hide_obj(beam);
 
         arrow = load_2d_pfxobj_xy(
-            0x60030, 0x8301, (char*)0x0A8C000B, 0, 0x52,
+            0x60030, 0x8301, 0x0A8C000B, 0, 0x52,
             screen_height - 0x5A, 0x46);
         konquest_pdata->hud_objects[2].object = (MkHdr*)arrow;
         konquest_pdata->hud_objects[2].instance = arrow->instance;
@@ -12656,7 +12276,7 @@ static int is_it_safe_to_spawn_pui(KonquestPuiDefinition* item) {
     return 0;
 }
 
-static inline int pui_bit_count(KonquestPdata* pdata) {
+static inline int pui_bit_count(struct KonquestPdata* pdata) {
     return pdata->pui_end - pdata->pui_begin - 1;
 }
 
@@ -12701,7 +12321,7 @@ static void update_pui_actions(
                     active = 0;
                 }
                 if (active != 0) {
-                    KonquestTriggerStruct* trigger;
+                    struct KonquestTriggerStruct* trigger;
                     unsigned int trigger_id;
 
                     trigger_id = get_table_index_by_pointer(
@@ -12732,14 +12352,12 @@ static void update_pui_actions(
     }
 }
 
-
 int is_pui_an_interior_item(const char* pui) {
     return *(const float*)(pui + 0x1c) >= 1000.0f;
 }
 
-
 void kill_pui(KonquestPuiDefinition* item) {
-    KonquestPuiDelayView* pui;
+    struct KonquestPuiRuntime* pui;
     unsigned int table_index;
     int inventory_index;
     int valid;
@@ -12862,9 +12480,9 @@ void kill_dynamic_pui(KonquestPuiDefinition* item) {
 }
 
 static float p_spawn_dynamic_pui(void) {
-    KonquestDynamicPuiPdata* pdata;
+    struct KonquestDynamicPuiPdata* pdata;
 
-    pdata = (KonquestDynamicPuiPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestDynamicPuiPdata*)pdata_of_proc(aproc);
     cmdscript_set_parameters(
         active_cmdscript, 2, pdata->item, pdata->source_type);
     cmdscript_setup_execution(
@@ -12887,7 +12505,7 @@ int spawn_dynamic_pui_at_pos(
     unsigned int table_index;
     int valid;
     MkProc* proc;
-    KonquestDynamicPuiPdata* pdata;
+    struct KonquestDynamicPuiPdata* pdata;
 
     if (item == 0) {
         valid = 0;
@@ -12998,13 +12616,12 @@ int spawn_dynamic_pui_critical(KonquestPuiDefinition* item) {
     return 0;
 }
 
-
 static float p_close_konquest_chest(void) {
-    KonquestChestPdata* pdata;
-    KonquestChestOwner* owner;
+    struct KonquestChestPdata* pdata;
+    struct KonquestChestOwner* owner;
     MkSobj* chest;
 
-    pdata = (KonquestChestPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestChestPdata*)pdata_of_proc(aproc);
     chest = pdata->chest;
     owner = MK_HDR_LIVE(pdata->owner, pdata->owner_instance);
 
@@ -13017,7 +12634,7 @@ static float p_close_konquest_chest(void) {
             while (chest->ang.x <= 6.2231855f) {
                 chest->ang.x += 0.03f;
                 _mkproc_sleep_ticks = 1.0f;
-                ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
             chest->ang.x = 0.0f;
             chest->ang_vel.x = 0.0f;
@@ -13029,7 +12646,7 @@ static float p_close_konquest_chest(void) {
             while (chest->ang.x > 3.926991f) {
                 chest->ang.x -= 0.03f;
                 _mkproc_sleep_ticks = 1.0f;
-                ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
             chest->ang.x = 3.926991f;
             chest->ang_vel.x = 0.0f;
@@ -13040,7 +12657,7 @@ static float p_close_konquest_chest(void) {
 }
 
 static void pui_restore_open_chests(KonquestPuiDefinition* item) {
-    KonquestPuiDelayView* pui;
+    struct KonquestPuiRuntime* pui;
     MkObj* render_object;
     MkSobj* chest;
 
@@ -13059,10 +12676,10 @@ static void pui_restore_open_chests(KonquestPuiDefinition* item) {
 
 static MkProc* pui_set_chest_state(
     KonquestPuiDefinition* item, int direction) {
-    KonquestPuiDelayView* pui;
+    struct KonquestPuiRuntime* pui;
     MkObj* render_object;
     MkSobj* chest;
-    KonquestChestPdata* pdata;
+    struct KonquestChestPdata* pdata;
     MkProc* proc;
 
     pui = find_pui_runtime_by_id(item);
@@ -13083,7 +12700,7 @@ static MkProc* pui_set_chest_state(
     proc = _create_mkproc_generic_tinystack(
         0xA022, 0x1F, p_close_konquest_chest, 0x18, (void**)&pdata);
     if (proc != 0) {
-        KonquestChestOwner* owner;
+        struct KonquestChestOwner* owner;
 
         owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
         owner->interaction->closed = 0;
@@ -13096,10 +12713,6 @@ static MkProc* pui_set_chest_state(
     return proc;
 }
 
-
-
-
-
 static inline int konquest_pui_inventory_collected(int inventory_index) {
     if (inventory_index >= 0) {
         return get_u8_bit(&p1_profile_konquest->raw[0x291],
@@ -13109,7 +12722,7 @@ static inline int konquest_pui_inventory_collected(int inventory_index) {
 }
 
 static int konquest_pui_check_for_and_replace_old_chest(
-    KonquestPuiDelayView* new_pui) {
+    struct KonquestPuiRuntime* new_pui) {
     MkPtr* link;
     int replaced;
 
@@ -13117,7 +12730,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
     if (konquest_has_list(&konquest_pdata->pui_list)) {
         link = konquest_pdata->pui_list;
         while (link != 0) {
-            KonquestPuiDelayView* old_pui;
+            struct KonquestPuiRuntime* old_pui;
             MkHdr* linked_hdr;
 
             linked_hdr = link->hdr;
@@ -13129,7 +12742,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
                 link = next;
                 continue;
             }
-            old_pui = (KonquestPuiDelayView*)linked_hdr;
+            old_pui = (struct KonquestPuiRuntime*)linked_hdr;
             if (old_pui != 0 && old_pui->item->type == 0 &&
                 old_pui != new_pui) {
                 float delta_y;
@@ -13147,8 +12760,8 @@ static int konquest_pui_check_for_and_replace_old_chest(
                     (delta_x * delta_x + delta_y * delta_y);
                 if (distance_squared <= 0.25f) {
                     if (replaced == 0) {
-                        KonquestTriggerStruct* old_trigger;
-                        KonquestTriggerStruct* new_trigger;
+                        struct KonquestTriggerStruct* old_trigger;
+                        struct KonquestTriggerStruct* new_trigger;
                         MkObj* render_object;
                         int inventory_index;
 
@@ -13211,7 +12824,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
     return replaced;
 }
 
-static inline MkHdr* konquest_new_pdata(MkVtable5* vtbl, unsigned int size) {
+static inline MkHdr* konquest_new_pdata(void* vtbl, unsigned int size) {
     MkHdr* hdr = get_mkhdr(vtbl, size);
 
     if (hdr != 0) {
@@ -13220,17 +12833,17 @@ static inline MkHdr* konquest_new_pdata(MkVtable5* vtbl, unsigned int size) {
     return hdr;
 }
 
-static inline KonquestDynamicPuiPdata* dynamic_pui_pdata(void) {
-    return (KonquestDynamicPuiPdata*)pdata_of_proc(aproc);
+static inline struct KonquestDynamicPuiPdata* dynamic_pui_pdata(void) {
+    return (struct KonquestDynamicPuiPdata*)pdata_of_proc(aproc);
 }
 
 static KonquestPuiRuntime* create_new_konquest_pui(
     KonquestPuiDefinition* item, int behavior, int position_mode) {
     int inventory_index;
     int pickup_script;
-    KonquestTriggerStruct* trigger;
+    struct KonquestTriggerStruct* trigger;
     KonquestPuiRuntime* pui;
-    KonquestDynamicPuiPdata* dynamic;
+    struct KonquestDynamicPuiPdata* dynamic;
     MkObj* object;
     unsigned int table_index;
     unsigned int trigger_id;
@@ -13277,7 +12890,7 @@ static KonquestPuiRuntime* create_new_konquest_pui(
     if (((dynamic != 0 && dynamic->source_type == 3) ||
          position_mode == 0) &&
         aproc->pid == 0xA021) {
-        KonquestDynamicPuiPdata* position_data;
+        struct KonquestDynamicPuiPdata* position_data;
 
         position_data = dynamic_pui_pdata();
         switch (position_data->source_type) {
@@ -13313,7 +12926,7 @@ static KonquestPuiRuntime* create_new_konquest_pui(
         konquest_pdata->script_owner, item);
     pickup_script = item->pickup_script_index;
     radius = item->radius;
-    trigger = (KonquestTriggerStruct*)get_mkhdr(
+    trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
         zero_pdata_payload(sizeof(*trigger), trigger);
@@ -13456,7 +13069,7 @@ void spawn_pui(
         if (active == 0) {
             pui = create_new_konquest_pui(item, behavior, position_mode);
             if (pui != 0) {
-                KonquestTriggerStruct* trigger;
+                struct KonquestTriggerStruct* trigger;
                 int saved;
 
                 if (item == 0) {
@@ -13519,7 +13132,7 @@ void spawn_pui(
 }
 
 void pui_delay_spawn(KonquestPuiDefinition* item, float delay) {
-    KonquestPuiDelayView* object;
+    struct KonquestPuiRuntime* object;
 
     object = find_pui_runtime_by_id(item);
     if (object != 0 && !(delay <= 0.0f)) {
@@ -13530,7 +13143,7 @@ void pui_delay_spawn(KonquestPuiDefinition* item, float delay) {
 
 void pui_set_kill_time(
     KonquestPuiDefinition* item, int unit, int amount) {
-    KonquestPuiDelayView* object;
+    struct KonquestPuiRuntime* object;
 
     object = find_pui_runtime_by_id(item);
     if (object != 0) {
@@ -13556,21 +13169,12 @@ void pui_set_kill_time(
     }
 }
 
-
-
-
-
-
-
-
-
-
 /* TODO: [near miss] 99.09%; radius and shared frustum Boolean wrapper match;
  * mode-4 effect/emitter return values still take extra pointer copies. */
 void pui_play_pfx(
     KonquestPuiDefinition* item, int mode, const char* effect_name) {
     unsigned int emitter;
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkObj* emitter_object;
     MkSobj* child;
@@ -13673,10 +13277,6 @@ void pui_play_pfx(
     }
 }
 
-
-
-
-
 static inline int konquest_sphere_visible(const RwSphere* sphere) {
     return RwCameraFrustumTestSphere(Camera, sphere) == 0 ? 0 : 1;
 }
@@ -13685,7 +13285,7 @@ void pui_play_pfx_sequence(
     KonquestPuiDefinition* item, int mode,
     KonquestPuiPfxSequenceRow* sequence) {
     KonquestPuiRuntime* pui;
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
 
@@ -13700,7 +13300,7 @@ void pui_play_pfx_sequence(
         case 1:
             break;
         case 4: {
-            KonquestPuiPfxSequencePdata* pdata;
+            struct KonquestPuiPfxSequencePdata* pdata;
             RwSphere sphere;
             float radius;
 
@@ -13730,7 +13330,7 @@ void pui_play_pfx_sequence(
             break;
         }
         case 5: {
-            KonquestPuiPfxSequencePdata* pdata;
+            struct KonquestPuiPfxSequencePdata* pdata;
             RwSphere sphere;
             float radius;
 
@@ -13762,16 +13362,15 @@ void pui_play_pfx_sequence(
     }
 }
 
-
 static float p_show_koin_award_text(void) {
-    KonquestKoinAwardPdata* pdata;
+    struct KonquestKoinAwardPdata* pdata;
     StringObj* text_object;
     ScreenObj* icon_object;
     MkHdr* text;
     MkHdr* icon;
     char amount[12];
 
-    pdata = (KonquestKoinAwardPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestKoinAwardPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -13779,7 +13378,7 @@ static float p_show_koin_award_text(void) {
     sprintf(amount, "%d", pdata->amount);
     text_object = string_left_xy(0x8300, 0xE, amount, 0x64, 0x32, 0x44);
     icon_object = load_2d_pfxobj_xy(
-        0x60030, 0x8301, (char*)(pdata->icon_offset + 0x0A8C0024), 0, 0x28,
+        0x60030, 0x8301, (pdata->icon_offset + 0x0A8C0024), 0, 0x28,
         0x1E, 0x44);
     konquest_pdata->award_text.object = (MkHdr*)text_object;
     konquest_pdata->award_text.instance = text_object->instance;
@@ -13787,7 +13386,7 @@ static float p_show_koin_award_text(void) {
     konquest_pdata->award_art.instance = icon_object->instance;
 
     _mkproc_sleep_ticks = 120.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     text = MK_LIVE(konquest_pdata->award_text.object, konquest_pdata->award_text.instance);
     icon = MK_LIVE(konquest_pdata->award_art.object, konquest_pdata->award_art.instance);
@@ -13813,7 +13412,7 @@ static float p_show_koin_award_text(void) {
 void pui_set_color(
     unsigned int id, unsigned char red, unsigned char green,
     unsigned char blue, unsigned char alpha) {
-    KonquestPuiDelayView* object;
+    struct KonquestPuiRuntime* object;
     MkObj* render_object;
     RwRGBA color;
 
@@ -13866,7 +13465,7 @@ void pickup_dynamic_pui(KonquestPuiDefinition* item) {
 /* TODO: [near miss] 99.4662%; only pui/item r30-r31 coloring differs; stop at coloring. */
 void pickup_pui(KonquestPuiDefinition* item) {
     KonquestPuiRuntime* pui;
-    KonquestKoinAwardPdata* award;
+    struct KonquestKoinAwardPdata* award;
     MkHdr* object;
     MkHdr* art_object;
     unsigned int table_index;
@@ -13998,7 +13597,7 @@ void pickup_pui(KonquestPuiDefinition* item) {
 
 /* TODO: [near miss] 99.87%; case 3 velocity stores keep 0.15f/products in f3/f4/f2 vs retail f2/f3/f4; stop at coloring. */
 static void setup_konquest_pui(KonquestPuiRuntime* pui) {
-    KonquestChestOwner* owner;
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkObj* hero;
     float inverse_length;
@@ -14170,12 +13769,8 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
     }
 }
 
-
-
-
-
-static void update_dropped_pui(KonquestPuiDelayView* pui) {
-    KonquestChestOwner* owner;
+static void update_dropped_pui(struct KonquestPuiRuntime* pui) {
+    struct KonquestChestOwner* owner;
     MkObj* object;
     MkObj* settled_object;
     Vec target;
@@ -14421,7 +14016,7 @@ int is_character_unlocked_in_profile(
 }
 
 /* TODO: [near miss] 99.81557%; uppercase loop is instruction-equivalent except read-cursor/character GPR coloring; stop at coloring. */
-static void load_art_for_inventory_award(KonquestAwardArtPdata* pdata) {
+static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;
     StringObj* description;
@@ -14530,13 +14125,9 @@ static void load_art_for_inventory_award(KonquestAwardArtPdata* pdata) {
     pdata->description.instance = description->instance;
 }
 
-
-
-
-
-static void destroy_award_art(KonquestAwardArtPdata* pdata) {
+static void destroy_award_art(struct KonquestAwardArtPdata* pdata) {
     KryptScreenObjLatch* art;
-    KonquestStringLatch* description;
+    struct KonquestStringLatch* description;
 
     art = &pdata->art[0];
     if (MK_LIVE(pdata->art[0].obj, pdata->art[0].obj_instance) != 0) {
@@ -14609,22 +14200,21 @@ void stop_chest_camera_script(void) {
     }
 }
 
-
 static float p_display_award_image(void) {
-    KonquestAwardArtPdata* pdata;
+    struct KonquestAwardArtPdata* pdata;
     ScreenObj* object;
     int art_id;
     int mode_index;
     float alpha;
 
-    pdata = (KonquestAwardArtPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestAwardArtPdata*)pdata_of_proc(aproc);
     alpha = 0.0f;
     if (pdata == 0) {
         return -1.0f;
     }
     while (g_game_info.flag_bits.load_complete == 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     switch (pdata->mode) {
@@ -14634,14 +14224,14 @@ static float p_display_award_image(void) {
             0x60027, chest_data, pdata->value, konquest_data_loaded, 0);
 
         object = load_2d_pfxobj_xy(
-            0x60027, 0x8301, (char*)art_id, 0,
+            0x60027, 0x8301, art_id, 0,
             screen_width / 2 - 0xC0, screen_height / 2 - 0x80, 0x42);
         set_screen_obj_alpha(object, 0.0f);
         pdata->art[0].obj = object;
         pdata->art[0].obj_instance = object->instance;
 
         object = load_2d_pfxobj_xy(
-            0x60027, 0x8301, (char*)(art_id + 1), 0,
+            0x60027, 0x8301, (art_id + 1), 0,
             screen_width / 2 + 0x40, screen_height / 2 - 0x80, 0x42);
         set_screen_obj_alpha(object, 0.0f);
         pdata->art[1].obj = object;
@@ -14685,7 +14275,7 @@ static float p_display_award_image(void) {
             alpha += 0.05f;
             set_award_display_alpha(pdata, alpha);
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
         break;
     case 2:
@@ -14708,10 +14298,10 @@ static float p_display_award_image(void) {
         konquest_pdata->game_mode_index--;
     }
     _mkproc_sleep_ticks = 30.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     while (konquest_current_game_mode() != 12) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (pdata->mode == 0) {
@@ -14723,7 +14313,7 @@ static float p_display_award_image(void) {
         alpha -= 0.05f;
         set_award_display_alpha(pdata, alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     destroy_award_art(pdata);
@@ -14736,7 +14326,7 @@ static float p_display_award_image(void) {
     return -1.0f;
 }
 
-static inline void clear_award_art_latches(KonquestAwardArtPdata* pdata) {
+static inline void clear_award_art_latches(struct KonquestAwardArtPdata* pdata) {
     pdata->art[0].obj = 0;
     pdata->art[0].obj_instance = 0;
     pdata->art[1].obj = 0;
@@ -14755,7 +14345,7 @@ static inline void clear_award_art_latches(KonquestAwardArtPdata* pdata) {
 
 static MkProc* konquest_display_award_tga(
     KonquestPuiDefinition* item, int value, int display_mode) {
-    KonquestAwardArtPdata* pdata;
+    struct KonquestAwardArtPdata* pdata;
     MkProc* proc;
     unsigned int table_index;
     unsigned int first;
@@ -14835,10 +14425,6 @@ static MkProc* konquest_display_award_tga(
     return proc;
 }
 
-
-
-
-
 void open_chest_and_give_item_to_player(
     KonquestPuiDefinition* chest_item,
     KonquestPuiDefinition* reward_item) {
@@ -14846,10 +14432,10 @@ void open_chest_and_give_item_to_player(
     MkProc* notice;
     unsigned int notice_instance;
     MkProc* chest_proc;
-    KonquestAwardArtPdata* notice_pdata;
+    struct KonquestAwardArtPdata* notice_pdata;
     AnimPdata* animation;
     MkProc* proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
     unsigned int table_index;
     unsigned int first;
     int inventory_index;
@@ -14887,7 +14473,7 @@ void open_chest_and_give_item_to_player(
            (find_mkproc_pid(0x9006) != 0 &&
             camera_is_pos_move_done() == 0)) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (chest_item == 0) {
@@ -14945,13 +14531,13 @@ void open_chest_and_give_item_to_player(
 
     notice = konquest_display_award_tga(reward_item, 0, 1);
     notice_instance = notice->instance;
-    notice_pdata = (KonquestAwardArtPdata*)pdata_of_proc(notice);
+    notice_pdata = (struct KonquestAwardArtPdata*)pdata_of_proc(notice);
     while (MK_LIVE(notice, notice_instance) != 0) {
         if (notice_pdata->complete != 0) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (interior == 0) {
@@ -14964,7 +14550,7 @@ void open_chest_and_give_item_to_player(
 
     while (konquest_current_game_mode() != 11) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     if (konquest_pdata->game_mode_index != 0) {
         konquest_pdata->game_mode_index--;
@@ -14983,20 +14569,16 @@ void open_chest_and_give_item_to_player(
     }
 }
 
-
-
-
-
 void open_chest_and_unlock_kontent(
     KonquestPuiDefinition* item, int award_arg) {
     unsigned int chest_proc_instance;
     MkProc* notice;
     unsigned int notice_instance;
     MkProc* chest_proc;
-    KonquestAwardArtPdata* notice_pdata;
+    struct KonquestAwardArtPdata* notice_pdata;
     AnimPdata* animation;
     MkProc* proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
     unsigned int table_index;
     unsigned int first;
     int inventory_index;
@@ -15035,7 +14617,7 @@ void open_chest_and_unlock_kontent(
            (find_mkproc_pid(0x9006) != 0 &&
             camera_is_pos_move_done() == 0)) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (item == 0) {
@@ -15087,13 +14669,13 @@ void open_chest_and_unlock_kontent(
 
     notice = konquest_display_award_tga(item, award_arg, 0);
     notice_instance = notice->instance;
-    notice_pdata = (KonquestAwardArtPdata*)pdata_of_proc(notice);
+    notice_pdata = (struct KonquestAwardArtPdata*)pdata_of_proc(notice);
     while (MK_LIVE(notice, notice_instance) != 0) {
         if (notice_pdata->complete != 0) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (interior == 0) {
@@ -15106,7 +14688,7 @@ void open_chest_and_unlock_kontent(
 
     while (konquest_current_game_mode() != 11) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     mode_index = konquest_pdata->game_mode_index;
     if (mode_index != 0) {
@@ -15130,9 +14712,8 @@ void set_reference_pui(KonquestPuiDefinition* reference) {
     konquest_pdata->reference_pui = reference;
 }
 
-
 MkObj* get_pickup_object(void) {
-    KonquestPuiDelayView* pui;
+    struct KonquestPuiRuntime* pui;
 
     pui = find_pui_runtime_by_id(konquest_pdata->reference_pui);
     if (pui == 0) {
@@ -15175,13 +14756,11 @@ void give_reward_to_player(KonquestPuiDefinition* award) {
     }
 }
 
-
-
 void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg) {
     MkProc* proc;
     unsigned int notice_instance;
     MkProc* notice;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
 
     if (konquest_pdata->hero_anim != 0) {
         proc = MK_LIVE(konquest_pdata->hero_anim->proc, konquest_pdata->hero_anim->proc_instance);
@@ -15191,13 +14770,13 @@ void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg) {
 
     hero_stop_moving();
     _mkproc_sleep_ticks = 10.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     notice = konquest_display_award_tga(award, arg, 0);
     notice_instance = notice->instance;
     while (MK_LIVE(notice, notice_instance) != 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (konquest_pdata->hero_anim != 0) {
@@ -15218,9 +14797,9 @@ void* get_konquest_region_table(void) {
 }
 
 static float p_konquest_load_nis_anims(void) {
-    KonquestNisLoadPdata* pdata;
+    struct KonquestNisLoadPdata* pdata;
 
-    pdata = (KonquestNisLoadPdata*)apdata;
+    pdata = (struct KonquestNisLoadPdata*)apdata;
     load_ssf(konquest_region_data[konquest_pdata->region_index].fight_files);
     unload_section_slot(pdata->slot);
     if (pdata->animation_name != 0) {
@@ -15236,7 +14815,7 @@ static float p_konquest_load_nis_anims(void) {
 
 void konquest_start_nis_anims_load(
     char* animation_name, char* art_name) {
-    KonquestNisLoadPdata* pdata;
+    struct KonquestNisLoadPdata* pdata;
 
     if (_create_mkproc_generic_bigstack(
             0x901B, 0x1F, p_konquest_load_nis_anims, sizeof(*pdata),
@@ -15268,18 +14847,18 @@ void konquest_camera_return_to_normal(void) {
 inline void display_time_progression_text(
     float left_fraction, float bottom_fraction, float width_fraction,
     unsigned int string_id, int duration) {
-    KonquestTextWindowPdata* window;
+    struct KonquestTextWindowPdata* window;
 
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
             sizeof(*window), (MkHdr**)&window) != 0) {
         zero_pdata_payload(sizeof(*window), window);
-        window->left = (int)((float)screen_width * left_fraction);
+        window->left = ((float)screen_width * left_fraction);
         window->bottom =
-            (int)((float)screen_height -
+            ((float)screen_height -
                   (float)screen_height * bottom_fraction);
         window->priority = 0x24;
-        window->width = (int)((float)screen_width * width_fraction);
+        window->width = ((float)screen_width * width_fraction);
         window->prompt_flags = 0x800;
         window->font = 9;
         window->timeout = duration;
@@ -15292,7 +14871,7 @@ inline void display_time_progression_text(
         text_window_state = 0;
         while (text_window_state == 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
     }
 }
@@ -15300,10 +14879,10 @@ inline void display_time_progression_text(
 int display_konquest_text(
     float left_fraction, float bottom_fraction, float width_fraction,
     unsigned int string_id, unsigned int prompt_flags) {
-    KonquestTextWindowPdata* window;
+    struct KonquestTextWindowPdata* window;
     AnimPdata* animation;
     MkProc* animation_proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
     int wait_for_input;
     int timeout;
     int mode_index;
@@ -15333,12 +14912,12 @@ int display_konquest_text(
         return 0;
     }
     zero_pdata_payload(sizeof(*window), window);
-    window->left = (int)((float)screen_width * left_fraction);
+    window->left = ((float)screen_width * left_fraction);
     window->bottom =
-        (int)((float)screen_height -
+        ((float)screen_height -
               (float)screen_height * bottom_fraction);
     window->priority = 0x24;
-    window->width = (int)((float)screen_width * width_fraction);
+    window->width = ((float)screen_width * width_fraction);
     window->prompt_flags = prompt_flags;
     window->font = 6;
     window->timeout = timeout;
@@ -15352,7 +14931,7 @@ int display_konquest_text(
     text_window_state = 0;
     while (text_window_state == 0) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     if (wait_for_input != 0 || (prompt_flags & 2) != 0) {
@@ -15404,7 +14983,7 @@ MkObj* konquest_start_damashi(
     fx_restart_emit(effect);
 
     _mkproc_sleep_ticks = 11.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("damashi_sphere", 4);
     particle = find_pfx_by_handle(effect);
@@ -15427,13 +15006,13 @@ MkObj* konquest_start_damashi(
 
 /* TODO: [near miss] 99.70%; final damashi latch check colors pdata/object r5/r4 (retail r4/r5). */
 void konquest_hide_damashi(void) {
-    KonquestPdata* pdata;
+    struct KonquestPdata* pdata;
     MkObj* object;
-    KonquestNpc* npc;
+    union KonquestNpc* npc;
     unsigned int effect;
+    int die_effect;
 
     npc = konquest_live_hero_npc(konquest_pdata);
-
 
     effect = fx_by_owner("damashi_spawn", 4);
     if (effect != 0) {
@@ -15470,14 +15049,12 @@ void konquest_hide_damashi(void) {
     fx_resume_emit(effect);
 
     _mkproc_sleep_ticks = 16.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
-    {
-        int die_effect = fx_by_owner("damashi_die", 4);
+    die_effect = fx_by_owner("damashi_die", 4);
 
-        if (die_effect != 0) {
-            fx_pause_emit(die_effect);
-        }
+    if (die_effect != 0) {
+        fx_pause_emit(die_effect);
     }
     if (mslSoundIsValid(konquest_pdata->damashi_sound)) {
         snd_stop(konquest_pdata->damashi_sound);
@@ -15536,7 +15113,7 @@ void transition_to_region(int region) {
 }
 
 void suspend_hero_grounding(void) {
-    KonquestGrounding* grounding =
+    struct KonquestGrounding* grounding =
         MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
@@ -15545,7 +15122,7 @@ void suspend_hero_grounding(void) {
 }
 
 void restore_hero_grounding(void) {
-    KonquestGrounding* grounding =
+    struct KonquestGrounding* grounding =
         MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     if (grounding != 0) {
@@ -15560,7 +15137,7 @@ void konquest_run_camera_script(void* script, int flags) {
 }
 
 void save_hero_position_and_angle_prior_to_fight(float angle_offset) {
-    KonquestSavedState* save;
+    struct KonquestSavedState* save;
     MkObj* hero;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
@@ -15575,13 +15152,13 @@ void save_hero_position_and_angle_prior_to_fight(float angle_offset) {
 
 /* TODO: [near miss] 99.88%; fade-in ticks/alpha FPR homes f27/f28 remain swapped. */
 static float p_weather(void) {
-    KonquestWeatherPdata* pdata;
+    struct KonquestWeatherPdata* pdata;
     MkSobj* weather_object;
     float progress;
     float ticks;
     float alpha;
 
-    pdata = (KonquestWeatherPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestWeatherPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -15597,13 +15174,10 @@ static float p_weather(void) {
                 return 1.0f;
             }
         } else {
-            {
-                int duration_hours;
-
-                duration_hours = (unsigned short)randu0(6) + 3;
-                pdata->end_time = konquest_pdata->current_time;
-                add_hours_to_time(&pdata->end_time, duration_hours);
-            }
+            int duration_hours;
+            duration_hours = (unsigned short)randu0(6) + 3;
+            pdata->end_time = konquest_pdata->current_time;
+            add_hours_to_time(&pdata->end_time, duration_hours);
             weather_object = obj_find_sobj_by_id(g_game_info.sky, 0x3C);
             if (weather_object != 0) {
                 MkSobj* alpha_object;
@@ -15623,7 +15197,7 @@ static float p_weather(void) {
                         material = sobj_find_material_by_id(alpha_object, 4);
                         if (material != 0) {
                             material->color.alpha =
-                                (unsigned char)(255.0f * alpha);
+                                (255.0f * alpha);
                         }
                     }
                     update_mksobj(weather_object);
@@ -15635,7 +15209,7 @@ static float p_weather(void) {
                     konquest_pdata->sky_color_multiplier = alpha;
                     _mkproc_sleep_ticks = 1.0f;
                     ticks += game_speed;
-                    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                    aproc->vtbl->sleep();
                 }
                 alpha_object = obj_find_sobj_by_id(g_game_info.sky, 0x3C);
                 if (alpha_object != 0) {
@@ -15670,7 +15244,7 @@ static float p_weather(void) {
                             material = sobj_find_material_by_id(alpha_object, 4);
                             if (material != 0) {
                                 material->color.alpha =
-                                    (unsigned char)(255.0f * alpha);
+                                    (255.0f * alpha);
                             }
                         }
                         update_mksobj(weather_object);
@@ -15682,7 +15256,7 @@ static float p_weather(void) {
                         konquest_pdata->sky_color_multiplier = alpha;
                         _mkproc_sleep_ticks = 1.0f;
                         ticks += game_speed;
-                        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                        aproc->vtbl->sleep();
                     }
                     alpha_object = obj_find_sobj_by_id(g_game_info.sky, 0x3C);
                     if (alpha_object != 0) {
@@ -15740,7 +15314,7 @@ static float p_weather(void) {
                     material = sobj_find_material_by_id(alpha_object, 4);
                     if (material != 0) {
                         material->color.alpha =
-                            (unsigned char)(255.0f * alpha);
+                            (255.0f * alpha);
                     }
                 }
                 update_mksobj(weather_object);
@@ -15752,7 +15326,7 @@ static float p_weather(void) {
                 konquest_pdata->sky_color_multiplier = alpha;
                 _mkproc_sleep_ticks = 1.0f;
                 ticks += game_speed;
-                ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
             alpha_object = obj_find_sobj_by_id(g_game_info.sky, 0x3C);
             if (alpha_object != 0) {
@@ -15770,7 +15344,7 @@ static float p_weather(void) {
 }
 
 inline void start_weather_process(void) {
-    KonquestWeatherPdata* weather;
+    struct KonquestWeatherPdata* weather;
     MkProc* weather_proc;
 
     weather = 0;
@@ -15849,7 +15423,7 @@ void konquest_set_current_inventory_item(int item) {
 }
 
 const char* locate_inventory_text(int mode) {
-    KonquestInventoryScreenPdata* screen;
+    struct KonquestInventoryScreenPdata* screen;
     const char* text;
     int selected;
     int count;
@@ -15890,7 +15464,7 @@ const char* locate_inventory_text(int mode) {
 }
 
 void create_inventory_image_list(
-    KonquestInventoryImageList list, int count) {
+    struct KonquestInventoryImageList list, int count) {
     int index;
     int item;
 
@@ -15909,7 +15483,7 @@ void create_inventory_image_list(
     }
 }
 
-static void vdestroy_konquest_obj(KonquestObject* object) {
+static void vdestroy_konquest_obj(struct KonquestObject* object) {
     KonquestDestroyable* owned_object;
 
     destroy_list(&object->list_18);
@@ -15929,7 +15503,7 @@ static void vdestroy_konquest_obj(KonquestObject* object) {
 
 /* TODO: [near miss] 96.03%; retail reloads object->owned_object after the live check
  * (check result in r4); only a pre-check slot pointer reproduces it (note 1307). */
-static void vdestroy_konquest_sobj(KonquestSobj* object) {
+static void vdestroy_konquest_sobj(struct KonquestSobj* object) {
     KonquestDestroyable* owned_object =
         MK_LIVE(object->owned_object, object->owned_object_instance);
 
@@ -15965,15 +15539,14 @@ void hero_start_fx_at_position(
     fx_restart_emit(effect);
 }
 
-
 static float p_show_fight_message(void) {
-    KonquestFightMessagePdata* pdata;
+    struct KonquestFightMessagePdata* pdata;
     ScreenObj* message;
     ScreenObj* logo;
     int tick;
     int vertex;
 
-    pdata = (KonquestFightMessagePdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestFightMessagePdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -16006,11 +15579,11 @@ static float p_show_fight_message(void) {
         message->scale_y += 0.041666668f;
         position_fight_message(message, -10);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     _mkproc_sleep_ticks = 60.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     for (tick = 0; tick < 50; tick++) {
         if (tick < 25) {
@@ -16026,11 +15599,11 @@ static float p_show_fight_message(void) {
         logo->scale_y += 0.12f;
         position_fight_message(logo, 0);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     _mkproc_sleep_ticks = 30.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     if (message->instance != 0) {
         message->typed_vtbl->destroy(message);
     }
@@ -16041,37 +15614,44 @@ static float p_show_fight_message(void) {
 }
 
 void show_fight_message(int message) {
-    KonquestFightMessagePdata* pdata;
+    struct KonquestFightMessagePdata* pdata;
     MkProc* proc;
 
     pdata = 0;
     proc = _create_mkproc_generic_tinystack(
         0x9030, 0x1F, p_show_fight_message,
-        sizeof(KonquestFightMessagePdata), (void**)&pdata);
+        sizeof(struct KonquestFightMessagePdata), (void**)&pdata);
     if (proc != 0 && pdata != 0) {
         pdata->message = message;
     }
 }
 
-
-
-
-
-
 /* TODO: [near miss] 98.77%; travel scalar scopes align; FPR coloring and final animation-call schedule remain. */
 static float p_hero_teleport(void) {
-    KonquestTeleportPdata* pdata;
-    KonquestGrounding* grounding;
+    struct KonquestTeleportPdata* pdata;
+    struct KonquestGrounding* grounding;
     MkObj* hero;
     Vec scratch;
     float delta_y;
     float old_ground_y;
+    float delta_x;
+    float delta_z;
+    float start_angle;
+    float angle_delta;
+    float phase;
+    float blend;
+    int ticks;
+    float travel_delta_z;
+    float travel_delta_x;
+    float ground_delta;
+    float travel_phase;
+    float travel_blend;
+    int travel_ticks;
 
-    pdata = (KonquestTeleportPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestTeleportPdata*)pdata_of_proc(aproc);
     grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
-
 
     run_konquest_teleport_script("hero_do_teleport_start_effect");
     transition_to_anim_script(
@@ -16080,108 +15660,89 @@ static float p_hero_teleport(void) {
     obj_set_all_sobjs_priority(hero, 0x13);
     while (konquest_pdata->hero_anim->frame <
            konquest_pdata->hero_anim->high_frame) {
-        grounding->camera_target->alpha = (unsigned int)(
+        grounding->camera_target->alpha = (
             255.0f * (1.0f - konquest_pdata->hero_anim->frame /
                                  konquest_pdata->hero_anim->high_frame));
         hero->hide_flag_bits.pin_animation = 0;
         obj_for_all_atomics_set_material_alpha(
             hero, grounding->camera_target->alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     grounding->camera_target->alpha = 0;
     obj_for_all_atomics_set_material_alpha(
         hero, grounding->camera_target->alpha);
     grounding->flag_bits.suspended = 1;
 
-    {
-        float delta_x;
-        float delta_z;
-        float start_angle;
-        float angle_delta;
-        float phase;
-        float blend;
-        int ticks;
-
-        delta_x = pdata->target.x - hero->pos.value.x;
-        delta_z = pdata->target.z - hero->pos.value.z;
-        get_camera_angle(&scratch);
-        start_angle = scratch.y;
-        scratch.y = gxMathArcTanYX(delta_x, delta_z);
-        angle_delta = scratch.y - start_angle;
-        if (angle_delta > 3.1415927f) {
-            angle_delta -= 6.2831855f;
-        } else if (angle_delta < -3.1415927f) {
-            angle_delta += 6.2831855f;
-        }
-
-        phase = 0.0f;
-        ticks = 30;
-        do {
-            phase += 0.104719765f;
-            blend = 0.5f * (1.0f - gxMathCos(phase));
-            get_camera_angle(&scratch);
-            scratch.y = angle_delta * blend + start_angle;
-            set_camera_target_angle(&scratch);
-            ticks--;
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-        } while (ticks != 0);
-        hero->ang.y = scratch.y;
+    delta_x = pdata->target.x - hero->pos.value.x;
+    delta_z = pdata->target.z - hero->pos.value.z;
+    get_camera_angle(&scratch);
+    start_angle = scratch.y;
+    scratch.y = gxMathArcTanYX(delta_x, delta_z);
+    angle_delta = scratch.y - start_angle;
+    if (angle_delta > 3.1415927f) {
+        angle_delta -= 6.2831855f;
+    } else if (angle_delta < -3.1415927f) {
+        angle_delta += 6.2831855f;
     }
+
+    phase = 0.0f;
+    ticks = 30;
+    do {
+        phase += 0.104719765f;
+        blend = 0.5f * (1.0f - gxMathCos(phase));
+        get_camera_angle(&scratch);
+        scratch.y = angle_delta * blend + start_angle;
+        set_camera_target_angle(&scratch);
+        ticks--;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    } while (ticks != 0);
+    hero->ang.y = scratch.y;
 
     run_konquest_teleport_script("hero_do_teleport_travel_effect");
-    {
-        float delta_z;
-        float delta_x;
-        float ground_delta;
-        float phase;
-        float blend;
-        int ticks;
+    old_ground_y = hero->ground_colls_y;
+    ground_delta = pdata->target.y - old_ground_y;
+    pdata->target.y += hero->pos.value.y - old_ground_y;
+    travel_delta_x = pdata->target.x - hero->pos.value.x;
+    delta_y = pdata->target.y - hero->pos.value.y;
+    travel_delta_z = pdata->target.z - hero->pos.value.z;
+    scratch.x = hero->pos.value.x;
+    scratch.y = hero->pos.value.y;
+    scratch.z = hero->pos.value.z;
 
-        old_ground_y = hero->ground_colls_y;
-        ground_delta = pdata->target.y - old_ground_y;
-        pdata->target.y += hero->pos.value.y - old_ground_y;
-        delta_x = pdata->target.x - hero->pos.value.x;
-        delta_y = pdata->target.y - hero->pos.value.y;
-        delta_z = pdata->target.z - hero->pos.value.z;
-        scratch.x = hero->pos.value.x;
-        scratch.y = hero->pos.value.y;
-        scratch.z = hero->pos.value.z;
-
-        phase = 0.0f;
-        ticks = 180;
-        do {
-            phase += 0.017453294f;
-            blend = 0.5f * (1.0f - gxMathCos(phase));
-            hero->pos.value.x = delta_x * blend + scratch.x;
-            hero->pos.value.y = delta_y * blend + scratch.y;
-            hero->pos.value.z = delta_z * blend + scratch.z;
-            hero->ground_colls_y = ground_delta * blend + old_ground_y;
-            update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
-            ticks--;
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-        } while (ticks != 0);
-    }
+    travel_phase = 0.0f;
+    travel_ticks = 180;
+    do {
+        travel_phase += 0.017453294f;
+        travel_blend = 0.5f * (1.0f - gxMathCos(travel_phase));
+        hero->pos.value.x = travel_delta_x * travel_blend + scratch.x;
+        hero->pos.value.y = delta_y * travel_blend + scratch.y;
+        hero->pos.value.z = travel_delta_z * travel_blend + scratch.z;
+        hero->ground_colls_y = ground_delta * travel_blend + old_ground_y;
+        update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
+        travel_ticks--;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    } while (travel_ticks != 0);
 
     hero->pos.value.x = pdata->target.x;
     hero->pos.value.y = pdata->target.y;
     hero->pos.value.z = pdata->target.z;
     run_konquest_teleport_script("hero_do_teleport_end_effect");
     transition_to_anim_script_frame(
-        1.0f, (float)((AnimScript*)konquest_animations[31])->frame_count,
+        1.0f, ((AnimScript*)konquest_animations[31])->frame_count,
         konquest_pdata->hero_anim, (AnimScript*)konquest_animations[31],
         3);
     konquest_pdata->hero_anim->step = -0.25f;
     while (konquest_pdata->hero_anim->frame > 0.0f) {
-        grounding->camera_target->alpha = (unsigned int)(
+        grounding->camera_target->alpha = (
             255.0f * (1.0f - konquest_pdata->hero_anim->frame /
                                  konquest_pdata->hero_anim->high_frame));
         obj_for_all_atomics_set_material_alpha(
             hero, grounding->camera_target->alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     grounding->camera_target->alpha = 0xFF;
     obj_set_all_sobjs_priority(hero, 0x10);
@@ -16191,11 +15752,6 @@ static float p_hero_teleport(void) {
     return -1.0f;
 }
 
-
-
-
-
-
 /* TODO: [near miss] 97.73%; mutable target fixes component stores; create-call zero staging (li plus mr) remains. */
 void konquest_teleport_hero_to_location(Vec* target) {
     MkObj* hero;
@@ -16203,8 +15759,8 @@ void konquest_teleport_hero_to_location(Vec* target) {
     MkProc* proc;
     MkProc* animation_proc;
     MkProc* teleport_proc;
-    KonquestGrounding* grounding;
-    KonquestTeleportPdata* teleport_pdata;
+    struct KonquestGrounding* grounding;
+    struct KonquestTeleportPdata* teleport_pdata;
     unsigned int teleport_instance;
 
     if (!(konquest_pdata->region_index != 4 ||
@@ -16262,7 +15818,7 @@ void konquest_teleport_hero_to_location(Vec* target) {
 
         while (MK_LIVE(teleport_proc, teleport_instance) != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
 
         animation = konquest_pdata->hero_anim;
@@ -16290,7 +15846,7 @@ void konquest_teleport_hero_to_location(Vec* target) {
 
 void npc_play_teleported_sound(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
-    KonquestNpcData* spatial;
+    struct KonquestNpcData* spatial;
     float volume;
 
     volume = 0.0f;
@@ -16307,12 +15863,10 @@ void npc_play_teleported_sound(void) {
     pan_vol_snd_req(0x147E, get_pan_value(&position), volume);
 }
 
-/* TODO: [near miss] 100% instructions; one @stringBase0 addend at +0x44a
- * differs (konquest string pool order); fix with the TU string layout. */
 static float p_hero_use_portal(void) {
-    KonquestPortalPdata* pdata;
-    KonquestGrounding* grounding;
-    KonquestObject* portal;
+    struct KonquestPortalPdata* pdata;
+    struct KonquestGrounding* grounding;
+    struct KonquestObject* portal;
     KonquestRenderRecord* record;
     MkObj* hero;
     Vec position;
@@ -16320,7 +15874,7 @@ static float p_hero_use_portal(void) {
     float inverse_length;
     unsigned int effect;
 
-    pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestPortalPdata*)pdata_of_proc(aproc);
 
     grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
@@ -16395,7 +15949,7 @@ static float p_hero_use_portal(void) {
     pfxhandle_spawn_at_bid_next(effect, hero, 0);
     snd_req(0x1594);
     _mkproc_sleep_ticks = 60.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_dissolve_hero", 4);
     fx_set_param_v3(effect, 0x201, position.x, position.y, position.z);
@@ -16409,20 +15963,20 @@ static float p_hero_use_portal(void) {
 
     while (konquest_pdata->hero_anim->frame <
            konquest_pdata->hero_anim->high_frame) {
-        grounding->camera_target->alpha = (unsigned int)(
+        grounding->camera_target->alpha = (
             255.0f * (1.0f - konquest_pdata->hero_anim->frame /
                                  konquest_pdata->hero_anim->high_frame));
         obj_for_all_atomics_set_material_alpha(
             hero, grounding->camera_target->alpha);
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     grounding->camera_target->alpha = 0;
     obj_for_all_atomics_set_material_alpha(
         hero, grounding->camera_target->alpha);
     snd_req(0x1595);
     _mkproc_sleep_ticks = 20.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_flash", 4);
     direction.x = hero->pos.value.x - position.x;
@@ -16444,10 +15998,10 @@ static float p_hero_use_portal(void) {
     fx_resume_emit(effect);
     shake_camera(5, 0.025f);
     _mkproc_sleep_ticks = 5.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     fade_to_white(30, 0);
     _mkproc_sleep_ticks = 10.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_flash2", 4);
     fx_set_param_v3(
@@ -16456,22 +16010,17 @@ static float p_hero_use_portal(void) {
     fx_resume_emit(effect);
     fade_from_white(17, 0);
     _mkproc_sleep_ticks = 90.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     fade_to_black(15, 1);
     remove_camera_offsets();
     return -1.0f;
 }
 
-
-
-
-
-
 /* TODO: [near miss] 97.90%; eight create-process argument staging/zero-initialization rows remain; parameters and latches align. */
 void konquest_use_portal(
     int uid, Vec* target_offset, float camera_y_offset, float hero_distance,
     float camera_distance, int direction_mode) {
-    KonquestPortalPdata* portal_pdata;
+    struct KonquestPortalPdata* portal_pdata;
     ScreenObj* arrow;
     MkObj* beam;
     MkObj* hero;
@@ -16511,7 +16060,7 @@ void konquest_use_portal(
                     hide_sobj(sky_object);
                 }
             }
-            konquest_pdata->objective_visible = 0;
+            konquest_pdata->objective.visible = 0;
         }
 
         turn_controllers_off();
@@ -16561,7 +16110,7 @@ void konquest_use_portal(
                     ? ((portal_proc->instance == portal_instance) ? portal_proc : 0)
                     : 0) != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
 
         p1_profile_konquest->fields.portal_entry_pending = 1;
@@ -16572,12 +16121,10 @@ void konquest_use_portal(
     return;
 }
 
-/* TODO: [near miss] 100% instructions; one @stringBase0 addend at +0x37e
- * differs (konquest string pool order); fix with the TU string layout. */
 static float p_hero_portal_in(void) {
-    KonquestPortalPdata* pdata;
-    KonquestGrounding* grounding;
-    KonquestObject* portal;
+    struct KonquestPortalPdata* pdata;
+    struct KonquestGrounding* grounding;
+    struct KonquestObject* portal;
     KonquestRenderRecord* record;
     MkObj* hero;
     Vec position;
@@ -16586,8 +16133,9 @@ static float p_hero_portal_in(void) {
     float delta_x;
     float inverse_length;
     unsigned int effect;
+    AnimScript* script;
 
-    pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestPortalPdata*)pdata_of_proc(aproc);
 
     grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
@@ -16649,16 +16197,16 @@ static float p_hero_portal_in(void) {
     pfxhandle_spawn_at_bid_next(effect, hero, 0);
     snd_req(0x1594);
     _mkproc_sleep_ticks = 60.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_form_hero", 4);
     fx_reset_emit(effect);
     pfxhandle_spawn_at_bid_next(effect, hero, 0);
     _mkproc_sleep_ticks = 15.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     snd_req(0x1595);
     _mkproc_sleep_ticks = 15.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_flash", 4);
     direction.x = hero->pos.value.x - position.x;
@@ -16679,7 +16227,7 @@ static float p_hero_portal_in(void) {
     fx_resume_emit(effect);
     shake_camera(5, 0.025f);
     _mkproc_sleep_ticks = 5.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     fade_to_white(30, 0);
 
     fx_reset_emit(fx_by_owner("portal_dissolve", 4));
@@ -16689,17 +16237,13 @@ static float p_hero_portal_in(void) {
         hero, grounding->camera_target->alpha);
     obj_set_all_sobjs_priority(hero, 0x10);
 
-    {
-        AnimScript* script;
-
-        script = (AnimScript*)konquest_animations[31];
-        set_anim_script_frame(
-            (float)script->frame_count, konquest_pdata->hero_anim,
-            (AniData*)script, 3);
-    }
+    script = (AnimScript*)konquest_animations[31];
+    set_anim_script_frame(
+        script->frame_count, konquest_pdata->hero_anim,
+        script, 3);
     konquest_pdata->hero_anim->step = -0.25f;
     _mkproc_sleep_ticks = 10.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     effect = fx_by_owner("portal_flash2", 4);
     fx_set_param_v3(
@@ -16709,23 +16253,19 @@ static float p_hero_portal_in(void) {
     fade_from_white(17, 0);
     while (konquest_pdata->hero_anim->frame > 0.0f) {
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     transition_to_anim_script(
         konquest_pdata->hero_anim,
         (AniData*)konquest_animations[1], 0, 0.1f);
     konquest_pdata->hero_anim->step = 0.75f;
     _mkproc_sleep_ticks = 60.0f;
-    ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     return -1.0f;
 }
 
-
-
-
-
-inline KonquestPortalRow* konquest_get_current_region_portal(void) {
-    KonquestPortalRow* rows;
+inline struct KonquestPortalRow* konquest_get_current_region_portal(void) {
+    struct KonquestPortalRow* rows;
     unsigned int row_count;
     unsigned int index;
 
@@ -16747,12 +16287,12 @@ void konquest_hero_portal_in(void) {
     MkObj* hero;
     AnimPdata* animation;
     MkProc* animation_proc;
-    KonquestGrounding* grounding;
+    struct KonquestGrounding* grounding;
     MkProc* proc;
     MkProc* portal_proc;
     unsigned int portal_instance;
-    KonquestPortalPdata* portal_pdata;
-    KonquestPortalRow* row;
+    struct KonquestPortalPdata* portal_pdata;
+    struct KonquestPortalRow* row;
 
     if (!(konquest_current_game_mode() != 0 ||
         konquest_game_mode_in_stack(9) != 0 ||
@@ -16782,7 +16322,7 @@ void konquest_hero_portal_in(void) {
                     hide_sobj(sky_object);
                 }
             }
-            konquest_pdata->objective_visible = 0;
+            konquest_pdata->objective.visible = 0;
         }
 
         turn_controllers_off();
@@ -16838,7 +16378,7 @@ void konquest_hero_portal_in(void) {
                     ? ((portal_proc->instance == portal_instance) ? portal_proc : 0)
                     : 0) != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
 
         arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
@@ -16849,12 +16389,12 @@ void konquest_hero_portal_in(void) {
             p1_profile_konquest->fields.objective_index <
                 (int)get_row_count_for_table_by_pointer(
                     konquest_pdata->script_owner,
-                    konquest_pdata->objective_table)) {
+                    konquest_pdata->objective.table)) {
             if (konquest_pdata->hud_visible != 0) {
                 unhide_screen_obj(arrow);
             }
             unhide_obj(beam);
-            konquest_pdata->objective_visible = 1;
+            konquest_pdata->objective.visible = 1;
         }
 
         animation = konquest_pdata->hero_anim;
@@ -16880,18 +16420,16 @@ void konquest_set_current_portal_uid(int uid) {
     konquest_pdata->current_portal_uid = uid;
 }
 
-
-/* TODO: [near miss] Report 100%; strict diff retains the pooled intro-script string relocation. */
 int konquest_is_save_allowed(void) {
     int intro_script;
     MkProc* proc;
-    KonquestCameraScriptPdata* pdata;
+    struct KonquestCameraScriptPdata* pdata;
 
     intro_script = get_script_function_by_name(
         konquest_pdata->script_owner, "fight_intro_cam_1");
     proc = find_mkproc_pid(0x9006);
     if (proc != 0) {
-        pdata = (KonquestCameraScriptPdata*)pdata_of_proc(proc);
+        pdata = (struct KonquestCameraScriptPdata*)pdata_of_proc(proc);
         if (pdata != 0 && pdata->script == intro_script) {
             return 0;
         }
@@ -16905,7 +16443,7 @@ int konquest_is_save_allowed(void) {
 }
 
 static float p_konquest_fade_screen(void) {
-    KonquestFadePdata* pdata;
+    struct KonquestFadePdata* pdata;
     ScreenObj* object;
     int complete;
 
@@ -16914,7 +16452,7 @@ static float p_konquest_fade_screen(void) {
         return 1.0f;
     }
 
-    pdata = (KonquestFadePdata*)apdata;
+    pdata = (struct KonquestFadePdata*)apdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -16932,7 +16470,7 @@ static float p_konquest_fade_screen(void) {
         if (complete != 0) {
             object = MK_LIVE(pdata->object, pdata->object_instance);
             if (object != 0 && object->instance != 0) {
-                ((KonquestFadeDestroyVtable*)object->vtbl)->
+                ((struct KonquestFadeDestroyVtable*)object->vtbl)->
                     destroy(object);
             }
         }
@@ -16941,11 +16479,10 @@ static float p_konquest_fade_screen(void) {
     return complete != 0 ? -1.0f : 1.0f;
 }
 
-
 static void konquest_fade_screen(
     int ticks, int white, int fade_sound, int to_black) {
-    KonquestFadePdata* pdata;
-    KonquestFadePdata* fade;
+    struct KonquestFadePdata* pdata;
+    struct KonquestFadePdata* fade;
     ScreenObj* object;
     MkProc* proc;
     float volume_step;
@@ -16963,7 +16500,7 @@ static void konquest_fade_screen(
 
     proc = _create_mkproc_generic_nostack(
         0x2098, 0x1F, p_konquest_fade_screen,
-        sizeof(KonquestFadePdata), (void**)&pdata);
+        sizeof(struct KonquestFadePdata), (void**)&pdata);
     if (proc == 0) {
         return;
     }
@@ -17056,9 +16593,9 @@ void konquest_fade_from_black(int ticks, int event) {
 }
 
 static float p_konquest_kill_dialog_procs(void) {
-    KonquestDialogKillPdata* pdata;
+    struct KonquestDialogKillPdata* pdata;
 
-    pdata = (KonquestDialogKillPdata*)pdata_of_proc(aproc);
+    pdata = (struct KonquestDialogKillPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -17072,31 +16609,10 @@ static float p_konquest_kill_dialog_procs(void) {
         kill_lip_sync_procs();
         pdata->attempts++;
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     return -1.0f;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void kill_konquest_dialog_procs(void) {
     void* pdata;
