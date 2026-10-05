@@ -8,7 +8,6 @@
 
 static char printBuff[0x200];
 
-/* MWCC emits these small-BSS declarations in reverse order. */
 int gap_08_80510ED4_sbss;
 OSHeapHandle GameCubeSystemHeap;
 
@@ -29,7 +28,7 @@ unsigned long mwMemSystemGetAvailSize(void) {
     char* arena_high;
 
     OSInit();
-    arena_high = (char*)OSGetArenaHi();
+    arena_high = OSGetArenaHi();
     return (unsigned long)(arena_high - (char*)OSGetArenaLo()) - 0x140;
 }
 
