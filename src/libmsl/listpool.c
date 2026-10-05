@@ -48,7 +48,8 @@ static const char stringBase0[] =
 
 #define LIST_STRING(offset) (&stringBase0[(offset)])
 
-static inline _ListNode* remove_node(_ListNode** list, _ListNode* node) {
+static inline _ListNode* remove_node(_ListNode** list) {
+    _ListNode* node = *list;
     if (node == 0) {
         mslDebugPrintf(LIST_STRING(0x3A));
         return 0;
@@ -64,6 +65,7 @@ static inline _ListNode* remove_node(_ListNode** list, _ListNode* node) {
         }
         node->next = 0;
         node->previous_link = 0;
+        *list = next;
 
         if (next != 0 && next->previous_link != previous_link) {
             mslDebugPrintf(LIST_STRING(0x5A));
@@ -78,19 +80,8 @@ static inline _ListNode* remove_node(_ListNode** list, _ListNode* node) {
     return node;
 }
 
-static inline void insert_node(_ListNode** list, _ListNode* node) {
+static inline void link_node(_ListNode** list, _ListNode* node) {
     _ListNode* old_head;
-
-    if (*list == node) {
-        mslDebugPrintf(LIST_STRING(0xC4));
-        return;
-    }
-
-    if (node->previous_link != 0) {
-        mslDebugPrintf(LIST_STRING(0));
-        remove_node(node->previous_link, node);
-    }
-
     node->next = *list;
     node->previous_link = list;
     old_head = *list;
@@ -113,14 +104,26 @@ static inline void insert_node(_ListNode** list, _ListNode* node) {
     }
 }
 
-/* TODO: [near miss] 94.41%; inlined unlink reloads, redundant null-result
- * emissions and GPR scheduling; stop at the clean-C ceiling. */
+static inline void insert_node(_ListNode** list, _ListNode* node) {
+    if (*list == node) {
+        mslDebugPrintf(LIST_STRING(0xC4));
+        return;
+    }
+
+    if (node->previous_link != 0) {
+        mslDebugPrintf(LIST_STRING(0));
+        node = remove_node(&node);
+    }
+
+    link_node(list, node);
+}
+
 void ListInsertAtTail(_ListNode** list, _ListNode* node) {
     _ListNode* tail;
 
     if (node->previous_link != 0) {
         mslDebugPrintf(LIST_STRING(0));
-        remove_node(node->previous_link, node);
+        node = remove_node(&node);
     }
 
     tail = 0;
@@ -183,9 +186,16 @@ _ListNode* ListRemove(_ListNode** list) {
     return node;
 }
 
-/* TODO: [near miss] 95.93%; inlined unlink reloads and GPR scheduling only. */
 void ListInsert(_ListNode** list, _ListNode* node) {
-    insert_node(list, node);
+    if (*list == node) {
+        mslDebugPrintf(LIST_STRING(0xC4));
+        return;
+    }
+    if (node->previous_link != 0) {
+        mslDebugPrintf(LIST_STRING(0));
+        node = remove_node(&node);
+    }
+    link_node(list, node);
 }
 
 /* On the retail 32-bit big-endian ABI, index is the high handle halfword
@@ -241,7 +251,6 @@ void* ListNodeData(ListPool* pool, _ListNode* node) {
     return node->data;
 }
 
-/* TODO: [near miss] 97.28%; identical pool bookkeeping; unlink GPR scheduling. */
 void ListNodeFree(ListPool* pool, _ListNode* node) {
     if (pool == 0) {
         mslDebugPrintf(LIST_STRING(0x1DE));
@@ -266,7 +275,6 @@ void ListNodeFree(ListPool* pool, _ListNode* node) {
     }
 }
 
-/* TODO: [near miss] 98.20%; unlink reloads and redundant null-result emission. */
 _ListNode* ListNodeAlloc(ListPool* pool) {
     _ListNode* node;
     int allocated;
@@ -282,7 +290,7 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
 
     node = pool->free_list;
     if (node != 0) {
-        remove_node(&pool->free_list, node);
+        node = ListRemove(&node);
         node->state = 1;
         if (node->generation == 0) {
             node->generation++;
@@ -305,7 +313,7 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
 }
 
 /* TODO: [near miss] 99.49%; retail copies an already-zero GPR for the index;
- * current code materializes zero; stop at zero/scheduling emission. */
+ * current code materializes zero; reset helper/loop forms did not close it. */
 int ListPoolAttach(
     ListPool* pool, void* memory, msl_u32 element_count,
     msl_u32 element_size) {
