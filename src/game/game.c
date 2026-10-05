@@ -1730,7 +1730,7 @@ void round_init(void) {
 
         process = _create_mkproc_generic_tinystack(
             0x2005, 0x1F, p_flash_demo_fight_text, 8,
-            (MkHdr**)&empty_pdata);
+            &empty_pdata);
         if (process != 0) {
             df_press_start_proc_item.obj = (MkHdr*)process;
             df_press_start_proc_item.obj_instance = process->instance;
