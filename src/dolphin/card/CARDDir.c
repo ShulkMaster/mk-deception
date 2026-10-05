@@ -18,15 +18,15 @@ static void WriteCallback(s32 chan, s32 result)
     CARDCallback callback;
 
     if (result >= 0) {
-        CARDDir* dir0 = (CARDDir*)((u8*)card->workArea + 0x2000);
-        CARDDir* dir1 = (CARDDir*)((u8*)card->workArea + 0x4000);
+        CARDDir* dir0 = (CARDDir*)((u8*)card->workArea + CARD_SYSTEM_BLOCK_SIZE);
+        CARDDir* dir1 = (CARDDir*)((u8*)card->workArea + 2 * CARD_SYSTEM_BLOCK_SIZE);
 
         if (card->currentDir == dir0) {
             card->currentDir = dir1;
-            memcpy(dir1, dir0, 0x2000);
+            memcpy(dir1, dir0, CARD_SYSTEM_BLOCK_SIZE);
         } else {
             card->currentDir = dir0;
-            memcpy(dir0, dir1, 0x2000);
+            memcpy(dir0, dir1, CARD_SYSTEM_BLOCK_SIZE);
         }
     }
 
@@ -52,8 +52,8 @@ static void EraseCallback(s32 chan, s32 result)
 
     if (result >= 0) {
         dir = __CARDGetDirBlock(card);
-        address = ((u32)dir - (u32)card->workArea) / 0x2000 * card->sectorSize;
-        result = __CARDWrite(chan, address, 0x2000, dir, WriteCallback);
+        address = (u32)((u8*)dir - (u8*)card->workArea) / CARD_SYSTEM_BLOCK_SIZE * card->sectorSize;
+        result = __CARDWrite(chan, address, CARD_SYSTEM_BLOCK_SIZE, dir, WriteCallback);
         if (result >= 0) {
             return;
         }
@@ -87,11 +87,11 @@ s32 __CARDUpdateDir(s32 chan, CARDCallback callback)
     dir = __CARDGetDirBlock(card);
     check = CARDGetDirCheck(dir);
     ++check->checkCode;
-    __CARDCheckSum(dir, 0x2000 - sizeof(u32), &check->checkSum,
+    __CARDCheckSum(dir, CARD_SYSTEM_BLOCK_SIZE - sizeof(u32), &check->checkSum,
                    &check->checkSumInv);
-    DCStoreRange(dir, 0x2000);
+    DCStoreRange(dir, CARD_SYSTEM_BLOCK_SIZE);
 
     card->eraseCallback = callback;
-    address = ((u32)dir - (u32)card->workArea) / 0x2000 * card->sectorSize;
+    address = (u32)((u8*)dir - (u8*)card->workArea) / CARD_SYSTEM_BLOCK_SIZE * card->sectorSize;
     return __CARDEraseSector(chan, address, EraseCallback);
 }
