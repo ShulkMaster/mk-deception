@@ -2,6 +2,7 @@
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
 #include "sofdec/sfd_error.h"
+#include "sofdec/sfd_library.h"
 
 typedef struct SfdHandle SfdHandle;
 
@@ -42,26 +43,24 @@ typedef char MwsInitParamSizeCheck[sizeof(MwsInitParam) == 0x20 ? 1 : -1];
 typedef char MwsPlayerSlotSizeCheck[sizeof(MwsPlayerSlot) == 0x2B8 ? 1 : -1];
 typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 
-extern void* SFD_tr_in_mem[];
-extern void* SFD_tr_sd_mps[];
-extern void* SFD_tr_vd_mpv[];
-extern void* SFD_tr_vo_manu[];
-extern void* SFD_tr_ad_adxt[];
-extern void* SFD_tr_ao_auto_p[];
-extern void* SFD_tr_uo[];
+extern const SfdTransportInterface SFD_tr_sd_mps;
+extern const SfdTransportInterface SFD_tr_vd_mpv;
+extern const SfdTransportInterface SFD_tr_vo_manu;
+extern const SfdTransportInterface SFD_tr_ad_adxt;
+extern const SfdTransportInterface SFD_tr_ao_auto_p;
 
 const char mwsfd_ver_str[] =
     "\nMWSFD/GC Ver.3.31 Build:Sep  3 2004 11:38:18\n\0"
     "Append: MW2407 GC20Apr2004Patch1\n";
-static void* const mwsfd_trentry[15] = {
-    SFD_tr_in_mem, SFD_tr_sd_mps, SFD_tr_vd_mpv, SFD_tr_vo_manu,
-    SFD_tr_ad_adxt, SFD_tr_ao_auto_p, SFD_tr_uo,
+static const SfdTransportRegistry mwsfd_trentry = {{
+    &SFD_tr_in_mem, &SFD_tr_sd_mps, &SFD_tr_vd_mpv, &SFD_tr_vo_manu,
+    &SFD_tr_ad_adxt, &SFD_tr_ao_auto_p, &SFD_tr_uo,
     0, 0, 0, 0, 0, 0, 0, 0
-};
+}};
 static const struct {
-    void* const* transports;
-    int work_size;
-} mwsfd_initsfdpara = {mwsfd_trentry, 0xEA24};
+    const SfdTransportRegistry* transports;
+    int timer_source;
+} mwsfd_initsfdpara = {&mwsfd_trentry, 0xEA24};
 const int mwsfd_siz_mwplyhn = sizeof(MwsPlayerSlot);
 
 static const char data_error[] = "DATA ERROR(%08X)";
@@ -137,16 +136,10 @@ extern void SJMEM_Finish(void);
 extern void SJUNI_Init(void);
 extern void SJUNI_Finish(void);
 extern void SJRBF_Init(void);
-extern void SFD_Finish(void);
-extern int SFD_IsVersionCompatible(const char* version, int handle_size,
-                                   void* const* transports, int* version_count,
-                                   int reserved, int enabled, float frame_rate,
-                                   float rate_scale);
-extern int SFD_Init(void* parameters);
 extern void MWSFD_SetCond(void* player, int condition, int value);
 
-/* TODO: [near miss] 99.872730%; signed error dispatch matches the donor; only
- * pooled-global base/address allocation differs. */
+/* TODO: [near miss] 99.87273%; body and decoded literals agree; retail BSS
+ * order starts at init_cnt, while first-use emission starts at err_mwsfdhn. */
 void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
 {
     void* player = (void*)object;
@@ -214,10 +207,9 @@ static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
     }
 }
 
-/* TODO: [near miss] 91.21951%; typed library cursor retained; stop at global-base GPR coloring. */
 void mwPlyFinishSfdFx(void)
 {
-    MwsLibraryWork* cursor = &mwsfd_libwork;
+    MwsLibraryWork* work = &mwsfd_libwork;
     int index;
 
     mwsfd_init_cnt--;
@@ -226,12 +218,12 @@ void mwPlyFinishSfdFx(void)
     }
     index = 0;
     do {
-        if (cursor->players[0].active == 1) {
-            mwSfdDestroy(&cursor->players[0]);
+        MwsPlayerSlot* player = &work->players[index];
+
+        if (player->active == 1) {
+            mwSfdDestroy(player);
         }
         index++;
-        cursor = (MwsLibraryWork*)((unsigned char*)cursor +
-                                  sizeof(MwsPlayerSlot));
     } while (index < 8);
     MWSFSVM_DeleteVfunc();
     MWSFSVM_DeleteMainFunc();
@@ -259,14 +251,13 @@ int MWSFD_GetUsePicUsr(void)
 
 static void mwsflib_LscErrFunc(void* object, const char* message);
 
-/* TODO: [near miss] 91.93048%; donor parameter-helper boundary is neutral;
- * global-base allocation and call scheduling remain. */
+/* TODO: [breakthrough] 95.28%; ABI repaired; BSS base placement and init-helper staging remain. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;
     MwsInitParam* sfd_parameter;
     MwsLibraryWork* work;
-    int sfd_parameters[2];
+    SfdLibraryConfig sfd_parameters;
     int result;
 
     if (parameter == 0) {
@@ -299,27 +290,24 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
             mwsfd_libwork.error_code = -0x65;
             MWSFSVM_Error(mwsfd_init_literals.init_gsc_failed);
         }
-        work = &mwsfd_libwork;
-        memset(work, 0, sizeof(*work));
+        memset(work = &mwsfd_libwork, 0, sizeof(mwsfd_libwork));
         MWSFSVR_SetMwsfdSvrFlg(0);
         work->field_5C = 0;
         mwsflib_SetLibPrm(work, sfd_parameter);
         work->use_picture_user_data = 1;
         work->pause_border = 1;
         mwg_vcnt = 0;
-        sfd_parameters[0] = (int)mwsfd_initsfdpara.transports;
-        sfd_parameters[1] = mwsfd_initsfdpara.work_size;
-        sfd_parameters[1] =
+        sfd_parameters.transport_registry =
+            (SfdTransportRegistry*)mwsfd_initsfdpara.transports;
+        sfd_parameters.timer_source = mwsfd_initsfdpara.timer_source;
+        sfd_parameters.timer_source =
             (int)((mwsfd_init_literals.rate_scale * local.frame_rate) +
                   mwsfd_init_literals.rounding_half);
 
-        if (SFD_IsVersionCompatible(compatible_version, 0x3598,
-                                    mwsfd_initsfdpara.transports, &mwg_vcnt,
-                                    0, 1, local.frame_rate,
-                                    mwsfd_init_literals.rate_scale) != 1) {
+        if (SFD_IsVersionCompatible(compatible_version, 0x3598) != 1) {
             MWSFSVM_Error(incompatible_version);
             result = -1;
-        } else if (SFD_Init(sfd_parameters) != 0) {
+        } else if (SFD_Init(&sfd_parameters) != 0) {
             result = -0x12D;
             work->error_code = result;
         } else if (SFD_SetErrFn(0, MWSFLIB_SfdErrFunc, 0) != 0) {
