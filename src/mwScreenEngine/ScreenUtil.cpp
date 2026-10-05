@@ -1,4 +1,4 @@
-/* BUILD: -O4,s: prefer mtctr on ReadHexInt digit loop (still soft-ceiling). */
+/* BUILD: -O4,s: prefer mtctr on ReadHexInt digit loop. */
 
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/ScreenClient.h"
