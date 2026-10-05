@@ -2,67 +2,28 @@
 
 #include "game/game_info.h"
 #include "libmkparticle/metrics.h"
+#include "libmkparticle/particle_system.h"
+#include "libmkparticle/particle_render.h"
+#include "libmkparticle/supported.h"
+#include "libmkparticle/init.h"
+#include "libmkparticle/emitter.h"
+#include "libmkparticle/behavior.h"
 #include "libmkparticle/gc_render.h"
 #include "runtime/mk_mem.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_render.h"
+#include "runtime/utils.h"
+#include "platform/main.h"
+#include "platform/display.h"
 #include "rw/rwcamera_internal.h"
+#include "rw/rwengine.h"
 #include "rw/rwframe.h"
 
-#ifndef NULL
-#define NULL ((void*)0)
-#endif
-
-/* ---- externals (other TUs / SDK) ---- */
-
-
-extern void* Camera;
-extern void* RwEngineInstance;
-extern float camera_facing_matrix_ay[];
-extern float game_speed;
-extern int exec_tick_ctr;
-
-void memcpy(void* dst, const void* src, int size);
-void memset(void* dst, int c, int size);
-char* strcpy(char* dst, const char* src);
-void* load_tga(void* path, void* name);
-void insert_particle_mkobj(void* obj);
-void calc_bone_world_mat(void* obj, int bone);
-void obj_set_bone_calc_world_mat_flag(void* obj, int bone);
-
-void pfx_count_end(void);
-void pfx_count_begin(void);
-void pfx_count_add(void* vm);
-void pfxsystem_set_frame_info(int a, int b, void* matrix, void* camera);
-void pfxsystem_set_global(int id, float value);
-void pfxvm_init(void* vm);
-void pfx_emitter_scan_for_fields(void* emitter, unsigned int* out_pair);
-int pfx_native_is_supported_type(int type);
-int pfx_frame_begin(void* vm);
-void pfx_frame_end(void* vm);
-void pfx_frame_end_check(void* vm);
-void pfx_behaviors_frame_begin(void* vm);
-void pfx_behaviors_frame_end(void* vm);
-void* pfx_get_emitter(void* vm, int index);
-void pfx_set_texture(void* pfx, void* texture);
-void pfx_set_renderstate(void* vm);
 void pfx_reset_renderstate(void* vm);
-/* Retail usec timers return elapsed u64 in r3:r4. */
-unsigned long long stop_usec_timer(int id);
-void start_usec_timer(int id);
-
-/* ---- file-local / BSS ---- */
 
 static float* inverse_camera_matrix;
 static void* old_ltm_415;
-
-/* Retail mk_particle.o .sbss2 @499 -- zero-init pair for pfx_emitter_scan_for_fields. */
-static unsigned int pfx_emitter_field_pair_seed[2];
-
-typedef struct PfxNostackFlagBits {
-    unsigned char pad[3];
-    unsigned char nostack : 1;
-    unsigned char pad7 : 7;
-} PfxNostackFlagBits;
 
 MkPfx* apfx;
 MkObj* apfx_render_obj;
@@ -78,17 +39,15 @@ static void pfxmetrics_start_timer(int id);
 
 static const float kZero = 0.0f;
 static const float kOne = 1.0f;
-static const float kDefaultPfxScale = -10000.0f; /* retail @1400 */
+static const float kDefaultPfxScale = -10000.0f;
 
 #define MKPFX_MKOBJ_FROM_HDR(hdr_) ((MkObj*)(hdr_))
-#define MKPFX_VTBL_GET_SOBJ(vtbl_, hdr_)                                  \
-    (((MkSobj* (*)(MkHdr*))(vtbl_)->fn2)(hdr_))
 
 static inline MkObj* as_mkobj(MkHdr* hdr) {
     if (hdr == 0) {
         return 0;
     }
-    if (hdr->vtbl != &vtbl_mkobj) {
+    if (hdr->vtbl != MK_VTABLE_ADDRESS(vtbl_mkobj)) {
         return 0;
     }
     return (MkObj*)hdr;
@@ -101,84 +60,73 @@ static inline MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
         return 0;
     }
     vtbl = hdr->vtbl;
-    return ((MkSobj* (*)(MkHdr*))vtbl->fn2)(hdr);
+    return (MkSobj*)vtbl->fn2(hdr);
 }
 
 static inline void vtbl_call_destroy(MkHdr* hdr) {
-    MkVtable5* vtbl;
+    MkHdrVtable* vtbl;
 
     if (hdr == 0 || hdr->instance == 0) {
         return;
     }
-    vtbl = hdr->vtbl;
-    ((void (*)(MkHdr*))vtbl->destroy)(hdr);
+    vtbl = hdr->typed_vtbl;
+    vtbl->destroy(hdr);
 }
 
 static inline int flag_msb(unsigned char byte) {
-    return (int)((signed char)(byte & 0x80));
+    return (signed char)(byte & 0x80);
 }
 
 static inline PfxVm* pfx_vm(MkPfx* pfx) {
     return (PfxVm*)pfx->matrix;
 }
 
-/* ======================================================================== */
-/* Retail function order                                                     */
-/* ======================================================================== */
-
-
-
-
-
-
-/* TODO: [breakthrough needed] 92.301370%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void mkpfx_get_origin(MkPfx* pfx, float origin[3]) {
     int slot;
-    PfxSlot* slot_base;
     MkHdr* bound;
     MkObj* mkobj;
     MkSobj* sobj;
     MkVtable5* vtbl;
-    float* ltm;
-    float* mat;
+    RwMatrix* ltm;
+    PfxTransform* transform;
 
     slot = pfx->active_slot;
-    slot_base = pfx->slot_table;
-    mat = pfx->transforms[slot].matrix.elements;
-    bound = MK_LIVE(slot_base->hdr, slot_base->instance);
-
+    transform = &pfx->transforms[slot];
+    bound = MK_LIVE(pfx->slot_table->hdr, pfx->slot_table->instance);
 
     if (bound != 0) {
 
         vtbl = bound->vtbl;
-        if (vtbl == &vtbl_mkobj) {
+        if (vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)) {
             mkobj = MKPFX_MKOBJ_FROM_HDR(bound);
         } else {
             mkobj = 0;
         }
         if (bound != 0) {
-            sobj = MKPFX_VTBL_GET_SOBJ(vtbl, bound);
+            sobj = (MkSobj*)vtbl->fn2(bound);
         } else {
             sobj = 0;
         }
         if (mkobj != 0) {
-            ltm = (float*)RwFrameGetLTM(mkobj->frame);
-            origin[0] = ltm[0xC];
-            origin[1] = ltm[0xD];
-            origin[2] = ltm[0xE];
+            ltm = RwFrameGetLTM(mkobj->frame);
+            origin[0] = ltm->pos.x;
+            origin[1] = ltm->pos.y;
+            origin[2] = ltm->pos.z;
             return;
         }
         if (sobj != 0) {
-            ltm = (float*)RwFrameGetLTM(sobj->frame);
-            origin[0] = ltm[0xC];
-            origin[1] = ltm[0xD];
-            origin[2] = ltm[0xE];
+            ltm = RwFrameGetLTM(sobj->frame);
+            origin[0] = ltm->pos.x;
+            origin[1] = ltm->pos.y;
+            origin[2] = ltm->pos.z;
+        } else {
+            return;
         }
     } else {
-        origin[0] = mat[0xC];
-        origin[1] = mat[0xD];
-        origin[2] = mat[0xE];
-        }
+        origin[0] = transform->position.x;
+        origin[1] = transform->position.y;
+        origin[2] = transform->position.z;
+    }
 }
 
 void mkpfx_camera_end(void) {
@@ -186,7 +134,7 @@ void mkpfx_camera_end(void) {
 }
 
 void mkpfx_camera_begin(void) {
-    pfxsystem_set_frame_info(0, 0, camera_facing_matrix_ay, Camera);
+    pfxsystem_set_frame_info(0, 0, (const float*)&camera_facing_matrix_ay, Camera);
     pfx_count_begin();
 }
 
@@ -194,6 +142,7 @@ void mkpfx_set_environment(void) {
     pfxsystem_set_global(0x500, g_game_info.field_34);
 }
 
+/* TODO: [breakthrough needed] 77.33%; resolve emitter-slot latch and bounds CFG against retail. */
 MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index) {
     PfxSlot* table;
     int count;
@@ -232,10 +181,23 @@ void vdestroy_pfx_clone(PfxClone* clone) {
     mkhdr_memfree(&clone->hdr);
 }
 
-void vdestroy_pfx(MkPfx* pfx) {
-    MkHdr* hdr;
-    int i;
+static inline void destroy_owned_pfx_slots(MkPfx* pfx) {
+    if (pfx->slot_table != 0) {
+        int i = 0;
+        while (i < pfx->slot_count) {
+            PfxSlot* slot = &pfx->slot_table[i];
 
+            if (slot->flag_bits.owns_bind) {
+                MkHdr* hdr = MK_LIVE(slot->hdr, slot->instance);
+                vtbl_call_destroy(hdr);
+            }
+            i++;
+        }
+    }
+}
+
+void vdestroy_pfx(MkPfx* pfx) {
+    void* mem;
     if (pfx->flag_bits.destroyed) {
         return;
     }
@@ -244,22 +206,15 @@ void vdestroy_pfx(MkPfx* pfx) {
     pfx->flag_bits.destroyed = 1;
 
     if (pfx->flag_bits.owns_bind) {
-        hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
+        MkHdr* hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
         vtbl_call_destroy(hdr);
     }
 
-    if (pfx->slot_table != 0) {
-        for (i = 0; i < pfx->slot_count; i++) {
-            if (pfx->slot_table[i].flag_bits.owns_bind) {
-                hdr = MK_LIVE(pfx->slot_table[i].hdr, pfx->slot_table[i].instance);
-                vtbl_call_destroy(hdr);
-            }
-        }
-    }
+    destroy_owned_pfx_slots(pfx);
 
-    hdr = pfx->mem;
-    if (hdr != 0) {
-        free_mem_delayed(hdr, 3);
+    mem = pfx->mem;
+    if (mem != 0) {
+        free_mem_delayed(mem, 3);
     }
 
     pfx->hdr.instance = 0;
@@ -280,8 +235,8 @@ void render_pfx_clone(PfxClone* clone) {
 
     pfx = clone->parent;
     mat = pfx->transforms[pfx->active_slot].matrix.elements;
-    memcpy(save, mat, 0x40);
-    memcpy(mat, clone->matrix_copy, 0x40);
+    memcpy(save, mat, sizeof(save));
+    memcpy(mat, clone->matrix_copy, sizeof(save));
 
     zero = kZero;
     one = kOne;
@@ -309,39 +264,33 @@ void render_pfx_clone(PfxClone* clone) {
         pfx->matrix[14] = inv[14];
         pfx->matrix[15] = one;
         pfx_count_add(pfx_vm(pfx));
-        pfx_set_renderstate(pfx_vm(pfx));
+        pfx_set_renderstate((struct PfxRenderView*)pfx_vm(pfx));
         particle_render(pfx_vm(pfx));
         pfx_reset_renderstate(pfx_vm(pfx));
         pfxmetrics_event(pfx->metrics_handle, 0x4005);
     }
 
-    memcpy(mat, save, 0x40);
+    memcpy(mat, save, sizeof(save));
 }
 
 void render_pfx(MkPfx* pfx) {
     MkHdr* bound;
     MkObj* mkobj;
     MkHdr* parent;
-    unsigned char hide_byte;
     float* inv;
     float zero;
     float one;
-    PfxTransformCb cb;
 
     bound = MK_LIVE(pfx->slot_table->hdr, pfx->slot_table->instance);
     if (bound != 0) {
-        mkobj = as_mkobj(bound);
+        mkobj = bound->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj) ? (MkObj*)bound : 0;
         if (mkobj != 0) {
-            if (((mkobj->flags_0C >> 1) & 1) == 0) {
-                hide_byte = mkobj->hide_flags;
-            } else {
+            if (((mkobj->flags_0C >> 1) & 1) != 0) {
                 parent = MK_LIVE(mkobj->parent_hdr, mkobj->parent_inst);
-                if (parent == 0) {
+                if (parent == 0 || ((((MkObj*)parent)->hide_flags >> 5) & 1)) {
                     return;
                 }
-                hide_byte = ((MkObj*)parent)->hide_flags;
-            }
-            if ((hide_byte >> 5) & 1) {
+            } else if ((mkobj->hide_flags >> 5) & 1) {
                 return;
             }
         }
@@ -351,10 +300,9 @@ void render_pfx(MkPfx* pfx) {
         return;
     }
 
-    cb = pfx->transform_cb;
-    if (cb != 0) {
+    if (pfx->transform_cb != 0) {
         apfx = pfx;
-        cb();
+        pfx->transform_cb();
         apfx = 0;
     }
 
@@ -379,7 +327,7 @@ void render_pfx(MkPfx* pfx) {
         pfx->matrix[14] = inv[14];
         pfx->matrix[15] = one;
         pfx_count_add(pfx_vm(pfx));
-        pfx_set_renderstate(pfx_vm(pfx));
+        pfx_set_renderstate((struct PfxRenderView*)pfx_vm(pfx));
         particle_render(pfx_vm(pfx));
         pfx_reset_renderstate(pfx_vm(pfx));
         pfxmetrics_event(pfx->metrics_handle, 0x4005);
@@ -400,7 +348,7 @@ void insert_PFXlist_in_transl_tree(void) {
     RwCamera* camera;
     void* frame;
 
-    camera = *(RwCamera**)RwEngineInstance;
+    camera = RwEngineInstance->curCamera;
     if (camera == 0) {
         return;
     }
@@ -410,12 +358,12 @@ void insert_PFXlist_in_transl_tree(void) {
     apply_to_mklist(InsertPFXCloneInTranslTree, &pfx_clone_render_list);
 }
 
-void set_pfx_texture(PfxVm* pfx, void* path, void* name) {
-    void* tex;
+void set_pfx_texture(PfxVm* pfx, int handle, unsigned int art_oid) {
+    RwTexture* tex;
 
-    tex = load_tga(path, name);
+    tex = load_tga(handle, art_oid);
     if (tex != 0) {
-        pfx_set_texture(pfx, tex);
+        pfx_set_texture((struct PfxRenderView*)pfx, tex);
     }
 }
 
@@ -479,8 +427,9 @@ void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     obj_set_bone_calc_world_mat_flag(obj, bone);
 }
 
+/* TODO: [near miss] 88.61%; native matrix selection agrees; bone index is retained before the success branch and callback staging differs. */
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
-    void* bone_mat;
+    MkBone* bone_mat;
 
     pfx->flag_bits.owns_bind = 0;
     pfx->bind_hdr = &obj->hdr;
@@ -522,13 +471,14 @@ void pfx_bind_emitter_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag) {
 }
 
 void pfx_bind_render_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag) {
-    pfx->flag_bits.owns_bind = (unsigned char)flag;
+    pfx->flag_bits.owns_bind = flag;
     pfx->bind_hdr = &sobj->hdr;
     pfx->bind_inst = sobj->hdr.instance;
     pfx->transform_cb = apfx_set_transform_matrix;
     pfx->bone_mat = RwFrameGetLTM(sobj->frame);
 }
 
+/* TODO: [breakthrough needed] 83.51%; resolve inlined binding guards and slot-owner scheduling. */
 MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
     PfxSlot* slot;
     MkHdr* existing;
@@ -565,31 +515,28 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
     return obj;
 }
 
-MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter) {
-    PfxSlot* slot;
-    MkHdr* existing;
-    MkObj* obj;
+static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
+{
+    MkObj* obj = 0;
+    MkHdr* bound = slot->hdr;
+
+    if (bound != 0) {
+        bound = bound->instance == slot->instance ? bound : 0;
+    } else {
+        bound = 0;
+    }
+    if (bound != 0) {
+        obj = (MkObj*)bound;
+    }
+    return obj;
+}
+
+static inline void pfx_bind_owned_emitter(MkPfx* pfx, MkObj* obj, int emitter)
+{
     PfxEmitter* emitter_vm;
-    void* ltm;
+    RwMatrix* ltm;
 
-    if (pfx == 0 || emitter < 0 || emitter >= pfx->slot_count) {
-        return 0;
-    }
-
-    slot = &pfx->slot_table[emitter];
-    if (flag_msb(slot->flags) < 0) {
-        existing = MK_LIVE(slot->hdr, slot->instance);
-        if (existing != 0) {
-            return (MkObj*)existing;
-        }
-    }
-
-    obj = get_mkobj_frame(object_type, 0);
-    if (obj == 0) {
-        return 0;
-    }
-
-    if (pfx != 0 && emitter >= 0 && emitter < pfx->slot_count) {
+    if (pfx != 0 && obj != 0 && emitter >= 0 && emitter < pfx->slot_count) {
         pfx->slot_table[emitter].flag_bits.owns_bind = 1;
         pfx->slot_table[emitter].hdr = &obj->hdr;
         pfx->slot_table[emitter].instance = obj->hdr.instance;
@@ -597,23 +544,47 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter)
         emitter_vm = pfx_get_emitter(pfx_vm(pfx), emitter);
         emitter_vm->transform = ltm;
     }
-    insert_particle_mkobj(obj);
+}
+
+/* TODO: [near miss] 98.50%; native branches and operands agree;
+ * two null assignments use moves instead of immediates. */
+MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter) {
+    PfxSlot* slot;
+    MkObj* existing;
+    MkObj* obj;
+
+    if (pfx == 0 || emitter < 0 || emitter >= pfx->slot_count) {
+        return 0;
+    }
+
+    slot = &pfx->slot_table[emitter];
+    if (pfx->slot_table[emitter].flag_bits.owns_bind) {
+        existing = pfx_slot_bound_object(slot);
+        if (existing != 0) {
+            return existing;
+        }
+    }
+
+    obj = get_mkobj_frame(object_type, 0);
+    if (obj != 0) {
+        pfx_bind_owned_emitter(pfx, obj, emitter);
+        insert_particle_mkobj(obj);
+    }
     return obj;
 }
 
 void pfx_bind_emitter_to_obj(MkPfx* pfx, MkObj* obj, int flag) {
     PfxEmitter* emitter_vm;
-    void* ltm;
+    RwMatrix* ltm;
 
-    if (pfx == 0 || obj == 0 || pfx->slot_count <= 0) {
-        return;
+    if (pfx != 0 && obj != 0 && pfx->slot_count > 0) {
+        pfx->slot_table->flag_bits.owns_bind = flag;
+        pfx->slot_table->hdr = &obj->hdr;
+        pfx->slot_table->instance = obj->hdr.instance;
+        ltm = &obj->frame->modelling;
+        emitter_vm = pfx_get_emitter(pfx_vm(pfx), 0);
+        emitter_vm->transform = ltm;
     }
-    pfx->slot_table->flag_bits.owns_bind = flag;
-    pfx->slot_table->hdr = &obj->hdr;
-    pfx->slot_table->instance = obj->hdr.instance;
-    ltm = &obj->frame->modelling;
-    emitter_vm = pfx_get_emitter(pfx_vm(pfx), 0);
-    emitter_vm->transform = ltm;
 }
 
 void pfx_bind_emitter_num_to_obj(MkPfx* pfx, MkObj* obj, int flag, int emitter) {
@@ -652,7 +623,7 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
         clone->bind_inst = 0;
         clone->bind2_hdr = 0;
         clone->bind2_inst = 0;
-        *(unsigned int*)&clone->flags = 0;
+        clone->flags_word = 0;
         clone->depth_bias = zero;
         clone->priority = 0x12;
         mk_insert(&clone->hdr, &pfx_clone_render_list);
@@ -672,35 +643,94 @@ void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
                                        out_pfx);
 }
 
-/* TODO: [breakthrough needed] 88.652176%; typed allocation extents preserve
- * retail output; remaining source/layout reconstruction needs evidence. */
+static inline PfxVm* scan_pfx_emitter_fields(MkPfx* pfx, PfxEmitter* emitter)
+{
+    unsigned int field_pair[2] = {0, 0};
+    PfxVm* vm;
+
+    pfx_emitter_scan_for_fields(emitter, field_pair);
+    vm = pfx_vm(pfx);
+    pfx->field_214 |= field_pair[0];
+    pfx->field_A0 |= field_pair[1];
+    return vm;
+}
+
+static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
+                                        PfxBuildInfo* build)
+{
+    PfxEstimate est_buf;
+    int ready;
+    int pad_raw;
+    int pad_align;
+    unsigned int alloc_size;
+    int est_size;
+    int pad_extra;
+    void* mem;
+    void* aligned;
+    PfxNameObj* name_obj;
+    char* name_dst;
+
+    if (pfx_native_is_supported_type(pfx->field_214) == 0) {
+        ready = 0;
+    } else {
+        pfx_estimate_size(vm, &est_buf, build);
+        est_size = est_buf.size;
+        pad_raw = build->emitter_count;
+        pad_raw *= sizeof(PfxSlot);
+        pad_align = (pad_raw + 0xF) & ~0xF;
+        pad_extra = pad_align - pad_raw;
+        alloc_size = (pad_raw + pad_extra) + (est_size + 0x10);
+        mem = get_mem(alloc_size);
+        if (mem == 0) {
+            ready = 0;
+        } else {
+            pfx->mem = mem;
+            memset(mem, 0, alloc_size);
+            aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
+            if (build->emitter_count != 0) {
+                pfx->slot_table = aligned;
+                aligned = (char*)aligned + pad_raw + pad_extra;
+            }
+            pfx_set_memory(vm, aligned, &est_buf);
+            name_obj = vm->name_obj;
+            if (name_obj != 0) {
+                name_obj->scale = vm->effect_scale;
+            }
+            if (pfx_frame_begin(vm) != 0) {
+                pfx_frame_end(vm);
+                ready = 0;
+            } else {
+                pfx_frame_end(vm);
+                if (vm->behavior_count != 0) {
+                    pfx_behaviors_frame_begin(vm);
+                    pfx_behaviors_frame_end(vm);
+                }
+                name_dst = vm->name;
+                if (name_dst != 0) {
+                    strcpy(name_dst, build->name);
+                }
+                ready = 1;
+            }
+        }
+    }
+    return ready;
+}
+
+/* TODO: [near miss] 99.70%; allocation scratch and emitter-save homes remain. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {
     MkProc* created_proc;
     MkPfx* pfx;
-    void* vm;
-    int proc_nostack_arg;
-    unsigned int proc_nostack_slot;
-    unsigned int field_pair[2];
-    PfxEstimate est_buf;
-    unsigned char emitter_buf[sizeof(PfxEmitter)];
+    PfxVm* vm;
+
+    MkProcInitFlags proc_nostack_slot;
+    PfxEmitter emitter_buf;
     int ready;
-    int pad_raw;
-    int pad_align;
-    int pad_extra;
-    int est_size;
-    int alloc_size;
-    void* mem;
-    void* aligned;
-    PfxNameObj* name_obj;
-    char* name_dst;
-    PfxEmitter* ltm_src;
-    MkProc* proc;
-    PfxNostackFlagBits* nostack_bits;
+
     float zero;
 
-    created_proc = 0;
+    *out_pfx = created_proc = 0;
     pfx = (MkPfx*)get_mkhdr(&vtbl_pfx, extra_size + sizeof(MkPfx));
     if (pfx == 0) {
         return 0;
@@ -710,7 +740,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
 
     pfx->proc = 0;
     pfx->proc_inst = 0;
-    *(unsigned int*)&pfx->flags = 0;
+    pfx->flags_word = 0;
     pfx->bone_mat = 0;
     pfx->bind_hdr = 0;
     pfx->bind_inst = 0;
@@ -722,8 +752,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     pfx->mem = 0;
     pfx->bound_obj = 0;
 
-    vm = pfx_vm(pfx);
-    pfxvm_init(vm);
+    pfxvm_init(pfx_vm(pfx));
 
     pfx->field_90 = field_90;
     pfx->field_214 = field_214;
@@ -743,93 +772,46 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     pfx->field_2BC = 0;
     pfx->scale = kDefaultPfxScale;
 
-    memset(emitter_buf, 0, sizeof(emitter_buf));
+    memset(&emitter_buf, 0, sizeof(emitter_buf));
     if (init_cb != 0) {
-        pfx->emitter_scratch = (PfxEmitter*)emitter_buf;
+        pfx->emitter_scratch = &emitter_buf;
         pfx->slot_count = 1;
-        init_cb(vm);
+        init_cb(pfx_vm(pfx));
     }
 
-    field_pair[0] = pfx_emitter_field_pair_seed[0];
-    field_pair[1] = pfx_emitter_field_pair_seed[1];
-    pfx_emitter_scan_for_fields(emitter_buf, field_pair);
-    pfx->field_214 |= (int)field_pair[0];
-    pfx->field_A0 |= (int)field_pair[1];
+    vm = scan_pfx_emitter_fields(pfx, &emitter_buf);
 
-    ready = 0;
-    if (pfx_native_is_supported_type(pfx->field_214) == 0) {
-        ready = 0;
-    } else {
-        pfx_estimate_size(vm, &est_buf, build);
-        pad_raw = build->emitter_count * sizeof(PfxSlot);
-        pad_align = (pad_raw + 0xF) & ~0xF;
-        pad_extra = pad_align - pad_raw;
-        est_size = est_buf.size;
-        alloc_size = pad_raw + pad_extra + est_size + 0x10;
-        mem = get_mem(alloc_size);
-        if (mem == 0) {
-            ready = 0;
-        } else {
-            pfx->mem = mem;
-            memset(mem, 0, alloc_size);
-            aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
-            if (build->emitter_count != 0) {
-                pfx->slot_table = aligned;
-                aligned = (char*)aligned + pad_raw + pad_extra;
-            }
-            pfx_set_memory(vm, aligned, &est_buf);
-            name_obj = (PfxNameObj*)((PfxVm*)vm)->name_obj;
-            if (name_obj != 0) {
-                name_obj->scale = pfx->scale;
-            }
-            if (pfx_frame_begin(vm) != 0) {
-                pfx_frame_end(vm);
-                ready = 0;
-            } else {
-                pfx_frame_end(vm);
-                if (pfx->behaviors_active != 0) {
-                    pfx_behaviors_frame_begin(vm);
-                    pfx_behaviors_frame_end(vm);
-                }
-                name_dst = pfx->name_dst;
-                if (name_dst != 0) {
-                    strcpy(name_dst, build->name);
-                }
-                ready = 1;
-            }
-        }
-    }
+    ready = initialize_pfx_memory(pfx, vm, build);
 
     if (ready == 0) {
         if (pfx->hdr.instance != 0) {
-            vtbl_call_destroy(&pfx->hdr);
+            pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
         }
         return 0;
     }
 
     if (pfx->slot_count != 0 && init_cb != 0) {
-        ltm_src = pfx->emitter_scratch;
+        PfxEmitter* ltm_src = pfx->emitter_scratch;
+
         old_ltm_415 = ltm_src->transform;
-        memcpy(ltm_src, emitter_buf, sizeof(emitter_buf));
+        memcpy(ltm_src, &emitter_buf, sizeof(emitter_buf));
         ltm_src->transform = old_ltm_415;
     }
 
     if (entry != 0) {
-        proc_nostack_slot = 0;
-        nostack_bits = (PfxNostackFlagBits*)&proc_nostack_slot;
-        nostack_bits->nostack = 1;
-        proc_nostack_arg = (int)proc_nostack_slot;
-        proc = create_mkproc(0x2E, get_mkproc_nostack(&proc_nostack_arg), pid, entry,
+        proc_nostack_slot.value = 0;
+        proc_nostack_slot.bits.has_pdata = 1;
+
+        created_proc = create_mkproc(0x2E, get_mkproc_nostack(proc_nostack_slot), pid, entry,
                              &pfx->hdr);
-        if (proc == 0) {
-            pfx = 0;
-        } else {
-            created_proc = proc;
-            proc->pre_destroy = pfx_pre_wake;
-            proc->destroy_cb = pfx_post_sleep;
-            pfx->proc = (MkHdr*)proc;
-            pfx->proc_inst = proc->instance;
+        if (created_proc != 0) {
+            created_proc->pre_destroy = pfx_pre_wake;
+            created_proc->destroy_cb = pfx_post_sleep;
+            pfx->proc = &created_proc->hdr;
+            pfx->proc_inst = created_proc->instance;
             mk_insert(&pfx->hdr, &pfx_render_list);
+        } else {
+            pfx = 0;
         }
     } else {
         mk_insert(&pfx->hdr, &pfx_render_list);
@@ -859,7 +841,7 @@ static void apfx_set_transform_matrix(void) {
     if (src == 0) {
         return;
     }
-    memcpy(dst, src, 0x40);
+    memcpy(dst, src, sizeof(vm->transforms[slot].matrix));
     zero = kZero;
     one = kOne;
     dst[3] = zero;
@@ -868,6 +850,7 @@ static void apfx_set_transform_matrix(void) {
     dst[15] = one;
 }
 
+/* TODO: [breakthrough needed] 82.53%; verify sleep-tick conversion and frame-end scheduling. */
 void pfx_post_sleep(void) {
     MkPfx* pfx;
     float ticks;
@@ -894,6 +877,7 @@ void pfx_post_sleep(void) {
     apfx_emitter_sobj = 0;
 }
 
+/* TODO: [breakthrough needed] 69.63%; resolve binding-validation and wake/failure CFG against retail. */
 void pfx_pre_wake(void) {
     MkPfx* pfx;
     MkHdr* render_hdr;
