@@ -13,8 +13,8 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     int alignment;
 
     header_end = (u8*)block - heap->blockPrefixSize;
-    previous = ((MwMemUsedHeader*)header_end)[-1].previous;
-    header = (MwMemUsedHeader*)(header_end - sizeof(MwMemUsedHeader));
+    header = (MwMemUsedHeader*)header_end - 1;
+    previous = header->previous;
     if (previous == 0 && header->next == 0) {
         heap->usedList = 0;
     } else if (previous == 0 && header->next != 0) {
@@ -44,9 +44,9 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* TODO: [near miss] 96.64%; algorithm and memory operations match; one four-instruction block-address scheduling island remains. */
 void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     int requested_alignment;
+    u32 block_prefix;
     u32 allocation_size;
     MwMemUsedHeader* header;
     u8* block;
@@ -76,14 +76,16 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
     if (header == 0) {
         block = 0;
     } else {
+        block_prefix = heap->blockPrefixSize;
         header->prefixSize = 0;
-        block = (u8*)header + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
+        block = (u8*)header + block_prefix;
+        block += sizeof(MwMemUsedHeader);
         header->allocationSize = allocation_size;
         header->heapIndex = request->heap->heapIndex;
         privClearBitFlag(&header->flags);
         privSetAlignInBitFlag(&header->flags, heap_alignment);
         privClearBitFromBitFlag(&header->flags, 5);
-        header->alignmentPadding = block - ((u8*)header + sizeof(MwMemUsedHeader));
+        header->alignmentPadding = block - (u8*)(header + 1);
         if (heap->usedList == 0) {
             heap->usedList = header;
             header->next = 0;
@@ -105,7 +107,7 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
     return block;
 }
 
-/* TODO: [near miss] 96.21%; reset CFG and memory operations match; header/alignment GPR coloring and address scheduling remain. */
+/* TODO: [near miss] 96.47826%; capacity load order recovered; header/alignment registers and pointer-add grouping remain. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     u32 alignment_mask;
     u32 base_block_size;
@@ -122,21 +124,19 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
                 alignment_mask = (1 << privGetAlignFromMwMemFlags(heap->flags)) - 1;
                 base_block_size = heap->blockSize + sizeof(MwMemUsedHeader);
                 heap->blockPrefixSize =
-                    ((base_block_size + alignment_mask) & ~alignment_mask) -
-                    base_block_size;
+                    fixedBlockAlignmentPadding(base_block_size, alignment_mask);
                 arena_start =
                     heap->heapStart + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
                 heap->arenaAlignmentPadding =
-                    ((u32)(arena_start + alignment_mask) & ~alignment_mask) -
-                    (u32)arena_start;
+                    fixedBlockAlignmentPadding((u32)arena_start, alignment_mask);
             }
             heap->usedList = 0;
             heap->freeList = 0;
             heap->freeTail = 0;
-            header = (MwMemUsedHeader*)(heap->heapStart + heap->arenaAlignmentPadding);
             block_count =
                 (heap->heapEnd - heap->heapStart - heap->arenaAlignmentPadding) /
                 (heap->blockSize + heap->blockPrefixSize + sizeof(MwMemUsedHeader));
+            header = (MwMemUsedHeader*)(heap->heapStart + heap->arenaAlignmentPadding);
             alignment = privGetAlignFromMwMemFlags(heap->flags);
             index = 0;
             while (index < block_count) {
@@ -176,16 +176,13 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     }
 }
 
-/* TODO: [near miss] 98.86%; only the block-size and flags destination GPRs are exchanged. */
 void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
-    u32 block_size;
     u32 threshold;
 
-    block_size = params->blockSize;
     threshold = params->sizeThreshold;
     heap->flags = params->flags;
-    heap->blockSize = MW_MEM_ALIGN_UP_16(block_size);
-    if (block_size > threshold) {
+    heap->blockSize = MW_MEM_ALIGN_UP_16(params->blockSize);
+    if (params->blockSize > threshold) {
         heap->sizeThreshold = threshold;
     } else {
         heap->sizeThreshold = 0;
@@ -193,21 +190,19 @@ void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     fixedBlockHeapResetHeap(heap, 0);
 }
 
-/* TODO: [near miss] 89.81%; same arithmetic; MWCC fuses the padding sub/add pair that retail keeps, and destination GPRs differ. */
 u32 mwMemFixedBlockHeapGetHeapSize(const MwMemFixedParams* params) {
+    u32 base_block_size;
+    u32 block_stride;
     u32 alignment;
     u32 alignment_mask;
-    u32 base_block_size;
-    u32 block_prefix_size;
-    u32 block_stride;
     u32 heap_size;
 
-    alignment = 1 << privGetAlignFromMwMemFlags(params->flags);
+    alignment = 1U << privGetAlignFromMwMemFlags(params->flags);
     alignment_mask = alignment - 1;
     base_block_size = MW_MEM_ALIGN_UP_16(params->blockSize) + sizeof(MwMemUsedHeader);
-    block_prefix_size = fixedBlockAlignmentPadding(base_block_size, alignment_mask);
-    block_stride = base_block_size + block_prefix_size;
+    block_stride = base_block_size;
+    block_stride += fixedBlockAlignmentPadding(base_block_size, alignment_mask);
     heap_size = params->blockCount * block_stride;
-    heap_size += alignment;
+    heap_size = alignment + heap_size;
     return heap_size + 0x70;
 }
