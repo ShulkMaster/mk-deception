@@ -46,75 +46,21 @@ static inline void mpvdec_InitMacroblockReader(const u8* data, int extra_offset,
     }
 }
 
-static inline u32 mpvdec_ReadIntraAddress(MPVContext* context,
-                                         const u32** words, u32* bits,
-                                         u32* next_bits, int* bit_offset)
+static inline u32 mpvdec_ReadMarker(const u32** words, u32* bits,
+                                   u32* next_bits, int* bit_offset)
 {
-    int old_index = context->macroblock_index;
-    u32 peek;
-    u32 delta;
-    for (;;) {
-        int descriptor;
-        int code_length;
-        int increment;
-
-        peek = *bits >> 20;
-        if (*bit_offset > 20) {
-            peek |= *next_bits >> (52 - *bit_offset);
-        }
-        if ((peek >> 8) == 0) {
-            descriptor = mpvvlc_mbai_i_0[peek];
-        } else {
-            descriptor = mpvvlc_mbai_i_1[peek >> 6];
-        }
-
-        code_length = descriptor & 0xF;
-        *bit_offset += code_length;
-        if (*bit_offset >= 32) {
-            *bit_offset -= 32;
-            *bits = *next_bits << *bit_offset;
-            *next_bits = *(*words)++;
-        } else {
-            *bits <<= code_length;
-        }
-
-        increment = ((u32)descriptor >> 4) & 0x3F;
-        if (increment == 34) {
-            continue;
-        }
-        if (increment == 35) {
-            context->macroblock_index += 33;
-            continue;
-        }
-        if (increment == 36) {
-            delta = (u32)-2;
-        } else {
-            context->macroblock_index += increment;
-            context->field_344 = (u32)descriptor >> 10;
-            if (context->macroblock_index >
-                context->last_macroblock_index) {
-                delta = (u32)-2;
-            } else {
-                delta = context->macroblock_index - old_index;
-                context->macroblock_column += delta;
-                while (context->macroblock_column >=
-                       context->condition_state.picture.
-                           macroblocks_per_row) {
-                    context->macroblock_column -=
-                        context->condition_state.picture.
-                            macroblocks_per_row;
-                    context->macroblock_row++;
-                }
-            }
-        }
-        break;
+    u32 marker = *bits >> 31;
+    if (*bit_offset == 31) {
+        *bits = *next_bits;
+        *next_bits = *(*words)++;
+        *bit_offset = 0;
+    } else {
+        *bits <<= 1;
+        (*bit_offset)++;
     }
-
-    return delta;
+    return marker;
 }
 
-/* TODO: [near miss] 97.46%; shared reader init and declaration order fixed the entry;
- * remaining reader coloring/scheduling not yet examined. */
 void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
@@ -125,7 +71,6 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
     const u32* words;
     u32 peek;
     u32 delta;
-    u32 marker;
     int residual_offset;
     int consumed;
 
@@ -135,6 +80,9 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
                               &words, &bits, &next_bits, &bit_offset);
 
     for (;;) {
+        int old_index;
+        u32 marker;
+
         peek = bits >> 9;
         if (bit_offset > 9) {
             peek |= next_bits >> (41 - bit_offset);
@@ -143,8 +91,65 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
             break;
         }
 
-        delta = mpvdec_ReadIntraAddress(context, &words, &bits,
-                                        &next_bits, &bit_offset);
+        old_index = context->macroblock_index;
+        for (;;) {
+            int descriptor;
+            u8 code_length;
+            u8 encoded_increment;
+            int increment;
+
+            peek = bits >> 20;
+            if (bit_offset > 20) {
+                peek |= next_bits >> (52 - bit_offset);
+            }
+            if ((peek >> 8) == 0) {
+                descriptor = mpvvlc_mbai_i_0[peek];
+            } else {
+                descriptor = mpvvlc_mbai_i_1[peek >> 6];
+            }
+
+            code_length = descriptor & 0xF;
+            bit_offset += code_length;
+            if (bit_offset >= 32) {
+                bit_offset -= 32;
+                bits = next_bits << bit_offset;
+                next_bits = *words++;
+            } else {
+                bits <<= code_length;
+            }
+
+            encoded_increment = (u32)descriptor >> 2;
+            increment = encoded_increment >> 2;
+            if (increment == 34) {
+                continue;
+            }
+            if (increment == 35) {
+                context->macroblock_index += 33;
+                continue;
+            }
+            if (increment == 36) {
+                delta = (u32)-2;
+            } else {
+                context->macroblock_index += increment;
+                context->field_344 = (u32)descriptor >> 10;
+                if (context->macroblock_index >
+                    context->last_macroblock_index) {
+                    delta = (u32)-2;
+                } else {
+                    delta = context->macroblock_index - old_index;
+                    context->macroblock_column += delta;
+                    while (context->macroblock_column >=
+                           context->condition_state.picture.
+                               macroblocks_per_row) {
+                        context->macroblock_column -=
+                            context->condition_state.picture.
+                                macroblocks_per_row;
+                        context->macroblock_row++;
+                    }
+                }
+            }
+            break;
+        }
 
         if (delta == (u32)-2) {
             break;
@@ -165,22 +170,14 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
         bit_offset = context->bit_reader.bit_offset;
         words = context->bit_reader.words;
 
-        marker = bits >> 31;
-        if (bit_offset == 31) {
-            bits = next_bits;
-            next_bits = *words++;
-            bit_offset = 0;
-        } else {
-            bits <<= 1;
-            bit_offset++;
-        }
+        marker = mpvdec_ReadMarker(&words, &bits, &next_bits, &bit_offset);
         if (marker != 1) {
             break;
         }
 
         residual_offset = bit_offset & 7;
-        consumed = ((const u8*)words +
-                    ((bit_offset - residual_offset + 7) >> 3) - 8) -
+        consumed = ((const u8*)(words - 2) +
+                    ((bit_offset - residual_offset + 7) >> 3)) -
                    context->header_chunk.data;
         if (context->header_chunk.len - consumed <= 0x800) {
             SJ_SplitChunk(&context->header_chunk, consumed,
