@@ -4,6 +4,9 @@
 #include "dolphin/exi.h"
 #include "dolphin/os.h"
 #include "dolphin/trk.h"
+#include "dolphin/dolphin_trk_glue.h"
+#include "dolphin/UDP_Stubs.h"
+#include "dolphin/EXI2_DDH_GCN.h"
 
 typedef int (*DBInitializeFn)(volatile u8** input_pending,
                               EXICallback callback);
@@ -11,7 +14,7 @@ typedef int (*DBControlFn)(void);
 typedef int (*DBReadFn)(u8* destination, int size);
 typedef int (*DBWriteFn)(const u8* source, int size);
 
-typedef struct DBCommTable {
+struct DBCommTable {
     DBInitializeFn initialize;
     DBControlFn initialize_interrupts;
     DBControlFn shutdown;
@@ -22,19 +25,9 @@ typedef struct DBCommTable {
     DBControlFn close;
     DBControlFn pre_continue;
     DBControlFn post_stop;
-} DBCommTable;
+};
 
 int Hu_IsStub(void);
-int ddh_cc_initialize(volatile u8** input_pending, EXICallback callback);
-int ddh_cc_shutdown(void);
-int ddh_cc_open(void);
-int ddh_cc_close(void);
-int ddh_cc_read(u8* destination, int size);
-int ddh_cc_write(const u8* source, int size);
-int ddh_cc_peek(void);
-int ddh_cc_pre_continue(void);
-int ddh_cc_post_stop(void);
-int ddh_cc_initinterrupts(void);
 int gdev_cc_initialize(volatile u8** input_pending, EXICallback callback);
 int gdev_cc_shutdown(void);
 int gdev_cc_open(void);
@@ -45,20 +38,11 @@ int gdev_cc_peek(void);
 int gdev_cc_pre_continue(void);
 int gdev_cc_post_stop(void);
 int gdev_cc_initinterrupts(void);
-int udp_cc_initialize(volatile u8** input_pending, EXICallback callback);
-int udp_cc_shutdown(void);
-int udp_cc_open(void);
-int udp_cc_close(void);
-int udp_cc_read(u8* destination, int size);
-int udp_cc_write(const u8* source, int size);
-int udp_cc_peek(void);
-int udp_cc_pre_continue(void);
-int udp_cc_post_stop(void);
 
 /* Handwritten privileged context restore; tracked in following.md. */
 void TRKLoadContext(OSContext* context, u32 exception_id);
 
-DBCommTable gDBCommTable;
+struct DBCommTable gDBCommTable;
 u8 TRK_Use_BBA;
 
 static const u32 EndofProgramInstruction = 0x00454E44;
@@ -71,9 +55,9 @@ void InitializeProgramEndTrap(void)
 {
     void* trap_address = (u8*)PPCHalt + 4;
 
-    TRK_memcpy(trap_address, &EndofProgramInstruction, 4);
-    ICInvalidateRange(trap_address, 4);
-    DCFlushRange(trap_address, 4);
+    TRK_memcpy(trap_address, &EndofProgramInstruction, sizeof(EndofProgramInstruction));
+    ICInvalidateRange(trap_address, sizeof(EndofProgramInstruction));
+    DCFlushRange(trap_address, sizeof(EndofProgramInstruction));
 }
 
 void TRK_board_display(const char* message)
@@ -118,9 +102,6 @@ void TRKEXICallBack(signed long interrupt, OSContext* context);
 DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
                                    volatile u8** input_pending)
 {
-    (void)address;
-    (void)channel;
-    (void)unused;
     gDBCommTable.initialize(input_pending, TRKEXICallBack);
     gDBCommTable.open();
     return 0;
@@ -184,7 +165,6 @@ int InitMetroTRKCommTable(int hardware_id)
 
 void TRKEXICallBack(signed long interrupt, OSContext* context)
 {
-    (void)interrupt;
     OSEnableScheduler();
     TRKLoadContext(context, 0x500);
 }
