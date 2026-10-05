@@ -3,7 +3,7 @@
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_mem.h"
 
-typedef struct TgaHeader {
+struct TgaHeader {
   unsigned char id_length;
   unsigned char color_map_type;
   unsigned char image_type;
@@ -22,9 +22,9 @@ typedef struct TgaHeader {
   unsigned char height_hi;
   unsigned char pixel_depth;
   unsigned char descriptor;
-} TgaHeader;
+};
 
-typedef struct TgaHeaderValues {
+struct TgaHeaderValues {
   int id_length;
   int color_map_type;
   int image_type;
@@ -37,11 +37,11 @@ typedef struct TgaHeaderValues {
   int height;
   int pixel_depth;
   int descriptor;
-} TgaHeaderValues;
+};
 
-typedef char TgaHeaderSizeCheck[sizeof(TgaHeader) == 0x12 ? 1 : -1];
+typedef char TgaHeaderSizeCheck[sizeof(struct TgaHeader) == 0x12 ? 1 : -1];
 typedef char TgaHeaderValuesSizeCheck[
-    sizeof(TgaHeaderValues) == 0x30 ? 1 : -1];
+    sizeof(struct TgaHeaderValues) == 0x30 ? 1 : -1];
 
 static inline void tga_copy_row(unsigned char *destination,
                                 const unsigned char *pixels, int row,
@@ -61,7 +61,7 @@ static inline void tga_copy_row(unsigned char *destination,
 }
 
 static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
-                                        TgaHeaderValues values) {
+                                        struct TgaHeaderValues values) {
   int block_bytes;
   int row_bytes;
   unsigned char *pixels;
@@ -98,8 +98,8 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;
-  TgaHeader header;
-  TgaHeaderValues values;
+  struct TgaHeader header;
+  struct TgaHeaderValues values;
 
   file = debug_file_open(path, "w");
   if (file != 0) {
