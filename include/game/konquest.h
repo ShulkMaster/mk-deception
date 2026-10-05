@@ -10,6 +10,7 @@ typedef struct KonquestInteriorRoom KonquestInteriorRoom;
 typedef struct KonquestRoomObject KonquestRoomObject;
 typedef struct KonquestRoomObjectTexture KonquestRoomObjectTexture;
 struct KonquestTriggerStruct;
+void vdestroy_trigger_struct(struct KonquestTriggerStruct* trigger);
 struct KonquestTriggerDefinition;
 struct MkObj;
 
@@ -25,8 +26,17 @@ typedef struct LipSyncKeyframe {
     int frame;
 } LipSyncKeyframe;
 
+int get_num_puis(void);
+int get_pui_inventory_bit_index(void* item);
+
 void konquest_state_init(void);
 void cleanup_konquest(void);
+float p_konquest_switch_4(void);
+float p_konquest_switch_3(void);
+float p_konquest_switch_1(void);
+float p_konquest_switch_R1(void);
+float p_konquest_inventory_switch(void);
+float p_switch_proc_start(void);
 void render_konquest_shadows(void);
 void set_camera_to_look_at_hero(void);
 void show_objective_arrow_and_beam(void);
