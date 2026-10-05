@@ -9,6 +9,8 @@ typedef struct MkObj MkObj;
 extern "C" {
 #endif
 
+void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
+void update_bone_hierarchy(void* obj);
 void calc_bone_world_mat(MkObj* obj, int bone);
 void obj_set_bone_calc_world_mat_flag(MkObj* obj, int bone);
 
