@@ -2,6 +2,13 @@
 
 #include "game/game_info.h"
 #include "runtime/mk_proc.h"
+#include "runtime/cstring.h"
+#include "runtime/section.h"
+#include "platform/io.h"
+#include "platform/gcmcardmsg.h"
+#include "game/controller.h"
+#include "game/menu.h"
+#include "mw/mwScreenEngineGlue.h"
 
 #define STR_UNINITIALIZED "uninitalized"
 #define STR_KONQUEST_POPUP "konquest/popups/k_generic_popup"
@@ -14,12 +21,9 @@
 #define POPUP_TYPE_DEFAULT 2
 #define POPUP_TYPE_COUNT 0xD
 
-const int gap_04_8031382C_rodata = 0;
-
 int memcard_online_save_port = -1;
 unsigned char gap_07_8050FC3C_sdata[4] = {0, 0, 0, 0};
 
-/* MWCC emits .sbss in reverse declaration order. */
 int gap_08_80510DFC_sbss;
 int f_writing_to_memcard;
 int mcard_hault_msg_active;
@@ -31,22 +35,9 @@ void set_popup_type(int type);
 void set_popup_options_text(const char* text);
 void set_popup_message_text(const char* text);
 void set_popup_title_text(const char* text);
-void* get_pause_menu_ssh(void);
-int get_current_section_memory_scheme(void);
-void load_screen(const char* screen, void* ssh, int arg2, int arg3);
-void vdebug_print_message(const char* fmt, ...);
-void fire_screen_studio_event(int event, int arg);
-void screen_engine_process_events(void);
-void turn_all_rumble_motors_off(void);
-void pause_procs(int flag);
-unsigned int get_controller_disabled_state(void);
-void turn_controllers_on(void);
-void reapply_controller_disabled_state(unsigned int state);
-int is_this_a_hault_message(void);
 int get_game_state(void);
 void pop_game_state(int state);
 void push_game_state(int state);
-unsigned long strlen(const char* str);
 
 int get_p2_pad(void) {
     if (memcard_online_save_port == -1) {
@@ -94,7 +85,7 @@ void set_memcard_popup_message_title_text(const char* text) {
 }
 
 void fire_up_memcard_mesage_screen(void) {
-    void* ssh;
+    int ssh;
     int scheme;
 
     ssh = get_pause_menu_ssh();
@@ -120,8 +111,6 @@ void fire_up_memcard_mesage_screen(void) {
         break;
     }
 }
-
-const int gap_05_8034F0EC_data = 0;
 
 void mcmsg_nothing(void) {}
 
