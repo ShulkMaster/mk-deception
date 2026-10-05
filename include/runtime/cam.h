@@ -11,6 +11,8 @@ typedef struct MkSobj MkSobj;
 typedef struct MkObj MkObj;
 typedef struct RwFrame RwFrame;
 typedef struct RwCamera RwCamera;
+void CameraDestroy(RwCamera* camera);
+int player_is_stationary(struct PlyrPdata* player);
 typedef struct RpAtomic RpAtomic;
 typedef struct CameraAnimEvent CameraAnimEvent;
 typedef struct BackgroundDangerZone BackgroundDangerZone;
@@ -243,9 +245,11 @@ void camera_setup_radial_sweep(void* script_args, float travel_time,
                                float final_speed, float radial_step,
                                float radial_distance, float center_x,
                                float center_y, float start_angle);
+void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen);
 void find_best_conversation_camera_position(void);
 int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 
+extern RwMatrix* camera_mat;
 extern CameraInfo camera_info;
 extern CameraItem camera_item;
 extern CameraObj* camera_obj;
