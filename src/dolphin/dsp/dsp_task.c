@@ -1,4 +1,4 @@
-#include "dolphin/dsp.h"
+#include "dolphin/__dsp.h"
 
 volatile unsigned short DSP_REGS[] : 0xCC005000;
 
@@ -8,9 +8,6 @@ DSPTaskInfo* __DSP_last_task;
 DSPTaskInfo* __DSP_tmp_task;
 DSPTaskInfo* __DSP_rude_task;
 int __DSP_rude_task_pending;
-
-void __DSP_exec_task(DSPTaskInfo* current, DSPTaskInfo* next);
-void __DSP_remove_task(DSPTaskInfo* task);
 
 void __DSPHandler(__OSInterrupt interrupt, OSContext* context)
 {
