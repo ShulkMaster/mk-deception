@@ -1,10 +1,7 @@
 #include "dolphin/si.h"
 #include "dolphin/vi.h"
 
-typedef unsigned char u8;
-typedef unsigned long u32;
-typedef signed long s32;
-typedef int BOOL;
+#include "dolphin/types.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -21,6 +18,26 @@ const char* __SIVersion = "<< Dolphin SDK - SI\tdebug build: Apr  5 2004 03:55:3
 const char* __SIVersion = "<< Dolphin SDK - SI\trelease build: Apr  5 2004 04:14:16 (0x2301) >>";
 #endif
 
+struct SIComCsrFields {
+    u32 tcint : 1;
+    u32 tcintmsk : 1;
+    u32 comerr : 1;
+    u32 rdstint : 1;
+    u32 rdstintmsk : 1;
+    u32 pad2 : 4;
+    u32 outlngth : 7;
+    u32 pad1 : 1;
+    u32 inlngth : 7;
+    u32 pad0 : 5;
+    u32 channel : 2;
+    u32 tstart : 1;
+};
+
+union SIComCsr {
+    u32 val;
+    struct SIComCsrFields f;
+};
+
 static SIControl Si = {
     /* chan */       -1,
     /* poll */        0,
@@ -29,16 +46,16 @@ static SIControl Si = {
     /* callback */    NULL
 };
 
-static SIPacket Packet[4];
-static OSAlarm Alarm[4];
-static u32 Type[4] = { SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE };
-static OSTime TypeTime[4];
-static OSTime XferTime[4];
-static SITypeCallback TypeCallback[4][4];
+static SIPacket Packet[SI_MAX_CHAN];
+static OSAlarm Alarm[SI_MAX_CHAN];
+static u32 Type[SI_MAX_CHAN] = { SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE, SI_ERROR_NO_RESPONSE };
+static OSTime TypeTime[SI_MAX_CHAN];
+static OSTime XferTime[SI_MAX_CHAN];
+static SITypeCallback TypeCallback[SI_MAX_CHAN][SI_MAX_TYPE];
 static __OSInterruptHandler RDSTHandler[4];
-static BOOL InputBufferValid[4];
-static u32 InputBuffer[4][2];
-static volatile u32 InputBufferVcount[4];
+static BOOL InputBufferValid[SI_MAX_CHAN];
+static u32 InputBuffer[SI_MAX_CHAN][2];
+static volatile u32 InputBufferVcount[SI_MAX_CHAN];
 
 u32 __PADFixBits;
 
@@ -83,7 +100,8 @@ static u32 CompleteTransfer(void) {
         input = Si.input;
         rLen = Si.inputBytes / sizeof(u32);
         for (i = 0; i < rLen; i++) {
-            *((u32*)input)++ = __SIRegs[i+0x20];
+            *(u32*)input = __SIRegs[i+0x20];
+            input += sizeof(u32);
         }
 
         rLen = Si.inputBytes & 3;
@@ -119,9 +137,9 @@ static void SITransferNext(s32 chan) {
     int i;
     SIPacket* packet;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < SI_MAX_CHAN; i++) {
         chan++;
-        chan %= 4;
+        chan %= SI_MAX_CHAN;
         packet = &Packet[chan];
 
         if (packet->chan != -1) {
@@ -176,13 +194,13 @@ static void SIInterruptHandler(__OSInterrupt interrupt, OSContext* context) {
         vcount = 1 + VIGetCurrentLine();
         x = (Si.poll & (0x3FF << 16)) >> 16;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < SI_MAX_CHAN; i++) {
             if (SIGetResponseRaw(i)) {
                 InputBufferVcount[i] = vcount;
             }
         }
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < SI_MAX_CHAN; i++) {
             if ((Si.poll & (0x80000000 >> (24 + i))) != 0) {
                 if (InputBufferVcount[i] == 0 || ((x >> 1) + InputBufferVcount[i]) < vcount) {
                     return;
@@ -190,11 +208,11 @@ static void SIInterruptHandler(__OSInterrupt interrupt, OSContext* context) {
             }
         }
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < SI_MAX_CHAN; i++) {
             InputBufferVcount[i] = 0;
         }
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0])); i++) {
             if (RDSTHandler[i] != 0) {
                 (*RDSTHandler[i])(interrupt, context);
             }
@@ -215,7 +233,7 @@ static BOOL SIEnablePollingInterrupt(BOOL enable) {
     if (enable) {
         reg |= SI_COMCSR_RDSTINTMSK_MASK;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < SI_MAX_CHAN; i++) {
             InputBufferVcount[i] = 0;
         }
     } else {
@@ -234,14 +252,14 @@ BOOL SIRegisterPollingHandler(__OSInterruptHandler handler) {
     int i;
 
     enabled = OSDisableInterrupts();
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0])); i++) {
         if (RDSTHandler[i] == handler) {
             OSRestoreInterrupts(enabled);
             return TRUE;
         }
     }
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0])); i++) {
         if (RDSTHandler[i] == 0) {
             RDSTHandler[i] = handler;
             SIEnablePollingInterrupt(TRUE);
@@ -259,17 +277,17 @@ BOOL SIUnregisterPollingHandler(__OSInterruptHandler handler) {
     int i;
 
     enabled = OSDisableInterrupts();
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0])); i++) {
         if (RDSTHandler[i] == handler) {
             RDSTHandler[i] = 0;
 
-            for (i = 0; i < 4; i++) {
+            for (i = 0; i < (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0])); i++) {
                 if (RDSTHandler[i] != 0) {
                     break;
                 }
             }
 
-            if (i == 4) {
+            if (i == (int)(sizeof(RDSTHandler) / sizeof(RDSTHandler[0]))) {
                 SIEnablePollingInterrupt(FALSE);
             }
 
@@ -306,23 +324,7 @@ static int __SITransfer(s32 chan, void* output, u32 outputBytes, void* input, u3
     u32 rLen;
     u32 i;
     u32 sr;
-    union {
-        u32 val;
-        struct {
-            u32 tcint : 1;
-            u32 tcintmsk : 1;
-            u32 comerr : 1;
-            u32 rdstint : 1;
-            u32 rdstintmsk : 1;
-            u32 pad2 : 4;
-            u32 outlngth : 7;
-            u32 pad1 : 1;
-            u32 inlngth : 7;
-            u32 pad0 : 5;
-            u32 channel : 2;
-            u32 tstart : 1;
-        } f;
-    } comcsr;
+    union SIComCsr comcsr;
 
     ASSERTMSGLINE(627, (chan >= 0) && (chan < 4), "SITransfer(): invalid channel.");
     ASSERTMSGLINE(629, (outputBytes != 0) && (outputBytes <= 128), "SITransfer(): output size is out of range (must be 1 to 128).");
@@ -344,7 +346,7 @@ static int __SITransfer(s32 chan, void* output, u32 outputBytes, void* input, u3
     Si.inputBytes = inputBytes;
     Si.input = input;
 
-    rLen = ROUND(outputBytes, 4) / 4;
+    rLen = ROUND(outputBytes, sizeof(u32)) / sizeof(u32);
     for (i = 0; i < rLen; i++) {
         __SIRegs[i + 0x20] = ((u32*)output)[i];
     }
@@ -567,7 +569,7 @@ static void CallTypeAndStatusCallback(s32 chan, u32 type) {
     SITypeCallback callback;
     int i;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < SI_MAX_TYPE; i++) {
         callback = TypeCallback[chan][i];
 
         if (callback != 0) {
@@ -599,7 +601,7 @@ static void GetTypeCallback(s32 chan, u32 error, OSContext* context) {
         OSSetWirelessID(chan, 0);
         CallTypeAndStatusCallback(chan, Type[chan]);
     } else {
-        static u32 cmdFixDevice[4];
+        static u32 cmdFixDevice[SI_MAX_CHAN];
 
         id = OSGetWirelessID(chan) << 8;
 
