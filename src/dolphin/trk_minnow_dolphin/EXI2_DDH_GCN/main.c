@@ -1,4 +1,5 @@
 #include "dolphin/amc_exi2.h"
+#include "dolphin/EXI2_DDH_GCN.h"
 #include "dolphin/circle_buffer.h"
 #include "dolphin/trk.h"
 
@@ -16,7 +17,7 @@ int ddh_cc_initialize(volatile u8** input_pending, EXICallback monitor_callback)
     MWTRACE(1, "CALLING EXI2_Init\n");
     EXI2_Init(input_pending, monitor_callback);
     MWTRACE(1, "DONE CALLING EXI2_Init\n");
-    CircleBufferInitialize(&gRecvCB, gRecvBuf, DDH_BUFFER_SIZE);
+    CircleBufferInitialize(&gRecvCB, gRecvBuf, sizeof(gRecvBuf));
     return 0;
 }
 
@@ -45,7 +46,6 @@ int ddh_cc_read(u8* data, int size)
     u8 buffer[DDH_BUFFER_SIZE];
     int original_size;
     u32 result;
-    int expected_size;
     int polled_size;
 
     result = 0;
@@ -55,8 +55,8 @@ int ddh_cc_read(u8* data, int size)
 
     MWTRACE(1, "Expected packet size : 0x%08x (%ld)\n", size, size);
 
-    original_size = expected_size = size;
-    while (CBGetBytesAvailableForRead(&gRecvCB) < (u32)expected_size) {
+    original_size = size;
+    while (CBGetBytesAvailableForRead(&gRecvCB) < (u32)original_size) {
         result = 0;
         polled_size = EXI2_Poll();
         if (polled_size != 0) {
