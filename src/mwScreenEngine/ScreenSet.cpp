@@ -3,20 +3,11 @@
 #include "mwScreenEngine/ScreenSet.h"
 #include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenUtil.h"
+#include "runtime/cstring.h"
 
-#define SCREEN_SET_NAME_CAPACITY 0x50U
-#define SCREEN_SET_MAX_CHILDREN 16U
 #define SCREEN_SET_ALLOC_TAG 0x494E4954
 
-extern "C" {
-char* strcpy(char* dst, const char* src);
-unsigned long strlen(const char* s);
-int strcmp(const char* a, const char* b);
-int stricmp(const char* a, const char* b);
-void* memcpy(void* dst, const void* src, unsigned long n);
-}
-
-/* TODO: [near miss] 82.85%; retail's "" literal comes from the .rodata string pool (TU data layout). */
+/* TODO: [near miss] 82.86%; retail's "" literal comes from the .rodata string pool (TU data layout). */
 ScreenSet::ScreenSet() {
     m_numChildren = 0;
     m_parent = 0;
@@ -81,7 +72,7 @@ char* ScreenSet::GetName() {
 
 void ScreenSet::SetName(char* name) {
     if (name != 0) {
-        if (strlen(name) < SCREEN_SET_NAME_CAPACITY) {
+        if (strlen(name) < sizeof(m_name)) {
             strcpy(m_name, name);
         }
     }
@@ -118,16 +109,17 @@ int ScreenSet::GetChildIndex(char* name) {
     return found;
 }
 
-/* TODO: [near miss] 87.20%; countdown loop and memcpy address formation differ. */
 void ScreenSet::RemoveChild(ScreenSet* child) {
-    int n = m_numChildren;
-    int i = n;
+    int count;
+    int index;
 
-    while (i != 0) {
-        i -= 1;
-        if (m_children[i] == child) {
-            memcpy(&m_children[i], &m_children[i + 1],
-                   (unsigned long)(n - i) * sizeof(ScreenSet*));
+    index = m_numChildren;
+    count = m_numChildren;
+
+    while (index-- != 0) {
+        if (m_children[index] == child) {
+            memcpy(&m_children[index], &m_children[index + 1],
+                   (count - index) * sizeof(ScreenSet*));
             m_numChildren -= 1;
             break;
         }
@@ -135,7 +127,7 @@ void ScreenSet::RemoveChild(ScreenSet* child) {
 }
 
 void ScreenSet::AddChild(ScreenSet* child) {
-    if ((unsigned int)m_numChildren < SCREEN_SET_MAX_CHILDREN) {
+    if ((unsigned int)m_numChildren < sizeof(m_children) / sizeof(m_children[0])) {
         child->SetParent(this);
         m_children[m_numChildren++] = child;
     }
@@ -188,7 +180,7 @@ void ScreenSet::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
 
 /* TODO: [near miss] 79.23%; retail "SS-Set" is @stringBase0+1 in .rodata, ours lands in .sdata (TU data layout). */
 void* ScreenSet::operator new(unsigned long size) {
-    return ScreenUtil::Malloc(size, SCREEN_SET_ALLOC_TAG, (char*)"SS-Set");
+    return ScreenUtil::Malloc(size, SCREEN_SET_ALLOC_TAG, "SS-Set");
 }
 
 void ScreenSet::operator delete(void* p) {
