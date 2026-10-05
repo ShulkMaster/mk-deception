@@ -4,7 +4,5 @@
 #include "libmkparticle/table.h"
 #include "libmkparticle/vm.h"
 
-typedef PfxVmEmitter PfxEmitterCompileView;
-
 void _pfx_emitter_compile(PfxVmEmitter* emitter, PfxTableRegistry* registry);
 #endif
