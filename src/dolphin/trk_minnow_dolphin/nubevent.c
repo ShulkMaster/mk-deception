@@ -1,14 +1,19 @@
 #include "dolphin/trk.h"
 
-typedef struct TRKEventQueue {
+struct TRKEventQueue {
     u32 mutex;
     int count;
     int next;
     TRKEvent events[2];
     u32 next_event_id;
-} TRKEventQueue;
+};
 
-TRKEventQueue gTRKEventQueue;
+struct TRKEventQueue gTRKEventQueue;
+
+enum {
+    TRK_EVENT_QUEUE_CAPACITY = sizeof(gTRKEventQueue.events) /
+                              sizeof(gTRKEventQueue.events[0])
+};
 
 DSError TRKInitializeEventQueue(void)
 {
@@ -29,7 +34,7 @@ BOOL TRKGetNextEvent(TRKEvent* event)
     if (gTRKEventQueue.count > 0) {
         TRK_memcpy(event, &gTRKEventQueue.events[gTRKEventQueue.next], sizeof(TRKEvent));
         gTRKEventQueue.count--;
-        if (++gTRKEventQueue.next == 2)
+        if (++gTRKEventQueue.next == TRK_EVENT_QUEUE_CAPACITY)
             gTRKEventQueue.next = 0;
         result = 1;
     }
@@ -43,10 +48,10 @@ DSError TRKPostEvent(TRKEvent* event)
     int next;
 
     TRKAcquireMutex(&gTRKEventQueue);
-    if (gTRKEventQueue.count == 2) {
+    if (gTRKEventQueue.count == TRK_EVENT_QUEUE_CAPACITY) {
         result = 0x100;
     } else {
-        next = (gTRKEventQueue.next + gTRKEventQueue.count) % 2;
+        next = (gTRKEventQueue.next + gTRKEventQueue.count) % TRK_EVENT_QUEUE_CAPACITY;
         TRK_memcpy(&gTRKEventQueue.events[next], event, sizeof(TRKEvent));
         gTRKEventQueue.events[next].event_id = gTRKEventQueue.next_event_id;
         if (++gTRKEventQueue.next_event_id < 0x100)
