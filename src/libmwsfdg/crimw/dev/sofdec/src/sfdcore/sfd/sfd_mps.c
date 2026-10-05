@@ -93,29 +93,17 @@ static inline SfmpsSeekSnapshot* sfmps_GetSeekSnapshot(SfdHandle* handle)
     return (SfmpsSeekSnapshot*)((unsigned char*)source + 0x8A0);
 }
 
-/* TODO: [near miss] 99.133330%; typed saved headers and separate guards
- * match retail CFG and stores; stop at equivalent work/decoder GPR coloring. */
-static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
+static inline int sfmps_DecodeSeekHeaders(SfdHandle* handle,
+    SfmpsWork* work, SfmpsSeekSnapshot* snapshot)
 {
-    SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
-    SfmpsSavedSystemHeaders* saved;
     MpsHandle* decoder;
-    SfmpsWork* work;
-    int consumed;
+    SfmpsSavedSystemHeaders* saved;
     int header_flags;
+    int consumed;
     int first_result;
     int second_result;
     int result;
 
-    if (snapshot == 0) {
-        return 0;
-    }
-    if (snapshot->active == 0) {
-        return 0;
-    }
-
-    work = sfmps_GetWork(handle);
-    SFHDS_ReprocessHdr(handle);
     saved = &snapshot->system_headers;
     decoder = work->decoder;
     first_result = MPS_DecHd(decoder, saved->data[0],
@@ -129,6 +117,25 @@ static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
     } else {
         result = 0;
     }
+    return result;
+}
+
+static int SFMPS_Seek(SfdHandle* handle, int parameter, int value)
+{
+    SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
+    SfmpsWork* work;
+    int result;
+
+    if (snapshot == 0) {
+        return 0;
+    }
+    if (snapshot->active == 0) {
+        return 0;
+    }
+
+    work = sfmps_GetWork(handle);
+    SFHDS_ReprocessHdr(handle);
+    result = sfmps_DecodeSeekHeaders(handle, work, snapshot);
     if (result != 0) {
         return result;
     }
@@ -247,8 +254,8 @@ static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
     int index;
 
     for (index = 0; index < 3; index++) {
-        int audio_bound;
         int video_bound;
+        int audio_bound;
 
         MPS_GetSysHd(decoder, &header, index);
         audio_bound = header.audio_bound;
@@ -293,14 +300,34 @@ static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 98.538120%; direct typed buffer access shifts the
- * prep-size branch and regresses; retained typed pointer has one extra addi. */
+static inline void sfmps_UpdatePlaybackSettings(SfdHandle* handle)
+{
+    SfmpsWork* work = sfmps_GetWork(handle);
+    MpsHandle* decoder = work->decoder;
+    MpsSystemHeader system;
+    MpsPackHeader pack;
+
+    MPS_GetPackHd(decoder, &pack);
+    if (pack.mux_rate != -1 && pack.mux_rate > 0) {
+        handle->playback_settings.values_18[0] = pack.mux_rate;
+    }
+    MPS_GetSysHd(decoder, &system, 1);
+    if (system.fixed_flag != -1) {
+        handle->playback_settings.values_18[1] = system.fixed_flag;
+    }
+    if (handle->playback_settings.values_18[3] == -1) {
+        handle->playback_settings.values_18[3] = work->max_audio_bound;
+    }
+    if (handle->playback_settings.values_18[4] == -1) {
+        handle->playback_settings.values_18[4] = work->max_video_bound;
+    }
+}
+
+/* TODO: [near miss] 98.76%; header slots agree; input-buffer address and
+ * work/decoder/seek-snapshot registers still differ. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     SfmpsWork* work = sfmps_GetWork(handle);
-    MpsHandle* decoder;
-    MpsSystemHeader system;
-    MpsPackHeader pack;
     SfdBufferState* input_buffer;
     int size;
     int need;
@@ -337,22 +364,7 @@ static void sfmps_ProcPrep(SfdHandle* handle)
         }
     }
 
-    work = sfmps_GetWork(handle);
-    decoder = work->decoder;
-    MPS_GetPackHd(decoder, &pack);
-    if (pack.mux_rate != -1 && pack.mux_rate > 0) {
-        handle->playback_settings.values_18[0] = pack.mux_rate;
-    }
-    MPS_GetSysHd(decoder, &system, 1);
-    if (system.fixed_flag != -1) {
-        handle->playback_settings.values_18[1] = system.fixed_flag;
-    }
-    if (handle->playback_settings.values_18[3] == -1) {
-        handle->playback_settings.values_18[3] = work->max_audio_bound;
-    }
-    if (handle->playback_settings.values_18[4] == -1) {
-        handle->playback_settings.values_18[4] = work->max_video_bound;
-    }
+    sfmps_UpdatePlaybackSettings(handle);
 
     work = sfmps_GetWork(handle);
     if (SFSET_GetCond(handle, 6) != 0 &&
@@ -473,17 +485,19 @@ static int sfmps_CopyUoch(SfdHandle* handle, int stream_index,
     SfdBufferHandleCallback handle_callback;
     SfdBufferObjectCallback object_callback;
     SfdCallbackObject object;
+    SJ* stream_joint;
     int result;
 
     SFBUF_GetUoch(handle, handle->transports[1].buffer_output3,
                   stream_index, &channel);
+    stream_joint = channel.stream_joint;
     handle_callback = channel.handle_callback;
     object_callback = channel.object_callback;
     object = channel.object;
-    if (channel.stream_joint == 0) {
+    if (stream_joint == 0) {
         return 1;
     }
-    result = sfmps_CopyToSj(channel.stream_joint, data, size);
+    result = sfmps_CopyToSj(stream_joint, data, size);
     if (result == 1) {
         if (handle_callback != 0) {
             handle_callback(handle, stream_index);
@@ -504,8 +518,6 @@ static int sfmps_CopyUo(SfdHandle* handle, int stream_index,
     return sfmps_CopyUoch(handle, stream_index, data, size);
 }
 
-/* TODO: [near miss] 98.958530%; donor channel helper and two-chunk copy
- * match the retail CFG and stack slots; stop at equivalent GPR coloring. */
 static int sfmps_CopyPrvate(SfdHandle* handle, int stream_index,
                             const unsigned char* data, int size,
                             long long pts)
@@ -523,8 +535,6 @@ static int sfmps_CopyPrvate(SfdHandle* handle, int stream_index,
     return sfmps_CopyUo(handle, stream_index, data, size);
 }
 
-/* TODO: [near miss] 99.689650%; donor signed-byte boundary restores the
- * start-code mask; stop at equivalent bound-loop register coloring. */
 static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
                             const unsigned char* data, int size,
                             long long pts)
@@ -667,22 +677,20 @@ static SfmpsCopyPacketFn const sfmps_CopyPketFn[4] = {
     sfmps_CopyPadding,
 };
 
-/* TODO: [near miss] 99.137930%; donor header/callback snapshots and result
- * switch match retail operations and CFG; stop at equivalent GPR coloring. */
 static int sfmps_CopyPketData(SfdHandle* handle, const unsigned char* data,
                               int available, int* consumed, int* copied)
 {
     SfmpsWork* work;
-    MpsPacketHeader header;
-    SJ* output;
-    SfmpsElementCallback callback;
     void* callback_argument;
+    int result;
+    MpsPacketHeader header;
+    SfmpsElementCallback callback;
     int stream_id;
     int stream_type;
     int stream_index;
     int payload_length;
     long long pts;
-    int result;
+    SJ* output;
 
     result = 0;
     *consumed = 0;
@@ -1029,15 +1037,17 @@ static inline int sfmps_AddRead(SfdHandle* handle, int size)
 static inline int sfmps_ExecServerLoop(SfdHandle* handle, int* input_size)
 {
     int result = 0;
-    int consumed_total = 0;
-    int copied_total = 0;
+    unsigned char* input_data;
+    int consumed_total;
+    int readable;
+    int copied_total;
     int write_flow;
     int read_flow;
-    unsigned char* input_data;
-    int readable;
     int consumed;
     int copied;
 
+    copied_total = 0;
+    consumed_total = 0;
     while (consumed_total < 0x7FFFFFFF) {
         result = sfmps_GetRead(handle, &input_data, input_size, &readable);
         if (result != 0) {
@@ -1069,8 +1079,6 @@ static inline int sfmps_ExecServerLoop(SfdHandle* handle, int* input_size)
     return result;
 }
 
-/* TODO: [near miss] 99.401710%; donor-backed inline loop and caller-owned
- * input size restore retail structure; inspect final register-color residue. */
 static int sfmps_ExecServerSub(SfdHandle* handle)
 {
     SfmpsWork* work;
