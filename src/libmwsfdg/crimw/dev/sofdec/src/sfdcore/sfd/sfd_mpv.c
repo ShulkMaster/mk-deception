@@ -195,20 +195,21 @@ static inline int sfmpv_SetPicUsrBufSub(SfdHandle* handle,
                                         int buffer_count, int buffer_size)
 {
     SfdMpvPictureUserBuffers* user =
-        (SfdMpvPictureUserBuffers*)((unsigned char*)work + sizeof(*work));
-    int i;
+        &((SfdMpvAuxWork*)(work + 1))->picture_buffers;
     int count;
+    int i;
     unsigned char* next_buffer = buffer;
 
     if (next_buffer == 0 || buffer_count == 0 || buffer_size == 0) {
+        int clear_index;
         user->base = 0;
         user->buffer_count = 0;
         user->buffer_size = 0;
         user->entries[0].buffer = 0;
         user->entries[0].size = 0;
-        for (i = 0; i < 16; i++) {
-            user->entries[i + 1].buffer = 0;
-            user->entries[i + 1].size = 0;
+        for (clear_index = 0; clear_index < 16; clear_index++) {
+            user->entries[clear_index + 1].buffer = 0;
+            user->entries[clear_index + 1].size = 0;
         }
         return 0;
     }
@@ -637,14 +638,15 @@ static int SFMPV_Standby(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 88.367645%; typed auxiliary view is neutral;
- * named BSS order remains para/RFB/TA versus retail TA/RFB/para. */
+/* TODO: [blocked] 89.617645%; native snapshot operations agree;
+ * BSS order/base ownership requires the sfd_mpv layout steward. */
 static int SFMPV_Destroy(SfdHandle* handle)
 {
+    MPVContext* decoder;
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     SfdMpvPictureUserBuffers* user;
-    MPVContext* decoder = work->decoder;
+    decoder = work->decoder;
 
     if (decoder == 0) {
         return 0;
@@ -701,8 +703,7 @@ static inline int sfmpv_ChkPara(SfdMpvParameters* parameters)
     return 0;
 }
 
-/* TODO: [near miss] 95.181420%; typed auxiliary view retained without a
- * redundant local; BSS owner and final address schedule still differ. */
+/* TODO: [near miss] 99.29646%; frame setup matches; parameter reload and BSS placement remain. */
 static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
 {
     SfdMpvPictureUserBuffers* user;
@@ -757,18 +758,12 @@ static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
         user->entries[i + 1].buffer = 0;
         user->entries[i + 1].size = 0;
     }
-    {
-        SfdMpvPictureUserData* entries = &user->entries[1];
-
-        for (j = 0; j < sizeof(work->frames) / sizeof(work->frames[0]); j++) {
-            work->frames[j].picture_user_buffer = &entries[j];
-        }
+    for (j = 0; j < sizeof(work->frames) / sizeof(work->frames[0]); j++) {
+        work->frames[j].picture_user_buffer = &user->entries[1] + j;
     }
     return 0;
 }
 
-/* TODO: [near miss] 91.205130%; typed setup and inline validation agree;
- * owner/prologue coloring remains without a justified clean-C lever. */
 static int SFMPV_Create(SfdHandle* handle)
 {
     SfdMpvFrameWork* work;
@@ -778,8 +773,8 @@ static int SFMPV_Create(SfdHandle* handle)
     if (SFSET_GetCond(handle, 5) == 0) {
         return 0;
     }
-    work = (SfdMpvFrameWork*)handle->mpv_work_storage;
-    handle->transports[2].context = work;
+    work = handle->transports[2].context =
+        (SfdMpvFrameWork*)handle->mpv_work_storage;
     result = sfmpv_InitInf(handle, work);
     if (result != 0) {
         return result;
@@ -797,22 +792,23 @@ static int SFMPV_Create(SfdHandle* handle)
     MPV_SetCond(decoder, 6, handle->create_config.video_output_format);
     work->decoder = decoder;
     if (SFPLY_GetResetFlg() != 0) {
-        sfmpv_SetPicUsrBufSub(handle, work, sfmpv_picusr_pbuf,
+        sfmpv_SetPicUsrBufSub(handle,
+                              (SfdMpvFrameWork*)handle->transports[2].context,
+                              sfmpv_picusr_pbuf,
                               sfmpv_picusr_bufnum, sfmpv_picusr_buf1siz);
     }
     return 0;
 }
 
-/* TODO: [near miss] 95.579270%; donor ternary caps regress three consumers;
- * retained bounded helper leaves search-cap branches and one copy. */
+/* TODO: [near miss] 96.49%; consumed-count join fixed; shared delimiter caps and head staging remain. */
 static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
                           int delimiter_mask)
 {
     SfdBufferTransfer transfer;
     const unsigned char* delimiter;
     int consumed;
-    int i;
     int nonzero;
+    int i;
     int ignored_code;
 
     if (SFBUF_RingGetRead(handle, handle->transports[2].parameter_10,
@@ -827,8 +823,7 @@ static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
     /* The two chunks may be separate objects, so compare their addresses. */
     if (delimiter == 0) {
         int remaining = transfer.chunks[0].len + transfer.chunks[1].len;
-        remaining -= 3;
-        consumed = remaining > 0 ? remaining : 0;
+        consumed = (remaining -= 3) > 0 ? remaining : 0;
     } else if ((unsigned long)transfer.chunks[0].data <=
                    (unsigned long)delimiter &&
                (unsigned long)delimiter <
@@ -1373,16 +1368,13 @@ static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
     return skip;
 }
 
-/* TODO: [breakthrough] 91.915665%; typed configured dimensions and grouped
- * luma/chroma calculations are neutral; retail's early schedule remains. */
 static int sfmpv_ChkBufSiz(SfdHandle* handle,
-                           const SfdMpvPlaybackSettings* settings)
+                           SfdMpvPlaybackSettings* settings)
 {
     SfdMpvFrameWork* work =
         (SfdMpvFrameWork*)handle->transports[2].context;
     unsigned char* frame_buffer;
     int frame_size;
-    int requested_count = work->setup_values.frame_count;
     int configured_width = work->setup_values.width;
     int configured_height = work->setup_values.height;
     int width;
@@ -1394,6 +1386,7 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     int luma_size;
     int chroma_size;
     int configured_size;
+    int requested_count = work->setup_values.frame_count;
     int frame_count;
     int decoded_count;
     int i;
@@ -1405,9 +1398,9 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     aligned_width = ((width + 15) / 16) * 16;
     aligned_height = ((height + 15) / 16) * 16;
     luma_stride = ((aligned_width + 31) / 32) * 32;
+    chroma_size = (aligned_height / 2) *
+        (chroma_stride = (((aligned_width / 2) + 31) / 32) * 32);
     luma_size = aligned_height * luma_stride;
-    chroma_stride = (((aligned_width / 2) + 31) / 32) * 32;
-    chroma_size = (aligned_height / 2) * chroma_stride;
     frame_size = luma_size + chroma_size * 2 + 0x20;
     configured_size = sfmpv_CalcFrameSize(configured_width,
                                           configured_height);
@@ -1459,8 +1452,6 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
 }
 
 #pragma pool_data off
-/* TODO: [near miss] 95.630250%; retail opcode, CFG, offsets, and constants agree;
- * remaining drop-frame/normal-path register coloring is a soft ceiling. */
 static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
                          int frame_offset, SfdTimeCode* timecode)
 {
@@ -1480,45 +1471,42 @@ static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
     if (drop_frame != 0 && (rate == 29970 || rate == 59940)) {
         const SfdMpvDropFrameConversion* conversion =
             rate == 29970 ? &sfmpv_conv_29_97 : &sfmpv_conv_59_94;
-        int remaining_frames;
         int minute_in_cycle;
 
         hours = frames / conversion->frames_per_hour;
-        remaining_frames = frames % conversion->frames_per_hour;
+        frames = frames % conversion->frames_per_hour;
         minute_in_cycle =
-            remaining_frames / conversion->frames_per_ten_minutes;
-        remaining_frames %= conversion->frames_per_ten_minutes;
-        if (remaining_frames < conversion->frames_first_minute) {
+            frames / conversion->frames_per_ten_minutes;
+        frames %= conversion->frames_per_ten_minutes;
+        if (frames < conversion->frames_first_minute) {
             minutes = 0;
             seconds =
-                remaining_frames / conversion->nominal_frame_rate;
+                frames / conversion->nominal_frame_rate;
             pictures =
-                remaining_frames % conversion->nominal_frame_rate;
+                frames % conversion->nominal_frame_rate;
         } else {
-            remaining_frames -= conversion->frames_first_minute;
-            minutes = remaining_frames / conversion->frames_other_minute + 1;
-            remaining_frames %= conversion->frames_other_minute;
-            if (remaining_frames < conversion->first_minute_threshold) {
+            frames -= conversion->frames_first_minute;
+            minutes = frames / conversion->frames_other_minute + 1;
+            frames %= conversion->frames_other_minute;
+            if (frames < conversion->first_minute_threshold) {
                 seconds = 0;
-                pictures = remaining_frames + conversion->dropped_frames;
+                pictures = frames + conversion->dropped_frames;
             } else {
-                remaining_frames -= conversion->first_minute_threshold;
+                frames -= conversion->first_minute_threshold;
                 seconds =
-                    remaining_frames / conversion->nominal_frame_rate + 1;
+                    frames / conversion->nominal_frame_rate + 1;
                 pictures =
-                    remaining_frames % conversion->nominal_frame_rate;
+                    frames % conversion->nominal_frame_rate;
             }
         }
         minutes += conversion->minutes_per_cycle * minute_in_cycle;
     } else {
-        int total_seconds = frames / nominal_rate;
-        int total_minutes;
-
+        seconds = frames / nominal_rate;
         pictures = frames % nominal_rate;
-        total_minutes = total_seconds / 60;
-        seconds = total_seconds % 60;
-        hours = total_minutes / 60;
-        minutes = total_minutes % 60;
+        minutes = seconds / 60;
+        seconds %= 60;
+        hours = minutes / 60;
+        minutes %= 60;
     }
     timecode->hours = hours;
     timecode->minutes = minutes;
@@ -1527,19 +1515,17 @@ static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
 }
 #pragma pool_data on
 
-/* TODO: [near miss] 95.135130%; paired diff is argument-only across the
- * timer and accumulated fields; stop at clean-C coloring ceiling. */
+/* TODO: [near miss] 98.27702%; metadata/direct divisor recovered;
+ * initial timestamp and source clock arithmetic webs remain. */
 static void sfmpv_DoReformTc(SfdHandle* handle,
                              MPVPictureInfo* picture, long long pts,
                              int group_changed)
 {
     int frame_rate = picture->frame_rate_code;
     int drop_frame = picture->drop_frame_flag;
+    int temporal_reference = picture->temporal_reference;
     SfdMpvTimerOverlay* timer =
         (SfdMpvTimerOverlay*)&handle->timer_state;
-    SfdMpvRepeatTimer* repeat_timer =
-        (SfdMpvRepeatTimer*)&handle->timer_state;
-    int temporal_reference = picture->temporal_reference;
 
     if (group_changed != 0 && pts >= 0) {
         sfmpv_Pts2Tc(pts, frame_rate, drop_frame,
@@ -1560,22 +1546,19 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
     } else if (group_changed != 0) {
         SfdTimeCode* source = &timer->source_timecode;
         SfdTimeCode* output = &timer->reformed_timecode;
+        SfdMpvRepeatTimer* repeat_timer = (SfdMpvRepeatTimer*)timer;
         int type = source->frame_rate_code;
-        int round_rate = sfmpv_fps_round[type];
         int fields = source->reserved_1C + source->subframe;
         int frame = source->frames + source->frame_offset + 1;
         int field;
-        int hours;
-        int minutes;
-        int seconds;
+        int seconds = source->seconds;
+        int minutes = source->minutes;
+        int hours = source->hours;
 
         frame += fields / 2;
         field = fields % 2;
-        hours = source->hours;
-        minutes = source->minutes;
-        seconds = source->seconds;
-        seconds += frame / round_rate;
-        frame %= round_rate;
+        seconds += frame / sfmpv_fps_round[type];
+        frame %= sfmpv_fps_round[type];
         minutes += seconds / 60;
         seconds %= 60;
         hours += minutes / 60;
@@ -2062,8 +2045,24 @@ static inline void sfmpv_SkipEndcode(SfdHandle* handle, SJ* stream)
     stream->interface->unget_chunk(stream, 1, &chunk);
 }
 
-/* TODO: [breakthrough] 93.980950%; the sample sentinel and structured
- * early return preserve behavior, but retail's delayed result join remains. */
+static inline int sfmpv_ReadConcatSamples(SfdHandle* handle,
+                                         int* samples, int* sample_rate)
+{
+    int result;
+
+    if (handle->create_config.buffer.transport_setup->entries[3] !=
+        &SFD_tr_ad_adxt) {
+        *samples = 0;
+        *sample_rate = 44100;
+        result = 1;
+    } else {
+        result = SFCON_ReadTotSmplQue(handle, samples, sample_rate);
+    }
+    return result;
+}
+
+/* TODO: [near miss] 96.828575%; complete sample acquisition restores time joins;
+ * fallback Boolean, clock coloring and folded final status test remain. */
 static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
@@ -2083,23 +2082,18 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             const SfdTimeCode* source = &maximum->timecode;
             SfdTimeCode timecode;
             int type = source->frame_rate_code;
-            int rate = sfmpv_fps_round[type];
             int fields = source->reserved_1C + source->subframe;
             int frame = source->frames + source->frame_offset + 1;
-            int field;
-            int hours;
-            int minutes;
-            int seconds;
-            int value;
+            int seconds = source->seconds;
+            int minutes = source->minutes;
+            int hours = source->hours;
             int scale;
+            int value;
 
             frame += fields / 2;
-            field = fields % 2;
-            hours = source->hours;
-            minutes = source->minutes;
-            seconds = source->seconds;
-            seconds += frame / rate;
-            frame %= rate;
+            fields %= 2;
+            seconds += frame / sfmpv_fps_round[type];
+            frame %= sfmpv_fps_round[type];
             minutes += seconds / 60;
             seconds %= 60;
             hours += minutes / 60;
@@ -2114,7 +2108,7 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             timecode.minutes = minutes;
             timecode.seconds = seconds;
             timecode.frames = frame;
-            timecode.subframe = (short)field;
+            timecode.subframe = (short)fields;
             timecode.frame_offset = 0;
             SFTIM_Tc2Time(&timecode, &value, &scale);
             concat_time = value - initial->value;
@@ -2126,15 +2120,9 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
         int* total_samples =
             &handle->timer_state.sample_window.fields_04[0];
 
-        concat_time = 0;
-        if (handle->create_config.buffer.transport_setup->entries[3] !=
-            &SFD_tr_ad_adxt) {
-            samples = 0;
-            sample_rate = 44100;
-        } else if (SFCON_ReadTotSmplQue(handle, &samples, &sample_rate) == 0) {
+        if (sfmpv_ReadConcatSamples(handle, &samples, &sample_rate) == 0) {
             concat_time = -1;
-        }
-        if (concat_time >= 0) {
+        } else {
             time_unit = timer->initial.scale;
             *total_samples += samples;
             concat_time = UTY_MulDiv(*total_samples, time_unit, sample_rate) -
@@ -2308,8 +2296,7 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
     return result;
 }
 
-/* TODO: [near miss] 94.668144%; shared search-cap branch lowering remains;
- * all five honest cap variants regress this or other inlined consumers. */
+/* TODO: [near miss] 94.67%; shared fallback-search cap and metadata lifetimes differ. */
 static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
                                     int current_type,
                                     const unsigned char* delimiter)
@@ -2324,10 +2311,13 @@ static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
     if (delimiter == transfer->chunks[0].data) {
         return 1;
     }
-    if (delimiter >= transfer->chunks[0].data &&
-        delimiter < transfer->chunks[0].data + transfer->chunks[0].len) {
-        int overflow = delimiter + 4 -
-                       (transfer->chunks[0].data + transfer->chunks[0].len);
+    /* The chunks may be independent objects; compare numeric addresses. */
+    if ((unsigned long)delimiter >= (unsigned long)transfer->chunks[0].data &&
+        (unsigned long)delimiter <
+            (unsigned long)transfer->chunks[0].data + transfer->chunks[0].len) {
+        int overflow = (unsigned long)delimiter + 4 -
+                       ((unsigned long)transfer->chunks[0].data +
+                        transfer->chunks[0].len);
         if (overflow > 0) {
             if (overflow > transfer->chunks[1].len) {
                 return 1;
@@ -2338,11 +2328,11 @@ static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
         } else {
             memcpy(delimiter_bytes, delimiter, 4);
         }
-    } else if (delimiter >= transfer->chunks[1].data &&
-               delimiter < transfer->chunks[1].data +
+    } else if ((unsigned long)delimiter >= (unsigned long)transfer->chunks[1].data &&
+               (unsigned long)delimiter < (unsigned long)transfer->chunks[1].data +
                                transfer->chunks[1].len) {
-        int overflow = delimiter + 4 -
-                       (transfer->chunks[1].data +
+        int overflow = (unsigned long)delimiter + 4 -
+                       ((unsigned long)transfer->chunks[1].data +
                         transfer->chunks[1].len);
         if (overflow > 0) {
             return 1;
@@ -2492,10 +2482,11 @@ static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
 static inline void sfmpv_DecUsrHdr(SfdHandle* handle, SJCK* header,
                                    int* consumed)
 {
-    SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
-    MPVContext* decoder = work->decoder;
+    MPVContext* decoder;
+    SfdMpvFrameWork* work;
 
+    work = handle->transports[2].context;
+    decoder = work->decoder;
     header->data = (unsigned char*)SFSET_GetCond(handle, 93);
     header->len = SFSET_GetCond(handle, 94);
     if (header->data != 0 && (unsigned int)header->len != 0 &&
@@ -2602,8 +2593,7 @@ static inline int sfmpv_SetMpvCondCore(SfdHandle* handle, int condition,
     return 0;
 }
 
-/* TODO: [near miss] 98.497940%; stack slots and all non-register operands
- * now align; remaining differences are register allocation. */
+/* TODO: [near miss] 98.60%; typed header owner improved; handle, result and remaining inline owners still use rotated GPRs. */
 static int sfmpv_ExecServerSub(SfdHandle* handle)
 {
     int result;
@@ -2702,8 +2692,7 @@ static int sfmpv_ChkFatal(void)
 }
 #pragma dont_inline reset
 #pragma optimization_level 4
-/* TODO: [near miss] 99.933334%; pointer-table types restore the body;
- * only the shared BSS relocation base differs. */
+/* TODO: [breakthrough needed] 99.93%; ta/rfb/parameter BSS emission order is wrong; recover zero-fill allocation order. */
 static int SFMPV_Init(SfdHandle* handle)
 {
     int result;
@@ -2725,8 +2714,6 @@ static int SFMPV_Init(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 97.428570%; paired diff is argument-only across the
- * inlined typed buffer setup; stop at buffer-owner/counter coloring. */
 int SFD_SetPicUsrBuf(SfdHandle* handle, void* buffer, int buffer_count,
                      int buffer_size)
 {
@@ -2794,8 +2781,8 @@ void SFD_CalcYccPlane(void* buffer, int width, int height,
     sfmpv_CalcYccPlaneSub(buffer, width, height, output);
 }
 
-/* TODO: [near miss] 99.852270%; scalar BSS prefix agrees, but tentative
- * declaration reordering is neutral; seek a proven placement mechanism. */
+/* TODO: [blocked] 99.85227%; instruction shape agrees; table/parameter BSS
+ * offsets depend on the steward's whole-TU data-placement recovery. */
 void SFD_SetMpvParaTbl(SfdMpvParameters* parameters,
                        void** reference_buffers,
                        void** frame_buffers)
