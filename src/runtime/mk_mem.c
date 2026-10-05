@@ -2,8 +2,7 @@
 #include "mw/mwMemHeap.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_struct.h"
-
-extern void pfxfont_release_delayed_vertex_buffers(void);
+#include "libmkparticle/gc_font.h"
 
 MkPtr *delayed_free_list;
 
@@ -15,12 +14,12 @@ void purge_delayed_mem_frees(void) {
     while ((entry = delayed_free_list) != 0) {
         while (entry != 0) {
             next = entry->next;
-            delay = (int)entry->instance;
+            delay = entry->instance;
             if (--delay <= 0) {
                 _mwMemFree(entry->hdr, 0, 0);
                 discard_stale_mkptr(entry);
             } else {
-                entry->instance = (unsigned int)delay;
+                entry->instance = delay;
             }
             entry = next;
         }
@@ -36,12 +35,12 @@ void do_delayed_mem_frees(void) {
     entry = delayed_free_list;
     while (entry != 0) {
         next = entry->next;
-        delay = (int)entry->instance;
+        delay = entry->instance;
         if (--delay <= 0) {
             _mwMemFree(entry->hdr, 0, 0);
             discard_stale_mkptr(entry);
         } else {
-            entry->instance = (unsigned int)delay;
+            entry->instance = delay;
         }
         entry = next;
     }
@@ -51,9 +50,9 @@ void do_delayed_mem_frees(void) {
 void free_mem_delayed(void *memory, int delay) {
     MkPtr *entry;
 
-    entry = get_mkptr_not_owns_mkhdr((MkHdr *)memory);
+    entry = get_mkptr_not_owns_mkhdr(memory);
     if (entry != 0) {
-        entry->instance = (unsigned int)delay;
+        entry->instance = delay;
         insert_mkptr(entry, &delayed_free_list);
     } else {
         _mwMemFree(memory, 0, 0);
