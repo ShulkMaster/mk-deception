@@ -1,13 +1,8 @@
 #include "dolphin/cache.h"
+#include "dolphin/types.h"
 #include "dolphin/gx.h"
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
-
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef signed int s32;
-typedef int BOOL;
 
 #define OS_FONT_ENCODE_ANSI 0
 #define OS_FONT_ENCODE_SJIS 1
@@ -20,7 +15,7 @@ typedef int BOOL;
 
 volatile u16 __VIRegs[] : 0xCC002000;
 
-typedef char* (*ParseStringCallback)(u16, char*, OSFontHeader**, int*);
+typedef char* (*ParseStringCallback)(u16, const u8*, OSFontHeader**, int*);
 
 static OSFontHeader* FontDataAnsi;
 static OSFontHeader* FontDataSjis;
@@ -268,6 +263,13 @@ static int GetFontCode(u16 encode, u16 code) {
     return 0;
 }
 
+struct OSCompressedFontHeader {
+    u8 magic[4];
+    s32 decoded_size;
+    s32 link_offset;
+    s32 literal_offset;
+};
+
 static void Decode(u8* s, u8* d) {
     int i;
     int j;
@@ -278,16 +280,18 @@ static void Decode(u8* s, u8* d) {
     int literal_index;
     int cnt;
     int os;
+    const struct OSCompressedFontHeader* header;
     unsigned int flag;
     unsigned int code;
 
-    os  = *(int*)(s + 0x4);
-    link_index = *(int*)(s + 0x8);
-    literal_index = *(int*)(s + 0xC);
+    header = (const struct OSCompressedFontHeader*)s;
+    os = header->decoded_size;
+    link_index = header->link_offset;
+    literal_index = header->literal_offset;
 
     q    = 0;
     flag = 0;
-    p    = 16;
+    p = sizeof(struct OSCompressedFontHeader);
 
     do {
         // Get next mask
@@ -330,7 +334,7 @@ static void Decode(u8* s, u8* d) {
 
 static inline u32 GetFontSize(u8* buf) {
     if (buf[0] == 'Y' && buf[1] == 'a' && buf[2] == 'y') {
-        return *(u32*)(buf + 0x4);
+        return ((const struct OSCompressedFontHeader*)buf)->decoded_size;
     }
 
     return 0;
@@ -354,7 +358,7 @@ u16 OSGetFontEncode(void) {
         FontEncode = OS_FONT_ENCODE_ANSI;
     }
 
-    ParseString = (ParseStringCallback)ParseStringS;
+    ParseString = ParseStringS;
     return FontEncode;
 }
 
@@ -375,9 +379,6 @@ static inline void ReadROM(void* buf, int length, int offset) {
 
 static u32 ReadFont(void* img, u16 encode, void* fontData) {
     u32 size;
-#ifndef DEBUG
-    u32 padding[1];
-#endif
 
     if (encode == OS_FONT_ENCODE_SJIS) {
         ReadROM(img, OS_FONT_ROM_SIZE_SJIS, 0x1AFF00);
@@ -392,7 +393,7 @@ static u32 ReadFont(void* img, u16 encode, void* fontData) {
 
     Decode(img, fontData);
     if (encode == OS_FONT_ENCODE_SJIS) {
-        OSFontHeader* font = (OSFontHeader*)fontData;
+        OSFontHeader* font = fontData;
         int fontCode;
         u8* imageSrc;
         int sheet;
@@ -493,7 +494,7 @@ int OSInitFont(OSFontHeader* fontData) {
     encode = OSGetFontEncode();
     switch (encode) {
     case 0:
-        tmp = (void*)((u8*)fontData + 0x1D120);
+        tmp = (u8*)fontData + 0x1D120;
         FontDataAnsi = fontData;
         size = ReadFont(tmp, 0, FontDataAnsi);
         if (size == 0) {
@@ -505,7 +506,7 @@ int OSInitFont(OSFontHeader* fontData) {
         ExpandFontSheet(FontDataAnsi, img, (u8*)FontDataAnsi + FontDataAnsi->sheetImage);
         break;
     case 1:
-        tmp = (void*)((u8*)fontData + 0xD3F00);
+        tmp = (u8*)fontData + 0xD3F00;
         FontDataSjis = fontData;
         size = ReadFont(tmp, 1, FontDataSjis);
         if (size == 0) {
@@ -519,7 +520,7 @@ int OSInitFont(OSFontHeader* fontData) {
     case 3:
     case 4:
     case 5:
-        tmp = (void*)((u8*)fontData + 0xF4020);
+        tmp = (u8*)fontData + 0xF4020;
         FontDataAnsi = fontData;
         size = ReadFont(tmp, 0, FontDataAnsi);
         if (size == 0) {
@@ -548,7 +549,7 @@ int OSInitFont(OSFontHeader* fontData) {
     return 1;
 }
 
-char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* width) {
+char* OSGetFontTexture(const char* string, void** image, int* x, int* y, int* width) {
     OSFontHeader* font;
     u16 encode;
     int fontCode;
@@ -558,9 +559,9 @@ char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* wi
     int column;
 
     encode = OSGetFontEncode();
-    string = ParseString(encode, (char*)string, &font, &fontCode);
+    string = ParseString(encode, (const u8*)string, &font, &fontCode);
     sheet = fontCode / (font->sheetColumn * font->sheetRow);
-    *image = (void*)((u8*)font + font->sheetImage + (font->sheetSize * sheet));
+    *image = (u8*)font + font->sheetImage + (font->sheetSize * sheet);
     numChars = fontCode - (sheet * (font->sheetColumn * font->sheetRow));
     row = numChars / font->sheetColumn;
     column = numChars - (row * font->sheetColumn);
@@ -573,13 +574,13 @@ char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* wi
     return (char*)string;
 }
 
-char* OSGetFontWidth(const char* string, s32* width) {
+char* OSGetFontWidth(const char* string, int* width) {
     OSFontHeader* font;
     u16 encode;
     int fontCode;
 
     encode = OSGetFontEncode();
-    string = ParseString(encode, (char*)string, &font, &fontCode);
+    string = ParseString(encode, (const u8*)string, &font, &fontCode);
 
     if (width != 0) {
         *width = ((u8*)font + font->widthTable)[fontCode];

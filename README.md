@@ -17,9 +17,9 @@ Released by Midway in February 2005, *Mortal Kombat: Deception* is the sixth ent
 This repository does **not** contain any game assets or assembly. An existing copy of the game is required.
 
 Coding agents should read [AGENTS.md](AGENTS.md) before modifying the project. It
-covers repository rules, initialization, the ranked decomp books, DecompStudio
-m2c recovery and permutation, objdiff inspection, DTK and compiler tools, and
-the required self-validation checks.
+covers repository rules, the ranked decomp books, m2c recovery and permutation
+policy, objdiff inspection, compiler-flag and generated-output rules, and the
+required self-validation checks.
 
 Supported versions:
 

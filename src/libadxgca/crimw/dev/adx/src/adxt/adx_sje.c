@@ -202,12 +202,15 @@ static inline void adxsje_destroy_filter(AdxSjePredictorFilter* filter)
 static inline void adxsje_write_chunk(SJ* output, const void* data, s32 size)
 {
     SJCK chunk;
-
     output->interface->get_chunk(output, 0, size, &chunk);
     if (chunk.len < size) {
         output->interface->unget_chunk(output, 0, &chunk);
     } else {
-        memcpy(chunk.data, data, size);
+        if (size == (s32)sizeof(s16)) {
+            *(s16*)chunk.data = *(const s16*)data;
+        } else {
+            memcpy(chunk.data, data, size);
+        }
         output->interface->put_chunk(output, 1, &chunk);
     }
 }
@@ -237,16 +240,25 @@ static inline void adxsje_iirflt_set_coef(AdxSjeIirFilter* filter,
     filter->coefficient1 = coefficient1;
 }
 
+static inline void adxsje_initialize_filter_coefficients(AdxSjeHandle* encoder,
+                                                        AdxSjePredictorFilter* filter)
+{
+    s16 coefficient0;
+    s16 coefficient1;
+
+    ADX_GetCoefficient((s16)encoder->cutoff_frequency,
+                       encoder->sample_rate, &coefficient0, &coefficient1);
+    adxsje_prdflt_set_coef(filter, coefficient0, coefficient1);
+    adxsje_iirflt_set_coef(filter->iir_filter, coefficient0, coefficient1);
+}
+
 static inline void adxsje_header_exec(AdxSjeHandle* encoder)
 {
+    SJ* output;
     s32 channel;
     s32 header_size;
     SJCK chunk;
-    SJ* output;
     s16 sample;
-    s16 coefficient0;
-    s16 coefficient1;
-    AdxSjePredictorFilter* filter;
 
     output = encoder->output;
     for (channel = 0; channel < encoder->channel_count; channel++) {
@@ -274,18 +286,11 @@ static inline void adxsje_header_exec(AdxSjeHandle* encoder)
     }
     encoder->output_length += header_size;
     for (channel = 0; channel < encoder->channel_count; channel++) {
-        filter = encoder->filter[channel];
-        ADX_GetCoefficient((s16)encoder->cutoff_frequency,
-                           encoder->sample_rate,
-                           &coefficient0, &coefficient1);
-        adxsje_prdflt_set_coef(filter, coefficient0, coefficient1);
-        adxsje_iirflt_set_coef(filter->iir_filter, coefficient0, coefficient1);
+        adxsje_initialize_filter_coefficients(encoder, encoder->filter[channel]);
     }
     encoder->status = 2;
 }
 
-/* TODO: [near miss] 99.450000%; donor-style typed setters and direct IIR
- * owner recover coefficient lowering; stop at harmless register coloring. */
 void ADXSJE_ExecHndl(AdxSjeHandle* encoder)
 {
     if (encoder->status == 1) {
@@ -592,8 +597,7 @@ fail:
     return 0;
 }
 
-/* TODO: [near miss] 90.785710%; unsigned marker local with direct halfword
- * stores retains retail frame; unresolved pre-call marker scheduling remains. */
+/* TODO: [near miss] 97.14%; marker stack/widths agree; first native-word destination/source loads reordered. */
 s32 adxsje_write_end_code(AdxSjeHandle* encoder)
 {
     s32 end_size;
@@ -603,9 +607,6 @@ s32 adxsje_write_end_code(AdxSjeHandle* encoder)
     s32 index;
     u16 value;
     u8 zero;
-    SJCK marker_chunk;
-    SJCK size_chunk;
-    SJCK zero_chunk;
 
     output = encoder->output;
     output_length = encoder->output_length;
@@ -621,30 +622,12 @@ s32 adxsje_write_end_code(AdxSjeHandle* encoder)
         return 0;
     }
     value = 0x8001;
-    output->interface->get_chunk(output, 0, 2, &marker_chunk);
-    if (marker_chunk.len < 2) {
-        output->interface->unget_chunk(output, 0, &marker_chunk);
-    } else {
-        *(s16*)marker_chunk.data = value;
-        output->interface->put_chunk(output, 1, &marker_chunk);
-    }
-    value = (s16)end_size;
-    output->interface->get_chunk(output, 0, 2, &size_chunk);
-    if (size_chunk.len < 2) {
-        output->interface->unget_chunk(output, 0, &size_chunk);
-    } else {
-        *(s16*)size_chunk.data = value;
-        output->interface->put_chunk(output, 1, &size_chunk);
-    }
+    adxsje_write_chunk(output, &value, sizeof(value));
+    value = end_size;
+    adxsje_write_chunk(output, &value, sizeof(value));
     zero = 0;
     for (index = 0; index < end_size; index++) {
-        output->interface->get_chunk(output, 0, 1, &zero_chunk);
-        if (zero_chunk.len < 1) {
-            output->interface->unget_chunk(output, 0, &zero_chunk);
-        } else {
-            memcpy(zero_chunk.data, &zero, 1);
-            output->interface->put_chunk(output, 1, &zero_chunk);
-        }
+        adxsje_write_chunk(output, &zero, sizeof(zero));
     }
     return output_size;
 }
@@ -682,64 +665,71 @@ static inline s32 adxsje_read_pcm(AdxSjeHandle* encoder, SJ** inputs,
     return pcm_samples;
 }
 
-/* TODO: [near miss] 96.688620%; extent/CFG agree; stop at GPR coloring. */
+static inline s32 adxsje_encode_pcm_block(AdxSjeHandle* encoder)
+{
+    SJ** inputs;
+    s32 requested_samples;
+    s32 pcm_samples;
+    s16* sample_buffer[ADXSJE_MAX_CHANNELS];
+
+    requested_samples = encoder->sample_count - encoder->sample_position;
+    sample_buffer[0] = encoder->samples[0];
+    sample_buffer[1] = encoder->samples[1];
+    inputs = encoder->input;
+    if (encoder->block_samples < requested_samples) {
+        requested_samples = encoder->block_samples;
+    }
+    pcm_samples = adxsje_read_pcm(encoder, inputs, sample_buffer, requested_samples);
+    if (pcm_samples == 0) {
+        return 0;
+    } else {
+        s32 channel;
+        if (requested_samples < encoder->block_samples) {
+            s32 padding_channel;
+            for (padding_channel = 0; padding_channel < encoder->channel_count; padding_channel++) {
+                if (sample_buffer[padding_channel] != 0) {
+                    memset(sample_buffer[padding_channel] + requested_samples, 0,
+                           (encoder->block_samples - requested_samples) * (s32)sizeof(s16));
+                }
+            }
+        }
+
+        encoder->sample_position += encoder->block_samples;
+        for (channel = 0; channel < encoder->channel_count; channel++) {
+            AdxSjePredictorFilter* filter;
+            AdxSjeIirFilter* iir_filter;
+            s16 previous1;
+
+            adxsje_calc_rsig(encoder, channel);
+            filter = encoder->filter[channel];
+            iir_filter = filter->iir_filter;
+            encoder->scale[channel] = filter->scale;
+            encoder->gain[channel] = filter->gain;
+            previous1 = iir_filter->previous1;
+            encoder->previous0[channel] = iir_filter->previous0;
+            encoder->previous1[channel] = previous1;
+            adxsje_set_rsig(encoder, channel);
+        }
+        return encoder->block_samples;
+    }
+}
+
+/* TODO: [near miss] 98.68263%; PCM transfer and filter-history register assignments remain. */
 s32 adxsje_encode_data(AdxSjeHandle* encoder)
 {
     s32 total_size;
-    s32 requested_samples;
-    s32 pcm_samples;
-    s32 channel;
     s32 produced;
     s32 encoded_samples;
     SJ* output;
-    SJ** inputs;
-    s16* sample_buffer[ADXSJE_MAX_CHANNELS];
 
     total_size = 0;
     output = encoder->output;
-    inputs = encoder->input;
     for (;;) {
         if ((output->interface->get_num_data(output, 0) /
              ADXSJE_BLOCK_BYTES) / encoder->channel_count <= 0) {
             break;
         }
-        requested_samples = encoder->sample_count - encoder->sample_position;
-        sample_buffer[0] = encoder->samples[0];
-        sample_buffer[1] = encoder->samples[1];
-        if (encoder->block_samples < requested_samples) {
-            requested_samples = encoder->block_samples;
-        }
-        pcm_samples = adxsje_read_pcm(encoder, inputs, sample_buffer, requested_samples);
-        if (pcm_samples == 0) {
-            encoded_samples = 0;
-        } else {
-            if (requested_samples < encoder->block_samples) {
-                for (channel = 0; channel < encoder->channel_count; channel++) {
-                    if (sample_buffer[channel] != 0) {
-                        memset(sample_buffer[channel] + requested_samples, 0,
-                               (encoder->block_samples - requested_samples) * (s32)sizeof(s16));
-                    }
-                }
-            }
-
-            encoder->sample_position += encoder->block_samples;
-            for (channel = 0; channel < encoder->channel_count; channel++) {
-                AdxSjePredictorFilter* filter;
-                AdxSjeIirFilter* iir_filter;
-                s16 previous1;
-
-                adxsje_calc_rsig(encoder, channel);
-                filter = encoder->filter[channel];
-                iir_filter = filter->iir_filter;
-                encoder->scale[channel] = filter->scale;
-                encoder->gain[channel] = filter->gain;
-                previous1 = iir_filter->previous1;
-                encoder->previous0[channel] = iir_filter->previous0;
-                encoder->previous1[channel] = previous1;
-                adxsje_set_rsig(encoder, channel);
-            }
-            encoded_samples = encoder->block_samples;
-        }
+        encoded_samples = adxsje_encode_pcm_block(encoder);
         if (encoded_samples == 0) {
             break;
         }
@@ -752,8 +742,6 @@ s32 adxsje_encode_data(AdxSjeHandle* encoder)
     return total_size;
 }
 
-/* TODO: [near miss] 98.263885%; cached output, donor-typed value/byte
- * lifetimes, signed scale XOR, and chunk CFG match; residual register coloring remains. */
 s32 adxsje_output_sdata(AdxSjeHandle* encoder)
 {
     s32 channel;
@@ -763,17 +751,19 @@ s32 adxsje_output_sdata(AdxSjeHandle* encoder)
     s16 sample;
     s8 byte;
 
+    channel = 0;
     total_size = 0;
     output = encoder->output;
-    for (channel = 0; channel < encoder->channel_count; channel++) {
+    for (; channel < encoder->channel_count; channel++) {
+        const s32* encoded_words;
+
         value = (s16)(encoder->scale[channel] - 1) ^ encoder->random_seed;
         encoder->random_seed = (s16)(encoder->random_increment +
             encoder->random_seed * encoder->random_multiplier);
         encoder->random_seed &= 0x7FFF;
-        if (((u32*)encoder->encoded[channel])[0] == 0 &&
-            ((u32*)encoder->encoded[channel])[1] == 0 &&
-            ((u32*)encoder->encoded[channel])[2] == 0 &&
-            ((u32*)encoder->encoded[channel])[3] == 0) {
+        encoded_words = (const s32*)encoder->encoded[channel];
+        if (encoded_words[0] == 0 && encoded_words[1] == 0 &&
+            encoded_words[2] == 0 && encoded_words[3] == 0) {
             value = 0;
         }
         sample = (s16)value;
@@ -787,16 +777,15 @@ s32 adxsje_output_sdata(AdxSjeHandle* encoder)
     return total_size;
 }
 
-/* TODO: [near miss] 99.290780%; extent, CFG, and operations agree;
- * stop at GPR coloring. */
 void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
 {
     s32 index;
     s32 code;
-    s32 samples_per_byte;
     s32 bit_index;
+    s32 samples_per_byte;
     s32 output_index;
-    s32 value;
+    s32 scaled_value;
+    s32 reconstructed_value;
     s16 sample;
     s32 clipped;
     AdxSjePredictorFilter* filter;
@@ -814,10 +803,11 @@ void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
     filter = encoder->filter[channel];
     bit_index = 0;
     for (index = 0; index < encoder->block_samples; index++) {
+        s32 code_shift;
         sample = filter == 0 ? 0 : filter->residual[index];
         residual[index] = sample;
-        value = (s32)(filter->gain * residual[index]);
-        clipped = adxsje_clamp_s16_range(value);
+        scaled_value = (s32)(filter->gain * residual[index]);
+        clipped = adxsje_clamp_s16_range(scaled_value);
         scaled[index] = clipped;
         if (scaled[index] < 0) {
             code = (clipped - 0x924) / 4681;
@@ -825,15 +815,16 @@ void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
             code = (clipped + 0x924) / 4681;
         }
         code = adxsje_clamp_code(code);
-        value = (s32)(filter->gain * (code * filter->scale));
-        reconstructed[index] = adxsje_clamp_s16_range(value);
+        reconstructed_value = (s32)(filter->gain * (code * filter->scale));
+        reconstructed[index] = adxsje_clamp_s16_range(reconstructed_value);
 
         if ((index % samples_per_byte) == 0) {
             bit_index = 1;
             encoded[++output_index] = 0;
         }
-        code = (u8)((u32)code << (8 - encoder->bits_per_sample)) >>
-            (8 - encoder->bits_per_sample);
+        code_shift = encoder->bits_per_sample;
+        code_shift = 8 - code_shift;
+        code = (u8)((u32)code << code_shift) >> code_shift;
         encoded[output_index] |= (s8)(code <<
             (encoder->bits_per_sample * (samples_per_byte - bit_index)));
         bit_index++;
@@ -970,7 +961,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     return 0;
 }
 
-/* TODO: [near miss] 96.471430%; source/destination declaration order now matches retail cursor registers; remaining unrolled-copy differences are harmless temporary-register coloring. */
+/* TODO: [near miss] 96.47%; unrolled word and halfword copy load/store staging differs. */
 s32 adxsje_write68(const void* source, s32 element_size, s32 count, SJ* output)
 {
     s32 index;

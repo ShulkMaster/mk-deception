@@ -1,12 +1,35 @@
 #include "game/ground_fx.h"
 #include "runtime/utils.h"
+#include "game/fx.h"
+#include "game/bgnd_jmt.h"
+#include "game/ai.h"
+#include "game/bgnd.h"
+#include "mw/mwScreenEngineGlue.h"
+#include "msl/mslcore.h"
+#include "runtime/mk_particle.h"
+#include "platform/display_metrics.h"
+#include "game/mcardmsg.h"
+#include "runtime/sound_data.h"
+#include "runtime/cmath.h"
+#include "runtime/cstring.h"
+#include "runtime/cstdio.h"
+#include "runtime/mtRand2.h"
+#include "platform/gcutils.h"
+#include "movie/MovieManager.h"
+#include "mw/mwFile.h"
+#include "game/konquest.h"
+#include "game/mk_chess.h"
+#include "game/minigames.h"
 
 #include "game/game_info.h"
+#include "game/game.h"
 #include "game/ladder.h"
 #include "game/menu.h"
 #include "game/plyr.h"
+#include "game/plyr_globals.h"
 #include "game/specular.h"
 #include "game/controller.h"
+#include "game/switch.h"
 #include "game/memcard.h"
 #include "game/nbc.h"
 #include "game/plyrprofile.h"
@@ -15,6 +38,7 @@
 #include "movie/MkMovies.h"
 #include "mw/mwMemHeap.h"
 #include "math/gxMath.h"
+#include "math/mk_math.h"
 #include "platform/main.h"
 #include "platform/gcmcard.h"
 #include "platform/display.h"
@@ -37,44 +61,28 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
 #include "runtime/sound.h"
+#include "runtime/sound_bank.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
 
-
-void* memset(void* dst, int c, unsigned long n);
-unsigned int genlrand(void);
-int get_platform_language_setting(void);
-int ck_eat_online_switches(void);
-long long debug_get_usec_timer(void);
 void limb_sever_reset_limbs(PlyrInfo* player);
 
-extern int screen_width;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern int p1_profile_device;
 extern int p2_profile_device;
 extern int p1_profile_slot;
 extern int p2_profile_slot;
-extern int f_writing_to_memcard;
-extern PlayerProfile p1_profile;
-extern PlayerProfile p2_profile;
 extern int p1_rumble_on;
 extern int p2_rumble_on;
-extern void fire_screen_studio_event(int event, int arg);
-extern int use_feedback_effect;
-extern MkPtr* pfx_render_list;
-extern MkPtr* pfx_clone_render_list;
 extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
-extern float game_volume;
 extern _mslSystem* msi;
 
 extern MkHdr* apdata_save;
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
 extern PlyrPdata* his_pdata;
 extern MkProc* plyr_anim_proc;
 extern int f_fatality_finished;
@@ -85,51 +93,28 @@ extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern unsigned char monk_ground_colls[];
 
-typedef struct GlobalObjectLatch {
-    void* object;
-    unsigned int instance;
-} GlobalObjectLatch;
-
-extern GlobalObjectLatch p1_freeze_light_item;
-extern GlobalObjectLatch p2_freeze_light_item;
-extern GlobalObjectLatch p1_freeze_proc_item;
-extern GlobalObjectLatch p2_freeze_proc_item;
-extern GlobalObjectLatch rope_proc_item;
-extern GlobalObjectLatch sobj_ctrl_proc_item;
-
 void init_bgnd_info_struct(void);
-void init_game_info_struct(void);
 void setDroneOverrideSwitch(int activated, void* info);
 void reset_obstacle_internal_id(void);
-void turn_switch_log_off(void);
-void delete_player(int player_index);
-void destroy_background_extras(void);
 void terminate_bgnd_collisions(void);
 void screen_engine_cleanup(void);
 void delete_light_lists(void);
-void cleanup_minigame_system(void);
-void cleanup_konquest(void);
-void mk_chess_cleanup(void);
-void cleanup_drone_ai(void);
 void cleanup_fight(void);
-void unload_all_effect_banks(void);
 void term_collision_system(void);
 void bleed_init(void);
 void initialize_background_danger_zones(void);
-void mslStopAll(_mslSystem* system);
 void mslUnDuckAll(_mslSystem* system);
 void init_collision_system(void);
-void init_screen_engine(void);
 void pfxscript_initialize(void);
 
-typedef struct FixedHeapConfigStorage {
+struct FixedHeapConfigStorage {
     FixedHeapConfig heaps;
     unsigned long field_0x34;
-} FixedHeapConfigStorage;
+};
 typedef char FixedHeapConfigStorageSizeCheck[
-    sizeof(FixedHeapConfigStorage) == 0x38 ? 1 : -1];
+    sizeof(struct FixedHeapConfigStorage) == 0x38 ? 1 : -1];
 
-static FixedHeapConfigStorage current_heap_block_counts;
+static struct FixedHeapConfigStorage current_heap_block_counts;
 static int game_state_stack[8];
 static int game_state_stack_depth = -1;
 static MkPtr* uv_scroll_control_list;
@@ -145,17 +130,17 @@ char pathname_buffer[0x78];
 UsecTimerData usec_timer_data[9];
 int depth_of_field_active;
 
-typedef struct LoadProfilePdata {
+struct LoadProfilePdata {
     MkHdr hdr;
     int player;
     int port;
     unsigned char* code;
-} LoadProfilePdata;
+};
 
-typedef struct ProfileCommonRumble {
+struct ProfileCommonRumble {
     char pad00[0xFC];
     int rumble;
-} ProfileCommonRumble;
+};
 
 static const float kFadeScaleX = 50.0f;
 static const float kFadeScaleY = 40.0f;
@@ -177,11 +162,6 @@ static const float kMinGameVol = 0.0f;
 
 static const Vec kDebugDamageBoneOffset = {0.0f, 0.0f, 0.0f};
 
-/*
- * utils.o @stringBase0 (0x802FF2A4). Offsets used by play_movie / fade_screen.
- * Movie basenames also appear here in retail; movie_info[] below uses its own
- * string literals so paths resolve without the ASM reloc pool.
- */
 static const char stringBase0[] =
     "ARCADE.SFD\0CHESS.SFD\0PUZZLE.SFD\0KONQUEST.SFD\0OPENINGN.SFD\0OPENINGW.SFD\0"
     "V_MK4FLY.SFD\0V_MKDRSB.SFD\0V_MKDTPC.SFD\0V_MKDTRL.SFD\0V_MKDTRS.SFD\0"
@@ -219,62 +199,57 @@ static const char stringBase0[] =
 #define STR_MONK_GROUND_COLLS (&stringBase0[0x389])
 #define MOVIE_NAME(offset) (&stringBase0[(offset)])
 
-/*
- * B17 P0: movie_info[] lifted from utils.o .data:0x80337220 (Ghidra + ASM).
- * NonMatching: retail table still comes from split ASM for sha1; this C copy is
- * for play_movie path resolution. Entry size 0x20; 45 slots (0..0x2C).
- */
 int screen_engine_movie_table[6] = {0, 1, 2, 3, 0x2A, 0x29};
 
 MovieInfoEntry movie_info[MOVIE_INFO_COUNT] = {
-    /* 0x00 */ { MOVIE_NAME(0x000), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x01 */ { MOVIE_NAME(0x00B), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x02 */ { MOVIE_NAME(0x015), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x03 */ { MOVIE_NAME(0x020), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x04 MOVIE_ID_INTRO */ { MOVIE_NAME(0x02D), 640, 400, MOVIE_NAME(0x03A), 736, 320, 0, 0 },
-    /* 0x05 */ { MOVIE_NAME(0x047), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x06 */ { MOVIE_NAME(0x054), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x07 */ { MOVIE_NAME(0x061), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x08 */ { MOVIE_NAME(0x06E), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x09 */ { MOVIE_NAME(0x07B), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0A */ { MOVIE_NAME(0x088), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0B */ { MOVIE_NAME(0x095), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0C */ { MOVIE_NAME(0x0A2), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0D */ { MOVIE_NAME(0x0AF), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0E */ { MOVIE_NAME(0x0BC), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0F */ { MOVIE_NAME(0x0C9), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x10 */ { MOVIE_NAME(0x0D6), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x11 */ { MOVIE_NAME(0x0E3), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x12 */ { MOVIE_NAME(0x0F0), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x13 */ { MOVIE_NAME(0x0FD), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x14 */ { MOVIE_NAME(0x108), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x15 */ { MOVIE_NAME(0x113), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x16 */ { MOVIE_NAME(0x11E), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x17 */ { MOVIE_NAME(0x129), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x18 */ { MOVIE_NAME(0x134), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x19 */ { MOVIE_NAME(0x13F), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1A */ { MOVIE_NAME(0x14A), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1B */ { MOVIE_NAME(0x155), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1C */ { MOVIE_NAME(0x161), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1D */ { MOVIE_NAME(0x16D), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1E */ { MOVIE_NAME(0x17A), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1F */ { MOVIE_NAME(0x187), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x20 */ { MOVIE_NAME(0x194), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x21 */ { MOVIE_NAME(0x1A1), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x22 */ { MOVIE_NAME(0x1AD), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x23 */ { MOVIE_NAME(0x1BA), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x24 */ { MOVIE_NAME(0x1C7), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x25 */ { MOVIE_NAME(0x1D4), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x26 */ { MOVIE_NAME(0x1E1), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x27 */ { MOVIE_NAME(0x1EE), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x28 */ { MOVIE_NAME(0x1FB), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x29 MOVIE_ID_TITLE */ { MOVIE_NAME(0x208), 640, 480, MOVIE_NAME(0x213), 704, 480, 0, 0 },
-    /* 0x2A MOVIE_ID_MIDWAY_LOGO */ { MOVIE_NAME(0x21E), 640, 480, MOVIE_NAME(0x228), 704, 480, 0, 0 },
-    /* 0x2B MOVIE_ID_QUAD */ { MOVIE_NAME(0x232), 640, 480, MOVIE_NAME(0x23C), 704, 480, 0, 0 },
-    /* 0x2C MOVIE_ID_TITLE_ALT */ { MOVIE_NAME(0x246), 640, 480, MOVIE_NAME(0x252), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x000), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x00B), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x015), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x020), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x02D), 640, 400, MOVIE_NAME(0x03A), 736, 320, 0, 0 },
+    { MOVIE_NAME(0x047), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x054), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x061), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x06E), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x07B), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x088), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x095), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0A2), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0AF), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0BC), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0C9), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0D6), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0E3), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0F0), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0FD), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x108), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x113), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x11E), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x129), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x134), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x13F), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x14A), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x155), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x161), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x16D), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x17A), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x187), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x194), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1A1), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1AD), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1BA), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1C7), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1D4), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1E1), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1EE), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1FB), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x208), 640, 480, MOVIE_NAME(0x213), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x21E), 640, 480, MOVIE_NAME(0x228), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x232), 640, 480, MOVIE_NAME(0x23C), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x246), 640, 480, MOVIE_NAME(0x252), 704, 480, 0, 0 },
 };
 
-typedef struct FadeScreenPdata {
+struct FadeScreenPdata {
     MkHdr hdr;
     int to_fade;
     int frames;
@@ -286,61 +261,38 @@ typedef struct FadeScreenPdata {
     unsigned char color_g;
     unsigned char color_b;
     unsigned char alpha;
-} FadeScreenPdata;
+};
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-} MkVtableMkprocLocal;
-
-/*
- * blink_cursor pdata (get_mkhdr size 0x28). Toggles ScreenObjFlags.hidden
- * (byte +0x0C bit4 / 0x10) -- same bit as hide_screen_obj / show_or_hide
- * screen path. StringObjs use StringObjVisBits.hidden (0x80) instead.
- */
-typedef struct BlinkCursorPdata {
-    MkHdr hdr; /* +0x00 */
-    ScreenObj* obj; /* +0x08 */
-    int on_ticks; /* +0x0C */
-    int off_ticks; /* +0x10 */
-} BlinkCursorPdata;
-
-typedef MkProc* (*UtilsCreateMkprocFn)(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                       int pdata_size, MkHdr** pdata_out);
+struct BlinkCursorPdata {
+    MkHdr hdr;
+    ScreenObj* obj;
+    int on_ticks;
+    int off_ticks;
+};
 
 static const float kBlinkDoneTick = -1.0f;
 
 static float p_blink_cursor(void);
 static void show_or_hide_2dobj(MkHdr* hdr);
 
-typedef struct DebugDamagePdata {
+struct DebugDamagePdata {
     MkHdr hdr;
     StringObj* object;
     unsigned int object_instance;
     int direction;
     int alpha;
     int delay;
-} DebugDamagePdata;
+};
 
-void get_bone_offset_world_pos(
-    MkObj* object, int bone, const Vec* offset, Vec* position);
-void camera_get_screen_pos_from_world_pos(
-    const Vec* world, RwV2d* screen);
-int sprintf(char* dest, const char* fmt, ...);
 double __fabs(double value);
 
 static float p_debug_damage_txt(void) {
-    DebugDamagePdata* pdata;
+    struct DebugDamagePdata* pdata;
     StringObj* object;
     PfxFontInstance* part;
     unsigned char alpha;
 
-    pdata = (DebugDamagePdata*)apdata;
+    pdata = (struct DebugDamagePdata*)apdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -392,7 +344,7 @@ static float p_debug_damage_txt(void) {
 }
 
 void display_debug_damage(PlyrInfo* player, float damage) {
-    DebugDamagePdata* pdata;
+    struct DebugDamagePdata* pdata;
     StringObj* object;
     char text[0x50];
     Vec bone_offset = kDebugDamageBoneOffset;
@@ -412,7 +364,7 @@ void display_debug_damage(PlyrInfo* player, float damage) {
         screen_position.y, 0x1D);
     if (_create_mkproc_generic_nostack(
             0x209D, 0x1F, p_debug_damage_txt,
-            sizeof(DebugDamagePdata), (MkHdr**)&pdata) != 0) {
+            sizeof(struct DebugDamagePdata), (MkHdr**)&pdata) != 0) {
         pdata->object = object;
         pdata->object_instance = object->instance;
         pdata->delay = 60;
@@ -421,17 +373,7 @@ void display_debug_damage(PlyrInfo* player, float damage) {
     }
 }
 
-void Simple_MoviePlayFullScreen(const char* path, int width, int height, MovieTapoutFn tapout);
-int is_widescreen_mode(void);
-int strncmp(const char* a, const char* b, unsigned long n);
-int sprintf(char* dest, const char* fmt, ...);
-int snprintf(char* dest, unsigned long n, const char* fmt, ...);
 int printf(const char* fmt, ...);
-const char* pathname_create(const char* path, int flag);
-void* mwFileOpen(const char* path, int mode);
-void mwFileClose(void);
-
-
 
 static inline int fade_pause_allows_tick(void) {
     if (g_game_info.feature_flags.bits.high_bit == 0 &&
@@ -441,16 +383,31 @@ static inline int fade_pause_allows_tick(void) {
     return 1;
 }
 
-/* TODO: [near miss] 98.89%; algorithm and CFG agree; register coloring and stringBase0 relocation remain. */
-int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
+static inline const char* movie_path_for_id(int movie_id)
+{
     const char* path;
+
+    if (movie_id >= 0x2D || movie_id < 0) {
+        movie_id = 0;
+    }
+    if (is_widescreen_mode() != 0) {
+        path = movie_info[movie_id].ws_path;
+        if (path != 0) {
+            return path;
+        }
+    }
+    return movie_info[movie_id].path;
+}
+
+int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     int height;
     int width;
     int extra;
-    int path_id;
     char buf[0x100];
     const char* open_path;
+    _mwFile* file;
     unsigned int play_type;
+    const char* path;
 
     if (is_widescreen_mode() != 0 && movie_info[movie_id].ws_path != 0) {
         height = movie_info[movie_id].ws_height;
@@ -461,45 +418,27 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     }
 
     extra = movie_info[movie_id].tex_extra;
-    path_id = movie_id;
-    if (movie_id >= 0x2D || movie_id < 0) {
-        path_id = 0;
-    }
-
-    if (is_widescreen_mode() != 0 && movie_info[path_id].ws_path != 0) {
-        path = movie_info[path_id].ws_path;
-    } else {
-        path = movie_info[path_id].path;
-    }
+    path = movie_path_for_id(movie_id);
 
     play_type = movie_info[movie_id].play_type;
     if (play_type == 1) {
-        int texture_path_id;
-
-        texture_path_id = movie_id;
-        if (movie_id >= 0x2D || movie_id < 0) {
-            texture_path_id = 0;
-        }
-        if (is_widescreen_mode() != 0 && movie_info[texture_path_id].ws_path != 0) {
-            path = movie_info[texture_path_id].ws_path;
-        } else {
-            path = movie_info[texture_path_id].path;
-        }
+        path = movie_path_for_id(movie_id);
         mkMovieTexPlay(0, path, width, height, extra, 0);
     } else if (play_type == 0) {
         if (strncmp(STR_MOVIE_V_PREFIX, path, 2) == 0 || strncmp(STR_MOVIE_VP_PREFIX, path, 3) == 0) {
             sprintf(buf, STR_KRYPT_MOVIE_PATH, path);
             open_path = pathname_create(buf, 0);
-            snprintf(buf, 0x100, STR_KRYPT_MOVIE_WIN, path);
-            buf[0xFF] = 0;
+            snprintf(buf, sizeof(buf), STR_KRYPT_MOVIE_WIN, path);
+            buf[sizeof(buf) - 1] = 0;
             path = buf;
         } else {
             sprintf(buf, STR_MOVIE_PATH, path);
             open_path = pathname_create(buf, 0);
         }
 
-        if (mwFileOpen(open_path, 0x21) != 0) {
-            mwFileClose();
+        file = mwFileOpen(open_path, 0x21);
+        if (file != 0) {
+            mwFileClose(file);
             Simple_MoviePlayFullScreen(path, width, height, tapout_cb);
             return 1;
         }
@@ -508,8 +447,7 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
-/* TODO: [near miss] 87.50%; zero callback argument schedules before movie-ID load;
- * used ID staging is neutral, scoped scheduling off regresses. */
+/* TODO: [near miss] 87.50%; zero tapout argument schedules before movie-ID load. */
 void screen_engine_play_movie(int index) {
     if (index >= 0xC8) {
         index -= 0xC8;
@@ -694,7 +632,6 @@ void setup_fixed_block_heaps(void) {
     mwMemAllocateFixedBlockHeaps(&current_heap_block_counts.heaps);
 }
 
-
 void load_and_set_refl_on_weapon(void) {
     int art_section;
     unsigned int art_id;
@@ -791,7 +728,7 @@ MkObj* find_obj_by_id(int id) {
         MkObj* object = (MkObj*)link->hdr;
         MkObj* resolved;
 
-        if (object->hdr.vtbl == &vtbl_mkobj) {
+        if (object->hdr.vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)) {
             resolved = object;
         } else {
             resolved = 0;
@@ -834,12 +771,12 @@ int get_language_setting(void) {
 static float p_blink_cursor(void) {
     int on_ticks;
     ScreenObj* live;
-    BlinkCursorPdata* pdata;
+    struct BlinkCursorPdata* pdata;
     unsigned int instance;
     int off_ticks;
     ScreenObj* object;
 
-    pdata = (BlinkCursorPdata*)apdata;
+    pdata = (struct BlinkCursorPdata*)apdata;
     if (pdata != 0) {
         object = pdata->obj;
         on_ticks = pdata->on_ticks;
@@ -858,7 +795,7 @@ static float p_blink_cursor(void) {
         if (live != 0) {
             live->flag_bits.hidden = 0;
             _mkproc_sleep_ticks = on_ticks;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } else {
             return kBlinkDoneTick;
         }
@@ -867,7 +804,7 @@ static float p_blink_cursor(void) {
         if (live != 0) {
             live->flag_bits.hidden = 1;
             _mkproc_sleep_ticks = off_ticks;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } else {
             return kBlinkDoneTick;
         }
@@ -876,9 +813,9 @@ static float p_blink_cursor(void) {
 
 void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks) {
     MkProc* proc;
-    BlinkCursorPdata* pdata;
+    struct BlinkCursorPdata* pdata;
 
-    proc = ((UtilsCreateMkprocFn)_create_mkproc_generic_bigstack)(
+    proc = _create_mkproc_generic_bigstack(
         proc_id, 0x1F, p_blink_cursor, 0x28, (MkHdr**)&mab_generic_pdata);
     if (proc != 0) {
         pdata = mab_generic_pdata;
@@ -896,14 +833,14 @@ void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks) {
 void hide_or_show_2d_obj_by_id(int oid, int hide) {
     set_2dobj_hide_state = hide;
     set_2dobj_oid = oid;
-    apply_to_mklist((MkListApplyFn)show_or_hide_2dobj, &screen_obj_list);
+    apply_to_mklist(show_or_hide_2dobj, &screen_obj_list);
 }
 
 static void show_or_hide_2dobj(MkHdr* hdr) {
     ScreenObj* screen;
     StringObj* text;
 
-    if (hdr->vtbl == &vtbl_mkpdata_screen_obj) {
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_screen_obj)) {
         screen = (ScreenObj*)hdr;
     } else {
         screen = 0;
@@ -914,7 +851,7 @@ static void show_or_hide_2dobj(MkHdr* hdr) {
         }
     }
 
-    if (hdr->vtbl == &vtbl_mkpdata_string_obj) {
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
         text = (StringObj*)hdr;
     } else {
         text = 0;
@@ -962,19 +899,23 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
+/* TODO: [near miss] 97.50%; loop state and parameter homes differ;
+ * current/target math and live-instance latch agree. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {
+    unsigned int instance;
     char text[40];
-    int target = start + change;
+    int current = start;
+    int target = current + change;
     int step = change < 0 ? -1 : 1;
     int tick_count = 0;
     int acceleration_count = 0;
 
     if (string != 0) {
-        unsigned int instance = string->instance;
+        instance = string->instance;
 
-        while (start != target) {
+        while (current != target) {
             StringObj* live;
 
             _mkproc_sleep_ticks = 1.0f;
@@ -990,17 +931,14 @@ void display_numerical_change(
                 if (live == 0) {
                     return;
                 }
-                distance = -(target - start);
-                if (target - start >= 0) {
-                    distance = target - start;
-                }
+                distance = target - current >= 0 ? target - current : -(target - current);
                 step_magnitude = step < 0 ? -step : step;
-                next = start + step;
+                next = current + step;
                 if (distance <= step_magnitude) {
                     next = target;
                 }
-                start = next;
-                format_value_to_display(text, start);
+                current = next;
+                format_value_to_display(text, current);
                 update_string_obj(live, font, text);
             }
             acceleration_count++;
@@ -1036,13 +974,13 @@ RpMaterial* material_set_color(
     return material;
 }
 
-typedef struct MaterialColorById {
+struct MaterialColorById {
     int id;
     RwRGBA color;
-} MaterialColorById;
+};
 
 RpAtomic* set_atomic_material_color_by_id(
-    RpAtomic* atomic, MaterialColorById* color_by_id) {
+    RpAtomic* atomic, struct MaterialColorById* color_by_id) {
     RpMaterial* material;
     RpGeometry* geometry;
     MkmaterialPluginData* plugin;
@@ -1085,7 +1023,7 @@ RpAtomic* set_atomic_material_color(
 
 void obj_set_color_for_material_by_id(
     MkObj* obj, int id, RwRGBA* color) {
-    MaterialColorById color_by_id;
+    struct MaterialColorById color_by_id;
 
     color_by_id.color = *color;
     color_by_id.id = id;
@@ -1167,17 +1105,17 @@ void save_both_profiles(int unused) {
 #pragma dont_inline reset
 
 float p_load_profile(void) {
-    LoadProfilePdata* pdata;
-    StorageProfileSlot* profile;
+    struct LoadProfilePdata* pdata;
     int device;
     int slot;
     int scan_state;
-    unsigned char* code;
     int player;
+    unsigned char* code;
     int port;
+    StorageProfileSlot* profile;
 
     scan_state = slot = device = 0;
-    pdata = (LoadProfilePdata*)apdata;
+    pdata = (struct LoadProfilePdata*)apdata;
     player = pdata->player;
     port = pdata->port;
     code = pdata->code;
@@ -1231,6 +1169,7 @@ float p_load_profile(void) {
             p2_profile_load_complete = PROFILE_LOAD_NOT_FOUND;
         }
         break;
+    case 3:
     default:
         if (player == 0) {
             p1_profile_status = 0;
@@ -1250,12 +1189,12 @@ float p_load_profile(void) {
 }
 
 int load_profile(int player, int port, unsigned char* code) {
-    LoadProfilePdata* pdata;
+    struct LoadProfilePdata* pdata;
     MkProc* proc;
 
     pdata = 0;
     proc = _create_mkproc_generic_bigstack(
-        LOAD_PROFILE_PROC_PID, 0x1F, p_load_profile, sizeof(LoadProfilePdata), (MkHdr**)&pdata);
+        LOAD_PROFILE_PROC_PID, 0x1F, p_load_profile, sizeof(struct LoadProfilePdata), (MkHdr**)&pdata);
     if (proc != 0) {
         pdata->player = player;
         pdata->port = port;
@@ -1278,10 +1217,10 @@ int load_profile(int player, int port, unsigned char* code) {
         if (player == 0) {
             while (p1_profile_load_complete == PROFILE_LOAD_PENDING) {
                 _mkproc_sleep_ticks = 1.0f;
-                ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
             if (p1_profile_load_complete == PROFILE_LOAD_OK) {
-                p1_rumble_on = ((ProfileCommonRumble*)p1_profile_common)->rumble;
+                p1_rumble_on = ((struct ProfileCommonRumble*)p1_profile_common)->rumble;
             }
             fire_screen_studio_event(PROFILE_LOAD_EVENT, 1);
             return p1_profile_load_complete;
@@ -1289,10 +1228,10 @@ int load_profile(int player, int port, unsigned char* code) {
 
         while (p2_profile_load_complete == PROFILE_LOAD_PENDING) {
             _mkproc_sleep_ticks = 1.0f;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
         if (p2_profile_load_complete == PROFILE_LOAD_OK) {
-            p2_rumble_on = ((ProfileCommonRumble*)p2_profile_common)->rumble;
+            p2_rumble_on = ((struct ProfileCommonRumble*)p2_profile_common)->rumble;
         }
         fire_screen_studio_event(PROFILE_LOAD_EVENT, 2);
         return p2_profile_load_complete;
@@ -1308,7 +1247,7 @@ static void obj_set_alpha_by_id(MkHdr* hdr) {
     unsigned char alpha;
     int i;
 
-    if (hdr->vtbl == &vtbl_mkpdata_screen_obj) {
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_screen_obj)) {
         screen = (ScreenObj*)hdr;
     } else {
         screen = 0;
@@ -1324,7 +1263,7 @@ static void obj_set_alpha_by_id(MkHdr* hdr) {
         return;
     }
 
-    if (hdr->vtbl == &vtbl_mkpdata_string_obj) {
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
         text = (StringObj*)hdr;
     } else {
         text = 0;
@@ -1374,7 +1313,7 @@ void create_fade_box(void) {
     destroy_mkprocs_pid(FADE_PROC_PID);
     delete_screen_obj_oid(FADE_BLACK_OID);
     delete_screen_obj_oid(FADE_WHITE_OID);
-    obj = load_2d_pfxobj(0, FADE_BLACK_OID, (char*)0x10017, 0, 0xd);
+    obj = load_2d_pfxobj(0, FADE_BLACK_OID, 0x10017, 0, 0xd);
     if (obj != 0) {
         obj->x = -0x32;
         obj->y = -0x32;
@@ -1384,22 +1323,29 @@ void create_fade_box(void) {
     }
 }
 
+static inline void publish_fade_screen_alpha(ScreenObj* obj, unsigned char alpha) {
+    int i;
+
+    for (i = 0; i < 4; i++) {
+        obj->pfx2d->verts[i].a = alpha;
+    }
+    obj->pfx2d->mirror = 1;
+}
+
 static float p_fade_screen(void) {
-    FadeScreenPdata* pdata;
+    struct FadeScreenPdata* pdata;
     ScreenObj* obj;
     float volume_step;
     float volume;
     int next_alpha;
     int done;
     int branch_done;
-    int i;
-    unsigned char alpha;
 
     if (fade_pause_allows_tick() == 0) {
         return kFadeSleepTick;
     }
 
-    pdata = (FadeScreenPdata*)apdata;
+    pdata = (struct FadeScreenPdata*)apdata;
     if (pdata == 0) {
         return kFadeDoneTick;
     }
@@ -1421,11 +1367,7 @@ static float p_fade_screen(void) {
         obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
         if (obj != 0) {
-            alpha = pdata->alpha;
-            for (i = 0; i < 4; i++) {
-                obj->pfx2d->verts[i].a = alpha;
-            }
-            obj->pfx2d->mirror = 1;
+            publish_fade_screen_alpha(obj, pdata->alpha);
 
             if (pdata->audio_flag != 0) {
                 volume = snd_get_game_vol() - volume_step;
@@ -1456,11 +1398,7 @@ static float p_fade_screen(void) {
         obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
 
         if (obj != 0) {
-            alpha = pdata->alpha;
-            for (i = 0; i < 4; i++) {
-                obj->pfx2d->verts[i].a = alpha;
-            }
-            obj->pfx2d->mirror = 1;
+            publish_fade_screen_alpha(obj, pdata->alpha);
 
             if (pdata->audio_flag != 0) {
                 volume = snd_get_game_vol();
@@ -1492,22 +1430,23 @@ static float p_fade_screen(void) {
     return done != 0 ? kFadeDoneTick : kFadeSleepTick;
 }
 
-/* Keep out-of-line so fade_from / fade_to wrappers match retail bl. */
 #pragma dont_inline on
+/* TODO: [near miss] 98.81%; owner reloads and saved-register homes agree;
+ * initial vertex publication retains volatile-register swaps. */
 static void fade_screen(int frames, int color, int flag, int to_fade) {
-    FadeScreenPdata* pdata;
+    struct FadeScreenPdata* pdata;
+    struct FadeScreenPdata* initial_fade;
     MkProc* proc;
     ScreenObj* obj;
     float volume_step;
     float volume;
     int next_alpha;
-    int scaled_frames;
     int wait_count;
     int tick_allowed;
     int i;
     unsigned char alpha;
 
-    scaled_frames = ((float)frames * inverse_game_speed);
+    frames = ((float)frames * inverse_game_speed);
     if (find_mkproc_pid(FADE_PROC_PID) == 0) {
         if (to_fade == 0) {
             destroy_mkprocs_pid(FADE_PROC_PID);
@@ -1517,9 +1456,9 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
 
         proc = _create_mkproc_generic_nostack(
             FADE_PROC_PID, 0x1F, p_fade_screen,
-            sizeof(FadeScreenPdata), (MkHdr**)&pdata);
+            sizeof(struct FadeScreenPdata), (MkHdr**)&pdata);
         if (proc != 0) {
-            pdata->frames = scaled_frames;
+            pdata->frames = frames;
             pdata->color = color;
             pdata->audio_flag = flag;
             pdata->to_fade = to_fade;
@@ -1552,27 +1491,28 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                 obj->scale_y = kFadeScaleY;
                 obj->priority = 0x13;
 
-                if (pdata->to_fade != 0) {
+                initial_fade = pdata;
+                if (initial_fade->to_fade != 0) {
                     volume_step =
-                        1.0f / (255.0f / (float)pdata->frames);
+                        1.0f / (255.0f / (float)initial_fade->frames);
                     next_alpha =
-                        (int)pdata->alpha + (pdata->frames & 0xFF);
+                        (int)initial_fade->alpha + (initial_fade->frames & 0xFF);
                     if (next_alpha > 0xFF) {
-                        pdata->alpha = 0xFF;
+                        initial_fade->alpha = 0xFF;
                     } else {
-                        pdata->alpha = next_alpha;
+                        initial_fade->alpha = next_alpha;
                     }
 
-                    obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
+                    obj = MK_LIVE(initial_fade->screen_obj, initial_fade->screen_instance);
 
                     if (obj != 0) {
-                        alpha = pdata->alpha;
+                        alpha = initial_fade->alpha;
                         for (i = 0; i < 4; i++) {
                             obj->pfx2d->verts[i].a = alpha;
                         }
                         obj->pfx2d->mirror = 1;
 
-                        if (pdata->audio_flag != 0) {
+                        if (initial_fade->audio_flag != 0) {
                             volume = snd_get_game_vol() - volume_step;
                             if (volume > 0.0f) {
                                 snd_set_game_vol(volume);
@@ -1583,25 +1523,26 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                     }
                 } else {
                     volume_step =
-                        1.0f / (255.0f / (float)pdata->frames);
-                    if ((int)pdata->alpha - (pdata->frames & 0xFF) < 0) {
-                        pdata->alpha = 0;
+                        1.0f / (255.0f / (float)initial_fade->frames);
+                    if ((int)initial_fade->alpha - (initial_fade->frames & 0xFF) < 0) {
+                        initial_fade->alpha = 0;
                     } else {
-                        pdata->alpha =
-                            pdata->alpha - (unsigned char)pdata->frames;
+                        initial_fade->alpha =
+                            initial_fade->alpha - (unsigned char)initial_fade->frames;
                     }
 
-                    obj = MK_LIVE(pdata->screen_obj, pdata->screen_instance);
+                    obj = MK_LIVE(initial_fade->screen_obj, initial_fade->screen_instance);
 
                     if (obj != 0) {
-                        alpha = pdata->alpha;
+                        alpha = initial_fade->alpha;
                         for (i = 0; i < 4; i++) {
                             obj->pfx2d->verts[i].a = alpha;
                         }
                         obj->pfx2d->mirror = 1;
 
-                        if (pdata->audio_flag != 0) {
-                            volume = snd_get_game_vol() + volume_step;
+                        if (initial_fade->audio_flag != 0) {
+                            volume = snd_get_game_vol();
+                            volume += volume_step;
                             if (volume < game_volume) {
                                 snd_set_game_vol(volume);
                             } else {
@@ -1616,7 +1557,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
         wait_count = 0x104;
         while (find_mkproc_pid(FADE_PROC_PID) != 0) {
             _mkproc_sleep_ticks = kFadeSleepTick;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
 
             if (g_game_info.feature_flags.bits.high_bit == 0 &&
                 is_controller_removed() != 0) {
@@ -1690,8 +1631,6 @@ void set_screen_obj_alpha(ScreenObj* obj, float alpha) {
     }
 }
 
-extern double fmod(double x, double y);
-extern void MKMatrixSetIdentity(void* m);
 enum {
     kUvPass1 = 1,
     kUvPass2 = 2,
@@ -1703,7 +1642,6 @@ enum {
     kMatFxDualUvTransform = 6
 };
 
-/* Open-coded like retail; keep as macros so dual/pass sizes stay near ASM. */
 #define UV_WRAP(comp)                                                          \
     do {                                                                       \
         float _v = (comp);                                                     \
@@ -1724,7 +1662,7 @@ enum {
 
 #define UV_CLEAR_DIRTY(mtx)                                                    \
     do {                                                                       \
-        unsigned int* _flags = (unsigned int*)&(mtx)[3];                       \
+        unsigned int* _flags = &(mtx).flags;                                   \
         *_flags = *_flags & ~kUvMtxDirty;                                      \
     } while (0)
 
@@ -1736,36 +1674,48 @@ static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
 #pragma dont_inline on
 
 static void uv_scroll_dual_pass(UvScrollControl* ctrl) {
-    RpAtomic* atomic;
-    RpGeometry* geom;
-    UV_ADVANCE_PAIR(ctrl->mtx1[12], ctrl->mtx1[13], ctrl->rateU1, ctrl->rateV1);
+    float rate_v;
+    rate_v = ctrl->rateV1;
+    ctrl->mtx1.pos.x += ctrl->rateU1 * game_speed;
+    ctrl->mtx1.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx1.pos.x);
+    UV_WRAP(ctrl->mtx1.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx1);
-    UV_ADVANCE_PAIR(ctrl->mtx2[12], ctrl->mtx2[13], ctrl->rateU2, ctrl->rateV2);
+    rate_v = ctrl->rateV2;
+    ctrl->mtx2.pos.x += ctrl->rateU2 * game_speed;
+    ctrl->mtx2.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx2.pos.x);
+    UV_WRAP(ctrl->mtx2.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx2);
-    atomic = ctrl->atomic;
-    geom = atomic->geometry;
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1[0]);
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix_2, &ctrl->mtx2[0]);
+    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix, &ctrl->mtx1);
+    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix_2, &ctrl->mtx2);
 }
 
 static void uv_scroll_pass_2(UvScrollControl* ctrl) {
     RpAtomic* atomic;
     RpGeometry* geom;
-    UV_ADVANCE_PAIR(ctrl->mtx2[12], ctrl->mtx2[13], ctrl->rateU2, ctrl->rateV2);
+    float rateV = ctrl->rateV2;
+    UV_ADVANCE_PAIR(ctrl->mtx2.pos.x, ctrl->mtx2.pos.y, ctrl->rateU2, rateV);
     UV_CLEAR_DIRTY(ctrl->mtx2);
     atomic = ctrl->atomic;
     geom = atomic->geometry;
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix_2, &ctrl->mtx2[0]);
+    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix_2, &ctrl->mtx2);
 }
 
 static void uv_scroll_pass_1(UvScrollControl* ctrl) {
     RpAtomic* atomic;
     RpGeometry* geom;
-    UV_ADVANCE_PAIR(ctrl->mtx1[12], ctrl->mtx1[13], ctrl->rateU1, ctrl->rateV1);
+    float rate_v;
+
+    rate_v = ctrl->rateV1;
+    ctrl->mtx1.pos.x += ctrl->rateU1 * game_speed;
+    ctrl->mtx1.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx1.pos.x);
+    UV_WRAP(ctrl->mtx1.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx1);
     atomic = ctrl->atomic;
     geom = atomic->geometry;
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1[0]);
+    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1);
 }
 
 #pragma dont_inline off
@@ -1791,42 +1741,41 @@ static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
 static inline void uv_init_transform_pair(UvScrollControl* ctrl) {
     float one = 1.0f;
     float zero = 0.0f;
-    ctrl->mtx1[10] = one;
-    ctrl->mtx1[5] = one;
-    ctrl->mtx1[0] = one;
-    ctrl->mtx1[4] = zero;
-    ctrl->mtx1[2] = zero;
-    ctrl->mtx1[1] = zero;
-    ctrl->mtx1[9] = zero;
-    ctrl->mtx1[8] = zero;
-    ctrl->mtx1[6] = zero;
-    ctrl->mtx1[14] = zero;
-    ctrl->mtx1[13] = zero;
-    ctrl->mtx1[12] = zero;
-    *(unsigned int*)&ctrl->mtx1[3] = *(unsigned int*)&ctrl->mtx1[3] | kUvMtxFlags;
-    ctrl->mtx2[10] = one;
-    ctrl->mtx2[5] = one;
-    ctrl->mtx2[0] = one;
-    ctrl->mtx2[4] = zero;
-    ctrl->mtx2[2] = zero;
-    ctrl->mtx2[1] = zero;
-    ctrl->mtx2[9] = zero;
-    ctrl->mtx2[8] = zero;
-    ctrl->mtx2[6] = zero;
-    ctrl->mtx2[14] = zero;
-    ctrl->mtx2[13] = zero;
-    ctrl->mtx2[12] = zero;
-    *(unsigned int*)&ctrl->mtx2[3] = *(unsigned int*)&ctrl->mtx2[3] | kUvMtxFlags;
+    ctrl->mtx1.at.z = one;
+    ctrl->mtx1.up.y = one;
+    ctrl->mtx1.right.x = one;
+    ctrl->mtx1.up.x = zero;
+    ctrl->mtx1.right.z = zero;
+    ctrl->mtx1.right.y = zero;
+    ctrl->mtx1.at.y = zero;
+    ctrl->mtx1.at.x = zero;
+    ctrl->mtx1.up.z = zero;
+    ctrl->mtx1.pos.z = zero;
+    ctrl->mtx1.pos.y = zero;
+    ctrl->mtx1.pos.x = zero;
+    ctrl->mtx1.flags = ctrl->mtx1.flags | kUvMtxFlags;
+    ctrl->mtx2.at.z = one;
+    ctrl->mtx2.up.y = one;
+    ctrl->mtx2.right.x = one;
+    ctrl->mtx2.up.x = zero;
+    ctrl->mtx2.right.z = zero;
+    ctrl->mtx2.right.y = zero;
+    ctrl->mtx2.at.y = zero;
+    ctrl->mtx2.at.x = zero;
+    ctrl->mtx2.up.z = zero;
+    ctrl->mtx2.pos.z = zero;
+    ctrl->mtx2.pos.y = zero;
+    ctrl->mtx2.pos.x = zero;
+    ctrl->mtx2.flags = ctrl->mtx2.flags | kUvMtxFlags;
 }
 
 static inline void material_apply_scroll_effects(RpMaterial* material) {
     int effects;
-    RwTexture* dual_texture;
-    int src;
-    int dst;
+    RwBlendFunction dst;
+    RwBlendFunction src;
     effects = RpMatFXMaterialGetEffects(material);
     if (effects == kMatFxDual) {
-        dual_texture = RpMatFXMaterialGetDualTexture(material);
+        RwTexture* dual_texture = RpMatFXMaterialGetDualTexture(material);
         RpMatFXMaterialGetDualBlendModes(material, &src, &dst);
         RpMatFXMaterialSetEffects(material, kMatFxDualUvTransform);
         RpMatFXMaterialSetDualBlendModes(material, src, dst);
@@ -1836,26 +1785,35 @@ static inline void material_apply_scroll_effects(RpMaterial* material) {
     }
 }
 
+static inline void material_advance_uv_pair(RwV3d* uv, float rateU, float rateV) {
+    uv->x = rateU * game_speed + uv->x;
+    uv->y = rateV * game_speed + uv->y;
+    UV_WRAP(uv->x);
+    UV_WRAP(uv->y);
+}
+
 static void* material_scroll_uvs_callback(void* mat, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
+    unsigned int pass1;
     ctrl = data;
     flags = ctrl->pass_flags;
-    if ((flags & kUvPass1) != 0 && (flags & kUvPass2) != 0) {
-        UV_ADVANCE_PAIR(ctrl->mtx1[12], ctrl->mtx1[13], ctrl->rateU1, ctrl->rateV1);
+    pass1 = flags & kUvPass1;
+    if (pass1 != 0 && (flags & kUvPass2) != 0) {
+        material_advance_uv_pair(&ctrl->mtx1.pos, ctrl->rateU1, ctrl->rateV1);
         UV_CLEAR_DIRTY(ctrl->mtx1);
-        UV_ADVANCE_PAIR(ctrl->mtx2[12], ctrl->mtx2[13], ctrl->rateU2, ctrl->rateV2);
+        material_advance_uv_pair(&ctrl->mtx2.pos, ctrl->rateU2, ctrl->rateV2);
         UV_CLEAR_DIRTY(ctrl->mtx2);
-        material_set_uv_scroll_matrix(mat, &ctrl->mtx1[0]);
-        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2[0]);
-    } else if ((flags & kUvPass1) != 0) {
-        UV_ADVANCE_PAIR(ctrl->mtx1[12], ctrl->mtx1[13], ctrl->rateU1, ctrl->rateV1);
+        material_set_uv_scroll_matrix(mat, &ctrl->mtx1);
+        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2);
+    } else if (pass1 != 0) {
+        material_advance_uv_pair(&ctrl->mtx1.pos, ctrl->rateU1, ctrl->rateV1);
         UV_CLEAR_DIRTY(ctrl->mtx1);
-        material_set_uv_scroll_matrix(mat, &ctrl->mtx1[0]);
+        material_set_uv_scroll_matrix(mat, &ctrl->mtx1);
     } else if ((flags & kUvPass2) != 0) {
-        UV_ADVANCE_PAIR(ctrl->mtx2[12], ctrl->mtx2[13], ctrl->rateU2, ctrl->rateV2);
+        material_advance_uv_pair(&ctrl->mtx2.pos, ctrl->rateU2, ctrl->rateV2);
         UV_CLEAR_DIRTY(ctrl->mtx2);
-        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2[0]);
+        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2);
     }
     return mat;
 }
@@ -1939,7 +1897,24 @@ static float p_process_uvscrolling(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 95.16666%; retail behavior agrees; owner/control coloring, blend-output slots and equivalent return/FP lowering; stop at compiler limit */
+static inline UvScrollControl* create_uv_scroll_control(void) {
+    UvScrollControl* ctrl;
+    ctrl = (UvScrollControl*)get_mkhdr_generic(sizeof(UvScrollControl));
+    if (ctrl != 0) {
+        ctrl->target = 0;
+        ctrl->target_is_atomic = 1;
+        ctrl->pass_flags = 0;
+        ctrl->rateU1 = 0.0f;
+        ctrl->rateV1 = 0.0f;
+        ctrl->rateU2 = 0.0f;
+        ctrl->rateV2 = 0.0f;
+        MKMatrixSetIdentity(&ctrl->mtx1);
+        MKMatrixSetIdentity(&ctrl->mtx2);
+    }
+    return ctrl;
+}
+
+/* TODO: [near miss] 99.326920%; dual-texture result staging copy remains. */
 UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
                                           float u1, float v1, float u2,
                                           float v2) {
@@ -1950,18 +1925,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     if (owner == 0) {
         return 0;
     }
-    ctrl = (UvScrollControl*)get_mkhdr_generic(sizeof(UvScrollControl));
-    if (ctrl != 0) {
-        ctrl->target = 0;
-        ctrl->target_is_atomic = 1;
-        ctrl->pass_flags = 0;
-        ctrl->rateU1 = 0.0f;
-        ctrl->rateV1 = 0.0f;
-        ctrl->rateU2 = 0.0f;
-        ctrl->rateV2 = 0.0f;
-        MKMatrixSetIdentity(&ctrl->mtx1[0]);
-        MKMatrixSetIdentity(&ctrl->mtx2[0]);
-    }
+    ctrl = create_uv_scroll_control();
     if (ctrl != 0) {
         ctrl->owner = owner;
         ctrl->owner_instance = owner->hdr.instance;
@@ -1973,18 +1937,19 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
         ctrl->rateU2 = u2;
         ctrl->rateV2 = v2;
         ctrl->pass_flags = 0;
-        if (u1 != 0.0f || v1 != 0.0f) {
+        if (u1 || v1) {
             ctrl->pass_flags |= kUvPass1;
         }
-        if (u2 != 0.0f || v2 != 0.0f) {
+        if (u2 || v2) {
             ctrl->pass_flags |= kUvPass2;
         }
         ctrl->material = material;
         ctrl->target_is_atomic = 0;
         mk_insert(&ctrl->hdr, &uv_scroll_control_list);
-        return ctrl;
+    } else {
+        return 0;
     }
-    return 0;
+    return ctrl;
 }
 
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
@@ -2011,8 +1976,8 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
         ctrl->rateV1 = 0.0f;
         ctrl->rateU2 = 0.0f;
         ctrl->rateV2 = 0.0f;
-        MKMatrixSetIdentity(&ctrl->mtx1[0]);
-        MKMatrixSetIdentity(&ctrl->mtx2[0]);
+        MKMatrixSetIdentity(&ctrl->mtx1);
+        MKMatrixSetIdentity(&ctrl->mtx2);
     }
     if (ctrl != 0) {
         ctrl->owner = owner;
@@ -2079,73 +2044,49 @@ UvScrollControl* start_sobj_uv_scroll(
     return result;
 }
 
-/* TODO: [near miss] 96.55173%; retail unreachable extra branch to shared result exit; combined guard regresses. */
 AniTextureControl* replace_sobj_texture_with_named_wiff(
     MkSobj* sobj, int handle, const char* texture, const char* wiff) {
-    unsigned int art_oid;
     AniTextureControl* result;
+    unsigned int art_oid;
 
     art_oid = get_artid_of_named_item_in_slot(handle, texture, 1);
-    if (art_oid != 0) {
+    switch (art_oid) {
+    default:
         if (sobj != 0) {
             result = attach_wiff_to_atomic_material(
                 handle, art_oid, sobj->atomic, (char*)wiff);
         } else {
-            result = 0;
+            return 0;
         }
-    } else {
-        result = 0;
+        return result;
+    case 0:
+        return 0;
     }
-    return result;
 }
 
-/* TODO: [near miss] 97.35%; ternary absolute value leaves one fmr and FPR coloring residue. */
 float sfrand_ab(float a, float b) {
     float high;
     float low;
     float range;
+    float fraction;
     float scaled;
     unsigned int random_low;
     unsigned int random_value;
+    unsigned int random_high;
 
     high = a >= b ? a : b;
     low = a <= b ? a : b;
-    range = high - low;
-    range = range >= 0.0f ? range : -range;
+    range = (high - low) >= 0.0f ? high - low : -(high - low);
     random_low = (unsigned char)genlrand();
-    random_value = ((unsigned char)genlrand() << 8) | random_low;
-    scaled = range * ((float)random_value / 65535.0f);
+    random_high = (unsigned char)genlrand() << 8;
+    random_value = random_high | random_low;
+    fraction = random_value;
+    fraction /= 65535.0f;
+    scaled = range * fraction;
     return low + scaled;
 }
 
-/* TODO: [near miss] 97.87%; only FPR coloring differs. */
-int random_percent(float percent) {
-    unsigned int random_low;
-    unsigned int random_value;
-    float roll;
-
-    random_low = (unsigned char)genlrand();
-    random_value = ((unsigned char)genlrand() << 8) | random_low;
-    roll = 100.0f * ((float)random_value / 65535.0f);
-    return roll <= percent;
-}
-
-/* TODO: [near miss] 96.70%; exact algorithm; the ternary abs leaves one extra fmr plus FPR coloring. */
-float sfrand(float max) {
-    float range;
-    float scaled;
-    unsigned int random_low;
-    unsigned int random_value;
-
-    range = 2.0f * max;
-    range = range >= 0.0f ? range : -range;
-    random_low = (unsigned char)genlrand();
-    random_value = ((unsigned char)genlrand() << 8) | random_low;
-    scaled = range * ((float)random_value / 65535.0f);
-    return scaled - max;
-}
-
-float frand(float max) {
+static inline float utils_random_magnitude(float max) {
     float range;
     float fraction;
     unsigned int random_low;
@@ -2155,27 +2096,37 @@ float frand(float max) {
     random_low = (unsigned char)genlrand();
     random_value = (unsigned char)genlrand() << 8;
     random_value = random_value | random_low;
-    fraction = (float)random_value;
+    fraction = random_value;
     fraction /= 65535.0f;
     return range * fraction;
 }
 
-/* TODO: [near miss] 97.76%; GPR coloring and scheduling remain. */
+int random_percent(float percent) {
+    return utils_random_magnitude(1.0f) <= percent;
+}
+
+float sfrand(float max) {
+    return utils_random_magnitude(2.0f * max) - max;
+}
+
+float frand(float max) {
+    return utils_random_magnitude(max);
+}
+
 int signrand(unsigned short range) {
     char message[80];
     unsigned int first_random;
     unsigned int second_random;
-    unsigned int original_range;
-    unsigned int limit;
+    unsigned short limit;
+    unsigned int random_low;
     unsigned int random_value;
     unsigned int result;
 
     first_random = genlrand();
     second_random = genlrand();
-    limit = (unsigned short)(range * 2 + 1);
-    random_value = (unsigned char)first_random;
-    original_range = range;
-    random_value |= (unsigned char)second_random << 8;
+    limit = range * 2 + 1;
+    random_low = (unsigned char)first_random;
+    random_value = ((unsigned char)second_random << 8) | random_low;
     result = limit * random_value;
     result >>= 16;
     if (limit != 0) {
@@ -2189,7 +2140,7 @@ int signrand(unsigned short range) {
         printf(message);
         result = 0;
     }
-    return (unsigned short)result - original_range;
+    return (unsigned short)result - range;
 }
 
 unsigned int randu0(unsigned int max) {
@@ -2310,11 +2261,10 @@ int get_game_state(void) {
 
 void reset_game_state(void) {
     game_state_stack_depth = -1;
-    memset(game_state_stack, 0, 0x20);
+    memset(game_state_stack, 0, sizeof(game_state_stack));
 }
 
 void init_global_vars(void) {
-    int depth;
     int state;
 
     if ((unsigned int)global_instance_ctr < 0x80000000U) {
@@ -2325,9 +2275,6 @@ void init_global_vars(void) {
     init_bgnd_info_struct();
     init_game_info_struct();
 
-    depth = game_state_stack_depth;
-    state = 0;
-
     plyr_pdata = 0;
     plyr_obj = 0;
     his_obj = 0;
@@ -2335,28 +2282,26 @@ void init_global_vars(void) {
     plyr_anim_proc = 0;
     plyr_anim_pdata = 0;
 
-    p1_freeze_light_item.object = 0;
+    p1_freeze_light_item.obj = 0;
     p1_freeze_light_item.instance = 0;
-    p2_freeze_light_item.object = 0;
+    p2_freeze_light_item.obj = 0;
     p2_freeze_light_item.instance = 0;
     p1_freeze_proc_item.object = 0;
     p1_freeze_proc_item.instance = 0;
     p2_freeze_proc_item.object = 0;
     p2_freeze_proc_item.instance = 0;
-    rope_proc_item.object = 0;
+    rope_proc_item.proc = 0;
     rope_proc_item.instance = 0;
-    sobj_ctrl_proc_item.object = 0;
+    sobj_ctrl_proc_item.proc = 0;
     sobj_ctrl_proc_item.instance = 0;
 
-    g_game_info.flag_bits.field_bit0 = state;
+    g_game_info.flag_bits.field_bit0 = 0;
     f_fatality_finished = 0;
     f_fatality_available = 0;
     f_fatality_was_done = 0;
     b_game_timer_off = 0;
 
-    if (depth >= 0) {
-        state = game_state_stack[depth];
-    }
+    state = get_game_state();
 
     reset_game_state();
     push_game_state(state);
@@ -2391,7 +2336,6 @@ void start_usec_timer(int id) {
 
 void get_clean_system(void) {
     MkProc* proc;
-    int proc_status[2];
     RwBBox bounds;
 
     reset_game_speed();
@@ -2438,9 +2382,8 @@ void get_clean_system(void) {
     start_ani_texture_control();
 
     uv_scroll_control_list = 0;
-    proc_status[0] = 0;
-    proc_status[1] = 0;
-    proc = get_mkproc_nostack(&proc_status[1]);
+
+    proc = get_mkproc_nostack(mkproc_init_flags_none());
     create_mkproc(
         0x10, proc, 0x2020, p_process_uvscrolling, 0);
 

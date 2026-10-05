@@ -63,7 +63,7 @@ int pfxfont_get_width(FontMetrics* metrics, const char* text) {
     if (line > widest) {
         widest = line;
     }
-    return (int)widest;
+    return widest;
 }
 
 #pragma opt_common_subs off
@@ -96,7 +96,7 @@ int pfxfont_get_height(FontMetrics* metrics, const char* text) {
         }
     }
     line_h += max_glyph_h;
-    return (int)line_h;
+    return line_h;
 }
 #pragma opt_common_subs reset
 
@@ -138,14 +138,14 @@ static unsigned char hex_char(const char* p) {
 
     value = 0;
     for (i = 0; i < 2; i++) {
-        value = (unsigned char)((value & 0xff) << 4);
-        c = (int)(signed char)*p;
+        value = (value & 0xff) << 4;
+        c = (signed char)*p;
         if (c >= '0' && c <= '9') {
-            value = (unsigned char)((c + value) - '0');
+            value = (c + value) - '0';
         } else if (c >= 'a' && c <= 'f') {
-            value = (unsigned char)((c + value) - 0x57);
+            value = (c + value) - 0x57;
         } else if (c >= 'A' && c <= 'F') {
-            value = (unsigned char)((c + value) - 0x37);
+            value = (c + value) - 0x37;
         }
         p++;
     }
@@ -165,8 +165,8 @@ static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* i
 
     count = 0;
     while (*text != '\0') {
-        c = (int)(signed char)*text;
-        if (c == '<' && strncmp(text, COLOR_TAG, 9) == 0) {
+        c = (signed char)*text;
+        if (c == '<' && strncmp(text, COLOR_TAG, sizeof(COLOR_TAG) - 1) == 0) {
             if (count != 0) {
                 break;
             }
@@ -227,7 +227,7 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
         return;
     }
 
-    remaining = (int)strlen(text);
+    remaining = strlen(text);
     pfxfont_string_cleanup(ctx);
     pfxfont_string_init(ctx);
     ctx->face = font->face;
@@ -247,7 +247,7 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
         line_w_at_space = line_w;
 
         while (line_end < remaining) {
-            ch = (unsigned char)text[line_end];
+            ch = text[line_end];
             if (ch == 0 || ch == '\n') {
                 break;
             }
@@ -256,7 +256,7 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
                 line_w += font->metrics->space_width;
                 last_space = line_end;
             } else if (ch >= 0x20) {
-                if (ch == '<' && strncmp(text + line_end, COLOR_TAG, 9) == 0) {
+                if (ch == '<' && strncmp(text + line_end, COLOR_TAG, sizeof(COLOR_TAG) - 1) == 0) {
                     line_end += 0x12;
                     continue;
                 }
@@ -326,7 +326,7 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
             }
 
             if (pos < line_end) {
-                ch = (unsigned char)text[pos];
+                ch = text[pos];
                 if (ch == ' ') {
                     if (pen_x > s_zero) {
                         pen_x += font->metrics->space_width;
@@ -365,11 +365,11 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
     }
 
     nativefont_instance_unlock(cur);
-    ctx->width = (int)max_w;
-    ctx->height = (int)pen_y;
+    ctx->width = max_w;
+    ctx->height = pen_y;
 }
 void pfxfont_set_transform(PfxFontString* ctx, const void* matrix44) {
-    memcpy(ctx->transform, matrix44, 0x40);
+    memcpy(ctx->transform, matrix44, sizeof(*ctx->transform));
 }
 
 

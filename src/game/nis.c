@@ -1,4 +1,18 @@
 #include "game/nis.h"
+#include "game/game.h"
+#include "game/ending.h"
+#include "game/plyrprofile.h"
+#include "game/konquest_items.h"
+#include "game/bgnd.h"
+#include "game/plyr.h"
+#include "runtime/cstring.h"
+#include "platform/main_jump.h"
+#include "runtime/utils.h"
+#include "runtime/image.h"
+#include "runtime/cam.h"
+#include "platform/io.h"
+#include "platform/display_metrics.h"
+#include "runtime/sound.h"
 
 #include "game/game_info.h"
 #include "math/mk_math.h"
@@ -9,21 +23,19 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 
-typedef struct ScreenObj ScreenObj;
+struct NisPdata {
+    MkHdr hdr;
+    unsigned int cancel_func;
+    unsigned int scene_func;
+    ScriptSlot* cmdscript;
+};
 
-typedef struct NisPdata {
-    MkHdr hdr;                 /* +0x00 */
-    unsigned int cancel_func;  /* +0x08 */
-    unsigned int scene_func;   /* +0x0C */
-    ScriptSlot* cmdscript;     /* +0x10 */
-} NisPdata; /* 0x14 */
-
-typedef struct KamidoguDropPdata {
-    MkHdr hdr;               /* +0x00 */
-    MkObj* owner;            /* +0x08 */
-    unsigned int owner_id;   /* +0x0C */
-    Quat quat;               /* +0x10 */
-} KamidoguDropPdata; /* 0x20 */
+struct KamidoguDropPdata {
+    MkHdr hdr;
+    MkObj* owner;
+    unsigned int owner_id;
+    Quat quat;
+};
 
 static const char stringBase0[] =
     "SHUJINKO_UNLOCKED_A\0"
@@ -34,54 +46,22 @@ static const char stringBase0[] =
 
 const int gap_04_80314D64_rodata = 0;
 
-
 unsigned int nis_event_list[4];
 
 int gap_08_80510E74_sbss;
 int nis_wait_override;
 
 extern char bgnd_animations[];
-extern char p1_profile[];
-extern int screen_width;
-extern int screen_height;
 
-void load_named_2d_pfxobj_xy(int slot, int oid, const char* name, int x, int y, int arg6, int arg7);
-ScreenObj* insert_2d_obj(ScreenObj* obj);
-void fade_from_black(int frames, int flag);
-void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
-void delete_screen_obj_oid(int oid);
 struct FatalityFakeBoneMatcher;
 MkProc* get_fake_bone_matcher_proc(struct FatalityFakeBoneMatcher* matcher);
 void mkscripts_destroy_fk_bonematcher(void* bonematcher);
-void snd_req_vol(int sound_id, float volume);
-void display_load_meter(int slot);
-void turn_camera_on(void);
-void load_background(int id);
 void add_anim_section_by_name_async_pal(int slot, const char* name, void* bss, int arg4, int arg5);
 void wait_for_slot_load(int slot);
 void load_art_section_by_name(int slot, const char* name);
-void start_plyrs(void);
-void setup_sound_banks(int bank);
-void wait_for_sound_banks_to_load(void);
 void kill_head_tracking(void);
-void fade_to_black(int frames, int flag);
-void set_mode_of_play(int mode);
-void start_tunes(void);
-void delete_player(int player);
 void unload_section_slot(int slot);
-void mark_as_unlocked(void* profile, int category, int character);
-void set_konq_profile_value(int profile, int field, int value);
-void save_profile(int profile, int slot);
-void gamelogic_jump(int action, void (*logic)(void));
-void memset(void* dest, int val, int size);
-void push_game_state(int state);
-void turn_controllers_on(void);
-int check_switch_edge(int player, int edge);
-void eat_switch_edge(int player, int edge);
-void pop_game_state(void);
 void set_section_memory_scheme(int scheme);
-
-extern void p_credits_screen(void);
 
 static float p_fade_fullscreen_image(void);
 static float p_drop_kamidogu(void);
@@ -141,7 +121,7 @@ static float p_fade_fullscreen_image(void) {
 void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
     MkPtr* list_item;
-    KamidoguDropPdata* pdata;
+    struct KamidoguDropPdata* pdata;
     MKMATRIX matrix;
 
     matcher_proc = get_fake_bone_matcher_proc(bonematcher);
@@ -152,7 +132,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
         return;
     }
     owner->flags_08_bits.airborne = 1;
-    if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, sizeof(KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
+    if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, sizeof(struct KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
         return;
     }
     set_mat(&matrix, owner->field_24);
@@ -166,12 +146,11 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     snd_req_vol(0x1789, 2.0f);
 }
 
-
 static float p_drop_kamidogu(void) {
-    KamidoguDropPdata* pdata;
+    struct KamidoguDropPdata* pdata;
     MkObj* owner;
 
-    pdata = (KamidoguDropPdata*)apdata;
+    pdata = (struct KamidoguDropPdata*)apdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -230,7 +209,7 @@ float p_konquest_ending(void) {
     delete_player(0);
     delete_player(1);
     unload_section_slot(0x50014);
-    mark_as_unlocked(p1_profile, 1, 0x19);
+    mark_as_unlocked(&p1_profile, 1, 0x19);
     set_konq_profile_value(0, 4, 1);
     save_profile(0, 2);
     gamelogic_jump(6, p_credits_screen);
@@ -242,18 +221,18 @@ void nis_set_wait_override(int value) {
 }
 
 void nis_clear_event_list(void) {
-    memset(nis_event_list, 0, 0x10);
+    memset(nis_event_list, 0, sizeof(nis_event_list));
     nis_wait_override = 0;
 }
 
 void nis_show_cancel_message(void) {
     MkProc* parent_proc;
-    NisPdata* pdata;
+    struct NisPdata* pdata;
     MkProc* new_proc;
 
     parent_proc = find_mkproc_pid(0x900C);
     if (parent_proc != 0) {
-        pdata = (NisPdata*)pdata_of_proc(parent_proc);
+        pdata = (struct NisPdata*)pdata_of_proc(parent_proc);
         if (pdata != 0 && pdata->cancel_func != 0) {
             new_proc = _create_mkproc_generic_nostack(0x901A, 0x1F, p_init_skip_nis, 0, 0);
             if (new_proc != 0) {
@@ -283,7 +262,7 @@ static float p_init_skip_nis(void) {
 
 static float p_check_skip_nis(void) {
     MkProc* parent_proc;
-    NisPdata* pdata;
+    struct NisPdata* pdata;
 
     parent_proc = find_mkproc_pid(0x900C);
     if (parent_proc == 0) {
@@ -291,7 +270,7 @@ static float p_check_skip_nis(void) {
     }
     if (check_switch_edge(g_game_info.plyr0.pad_index, 6) != 0 ||
         check_switch_edge(g_game_info.plyr1.pad_index, 6) != 0) {
-        pdata = (NisPdata*)pdata_of_proc(parent_proc);
+        pdata = (struct NisPdata*)pdata_of_proc(parent_proc);
         if (pdata != 0) {
             if (pdata->cancel_func != 0) {
                 xfer_proc(parent_proc, p_run_nis_cancel_function);
@@ -305,9 +284,9 @@ static float p_check_skip_nis(void) {
 }
 
 static float p_run_nis_cancel_function(void) {
-    NisPdata* pdata;
+    struct NisPdata* pdata;
 
-    pdata = (NisPdata*)apdata;
+    pdata = (struct NisPdata*)apdata;
     if (pdata != 0) {
         cmdscript_setup_execution(pdata->cmdscript, pdata->cancel_func);
         cmdscript_execute(pdata->cmdscript);
@@ -330,21 +309,24 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-/* TODO: [near miss] 94%; operations and accesses agree; local, mask, pointer and expanded forms neutral; stop at coloring. */
+/* TODO: [near miss] 94%; identical bitset operations; eight volatile GPR assignments remain. */
 void nis_signal_event(int event) {
-    nis_event_list[(unsigned int)event >> 5] |= 1 << (event & 0x1F);
+    nis_event_list[(unsigned int)event >> 5] |= 1U << (event & 0x1F);
 }
 
 #pragma optimize_for_size on
 #pragma use_lmw_stmw on
 
-/* TODO: [near miss] 98.95%; size-opt frame and loop match; only r0/r5/r6 temporary coloring of the bit mask remains. */
 void nis_wait_for_event(int event, int timeout) {
+    unsigned int* event_word;
+    int bit_index;
     float sleep_ticks;
 
     sleep_ticks = 1.0f;
+    event_word = &nis_event_list[(unsigned int)event >> 5];
+    bit_index = event & 0x1F;
     while (nis_wait_override != 0 ||
-           (nis_event_list[(unsigned int)event >> 5] & (1U << (event & 0x1F))) == 0) {
+           (*event_word & (1U << bit_index)) == 0) {
         if (timeout == 0) {
             break;
         }
@@ -358,22 +340,19 @@ void nis_wait_for_event(int event, int timeout) {
 
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func) {
     MkProc* proc;
-    union {
-        MkHdr* hdr;
-        NisPdata* scene;
-    } pdata;
+    struct NisPdata* pdata;
 
-    memset(nis_event_list, 0, 0x10);
+    memset(nis_event_list, 0, sizeof(nis_event_list));
     nis_wait_override = 0;
     push_game_state(0x16);
-    proc = _create_mkproc_generic_bigstack(0x900C, 0x1F, p_run_nis_scene, 0x14, &pdata.hdr);
+    proc = _create_mkproc_generic_bigstack(0x900C, 0x1F, p_run_nis_scene, sizeof(struct NisPdata), (MkHdr**)&pdata);
     if (proc == 0) {
         return;
     }
-    zero_pdata_payload(0x14, pdata.hdr);
-    pdata.scene->scene_func = scene_func;
-    pdata.scene->cancel_func = cancel_func;
-    pdata.scene->cmdscript = cmdscript;
+    zero_pdata_payload(sizeof(struct NisPdata), &pdata->hdr);
+    pdata->scene_func = scene_func;
+    pdata->cancel_func = cancel_func;
+    pdata->cmdscript = cmdscript;
     nis_wait_override = 0;
     set_process_as_scriptable(proc);
 }
@@ -382,9 +361,9 @@ void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cance
 #pragma use_lmw_stmw reset
 
 static float p_run_nis_scene(void) {
-    NisPdata* pdata;
+    struct NisPdata* pdata;
 
-    pdata = (NisPdata*)apdata;
+    pdata = (struct NisPdata*)apdata;
     if (pdata != 0) {
         cmdscript_setup_execution(pdata->cmdscript, pdata->scene_func);
         cmdscript_execute(pdata->cmdscript);

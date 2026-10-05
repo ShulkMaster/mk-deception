@@ -1,5 +1,6 @@
 #include "movie/sfx_set.h"
 #include "sofdec/sfx.h"
+#include "sofdec/cft.h"
 
 extern s32 SFXA_IsNeedUpdateLumiTbl(SFXAObject* object);
 extern void SFXA_MakeAlp3110Tbl(SFXAObject* object, void* source,
@@ -11,7 +12,6 @@ extern void SFXA_MakeAlpLumiTbl(SFXAObject* object, void* source,
 extern void SFXZ_MakeCnvZTbl(SFXZObject* object, void* source,
                              void* table);
 extern void CFT_MakeArgb8888ColAdjTbl(void* table);
-extern void CFT_MakeYcc422ColAdjTbl(void* table);
 
 /* Plain static helper: retail compiles it first (its 1.164f and int-to-float
  * constants lead .rodata) and the linker strips the unreferenced copy. */

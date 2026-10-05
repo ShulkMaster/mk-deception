@@ -2,13 +2,6 @@
 
 typedef char Mat33SizeMustBe0x30[(sizeof(Mat33) == 0x30) ? 1 : -1];
 
-/*
- * Non-const pointer params are load-bearing: MWCC 2.4.7 treats loads through
- * pointer-to-const as immune to stores (CSE + store sinking), which breaks the
- * retail per-row reload schedule. Mat33 params reached through union members
- * are conservative either way, so gxMat33x33/_Check keep const.
- */
-
 void gxMat33Tx31(Vec* out, Vec* v, Mat33* m) {
     out->x = v->x * m->col0[0] + v->y * m->col1[0] + v->z * m->col2[0];
     out->y = v->x * m->col0[1] + v->y * m->col1[1] + v->z * m->col2[1];
@@ -21,8 +14,6 @@ void gxMatScaledByV3(Mat33* out, Mat33* in, Vec* scale) {
     PSVECScale(&in->col2_vec, &out->col2_vec, scale->z);
     out->flags &= ~1;
 }
-
-
 
 void gxMat33x33_Check(Mat33* out, const Mat33* a, const Mat33* b) {
     gxMat33x33(out, a, b);

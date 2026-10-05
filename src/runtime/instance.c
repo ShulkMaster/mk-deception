@@ -8,36 +8,18 @@
 #include "rw/rwstream_internal.h"
 #include "rw/rwengine.h"
 
-typedef struct InplaceGeometryChunkInfo {
-    unsigned int format;
-    int numTriangles;
-    int numVertices;
-    int numMorphTargets;
-} InplaceGeometryChunkInfo;
-
-typedef struct InplaceMorphTargetChunkInfo {
-    RwSphere sphere;
-    int hasVertices;
-    int hasNormals;
-} InplaceMorphTargetChunkInfo;
-
-typedef struct RpClumpChunkInfo {
+struct RpClumpChunkInfo {
     int numAtomics;
     int numLights;
     int numCameras;
-} RpClumpChunkInfo;
+};
 
-typedef struct RpAtomicChunkInfo {
+struct RpAtomicChunkInfo {
     int frameIndex;
     int geometryIndex;
     unsigned int flags;
     int unused;
-} RpAtomicChunkInfo;
-
-extern int lastSeenExtraData;
-extern unsigned int lastSeenRightsPluginId;
-
-extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
+};
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
                                               RwFrameList* frame_list,
@@ -48,7 +30,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream);
 static int inplaceGeometryAddMorphTargets(RpGeometry* geometry, int count);
 
 RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
-    RpClumpChunkInfo chunk_info;
+    struct RpClumpChunkInfo chunk_info;
     unsigned int length;
     unsigned int version;
     unsigned int chunk_version;
@@ -90,16 +72,14 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
             RwErrorSet(&error);
             return 0;
         }
-        {
-            int read_ok = _rwFrameListStreamRead(stream, &frame_list) != 0;
-            if (read_ok == 0) {
-                RwError error;
-                RpClumpDestroy(clump);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
-                RwErrorSet(&error);
-                return 0;
-            }
+        read_ok = _rwFrameListStreamRead(stream, &frame_list) != 0;
+        if (read_ok == 0) {
+            RwError error;
+            RpClumpDestroy(clump);
+            error.pluginID = 0x116;
+            error.errorCode = _rwerror(0x8000001A);
+            RwErrorSet(&error);
+            return 0;
         }
         clump->object.parent = frame_list.frames[0];
         if (!RwStreamFindChunk(stream, 0x1A, 0, &chunk_version)) {
@@ -111,18 +91,16 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
             RwErrorSet(&error);
             return 0;
         }
-        {
-            int read_ok =
-                inplaceGeometryListStreamRead(stream, &geometry_list) != 0;
-            if (read_ok == 0) {
-                RwError error;
-                _rwFrameListDeinitialize(&frame_list);
-                RpClumpDestroy(clump);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
-                RwErrorSet(&error);
-                return 0;
-            }
+        read_ok =
+            inplaceGeometryListStreamRead(stream, &geometry_list) != 0;
+        if (read_ok == 0) {
+            RwError error;
+            _rwFrameListDeinitialize(&frame_list);
+            RpClumpDestroy(clump);
+            error.pluginID = 0x116;
+            error.errorCode = _rwerror(0x8000001A);
+            RwErrorSet(&error);
+            return 0;
         }
 
         index = 0;
@@ -147,18 +125,16 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
         }
         GeometryListDeinitialize(&geometry_list);
         _rwFrameListDeinitialize(&frame_list);
-        {
-            int read_ok =
-                _rwPluginRegistryReadDataChunks(&clumpTKList, stream, clump) !=
-                0;
-            if (read_ok == 0) {
-                RwError error;
-                RpClumpDestroy(clump);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
-                RwErrorSet(&error);
-                return 0;
-            }
+        read_ok =
+            _rwPluginRegistryReadDataChunks(&clumpTKList, stream, clump) !=
+            0;
+        if (read_ok == 0) {
+            RwError error;
+            RpClumpDestroy(clump);
+            error.pluginID = 0x116;
+            error.errorCode = _rwerror(0x8000001A);
+            RwErrorSet(&error);
+            return 0;
         }
         return clump;
     } else {
@@ -173,7 +149,7 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
                                               RwFrameList* frame_list,
                                               RpGeometryList* geometry_list) {
-    RpAtomicChunkInfo chunk_info;
+    struct RpAtomicChunkInfo chunk_info;
     unsigned int length;
     unsigned int version;
     RpAtomic* atomic;
@@ -202,7 +178,7 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
         if (atomic == 0) {
             return 0;
         }
-        atomic->object.flags = (unsigned char)chunk_info.flags;
+        atomic->object.flags = chunk_info.flags;
         if (frame_list->numFrames != 0) {
             RpAtomicSetFrame(atomic,
                              frame_list->frames[chunk_info.frameIndex]);
@@ -246,17 +222,15 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
 
         lastSeenRightsPluginId = 0;
         lastSeenExtraData = 0;
-        {
-            int read_ok =
-                _rwPluginRegistryReadDataChunks(&atomicTKList, stream, atomic) !=
-                0;
-            if (read_ok == 0) {
-                RwError error;
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
-                RwErrorSet(&error);
-                return 0;
-            }
+        read_ok =
+            _rwPluginRegistryReadDataChunks(&atomicTKList, stream, atomic) !=
+            0;
+        if (read_ok == 0) {
+            RwError error;
+            error.pluginID = 0x116;
+            error.errorCode = _rwerror(0x8000001A);
+            RwErrorSet(&error);
+            return 0;
         }
         if (lastSeenRightsPluginId != 0) {
             _rwPluginRegistryInvokeRights(
@@ -335,15 +309,15 @@ static RpGeometryList* inplaceGeometryListStreamRead(
 }
 
 static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
-    InplaceGeometryChunkInfo chunk_info;
+    RpGeometryChunkInfo chunk_info;
     unsigned int version;
     RpGeometry* geometry;
     int morph_result;
     int morph_index;
-    InplaceMorphTargetChunkInfo morph_info;
+    RpMorphTargetChunkInfo morph_info;
     RpMorphTarget* morph_target;
     const RwPluginRegistry* plugin_result;
-    unsigned char* inplace_pointer;
+    void* inplace_pointer;
 
     if (!RwStreamFindChunk(stream, 1, 0, &version)) {
         return 0;
@@ -380,10 +354,10 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
                 inplace_pointer = stream->data.memory.start +
                                   stream->data.memory.position;
                 geometry->preLitLum = inplace_pointer;
-                RwStreamSkip(stream, vertex_count << 2);
+                RwStreamSkip(stream, vertex_count * sizeof(RwRGBA));
             }
             if (geometry->numTexCoordSets > 0) {
-                unsigned int tex_coord_size = geometry->numVertices << 3;
+                unsigned int tex_coord_size = geometry->numVertices * sizeof(RwTexCoords);
                 int tex_coord_index;
 
                 tex_coord_index = 0;
@@ -400,8 +374,8 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
                 inplace_pointer = stream->data.memory.start +
                                   stream->data.memory.position;
-                geometry->triangles = (RpTriangle*)inplace_pointer;
-                RwStreamSkip(stream, triangle_count << 3);
+                geometry->triangles = inplace_pointer;
+                RwStreamSkip(stream, triangle_count * sizeof(RpTriangle));
             }
         }
     }
@@ -420,13 +394,13 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
             inplace_pointer = stream->data.memory.start +
                               stream->data.memory.position;
             morph_target->verts = inplace_pointer;
-            RwStreamSkip(stream, geometry->numVertices * 12);
+            RwStreamSkip(stream, geometry->numVertices * sizeof(RwV3d));
         }
         if (morph_info.hasNormals != 0) {
             inplace_pointer = stream->data.memory.start +
                               stream->data.memory.position;
             morph_target->normals = inplace_pointer;
-            RwStreamSkip(stream, geometry->numVertices * 12);
+            RwStreamSkip(stream, geometry->numVertices * sizeof(RwV3d));
         }
         morph_index++;
     }

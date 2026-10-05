@@ -8,19 +8,6 @@
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
-typedef struct RpGeometryChunkInfo {
-    unsigned int format;
-    int numTriangles;
-    int numVertices;
-    int numMorphTargets;
-} RpGeometryChunkInfo;
-
-typedef struct RpMorphTargetChunkInfo {
-    RwSphere sphere;
-    int hasVertices;
-    int hasNormals;
-} RpMorphTargetChunkInfo;
-
 typedef struct RpPackedTriangle {
     unsigned int vertex01;
     unsigned int vertex2Mat;

@@ -1,32 +1,17 @@
 #include "game/game_info.h"
+#include "game/game.h"
+#include "game/bgnd.h"
+#include "game/pfxscript.h"
 #include "runtime/cam.h"
-
-typedef struct PlyrAnimPdata {
-    char pad00[0x38];
-    float field38;
-    char pad3C[0x18];
-    float height_delta;
-} PlyrAnimPdata;
-
-typedef struct PlyrObj {
-    char pad00[0x70];
-    float base_height;
-    char pad74[0x30];
-    float anim_height;
-} PlyrObj;
+#include "runtime/plyr_anim_pdata.h"
+#include "game/plyr_globals.h"
+#include "game/plyr.h"
+#include "runtime/mk_obj.h"
+#include "platform/main_jump.h"
 
 static const float zero = 0.0f;
 
-extern PlyrAnimPdata* plyr_anim_pdata;
-extern PlyrObj* plyr_obj;
-
-void gamelogic_jump(int action, void (*logic)(void));
-void fx_by_owner(int owner, int type);
-void fx_resume_emit(void);
-void fx_reset(void);
-void plyr_turn_on_mirrorguy(void* mirrorguy);
-void plyr_turn_off_mirrorguy(void* mirrorguy);
-extern void p_gamelogic(void);
+void fx_resume_emit(unsigned int handle);
 
 void nbc_script_debug_point(void) {}
 
@@ -65,27 +50,25 @@ float bgnd_get_anim_info(int arg) {
 
     f1 = zero;
     if (arg == 0) {
-        f1 = plyr_anim_pdata->field38;
+        f1 = plyr_anim_pdata->frame;
     }
     return f1;
 }
 
 void bgnd_reset_players_animation_height(void) {
-    plyr_obj->anim_height = plyr_obj->base_height + plyr_anim_pdata->height_delta;
+    plyr_obj->pos.value.y = plyr_obj->ground_colls_y + plyr_anim_pdata->anim_offset.y;
 }
 
 void bgnd_end_the_game_and_restart(void) {
     gamelogic_jump(2, p_gamelogic);
 }
 
-void bgnd_pfx_resume_effect(int owner) {
-    fx_by_owner(owner, 4);
-    fx_resume_emit();
+void bgnd_pfx_resume_effect(const char* name) {
+    fx_resume_emit(fx_by_owner(name, 4));
 }
 
-void bgnd_pfx_reset_effect(int owner) {
-    fx_by_owner(owner, 4);
-    fx_reset();
+void bgnd_pfx_reset_effect(const char* name) {
+    fx_reset(fx_by_owner(name, 4));
 }
 
 void bgnd_unhide_mirror_guys(void) {

@@ -1,35 +1,34 @@
 #include "dolphin/trk.h"
 #include "runtime/cstring.h"
 
-typedef struct TRKCloseFileRequest {
+struct TRKCloseFileRequest {
     u32 length;
     u8 command;
     u8 field_0x05[3];
     u32 handle;
     u8 field_0x0C[0x34];
-} TRKCloseFileRequest;
+};
 
-typedef struct TRKCloseFileReply {
+struct TRKCloseFileReply {
     u8 field_0x00[0x10];
     u32 io_result;
-} TRKCloseFileReply;
+};
 
 typedef char TRKCloseFileRequestSizeCheck[
-    sizeof(TRKCloseFileRequest) == 0x40 ? 1 : -1];
+    sizeof(struct TRKCloseFileRequest) == 0x40 ? 1 : -1];
 
 extern DSError TRKRequestSend(MessageBuffer* request,
                               MessageBufferID* reply_id, int retries,
                               int timeout, int blocking);
 
-/* TODO: [near miss] 95.603450%; request/reply ID slots and r30/r31 roles remain register-coloring residue; stop without forcing registers. */
 DSError HandleCloseFileSupportRequest(u32 handle, u32* io_result)
 {
-    TRKCloseFileRequest request;
-    MessageBufferID request_id;
+    struct TRKCloseFileRequest request;
     MessageBufferID reply_id;
+    MessageBufferID request_id;
+    DSError error;
     MessageBuffer* request_buffer;
     MessageBuffer* reply_buffer;
-    DSError error;
 
     memset(&request, 0, sizeof(request));
     request.command = 0xD3;
@@ -48,7 +47,7 @@ DSError HandleCloseFileSupportRequest(u32 handle, u32* io_result)
             reply_buffer = TRKGetBuffer(reply_id);
         }
         if (error == 0) {
-            TRKCloseFileReply* reply = (TRKCloseFileReply*)reply_buffer->data;
+            struct TRKCloseFileReply* reply = (struct TRKCloseFileReply*)reply_buffer->data;
             *io_result = reply->io_result;
         }
         TRKReleaseBuffer(reply_id);

@@ -22,7 +22,7 @@ static const char cft_version_string[] =
     "\nCRI CFT/GC Ver.1.57 Build:Sep  3 2004 11:38:10\n";
 const char* CFT_version = cft_version_string;
 
-static u32 gqr_save;
+static u32 gqr_save = 0;
 static float cr_r[256];
 static float cr_g[256];
 static float cb_b[256];
@@ -193,17 +193,16 @@ void CFT_MakeArgb8888Alp3110Tbl(
     }
 }
 
-/* TODO: [near miss] 96.790120%; typed plane cursors and indexed ramps match
- * retail behavior; stop at equivalent entry-load scheduling. */
+/* TODO: [near miss] 96.79%; six entry rows differ in cursor/constant load scheduling. */
 void CFT_MakeArgb8888AlpLumiTbl(
     s32 reverse, s32 low, s32 high, CFTArgbTable table)
 {
     s32 i;
     s32 range;
     float scale;
-    float* y = &table[0][0][0];
-    float* cb = &table[1][0][0];
-    float* cr = &table[2][0][0];
+    float (*y)[4] = table[0];
+    float (*cb)[4] = table[1];
+    float (*cr)[4] = table[2];
     float rounding_bias = 0.5f;
     s32 component;
 
@@ -212,43 +211,43 @@ void CFT_MakeArgb8888AlpLumiTbl(
 
         luminance = 1.16400003f * (float)(component - 16) + rounding_bias;
 
-        y[3] = luminance;
-        y[2] = luminance;
-        y[1] = luminance;
-        cb[3] = 2.017f * (float)(component - 128) + rounding_bias;
-        cb[2] = -0.392f * (float)(component - 128) + rounding_bias;
-        cb[1] = 0.0f;
-        cb[0] = 0.0f;
-        cr[3] = 0.0f;
-        cr[2] = -0.813f * (float)(component - 128) + rounding_bias;
-        cr[1] = 1.596f * (float)(component - 128) + rounding_bias;
-        cr[0] = 0.0f;
-        y += 4;
-        cb += 4;
-        cr += 4;
+        (*y)[3] = luminance;
+        (*y)[2] = luminance;
+        (*y)[1] = luminance;
+        (*cb)[3] = 2.017f * (float)(component - 128) + rounding_bias;
+        (*cb)[2] = -0.392f * (float)(component - 128) + rounding_bias;
+        (*cb)[1] = 0.0f;
+        (*cb)[0] = 0.0f;
+        (*cr)[3] = 0.0f;
+        (*cr)[2] = -0.813f * (float)(component - 128) + rounding_bias;
+        (*cr)[1] = 1.596f * (float)(component - 128) + rounding_bias;
+        (*cr)[0] = 0.0f;
+        y++;
+        cb++;
+        cr++;
     }
 
-    y = &table[0][0][0];
+    y = table[0];
     range = high - low;
     scale = 255.0f / (float)range;
     if (reverse == 1) {
         for (i = 0; i < 256; i++) {
             if (i < low) {
-                y[i * 4] = 255.0f;
+                y[i][0] = 255.0f;
             } else if (i > high) {
-                y[i * 4] = 0.0f;
+                y[i][0] = 0.0f;
             } else {
-                y[i * 4] = scale * (float)(range - (i - low));
+                y[i][0] = scale * (float)(range - (i - low));
             }
         }
     } else {
         for (i = 0; i < 256; i++) {
             if (i < low) {
-                y[i * 4] = 0.0f;
+                y[i][0] = 0.0f;
             } else if (i > high) {
-                y[i * 4] = 255.0f;
+                y[i][0] = 255.0f;
             } else {
-                y[i * 4] = scale * (float)(i - low);
+                y[i][0] = scale * (float)(i - low);
             }
         }
     }
@@ -439,8 +438,6 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
-/* TODO: [near miss] 99.910446%; donor arithmetic and pointer lifetimes now
- * match retail; only BSS/rodata relocation labels and loop formatting remain. */
 void CFT_Ycc420plnToArgb8888Init(void)
 {
     s32 i;

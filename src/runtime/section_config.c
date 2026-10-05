@@ -1,4 +1,4 @@
-#include "runtime/section_types.h"
+#include "runtime/section.h"
 
 extern unsigned char reaction_xfer_him[];
 extern unsigned char inplaceGeometryCreate_80056E98[];

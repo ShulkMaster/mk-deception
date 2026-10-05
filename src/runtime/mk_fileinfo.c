@@ -1,30 +1,12 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/cstring.h"
+#include "rw/rwfile.h"
 
 #include "platform/gcutils.h"
 #include "runtime/mk_hwfile.h"
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
-/* The disabled interface may still be called through RenderWare's varied
- * file-operation signatures, so retain an old-style generic function type. */
-typedef int (*RwFileFunction)();
-
-typedef struct RwFileInterface {
-    RwFileFunction open;
-    RwFileFunction close;
-    RwFileFunction read;
-    RwFileFunction write;
-    RwFileFunction gets;
-    RwFileFunction puts;
-    RwFileFunction eof;
-    RwFileFunction seek;
-    RwFileFunction flush;
-    RwFileFunction tell;
-    RwFileFunction exists;
-} RwFileInterface;
-
-extern RwFileInterface* RwOsGetFileInterface(void);
 static int renderware_fs_not_implemented(void);
 static MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user);
@@ -41,19 +23,19 @@ SsfContext previous_ssf;
 int num_files_loaded;
 
 void disable_default_filesystem(void) {
-    RwFileInterface* file_interface = RwOsGetFileInterface();
+    RwFileFunctions* file_interface = RwOsGetFileInterface();
 
-    file_interface->open = renderware_fs_not_implemented;
-    file_interface->close = renderware_fs_not_implemented;
-    file_interface->read = renderware_fs_not_implemented;
-    file_interface->write = renderware_fs_not_implemented;
-    file_interface->gets = renderware_fs_not_implemented;
-    file_interface->puts = renderware_fs_not_implemented;
-    file_interface->eof = renderware_fs_not_implemented;
-    file_interface->seek = renderware_fs_not_implemented;
-    file_interface->flush = renderware_fs_not_implemented;
-    file_interface->tell = renderware_fs_not_implemented;
-    file_interface->exists = renderware_fs_not_implemented;
+    file_interface->exists = (RwFileExistsCall)renderware_fs_not_implemented;
+    file_interface->open = (RwFileOpenCall)renderware_fs_not_implemented;
+    file_interface->close = (RwFileCloseCall)renderware_fs_not_implemented;
+    file_interface->read = (RwFileReadCall)renderware_fs_not_implemented;
+    file_interface->write = (RwFileWriteCall)renderware_fs_not_implemented;
+    file_interface->gets = (RwFileGetsCall)renderware_fs_not_implemented;
+    file_interface->puts = (RwFilePutsCall)renderware_fs_not_implemented;
+    file_interface->eof = (RwFileEofCall)renderware_fs_not_implemented;
+    file_interface->seek = (RwFileSeekCall)renderware_fs_not_implemented;
+    file_interface->flush = (RwFileFlushCall)renderware_fs_not_implemented;
+    file_interface->tell = (RwFileTellCall)renderware_fs_not_implemented;
 }
 
 static int renderware_fs_not_implemented(void) {
@@ -76,7 +58,6 @@ MkFileInfo* find_section_by_name(const char* name) {
 
 void* mk_file_read_async(void* buffer, int size, int count,
                          MkFileEntry* entry) {
-    (void)entry;
     return mk_hwfile_read_async(current_ssf.hwfile,
                                 mk_hwfile_tell(current_ssf.hwfile),
                                 buffer, size * count);
@@ -88,12 +69,10 @@ int mk_file_length(MkFileEntry* entry) {
 
 unsigned int mk_file_read(void* buffer, unsigned int size, unsigned int count,
                           MkFileEntry* entry) {
-    (void)entry;
     return mk_hwfile_read(current_ssf.hwfile, buffer, size * count) / size;
 }
 
 int mk_file_close(MkFileEntry* entry) {
-    (void)entry;
     num_files_loaded++;
     return 0;
 }
@@ -114,27 +93,27 @@ MkFileEntry* mk_file_open_async_withcallback(MkFileInfo* info,
                                               void* userdata,
                                               MkFileOpenCallback callback,
                                               void* user) {
-    (void)mode;
-    (void)userdata;
     return ssf_member_open_async_withcallback(info, callback, user);
 }
+
+static inline MkFileEntry* ssf_find_member_entry(MkFileInfo* info) {
+    MkFileEntry* entry = current_ssf.ssf_file;
+
+    entry++;
+    while (entry->info != 0) {
+        if (strcmp(entry->info->name, info->name) == 0) {
+            return entry;
+        }
+        entry++;
+    }
+    return 0;
+}
+
 
 static MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user) {
     int open_state = 1;
-    MkFileInfo* requested_info = info;
-    MkFileEntry* entry = current_ssf.ssf_file + 1;
-    MkFileInfo* entry_info;
-
-    while ((entry_info = entry->info) != 0) {
-        if (strcmp(entry_info->name, requested_info->name) == 0) {
-            break;
-        }
-        entry++;
-    }
-    if (entry_info == 0) {
-        entry = 0;
-    }
+    MkFileEntry* entry = ssf_find_member_entry(info);
 
     if (mk_hwfile_is_file_ready(current_ssf.hwfile) == 0) {
         if (ssf_open_linked_callback_attached == 0) {
@@ -168,7 +147,6 @@ static void ssf_member_open_async_callback(void* entry_argument,
                                            int success) {
     MkFileEntry* entry = entry_argument;
 
-    (void)request;
     mk_hwfile_seek(current_ssf.hwfile, entry->offset, 0);
     if (ssf_open_linked_fn_user_callback != 0) {
         ssf_open_linked_fn_user_callback(ssf_open_linked_user_data, entry,
@@ -236,6 +214,7 @@ MkFileEntry* get_current_ssf_file(void) {
     return current_ssf.ssf_file;
 }
 
+/* TODO: [near miss] 90%; pooled rb address uses SDA; recover string-pool ownership. */
 void load_ssf(MkFileEntry* ssf_entry) {
     MkHwFileRequest* hwfile;
 

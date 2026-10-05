@@ -9,6 +9,7 @@
  */
 
 #include "platform/main_jump.h"
+#include "runtime/mk_struct.h"
 
 int main(void);
 void reset_game_speed(void);
@@ -21,7 +22,7 @@ extern int gameart_is_loaded;
 extern float sqrt_game_speed;
 extern float inverse_game_speed;
 extern float game_speed;
-extern void* empty_pdata;
+extern MkHdr* empty_pdata;
 extern void* mab_generic_pdata;
 extern int jmp_where_id;
 extern int mode_of_play;

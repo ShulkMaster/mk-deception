@@ -36,7 +36,7 @@ void __AXAuxInit(void)
 
     pA = &__AXBufferAuxA[0][0];
     pB = &__AXBufferAuxB[0][0];
-    for (i = 0; i < 480; i++) {
+    for (i = 0; i < (int)(sizeof(__AXBufferAuxA[0]) / sizeof(__AXBufferAuxA[0][0])); i++) {
         *pA = 0;
         pA++;
         *pB = 0;
@@ -116,19 +116,19 @@ void __AXProcessAux(void)
             auxData.r = &__AXBufferAuxA[__AXAuxCpuReadWritePosition][160];
             auxData.ls = &__AXBufferAuxA[__AXAuxCpuReadWritePosition][320];
             auxData.rs = &__AXBufferAuxB[__AXAuxCpuReadWritePosition][320];
-            DCInvalidateRange(auxData.l, 0x780);
-            DCInvalidateRange(auxData.rs, 0x280);
-            __AXCallbackAuxA(&auxData.l, __AXContextAuxA);
-            DCFlushRangeNoSync(auxData.l, 0x780);
-            DCFlushRangeNoSync(auxData.rs, 0x280);
+            DCInvalidateRange(auxData.l, sizeof(__AXBufferAuxA[0]));
+            DCInvalidateRange(auxData.rs, sizeof(__AXBufferAuxB[0]) / 3);
+            __AXCallbackAuxA(&auxData, __AXContextAuxA);
+            DCFlushRangeNoSync(auxData.l, sizeof(__AXBufferAuxA[0]));
+            DCFlushRangeNoSync(auxData.rs, sizeof(__AXBufferAuxB[0]) / 3);
         } else {
             AX_AUX_DATA auxData;
             auxData.l = &__AXBufferAuxA[__AXAuxCpuReadWritePosition][0];
             auxData.r = &__AXBufferAuxA[__AXAuxCpuReadWritePosition][160];
             auxData.s = &__AXBufferAuxA[__AXAuxCpuReadWritePosition][320];
-            DCInvalidateRange(auxData.l, 0x780);
-            __AXCallbackAuxA(&auxData.l, __AXContextAuxA);
-            DCFlushRangeNoSync(auxData.l, 0x780);
+            DCInvalidateRange(auxData.l, sizeof(__AXBufferAuxA[0]));
+            __AXCallbackAuxA(&auxData, __AXContextAuxA);
+            DCFlushRangeNoSync(auxData.l, sizeof(__AXBufferAuxA[0]));
         }
     }
 
@@ -137,9 +137,9 @@ void __AXProcessAux(void)
         auxData.l = &__AXBufferAuxB[__AXAuxCpuReadWritePosition][0];
         auxData.r = &__AXBufferAuxB[__AXAuxCpuReadWritePosition][160];
         auxData.s = &__AXBufferAuxB[__AXAuxCpuReadWritePosition][320];
-        DCInvalidateRange(auxData.l, 0x780);
-        __AXCallbackAuxB(&auxData.l, __AXContextAuxB);
-        DCFlushRangeNoSync(auxData.l, 0x780);
+        DCInvalidateRange(auxData.l, sizeof(__AXBufferAuxB[0]));
+        __AXCallbackAuxB(&auxData, __AXContextAuxB);
+        DCFlushRangeNoSync(auxData.l, sizeof(__AXBufferAuxB[0]));
     }
 
     __AXAuxDspWritePosition += 1;

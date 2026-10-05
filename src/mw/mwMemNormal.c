@@ -7,8 +7,9 @@
         _mwMemHeap* remove_heap = (heap);                                              \
         MwMemUsedHeader* remove_block = (block);                                      \
         if (remove_block != 0 && remove_heap->freeList != 0) {                        \
+            MwMemUsedHeader* remove_next;                                             \
             MwMemUsedHeader* remove_previous = remove_block->previous;                \
-            MwMemUsedHeader* remove_next = remove_block->next;                        \
+            remove_next = remove_block->next;                                         \
             if (remove_previous == 0) {                                               \
                 if (remove_next == 0) {                                               \
                     remove_heap->freeList = 0;                                        \
@@ -29,24 +30,25 @@
 
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block);
 
-/* TODO: [near miss] 93.46%; coalescing matches structurally; GPR coloring and unlink scheduling remain. */
+/* TODO: [near miss] 99.01031%; join and unlink ownership restored; flag-byte stack slot and local GPR scheduling remain. */
 static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
                                                             MwMemUsedHeader* block) {
     u8 flags;
     u8 next_flags;
     u32 previous_is_free;
-    u32 next_is_free = 0;
-    MwMemUsedHeader* result = block;
+    u32 next_is_free;
+    MwMemUsedHeader* result;
     MwMemUsedHeader* next_block;
-    MwMemUsedHeader* previous_block;
 
     flags = block->flags;
     previous_is_free = privGetBitFromBitFlag(&flags, 4);
+    next_is_free = 0;
     next_block = (MwMemUsedHeader*)((u8*)block + block->allocationSize + sizeof(MwMemUsedHeader));
-    if ((u8*)next_block != heap->heapEnd) {
+    if (heap->heapEnd != (u8*)next_block) {
         next_flags = next_block->flags;
         next_is_free = privGetBitFromBitFlag(&next_flags, 5);
     }
+    result = block;
     if (block->next != 0 || block->previous != 0) {
         if (block->next != 0 && block->previous == 0) {
             if ((u8*)block + block->allocationSize + sizeof(MwMemUsedHeader) == (u8*)block->next) {
@@ -54,22 +56,24 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
                 REMOVE_FREE_BLOCK(heap, block->next);
             }
         } else if (block->next == 0 && block->previous != 0) {
-            previous_block = block->previous;
+            MwMemUsedHeader* previous_block = block->previous;
             if ((u8*)previous_block + previous_block->allocationSize + sizeof(MwMemUsedHeader) ==
                 (u8*)block) {
                 previous_block->allocationSize += block->allocationSize + sizeof(MwMemUsedHeader);
                 REMOVE_FREE_BLOCK(heap, block);
-                result = previous_block;
+                result = block->previous;
             }
         } else {
             if (next_is_free == 1) {
-                next_block = (MwMemUsedHeader*)((u8*)block + block->allocationSize +
+                u32 block_size = block->allocationSize;
+                next_block = (MwMemUsedHeader*)((u8*)block + block_size +
                                                 sizeof(MwMemUsedHeader));
-                block->allocationSize += next_block->allocationSize + sizeof(MwMemUsedHeader);
+                block->allocationSize = block_size +
+                    (next_block->allocationSize + sizeof(MwMemUsedHeader));
                 REMOVE_FREE_BLOCK(heap, next_block);
             }
             if (previous_is_free == 1) {
-                previous_block = block->previous;
+                MwMemUsedHeader* previous_block = block->previous;
                 previous_block->allocationSize += block->allocationSize + sizeof(MwMemUsedHeader);
                 REMOVE_FREE_BLOCK(heap, block);
                 result = previous_block;
@@ -79,10 +83,13 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
     return result;
 }
 
-/* TODO: [near miss] 91.47%; ownership traversal agrees; coloring and branch/load scheduling remain. */
+/* TODO: [near miss] 96.96%; typed neighbor snapshots and body-first traversal recovered;
+ * equivalent hierarchy failure/null exits remain. */
 static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     _mwMemHeap* heap;
     _mwMemHeap* fallback;
+    MwMemUsedHeader* next;
+    MwMemUsedHeader* previous;
     MwMemUsedHeader* merged;
     MwMemUsedHeader* next_block;
 
@@ -101,7 +108,7 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
         }
 
         fallback = heap;
-        while (heap != 0) {
+        do {
             if ((u8*)block >= heap->heapStart && (u8*)block < heap->heapEnd) {
                 fallback = heap;
                 if (heap->hierFirstChild == 0) {
@@ -110,38 +117,42 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
                 heap = heap->hierFirstChild;
             } else {
                 heap = heap->hierNext;
-                if (heap == 0) {
-                    heap = fallback;
-                    break;
+                if (heap != 0) {
+                    continue;
                 }
+                heap = fallback;
+                break;
             }
-        }
+        } while (heap != 0);
     }
     if (heap == 0) {
         return;
     }
-    if (block->previous == 0 && block->next == 0) {
+    previous = block->previous;
+    if (previous == 0 && block->next == 0) {
         heap->usedList = 0;
-    } else if (block->previous == 0 && block->next != 0) {
+    } else if (previous == 0 && block->next != 0) {
         heap->usedList = block->next;
         heap->usedList->previous = 0;
-    } else if (block->previous != 0 && block->next == 0) {
-        block->previous->next = 0;
+    } else if (previous != 0 && block->next == 0) {
+        previous->next = 0;
     } else {
-        block->previous->next = block->next;
-        block->next->previous = block->previous;
+        next = block->next;
+        previous->next = next;
+        next->previous = previous;
     }
     privReturnUsedBlockToFreeList(heap, block);
     privSetBitFromBitFlag(&block->flags, 5);
     merged = privCoalesceFreeBlocksBoundaryTags(heap, block);
     privSetBoundaryTags(merged);
     next_block = (MwMemUsedHeader*)((u8*)merged + merged->allocationSize + sizeof(MwMemUsedHeader));
-    if ((u8*)next_block != heap->heapEnd) {
+    if (heap->heapEnd != (u8*)next_block) {
         privSetBitFromBitFlag(&next_block->flags, 4);
     }
 }
 
-/* TODO: [near miss] 90.34%; list insertion differs by li 0 vs mr from a zero local; retail keeps an unreachable loop tail. */
+/* TODO: [near miss] 95.517242%; shared loop increment recovered;
+ * zero initialization and retail trailing loop branch remain. */
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block) {
     MwMemUsedHeader* current = heap->freeList;
     MwMemUsedHeader* next;
@@ -155,51 +166,52 @@ static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* blo
         block->next = previous;
         block->previous = previous;
     } else {
-        while (current != 0) {
+        for (; current != 0; current = current->next) {
             if (block > current) {
                 previous = current;
-                current = current->next;
             } else {
                 next = current;
                 break;
             }
         }
     }
-    if (previous != 0 || next != 0) {
-        if (block != 0) {
-            if (previous == 0) {
-                if (next == 0) {
-                    heap->freeList = block;
-                    heap->freeTail = block;
-                } else {
-                    block->next = next;
-                    block->previous = 0;
-                    next->previous = block;
-                    heap->freeList = block;
-                }
-            } else if (next == 0) {
-                block->next = 0;
-                block->previous = previous;
-                previous->next = block;
+    if (previous == 0 && next == 0) {
+        return;
+    }
+    if (block != 0) {
+        if (previous == 0) {
+            if (next == 0) {
+                heap->freeList = block;
                 heap->freeTail = block;
             } else {
                 block->next = next;
-                block->previous = previous;
-                previous->next = block;
+                block->previous = 0;
                 next->previous = block;
+                heap->freeList = block;
             }
-        }
-        if (block > heap->freeTail) {
+        } else if (next == 0) {
+            block->next = 0;
+            block->previous = previous;
+            previous->next = block;
             heap->freeTail = block;
+        } else {
+            block->next = next;
+            block->previous = previous;
+            previous->next = block;
+            next->previous = block;
         }
     }
+    if (block > heap->freeTail) {
+        heap->freeTail = block;
+    }
 }
+
 
 void normHeapFreeMemFromBlock(void* block) {
     privFreeMemFromUsed(privGetUsedHdrFromBlock(block));
 }
 
-/* TODO: [breakthrough needed] 86.04%; allocator-wide coloring and address scheduling remain. */
+/* TODO: [breakthrough] 86.26621%; shared unlink ownership improved; allocator-wide address/CFG audit remains. */
 void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     u32 requested_size = size == 0 ? 0x10 : size;
     int alignment = privGetAlignFromMwMemFlags(flags);

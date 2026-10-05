@@ -1,12 +1,11 @@
 #include "dolphin/os.h"
 #include "dolphin/trk.h"
+#include "dolphin/main_TRK.h"
+#include "dolphin/dolphin_trk_glue.h"
 #include "runtime/asm_sequences.inc"
 
 extern u32 __TRK_get_MSR(void);
-extern void EnableEXI2Interrupts(void);
 extern void TRKSaveExtended1Block(void);
-extern int InitMetroTRKCommTable(int hardware_id);
-extern void TRK_main(void);
 extern char _db_stack_addr[];
 
 #pragma section code_type ".init"

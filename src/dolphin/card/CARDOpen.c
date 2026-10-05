@@ -12,7 +12,7 @@ BOOL __CARDCompareFileName(CARDDir* ent, const char* fileName) {
     while (--n >= 0) {
         if ((c1 = *entName++) != (c2 = *fileName++))
             return FALSE;
-        else if (c2 == '\0')
+        if (c2 == '\0')
             return TRUE;
     }
 

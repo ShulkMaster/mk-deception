@@ -127,7 +127,7 @@ int get_field_offset(PfxTableRegistry* registry, int description)
     field_description = description;
     if ((field_description & 0xF00) == 0x200) {
         field_base = registry->field_0x1FC;
-        data = (unsigned char*)pfx_get_field(
+        data = pfx_get_field(
             (PfxVm*)registry, 0, field_description);
         if (data != 0) {
             return data - field_base;
@@ -202,9 +202,9 @@ static void copy_field_v3(PfxFieldBuffer* destination,
 void field_copy(PfxFieldBuffer* destination, PfxFieldBuffer* source,
                 unsigned int field_size, int count)
 {
+    int index;
     unsigned char* destination_data;
     unsigned char* source_data;
-    int index;
 
     if (source->data == destination->data) {
         return;
@@ -231,6 +231,8 @@ static void add_field_description(PfxFieldDescription* field,
     field->offset = offset;
 }
 
+/* TODO: [near miss] 97.24%; seven signed/unsigned mask-zero compares
+ * and property-walk counter initialization remain. */
 void fill_field_description(PfxFieldDescription* descriptions,
                             PfxFieldSet* fields, int parametric)
 {
@@ -243,32 +245,37 @@ void fill_field_description(PfxFieldDescription* descriptions,
     description = descriptions;
     if ((fields->render_flags & 0x002) != 0) {
         add_field_description(description, 0x100, 0, 0);
-        render_offset =
-            (get_size(1) + _pfx_config.align_add) & ~_pfx_config.align_mask;
+        render_offset = get_size(1);
+        render_offset += _pfx_config.align_add;
+        render_offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields->render_flags & 0x040) != 0) {
         add_field_description(description, 0x103, 0, render_offset);
-        render_offset = (render_offset + get_size(3) +
-                         _pfx_config.align_add) & ~_pfx_config.align_mask;
+        render_offset += get_size(3);
+        render_offset += _pfx_config.align_add;
+        render_offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields->render_flags & 0x010) != 0) {
         add_field_description(description, 0x101, 0, render_offset);
-        render_offset = (render_offset + get_size(2) +
-                         _pfx_config.align_add) & ~_pfx_config.align_mask;
+        render_offset += get_size(2);
+        render_offset += _pfx_config.align_add;
+        render_offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields->render_flags & 0x020) != 0) {
         add_field_description(description, 0x102, 0, render_offset);
-        render_offset = (render_offset + get_size(3) +
-                         _pfx_config.align_add) & ~_pfx_config.align_mask;
+        render_offset += get_size(3);
+        render_offset += _pfx_config.align_add;
+        render_offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields->render_flags & 0x100) != 0) {
         add_field_description(description, 0x104, 0, render_offset);
-        render_offset = (render_offset + 0x10 + _pfx_config.align_add) &
-                        ~_pfx_config.align_mask;
+        render_offset += 0x10;
+        render_offset += _pfx_config.align_add;
+        render_offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields->render_flags & 0x200) != 0 &&

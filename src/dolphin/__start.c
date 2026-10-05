@@ -1,58 +1,52 @@
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-
-typedef void (*InitFunc)(void);
-
 #include "dolphin/db.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"
+#include "runtime/cstdlib.h"
 
 #pragma section code_type ".init"
 
-typedef struct RomCopyInfo {
+struct RomCopyInfo {
     const void* rom;
     void* address;
-    u32 size;
-} RomCopyInfo;
+    unsigned int size;
+};
 
-typedef struct BssInitInfo {
+struct BssInitInfo {
     void* address;
-    u32 size;
-} BssInitInfo;
+    unsigned int size;
+};
 
-typedef struct BootInfo2 {
-    /* +0x00 */ u32 reserved00;
-    /* +0x04 */ u32 reserved04;
-    /* +0x08 */ u32 args_offset;
-    /* +0x0C */ u32 debug_flag;
-} BootInfo2;
+struct BootInfo2 {
+    /* +0x00 */ unsigned int reserved00;
+    /* +0x04 */ unsigned int reserved04;
+    /* +0x08 */ unsigned int args_offset;
+    /* +0x0C */ unsigned int debug_flag;
+};
 
-extern RomCopyInfo _rom_copy_info[];
-extern BssInitInfo _bss_init_info[];
+extern struct RomCopyInfo _rom_copy_info[];
+extern struct BssInitInfo _bss_init_info[];
 
 void __init_registers(void);
 void __init_hardware(void);
 static void __init_data(void);
-void __flush_cache(void* address, u32 size);
+void __flush_cache(void* address, unsigned int size);
 void __init_user(void);
 int main(int argc, char** argv);
-void exit(int status);
 
 void InitMetroTRK(void);
 void InitMetroTRK_BBA(void);
 
-static u8 Debug_BBA;
+static unsigned char Debug_BBA;
 
-static volatile u32* const kArenaHi = (volatile u32*)0x80000034;
-static volatile u32* const kDebuggerPresent = (volatile u32*)0x80000044;
-static BootInfo2* volatile* const kBootInfo2 = (BootInfo2* volatile*)0x800000F4;
-static volatile u16* const kConsoleType = (volatile u16*)0x800030E6;
-static volatile u32* const kFallbackDebugFlag = (volatile u32*)0x800030E8;
+static volatile unsigned int* const kArenaHi = (volatile unsigned int*)0x80000034;
+static volatile unsigned int* const kDebuggerPresent = (volatile unsigned int*)0x80000044;
+static struct BootInfo2* volatile* const kBootInfo2 = (struct BootInfo2* volatile*)0x800000F4;
+static volatile unsigned short* const kConsoleType = (volatile unsigned short*)0x800030E6;
+static volatile unsigned int* const kFallbackDebugFlag = (volatile unsigned int*)0x800030E8;
 
 static void __check_pad3(void)
 {
-    volatile u16* pad3_button = (volatile u16*)0x800030E4;
+    volatile unsigned short* pad3_button = (volatile unsigned short*)0x800030E4;
 
     if ((*pad3_button & 0xEEF) == 0xEEF) {
         OSResetSystem(0, 0, 0);
@@ -64,7 +58,7 @@ static void __set_debug_bba(void)
     Debug_BBA = 1;
 }
 
-static u8 __get_debug_bba(void)
+static unsigned char __get_debug_bba(void)
 {
     return Debug_BBA;
 }
@@ -76,17 +70,14 @@ static u8 __get_debug_bba(void)
  * Its first word is argc, followed by argc offsets which are relocated to
  * absolute argv pointers in place.
  */
+/* TODO: [breakthrough needed] 0.00%; startup register contract remains unresolved. */
 void __start(void) {
-    BootInfo2* boot_info;
-    u32 debug_flag;
+    struct BootInfo2* boot_info;
+    unsigned int debug_flag;
     int argc;
     char** argv;
     int i;
 
-    /*
-     * Matching status: readable software lift. Retail keeps argc/argv in
-     * fixed startup registers and shares this TU with excluded hardware code.
-     */
     __init_registers();
     __init_hardware();
     __init_data();
@@ -109,14 +100,14 @@ void __start(void) {
     }
 
     if (boot_info != 0 && boot_info->args_offset != 0) {
-        u32* arg_block = (u32*)((u8*)boot_info + boot_info->args_offset);
+        unsigned int* arg_block = (unsigned int*)((unsigned char*)boot_info + boot_info->args_offset);
 
-        argc = (int)arg_block[0];
+        argc = arg_block[0];
         argv = (char**)&arg_block[1];
         for (i = 0; i < argc; i++) {
-            argv[i] = (char*)boot_info + (u32)argv[i];
+            argv[i] = (char*)boot_info + (unsigned int)argv[i];
         }
-        *kArenaHi = (u32)argv & ~31U;
+        *kArenaHi = (unsigned int)argv & ~31U;
     } else {
         argc = 0;
         argv = 0;
@@ -141,7 +132,7 @@ void __start(void) {
  * executable ranges, then clear every BSS range.
  */
 static inline void __copy_rom_section(
-    void* destination, const void* source, u32 size)
+    void* destination, const void* source, unsigned int size)
 {
     if (size != 0 && destination != source) {
         memcpy(destination, source, size);
@@ -149,7 +140,7 @@ static inline void __copy_rom_section(
     }
 }
 
-static inline void __init_bss_section(void* destination, u32 size)
+static inline void __init_bss_section(void* destination, unsigned int size)
 {
     if (size != 0) {
         memset(destination, 0, size);
@@ -159,8 +150,8 @@ static inline void __init_bss_section(void* destination, u32 size)
 /* TODO: [breakthrough needed] 78.333336%; copy/clear behavior matches retail,
  * but prologue/address-load and argument-copy source shape remains unresolved. */
 static void __init_data(void) {
-    RomCopyInfo* copy;
-    BssInitInfo* bss;
+    struct RomCopyInfo* copy;
+    struct BssInitInfo* bss;
 
     copy = _rom_copy_info;
     while (1) {

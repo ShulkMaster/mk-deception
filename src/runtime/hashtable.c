@@ -3,10 +3,7 @@
 #include "mw/mwMem.h"
 
 #include <ctype.h>
-
-int stricmp(const char* a, const char* b);
-unsigned long strlen(const char* s);
-char* strcpy(char* dst, const char* src);
+#include "runtime/cstring.h"
 
 void hashtable_foreach(Hashtable* ht, HashtableForeachFn fn) {
     Hashtable* ht_local;
@@ -87,8 +84,6 @@ void hashtable_store(Hashtable* ht, const char* key, void* value) {
     hashtable_store_with_instance(ht, key, value, 0);
 }
 
-/* TODO: [near miss] 99.71%; entry-as-slot with in-branch slot copy matches the CFG and copies;
- * only volatile regs differ (retail pool base r6, slot copy r3, next r4). */
 void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance) {
     int ch;
     unsigned int hash;
@@ -96,8 +91,6 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
     const char* p;
     unsigned int bucket;
     HashtableEntry* entry;
-    HashtableEntry* allocation_slot;
-    HashtableEntry* recycled;
     int cmp;
     int len;
 
@@ -131,12 +124,10 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
     }
     if (entry == 0) {
         entry = &ht->entry_pool[ht->allocation_index];
-        recycled = entry->next;
-        if (recycled != 0) {
-            allocation_slot = entry;
-            entry = recycled;
-            allocation_slot->next = recycled->next;
-            recycled->next = 0;
+        if (entry->next != 0) {
+            entry = entry->next;
+            ht->entry_pool[ht->allocation_index].next = entry->next;
+            entry->next = 0;
         } else {
             ht->allocation_index++;
         }
@@ -155,22 +146,10 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
     entry->instance = instance;
 }
 
-/* TODO: [near miss] 98.08%; chained loop store shares retail's single zero; residue is the zero/offset
- * register swap at loop setup and retail's single r3 = 1 shared by the initialized store and return. */
-int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
+static inline int hashtable_initialize_storage(Hashtable* ht,
+                                                unsigned int bucket_count) {
     unsigned int i;
 
-    ht->owns_keys = 1;
-    ht->key_storage_capacity = bucket_count << 6;
-    ht->heap = heap;
-    ht->key_storage = _mwMemMalloc(heap, ht->key_storage_capacity, 3, 0, 0, 0);
-    ht->capacity = bucket_count;
-    ht->bucket_count = bucket_count;
-    ht->buckets = _mwMemMalloc(ht->heap, bucket_count << 2, 3, 0, 0, 0);
-    ht->entry_pool = _mwMemMalloc(ht->heap, ht->capacity << 4, 3, 0, 0, 0);
-    if (ht->buckets == 0 || ht->entry_pool == 0 || ht->key_storage == 0) {
-        return 0;
-    }
     for (i = 0; i < bucket_count; i++) {
         ht->entry_pool[i].next = ht->buckets[i] = 0;
     }
@@ -178,4 +157,21 @@ int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap*
     ht->allocation_index = 0;
     ht->initialized = 1;
     return 1;
+}
+
+/* TODO: [near miss] 98.29%; storage helper fixes loop setup; final zero
+ * register and duplicate success constant remain after honest-form checks. */
+int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
+    ht->owns_keys = 1;
+    ht->key_storage_capacity = bucket_count << 6;
+    ht->heap = heap;
+    ht->key_storage = _mwMemMalloc(heap, ht->key_storage_capacity, 3, 0, 0, 0);
+    ht->capacity = bucket_count;
+    ht->bucket_count = bucket_count;
+    ht->buckets = _mwMemMalloc(ht->heap, bucket_count * sizeof(*ht->buckets), 3, 0, 0, 0);
+    ht->entry_pool = _mwMemMalloc(ht->heap, ht->capacity * sizeof(*ht->entry_pool), 3, 0, 0, 0);
+    if (ht->buckets == 0 || ht->entry_pool == 0 || ht->key_storage == 0) {
+        return 0;
+    }
+    return hashtable_initialize_storage(ht, bucket_count);
 }

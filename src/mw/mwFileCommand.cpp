@@ -1,25 +1,10 @@
 /* TODO: [review] layout stubs: mwFileCommand::getError() const reproduces a linker-stripped retail
  * function only to recreate its .data layout; the body is NOT recovered source. Replace with a
  * genuine body if a source turns up. */
+#include "mw/mwFile.h"
+
 struct mwFileTypeInfo;
-struct mwFile;
-class mwFileCommand;
 class mwFileServer;
-
-union mwFileAsyncValue {
-    void* pointer;
-    mwFile* file;
-    unsigned long bytes;
-};
-
-struct _mwFileAsyncResult {
-    mwFileAsyncValue value;
-    int error;
-};
-
-typedef _mwFileAsyncResult mwFileAsyncResult;
-typedef void (*mwFileCallback)(
-    mwFileCommand*, mwFileAsyncResult, void*);
 
 class mwFileQueryable {
 public:

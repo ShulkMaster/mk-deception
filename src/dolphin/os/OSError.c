@@ -5,7 +5,7 @@
 extern int vprintf(const char* format, __va_list arguments);
 
 #undef va_start
-#define va_start(list, last_arg) ((void)(last_arg), __builtin_va_info(&(list)))
+#define va_start(list, last_arg) __builtin_va_info(&(list))
 
 #define OS_ERROR_COUNT 17
 #define OS_ERROR_FLOATING_POINT 16
@@ -99,7 +99,7 @@ OSErrorHandler OSSetErrorHandler(OSError error, OSErrorHandler handler)
                 thread->context.srr1 |= MSR_FE0 | MSR_FE1;
                 if (!(thread->context.state & OS_CONTEXT_STATE_FPSAVED)) {
                     thread->context.state |= OS_CONTEXT_STATE_FPSAVED;
-                    for (index = 0; index < 32; index++) {
+                    for (index = 0; index < (int)(sizeof(thread->context.fpr) / sizeof(thread->context.fpr[0])); index++) {
                         *(unsigned long long*)&thread->context.fpr[index] =
                             0xFFFFFFFFFFFFFFFFULL;
                         *(unsigned long long*)&thread->context.psf[index] =

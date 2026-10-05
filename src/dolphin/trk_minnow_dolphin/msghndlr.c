@@ -1,25 +1,25 @@
-#include "dolphin/trk.h"
+#include "dolphin/msghndlr.h"
 #include "runtime/cstring.h"
 
-typedef struct TRKReplyPacket {
+struct TRKReplyPacket {
     u32 length;
     u8 command;
     u8 field_0x05[3];
     u8 error;
     u8 field_0x09[0x37];
-} TRKReplyPacket;
+};
 
-typedef char TRKReplyPacketSizeCheck[sizeof(TRKReplyPacket) == 0x40 ? 1 : -1];
+typedef char TRKReplyPacketSizeCheck[sizeof(struct TRKReplyPacket) == 0x40 ? 1 : -1];
 
 extern void __TRK_copy_vectors(void);
 extern void __TRK_reset(void);
 
 static BOOL IsTRKConnected;
 
-/* TODO: [near miss] 98.333336%; code and diagnostic bytes agree; only grouped string-table relocation identities differ. */
+/* TODO: [near miss] 98.57%; diagnostic bytes agree; label member addi versus pointer mr remains. */
 DSError TRKDoSetOption(MessageBuffer* message)
 {
-    static const struct {
+    static const struct TRKSerialOptionText {
         char label[32];
         char enabled[8];
         char disabled[9];
@@ -28,18 +28,18 @@ DSError TRKDoSetOption(MessageBuffer* message)
         "Enable\n",
         "Disable\n"
     };
-    TRKReplyPacket reply;
-    const char* text;
+    struct TRKReplyPacket reply;
+    const struct TRKSerialOptionText* text;
     u8 value;
 
-    text = option_text.label;
+    text = &option_text;
     value = message->data[0x0C];
     if (message->data[0x08] == 1) {
-        usr_puts_serial(text);
+        usr_puts_serial(text->label);
         if (value != 0) {
-            usr_puts_serial(text + 32);
+            usr_puts_serial(text->enabled);
         } else {
-            usr_puts_serial(text + 40);
+            usr_puts_serial(text->disabled);
         }
         SetUseSerialIO(value);
     }
@@ -54,7 +54,7 @@ DSError TRKDoSetOption(MessageBuffer* message)
 
 DSError TRKDoStop(MessageBuffer* message)
 {
-    TRKReplyPacket reply;
+    struct TRKReplyPacket reply;
     DSError error;
     u8 reply_error;
 
@@ -87,11 +87,11 @@ DSError TRKDoStop(MessageBuffer* message)
 
 DSError TRKDoStep(MessageBuffer* message)
 {
-    TRKReplyPacket bad_count_reply;
-    TRKReplyPacket bad_range_reply;
-    TRKReplyPacket bad_mode_reply;
-    TRKReplyPacket running_reply;
-    TRKReplyPacket success_reply;
+    struct TRKReplyPacket bad_count_reply;
+    struct TRKReplyPacket bad_range_reply;
+    struct TRKReplyPacket bad_mode_reply;
+    struct TRKReplyPacket running_reply;
+    struct TRKReplyPacket success_reply;
     u8 mode;
     u8 count;
     u32 range_start;
@@ -169,8 +169,8 @@ DSError TRKDoStep(MessageBuffer* message)
 
 DSError TRKDoContinue(MessageBuffer* message)
 {
-    TRKReplyPacket error_reply;
-    TRKReplyPacket success_reply;
+    struct TRKReplyPacket error_reply;
+    struct TRKReplyPacket success_reply;
 
     MWTRACE(1, "DoContinue\n");
     if (!TRKTargetStopped()) {
@@ -202,7 +202,7 @@ DSError TRKDoVersions(MessageBuffer* message)
 
 DSError TRKDoOverride(MessageBuffer* message)
 {
-    TRKReplyPacket reply;
+    struct TRKReplyPacket reply;
 
     memset(&reply, 0, sizeof(reply));
     reply.command = 0x80;
@@ -215,7 +215,7 @@ DSError TRKDoOverride(MessageBuffer* message)
 
 DSError TRKDoReset(MessageBuffer* message)
 {
-    TRKReplyPacket reply;
+    struct TRKReplyPacket reply;
 
     memset(&reply, 0, sizeof(reply));
     reply.command = 0x80;
@@ -228,7 +228,7 @@ DSError TRKDoReset(MessageBuffer* message)
 
 DSError TRKDoDisconnect(MessageBuffer* message)
 {
-    TRKReplyPacket reply;
+    struct TRKReplyPacket reply;
     TRKEvent event;
 
     IsTRKConnected = 0;
@@ -244,7 +244,7 @@ DSError TRKDoDisconnect(MessageBuffer* message)
 
 DSError TRKDoConnect(MessageBuffer* message)
 {
-    TRKReplyPacket reply;
+    struct TRKReplyPacket reply;
 
     IsTRKConnected = 1;
     memset(&reply, 0, sizeof(reply));
@@ -265,7 +265,7 @@ u32 GetTRKConnected(void)
     return IsTRKConnected;
 }
 
-/* TODO: [near miss] 98.095240%; loop, modulo, calls, and size match; static diagnostic symbols leave only nonvolatile coloring/relocation residue. */
+/* TODO: [near miss] 99.05%; loop, modulo and calls agree; diagnostic constant/cursor register allocation remains. */
 void OutputData(const u8* data, s32 length)
 {
     static const char output_format[] = "%02x ";

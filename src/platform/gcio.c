@@ -5,12 +5,7 @@
 #include "dolphin/si.h"
 #include "game/controller.h"
 #include "game/game_info.h"
-
-extern void handle_reset_switch(void);
-extern void dispatch_pad_sticks(int channel);
-extern void dispatch_right_sticks(int channel);
-
-extern SwitchMapEntry default_switch_map[16];
+#include "platform/gcutils.h"
 
 int gc_controller_offset_tbl[16] = {
     -1, 0x20, 0x40, 0x10, 0x800, 0x400, 0x100, 0x200,

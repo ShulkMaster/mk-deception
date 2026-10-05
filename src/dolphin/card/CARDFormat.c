@@ -60,12 +60,11 @@ s32 __CARDFormatRegionAsync(s32 chan, u16 encode, CARDCallback callback) {
     OSTime time;
     OSTime rand;
 
-
     result = __CARDGetControlBlock(chan, &card);
     if (result < 0)
         return result;
 
-    id = (CARDID*)card->workArea;
+    id = card->workArea;
     memset(id, 0xff, CARD_SYSTEM_BLOCK_SIZE);
     dvdstatus = __VIRegs[55];
 
@@ -78,9 +77,9 @@ s32 __CARDFormatRegionAsync(s32 chan, u16 encode, CARDCallback callback) {
     rand = time = OSGetTime();
 
     sramEx = __OSLockSramEx();
-    for (i = 0; i < 12; i++) {
+    for (i = 0; i < (s16)sizeof(sramEx->flashID[chan]); i++) {
         rand = (rand * 1103515245 + 12345) >> 16;
-        id->serial[i] = (u8)(sramEx->flashID[chan][i] + rand);
+        id->serial[i] = sramEx->flashID[chan][i] + rand;
         rand = ((rand * 1103515245 + 12345) >> 16) & 0x7FFF;
     }
     __OSUnlockSramEx(FALSE);
@@ -105,8 +104,8 @@ s32 __CARDFormatRegionAsync(s32 chan, u16 encode, CARDCallback callback) {
     for (i = 0; i < 2; i++) {
         fat = (u16*)((u8*)card->workArea + (3 + i) * CARD_SYSTEM_BLOCK_SIZE);
         memset(fat, 0x00, CARD_SYSTEM_BLOCK_SIZE);
-        fat[CARD_FAT_CHECKCODE] = (u16)i;
-        fat[CARD_FAT_FREEBLOCKS] = (u16)(card->cBlock - CARD_NUM_SYSTEM_BLOCK);
+        fat[CARD_FAT_CHECKCODE] = i;
+        fat[CARD_FAT_FREEBLOCKS] = card->cBlock - CARD_NUM_SYSTEM_BLOCK;
         fat[CARD_FAT_LASTSLOT] = CARD_NUM_SYSTEM_BLOCK - 1;
         __CARDCheckSum(&fat[CARD_FAT_CHECKCODE], CARD_SYSTEM_BLOCK_SIZE - sizeof(u32), &fat[CARD_FAT_CHECKSUM],
                        &fat[CARD_FAT_CHECKSUMINV]);
@@ -121,7 +120,6 @@ s32 __CARDFormatRegionAsync(s32 chan, u16 encode, CARDCallback callback) {
         __CARDPutControlBlock(card, result);
     return result;
 }
-
 
 s32 CARDFormat(s32 chan) {
     s32 result = __CARDFormatRegionAsync(chan, __CARDGetFontEncode(), &__CARDSyncCallback);

@@ -2,6 +2,7 @@
  * __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off). */
 
 #include "game/pselect_textures.h"
+#include "game/pfxscript_api.h"
 
 extern "C" {
 struct MkProc;
@@ -27,7 +28,9 @@ void unload_p2_player_profile(void);
 #include "movie/MkMovies.h"
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenMgr.h"
+#include "mwScreenEngine/ScreenAction.h"
 #include "mwScreenEngine/ScreenPoly.h"
+#include "mwScreenEngine/ScreenAnimControl.h"
 #include "mwScreenEngine/ScreenSCtl.h"
 #include "mwScreenEngine/ScreenControl.h"
 #include "mwScreenEngine/ScreenText.h"
@@ -59,25 +62,11 @@ void unload_p2_player_profile(void);
 extern "C" {
 
 #include "rw/rwframe.h"
+#include "runtime/mk_mem.h"
 
 #pragma use_lmw_stmw on
 
-typedef struct ScreenActionView {
-    void* vtbl;                 /* +0x00 */
-    int state_04;               /* +0x04 */
-    int state_08;               /* +0x08 */
-    unsigned char pad_0C[0x0C]; /* +0x0C */
-    void* event;                /* +0x18 */
-    int arg;                    /* +0x1C */
-    unsigned int event_index;   /* +0x20 */
-    unsigned char pad_24[4];    /* +0x24 */
-    int eventUser;              /* +0x28 */
-    ScreenObject* owner;        /* +0x2C */
-    void* params;               /* +0x30 */
-} ScreenActionView;
-
 void* __nw__FUl(unsigned long size);
-void free_mem(void* mem);
 void Free__10ScreenUtilFPv(void* p);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
@@ -156,15 +145,15 @@ public:
     virtual void FreeTextureCollection(int id, GMTextureInfo_t* info);
 };
 
-typedef struct ScreenEngineBssIsland {
-    PausedStudioEvent queue[12]; /* +0x00 size 0x60 */
-    unsigned char pad_814[0xC]; /* +0x60 -- symbols.txt @814 */
-    char screen_manager[0x264]; /* +0x6C -- ScreenMgr storage */
-    unsigned char pad_815[0xC]; /* +0x2D0 -- @815 */
-    ScreenEngineClient client; /* +0x2DC */
-    unsigned char pad_816[0xC]; /* +0x35C -- @816 */
-    mkGameVariables game_variables; /* +0x368 */
-} ScreenEngineBssIsland;
+struct ScreenEngineBssIsland {
+    PausedStudioEvent queue[12];
+    unsigned char pad_814[0xC];
+    char screen_manager[0x264];
+    unsigned char pad_815[0xC];
+    ScreenEngineClient client;
+    unsigned char pad_816[0xC];
+    mkGameVariables game_variables;
+};
 
 MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, void* proc_fn, int pdata_size,
                                         void** pdata_out);
@@ -265,12 +254,6 @@ static const float kSleepNegOne = -1.0f;
 static const float kSleepOne = 1.0f;
 static const float kMsPerSec = 1000.0f;
 
-typedef struct ScreenMgrActive {
-    char pad00[0x1A4];
-    int active_count; /* +0x1A4 */
-    void* screens[16]; /* +0x1A8 */
-} ScreenMgrActive;
-
 int current_render_state;
 unsigned int s_nRepeatedStickBits;
 char popup_message_text[0x200] = {0};
@@ -311,14 +294,14 @@ int get_menu_mode_sub_var(void) {
 }
 
 char* get_current_screen_name(void) {
-    ScreenMgrActive* mgr;
+    ScreenMgr* mgr;
     void* screen;
 
-    mgr = (ScreenMgrActive*)screen_manager;
-    if (mgr->active_count < 0) {
+    mgr = (ScreenMgr*)screen_manager;
+    if (mgr->m_activeCount < 0) {
         screen = 0;
     } else {
-        screen = mgr->screens[mgr->active_count];
+        screen = mgr->m_stack[mgr->m_activeCount];
     }
     if (screen == 0) {
         return 0;
@@ -347,7 +330,7 @@ void refresh_screen_by_name(char* name) {
     }
 }
 
-/* TODO: [breakthrough needed] 71.44%; C destroy linkage fixed; cleanup reconstruction remains. */
+/* TODO: [breakthrough needed] 74.82%; C destroy linkage fixed; cleanup reconstruction remains. */
 void screen_engine_cleanup(void) {
     Dispose__9ScreenMgrFUi(screen_manager, 1);
     memset(screen_engine_client.fontCache, 0,
@@ -382,25 +365,17 @@ int GetArtSlot__Fv(void) {
 
 void PrintObjectDepth__20mkScreenEngineClientFP16ScreenRenderInfoii(
     ScreenEngineClient* self, void* info, int depth, int flags) {
-    (void)self;
-    (void)info;
-    (void)depth;
-    (void)flags;
 }
 
 void Reset__20mkScreenEngineClientFv(ScreenEngineClient* self) {
-    (void)self;
 }
 
 void SetCurrent__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* self,
                                                      void* set) {
-    (void)self;
-    (void)set;
 }
 
 void UnloadScreen__20mkScreenEngineClientFP6Screen(ScreenEngineClient* self,
                                                     void* screen) {
-    (void)self;
     DestroyScreen__15ScreenInstancerFP6Screen(screen);
 }
 
@@ -429,7 +404,6 @@ void* CreateAction__20mkScreenEngineClientFi(ScreenEngineClient* self,
                                               int type) {
     void** action;
 
-    (void)self;
     if (type == 0x139C) {
         action = (void**)__nw__12ScreenActionFUl(0x3C);
         if (action != 0) {
@@ -503,84 +477,72 @@ void* CreateAction__20mkScreenEngineClientFi(ScreenEngineClient* self,
 
 int Update__32ScreenActionOnlineIsOpponentIdleFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
 
-    (void)mgr;
-    (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    view->state_04 = 0;
-    view->state_08 = 0;
+    view->m_alive = 0;
+    view->m_yield = 0;
     return 1;
 }
 
 int Update__37ScreenActionOnlineResetChallengeStateFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
 
-    (void)mgr;
-    (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    view->state_04 = 0;
-    view->state_08 = 0;
+    view->m_alive = 0;
+    view->m_yield = 0;
     return 1;
 }
 
 int Update__32ScreenActionOnlinePickChallengerFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
 
-    (void)mgr;
-    (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    view->state_04 = 0;
-    view->state_08 = 0;
+    view->m_alive = 0;
+    view->m_yield = 0;
     return 1;
 }
 
 int Update__33ScreenActionOnlineChallengeCancelFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
 
-    (void)mgr;
-    (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    view->state_04 = 0;
-    view->state_08 = 0;
+    view->m_alive = 0;
+    view->m_yield = 0;
     return 1;
 }
 
 int Update__27ScreenActionOnlineChallengeFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
     void* params;
 
-    (void)mgr;
-    (void)dt;
-    params = view->params;
+    params = view->m_params;
     StartLocal__17ScreenActionStackFv(stack);
     if (params != 0) {
         GetInt__12ScreenParamsFUi(params, 0);
     }
     EndLocal__17ScreenActionStackFv(stack);
-    view->state_04 = 0;
-    view->state_08 = 0;
+    view->m_alive = 0;
+    view->m_yield = 0;
     return 1;
 }
 
 int Update__23ScreenActionCheckOnlineFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
     void* owner;
 
-    (void)mgr;
-    (void)dt;
-    view->state_04 = 0;
-    view->state_08 = 0;
-    owner = view->owner;
+    view->m_alive = 0;
+    view->m_yield = 0;
+    owner = view->m_object;
     if ((g_game_info.field_04 & 0x80) != 0 && owner != 0) {
         ProcessSubActions__12ScreenObjectFPC12ScreenActioni(owner, action, 0);
     }
@@ -592,20 +554,18 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
     typedef void (*ActionInit)(void*, void*, unsigned int, void*,
                                unsigned int, void*, int);
-    ScreenActionView* view = (ScreenActionView*)action;
+    ScreenAction* view = (ScreenAction*)action;
     void* event;
     unsigned int eventIndex;
     unsigned int actionType;
     void* params;
     void* created;
 
-    (void)mgr;
-    (void)dt;
-    view->state_04 = 0;
-    view->state_08 = 0;
-    event = view->event;
+    view->m_alive = 0;
+    view->m_yield = 0;
+    event = view->m_event;
     if (event != 0) {
-        eventIndex = view->event_index;
+        eventIndex = view->m_eventIndex;
         if (HasSubActions__11ScreenEventCFUi(event, eventIndex) != 0) {
             eventIndex +=
                 (unsigned short)randu0((unsigned short)
@@ -615,7 +575,7 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
             created = CreateAction__17ScreenActionStackFUi(actionType);
             (*(ActionInit**)created)[4](
                 created, event, eventIndex,
-                view->owner, actionType, params, view->eventUser);
+                view->m_object, actionType, params, view->m_flags);
             PushAction__17ScreenActionStackFP12ScreenAction(stack, created);
         }
     }
@@ -625,7 +585,6 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
 
 void DestroyResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
     ScreenEngineClient* self, ScreenResourceLibrary* library) {
-    (void)self;
     delete library;
 }
 
@@ -633,7 +592,6 @@ void* CreateResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
     ScreenEngineClient* self, void* parent) {
     ScreenResourceLibView* library;
 
-    (void)self;
     library = (ScreenResourceLibView*)__nw__FUl(0x34);
     if (library != 0) {
         __ct__21ScreenResourceLibraryFP21ScreenResourceLibrary(library, parent);
@@ -644,25 +602,19 @@ void* CreateResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
 }
 
 void Free__20mkScreenEngineClientFPv(ScreenEngineClient* self, void* mem) {
-    (void)self;
     free_mem(mem);
 }
 
 void* Malloc__20mkScreenEngineClientFUliPc(ScreenEngineClient* self,
                                             unsigned long size, int tag,
                                             char* name) {
-    (void)self;
-    (void)tag;
-    (void)name;
     return _mwMemMalloc(wave_heap, size, 4, 0, 0, 0);
 }
 
 void RefreshCollection__13ScreenControlFv(void* self) {
-    (void)self;
 }
 
 void RefreshOption__13ScreenControlFv(void* self) {
-    (void)self;
 }
 
 void SetVisible__12ScreenObjectFUi(ScreenObject* self, unsigned int visible) {
@@ -679,46 +631,31 @@ unsigned int IsVisible__12ScreenObjectFv(ScreenObject* self) {
 
 void ProcessEngineEvent__10ScreenNodeFP9ScreenMgri(void* self, void* mgr,
                                                    int event) {
-    (void)self;
-    (void)mgr;
-    (void)event;
 }
 
 int GetNumNodes__10ScreenNodeCFv(void* self) {
-    (void)self;
     return 0;
 }
 
 int NeedIdleProcessing__10ScreenNodeFv(void* self) {
-    (void)self;
     return 0;
 }
 
 void Close__10ScreenNodeFv(void* self) {
-    (void)self;
 }
 
 int HandleAction__10ScreenNodeFP9ScreenMgrPC12ScreenAction(
     void* self, void* mgr, const void* action) {
-    (void)self;
-    (void)mgr;
-    (void)action;
     return 0;
 }
 
 void SetMatrixStack__10ScreenNodeFP17ScreenMatrixStack(void* self,
                                                        void* stack) {
-    (void)self;
-    (void)stack;
 }
 
 void ReportError__20mkScreenEngineClientFPcPci(ScreenEngineClient* self,
                                                char* message, char* file,
                                                int line) {
-    (void)self;
-    (void)message;
-    (void)file;
-    (void)line;
 }
 
 void set_default_button_repeat_time(void) {
@@ -742,20 +679,14 @@ void set_popup_type(int type) {
 }
 
 char* GetString__21ScreenResourceLibraryFPc(void* self, char* name) {
-    (void)self;
-    (void)name;
     return 0;
 }
 
 char* GetString__21ScreenResourceLibraryFi(void* self, int id) {
-    (void)self;
-    (void)id;
     return 0;
 }
 
 int DoneLoadingSet__12ScreenClientFP9ScreenSet(void* self, void* set) {
-    (void)self;
-    (void)set;
     return 1;
 }
 
@@ -778,9 +709,8 @@ void Init__9ImageListFv(void* self) {
     Init__13ScreenControlFv(self);
 }
 
-/* Retail @stringBase0 prefix through "scr_%s.sec" at +0x1C9. */
 static const char stringBase0[] =
-    "English-US\0" /* +0x0 */
+    "English-US\0"
     "Spanish\0"
     "German\0"
     "French\0"
@@ -906,7 +836,7 @@ static const char stringBase0[] =
     "Versus\0"
     "Go Online\0"
     "\0"
-    "scr_%s.sec\0" /* +0x1C9 */
+    "scr_%s.sec\0"
     "SS-texture cache\0"
     "%d\0"
     "Game Options: Text Collection\0"
@@ -929,15 +859,15 @@ static const char stringBase0[] =
     "SS-Image List\0"
     "<COLOR=0x\0"
     "Screen - Text Obj\0"
-    "CLOUDS\0" /* +0x331 */
-    "screen_fx.mko\0" /* +0x338 */
-    "%s_MET\0" /* +0x346 */
-    "8X8\0" /* +0x34D */
-    "Strings/\0" /* +0x351 */
-    "real string\0" /* +0x35A */
-    "empty string\0" /* +0x366 */
-    "STRINGS\0" /* +0x373 */
-    "SCREEN"; /* +0x37B */
+    "CLOUDS\0"
+    "screen_fx.mko\0"
+    "%s_MET\0"
+    "8X8\0"
+    "Strings/\0"
+    "real string\0"
+    "empty string\0"
+    "STRINGS\0"
+    "SCREEN";
 
 void set_popup_options_text(const char* text) {
     if (strlen(text) >= sizeof(popup_options_text)) {
@@ -1115,10 +1045,6 @@ void fire_screen_studio_event(int event, int flag) {
     FireEvent__9ScreenMgrFiiUi(screen_manager, event, flag, 0);
 }
 
-
-
-/* TODO: [near miss] 99.80769%; instructions and literal values agree;
- * generated literal relocation identity remains; stop at pool layout. */
 void wait_for_screen_close(void) {
     float sleep;
     int pid_base;
@@ -1181,7 +1107,7 @@ void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot
         screen_engine_client.share_instance = share_pdata->instance;
     }
 
-    loaded = (unsigned int)((ScreenMgr*)screen_manager)->LoadScreen((char*)name, 1);
+    loaded = ((ScreenMgr*)screen_manager)->LoadScreen((char*)name, 1);
     if (loaded == 0) {
         return;
     }
@@ -1265,7 +1191,7 @@ static void drain_paused_studio_events(void) {
     } while (i < 12);
 }
 
-int vdestroy_screen_engine(MkHdr* hdr) {
+void vdestroy_screen_engine(MkHdr* hdr) {
     hdr->instance = 0;
     mkhdr_memfree(hdr);
 }
@@ -1321,14 +1247,14 @@ void pause_screen_engine(int paused) {
     pause_screen_engine_proc = paused;
 }
 
-typedef struct RepeatButtonPdata {
-    MkHdr hdr;           /* +0x00 */
-    int port;            /* +0x08 */
-    int switchIndex;     /* +0x0C -- pad switch row or stick bit index */
-    int eventId;         /* +0x10 -- studio FireEvent id */
-    int delayLeft;       /* +0x14 -- initial frames before repeat */
-    int repeating;       /* +0x18 -- 0 = delay phase, 1 = repeating */
-} RepeatButtonPdata;
+struct RepeatButtonPdata {
+    MkHdr hdr;
+    int port;
+    int switchIndex;
+    int eventId;
+    int delayLeft;
+    int repeating;
+};
 
 static float p_repeat_analog_stick_input__Fv(void);
 static float p_repeat_button_input__Fv(void);
@@ -1353,7 +1279,6 @@ static float p_repeat_button_input__Fv(void);
         } else {                                                               \
             _proc = 0;                                                         \
         }                                                                      \
-        (void)_proc;                                                           \
     } while (0)
 
 #define SPAWN_REPEAT_ANALOG(port_, plyr_, swIdx_, evt_, bit_)                  \
@@ -1496,7 +1421,7 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
     }
 }
 
-/* TODO: [near miss] 91.016%; repeat delay initialization restored; repeat scheduling remains. */
+/* TODO: [near miss] 91.58%; repeat delay initialization restored; repeat scheduling remains. */
 static float p_repeat_analog_stick_input__Fv(void) {
     RepeatButtonPdata* pdata;
     GcPadSlot* slot;
@@ -1570,7 +1495,7 @@ static float p_repeat_analog_stick_input__Fv(void) {
     return button_repeat_time;
 }
 
-/* TODO: [breakthrough needed] 87.943665%; repeat delay initialization restored; repeat scheduling remains. */
+/* TODO: [breakthrough needed] 88.30%; repeat delay initialization restored; repeat scheduling remains. */
 static float p_repeat_button_input__Fv(void) {
     RepeatButtonPdata* pdata;
     GcPadSlot* slot;
@@ -1610,7 +1535,6 @@ static float p_repeat_button_input__Fv(void) {
     return sleep;
 }
 
-/* TODO: [near miss] 99.72%; player-slot layout corrected; lowering residue remains. */
 void set_target_game_mode(int menu_player_arg, int mode) {
     target_game_mode = mode;
     switch (mode) {
@@ -1620,16 +1544,16 @@ void set_target_game_mode(int menu_player_arg, int mode) {
     case 11:
     case 21:
         if (menu_player_arg == 0) {
-            set_player_state(&g_game_info.plyr0, 1);
-            set_player_state(&g_game_info.plyr1, 0);
+            set_player_state(&g_game_info.players[0], 1);
+            set_player_state(&g_game_info.players[1], 0);
         } else if (menu_player_arg == 1) {
-            set_player_state(&g_game_info.plyr1, 1);
-            set_player_state(&g_game_info.plyr0, 0);
+            set_player_state(&g_game_info.players[1], 1);
+            set_player_state(&g_game_info.players[0], 0);
         }
         break;
     case 7:
-        set_player_state(&g_game_info.plyr0, 1);
-        set_player_state(&g_game_info.plyr1, 1);
+        set_player_state(&g_game_info.players[0], 1);
+        set_player_state(&g_game_info.players[1], 1);
         break;
     case 10:
     case 12:
@@ -1686,16 +1610,16 @@ float p_handle_screen_engine_controller__Fv(void) {
 }
 
 float p_screen_engine_tick__Fv(void) {
-    ScreenMgrActive* mgr;
+    ScreenMgr* mgr;
     int dt;
     int deferred;
     int rr;
 
     rr = refresh_rate();
-    dt = (int)(kMsPerSec / (float)rr);
+    dt = kMsPerSec / (float)rr;
 
-    mgr = (ScreenMgrActive*)screen_manager;
-    if (mgr->active_count < 0) {
+    mgr = (ScreenMgr*)screen_manager;
+    if (mgr->m_activeCount < 0) {
         movie_player_reset();
         Dispose__9ScreenMgrFUi(screen_manager, 1);
         fxbanks_unload_by_owner(8);
@@ -1970,31 +1894,27 @@ extern char* game_settings_rounds_to_win_numbers[];
 extern char* number_strings[];
 extern int ui_sound_table[];
 
-typedef struct GVStringMatrixIsland {
+struct GVStringMatrixIsland {
     unsigned char pad000[0x6B0];
-    char* menu[6];             /* +0x6B0 */
-    char* pselect[20];         /* +0x6C8 */
-    char* wagerP1[6];          /* +0x718 */
-    char* wagerP2[6];          /* +0x730 */
-    char* profileTestA[7];     /* +0x748 */
-    char* profileTestB[7];     /* +0x764 */
-    char* viewProfileStats[9]; /* +0x780 */
-    char* multiProfileP1[14];  /* +0x7A4 */
-    char* multiProfileP2[14];  /* +0x7DC */
-} GVStringMatrixIsland;
+    char* menu[6];
+    char* pselect[20];
+    char* wagerP1[6];
+    char* wagerP2[6];
+    char* profileTestA[7];
+    char* profileTestB[7];
+    char* viewProfileStats[9];
+    char* multiProfileP1[14];
+    char* multiProfileP2[14];
+};
 
 void* get_movelist_strings(unsigned int* out_max);
 int wager_load_koin_count_string_array__F8PLYR_NUM(int player);
 extern int p1_profile_status;
 extern int p2_profile_status;
-extern unsigned char p1_profile[0x5c0];
-extern unsigned char p2_profile[0x5c0];
 void get_soundtrack_title_list(const char*** titles_out, unsigned int* count_out,
                                int* stride_out);
 void get_storage_device_name_list(char** out);
 
-/* TODO: [breakthrough needed] 99.46%; recover separately named matrix data
- * before defining ui_sound_table, currently used as its relocation base. */
 int mkGameVariables::GetStringMatrixCollection(int id, char*** out, int& rows) {
     GVStringMatrixIsland* matrices = (GVStringMatrixIsland*)ui_sound_table;
     unsigned int count = 0;
@@ -2097,31 +2017,31 @@ int wager_load_koin_count_string_array__F8PLYR_NUM(int player) {
     char buffer[80];
 
     if (player == 0 && p1_profile_status == 1) {
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x54));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[5]);
         strcpy(wager_p1_koin_count_string_matrix[0], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x50));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[4]);
         strcpy(wager_p1_koin_count_string_matrix[1], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x4C));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[3]);
         strcpy(wager_p1_koin_count_string_matrix[2], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x48));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[2]);
         strcpy(wager_p1_koin_count_string_matrix[3], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x44));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[1]);
         strcpy(wager_p1_koin_count_string_matrix[4], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p1_profile + 0x40));
+        sprintf(buffer, stringBase0 + 0x1E5, p1_profile.koins[0]);
         strcpy(wager_p1_koin_count_string_matrix[5], buffer);
         return 1;
     } else if (player == 1 && p2_profile_status == 1) {
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x54));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[5]);
         strcpy(wager_p2_koin_count_string_matrix[0], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x50));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[4]);
         strcpy(wager_p2_koin_count_string_matrix[1], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x4C));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[3]);
         strcpy(wager_p2_koin_count_string_matrix[2], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x48));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[2]);
         strcpy(wager_p2_koin_count_string_matrix[3], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x44));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[1]);
         strcpy(wager_p2_koin_count_string_matrix[4], buffer);
-        sprintf(buffer, stringBase0 + 0x1E5, *(int*)(p2_profile + 0x40));
+        sprintf(buffer, stringBase0 + 0x1E5, p2_profile.koins[0]);
         strcpy(wager_p2_koin_count_string_matrix[5], buffer);
         return 1;
     }
@@ -2437,7 +2357,6 @@ extern int profile_code_state[2];
 extern int popup_type;
 extern int winner;
 
-/* TODO: [near miss] 100% bytes, not link-exact; plyrprofile.h needs extern "C" guards (ppc_set_button_answer mangled) and the local int icon-selection decl then conflicts. */
 void mkGameVariables::SetInt(int id, int value) {
     if (id >= 0x332c && id <= 0x3333) {
         set_game_option(id, value);
@@ -2581,8 +2500,8 @@ int mkGameVariables::GetInt(int id) {
         return bg_pselect_get_stage(1);
     case 0x1f72:
     case 0x1f73:
-        state = (id == 0x1f72 ? g_game_info.plyr0.player_state
-                              : g_game_info.plyr1.player_state);
+        state = (id == 0x1f72 ? g_game_info.players[0].player_state
+                              : g_game_info.players[1].player_state);
         if (state == 1) {
             return 2;
         }
@@ -2703,15 +2622,15 @@ extern void* __vt__15mkGameVariables[];
 
 mkGameVariables::~mkGameVariables() {}
 
-enum { kMallocTagInit = 0x494E4954 /* 'INIT' */ };
+enum { kMallocTagInit = 0x494E4954 };
 
 static const char* const s_stringLangFolders[6] = {
-    stringBase0 + 0x0,  /* English-US */
-    stringBase0 + 0xB,  /* Spanish */
-    stringBase0 + 0x13, /* German */
-    stringBase0 + 0x1A, /* French */
-    stringBase0 + 0x21, /* Italian */
-    stringBase0 + 0x0,  /* English-US */
+    stringBase0 + 0x0,
+    stringBase0 + 0xB,
+    stringBase0 + 0x13,
+    stringBase0 + 0x1A,
+    stringBase0 + 0x21,
+    stringBase0 + 0x0,
 };
 
 extern void* __vt__10ScreenPoly;
@@ -2793,7 +2712,7 @@ void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
             hex = slash3 + 1;
             out = (char*)decoded;
             for (i = 0; i < (int)nbytes; i++) {
-                *out = (char)ReadHexInt__10ScreenUtilFPc(hex + 2);
+                *out = ReadHexInt__10ScreenUtilFPc(hex + 2);
                 hex += 6;
                 out += 1;
             }
@@ -2988,7 +2907,7 @@ static unsigned char ScreenPolyModulateChannel(unsigned char src, float translat
     float v;
 
     v = scale * (255.0f * translation + (float)(unsigned int)src);
-    return (unsigned char)(int)v;
+    return (int)v;
 }
 
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
@@ -3112,16 +3031,16 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
             i += 1;
             dst->y = 480.0f - world[1];
 
-            dst->r = (unsigned char)(int)(info->colorScale[0] *
+            dst->r = (int)(info->colorScale[0] *
                 (255.0f * info->colorTranslation[0] +
                  (float)(unsigned int)src->rgba[0]));
-            dst->g = (unsigned char)(int)(info->colorScale[1] *
+            dst->g = (int)(info->colorScale[1] *
                 (255.0f * info->colorTranslation[1] +
                  (float)(unsigned int)src->rgba[1]));
-            dst->b = (unsigned char)(int)(info->colorScale[2] *
+            dst->b = (int)(info->colorScale[2] *
                 (255.0f * info->colorTranslation[2] +
                  (float)(unsigned int)src->rgba[2]));
-            dst->a = (unsigned char)(int)(info->colorScale[3] *
+            dst->a = (int)(info->colorScale[3] *
                 (255.0f * info->colorTranslation[3] +
                  (float)(unsigned int)src->rgba[3]));
 
@@ -3141,13 +3060,8 @@ void SetVisible__10ScreenPolyFUi(ScreenPoly* poly, unsigned int visible) {
     ((ScreenPolyFilterBits*)&poly->filterFlags)->hidden = (visible == 0);
 }
 
-typedef struct ScreenAnimControlC {
-    unsigned int type; /* +0x00 */
-    int flag; /* +0x04 */
-} ScreenAnimControlC;
-
 void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
-                                                       ScreenAnimControlC* ctrl,
+                                                       ScreenAnimControl* ctrl,
                                                        float* values,
                                                        int unused) {
     unsigned int t;
@@ -3195,15 +3109,15 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
         idx = (t - 0xD) >> 1;
         map = vert_map__10ScreenPoly[idx];
         vert = &poly->verts[map];
-        vert->rgba[0] = (unsigned char)(int)(255.0f * values[0]);
-        vert->rgba[1] = (unsigned char)(int)(255.0f * values[1]);
-        vert->rgba[2] = (unsigned char)(int)(255.0f * values[2]);
-        vert->rgba[3] = (unsigned char)(int)(255.0f * values[3]);
+        vert->rgba[0] = (int)(255.0f * values[0]);
+        vert->rgba[1] = (int)(255.0f * values[1]);
+        vert->rgba[2] = (int)(255.0f * values[2]);
+        vert->rgba[3] = (int)(255.0f * values[3]);
         break;
     case 0x14:
         hide = (values[0] == 0.0f);
         flags = poly->filterFlags;
-        flags = (unsigned char)((flags & ~0x80) | (hide << 7));
+        flags = (flags & ~0x80) | (hide << 7);
         poly->filterFlags = flags;
         break;
     default:
@@ -3276,56 +3190,49 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
     obj->pfx2d->texture = tex;
 }
 
-/* ScreenText / SEText layouts: mwScreenEngine/ScreenText.h */
-
-typedef struct ScreenView {
+struct ScreenView {
     unsigned char pad00[0x54];
-    ScreenSetView* set; /* +0x54 */
-    SEScreenDataView* data; /* +0x58 -- Screen::m_data; CHAR names via strings */
-} ScreenView;
+    ScreenSetView* set;
+    SEScreenDataView* data;
+};
 
-/* SE PTCL element (CreateElement 'PTCL'). */
-typedef struct SEParticle {
-    unsigned int typeTag; /* +0x00 'PTCL' */
+struct SEParticle {
+    unsigned int typeTag;
     int pad04;
-    void* liveObject; /* +0x08 */
+    void* liveObject;
     unsigned int unk0c;
-    char* fxName; /* +0x10 */
-    float posX; /* +0x14 */
-    float posY; /* +0x18 */
-    float posZ; /* +0x1C */
-} SEParticle;
+    char* fxName;
+    float posX;
+    float posY;
+    float posZ;
+};
 
-/* SE CHAR element -- index selects model name from screen holder table. */
-typedef struct SEChar {
-    unsigned int typeTag; /* +0x00 'CHAR' */
-    int nameIndex; /* +0x04 */
-} SEChar;
+struct SEChar {
+    unsigned int typeTag;
+    int nameIndex;
+};
 
-typedef struct ScreenParticle {
-    void* vtbl; /* +0x00 */
+struct ScreenParticle {
+    void* vtbl;
     unsigned char pad04[0x0C];
-    char* fxName; /* +0x10 */
-    int fxHandle; /* +0x14 */
-    void* pfx; /* +0x18 */
-    int hide; /* +0x1C -- nonzero = hidden */
-} ScreenParticle;
+    char* fxName;
+    int fxHandle;
+    void* pfx;
+    int hide;
+};
 
-typedef struct ScreenModel {
-    void* vtbl; /* +0x00 */
+struct ScreenModel {
+    void* vtbl;
     unsigned char pad04[0x0C];
-    MkObj* model; /* +0x10 */
-    unsigned int modelInstance; /* +0x14 */
-    int visible; /* +0x18 */
-} ScreenModel;
+    MkObj* model;
+    unsigned int modelInstance;
+    int visible;
+};
 
 extern void* __vt__14ScreenParticle;
 extern void* __vt__11ScreenModel;
 extern void load_effect_bank_with_context(char* name, void* ctx);
 extern int fx_by_id(char* name, int flags);
-extern void fx_set_param_v3(int handle, int param, float x, float y, float z);
-extern MkObj* load_named_model_from_slot(int slot, const char* name, int flags,
-                                         int unk);
 extern int curr_pipeline_used;
 extern void* __dt__10ScreenNodeFv(void* node, short del);
 extern void __dl__10ScreenNodeFPv(void* node);
@@ -3362,12 +3269,12 @@ void Render__11ScreenModelFP16ScreenRenderInfo(ScreenModel* self,
 
     if (mkobj != 0) {
         flags = mkobj->flag_bytes.hide_flags;
-        flags = (unsigned char)((flags & ~0x20) | 0);
+        flags = (flags & ~0x20) | 0;
         mkobj->flag_bytes.hide_flags = flags;
         render_mkobj(mkobj);
         render_transl_atomics();
         flags = mkobj->flag_bytes.hide_flags;
-        flags = (unsigned char)((flags & ~0x20) | 0x20);
+        flags = (flags & ~0x20) | 0x20;
         mkobj->flag_bytes.hide_flags = flags;
     }
 }
@@ -3473,7 +3380,6 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
     obj->visibility.hidden = (visible == 0);
 }
 
-/* TODO: [near miss] 99.9333%; instructions/data agree; 480.0f pool relocation differs. */
 void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* mgr,
                                                    int event) {
     SEText* se;
@@ -3499,8 +3405,8 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* mgr,
 
     se = text->seData;
     created = create_wrapped_string(kScreenTextStringOid, text->font, text->string,
-                                    (int)se->posX, (int)(480.0f - se->posY), (int)se->wrapW,
-                                    (int)se->yOff, se->halign, se->valign);
+                                    se->posX, 480.0f - se->posY, se->wrapW,
+                                    se->yOff, se->halign, se->valign);
     if (created == 0) {
         return;
     }
@@ -3529,6 +3435,8 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
     FontMetrics* metrics;
     GlyphMetrics* glyph;
     int wrapInt;
+    int* out;
+    int startOff;
 
     lineCount = 0;
     remain = strlen(str);
@@ -3544,7 +3452,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
         lastSpace = 0;
         i = 0;
         while (i < remain) {
-            ch = (unsigned char)cursor[i];
+            ch = cursor[i];
             if (ch == 0 || ch == '\n') {
                 break;
             }
@@ -3608,37 +3516,48 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
     starts = (int*)Malloc__10ScreenUtilFUliPc(
         lineCount << 2, kMallocTagInit,
         (char*)(stringBase0 + 0x31f));
-    {
-        int* out;
-        int startOff;
+    out = starts;
+    startOff = 0;
+    remain = strlen(str);
+    cursor = str;
+    while (remain > 0) {
+        width = 0.0f;
+        lastSpace = 0;
+        i = 0;
+        while (i < remain) {
+            ch = cursor[i];
+            if (ch == 0 || ch == '\n') {
+                break;
+            }
+            if (ch == ' ') {
+                metrics = text->font->metrics;
+                width += metrics->space_width;
+                lastSpace = i;
+            } else if (ch == '<' &&
+                       strncmp(cursor + i, stringBase0 + 0x315, 9) == 0) {
+                i += 0x12;
+                continue;
+            } else if (ch >= 0x20) {
+                metrics = text->font->metrics;
+                glyph = &metrics->glyphs[ch - 0x20];
+                width += glyph->advance + metrics->letter_spacing;
+            }
 
-        out = starts;
-        startOff = 0;
-        remain = strlen(str);
-        cursor = str;
-        while (remain > 0) {
-            width = 0.0f;
-            lastSpace = 0;
-            i = 0;
-            while (i < remain) {
-                ch = (unsigned char)cursor[i];
-                if (ch == 0 || ch == '\n') {
-                    break;
+            live = text->stringObj;
+            if (live != 0) {
+                if (live->instance != (unsigned int)text->stringObjInstance) {
+                    live = 0;
                 }
-                if (ch == ' ') {
-                    metrics = text->font->metrics;
-                    width += metrics->space_width;
-                    lastSpace = i;
-                } else if (ch == '<' &&
-                           strncmp(cursor + i, stringBase0 + 0x315, 9) == 0) {
-                    i += 0x12;
-                    continue;
-                } else if (ch >= 0x20) {
-                    metrics = text->font->metrics;
-                    glyph = &metrics->glyphs[ch - 0x20];
-                    width += glyph->advance + metrics->letter_spacing;
-                }
-
+            } else {
+                live = 0;
+            }
+            if (live != 0) {
+                wrapInt = live->wrap_w;
+            } else {
+                wrapInt = 0;
+            }
+            wrapW = wrapInt;
+            if (wrapW > 0.0f) {
                 live = text->stringObj;
                 if (live != 0) {
                     if (live->instance != (unsigned int)text->stringObjInstance) {
@@ -3653,41 +3572,25 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                     wrapInt = 0;
                 }
                 wrapW = wrapInt;
-                if (wrapW > 0.0f) {
-                    live = text->stringObj;
-                    if (live != 0) {
-                        if (live->instance != (unsigned int)text->stringObjInstance) {
-                            live = 0;
-                        }
-                    } else {
-                        live = 0;
-                    }
-                    if (live != 0) {
-                        wrapInt = live->wrap_w;
-                    } else {
-                        wrapInt = 0;
-                    }
-                    wrapW = wrapInt;
-                    if (width > wrapW && lastSpace > 0) {
-                        i = lastSpace;
-                        break;
-                    }
+                if (width > wrapW && lastSpace > 0) {
+                    i = lastSpace;
+                    break;
                 }
-                i += 1;
             }
-            *out = startOff;
-            out += 1;
-            breakLen = i;
-            cursor += breakLen + 1;
-            startOff += breakLen + 1;
-            remain -= breakLen + 1;
+            i += 1;
         }
+        *out = startOff;
+        out += 1;
+        breakLen = i;
+        cursor += breakLen + 1;
+        startOff += breakLen + 1;
+        remain -= breakLen + 1;
     }
     return starts;
 }
 
 void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
-                                                       ScreenAnimControlC* ctrl,
+                                                       ScreenAnimControl* ctrl,
                                                        float* values, int unused) {
     StringObj* obj;
     unsigned int t;
@@ -3703,7 +3606,7 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
     }
     switch (t) {
     case 0:
-        obj->render_x = (int)values[0];
+        obj->render_x = values[0];
         obj->render_y = 480 - (int)values[1];
         break;
     case 2:
@@ -3715,10 +3618,10 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
                 values[i] = 0.0f;
             }
         }
-        obj->pfx.instance0.rgba[3] = (unsigned char)(int)(255.0f * values[3]);
-        obj->pfx.instance0.rgba[1] = (unsigned char)(int)(255.0f * values[1]);
-        obj->pfx.instance0.rgba[2] = (unsigned char)(int)(255.0f * values[2]);
-        obj->pfx.instance0.rgba[0] = (unsigned char)(int)(255.0f * values[0]);
+        obj->pfx.instance0.rgba[3] = (int)(255.0f * values[3]);
+        obj->pfx.instance0.rgba[1] = (int)(255.0f * values[1]);
+        obj->pfx.instance0.rgba[2] = (int)(255.0f * values[2]);
+        obj->pfx.instance0.rgba[0] = (int)(255.0f * values[0]);
         break;
     case 3:
         string_obj_set_halign(obj, (int)values[0] & 0xff);
@@ -3766,7 +3669,7 @@ static void ChangeCaseStringObj(StringObj* obj, PfxFontSlot* font, int toUpper) 
         while (*p != 0) {
             ch = *p;
             if (ch >= 'a' && ch <= 'z') {
-                *p = (char)(ch - 0x20);
+                *p = ch - 0x20;
             }
             p++;
         }
@@ -3774,7 +3677,7 @@ static void ChangeCaseStringObj(StringObj* obj, PfxFontSlot* font, int toUpper) 
         while (*p != 0) {
             ch = *p;
             if (ch >= 'A' && ch <= 'Z') {
-                *p = (char)(ch + 0x20);
+                *p = ch + 0x20;
             }
             p++;
         }
@@ -3807,15 +3710,15 @@ static void ChangeCaseTextInline(ScreenText* text, int toUpper) {
     ChangeCaseStringObj(obj, text->font, toUpper);
 }
 
-typedef struct SEObjectC {
-    unsigned int typeTag; /* +0x00 */
+struct SEObjectC {
+    unsigned int typeTag;
     int pad04;
-    void* liveObject; /* +0x08 -- ScreenText* for TEXT */
+    void* liveObject;
     unsigned int flags;
     void* events;
     void* transform;
-    SEElements_t* children; /* +0x18 */
-} SEObjectC;
+    SEElements_t* children;
+};
 
 enum {
     kSeTagOBJ = 'OBJ ',
@@ -3952,7 +3855,7 @@ void Close__10ScreenTextFv(ScreenText* text) {
     }
 }
 
-/* TODO: [near miss] 93.7371%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
+/* TODO: [near miss] 93.91%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
     float* ltm;
@@ -4002,9 +3905,9 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     MKMatrixTranslate(obj->pfx.transform, delta, 1);
 
     if (is_widescreen_mode() != 0) {
-        pfxfont_string_render(&obj->pfx, (float)obj->x + 40.0f, (float)obj->y);
+        pfxfont_string_render(&obj->pfx, (float)obj->x + 40.0f, obj->y);
     } else {
-        pfxfont_string_render(&obj->pfx, (float)obj->x, (float)obj->y);
+        pfxfont_string_render(&obj->pfx, obj->x, obj->y);
     }
 
     obj->pfx.instance0.rgba[0] = r;
@@ -4013,7 +3916,7 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     obj->pfx.instance0.rgba[3] = a;
 }
 
-/* TODO: [breakthrough] 84.9835%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [breakthrough] 85.24%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv(
     ScreenEngineClient* client, void* mgr, void* screen, void* parent, void* data) {
     unsigned int tag;
@@ -4086,13 +3989,13 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
                         if (strlen(fontName) >= 0x3C) {
                             fontName[0x3C] = 0;
                         }
-                        face = (FontFace*)load_named_tga_from_slot(client->slot,
+                        face = load_named_tga_from_slot(client->slot,
                                                                   fontName);
                         sprintf(metName, stringBase0 + 0x346, fontName);
                         metrics =
                             load_named_binary_block(client->slot, metName, &metSize);
-                        face->flags_50 = (face->flags_50 & 0xffffff00) | 1;
-                        face->flags_50 = (face->flags_50 & 0xffff00ff) | 0x3300;
+                        face->filter_flags = (face->filter_flags & 0xffffff00) | 1;
+                        face->filter_flags = (face->filter_flags & 0xffff00ff) | 0x3300;
                         row = &rows[freeSlot];
                         row->font.face = face;
                         row->font.metrics = (FontMetrics*)metrics;
@@ -4170,24 +4073,24 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
     return 0;
 }
 
-typedef struct mkScreenEngineMatrixStack mkScreenEngineMatrixStack;
+struct mkScreenEngineMatrixStack;
 
-typedef struct mkScreenEngineMatrixStackVtbl {
-    void* rtti; /* +0x00 */
-    void* pad04; /* +0x04 */
-    void (*dtor)(mkScreenEngineMatrixStack* self, short del); /* +0x08 */
-    void (*init)(mkScreenEngineMatrixStack* self); /* +0x0C */
-    void (*dispose)(mkScreenEngineMatrixStack* self); /* +0x10 */
-    void (*setIdentity)(mkScreenEngineMatrixStack* self); /* +0x14 */
-    void (*addChild)(mkScreenEngineMatrixStack* self, mkScreenEngineMatrixStack* child); /* +0x18 */
-    void (*rotate)(mkScreenEngineMatrixStack* self, RwV3d* axis, float angle); /* +0x1C */
-    void (*scale)(mkScreenEngineMatrixStack* self, RwV3d* scale); /* +0x20 */
-    void (*translate)(mkScreenEngineMatrixStack* self, RwV3d* delta); /* +0x24 */
-} mkScreenEngineMatrixStackVtbl;
+struct mkScreenEngineMatrixStackVtbl {
+    void* rtti;
+    void* pad04;
+    void (*dtor)(mkScreenEngineMatrixStack* self, short del);
+    void (*init)(mkScreenEngineMatrixStack* self);
+    void (*dispose)(mkScreenEngineMatrixStack* self);
+    void (*setIdentity)(mkScreenEngineMatrixStack* self);
+    void (*addChild)(mkScreenEngineMatrixStack* self, mkScreenEngineMatrixStack* child);
+    void (*rotate)(mkScreenEngineMatrixStack* self, RwV3d* axis, float angle);
+    void (*scale)(mkScreenEngineMatrixStack* self, RwV3d* scale);
+    void (*translate)(mkScreenEngineMatrixStack* self, RwV3d* delta);
+};
 
 struct mkScreenEngineMatrixStack {
-    mkScreenEngineMatrixStackVtbl* vtbl; /* +0x00 */
-    RwFrame* frame; /* +0x04 */
+    mkScreenEngineMatrixStackVtbl* vtbl;
+    RwFrame* frame;
 };
 
 void Translate__25mkScreenEngineMatrixStackFP14Screen3DVector(mkScreenEngineMatrixStack* self,
@@ -4903,7 +4806,7 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500002, 0, 0);
 }
 
-/* TODO: [breakthrough] 75.8683%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [breakthrough] 75.91%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     int x;
     int y;
@@ -5056,11 +4959,11 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500002, 0, 0);
 }
 
-typedef struct ScreenGameFlags {
+struct ScreenGameFlags {
     unsigned char high : 1;
     unsigned char second : 1;
     unsigned char pad : 6;
-} ScreenGameFlags;
+};
 
 extern int HandleAction__22GameVariableDispatcherFP9ScreenMgrPC12ScreenAction(
     void* self, void* mgr, const void* action);
@@ -5070,8 +4973,6 @@ extern void SetInt__22GameVariableDispatcherFUiUii(void* self, unsigned int cont
 extern void SetString__22GameVariableDispatcherFiPc(void* self, int id, char* value);
 extern int p1_profile_status;
 extern int p2_profile_status;
-extern unsigned char p1_profile[0x5c0];
-extern unsigned char p2_profile[0x5c0];
 extern void* GetAnimScene__6ScreenFi(void* screen, int index);
 extern void PlayUntilTime__15ScreenAnimSceneFi(void* scene, int time);
 extern void* GetScreenObject__12ScreenParamsFUi(void* params, unsigned int index);
@@ -5079,7 +4980,7 @@ extern unsigned int ScreenIntegerCompare__Fiii(int lhs, int op, int rhs);
 extern void vdebug_print_message(const char* fmt, ...);
 extern void snd_req(int sound_id);
 extern void snd_stop_all(void);
-extern void fx_resume_emit(void);
+extern void fx_resume_emit(unsigned int handle);
 extern void fx_reset(void);
 extern void movelist_change_style(void);
 extern void start_movelist(void);
@@ -5115,13 +5016,13 @@ extern void HandleEvent__22GameVariableDispatcherFP12ScreenObjectii(
     void* self, void* object, int event, int arg);
 extern void pselect_init_arena_select(void);
 
-static void ProcessActionSubActions(const ScreenActionView* action) {
-    ProcessSubActions__12ScreenObjectFPC12ScreenActioni(action->owner, action, 0);
+static void ProcessActionSubActions(const ScreenAction* action) {
+    ProcessSubActions__12ScreenObjectFPC12ScreenActioni(action->m_object, action, 0);
 }
 
 /* TODO: [breakthrough needed] 0% objdiff (sparse switch not mappable, ~54.8% by opcode); frame r28-r31/0x60 vs retail r27-r31/0x70 and one shared tail remain. */
 void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
-    ScreenEngineClient* self, ScreenMgr* mgr, const ScreenActionView* action,
+    ScreenEngineClient* self, ScreenMgr* mgr, const ScreenAction* action,
     int handled) {
     void* params;
     void* node;
@@ -5143,7 +5044,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     unsigned char textColor[4];
     unsigned char savedTextColor[4];
 
-    params = action->params;
+    params = action->m_params;
     if (params == 0) {
         return;
     }
@@ -5152,18 +5053,18 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         return;
     }
 
-    id = action->arg;
+    id = action->m_arg;
     switch (id) {
     case 1:
-        animScreen = action->owner->m_screen;
+        animScreen = action->m_object->m_screen;
         value = GetInt__12ScreenParamsFUi(params, 0);
         animScene = GetAnimScene__6ScreenFi(animScreen, value);
         resource = GetResourceID__12ScreenParamsFUi(params, 1);
         value = game_variables.GetInt(resource);
         PlayUntilTime__15ScreenAnimSceneFi(
             animScene,
-            (int)((float)*(int*)(*(char**)((char*)animScene + 0x14) + 4) *
-                  ((float)value / 100.0f)));
+            (float)*(int*)(*(char**)((char*)animScene + 0x14) + 4) *
+                ((float)value / 100.0f));
         break;
     case 0x432:
         value = GetInt__12ScreenParamsFUi(params, 0);
@@ -5173,14 +5074,14 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         break;
     case 0x7e3:
         RefreshAllOptions__13ScreenControlFP6Screen(
-            action->owner->m_screen);
+            action->m_object->m_screen);
         break;
     case 0x7e4:
         RefreshAllCollections__13ScreenControlFP6Screen(
-            action->owner->m_screen);
+            action->m_object->m_screen);
         break;
     case SE_ACT_SET_TARGET_GAME_MODE:
-        player = action->eventUser - 1;
+        player = action->m_flags - 1;
         if (player >= 0) {
             menu_player = player;
         }
@@ -5192,16 +5093,16 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         case 11:
         case 21:
             if (menu_player == 0) {
-                set_player_state(&g_game_info.plyr0, 1);
-                set_player_state(&g_game_info.plyr1, 0);
+                set_player_state(&g_game_info.players[0], 1);
+                set_player_state(&g_game_info.players[1], 0);
             } else if (menu_player == 1) {
-                set_player_state(&g_game_info.plyr1, 1);
-                set_player_state(&g_game_info.plyr0, 0);
+                set_player_state(&g_game_info.players[1], 1);
+                set_player_state(&g_game_info.players[0], 0);
             }
             break;
         case 7:
-            set_player_state(&g_game_info.plyr0, 1);
-            set_player_state(&g_game_info.plyr1, 1);
+            set_player_state(&g_game_info.players[0], 1);
+            set_player_state(&g_game_info.players[1], 1);
             break;
         }
         if ((void*)aproc->hdr.vtbl != (void*)&vtbl_mkproc_nostack) {
@@ -5284,8 +5185,8 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         break;
     case 0x1396:
         node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        if (*(void**)((char*)node + 0x14) != 0) {
-            fx_resume_emit();
+        if (((struct ScreenParticle*)node)->fxHandle != 0) {
+            fx_resume_emit(((struct ScreenParticle*)node)->fxHandle);
         }
         break;
     case 0x1397:
@@ -5310,11 +5211,11 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         value2 = GetInt__12ScreenParamsFUi(params, 1);
         node = 0;
         if (value == 1) {
-            g_game_info.plyr0.controller_slot = 0;
-            node = &g_game_info.plyr0;
+            g_game_info.players[0].controller_slot = 0;
+            node = &g_game_info.players[0];
         } else if (value == 2) {
-            g_game_info.plyr1.controller_slot = 1;
-            node = &g_game_info.plyr1;
+            g_game_info.players[1].controller_slot = 1;
+            node = &g_game_info.players[1];
         }
         if (node != 0) {
             pselect_update_selbox_pos(value - 1, value2);
@@ -5328,9 +5229,9 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         bg_pselect_set_character(GetInt__12ScreenParamsFUi(params, 0) - 1);
         break;
     case 0x1f43:
-        player = action->eventUser - 1;
+        player = action->m_flags - 1;
         pselect_start_code_entry(
-            player, (&g_game_info.plyr0)[player].pad_index);
+            player, (&g_game_info.players[0])[player].pad_index);
         break;
     case 0x1f44:
         if (pselect_background_select_available() != 0) {
@@ -5338,8 +5239,8 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         }
         break;
     case 0x1f45:
-        player = action->eventUser == 1 ? 0 : 1;
-        ((unsigned char*)((char*)&g_game_info.plyr0 + player * 0x6c))[0x14] |= 0x80;
+        player = action->m_flags == 1 ? 0 : 1;
+        ((unsigned char*)((char*)&g_game_info.players[0] + player * 0x6c))[0x14] |= 0x80;
         break;
     case 0x1f46:
         set_ppwls_input_done();
@@ -5379,10 +5280,10 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             value = GetInt__12ScreenParamsFUi(params, 0);
             if (value == 1) {
                 profileStatus = p1_profile_status;
-                profile = p1_profile;
+                profile = (unsigned char*)&p1_profile;
             } else {
                 profileStatus = p2_profile_status;
-                profile = p2_profile;
+                profile = (unsigned char*)&p2_profile;
             }
             if (profileStatus == 1 && *(int*)(profile + 0x514) != 0) {
                 ProcessActionSubActions(action);
@@ -5390,17 +5291,17 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         }
         break;
     case 0x1f52:
-        bg_pselect_save_team(action->eventUser - 1);
+        bg_pselect_save_team(action->m_flags - 1);
         break;
     case 0x1f53:
-        bg_pselect_load_team(action->eventUser - 1);
+        bg_pselect_load_team(action->m_flags - 1);
         break;
     case 0x1f56:
-        g_game_info.plyr0.player_state = 1;
+        g_game_info.players[0].player_state = 1;
         fire_screen_studio_event(0x1fa4, 0);
         break;
     case 0x1f57:
-        g_game_info.plyr1.player_state = 1;
+        g_game_info.players[1].player_state = 1;
         fire_screen_studio_event(0x1fa4, 1);
         break;
     case 0x1f58:
@@ -5422,7 +5323,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         ck_increment_bet();
         break;
     case 0x1f5f:
-        pselect_random_select(action->eventUser - 1);
+        pselect_random_select(action->m_flags - 1);
         break;
     case 0x1f60:
         play_current_soundtrack();
@@ -5436,7 +5337,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         pselect_player_canceled(GetInt__12ScreenParamsFUi(params, 0) - 1);
         break;
     case 0x1f64:
-        if (pselect_is_random(action->eventUser - 1) != 0) {
+        if (pselect_is_random(action->m_flags - 1) != 0) {
             ProcessActionSubActions(action);
         }
         break;
@@ -5518,7 +5419,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             m_pGameVariables__13ScreenControl, resource,
             (char*)stringBase0 + 0x1c8);
         RefreshAllOptions__13ScreenControlFP6Screen(
-            action->owner->m_screen);
+            action->m_object->m_screen);
         break;
     case 0x2b03:
         resource = GetResourceID__12ScreenParamsFUi(params, 0);
@@ -5550,8 +5451,8 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         break;
     case 0x2ee1:
         pselect_start_code_entry(
-            0, ((PlyrInfo*)((char*)&g_game_info.plyr0 +
-                           (action->eventUser - 1) * 0x6c))->pad_index);
+            0, ((PlyrInfo*)((char*)&g_game_info.players[0] +
+                           (action->m_flags - 1) * 0x6c))->pad_index);
         break;
     case 0x2ee2:
         reset_video_defaults();
@@ -5593,9 +5494,9 @@ void HandleEvent__20mkScreenEngineClientFP12ScreenObjectii(
     switch (event) {
     case 0x92824:
     case 0x92825:
-        player = &g_game_info.plyr1;
+        player = &g_game_info.players[1];
         if (event == 0x92824) {
-            player = &g_game_info.plyr0;
+            player = &g_game_info.players[0];
         }
         pselect_player_selected(player);
         break;
@@ -5652,30 +5553,29 @@ void HandleEvent__20mkScreenEngineClientFP12ScreenObjectii(
         m_pGameVariables__13ScreenControl, object, event, arg);
 }
 
-/* Localized KeyPad special-key labels (retail @2631/@2632/@2633). */
 static const char* const s_keyPadDel[6] = {
-    stringBase0 + 0x29, /* DEL */
-    stringBase0 + 0x2D, /* SUPR */
-    stringBase0 + 0x32, /* ENTF */
-    stringBase0 + 0x37, /* SUPPR */
-    stringBase0 + 0x3D, /* Canc */
-    stringBase0 + 0x29, /* DEL */
+    stringBase0 + 0x29,
+    stringBase0 + 0x2D,
+    stringBase0 + 0x32,
+    stringBase0 + 0x37,
+    stringBase0 + 0x3D,
+    stringBase0 + 0x29,
 };
 static const char* const s_keyPadSpc[6] = {
-    stringBase0 + 0x42, /* SPC */
-    stringBase0 + 0x46, /* ESP. */
-    stringBase0 + 0x4B, /* LEER */
-    stringBase0 + 0x50, /* ESPACE */
-    stringBase0 + 0x57, /* SPZ */
-    stringBase0 + 0x42, /* SPC */
+    stringBase0 + 0x42,
+    stringBase0 + 0x46,
+    stringBase0 + 0x4B,
+    stringBase0 + 0x50,
+    stringBase0 + 0x57,
+    stringBase0 + 0x42,
 };
 static const char* const s_keyPadEnd[6] = {
-    stringBase0 + 0x5B, /* END */
-    stringBase0 + 0x5F, /* FIN */
-    stringBase0 + 0x63, /* ENDE */
-    stringBase0 + 0x5F, /* FIN (FR shares ES) */
-    stringBase0 + 0x68, /* Fine */
-    stringBase0 + 0x5B, /* END */
+    stringBase0 + 0x5B,
+    stringBase0 + 0x5F,
+    stringBase0 + 0x63,
+    stringBase0 + 0x5F,
+    stringBase0 + 0x68,
+    stringBase0 + 0x5B,
 };
 
 void Init__8KeyEntryFv(KeyEntry* self) {
@@ -5702,12 +5602,12 @@ void Init__8WifImageFv(WifImage* self) {}
 
 void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
                                                      const void* actionIn, char* key) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     int user;
     int lang;
 
-    action = (const ScreenActionView*)actionIn;
-    user = action->eventUser;
+    action = (const ScreenAction*)actionIn;
+    user = action->m_flags;
     lang = get_language_setting();
 
     if (strcmp(s_keyPadDel[lang], key) == 0) {
@@ -5747,11 +5647,11 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
     } else if (self->editLen < self->maxLen) {
         if (self->active != 0) {
             if (key[0] >= 'a' && key[0] <= 'z') {
-                key[0] = (char)(key[0] - 0x20);
+                key[0] = key[0] - 0x20;
             }
         } else {
             if (key[0] >= 'A' && key[0] <= 'Z') {
-                key[0] = (char)(key[0] + 0x20);
+                key[0] = key[0] + 0x20;
             }
         }
         self->editBuf[self->editLen] = key[0];
@@ -5768,7 +5668,7 @@ void SetKey__6KeyPadFP9ScreenMgrPC12ScreenActionPc(KeyPad* self, void* mgr,
 
 int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
                                                       const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     void* params;
     int arg;
     int result;
@@ -5777,10 +5677,10 @@ int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
     int user;
     char* name;
 
-    action = (const ScreenActionView*)actionIn;
-    arg = action->arg;
-    params = action->params;
-    user = action->eventUser;
+    action = (const ScreenAction*)actionIn;
+    arg = action->m_arg;
+    params = action->m_params;
+    user = action->m_flags;
     result = 1;
     pageChanged = 0;
     prevPage = self->pageIndex;
@@ -5840,7 +5740,7 @@ int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
     }
 
     if (pageChanged != 0 && prevPage != self->pageIndex) {
-        user = action->eventUser;
+        user = action->m_flags;
         FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, mgr, self->pageIndex + 0xFDFFFF,
                                                   user, 0);
         FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, mgr, self->pageIndex + 0xFF0000,
@@ -5851,7 +5751,7 @@ int HandleAction__6KeyPadFP9ScreenMgrPC12ScreenAction(KeyPad* self, void* mgr,
 
 int HandleAction__8KeyEntryFP9ScreenMgrPC12ScreenAction(KeyEntry* self, void* mgr,
                                                         const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     char* name;
     ScreenView* screen;
     KeyPad* keypad;
@@ -5859,9 +5759,9 @@ int HandleAction__8KeyEntryFP9ScreenMgrPC12ScreenAction(KeyEntry* self, void* mg
     char* (*getStr)(ScreenResourceLibView* lib, char* key);
     char* keyStr;
 
-    action = (const ScreenActionView*)actionIn;
-    if (action->arg == 0xFF0007) {
-        name = GetName__12ScreenParamsFUi(action->params, 0);
+    action = (const ScreenAction*)actionIn;
+    if (action->m_arg == 0xFF0007) {
+        name = GetName__12ScreenParamsFUi(action->m_params, 0);
         screen = self->ctrl.head.screen;
         keypad = (KeyPad*)self->ctrl.head.parent;
         lib = screen->set->resourceLib;
@@ -5932,9 +5832,9 @@ static int TextItemPageLines(TextItem* self) {
 
 static void TextItemRestoreEditChar(TextItem* self) {
     if (self->editBuf != 0 && self->cursorPos != -1 && self->curChar != -1) {
-        self->editBuf[self->cursorPos] = (char)self->curChar;
+        self->editBuf[self->cursorPos] = self->curChar;
         self->cursorPos = -1;
-        self->curChar = (signed char)-1;
+        self->curChar = -1;
     }
 }
 
@@ -5989,7 +5889,7 @@ void UpdateString__8TextItemFv(TextItem* self) {
     TextItemRestoreEditChar(self);
     if (holeAt < self->scrollLimit) {
         self->cursorPos = self->indexTable[holeAt];
-        self->curChar = (signed char)self->editBuf[self->indexTable[holeAt]];
+        self->curChar = self->editBuf[self->indexTable[holeAt]];
         self->editBuf[self->indexTable[holeAt]] = 0;
     }
 
@@ -6034,7 +5934,7 @@ void Dispose__8TextItemFv(TextItem* self) {
     TextItemFreeScrollState(self);
 }
 
-/* TODO: [near miss] 89.8728%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
+/* TODO: [near miss] 89.96%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void RefreshOption__8TextItemFv(TextItem* self) {
     int pageLines;
     int prevLimit;
@@ -6096,10 +5996,10 @@ void RefreshOption__8TextItemFv(TextItem* self) {
     TextItemRefreshNode(self);
 }
 
-/* TODO: [breakthrough] 27.3451%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [breakthrough] 27.48%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mgr,
                                                         const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     void* params;
     int arg;
     int result;
@@ -6108,9 +6008,9 @@ int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mg
     int p1;
     void* node;
 
-    action = (const ScreenActionView*)actionIn;
-    arg = action->arg;
-    params = action->params;
+    action = (const ScreenAction*)actionIn;
+    arg = action->m_arg;
+    params = action->m_params;
     result = 1;
 
     switch (arg) {
@@ -6453,7 +6353,7 @@ void RefreshOption__11SpreadSheetFv(SpreadSheet* self) {
 }
 
 #pragma auto_inline off
-/* TODO: [near miss] 98.52273%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [near miss] 98.75%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -6485,7 +6385,7 @@ void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 98.60215%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [near miss] 98.82%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -6518,7 +6418,7 @@ void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 98.818184%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [near miss] 99.00%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -6562,7 +6462,7 @@ void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 94.052086%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [near miss] 94.26%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int winMax;
 
@@ -6709,7 +6609,7 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int 
  * virtual calls restored; one extra p0 copy in the origin-compare case remains. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
                                                             const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     void* params;
     int arg;
     int result;
@@ -6722,9 +6622,9 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
     int vis;
     void* node;
 
-    action = (const ScreenActionView*)actionIn;
-    arg = action->arg;
-    params = action->params;
+    action = (const ScreenAction*)actionIn;
+    arg = action->m_arg;
+    params = action->m_params;
     result = 1;
 
     switch (arg) {
@@ -7059,7 +6959,7 @@ void RefreshCollection__8TextListFv(TextList* self) {
     RefreshCollection__8TextListFi(self, 1);
 }
 
-/* TODO: [near miss] 93.60%; pointer-sized row storage retained; allocation schedule remains. */
+/* TODO: [near miss] 93.93%; pointer-sized row storage retained; allocation schedule remains. */
 void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
     int nodeIndex;
     int i;
@@ -7236,7 +7136,7 @@ void RefreshOption__8TextListFv(TextList* self) {
     }
 }
 
-/* TODO: [breakthrough needed] 63.86%; typed row indexing and font linkage in place; linked-poly lowering remains. */
+/* TODO: [breakthrough needed] 63.93%; typed row indexing and font linkage in place; linked-poly lowering remains. */
 void Update__8TextListFv(TextList* self) {
     int atEnd;
     int found;
@@ -7616,7 +7516,7 @@ void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* mgr, int event,
 /* TODO: [breakthrough needed] 60.43%; action compare tree order and vtable call lowering differ. */
 int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mgr,
                                                         const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     void* params;
     int arg;
     int result;
@@ -7628,9 +7528,9 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
     void* node;
     int (*nodeHandle)(void* node, void* mgr, const void* action);
 
-    action = (const ScreenActionView*)actionIn;
-    arg = action->arg;
-    params = action->params;
+    action = (const ScreenAction*)actionIn;
+    arg = action->m_arg;
+    params = action->m_params;
     result = 1;
 
     if (arg == 0x7e2) {
@@ -8071,7 +7971,7 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
 int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
                                                          void* mgr,
                                                          const void* actionIn) {
-    const ScreenActionView* action;
+    const ScreenAction* action;
     void* params;
     int arg;
     int result;
@@ -8079,9 +7979,9 @@ int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
     void* node;
     int (*nodeHandle)(void* node, void* mgr, const void* action);
 
-    action = (const ScreenActionView*)actionIn;
-    arg = action->arg;
-    params = action->params;
+    action = (const ScreenAction*)actionIn;
+    arg = action->m_arg;
+    params = action->m_params;
     result = 1;
 
     if (arg == 0x7d3) {
@@ -8343,5 +8243,4 @@ void* __dt__29mkScreenEngineResourceLibraryFv(void* self, short del) {
     }
     return self;
 }
-
 }

@@ -14,9 +14,7 @@
 #include "mwScreenEngine/ScreenClient.h"
 #include "mwScreenEngine/ScreenParams.h"
 
-extern "C" {
-void* memcpy(void* dst, const void* src, unsigned long n);
-}
+#include "runtime/cstring.h"
 
 enum {
     kMagicSSET = 0x53534554, /* 'SSET' */
@@ -27,49 +25,219 @@ enum {
 
 #define SCREEN_IDLE_EVENT 0x405
 
-void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
-                   SEStringTable_t* strings) {
-    int type;
-    unsigned int idx;
+static void ProcessControls(SEObject_t* seObj);
 
-    type = attr->type;
-    switch (type) {
-    case 4:
-    case 7:
-        idx = attr->value;
-        if (idx < strings->count) {
-            attr->value = (unsigned int)strings->strings[idx];
-            return;
+int ScreenInstancer::CreateScreen(Screen* screen, SEScreen_t* seScreen) {
+    SEObject_t* rootSe;
+    ScreenObject* root;
+    ScreenMgr* mgr;
+
+    /* Retail loads m_set->m_mgr before the seScreen null branch. */
+    mgr = screen->m_set->m_mgr;
+    if (seScreen == 0) {
+        return 0;
+    }
+
+    rootSe = (SEObject_t*)seScreen->objects;
+    root = CreateObject(mgr, screen, 0, rootSe);
+    rootSe->liveObject = root;
+    screen->m_data = seScreen;
+    screen->InitMatrixStack();
+    ProcessControls(rootSe);
+    screen->m_loaded = 1;
+    return rootSe->liveObject != 0;
+}
+
+void ScreenInstancer::DestroyObject(ScreenObject* object) {
+    int i;
+    int n;
+    ScreenChildEntry* entry;
+    ScreenChildList* list;
+    ScreenObject* child;
+    int tag;
+
+    list = object->m_ext->children;
+    if (list == 0) {
+        return;
+    }
+
+    n = list->count;
+    for (i = 0; i < n; i++) {
+        entry = ScreenChildEntryAt(list, i);
+        tag = entry->typeTag;
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
+            DestroyObject(entry->object);
+            break;
         }
-        attr->value = 0;
-        return;
-    case 5:
-    case 6:
-        if (attr->value != 0) {
-            attr->value += (unsigned int)base;
-        }
-        return;
-    default:
-        return;
+        child = entry->object;
+        child->Dispose();
+        delete child;
+        entry->object = 0;
     }
 }
 
-/* Retail: no list null guard; bare add reloc; count reloaded each iteration. */
-/* TODO: [near miss] 91.666664%; equivalent typed slot indexing lowers to indexed loads; stop at address lowering. */
-void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
-                       SEStringTable_t* strings) {
-    unsigned int i;
-    SEBaseAttribute_t** slot;
+void ScreenInstancer::DestroyScreen(Screen* screen) {
+    ScreenObject* root;
+
+    root = screen->GetRoot();
+    if (root != 0) {
+        DestroyObject(root);
+        root->m_ext->liveObject = 0;
+        root->Dispose();
+        delete root;
+    }
+}
+
+void ScreenInstancer::CloseObject(ScreenObject* object) {
+    int i;
+    int n;
+    ScreenChildEntry* entry;
+    ScreenChildList* list;
+    int tag;
+
+    list = object->m_ext->children;
+    if (list == 0) {
+        return;
+    }
+
+    n = list->count;
+    for (i = 0; i < n; i++) {
+        entry = ScreenChildEntryAt(list, i);
+        tag = entry->typeTag;
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
+            CloseObject(entry->object);
+            break;
+        }
+        entry->object->Close();
+    }
+}
+
+void ScreenInstancer::CloseScreen(Screen* screen) {
+    ScreenObject* root;
+
+    root = screen->GetRoot();
+    if (root != 0) {
+        CloseObject(root);
+    }
+}
+
+static void ProcessControls(SEObject_t* seObj) {
+    ScreenObject* live;
+    int i;
+    int n;
+    ScreenChildList* children;
+    ScreenChildEntry* entry;
+    int tag;
+    if (seObj->classInfo != 0 && seObj->classInfo->params != 0) {
+        live = seObj->liveObject;
+        ((ScreenControl*)live)->ProcessParams(
+            (ScreenParams*)seObj->classInfo->params);
+        ((ScreenControl*)live)->Init();
+    }
+
+    children = seObj->children;
 
     i = 0;
-    while (i < list->count) {
-        slot = &list->attributes[i];
-        if (*slot != 0) {
-            *slot = (SEBaseAttribute_t*)(base + (unsigned int)*slot);
+    n = children->count;
+    while (i < n) {
+        entry = ScreenChildEntryAt(children, i);
+        tag = entry->typeTag;
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
+            ProcessControls((SEObject_t*)entry);
+            break;
         }
-        PatchAttribue(*slot, base, strings);
         i += 1;
     }
+}
+
+ScreenObject* ScreenInstancer::CreateObject(ScreenMgr* mgr, Screen* screen,
+                                            ScreenObject* parent, SEObject_t* seObj) {
+    ScreenObject templateObj;
+    ScreenObject* obj;
+    SEObjectClassInfo* info;
+    ScreenClient* client;
+    ScreenObject* ancestor;
+
+    info = seObj->classInfo;
+    if (info == 0) {
+        obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
+                                                "SS-Objects");
+        memcpy(obj, &templateObj, sizeof(ScreenObject));
+    } else {
+        client = ScreenUtil::GetScreenClient();
+        obj = client->CreateInstance(
+            mgr, info->typeId, (ScreenParams*)info->params);
+        if (obj == 0) {
+            obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
+                                                    "SS-Objects");
+            memcpy(obj, &templateObj, sizeof(ScreenObject));
+            seObj->classInfo = 0;
+        }
+    }
+
+    obj->m_ext = seObj;
+    obj->m_screen = screen;
+
+    ancestor = parent;
+    while (ancestor != 0 && ancestor->m_ext->typeTag == kScreenTagGROP) {
+        ancestor = ancestor->m_parent;
+    }
+    obj->SetParent(ancestor);
+
+    if (seObj->transform != 0) {
+        obj->CreateMatrixStack();
+        obj->UpdateTransform();
+    }
+
+    if (obj->m_objTag == kScreenTagSCTL) {
+        screen->SetHeadControl(obj);
+        screen->SetHeadIdle(obj);
+    } else if ((unsigned int)obj->HasEvent(SCREEN_IDLE_EVENT) != 0) {
+        screen->SetHeadIdle(obj);
+    }
+
+    CreateElements(mgr, screen, obj, seObj->children);
+    return obj;
+}
+
+int ScreenInstancer::CreateElements(ScreenMgr* mgr, Screen* screen, ScreenObject* parent,
+                                    SEElements_t* elements) {
+    int i;
+    int n;
+    int tag;
+    ScreenChildEntry* entry;
+    ScreenObject* created;
+
+    i = 0;
+    n = elements->count;
+    while (i < n) {
+        entry = ScreenChildEntryAt(elements, i);
+        tag = entry->typeTag;
+        switch (tag) {
+        case kScreenTagOBJ:
+            created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
+            break;
+        case kScreenTagGROP:
+            created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
+            break;
+        default:
+            created =
+                (ScreenObject*)ScreenUtil::CreateElement(mgr, screen, parent, entry);
+            break;
+        }
+        entry->object = created;
+        if (created != 0 && (unsigned int)created->NeedIdleProcessing() != 0) {
+            screen->SetHeadIdle(created);
+        }
+        i += 1;
+    }
+    return 1;
 }
 
 void PatchTextObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
@@ -105,6 +273,46 @@ void PatchPolyObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
     }
 }
 
+void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
+                   SEStringTable_t* strings) {
+    int type;
+    unsigned int idx;
+
+    type = attr->type;
+    switch (type) {
+    case 4:
+    case 7:
+        idx = attr->value;
+        if (idx < strings->count) {
+            attr->value = (unsigned int)strings->strings[idx];
+            return;
+        }
+        attr->value = 0;
+        return;
+    case 5:
+    case 6:
+        if (attr->value != 0) {
+            attr->value += (unsigned int)base;
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+/* The list count is reloaded after each attribute is patched. */
+/* TODO: [near miss] 92.0%; indexed member accesses differ; combined loop-mode control regresses siblings. */
+void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
+                       SEStringTable_t* strings) {
+    for (unsigned int i = 0; i < list->count; ++i) {
+        SEBaseAttribute_t*& attribute = list->attributes[i];
+        if (attribute != 0) {
+            attribute = (SEBaseAttribute_t*)((unsigned char*)attribute + (unsigned int)base);
+        }
+        PatchAttribue(attribute, base, strings);
+    }
+}
+
 /* Retail: no action null guard; reloc then reload attrs before Patch list. */
 void PatchScreenAction(SEAction_t* action, unsigned char* base,
                        SEStringTable_t* strings) {
@@ -130,36 +338,40 @@ void PatchScreenEvent(SEEvent_t* event, unsigned char* base,
     }
 }
 
-/* TODO: [near miss] 95.61539%; retail tag dispatch recovered; typed slot addressing and coloring remain. */
+/* TODO: [near miss] 96.31%; eight event/child slot-addressing instructions remain. */
 void PatchScreenObject(SEObject_t* obj, unsigned char* base,
                        SEStringTable_t* strings) {
     unsigned int i;
+    unsigned int offset;
     ScreenEventList* events;
     ScreenChildList* children;
     ScreenChildEntry* entry;
     int tag;
     SEObjectClassInfo* classInfo;
-    SEEvent_t** eventSlot;
-    ScreenChildEntry** childSlot;
 
-    if (obj->events != 0) {
-        obj->events = (ScreenEventList*)(base + (unsigned int)obj->events);
+    offset = (unsigned int)obj->events;
+    if (offset != 0) {
+        obj->events = (ScreenEventList*)(offset + (unsigned int)base);
     }
-    if (obj->transform != 0) {
-        obj->transform = (SETransform*)(base + (unsigned int)obj->transform);
+    offset = (unsigned int)obj->transform;
+    if (offset != 0) {
+        obj->transform = (SETransform*)(offset + (unsigned int)base);
     }
-    if (obj->children != 0) {
-        obj->children = (ScreenChildList*)(base + (unsigned int)obj->children);
+    offset = (unsigned int)obj->children;
+    if (offset != 0) {
+        obj->children = (ScreenChildList*)(offset + (unsigned int)base);
     }
-    if (obj->classInfo != 0) {
-        obj->classInfo = (SEObjectClassInfo*)(base + (unsigned int)obj->classInfo);
+    offset = (unsigned int)obj->classInfo;
+    if (offset != 0) {
+        obj->classInfo = (SEObjectClassInfo*)(offset + (unsigned int)base);
     }
 
     classInfo = SeClassInfoOf(obj);
     if (classInfo != 0) {
-        if (classInfo->params != 0) {
+        offset = (unsigned int)classInfo->params;
+        if (offset != 0) {
             classInfo->params =
-                (SEAttributes_t*)(base + (unsigned int)classInfo->params);
+                (SEAttributes_t*)(offset + (unsigned int)base);
         }
         classInfo = SeClassInfoOf(obj);
         if (classInfo->params != 0) {
@@ -171,11 +383,12 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
     if (events != 0) {
         i = 0;
         while (i < (unsigned int)events->count) {
-            eventSlot = SEEventPtrSlot(events, i);
-            if (*eventSlot != 0) {
-                *eventSlot = (SEEvent_t*)(base + (unsigned int)*eventSlot);
+            SEEvent_t*& event = *SEEventPtrSlot(events, i);
+            offset = (unsigned int)event;
+            if (offset != 0) {
+                event = (SEEvent_t*)(offset + (unsigned int)base);
             }
-            PatchScreenEvent(*eventSlot, base, strings);
+            PatchScreenEvent(event, base, strings);
             i += 1;
         }
     }
@@ -185,14 +398,15 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
         i = 0;
 
         while (i < (unsigned int)children->count) {
-            childSlot = ScreenChildEntryPtrSlot(children, i);
-            if (*childSlot != 0) {
-                *childSlot =
-                    (ScreenChildEntry*)(base + (unsigned int)*childSlot);
+            ScreenChildEntry*& child = *ScreenChildEntryPtrSlot(children, i);
+            offset = (unsigned int)child;
+            if (offset != 0) {
+                child =
+                    (ScreenChildEntry*)(offset + (unsigned int)base);
             }
-            entry = *childSlot;
+            entry = child;
             if (entry != 0) {
-                tag = (int)entry->typeTag;
+                tag = entry->typeTag;
                 switch (tag) {
                 case kScreenTagPART:
                 case kScreenTagCHAR:
@@ -201,11 +415,11 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
                 case kScreenTagOBJ:
                     PatchScreenObject((SEObject_t*)entry, base, strings);
                     break;
-                case kScreenTagTEXT:
-                    PatchTextObject((SEBaseElement_t*)entry, base, strings);
-                    break;
                 case kScreenTagPOLY:
                     PatchPolyObject((SEBaseElement_t*)entry, base, strings);
+                    break;
+                case kScreenTagTEXT:
+                    PatchTextObject((SEBaseElement_t*)entry, base, strings);
                     break;
                 }
             }
@@ -274,7 +488,7 @@ void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
     }
 }
 
-/* TODO: [near miss] 96.6%; equivalent slot addressing, flag branch and local coloring remain. */
+/* TODO: [near miss] 97.60%; three reference-slot addressing instructions remain. */
 void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     unsigned int i;
     unsigned int j;
@@ -292,12 +506,12 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
         off = (unsigned int)scene->m_elements;
         if (off != 0) {
             scene->m_elements =
-                (SEElements_t*)(base + (unsigned int)scene->m_elements);
+                (SEElements_t*)(off + (unsigned int)base);
         }
         off = (unsigned int)scene->m_data;
         if (off != 0) {
             scene->m_data =
-                (SEAnimSceneData_t*)(base + (unsigned int)scene->m_data);
+                (SEAnimSceneData_t*)(off + (unsigned int)base);
         }
 
         /* Retail walks m_elements (SERefTable shape) with no null check after reloc. */
@@ -315,17 +529,17 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
 
         /* The packed animation data is required after scene relocation. */
         data = scene->m_data;
-        if ((data->flags & 1) == 0) {
-            j = 0;
-            while ((int)j < data->trackCount) {
-                track = SEAnimTrackAt(data, j);
+        if ((int)(data->flags & 1) <= 0) {
+            int trackIndex = 0;
+            while (trackIndex < data->trackCount) {
+                track = SEAnimTrackAt(data, trackIndex);
                 off = (unsigned int)track->effects;
                 if (off != 0) {
                     track->effects =
-                        (SEAnimEffects_t*)(base + (unsigned int)track->effects);
+                        (SEAnimEffects_t*)(off + (unsigned int)base);
                 }
                 PatchAnimEffects(track->effects, base);
-                j += 1;
+                trackIndex += 1;
             }
             scene->m_data->flags = 1;
             scene->CalculateMaxTime();
@@ -335,39 +549,36 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     }
 }
 
-/* TODO: [near miss] 91.034485%; equivalent relocation operands, slot addressing and entry scheduling remain. */
 void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
                        void* /*unused*/) {
     ScreenData* se;
     unsigned int base;
     unsigned int i;
     SEStringTable_t* strings;
-    char** stringSlot;
-    unsigned int strOff;
+    SeRef* stringSlot;
+    SeRef strOff;
 
     if (data == 0) {
         return;
     }
-    se = (ScreenData*)data;
-    /* Retail: subis/cmplwi on 'SNGC' high/low halves. */
-    if (se->magic != kMagicSNGC) {
+    if (((ScreenData*)data)->magic != kMagicSNGC) {
         return;
     }
 
     base = (unsigned int)data;
+    se = (ScreenData*)base;
 
-    /* Reloc order matches retail: animScenes@+0x10, objects@+0x0C, strings@+0x14. */
     if (se->animScenes != 0) {
         se->animScenes =
-            (SEAnimBlock_t*)((unsigned char*)data + (unsigned int)se->animScenes);
+            (SEAnimBlock_t*)((unsigned int)se->animScenes + base);
     }
     if (se->objects != 0) {
         se->objects =
-            (ScreenObjectRoot*)((unsigned char*)data + (unsigned int)se->objects);
+            (ScreenObjectRoot*)((unsigned int)se->objects + base);
     }
     if (se->strings != 0) {
         se->strings =
-            (SEStringTable_t*)((unsigned char*)data + (unsigned int)se->strings);
+            (SEStringTable_t*)((unsigned int)se->strings + base);
     }
 
     if (SeAnimScenesOf(se) != 0) {
@@ -378,10 +589,10 @@ void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
         i = 0;
         while (i < SeStringsOf(se)->count) {
             strings = SeStringsOf(se);
-            stringSlot = &strings->strings[i];
-            strOff = (unsigned int)*stringSlot;
+            stringSlot = &strings->stringRefs[i];
+            strOff = strings->stringRefs[i];
             if (strOff != 0) {
-                *stringSlot = (char*)(strOff + base);
+                *stringSlot = strOff + base;
             }
             i += 1;
         }
@@ -389,218 +600,6 @@ void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
 
     PatchScreenObject((SEObject_t*)SeObjectsOf(se), (unsigned char*)base,
                       SeStringsOf(se));
-}
-
-static void ProcessControls(SEObject_t* seObj) {
-    ScreenObject* live;
-    int i;
-    int n;
-    ScreenChildList* children;
-    ScreenChildEntry* entry;
-    int tag;
-    if (seObj->classInfo != 0 && seObj->classInfo->params != 0) {
-        live = seObj->liveObject;
-        ((ScreenControl*)live)->ProcessParams(
-            (ScreenParams*)seObj->classInfo->params);
-        ((ScreenControl*)live)->Init();
-    }
-
-    children = seObj->children;
-
-    i = 0;
-    n = children->count;
-    while (i < n) {
-        entry = ScreenChildEntryAt(children, i);
-        tag = (int)entry->typeTag;
-        switch (tag) {
-        case kScreenTagOBJ:
-        case kScreenTagGROP:
-            ProcessControls((SEObject_t*)entry);
-            break;
-        }
-        i += 1;
-    }
-}
-
-int ScreenInstancer::CreateScreen(Screen* screen, SEScreen_t* seScreen) {
-    SEObject_t* rootSe;
-    ScreenObject* root;
-    ScreenMgr* mgr;
-
-    /* Retail loads m_set->m_mgr before the seScreen null branch. */
-    mgr = screen->m_set->m_mgr;
-    if (seScreen == 0) {
-        return 0;
-    }
-
-    rootSe = (SEObject_t*)seScreen->objects;
-    root = CreateObject(mgr, screen, 0, rootSe);
-    rootSe->liveObject = root;
-    screen->m_data = seScreen;
-    screen->InitMatrixStack();
-    ProcessControls(rootSe);
-    screen->m_loaded = 1;
-    return (unsigned char)(rootSe->liveObject != 0);
-}
-
-void ScreenInstancer::DestroyObject(ScreenObject* object) {
-    int i;
-    int n;
-    ScreenChildEntry* entry;
-    ScreenChildList* list;
-    ScreenObject* child;
-    int tag;
-
-    list = object->m_ext->children;
-    if (list == 0) {
-        return;
-    }
-
-    n = list->count;
-    for (i = 0; i < n; i++) {
-        entry = ScreenChildEntryAt(list, i);
-        tag = (int)entry->typeTag;
-        switch (tag) {
-        case kScreenTagOBJ:
-        case kScreenTagGROP:
-            DestroyObject(entry->object);
-            break;
-        }
-        child = entry->object;
-        child->Dispose();
-        delete child;
-        entry->object = 0;
-    }
-}
-
-void ScreenInstancer::DestroyScreen(Screen* screen) {
-    ScreenObject* root;
-
-    root = screen->GetRoot();
-    if (root != 0) {
-        DestroyObject(root);
-        root->m_ext->liveObject = 0;
-        root->Dispose();
-        delete root;
-    }
-}
-
-void ScreenInstancer::CloseObject(ScreenObject* object) {
-    int i;
-    int n;
-    ScreenChildEntry* entry;
-    ScreenChildList* list;
-    int tag;
-
-    list = object->m_ext->children;
-    if (list == 0) {
-        return;
-    }
-
-    n = list->count;
-    for (i = 0; i < n; i++) {
-        entry = ScreenChildEntryAt(list, i);
-        tag = (int)entry->typeTag;
-        switch (tag) {
-        case kScreenTagOBJ:
-        case kScreenTagGROP:
-            CloseObject(entry->object);
-            break;
-        }
-        entry->object->Close();
-    }
-}
-
-void ScreenInstancer::CloseScreen(Screen* screen) {
-    ScreenObject* root;
-
-    root = screen->GetRoot();
-    if (root != 0) {
-        CloseObject(root);
-    }
-}
-
-/* TODO: [near miss] 96.35%; factory/lifetime flow agrees; parent walk and local coloring remain. */
-ScreenObject* ScreenInstancer::CreateObject(ScreenMgr* mgr, Screen* screen,
-                                            ScreenObject* parent, SEObject_t* seObj) {
-    ScreenObject templateObj;
-    ScreenObject* obj;
-    SEObjectClassInfo* info;
-    ScreenClient* client;
-
-    info = seObj->classInfo;
-    if (info == 0) {
-        obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
-                                                (char*)"SS-Objects");
-        memcpy(obj, &templateObj, sizeof(ScreenObject));
-    } else {
-        client = ScreenUtil::GetScreenClient();
-        obj = client->CreateInstance(
-            mgr, info->typeId, (ScreenParams*)info->params);
-        if (obj == 0) {
-            obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
-                                                    (char*)"SS-Objects");
-            memcpy(obj, &templateObj, sizeof(ScreenObject));
-            seObj->classInfo = 0;
-        }
-    }
-
-    obj->m_ext = seObj;
-    obj->m_screen = screen;
-
-    while (parent != 0 && parent->m_ext->typeTag == kScreenTagGROP) {
-        parent = parent->m_parent;
-    }
-    obj->SetParent(parent);
-
-    if (seObj->transform != 0) {
-        obj->CreateMatrixStack();
-        obj->UpdateTransform();
-    }
-
-    if (obj->m_objTag == kScreenTagSCTL) {
-        screen->SetHeadControl(obj);
-        screen->SetHeadIdle(obj);
-    } else if ((unsigned int)obj->HasEvent(SCREEN_IDLE_EVENT) != 0) {
-        screen->SetHeadIdle(obj);
-    }
-
-    CreateElements(mgr, screen, obj, (SEElements_t*)seObj->children);
-    return obj;
-}
-
-int ScreenInstancer::CreateElements(ScreenMgr* mgr, Screen* screen, ScreenObject* parent,
-                                    SEElements_t* elements) {
-    int i;
-    int n;
-    int tag;
-    ScreenChildEntry* entry;
-    ScreenObject* created;
-
-    i = 0;
-    n = elements->count;
-    while (i < n) {
-        entry = ScreenChildEntryAt(elements, i);
-        tag = (int)entry->typeTag;
-        switch (tag) {
-        case kScreenTagOBJ:
-            created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
-            break;
-        case kScreenTagGROP:
-            created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
-            break;
-        default:
-            created =
-                (ScreenObject*)ScreenUtil::CreateElement(mgr, screen, parent, entry);
-            break;
-        }
-        entry->object = created;
-        if (created != 0 && (unsigned int)created->NeedIdleProcessing() != 0) {
-            screen->SetHeadIdle(created);
-        }
-        i += 1;
-    }
-    return 1;
 }
 
 /* TODO: [near miss] 85.08871%; relocation-flag lowering and name-table scheduling remain. */
@@ -640,7 +639,7 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int /*size
         numScreens = blob->numScreens;
         set->m_numScreens = numScreens;
         set->m_screens = (Screen*)ScreenUtil::Malloc((unsigned long)numScreens * kScreenBytes,
-                                                     kMallocTag, (char*)"SS-Screens");
+                                                     kMallocTag, "SS-Screens");
         i = 0;
         screenByte = 0;
         while (i < numScreens) {

@@ -4,6 +4,10 @@
 #include "runtime/section_types.h"
 
 typedef struct PlyrPdata PlyrPdata;
+typedef struct MkProc MkProc;
+
+extern MkProc* saved_aproc;
+extern SectionSlotDef* section_memory_maps[12];
 
 #define SECTION_MEMORY_SCHEME_ATTRACT 9
 #define SEC_SLOT_HANDLE_ATTRACT_LEGAL 0x90046
@@ -13,7 +17,7 @@ int load_systemart_phase_1(void);
 void load_art_section_by_name(int handle, const char* name);
 void load_art_section_by_name_async(int handle, const char* name);
 int get_shared_art_section_for_plyr_pdata(PlyrPdata* pdata);
-int get_shared_art_section_for_player(SharedArtPlayer* player);
+int get_shared_art_section_for_player(MkObj* player);
 void add_art_section(int handle, MkFileInfo* info);
 void load_art_section_language(int handle, MkFileInfo* info);
 void load_art_section(int handle, MkFileInfo* info);

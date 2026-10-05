@@ -36,6 +36,6 @@ typedef struct PebbleData {
 } PebbleData;
 
 PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size);
-int vdestroy_pebble(PebbleData* pebble_data);
+void vdestroy_pebble(PebbleData* pebble_data);
 
 #endif

@@ -7,6 +7,7 @@ typedef void (*SVMErrorFunction)(void* object, char* message);
 
 void SVM_Init(void);
 void SVM_Finish(void);
+int SVM_ExecSvrFs(void);
 void SVM_Lock(void);
 void SVM_Unlock(void);
 void SVM_CallErr1(const char* message);

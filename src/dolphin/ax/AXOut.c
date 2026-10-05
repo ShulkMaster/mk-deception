@@ -64,10 +64,10 @@ void __AXOutNewFrame(u32 lessDspCycles) {
     __AXOutFrame += 1;
 
     if (__AXOutputBufferMode == 1) {
-        __AXOutFrame %= 3;
+        __AXOutFrame %= sizeof(__AXOutBuffer) / sizeof(__AXOutBuffer[0]);
     } else {
         __AXOutFrame &= 1;
-        AIInitDMA((u32)&__AXOutBuffer[__AXOutFrame][0], 0x280);
+        AIInitDMA((u32)&__AXOutBuffer[__AXOutFrame][0], sizeof(__AXOutBuffer[0]));
     }
 
     __AXLocalProfile.axFrameEnd = OSGetTime();
@@ -75,7 +75,7 @@ void __AXOutNewFrame(u32 lessDspCycles) {
     profile = __AXGetCurrentProfile();
 
     if (profile) {
-        i = 56;
+        i = sizeof(__AXLocalProfile);
         dest = (u8*)profile;
         src = (u8*)&__AXLocalProfile;
 
@@ -102,9 +102,9 @@ void __AXOutAiCallback(void) {
     }
 
     if (__AXOutputBufferMode == 1) {
-        AIInitDMA((u32)__AXOutBuffer[__AXAiDmaFrame], 0x280);
+        AIInitDMA((u32)__AXOutBuffer[__AXAiDmaFrame], sizeof(__AXOutBuffer[0]));
         __AXAiDmaFrame++;
-        __AXAiDmaFrame %= 3;
+        __AXAiDmaFrame %= sizeof(__AXOutBuffer) / sizeof(__AXOutBuffer[0]);
     }
 }
 

@@ -1,19 +1,12 @@
 #include "runtime/mk_plugins.h"
 #include "rw/bamateri.h"
 #include "rw/rwstream.h"
+#include "rw/rwengine.h"
 
-typedef struct PluginEngineView {
-    char pad00[0x134];
-    void* (*allocate)(unsigned int size, unsigned int flags);
-    void (*free)(void* memory, struct PluginEngineView* engine);
-} PluginEngineView;
-
-typedef struct MkmaterialExtraAllocation {
+struct MkmaterialExtraAllocation {
     MkmaterialExtra extra;
     int inline_data[1];
-} MkmaterialExtraAllocation;
-
-extern PluginEngineView* RwEngineInstance;
+};
 
 int MkobjGlobalOffset = -1;
 int MkobjLocalOffset = -1;
@@ -81,45 +74,46 @@ static void* ColorSetGeometryCopy(void* destination, const void* source, int off
 static void* ColorSetGeometryDestructor(void* object, int offset, int size) {
     RpGeometry* geometry = object;
     ColorSetPluginData* data = COLOR_SET_PLUGIN(geometry);
-    unsigned int morph_index;
+    unsigned int material_index;
+    unsigned int material_count;
     unsigned int slot_index;
     unsigned int color_index;
 
     if (data->count != 0) {
         if (data->entries != 0) {
-            for (morph_index = 0; morph_index < (unsigned int)geometry->numMorphTargets;
-                 morph_index++) {
-                ColorSetEntry* entry = &data->entries[morph_index];
+            material_count = geometry->matList.numMaterials;
+            for (material_index = 0; material_index < material_count;
+                 material_index++) {
+                ColorSetEntry* entry = &data->entries[material_index];
                 if (entry->count != 0) {
                     for (slot_index = 0; slot_index < entry->count; slot_index++) {
-                        RwEngineInstance->free(entry->ptr_array[slot_index], RwEngineInstance);
+                        RwEngineInstance->fpFree(entry->ptr_array[slot_index]);
                         for (color_index = 0; color_index < data->count; color_index++) {
-                            RwEngineInstance->free(entry->arrays[color_index][slot_index],
-                                                   RwEngineInstance);
+                            RwEngineInstance->fpFree(entry->arrays[color_index][slot_index]);
                         }
                         entry->int_arrays_c[slot_index] = 0;
                         entry->int_arrays_10[slot_index] = 0;
                     }
                 }
                 if (entry->ptr_array != 0) {
-                    RwEngineInstance->free(entry->ptr_array, RwEngineInstance);
+                    RwEngineInstance->fpFree(entry->ptr_array);
                 }
                 if (entry->arrays != 0) {
-                    RwEngineInstance->free(entry->arrays, RwEngineInstance);
+                    RwEngineInstance->fpFree(entry->arrays);
                 }
                 if (entry->arrays != 0) {
-                    RwEngineInstance->free(entry->int_arrays_c, RwEngineInstance);
+                    RwEngineInstance->fpFree(entry->int_arrays_c);
                 }
                 if (entry->arrays != 0) {
-                    RwEngineInstance->free(entry->int_arrays_10, RwEngineInstance);
+                    RwEngineInstance->fpFree(entry->int_arrays_10);
                 }
             }
-            RwEngineInstance->free(data->entries, RwEngineInstance);
+            RwEngineInstance->fpFree(data->entries);
         }
         for (color_index = 0; color_index < data->count; color_index++) {
-            RwEngineInstance->free(data->ptr4[color_index], RwEngineInstance);
+            RwEngineInstance->fpFree(data->ptr4[color_index]);
         }
-        RwEngineInstance->free(data->ptr4, RwEngineInstance);
+        RwEngineInstance->fpFree(data->ptr4);
     }
     return object;
 }
@@ -160,37 +154,19 @@ int RpMaterialMkmaterialPluginAttach(void) {
            0;
 }
 
-static void* MkmaterialDataConstructor(void* object, int offset, int size) {
-    if (MkmaterialLocalOffset > 0) {
-        MK_MATERIAL_PLUGIN(object)->flags = 0;
-        MK_MATERIAL_PLUGIN(object)->field_04 = 0.0f;
-        MK_MATERIAL_PLUGIN(object)->bytes_08[0] = 0xFF;
-        MK_MATERIAL_PLUGIN(object)->bytes_08[1] = 0xFF;
-        MK_MATERIAL_PLUGIN(object)->bytes_08[2] = 0xFF;
-        MK_MATERIAL_PLUGIN(object)->bytes_08[3] = 0xFF;
-        MK_MATERIAL_PLUGIN(object)->field_0C = 5.0f;
-        MK_MATERIAL_PLUGIN(object)->z_bias = 0.0f;
-        MK_MATERIAL_PLUGIN(object)->vec4 = 0;
-        MK_MATERIAL_PLUGIN(object)->field_18 = 0;
-        MK_MATERIAL_PLUGIN(object)->extra = 0;
-        MK_MATERIAL_PLUGIN(object)->field_20 = 0;
-    }
-    return object;
-}
-
 static RwStream* MkmaterialDataWriteStream(RwStream* stream, int length, const void* object,
                                            int offset, int size) {
     const MkmaterialExtra* extra;
-    const float* vec4;
+    const MkmaterialUvScroll* vec4;
     int version = 5;
-    int index;
+    unsigned int index;
 
     if (stream == 0 || object == 0) {
         return 0;
     }
     extra = MK_MATERIAL_PLUGIN(object)->extra;
     if (extra != 0) {
-        version = 0x40000005;
+        version |= 0x40000000;
         if (extra->field_00 != 0) {
             version |= 0x20000000;
         }
@@ -199,38 +175,37 @@ static RwStream* MkmaterialDataWriteStream(RwStream* stream, int length, const v
     if (vec4 != 0) {
         version |= 0x80000000;
     }
-    RwStreamWriteInt32(stream, &version, 4);
-    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->flags, 4);
-    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->field_04, 4);
+    RwStreamWriteInt32(stream, &version, sizeof(version));
+    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->flags, sizeof(MK_MATERIAL_PLUGIN(object)->flags));
+    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->field_04, sizeof(MK_MATERIAL_PLUGIN(object)->field_04));
     if (extra != 0) {
-        RwStreamWriteInt32(stream, &extra->count, 4);
+        RwStreamWriteInt32(stream, &extra->count, sizeof(extra->count));
         for (index = 0; index < extra->count; index++) {
             int value = extra->data[index];
-            RwStreamWriteInt32(stream, &value, 4);
+            RwStreamWriteInt32(stream, &value, sizeof(value));
         }
     }
-    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->word_08, 4);
-    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->field_0C, 4);
-    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->z_bias, 4);
+    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->word_08, sizeof(MK_MATERIAL_PLUGIN(object)->word_08));
+    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->field_0C, sizeof(MK_MATERIAL_PLUGIN(object)->field_0C));
+    RwStreamWriteReal(stream, &MK_MATERIAL_PLUGIN(object)->z_bias, sizeof(MK_MATERIAL_PLUGIN(object)->z_bias));
     if (vec4 != 0) {
-        RwStreamWriteReal(stream, &vec4[0], 4);
-        RwStreamWriteReal(stream, &vec4[1], 4);
-        RwStreamWriteReal(stream, &vec4[2], 4);
-        RwStreamWriteReal(stream, &vec4[3], 4);
+        RwStreamWriteReal(stream, &vec4->u1, sizeof(vec4->u1));
+        RwStreamWriteReal(stream, &vec4->v1, sizeof(vec4->v1));
+        RwStreamWriteReal(stream, &vec4->u2, sizeof(vec4->u2));
+        RwStreamWriteReal(stream, &vec4->v2, sizeof(vec4->v2));
     }
-    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->field_20, 4);
+    RwStreamWriteInt32(stream, &MK_MATERIAL_PLUGIN(object)->field_20, sizeof(MK_MATERIAL_PLUGIN(object)->field_20));
     return stream;
 }
 
+/* TODO: [near miss] 98.802399%; only allocation-result move versus flag extraction scheduling remains. */
 static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* object, int offset,
                                           int size) {
-    union {
-        float reals[4];
-        unsigned int words[4];
-    } vec4_values;
+    MkmaterialUvScroll vec4_values;
+    int consumed;
     MkmaterialPluginData* data;
     MkmaterialExtra* extra;
-    MkmaterialExtraAllocation* extra_allocation;
+    struct MkmaterialExtraAllocation* extra_allocation;
     int version;
     int extra_count;
     int value;
@@ -239,64 +214,61 @@ static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* ob
     unsigned int index;
     unsigned int* word_08;
     float field_0C;
-    unsigned int* vec4;
-    int consumed;
+    MkmaterialUvScroll* vec4;
 
     if (stream == 0 || object == 0) {
         return 0;
     }
-    RwStreamReadInt32(stream, &version, 4);
-    RwStreamReadInt32(stream, &MK_MATERIAL_PLUGIN(object)->flags, 4);
-    RwStreamReadReal(stream, &MK_MATERIAL_PLUGIN(object)->field_04, 4);
+    RwStreamReadInt32(stream, &version, sizeof(version));
     stream_version = (unsigned short)version;
+    RwStreamReadInt32(stream, &MK_MATERIAL_PLUGIN(object)->flags, sizeof(MK_MATERIAL_PLUGIN(object)->flags));
+    RwStreamReadReal(stream, &MK_MATERIAL_PLUGIN(object)->field_04, sizeof(MK_MATERIAL_PLUGIN(object)->field_04));
     version_flags = (unsigned int)version >> 16;
     if (stream_version > 1 && (version_flags & 0x4000) != 0) {
-        RwStreamReadInt32(stream, &extra_count, 4);
-        extra_allocation = RwEngineInstance->allocate(extra_count * 4 + 0xC, 0x30000);
+        RwStreamReadInt32(stream, &extra_count, sizeof(extra_count));
+        extra_allocation = RwEngineInstance->fpMalloc(
+            extra_count * sizeof(*extra->data) + sizeof(*extra), 0x30000);
         extra = &extra_allocation->extra;
         extra->field_00 = (version_flags >> 13) & 1;
         extra->count = extra_count;
         extra->data = extra_allocation->inline_data;
         for (index = 0; index < (unsigned int)extra_count; index++) {
-            RwStreamReadInt32(stream, &value, 4);
+            RwStreamReadInt32(stream, &value, sizeof(value));
             extra->data[index] = value;
         }
         MK_MATERIAL_PLUGIN(object)->extra = extra;
     }
     if (stream_version > 2) {
         word_08 = &MK_MATERIAL_PLUGIN(object)->word_08;
-        RwStreamReadInt32(stream, word_08, 4);
-        RwMemNative32(word_08, 4);
+        RwStreamReadInt32(stream, word_08, sizeof(*word_08));
+        RwMemNative32(word_08, sizeof(*word_08));
     }
     if (stream_version > 3) {
-        RwStreamReadReal(stream, &field_0C, 4);
+        RwStreamReadReal(stream, &field_0C, sizeof(field_0C));
         MK_MATERIAL_PLUGIN(object)->field_0C = field_0C;
-        RwStreamReadReal(stream, &MK_MATERIAL_PLUGIN(object)->z_bias, 4);
+        RwStreamReadReal(stream, &MK_MATERIAL_PLUGIN(object)->z_bias, sizeof(MK_MATERIAL_PLUGIN(object)->z_bias));
         if ((version_flags & 0x8000) != 0) {
-            RwStreamReadReal(stream, &vec4_values.reals[0], 4);
-            RwStreamReadReal(stream, &vec4_values.reals[1], 4);
-            RwStreamReadReal(stream, &vec4_values.reals[2], 4);
-            RwStreamReadReal(stream, &vec4_values.reals[3], 4);
-            vec4 = RwEngineInstance->allocate(0x10, 0x30000);
+            RwStreamReadReal(stream, &vec4_values.u1, sizeof(vec4_values.u1));
+            RwStreamReadReal(stream, &vec4_values.v1, sizeof(vec4_values.v1));
+            RwStreamReadReal(stream, &vec4_values.u2, sizeof(vec4_values.u2));
+            RwStreamReadReal(stream, &vec4_values.v2, sizeof(vec4_values.v2));
+            vec4 = RwEngineInstance->fpMalloc(sizeof(*vec4), 0x30000);
             if (vec4 != 0) {
-                vec4[0] = vec4_values.words[0];
-                vec4[1] = vec4_values.words[1];
-                vec4[2] = vec4_values.words[2];
-                vec4[3] = vec4_values.words[3];
-                MK_MATERIAL_PLUGIN(object)->vec4_words = vec4;
+                *vec4 = vec4_values;
+                MK_MATERIAL_PLUGIN(object)->vec4 = vec4;
             }
         }
     }
     if (stream_version > 4) {
-        RwStreamReadInt32(stream, &MK_MATERIAL_PLUGIN(object)->field_20, 4);
+        RwStreamReadInt32(stream, &MK_MATERIAL_PLUGIN(object)->field_20, sizeof(MK_MATERIAL_PLUGIN(object)->field_20));
     }
     data = MK_MATERIAL_PLUGIN(object);
     consumed = 0x1C;
     if (data->extra != 0) {
-        consumed = data->extra->count * 4 + 0x20;
+        consumed = data->extra->count * sizeof(*data->extra->data) + 0x20;
     }
     if (data->vec4 != 0) {
-        consumed += 0x10;
+        consumed += sizeof(*data->vec4);
     }
     consumed = length - consumed;
     if (consumed > 0) {
@@ -309,19 +281,20 @@ static int MkmaterialDataGetStreamSize(const void* object, int offset, int size)
     const MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(object);
     int stream_size = 0x1C;
     if (data->extra != 0) {
-        stream_size = data->extra->count * 4 + 0x20;
+        stream_size = data->extra->count * sizeof(*data->extra->data) + 0x20;
     }
     if (data->vec4 != 0) {
-        stream_size += 0x10;
+        stream_size += sizeof(*data->vec4);
     }
     return stream_size;
 }
 
+/* TODO: [breakthrough] 82.484207%; typed UV scroll aggregate copy recovered; inspect remaining extra-data copy and allocation order. */
 static void* MkmaterialDataCopier(void* destination, const void* source, int offset, int size) {
     const MkmaterialPluginData* source_data = MK_MATERIAL_PLUGIN(source);
     MkmaterialExtra* extra_copy;
-    MkmaterialExtraAllocation* extra_allocation;
-    unsigned int* vec4_copy;
+    struct MkmaterialExtraAllocation* extra_allocation;
+    MkmaterialUvScroll* vec4_copy;
     unsigned int index;
     MK_MATERIAL_PLUGIN(destination)->flags =
         MK_MATERIAL_PLUGIN(source)->flags;
@@ -337,7 +310,7 @@ static void* MkmaterialDataCopier(void* destination, const void* source, int off
         MK_MATERIAL_PLUGIN(source)->field_20;
     if (source_data->extra != 0) {
         extra_allocation =
-            RwEngineInstance->allocate(source_data->extra->count * 4 + 0xC, 0x30000);
+            RwEngineInstance->fpMalloc(source_data->extra->count * sizeof(*extra_copy->data) + sizeof(*extra_copy), 0x30000);
         extra_copy = &extra_allocation->extra;
         if (extra_copy != 0) {
             MK_MATERIAL_PLUGIN(destination)->extra = extra_copy;
@@ -349,14 +322,11 @@ static void* MkmaterialDataCopier(void* destination, const void* source, int off
             }
         }
     }
-    if (source_data->vec4_words != 0) {
-        vec4_copy = RwEngineInstance->allocate(0x10, 0x30000);
+    if (source_data->vec4 != 0) {
+        vec4_copy = RwEngineInstance->fpMalloc(sizeof(*vec4_copy), 0x30000);
         if (vec4_copy != 0) {
-            vec4_copy[0] = source_data->vec4_words[0];
-            vec4_copy[1] = source_data->vec4_words[1];
-            vec4_copy[2] = source_data->vec4_words[2];
-            vec4_copy[3] = source_data->vec4_words[3];
-            MK_MATERIAL_PLUGIN(destination)->vec4_words = vec4_copy;
+            *vec4_copy = *source_data->vec4;
+            MK_MATERIAL_PLUGIN(destination)->vec4 = vec4_copy;
         }
     }
     return destination;
@@ -364,14 +334,30 @@ static void* MkmaterialDataCopier(void* destination, const void* source, int off
 
 static void* MkmaterialDataDestructor(void* object, int offset, int size) {
     if (MK_MATERIAL_PLUGIN(object)->extra != 0) {
-        RwEngineInstance->free(MK_MATERIAL_PLUGIN(object)->extra,
-                               RwEngineInstance);
+        RwEngineInstance->fpFree(MK_MATERIAL_PLUGIN(object)->extra);
         MK_MATERIAL_PLUGIN(object)->extra = 0;
     }
     if (MK_MATERIAL_PLUGIN(object)->vec4 != 0) {
-        RwEngineInstance->free(MK_MATERIAL_PLUGIN(object)->vec4,
-                               RwEngineInstance);
+        RwEngineInstance->fpFree(MK_MATERIAL_PLUGIN(object)->vec4);
         MK_MATERIAL_PLUGIN(object)->vec4 = 0;
+    }
+    return object;
+}
+
+static void* MkmaterialDataConstructor(void* object, int offset, int size) {
+    if (MkmaterialLocalOffset > 0) {
+        MK_MATERIAL_PLUGIN(object)->flags = 0;
+        MK_MATERIAL_PLUGIN(object)->field_04 = 0.0f;
+        MK_MATERIAL_PLUGIN(object)->bytes_08[0] = 0xFF;
+        MK_MATERIAL_PLUGIN(object)->bytes_08[1] = 0xFF;
+        MK_MATERIAL_PLUGIN(object)->bytes_08[2] = 0xFF;
+        MK_MATERIAL_PLUGIN(object)->bytes_08[3] = 0xFF;
+        MK_MATERIAL_PLUGIN(object)->field_0C = 5.0f;
+        MK_MATERIAL_PLUGIN(object)->z_bias = 0.0f;
+        MK_MATERIAL_PLUGIN(object)->vec4 = 0;
+        MK_MATERIAL_PLUGIN(object)->field_18 = 0;
+        MK_MATERIAL_PLUGIN(object)->extra = 0;
+        MK_MATERIAL_PLUGIN(object)->field_20 = 0;
     }
     return object;
 }
@@ -403,10 +389,6 @@ int RpAtomicMksobjPluginAttach(void) {
            0;
 }
 
-static int MksobjDataGetStreamSize(const void* object, int offset, int size) {
-    return 0x10;
-}
-
 static RwStream* MksobjDataWriteStream(RwStream* stream, int length, const void* object, int offset,
                                        int size) {
     int version = 3;
@@ -414,11 +396,11 @@ static RwStream* MksobjDataWriteStream(RwStream* stream, int length, const void*
     if (stream == 0 || object == 0) {
         return 0;
     }
-    RwStreamWriteInt32(stream, &version, 4);
-    RwStreamWriteInt32(stream, &MK_ATOMIC_PLUGIN(object)->flags, 4);
-    RwStreamWriteReal(stream, &MK_ATOMIC_PLUGIN(object)->field_04, 4);
+    RwStreamWriteInt32(stream, &version, sizeof(version));
+    RwStreamWriteInt32(stream, &MK_ATOMIC_PLUGIN(object)->flags, sizeof(MK_ATOMIC_PLUGIN(object)->flags));
+    RwStreamWriteReal(stream, &MK_ATOMIC_PLUGIN(object)->field_04, sizeof(MK_ATOMIC_PLUGIN(object)->field_04));
     field_0C = MK_ATOMIC_PLUGIN(object)->field_0C;
-    RwStreamWriteInt32(stream, &field_0C, 4);
+    RwStreamWriteInt32(stream, &field_0C, sizeof(field_0C));
     return stream;
 }
 
@@ -427,23 +409,29 @@ static RwStream* MksobjDataReadStream(RwStream* stream, int length, void* object
     int version;
     int stream_version;
     int field_0C;
+    int remaining;
     if (stream == 0 || object == 0) {
         return 0;
     }
-    RwStreamReadInt32(stream, &version, 4);
+    RwStreamReadInt32(stream, &version, sizeof(version));
     stream_version = (unsigned short)version;
-    RwStreamReadInt32(stream, &MK_ATOMIC_PLUGIN(object)->flags, 4);
+    RwStreamReadInt32(stream, &MK_ATOMIC_PLUGIN(object)->flags, sizeof(MK_ATOMIC_PLUGIN(object)->flags));
     if (stream_version > 1) {
-        RwStreamReadReal(stream, &MK_ATOMIC_PLUGIN(object)->field_04, 4);
+        RwStreamReadReal(stream, &MK_ATOMIC_PLUGIN(object)->field_04, sizeof(MK_ATOMIC_PLUGIN(object)->field_04));
     }
     if (stream_version > 2) {
-        RwStreamReadInt32(stream, &field_0C, 4);
+        RwStreamReadInt32(stream, &field_0C, sizeof(field_0C));
         MK_ATOMIC_PLUGIN(object)->field_0C = field_0C;
     }
-    if (length > 0x10) {
-        RwStreamSkip(stream, length - 0x10);
+    remaining = length - 0x10;
+    if (remaining > 0) {
+        RwStreamSkip(stream, remaining);
     }
     return stream;
+}
+
+static int MksobjDataGetStreamSize(const void* object, int offset, int size) {
+    return 0x10;
 }
 
 static void* MksobjDataCopier(void* destination, const void* source, int offset, int size) {

@@ -1,3 +1,4 @@
+#include "libmkparticle/random.h"
 #include "libmkparticle/spawn.h"
 #include "libmkparticle/behavior.h"
 #include "libmkparticle/emitter.h"
@@ -6,22 +7,6 @@
 
 void* memcpy(void* destination, const void* source, unsigned long size);
 int rand(void);
-float rnd_between(float minimum, float maximum);
-int rnd_int(unsigned int maximum);
-void rnd_line_1i(int minimum, int maximum, int* output);
-void rnd_sphere(PfxVec3* output, const PfxVec3* origin, int quadratic_radius,
-                float minimum_radius, float maximum_radius);
-void rnd_point_in_cylinder(PfxVec3* output, const PfxVec3* axis,
-                           float radial_center, float radial_spread,
-                           float axial_center, float axial_spread);
-void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
-                       float minimum_radius, float maximum_radius);
-void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
-                                 float radius, float radius_spread,
-                                 float angle, float angle_spread);
-void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
-                           const PfxVec3* end, float minimum_length,
-                           float length_range);
 int pfx_get_struct_size(PfxVm* pfx, int field);
 int pfx_field_get_type(int field);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int emitter_index);
@@ -35,6 +20,7 @@ enum {
     PFX_MESSAGE_COLOR_FIELD_MISMATCH = 51
 };
 
+/* TODO: [near miss] 67.69231%; equivalent pointer truth test compiles branchless; retail uses explicit return branches. */
 int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field)
 {
     if (pfx_emitter_find_insn(emitter, field) != 0) {
@@ -60,16 +46,13 @@ static void v3_x_mat_4(PfxVec3* output, const PfxVec3* vector,
 static void rotate_v3_by_mat4(PfxVec3* vector, const PfxMatrix* matrix)
 {
     PfxVec3 result;
-    float x = vector->x;
-    float y = vector->y;
-    float z = vector->z;
 
-    result.x = z * matrix->elements[8] +
-        (x * matrix->elements[0] + y * matrix->elements[4]);
-    result.y = z * matrix->elements[9] +
-        (x * matrix->elements[1] + y * matrix->elements[5]);
-    result.z = z * matrix->elements[10] +
-        (x * matrix->elements[2] + y * matrix->elements[6]);
+    result.x = vector->z * matrix->elements[8] +
+        (vector->x * matrix->elements[0] + vector->y * matrix->elements[4]);
+    result.y = vector->z * matrix->elements[9] +
+        (vector->x * matrix->elements[1] + vector->y * matrix->elements[5]);
+    result.z = vector->z * matrix->elements[10] +
+        (vector->x * matrix->elements[2] + vector->y * matrix->elements[6]);
     *vector = result;
 }
 
@@ -251,32 +234,28 @@ void pfxvm_spawn_disc(PfxVmEmitter* emitter, unsigned int field,
     }
 }
 
-/* TODO: [breakthrough needed] 88.53333%; canonical signed field-query ABI restored; inspect remaining instruction allocation/lowering. */
 void pfxvm_spawn_roundrobin_mechanism(PfxVmEmitter* emitter,
-                                      unsigned int field, int count)
+                                      int field, int count)
 {
     if (pfx_field_get_type(field) == 5) {
-        PfxEmitterInstruction* instruction =
-            &emitter->instructions[emitter->instruction_count];
-        instruction->opcode = 16;
-        instruction->field_description = field;
-        instruction->spawn.integer_range.minimum = 0;
-        instruction->spawn.integer_range.maximum = count;
+        int instruction_index = emitter->instruction_count;
+        emitter->instructions[instruction_index].opcode = 16;
+        emitter->instructions[instruction_index].field_description = field;
+        emitter->instructions[instruction_index].spawn.integer_range.minimum = 0;
+        emitter->instructions[instruction_index].spawn.integer_range.maximum = count;
         emitter->instruction_count++;
     }
 }
 
-/* TODO: [breakthrough needed] 88.2%; canonical signed field-query ABI restored; inspect remaining instruction allocation/lowering. */
-void pfxvm_spawn_line_1i(PfxVmEmitter* emitter, unsigned int field,
+void pfxvm_spawn_line_1i(PfxVmEmitter* emitter, int field,
                          int minimum, int maximum)
 {
     if (pfx_field_get_type(field) == 4) {
-        PfxEmitterInstruction* instruction =
-            &emitter->instructions[emitter->instruction_count];
-        instruction->opcode = 8;
-        instruction->field_description = field;
-        instruction->spawn.integer_range.minimum = minimum;
-        instruction->spawn.integer_range.maximum = maximum;
+        int instruction_index = emitter->instruction_count;
+        emitter->instructions[instruction_index].opcode = 8;
+        emitter->instructions[instruction_index].field_description = field;
+        emitter->instructions[instruction_index].spawn.integer_range.minimum = minimum;
+        emitter->instructions[instruction_index].spawn.integer_range.maximum = maximum;
         emitter->instruction_count++;
     }
 }
@@ -321,9 +300,9 @@ void pfxvm_spawn_sphere(PfxVmEmitter* emitter, unsigned int field,
 }
 
 void pfxvm_spawn_from_pos(PfxVmEmitter* emitter, unsigned int field,
-                          unsigned int source_field, int clamp_y,
-                          float x, float y, float z, float minimum_length,
-                          float length_range, float clamped_y)
+                          unsigned int source_field, float x, float y, float z,
+                          float minimum_length, float length_range,
+                          int clamp_y, float clamped_y)
 {
     PfxEmitterInstruction* instruction = add_emitter_insn(emitter, 15, field);
     if (instruction != 0) {
@@ -372,7 +351,8 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
-/* TODO: [breakthrough needed] 86.62%; sphere option layout corrected; remaining dispatch and field-copy structure differ. */
+/* TODO: [breakthrough needed] 86.95226%; sphere option layout agrees;
+ * recover remaining spawn dispatch and field-copy structure. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
     PfxEmitterInstruction* instruction;
@@ -646,8 +626,8 @@ void pfxvm_add_transfer(PfxVm* pfx, PfxEmitterTransfer* transfer)
 
 void pfxvm_create_transfer(PfxVm* destination, PfxVm* source)
 {
-    PfxBehavior* behavior;
     PfxEmitterTransfer* transfer;
+    PfxBehavior* behavior;
 
     if (source->behavior_list == 0 || source->behavior_count < 1) {
         return;

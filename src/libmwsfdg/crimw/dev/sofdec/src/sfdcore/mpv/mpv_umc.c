@@ -271,8 +271,8 @@ void MPVUMC_BiDirect(MPVContext* context)
     mpvumc_BiMakeMb(sources, &context->output_blocks, context->cbp_mask);
 }
 
-/* TODO: [near miss] 91.111115%; typed work owner restores retail setup;
- * two instructions still schedule across the output address. */
+/* TODO: [near miss] 91.111115%; output-address scheduling differs;
+ * whole-unit propagation-off control regresses other consumers. */
 void MPVUMC_Backward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
@@ -283,16 +283,21 @@ void MPVUMC_Backward(MPVContext* context)
     mpvumc_OneMakeMb(sources, &context->output_blocks, context->cbp_mask);
 }
 
-/* TODO: [near miss] 91.111115%; typed work owner restores retail prologue;
- * two pre-inline instructions still schedule across the output address. */
 void MPVUMC_Forward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
     MPVMacroblockSources* sources = &context->sources;
-    MPVOutputBlocks* output = &context->output_blocks;
+    MPVOutputBlocks* output;
     mpvumc_OneReadMb(context, sources->prediction0, &offsets,
                      &context->frame_buffers.forward, &context->forward_motion);
-    mpvumc_SetOutputBlocks(context, &offsets);
+    output = &context->output_blocks;
+    output->blocks[0].destination = context->output.chroma0 + offsets.chroma;
+    output->blocks[1].destination = context->output.chroma1 + offsets.chroma;
+    output->blocks[2].destination = context->output.luma + offsets.luma;
+    output->blocks[3].destination = output->blocks[2].destination + 8;
+    output->blocks[4].destination =
+        output->blocks[2].destination + context->output.luma_stride * 8;
+    output->blocks[5].destination = output->blocks[4].destination + 8;
     mpvumc_OneMakeMb(sources, output, context->cbp_mask);
 }
 
@@ -377,8 +382,8 @@ void MPVUMC_InitOutRfb(MPVContext* context)
 
 void MPVUMC_Finish(void) {}
 
-/* TODO: [near miss] 95.857140%; retail initializer order and targets agree;
- * remaining address/store register coloring is a clean-source ceiling. */
+/* TODO: [near miss] 95.85714%; 23 callback/table address register rows remain;
+ * full initialization helpers and O3 are neutral; propagation regresses siblings. */
 void MPVUMC_Init(void)
 {
     mpvumc_oneref[0][0][0] = MPVMC08_OneRef1p_TuneC;

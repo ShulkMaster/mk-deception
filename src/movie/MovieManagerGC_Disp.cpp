@@ -11,18 +11,18 @@
 #include "platform/display_metrics.h"
 #include "runtime/cstring.h"
 
-typedef struct CameraVectors {
+struct CameraVectors {
     Vec up;
     Vec position;
     Vec target;
-} CameraVectors;
+};
 
-typedef struct UsrCamObj {
+struct UsrCamObj {
     Mtx view;
     char field_0x30[0x40];
-} UsrCamObj;
+};
 
-typedef struct UsrTexObj {
+struct UsrTexObj {
     GXTexObj tex0;
     GXTexObj tex1;
     void* bufY;
@@ -31,19 +31,19 @@ typedef struct UsrTexObj {
     int sizeC;
     int width;
     int height;
-} UsrTexObj;
+};
 
-typedef struct SceneCtrl {
+struct SceneCtrl {
     UsrCamObj cam;
     UsrTexObj tob0;
     UsrTexObj tob1;
-} SceneCtrl;
+};
 
-typedef struct NativeMovieProcessCtx {
+struct NativeMovieProcessCtx {
     int handle;
     int field_0x04;
     MwsFrameInfo frame;
-} NativeMovieProcessCtx;
+};
 
 typedef char UsrCamObjSizeCheck[sizeof(UsrCamObj) == 0x70 ? 1 : -1];
 typedef char UsrTexObjSizeCheck[sizeof(UsrTexObj) == 0x58 ? 1 : -1];
@@ -118,6 +118,7 @@ static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
 }
 
 
+/* TODO: [breakthrough needed] 86.16%; matrix/FIFO instruction differences remain; compare retail ordering. */
 static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     Mtx tex_mtx;
     Mtx44 proj;
@@ -141,8 +142,8 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     up = camera_vectors.up;
     position = camera_vectors.position;
     target = camera_vectors.target;
-    half_height = (float)(rmode->xfbHeight >> 1);
-    half_width = (float)(rmode->fbWidth >> 1);
+    half_height = rmode->xfbHeight >> 1;
+    half_width = rmode->fbWidth >> 1;
     C_MTXFrustum(proj, half_height, -half_height, -half_width,
                  half_width, 400.0f, 3000.0f);
     GXSetProjection(proj, 0);
@@ -161,10 +162,10 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     GXSetVtxDesc(0xD, 1);
     GXSetVtxAttrFmt(0, 9, 1, 3, 0);
     GXSetVtxAttrFmt(0, 0xD, 1, 4, 0);
-    halfW = (short)(screen_width / 2);
-    halfH = (short)(screen_height / 2);
-    negW = (short)-halfW;
-    negH = (short)-halfH;
+    halfW = screen_width / 2;
+    halfH = screen_height / 2;
+    negW = -halfW;
+    negH = -halfH;
     PSMTXTrans(model, 0.0f, 0.0f, 0.0f);
     PSMTXConcat(cam->view, model, tmp);
     GXLoadPosMtxImm(tmp, 0);
@@ -198,12 +199,10 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     NativeMovieProcessCtx* proc;
     UsrTexObj* tex;
     int padded_half_width;
-    unsigned short chroma_width;
-    unsigned short chroma_height;
-    void* y_buffer;
+    int chroma_width;
+    int chroma_height;
 
     proc = (NativeMovieProcessCtx*)ctx;
-    (void)unused;
     if (init == 0) {
         last_tob = 0;
         init = 1;
@@ -216,29 +215,28 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     last_tob = tex;
     if (tex->bufY == 0) {
         padded_half_width = width / 2 + 0x1F;
-        chroma_width = (unsigned short)(padded_half_width & 0xFFE0);
+        chroma_width = padded_half_width & 0xFFE0;
         chroma_height = (unsigned short)(height / 2);
         tex->width =
             ((((padded_half_width * 2) & 0x1FFC0) + 0x1F) & 0xFFE0);
         tex->height = (unsigned short)height;
         tex->sizeY = GXGetTexBufferSize(
-            (unsigned short)tex->width, (unsigned short)tex->height,
+            tex->width, tex->height,
             GX_TF_I8, 0, 0);
         tex->sizeC = GXGetTexBufferSize(
             chroma_width, chroma_height, GX_TF_IA8, 0, 0);
-        y_buffer = mwMovMalloc(tex->sizeY);
-        tex->bufY = y_buffer;
+        tex->bufY = mwMovMalloc(tex->sizeY);
         tex->bufC = mwMovMalloc(tex->sizeC);
-        if (y_buffer == 0 || tex->bufC == 0) {
+        if (tex->bufY == 0 || tex->bufC == 0) {
             OSReport(allocation_error);
         } else {
-            if (y_buffer != 0) {
-                memset(y_buffer, 0, tex->sizeY);
+            if (tex->bufY != 0) {
+                memset(tex->bufY, 0, tex->sizeY);
                 memset(tex->bufC, 0x80, tex->sizeC);
             }
             GXInitTexObj(&tex->tex0, tex->bufY,
-                         (unsigned short)tex->width,
-                         (unsigned short)tex->height,
+                         tex->width,
+                         tex->height,
                          GX_TF_I8, 0, 0, 0);
             GXInitTexObj(&tex->tex1, tex->bufC,
                          chroma_width, chroma_height,
@@ -282,6 +280,7 @@ void MovieManager_Default_StopVideo(void) {
     GXSetTevSwapModeTable(2, 0, 1, 2, 3);
 }
 
+/* TODO: [breakthrough needed] 83.82%; camera setup and buffer-clear instruction differences remain; compare retail ordering. */
 void MovieManager_Default_StartVideo(void) {
     GXColor copy_clear_color = {0, 0, 0, 0};
     Mtx44 proj;
@@ -299,8 +298,8 @@ void MovieManager_Default_StartVideo(void) {
     up = camera_vectors.up;
     position = camera_vectors.position;
     target = camera_vectors.target;
-    half_height = (float)(rmode->efbHeight >> 1);
-    half_width = (float)(rmode->fbWidth >> 1);
+    half_height = rmode->efbHeight >> 1;
+    half_width = rmode->fbWidth >> 1;
     C_MTXFrustum(proj, half_height, -half_height, -half_width,
                  half_width, 400.0f, 3000.0f);
     GXSetProjection(proj, 0);

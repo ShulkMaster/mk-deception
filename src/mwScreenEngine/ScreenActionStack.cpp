@@ -62,7 +62,6 @@ int ScreenActionStack::EndLocal() {
     return 0;
 }
 
-/* Retail duplicates main vs local paths (no head/tail pointer temps). */
 void ScreenActionStack::PushAction(ScreenAction* action) {
     ScreenAction* tail;
 
@@ -122,7 +121,6 @@ void ScreenActionStack::Dispose() {
     m_localMode = 0;
 }
 
-/* dont_inline: RemoveActions must bl ClearActions (not inline the body). */
 #pragma dont_inline on
 void ScreenActionStack::ClearActions(ScreenSet* set, ScreenAction** pTail,
                                      ScreenAction** pHead) {
@@ -242,7 +240,7 @@ ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
     int id;
     ScreenAction* action;
 
-    id = (int)type;
+    id = type;
     action = ScreenUtil::CreateAction(id);
     if (action == 0) {
         switch (id) {

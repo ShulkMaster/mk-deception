@@ -458,8 +458,7 @@ int SFTIM_ChkRegularTime(SfdHandle* handle, int* value, int* scale)
     return 1;
 }
 
-/* TODO: [near miss] 98.640450%; donor wrap increment order matches retail;
- * previous-sample register coloring/reload remains. */
+/* TODO: [near miss] 98.64%; previous-sample check/delta CSE omits retail reload. */
 static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
 {
     int sample;
@@ -610,7 +609,6 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     SfdTimerState* timer;
     SfdTimerLibraryWork* library;
     int threshold;
-    int base;
     int elapsed;
     int scale;
 
@@ -627,9 +625,7 @@ static int sftim_CheckStagnant(SfdHandle* handle)
         scale = library->source;
         elapsed = timer->video_clock_sample - timer->previous_clock_sample;
     } else {
-        elapsed = timer->current_clock_sample;
-        base = timer->previous_clock_sample;
-        elapsed -= base;
+        elapsed = timer->current_clock_sample - timer->previous_clock_sample;
         scale = timer->clock_sample_scale;
     }
     if (elapsed / scale > threshold) {
@@ -638,8 +634,7 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 99.396550%; donor helper boundary matches; remaining
- * elapsed/base register swap would require the donor's volatile crutch. */
+/* TODO: [near miss] 99.79%; timer arithmetic and condition flow agree; normal-clock sample loads remain reversed. */
 int SFTIM_IsStagnant(SfdHandle* handle)
 {
     if (sftim_CheckStagnant(handle) != 0) {
@@ -649,18 +644,71 @@ int SFTIM_IsStagnant(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 98.508770%; time-source fallback call setup differs;
- * retail/RE4 timer layout and callback flow agree, so stop at codegen. */
+static inline void sftim_VbInHn(SfdHandle* handle)
+{
+    int token;
+    int value;
+    int scale;
+    int update_video_clock;
+    int update_frame_clock;
+    SfdTimeSourceFn get_time;
+
+    if (handle->playback_state != 4) {
+        update_video_clock = 0;
+    } else if (handle->field_0050 != 0) {
+        update_video_clock = 0;
+    } else if (handle->playback_runtime.field_1C != 0) {
+        update_video_clock = 0;
+    } else {
+        update_video_clock = 1;
+    }
+    if (update_video_clock != 0) {
+        /* The retail clock wraps at 32 bits; signed samples retain -1 sentinels. */
+        handle->timer_state.video_clock_sample +=
+            (unsigned int)handle->timer_state.speed;
+    }
+
+    if (handle->timer_state.field_02CC == -1) {
+        update_frame_clock = 0;
+    } else if (handle->requested_state != 4) {
+        update_frame_clock = 0;
+    } else {
+        update_frame_clock = 1;
+    }
+    if (update_frame_clock != 0) {
+        handle->timer_state.field_02CC +=
+            (unsigned int)handle->timer_state.speed;
+    }
+
+    if (SFSET_GetCond(handle, 0x47) == 1) {
+        SFLIB_LockCs(&token);
+        get_time =
+            handle->timer_state.time_sources[SFSET_GetCond(handle, 0x0F)];
+        if (get_time == 0) {
+            get_time = sftim_GetTimeNone;
+        }
+        get_time(handle, &value, &scale);
+        SFLIB_UnlockCs(&token);
+        if (handle->timer_state.current_time_value != value ||
+            handle->timer_state.current_time_scale != scale) {
+            if (SFSET_GetCond(handle, 0x47) == 1) {
+                handle->timer_state.previous_clock_sample =
+                    handle->timer_state.video_clock_sample;
+            } else {
+                handle->timer_state.previous_clock_sample =
+                    handle->timer_state.current_clock_sample;
+            }
+            handle->timer_state.current_time_value = value;
+            handle->timer_state.current_time_scale = scale;
+        }
+        handle->field_0044 = 1;
+    }
+}
+
 void SFTIM_VbIn(void)
 {
     int i;
-    int scale;
-    int value;
-    int token;
-    int update_video_clock;
-    int update_frame_clock;
     SfdHandle* handle;
-    SfdTimeSourceFn get_time;
     SfdHandle** handles;
 
     handles = SFLIB_libwork.handles;
@@ -671,56 +719,7 @@ void SFTIM_VbIn(void)
             continue;
         }
 
-        if (handle->playback_state != 4) {
-            update_video_clock = 0;
-        } else if (handle->field_0050 != 0) {
-            update_video_clock = 0;
-        } else if (handle->playback_runtime.field_1C != 0) {
-            update_video_clock = 0;
-        } else {
-            update_video_clock = 1;
-        }
-        if (update_video_clock != 0) {
-            /* The retail clock wraps at 32 bits; signed samples retain -1 sentinels. */
-            handle->timer_state.video_clock_sample +=
-                (unsigned int)handle->timer_state.speed;
-        }
-
-        if (handle->timer_state.field_02CC == -1) {
-            update_frame_clock = 0;
-        } else if (handle->requested_state != 4) {
-            update_frame_clock = 0;
-        } else {
-            update_frame_clock = 1;
-        }
-        if (update_frame_clock != 0) {
-            handle->timer_state.field_02CC +=
-                (unsigned int)handle->timer_state.speed;
-        }
-
-        if (SFSET_GetCond(handle, 0x47) == 1) {
-            SFLIB_LockCs(&token);
-            get_time =
-                handle->timer_state.time_sources[SFSET_GetCond(handle, 0x0F)];
-            if (get_time == 0) {
-                get_time = sftim_GetTimeNone;
-            }
-            get_time(handle, &value, &scale);
-            SFLIB_UnlockCs(&token);
-            if (handle->timer_state.current_time_value != value ||
-                handle->timer_state.current_time_scale != scale) {
-                if (SFSET_GetCond(handle, 0x47) == 1) {
-                    handle->timer_state.previous_clock_sample =
-                        handle->timer_state.video_clock_sample;
-                } else {
-                    handle->timer_state.previous_clock_sample =
-                        handle->timer_state.current_clock_sample;
-                }
-                handle->timer_state.current_time_value = value;
-                handle->timer_state.current_time_scale = scale;
-            }
-            handle->field_0044 = 1;
-        }
+        sftim_VbInHn(handle);
     }
 }
 

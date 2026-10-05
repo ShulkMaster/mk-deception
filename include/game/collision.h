@@ -105,6 +105,15 @@ typedef char PlayerCollisionDataSizeCheck[sizeof(PlayerCollisionData) == 0x9410 
 
 typedef void (*GlobalCollisionCallback)(const unsigned int* obstacle_id);
 
+struct ConstrainInfo;
+
+void generate_obstacles(int handle, char* name, MkPtr** obstacle_list);
+CollisionObj* get_collision_obj(void);
+float repel_check_plyrs(void);
+void repel_against_obstacle_list(
+    PlyrInfo* player, const Vec* previous_position, const Vec* movement,
+    Vec* position, struct ConstrainInfo* info);
+
 void build_col_shape_vertical_cylinder(
     CollisionShape* shape, const Vec* center, float radius, float height);
 void build_col_shape_vertical_box(
@@ -115,6 +124,7 @@ CollisionObj* add_shape_to_global_collision_list(
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
 int get_shape_center_for_collision_obstacle(
     CollisionObj* obstacle, Vec* center);
+int get_first_shape_center_for_obstacle_id(int obstacle_id, Vec* center);
 int collide_segment_against_global_collision_list(
     const Vec* start, const Vec* end, Vec* hit_point,
     unsigned int ignored_flags);
@@ -125,5 +135,8 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position);
 void collision_obj_set_shape(
     CollisionObj* object, const CollisionShape* shape);
 void init_player_collision(PlyrInfo* player);
+int collide_cylinder_vs_plyr(
+    PlyrInfo* player, Vec* center, const Vec* angles,
+    float radius, float height);
 
 #endif

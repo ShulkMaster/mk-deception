@@ -1,4 +1,5 @@
 #include "dolphin/types.h"
+#include "sofdec/cft.h"
 
 typedef float CFTMtx3D[3][3];
 typedef unsigned char CFTConvTable[256];
@@ -65,14 +66,14 @@ static CFTConvTable cft_conv_v_itbl;
 static CFTConvTable cft_conv_u_itbl;
 static CFTConvTable cft_conv_y_itbl;
 
-/* TODO: [near miss] 98.463770%; post-call cursors restore retail frame/extent;
- * data-value check leaves BSS-base/argument coloring; stop without fake use. */
+/* TODO: [near miss] 99.26%; Y/row offset pair and steward-owned BSS placement remain. */
 void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
 {
-    float* yuv_coeff;
     u8* conv_y;
+    s32 offset;
     u8* conv_u;
     u8* conv_v;
+    float (*yuv_coeff)[3];
     s32 index;
 
     cft_ptr_y__rgb = &table[0][0][0];
@@ -81,52 +82,51 @@ void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
     CFT_MakeInvConvTableCustom(cft_conv_y_itbl, cft_conv_u_itbl,
                                cft_conv_v_itbl);
     CFT_MakeInverseMtx3D(cft_rgb_yuv_coeff, cft_yuv_rgb_coeff);
-    yuv_coeff = &cft_yuv_rgb_coeff[0][0];
-    conv_y = cft_conv_y_itbl;
+    yuv_coeff = cft_yuv_rgb_coeff;
     conv_u = cft_conv_u_itbl;
     conv_v = cft_conv_v_itbl;
+    conv_y = cft_conv_y_itbl;
 
     for (index = 0; index < 256; index++) {
-        s32 offset = index * 4;
+        offset = index * 4;
 
         cft_ptr_y__rgb[offset + 1] =
-            yuv_coeff[0] * (float)*conv_y;
+            cft_yuv_rgb_coeff[0][0] * (float)*conv_y;
         cft_ptr_y__rgb[offset + 2] =
-            yuv_coeff[3] * (float)*conv_y;
+            yuv_coeff[1][0] * (float)*conv_y;
         cft_ptr_y__rgb[offset + 3] =
-            yuv_coeff[6] * (float)*conv_y;
+            yuv_coeff[2][0] * (float)*conv_y;
         conv_y++;
         cft_ptr_y__rgb[offset] = 255.0f;
-        cft_ptr_cb_rgb[offset + 1] = yuv_coeff[1] *
+        cft_ptr_cb_rgb[offset + 1] = yuv_coeff[0][1] *
             ((float)*conv_u - 128.0f);
-        cft_ptr_cb_rgb[offset + 2] = yuv_coeff[4] *
+        cft_ptr_cb_rgb[offset + 2] = yuv_coeff[1][1] *
             ((float)*conv_u - 128.0f);
-        cft_ptr_cb_rgb[offset + 3] = yuv_coeff[7] *
+        cft_ptr_cb_rgb[offset + 3] = yuv_coeff[2][1] *
             ((float)*conv_u - 128.0f);
         conv_u++;
-        cft_ptr_cr_rgb[offset + 1] = yuv_coeff[2] *
+        cft_ptr_cr_rgb[offset + 1] = yuv_coeff[0][2] *
             ((float)*conv_v - 128.0f);
-        cft_ptr_cr_rgb[offset + 2] = yuv_coeff[5] *
+        cft_ptr_cr_rgb[offset + 2] = yuv_coeff[1][2] *
             ((float)*conv_v - 128.0f);
-        cft_ptr_cr_rgb[offset + 3] = yuv_coeff[8] *
+        cft_ptr_cr_rgb[offset + 3] = yuv_coeff[2][2] *
             ((float)*conv_v - 128.0f);
         conv_v++;
     }
 }
 
-/* TODO: [near miss] 99.292990%; retail globals restore function extent;
- * BSS first-use order and FP coloring remain; donor inline mode regresses. */
-void CFT_MakeYcc422ColAdjTbl(u32 table[4][256])
+/* TODO: [breakthrough needed] 99.93%; body agrees; BSS first-use evidence for discarded preparation helper is missing. */
+void CFT_MakeYcc422ColAdjTbl(void* table)
 {
-    u32* alpha_high = table[0];
+    u32* alpha_high = (u32*)table;
     u32* alpha_low = alpha_high + 256;
     u32* chroma_high = alpha_low + 256;
     u32* chroma_low = chroma_high + 256;
+    float u_offset;
+    float v_offset;
     float y_coefficient;
     float u_coefficient;
     float v_coefficient;
-    float u_offset;
-    float v_offset;
     s32 index;
 
     CFT_MakeInvConvTableCustom(cft_conv_y_itbl, cft_conv_u_itbl,
@@ -236,7 +236,6 @@ static inline u32 cftMakeDirectAlphaMask1(u32 pixels)
            ((pixels << 8) & 0x0000FF00) | 0x00FF00FF;
 }
 
-
 static inline void cftApplyStaticAlphaRow(u32* output, u32 pixels)
 {
     output[0] &= cftMakeDirectAlphaMask0(pixels);
@@ -321,7 +320,7 @@ static inline void cftStorePixelQuad(
     second_output[0] = cftPackEvenPixels(second_luma, second_chroma);
 }
 
-/* TODO: [near miss] Retail setup still differs. */
+/* TODO: [near miss] 99.89%; two commutative next-row additions remain; stop at operand encoding. */
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {
@@ -338,38 +337,50 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     s32 block_y;
     s32 blocks_across;
     s32 blocks_down;
+    u16* chroma_base;
+    u16* cb_next;
+    u16 chroma_u;
+    u16 chroma_v;
 
     mwPlyCalcYccPlane(source, width, height, &planes);
     blocks_across = width / 4;
     y0 = (u8*)planes.y;
-    y1 = y0 + ((((unsigned long)planes.cb - (unsigned long)y0) >> 1) & ~3UL);
-    cb = planes.cb;
+    chroma_base = planes.cb;
+    y1 = (u8*)planes.y +
+        ((((unsigned long)chroma_base - (unsigned long)planes.y) >> 1) & ~3UL);
+    cb = chroma_base;
     cr = planes.cr;
     output0 = destination;
+    blocks_down = height / 4;
     output1 = output0 + 8;
     y_step = planes.y_pitch & ~3;
     c_step = planes.c_pitch & ~1;
     y_rewind = y_step * 2;
-    blocks_down = height / 4;
 
     for (block_y = 0; block_y < blocks_down; block_y++) {
-        u16* cb_next = (u16*)((u8*)cb + c_step);
         u16* cr_next = (u16*)((u8*)cr + c_step);
         s32 block_x;
+        cb_next = (u16*)((u8*)cb + c_step);
 
         for (block_x = 0; block_x < blocks_across; block_x++) {
             if (block_x >= 0 && block_x < blocks_across) {
+                u32 first_luma = *(u32*)y1;
+                u32 second_luma = *(u32*)y0;
+                u16 first_chroma = *cb;
+                u16 second_chroma = *cr;
                 cftStorePixelQuad(output0, output1,
-                                  *(u32*)y1, *(u32*)y0,
-                                  *cb, *cr);
+                                  first_luma, second_luma,
+                                  first_chroma, second_chroma);
+                chroma_u = *cb;
+                chroma_v = *cr;
                 cftStorePixelQuad(output0 + 2, output1 + 2,
                                   *(u32*)y1, *(u32*)y0,
-                                  *cb, *cr);
+                                  chroma_u, chroma_v);
             } else {
-                output0[0] = output1[0] = 0;
-                output0[1] = output1[1] = 0;
-                output0[2] = output1[2] = 0;
-                output0[3] = output1[3] = 0;
+                output1[0] = output0[0] = 0;
+                output1[1] = output0[1] = 0;
+                output1[2] = output0[2] = 0;
+                output1[3] = output0[3] = 0;
             }
 
             y0 += y_step;
@@ -382,10 +393,10 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
                                   *(u32*)y1, *(u32*)y0,
                                   *cb, *cr);
             } else {
-                output0[4] = output1[4] = 0;
-                output0[5] = output1[5] = 0;
-                output0[6] = output1[6] = 0;
-                output0[7] = output1[7] = 0;
+                output1[4] = output0[4] = 0;
+                output1[5] = output0[5] = 0;
+                output1[6] = output0[6] = 0;
+                output1[7] = output0[7] = 0;
             }
 
             y0 += y_step;
@@ -393,13 +404,13 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
             y0 += 4;
             y1 += 4;
             y0 -= y_rewind;
-            y1 -= y_rewind;
-            cb++;
-            cr++;
-            cb_next++;
-            cr_next++;
             output0 += 16;
             output1 += 16;
+            cb++;
+            cb_next++;
+            cr++;
+            cr_next++;
+            y1 -= y_rewind;
         }
         y0 += y_step;
         y1 += y_step;

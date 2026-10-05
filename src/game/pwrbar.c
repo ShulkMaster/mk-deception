@@ -1,40 +1,35 @@
+#include "game/ejb.h"
+#include "game/game.h"
+#include "game/konquest_missions.h"
+#include "game/pwrbar.h"
 #include "game/game_info.h"
+#include "game/plyr_globals.h"
 #include "runtime/fonts.h"
+#include "runtime/cam_shake.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/image.h"
+#include "platform/main.h"
+#include "platform/display_metrics.h"
+#include "runtime/cstdio.h"
+#include "runtime/utils.h"
+#include "runtime/sound.h"
 
-extern int game_tick_ctr;
-
-extern int mode_of_play;
-extern int screen_width;
-extern GlobalPlayerEntry global_player_data[];
-
-typedef PlyrScreenLatch ScreenLatch;
-
-typedef struct ProcLatch {
-    MkProc* object;
-    unsigned int instance;
-} ProcLatch;
-
-typedef struct PbarHideStringItem {
-    ScreenLatch* latch;
+struct PbarHideStringItem {
+    PlyrScreenLatch* latch;
     unsigned char alpha;
-    unsigned char pad[3];
-} PbarHideStringItem;
+};
 
-typedef struct PbarFadePdata {
+struct PbarFadePdata {
     MkHdr hdr;
     int alpha;
-} PbarFadePdata;
+};
 
-typedef struct PbarExtendPdata {
+struct PbarExtendPdata {
     MkHdr hdr;
     int active;
-} PbarExtendPdata;
-
-typedef PlyrFightingLightState FightingLightState;
+};
 
 int BAR_BACK_X = 8;
 int PB_CNTR_RING_X = 0x100;
@@ -48,35 +43,35 @@ float p1_bar_back_start;
 float p1_bar_red_start;
 float p2_bar_back_start;
 float p2_bar_red_start;
-ScreenLatch p1_name_item;
-ScreenLatch p2_name_item;
-ScreenLatch p1_pbar_item;
-ScreenLatch p2_pbar_item;
-ScreenLatch p1_pbar_red_item;
-ScreenLatch p2_pbar_red_item;
-ScreenLatch p1_pbar_back_item;
-ScreenLatch p2_pbar_back_item;
-ScreenLatch p1_pbar_backb_item;
-ScreenLatch p2_pbar_backb_item;
-ScreenLatch p1_bolt_1_item;
-ScreenLatch p1_bolt_2_item;
-ScreenLatch p1_bolt_3_item;
-ScreenLatch p2_bolt_1_item;
-ScreenLatch p2_bolt_2_item;
-ScreenLatch p2_bolt_3_item;
-ScreenLatch p1_bar_icon_item;
-ScreenLatch p2_bar_icon_item;
-ScreenLatch pbar_cntr_item;
-ScreenLatch pbar_cntr_dragon_item;
-ProcLatch pwr_bar_proc_item;
+PlyrScreenLatch p1_name_item;
+PlyrScreenLatch p2_name_item;
+PlyrScreenLatch p1_pbar_item;
+PlyrScreenLatch p2_pbar_item;
+PlyrScreenLatch p1_pbar_red_item;
+PlyrScreenLatch p2_pbar_red_item;
+PlyrScreenLatch p1_pbar_back_item;
+PlyrScreenLatch p2_pbar_back_item;
+PlyrScreenLatch p1_pbar_backb_item;
+PlyrScreenLatch p2_pbar_backb_item;
+PlyrScreenLatch p1_bolt_1_item;
+PlyrScreenLatch p1_bolt_2_item;
+PlyrScreenLatch p1_bolt_3_item;
+PlyrScreenLatch p2_bolt_1_item;
+PlyrScreenLatch p2_bolt_2_item;
+PlyrScreenLatch p2_bolt_3_item;
+PlyrScreenLatch p1_bar_icon_item;
+PlyrScreenLatch p2_bar_icon_item;
+PlyrScreenLatch pbar_cntr_item;
+PlyrScreenLatch pbar_cntr_dragon_item;
+PlyrProcLatch pwr_bar_proc_item;
 int f_p2_force_adjustment;
 int f_p1_force_adjustment;
 float p2_disp_life;
 float p1_disp_life;
 
-extern ScreenLatch game_timer_item;
+extern PlyrScreenLatch game_timer_item;
 
-ScreenLatch* pbar_hide_screen_items[] = {
+PlyrScreenLatch* pbar_hide_screen_items[] = {
     &p1_bar_icon_item, &p2_bar_icon_item,
     &g_game_info.plyr0.fighting_lights.base,
     &g_game_info.plyr1.fighting_lights.base,
@@ -84,7 +79,7 @@ ScreenLatch* pbar_hide_screen_items[] = {
     &p1_bolt_1_item, &p1_bolt_2_item, &p1_bolt_3_item,
     &p2_bolt_1_item, &p2_bolt_2_item, &p2_bolt_3_item, 0
 };
-ScreenLatch* pbar_item_list[] = {
+PlyrScreenLatch* pbar_item_list[] = {
     &p1_pbar_item, &p2_pbar_item,
     &p1_pbar_back_item, &p2_pbar_back_item,
     &p1_pbar_backb_item, &p2_pbar_backb_item,
@@ -102,54 +97,39 @@ ScreenLatch* pbar_item_list[] = {
     &g_game_info.plyr0.fighting_lights.airborne,
     &g_game_info.plyr1.fighting_lights.airborne, 0
 };
-ScreenLatch* pbar_string_item_list[] = {
+PlyrScreenLatch* pbar_string_item_list[] = {
     &p1_name_item, &p2_name_item, &game_timer_item,
     &g_game_info.plyr0.name_latch, &g_game_info.plyr1.name_latch, 0
 };
-PbarHideStringItem pbar_hide_string_items[] = {
-    {&p1_name_item, 0xFF, {0, 0, 0}},
-    {&p2_name_item, 0xFF, {0, 0, 0}},
-    {&g_game_info.plyr0.name_latch, 0xB4, {0, 0, 0}},
-    {&g_game_info.plyr1.name_latch, 0xB4, {0, 0, 0}},
-    {0, 0, {0, 0, 0}}
+struct PbarHideStringItem pbar_hide_string_items[] = {
+    {&p1_name_item, 0xFF},
+    {&p2_name_item, 0xFF},
+    {&g_game_info.plyr0.name_latch, 0xB4},
+    {&g_game_info.plyr1.name_latch, 0xB4},
+    {0, 0}
 };
 
 static ScreenObj* medal_objs[8];
 
-int is_plyr_airborn(MkObj* object, PlyrPdata* player);
-int is_timer_off(void);
-int trial_show_standard_fight_messages(void);
 static float p_power_bar_proc(void);
-void display_debug_damage(PlyrInfo* player, float damage);
-void snd_req(int sound_id);
-void shake_camera(int strength, MkHdr* pdata, float duration);
 static float p_unhide_pbar_items(void);
 static float p_update_fighting_state_lights(void);
-int sprintf(char* destination, const char* format, ...);
-void set_string_obj_alpha(StringObj* object, float alpha);
-void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
 static void update_power_bar_verts(void);
 static void update_combo_break_counts(void);
 
 static float bar_speed = 0.01f;
-static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
+static inline ScreenObj* screen_latch_object(PlyrScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
     return MK_LIVE(object, latch->instance);
 }
 
-static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    return MK_LIVE(object, latch->instance);
-}
-
-static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
+static inline PlyrFightingLightState* fighting_light_state(PlyrInfo* player) {
     return &player->fighting_lights;
 }
 
 static inline int pbar_green_triggered(PlyrInfo* player,
-    FightingLightState* slot_0_state, FightingLightState* slot_1_state) {
+    PlyrFightingLightState* slot_0_state, PlyrFightingLightState* slot_1_state) {
     if (player->controller_slot == 0) {
         if (slot_0_state->green_trigger) {
             return 1;
@@ -162,56 +142,19 @@ static inline int pbar_green_triggered(PlyrInfo* player,
     return 0;
 }
 
-static inline StringObj* string_latch_object(ScreenLatch* latch) {
+static inline StringObj* string_latch_object(PlyrScreenLatch* latch) {
     StringObj* object = latch->object;
 
     return MK_LIVE(object, latch->instance);
 }
 
-static inline ScreenObj* owned_screen_latch_object(ScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    return MK_LIVE(object, latch->instance);
-}
-
-static inline void owned_set_quad_alpha(
-    ScreenObj* object, unsigned char alpha) {
-    int i;
-
-    if (object == 0 || object->pfx2d == 0) {
-        return;
-    }
-    for (i = 0; i < 4; i++) {
-        object->pfx2d->verts[i].a = alpha;
-    }
-}
-
-static inline void set_latched_quad_alpha(ScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    if (object != 0) {
-        if (object->instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+static inline void set_latched_quad_alpha(PlyrScreenLatch* latch) {
+    ScreenObj* object = screen_latch_object(latch);
     if (object != 0) {
         object->pfx2d->verts[0].a = 0xFF;
         object->pfx2d->verts[1].a = 0xFF;
         object->pfx2d->verts[2].a = 0xFF;
         object->pfx2d->verts[3].a = 0xFF;
-    }
-}
-
-static inline void set_quad_alpha(ScreenObj* object, unsigned char alpha) {
-    int i;
-
-    if (object == 0 || object->pfx2d == 0) {
-        return;
-    }
-    for (i = 0; i < 4; i++) {
-        object->pfx2d->verts[i].a = alpha;
     }
 }
 
@@ -241,17 +184,17 @@ static inline void start_powerbar_monitor_impl(void) {
     MkProc* proc;
 
     if (find_mkproc_pid(0x2003) == 0) {
-        pwr_bar_proc_item.object = 0;
+        pwr_bar_proc_item.proc = 0;
         pwr_bar_proc_item.instance = 0;
         proc = create_mkproc_fx(0x2003, p_power_bar_proc, &pdata);
         if (proc != 0) {
-            pwr_bar_proc_item.object = proc;
+            pwr_bar_proc_item.proc = proc;
             pwr_bar_proc_item.instance = proc->instance;
         }
     }
 }
 
-static inline void latch_screen(ScreenLatch* latch, ScreenObj* object) {
+static inline void latch_screen(PlyrScreenLatch* latch, ScreenObj* object) {
     latch->object = object;
     latch->instance = object != 0 ? object->instance : 0;
 }
@@ -285,13 +228,13 @@ static inline void brighten_screen(ScreenObj* object, int enabled) {
 }
 
 static inline ScreenObj* ensure_combo_bolt(
-    ScreenLatch* latch, int player_index, int x_offset,
+    PlyrScreenLatch* latch, int player_index, int x_offset,
     PlyrInfo* player, int threshold) {
     ScreenObj* object = screen_latch_object(latch);
 
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x10005, 0x2017, (char*)0x20019, 0, 0x1B);
+            0x10005, 0x2017, 0x20019, 0, 0x1B);
         if (object != 0) {
             if (player_index == 0) {
                 object->x = BAR_BACK_X + x_offset;
@@ -326,7 +269,7 @@ static inline void place_plyr_medals(PlyrInfo* plyr, int object_index, int x) {
 
     for (medal_index = 0; medal_index < plyr->field_40; medal_index++) {
         medal_objs[object_index] = load_2d_pfxobj(
-            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
+            0x10005, 0x2022, 0x20018, 0, 0x16);
         if (medal_objs[object_index] != 0) {
             medal_objs[object_index]->x = x;
             medal_objs[object_index]->y = 0x177;
@@ -358,14 +301,14 @@ static inline void update_plyr_medals_impl(void) {
                       screen_width - (BAR_BACK_X + 0x120));
 }
 
-static inline void clear_screen_latch(ScreenLatch* latch) {
+static inline void clear_screen_latch(PlyrScreenLatch* latch) {
     latch->object = 0;
     latch->instance = 0;
 }
 
 void show_wins_in_a_row(void) {
     StringObj* string = 0;
-    ScreenLatch* latch;
+    PlyrScreenLatch* latch;
     char text[0x50];
     int wins;
     int right_x;
@@ -378,7 +321,7 @@ void show_wins_in_a_row(void) {
             string = string_left_xy(0x201E, 0, text, 0x14, 0x3D, 0x1D);
             if (string != 0) {
                 latch = &g_game_info.plyr0.name_latch;
-                latch->object = (ScreenObj*)string;
+                latch->object = string;
                 latch->instance = string->instance;
             }
         } else {
@@ -388,7 +331,7 @@ void show_wins_in_a_row(void) {
                 0x201E, 0, text, right_x, 0x3D, 0x1D);
             if (string != 0) {
                 latch = &g_game_info.plyr1.name_latch;
-                latch->object = (ScreenObj*)string;
+                latch->object = string;
                 latch->instance = string->instance;
             }
         }
@@ -412,10 +355,10 @@ static float p_update_fighting_state_lights(void) {
     int player_index = 0;
     PlyrInfo* player_1 = &g_game_info.plyr0;
     PlyrInfo* player_2 = &g_game_info.plyr1;
-    FightingLightState* player_1_state = &g_game_info.plyr0.fighting_lights;
-    FightingLightState* player_2_state = &g_game_info.plyr1.fighting_lights;
+    PlyrFightingLightState* player_1_state = &g_game_info.plyr0.fighting_lights;
+    PlyrFightingLightState* player_2_state = &g_game_info.plyr1.fighting_lights;
     int i;
-    FightingLightState* state;
+    PlyrFightingLightState* state;
     ScreenObj* light;
     PlyrInfo* player;
     PlyrPdata* pdata;
@@ -495,12 +438,12 @@ static float p_update_fighting_state_lights(void) {
 }
 
 void init_fighting_state_lights(void) {
-    FightingLightState* player_1_state =
+    PlyrFightingLightState* player_1_state =
         fighting_light_state(&g_game_info.plyr0);
-    FightingLightState* player_2_state =
+    PlyrFightingLightState* player_2_state =
         fighting_light_state(&g_game_info.plyr1);
     int player_index;
-    FightingLightState* state;
+    PlyrFightingLightState* state;
     ScreenObj* base;
     ScreenObj* light;
     union {
@@ -519,7 +462,7 @@ void init_fighting_state_lights(void) {
         flags.word = 0;
         if (player_index == 0) {
             base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags.word, 0x28);
+                0x10005, 0x2027, 0x2002B, flags.word, 0x28);
             if (base != 0) {
                 base->x = (screen_width - 0x280) / 2 + 0xAB;
                 base->y = 0x18D;
@@ -529,7 +472,7 @@ void init_fighting_state_lights(void) {
         } else {
             flags.bits.bit5 = 1;
             base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags.word, 0x28);
+                0x10005, 0x2027, 0x2002B, flags.word, 0x28);
             if (base != 0) {
                 base->x = screen_width - base->pfx2d->tex_w - 0xAC -
                           (screen_width - 0x280) / 2;
@@ -540,7 +483,7 @@ void init_fighting_state_lights(void) {
         }
 
         light = load_2d_pfxobj(
-            0x10005, 0x2028, (char*)0x20028,
+            0x10005, 0x2028, 0x20028,
             base->flags_word, 0x25);
         if (light != 0) {
             if (player_index == 0) {
@@ -560,7 +503,7 @@ void init_fighting_state_lights(void) {
         }
 
         light = load_2d_pfxobj(
-            0x10005, 0x2029, (char*)0x20029,
+            0x10005, 0x2029, 0x20029,
             light->flags_word, 0x26);
         if (light != 0) {
             if (player_index == 0) {
@@ -580,7 +523,7 @@ void init_fighting_state_lights(void) {
         }
 
         light = load_2d_pfxobj(
-            0x10005, 0x202A, (char*)0x2002A,
+            0x10005, 0x202A, 0x2002A,
             light->flags_word, 0x26);
         if (light != 0) {
             if (player_index == 0) {
@@ -605,11 +548,11 @@ void init_fighting_state_lights(void) {
     }
 }
 
-/* TODO: [near miss] 98.02%; latch helpers now return early; register allocation remains. */
+/* TODO: [near miss] 99.27%; string loop agrees; screen latch/object register pair remains. */
 static float p_unhide_pbar_items(void) {
-    PbarFadePdata* pdata = (PbarFadePdata*)apdata;
-    PbarHideStringItem* string_item;
-    ScreenLatch* latch;
+    struct PbarFadePdata* pdata = (struct PbarFadePdata*)apdata;
+    struct PbarHideStringItem* string_item;
+    PlyrScreenLatch* latch;
     ScreenObj* screen;
     StringObj* string;
     unsigned int alpha;
@@ -617,21 +560,23 @@ static float p_unhide_pbar_items(void) {
     int string_index;
 
     alpha = (unsigned char)pdata->alpha;
-    for (screen_index = 0;
-         pbar_hide_screen_items[screen_index] != 0; screen_index++) {
+    screen_index = 0;
+    while (pbar_hide_screen_items[screen_index] != 0) {
         latch = pbar_hide_screen_items[screen_index];
-        screen = owned_screen_latch_object(latch);
+        screen = screen_latch_object(latch);
         if (screen != 0 && screen->pfx2d->verts[0].a < 0xFF) {
             screen->pfx2d->verts[0].a = alpha;
             screen->pfx2d->verts[1].a = alpha;
             screen->pfx2d->verts[2].a = alpha;
             screen->pfx2d->verts[3].a = alpha;
         }
+        screen_index++;
     }
-    for (string_index = 0;
-         pbar_hide_string_items[string_index].latch != 0; string_index++) {
+    string_index = 0;
+    while (pbar_hide_string_items[string_index].latch != 0) {
+        latch = pbar_hide_string_items[string_index].latch;
         string_item = &pbar_hide_string_items[string_index];
-        string = string_latch_object(string_item->latch);
+        string = string_latch_object(latch);
         if (string != 0) {
             if (alpha <= string_item->alpha) {
                 set_string_obj_alpha(string, alpha);
@@ -639,6 +584,7 @@ static float p_unhide_pbar_items(void) {
                 set_string_obj_alpha(string, string_item->alpha);
             }
         }
+        string_index++;
     }
     pdata->alpha += 8;
     if (pdata->alpha >= 0xFF) {
@@ -656,8 +602,8 @@ void retract_power_bars(void) {
     ScreenObj* p1_red;
     ScreenObj* p2_back;
     ScreenObj* p2_red;
-    PbarHideStringItem* string_item;
-    ScreenLatch* latch;
+    struct PbarHideStringItem* string_item;
+    PlyrScreenLatch* latch;
     ScreenObj* screen;
     StringObj* string;
     int screen_index;
@@ -684,10 +630,10 @@ void retract_power_bars(void) {
     if (!allowed) {
         return;
     }
-    p1_back = owned_screen_latch_object(&p1_pbar_back_item);
-    p1_red = owned_screen_latch_object(&p1_pbar_red_item);
-    p2_back = owned_screen_latch_object(&p2_pbar_back_item);
-    p2_red = owned_screen_latch_object(&p2_pbar_red_item);
+    p1_back = screen_latch_object(&p1_pbar_back_item);
+    p1_red = screen_latch_object(&p1_pbar_red_item);
+    p2_back = screen_latch_object(&p2_pbar_back_item);
+    p2_red = screen_latch_object(&p2_pbar_red_item);
     if (p1_back == 0 || p2_back == 0 || p1_red == 0 || p2_red == 0) {
         return;
     }
@@ -708,7 +654,7 @@ void retract_power_bars(void) {
     for (screen_index = 0;
          pbar_hide_screen_items[screen_index] != 0; screen_index++) {
         latch = pbar_hide_screen_items[screen_index];
-        screen = owned_screen_latch_object(latch);
+        screen = screen_latch_object(latch);
         if (screen != 0) {
             screen->pfx2d->verts[0].a = 0;
             screen->pfx2d->verts[1].a = 0;
@@ -728,10 +674,10 @@ void retract_power_bars(void) {
 }
 
 static float p_extend_powerbars(void) {
-    ScreenObj* p1_back = owned_screen_latch_object(&p1_pbar_back_item);
-    ScreenObj* p1_red = owned_screen_latch_object(&p1_pbar_red_item);
-    ScreenObj* p2_back = owned_screen_latch_object(&p2_pbar_back_item);
-    ScreenObj* p2_red = owned_screen_latch_object(&p2_pbar_red_item);
+    ScreenObj* p1_back = screen_latch_object(&p1_pbar_back_item);
+    ScreenObj* p1_red = screen_latch_object(&p1_pbar_red_item);
+    ScreenObj* p2_back = screen_latch_object(&p2_pbar_back_item);
+    ScreenObj* p2_red = screen_latch_object(&p2_pbar_red_item);
     MkHdr* pdata;
 
     if (p1_back == 0 || p2_back == 0 || p1_red == 0 || p2_red == 0) {
@@ -777,7 +723,7 @@ static float p_extend_powerbars(void) {
         p2_red->pfx2d->verts[2].x == p2_bar_red_start) {
         if (_create_mkproc_generic_nostack(
                 0x2094, 0x1F, p_unhide_pbar_items, 0x28, &pdata) != 0) {
-            PbarExtendPdata* extend = (PbarExtendPdata*)pdata;
+            struct PbarExtendPdata* extend = (struct PbarExtendPdata*)pdata;
 
             extend->active = 0;
             shake_camera(3, &extend->hdr, 0.01f);
@@ -790,7 +736,6 @@ static float p_extend_powerbars(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.73196%; two latch joins remain; accessor perturbs zero-register reuse; stop. */
 void extend_powerbars(void) {
     MkHdr* pdata;
     int allowed;
@@ -815,7 +760,7 @@ void extend_powerbars(void) {
     if (allowed && f_powerbars_retracted != 0 &&
         _create_mkproc_generic_nostack(
             0x2094, 0x1F, p_extend_powerbars, 0x28, &pdata) != 0) {
-        ((PbarExtendPdata*)pdata)->active = 0;
+        ((struct PbarExtendPdata*)pdata)->active = 0;
         set_latched_quad_alpha(&p1_pbar_backb_item);
         set_latched_quad_alpha(&p2_pbar_backb_item);
         snd_req(0xD9B);
@@ -823,7 +768,7 @@ void extend_powerbars(void) {
 }
 
 float p_move_pbars_off_screen(void) {
-    ScreenLatch* latch;
+    PlyrScreenLatch* latch;
     ScreenObj* screen;
     StringObj* string;
     int frame;
@@ -964,8 +909,8 @@ static void update_power_bar_verts(void) {
     float life;
     float fill;
 
-    player1 = validated_screen_latch_object(&p1_pbar_item);
-    player2 = validated_screen_latch_object(&p2_pbar_item);
+    player1 = screen_latch_object(&p1_pbar_item);
+    player2 = screen_latch_object(&p2_pbar_item);
     if (player1 == 0 || player2 == 0) {
         return;
     }
@@ -1161,26 +1106,20 @@ void update_plyr_medals(void) {
     update_plyr_medals_impl();
 }
 
-
-
-
-
-
-
 void destroy_pwr_bars(void) {
     MkProc* process;
-    ScreenLatch* latch;
+    PlyrScreenLatch* latch;
     ScreenObj* screen;
     StringObj* string;
-    FightingLightState* state;
+    PlyrFightingLightState* state;
     int player_index;
-    FightingLightState* player_1_state;
-    FightingLightState* player_2_state;
+    PlyrFightingLightState* player_1_state;
+    PlyrFightingLightState* player_2_state;
     int screen_index;
     int string_index;
     int i;
 
-    process = MK_LIVE(pwr_bar_proc_item.object, pwr_bar_proc_item.instance);
+    process = MK_LIVE(pwr_bar_proc_item.proc, pwr_bar_proc_item.instance);
 
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);
@@ -1188,7 +1127,7 @@ void destroy_pwr_bars(void) {
     for (screen_index = 0;
          pbar_item_list[screen_index] != 0; screen_index++) {
         latch = pbar_item_list[screen_index];
-        screen = owned_screen_latch_object(latch);
+        screen = screen_latch_object(latch);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
@@ -1214,19 +1153,19 @@ void destroy_pwr_bars(void) {
         state->flags_word = 0;
         state->flags_word = 0;
 
-        screen = owned_screen_latch_object(&state->base);
+        screen = screen_latch_object(&state->base);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = owned_screen_latch_object(&state->red);
+        screen = screen_latch_object(&state->red);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = owned_screen_latch_object(&state->green);
+        screen = screen_latch_object(&state->green);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = owned_screen_latch_object(&state->airborne);
+        screen = screen_latch_object(&state->airborne);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
@@ -1307,14 +1246,14 @@ void init_pwr_bars(void) {
 
     p2_flags.word = 0;
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20012, 0, 0x19);
+        0x10005, 0x2017, 0x20012, 0, 0x19);
     if (object != 0) {
         p1_pbar_item.object = object;
         p1_pbar_item.instance = object->instance;
         object->draw_flags.on = 0;
     }
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20015, 0, 0x1A);
+        0x10005, 0x2017, 0x20015, 0, 0x1A);
     if (object != 0) {
         object->pfx2d->verts[0].x =
             (262.0f + (24.0f + (float)BAR_BACK_X)) - 262.0f;
@@ -1335,14 +1274,14 @@ void init_pwr_bars(void) {
 
     p2_flags.bits.flip_u = 1;
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20012, p2_flags.word, 0x19);
+        0x10005, 0x2017, 0x20012, p2_flags.word, 0x19);
     if (object != 0) {
         p2_pbar_item.object = object;
         p2_pbar_item.instance = object->instance;
         object->draw_flags.on = 0;
     }
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20015, p2_flags.word, 0x1A);
+        0x10005, 0x2017, 0x20015, p2_flags.word, 0x1A);
     if (object != 0) {
         object->pfx2d->verts[0].x =
             (float)screen_width -
@@ -1367,14 +1306,14 @@ void init_pwr_bars(void) {
     }
 
     back = load_2d_pfxobj(
-        0x10005, 0x2015, (char*)0x20013, 0, 0x18);
+        0x10005, 0x2015, 0x20013, 0, 0x18);
     if (back != 0) {
         p1_pbar_back_item.object = back;
         p1_pbar_back_item.instance = back->instance;
         back->x = BAR_BACK_X;
         back->y = 0x189;
         object = load_2d_pfxobj(
-            0x10005, 0x2015, (char*)0x20014, 0, 0x18);
+            0x10005, 0x2015, 0x20014, 0, 0x18);
         if (object != 0) {
             object->x = back->x + back->pfx2d->tex_w;
             object->y = 0x189;
@@ -1384,14 +1323,14 @@ void init_pwr_bars(void) {
     }
 
     back = load_2d_pfxobj(
-        0x10005, 0x2015, (char*)0x20013, p2_flags.word, 0x18);
+        0x10005, 0x2015, 0x20013, p2_flags.word, 0x18);
     if (back != 0) {
         p2_pbar_back_item.object = back;
         p2_pbar_back_item.instance = back->instance;
         back->x = screen_width - (BAR_BACK_X + back->pfx2d->tex_w);
         back->y = 0x189;
         object = load_2d_pfxobj(
-            0x10005, 0x2015, (char*)0x20014, 0, 0x18);
+            0x10005, 0x2015, 0x20014, 0, 0x18);
         if (object != 0) {
             object->x = back->x - (object->pfx2d->tex_w - 8);
             object->y = 0x189;
@@ -1406,7 +1345,7 @@ void init_pwr_bars(void) {
         BAR_BACK_X + 0x23, 0x1A3, 0x17);
     if (name != 0) {
         name->visibility.hidden = 0;
-        p1_name_item.object = (ScreenObj*)name;
+        p1_name_item.object = name;
         p1_name_item.instance = name->instance;
         object = load_named_2d_pfxobj_xy(
             0x3000B, 0x2050, "LILHEAD", 0,
@@ -1424,7 +1363,7 @@ void init_pwr_bars(void) {
         screen_width - (BAR_BACK_X + 0x23), 0x1A3, 0x17);
     if (name != 0) {
         name->visibility.hidden = 0;
-        p2_name_item.object = (ScreenObj*)name;
+        p2_name_item.object = name;
         p2_name_item.instance = name->instance;
         object = load_named_2d_pfxobj_xy(
             0x4000B, 0x2051, "LILHEAD", p2_flags.word,
@@ -1440,7 +1379,7 @@ void init_pwr_bars(void) {
     if (is_timer_off() || g_game_info.feature_flags.bits.powerbars_locked ||
         mode_of_play == 4) {
         object = load_2d_pfxobj(
-            0x10005, 0x204F, (char*)0x20017, 0, 0x15);
+            0x10005, 0x204F, 0x20017, 0, 0x15);
         if (object != 0) {
             pull_screen_obj(object);
             insert_screen_obj(object);
@@ -1451,7 +1390,7 @@ void init_pwr_bars(void) {
         }
     } else {
         object = load_2d_pfxobj_xy(
-            0x10005, 0x204F, (char*)0x20016, 0,
+            0x10005, 0x204F, 0x20016, 0,
             PB_CNTR_RING_X, 0x165, 0x18);
         if (object != 0) {
             pull_screen_obj(object);

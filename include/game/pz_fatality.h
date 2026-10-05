@@ -30,6 +30,10 @@ typedef struct PuzzleFatalityRandomEvent {
     int started; /* +0x20 */
 } PuzzleFatalityRandomEvent; /* 0x24 */
 
+float pz_fighter_ani_attack(
+    float end_frame, int reaction, float reaction_frame,
+    float hit_distance, unsigned int reaction_mode);
+
 float pz_fighter_process_random_fatality_event(
     PuzzleFatalityRandomEvent* event, PuzzleFatalityProcessFn reaction);
 void cleanup_pz_fatality_stuff(void);

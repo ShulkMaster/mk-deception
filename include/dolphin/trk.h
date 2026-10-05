@@ -40,7 +40,7 @@ typedef struct TRKCPUState {
     u8 field_0x84[0x1B4];
     u32 extended1_state;
     u8 field_0x23C[0xBC];
-    u16 exception_id;
+    u32 exception_id;
 } TRKCPUState;
 
 typedef struct TRKExceptionStatus {

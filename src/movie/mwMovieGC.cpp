@@ -6,16 +6,16 @@
 
 typedef struct MwsPlayer MwsPlayer;
 
-typedef struct MwsTransportPair {
+struct MwsTransportPair {
     int first;
     int second;
-} MwsTransportPair;
+};
 
-typedef struct MwsTransportFrameInfo {
+struct MwsTransportFrameInfo {
     MwsTransportPair pairs[7];
-} MwsTransportFrameInfo;
+};
 
-typedef struct MwsFrameOutput {
+struct MwsFrameOutput {
     void* frame;
     int frame_structure;
     int width;
@@ -37,26 +37,14 @@ typedef struct MwsFrameOutput {
     int display_mode;
     int reserved_4C;
     MwsTransportFrameInfo transport;
-} MwsFrameOutput;
-
-typedef struct MwMoviePlayerParams {
-    unsigned int maximum_bps;
-    int audio_channel;
-    unsigned int composition_flag;
-    unsigned short width;
-    unsigned short height;
-    unsigned short output_width;
-    unsigned short output_height;
-    unsigned short frame_count;
-    unsigned short fade_frames;
-} MwMoviePlayerParams;
+};
 
 struct _mwMovPlayer {
     MwsPlayer* player_handle;
     int reserved_04;
     MwsFrameOutput frame;
     int state;
-    MwMoviePlayerParams create;
+    MwMovieCreateParams create;
     unsigned short fade_frame;
     unsigned short reserved_AE;
     int previous_frame;
@@ -86,16 +74,9 @@ typedef struct mwMovieSetup {
     int cri_error;
 } mwMovieSetup;
 
-typedef struct MwMovieVideoState {
-    int initialized;
-    int reserved;
-} MwMovieVideoState;
-
 typedef char MwsFrameOutputSizeCheck[sizeof(MwsFrameOutput) == 0x88 ? 1 : -1];
 typedef char MwMoviePlayerSizeCheck[sizeof(_mwMovPlayer) == 0xB8 ? 1 : -1];
 typedef char MwMovieSetupSizeCheck[sizeof(mwMovieSetup) == 0x30 ? 1 : -1];
-typedef char MwMovieVideoStateSizeCheck[
-    sizeof(MwMovieVideoState) == 0x8 ? 1 : -1];
 
 extern mwMovieSetup MoviePlayerSetup;
 
@@ -105,33 +86,33 @@ void displayMovieFrame(_mwMovPlayer* player);
 }
 
 namespace {
-/* Retail combines both diagnostics and retains two trailing alignment bytes. */
 char stringBase0[] =
     "mwMovieGC.cpp\0"
-    "Assertion failure: player != 0L\0\0";
+    "Assertion failure: player != 0L";
 }
 
-/* The second word is the retail .sbss alignment tail. */
-static MwMovieVideoState mwMovie_video_initialized;
+static int mwMovie_video_initialized;
 
 extern "C" void __mwMovie_initVideo(void)
 {
 }
 
+/* TODO: [near miss] 92.63158%; callback setup scheduling and player register home differ. */
 extern "C" void __mwMovie_startVideo(_mwMovPlayer* player)
 {
     if (MoviePlayerSetup.start != 0) {
         MoviePlayerSetup.start(player->create.width, player->create.height);
     }
-    mwMovie_video_initialized.initialized = 1;
+    mwMovie_video_initialized = 1;
 }
 
+/* TODO: [near miss] 87.50%; LR save schedules after setup base construction. */
 extern "C" void __mwMovie_shutdownVideo(void)
 {
     if (MoviePlayerSetup.stop != 0) {
         MoviePlayerSetup.stop();
     }
-    mwMovie_video_initialized.initialized = 0;
+    mwMovie_video_initialized = 0;
 }
 
 extern "C" void __mwMovie_syncFrame(void)

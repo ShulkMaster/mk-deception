@@ -7,24 +7,23 @@
 extern "C" {
 #endif
 
-extern MkVtable5 vtbl_mkhdr_generic;
-
 typedef struct MkHdr MkHdr;
-typedef int (*MkHdrVtblFn)(MkHdr* hdr);
+typedef void (*MkHdrDestroyFn)(MkHdr* hdr);
 typedef MkHdr* (*MkHdrCastFn)(MkHdr* hdr);
 
 typedef struct MkHdrVtable {
     MkHdrCastFn fn0;
     MkHdrCastFn fn1;
-    MkHdrVtblFn fn2;
-    MkHdrVtblFn fn3;
-    MkHdrVtblFn destroy;
+    MkHdrCastFn fn2;
+    MkVtblFn fn3;
+    MkHdrDestroyFn destroy;
 } MkHdrVtable;
 
 struct MkHdr {
     union {
         MkVtable5* vtbl;
         MkHdrVtable* typed_vtbl;
+        MkVtableMkxRpLight* light_vtbl;
     };
     unsigned int instance;
 };
@@ -74,8 +73,8 @@ extern MkPtr* master_clean_up_list;
 extern int global_instance_ctr;
 
 MkHdr* get_mkhdr_generic(unsigned int size);
-int vdestroy_mkhdr_generic(MkHdr* hdr);
-MkHdr* get_mkhdr(MkVtable5* vtbl, unsigned int size);
+void vdestroy_mkhdr_generic(MkHdr* hdr);
+MkHdr* get_mkhdr(void* vtbl, unsigned int size);
 void apply_to_mklist(MkListApplyFn fn, MkPtr** list);
 MkPtr* find_in_mklist(MkHdr* hdr, MkPtr** list);
 void insert_mkptr_before(MkPtr* insert, MkPtr* before);

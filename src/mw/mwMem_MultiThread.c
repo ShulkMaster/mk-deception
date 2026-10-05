@@ -4,7 +4,6 @@
 #include "dolphin/mutex.h"
 
 OSMutex MemGC_SysMutex;
-/* MWCC emits .sbss in reverse declaration order; pad first so MemSysMutex is at +0. */
 int gap_08_80510EA4_sbss;
 OSMutex* MemSysMutex;
 

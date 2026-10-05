@@ -4,12 +4,8 @@
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/ScreenMatrixStack.h"
+#include "runtime/cstring.h"
 
-extern "C" {
-char* strcpy(char* dst, const char* src);
-}
-
-/* Retail @120 -- flags/matrix + colorScale(1) + colorTranslation(0). */
 static const ScreenRenderInfo s_renderInfoInit = {
     0,
     0,
@@ -20,7 +16,6 @@ static const ScreenRenderInfo s_renderInfoInit = {
 #define SCREEN_IDLE_EVENT 0x405
 
 Screen::Screen() {
-    /* Retail store order after strcpy(m_name, ""). */
     strcpy(m_name, "");
     m_data = 0;
     m_state = -1;
@@ -31,11 +26,9 @@ Screen::Screen() {
     m_matrixStack = 0;
     m_headControl = 0;
     m_headIdle = 0;
-    /* m_set left uninitialized in retail ctor. */
 }
 
 Screen::~Screen() {
-    /* Retail: optional operator delete only; Dispose is separate. */
 }
 
 void Screen::Dispose() {
@@ -53,7 +46,6 @@ ScreenAnimScene* Screen::GetAnimScene(int index) {
     ScreenData* data;
     ScreenAnimSceneList* scenes;
 
-    /* Retail: (m_data != 0) && (index < count) -- no animScenes null check. */
     data = m_data;
     if (data != 0) {
         scenes = data->animScenes;
@@ -151,7 +143,6 @@ void Screen::InitMatrixStack() {
 void Screen::RenderAll() {
     ScreenData* data;
     ScreenObjectRoot* objects;
-    /* Aggregate init -- avoid C++ __as__ (retail uses mtctr dword-pair of @120). */
     ScreenRenderInfo info = s_renderInfoInit;
 
     info.matrixStack = m_matrixStack;

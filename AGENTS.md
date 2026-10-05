@@ -3,6 +3,18 @@
 This file is the operational entry point for coding agents working in this
 repository. The supported target is the USA GameCube release, `GQNE5D`.
 
+## Local agent docs
+
+Local tooling and setup docs live in the git-ignored `.agents/` folder, next to
+the repository skills (`.agents/skills/`, linked into `.claude/skills/`). Read
+the relevant one before setup or tool use; if `.agents/` is missing, ask the
+user.
+
+- [.agents/docs/local-setup.md](.agents/docs/local-setup.md): bootstrap,
+  toolchain, and the `.agent-work/` and `.scratches/` layout.
+- [.agents/docs/decompstudio.md](.agents/docs/decompstudio.md): MCP
+  coordinator connection, roles, m2c, permuter, and notes.
+
 ## Repository rules
 
 - Preserve unrelated worktree changes. Inspect `git status --short` before and
@@ -46,6 +58,11 @@ repository. The supported target is the USA GameCube release, `GQNE5D`.
   objdiff mismatch before trying another change.
 - Preserve or explicitly account for the final retail SHA-1 check. A fuzzy
   percentage alone is not validation.
+- Keep reusable conventions and diagnostic playbooks in tracked `docs/decomp/`;
+  keep actual fixes in `src/`, `include/`, or the relevant project files.
+  Ignored artifacts are local-only: tracked documentation must explain its
+  reusable finding without requiring an ignored report. Promote supporting
+  evidence deliberately when it must be available to other contributors.
 
 ## Post-attempt status policy
 
@@ -75,99 +92,14 @@ SHA-1.
 Once a function reaches a measured 100%, remove all matching-progress TODOs and
 comments associated with it, including old percentages, near-match notes, soft
 ceilings, attempt history, and `TODO: [matched]` markers. Do not replace them with
-a new 100% comment. Preserve comments that explain behavior, algorithms, ABI,
-layout, or other code semantics; if a comment mixes explanation with progress
-tracking, remove only the tracking content. Unrelated functional TODOs remain.
+a new 100% comment. Source keeps only tracking markers (the TODO status line,
+`TODO: [Scope warn]`, file-top `BUILD:`/`TODO: [blocked]`/`TODO: [review]`).
+Comments that explain behavior, algorithms, ABI, layout, or other code semantics
+move to the shared notes store (see [Local agent docs](#local-agent-docs))
+before they are deleted from source, so no knowledge is lost. Unrelated
+functional TODOs remain.
 Keep verification evidence and the distinction between report-exact, data-value
 exact, and link-exact in reports and project metadata, not function comments.
-
-## Local agent workspace
-
-Use the Git-ignored `.agent-work/` directory for local agent artifacts:
-
-- `issues/<task>/`: issue notes, investigation logs, and reproduction details.
-- `patches/<task>/`: proposed `.patch` or `.diff` files and application notes.
-- `decomp/<campaign>/`: matching reports, audits, scores, and evidence indexes.
-
-Create these directories on demand. Use descriptive lowercase task names with
-hyphens; include the base commit, affected symbols/files, commands, and validation
-results in each task's notes. Keep patch files inert until deliberately applied.
-Do not put credentials, retail images, or tool checkouts here.
-
-Continue using `.scratches/` for compiler experiments and generated
-comparison/build output. Reports may reference those local paths.
-Keep reusable conventions and diagnostic playbooks in tracked `docs/decomp/`;
-keep actual fixes in `src/`, `include/`, or the relevant project files. Ignored
-artifacts are local-only: tracked documentation must explain its reusable finding
-without requiring an ignored report. Promote supporting evidence deliberately
-when it must be available to other contributors.
-
-## Initialize the repository
-
-Python is the only hard prerequisite for the bootstrap. Git and Ninja should be
-available in `PATH`; missing host tools are reported in the final checklist.
-
-With an extracted disc tree at `orig/GQNE5D`:
-
-```sh
-python3 tools/init.py
-```
-
-To validate a raw retail image explicitly:
-
-```sh
-python3 tools/init.py --iso "/path/to/Mortal Kombat - Deception.iso"
-```
-
-The initializer validates the `GQNE5D` ISO SHA-1, size, game ID, and embedded
-`main.dol`; initializes submodules when present; fetches the pinned compiler and
-matching tools into `build/`; runs `configure.py`; and performs the full Ninja
-build.
-
-Important: `--iso` validates an image but does not currently extract it. DTK's
-split step still needs the matching extracted tree under `orig/GQNE5D`. DTK can
-perform extraction manually. On a fresh checkout, the first initializer run may
-end in `NOT READY` after downloading DTK; extract the image and rerun it:
-
-```sh
-build/tools/dtk disc extract "/path/to/game.iso" orig/GQNE5D
-python3 tools/init.py --iso "/path/to/game.iso"
-```
-
-On native Windows, use `python` (or `py -3`) and
-`build\tools\dtk.exe` with an appropriately quoted Windows ISO path.
-
-Do not continue matching unless setup ends in `READY` and the build prints:
-
-```text
-build/GQNE5D/main.dol: OK
-```
-
-## Connect to DecompStudio
-
-DecompStudio is the shared MCP coordinator at `http://127.0.0.1:7777/mcp`
-(server name `core`, so Claude Code tools are `mcp__core__<tool>`). Call
-`status` first: it returns your identity and the pinned brief.
-
-- **Profiles hide tools.** The URL's `?profile=` decides which tools exist for
-  your connection: `core` (default; no `permute`), `match` (slim worker; has
-  `permute`, no `list_functions`/`spawn_identity`), `janitor` (match plus
-  cleanup tools), `full` (everything, including `queue_work`, `review`,
-  `wiki`, `sandbox_*`). Claude Code uses `full`; Codex uses `core`. If a tool
-  is missing, it is the profile, not a bug; you cannot change it yourself.
-- **Claude Code defers MCP tools.** Load schemas before calling, e.g.
-  `ToolSearch "select:mcp__core__status,mcp__core__lease,mcp__core__try"`.
-- **Separate processes** get their own identity automatically; set role in the
-  URL (`?agent=janitor-1&profile=janitor&tier=2`, `kind=observer` for
-  coordinators).
-- **In-process sub-agents** share the parent's connection and act as the
-  parent unless the parent calls `spawn_identity {count: N}` and gives each
-  sub-agent one `session` id that it passes on **every** call. Children are
-  tier 1 with the parent's profile; launch a separate process for anything
-  else.
-
-Full guide (URL parameters, per-profile tool table, sub-agent prompt template,
-work queues): [docs/decomp/decompstudio.md](docs/decomp/decompstudio.md).
 
 ## Use the decomp books
 
@@ -182,19 +114,18 @@ its triage table points there:
 
 1. [Core](docs/decomp/playbook-1-core.md) — protocol, acceptance gates,
    symptom-to-rule triage, the H-rule index, and stop rules. Start here.
-2. [Common](docs/decomp/playbook-2-common.md) — detail for H01-H25: type, ABI,
+2. [Common](docs/decomp/playbook-2-common.md) — detail for H01-H27: type, ABI,
    layout, lifetime, CFG, and register-coloring causes.
 3. [Uncommon](docs/decomp/playbook-3-uncommon.md) — M01-M17: compiler modes,
    FP, aggregate/ABI shape, inline/macro boundaries, and data/link layout.
-4. [Rare](docs/decomp/playbook-4-rare.md) — N01-N12, hard stops, compiler
+4. [Rare](docs/decomp/playbook-4-rare.md) — N01-N13, hard stops, compiler
    revisions, and permuter search.
 
 Each rule has its own `## ID` section in tiers 2-4, so one rule can be read
-alone (DecompStudio `docs` read with `section`). Rule IDs are stable across
-tiers. Keep the tiers compact: amend the existing rule with its precondition,
-action, and one exemplar symbol; put attempt history, scores, and campaign
-evidence in linked reports. Preserve distinct preconditions, safety/stop
-rules, and rule IDs when summarizing.
+alone. Rule IDs are stable across tiers. Keep the tiers compact: amend the
+existing rule with its precondition, action, and one exemplar symbol; put
+attempt history, scores, and campaign evidence in linked reports. Preserve
+distinct preconditions, safety/stop rules, and rule IDs when summarizing.
 
 Each rule is an `IF / REQUIRE / TRY` diagnostic. Apply it only when its preconditions
 match the assembly and call-site evidence. Try one mechanical edit, rebuild, and
@@ -204,11 +135,9 @@ If only harmless register coloring remains, follow the tier-4 hard-stop
 
 ## Recover a function with m2c
 
-DecompStudio's `m2c` tool (or `get_function {symbol, m2c: true}`) runs its
-built-in m2c on the retail object, with the unit's preprocessed source as type
-context. The repository no longer ships a Python m2c wrapper or checkout. Find
-the function and its unit in `config/GQNE5D/symbols.txt` or `objdiff.json` when
-the symbol is uncertain.
+Run m2c on the retail object with the unit's source as type context (tooling:
+[Local agent docs](#local-agent-docs)). Find the function and its unit in
+`config/GQNE5D/symbols.txt` or `objdiff.json` when the symbol is uncertain.
 
 Use m2c to recover control flow, operations, and an initial type hypothesis.
 Replace generated temporaries, unknown types, casts, and gotos with supported
@@ -219,17 +148,11 @@ treating the reconstruction as source.
 
 ## Permute a localized near match
 
-Use DecompStudio's permuter only after the algorithm, CFG, ABI, types, and
-layout agree with retail evidence and objdiff classifies the function as a near
-miss. It complements the ranked playbooks for localized scheduling, stack, and
-register-allocation differences; it does not replace m2c, reconstruction, or
-playbook diagnosis. It permutes the live source or a draft with the MKD
-`playbook` profile, which favors honest staging, ordering, and operand passes
-and disables dead-sink, padding, and `if (1)` passes. When argument staging or
-register coloring around a call remains, use its call-argument mode to score
-every staging combination (keep, fold `v op= e` into the argument, fold to the
-value, or hoist into a local). The repository no longer ships the Python
-decomp-permuter adapter or checkout.
+Use the permuter (tooling: [Local agent docs](#local-agent-docs)) only after
+the algorithm, CFG, ABI, types, and layout agree with retail evidence and
+objdiff classifies the function as a near miss. It complements the ranked
+playbooks for localized scheduling, stack, and register-allocation differences;
+it does not replace m2c, reconstruction, or playbook diagnosis.
 
 Treat every generated candidate as a hypothesis. Reject undefined behavior,
 fake `volatile`, invented lifetimes, incorrect types, or reordered side effects.
@@ -240,6 +163,9 @@ only harmless coloring remains, keep the tier-4 hard-stop soft ceiling instead
 of landing permutation residue.
 
 ## Build and inspect the diff
+
+Do not start matching unless the full build prints
+`build/GQNE5D/main.dol: OK`.
 
 After each coherent source edit, build the affected object when its Ninja path
 is known:
@@ -277,35 +203,13 @@ Interpret the diff structurally:
 
 ## Other matching tools
 
-### DTK
-
-DTK validates and extracts images, splits the retail DOL, produces assembly, and
-supports low-level DOL inspection:
-
-```sh
-build/tools/dtk disc info "/path/to/game.iso"
-build/tools/dtk disc verify "/path/to/game.iso"
-build/tools/dtk disc extract "/path/to/game.iso" orig/GQNE5D
-build/tools/dtk dol info orig/GQNE5D/sys/main.dol
-build/tools/dtk shasum -c config/GQNE5D/build.sha1
-```
+### Generated outputs and compiler flags
 
 Normal split/report rules are generated by `configure.py` and run by Ninja. Do
 not manually rewrite generated assembly or split outputs.
 
-### CodeWarrior, sjiswrap, Wibo, and binutils
-
-The initializer downloads the pinned CodeWarrior compiler bundle, `sjiswrap`,
-GNU PowerPC binutils, and Wibo where required. Ninja selects them through the
-generated build rules. Agents should change compiler flags only at the narrowest
-supported object scope and must recheck every previously exact function in that
-translation unit.
-
-- `sjiswrap.exe` preserves the compiler's expected Shift-JIS input behavior.
-- Wibo runs the Windows CodeWarrior executables on supported Unix hosts; native
-  Windows runs them directly.
-- PowerPC binutils assemble handwritten or generated assembly inputs used by the
-  project. They are not a substitute for matching CodeWarrior-generated C/C++.
+Change compiler flags only at the narrowest supported object scope and recheck
+every previously exact function in that translation unit.
 
 ### Deferred-inline order
 
@@ -343,9 +247,6 @@ python3 configure.py progress
 git diff --check
 git status --short
 ```
-
-Use `build\tools\dtk.exe` and `python`/`py -3` for the equivalent checks on
-native Windows.
 
 Also record the affected symbol's objdiff result before and after the change.
 Confirm that declarations, callers, function order, object classification, and

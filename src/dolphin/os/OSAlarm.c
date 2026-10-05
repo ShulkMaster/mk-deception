@@ -2,18 +2,17 @@
 #include "dolphin/os.h"
 #include "runtime/asm_sequences.inc"
 
-typedef struct OSAlarmQueue {
+struct OSAlarmQueue {
     OSAlarm* head;
     OSAlarm* tail;
-} OSAlarmQueue;
-
+};
 
 static void DecrementerExceptionHandler(__OSException exception,
                                         OSContext* context);
 static int OnReset(int final);
 
 static OSResetFunctionInfo ResetFunctionInfo = {OnReset, 0xFFFFFFFF, 0, 0};
-static OSAlarmQueue AlarmQueue;
+static struct OSAlarmQueue AlarmQueue;
 
 static void SetTimer(OSAlarm* alarm)
 {

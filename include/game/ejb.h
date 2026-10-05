@@ -1,11 +1,14 @@
 #ifndef GAME_EJB_H
 #define GAME_EJB_H
 
-typedef struct AniData AniData;
+typedef struct MkObj MkObj;
+typedef struct AnimScript AniData;
 typedef struct PlyrPdata PlyrPdata;
 typedef struct Vec Vec;
 
+int is_plyr_airborn(MkObj* object, PlyrPdata* player);
 int am_i_blocking(void);
+int joypad_state_5(PlyrPdata* pdata);
 int am_i_flipped_or_turned(void);
 int am_i_flipped(void);
 void back_to_normal(void);
@@ -17,6 +20,7 @@ float end_of_round_check(void);
 float get_my_angle_y_error(void);
 void head_tracking_on(void);
 void init_ground_move(void);
+float p_comboexit_to_stance(void);
 float j_exit(void);
 float j_exit_6(void);
 float j_exit_blend_stance(void);

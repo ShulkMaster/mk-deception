@@ -439,21 +439,57 @@ void deallocate_from_fixed_pools(MemPoolObj* pool, void* ptr, unsigned long size
     }
 }
 
-/* TODO: [breakthrough needed] 90.78%; fixed-pool count and subblock scheduling remain. */
+static inline void initialize_fixed_pool_block(
+    FixStart* start, FixBlock* block, unsigned long index,
+    unsigned long available)
+{
+    FixBlock* head;
+    FixBlock* tail;
+    unsigned long stride;
+    unsigned long count;
+    unsigned long i;
+    FixSubBlock* subblock;
+    unsigned char* cursor;
+
+    if (start->head == NULL) {
+        start->head = block;
+        start->tail = block;
+    }
+    head = start->head;
+    tail = start->tail;
+    block->prev = tail;
+    block->next = head;
+    tail->next = block;
+    head->prev = block;
+    block->client_size = fix_pool_sizes[index];
+    stride = fix_pool_sizes[index] + 4;
+    count = (available - 0x14) / stride;
+    cursor = (unsigned char*)(block + 1);
+    subblock = (FixSubBlock*)cursor;
+    for (i = 0; i < count - 1; i++) {
+        subblock->block = block;
+        cursor += stride;
+        subblock->next = (FixSubBlock*)cursor;
+        subblock = (FixSubBlock*)cursor;
+    }
+    subblock->block = block;
+    subblock->next = NULL;
+    block->free = (FixSubBlock*)(block + 1);
+    block->allocated = 0;
+    start->head = block;
+}
+
+/* TODO: [near miss] 93.32%; byte-stride cursor restores successor copies;
+ * initialization homes and unrolled store scheduling remain. */
 void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     unsigned long index = 0;
     unsigned long count;
     unsigned long maximum_count;
     unsigned long largest;
     unsigned long available;
-    unsigned long stride;
-    unsigned long i;
     FixStart* start;
     FixBlock* block;
-    FixBlock* head;
-    FixBlock* tail;
     FixSubBlock* subblock;
-    FixSubBlock* next;
     void* memory;
 
     while (size > fix_pool_sizes[index]) {
@@ -462,11 +498,11 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     start = &pool->fixed[index];
     block = start->head;
     if (block == NULL || block->free == NULL) {
-        maximum_count = 0xFEC / (fix_pool_sizes[index] + 4);
-        if (maximum_count > 0x100) {
-            maximum_count = 0x100;
+        count = 0xFEC / (fix_pool_sizes[index] + 4);
+        if (count > 0x100) {
+            count = 0x100;
         }
-        count = maximum_count;
+        maximum_count = count;
         while (count >= 10) {
             memory = soft_allocate_from_var_pools(
                 pool, count * (fix_pool_sizes[index] + 4) + 0x14, &largest);
@@ -489,31 +525,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
 
         available = allocation_size(memory);
         block = memory;
-        if (start->head == NULL) {
-            start->head = block;
-            start->tail = block;
-        }
-        head = start->head;
-        tail = start->tail;
-        block->prev = tail;
-        block->next = head;
-        tail->next = block;
-        head->prev = block;
-        block->client_size = fix_pool_sizes[index];
-        stride = fix_pool_sizes[index] + 4;
-        count = (available - 0x14) / stride;
-        subblock = (FixSubBlock*)(block + 1);
-        for (i = 0; i < count - 1; i++) {
-            next = (FixSubBlock*)((unsigned char*)subblock + stride);
-            subblock->block = block;
-            subblock->next = next;
-            subblock = next;
-        }
-        subblock->block = block;
-        subblock->next = NULL;
-        block->free = (FixSubBlock*)(block + 1);
-        block->allocated = 0;
-        start->head = block;
+        initialize_fixed_pool_block(start, block, index, available);
     }
 
     subblock = start->head->free;
@@ -593,44 +605,44 @@ static void* soft_allocate_from_var_pools(
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 87.16%; compare block-selection branches. */
 static void* allocate_from_var_pools(MemPoolObj* pool, unsigned long size) {
-    unsigned long needed = (size + 15) & ~7UL;
     Block* block;
     SubBlock* subblock;
+    unsigned long needed;
+
+    needed = (size + 15) & ~7UL;
 
     if (needed < 0x50) {
         needed = 0x50;
     }
-    block = pool->start;
-    if (block == NULL) {
-        block = link_new_block(pool, needed);
-    }
+    block = pool->start != NULL ? pool->start : link_new_block(pool, needed);
     if (block == NULL) {
         return NULL;
     }
-    do {
+    while (1) {
         if (needed <= block->max_size) {
             subblock = Block_subBlock(block, needed);
             if (subblock != NULL) {
                 pool->start = block;
-                return (unsigned char*)subblock + 8;
+                break;
             }
         }
         block = block->next;
-    } while (block != pool->start);
-    block = link_new_block(pool, needed);
-    if (block == NULL) {
-        return NULL;
+        if (block == pool->start) {
+            block = link_new_block(pool, needed);
+            if (block == NULL) {
+                return NULL;
+            }
+            subblock = Block_subBlock(block, needed);
+            break;
+        }
     }
-    return (unsigned char*)Block_subBlock(block, needed) + 8;
+    return &subblock->prev;
 }
 
-/* TODO: [breakthrough needed] 88.42%; compare allocation and list-link order. */
 static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
-    unsigned long block_size = (size + 31) & ~7UL;
     Block* block;
-    Block* start;
+    unsigned long block_size = (size + 31) & ~7UL;
 
     if (block_size < 0x10000) {
         block_size = 0x10000;
@@ -640,12 +652,11 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
         return NULL;
     }
     Block_construct(block, block_size);
-    start = pool->start;
-    if (start != NULL) {
-        block->prev = start->prev;
+    if (pool->start != NULL) {
+        block->prev = pool->start->prev;
         block->prev->next = block;
-        block->next = start;
-        start->prev = block;
+        block->next = pool->start;
+        pool->start->prev = block;
         pool->start = block;
     } else {
         pool->start = block;

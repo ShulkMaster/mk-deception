@@ -16,7 +16,7 @@
 typedef struct MkObj MkObj;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct SwitchData SwitchData;
-typedef struct AniData AniData;
+typedef struct AnimScript AniData;
 typedef struct AnimScript AnimScript;
 typedef struct GlobalMoveset GlobalMoveset;
 typedef struct WeaponDefinition WeaponDefinition;
@@ -311,13 +311,19 @@ typedef struct PlyrPdata {
         unsigned int fighter_definition_instance;
         MovesetDefinition* global_moveset_definition;
     }; /* +0x314 */
-    int animation_data[8]; /* +0x318 - base animation destination */
+    union {
+        int animation_data[8];
+        AniData* base_animations[8];
+    };
     AniData* dizzy_animation; /* +0x338 */
     char pad33C[4];
     AniData* big_boss_taunt_animation; /* +0x340 */
-    char pad344[4];
+    AniData* common_exit_animation;
     AniData* turn_to_screen_animation; /* +0x348 */
-    char pad34C[0x1C];
+    AniData* smoke_land_animation;
+    char pad350[0x0C];
+    AniData* noob_entrance_animation;
+    char pad360[8];
     AniData* reaction_animation; /* +0x368 */
     void* reaction_animation_a; /* +0x36C */
     void* reaction_animation_b; /* +0x370 */

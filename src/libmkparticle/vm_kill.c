@@ -1,9 +1,8 @@
+#include "libmkparticle/random.h"
 #include "libmkparticle/behavior.h"
 #include "libmkparticle/vm.h"
+#include "libmkparticle/particle.h"
 #include "runtime/cstring.h"
-
-int rnd_int(unsigned int maximum);
-int pfx_get_struct_size(PfxVm* pfx, int field);
 
 void move_particle_to_behavior(PfxBehavior* source, int particle,
                                PfxBehavior* destination)
@@ -11,23 +10,23 @@ void move_particle_to_behavior(PfxBehavior* source, int particle,
     int stride;
     unsigned char* source_particle;
 
-    stride = source->stream_100_stride;
-    source_particle = source->stream_100 + stride * particle;
-    memcpy(destination->stream_100 +
+    stride = source->previous_streams[0].stride;
+    source_particle = source->current_streams[0].data + stride * particle;
+    memcpy(destination->current_streams[0].data +
                stride * destination->active_particle_count,
            source_particle, stride);
     memcpy(source_particle,
-           source->stream_100 + stride * (source->particle_count - 1),
+           source->current_streams[0].data + stride * (source->particle_count - 1),
            stride);
 
-    stride = source->current_stream_300_stride;
+    stride = source->current_streams[1].stride;
     if (stride != 0) {
-        source_particle = source->stream_300 + stride * particle;
-        memcpy(destination->stream_300 +
+        source_particle = source->current_streams[1].data + stride * particle;
+        memcpy(destination->current_streams[1].data +
                    stride * destination->active_particle_count,
                source_particle, stride);
         memcpy(source_particle,
-               source->stream_300 + stride * (source->particle_count - 1),
+               source->current_streams[1].data + stride * (source->particle_count - 1),
                stride);
     }
 
@@ -129,7 +128,6 @@ static void change_on_const_greater_than(PfxBehavior* behavior,
                                          PfxBehavior* target, float* field,
                                          int stride, float value)
 {
-    (void)stride;
     if (*field <= value) {
         return;
     }
@@ -297,27 +295,30 @@ void pfxvm_change_on_y_less_than_field(PfxBehavior* behavior,
 
 void pfxvm_execute_behavior_kill(PfxBehavior* behavior)
 {
-    PfxKillInstruction* instruction;
     int index;
+    PfxKillInstruction* instruction;
 
     instruction = behavior->kill_instructions;
     for (index = 0; index < behavior->kill_instruction_count;
          index++, instruction++) {
-        PfxFieldBuffer* stream;
         unsigned char* field;
         int stride;
+        int description;
         float value;
 
-        if (instruction->field.stream >= 0 &&
-            instruction->field.stream < 2) {
-            stream = &behavior->current_streams[instruction->field.stream];
-            field = stream->data + instruction->field.offset;
-            stride = stream->stride;
-        } else {
+        switch (instruction->field.stream) {
+        case 0:
+        case 1:
+            field = behavior->current_streams[instruction->field.stream].data +
+                    instruction->field.offset;
+            stride = behavior->current_streams[instruction->field.stream].stride;
+            break;
+        default:
             field = pfx_get_field(behavior->effect, -2,
                                   instruction->field.description);
             stride = pfx_get_struct_size(behavior->effect,
                                          instruction->field.description);
+            break;
         }
         field += instruction->field_10;
 
@@ -331,7 +332,7 @@ void pfxvm_execute_behavior_kill(PfxBehavior* behavior)
         switch (instruction->opcode) {
         case 2:
             if (instruction->target != 0) {
-                unsigned int storage =
+                int storage =
                     instruction->field.description & 0xF00;
 
                 if (storage == 0x200 || storage == 0x500) {
@@ -349,15 +350,15 @@ void pfxvm_execute_behavior_kill(PfxBehavior* behavior)
             }
             break;
         case 1:
-            if (instruction->field.description == 0x307 ||
-                instruction->field.description == 0x308) {
+            description = instruction->field.description;
+            if (description == 0x307 || description == 0x308) {
                 if (instruction->target != 0) {
                     change_on_int_field_less_than(
                         behavior, instruction->target, (int*)field, stride,
-                        (int)value);
+                        value);
                 } else {
                     kill_on_int_field_less_than(behavior, (int*)field, stride,
-                                                (int)value);
+                                                value);
                 }
             } else if (instruction->target != 0) {
                 change_on_field_less_than(behavior, instruction->target,

@@ -210,7 +210,7 @@ MkHdr* next_apdata(void) {
 }
 
 /* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
-MkProc* get_mkproc_bigstack(int* flags) {
+MkProc* get_mkproc_bigstack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
 
@@ -225,7 +225,7 @@ MkProc* get_mkproc_bigstack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags = *flags;
+        int proc_flags = flags.value;
         MkVtableMkproc* vtbl = &vtbl_mkproc_bigstack;
         proc->vtbl = vtbl;
         proc->flags = proc_flags;
@@ -245,7 +245,7 @@ MkProc* get_mkproc_bigstack(int* flags) {
 }
 
 /* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
-MkProc* get_mkproc_tinystack(int* flags) {
+MkProc* get_mkproc_tinystack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
 
@@ -260,7 +260,7 @@ MkProc* get_mkproc_tinystack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags = *flags;
+        int proc_flags = flags.value;
         proc->vtbl = &vtbl_mkproc_tinystack;
         proc->flags = proc_flags;
         stack = _mwMemMalloc(tinystack_heap, MKPROC_TINYSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
@@ -279,7 +279,7 @@ MkProc* get_mkproc_tinystack(int* flags) {
 }
 
 /* TODO: [near miss] 99.30%; five operand-register coloring differences remain. */
-MkProc* get_mkproc_nostack(int* flags) {
+MkProc* get_mkproc_nostack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
 
     if (proc != 0) {
@@ -297,7 +297,7 @@ MkProc* get_mkproc_nostack(int* flags) {
         MkVtableMkproc* vtbl;
 
         vtbl = &vtbl_mkproc_nostack;
-        proc_flags = *flags;
+        proc_flags = flags.value;
         proc->vtbl = vtbl;
         proc->flags = proc_flags;
         proc->stack_top = 0;
@@ -403,8 +403,8 @@ void destroy_mkproc_nostack(MkProc* proc) {
     }
 }
 
-/* TODO: [near miss] 98.57%; nine cursor/owner register-coloring differences remain. */
 void destroy_all_mkprocs(void) {
+    MkPtr* next;
     MkPtr* link;
 
     aproc_nodestroy = 0;
@@ -413,7 +413,7 @@ void destroy_all_mkprocs(void) {
         while (link != 0) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != proc->instance) {
-                MkPtr* next = link->next;
+                next = link->next;
                 discard_stale_mkptr(link);
                 link = next;
             } else {
@@ -460,21 +460,19 @@ MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, 
     return proc;
 }
 
-/* TODO: [near miss] 98.90909%; only zero copy mr r31,r28 vs li r31,0 remains. */
-void mkproc_change_priority(MkProc* proc, int priority) {
-    MkPtr* next;
-    MkPtr* link;
-    int new_priority;
-    MkPtr* previous;
+static inline void insert_proc_by_priority(MkProc* proc, MkPtr** list) {
     MkPtr* insert;
+    MkPtr* previous;
+    int priority;
+    MkPtr* link;
+    MkPtr* next;
 
-    mk_pull_discard(&proc->hdr, &active_proc_list);
-    proc->priority = priority;
-    new_priority = proc->priority;
+    priority = proc->priority;
     insert = get_mkptr_owns_mkhdr(&proc->hdr);
     previous = 0;
-    if (proc_list_available(&active_proc_list)) {
-        link = active_proc_list;
+
+    if (proc_list_available(list)) {
+        link = *list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != current->instance) {
@@ -483,7 +481,7 @@ void mkproc_change_priority(MkProc* proc, int priority) {
                 link = next;
                 continue;
             }
-            if (new_priority < current->priority) {
+            if (priority < current->priority) {
                 insert_mkptr_before(insert, link);
                 return;
             }
@@ -494,8 +492,14 @@ void mkproc_change_priority(MkProc* proc, int priority) {
     if (previous != 0) {
         append_mkptr_after(insert, previous);
     } else {
-        insert_mkptr(insert, &active_proc_list);
+        insert_mkptr(insert, list);
     }
+}
+
+void mkproc_change_priority(MkProc* proc, int priority) {
+    mk_pull_discard(&proc->hdr, &active_proc_list);
+    proc->priority = priority;
+    insert_proc_by_priority(proc, &active_proc_list);
 }
 
 /* TODO: [near miss] 98.77551%; only zero copy mr r31,r28 vs li r31,0 remains. */

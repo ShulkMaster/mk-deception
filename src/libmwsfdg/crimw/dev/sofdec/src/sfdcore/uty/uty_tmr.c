@@ -31,8 +31,8 @@ u64 UTY_GetTmr(void)
     return OSGetTime();
 }
 
-/* TODO: [near miss] 91.666664%; volatile init-count state removes one reload,
- * but retail still uses a shorter decrement/branch CFG. */
+/* TODO: [breakthrough needed] 91.666664%; retail rereads the counter twice
+ * after decrement; the extra observation's source purpose is unresolved. */
 void UTY_FinishTmr(void)
 {
     utytmr_init_cnt--;

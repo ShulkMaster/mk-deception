@@ -41,16 +41,39 @@ typedef struct StorageProfileSlot StorageProfileSlot;
  * name @ +0x08, PIN @ +0x13, icon @ +0x19, switch_map @ +0x108,
  * unlock words @ +0x148.., konquest @ +0x190 (0x36C), idChecksum @ +0x5B8.
  */
+struct ProfilePuzzleStats {
+    unsigned int versus_wins;
+    unsigned int versus_losses;
+    unsigned int total_wins;
+    unsigned int total_losses;
+    char pad10[8];
+    unsigned int best_chain;
+    char pad1C[4];
+    unsigned int best_counter_drop;
+};
+typedef char check_ProfilePuzzleStats_size[(sizeof(struct ProfilePuzzleStats) == 0x24) ? 1 : -1];
+
 typedef struct PlayerProfile {
     unsigned char active; /* +0x00 */
     unsigned char pad01[7]; /* +0x01 */
     char name[0xB]; /* +0x08 */
     unsigned char pin[6]; /* +0x13 */
     unsigned char icon; /* +0x19 -- PPWLS index into ppwls_icon[] */
-    unsigned char pad1A[0x40 - 0x1A];
+    unsigned char pad1A[2];
+    int arcade_wins;
+    int arcade_losses;
+    int versus_wins;
+    int versus_losses;
+    int online_wins;
+    int online_losses;
+    int ladder_completions;
+    unsigned char pad38[8];
     int koins[6]; /* +0x40 */
     int lifetime_koins[6]; /* +0x58 */
-    unsigned char pad70[0x104 - 0x70];
+    unsigned char pad70[0x88 - 0x70];
+    int wager_wins[6];
+    int wager_losses[6];
+    unsigned char padB8[0x104 - 0xB8];
     int rumble; /* +0x104 */
     int switch_map[PROFILE_SWITCHMAP_COUNT]; /* +0x108 -- word0 of each default entry */
     ProfileUnlockBits64 unlock_cat1; /* +0x148 */
@@ -66,11 +89,16 @@ typedef struct PlayerProfile {
     unsigned int unlock_cat10; /* +0x188 */
     unsigned int pad18C; /* +0x18C */
     unsigned char konquest[PROFILE_KONQUEST_SIZE]; /* +0x190 */
-    unsigned char pad4FC[0x5B8 - 0x4FC]; /* +0x4FC */
+    unsigned char pad4FC[0x52C - 0x4FC];
+    struct ProfilePuzzleStats puzzle_stats;
+    unsigned char pad550[0x5B8 - 0x550];
     int idChecksum; /* +0x5B8 */
     unsigned char pad5BC[0x5C0 - 0x5BC];
 } PlayerProfile; /* 0x5C0 */
+typedef char check_PlayerProfile_size[(sizeof(PlayerProfile) == PROFILE_SIZE) ? 1 : -1];
 
+extern PlayerProfile p1_profile;
+extern PlayerProfile p2_profile;
 
 #define PPWLS_PROC_PID 0x3008
 #define PPWLS_PROC_PRIO 0x23

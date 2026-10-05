@@ -1,214 +1,271 @@
-# Matching playbook, tier 4: rare and stop
+# Playbook tier 4: rare, stops, search
 
-Rare diagnostics, stop conditions, and search tooling. Use this tier after
-tiers [1](playbook-1-core.md)-[3](playbook-3-uncommon.md). These rules are not
-default optimizer knobs.
+Rare diagnostics, hard stops, dead ends, permuter. Use after tiers
+[1](playbook-1-core.md)-[3](playbook-3-uncommon.md). Not default optimizer
+knobs. `[da]` = mk-da import (tier 1).
 
 ## N01
 
-A Boolean/rotate idiom survives honest C. REQUIRE exact intrinsic semantics
-and an unsigned contract. Use the proven `cntlzw`/rotate intrinsic, not
-instruction-count padding.
+Boolean/rotate idiom survives honest C. REQUIRE exact intrinsic semantics +
+unsigned contract. Proven `cntlzw`/rotate intrinsic, not instruction padding.
 
 ## N02
 
-Global address vs contents/SDA differs. REQUIRE ELF object/array identity and
-all uses. Correct the object, array, or pointer declaration; no fake array to
-suppress SDA (M16).
+Global address vs contents/SDA differs. REQUIRE ELF object/array identity +
+all uses. Fix object/array/pointer decl; no fake array to dodge SDA (M16).
 
 ## N03
 
-Repeated RTTI/null ladder. REQUIRE class identity, no call, null paths. Inline
-the typed ladder; no guessed class or layout.
+Repeated RTTI/null ladder. REQUIRE class identity, no call, null paths.
+Inline typed ladder; no guessed class or layout.
 
 ## N04
 
-Factory cases return distinct owners. REQUIRE allocation/failure semantics and
-case order. Direct typed returns, not an artificial shared result.
+Factory cases return distinct owners. REQUIRE alloc/failure semantics + case
+order. Direct typed returns, no artificial shared result.
 
 ## N05
 
-Reverse iteration or update differs. REQUIRE direction, stride, and
-zero-count semantics. A typed reverse-index walk or the vendor pre-decrement
-idiom; no manual byte offsets.
+Reverse iteration/update differs. REQUIRE direction, stride, zero-count
+semantics. Typed reverse-index walk or vendor pre-decrement idiom; no manual
+byte offsets.
 
 ## N06
 
-Peephole, CSE, or scheduler residue. REQUIRE a tested TU hypothesis. Test the
-exact option in scratch; no per-function exceptions during fixed-TU-setting
-work, and no flags that mask wrong source.
+Peephole/CSE/scheduler residue. REQUIRE tested TU hypothesis. Test exact
+option in scratch; no per-function exceptions during fixed-TU-setting work;
+no flags masking wrong source.
 
-Compiler-revision hypothesis: keep the recovered command, use separate scratch
-outputs with a pinned-revision control, and compare text bytes plus every
-function/data result. Byte-identical output rules out those revisions for that
-source and command only. Keep the pinned compiler.
+Compiler revision hypothesis: keep recovered command, separate scratch
+outputs, pinned-revision control, compare text bytes + every function/data
+result. Byte-identical output rules out those revisions for that source +
+command only. Keep pinned compiler.
 
 ## N07
 
-Runtime scratch faults after object growth. REQUIRE section extents, relocated
-instruction bytes, and non-overlapping mapped ranges. Fix the loader's section
-placement or slot bounds before changing source; never skip a faulting
-instruction to claim equivalence.
+Runtime scratch faults after object growth. REQUIRE section extents,
+relocated instr bytes, non-overlapping mapped ranges. Fix loader section
+placement / slot bounds before touching source; never skip faulting instr to
+claim equivalence.
 
 ## N08
 
-m2c exposes a possibly unwritten local that retail consumes. REQUIRE
-instruction-level write/read paths, frame offsets, caller reachability. Vary
-only the incoming stack word in a retail runtime scratch and inspect the
-downstream result. Stack dependence is not proof of reachable gameplay. Record
-the unresolved path; add an initializer only with evidence.
+m2c shows possibly unwritten local retail consumes. REQUIRE instr-level
+write/read paths, frame offsets, caller reachability. Vary only incoming stack
+word in retail runtime scratch, inspect downstream result. Stack dependence !=
+reachable gameplay. Record unresolved path; initializer only with evidence.
 
 ## N09
 
-Retail keeps an explicit byte-swap sequence where the compiler folds the typed
-access to `lhbrx`/`stwbrx`. REQUIRE identical CFG, endian result, width,
-destination. Stop at the clean shift expression; no donor dead conditional or
-fake read to block the fold (`SFH_AnlyMaxFrmNum`).
+Retail keeps explicit byte-swap sequence where compiler folds typed access to
+`lhbrx`/`stwbrx`. REQUIRE same CFG, endian result, width, dest. Stop at clean
+shift expression; no donor dead conditional or fake read to block fold
+(`SFH_AnlyMaxFrmNum`).
 
 ## N10
 
-Retail classifies a float through its IEEE-754 word with `lwz`. REQUIRE
-four-byte float/word sizes and a same-source donor's word idiom. Test the
-donor's narrow word view under MWCC, with a `memcpy` fallback for other
-compilers; a plain `memcpy` under MWCC changes the frame
+Retail classifies float via IEEE word with `lwz`. REQUIRE 4-byte float/word +
+same-source donor word idiom. Test donor's narrow word view under MWCC,
+`memcpy` fallback for other compilers; plain `memcpy` under MWCC changes frame
 (`ADX_GetCoefficient`). No arbitrary alias casts or union overlays.
 
 ## N11
 
 C after an `asm` function loses peephole forms (`mr` stays `addi rX,rY,0`,
-shifts fold into `rlwimi`, a compare moves), starting at the first `asm`
-function above it. An `asm` function turns the peephole pass off for the rest of
-the file. If retail wrote C with an inline `asm {}` helper (GX `Copy6Floats`,
-`WriteMTXPS*`), wrap the run of sequence functions in `#pragma push` ...
-`#pragma pop`. If retail had real `asm` functions (OSCache, OSExec, OSTime,
-ai), the leak is authentic: remove old `#pragma peephole off` or
-`-opt nopeephole` workarounds.
+shifts fold into `rlwimi`, compare moves), from first `asm` function above
+it: `asm` function turns peephole off for rest of file. Retail wrote C with
+inline `asm {}` helper (GX `Copy6Floats`, `WriteMTXPS*`) -> wrap sequence
+functions in `#pragma push` ... `#pragma pop`. Retail had real `asm`
+functions (OSCache, OSExec, OSTime, ai) -> leak is authentic; remove old
+`#pragma peephole off` / `-opt nopeephole` workarounds.
 
 ## N12
 
-An assembly sequence fails with `internal compiler error: File:
-'PCodeAssembly.c' Line: 510` when a `lwz`/`stw` has an `@l` offset into a code
-symbol (function or `entry` label). MWCC 1.2.5n asm cannot emit that form in
-any spelling; retail most likely did the access in C. Keep the function on the
-C path and record it as blocked. No `opword`: the relocation would be lost.
+Asm sequence ICE `internal compiler error: File: 'PCodeAssembly.c' Line: 510`
+when `lwz`/`stw` has `@l` offset into code symbol (function or `entry`
+label). MWCC 1.2.5n asm can't emit it in any spelling; retail likely did it
+in C. Keep function on C path, record blocked. No `opword` (loses reloc).
+
+## N13
+
+Byte-neutral candidates combine. IF near miss + several honest edits each
+leave target bytes identical (objdump hash of symbol, not equal score) |
+REQUIRE each edit alone passes honesty filter; CFG/ABI/layout right | TRY
+joint sweep of recorded neutrals before any soft ceiling.
+
+- Never drop byte-neutral edit silently: history `kind: "neutral"`, exact
+  edit + base rev. Sources: ng `alternatives` scoring = base, MAP-evidenced
+  helper restores, decl/type/statement-order flips, neutral seeds. Equal
+  score + different bytes -> pool too, marked.
+- Neutral alone != evidence against edit. Can shift vreg numbering, inline
+  temps, lifetimes that another edit needs.
+- Sweep on host: every subset of pool (2^k, k <= 10 -> <= 1024 compiles),
+  each subset also + each partial-improving edit. Pool holds decls/types ->
+  cross with decl-order x type sweep. Winner -> full-TU compile, then `try`.
+- Land winning subset only. Extra neutral stays only if source clearer.
+- Exemplar: `_mwMemRealloc`: MAP-helper restore (`privGeneralGetHeapFromPtr`
+  + `privGetUserSizeFromBlock`) alone byte-identical; `unsigned int copySize`
+  alone still off; both -> exact.
 
 ## Hard stops
 
 After the applicable honest source check, stop at:
 
-- GPR/FPR coloring, parameter nonvolatile homes, or permutations rotating the
-  residue. IF only two parameter homes are exchanged (retail gives the later
-  parameter the higher saved register; `drone_ai_check_attack` r30/r31),
-  REQUIRE the MWCC simplify model before spending attempts. Virtual numbers:
-  parameters first in declaration order (`p1 < p2 < p3`, measured with a
-  three-parameter probe), named locals next in reverse declaration order
-  (block-scoped ones lowest), then front-end temps (inline copies,
-  lifetime-split ranges, inline result joins), then codegen temps. Each pass
-  scans ascending and pushes every web whose current degree is below the free
-  register count (29), decrementing its neighbours at once; select pops the
-  stack and takes the lowest free colour, claiming r31 downward, so two
-  parameters pushed in one pass give the later one the higher register.
-  Physical registers and coalesced webs never push and never decrement: a
-  call result that feeds a move (`x = call()` into a multi-def variable, an
-  inline `return 0 | return call()` join) stays as a never-pushed node; one
-  consumed by a compare or shift is copy-propagated away and does not count.
-  When no pushable web is left and both parameters sit at the threshold, the
-  stall is broken by the lowest spillCost/degree (reads x2, writes x1,
-  arg-init -1): the parameter with the fewest reads is pushed first and ends
-  with the lower register (`immediate`: five `cmpwi`, cost 9; `drone` ~37).
-  TRY two scratch probes that report the entry `mr` pair: twenty extra reads
-  of the cheap parameter through a global store (no new long-lived web)
-  flipping the pair proves the stall; deleting one never-pushed neighbour in
-  a region where both are live flipping it proves the threshold. Neither is
-  honest source. In a small reproducer the same pair flips by another route
-  (the middle parameter, vreg 33, is pushed between the examinations of 32
-  and 34 while both sit at a raw degree of exactly 29), so a reduced TU is
-  not evidence for the full function. Stream-neutral levers (declaration and
-  statement order, helper boundaries, staged call arguments, scopes, variable
-  identity, inline depth, `?:` vs if/else, pragmas, K&R order, TU isolation,
-  moving the third parameter to another slot, long-lived `force`) were all
-  neutral there; the pair is a hard stop unless a never-pushed neighbour can
-  be removed with the same stream. A volatile rotation under a scoped `opt_*`
-  pragma is not a stop until the H21 web-kind check and the pragma-free H05
-  mechanism were measured: `drone_ai_victim_avoid` closed from a recorded
-  99.44 ceiling by replacing `opt_common_subs off` with an address-taken sqrt
-  input and direct global reads.
-- `li 0` vs copying an already-zero register; commutative scratch encodings.
+- GPR/FPR coloring, param nonvolatile homes, or permutations rotating the
+  residue.
+- Two param homes exchanged (retail gives later param higher saved reg;
+  `drone_ai_check_attack` r30/r31): REQUIRE MWCC simplify model before
+  spending attempts. Model:
+  - Virtual numbers: params first in decl order (`p1 < p2 < p3`, measured),
+    named locals next in reverse decl order (block-scoped lowest), then
+    front-end temps (inline copies, split ranges, inline result joins), then
+    codegen temps.
+  - Simplify: each pass scans ascending, pushes every web with degree < free
+    reg count (29), decrements neighbours at once. Select pops, takes lowest
+    free colour claiming r31 downward -> two params pushed in one pass: later
+    gets higher reg.
+  - Physical regs + coalesced webs never push, never decrement. Call result
+    feeding a move (`x = call()` into multi-def var, inline `return 0 | return
+    call()` join) = never-pushed node; one consumed by compare/shift is
+    copy-propagated away, doesn't count.
+  - Stall (no pushable web, both params at threshold): lowest spillCost/degree
+    pushed first (reads x2, writes x1, arg-init -1) -> param with fewest reads
+    ends lower (`immediate`: five `cmpwi`, cost 9; `drone` ~37).
+  - Probes (scratch only, not honest source), report entry `mr` pair: 20 extra
+    reads of cheap param via global store (no new long-lived web) flips pair
+    -> proves stall; deleting one never-pushed neighbour where both live flips
+    it -> proves threshold.
+  - Reduced reproducer flips by another route (middle param vreg 33 pushed
+    between examining 32 and 34 at raw degree exactly 29): reduced TU is not
+    evidence for full function.
+  - Neutral levers there: decl/statement order, helper boundaries, staged call
+    args, scopes, variable identity, inline depth, `?:` vs if/else, pragmas,
+    K&R order, TU isolation, 3rd param slot, long-lived `force`. Pair = hard
+    stop unless a never-pushed neighbour can be removed with same stream.
+- Volatile rotation under scoped `opt_*` pragma is NOT a stop until H21
+  web-kind check + pragma-free H05 mechanism measured
+  (`drone_ai_victim_avoid` closed from recorded 99.44 ceiling: `opt_common_subs
+  off` -> address-taken sqrt input + direct global reads).
+- `li 0` vs copy of already-zero reg; commutative scratch encodings.
 - Frameless PLATFORM `mtlr`/`blrl` emission.
-- Anonymous relocation labels with verified identical payloads and targets.
-  Equal ordinary scores are not enough (wrong return constants have scored
-  equal); compare bytes in data-value mode. Inferred `R_PPC_NONE` annotations
-  on identical instructions are a metadata residual; record them without
-  rewriting source. This is not report-exact or link-exact.
+- Anonymous reloc labels with verified identical payloads + targets. Equal
+  ordinary scores not enough (wrong return constants scored equal); compare
+  bytes in data-value mode. Inferred `R_PPC_NONE` on identical instrs =
+  metadata residual; record, don't rewrite source. Not report-exact or
+  link-exact.
 - Equivalent branch/address lowering without new source evidence.
-- Vendor code whose matched references use a shared-exit `goto` (MSL
+- Vendor code whose matched references use shared-exit `goto` (MSL
   `__dec2num`: `goto done`; `__str2dec`: `goto round`) where flag-and-break
-  emulations leave extra instructions: use the AGENTS.md last-resort `goto`
-  exception and record the measured alternatives.
-- One instruction scheduled across a store when the body is textually
-  identical to a matched decomp of the same SDK (`SPEC2_MakeStatus` vs TP), and
-  object-scope flag probes were neutral.
-- A permuter candidate that only recomputes an unchanged value to split a live
-  range (`SJRBF_PutChunk`); record the insight, do not land it.
+  leaves extra instrs: AGENTS.md last-resort `goto`, record measured
+  alternatives.
+- One instr scheduled across a store, body textually identical to matched
+  decomp of same SDK (`SPEC2_MakeStatus` vs TP), object-scope flag probes
+  neutral.
+- Permuter candidate that only recomputes an unchanged value to split a live
+  range (`SJRBF_PutChunk`): record insight, don't land.
 
-Then record `TODO: [near miss]` with score, residual, and stop reason, and
-disclose nonmatching fallbacks in SHA results. Reopen a ceiling only for new
-evidence: a proven owner (the GX FIFO union) justified returning to H02,
-another spelling of the same lifetime did not.
+Then `TODO: [near miss]` + score + residual + stop reason; disclose
+nonmatching fallbacks in SHA results. Reopen only for new evidence: proven
+owner (GX FIFO union) justified returning to H02; another spelling of same
+lifetime didn't. Failed function parks in DecompStudio as `soft_ceiling` with
+note + TODO line; escalation per coordinator brief `[da]`.
+
+## Dead ends
+
+Don't repeat without new evidence:
+
+- Compiler version sweeps for coloring residue `[da]`.
+- Narrowing cached local to field storage type (`u8`/`u16`) because producer
+  is narrow: changes frame + compares. Keep promoted `int` cache unless retail
+  conversions prove width `[da]`.
+- Collapsing two params carrying equal values (src + dest stride) into one
+  local or direct field reads: loses shared load + arg copy `[da]`.
+- ELF symbol size/scope prove storage, not C qualifiers or opt settings;
+  empty `.debug`/`.line`, uniform `.mwcats` carry no volatile/opt-level
+  evidence `[da]`.
+- Asm stubs for coloring ceilings: rejected by user, regress callers `[da]`.
+- Renaming locals (H21/Traps); moving inline boundaries around already-right
+  code (H21).
 
 ## Permuter and search
 
-The permuter requires an established algorithm, CFG, ABI, layout, and the real
-TU command. Keep `PERM_*` in scratch. Reject UB, wrong types, reordered
-effects, and fake liveness even at score zero; land one honest insight, then
-verify in the real TU.
+Requires established algorithm, CFG, ABI, layout, real TU command. `PERM_*`
+stays in scratch. Reject UB, wrong types, reordered effects, fake liveness
+even at score zero; land one honest insight, verify in real TU.
 
-- Scores: about 5 per register-name difference, 100 per inserted or deleted
-  instruction. A low nonzero score can hide wrong colors; a score of 5 may add
-  no code. Diff the candidate's objdump against `target.o`. Use
-  `--stack-diffs` when stack operands differ (default scoring ignored reversed
-  +0x08/+0x0C stores in `run_camera_script`).
-- Base score far above the real residue: retail inlined same-TU callees, and
-  import strips non-`inline` bodies. Restore those callees as `inline` in the
-  scratch (`SFD_SetCond`) and confirm the base score first.
-- A mismatch inside an expanded private helper: selecting only the caller
-  leaves helper bodies unmutated; build a harness that mutates the helper while
-  scoring the caller, and check that no helper call appears. Expansion and
-  declaration order can interact (both needed for the AI table builders);
-  verify the combination in each wrapper. If expansion reverses stack-local
-  placement, reverse only the scratch declarations.
+Procedure `[da]`:
+
+- Early probe: one ng run <=30 s once CFG/ABI/layout are right; ng converges
+  fast, clean leads show within a few thousand candidates.
+- Main search: `submit {commands:[{op:"permute", symbol, engine:"ng",
+  seconds:120}], wait:false}` + `fence`; one run in flight per agent (runs
+  queue machine-wide, cap includes queueing). Target >=120k compiled
+  candidates before calling a ceiling.
+- Argument staging around calls: `mode:"call_args"` (rust) first; enumerates
+  keep/fold/fold-value/hoist, never crosses observable call or store.
+- ng keeps stopping on dirty zeros despite `dirty_zero_s` / `honest_share` /
+  `unlicensed_factor`: finish with `engine:"rust"` (behavior-preserving only;
+  counts toward total).
+- Log engine, compiled count, result in history; byte-neutral candidates
+  -> N13 pool.
+
+Honesty filter `[da]`:
+
+- Port by hand or via `replace` edits, check with `try`. Dirty candidates =
+  leads: strip + measure each component separately. Ask what each forcing
+  construct does: pragma fixing CSE -> points at a reload (H05); alias ->
+  separate live value. Alias fixing coloring often marks param copies of a
+  lost inline helper: does donor call a helper there? restore that call shape
+  (H07).
+- Reject: pragmas (`opt_propagation`, `optimization_level`), `new_var` copies
+  of in-scope values, reuse of unrelated vars, unsequenced exprs, redundant
+  same-value or duplicated stores, invented helpers, zero needing an otherwise
+  unused alias (`ani_to_frame_x`).
+- `alternatives:true` + `tuning_report:true` give engine honesty findings;
+  audit by hand anyway (`honest_only` / `all_passes_honest` still returned
+  pragma-bearing leads in mk-da).
+- Neutral seed rotation `[da]`: honest byte-equivalent variant -> adopt in
+  draft (`try` `keep:true`), permute again from it. Very seed-sensitive.
 - Several nonzero candidates sharing one idea: express it without `new_var`,
-  `if (1)`, or comma operators and try it in the real TU; five candidates
-  feeding `(x *= k)` to a call led to the H15 scaled-argument form. Call-argument
-  mode enumerates keep/fold/fold-value/hoist combinations directly and never
-  moves across an observable call or store.
-- Candidate behaves differently in the real TU: compile it inside a frozen full
-  TU with the recovered command, restrict objdump to the symbol
-  (`--disassemble=SYMBOL`), and confirm the baseline with objdiff.
-- Missing-function KeyError during extraction: make the canonical declaration
-  visible before the call (an implicit-int call is absent from the type map),
-  then reimport.
-- Reimport: use the newly printed scratch path (possibly `SYMBOL-2`) and verify
-  its base source. A one-line `PERM_LINESWAP` can fold away; do not claim
-  exhaustive search.
-- Reject offsets on both sides of a signed comparison unless overflow is
-  impossible: `(x + 1) < 1` is not `x < 0` on arbitrary 32-bit input.
-- Freeze type/cast passes when invalid truncations dominate. A widened temporary
+  `if (1)`, comma ops, try in real TU (five candidates feeding `(x *= k)` to a
+  call -> H15 scaled-arg form).
+
+Scoring + scratch:
+
+- ~5 per reg-name diff, ~100 per inserted/deleted instr. Low nonzero can hide
+  wrong colors; 5 may add no code. Diff candidate objdump vs `target.o`.
+  `--stack-diffs` when stack operands differ (default ignored reversed
+  +0x08/+0x0C stores in `run_camera_script`).
+- Base score far above real residue: retail inlined same-TU callees, import
+  strips non-`inline` bodies. Restore those callees as `inline` in scratch
+  (`SFD_SetCond`), confirm base first.
+- Mismatch inside expanded private helper: selecting only caller leaves helper
+  unmutated; harness mutating helper while scoring caller, check no helper
+  call appears. Expansion + decl order can interact (AI table builders: both
+  needed); verify combo per wrapper. Expansion reverses stack-local placement
+  -> reverse only scratch decls.
+- Candidate behaves different in real TU: compile in frozen full TU with
+  recovered command, `objdump --disassemble=SYMBOL`, confirm baseline with
+  objdiff.
+- Missing-function KeyError on extraction: make canonical decl visible before
+  call (implicit-int call absent from type map), reimport.
+- Reimport: use newly printed scratch path (maybe `SYMBOL-2`), verify base
+  source. One-line `PERM_LINESWAP` can fold away; don't claim exhaustive.
+- Reject offsets on both sides of signed compare unless overflow impossible:
+  `(x + 1) < 1` != `x < 0` for arbitrary 32-bit.
+- Freeze type/cast passes when invalid truncations dominate. Widened temp
   narrowed at every use needs independent width evidence.
-- Declaration reordering (`perm_reorder_decls`) moves declarations across
-  blocks; for a pure ordering search restrict it to uninitialized declarations
-  in one block (the local same-block patch, `MKD_PERM_SAME_BLOCK_DECLS=1`).
-  Compile failures do not exhaust valid orderings.
-- Integer Boolean values outside conditions: the local patch
-  `MKD_PERM_INTEGER_BOOLEAN_VALUES=1` with only `perm_condition` enabled
-  rewrites `x == 0`/`!x` in values and call arguments, for integer operands only.
+- `perm_reorder_decls` moves decls across blocks; pure ordering search ->
+  uninitialized decls in one block only (`MKD_PERM_SAME_BLOCK_DECLS=1`).
+  Compile failures don't exhaust valid orderings.
+- Integer Boolean values outside conditions: `MKD_PERM_INTEGER_BOOLEAN_VALUES=1`
+  with only `perm_condition` rewrites `x == 0`/`!x` in values + call args,
+  int operands only.
 - Scratch parsing can change `numNodes * sizeof(RwMatrix) + 15`; parenthesize
-  the product in scratch only. "PERM macro in AST" from an inline-helper
-  `PERM_LINESWAP`: use finite text-level `PERM_GENERAL`.
-- A CSE candidate that repeats a table expression: both values must feed real
-  outputs with no intervening store or call; verify load count, every macro
-  consumer, runtime behavior, and linked SHA.
-- A zero score that needs an otherwise unused alias is rejected
-  (`ani_to_frame_x`).
-- Mirage imports need platform-neutral behavior plus GC retail and objdiff
+  product in scratch only. "PERM macro in AST" from inline-helper
+  `PERM_LINESWAP`: finite text-level `PERM_GENERAL`.
+- CSE candidate repeating a table expr: both values feed real outputs, no
+  store/call between; verify load count, every macro consumer, runtime
+  behavior, linked SHA.
+- Mirage imports need platform-neutral behavior + GC retail + objdiff
   evidence.

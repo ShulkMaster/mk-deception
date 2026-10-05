@@ -69,26 +69,40 @@ public:
     int nativeAbort();
 };
 
-template <>
-int mwFileGCIOMixIn<mwFileGCCloseCommand>::nativeAbort()
-{
-    return 0;
-}
-
-template <>
-int mwFileGCIOMixIn<mwFileGCReadBufferedCommand>::nativeAbort()
-{
-    return 0;
-}
-
-template <>
-int mwFileGCIOMixIn<mwFileGCReadUnbufferedCommand>::nativeAbort()
-{
-    return 0;
-}
-
 extern void _mwFileServiceThread();
 extern gcnDriver& gcnGetDriver();
+
+void* gcnDriver::serviceThreadThunk(void*)
+{
+    _mwFileServiceThread();
+    return 0;
+}
+
+void* gcnDriver::wakeupThreadThunk(void* argument)
+{
+    gcnDriver* driver = static_cast<gcnDriver*>(argument);
+    mwFileCommand* command;
+
+    do {
+        OSReceiveMessage(&driver->wakeup_queue,
+                         reinterpret_cast<OSMessage*>(&command), 1);
+        if (command != 0) {
+            command->wakeup();
+        }
+    } while (command != 0);
+
+    return 0;
+}
+
+unsigned long mwFileGCHandle::getFileAlign()
+{
+    return 4;
+}
+
+unsigned long mwFileGCHandle::getReadAlign()
+{
+    return 32;
+}
 
 void mwFileCondition::wait(mwFileMutex& mutex)
 {
@@ -149,6 +163,13 @@ mwFileMutex::mwFileMutex()
     OSInitMutex(this);
 }
 
+/* TODO: [breakthrough needed] 83.38%; verify return width; byte narrowing and epilogue differ. */
+unsigned char _mwFilePlatformIsInServiceThread()
+{
+    gcnDriver& driver = gcnGetDriver();
+    return OSGetCurrentThread() == &driver.service_thread;
+}
+
 int _mwFilePlatformInterlockedDecrement(volatile int& value)
 {
     int interrupts = OSDisableInterrupts();
@@ -184,44 +205,10 @@ int mwFileStringCompareIgnoreCase(const char* left, const char* right)
     if (*left == '\0' && *right == '\0') {
         return 0;
     }
-    return *left == '\0' ? -1 : 1;
-}
-
-unsigned long mwFileGCHandle::getFileAlign()
-{
-    return 4;
-}
-
-unsigned long mwFileGCHandle::getReadAlign()
-{
-    return 32;
-}
-
-void* gcnDriver::serviceThreadThunk(void*)
-{
-    _mwFileServiceThread();
-    return 0;
-}
-
-void* gcnDriver::wakeupThreadThunk(void* argument)
-{
-    gcnDriver* driver = static_cast<gcnDriver*>(argument);
-    mwFileCommand* command;
-
-    do {
-        OSReceiveMessage(&driver->wakeup_queue,
-                         reinterpret_cast<OSMessage*>(&command), 1);
-        if (command != 0) {
-            command->wakeup();
-        }
-    } while (command != 0);
-
-    return 0;
-}
-
-void gcnDriver::queryErrorState()
-{
-    mwFileGCServer::queryErrorState();
+    if (*left == '\0') {
+        return -1;
+    }
+    return 1;
 }
 
 void _mwFilePlatformTick()
@@ -229,8 +216,25 @@ void _mwFilePlatformTick()
     gcnGetDriver().queryErrorState();
 }
 
-unsigned char _mwFilePlatformIsInServiceThread()
+void gcnDriver::queryErrorState()
 {
-    gcnDriver& driver = gcnGetDriver();
-    return OSGetCurrentThread() == &driver.service_thread;
+    mwFileGCServer::queryErrorState();
+}
+
+template <>
+int mwFileGCIOMixIn<mwFileGCReadBufferedCommand>::nativeAbort()
+{
+    return 0;
+}
+
+template <>
+int mwFileGCIOMixIn<mwFileGCReadUnbufferedCommand>::nativeAbort()
+{
+    return 0;
+}
+
+template <>
+int mwFileGCIOMixIn<mwFileGCCloseCommand>::nativeAbort()
+{
+    return 0;
 }

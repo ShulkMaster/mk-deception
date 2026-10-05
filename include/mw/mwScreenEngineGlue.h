@@ -265,6 +265,7 @@ void screen_engine_process_events(void);
 void fire_screen_studio_event(int event, int flag);
 
 void screen_engine_render(void);
+void vdestroy_screen_engine(MkHdr* hdr);
 float p_screen_engine_tick__Fv(void);
 float p_handle_screen_engine_controller__Fv(void);
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx);

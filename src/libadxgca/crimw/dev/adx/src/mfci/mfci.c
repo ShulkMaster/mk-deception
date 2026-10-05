@@ -227,9 +227,7 @@ void mfCiStopTr(void* object)
     SVM_Unlock();
 }
 
-/* TODO: [near miss] 99.205880%; validation, locking, address parsing,
- * copy/zero-fill, and completion ordering match; residual is relocation and
- * register coloring, with no honest local ABI/type correction. */
+/* TODO: [near miss] 99.44%; callback/string bases remain exchanged across diagnostics. */
 int mfCiReqRd(void* object, int sectors, void* buffer)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -277,8 +275,8 @@ int mfCiReqRd(void* object, int sectors, void* buffer)
     }
     handle->request_sectors = request_sectors;
     sector_length = handle->sector_length;
-    request_length = handle->request_sectors * sector_length;
     source_offset = handle->sector_position * sector_length;
+    request_length = handle->request_sectors * sector_length;
     if (request_length == 0) {
         handle->status = MFCI_STATUS_COMPLETE;
         SVM_Unlock();
@@ -321,7 +319,7 @@ int mfCiTell(void* object)
     return handle->sector_position;
 }
 
-/* TODO: [near miss] 98.196724%; retained clamp is semantically exact; retail uses an alternate branch orientation that MWCC does not preserve cleanly. */
+/* TODO: [near miss] 98.28%; clamp branch orientation agrees; positive arm has a separate store site instead of retail shared store. */
 int mfCiSeek(void* object, int offset, int origin)
 {
     MfCiObject* handle = (MfCiObject*)object;
@@ -349,10 +347,11 @@ int mfCiSeek(void* object, int offset, int origin)
     }
     handle->sector_position = position;
     position = handle->sector_position;
-    if (position <= 0) {
-        position = 0;
+    if (position > 0) {
+        handle->sector_position = position;
+    } else {
+        handle->sector_position = 0;
     }
-    handle->sector_position = position;
     SVM_Unlock();
     return handle->sector_position;
 }
@@ -370,14 +369,13 @@ void mfCiClose(void* object)
     }
 }
 
-/* TODO: [near miss] 99.107140%; RE4's two private helpers recover both
- * operation islands; only pooled rodata/BSS base-register coloring remains. */
+/* TODO: [near miss] 99.25%; validation and parsing agree; BSS/rodata base
+ * registers remain reversed after helper, local and search-form checks. */
 void* mfCiOpen(const char* filename, void* parameter, int mode)
 {
     MfCiObject* handle;
     int file_size;
 
-    (void)parameter;
     if (filename == 0) {
         if (mfci_err_func != 0) {
             mfci_err_func(mfci_err_obj,

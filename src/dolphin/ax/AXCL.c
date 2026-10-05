@@ -40,20 +40,20 @@ void __AXNextFrame(void* sbuffer, void* buffer)
     command_list = __AXClWrite;
     data = __AXGetStudio();
     __AXWriteToCommandList(0);
-    __AXWriteToCommandList((unsigned short)(data >> 16));
-    __AXWriteToCommandList((unsigned short)data);
+    __AXWriteToCommandList((data >> 16));
+    __AXWriteToCommandList(data);
     __AXCommandListCycles += 0x2E44;
 
     switch (__AXClMode) {
     case 0:
         __AXWriteToCommandList(7);
-        __AXWriteToCommandList((unsigned short)((unsigned long)sbuffer >> 16));
+        __AXWriteToCommandList(((unsigned long)sbuffer >> 16));
         __AXWriteToCommandList((unsigned long)sbuffer);
         __AXCommandListCycles += 0x546;
         break;
     case 1:
         __AXWriteToCommandList(0x11);
-        __AXWriteToCommandList((unsigned short)((unsigned long)sbuffer >> 16));
+        __AXWriteToCommandList(((unsigned long)sbuffer >> 16));
         __AXWriteToCommandList((unsigned long)sbuffer);
         __AXCommandListCycles += 0x5E6;
         break;
@@ -63,8 +63,8 @@ void __AXNextFrame(void* sbuffer, void* buffer)
 
     data = (unsigned long)__AXGetPBs();
     __AXWriteToCommandList(2);
-    __AXWriteToCommandList((unsigned short)(data >> 16));
-    __AXWriteToCommandList((unsigned short)data);
+    __AXWriteToCommandList((data >> 16));
+    __AXWriteToCommandList(data);
     __AXWriteToCommandList(3);
 
     if (__AXClMode == 2) {
@@ -72,41 +72,41 @@ void __AXNextFrame(void* sbuffer, void* buffer)
         if (data != 0) {
             __AXWriteToCommandList(0x13);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXGetAuxAInputDpl2(&data);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXGetAuxAOutput(&data);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXGetAuxAOutputDpl2R(&data);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXGetAuxAOutputDpl2Ls(&data);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXGetAuxAOutputDpl2Rs(&data);
             __AXWriteToCommandList(data >> 16);
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList(data);
             __AXCommandListCycles += 0xDED;
         }
         __AXWriteToCommandList(0x10);
         __AXGetAuxBForDPL2(&data);
         __AXWriteToCommandList(data >> 16);
-        __AXWriteToCommandList((unsigned short)data);
+        __AXWriteToCommandList(data);
         __AXGetAuxBOutputDPL2(&data);
         __AXWriteToCommandList(data >> 16);
-        __AXWriteToCommandList((unsigned short)data);
+        __AXWriteToCommandList(data);
         __AXCommandListCycles += 0xDED;
     } else {
         __AXGetAuxAInput(&data);
         if (data != 0) {
             __AXWriteToCommandList(4);
-            __AXWriteToCommandList((unsigned short)(data >> 16));
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList((data >> 16));
+            __AXWriteToCommandList(data);
             __AXGetAuxAOutput(&data);
-            __AXWriteToCommandList((unsigned short)(data >> 16));
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList((data >> 16));
+            __AXWriteToCommandList(data);
             __AXCommandListCycles += 0xDED;
         }
 
@@ -114,11 +114,11 @@ void __AXNextFrame(void* sbuffer, void* buffer)
         if (data != 0) {
             __AXWriteToCommandList(5);
             __AXCommandListCycles += 0xDED;
-            __AXWriteToCommandList((unsigned short)(data >> 16));
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList((data >> 16));
+            __AXWriteToCommandList(data);
             __AXGetAuxBOutput(&data);
-            __AXWriteToCommandList((unsigned short)(data >> 16));
-            __AXWriteToCommandList((unsigned short)data);
+            __AXWriteToCommandList((data >> 16));
+            __AXWriteToCommandList(data);
         }
     }
 
@@ -132,21 +132,21 @@ void __AXNextFrame(void* sbuffer, void* buffer)
     }
 
     __AXWriteToCommandList(0xE);
-    __AXWriteToCommandList((unsigned short)((unsigned long)sbuffer >> 16));
+    __AXWriteToCommandList(((unsigned long)sbuffer >> 16));
     __AXWriteToCommandList((unsigned long)sbuffer);
-    __AXWriteToCommandList((unsigned short)((unsigned long)buffer >> 16));
+    __AXWriteToCommandList(((unsigned long)buffer >> 16));
     __AXWriteToCommandList((unsigned long)buffer);
     __AXCommandListCycles += 0x2710;
     __AXWriteToCommandList(0xF);
     __AXCommandListCycles += 2;
-    DCFlushRange(command_list, 0x300);
+    DCFlushRange(command_list, sizeof(__AXCommandList[0]));
 }
 
 void __AXClInit(void)
 {
     __AXClMode = 0;
     __AXCommandListPosition = 0;
-    __AXClWrite = (void*)&__AXCommandList;
+    __AXClWrite = &__AXCommandList[0][0];
     __AXCompressor = 1;
 }
 

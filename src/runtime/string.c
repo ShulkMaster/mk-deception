@@ -24,250 +24,6 @@
 static char* n = "\0" ERROR_STRINGS;
 static char* s = "\0" ERROR_STRINGS;
 
-unsigned long strlen(const char* string)
-{
-    unsigned long length = (unsigned long)-1;
-    const unsigned char* current = (const unsigned char*)string - 1;
-
-    do {
-        ++length;
-    } while (*++current != 0);
-    return length;
-}
-
-char* strcpy(char* destination, const char* source)
-{
-    unsigned char* to = (unsigned char*)destination;
-    const unsigned char* from = (const unsigned char*)source;
-    unsigned long alignment;
-    unsigned long word;
-
-    if ((alignment = (unsigned long)from & 3U) ==
-        ((unsigned long)to & 3U)) {
-        if (alignment != 0) {
-            if ((*to = *from) == 0)
-                return destination;
-            for (alignment = 3U - alignment; alignment != 0; --alignment) {
-                if ((*++to = *++from) == 0)
-                    return destination;
-            }
-            ++to;
-            ++from;
-        }
-        word = *(const unsigned long*)from;
-        if (!HAS_ZERO_BYTE(word)) {
-            to -= sizeof(unsigned long);
-            do {
-                to += sizeof(unsigned long);
-                *(unsigned long*)to = word;
-                from += sizeof(unsigned long);
-                word = *(const unsigned long*)from;
-            } while (!HAS_ZERO_BYTE(word));
-            to += sizeof(unsigned long);
-        }
-    }
-    if ((*to = *from) == 0)
-        return destination;
-    do {
-        ++to;
-        ++from;
-    } while ((*to = *from) != 0);
-    return destination;
-}
-
-char* strncpy(char* destination, const char* source, unsigned long count)
-{
-    const unsigned char* from = (const unsigned char*)source - 1;
-    unsigned char* to = (unsigned char*)destination - 1;
-
-    ++count;
-    while (--count != 0) {
-        if ((*++to = *++from) == 0) {
-            while (--count != 0)
-                *++to = 0;
-            break;
-        }
-    }
-    return destination;
-}
-
-char* strcat(char* destination, const char* source)
-{
-    const unsigned char* from = (const unsigned char*)source - 1;
-    unsigned char* to = (unsigned char*)destination - 1;
-
-    while (*++to != 0) {
-    }
-    --to;
-    while ((*++to = *++from) != 0) {
-    }
-    return destination;
-}
-
-char* strncat(char* destination, const char* source, unsigned long count)
-{
-    const unsigned char* from = (const unsigned char*)source - 1;
-    unsigned char* to = (unsigned char*)destination - 1;
-
-    while (*++to != 0) {
-    }
-    --to;
-    ++count;
-    while (--count != 0) {
-        if ((*++to = *++from) == 0) {
-            --to;
-            break;
-        }
-    }
-    *++to = 0;
-    return destination;
-}
-
-int strcmp(const char* lhs, const char* rhs)
-{
-    const unsigned char* left = (const unsigned char*)lhs;
-    const unsigned char* right = (const unsigned char*)rhs;
-    unsigned long alignment;
-    unsigned long left_byte = *left;
-    unsigned long right_byte = *right;
-    unsigned long left_word;
-    unsigned long right_word;
-    int result = (int)left_byte - (int)right_byte;
-
-    if (result != 0)
-        return result;
-    if ((alignment = (unsigned long)left & 3U) ==
-        ((unsigned long)right & 3U)) {
-        if (alignment != 0) {
-            if (left_byte == 0)
-                return 0;
-            for (alignment = 3U - alignment; alignment != 0; --alignment) {
-                left_byte = *++left;
-                right_byte = *++right;
-                result = (int)left_byte - (int)right_byte;
-                if (result != 0)
-                    return result;
-                if (left_byte == 0)
-                    return 0;
-            }
-            ++left;
-            ++right;
-        }
-        left_word = *(const unsigned long*)left;
-        right_word = *(const unsigned long*)right;
-        while (!HAS_ZERO_BYTE(left_word) && left_word == right_word) {
-            left += sizeof(unsigned long);
-            right += sizeof(unsigned long);
-            left_word = *(const unsigned long*)left;
-            right_word = *(const unsigned long*)right;
-        }
-        if (!HAS_ZERO_BYTE(left_word))
-            return left_word > right_word ? 1 : -1;
-        left_byte = *left;
-        right_byte = *right;
-        result = (int)left_byte - (int)right_byte;
-        if (result != 0)
-            return result;
-    }
-    if (left_byte == 0)
-        return 0;
-    do {
-        left_byte = *++left;
-        right_byte = *++right;
-        result = (int)left_byte - (int)right_byte;
-        if (result != 0)
-            return result;
-    } while (left_byte != 0);
-    return 0;
-}
-
-int strncmp(const char* lhs, const char* rhs, unsigned long count)
-{
-    const unsigned char* left = (const unsigned char*)lhs - 1;
-    const unsigned char* right = (const unsigned char*)rhs - 1;
-    unsigned long left_byte;
-    unsigned long right_byte;
-
-    ++count;
-    while (--count != 0) {
-        left_byte = *++left;
-        right_byte = *++right;
-        if (left_byte != right_byte)
-            return (int)left_byte - (int)right_byte;
-        if (left_byte == 0)
-            break;
-    }
-    return 0;
-}
-
-char* strchr(const char* string, int character)
-{
-    const unsigned char* current = (const unsigned char*)string - 1;
-    unsigned long wanted = (unsigned long)character & 0xFFU;
-    unsigned long value;
-
-    while ((value = *++current) != 0) {
-        if (value == wanted)
-            return (char*)current;
-    }
-    return wanted != 0 ? 0 : (char*)current;
-}
-
-char* strrchr(const char* string, int character)
-{
-    const unsigned char* current = (const unsigned char*)string - 1;
-    const unsigned char* found = 0;
-    unsigned long wanted = (unsigned long)character & 0xFFU;
-    unsigned long value;
-
-    while ((value = *++current) != 0) {
-        if (value == wanted)
-            found = current;
-    }
-    if (found != 0)
-        return (char*)found;
-    return wanted != 0 ? 0 : (char*)current;
-}
-
-char* strtok(char* string, const char* delimiters)
-{
-    unsigned char delimiter_map[32] = {0};
-    const unsigned char* delimiter;
-    unsigned char* current;
-    unsigned char* token;
-    unsigned long value;
-
-    if (string != 0)
-        s = string;
-    delimiter = (const unsigned char*)delimiters - 1;
-    while ((value = *++delimiter) != 0) {
-        delimiter_map[(value >> 3) & 0x1FU] |= 1U << (value & 7);
-    }
-    current = (unsigned char*)s - 1;
-    while ((value = *++current) != 0) {
-        if ((delimiter_map[(value >> 3) & 0x1FU] &
-             (1U << (value & 7))) == 0)
-            break;
-    }
-    if (value == 0) {
-        s = n;
-        return 0;
-    }
-    token = current;
-    while ((value = *++current) != 0) {
-        if ((delimiter_map[(value >> 3) & 0x1FU] &
-             (1U << (value & 7))) != 0)
-            break;
-    }
-    if (value == 0) {
-        s = n;
-        return (char*)token;
-    }
-    s = (char*)current + 1;
-    *current = 0;
-    return (char*)token;
-}
-
 char* strstr(const char* string, const char* substring)
 {
     const unsigned char* current = (const unsigned char*)string - 1;
@@ -292,4 +48,250 @@ char* strstr(const char* string, const char* substring)
         }
     }
     return 0;
+}
+
+/* TODO: [near miss] 99.30%; byte promotion and TU order fixed; token-scan cursor coloring remains. */
+char* strtok(char* string, const char* delimiters)
+{
+    unsigned char delimiter_map[32] = {0};
+    const unsigned char* delimiter;
+    unsigned char* current;
+    unsigned char* token;
+    int value;
+
+    if (string != 0)
+        s = string;
+    delimiter = (const unsigned char*)delimiters - 1;
+    while ((value = *++delimiter) != 0) {
+        delimiter_map[((unsigned int)value >> 3) & 0x1FU] |= 1U << (value & 7);
+    }
+    current = (unsigned char*)s - 1;
+    while ((value = *++current) != 0) {
+        if ((delimiter_map[((unsigned int)value >> 3) & 0x1FU] &
+             (1U << (value & 7))) == 0)
+            break;
+    }
+    if (value == 0) {
+        s = n;
+        return 0;
+    }
+    token = current;
+    while ((value = *++current) != 0) {
+        if ((delimiter_map[((unsigned int)value >> 3) & 0x1FU] &
+             (1U << (value & 7))) != 0)
+            break;
+    }
+    if (value == 0) {
+        s = n;
+        return (char*)token;
+    }
+    s = (char*)current + 1;
+    *current = 0;
+    return (char*)token;
+}
+
+char* strrchr(const char* string, int character)
+{
+    const unsigned char* current = (const unsigned char*)string - 1;
+    const unsigned char* found = 0;
+    unsigned long wanted = (unsigned long)character & 0xFFU;
+    unsigned long value;
+
+    while ((value = *++current) != 0) {
+        if (value == wanted)
+            found = current;
+    }
+    if (found != 0)
+        return (char*)found;
+    return wanted != 0 ? 0 : (char*)current;
+}
+
+char* strchr(const char* string, int character)
+{
+    const unsigned char* current = (const unsigned char*)string - 1;
+    unsigned long wanted = (unsigned long)character & 0xFFU;
+    unsigned long value;
+
+    while ((value = *++current) != 0) {
+        if (value == wanted)
+            return (char*)current;
+    }
+    return wanted != 0 ? 0 : (char*)current;
+}
+
+int strncmp(const char* lhs, const char* rhs, unsigned long count)
+{
+    const unsigned char* left = (const unsigned char*)lhs - 1;
+    const unsigned char* right = (const unsigned char*)rhs - 1;
+    unsigned long left_byte;
+    unsigned long right_byte;
+
+    ++count;
+    while (--count != 0) {
+        left_byte = *++left;
+        right_byte = *++right;
+        if (left_byte != right_byte)
+            return (int)left_byte - (int)right_byte;
+        if (left_byte == 0)
+            break;
+    }
+    return 0;
+}
+
+int strcmp(const char* lhs, const char* rhs)
+{
+    const unsigned char* left = (const unsigned char*)lhs;
+    const unsigned char* right = (const unsigned char*)rhs;
+    unsigned long alignment;
+    unsigned long left_byte = *left;
+    unsigned long left_word;
+    unsigned long right_word;
+    int result = (int)left_byte - (int)*right;
+
+    if (result != 0)
+        return result;
+    if ((alignment = (unsigned long)left & 3U) ==
+        ((unsigned long)right & 3U)) {
+        if (alignment != 0) {
+            if (left_byte == 0)
+                return 0;
+            for (alignment = 3U - alignment; alignment != 0; --alignment) {
+                left_byte = *++left;
+                result = (int)left_byte - (int)*++right;
+                if (result != 0)
+                    return result;
+                if (left_byte == 0)
+                    return 0;
+            }
+            ++left;
+            ++right;
+        }
+        left_word = *(const unsigned long*)left;
+        right_word = *(const unsigned long*)right;
+        if (!HAS_ZERO_BYTE(left_word)) {
+            while (left_word == right_word) {
+                left += sizeof(unsigned long);
+                right += sizeof(unsigned long);
+                left_word = *(const unsigned long*)left;
+                right_word = *(const unsigned long*)right;
+                if (HAS_ZERO_BYTE(left_word))
+                    goto compare_current_bytes;
+            }
+            return left_word > right_word ? 1 : -1;
+        }
+compare_current_bytes:
+        left_byte = *left;
+        result = (int)left_byte - (int)*right;
+        if (result != 0)
+            return result;
+    }
+    if (left_byte == 0)
+        return 0;
+    do {
+        left_byte = *++left;
+        result = (int)left_byte - (int)*++right;
+        if (result != 0)
+            return result;
+    } while (left_byte != 0);
+    return 0;
+}
+
+char* strncat(char* destination, const char* source, unsigned long count)
+{
+    const unsigned char* from = (const unsigned char*)source - 1;
+    unsigned char* to = (unsigned char*)destination - 1;
+
+    while (*++to != 0) {
+    }
+    --to;
+    ++count;
+    while (--count != 0) {
+        if ((*++to = *++from) == 0) {
+            --to;
+            break;
+        }
+    }
+    *++to = 0;
+    return destination;
+}
+
+char* strcat(char* destination, const char* source)
+{
+    const unsigned char* from = (const unsigned char*)source - 1;
+    unsigned char* to = (unsigned char*)destination - 1;
+
+    while (*++to != 0) {
+    }
+    --to;
+    while ((*++to = *++from) != 0) {
+    }
+    return destination;
+}
+
+char* strncpy(char* destination, const char* source, unsigned long count)
+{
+    const unsigned char* from = (const unsigned char*)source - 1;
+    unsigned char* to = (unsigned char*)destination - 1;
+
+    ++count;
+    while (--count != 0) {
+        if ((*++to = *++from) == 0) {
+            while (--count != 0)
+                *++to = 0;
+            break;
+        }
+    }
+    return destination;
+}
+
+char* strcpy(char* destination, const char* source)
+{
+    unsigned char* to = (unsigned char*)destination;
+    const unsigned char* from = (const unsigned char*)source;
+    unsigned long alignment;
+
+    if ((alignment = (unsigned long)from & 3U) ==
+        ((unsigned long)to & 3U)) {
+        unsigned long word;
+
+        if (alignment != 0) {
+            if ((*to = *from) == 0)
+                return destination;
+            for (alignment = 3U - alignment; alignment != 0; --alignment) {
+                if ((*++to = *++from) == 0)
+                    return destination;
+            }
+            ++to;
+            ++from;
+        }
+        word = *(const unsigned long*)from;
+        if (!HAS_ZERO_BYTE(word)) {
+            unsigned long* word_to = (unsigned long*)to - 1;
+            const unsigned long* word_from = (const unsigned long*)from;
+            do {
+                *++word_to = word;
+                word = *++word_from;
+            } while (!HAS_ZERO_BYTE(word));
+            to = (unsigned char*)(word_to + 1);
+            from = (const unsigned char*)word_from;
+        }
+    }
+    if ((*to = *from) == 0)
+        return destination;
+    do {
+        ++to;
+        ++from;
+    } while ((*to = *from) != 0);
+    return destination;
+}
+
+unsigned long strlen(const char* string)
+{
+    unsigned long length = (unsigned long)-1;
+    const unsigned char* current = (const unsigned char*)string - 1;
+
+    do {
+        ++length;
+    } while (*++current != 0);
+    return length;
 }

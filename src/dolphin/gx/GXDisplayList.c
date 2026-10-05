@@ -6,12 +6,12 @@
 #include "__gx.h"
 
 static __GXFifoObj DisplayListFifo;
-static volatile __GXFifoObj* OldCPUFifo;
+static GXFifoObj* OldCPUFifo;
 static GXData __savedGXdata;
 
 void GXBeginDisplayList(void* list, u32 size)
 {
-    __GXFifoObj* cpuFifo = (__GXFifoObj*)GXGetCPUFifo();
+    GXFifoObj* cpuFifo = GXGetCPUFifo();
 
     if (__GXData->dirtyState != 0) {
         __GXSetDirtyState();
@@ -21,14 +21,14 @@ void GXBeginDisplayList(void* list, u32 size)
         memcpy(&__savedGXdata, __GXData, sizeof(__savedGXdata));
     }
 
-    DisplayListFifo.base = (u8*)list;
+    DisplayListFifo.base = list;
     DisplayListFifo.top = (u8*)list + size - 4;
     DisplayListFifo.size = size;
     DisplayListFifo.count = 0;
     DisplayListFifo.rdPtr = list;
     DisplayListFifo.wrPtr = list;
     __GXData->inDispList = TRUE;
-    GXSaveCPUFifo((GXFifoObj*)cpuFifo);
+    GXSaveCPUFifo(cpuFifo);
     OldCPUFifo = cpuFifo;
     GXSetCPUFifo((GXFifoObj*)&DisplayListFifo);
     GXResetWriteGatherPipe();
@@ -43,7 +43,7 @@ u32 GXEndDisplayList(void)
     GXFlush();
     overflow = (GX_GET_PI_REG(5) >> 26) & 1;
     __GXSaveCPUFifoAux(&DisplayListFifo);
-    GXSetCPUFifo((GXFifoObj*)OldCPUFifo);
+    GXSetCPUFifo(OldCPUFifo);
 
     if (__GXData->dlSaveContext != 0) {
         enabled = OSDisableInterrupts();

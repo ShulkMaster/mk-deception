@@ -40,6 +40,8 @@ typedef struct SpecularMaterialPluginData {
     SpecularMaterialFlags flags;
 } SpecularMaterialPluginData;
 
+int RpSpecularPluginAttach(void);
+
 extern int SpecularMaterialOffset;
 extern int SpecularGeometryOffset;
 

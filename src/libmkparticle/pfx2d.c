@@ -20,7 +20,7 @@ static int first_potentially_available_location;
 /* Retail order: pfx2d_init, then local get_initialized, then alloc... */
 #pragma dont_inline on
 void pfx2d_init(void) {
-    native2d_init(0x1F4);
+    native2d_init(PFX2D_POOL_SIZE);
 }
 
 static Pfx2dObj* get_initialized_2d_object_by_index(int index) {
@@ -70,8 +70,8 @@ void pfx2d_build_default_geometry(Pfx2dObj* obj) {
 
     obj->tex_w = pfx_rw_texture_view(obj->texture)->raster->width;
     obj->tex_h = pfx_rw_texture_view(obj->texture)->raster->height;
-    width_f = (float)obj->tex_w;
-    height_f = (float)obj->tex_h;
+    width_f = obj->tex_w;
+    height_f = obj->tex_h;
 
     for (i = 0; i < 4; i++) {
         obj->verts[i].x = width_f * uvs[i * 2];

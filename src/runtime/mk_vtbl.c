@@ -1,79 +1,44 @@
 #include "runtime/mk_vtbl.h"
-
-/*
- * These functions are owned and typed by their implementation modules. This
- * TU only stores their addresses in ABI-erased vtable slots, so keep the
- * declarations private until those owning headers are imported.
- */
-int vdestroy_mkx_mem(void);
-void vdestroy_mkx_rplight(void* light);
-void vdestroy_mksobj(struct MkSobj* sobj);
-int vdestroy_mkobj(void);
-int vdestroy_screen_obj(void);
-int vdestroy_string_obj(void);
-int vdestroy_pebble(void);
-int vdestroy_pfx(void);
-int vdestroy_pfx_clone(void);
-int vdestroy_mkpdata_anim(void);
-int vdestroy_ani_texture_control(void);
-int vdestroy_trigger_struct(void);
-int vdestroy_mkpdata_plyr(void);
-void vdestroy_mkpdata_camera(struct MkHdr* pdata);
-int vdestroy_cloth_coll(void);
-int vdestroy_cloth_coll_plane(void);
-int vdestroy_cloth_coll_volume(void);
-int vdestroy_cmdscript(void);
-int vdestroy_screen_engine(void);
-void vdestroy_mkpdata_generic(void* pdata);
-int vdestroy_mkhdr_generic(void);
-
-void vdestroy_mkproc_nostack(struct MkProc* proc);
-void vdestroy_mkproc_tinystack(struct MkProc* proc);
-void vdestroy_mkproc_bigstack(struct MkProc* proc);
-void dispatch_nostack(void);
-void sleep_nostack(void);
-void system_stack_nostack(void);
-void local_stack_nostack(void);
-void jump_sleep_nostack(float (*entry)(void), float ticks);
-void dispatch_tinystack(void);
-void sleep_tinystack(void);
-void system_stack_tinystack(void);
-void local_stack_tinystack(void);
-void jump_sleep_tinystack(float (*entry)(void), float ticks);
-void dispatch_bigstack(void);
-void sleep_bigstack(void);
-void system_stack_bigstack(void);
-void local_stack_bigstack(void);
-void jump_sleep_bigstack(float (*entry)(void), float ticks);
-
-void update_mksobj(struct MkSobj* sobj);
+#include "runtime/mk_struct.h"
+#include "runtime/mk_proc.h"
+#include "runtime/mk_obj.h"
+#include "runtime/light.h"
+#include "runtime/image.h"
+#include "runtime/fonts.h"
+#include "runtime/mk_pebble.h"
+#include "runtime/mk_particle.h"
+#include "runtime/anim_pdata.h"
+#include "runtime/mk_cmdscript.h"
+#include "runtime/mk_pdata.h"
+#include "runtime/cam.h"
+#include "game/plyr.h"
+#include "game/cloth.h"
+#include "game/konquest.h"
+#include "mw/mwScreenEngineGlue.h"
 
 int not_mkmaterial(void) {
     return 0;
 }
 
 struct MkHdr* not_mksobj(struct MkHdr* hdr) {
-    (void)hdr;
     return 0;
 }
 
 struct MkHdr* is_mksobj(struct MkHdr* hdr) { return hdr; }
 
 struct MkHdr* not_mkpdata(struct MkHdr* hdr) {
-    (void)hdr;
     return 0;
 }
 
 struct MkHdr* is_mkpdata(struct MkHdr* hdr) { return hdr; }
 
 struct MkHdr* not_mkproc(struct MkHdr* hdr) {
-    (void)hdr;
     return 0;
 }
 
 struct MkHdr* is_mkproc(struct MkHdr* hdr) { return hdr; }
 
-MkVtable5 vtbl_mkx_mem = {
+MkVtableMkxMem vtbl_mkx_mem = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
@@ -81,12 +46,12 @@ MkVtable5 vtbl_mkx_mem = {
     vdestroy_mkx_mem,
 };
 
-MkVtable5 vtbl_mkx_rplight = {
+MkVtableMkxRpLight vtbl_mkx_rplight = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_mkx_rplight,
+    vdestroy_mkx_rplight,
 };
 
 MkVtableMkproc vtbl_mkproc_nostack = {
@@ -137,7 +102,7 @@ MkVtableMksobj vtbl_mksobj = {
     update_mksobj,
 };
 
-MkVtable5 vtbl_mkobj = {
+MkVtableMkobj vtbl_mkobj = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -145,7 +110,7 @@ MkVtable5 vtbl_mkobj = {
     vdestroy_mkobj,
 };
 
-MkVtable5 vtbl_mkpdata_screen_obj = {
+ScreenObjVtable vtbl_mkpdata_screen_obj = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -153,7 +118,7 @@ MkVtable5 vtbl_mkpdata_screen_obj = {
     vdestroy_screen_obj,
 };
 
-MkVtable5 vtbl_mkpdata_string_obj = {
+StringObjVtable vtbl_mkpdata_string_obj = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -161,7 +126,7 @@ MkVtable5 vtbl_mkpdata_string_obj = {
     vdestroy_string_obj,
 };
 
-MkVtable5 vtbl_pebble = {
+MkVtablePebble vtbl_pebble = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -169,7 +134,7 @@ MkVtable5 vtbl_pebble = {
     vdestroy_pebble,
 };
 
-MkVtable5 vtbl_pfx = {
+MkVtablePfx vtbl_pfx = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -177,7 +142,7 @@ MkVtable5 vtbl_pfx = {
     vdestroy_pfx,
 };
 
-MkVtable5 vtbl_pfx_clone = {
+MkVtablePfxClone vtbl_pfx_clone = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -185,7 +150,7 @@ MkVtable5 vtbl_pfx_clone = {
     vdestroy_pfx_clone,
 };
 
-MkVtable5 vtbl_mkpdata_anim = {
+MkVtableAnim vtbl_mkpdata_anim = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -193,7 +158,7 @@ MkVtable5 vtbl_mkpdata_anim = {
     vdestroy_mkpdata_anim,
 };
 
-MkVtable5 vtbl_ani_texture_control = {
+MkVtableAniTextureControl vtbl_ani_texture_control = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -201,7 +166,7 @@ MkVtable5 vtbl_ani_texture_control = {
     vdestroy_ani_texture_control,
 };
 
-MkVtable5 vtbl_trigger_struct = {
+MkVtableTrigger vtbl_trigger_struct = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -209,7 +174,7 @@ MkVtable5 vtbl_trigger_struct = {
     vdestroy_trigger_struct,
 };
 
-MkVtable5 vtbl_mkpdata_plyr = {
+MkVtablePlyr vtbl_mkpdata_plyr = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -217,15 +182,15 @@ MkVtable5 vtbl_mkpdata_plyr = {
     vdestroy_mkpdata_plyr,
 };
 
-MkVtable5 vtbl_mkpdata_camera = {
+MkHdrVtable vtbl_mkpdata_camera = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_mkpdata_camera,
+    vdestroy_mkpdata_camera,
 };
 
-MkVtable5 vtbl_cloth_coll = {
+MkHdrVtable vtbl_cloth_coll = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -233,7 +198,7 @@ MkVtable5 vtbl_cloth_coll = {
     vdestroy_cloth_coll,
 };
 
-MkVtable5 vtbl_cloth_coll_plane = {
+MkHdrVtable vtbl_cloth_coll_plane = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -241,7 +206,7 @@ MkVtable5 vtbl_cloth_coll_plane = {
     vdestroy_cloth_coll_plane,
 };
 
-MkVtable5 vtbl_cloth_coll_volume = {
+MkHdrVtable vtbl_cloth_coll_volume = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -249,7 +214,7 @@ MkVtable5 vtbl_cloth_coll_volume = {
     vdestroy_cloth_coll_volume,
 };
 
-MkVtable5 vtbl_cmdscript = {
+MkVtableCmdscript vtbl_cmdscript = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
@@ -257,7 +222,7 @@ MkVtable5 vtbl_cmdscript = {
     vdestroy_cmdscript,
 };
 
-MkVtable5 vtbl_screen_engine = {
+MkHdrVtable vtbl_screen_engine = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
@@ -265,15 +230,15 @@ MkVtable5 vtbl_screen_engine = {
     vdestroy_screen_engine,
 };
 
-MkVtable5 vtbl_mkpdata_generic = {
+MkHdrVtable vtbl_mkpdata_generic = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_mkpdata_generic,
+    vdestroy_mkpdata_generic,
 };
 
-MkVtable5 vtbl_mkhdr_generic = {
+MkHdrVtable vtbl_mkhdr_generic = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,

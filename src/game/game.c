@@ -1,11 +1,23 @@
+#include "game/konquest_missions.h"
+#include "game/pwrbar.h"
 #include "game/controller.h"
+#include "game/plyr_globals.h"
+#include "game/mk_chess.h"
 #include "game/plyr.h"
 #include "runtime/cam.h"
 #include "platform/gcutils.h"
+#include "platform/display_metrics.h"
 #include "game/game_info.h"
+#include "game/game.h"
 #include "game/attract.h"
 #include "game/plyrprofile.h"
 #include "game/menu.h"
+#include "game/pselect.h"
+#include "game/ladder.h"
+#include "game/bgnd.h"
+#include "runtime/anims.h"
+#include "runtime/sound.h"
+#include "platform/display.h"
 #include "game/moveset.h"
 #include "game/settings.h"
 
@@ -23,21 +35,23 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 
 void run_reaction_cleanup_function(PlyrPdata* player);
 
 extern int trial_check_state(void);
-typedef struct GameObjectLatch {
+struct GameObjectLatch {
     MkHdr* obj;
     unsigned int obj_instance;
-} GameObjectLatch;
+};
 
 const char* mk6_version_string = "0.142_gc";
 int b_game_timer_off = 1;
 
 static int continue_timer;
-GameObjectLatch df_press_start_item;
-GameObjectLatch df_press_start_proc_item;
+struct GameObjectLatch df_press_start_item;
+struct GameObjectLatch df_press_start_proc_item;
 int game_loop_count;
 int game_save_loop_count;
 int winner;
@@ -45,7 +59,7 @@ int force_bgnd_num;
 int f_fatality_finished;
 int f_fatality_available;
 int f_fatality_was_done;
-GameObjectLatch game_timer_item;
+struct GameObjectLatch game_timer_item;
 static unsigned int start_time;
 static int game_time_tick;
 static int last_timer_sec;
@@ -53,131 +67,53 @@ int round_winner;
 unsigned long display_off;
 int g_GameLossesInARow;
 
-extern void destroy_pwr_bars(void);
 extern int trial_get_round_length(void);
-extern int screen_width;
-extern int screen_height;
-extern int snd_req(int sound_id);
-extern int target_game_mode;
 extern int pause_player;
-extern float p_pselect(void);
-extern float p_pz_pselect(void);
 extern void move_player(MkObj* object, const Vec* position, const Vec* angles);
 extern void show_player(PlyrPdata* player);
 extern void bgnd_swap_level(int level);
-int sprintf(char* dst, const char* format, ...);
 static char timer_string[10];
 GlobalMoveset global_movesets[GLOBAL_MOVESET_COUNT];
 GameInfo g_game_info;
 int update_game_timer(void);
-void* memset(void* dest, int value, unsigned long size);
 
-typedef union GameInfoInitPrefix {
+struct GameInfoInitFlagBits {
+    unsigned char pad_7 : 1;
+    unsigned char flag_6 : 1;
+    unsigned char pad_5_0 : 6;
+};
+
+union GameInfoInitPrefix {
     int word;
-    struct {
-        unsigned char pad_7 : 1;
-        unsigned char flag_6 : 1;
-        unsigned char pad_5_0 : 6;
-    } bits;
-} GameInfoInitPrefix;
+    struct GameInfoInitFlagBits bits;
+};
 
-typedef struct GameProcVtable {
-    int (*reserved[6])(void);
-    int (*sleep)(void*);
-} GameProcVtable;
-
-typedef struct JoinProcVtable {
+struct JoinProcVtable {
     int (*reserved[6])(void);
     int (*sleep)(void* vtbl);
-} JoinProcVtable;
+};
 
-typedef struct GameLoopProcVtable {
-    int (*reserved[6])(void);
-    int (*sleep)(void* vtbl);
-    int (*reserved_1c[2])(void);
-    int (*jump_sleep)(MkProcEntryFn entry, void* vtbl, float ticks);
-} GameLoopProcVtable;
-
-typedef struct BgndAnimationsView {
+struct BgndAnimationsView {
     char pad00[0x78];
     void* intro_path;
-} BgndAnimationsView;
+};
 
-typedef struct JoinInPdata {
-    MkHdr hdr;
-    int player;
-} JoinInPdata;
-
-typedef struct DamageTextPdata {
+struct DamageTextPdata {
     MkHdr hdr;
     int player;
     float x;
     float y;
     int font_size;
     char text[0x1C];
-} DamageTextPdata;
+};
 
-typedef struct DamageStringVtable {
-    int (*reserved[4])(void);
-    int (*destroy)(StringObj* string, void* vtbl);
-} DamageStringVtable;
-
-typedef struct RoundStartPositions {
-    char pad00[0xC];
-    Vec player1_position;
-    Vec player1_angles;
-    Vec player2_position;
-    Vec player2_angles;
-} RoundStartPositions;
-
-typedef struct JoinProcFlagsView {
-    char pad00[0xA8];
-    union {
-        unsigned char flags_A8;
-        struct {
-            unsigned char pad_7_4 : 4;
-            unsigned char bit3 : 1;
-            unsigned char pad_2_0 : 3;
-        } flag_bits;
-    };
-} JoinProcFlagsView;
-
-typedef union JoinByteFlags {
-    unsigned char raw;
-    struct {
-        unsigned char bit7 : 1;
-        unsigned char bit6 : 1;
-        unsigned char bit5 : 1;
-        unsigned char bit4 : 1;
-        unsigned char bit3 : 1;
-        unsigned char pad_2_0 : 3;
-    } bits;
-} JoinByteFlags;
-
-typedef struct GameFightView {
-    char pad00[0x1F4];
-    int round_number;
-} GameFightView;
-
-typedef struct FatalityAvailability {
-    unsigned int field_00;
-    unsigned int field_04;
-    char pad08[0x14];
-    unsigned int alternate_field_1C;
-} FatalityAvailability;
-
-typedef struct FighterStatusTable {
-    char pad00[0x84];
-    FatalityAvailability* fatality;
-} FighterStatusTable;
-
-typedef struct FinishHimPdata {
+struct FinishHimPdata {
     MkHdr hdr;
     int alternate_voice;
     char pad_0C[0x1C];
-} FinishHimPdata;
+};
 
-typedef struct EndingTiming {
+struct EndingTiming {
     int character_id;
     float standard;
     float alternate;
@@ -187,55 +123,42 @@ typedef struct EndingTiming {
     float normal_intro;
     float normal_hold;
     float normal_tail;
-} EndingTiming;
+};
 
-typedef struct DeathtrapEndingTiming {
+struct DeathtrapEndingTiming {
     int arena_id;
     float intro;
     float hold;
     float tail;
-} DeathtrapEndingTiming;
+};
 
-typedef struct KonquestLoadingPdataView {
+struct KonquestLoadingPdataView {
     char pad00[0x158];
     unsigned int region;
-} KonquestLoadingPdataView;
+};
 
-typedef struct KonquestLoadingSaveView {
+struct KonquestLoadingSaveView {
     char pad00[0xC];
     unsigned int region;
-} KonquestLoadingSaveView;
+};
 
-typedef struct LoadingScreenEntry {
+struct LoadingScreenEntry {
     MkFileInfo* section;
-    char* left_image;
-    char* right_image;
-} LoadingScreenEntry;
+    unsigned int left_image;
+    unsigned int right_image;
+};
 
-typedef struct LoadScreenPdata {
+struct LoadScreenPdata {
     MkHdr hdr;
     int image_index;
     float file_count;
     int section_slot;
-    LoadingScreenEntry* table;
+    struct LoadingScreenEntry* table;
     ScreenObj* meter;
     unsigned int meter_instance;
-} LoadScreenPdata;
-
-typedef struct GameProfileRoundStats {
-    char pad00[0x1C];
-    int arcade_wins;
-    int arcade_losses;
-    int versus_wins;
-    int versus_losses;
-    int online_wins;
-    int online_losses;
-    int ladder_completions;
-} GameProfileRoundStats;
+};
 
 extern int snd_req_delay(int sound_id, int ticks);
-extern void init_pwr_bars(void);
-extern void turn_switch_log_on(void);
 extern void trial_game_init(void);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void bleed_startup(void);
@@ -244,11 +167,9 @@ extern void reset_camera_paths(void);
 extern void screen_engine_cleanup(void);
 extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
-extern GameProfileRoundStats p1_profile;
-extern GameProfileRoundStats p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
-EndingTiming plyr_ending_timings[] = {
+struct EndingTiming plyr_ending_timings[] = {
     {7, 825.0f, 400.0f, 350.0f, 120.0f, 60.0f, 120.0f, 5.0f, 80.0f},
     {1, 590.0f, 370.0f, 400.0f, 120.0f, 60.0f, 120.0f, 5.0f, 120.0f},
     {10, 1100.0f, 1030.0f, 350.0f, 120.0f, 60.0f, 120.0f, 5.0f, 120.0f},
@@ -278,7 +199,7 @@ EndingTiming plyr_ending_timings[] = {
     {-1, 1500.0f, 1500.0f, 1500.0f, 120.0f, 60.0f, 120.0f, 5.0f, 140.0f},
 };
 
-DeathtrapEndingTiming deathtrap_ending_timings[] = {
+struct DeathtrapEndingTiming deathtrap_ending_timings[] = {
     {6, 120.0f, 10.0f, 60.0f}, {7, 120.0f, 10.0f, 150.0f},
     {8, 120.0f, 90.0f, 60.0f}, {9, 120.0f, 90.0f, 60.0f},
     {10, 120.0f, 90.0f, 60.0f}, {11, 120.0f, 90.0f, 60.0f},
@@ -361,184 +282,174 @@ extern MkFileInfo sec_loading_puzzle_br_vs_mil, sec_loading_puzzle_br_nw;
 extern MkFileInfo sec_loading_puzzle_er_vs_as, sec_loading_puzzle_er_vs_sz;
 extern MkFileInfo sec_loading_puzzle_ho_vs_sc, sec_loading_puzzle_snake;
 
-LoadingScreenEntry loading_fight_pic_tbl[] = {
-    {&sec_loading_ashrah, (char*)0x004C0000, (char*)0x004C0001},
-    {&sec_loading_ba_growl, (char*)0x004D0000, (char*)0x004D0001},
-    {&sec_loading_ba_logo, (char*)0x004E0000, (char*)0x004E0001},
-    {&sec_loading_ba_speced_2, (char*)0x004F0000, (char*)0x004F0001},
-    {&sec_loading_ba_speced, (char*)0x00500000, (char*)0x00500001},
-    {&sec_loading_baraka, (char*)0x00510000, (char*)0x00510001},
-    {&sec_loading_boraicho, (char*)0x00520000, (char*)0x00520001},
-    {&sec_loading_closeup, (char*)0x00530000, (char*)0x00530001},
-    {&sec_loading_dk_closeup, (char*)0x00540000, (char*)0x00540001},
-    {&sec_loading_dk_kobra, (char*)0x00550000, (char*)0x00550001},
-    {&sec_loading_dk_throne, (char*)0x00560000, (char*)0x00560001},
-    {&sec_loading_dk_tunnel, (char*)0x00570000, (char*)0x00570001},
-    {&sec_loading_ermac, (char*)0x00580000, (char*)0x00580001},
-    {&sec_loading_hotaru, (char*)0x00590000, (char*)0x00590001},
-    {&sec_loading_kenshi, (char*)0x005A0000, (char*)0x005A0001},
-    {&sec_loading_kenshi_throw, (char*)0x005B0000, (char*)0x005B0001},
-    {&sec_loading_kick, (char*)0x005C0000, (char*)0x005C0001},
-    {&sec_loading_mil_speced, (char*)0x005D0000, (char*)0x005D0001},
-    {&sec_loading_mileena, (char*)0x005E0000, (char*)0x005E0001},
-    {&sec_loading_nightwolf, (char*)0x005F0000, (char*)0x005F0001},
-    {&sec_loading_qc_closeup2, (char*)0x00600000, (char*)0x00600001},
-    {&sec_loading_ra_determined, (char*)0x00610000, (char*)0x00610001},
-    {&sec_loading_ra_lightningstream, (char*)0x00620000, (char*)0x00620001},
-    {&sec_loading_rd_speced_01, (char*)0x00630000, (char*)0x00630001},
-    {&sec_loading_rd_speced_02, (char*)0x00640000, (char*)0x00640001},
-    {&sec_loading_sai, (char*)0x00650000, (char*)0x00650001},
-    {&sec_loading_sc_flamesword, (char*)0x00660000, (char*)0x00660001},
-    {&sec_loading_sc_speced_01, (char*)0x00670000, (char*)0x00670001},
-    {&sec_loading_sc_speced_02, (char*)0x00680000, (char*)0x00680001},
-    {&sec_loading_scorpion, (char*)0x00690000, (char*)0x00690001},
-    {&sec_loading_sindel, (char*)0x006A0000, (char*)0x006A0001},
-    {&sec_loading_subzero, (char*)0x006B0000, (char*)0x006B0001},
-    {&sec_loading_sz_icewall, (char*)0x006C0000, (char*)0x006C0001},
-    {&sec_loading_trio_united, (char*)0x006D0000, (char*)0x006D0001},
-    {&sec_loading_undeadarmy, (char*)0x006E0000, (char*)0x006E0001},
-    {&sec_loading_limei, (char*)0x006F0000, (char*)0x006F0001},
-    {&sec_ba_armed, (char*)0x00700000, (char*)0x00700001},
-    {&sec_ba_closeup, (char*)0x00710000, (char*)0x00710001},
-    {&sec_mil_kick, (char*)0x00720000, (char*)0x00720001},
-    {&sec_mil_closeup_flip, (char*)0x00730000, (char*)0x00730001},
-    {&sec_ba_blades, (char*)0x00740000, (char*)0x00740001},
-    {&sec_mil_peering, (char*)0x00750001, (char*)0x00750000},
-    {&sec_mil_sai, (char*)0x00760000, (char*)0x00760001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_fight_pic_tbl[] = {
+    {&sec_loading_ashrah, 0x004C0000, 0x004C0001},
+    {&sec_loading_ba_growl, 0x004D0000, 0x004D0001},
+    {&sec_loading_ba_logo, 0x004E0000, 0x004E0001},
+    {&sec_loading_ba_speced_2, 0x004F0000, 0x004F0001},
+    {&sec_loading_ba_speced, 0x00500000, 0x00500001},
+    {&sec_loading_baraka, 0x00510000, 0x00510001},
+    {&sec_loading_boraicho, 0x00520000, 0x00520001},
+    {&sec_loading_closeup, 0x00530000, 0x00530001},
+    {&sec_loading_dk_closeup, 0x00540000, 0x00540001},
+    {&sec_loading_dk_kobra, 0x00550000, 0x00550001},
+    {&sec_loading_dk_throne, 0x00560000, 0x00560001},
+    {&sec_loading_dk_tunnel, 0x00570000, 0x00570001},
+    {&sec_loading_ermac, 0x00580000, 0x00580001},
+    {&sec_loading_hotaru, 0x00590000, 0x00590001},
+    {&sec_loading_kenshi, 0x005A0000, 0x005A0001},
+    {&sec_loading_kenshi_throw, 0x005B0000, 0x005B0001},
+    {&sec_loading_kick, 0x005C0000, 0x005C0001},
+    {&sec_loading_mil_speced, 0x005D0000, 0x005D0001},
+    {&sec_loading_mileena, 0x005E0000, 0x005E0001},
+    {&sec_loading_nightwolf, 0x005F0000, 0x005F0001},
+    {&sec_loading_qc_closeup2, 0x00600000, 0x00600001},
+    {&sec_loading_ra_determined, 0x00610000, 0x00610001},
+    {&sec_loading_ra_lightningstream, 0x00620000, 0x00620001},
+    {&sec_loading_rd_speced_01, 0x00630000, 0x00630001},
+    {&sec_loading_rd_speced_02, 0x00640000, 0x00640001},
+    {&sec_loading_sai, 0x00650000, 0x00650001},
+    {&sec_loading_sc_flamesword, 0x00660000, 0x00660001},
+    {&sec_loading_sc_speced_01, 0x00670000, 0x00670001},
+    {&sec_loading_sc_speced_02, 0x00680000, 0x00680001},
+    {&sec_loading_scorpion, 0x00690000, 0x00690001},
+    {&sec_loading_sindel, 0x006A0000, 0x006A0001},
+    {&sec_loading_subzero, 0x006B0000, 0x006B0001},
+    {&sec_loading_sz_icewall, 0x006C0000, 0x006C0001},
+    {&sec_loading_trio_united, 0x006D0000, 0x006D0001},
+    {&sec_loading_undeadarmy, 0x006E0000, 0x006E0001},
+    {&sec_loading_limei, 0x006F0000, 0x006F0001},
+    {&sec_ba_armed, 0x00700000, 0x00700001},
+    {&sec_ba_closeup, 0x00710000, 0x00710001},
+    {&sec_mil_kick, 0x00720000, 0x00720001},
+    {&sec_mil_closeup_flip, 0x00730000, 0x00730001},
+    {&sec_ba_blades, 0x00740000, 0x00740001},
+    {&sec_mil_peering, 0x00750001, 0x00750000},
+    {&sec_mil_sai, 0x00760000, 0x00760001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_er1_pic_tbl[] = {
-    {&sec_loading_earthrealm1, (char*)0x00770000, (char*)0x00770001},
-    {&sec_loading_earthrealm2, (char*)0x00780000, (char*)0x00780001},
-    {&sec_loading_earthrealm3, (char*)0x00790000, (char*)0x00790001},
-    {&sec_loading_earthrealm4, (char*)0x007A0000, (char*)0x007A0001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_er1_pic_tbl[] = {
+    {&sec_loading_earthrealm1, 0x00770000, 0x00770001},
+    {&sec_loading_earthrealm2, 0x00780000, 0x00780001},
+    {&sec_loading_earthrealm3, 0x00790000, 0x00790001},
+    {&sec_loading_earthrealm4, 0x007A0000, 0x007A0001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_er2_pic_tbl[] = {
-    {&sec_load_er_shangtsung_02, (char*)0x007B0000, (char*)0x007B0001},
-    {&sec_load_er_portal_01, (char*)0x007C0000, (char*)0x007C0001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_er2_pic_tbl[] = {
+    {&sec_load_er_shangtsung_02, 0x007B0000, 0x007B0001},
+    {&sec_load_er_portal_01, 0x007C0000, 0x007C0001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_nx1_pic_tbl[] = {
-    {&sec_load_nx_portals_00, (char*)0x007D0000, (char*)0x007D0001},
-    {&sec_load_nx_monster_00, (char*)0x007E0000, (char*)0x007E0001},
-    {&sec_load_nx_kamidogus_00, (char*)0x007F0000, (char*)0x007F0001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_nx1_pic_tbl[] = {
+    {&sec_load_nx_portals_00, 0x007D0000, 0x007D0001},
+    {&sec_load_nx_monster_00, 0x007E0000, 0x007E0001},
+    {&sec_load_nx_kamidogus_00, 0x007F0000, 0x007F0001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_or1_pic_tbl[] = {
-    {&sec_loading_or_panoramic_00, (char*)0x00800000, (char*)0x00800001},
-    {&sec_loading_or_aerial_00, (char*)0x00810000, (char*)0x00810001},
-    {&sec_loading_or_jail_02, (char*)0x00820000, (char*)0x00820001},
-    {&sec_loading_or_riot_01, (char*)0x00830000, (char*)0x00830001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_or1_pic_tbl[] = {
+    {&sec_loading_or_panoramic_00, 0x00800000, 0x00800001},
+    {&sec_loading_or_aerial_00, 0x00810000, 0x00810001},
+    {&sec_loading_or_jail_02, 0x00820000, 0x00820001},
+    {&sec_loading_or_riot_01, 0x00830000, 0x00830001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_cr1_pic_tbl[] = {
-    {&sec_load_cr_noob_02, (char*)0x00840000, (char*)0x00840001},
-    {&sec_load_cr_redcore_00, (char*)0x00850000, (char*)0x00850001},
-    {&sec_load_cr_teleport_03, (char*)0x00860000, (char*)0x00860001},
-    {&sec_load_cr_havik_01, (char*)0x00870000, (char*)0x00870001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_cr1_pic_tbl[] = {
+    {&sec_load_cr_noob_02, 0x00840000, 0x00840001},
+    {&sec_load_cr_redcore_00, 0x00850000, 0x00850001},
+    {&sec_load_cr_teleport_03, 0x00860000, 0x00860001},
+    {&sec_load_cr_havik_01, 0x00870000, 0x00870001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_ow1_pic_tbl[] = {
-    {&sec_loading_ow_capture_03, (char*)0x00900000, (char*)0x00900001},
-    {&sec_loading_ow_tarkatas_00, (char*)0x00910000, (char*)0x00910001},
-    {&sec_loading_ow_shao_01, (char*)0x00920000, (char*)0x00920001},
-    {&sec_load_ow_faceoff_00, (char*)0x00930000, (char*)0x00930001},
-    {&sec_loading_ow_kano_02, (char*)0x00940000, (char*)0x00940001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_ow1_pic_tbl[] = {
+    {&sec_loading_ow_capture_03, 0x00900000, 0x00900001},
+    {&sec_loading_ow_tarkatas_00, 0x00910000, 0x00910001},
+    {&sec_loading_ow_shao_01, 0x00920000, 0x00920001},
+    {&sec_load_ow_faceoff_00, 0x00930000, 0x00930001},
+    {&sec_loading_ow_kano_02, 0x00940000, 0x00940001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_nr1_pic_tbl[] = {
-    {&sec_load_nr_ermac_01, (char*)0x00880000, (char*)0x00880001},
-    {&sec_load_nr_skulls_00, (char*)0x00890000, (char*)0x00890001},
-    {&sec_load_nr_town_00, (char*)0x008A0000, (char*)0x008A0001},
-    {&sec_load_nr_ashrah_02, (char*)0x008B0000, (char*)0x008B0001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_nr1_pic_tbl[] = {
+    {&sec_load_nr_ermac_01, 0x00880000, 0x00880001},
+    {&sec_load_nr_skulls_00, 0x00890000, 0x00890001},
+    {&sec_load_nr_town_00, 0x008A0000, 0x008A0001},
+    {&sec_load_nr_ashrah_02, 0x008B0000, 0x008B0001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_konquest_ed1_pic_tbl[] = {
-    {&sec_load_ed_palace_00, (char*)0x008C0000, (char*)0x008C0001},
-    {&sec_load_ed_entrance_00, (char*)0x008D0000, (char*)0x008D0001},
-    {&sec_load_ed_tanya_01, (char*)0x008E0000, (char*)0x008E0001},
-    {&sec_load_ed_knighted_02, (char*)0x008F0000, (char*)0x008F0001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_konquest_ed1_pic_tbl[] = {
+    {&sec_load_ed_palace_00, 0x008C0000, 0x008C0001},
+    {&sec_load_ed_entrance_00, 0x008D0000, 0x008D0001},
+    {&sec_load_ed_tanya_01, 0x008E0000, 0x008E0001},
+    {&sec_load_ed_knighted_02, 0x008F0000, 0x008F0001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_chess_pic_tbl[] = {
-    {&sec_chess_load, (char*)0x00950000, (char*)0x00950001},
-    {&sec_loading_chess_ash_bo, (char*)0x00960000, (char*)0x00960001},
-    {&sec_loading_chess_ashrah, (char*)0x00970000, (char*)0x00970001},
-    {&sec_loading_chess_barmil, (char*)0x00980000, (char*)0x00980001},
-    {&sec_loading_chess_bomb, (char*)0x00990000, (char*)0x00990001},
-    {&sec_loading_chess_dr_vs_kb, (char*)0x009A0000, (char*)0x009A0001},
-    {&sec_loading_chess_er_cs, (char*)0x009B0000, (char*)0x009B0001},
-    {&sec_loading_chess_sindel, (char*)0x009C0000, (char*)0x009C0001},
-    {&sec_loading_chess_sc_sz, (char*)0x009D0000, (char*)0x009D0001},
-    {&sec_loading_chess_nightwolf, (char*)0x009E0000, (char*)0x009E0001},
-    {&sec_loading_chess_sz_scorp, (char*)0x009F0000, (char*)0x009F0001},
-    {&sec_loading_chess_nw_br, (char*)0x00A00000, (char*)0x00A00001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_chess_pic_tbl[] = {
+    {&sec_chess_load, 0x00950000, 0x00950001},
+    {&sec_loading_chess_ash_bo, 0x00960000, 0x00960001},
+    {&sec_loading_chess_ashrah, 0x00970000, 0x00970001},
+    {&sec_loading_chess_barmil, 0x00980000, 0x00980001},
+    {&sec_loading_chess_bomb, 0x00990000, 0x00990001},
+    {&sec_loading_chess_dr_vs_kb, 0x009A0000, 0x009A0001},
+    {&sec_loading_chess_er_cs, 0x009B0000, 0x009B0001},
+    {&sec_loading_chess_sindel, 0x009C0000, 0x009C0001},
+    {&sec_loading_chess_sc_sz, 0x009D0000, 0x009D0001},
+    {&sec_loading_chess_nightwolf, 0x009E0000, 0x009E0001},
+    {&sec_loading_chess_sz_scorp, 0x009F0000, 0x009F0001},
+    {&sec_loading_chess_nw_br, 0x00A00000, 0x00A00001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-LoadingScreenEntry loading_puzzle_pic_tbl[] = {
-    {&sec_loading_puzzle_br_vs_mil, (char*)0x00A10000, (char*)0x00A10001},
-    {&sec_loading_puzzle_br_nw, (char*)0x00A20000, (char*)0x00A20001},
-    {&sec_loading_puzzle_er_vs_as, (char*)0x00A30000, (char*)0x00A30001},
-    {&sec_loading_puzzle_er_vs_sz, (char*)0x00A40000, (char*)0x00A40001},
-    {&sec_loading_puzzle_ho_vs_sc, (char*)0x00A50000, (char*)0x00A50001},
-    {&sec_loading_puzzle_snake, (char*)0x00A60000, (char*)0x00A60001},
-    {(MkFileInfo*)-1, (char*)-1, (char*)-1},
+struct LoadingScreenEntry loading_puzzle_pic_tbl[] = {
+    {&sec_loading_puzzle_br_vs_mil, 0x00A10000, 0x00A10001},
+    {&sec_loading_puzzle_br_nw, 0x00A20000, 0x00A20001},
+    {&sec_loading_puzzle_er_vs_as, 0x00A30000, 0x00A30001},
+    {&sec_loading_puzzle_er_vs_sz, 0x00A40000, 0x00A40001},
+    {&sec_loading_puzzle_ho_vs_sc, 0x00A50000, 0x00A50001},
+    {&sec_loading_puzzle_snake, 0x00A60000, 0x00A60001},
+    {(MkFileInfo*)-1, 0xFFFFFFFFu, 0xFFFFFFFFu},
 };
 
-char* round_numbers_tbl[] = {
-    (char*)0x00020020, (char*)0x00020021, (char*)0x00020022,
-    (char*)0x00020023, (char*)0x00020024,
+unsigned int round_numbers_tbl[] = {
+    0x00020020, 0x00020021, 0x00020022,
+    0x00020023, 0x00020024,
 };
-extern GlobalPlayerEntry global_player_data[];
-extern const MkFileEntry fatalityanims_file_table[];
-extern int mk_chess_check_for_fatality(void);
+extern MkFileEntry fatalityanims_file_table[];
 extern void mk_chess_game_just_ended(void);
 extern int trial_end_round(void);
-extern void update_plyr_medals(void);
 extern int advance_ladder_position(void);
 extern void award_bet(void);
 extern void ck_restore_kiddy(void);
-extern void one_player_ladder_init(void);
 extern void finish_music(void);
 extern void end_music(void);
 extern void play_final_fatality_music(void);
 extern void big_boss_death(void);
 extern void do_win_effect(void);
 extern void reset_fight(int death_trap);
-extern char* round_numbers_tbl[];
+extern unsigned int round_numbers_tbl[];
 extern void init_wagering(void);
 extern int get_current_wager_koin(void);
 extern int char_for_ending;
 extern int winner_for_ending;
-extern KonquestLoadingPdataView* konquest_pdata;
+extern struct KonquestLoadingPdataView* konquest_pdata;
 extern unsigned char konquest_save_data[];
 extern char bgnd_animations[];
 extern int g_big_boss_intro_tap_out_f;
-extern float p_animate(void);
 extern float p_animated_intro_done(void);
 extern float p_attract_camera(void);
 extern float p_ladder_select(void);
 extern float big_boss_taunt_cam_cut(void);
-extern void show_wins_in_a_row(void);
-extern void extend_powerbars(void);
 extern void sidekick_intro_check(void);
-extern void bgnd_anim_camera_setup(void);
-extern void bgnd_anim_camera_ended(void);
 extern int intro_done(void);
 extern void trial_start_new_round(void);
 extern void trial_round_init(void);
-extern int trial_show_standard_fight_messages(void);
 extern void mk_chess_advantage_hud(void);
 extern MkProc* get_player_proc(void* player);
 extern void big_boss_wait_for_intro(void);
@@ -548,13 +459,6 @@ extern void player_postround_chores(void);
 extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
 extern void trial_setup_fight(void);
-extern void mk_chess_in_fight_setup(void);
-extern int ladder_get_current_bgnd(void);
-extern int load_background(int bgnd_id);
-extern void setup_sound_banks(int mode);
-extern void wait_for_sound_banks_to_load(void);
-extern void start_first_pass_render(void);
-extern void end_first_pass_render(void);
 extern const char* get_pause_menu_name(void);
 extern const MkFileEntry loading_images_file_table[];
 extern int num_files_loaded;
@@ -570,12 +474,9 @@ extern float glitch_to_stance_j_exit(void);
 extern float blend_to_stance_j_exit(void);
 extern float getup_from_ground(void);
 extern float give_some_distance(void);
-extern void start_tunes(void);
 extern float p_champion_screen(void);
 
 static void ck_do_fatality(void);
-
-
 
 static inline StringObj* validated_string_instance(
     StringObj* object, unsigned int instance) {
@@ -587,16 +488,13 @@ static inline ScreenObj* validated_screen_instance(
     return MK_LIVE(object, instance);
 }
 
-
-
 static inline void center_fight_effect(ScreenObj* object) {
-    object->x = (int)((float)(screen_width / 2) -
-                      (float)(object->pfx2d->tex_w / 2) * object->scale_x);
+    object->x = (float)(screen_width / 2) -
+                (float)(object->pfx2d->tex_w / 2) * object->scale_x;
     object->y = (int)((float)(screen_height / 2) -
                       (float)(object->pfx2d->tex_h / 2) * object->scale_y) +
                 20;
 }
-
 
 void init_bet_info_struct(void) {
     g_game_info.pselect.field_1d0 = 0;
@@ -691,7 +589,7 @@ static void do_fight_effect(void) {
     }
 
     _mkproc_sleep_ticks = 100.0f;
-    ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 
     for (i = 0; i < 30; i++) {
         for (material = 0; material < 4; material++) {
@@ -706,13 +604,13 @@ static void do_fight_effect(void) {
         center_fight_effect(fight);
 
         _mkproc_sleep_ticks = 1.0f;
-        ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 
     fight->pfx2d->scale_x = 1.0f;
     fight->pfx2d->scale_y = 1.0f;
     _mkproc_sleep_ticks = 60.0f;
-    ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 
     if (fight->instance != 0) {
         fight->typed_vtbl->destroy(fight);
@@ -813,14 +711,14 @@ int check_for_winner(void) {
 
 float do_join_in(void) {
     int game_state = get_game_state();
-    JoinInPdata* join = (JoinInPdata*)apdata;
+    struct JoinInPdata* join = (struct JoinInPdata*)apdata;
     char message[80];
     ScreenObj* overlay;
     int player_number;
 
     load_font(3);
-    ((JoinByteFlags*)&g_game_info.flags)->bits.bit5 = 0;
-    ((JoinByteFlags*)&g_game_info.flags)->bits.bit7 = 0;
+    g_game_info.flag_bits.lens_flare_enabled = 0;
+    g_game_info.flag_bits.high_res_path = 0;
     turn_controllers_off();
     b_game_timer_off = 1;
     snd_req(0x1AA5);
@@ -828,7 +726,7 @@ float do_join_in(void) {
     if (game_state == 3) {
         snd_req(0x1B47);
         _mkproc_sleep_ticks = 30.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         fade_to_black(8, 1);
         gamelogic_jump(0, p_attract_mode);
     }
@@ -838,11 +736,11 @@ float do_join_in(void) {
 
     g_game_info.plyr0.player_state = 1;
     g_game_info.plyr1.player_state = 1;
-    overlay = load_2d_pfxobj(0, 0x2020, (char*)0x10017, 0, 0x1E);
+    overlay = load_2d_pfxobj(0, 0x2020, 0x10017, 0, 0x1E);
     if (overlay != 0) {
         overlay->x = 0x8F;
         overlay->y = 0xBE;
-        ((JoinByteFlags*)&overlay->flags)->bits.bit3 = 1;
+        overlay->flag_bits.scaled = 1;
         overlay->scale_x = 22.0f;
         overlay->scale_y = 8.0f;
         pfx_2d_obj_set_alpha_by_id(0x2020, 0xB4);
@@ -874,9 +772,9 @@ float do_join_in(void) {
 
     pause_procs(1);
     g_game_info.field_1F8 = 2;
-    ((JoinProcFlagsView*)aproc)->flag_bits.bit3 = 1;
+    aproc->flags_bits.skip_if_paused = 1;
     _mkproc_sleep_ticks = 60.0f;
-    ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     fade_to_black(8, 1);
     pause_procs(0);
     if (game_state == 0x12) {
@@ -915,7 +813,7 @@ float p_flash_demo_fight_text(void) {
     }
 
     _mkproc_sleep_ticks = 20.0f;
-    ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 
     text = MK_LIVE((ScreenObj*)df_press_start_item.obj, df_press_start_item.obj_instance);
     if (text != 0) {
@@ -927,19 +825,19 @@ float p_flash_demo_fight_text(void) {
 float p_do_damage_text(void) {
     int velocity;
     int ticks;
-    DamageTextPdata* pdata;
+    struct DamageTextPdata* pdata;
     StringObj* string;
 
-    pdata = (DamageTextPdata*)apdata;
+    pdata = (struct DamageTextPdata*)apdata;
     string = 0;
     velocity = 7;
 
     if (pdata->player == 0) {
         string = string_right_xy(
-            0x201C, 0, pdata->text, 0, (int)pdata->y, 0x1D);
+            0x201C, 0, pdata->text, 0, pdata->y, 0x1D);
     } else if (pdata->player == 1) {
         string = string_left_xy(
-            0x201C, 0, pdata->text, screen_width, (int)pdata->y, 0x1D);
+            0x201C, 0, pdata->text, screen_width, pdata->y, 0x1D);
         velocity *= -1;
     }
 
@@ -949,7 +847,7 @@ float p_do_damage_text(void) {
             string->render_x += velocity;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         ticks--;
     } while (ticks > 0);
 
@@ -965,25 +863,22 @@ float p_do_damage_text(void) {
         set_string_obj_alpha(
             string, (float)string->pfx.instance0.rgba[3] - 4.0f);
         _mkproc_sleep_ticks = 1.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         ticks++;
     } while (ticks < 62);
 
     if (string->instance != 0) {
-        DamageStringVtable* vtbl;
-
-        vtbl = (DamageStringVtable*)string->vtbl;
-        vtbl->destroy(string, vtbl);
+        string->typed_vtbl->destroy(string);
     }
 
     return -1.0f;
 }
 
 void show_damage_text(int player, int damage, int total) {
-    DamageTextPdata* pdata;
+    struct DamageTextPdata* pdata;
 
     if (_create_mkproc_generic_tinystack(
-            0x2028, 0x1F, p_do_damage_text, sizeof(DamageTextPdata),
+            0x2028, 0x1F, p_do_damage_text, sizeof(struct DamageTextPdata),
             (MkHdr**)&pdata) != 0) {
         pdata->font_size = ((damage - 1) * 2) + 13;
         if (pdata->font_size > 21) {
@@ -996,7 +891,7 @@ void show_damage_text(int player, int damage, int total) {
     }
 
     if (_create_mkproc_generic_tinystack(
-            0x2028, 0x1F, p_do_damage_text, sizeof(DamageTextPdata),
+            0x2028, 0x1F, p_do_damage_text, sizeof(struct DamageTextPdata),
             (MkHdr**)&pdata) != 0) {
         pdata->font_size = ((damage - 1) * 2) + 10;
         pdata->player = player;
@@ -1006,34 +901,37 @@ void show_damage_text(int player, int damage, int total) {
     }
 }
 
+static inline void move_player0_to_round_start(void)
+{
+    Vec angles;
+    BgndMisc* starts = g_game_info.misc;
+
+    angles.x = starts->player0_angles.x;
+    angles.y = starts->player0_angles.y;
+    angles.z = starts->player0_angles.z;
+    starts->player0_start.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
+    move_player(g_game_info.plyr0.slot.mirror_a, &starts->player0_start, &angles);
+}
+
+static inline void move_player1_to_round_start(void)
+{
+    Vec angles;
+    BgndMisc* starts = g_game_info.misc;
+
+    angles.x = starts->player1_angles.x;
+    angles.y = starts->player1_angles.y;
+    angles.z = starts->player1_angles.z;
+    starts->player1_start.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
+    move_player(g_game_info.plyr1.slot.mirror_a, &starts->player1_start, &angles);
+}
+
 void move_plyrs_to_round_start(void) {
-    Vec player1_angles;
-    Vec player2_angles;
-
     if (g_game_info.plyr0.slot.mirror_a != 0) {
-        RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
-
-        player1_angles.x = starts->player1_angles.x;
-        player1_angles.y = starts->player1_angles.y;
-        player1_angles.z = starts->player1_angles.z;
-        starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
-        move_player(
-            g_game_info.plyr0.slot.mirror_a,
-            &starts->player1_position,
-            &player1_angles);
+        move_player0_to_round_start();
     }
 
     if (g_game_info.plyr1.slot.mirror_a != 0) {
-        RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
-
-        player2_angles.x = starts->player2_angles.x;
-        player2_angles.y = starts->player2_angles.y;
-        player2_angles.z = starts->player2_angles.z;
-        starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
-        move_player(
-            g_game_info.plyr1.slot.mirror_a,
-            &starts->player2_position,
-            &player2_angles);
+        move_player1_to_round_start();
     }
 
     if (mode_of_play == 8) {
@@ -1075,7 +973,7 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [breakthrough needed] 96.43906%; retail seeds eight handle/instance latches by
+/* TODO: [breakthrough needed] 96.77680%; retail seeds eight handle/instance latches by
  * copying one zero register (constant propagation defeats chained forms); coloring follows. */
 void do_win_effect(void) {
     PlyrInfo* victor;
@@ -1191,29 +1089,29 @@ void do_win_effect(void) {
     }
 
     _mkproc_sleep_ticks = intro_ticks;
-    ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 
     if (f_fatality_was_done != 0 &&
         is_big_boss(defeated->slot.pdata) == 0) {
         if (get_current_ssf_file() != fatalityanims_file_table) {
-            load_ssf((MkFileEntry*)fatalityanims_file_table);
+            load_ssf(fatalityanims_file_table);
         }
         add_art_section(0x50015, find_section_by_name("fatality_art.sec"));
 
         if (g_game_info.field_200 == 3) {
             fatality_left = load_2d_pfxobj_xy(
-                0x50015, 0x6004, (char*)0x570002, 0,
+                0x50015, 0x6004, 0x570002, 0,
                 ((screen_width - 0x280) / 2) + 0x80, 0xB0, 0x2E);
             fatality_right = load_2d_pfxobj_xy(
-                0x50015, 0x6004, (char*)0x570003, 0,
+                0x50015, 0x6004, 0x570003, 0,
                 ((screen_width - 0x280) / 2) + 0x180, 0xB0, 0x2E);
             snd_req(0x19);
         } else {
             fatality_left = load_2d_pfxobj_xy(
-                0x50015, 0x6004, (char*)0x570000, 0,
+                0x50015, 0x6004, 0x570000, 0,
                 ((screen_width - 0x280) / 2) + 0x80, 0xB0, 0x2E);
             fatality_right = load_2d_pfxobj_xy(
-                0x50015, 0x6004, (char*)0x570001, 0,
+                0x50015, 0x6004, 0x570001, 0,
                 ((screen_width - 0x280) / 2) + 0x180, 0xB0, 0x2E);
             snd_req(0x17);
         }
@@ -1238,7 +1136,7 @@ void do_win_effect(void) {
                 }
                 alpha = 0xFF - alpha > 4 ? alpha + 4 : 0xFF;
                 _mkproc_sleep_ticks = 1.0f;
-                ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+                ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
             }
 
             fatality_left = validated_screen_instance(
@@ -1252,7 +1150,7 @@ void do_win_effect(void) {
                 pfx_2d_obj_set_alpha(fatality_right, alpha);
             }
             _mkproc_sleep_ticks = hold_ticks;
-            ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
     } else if (g_game_info.plyr0.field_0C == g_game_info.plyr0.field_10 ||
                g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
@@ -1262,17 +1160,17 @@ void do_win_effect(void) {
         flawless_text_handle = flawless_text;
         snd_req(0x16);
         _mkproc_sleep_ticks = hold_ticks;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 
     if (g_game_info.pause_flag_bits.fatality_window != 0 &&
         f_fatality_was_done == 0) {
         _mkproc_sleep_ticks = tail_ticks;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     } else if (g_game_info.plyr0.field_0C != g_game_info.plyr0.field_10 ||
                g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
         _mkproc_sleep_ticks = 45.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
     }
 
     alpha = 0xFF;
@@ -1300,7 +1198,7 @@ void do_win_effect(void) {
         }
         alpha = alpha < 4 ? 0 : (unsigned char)(alpha - 4);
         _mkproc_sleep_ticks = 1.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
     }
 
     if (flawless_text != 0 && flawless_text->instance != 0) {
@@ -1329,7 +1227,7 @@ void do_win_effect(void) {
                 game_save_loop_count = 5;
                 init_wagering();
                 _mkproc_sleep_ticks = 60.0f;
-                ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+                aproc->vtbl->sleep();
             }
             return;
         }
@@ -1349,7 +1247,7 @@ void do_win_effect(void) {
                 victor->field_04, g_game_info.pselect.field_1ec,
                 g_game_info.pselect.field_1e4, icon_x);
             _mkproc_sleep_ticks = 60.0f;
-            ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
     }
 }
@@ -1418,7 +1316,7 @@ void reset_fight(int death_trap) {
         bgnd_swap_level(0);
         force_midpoint_calculation_update = 1;
         _mkproc_sleep_ticks = 1.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
 
         reset_severed_limbs(0);
         reset_severed_limbs(1);
@@ -1469,7 +1367,7 @@ void reset_fight(int death_trap) {
         pos_cam_for_current_level();
         force_midpoint_calculation_update = 1;
         _mkproc_sleep_ticks = 1.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
 
         g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
         g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
@@ -1540,7 +1438,7 @@ int round_over(void) {
         turn_controllers_off();
         snd_req(0x10);
         _mkproc_sleep_ticks = 45.0f;
-        ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         atm_reset_current_page(1);
         fade_to_black(10, 1);
         set_player_state(&g_game_info.plyr0, 0);
@@ -1620,7 +1518,7 @@ int round_over(void) {
         do_win_effect();
         while (g_game_info.flag_bits.level_fatality_active) {
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
         break;
     }
@@ -1754,7 +1652,7 @@ int round_over(void) {
         end_music();
         reset_fight(g_game_info.flag_bits.level_fatality_done);
         _mkproc_sleep_ticks = 100.0f;
-        ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     } else {
         reset_fight(g_game_info.flag_bits.level_fatality_done);
     }
@@ -1832,7 +1730,7 @@ void round_init(void) {
 
         process = _create_mkproc_generic_tinystack(
             0x2005, 0x1F, p_flash_demo_fight_text, 8,
-            (MkHdr**)&empty_pdata);
+            &empty_pdata);
         if (process != 0) {
             df_press_start_proc_item.obj = (MkHdr*)process;
             df_press_start_proc_item.obj_instance = process->instance;
@@ -1972,7 +1870,7 @@ void game_init(void) {
 
 float p_demo_fight_timer(void) {
     _mkproc_sleep_ticks = 2100.0f;
-    ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     return -1.0f;
 }
 
@@ -2056,7 +1954,7 @@ static float get_num_sections_to_load(void) {
 
 #pragma dont_inline on
 
-static LoadingScreenEntry* get_loading_table(void) {
+static struct LoadingScreenEntry* get_loading_table(void) {
     unsigned int mode;
     unsigned int region;
 
@@ -2076,7 +1974,7 @@ static LoadingScreenEntry* get_loading_table(void) {
         if ((int)mode == 7) {
             region = konquest_pdata->region;
         } else {
-            region = ((KonquestLoadingSaveView*)konquest_save_data)->region;
+            region = ((struct KonquestLoadingSaveView*)konquest_save_data)->region;
         }
 
         switch (region) {
@@ -2104,10 +2002,11 @@ static LoadingScreenEntry* get_loading_table(void) {
 
 /* TODO: [near miss] 98.15%; pdata and meter nonvolatiles swap (r29/r30); stop at coloring. */
 static float p_load_screen(void) {
-    LoadScreenPdata* pdata;
+    struct LoadScreenPdata* pdata;
     ScreenObj* meter;
+    float progress;
 
-    pdata = (LoadScreenPdata*)apdata;
+    pdata = (struct LoadScreenPdata*)apdata;
     meter = pdata->meter;
     meter = MK_LIVE(meter, pdata->meter_instance);
 
@@ -2211,21 +2110,19 @@ static float p_load_screen(void) {
     if (g_game_info.flag_bits.load_complete) {
         meter->scale_x = 91.0f;
         _mkproc_sleep_ticks = 6.0f;
-        ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         delete_screen_obj_oid(0x2058);
         unload_section_slot(pdata->section_slot);
         g_game_info.flag_bits.high_res_path = 0;
         return -1.0f;
     }
 
-    {
-        float progress = (float)num_files_loaded / pdata->file_count;
+    progress = (float)num_files_loaded / pdata->file_count;
 
-        if (progress > 1.0f) {
-            progress = 1.0f;
-        }
-        meter->scale_x = (float)(int)(183.0f * progress * 0.5f);
+    if (progress > 1.0f) {
+        progress = 1.0f;
     }
+    meter->scale_x = (int)(183.0f * progress * 0.5f);
     return 1.0f;
 }
 
@@ -2236,8 +2133,8 @@ int is_load_meter_active(void) {
 #pragma dont_inline reset
 
 void display_load_meter(int section_slot) {
-    LoadScreenPdata* pdata;
-    LoadingScreenEntry* table;
+    struct LoadScreenPdata* pdata;
+    struct LoadingScreenEntry* table;
     int* image_index;
     int current_index;
 
@@ -2246,7 +2143,7 @@ void display_load_meter(int section_slot) {
     init_file_loading_table();
 
     if (_create_mkproc_generic_bigstack(
-            0x203C, 0x1F, p_load_screen, sizeof(LoadScreenPdata),
+            0x203C, 0x1F, p_load_screen, sizeof(struct LoadScreenPdata),
             (MkHdr**)&pdata) == 0) {
         return;
     }
@@ -2278,7 +2175,7 @@ void display_load_meter(int section_slot) {
         break;
     }
 
-    if (table[*image_index].left_image == (char*)-1) {
+    if (table[*image_index].left_image == 0xFFFFFFFFu) {
         *image_index = 0;
     }
     current_index = *image_index;
@@ -2289,7 +2186,7 @@ void display_load_meter(int section_slot) {
     pdata->file_count = get_num_sections_to_load();
 
     _mkproc_sleep_ticks = 1.0f;
-    ((JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 }
 
 float do_continue(void) {
@@ -2306,7 +2203,7 @@ float do_continue(void) {
 
     while (continue_timer > 0 && target_game_mode == 0x18) {
         _mkproc_sleep_ticks = 70.0f;
-        ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         continue_timer--;
     }
 
@@ -2379,22 +2276,22 @@ int ck_fatality_available(void) {
 }
 
 static float p_say_finish_him(void) {
-    FinishHimPdata* pdata;
+    struct FinishHimPdata* pdata;
     ScreenObj* first;
     ScreenObj* second;
     int combined_width;
     int tick;
     float scale;
 
-    pdata = (FinishHimPdata*)apdata;
+    pdata = (struct FinishHimPdata*)apdata;
     if (pdata->alternate_voice != 0) {
         snd_req_delay(0x15, 0x14);
-        second = load_2d_pfxobj(0x10005, 0x201D, (char*)0x20027, 0, 0x2D);
+        second = load_2d_pfxobj(0x10005, 0x201D, 0x20027, 0, 0x2D);
     } else {
         snd_req_delay(0x14, 0x14);
-        second = load_2d_pfxobj(0x10005, 0x201D, (char*)0x20026, 0, 0x2D);
+        second = load_2d_pfxobj(0x10005, 0x201D, 0x20026, 0, 0x2D);
     }
-    first = load_2d_pfxobj(0x10005, 0x201D, (char*)0x20025, 0, 0x2D);
+    first = load_2d_pfxobj(0x10005, 0x201D, 0x20025, 0, 0x2D);
     if (first != 0 && second != 0) {
         combined_width = first->pfx2d->tex_w + second->pfx2d->tex_w;
         combined_width = combined_width / 2;
@@ -2404,18 +2301,17 @@ static float p_say_finish_him(void) {
             scale = (float)tick / 30.0f;
             first->scale_x = scale;
             first->scale_y = scale;
-            first->x = (int)(-((float)combined_width * first->scale_x -
-                               (float)(screen_width / 2)));
-            first->y = (int)(-((float)(first->pfx2d->tex_h / 2) *
-                                   first->scale_x -
-                               (float)(screen_width / 2)));
+            first->x = -((float)combined_width * first->scale_x -
+                         (float)(screen_width / 2));
+            first->y = -((float)(first->pfx2d->tex_h / 2) *
+                         first->scale_x - (float)(screen_width / 2));
             second->scale_x = scale;
             second->scale_y = scale;
-            second->x = (int)((float)first->pfx2d->tex_w * first->scale_x +
-                              (float)first->x);
+            second->x = (float)first->pfx2d->tex_w * first->scale_x +
+                        (float)first->x;
             second->y = first->y;
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
 
         for (tick = 0; tick < 90; tick++) {
@@ -2423,7 +2319,7 @@ static float p_say_finish_him(void) {
                 tick = 90;
             }
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
 
         for (tick = 0; tick < 30; tick++) {
@@ -2436,7 +2332,7 @@ static float p_say_finish_him(void) {
             second->pfx2d->verts[2].a -= 8;
             second->pfx2d->verts[3].a -= 8;
             _mkproc_sleep_ticks = 1.0f;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
 
         if (first->instance != 0) {
@@ -2448,7 +2344,6 @@ static float p_say_finish_him(void) {
     }
     return -1.0f;
 }
-
 
 static void ck_do_fatality(void) {
     int fatality_occurred = 0;
@@ -2481,8 +2376,8 @@ static void ck_do_fatality(void) {
         is_big_boss(victim->slot.pdata) == 0) {
         if (_create_mkproc_generic_bigstack(
                 0x900A, 0x1F, p_say_finish_him,
-                sizeof(FinishHimPdata), &spawned_pdata) != 0) {
-            ((FinishHimPdata*)spawned_pdata)->alternate_voice =
+                sizeof(struct FinishHimPdata), &spawned_pdata) != 0) {
+            ((struct FinishHimPdata*)spawned_pdata)->alternate_voice =
                 am_i_female(victim->slot.pdata);
         }
         finish_music();
@@ -2491,7 +2386,7 @@ static void ck_do_fatality(void) {
         while (victim->slot.pdata->state != 0x4203 && timeout != 0) {
             _mkproc_sleep_ticks = 1.0f;
             timeout--;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
 
         timeout = 300;
@@ -2501,7 +2396,7 @@ static void ck_do_fatality(void) {
             }
             _mkproc_sleep_ticks = 1.0f;
             timeout--;
-            ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
         }
     }
 
@@ -2560,12 +2455,12 @@ static void ck_do_fatality(void) {
     while (f_fatality_finished == 0 && ending_ticks > 0.0f) {
         _mkproc_sleep_ticks = 1.0f;
         ending_ticks -= game_speed;
-        ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 
     play_final_fatality_music();
     _mkproc_sleep_ticks = 20.0f;
-    ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
 }
 
 void ck_do_profile_save(void) {
@@ -2581,13 +2476,13 @@ static float p_do_ending(void) {
         winner_for_ending = 0;
         set_player_state(&g_game_info.plyr1, 0);
         mark_as_unlocked(
-            (PlayerProfile*)&p1_profile, 6, char_for_ending);
+            &p1_profile, 6, char_for_ending);
     } else {
         char_for_ending = g_game_info.plyr1.player_index;
         winner_for_ending = 1;
         set_player_state(&g_game_info.plyr0, 0);
         mark_as_unlocked(
-            (PlayerProfile*)&p2_profile, 6, char_for_ending);
+            &p2_profile, 6, char_for_ending);
     }
 
     fade_to_black(8, 1);
@@ -2602,7 +2497,7 @@ float p_game_loop(void) {
     int timeout;
     int active_players;
     MkProc* proc;
-    BgndAnimationsView* animations;
+    struct BgndAnimationsView* animations;
 
     set_game_switch_maps();
     if (get_game_state() == 7 && mode_of_play != 8) {
@@ -2642,7 +2537,7 @@ float p_game_loop(void) {
         trial_round_init();
     } else if (g_game_info.pselect.field_1f4 == 1) {
         sidekick_intro_check();
-        animations = (BgndAnimationsView*)bgnd_animations;
+        animations = (struct BgndAnimationsView*)bgnd_animations;
         if (animations->intro_path != 0 && mode_of_play != 4) {
             set_intro_camera_path((void*)1);
             bgnd_anim_camera_setup();
@@ -2843,8 +2738,8 @@ float p_game_loop(void) {
 }
 
 float p_gamelogic(void) {
-    LoadScreenPdata* pdata;
-    LoadingScreenEntry* table;
+    struct LoadScreenPdata* pdata;
+    struct LoadingScreenEntry* table;
     int* image_index;
     int current_index;
     int active_players;
@@ -2874,7 +2769,7 @@ float p_gamelogic(void) {
     g_game_info.flag_bits.high_res_path = 1;
     init_file_loading_table();
     if (_create_mkproc_generic_bigstack(
-            0x203C, 0x1F, p_load_screen, sizeof(LoadScreenPdata),
+            0x203C, 0x1F, p_load_screen, sizeof(struct LoadScreenPdata),
             (MkHdr**)&pdata) != 0) {
         pdata->meter = 0;
         pdata->meter_instance = 0;
@@ -2902,7 +2797,7 @@ float p_gamelogic(void) {
             image_index = &game_settings.fight_loading_image;
             break;
         }
-        if (table[*image_index].left_image == (char*)-1) {
+        if (table[*image_index].left_image == 0xFFFFFFFFu) {
             *image_index = 0;
         }
         current_index = *image_index;
@@ -2912,7 +2807,7 @@ float p_gamelogic(void) {
         pdata->table = get_loading_table();
         pdata->file_count = get_num_sections_to_load();
         _mkproc_sleep_ticks = 1.0f;
-        ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 
     turn_camera_on();
@@ -2970,10 +2865,10 @@ float p_gamelogic(void) {
     wait_for_sound_banks_to_load();
     _mkproc_sleep_ticks = 6.0f;
     g_game_info.flag_bits.load_complete = 1;
-    ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     start_first_pass_render();
     _mkproc_sleep_ticks = 3.0f;
-    ((GameLoopProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     end_first_pass_render();
     turn_camera_off();
     game_init();
@@ -2984,12 +2879,11 @@ float p_gamelogic(void) {
         unload_section_slot(pause_slot);
         preload_screen_data(pause_name, pause_slot);
     }
-    ((GameLoopProcVtable*)aproc->vtbl)->jump_sleep(
-        p_game_loop, aproc->vtbl, 0.0f);
+    aproc->vtbl->jump_sleep(p_game_loop, 0.0f);
     return 0.0f;
 }
 
 void init_game_info_struct(void) {
-    ((GameInfoInitPrefix*)&g_game_info)->word = 0;
-    ((GameInfoInitPrefix*)&g_game_info)->bits.flag_6 = 0;
+    ((union GameInfoInitPrefix*)&g_game_info)->word = 0;
+    ((union GameInfoInitPrefix*)&g_game_info)->bits.flag_6 = 0;
 }

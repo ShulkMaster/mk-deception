@@ -1,5 +1,6 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/os.h"
+#include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
 
 #define INTERRUPT_MASK(index) (1UL << (31 - (index)))
@@ -12,7 +13,6 @@
 #define MASK_EXI 0x007F8000UL
 #define MASK_PI 0x00007FE0UL
 
-#ifdef __MWERKS__
 #define INTERRUPT_HANDLER_STORAGE ((__OSInterruptHandler*)0x80003040)
 #define GLOBAL_MASK (*(volatile OSInterruptMask*)0x800000C4)
 #define LOCAL_MASK (*(volatile OSInterruptMask*)0x800000C8)
@@ -21,27 +21,6 @@ volatile unsigned short DSP_REGS[] : 0xCC005000;
 volatile unsigned long AI_REGS[] : 0xCC006C00;
 volatile unsigned long EXI_REGS[] : 0xCC006800;
 volatile unsigned long PI_REGS[] : 0xCC003000;
-#else
-static __OSInterruptHandler HostInterruptHandlerTable[32];
-static volatile OSInterruptMask HostGlobalMask;
-static volatile OSInterruptMask HostLocalMask;
-static volatile unsigned short HostMemRegs[64];
-static volatile unsigned short HostDspRegs[32];
-static volatile unsigned long HostAiRegs[1];
-static volatile unsigned long HostExiRegs[15];
-static volatile unsigned long HostPiRegs[12];
-
-#define INTERRUPT_HANDLER_STORAGE HostInterruptHandlerTable
-#define GLOBAL_MASK HostGlobalMask
-#define LOCAL_MASK HostLocalMask
-#define MEM_REGS HostMemRegs
-#define DSP_REGS HostDspRegs
-#define AI_REGS HostAiRegs
-#define EXI_REGS HostExiRegs
-#define PI_REGS HostPiRegs
-#endif
-
-extern void* memset(void* destination, int value, unsigned long size);
 
 static __OSInterruptHandler* InterruptHandlerTable;
 
@@ -177,8 +156,6 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
     return mask;
 }
 
-/* TODO: [blocked] 69.74%; retail calls OSDisableInterrupts/OSRestoreInterrupts out of line, but ours
- * inline their C MSR placeholders; resolves once those asm-origin routines exist. */
 OSInterruptMask __OSMaskInterrupts(OSInterruptMask global)
 {
     int enabled;
@@ -199,8 +176,6 @@ OSInterruptMask __OSMaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
-/* TODO: [blocked] 69.74%; retail calls OSDisableInterrupts/OSRestoreInterrupts out of line, but ours
- * inline their C MSR placeholders; resolves once those asm-origin routines exist. */
 OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
 {
     int enabled;

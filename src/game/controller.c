@@ -15,6 +15,8 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
+#include "runtime/cstdio.h"
+#include "platform/display_metrics.h"
 
 #define RUMBLE_PROC_PID 0x2064
 #define CONTROLLER_FADEBOX_OID 0x2081
@@ -23,17 +25,13 @@
 #define CONTROLLER_FADEBOX_KEEP_FLAG 0x02
 #define CONTROLLER_SCREEN_CENTER ((screen_width - 0x280) / 2)
 
-typedef struct RumblePdata {
+struct RumblePdata {
     MkHdr hdr;
     int port;
     int strength;
     int ticks;
-} RumblePdata;
+};
 
-int p1_rumble_on;
-int p2_rumble_on;
-int p1_temp_rumble_state;
-int p2_temp_rumble_state;
 SwitchMapEntry default_switch_map[16] = {
     {0x0001, pad_l2_proc, "PAD_L2"},
     {0x0002, pad_r2_proc, "PAD_R2"},
@@ -52,8 +50,6 @@ SwitchMapEntry default_switch_map[16] = {
     {0x4000, pad_ldn_proc, "PAD_LDN"},
     {0x8000, pad_llt_proc, "PAD_LLT"}
 };
-extern PlayerProfile p1_profile;
-extern PlayerProfile p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
 SwitchMapEntry p2_profile_switch_map[PROFILE_SWITCHMAP_COUNT];
@@ -64,28 +60,28 @@ extern int menu_player;
 extern int sounds_muted;
 extern void mute_all_game_sounds(void);
 extern void unmute_all_game_sounds(void);
-extern int screen_width;
-extern int sprintf(char* buffer, const char* format, ...);
 
 static float p_rumble_controller(void);
 static float p_do_controller_removed(void);
-PlyrInfo* get_player_for_port(int port);
-void set_game_switch_map(PlyrInfo* player);
 
-typedef struct ControllerRemovedPdata {
+struct ControllerRemovedPdata {
     MkHdr hdr;
     int port;
     int controllers_disabled;
-} ControllerRemovedPdata;
+};
 
-typedef struct ControllerScreenObjRef {
+struct ControllerScreenObjRef {
     ScreenObj* object;
     int instance;
-} ControllerScreenObjRef;
+};
 
-static ControllerScreenObjRef cnt_rem_fadebox_item;
-int p2_use_temp_switch_map;
 int p1_use_temp_switch_map;
+int p2_use_temp_switch_map;
+static struct ControllerScreenObjRef cnt_rem_fadebox_item;
+int p2_temp_rumble_state;
+int p1_temp_rumble_state;
+int p2_rumble_on;
+int p1_rumble_on;
 
 #define DRAW_CONTROLLER_REMOVED_TEXT(screen_oid, player_x, port_number, text_buffer) \
     do {                                                                            \
@@ -148,9 +144,9 @@ void turn_all_rumble_motors_off(void) {
 }
 
 static float p_rumble_controller(void) {
-    RumblePdata* pdata;
+    struct RumblePdata* pdata;
 
-    pdata = (RumblePdata*)apdata;
+    pdata = (struct RumblePdata*)apdata;
     if (pdata != 0) {
         turn_rumble_on(pdata->port, pdata->strength);
         _mkproc_sleep_ticks = pdata->ticks;
@@ -163,7 +159,7 @@ static float p_rumble_controller(void) {
 void ck_rumble_controller(int player, int strength, int ticks) {
     int game_state;
     int port;
-    RumblePdata* pdata;
+    struct RumblePdata* pdata;
 
     game_state = get_game_state();
     if (player == 0) {
@@ -188,7 +184,7 @@ void ck_rumble_controller(int player, int strength, int ticks) {
         return;
     }
     if (_create_mkproc_generic_tinystack(
-            RUMBLE_PROC_PID, 0x1F, p_rumble_controller, sizeof(RumblePdata), (MkHdr**)&pdata) == 0) {
+            RUMBLE_PROC_PID, 0x1F, p_rumble_controller, sizeof(struct RumblePdata), (MkHdr**)&pdata) == 0) {
         return;
     }
 
@@ -199,7 +195,7 @@ void ck_rumble_controller(int player, int strength, int ticks) {
 
 /* TODO: [near miss] 83.81%; nonvolatile allocation and repeated screen-item latch/UI emission remain. */
 static float p_do_controller_removed(void) {
-    ControllerRemovedPdata* pdata;
+    struct ControllerRemovedPdata* pdata;
     GcPadSlot* pad;
     PlyrInfo* player;
     ScreenObj* fadebox;
@@ -216,7 +212,7 @@ static float p_do_controller_removed(void) {
     load_font(0);
     load_font(3);
 
-    pdata = (ControllerRemovedPdata*)apdata;
+    pdata = (struct ControllerRemovedPdata*)apdata;
     port = pdata->port;
     if (port < 0 || port > 3) {
         return -1.0f;
@@ -274,7 +270,7 @@ static float p_do_controller_removed(void) {
         fadebox = 0;
     }
     if (fadebox == 0) {
-        fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, (char*)0x10017, 0, 3);
+        fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
         if (fadebox != 0) {
             cnt_rem_fadebox_item.object = fadebox;
             cnt_rem_fadebox_item.instance = fadebox->instance;
@@ -303,7 +299,7 @@ static float p_do_controller_removed(void) {
             fadebox = 0;
         }
         if (fadebox == 0) {
-            fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, (char*)0x10017, 0, 3);
+            fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
             if (fadebox != 0) {
                 cnt_rem_fadebox_item.object = fadebox;
                 cnt_rem_fadebox_item.instance = fadebox->instance;
@@ -365,11 +361,11 @@ static float p_do_controller_removed(void) {
 
 void update_pause_menu_controller_state(void) {
     MkProc* proc;
-    ControllerRemovedPdata* pdata;
+    struct ControllerRemovedPdata* pdata;
 
     proc = find_mkproc_pid(0x208B);
     if (proc != 0) {
-        pdata = (ControllerRemovedPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerRemovedPdata*)pdata_of_proc(proc);
         if (pdata != 0) {
             pdata->controllers_disabled = (g_game_info.pause_flags >> 1) & 1;
         }
@@ -389,11 +385,11 @@ int is_controller_removed(void) {
 
 void update_cnt_removed_controller_state(void) {
     MkProc* proc;
-    ControllerRemovedPdata* pdata;
+    struct ControllerRemovedPdata* pdata;
 
     proc = find_mkproc_pid(0x2065);
     if (proc != 0) {
-        pdata = (ControllerRemovedPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerRemovedPdata*)pdata_of_proc(proc);
         if (pdata != 0) {
             pdata->controllers_disabled = (g_game_info.pause_flags >> 1) & 1;
         }
@@ -401,7 +397,7 @@ void update_cnt_removed_controller_state(void) {
 
     proc = find_mkproc_pid(0x2066);
     if (proc != 0) {
-        pdata = (ControllerRemovedPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerRemovedPdata*)pdata_of_proc(proc);
         if (pdata != 0) {
             pdata->controllers_disabled = (g_game_info.pause_flags >> 1) & 1;
         }
@@ -410,7 +406,7 @@ void update_cnt_removed_controller_state(void) {
 
 void controller_removed(int port) {
     MkProc* proc;
-    ControllerRemovedPdata* pdata;
+    struct ControllerRemovedPdata* pdata;
     PlyrInfo* player;
     int pid;
 
@@ -430,7 +426,7 @@ void controller_removed(int port) {
     }
     if (find_mkproc_pid(pid) == 0) {
         proc = _create_mkproc_generic_bigstack(
-            pid, 4, p_do_controller_removed, sizeof(ControllerRemovedPdata), (MkHdr**)&pdata);
+            pid, 4, p_do_controller_removed, sizeof(struct ControllerRemovedPdata), (MkHdr**)&pdata);
         if (proc != 0) {
             pdata->port = port;
             pdata->controllers_disabled = g_game_info.pause_flag_bits.controllers_disabled;
@@ -507,6 +503,7 @@ int are_controllers_locked(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 83.74%; assignment gates and scheduling remain unresolved. */
 int assign_player(int port) {
     PlyrInfo* player;
     int old_port;
@@ -555,7 +552,7 @@ int assign_player(int port) {
             flush_controller_switch_buffers();
         }
         if (player->pad_index == 2) {
-            ((GcPadFlags*)&g_game_info.pads[player->pad_index].flags)->connected = 0;
+            g_game_info.pads[player->pad_index].flag_bits.connected = 0;
         }
         player->pad_index = -1;
         if (g_game_info.field_1F8 > 0) {
@@ -574,7 +571,7 @@ int assign_player(int port) {
             flush_controller_switch_buffers();
         }
         if (player->pad_index == 2) {
-            ((GcPadFlags*)&g_game_info.pads[player->pad_index].flags)->connected = 0;
+            g_game_info.pads[player->pad_index].flag_bits.connected = 0;
         }
         player->pad_index = -1;
         if (g_game_info.field_1F8 > 0) {
@@ -606,7 +603,7 @@ void unassign_player(PlyrInfo* player) {
             flush_controller_switch_buffers();
         }
         if (player->pad_index == 2) {
-            ((GcPadFlags*)&g_game_info.pads[player->pad_index].flags)->connected = 0;
+            g_game_info.pads[player->pad_index].flag_bits.connected = 0;
         }
         player->pad_index = -1;
         if (g_game_info.field_1F8 > 0) {
@@ -688,13 +685,13 @@ static inline void assign_pad_switch_map(PlyrInfo* player, SwitchMapEntry* map) 
     g_game_info.pads[port].switch_map = map;
 }
 
-/* TODO: [near miss] 95.93%; leaf shape and switch-map definitions match; per-player map addends/register order differ. */
+/* TODO: [near miss] 96.66%; selected-profile copies and loop registers remain; audit BSS first-use order. */
 void set_game_switch_map(PlyrInfo* player) {
-    PlayerProfile* profile;
-    SwitchMapEntry* profile_map;
-    SwitchMapEntry* temp_map;
-    int* profile_status;
     int* use_temp_map;
+    SwitchMapEntry* profile_map;
+    PlayerProfile* profile;
+    int* profile_status;
+    SwitchMapEntry* temp_map;
     int i;
 
     if (player->field_04 == 0) {
@@ -720,9 +717,11 @@ void set_game_switch_map(PlyrInfo* player) {
             profile = &p2_profile;
         }
         for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-            profile_map[i].mask = profile->switch_map[i];
-            profile_map[i].proc_fn = default_switch_map[i].proc_fn;
-            profile_map[i].label = default_switch_map[i].label;
+            SwitchMapEntry* entry = &profile_map[i];
+            const SwitchMapEntry* defaults = &default_switch_map[i];
+            entry->mask = profile->switch_map[i];
+            entry->proc_fn = defaults->proc_fn;
+            entry->label = defaults->label;
         }
         assign_pad_switch_map(player, profile_map);
     } else if (*use_temp_map != 0) {
@@ -759,7 +758,7 @@ void switch_map_unload_player_profile(PlyrInfo* player) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 91.59%; copy loops and flag stores match; volatile register numbering of the table/offset temporaries remains. */
+/* TODO: [near miss] 91.59%; table-copy behavior agrees; row-address GPR allocation and flag-store scheduling remain. */
 void init_player_switch_maps(void) {
     SwitchMapEntry* dest;
     SwitchMapEntry* src;

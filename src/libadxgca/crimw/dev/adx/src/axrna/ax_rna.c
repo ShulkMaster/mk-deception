@@ -270,14 +270,56 @@ void AXRNA_ExecServer(void)
     }
 }
 
+static inline int axrna_align_transfer_size(int size)
+{
+    return (size / 32) * 32;
+}
+
+static inline void axrna_flash_channels(AXRNAHandle* handle)
+{
+    SJCK flash_chunk;
+    SJCK flash_remainder;
+    int channel;
+
+    for (channel = 0; channel < handle->num_channels; channel++) {
+        int transfer_size;
+
+        if (handle->flash_pending[channel] != 0) {
+            continue;
+        }
+        handle->buffers[channel]->interface->get_chunk(
+            handle->buffers[channel], 0, AXRNA_TRANSFER_BYTES,
+            &flash_chunk);
+        transfer_size = axrna_align_transfer_size(flash_chunk.len);
+        SJ_SplitChunk(&flash_chunk, transfer_size, &flash_chunk,
+                      &flash_remainder);
+        handle->buffers[channel]->interface->unget_chunk(
+            handle->buffers[channel], 0, &flash_remainder);
+        if (transfer_size == 0) {
+            return;
+        }
+        handle->buffer_chunks[channel] = flash_chunk;
+        handle->flash_samples = (unsigned int)transfer_size >> 1;
+        DCFlushRange(axrna_zero_dat, AXRNA_BUFFER_SAMPLES);
+        handle->flash_pending[channel] = 1;
+        ARQPostRequest(
+            &handle->requests[channel], handle->request_owners[channel], 0,
+            1, (unsigned long)axrna_zero_dat,
+            (unsigned long)flash_chunk.data, transfer_size,
+            axrna_end_flash);
+        while (handle->flash_pending[channel] != 0) {
+        }
+    }
+}
+
+/* TODO: [breakthrough] 98.68%; fatal mismatch, frame and descriptor slots match; phase index/stride GPR assignments remain. */
 void AXRNA_ExecHndl(AXRNAHandle* handle)
 {
-    SJCK buffer_chunk;
     SJCK buffer_remainder;
-    SJCK input_chunk;
+    SJCK buffer_chunk;
     SJCK input_remainder;
+    SJCK input_chunk;
     int channel;
-    int transfer_size;
 
     if (handle == 0) {
         return;
@@ -287,6 +329,8 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
     }
     if (axrna_get_transfer_switch(handle) == 1) {
         for (channel = 0; channel < handle->num_channels; channel++) {
+            int transfer_size;
+
             if (handle->voices[channel] == 0 ||
                 handle->transfer_pending[channel] != 0) {
                 continue;
@@ -300,7 +344,7 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
             if (input_chunk.len < transfer_size) {
                 transfer_size = input_chunk.len;
             }
-            transfer_size = (transfer_size / 32) * 32;
+            transfer_size = axrna_align_transfer_size(transfer_size);
             SJ_SplitChunk(&buffer_chunk, transfer_size, &buffer_chunk,
                           &buffer_remainder);
             handle->buffers[channel]->interface->unget_chunk(
@@ -313,7 +357,9 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
                 return;
             }
             /* Mismatched channel chunks indicate a broken stereo SJ pair. */
-            while (input_chunk.len != buffer_chunk.len) {
+            if (input_chunk.len != buffer_chunk.len) {
+                while (1) {
+                }
             }
             handle->input_chunks[channel] = input_chunk;
             handle->buffer_chunks[channel] = buffer_chunk;
@@ -333,33 +379,7 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
     }
     if (axrna_get_play_switch(handle) == 1 &&
         handle->flash_position < handle->buffer_size) {
-        for (channel = 0; channel < handle->num_channels; channel++) {
-            if (handle->flash_pending[channel] != 0) {
-                continue;
-            }
-            handle->buffers[channel]->interface->get_chunk(
-                handle->buffers[channel], 0, AXRNA_TRANSFER_BYTES,
-                &buffer_chunk);
-            transfer_size = (buffer_chunk.len / 32) * 32;
-            SJ_SplitChunk(&buffer_chunk, transfer_size, &buffer_chunk,
-                          &buffer_remainder);
-            handle->buffers[channel]->interface->unget_chunk(
-                handle->buffers[channel], 0, &buffer_remainder);
-            if (transfer_size == 0) {
-                return;
-            }
-            handle->buffer_chunks[channel] = buffer_chunk;
-            handle->flash_samples = (unsigned int)transfer_size >> 1;
-            DCFlushRange(axrna_zero_dat, AXRNA_BUFFER_SAMPLES);
-            handle->flash_pending[channel] = 1;
-            ARQPostRequest(
-                &handle->requests[channel], handle->request_owners[channel], 0,
-                1, (unsigned long)axrna_zero_dat,
-                (unsigned long)buffer_chunk.data, transfer_size,
-                axrna_end_flash);
-            while (handle->flash_pending[channel] != 0) {
-            }
-        }
+        axrna_flash_channels(handle);
     }
 }
 
@@ -384,8 +404,8 @@ void axrna_end_trans(unsigned long request_address)
 {
     ARQRequest* request = (ARQRequest*)request_address;
     int owner = (int)(request->owner & 0x7FFFFFFF);
-    int channel = owner % AXRNA_MAX_CHANNELS;
     AXRNAHandle* handle = &axrna_obj[owner / AXRNA_MAX_CHANNELS];
+    int channel = owner % AXRNA_MAX_CHANNELS;
 
     if (handle->transfer_pending[channel] == 1) {
         handle->inputs[channel]->interface->put_chunk(
@@ -487,13 +507,10 @@ int AXRNA_GetNumData(AXRNAHandle* handle)
     return num_data;
 }
 
-/* TODO: [near miss] 93.45192%; sequential guards, voice address setup, stop/reset paths, and switch updates match; remaining residue is AXPB temporary/register scheduling. */
+/* TODO: [near miss] 97.96154%; signed address shifts recovered; AXPB address initialization scheduling remains. */
 void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
 {
-    AXPBADDR address;
     int channel;
-    u32 start;
-    u32 end;
 
     if (handle == 0) {
         return;
@@ -506,10 +523,11 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
         handle->play_position = -1;
         for (channel = 0; channel < handle->num_channels; channel++) {
             if (handle->voices[channel] != 0) {
-                start = handle->aram_addresses[channel];
-                end = start + handle->buffer_size - 1;
-                address.loopFlag = 1;
+                AXPBADDR address;
+                s32 start = handle->aram_addresses[channel];
+                s32 end = start + handle->buffer_size - 1;
                 address.format = 10;
+                address.loopFlag = 1;
                 address.loopAddressHi = start >> 16;
                 address.loopAddressLo = start;
                 address.endAddressHi = end >> 16;
@@ -618,11 +636,13 @@ void AXRNA_Destroy(AXRNAHandle* handle)
     memset(handle, 0, sizeof(AXRNAHandle));
 }
 
+/* TODO: [breakthrough] 94.352142%; unsigned loops and allocator-result flow recovered;
+ * inline pan clamps still fold farther than retail. */
 AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
 {
     AXRNAHandle* handle;
-    int handle_index;
-    int channel;
+    unsigned int handle_index;
+    unsigned int channel;
 
     if (max_channels <= 0) {
         RNAERR_CallErrFunc("E1070301:Illigal parameter(maxnch<=0).\n");
@@ -662,8 +682,7 @@ AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
     for (channel = 0; channel < handle->allocated_channels; channel++) {
         handle->request_owners[channel] =
             0x80000000 | (handle_index * AXRNA_MAX_CHANNELS + channel);
-        handle->resources[channel] = RNARES_Create();
-        if (handle->resources[channel] == 0) {
+        if ((handle->resources[channel] = RNARES_Create()) == 0) {
             RNAERR_CallErrFunc("E1070305:Can't create RNARES.\n");
             AXRNA_Destroy(handle);
             return 0;
@@ -679,8 +698,7 @@ AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
             AXRNA_Destroy(handle);
             return 0;
         }
-        handle->voices[channel] = AXAcquireVoice(31, axrna_voice_drop, 0);
-        if (handle->voices[channel] == 0) {
+        if ((handle->voices[channel] = AXAcquireVoice(31, axrna_voice_drop, 0)) == 0) {
             RNAERR_CallErrFunc("E1070307:Can't acquire voice(AX).\n");
             AXRNA_Destroy(handle);
             return 0;
@@ -695,7 +713,7 @@ AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
         GCRNA_UnlockCs();
     }
 
-    AXRNA_SetAdjsfreqFlg(handle, (short)axrna_def_adjsfreq_fg);
+    AXRNA_SetAdjsfreqFlg(handle, axrna_def_adjsfreq_fg);
     axrna_set_source_type(handle, axrna_def_src_type);
     handle->sample_rate_state = 0;
     AXRNA_SetSfreq(handle, 48000);

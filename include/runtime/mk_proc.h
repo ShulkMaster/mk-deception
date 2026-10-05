@@ -28,8 +28,49 @@ typedef struct MkProcEntryVtable {
 typedef struct MkProcCreateFlagBits {
     unsigned char has_pdata : 1;
     unsigned char animation_pdata : 1;
-    unsigned char pad : 6;
+    unsigned char no_destroy : 1;
+    unsigned char pad : 5;
 } MkProcCreateFlagBits;
+
+typedef struct MkProcInitFlags {
+    union {
+        int value;
+        MkProcCreateFlagBits bits;
+    };
+} MkProcInitFlags;
+
+static inline MkProcInitFlags mkproc_init_flags_none(void) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    return flags;
+}
+
+static inline MkProcInitFlags mkproc_init_flags_for_pdata(MkHdr** pdata_out) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    if (pdata_out != 0) {
+        flags.bits.has_pdata = 1;
+    }
+    return flags;
+}
+
+static inline MkProcInitFlags mkproc_init_flags_for_animation(void) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    flags.bits.animation_pdata = 1;
+    return flags;
+}
+
+static inline MkProcInitFlags mkproc_init_flags_with_pdata(void) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    flags.bits.has_pdata = 1;
+    return flags;
+}
 
 struct MkProc {
     union {
@@ -143,9 +184,25 @@ void jump_sleep_bigstack(MkProcEntryFn entry, float ticks);
 void mkproc_dispatch(void);
 MkHdr* pdata_of_proc(MkProc* proc);
 MkHdr* next_apdata(void);
-MkProc* get_mkproc_bigstack(int* flags);
-MkProc* get_mkproc_tinystack(int* flags);
-MkProc* get_mkproc_nostack(int* flags);
+MkProc* get_mkproc_bigstack(MkProcInitFlags flags);
+MkProc* get_mkproc_tinystack(MkProcInitFlags flags);
+MkProc* get_mkproc_nostack(MkProcInitFlags flags);
+
+static inline MkProc* mkproc_get_bigstack_for_animation(void) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    flags.bits.animation_pdata = 1;
+    return get_mkproc_bigstack(flags);
+}
+
+static inline MkProc* mkproc_get_nostack_for_animation(void) {
+    MkProcInitFlags flags;
+
+    flags.value = 0;
+    flags.bits.animation_pdata = 1;
+    return get_mkproc_nostack(flags);
+}
 void xfer_proc(MkProc* proc, MkProcEntryFn entry);
 MkProc* find_mkproc_pid(int pid);
 void destroy_mkprocs_pid_from_list(int pid, MkPtr** list);

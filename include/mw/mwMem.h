@@ -25,11 +25,14 @@ typedef struct MwMemUsedHeader {
 #define MW_MEM_HEAP_MAGIC_VALID 0xBEABBEAB
 #define MW_MEM_HEAP_MAGIC_FREED 0xDDDDDDDD
 
-#define MW_MEM_STRATEGY_NORMAL 0
-#define MW_MEM_STRATEGY_VIRTUAL 1
-#define MW_MEM_STRATEGY_FIXED 2
-#define MW_MEM_STRATEGY_OVERFLOW 4
-#define MW_MEM_STRATEGY_HDRLESS 5
+typedef enum MwMemStrategy {
+  MW_MEM_STRATEGY_NORMAL = 0,
+  MW_MEM_STRATEGY_VIRTUAL = 1,
+  MW_MEM_STRATEGY_FIXED = 2,
+  MW_MEM_STRATEGY_OVERFLOW = 4,
+  MW_MEM_STRATEGY_HDRLESS = 5,
+  MW_MEM_STRATEGY_FORCE_32BIT = 0x7FFFFFFF
+} MwMemStrategy;
 
 typedef enum mwMemFlags {
   MWMEM_DEFAULT = 0
@@ -214,8 +217,7 @@ extern "C" {
 
 extern _mwMemHeap *HeapList;
 extern _mwMemHeap *SystemHeap;
-extern _mwMemHeap *mwMemSystemOverflowHeap;
-extern u32 heapCount;
+extern int heapCount;
 
 void *_mwMemMalloc(_mwMemHeap *heap, u32 size, u32 flags,
                    const char *file, const char *function, u32 line);
@@ -237,17 +239,17 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap *heap, u32 *outSize, u32 *outCount);
 void *mwMemHeapStrategyCallback(u32 size, _mwMemHeap *heap, u32 flags,
                                 MwMemMallocRequest *request);
 
-int mwMemHeapGetInfo(_mwMemHeap *heap, MwMemHeapInfo *info);
+int mwMemHeapGetInfo(const _mwMemHeap *heap, MwMemHeapInfo *info);
 
 int mwMemSystemGetDefaultParams(MwMemSystemParams *params);
 
-int mwMemSystemSetParams(MwMemSystemParams *params);
+int mwMemSystemSetParams(const MwMemSystemParams *params);
 
 int mwMemHeapGetDefaultParams(MwMemHeapParams *params);
 
-int mwMemHeapGetParams(_mwMemHeap *heap, MwMemHeapParams *params);
+int mwMemHeapGetParams(const _mwMemHeap *heap, MwMemHeapParams *params);
 
-int mwMemHeapSetParams(_mwMemHeap *heap, MwMemHeapParams *params);
+int mwMemHeapSetParams(_mwMemHeap *heap, const MwMemHeapParams *params);
 
 _mwMemHeap *mwMemSystemGetHeap(u32 which);
 int mwMemSystemSetHeap(int which, _mwMemHeap *heap);

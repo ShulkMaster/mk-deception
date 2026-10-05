@@ -11,10 +11,7 @@ typedef struct _mwFile _mwFile;
 typedef struct mwFileCommand mwFileCommand;
 #endif
 
-typedef enum mwTargetMemAlign {
-    MW_TARGET_MEM_ALIGN_DEFAULT = 0,
-    MW_TARGET_MEM_ALIGN_32 = 3
-} mwTargetMemAlign;
+#include "mw/mwTargetMemAlign.h"
 
 typedef struct _mwFileInitParam {
     unsigned long file_handle_tracking_size; /* +0x00 */

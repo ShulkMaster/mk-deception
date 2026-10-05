@@ -19,9 +19,9 @@ struct ScreenRegisterEntry {
  * ScreenMgr -- Midway screen stack orchestrator (mwScreenEngine).
  *
  * Soft ceilings (codegen leftovers -- do not invent wrong algorithms):
- *   UpdateBranchPath ~81%  /  Reset ~87.6%  /  SplitPath ~84%
- *   FindParent ~84%  /  BroadcastEvent ~82%  /  ProcessRegisterActions ~86.2%
- *   FindScreen ~89%  /  InsertScreen ~91.7%
+ *   UpdateBranchPath ~81%  /  Reset ~87.6%
+ *   BroadcastEvent ~82%  /  ProcessRegisterActions ~86.2%
+ *   FindScreen ~89%
  * Prefer typed walks at retail offsets over Matching grind.
  *
  * =====================================================================

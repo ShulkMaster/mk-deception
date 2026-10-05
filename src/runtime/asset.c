@@ -1,4 +1,5 @@
 #include "runtime/asset.h"
+#include "runtime/anim_types.h"
 
 #include "platform/gcinstance.h"
 #include "game/specular.h"
@@ -18,16 +19,16 @@
 #include "rw/rpworld_types.h"
 #include "rw/rwstream.h"
 
-typedef struct WiffTextureSequence {
+struct WiffTextureSequence {
     unsigned int frame_count;
     unsigned int first_texture;
     unsigned int has_alpha;
-} WiffTextureSequence;
+};
 
-typedef struct AssetTextureRange {
-    unsigned int first;
-    unsigned int last;
-} AssetTextureRange;
+struct AssetTextureRange {
+    int first;
+    int last;
+};
 
 static AniTextureControl* _get_wiff(SecSlotFileEntry* entry,
                                     unsigned int offset);
@@ -35,16 +36,16 @@ static RwTexture* pull_texture_from_texdict(RwTexture* texture, void* data);
 static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
                                        unsigned int offset);
 
-void destroy_clump(RpClump* clump);
 unsigned int plyr1_ss_tbl[2] = {0x0003000A, 0x0003000B};
 unsigned int plyr2_ss_tbl[2] = {0x0004000A, 0x0004000B};
 
 static inline MkObj* load_model_member(SecSlotFileEntry* entry,
                                        int member_index, int object_type,
                                        int transl) {
+    RpClump* clump;
     MkObj* object = NULL;
-    RpClump* clump = LoadDffFromSecInMemory(
-        entry, (unsigned int)entry->members[member_index].data_or_texture);
+    clump = LoadDffFromSecInMemory(
+        entry, entry->members[member_index].data_offset);
     if (clump != NULL) {
         object = get_mkobj(object_type, clump);
         if (object == NULL) {
@@ -74,6 +75,18 @@ static inline SecSlotFileEntry* find_slot_section(int handle,
     return NULL;
 }
 
+static inline SecSlotFileEntry* find_slot_art_section(int handle, unsigned int art_oid) {
+    int file_index = get_slot_file_count(handle);
+    art_oid >>= 16;
+    while (file_index > 0) {
+        SecSlotFileEntry* entry = get_nth_sec_slot_file_from_handle(handle, file_index);
+        if ((unsigned int)entry->section_id == art_oid)
+            return entry;
+        file_index--;
+    }
+    return NULL;
+}
+
 static inline int find_named_art_member(SecSlotFileEntry* entry,
                                         const char* name) {
     int member_index;
@@ -85,6 +98,25 @@ static inline int find_named_art_member(SecSlotFileEntry* entry,
             return member_index;
     }
     return -1;
+}
+
+static inline MkObj* load_named_slot_member(int slot, const char* name, int object_type, int transl) {
+    SecSlotFileEntry* entry;
+    int file_index;
+    if (slot == -1)
+        return NULL;
+    file_index = get_slot_file_count(slot);
+    if (file_index == 0)
+        return NULL;
+    while (file_index > 0) {
+        int member_index;
+        entry = get_nth_sec_slot_file_from_handle(slot, file_index);
+        member_index = find_named_art_member(entry, name);
+        if (member_index >= 0)
+            return load_model_member(entry, member_index, object_type, transl);
+        file_index--;
+    }
+    return NULL;
 }
 
 void annihilate_art_section_data(SecSlotFileEntry* entry) {
@@ -110,28 +142,32 @@ void annihilate_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-/* TODO: [breakthrough needed] 90.26%; 28 rows differ; compare retail branches and SEC member types. */
+/* TODO: [near miss] 98.93%; relocation phase is exact; palette cursor/index/value GPR rotation remains. */
 void process_anim_section_data(SecSlotFileEntry* entry) {
-    SecFileHeader* sec = (SecFileHeader*)entry->buffer;
-    int* palette_table = entry->palette_table;
+    int* palette;
     int i;
+    int* palette_table = entry->palette_table;
+    SecArtMember* palette_members;
+    SecFileHeader* sec = (SecFileHeader*)entry->buffer;
     if (sec->magic == SEC_MAGIC) {
-        entry->members = sec_file_members(sec);
+        entry->members = (SecArtMember*)(sec + 1);
         entry->member_count = sec->member_count;
         for (i = 0; i < entry->member_count; i++) {
-            SecArtMember* member = &entry->members[i];
-            if (member->data_or_texture != NULL)
-                member->data_or_texture =
-                    (unsigned char*)sec + member->data_offset;
+            if (entry->members[i].data_offset != 0)
+                entry->members[i].data_offset += (unsigned int)sec;
             else
-                member->data_or_texture = NULL;
+                entry->members[i].data_offset = 0;
         }
+        palette = palette_table;
+        palette_members = (SecArtMember*)(sec + 1);
         if (palette_table != NULL) {
-            SecArtMember* palette_members = sec_file_members(sec);
-            for (i = 0; i < entry->member_count; i++, palette_table++) {
-                void* data = palette_members[i].data_or_texture;
-                if (data != NULL) ((short*)data)[0x17] = i;
-                *palette_table = (int)data;
+            int palette_index = 0;
+            while (palette_index < (int)sec->member_count) {
+                AnimScript* data = palette_members[palette_index].data_or_texture;
+                if (data != NULL) data->palette_index = palette_index;
+                *palette = (int)data;
+                palette++;
+                palette_index++;
             }
         }
         sec_slot_file_free_async(entry);
@@ -139,18 +175,30 @@ void process_anim_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-/* TODO: [near miss] 98.10%; 26 localized rows differ; inspect retail operands and relocations. */
+static inline const char* section_model_member_name(const SecArtMember* members,
+                                                   int member_index)
+{
+    return members[member_index].name_or_data;
+}
+
+/* TODO: [near miss] 99.56%; loaded object remains r30 versus retail r28. */
 MkObj* load_named_model_for_player(const char* name, int player,
                                    int object_type, int flags) {
-    unsigned int* slots = player == 0 ? plyr1_ss_tbl : plyr2_ss_tbl;
+    unsigned int* slots;
     unsigned int slot_index;
+
+    slots = plyr2_ss_tbl;
+    if (player == 0) {
+        slots = plyr1_ss_tbl;
+    }
     for (slot_index = 0; slot_index < 2; slot_index++) {
+        int member_index;
         SecSlotFileEntry* entry =
             get_nth_sec_slot_file_from_handle(slots[slot_index], 1);
-        int member_index;
         for (member_index = 0; member_index < entry->member_count;
              member_index++) {
-            if (strcmp(entry->members[member_index].name_or_data, name) == 0)
+            if (strcmp(section_model_member_name(entry->members, member_index),
+                       name) == 0)
                 return load_model_member(entry, member_index, object_type,
                                          flags);
         }
@@ -158,31 +206,14 @@ MkObj* load_named_model_for_player(const char* name, int player,
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 92.99%; 45 rows differ; compare retail branches and SEC member types. */
 MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl) {
-    MkObj* object;
-    int file_index = get_slot_file_count(0x2001E);
-    if (file_index == 0) {
-        object = NULL;
-    } else {
-        while (file_index > 0) {
-            SecSlotFileEntry* entry =
-                get_nth_sec_slot_file_from_handle(0x2001E, file_index);
-            int member_index = find_named_art_member(entry, name);
-
-            if (member_index >= 0) {
-                object =
-                    load_model_member(entry, member_index, object_type, transl);
-                break;
-            }
-            file_index--;
-        }
-        if (file_index <= 0)
-            object = NULL;
+    MkObj* object = load_named_slot_member(0x2001E, name, object_type, transl);
+    if (object != NULL) {
+        if (transl != 0)
+            RpClumpForAllAtomics(object->clump, set_transl_callback, NULL);
+        return object;
     }
-    if (object != NULL && transl != 0)
-        RpClumpForAllAtomics(object->clump, set_transl_callback, NULL);
-    return object;
+    return NULL;
 }
 
 /* TODO: [breakthrough needed] 85.62%; 19 rows differ; compare retail branches and SEC member types. */
@@ -193,7 +224,6 @@ unsigned int get_artid_of_named_item_in_slot(
     SecSlotFileEntry* entry;
     unsigned int member_index;
 
-    (void)unused;
     file_count = get_slot_file_count(handle);
     file_index = 1;
     while (file_index <= file_count) {
@@ -220,12 +250,10 @@ unsigned int get_artid_of_named_item_in_slot(
     return 0;
 }
 
-/* TODO: [breakthrough needed] 92.11%; 21 rows differ; compare retail branches and SEC member types. */
 void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
     int file_index;
     SecSlotFileEntry* entry;
     SecArtMember* member;
-    int i;
     int found;
     void* data;
 
@@ -240,14 +268,7 @@ void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
             } else if (entry->section_info->type != SEC_FILE_TYPE_ART) {
                 data = NULL;
             } else {
-                found = -1;
-                for (i = 0; i < entry->member_count; i++) {
-                    member = &entry->members[i];
-                    if (strcmp(member->name_or_data, name) == 0) {
-                        found = i;
-                        break;
-                    }
-                }
+                found = find_named_art_member(entry, name);
                 if (found == -1) {
                     data = NULL;
                 } else {
@@ -264,13 +285,11 @@ void* load_named_bloodpath_data_from_slot(int handle, const char* name) {
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 86.37%; 20 rows differ; compare retail branches and SEC member types. */
 void* load_named_binary_block_from_file(int handle, int file_index,
                                         const char* name, int* out_size) {
     SecSlotFileEntry* entry;
-    SecArtMember* member;
-    int i;
     int found;
+    void* data;
 
     if (handle == -1) {
         return NULL;
@@ -284,29 +303,20 @@ void* load_named_binary_block_from_file(int handle, int file_index,
         return NULL;
     }
 
-    found = -1;
-    for (i = 0; i < entry->member_count; i++) {
-        member = &entry->members[i];
-        if (strcmp(member->name_or_data, name) == 0) {
-            found = i;
-            break;
-        }
-    }
+    found = find_named_art_member(entry, name);
     if (found == -1) {
         return NULL;
     }
 
-    member = &entry->members[found];
-    *out_size = member->size;
-    return entry->buffer + member->data_offset;
+    data = entry->buffer + entry->members[found].data_offset;
+    *out_size = entry->members[found].size;
+    return data;
 }
 
-/* TODO: [breakthrough needed] 91.66%; 29 rows differ; compare retail branches and SEC member types. */
 void* load_named_binary_block(int handle, const char* name, int* out_size) {
     int file_index;
     SecSlotFileEntry* entry;
     SecArtMember* member;
-    int i;
     int found;
     void* data;
 
@@ -321,14 +331,7 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
             } else if (entry->section_info->type != SEC_FILE_TYPE_ART) {
                 data = NULL;
             } else {
-                found = -1;
-                for (i = 0; i < entry->member_count; i++) {
-                    member = &entry->members[i];
-                    if (strcmp(member->name_or_data, name) == 0) {
-                        found = i;
-                        break;
-                    }
-                }
+                found = find_named_art_member(entry, name);
                 if (found == -1) {
                     data = NULL;
                 } else {
@@ -346,7 +349,7 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
     return NULL;
 }
 
-/* TODO: [near miss] 99.10%; 6 localized rows differ; inspect retail operands and relocations. */
+/* TODO: [near miss] 99.10%; member-address and buffer GPRs are swapped in six rows. */
 void* load_binary_block(int handle, unsigned int art_oid, int* out_size) {
     SecSlotFileEntry* entry;
     void* data;
@@ -367,12 +370,10 @@ void* load_binary_block(int handle, unsigned int art_oid, int* out_size) {
     return data;
 }
 
-/* TODO: [breakthrough needed] 92.11%; 21 rows differ; compare retail branches and SEC member types. */
 void* load_named_cdf_data_from_slot(int handle, const char* name) {
     int file_index;
     SecSlotFileEntry* entry;
     SecArtMember* member;
-    int i;
     int found;
     void* data;
 
@@ -387,14 +388,7 @@ void* load_named_cdf_data_from_slot(int handle, const char* name) {
             } else if (entry->section_info->type != SEC_FILE_TYPE_ART) {
                 data = NULL;
             } else {
-                found = -1;
-                for (i = 0; i < entry->member_count; i++) {
-                    member = &entry->members[i];
-                    if (strcmp(member->name_or_data, name) == 0) {
-                        found = i;
-                        break;
-                    }
-                }
+                found = find_named_art_member(entry, name);
                 if (found == -1) {
                     data = NULL;
                 } else {
@@ -411,40 +405,38 @@ void* load_named_cdf_data_from_slot(int handle, const char* name) {
     return NULL;
 }
 
-/* TODO: [near miss] 92.30%; 7 localized rows differ; inspect retail operands and relocations. */
 void* get_nav_data(int handle, unsigned int art_oid) {
     unsigned int section_id;
     unsigned int member_index;
     SecSlotFileEntry* entry;
-    SecArtMember* member;
     void* data;
 
     section_id = art_oid >> 16;
     member_index = art_oid & 0xFFFFu;
     entry = find_slot_section(handle, section_id);
     if (entry != NULL) {
-        member = &entry->members[member_index];
-        data = entry->buffer + member->data_offset;
+        SecArtMember* members = entry->members;
+        unsigned char* buffer = entry->buffer;
+        data = buffer + members[member_index].data_offset;
     } else {
         data = NULL;
     }
     return data;
 }
 
-/* TODO: [near miss] 92.30%; 7 localized rows differ; inspect retail operands and relocations. */
 void* get_cdf_data(int handle, unsigned int art_oid) {
     unsigned int section_id;
     unsigned int member_index;
     SecSlotFileEntry* entry;
-    SecArtMember* member;
+    unsigned char* buffer;
     void* data;
 
     section_id = art_oid >> 16;
     member_index = art_oid & 0xFFFFu;
     entry = find_slot_section(handle, section_id);
     if (entry != NULL) {
-        member = &entry->members[member_index];
-        data = entry->buffer + member->data_offset;
+        buffer = entry->buffer;
+        data = buffer + entry->members[member_index].data_offset;
     } else {
         data = NULL;
     }
@@ -583,63 +575,49 @@ RwTexture* load_tga(int handle, unsigned int art_oid) {
     return tex;
 }
 
-/* TODO: [breakthrough needed] 93.55%; 17 rows differ; compare retail branches and SEC member types. */
 MkObj* load_model_from_slot(int handle, unsigned int art_oid,
                             int object_type) {
-    unsigned int section_id;
     unsigned int member_index;
     SecSlotFileEntry* entry;
-    RpClump* clump;
-    MkObj* object;
 
     if (handle == -1)
         return NULL;
     member_index = art_oid & 0xFFFF;
-    section_id = art_oid >> 16;
-    entry = find_slot_section(handle, section_id);
-    object = NULL;
-    clump = LoadDffFromSecInMemory(
-        entry, (unsigned int)entry->members[member_index].data_or_texture);
-    if (clump != NULL) {
-        object = get_mkobj(object_type, clump);
-        if (object == NULL) {
-            destroy_clump(clump);
-        } else {
-            MK_CLUMP_PLUGIN(clump)->owner = object;
-            specular_condition_clump(clump);
-            GCNSetupNonRenderwarePipeline(clump, object);
-            add_clump_to_world(World, clump);
-        }
-    }
-    return object;
+    entry = find_slot_art_section(handle, art_oid);
+    return load_model_member(entry, member_index, object_type, 0);
 }
 
-/* TODO: [near miss] 98.52%; 18 localized rows differ; inspect retail operands and relocations. */
-AniTextureControl* load_named_wiff_from_slot(int handle, const char* name) {
-    int file_index = get_slot_file_count(handle);
-    while (file_index > 0) {
-        AniTextureControl* result;
-        SecSlotFileEntry* entry;
-        int member_index;
+static inline AniTextureControl* load_named_wiff_from_file(
+    int handle, int file_index, const char* name)
+{
+    SecSlotFileEntry* entry;
+    int member_index;
 
-        if (handle == -1) {
-            result = NULL;
-        } else {
-            entry = get_nth_sec_slot_file_from_handle(handle, file_index);
-            if (entry == NULL) {
-                result = NULL;
-            } else if (entry->section_info->type != SEC_FILE_TYPE_ART) {
-                result = NULL;
-            } else {
-                member_index = find_named_art_member(entry, name);
-                if (member_index == -1)
-                    result = NULL;
-                else
-                    result = _get_wiff(
-                        entry, (unsigned int)entry->members[member_index]
-                                   .data_or_texture);
-            }
-        }
+    if (handle == -1) {
+        return NULL;
+    }
+    entry = get_nth_sec_slot_file_from_handle(handle, file_index);
+    if (entry == NULL) {
+        return NULL;
+    }
+    if (entry->section_info->type != SEC_FILE_TYPE_ART) {
+        return NULL;
+    }
+    member_index = find_named_art_member(entry, name);
+    if (member_index == -1) {
+        return NULL;
+    }
+    return _get_wiff(
+        entry, entry->members[member_index].data_offset);
+}
+
+AniTextureControl* load_named_wiff_from_slot(int handle, const char* name)
+{
+    int file_index = get_slot_file_count(handle);
+
+    while (file_index > 0) {
+        AniTextureControl* result =
+            load_named_wiff_from_file(handle, file_index, name);
         if (result != NULL) {
             return result;
         }
@@ -653,26 +631,28 @@ AniTextureControl* get_wiff_atc_block(int handle, unsigned int art_oid) {
     unsigned int member_index = art_oid & 0xFFFF;
     SecSlotFileEntry* entry = find_slot_section(handle, section_id);
     return _get_wiff(
-        entry, (unsigned int)entry->members[member_index].data_or_texture);
+        entry, entry->members[member_index].data_offset);
 }
 
-/* TODO: [breakthrough needed] 90.74%; 29 rows differ; compare retail branches and SEC member types. */
 static AniTextureControl* _get_wiff(SecSlotFileEntry* entry,
                                     unsigned int offset) {
     AniTextureControl* control = get_ani_texture_control();
-    WiffTextureSequence* sequence;
-    unsigned int texture_base = 0;
     unsigned int frame;
+    struct WiffTextureSequence* sequence;
+    int texture_base;
     unsigned int member_index;
     if (control == NULL) return NULL;
-    sequence = (WiffTextureSequence*)(entry->buffer + offset);
+    sequence = (struct WiffTextureSequence*)(entry->buffer + offset);
     set_ani_texture_framerate(control, 1.0f);
-    while (texture_base < (unsigned int)entry->member_count &&
-           (entry->members[texture_base].type & 0x3FFFFFFF) !=
-               SEC_MEMBER_TEXTURE_ALT) {
-        texture_base++;
+    for (texture_base = 0; texture_base < entry->member_count;
+         texture_base++) {
+        if ((int)(entry->members[texture_base].type & 0x3FFFFFFF) ==
+                SEC_MEMBER_TEXTURE_ALT) {
+            break;
+        }
     }
-    member_index = texture_base + sequence->first_texture;
+    texture_base += sequence->first_texture;
+    member_index = texture_base;
     for (frame = 0; frame < sequence->frame_count; frame++) {
         RwTexture* texture = entry->members[member_index++].data_or_texture;
         if (texture == NULL) {
@@ -708,7 +688,6 @@ static AniTextureControl* _get_wiff(SecSlotFileEntry* entry,
     return control;
 }
 
-/* TODO: [near miss] 97.09%; 46 localized rows differ; inspect retail operands and relocations. */
 void process_art_section_data(SecSlotFileEntry* entry) {
     RwMemory mem;
     SecFileHeader* sec;
@@ -716,19 +695,19 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     unsigned int i;
     int mtype;
     int last_non_tex;
-    unsigned int table_end;
+    char* table_end;
     unsigned int rel;
-    int* reloc;
-    int reloc_count;
     int* reloc_ptr;
+    int reloc_count;
+    int reloc_index;
+    int* reloc;
     RwStream* stream;
     int skip;
     unsigned char namelen;
     char name_buf[0x100];
-    RwTexture* tex;
-    unsigned int source_width;
     unsigned int source_height;
-    int levels;
+    unsigned int source_width;
+    RwTexture* tex;
 
     mem.length = entry->size_or_flag;
     mem.start = entry->buffer;
@@ -740,8 +719,7 @@ void process_art_section_data(SecSlotFileEntry* entry) {
 
         if (sec->flags == 0) {
             last_non_tex = -1;
-            table_end = (unsigned int)entry->members +
-                        (unsigned int)entry->member_count * sizeof(SecArtMember);
+            table_end = (char*)(entry->members + entry->member_count);
             i = 0;
             while (i < (unsigned int)entry->member_count) {
                 member = &entry->members[i];
@@ -750,17 +728,15 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                     last_non_tex = i;
                 }
                 rel = member->name_offset;
-                member->name_or_data = (char*)(table_end + rel);
+                member->name_or_data = table_end + rel;
                 if (mtype == SEC_MEMBER_RELOC) {
                     reloc = (int*)(entry->buffer + member->data_offset);
                     reloc_count = *reloc;
                     reloc_ptr = reloc + 1;
-                    if (reloc_count > 0) {
-                        do {
-                            *reloc_ptr = *reloc_ptr + (int)(unsigned long)reloc;
-                            reloc_ptr += 1;
-                            reloc_count -= 1;
-                        } while (reloc_count != 0);
+                    for (reloc_index = 0; reloc_index < reloc_count;
+                         reloc_index++) {
+                        *reloc_ptr = *reloc_ptr + (int)reloc;
+                        reloc_ptr++;
                     }
                 }
                 i += 1;
@@ -776,36 +752,38 @@ void process_art_section_data(SecSlotFileEntry* entry) {
 
                     last_non_tex += 1;
                     while ((unsigned int)last_non_tex < (unsigned int)entry->member_count) {
-                        member = &entry->members[last_non_tex];
-                        skip = member->data_offset -
+                        SecArtMember* texture_member =
+                            &entry->members[last_non_tex];
+
+                        skip = texture_member->data_offset -
                                (int)stream->data.memory.position;
                         if (skip != 0) {
                             RwStreamSkip(stream, skip);
                         }
 
                         tex = NULL;
-                        RwStreamRead(stream, &namelen, 1);
+                        RwStreamRead(stream, &namelen, sizeof(namelen));
                         if (namelen != 0) {
                             RwStreamRead(stream, name_buf, namelen);
                         }
                         name_buf[namelen] = 0;
-                        RwStreamRead(stream, &source_width, 4);
-                        RwStreamRead(stream, &source_height, 4);
-                        _inplaceNativeTextureRead(stream, &tex);
+                        RwStreamRead(stream, &source_width, sizeof(source_width));
+                        RwStreamRead(stream, &source_height, sizeof(source_height));
+                        inplaceNativeTextureRead(stream, &tex);
 
                         if (tex != NULL) {
-                            if (tex->raster == NULL ||
-                                (levels = RwRasterGetNumLevels(tex->raster), levels <= 1)) {
-                                tex->filter_flags = (tex->filter_flags & 0xFFFFFF00u) | 2u;
-                            } else {
+                            if (tex->raster != NULL &&
+                                RwRasterGetNumLevels(tex->raster) > 1) {
                                 tex->filter_flags = (tex->filter_flags & 0xFFFFFF00u) | 4u;
+                            } else {
+                                tex->filter_flags = (tex->filter_flags & 0xFFFFFF00u) | 2u;
                             }
                             RwTextureSetName(tex, name_buf);
                             tex->raster->originalHeight = source_height;
                             tex->raster->originalWidth = source_width;
                         }
 
-                        member->data_or_texture = tex;
+                        texture_member->data_or_texture = tex;
                         last_non_tex += 1;
                     }
 
@@ -819,17 +797,42 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-/* TODO: [near miss] 98.69%; 16 localized rows differ; inspect retail operands and relocations. */
 MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
-                                   int object_type) {
-    MkObj* object = load_model_from_slot(handle, art_oid, object_type);
+                                 int object_type) {
+    unsigned int member_index;
+    unsigned int section_id;
+    SecSlotFileEntry* entry;
+    MkObj* object;
+    RpClump* clump;
+
+    if (handle == -1) {
+        object = NULL;
+    } else {
+        member_index = (unsigned short)art_oid;
+        section_id = art_oid >> 16;
+        entry = find_slot_section(handle, section_id);
+        object = NULL;
+        clump = LoadDffFromSecInMemory(
+            entry, entry->members[member_index].data_offset);
+        if (clump != NULL) {
+            object = get_mkobj(object_type, clump);
+            if (object == NULL) {
+                destroy_clump(clump);
+            } else {
+                MK_CLUMP_PLUGIN(clump)->owner = object;
+                specular_condition_clump(clump);
+                GCNSetupNonRenderwarePipeline(clump, object);
+                add_clump_to_world(World, clump);
+            }
+        }
+    }
     if (object != NULL) {
         RpClumpForAllAtomics(object->clump, set_transl_callback, NULL);
     }
     return object;
 }
 
-/* TODO: [near miss] 98.72%; 22 localized rows differ; inspect retail operands and relocations. */
+/* TODO: [near miss] 99.46809%; model construction agrees; file-index/entry GPR pair differs. */
 MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
                                   int transl) {
     int file_index;
@@ -850,29 +853,28 @@ MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 90.17%; 23 rows differ; compare retail branches and SEC member types. */
 static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
                                        unsigned int offset) {
     RwMemory memory;
-    AssetTextureRange texture_range;
-    unsigned int texture_first;
-    unsigned int texture_count;
-    RwTexDictionary* saved_dictionary = RwTexDictionaryGetCurrent();
-    RwTexDictionary* dictionary = NULL;
-    RpClump* clump = NULL;
+    struct AssetTextureRange texture_range;
+    int texture_first;
+    int texture_count;
     RwStream* stream;
+    RwTexDictionary* dictionary = NULL;
+    RwTexDictionary* saved_dictionary = RwTexDictionaryGetCurrent();
+    RpClump* clump = NULL;
 
     memory.start = entry->buffer;
     memory.length = entry->size_or_flag;
-    stream = RwStreamOpen(3, 1, &memory);
-    if (stream == NULL) {
+    stream = RwStreamOpen(rwSTREAMMEMORY, rwSTREAMREAD, &memory);
+    if (stream != NULL) {
+        RwStreamSkip(stream, offset);
+        RwStreamRead(stream, &texture_range, sizeof(texture_range));
+        texture_first = texture_range.first;
+        texture_count = texture_range.last - texture_range.first + 1;
+    } else {
         return NULL;
     }
-
-    RwStreamSkip(stream, offset);
-    RwStreamRead(stream, &texture_range, sizeof(texture_range));
-    texture_first = texture_range.first;
-    texture_count = texture_range.last - texture_range.first + 1;
     if (texture_count != 0) {
         unsigned int member_index;
 
@@ -884,9 +886,9 @@ static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
             if ((int)(entry->members[member_index].type & 0x3FFFFFFF) ==
                     SEC_MEMBER_TEXTURE_ALT && texture_first-- == 0) {
                 unsigned int i;
-                for (i = 0; i < texture_count; i++) {
+                for (i = 0; i < (unsigned int)texture_count; i++) {
                     RwTexture* texture =
-                        entry->members[member_index++].data_or_texture;
+                        entry->members[member_index++].texture;
                     if (texture != NULL)
                         RwTexDictionaryAddTexture(dictionary, texture);
                 }
@@ -908,7 +910,6 @@ static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
 }
 
 static RwTexture* pull_texture_from_texdict(RwTexture* texture, void* data) {
-    (void)data;
     RwTexDictionaryRemoveTexture(texture);
     return texture;
 }

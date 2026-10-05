@@ -1,18 +1,16 @@
+#include "libmkparticle/random.h"
 #include "libmkparticle/update.h"
 
 #include "libmkparticle/particle.h"
 #include "libmkparticle/spawn.h"
 #include "libmkparticle/texture_anim.h"
 
-double ceil(double value);
-double pow(double base, double exponent);
-float rnd_between(float minimum, float maximum);
-int get_field_size(int type);
+#include "fdlibm.h"
 
-typedef struct PfxTextureFrameSource {
+struct PfxTextureFrameSource {
     char pad00[0x10];
     PfxTextureFrame* frames;
-} PfxTextureFrameSource;
+};
 
 static PfxVmField* fieldstack[2] = { 0, 0 };
 static int fieldstack_top;
@@ -75,6 +73,8 @@ static void do_add_fields(int count, const unsigned char* source,
     }
 }
 
+/* TODO: [near miss] 99.51%; ground height/negative scale swap f2/f3;
+ * honest staging exhausted; stop at FP coloring. */
 static void do_bounce(int count, unsigned char* positions,
                       int position_stride, unsigned char* velocities,
                       int velocity_stride, const unsigned char* bounce_counts,
@@ -153,7 +153,7 @@ static void do_copy_from_table_int(int count, PfxSpawnTable* table,
         }
         break;
     case 2:
-        copy_color_from_table_int((const PfxColor*)table->values, indices,
+        copy_color_from_table_int(table->values, indices,
                                   index_stride, destination,
                                   destination_stride, count);
         break;
@@ -186,7 +186,7 @@ static void do_copy_from_table_float(int count, PfxSpawnTable* table,
         }
         break;
     case 2:
-        copy_color_from_table_float((const PfxColor*)table->values, indices,
+        copy_color_from_table_float(table->values, indices,
                                     index_stride, destination,
                                     destination_stride, count);
         break;
@@ -206,11 +206,12 @@ static void do_copy_from_table_float(int count, PfxSpawnTable* table,
     }
 }
 
+/* TODO: [breakthrough needed] 89.66%; recover center stack publication and the writable stream alias boundary. */
 static void do_wrapbox(int count, const unsigned char* source,
                        unsigned char* destination, int stride,
-                       const PfxUpdateArguments* arguments)
+                       PfxUpdateArguments* arguments)
 {
-    const PfxMatrix* matrix = (const PfxMatrix*)g_current_effect;
+    const PfxMatrix* matrix = &g_current_effect->matrix;
     PfxVec3 center;
     PfxVec3 maximum;
     PfxVec3 minimum;
@@ -244,9 +245,9 @@ static void do_wrapbox(int count, const unsigned char* source,
             float wrap_x = (minimum.x - input->x) * inverse_size.x;
             float wrap_y = (minimum.y - input->y) * inverse_size.y;
             float wrap_z = (minimum.z - input->z) * inverse_size.z;
-            float step_x = (float)ceil(wrap_x);
-            float step_y = (float)ceil(wrap_y);
-            float step_z = (float)ceil(wrap_z);
+            float step_x = ceil(wrap_x);
+            float step_y = ceil(wrap_y);
+            float step_z = ceil(wrap_z);
             float offset_x = step_x * size.x;
             float offset_y = step_y * size.y;
             float offset_z = step_z * size.z;
@@ -279,12 +280,16 @@ static void do_add_constant_v3(int count, const unsigned char* source,
                                unsigned char* destination, int stride,
                                float frame_time, float x, float y, float z)
 {
-    while (count-- > 0) {
+    x *= frame_time;
+    y *= frame_time;
+    z *= frame_time;
+
+    for (; count > 0; --count) {
         const PfxVec3* input = (const PfxVec3*)source;
         PfxVec3* output = (PfxVec3*)destination;
-        output->x = input->x + x * frame_time;
-        output->y = input->y + y * frame_time;
-        output->z = input->z + z * frame_time;
+        output->x = input->x + x;
+        output->y = input->y + y;
+        output->z = input->z + z;
         source += stride;
         destination += stride;
     }
@@ -349,7 +354,7 @@ static void add_oscillate(int count, unsigned char* values, int stride,
     }
 }
 
-static void do_fade_alpha(int count, const PfxUpdateArguments* arguments,
+static void do_fade_alpha(int count, PfxUpdateArguments* arguments,
                           const unsigned char* source,
                           unsigned char* destination, int color_stride,
                           const unsigned char* ages, int age_stride,
@@ -365,14 +370,14 @@ static void do_fade_alpha(int count, const PfxUpdateArguments* arguments,
         *output = *(const PfxColor*)source;
         age = *(const float*)ages;
         if (age <= arguments->fade.start_time) {
-            output->a = (unsigned char)arguments->fade.start_alpha;
+            output->a = arguments->fade.start_alpha;
         } else {
             elapsed = age - arguments->fade.start_time;
             if (elapsed > arguments->fade.duration) {
                 elapsed = arguments->fade.duration;
             }
-            output->a = (unsigned char)(int)(
-                (float)arguments->fade.start_alpha - elapsed * alpha_rate);
+            output->a =
+                (float)arguments->fade.start_alpha - elapsed * alpha_rate;
         }
         destination += color_stride;
         source += color_stride;
@@ -385,51 +390,58 @@ static void do_lerp_color(int count, const PfxUpdateArguments* arguments,
                           const unsigned char* ages, int age_stride,
                           float frame_time)
 {
+    float position;
     float inverse_duration = 1.0f / arguments->color_lerp.duration;
     const PfxColor* colors = (const PfxColor*)arguments->color_lerp.colors +
                              arguments->color_lerp.first_color;
     int last_color = arguments->color_lerp.last_color;
-    float last_color_position = (float)last_color;
+    float last_color_position = last_color;
     while (count-- > 0) {
         PfxColor* output = (PfxColor*)destination;
-        float position = *(const float*)ages * inverse_duration;
-        int color_index = (int)position;
+        int color_index;
+
+        position = *(const float*)ages * inverse_duration;
+        color_index = position;
         if (position > last_color_position) {
             *output = colors[last_color];
         } else {
-            float fraction = position - (float)color_index;
-            float inverse_fraction = 1.0f - fraction;
-            const PfxColor* color = &colors[color_index];
-            output->r = (unsigned char)(int)(
+            float inverse_fraction;
+            const PfxColor* color;
+
+            position -= (float)color_index;
+            inverse_fraction = 1.0f - position;
+            color = &colors[color_index];
+            output->r = (int)(
                 inverse_fraction * (float)(int)color[0].r +
-                fraction * (float)(int)color[1].r);
-            output->g = (unsigned char)(int)(
+                position * (float)(int)color[1].r);
+            output->g = (int)(
                 inverse_fraction * (float)(int)color[0].g +
-                fraction * (float)(int)color[1].g);
-            output->b = (unsigned char)(int)(
+                position * (float)(int)color[1].g);
+            output->b = (int)(
                 inverse_fraction * (float)(int)color[0].b +
-                fraction * (float)(int)color[1].b);
-            output->a = (unsigned char)(int)(
+                position * (float)(int)color[1].b);
+            output->a = (int)(
                 inverse_fraction * (float)(int)color[0].a +
-                fraction * (float)(int)color[1].a);
+                position * (float)(int)color[1].a);
         }
         destination += color_stride;
         ages += age_stride;
     }
 }
 
+/* TODO: [breakthrough] 90.20%; descriptor narrowing recovered; local frame and owner lifetimes still differ. */
 static void do_texture_anim(int count, PfxUpdateArguments* arguments,
                             unsigned char* destination, int texture_stride,
                             const unsigned char* ages, int age_stride,
                             float frame_time)
 {
     PfxTextureAnim animation;
-    const PfxTextureFrameSource* source =
-        (const PfxTextureFrameSource*)arguments->texture_anim.frame_source;
+    const struct PfxTextureFrameSource* source =
+        arguments->texture_anim.frame_source;
     const PfxTextureFrame* frames = source->frames;
     int index;
     animation.frame_time = arguments->texture_anim.frame_time;
-    animation.mode = (short)arguments->texture_anim.first_frame;
+    animation.mode = arguments->texture_anim.first_frame;
     animation.frame_count = arguments->texture_anim.frame_count;
     for (index = 0; index < count; index++) {
         int frame = arguments->texture_anim.mode +
@@ -440,12 +452,14 @@ static void do_texture_anim(int count, PfxUpdateArguments* arguments,
     }
 }
 
+/* TODO: [near miss] 96.33334%; pow exponent move is scheduled after GPR
+ * saves; whole-unit scheduling-on regresses 35 other functions. */
 static void do_attract(int count, unsigned char* source,
                        unsigned char* destination, int stride,
                        PfxVec3* target, float frame_time,
                        float strength)
 {
-    float factor = (float)pow(strength, frame_time);
+    float factor = pow(strength, frame_time);
     while (count-- > 0) {
         const PfxVec3* input = (const PfxVec3*)source;
         PfxVec3* output = (PfxVec3*)destination;
@@ -475,6 +489,7 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
+/* TODO: [breakthrough needed] 82.30%; saved-owner mode recovered; stream reload/order and opcode argument webs need evidence. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     PfxUpdateInstruction* instruction;
@@ -590,7 +605,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 behavior->previous_streams[index_field->stream].data +
                 index_field->offset;
             PfxSpawnTable* table =
-                (PfxSpawnTable*)instruction->arguments.table.table;
+                instruction->arguments.table.table;
             if (pfx_field_get_type(index_field->description) == 4) {
                 do_copy_from_table_int(behavior->particle_count, table,
                                        current_value, index_values,
@@ -704,8 +719,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
     (void)fieldstack_free();
 }
 
-void set_vm_field(PfxVmField* field, unsigned int description)
-{
+void set_vm_field(PfxVmField* field, unsigned int description) {
     field->description = description;
     field->stream = map_field_to_stream(description);
 }
@@ -744,7 +758,8 @@ void pfxvm_update_add(PfxBehavior* behavior, unsigned int destination,
                       unsigned int source)
 {
     int source_type = pfx_field_get_type(source);
-    if (pfx_field_get_type(destination) == source_type) {
+    int destination_type = pfx_field_get_type(destination);
+    if (destination_type == source_type) {
         PfxUpdateInstruction* instruction =
             add_update_insn(behavior, 2, destination);
         set_vm_field(&instruction->arguments.field, source);
@@ -811,8 +826,8 @@ void pfxvm_update_bounce(PfxBehavior* behavior, unsigned int field,
 }
 
 void pfxvm_update_fade_alpha(PfxBehavior* behavior, unsigned int color_field,
-                             unsigned int age_field, int start_alpha,
-                             int end_alpha, float start_time, float duration)
+                             unsigned int age_field, float start_time,
+                             float duration, int start_alpha, int end_alpha)
 {
     PfxUpdateInstruction* instruction =
         add_update_insn(behavior, 12, color_field);
@@ -839,6 +854,7 @@ void pfxvm_update_lerp_color(PfxBehavior* behavior, unsigned int color_field,
     instruction->arguments.color_lerp.duration = duration;
 }
 
+/* TODO: [near miss] 76.47%; descriptor stores agree; argument snapshots and FP staging order remain. */
 void pfxvm_update_animate_texture(PfxBehavior* behavior,
                                   unsigned int texture_field,
                                   unsigned int age_field, int frame_count,
@@ -849,8 +865,8 @@ void pfxvm_update_animate_texture(PfxBehavior* behavior,
         add_update_insn(behavior, 14, texture_field);
     set_vm_field(&instruction->arguments.texture_anim.age_field, age_field);
     instruction->arguments.texture_anim.frame_time = frame_time;
-    instruction->arguments.texture_anim.frame_count = (short)frame_count;
-    instruction->arguments.texture_anim.mode = (short)frame_offset;
+    instruction->arguments.texture_anim.frame_count = frame_count;
+    instruction->arguments.texture_anim.mode = frame_offset;
     instruction->arguments.texture_anim.first_frame = mode;
     instruction->arguments.texture_anim.frame_source = frame_source;
 }
@@ -864,6 +880,7 @@ void pfxvm_update_attract(PfxBehavior* behavior, unsigned int field,
     instruction->scalar_04 = strength;
 }
 
+/* TODO: [near miss] 95.00%; assignment behavior agrees; inner equality branch retains a different exit shape. */
 void pfxvm_update_assign(PfxBehavior* behavior, int destination, int source)
 {
     PfxUpdateInstruction* instruction;

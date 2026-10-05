@@ -12,7 +12,7 @@ static unsigned char ErrorCode2Num(unsigned long error_code)
 {
     unsigned long index;
 
-    for (index = 0; index < 18; index++) {
+    for (index = 0; index < sizeof(ErrorTable) / sizeof(ErrorTable[0]); index++) {
         if (error_code == ErrorTable[index]) {
             return index;
         }

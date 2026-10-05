@@ -1,9 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-/* Misc gameplay / screen utilities (utils.o). */
-
 #include "runtime/plyr_pdata.h"
+#include "math/mk_math_types.h"
 #include "runtime/mk_proc.h"
 
 #ifdef __cplusplus
@@ -23,11 +22,6 @@ typedef int (*MovieTapoutFn)(void);
 
 void display_debug_damage(PlyrInfo* player, float damage);
 
-/*
- * Dispatch a cinematic from movie_info[movie_id].
- * tapout: return non-zero to end early (see atm_movie_tapout in attract.c).
- * Returns 1 when a fullscreen Sofdec movie starts, else 0.
- */
 int play_movie(int movie_id, MovieTapoutFn tapout);
 void screen_engine_play_movie(int index);
 int are_death_traps_on(void);
@@ -83,24 +77,24 @@ void fade_to_white(int frames, int flag);
 void set_string_obj_alpha(StringObj* obj, float alpha);
 void set_screen_obj_alpha(ScreenObj* obj, float alpha);
 typedef struct UvScrollControl {
-    MkHdr hdr;                    /* +0x00 */
-    MkObj* owner;                 /* +0x08 */
-    unsigned int owner_instance; /* +0x0C */
+    MkHdr hdr;
+    MkObj* owner;
+    unsigned int owner_instance;
     union {
         void* target;
         RpAtomic* atomic;
         RpMaterial* material;
-    };                            /* +0x10 */
-    int target_is_atomic;         /* +0x14 */
-    unsigned int pass_flags;      /* +0x18 */
-    float rateU1;                 /* +0x1C */
-    float rateV1;                 /* +0x20 */
-    float rateU2;                 /* +0x24 */
-    float rateV2;                 /* +0x28 */
+    };
+    int target_is_atomic;
+    unsigned int pass_flags;
+    float rateU1;
+    float rateV1;
+    float rateU2;
+    float rateV2;
     unsigned int pad2c;
-    float mtx1[16];               /* +0x30 */
-    float mtx2[16];               /* +0x70 */
-} UvScrollControl; /* 0xB0 */
+    RwMatrix mtx1;
+    RwMatrix mtx2;
+} UvScrollControl;
 
 UvScrollControl* find_uv_scroll_control_for_obj(MkObj* owner);
 UvScrollControl* material_start_uv_scroll(
@@ -129,7 +123,7 @@ int is_game_state_in_stack(int state);
 int get_game_state(void);
 void reset_game_state(void);
 void init_global_vars(void);
-/* Returns elapsed usec in r3:r4; main uses the low word as the RNG seed. */
+
 unsigned long long stop_usec_timer(int id);
 void start_usec_timer(int id);
 void get_clean_system(void);

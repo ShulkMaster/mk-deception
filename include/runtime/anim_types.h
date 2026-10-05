@@ -6,7 +6,7 @@
 
 typedef struct AnimTagFrame AnimTagFrame;
 typedef struct AnimEntryName AnimEntryName;
-typedef struct AniData AniData;
+typedef struct AnimScript AniData;
 typedef struct MkObj MkObj;
 typedef struct PlyrPdata PlyrPdata;
 
@@ -29,7 +29,7 @@ typedef struct AnimScript {
     unsigned int tag_data_offset;
     unsigned int tag_end_offset;
     unsigned short flags;
-    char pad2E[2];
+    short palette_index; /* +0x2E; populated by the SEC animation loader */
     int loop_offset_x; /* fixed-point 1/10000 */
     int loop_offset_y;
     int loop_offset_z;

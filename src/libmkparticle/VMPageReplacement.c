@@ -25,6 +25,7 @@ void __VMSetFreePagesExist(BOOL free_pages_exist)
     g_vmFreePagesExist = free_pages_exist;
 }
 
+/* TODO: [breakthrough needed] 76.35294%; dispatch frame and LR save placement differ. */
 u32 __VMGetPageToReplace(void)
 {
     if (g_vmPageReplacementPolicy == 0) {
@@ -36,6 +37,7 @@ u32 __VMGetPageToReplace(void)
     return __VMPageReplacementFIFO();
 }
 
+/* TODO: [breakthrough needed] 82.48276%; savegpr boundary, frame and register allocation differ. */
 u32 __VMPageReplacementLRU(void)
 {
     u32 replacement_page = 0;
@@ -110,6 +112,7 @@ u32 __VMPageReplacementLRU(void)
     return replacement_page;
 }
 
+/* TODO: [breakthrough needed] 66.81081%; saved-register set and instruction order differ. */
 u32 __VMPageReplacementRandom(void)
 {
     u32 replacement_page;
@@ -129,6 +132,7 @@ u32 __VMPageReplacementRandom(void)
     return replacement_page;
 }
 
+/* TODO: [breakthrough needed] 62.96296%; prologue and page-index store order differ. */
 u32 __VMPageReplacementFIFO(void)
 {
     u32 replacement_page;

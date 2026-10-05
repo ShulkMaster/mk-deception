@@ -111,7 +111,6 @@ void GXSetVtxDesc(GXAttr attr, GXAttrType type) {
     __GXData->dirtyState |= 8;
 }
 
-
 void __GXSetVCD(void) {
     GX_WRITE_SOME_REG4(8, 0x50, __GXData->vcdLo, -12);
     GX_WRITE_SOME_REG4(8, 0x60, __GXData->vcdHi, -12);
@@ -163,7 +162,6 @@ void __GXCalculateVLim(void) {
 
     __GXData->vLim = vlm;
 }
-
 
 void GXClearVtxDesc(void) {
     CHECK_GXBEGIN(543, "GXClearVtxDesc");
@@ -311,7 +309,6 @@ void __GXSetVAT(void) {
     __GXData->dirtyVAT = 0;
 }
 
-
 void GXSetArray(GXAttr attr, void* base_ptr, u8 stride) {
     GXAttr cpAttr;
     u32 phyAddr;
@@ -394,13 +391,13 @@ void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc sr
     case GX_TG_BUMP5:
     case GX_TG_BUMP6:
     case GX_TG_BUMP7:
-        ASSERTMSGLINE(1091, src_param >= 12 && src_param <= 18, "GXSetTexCoordGen:  Bump source texture value is invalid");
+        ASSERTMSGLINE(1091, src_param >= GX_TG_TEXCOORD0 && src_param <= GX_TG_TEXCOORD6, "GXSetTexCoordGen:  Bump source texture value is invalid");
         SET_REG_FIELD(1093, reg, 1, 1, 0);
         SET_REG_FIELD(1093, reg, 1, 2, form);
         SET_REG_FIELD(1095, reg, 3, 4, 1);
         SET_REG_FIELD(1095, reg, 5, 7, row);
-        SET_REG_FIELD(1096, reg, 3, 12, src_param - 12);
-        SET_REG_FIELD(1097, reg, 3, 15, func - 2);
+        SET_REG_FIELD(1096, reg, 3, 12, src_param - GX_TG_TEXCOORD0);
+        SET_REG_FIELD(1097, reg, 3, 15, func - GX_TG_BUMP0);
         break;
     case GX_TG_SRTG:
         SET_REG_FIELD(1102, reg, 1, 1, 0);

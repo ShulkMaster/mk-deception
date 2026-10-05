@@ -1,19 +1,4 @@
-#include "dolphin/trk.h"
-
-extern DSError TRKDoConnect(MessageBuffer* message);
-extern DSError TRKDoDisconnect(MessageBuffer* message);
-extern DSError TRKDoReset(MessageBuffer* message);
-extern DSError TRKDoOverride(MessageBuffer* message);
-extern DSError TRKDoVersions(MessageBuffer* message);
-extern DSError TRKDoSupportMask(MessageBuffer* message);
-extern DSError TRKDoReadMemory(MessageBuffer* message);
-extern DSError TRKDoWriteMemory(MessageBuffer* message);
-extern DSError TRKDoReadRegisters(MessageBuffer* message);
-extern DSError TRKDoWriteRegisters(MessageBuffer* message);
-extern DSError TRKDoContinue(MessageBuffer* message);
-extern DSError TRKDoStep(MessageBuffer* message);
-extern DSError TRKDoStop(MessageBuffer* message);
-extern DSError TRKDoSetOption(MessageBuffer* message);
+#include "dolphin/msghndlr.h"
 
 static const char dispatch_command[] = "Dispatch command 0x%08x\n";
 static const char dispatch_complete[] = "Dispatch complete err = %ld\n";

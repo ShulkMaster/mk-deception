@@ -1,11 +1,8 @@
 #include "runtime/cstring.h"
+#include "mw/mwFile.h"
 
-class mwFileCommand;
 class mwFileServer;
 struct mwFileTypeInfo;
-struct _mwFileAsyncResult;
-
-typedef void (*mwFileCallback)(mwFileCommand*, _mwFileAsyncResult, void*);
 
 class mwFileMultithreadedMemTraits {
 public:
@@ -28,6 +25,13 @@ public:
                                       unsigned long&) = 0;
     virtual const char* getInternalPath() const = 0;
     virtual mwFileServer* getServer() = 0;
+
+    static void operator delete(void* object)
+    {
+        if (object != 0) {
+            mwFileMultithreadedMemTraits::deallocate(object);
+        }
+    }
 
 protected:
     char name[36];
@@ -87,10 +91,8 @@ public:
 class mwFileDevice {
 public:
     struct Callback {
-        typedef void (*Function)(unsigned long, unsigned long, unsigned long,
-                                 unsigned long, void*);
-
-        Function function;
+        void (*function)(unsigned long, unsigned long, unsigned long,
+                         unsigned long, void*);
         void* callback_data;
         unsigned long argument0;
         unsigned long argument1;
@@ -141,10 +143,10 @@ mwFileServer* mwFileDummyMountPoint::getServer()
 }
 }
 
+/* TODO: [near miss] 61.54%; direct init result retained; retail materializes a conditional zero result; TU order remains. */
 int _mwFileMountInit()
 {
-    int error = mwFileMountTable::initialize();
-    return error != 0 ? error : 0;
+    return mwFileMountTable::initialize();
 }
 
 void mwFileDevice::serviceCallbacks()

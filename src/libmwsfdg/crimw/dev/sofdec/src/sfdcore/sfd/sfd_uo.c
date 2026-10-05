@@ -66,9 +66,9 @@ static void sfuo_InitCh(SfdHandle* handle, SfdUserOutputWork* work,
         SfdBufferChannel* channel = &work->channels[channel_index];
 
         channel->stream_joint = 0;
-        channel->object = 0;
         channel->handle_callback = 0;
         channel->object_callback = 0;
+        channel->object = 0;
         SFBUF_SetUoch(handle, buffer_index, channel_index, channel);
     }
 }
@@ -114,7 +114,7 @@ static int SFUO_Init(SfdHandle* handle)
 }
 
 int SFD_SetUsrSj(SfdHandle* handle, int channel_index, SJ* stream_joint,
-                 SfdCallbackObject object)
+                 SfdBufferHandleCallback callback)
 {
     SfdUserOutputWork* work;
     int buffer_index;
@@ -131,9 +131,9 @@ int SFD_SetUsrSj(SfdHandle* handle, int channel_index, SJ* stream_joint,
     }
 
     work->channels[channel_index].stream_joint = stream_joint;
-    work->channels[channel_index].object = object;
-    work->channels[channel_index].handle_callback = 0;
+    work->channels[channel_index].handle_callback = callback;
     work->channels[channel_index].object_callback = 0;
+    work->channels[channel_index].object = 0;
     SFBUF_SetUoch(handle, buffer_index, channel_index,
                   &work->channels[channel_index]);
     return 0;

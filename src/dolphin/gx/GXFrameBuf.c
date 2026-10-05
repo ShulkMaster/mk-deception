@@ -27,7 +27,6 @@ void GXSetDispCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
     SET_REG_FIELD(1244, __GXData->cpDispSize,  8, 24, 0x4A);
 }
 
-
 void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
     CHECK_GXBEGIN(1263, "GXSetTexCopySrc");
 
@@ -48,7 +47,7 @@ void GXSetDispCopyDst(u16 wd, u16 ht) {
     ASSERTMSGLINE(1293, (wd & 0xF) == 0, "GXSetDispCopyDst: Width must be a multiple of 16");
     CHECK_GXBEGIN(1294, "GXSetDispCopyDst");
 
-    stride = (int)wd * 2;
+    stride = wd * 2;
     __GXData->cpDispStride = 0;
     SET_REG_FIELD(1300, __GXData->cpDispStride, 10,  0, (stride >> 5) );
     SET_REG_FIELD(1300, __GXData->cpDispStride,  8, 24, 0x4D);
@@ -200,7 +199,7 @@ u32 GXSetDispCopyYScale(f32 vscale) {
     GX_WRITE_RAS_REG(reg);
     __GXData->bpSentNot = 0;
     SET_REG_FIELD(1571, __GXData->cpDisp, 1, 10, enable);
-    ht = (u32)GET_REG_FIELD(__GXData->cpDispSize, 10, 10) + 1;
+    ht = GET_REG_FIELD(__GXData->cpDispSize, 10, 10) + 1;
     return __GXGetNumXfbLines(ht, iScale);
 }
 
@@ -343,7 +342,7 @@ void GXCopyDisp(void* dest, GXBool clear) {
 
     changePeCtrl = FALSE;
 
-    if ((clear || (u32)GET_REG_FIELD(__GXData->peCtrl, 3, 0) == 3) && (u32)GET_REG_FIELD(__GXData->peCtrl, 1, 6) == 1) {
+    if ((clear || GET_REG_FIELD(__GXData->peCtrl, 3, 0) == 3) && GET_REG_FIELD(__GXData->peCtrl, 1, 6) == 1) {
         changePeCtrl = TRUE;
         tempPeCtrl = __GXData->peCtrl;
         SET_REG_FIELD(0, tempPeCtrl, 1, 6, 0);
@@ -407,7 +406,7 @@ void GXCopyTex(void* dest, GXBool clear) {
         SET_REG_FIELD(0, tempPeCtrl, 3, 0, 3);
     }
 
-    if ((clear || ((u32) (tempPeCtrl & 7) == 3)) && ((u32) ((tempPeCtrl >> 6) & 1) == 1)) {
+    if ((clear || ((tempPeCtrl & 7) == 3)) && (((tempPeCtrl >> 6) & 1) == 1)) {
         changePeCtrl = 1;
         SET_REG_FIELD(0, tempPeCtrl, 1, 6, 0);
     }

@@ -43,7 +43,6 @@ static const ScreenRotationAxis s_identityAxes[3] = {
         }                                                                                      \
     } while (0)
 
-/* TODO: [near miss] 94.78723%; constant and event-loop GPR coloring remains; counted loops agree. */
 ScreenObject::ScreenObject() {
     int i;
 
@@ -53,7 +52,7 @@ ScreenObject::ScreenObject() {
     m_matrixStack = 0;
     m_screen = 0;
     m_flags = 7;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < sizeof(m_focus) / sizeof(m_focus[0]); i++) {
         m_focus[i] = 0;
     }
     typeTag = kScreenTagOBJ;
@@ -62,9 +61,9 @@ ScreenObject::ScreenObject() {
     m_extraTrans[2] = 0.0f;
     m_extraTrans[1] = 0.0f;
     m_extraTrans[0] = 0.0f;
-    for (i = 0; i < 10; i++) {
-        m_lastEvents[i].control = 0;
-        m_lastEvents[i].lastEvent = -1;
+    for (int event = 0; event < sizeof(m_lastEvents) / sizeof(m_lastEvents[0]); event++) {
+        m_lastEvents[event].control = 0;
+        m_lastEvents[event].lastEvent = -1;
     }
 }
 
@@ -116,7 +115,7 @@ void ScreenObject::Render(ScreenRenderInfo* info) {
     }
 
     list = m_ext->children;
-    count = (unsigned int)list->count;
+    count = list->count;
     i = 0;
     while (i < count) {
         child = SeEntryObject(ScreenChildEntryAt(list, i));
@@ -143,7 +142,7 @@ void ScreenObject::SetMatrixStack(ScreenMatrixStack* stack) {
     }
 
     list = m_ext->children;
-    count = (unsigned int)list->count;
+    count = list->count;
     i = 0;
     while (i < count) {
         child = SeEntryObject(ScreenChildEntryAt(list, i));
@@ -189,7 +188,6 @@ void ScreenObject::SetColorTranslation(SEVec4_t* color) {
     m_flags |= 1;
 }
 
-/* TODO: [near miss] 100% instruction-exact, not link-exact: retail loads the axes from an anonymous @230 initializer, ours from named s_identityAxes. */
 void ScreenObject::UpdateTransform() {
     SETransform* xform;
     SETransform* xformScales;
@@ -267,11 +265,10 @@ void ScreenObject::SetFocus(ScreenMgr* mgr, ScreenObject* obj, int index, int fi
     }
 }
 
-/* TODO: [near miss] 98.666664%; zero/index initialization ordering remains; reverse walk agrees. */
 void ScreenObject::ClearActiveObjects() {
-    int i;
+    unsigned int i;
 
-    for (i = 3; i >= 0; i--) {
+    for (i = sizeof(m_focus) / sizeof(m_focus[0]); i-- != 0;) {
         m_focus[i] = 0;
     }
 }
@@ -280,25 +277,22 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
-/* TODO: [near miss] 96.40367%; action-result copy and GPR coloring remain; stop at equivalent action traversal. */
+/* TODO: [near miss] 99.266052%; 16 saved-GPR rows remain in stack/type homes and first created-action copy. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
-    ScreenActionStack* stack;
     ScreenEvent* event;
+    ScreenActionStack* stack;
     unsigned int eventIndex;
     unsigned int flags;
     unsigned int start;
-    unsigned int count;
     unsigned int end;
-    unsigned int i;
-    ScreenParams* params;
+    unsigned int matchIndex;
     unsigned int actionType;
-    ScreenAction* created;
     ScreenAction* next;
 
     next = action->m_next;
     event = action->m_event;
-    eventIndex = (unsigned int)action->m_eventIndex;
+    eventIndex = action->m_eventIndex;
     flags = action->m_flags;
     stack = &mgr->m_actionStack;
 
@@ -310,30 +304,29 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
     stack->StartLocal();
     if (event->HasSubActions(eventIndex)) {
         start = event->GetStartOfSubAction(eventIndex);
-        count = event->GetNumOfSubActions(eventIndex);
-        end = (unsigned int)start + (unsigned int)count;
+        end = start + event->GetNumOfSubActions(eventIndex);
 
-        for (i = start; i < end; i++) {
-            actionType = event->GetAction(i);
+        for (matchIndex = start; matchIndex < end; matchIndex++) {
+            actionType = event->GetAction(matchIndex);
             if (actionType != SCREEN_ACTION_MATCH) {
                 continue;
             }
-            params = event->GetParams(i);
+            ScreenParams* params = event->GetParams(matchIndex);
             if (match != params->GetInt(0)) {
                 continue;
             }
-            actionType = event->GetAction(i);
-            created = ScreenActionStack::CreateAction(actionType);
-            created->Init(event, (int)i, this, (int)actionType, params, flags);
+            actionType = event->GetAction(matchIndex);
+            ScreenAction* created = ScreenActionStack::CreateAction(actionType);
+            created->Init(event, (int)matchIndex, this, (int)actionType, params, flags);
             stack->PushAction(created);
             return;
         }
 
-        for (i = start; i < end; i++) {
-            actionType = event->GetAction(i);
-            params = event->GetParams(i);
-            created = ScreenActionStack::CreateAction(actionType);
-            created->Init(event, (int)i, this, (int)actionType, params, flags);
+        for (unsigned int subActionIndex = start; subActionIndex < end; subActionIndex++) {
+            actionType = event->GetAction(subActionIndex);
+            ScreenParams* params = event->GetParams(subActionIndex);
+            ScreenAction* created = ScreenActionStack::CreateAction(actionType);
+            created->Init(event, (int)subActionIndex, this, (int)actionType, params, flags);
             stack->PushAction(created);
         }
     }
@@ -351,7 +344,7 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
-/* TODO: [near miss] 99.666664%; action-stack and event-argument GPR homes remain swapped. */
+/* TODO: [near miss] 99.67%; stack/argument GPR homes swap; seek a supported owner boundary. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int numEvents;
     unsigned int numActions;
@@ -366,14 +359,14 @@ void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     stack = &mgr->m_actionStack;
     numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
-        event = GetEvent((unsigned int)i);
+        event = GetEvent(i);
         /* Retail cmpw: eventId vs m_id. */
-        if (eventId != (int)event->m_id) {
+        if (eventId != event->m_id) {
             continue;
         }
-        numActions = (unsigned int)event->m_numActions;
+        numActions = event->m_numActions;
         for (j = 0; j < numActions; j++) {
-            actionType = (int)event->GetAction(j);
+            actionType = event->GetAction(j);
             params = event->GetParams(j);
             created = ScreenActionStack::CreateAction((unsigned int)actionType);
             created->Init(event, (int)j, this, actionType, params,
@@ -389,10 +382,10 @@ int ScreenObject::HasEvent(int eventId) {
     ScreenEvent* event;
 
     /* Decl order: this/eventId live across GetEvent (retail stmw r28). */
-    numEvents = (unsigned int)GetNumEvents();
+    numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent(i);
-        if (eventId == (int)event->m_id) {
+        if (eventId == event->m_id) {
             return 1;
         }
     }
@@ -420,20 +413,19 @@ void ScreenObject::FireEvent(ScreenMgr* mgr, int event, int arg, unsigned int fl
     ProcessEvent(mgr, event, arg);
 }
 
-/* TODO: [near miss] 99.49275%; entry/tag scratch GPR coloring remains; finite event switch agrees. */
 void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
+    unsigned int tag;
     ScreenChildList* list;
     ScreenChildEntry* entry;
     unsigned int count;
     unsigned int i;
-    unsigned int tag;
 
     list = m_ext->children;
     if (list == 0) {
         return;
     }
 
-    count = (unsigned int)list->count;
+    count = list->count;
     i = 0;
     while (i < count) {
         entry = ScreenChildEntryAt(list, i);
@@ -467,12 +459,12 @@ ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
     int actionType;
     ScreenParams* params;
 
-    numEvents = (unsigned int)GetNumEvents();
+    numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent(i);
-        if (eventId == (int)event->m_id) {
+        if (eventId == event->m_id) {
             for (j = event->m_numActions - 1; j >= 0; j--) {
-                actionType = (int)event->GetAction((unsigned int)j);
+                actionType = event->GetAction((unsigned int)j);
                 if (actionType == 0x3e8) {
                     params = event->GetParams((unsigned int)j);
                     return (ScreenObject*)params->GetScreenNode(0);
@@ -494,7 +486,7 @@ int ScreenObject::HandleAction(ScreenMgr* /*mgr*/, const ScreenAction* /*action*
 int ScreenObject::GetLastEvent(ScreenAnimControl* ctrl) {
     int i;
 
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < sizeof(m_lastEvents) / sizeof(m_lastEvents[0]); i++) {
         if (m_lastEvents[i].control == ctrl) {
             return m_lastEvents[i].lastEvent;
         }
@@ -505,7 +497,7 @@ int ScreenObject::GetLastEvent(ScreenAnimControl* ctrl) {
 void ScreenObject::SetLastEvent(ScreenAnimControl* ctrl, int event) {
     int i;
 
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < sizeof(m_lastEvents) / sizeof(m_lastEvents[0]); i++) {
         if (m_lastEvents[i].control == ctrl) {
             if (event == -1) {
                 m_lastEvents[i].control = 0;
@@ -517,7 +509,7 @@ void ScreenObject::SetLastEvent(ScreenAnimControl* ctrl, int event) {
     if (event == -1) {
         return;
     }
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < sizeof(m_lastEvents) / sizeof(m_lastEvents[0]); i++) {
         if (m_lastEvents[i].control == 0) {
             m_lastEvents[i].control = ctrl;
             m_lastEvents[i].lastEvent = event;
@@ -573,7 +565,7 @@ void ScreenObject::SetComponent(ScreenAnimControl* ctrl, float* values, int /*un
         break;
     case 0x14:
         /* Retail: fcmpu -> mfcr/extrwi EQ into SetVisible arg (no li 0/1). */
-        SetVisible((unsigned int)(values[0] == 1.0f));
+        SetVisible(values[0] == 1.0f);
         break;
     case 0x18:
         /* Case body order: retail emits 0x18 before 0x15..0x17. */
@@ -594,7 +586,7 @@ void ScreenObject::SetComponent(ScreenAnimControl* ctrl, float* values, int /*un
         ScreenSet* set;
         ScreenMgr* mgr;
 
-        asInt = (int)values[0];
+        asInt = values[0];
         last = GetLastEvent(ctrl);
         if (ctrl->flag == -1) {
             SetLastEvent(ctrl, -1);

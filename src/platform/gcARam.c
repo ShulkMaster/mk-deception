@@ -4,7 +4,6 @@
 #include "dolphin/vm.h"
 #include "mw/mwMem.h"
 
-extern _mwMemHeap* SystemSwappableHeap;
 extern u32 g_ARAM_VM_Start;
 extern u32 g_ARAM_VM_Size;
 extern u32 g_ARAM_MSL_Start;
@@ -33,7 +32,8 @@ void gc_aram_init(void) {
     static void* aramBase;
     static u32 aramSize;
 
-    ARInit(g_GC_ARAM_MemBlocks, 5);
+    ARInit(g_GC_ARAM_MemBlocks,
+           sizeof(g_GC_ARAM_MemBlocks) / sizeof(g_GC_ARAM_MemBlocks[0]));
     available_size = ARGetSize() - ARGetBaseAddress();
 
     if (g_ARAM_MSL_Start == 0) {
@@ -65,7 +65,6 @@ u32 ARAM_MSL_GetBase(void) {
     return (u32)base;
 }
 
-/* Reverse source order reproduces the retail .sbss symbol order. */
 u32 g_ARAM_MSL_Size;
 u32 g_ARAM_MSL_Start;
 u32 g_ARAM_VM_Size;

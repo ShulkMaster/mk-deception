@@ -183,12 +183,12 @@ static s32 DummyLen(void)
     ++length;
     while (length < 4 && attempts < 10) {
         tick = OSGetTick();
-        length = (s32)(tick << shift);
+        length = tick << shift;
         ++shift;
         if (shift > 16) {
             shift = 1;
         }
-        CARDSrand((u32)length);
+        CARDSrand(length);
         length = CARDRand();
         length &= 0x1F;
         ++length;
@@ -231,7 +231,7 @@ s32 __CARDUnlock(s32 chan, u8 flashID[12])
 
     card = &__CARDBlock[chan];
     task = &card->task;
-    parameter = (CARDDecParam*)card->workArea;
+    parameter = card->workArea;
     input = (u8*)parameter + sizeof(CARDDecParam);
     input = (u8*)OSRoundUp32B(input);
     output = input + 32;
@@ -244,7 +244,7 @@ s32 __CARDUnlock(s32 chan, u8 flashID[12])
         return CARD_RESULT_NOCARD;
     }
 
-    shift = (u32)(dummy * 8 + 1);
+    shift = dummy * 8 + 1;
     work = exnor_1st(initValue, shift);
     feedback = ~(work ^ (work >> 7) ^ (work >> 15) ^ (work >> 23));
     card->scramble = work | ((feedback << 31) & 0x80000000);
@@ -289,7 +289,7 @@ s32 __CARDUnlock(s32 chan, u8 flashID[12])
     card->scramble = work | ((feedback >> 31) & 1);
 
     parameter2B ^= card->scramble;
-    shift = (u32)(dummy * 8);
+    shift = dummy * 8;
     work = exnor(card->scramble, shift);
     feedback = ~(work ^ (work << 7) ^ (work << 15) ^ (work << 23));
     card->scramble = work | ((feedback >> 31) & 1);
@@ -345,7 +345,7 @@ static void InitCallback(DSPTaskInfo* taskInfo)
         }
     }
 
-    parameter = (CARDDecParam*)card->workArea;
+    parameter = card->workArea;
 
     DSPSendMailToDSP(0xFF000000);
     while (DSPCheckMailToDSP()) {
@@ -383,7 +383,7 @@ static void DoneCallback(DSPTaskInfo* taskInfo)
         }
     }
 
-    parameter = (CARDDecParam*)card->workArea;
+    parameter = card->workArea;
     input = (u8*)parameter + sizeof(CARDDecParam);
     input = (u8*)OSRoundUp32B(input);
     output = input + 32;
@@ -398,7 +398,7 @@ static void DoneCallback(DSPTaskInfo* taskInfo)
         return;
     }
 
-    shift = (u32)((dummy + 4 + card->latency) * 8 + 1);
+    shift = (dummy + 4 + card->latency) * 8 + 1;
     work = exnor(card->scramble, shift);
     feedback = ~(work ^ (work << 7) ^ (work << 15) ^ (work << 23));
     card->scramble = work | ((feedback >> 31) & 1);

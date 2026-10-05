@@ -5,16 +5,13 @@
 #include "dolphin/types.h"
 #include "dolphin/vm.h"
 
-typedef void (*VMLogStatsCallback)(u32 virtual_address, void* physical_address,
-                                   u32 physical_page, u32 elapsed,
-                                   int wrote_page);
-
 static u32 g_vmBaseVMARAM = 0x4000;
 static u32 g_vmSizeVMMainMemory;
-static void* g_vmBaseVMMainMemory;
+static char* g_vmBaseVMMainMemory;
 static u32 g_vmSizeVMARAM;
 static u32 g_vmNumPagesInMRAM;
-static VMLogStatsCallback g_cbLogStats;
+static void (*g_cbLogStats)(u32 virtual_address, void* physical_address,
+                            u32 physical_page, u32 elapsed, int wrote_page);
 static int g_vmInitialized;
 
 void __VMSwapPageIn(u32 virtual_address);
@@ -22,6 +19,7 @@ void __VMSwapPageIn(u32 virtual_address);
 #define VM_TIME_UNITS() \
     ((u32)((OSGetTime() * 8) / (OS_TIMER_CLOCK / 500000)))
 
+/* TODO: [breakthrough needed] 64.28%; frame and initialization scheduling differ; establish compiler provenance. */
 void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
 {
     int interrupts;
@@ -41,6 +39,7 @@ void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
     }
 }
 
+/* TODO: [near miss] 76.85%; body agrees; frame and save/restore order differ. */
 void VMQuit(void)
 {
     if (g_vmInitialized == 1) {
@@ -73,12 +72,14 @@ u32 VMGetARAMBase(void)
     return g_vmBaseVMARAM;
 }
 
+/* TODO: [near miss] 24.83%; frame and arena-base forwarding differ. */
 void __VMAllocMRAMSwapSpace(void)
 {
     g_vmBaseVMMainMemory = OSGetArenaLo();
-    OSSetArenaLo((char*)g_vmBaseVMMainMemory + g_vmSizeVMMainMemory);
+    OSSetArenaLo(g_vmBaseVMMainMemory + g_vmSizeVMMainMemory);
 }
 
+/* TODO: [breakthrough needed] 45.92%; timer arithmetic, call staging and ABI codegen differ; verify compiler provenance. */
 void __VMSwapPageIn(u32 virtual_address)
 {
     u32 start_time;
@@ -96,7 +97,7 @@ void __VMSwapPageIn(u32 virtual_address)
     wrote_page = 0;
     physical_page = __VMGetPageToReplace();
     physical_address =
-        (char*)g_vmBaseVMMainMemory + (physical_page << 12);
+        g_vmBaseVMMainMemory + (physical_page << 12);
     page_virtual_address =
         VMBASEGetVirtualAddrFromPageInMRAM(physical_page);
     interrupts = OSDisableInterrupts();

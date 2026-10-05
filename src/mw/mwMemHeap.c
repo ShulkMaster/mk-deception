@@ -35,7 +35,7 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
 
     mwMemHeapGetInfo(info->originHeap, &origin_info);
     mwMemHeapGetInfo(info->destHeap, &destination_info);
-    size_kb = (float)info->size;
+    size_kb = info->size;
     size_kb *= 1.0f / 1024.0f;
     MEMPRINT(">> OVERFLOW_HEAP: size: %f K origin heap: %s, dest heap: %s, file: %s L: %d\n",
              size_kb, origin_info.name, destination_info.name, info->sourceFunction, info->line);
@@ -47,7 +47,7 @@ void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
 
     mwMemHeapGetInfo(info->destHeap, &heap_info);
     MEMPRINT(">> Out of RAM \n");
-    size_kb = (float)info->size;
+    size_kb = info->size;
     MEMPRINT("      FAILURE:  cannot allocate: %f K  from heap: %s\n",
              size_kb *= 1.0f / 1024.0f, heap_info.name);
 }
@@ -60,9 +60,6 @@ void mwMemUserConfigInitMemSystem(void) {
 }
 
 int mwMemUserConfigAssert(const char* expression, const char* file, u32 line) {
-    (void)expression;
-    (void)file;
-    (void)line;
     return 1;
 }
 

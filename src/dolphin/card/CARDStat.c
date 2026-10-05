@@ -83,7 +83,7 @@ s32 CARDGetStatus(s32 chan, s32 fileNo, CARDStat* stat)
         memcpy(stat->gameName, entry->gameName, sizeof(stat->gameName));
         memcpy(stat->company, entry->company, sizeof(stat->company));
         stat->length = (u32)entry->length * card->sectorSize;
-        memcpy(stat->fileName, entry->fileName, CARD_FILENAME_MAX);
+        memcpy(stat->fileName, entry->fileName, sizeof(stat->fileName));
         stat->time = entry->time;
         stat->bannerFormat = entry->bannerFormat;
         stat->iconAddr = entry->iconAddr;

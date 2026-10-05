@@ -3,12 +3,7 @@
 #include "mwScreenEngine/ScreenClient.h"
 #include "mwScreenEngine/ScreenAction.h"
 
-extern "C" {
-char* strcpy(char* dst, const char* src);
-unsigned long strlen(const char* s);
-char* strtok(char* s, const char* delim);
-int stricmp(const char* a, const char* b);
-}
+#include "runtime/cstring.h"
 
 static unsigned int s_openEventData[7] = {
     0x430, 0, 0, 0, 0, 0, 0,
@@ -37,9 +32,10 @@ ScreenMgr::~ScreenMgr() {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 87.59%; retail addresses the "" literal via @stringBase0 lis/addi, ours via SDA; TU string pool. */
+/* TODO: [near miss] 87.79%; field stores and both clears agree; empty literal uses SDA instead of retail rodata. */
 void ScreenMgr::Reset() {
     int i;
+    int stack_index;
 
     m_rootSet = 0;
     m_currentSet = 0;
@@ -59,8 +55,8 @@ void ScreenMgr::Reset() {
     for (i = 0; i < SCREEN_CONFIRM_CAPACITY; i++) {
         m_confirm[i] = 0;
     }
-    for (i = 0; i < SCREEN_BRANCH_CAPACITY; i++) {
-        m_stack[i] = 0;
+    for (stack_index = 0; stack_index < SCREEN_BRANCH_CAPACITY; stack_index++) {
+        m_stack[stack_index] = 0;
     }
 }
 #pragma dont_inline reset
@@ -139,10 +135,11 @@ int ScreenMgr::InitBranchPath() {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-/* TODO: [near miss] 81.11%; algorithm matches; create/dispose nonvolatile register schedule differs. */
+/* TODO: [near miss] 83.037598%; delimiter lifetime recovered; create/dispose register allocation remains. */
 int ScreenMgr::UpdateBranchPath(char* path) {
     char pathCopy[0x100];
     char* parts[10];
+    const char* delimiters;
     int nParts;
     int matched;
     int limit;
@@ -155,8 +152,9 @@ int ScreenMgr::UpdateBranchPath(char* path) {
     int unloadId;
 
     strcpy(m_pathBuf, path);
+    delimiters = "/\\";
     strcpy(pathCopy, path);
-    nParts = SplitPath(pathCopy, "/\\", parts, 10);
+    nParts = SplitPath(pathCopy, delimiters, parts, sizeof(parts) / sizeof(parts[0]));
 
     walk = m_rootSet;
     keepParent = 0;
@@ -217,15 +215,15 @@ int ScreenMgr::UpdateBranchPath(char* path) {
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 96.79%; error-report/open branch scheduling differs. */
+/* TODO: [breakthrough needed] 96.794868%; body closes with verified paired string-pooling mode; await object flag integration. */
 void ScreenMgr::LoadCompleted(ScreenSet* set) {
     if (set == m_currentSet && set != 0) {
         Screen* screen;
 
         screen = set->GetScreen(m_screenName);
         if (screen == 0) {
-            ScreenUtil::ReportError((char*)"Load screen failed. Screen not found",
-                                    (char*)"ScreenMgr.cpp", 0x1cb);
+            ScreenUtil::ReportError("Load screen failed. Screen not found",
+                                    "ScreenMgr.cpp", 0x1cb);
         }
         if (m_pendingOpen != 0 && screen != 0) {
             AppendScreen(screen);
@@ -236,16 +234,17 @@ void ScreenMgr::LoadCompleted(ScreenSet* set) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 89.02%; stack slot order and the IsInited chain differ. */
+/* TODO: [breakthrough] 94.108696%; delimiter lifetime recovered; verified pooled-string mode awaits object flag integration. */
 int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
     char pathCopy[0x100];
     char* parts[10];
     int depth;
+    const char* delimiters = "/\\";
     int nParts;
     ScreenSet* parent;
 
     strcpy(pathCopy, path);
-    nParts = SplitPath(pathCopy, "/\\", parts, 10);
+    nParts = SplitPath(pathCopy, delimiters, parts, sizeof(parts) / sizeof(parts[0]));
     *outScreen = 0;
     depth = 0;
 
@@ -260,42 +259,42 @@ int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-/* TODO: [near miss] 91.92%; child recursion loop and shared null epilogue scheduling differ. */
 ScreenSet* ScreenMgr::FindParent(ScreenSet* set, char** parts, int nParts, int& depth) {
     int i;
     int nChildren;
     ScreenSet* child;
     ScreenSet* found;
 
-    if (set == 0 || depth >= nParts || stricmp(set->GetName(), parts[depth]) != 0) {
-        return 0;
-    }
-    depth += 1;
+    if (set != 0 && depth < nParts && stricmp(set->GetName(), parts[depth]) == 0) {
+        depth += 1;
 
-    nChildren = set->GetNumChildren();
-    i = 0;
-    while (i < nChildren) {
-        child = set->GetChild(i);
-        found = FindParent(child, parts, nParts, depth);
-        if (found != 0) {
-            return found;
+        nChildren = set->GetNumChildren();
+        i = 0;
+        while (i < nChildren) {
+            child = set->GetChild(i);
+            found = FindParent(child, parts, nParts, depth);
+            if (found != 0) {
+                return found;
+            }
+            i += 1;
         }
-        i += 1;
+        return set;
     }
-    return set;
+    return 0;
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 90.47%; strtok loop and maxParts exit branch layout differ. */
 int ScreenMgr::SplitPath(char* path, const char* delim, char** outParts, int maxParts) {
     int count = 0;
-    char* tok;
+    char* tok = strtok(path, delim);
 
-    for (tok = strtok(path, delim); tok != 0; tok = strtok(0, delim)) {
-        if (count >= maxParts) {
-            break;
+    while (tok != 0) {
+        if (count < maxParts) {
+            outParts[count++] = tok;
+            tok = strtok(0, delim);
+        } else {
+            return count;
         }
-        outParts[count++] = tok;
     }
     return count;
 }
@@ -314,18 +313,17 @@ int ScreenMgr::GetScreenIndex(Screen* screen) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 94.88%; stack-shift loop and root event scheduling differ. */
 int ScreenMgr::RemoveScreen(Screen* screen) {
     int found = -1;
-    int shifted = 0;
+    unsigned int shifted = 0;
     int i;
 
     if (screen == 0) {
         return -1;
     }
 
-    if (m_activeCount != -1 && m_stack[m_activeCount] == screen) {
-        ScreenObject* root = screen->GetRoot();
+    if (m_activeCount != -1 && screen != 0 && m_stack[m_activeCount] == screen) {
+        ScreenObject* root = m_stack[m_activeCount]->GetRoot();
         if (root != 0) {
             root->ProcessEvent(this, 0x3ed, 0);
         }
@@ -373,22 +371,18 @@ void ScreenMgr::RemoveScreens(ScreenSet* set) {
                 screen->BroadcastEvent(this, 0x3eb, 0);
             }
             screen->BroadcastEvent(this, 0x408, 0);
-            {
-                int j;
-                for (j = i; j < m_activeCount; j++) {
-                    m_stack[j] = m_stack[j + 1];
-                }
-                m_activeCount -= 1;
+            int j;
+            for (j = i; j < m_activeCount; j++) {
+                m_stack[j] = m_stack[j + 1];
             }
+            m_activeCount -= 1;
         }
     }
 
-    {
-        int start = m_activeCount + 1;
-        int j;
-        for (j = start; j < 0x10; j++) {
-            m_stack[j] = 0;
-        }
+    int start = m_activeCount + 1;
+    int j;
+    for (j = start; j < SCREEN_BRANCH_CAPACITY; j++) {
+        m_stack[j] = 0;
     }
     m_actionStack.Process(this, 0);
     m_actionStack.RemoveActions(set);
@@ -400,7 +394,6 @@ void ScreenMgr::AppendScreen(Screen* screen) {
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 91.66%; duplicate scan and inlined GetActiveScreen scheduling differ. */
 void ScreenMgr::InsertScreen(Screen* screen, int index) {
     int i;
     ScreenAction* action;
@@ -421,10 +414,9 @@ void ScreenMgr::InsertScreen(Screen* screen, int index) {
     screen->BroadcastEvent(this, 0x407, 0);
 
     action = ScreenActionStack::CreateAction(0x430);
-    {
-        ScreenObject* root = screen->GetRoot();
-        action->Init((ScreenEvent*)s_openEventData, 0x430, root, 0x430, 0, 0);
-    }
+    action->Init(
+        (ScreenEvent*)s_openEventData, 0x430,
+        screen->GetRoot(), 0x430, 0, 0);
     m_actionStack.PushAction(action);
 
     if (m_activeCount != -1) {
@@ -433,15 +425,13 @@ void ScreenMgr::InsertScreen(Screen* screen, int index) {
                 m_stack[i + 1] = m_stack[i];
             }
         } else {
-            ScreenObject* topRoot = GetActiveScreen()->GetRoot();
+            ScreenObject* topRoot = m_stack[m_activeCount]->GetRoot();
             if (topRoot != 0) {
                 topRoot->ProcessEvent(this, 0x3ed, 0);
             }
-            {
-                ScreenObject* root = screen->GetRoot();
-                if (root != 0) {
-                    root->ProcessEvent(this, 0x3ec, 0);
-                }
+            ScreenObject* root = screen->GetRoot();
+            if (root != 0) {
+                root->ProcessEvent(this, 0x3ec, 0);
             }
         }
     }
@@ -485,15 +475,14 @@ void ScreenMgr::OpenScreen(Screen* screen) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-/* TODO: [near miss] 94.62%; child recursion and delete path scheduling differ. */
 void ScreenMgr::DisposeSet(ScreenSet* set, unsigned int flags) {
-    int n = set->GetNumChildren();
+    int child_index = set->GetNumChildren();
     ScreenSet* parent;
-    int i;
+    int branch_index;
 
-    while (n != 0) {
-        n -= 1;
-        DisposeSet(set->GetChild(n), flags);
+    while (child_index-- != 0) {
+        ScreenSet* child = set->GetChild(child_index);
+        DisposeSet(child, flags);
     }
 
     parent = set->GetParent();
@@ -511,14 +500,12 @@ void ScreenMgr::DisposeSet(ScreenSet* set, unsigned int flags) {
         if (parent != 0) {
             parent->RemoveChild(set);
         }
-        for (i = 0; i < m_branchDepth; i++) {
-            if (m_branch[i] == set) {
-                m_branch[i] = 0;
+        for (branch_index = 0; branch_index < m_branchDepth; branch_index++) {
+            if (set == m_branch[branch_index]) {
+                m_branch[branch_index] = 0;
             }
         }
-        if (set != 0) {
-            delete set;
-        }
+        delete set;
     }
 }
 #pragma dont_inline reset
@@ -627,14 +614,14 @@ void ScreenMgr::ResetStagesTo(int value) {
     int i;
 
     for (i = 0; i < 4; i++) {
-        m_confirm[i] = (unsigned int)value;
+        m_confirm[i] = value;
     }
 }
 
 int ScreenMgr::GetStage(int index) {
     if (index > 0) {
         if (index < 4) {
-            return (int)m_confirm[index - 1];
+            return m_confirm[index - 1];
         }
     }
     return 0;
@@ -647,7 +634,7 @@ void ScreenMgr::SetStage(int index, int value) {
     if (index >= 4) {
         return;
     }
-    m_confirm[index - 1] = (unsigned int)value;
+    m_confirm[index - 1] = value;
 }
 
 /* TODO: [near miss] 86.16%; register-table walk: table reload, count register and id scheduling differ. */

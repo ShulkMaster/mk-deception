@@ -1,10 +1,3 @@
-/*
- * GameCube skin/specularity pipeline.
- *
- * The plugin offset helpers are the only byte-addressed accesses in this TU:
- * RenderWare assigns those extension offsets at runtime. Everything behind an
- * extension is represented by a typed retail-layout view.
- */
 #include "game/specular.h"
 #include "dolphin/gx.h"
 #include "rw/alphapass.h"
@@ -17,130 +10,123 @@
 #include "rw/rpskin.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
+#include "rw/gamecube_texture.h"
 #include "rw/rwvector.h"
 #include "math/gxMath.h"
 #include "game/gcspecskin.h"
 #include "runtime/mk_plugins.h"
 
-typedef struct SpecularGeometryData {
+struct SpecularGeometryData {
     void* field_00;
-    int material_index;             /* +0x04 */
-} SpecularGeometryData;
+    int material_index;
+};
 
-typedef struct SpecColor4 {
+struct SpecColor4 {
     float red;
     float green;
     float blue;
     float alpha;
-} SpecColor4;
+};
 
-typedef struct SpecLight {
+struct SpecLight {
     unsigned char object_type;
-    unsigned char light_type;       /* +0x01 */
-    unsigned char flags;            /* +0x02 */
+    unsigned char light_type;
+    unsigned char flags;
     unsigned char private_flags;
-    RwFrame* frame;                 /* +0x04 */
+    RwFrame* frame;
     unsigned char pad08[0x0C];
-    float radius;                   /* +0x14 */
-    SpecColor4 color;               /* +0x18 */
+    float radius;
+    struct SpecColor4 color;
     unsigned char pad28[0x0C];
-    RwLLLink in_world;              /* +0x34 */
-} SpecLight;
+    RwLLLink in_world;
+};
 
-typedef struct SpecWorld {
+struct SpecWorld {
     unsigned char pad00[0x34];
-    RwLLLink point_lights;          /* +0x34 */
-    RwLLLink directional_lights;    /* +0x3C */
-} SpecWorld;
+    RwLLLink point_lights;
+    RwLLLink directional_lights;
+};
 
-typedef struct SpecCamera {
+struct SpecCamera {
     unsigned char pad00[0x20];
-    RwMatrix view_matrix;           /* +0x20 */
+    RwMatrix view_matrix;
     unsigned char pad60[0x20];
-    float near_plane;               /* +0x80 */
-    float far_plane;                /* +0x84 */
-    float fog_plane;                /* +0x88 */
-    float z_scale;                  /* +0x8C */
-} SpecCamera;
+    float near_plane;
+    float far_plane;
+    float fog_plane;
+    float z_scale;
+};
 
-typedef struct SpecSkinData {
-    unsigned int field_00;
-    unsigned int num_bones;
-    unsigned char* bone_indices;
-    unsigned int field_0C;
-    unsigned int num_used_bones;
-} SpecSkinData;
-
-typedef struct SpecMesh {
+struct SpecMesh {
     unsigned short* indices;
     unsigned int num_indices;
     RpMaterial* material;
-} SpecMesh;
+};
 
-typedef struct SpecMeshHeader {
+struct SpecMeshHeader {
     unsigned int flags;
     unsigned short num_meshes;
     unsigned short serial_num;
     unsigned int total_indices;
     unsigned int first_mesh_offset;
-    SpecMesh meshes[1];             /* +0x10 */
-} SpecMeshHeader;
+    struct SpecMesh meshes[1];
+};
 
-typedef struct SpecDisplayList {
+struct SpecDisplayList {
     void* data;
     unsigned int size;
-} SpecDisplayList;
+};
 
-typedef struct SpecDisplayHeader {
-    unsigned short token;            /* +0x00 */
+struct SpecDisplayHeader {
+    unsigned short token;
     unsigned short pad02;
     unsigned int pad04;
-    unsigned int display_list_count; /* +0x08 */
+    unsigned int display_list_count;
     unsigned char pad0C[8];
-    SpecDisplayList lists[1];        /* +0x14 */
-} SpecDisplayHeader;
+    struct SpecDisplayList lists[1];
+};
 
-typedef struct SpecDisplayResource {
+struct SpecDisplayResource {
     unsigned char pad00[0x18];
-    SpecDisplayHeader header;        /* +0x18 */
-} SpecDisplayResource;
+    struct SpecDisplayHeader header;
+};
 
-typedef struct SpecResourceEntry {
-    SpecDisplayResource* display_resource; /* +0x00 */
-    SpecMeshHeader* mesh_header;       /* +0x04 */
-    unsigned int object_setup_0;       /* +0x08 */
+struct SpecResourceEntry {
+    struct SpecDisplayResource* display_resource;
+    struct SpecMeshHeader* mesh_header;
+    unsigned int object_setup_0;
     unsigned char pad0C[0x10];
-    unsigned int object_setup_1;       /* +0x1C */
-    unsigned int object_setup_2;       /* +0x20 */
-} SpecResourceEntry;
+    unsigned int object_setup_1;
+    unsigned int object_setup_2;
+};
 
-typedef struct SpecMatrixPalette {
+struct SpecMatrixPalette {
     RwMatrix matrix[30];
-    unsigned int valid_bits;         /* +0x780 */
-} SpecMatrixPalette;
+    unsigned int valid_bits;
+};
 
-typedef struct SpecLightingData {
+struct SpecLightingData {
     unsigned char pad00[0x0C];
-    SpecColor4 ambient;               /* +0x0C */
-    int has_ambient;                 /* +0x1C */
-    unsigned int light_mask;         /* +0x20 */
-    int light_count;                 /* +0x24 */
-} SpecLightingData;
+    struct SpecColor4 ambient;
+    int has_ambient;
+    unsigned int light_mask;
+    int light_count;
+};
 
 typedef void* (*RpSkinInstanceCallback)(void*, RwResEntry**);
-typedef RpAtomic* (*RpSkinRenderCallback)(RpAtomic*, SpecResourceEntry*);
-typedef RpAtomic* (*RpSkinLightingCallback)(RpAtomic*, SpecLightingData*);
+typedef RpAtomic* (*RpSkinRenderCallback)(RpAtomic*, struct SpecResourceEntry*);
+typedef RpAtomic* (*RpSkinLightingCallback)(RpAtomic*, struct SpecLightingData*);
 
 static RpAtomic* MKReflectionRenderCallback(
-    RpAtomic* atomic, SpecResourceEntry* resource);
+    RpAtomic* atomic, struct SpecResourceEntry* resource);
 static RpAtomic* MKSpecSkinRenderCallback(
-    RpAtomic* atomic, SpecResourceEntry* resource);
+    RpAtomic* atomic, struct SpecResourceEntry* resource);
 static void SpecSkinProcessMaterialList(
-    RpAtomic* atomic, SpecResourceEntry* resource);
-static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh);
-static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass);
+    RpAtomic* atomic, struct SpecResourceEntry* resource);
+static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh);
+static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass);
 static RpAtomic* GCSpecSkinLighting(
-    RpAtomic* atomic, SpecLightingData* lighting);
+    RpAtomic* atomic, struct SpecLightingData* lighting);
 
 extern GXLightObj _RwGCLightObjs[8];
 
@@ -151,7 +137,7 @@ RxPipeline* _rpDlAtomicPipelineCreate(
     RpSkinInstanceCallback reinstance_callback,
     RpSkinLightingCallback lighting_callback,
     RpSkinRenderCallback render_callback);
-void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
+void _rwDlVtxFmtSetup(void*, struct SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
 void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
 void _rwDlRenderStateSetZCompLoc(int);
@@ -169,11 +155,11 @@ static float base_z_buff;
 static float z_near;
 static float z_scale;
 static float z_dist;
-SpecLight* pDirLight1;
-SpecLight* pDirLight2;
-SpecLight* pPointLight1;
-SpecLight* pPointLight2;
-SpecLight* pAmbLight;
+struct SpecLight* pDirLight1;
+struct SpecLight* pDirLight2;
+struct SpecLight* pPointLight1;
+struct SpecLight* pPointLight2;
+struct SpecLight* pAmbLight;
 static float oldZFar;
 static float oldZNear;
 static float lastZOffset;
@@ -192,7 +178,7 @@ static inline MkmaterialPluginData* mkmaterial_data(RpMaterial* material) {
         material, MkmaterialLocalOffset);
 }
 
-static inline SpecularGeometryData* specular_geometry(RpGeometry* geometry) {
+static inline struct SpecularGeometryData* specular_geometry(RpGeometry* geometry) {
     return rw_plugin_data(
         geometry, SpecularGeometryOffset);
 }
@@ -205,52 +191,37 @@ static inline MksobjPluginData* mksobj_data(RpAtomic* atomic) {
     return rw_plugin_data(atomic, MksobjLocalOffset);
 }
 
-static inline SpecLight* light_from_link(RwLLLink* link) {
-    return RW_CONTAINER_OF(link, SpecLight, in_world);
+static inline struct SpecLight* light_from_link(RwLLLink* link) {
+    return RW_CONTAINER_OF(link, struct SpecLight, in_world);
 }
 
-static inline signed char color_component(float value) {
+static inline int color_component(float value) {
     return value;
 }
 
-static inline GXColor scaled_light_color(
-    const SpecLight* light,
-    const unsigned char tint[3],
-    float scale) {
-    GXColor color;
-
-    color.r = color_component(
-        tint[0] * (scale * light->color.red));
-    color.g = color_component(
-        tint[1] * (scale * light->color.green));
-    color.b = color_component(
-        tint[2] * (scale * light->color.blue));
-    color.a = 0xFF;
-    return color;
-}
-
-/* TODO: [near miss] 87.11%; color conversion FPR and aggregate scheduling remains. */
+/* TODO: [near miss] 87.60%; TEV/coordinate homes agree; RGB load/conversion interleave remains. */
 void ProcessSpecularity(
     RpMaterial* material,
-    int has_texture,
-    unsigned int has_specularity,
-    unsigned int has_specular_map) {
+    RwTexture* base_texture,
+    RwTexture* alpha_texture,
+    int has_specular_map) {
     SpecularMaterialPluginData* specular;
-    SpecLight* light;
+    struct SpecLight* light;
+    RwTexture* texture;
     GXColor color;
     float scale;
     float material_scale;
     int initial_stage;
-    int tex_coord;
     int tev_stage;
+    int tex_coord;
 
     specular = specular_data(material);
     initial_stage = (has_specular_map != 0) + 1;
     tev_stage = initial_stage;
-    if (has_specularity != 0) {
+    if (alpha_texture != 0) {
         tev_stage = initial_stage + 1;
     }
-    tex_coord = has_texture != 0;
+    tex_coord = base_texture != 0;
 
     scale = 1.0f;
     material_scale = 2.0f * material->surface.specular;
@@ -267,12 +238,10 @@ void ProcessSpecularity(
 
     GXSetNumTexGens(tex_coord + 1);
     GXSetTexCoordGen2(tex_coord, 1, 1, 0x39, 0, 0x7D);
-    {
-        RwTexture* texture = specular->texture;
-        texture->filter_flags =
-            (texture->filter_flags & 0xFFFF00FF) | 0x1100;
-        _rwDlTextureSet(texture, specTexNum);
-    }
+    texture = specular->texture;
+    texture->filter_flags =
+        (texture->filter_flags & 0xFFFF00FF) | 0x1100;
+    _rwDlTextureSet(texture, specTexNum);
     GXSetTevOrder(tev_stage, tex_coord, specTexNum, 0xFF);
     GXSetTevSwapMode(tev_stage, 0, 0);
     GXSetNumTevStages(
@@ -285,18 +254,18 @@ void ProcessSpecularity(
 
 /* TODO: [breakthrough needed] 71.08%; GXBool narrowing changes frame and nonvolatile homes; inspect ABI. */
 void CleanupSpecularity(
-    RpMaterial* material, int has_texture, unsigned int has_specularity) {
+    RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
     SpecularMaterialPluginData* specular;
     int textured;
     unsigned int stage_count;
 
-    stage_count = (has_specularity != 0) + 1;
-    textured = has_texture != 0;
+    stage_count = (alpha_texture != 0) + 1;
+    textured = base_texture != 0;
     specular = specular_data(material);
 
     GXSetNumTexGens(textured);
     GXSetNumTevStages(stage_count);
-    if (has_specularity != 0 && specular->flags.bits.swapMode != 0) {
+    if (alpha_texture != 0 && specular->flags.bits.swapMode != 0) {
         GXSetTevSwapMode(2, 0, 0);
         GXSetTevSwapMode(3, 0, 0);
     }
@@ -304,7 +273,7 @@ void CleanupSpecularity(
 
 void SetupAtomicSpecularity(RpAtomic* atomic) {
     RpGeometry* geometry = atomic->geometry;
-    SpecularGeometryData* extension = specular_geometry(geometry);
+    struct SpecularGeometryData* extension = specular_geometry(geometry);
     RwMatrix inverse;
     float texture_matrix[3][4];
     RwMatrix combined;
@@ -331,10 +300,7 @@ void SetupAtomicSpecularity(RpAtomic* atomic) {
     GXLoadTexMtxImm(texture_matrix, 0x39, 1);
 }
 
-/* TODO: [near miss] 97.16216%; integer-result trials moved publication scheduling and were restored; byte result lowering remains. */
 int SpecularCreatePipelines(void) {
-    unsigned char created;
-
     SpecSkinAtomicPipeline = _rpDlAtomicPipelineCreate(
         0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
         GCSpecSkinLighting, MKSpecSkinRenderCallback);
@@ -345,17 +311,18 @@ int SpecularCreatePipelines(void) {
     ReflectionAtomicPipeline = _rpDlAtomicPipelineCreate(
         0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
         GCSpecSkinLighting, MKReflectionRenderCallback);
-    created = ReflectionAtomicPipeline != 0;
-    return created;
+    if (ReflectionAtomicPipeline != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 void SetupShadowPlayerPipeline(RpClump* clump) {
-    (void)clump;
 }
 
-static inline SpecSkinData* prepare_skin_render(
-    RpAtomic* atomic, SpecResourceEntry* resource) {
-    SpecSkinData* skin;
+static RpAtomic* MKReflectionRenderCallback(
+    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+    RpSkin* skin;
     void* vertex_format;
     RwMatrix* atomic_ltm;
     unsigned int bone;
@@ -365,8 +332,8 @@ static inline SpecSkinData* prepare_skin_render(
     atomic_ltm = RwFrameGetLTM(atomic->object.parent);
     _rwDlVtxFmtSetup(vertex_format, resource);
 
-    skin = (SpecSkinData*)RpSkinGeometryGetSkin(atomic->geometry);
-    if (skin->num_used_bones > 1) {
+    skin = RpSkinGeometryGetSkin(atomic->geometry);
+    if (skin->maxNumWeights > 1) {
         _rwDlTransformSetup(atomic_ltm, 1);
     } else {
         GXSetVtxDesc(0, 1);
@@ -377,31 +344,24 @@ static inline SpecSkinData* prepare_skin_render(
         resource->object_setup_2,
         resource->object_setup_1,
         0);
-    if (skin->num_used_bones == 1) {
-        for (bone = 0; bone < skin->num_bones; bone++) {
+    if (skin->maxNumWeights == 1) {
+        for (bone = 0; bone < skin->numUsedBones; bone++) {
             _rpSkinLoadMatrix(
                 &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
-                    [skin->bone_indices[bone]],
+                    [skin->usedBoneList[bone]],
                 bone * 3,
                 1);
         }
     }
-    return skin;
-}
-
-/* TODO: [near miss] 97.74%; callback nonvolatile register allocation remains. */
-static RpAtomic* MKReflectionRenderCallback(
-    RpAtomic* atomic, SpecResourceEntry* resource) {
-    prepare_skin_render(atomic, resource);
     return atomic;
 }
 
 /* TODO: [near miss] 99.56%; only atomic/resource parameter registers are
  * swapped (r30/r31); local declaration order does not move them. */
 static RpAtomic* MKSpecSkinRenderCallback(
-    RpAtomic* atomic, SpecResourceEntry* resource) {
-    SpecCamera* camera;
-    SpecSkinData* skin;
+    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+    struct SpecCamera* camera;
+    RpSkin* skin;
     RwMatrix* atomic_ltm;
     void* vertex_format;
     unsigned int bone;
@@ -418,8 +378,8 @@ static RpAtomic* MKSpecSkinRenderCallback(
     atomic_ltm = RwFrameGetLTM(atomic->object.parent);
     _rwDlVtxFmtSetup(vertex_format, resource);
 
-    skin = (SpecSkinData*)RpSkinGeometryGetSkin(atomic->geometry);
-    if (skin->num_used_bones > 1) {
+    skin = RpSkinGeometryGetSkin(atomic->geometry);
+    if (skin->maxNumWeights > 1) {
         _rwDlTransformSetup(atomic_ltm, 1);
     } else {
         GXSetVtxDesc(0, 1);
@@ -430,11 +390,11 @@ static RpAtomic* MKSpecSkinRenderCallback(
         resource->object_setup_2,
         resource->object_setup_1,
         0);
-    if (skin->num_used_bones == 1) {
-        for (bone = 0; bone < skin->num_bones; bone++) {
+    if (skin->maxNumWeights == 1) {
+        for (bone = 0; bone < skin->numUsedBones; bone++) {
             _rpSkinLoadMatrix(
                 &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
-                    [skin->bone_indices[bone]],
+                    [skin->usedBoneList[bone]],
                 bone * 3,
                 1);
         }
@@ -477,13 +437,13 @@ static RpAtomic* MKSpecSkinRenderCallback(
 }
 
 static inline void upload_material_transform(
-    RpAtomic* atomic, SpecMesh* mesh) {
+    RpAtomic* atomic, struct SpecMesh* mesh) {
     MkSobj* sobj = mksobj_data(atomic)->sobj;
-    SpecSkinData* skin =
-        (SpecSkinData*)RpSkinGeometryGetSkin(atomic->geometry);
+    RpSkin* skin =
+        RpSkinGeometryGetSkin(atomic->geometry);
 
-    if (sobj != 0 && skin->num_used_bones > 1) {
-        SpecMatrixPalette* palette = (SpecMatrixPalette*)sobj->matrices;
+    if (sobj != 0 && skin->maxNumWeights > 1) {
+        struct SpecMatrixPalette* palette = (struct SpecMatrixPalette*)sobj->matrices;
         int has_transform = 0;
         unsigned int material_number =
             (mkmaterial_data(mesh->material)->flags & 0xBFF) / 10 - 1;
@@ -507,9 +467,9 @@ static inline void upload_material_transform(
 
 static inline void draw_spec_mesh(
     RpAtomic* atomic,
-    SpecMesh* first_mesh,
-    SpecMesh* mesh,
-    SpecDisplayList* display_lists,
+    struct SpecMesh* first_mesh,
+    struct SpecMesh* mesh,
+    struct SpecDisplayList* display_lists,
     int alpha_pass) {
     unsigned int display_index;
 
@@ -526,9 +486,9 @@ static inline void draw_spec_mesh(
         display_lists[display_index].size);
 }
 
-static inline SpecMesh** spec_mesh_slot(
-    SpecMesh** base, unsigned int byte_offset) {
-    return (SpecMesh**)((unsigned char*)base + byte_offset);
+static inline struct SpecMesh** spec_mesh_slot(
+    struct SpecMesh** base, unsigned int byte_offset) {
+    return (struct SpecMesh**)((unsigned char*)base + byte_offset);
 }
 
 static inline int* spec_priority_slot(
@@ -538,16 +498,16 @@ static inline int* spec_priority_slot(
 
 /* TODO: [near miss] 97.35%; declaration order improves coloring; header address staging and inlined material load schedule remain. */
 static void SpecSkinProcessMaterialList(
-    RpAtomic* atomic, SpecResourceEntry* resource) {
-    SpecMesh* alpha_meshes[64];
-    SpecMesh* reflection_meshes[64];
+    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+    struct SpecMesh* alpha_meshes[64];
+    struct SpecMesh* reflection_meshes[64];
     int reflection_priority[64];
-    SpecMeshHeader* mesh_header;
-    SpecDisplayHeader* display_header;
+    struct SpecMeshHeader* mesh_header;
+    struct SpecDisplayHeader* display_header;
     unsigned int num_meshes;
-    SpecMesh* mesh;
-    SpecDisplayList* display_lists;
-    SpecMesh* first_mesh;
+    struct SpecMesh* mesh;
+    struct SpecDisplayList* display_lists;
+    struct SpecMesh* first_mesh;
     unsigned int mesh_index;
     int alpha_count = 0;
     int reflection_count = 0;
@@ -614,7 +574,7 @@ static void SpecSkinProcessMaterialList(
     }
 
     for (i = 0; i < alpha_count; i++) {
-        SpecMesh* mesh = alpha_meshes[i];
+        struct SpecMesh* mesh = alpha_meshes[i];
         SpecularMaterialPluginData* specular = specular_data(mesh->material);
 
         if (specular->flags.bits.cullFront != 0) {
@@ -627,7 +587,7 @@ static void SpecSkinProcessMaterialList(
     }
     if (reflection_count > 0) {
         for (i = reflection_count - 1; i >= 0; i--) {
-            SpecMesh* mesh = reflection_meshes[i];
+            struct SpecMesh* mesh = reflection_meshes[i];
             SpecularMaterialPluginData* specular = specular_data(mesh->material);
 
             if (specular->flags.bits.reflectionPass == 0) {
@@ -637,7 +597,7 @@ static void SpecSkinProcessMaterialList(
             }
         }
         for (i = 0; i < reflection_count; i++) {
-            SpecMesh* mesh = reflection_meshes[i];
+            struct SpecMesh* mesh = reflection_meshes[i];
 
             GXSetCullMode(1);
             draw_spec_mesh(
@@ -695,10 +655,6 @@ static inline void setup_uv_transform(RwMatrix* base_transform) {
     }
 }
 
-static inline signed char float_color_component(float value) {
-    return (int)value;
-}
-
 static inline void setup_material_channels(
     RpMaterial* material, const GXColor* default_ambient) {
     GXColor ambient;
@@ -707,41 +663,40 @@ static inline void setup_material_channels(
 
     if (pAmbLight != 0) {
         scale = 255.0f * material->surface.ambient;
-        ambient.r = float_color_component(pAmbLight->color.red * scale);
-        ambient.g = float_color_component(pAmbLight->color.green * scale);
-        ambient.b = float_color_component(pAmbLight->color.blue * scale);
+        ambient.r = color_component(pAmbLight->color.red * scale);
+        ambient.g = color_component(pAmbLight->color.green * scale);
+        ambient.b = color_component(pAmbLight->color.blue * scale);
         ambient.a = 0;
     } else {
         ambient = *default_ambient;
     }
     GXSetChanAmbColor(0, ambient);
 
-    diffuse.r = float_color_component(
+    diffuse.r = color_component(
         material->color.red * material->surface.diffuse);
-    diffuse.g = float_color_component(
+    diffuse.g = color_component(
         material->color.green * material->surface.diffuse);
-    diffuse.b = float_color_component(
+    diffuse.b = color_component(
         material->color.blue * material->surface.diffuse);
     diffuse.a = 0;
     GXSetChanMatColor(0, diffuse);
 }
 
 static inline void setup_base_z_compare(RwTexture* texture) {
-    void* raster_owner;
+    RwRaster* raster_owner;
 
     if (texture != 0 && texture->raster != 0) {
-        raster_owner = *(void**)texture->raster;
+        raster_owner = texture->raster->parent;
         _rwDlRenderStateSetZCompLoc(
-            (*(unsigned int*)((char*)raster_owner +
-                              _RwGameCubeRasterExtOffset + 0x14) & 1) ^ 1);
+            (RW_RASTER_PLATFORM_DATA(raster_owner)->hasAlpha & 1) ^ 1);
     }
 }
 
 /* TODO: [near miss] 92.36%; stack slot order of the channel/specular colors and material/specular r31/r30 swap remain. */
-static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
+static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh) {
     RpMaterial* material = mesh->material;
     SpecularMaterialPluginData* specular;
-    SpecLight* light;
+    struct SpecLight* light;
     RwTexture* base_texture;
     RwTexture* specular_texture;
     GXColor default_ambient = {0, 0, 0, 0xFF};
@@ -775,11 +730,11 @@ static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
     material_scale = 2.0f * material->surface.specular;
     light = specular_data(material)->light;
     scale = 1.0f <= material_scale ? 1.0f : material_scale;
-    specular_color.r = float_color_component(
+    specular_color.r = color_component(
         specular->tint.red * (scale * light->color.red));
-    specular_color.g = float_color_component(
+    specular_color.g = color_component(
         specular->tint.green * (scale * light->color.green));
-    specular_color.b = float_color_component(
+    specular_color.b = color_component(
         specular->tint.blue * (scale * light->color.blue));
     specular_color.a = 0xFF;
     GXSetTevColor(3, specular_color);
@@ -796,10 +751,10 @@ static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
 }
 
 /* TODO: [near miss] 94.58%; material/specular r31/r30 swap and color stack-slot order remain. */
-static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
+static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
     RpMaterial* material = mesh->material;
     SpecularMaterialPluginData* specular = specular_data(material);
-    SpecLight* light;
+    struct SpecLight* light;
     RwTexture* base_texture;
     RwTexture* specular_texture;
     RwTexture* alpha_texture;
@@ -840,11 +795,11 @@ static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
     material_scale = 2.0f * material->surface.specular;
     light = specular_data(material)->light;
     scale = 1.0f <= material_scale ? 1.0f : material_scale;
-    specular_color.r = float_color_component(
+    specular_color.r = color_component(
         specular->tint.red * (scale * light->color.red));
-    specular_color.g = float_color_component(
+    specular_color.g = color_component(
         specular->tint.green * (scale * light->color.green));
-    specular_color.b = float_color_component(
+    specular_color.b = color_component(
         specular->tint.blue * (scale * light->color.blue));
     specular_color.a = 0xFF;
     GXSetTevColor(3, specular_color);
@@ -884,7 +839,7 @@ static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
 }
 
 static inline void find_spec_lights(RwGlobals* engine) {
-    SpecWorld* world;
+    struct SpecWorld* world;
     RwLLLink* link;
 
     pDirLight1 = 0;
@@ -895,7 +850,7 @@ static inline void find_spec_lights(RwGlobals* engine) {
         for (link = world->directional_lights.next;
              link != &world->directional_lights;
              link = link->next) {
-            SpecLight* light = light_from_link(link);
+            struct SpecLight* light = light_from_link(link);
 
             if (light == 0) {
                 continue;
@@ -926,7 +881,7 @@ static inline void find_spec_lights(RwGlobals* engine) {
         for (link = world->point_lights.next;
              link != &world->point_lights;
              link = link->next) {
-            SpecLight* light = light_from_link(link);
+            struct SpecLight* light = light_from_link(link);
 
             if (light == 0) {
                 continue;
@@ -974,14 +929,14 @@ static inline float spec_inv_sqrt(float value) {
 }
 
 static inline void upload_point_light(
-    SpecLight* light,
-    SpecLightingData* lighting,
+    struct SpecLight* light,
+    struct SpecLightingData* lighting,
     const Vec* delta,
     float inverse_distance,
     float intensity) {
     GXColor color;
-    GXLightObj* light_object;
     int light_index;
+    GXLightObj* light_object;
     int red;
     int green;
     int blue;
@@ -999,9 +954,9 @@ static inline void upload_point_light(
     red = (light->color.red * color_scale);
     green = (light->color.green * color_scale);
     blue = (light->color.blue * color_scale);
-    color.r = (signed char)red;
-    color.g = (signed char)green;
-    color.b = (signed char)blue;
+    color.r = red;
+    color.g = green;
+    color.b = blue;
     color.a = 0;
     GXInitLightColor(light_object, color);
     GXLoadLightObjImm(light_object, 1U << light_index);
@@ -1010,37 +965,39 @@ static inline void upload_point_light(
 }
 
 static inline void upload_directional_light(
-    SpecLight* light,
-    SpecLightingData* lighting,
-    float intensity) {
+    struct SpecLight** light_slot,
+    struct SpecLightingData* lighting,
+    float intensity,
+    RwV3d* direction) {
+    struct SpecLight* light;
     RwMatrix* light_ltm;
-    RwV3d direction;
     GXColor color;
-    GXLightObj* light_object;
     int light_index;
+    GXLightObj* light_object;
     int red;
     int green;
     int blue;
     float color_scale;
 
-    light_ltm = RwFrameGetLTM(light->frame);
+    light_ltm = RwFrameGetLTM((*light_slot)->frame);
     RwV3dTransformVector(
-        &direction, &light_ltm->at, &_RwDlInvCamLTM);
+        direction, &light_ltm->at, &_RwDlInvCamLTM);
     light_index = lighting->light_count;
     light_object = &_RwGCLightObjs[light_index];
+    light = *light_slot;
     GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
     GXInitLightPos(
         light_object,
-        -1048576.0f * -direction.x,
-        -1048576.0f * direction.y,
-        -1048576.0f * -direction.z);
+        -1048576.0f * -direction->x,
+        -1048576.0f * direction->y,
+        -1048576.0f * -direction->z);
     color_scale = 255.0f * intensity;
     red = (light->color.red * color_scale);
     green = (light->color.green * color_scale);
     blue = (light->color.blue * color_scale);
-    color.r = (signed char)red;
-    color.g = (signed char)green;
-    color.b = (signed char)blue;
+    color.r = red;
+    color.g = green;
+    color.b = blue;
     color.a = 0;
     GXInitLightColor(light_object, color);
     GXLoadLightObjImm(light_object, 1U << light_index);
@@ -1048,23 +1005,29 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* TODO: [near miss] 94.06%; light-upload register scheduling remains; check honest lifetimes. */
+/* TODO: [breakthrough] 95.91%; light ownership and intensity order recovered;
+ * recover point-metric stack storage and first-distance rounding. */
 static RpAtomic* GCSpecSkinLighting(
-    RpAtomic* atomic, SpecLightingData* lighting) {
+    RpAtomic* atomic, struct SpecLightingData* lighting) {
     RpMaterial* specular_material;
     RwMatrix* atomic_ltm;
     RwMatrix* light_ltm;
     RwMatrix inverse_specular;
     float texture_matrix[3][4];
     RwMatrix combined;
-    SpecLight* point1;
-    SpecLight* point2;
+    RwV3d direction;
+    struct SpecLight* point1;
+    struct SpecLight* point2;
     Vec point1_delta;
     Vec point2_delta;
     float point1_distance_sq;
     float point2_distance_sq;
+    float point1_radius;
+    float point2_radius;
     float point1_intensity;
     float point2_intensity;
+    float point1_inverse_distance;
+    float point2_inverse_distance;
     float strongest_point_intensity;
     float directional_intensity;
 
@@ -1080,101 +1043,104 @@ static RpAtomic* GCSpecSkinLighting(
         RwFrameGetLTM(atomic->object.parent));
     specular_material = atomic->geometry->matList.materials[0];
     if ((atomic->geometry->flags | 0x20U) != 0) {
-    find_spec_lights(RwEngineInstance);
+        find_spec_lights(RwEngineInstance);
 
-    if (pAmbLight != 0) {
-        lighting->has_ambient = 1;
-        lighting->ambient = pAmbLight->color;
-    } else {
-        lighting->has_ambient = 0;
-    }
-
-    strongest_point_intensity = 0.0f;
-    directional_intensity = 1.0f;
-    point1 = pPointLight1;
-    if (point1 != 0) {
-        atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-        light_ltm = RwFrameGetLTM(point1->frame);
-        point1_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
-        point1_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
-        point1_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
-        point1_distance_sq =
-            point1_delta.x * point1_delta.x +
-            point1_delta.y * point1_delta.y +
-            point1_delta.z * point1_delta.z;
-        point2 = pPointLight2;
-        if (point2 != 0) {
-            light_ltm = RwFrameGetLTM(point2->frame);
-            point2_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
-            point2_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
-            point2_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
-            point2_distance_sq =
-                point2_delta.x * point2_delta.x +
-                point2_delta.y * point2_delta.y +
-                point2_delta.z * point2_delta.z;
-            point1_intensity =
-                1.0f - gxMathFastSqrt(point1_distance_sq) /
-                    point1->radius;
-            if (point1_intensity < 0.0f) {
-                point1_intensity = 0.0f;
-            }
-            point2_intensity =
-                1.0f - gxMathFastSqrt(point2_distance_sq) / point2->radius;
-            if (point2_intensity < 0.0f) {
-                point2_intensity = 0.0f;
-            }
-            strongest_point_intensity =
-                point1_intensity >= point2_intensity
-                    ? point1_intensity : point2_intensity;
-            upload_point_light(
-                point2, lighting, &point2_delta,
-                spec_inv_sqrt(point2_distance_sq), point2_intensity);
+        if (pAmbLight != 0) {
+            lighting->has_ambient = 1;
+            lighting->ambient = pAmbLight->color;
         } else {
-            point1_intensity =
-                1.0f - gxMathFastSqrt(point1_distance_sq) /
-                    point1->radius;
-            if (point1_intensity < 0.0f) {
-                point1_intensity = 0.0f;
+            lighting->has_ambient = 0;
+        }
+
+        strongest_point_intensity = 0.0f;
+        directional_intensity = 1.0f;
+        if (pPointLight1 != 0) {
+            atomic_ltm = RwFrameGetLTM(atomic->object.parent);
+            light_ltm = RwFrameGetLTM(pPointLight1->frame);
+            point1 = pPointLight1;
+            point1_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
+            point1_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
+            point1_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
+            point1_radius = point1->radius;
+            point1_distance_sq =
+                point1_delta.x * point1_delta.x +
+                point1_delta.y * point1_delta.y +
+                point1_delta.z * point1_delta.z;
+            if (pPointLight2 != 0) {
+                light_ltm = RwFrameGetLTM(pPointLight2->frame);
+                point2 = pPointLight2;
+                point2_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
+                point2_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
+                point2_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
+                point2_radius = point2->radius;
+                point2_distance_sq =
+                    point2_delta.x * point2_delta.x +
+                    point2_delta.y * point2_delta.y +
+                    point2_delta.z * point2_delta.z;
+                point1_intensity =
+                    1.0f - gxMathFastSqrt(point1_distance_sq) /
+                        point1_radius;
+                point2_intensity =
+                    1.0f - gxMathFastSqrt(point2_distance_sq) / point2_radius;
+                if (point1_intensity < 0.0f) {
+                    point1_intensity = 0.0f;
+                }
+                if (point2_intensity < 0.0f) {
+                    point2_intensity = 0.0f;
+                }
+                strongest_point_intensity =
+                    point1_intensity >= point2_intensity
+                        ? point1_intensity : point2_intensity;
+                point2_inverse_distance = spec_inv_sqrt(point2_distance_sq);
+                upload_point_light(
+                    point2, lighting, &point2_delta,
+                    point2_inverse_distance, point2_intensity);
+            } else {
+                point1_intensity =
+                    1.0f - gxMathFastSqrt(point1_distance_sq) /
+                        point1_radius;
+                if (point1_intensity < 0.0f) {
+                    point1_intensity = 0.0f;
+                }
+                strongest_point_intensity = point1_intensity;
             }
-            strongest_point_intensity = point1_intensity;
+
+            directional_intensity =
+                0.5f >= 1.0f - strongest_point_intensity
+                    ? 0.5f : 1.0f - strongest_point_intensity;
+
+            point1_inverse_distance = spec_inv_sqrt(point1_distance_sq);
+            upload_point_light(
+                point1, lighting, &point1_delta,
+                point1_inverse_distance, point1_intensity);
         }
 
-        directional_intensity = 1.0f - strongest_point_intensity;
-        if (directional_intensity < 0.5f) {
-            directional_intensity = 0.5f;
+        if (pDirLight1 != 0) {
+            upload_directional_light(
+                &pDirLight1, lighting, directional_intensity, &direction);
+
+            SpecularMaterialCalcMatrix(specular_material);
+            combined.flags = 0x20003;
+            inverse_specular.flags = 0x20003;
+            RwMatrixInvert(&inverse_specular, &SpecularMatrix);
+            RwMatrixMultiply(
+                &combined,
+                RwFrameGetLTM(atomic->object.parent),
+                &inverse_specular);
+            texture_matrix[0][0] = -0.5f * -combined.right.x;
+            texture_matrix[0][1] = -0.5f * -combined.up.x;
+            texture_matrix[0][2] = -0.5f * -combined.at.x;
+            texture_matrix[0][3] = -0.5f;
+            texture_matrix[1][0] = -0.5f * combined.right.y;
+            texture_matrix[1][1] = -0.5f * combined.up.y;
+            texture_matrix[1][2] = -0.5f * combined.at.y;
+            texture_matrix[1][3] = 0.5f;
+            GXLoadTexMtxImm(texture_matrix, 0x39, 1);
         }
-
-        upload_point_light(
-            point1, lighting, &point1_delta,
-            spec_inv_sqrt(point1_distance_sq), point1_intensity);
-    }
-
-    if (pDirLight1 != 0) {
-        upload_directional_light(
-            pDirLight1, lighting, directional_intensity);
-
-        SpecularMaterialCalcMatrix(specular_material);
-        inverse_specular.flags = 0x20003;
-        combined.flags = 0x20003;
-        RwMatrixInvert(&inverse_specular, &SpecularMatrix);
-        RwMatrixMultiply(
-            &combined,
-            RwFrameGetLTM(atomic->object.parent),
-            &inverse_specular);
-        texture_matrix[0][0] = -0.5f * -combined.right.x;
-        texture_matrix[0][1] = -0.5f * -combined.up.x;
-        texture_matrix[0][2] = -0.5f * -combined.at.x;
-        texture_matrix[0][3] = -0.5f;
-        texture_matrix[1][0] = -0.5f * combined.right.y;
-        texture_matrix[1][1] = -0.5f * combined.up.y;
-        texture_matrix[1][2] = -0.5f * combined.at.y;
-        texture_matrix[1][3] = 0.5f;
-        GXLoadTexMtxImm(texture_matrix, 0x39, 1);
-    }
-    if (pDirLight2 != 0) {
-        upload_directional_light(
-            pDirLight2, lighting, directional_intensity);
-    }
+        if (pDirLight2 != 0) {
+            upload_directional_light(
+                &pDirLight2, lighting, directional_intensity, &direction);
+        }
     }
     return atomic;
 }

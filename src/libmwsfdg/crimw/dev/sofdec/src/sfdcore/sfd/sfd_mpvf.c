@@ -54,15 +54,13 @@ static inline int sfmpvf_IsEarlier(const SfdMpvFrame* candidate,
     return 0;
 }
 
-/* TODO: [near miss] 99.595375%; donor-backed post-lock locals and cached frame
- * count restore the CFG; only first/count register coloring remains. */
 static SfdMpvFrame* sfmpvf_ReferNextFrmReady(SfdHandle* handle)
 {
     SfdMpvFrameWork* work;
-    SfdMpvFrame* first;
+    int ready_count;
     SfdMpvFrame* second;
     SfdMpvFrame* frame;
-    int ready_count;
+    SfdMpvFrame* first;
     int frame_count;
     int can_return;
     int token;
@@ -70,8 +68,8 @@ static SfdMpvFrame* sfmpvf_ReferNextFrmReady(SfdHandle* handle)
 
     SFLIB_LockCs(&token);
     work = sfmpvf_GetWork(handle);
-    first = 0;
     second = 0;
+    first = 0;
     ready_count = 0;
     frame_count = work->frame_count;
     frame = work->frames;
@@ -193,18 +191,16 @@ void SFMPVF_FreeFrm(SfdMpvFrame* frame)
     }
 }
 
-/* TODO: [near miss] 99.054054%; cached count and CTR loop match; declaration
- * reordering crashes MWCC, so stop at work/index coloring. */
 SfdMpvFrame* SFMPVF_AllocFrm(SfdHandle* handle)
 {
-    SfdMpvFrame* frame;
     int i;
     SfdMpvFrameWork* work;
+    SfdMpvFrame* frame;
     int frame_count;
     int token;
 
     SFLIB_LockCs(&token);
-    work = sfmpvf_GetWork(handle);
+    work = (SfdMpvFrameWork*)handle->transports[2].context;
     i = 0;
     frame_count = work->frame_count;
     frame = work->frames;
@@ -260,8 +256,6 @@ void SFMPVF_TermDec(SfdHandle* handle)
     sfmpvf_GetWork(handle)->decoder_terminated = 1;
 }
 
-/* TODO: [near miss] 96.8421%; RE4-style typed pointer walk matches the CFG and
- * operations; only index/work-pointer register coloring remains. */
 SfdVideoFrameState* SFMPVF_SearchVfrmData(SfdHandle* handle,
                                           const SfdMpvFrame* frame)
 {
@@ -269,7 +263,7 @@ SfdVideoFrameState* SFMPVF_SearchVfrmData(SfdHandle* handle,
     SfdMpvFrameWork* work;
     SfdMpvFrame* current;
 
-    work = sfmpvf_GetWork(handle);
+    work = (SfdMpvFrameWork*)handle->transports[2].context;
     current = work->frames;
 
     for (i = 0; i < work->frame_count; i++, current++) {

@@ -2,12 +2,20 @@
 
 #include "game/attract.h"
 #include "game/game_info.h"
+#include "game/ending.h"
+#include "game/controller.h"
+#include "game/switch.h"
+#include "game/plyr.h"
 #include "game/konquest_save.h"
 #include "game/plyrprofile.h"
 #include "game/pselect.h"
 #include "game/settings.h"
 #include "mw/mwScreenEngineGlue.h"
 #include "platform/io.h"
+#include "platform/gcio.h"
+#include "platform/display_metrics.h"
+#include "game/game.h"
+#include "game/ladder.h"
 #include "platform/main.h"
 #include "platform/gcutils.h"
 #include "runtime/asset.h"
@@ -16,98 +24,72 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_cmdscript.h"
 #include "runtime/section.h"
+#include "runtime/sound.h"
 #include "runtime/utils.h"
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry);
-} MkVtableMkprocLocal;
+struct SoundtrackTitleEntry {
+    const char* meta;
+    const char* title;
+};
 
-/* Title row: list base @ +0x68, title string @ entry+4 (stride 8). */
-typedef struct SoundtrackTitleEntry {
-    const char* meta;  /* +0x00 */
-    const char* title; /* +0x04 */
-} SoundtrackTitleEntry;
-
-typedef struct SoundtrackScreenPdata {
-    MkHdr hdr;                       /* +0x000 */
-    int sound_ids[21];              /* +0x008 */
-    char pad_05C[0xC];              /* +0x05C */
-    SoundtrackTitleEntry titles[21]; /* +0x068 */
-    char pad_110[0x18];             /* +0x110 */
-    const char* composers[21];      /* +0x128 */
-    char pad_17C[0xC];              /* +0x17C */
-    const char* details[21];        /* +0x188 */
-    char pad_1DC[0xC];              /* +0x1DC */
-    const char* descriptions[21];   /* +0x1E8 */
-    char pad_23C[0xC];              /* +0x23C */
-    int title_count; /* +0x248 */
-    int current;     /* +0x24C */
-} SoundtrackScreenPdata;
-
-typedef struct ControllerWatcherPdata {
-    char pad_00[0x8];
-    int last_num_controllers; /* +0x8 */
-} ControllerWatcherPdata;
-
-typedef struct ControllerConfigPdata {
+struct SoundtrackScreenPdata {
     MkHdr hdr;
-    int p1_last_button; /* +0x08 */
-    int p1_cell;        /* +0x0C */
-    int p1_save;        /* +0x10 */
-    int p2_last_button; /* +0x14 */
-    int p2_cell;        /* +0x18 */
-    int p2_save;        /* +0x1C */
-} ControllerConfigPdata;
+    int sound_ids[21];
+    char pad_05C[0xC];
+    struct SoundtrackTitleEntry titles[21];
+    char pad_110[0x18];
+    const char* composers[21];
+    char pad_17C[0xC];
+    const char* details[21];
+    char pad_1DC[0xC];
+    const char* descriptions[21];
+    char pad_23C[0xC];
+    int title_count;
+    int current;
+};
 
-typedef struct MenuPlayerWalkView {
+struct ControllerWatcherPdata {
+    MkHdr hdr;
+    int last_num_controllers;
+};
+
+struct ControllerConfigPdata {
+    MkHdr hdr;
+    int p1_last_button;
+    int p1_cell;
+    int p1_save;
+    int p2_last_button;
+    int p2_cell;
+    int p2_save;
+};
+
+struct MenuPlayerWalkView {
     char pad_00[0xA4];
-    PlyrInfo player; /* +0xA4 */
-} MenuPlayerWalkView;
+    PlyrInfo player;
+};
 
-typedef struct VersionCodePdata {
+struct VersionCodePdata {
     MkHdr hdr;
-    unsigned int ticks; /* +0x08 */
-} VersionCodePdata;
+    unsigned int ticks;
+};
 
-typedef struct OptionsSoundPdata {
+struct OptionsSoundPdata {
     MkHdr hdr;
-    void* sound_handle; /* +0x08 */
-} OptionsSoundPdata;
+    MslSoundHandle sound_handle;
+};
 
-typedef struct MenuSwitchState {
-    int player; /* +0x00 */
-    int field_04;
-    int event; /* +0x08 */
-} MenuSwitchState;
-
-typedef struct MenuSwitchPdata {
+struct PauseMenuPdata {
     MkHdr hdr;
-    MenuSwitchState* state; /* +0x08 */
-} MenuSwitchPdata;
+    int player;
+    int was_paused;
+};
 
-typedef struct PauseMenuPdata {
-    MkHdr hdr;
-    int player;          /* +0x08 */
-    int was_paused;      /* +0x0C */
-} PauseMenuPdata;
-
-extern PlayerProfile p1_profile[];
-extern PlayerProfile p2_profile[];
 extern int disc_error_occurred;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern int last_switch_time;
-extern SwitchMapEntry default_switch_map[];
 extern SwitchMapEntry p1_temp_switch_map[];
 extern SwitchMapEntry p2_temp_switch_map[];
 extern int controller_image_offset_tbl[];
@@ -119,59 +101,29 @@ extern int p1_use_temp_switch_map;
 extern int p2_use_temp_switch_map;
 extern const char* mk6_version_string;
 extern const char* number_strings[];
-extern MenuSwitchPdata* switch_pdata;
 extern unsigned long display_off;
-extern int screen_width;
 extern int pause_player;
 extern int game_save_loop_count;
 extern int __mini_game_display_ctrl;
 
-void one_player_ladder_init(void);
-void unassign_player(PlyrInfo* player);
-void assign_player(int port);
-void set_player_state(PlyrInfo* plyr, int state);
-void init_plyr_info_struct(PlyrInfo* plyr);
-void init_bet_info_struct(void);
-void setup_sound_banks(int which);
-void wait_for_sound_banks_to_load(void);
-int get_num_controllers(void);
-void* snd_req(int sound_id);
-void snd_stop(void* handle);
-const char* get_string_by_id(int id);
+void snd_stop(MslSoundHandle handle);
 int get_menu_mode_sub_var(void);
 int get_gameoption_exitwithsave(void);
 void set_button_repeat_time(int ticks);
 void set_default_button_repeat_time(void);
-void set_default_switch_map(PlyrInfo* plyr);
-void set_default_switch_maps(void);
-void set_game_switch_maps(void);
-void pause_all_game_sounds(void);
-void unpause_all_game_sounds(void);
 void ck_do_profile_save(void);
 void xfer_puzzle_exit(int mode);
-void init_temp_switch_map(int player, int use_profile);
-int find_bit(const SwitchMapEntry* map, unsigned int bit);
-int is_rumble_available(int port);
-void ck_rumble_controller(int player, int strength, int ticks);
 
 extern float p_konquest_mode(void);
 extern float p_kontent(void);
 extern float p_krypt_mode(void);
-extern float p_credits_screen(void);
 
 static float p_controller_watcher(void);
 
-/* menu.o .sdata */
 int menu_mode_net = -1;
 int online_locked_port = -1;
 int selected_refresh_rate = 0x3C;
-/* Retail .sdata pad to 0x10 (hidden gap @ 8050FB6C). */
-static int gap_07_8050FB6C_sdata = 0;
 
-/*
- * menu.o .sbss -- MWCC emits reverse declaration order.
- * Retail: menu_player .. do_main_menu_timeout.
- */
 static int do_main_menu_timeout;
 static int main_menu_timeout_ticks;
 static int widescreen_mode_on;
@@ -181,7 +133,6 @@ int lan_networking_selected;
 int target_game_mode;
 int menu_player;
 
-/* menu.o .sdata2 */
 static const float sleep_ticks_neg_one = -1.0f;
 static const float sleep_ticks_one = 1.0f;
 
@@ -191,83 +142,82 @@ static const float sleep_ticks_one = 1.0f;
 #define MENU_TARGET_DELETE_PROFILE 20
 #define MENU_TARGET_IDLE 24
 
-/* menu.o @stringBase0 -- retail .rodata pool (portrait SECs + UI names). */
 static const char stringBase0[] =
-    /* +0x0 */ "msel_goro.sec\0"
-    /* +0xE */ "msel_shao_kahn.sec\0"
-    /* +0x21 */ "msel_ashrah.sec\0"
-    /* +0x31 */ "msel_baraka.sec\0"
-    /* +0x41 */ "msel_boraicho.sec\0"
-    /* +0x53 */ "msel_dairou.sec\0"
-    /* +0x63 */ "msel_darrius.sec\0"
-    /* +0x74 */ "msel_ermac.sec\0"
-    /* +0x83 */ "msel_havik.sec\0"
-    /* +0x92 */ "msel_hotaru.sec\0"
-    /* +0xA2 */ "msel_jade.sec\0"
-    /* +0xB0 */ "msel_kabal.sec\0"
-    /* +0xBF */ "msel_kenshi.sec\0"
-    /* +0xCF */ "msel_kira.sec\0"
-    /* +0xDD */ "msel_kobra.sec\0"
-    /* +0xEC */ "msel_liu_kang.sec\0"
-    /* +0xFE */ "msel_li_mei.sec\0"
-    /* +0x10E */ "msel_mileena.sec\0"
-    /* +0x11F */ "msel_nightwolf.sec\0"
-    /* +0x132 */ "msel_raiden.sec\0"
-    /* +0x142 */ "msel_scorpion.sec\0"
-    /* +0x154 */ "msel_shujinko.sec\0"
-    /* +0x166 */ "msel_sindel.sec\0"
-    /* +0x176 */ "msel_smokenoob.sec\0"
-    /* +0x189 */ "msel_subzero.sec\0"
-    /* +0x19A */ "msel_tanya.sec\0"
-    /* +0x1A9 */ "msel_goro_alt.sec\0"
-    /* +0x1BB */ "msel_shao_kahn_alt.sec\0"
-    /* +0x1D2 */ "msel_ashrah_alt.sec\0"
-    /* +0x1E6 */ "msel_baraka_alt.sec\0"
-    /* +0x1FA */ "msel_boraicho_alt.sec\0"
-    /* +0x210 */ "msel_dairou_alt.sec\0"
-    /* +0x224 */ "msel_darrius_alt.sec\0"
-    /* +0x239 */ "msel_ermac_alt.sec\0"
-    /* +0x24C */ "msel_havik_alt.sec\0"
-    /* +0x25F */ "msel_hotaru_alt.sec\0"
-    /* +0x273 */ "msel_jade_alt.sec\0"
-    /* +0x285 */ "msel_kabal_alt.sec\0"
-    /* +0x298 */ "msel_kenshi_alt.sec\0"
-    /* +0x2AC */ "msel_kira_alt.sec\0"
-    /* +0x2BE */ "msel_kobra_alt.sec\0"
-    /* +0x2D1 */ "msel_liu_kang_alt.sec\0"
-    /* +0x2E7 */ "msel_li_mei_alt.sec\0"
-    /* +0x2FB */ "msel_mileena_alt.sec\0"
-    /* +0x310 */ "msel_nightwolf_alt.sec\0"
-    /* +0x327 */ "msel_raiden_alt.sec\0"
-    /* +0x33B */ "msel_scorpion_alt.sec\0"
-    /* +0x351 */ "msel_shujinko_alt.sec\0"
-    /* +0x367 */ "msel_sindel_alt.sec\0"
-    /* +0x37B */ "msel_smokenoob_alt.sec\0"
-    /* +0x392 */ "msel_subzero_alt.sec\0"
-    /* +0x3A7 */ "msel_tanya_alt.sec\0"
-    /* +0x3BA */ "common/music_select/music_select\0"
-    /* +0x3DB */ "NEWACCOUNTPASSWORD\0"
-    /* +0x3EE */ "NEWACCOUNTNAME\0"
-    /* +0x3FD */ "MSEL_PORTRAIT\0"
-    /* +0x40B */ "GC_A_BTN\0"
-    /* +0x414 */ "GC_X_BTN\0"
-    /* +0x41D */ "GC_B_BTN\0"
-    /* +0x426 */ "GC_Y_BTN\0"
-    /* +0x42F */ "GC_L_BTN\0"
-    /* +0x438 */ "GC_R_BTN\0"
-    /* +0x441 */ "GC_Z_BTN\0"
-    /* +0x44A */ "common/options/op_controllerconfig\0"
-    /* +0x46D */ "common/options/op_options\0"
-    /* +0x487 */ "Current scheme is: %d\n\0"
-    /* +0x49E */ "konquest/popups/k_pause_menu\0"
-    /* +0x4BB */ "pause_menu/pause_menu\0"
-    /* +0x4D1 */ "common/main_menu/m_mode_select\0";
+     "msel_goro.sec\0"
+     "msel_shao_kahn.sec\0"
+     "msel_ashrah.sec\0"
+     "msel_baraka.sec\0"
+     "msel_boraicho.sec\0"
+     "msel_dairou.sec\0"
+     "msel_darrius.sec\0"
+     "msel_ermac.sec\0"
+     "msel_havik.sec\0"
+     "msel_hotaru.sec\0"
+     "msel_jade.sec\0"
+     "msel_kabal.sec\0"
+     "msel_kenshi.sec\0"
+     "msel_kira.sec\0"
+     "msel_kobra.sec\0"
+     "msel_liu_kang.sec\0"
+     "msel_li_mei.sec\0"
+     "msel_mileena.sec\0"
+     "msel_nightwolf.sec\0"
+     "msel_raiden.sec\0"
+     "msel_scorpion.sec\0"
+     "msel_shujinko.sec\0"
+     "msel_sindel.sec\0"
+     "msel_smokenoob.sec\0"
+     "msel_subzero.sec\0"
+     "msel_tanya.sec\0"
+     "msel_goro_alt.sec\0"
+     "msel_shao_kahn_alt.sec\0"
+     "msel_ashrah_alt.sec\0"
+     "msel_baraka_alt.sec\0"
+     "msel_boraicho_alt.sec\0"
+     "msel_dairou_alt.sec\0"
+     "msel_darrius_alt.sec\0"
+     "msel_ermac_alt.sec\0"
+     "msel_havik_alt.sec\0"
+     "msel_hotaru_alt.sec\0"
+     "msel_jade_alt.sec\0"
+     "msel_kabal_alt.sec\0"
+     "msel_kenshi_alt.sec\0"
+     "msel_kira_alt.sec\0"
+     "msel_kobra_alt.sec\0"
+     "msel_liu_kang_alt.sec\0"
+     "msel_li_mei_alt.sec\0"
+     "msel_mileena_alt.sec\0"
+     "msel_nightwolf_alt.sec\0"
+     "msel_raiden_alt.sec\0"
+     "msel_scorpion_alt.sec\0"
+     "msel_shujinko_alt.sec\0"
+     "msel_sindel_alt.sec\0"
+     "msel_smokenoob_alt.sec\0"
+     "msel_subzero_alt.sec\0"
+     "msel_tanya_alt.sec\0"
+     "common/music_select/music_select\0"
+     "NEWACCOUNTPASSWORD\0"
+     "NEWACCOUNTNAME\0"
+     "MSEL_PORTRAIT\0"
+     "GC_A_BTN\0"
+     "GC_X_BTN\0"
+     "GC_B_BTN\0"
+     "GC_Y_BTN\0"
+     "GC_L_BTN\0"
+     "GC_R_BTN\0"
+     "GC_Z_BTN\0"
+     "common/options/op_controllerconfig\0"
+     "common/options/op_options\0"
+     "Current scheme is: %d\n\0"
+     "konquest/popups/k_pause_menu\0"
+     "pause_menu/pause_menu\0"
+     "common/main_menu/m_mode_select";
 
+#define STR_SOUNDTRACK_SCREEN (&stringBase0[0x3BA])
 #define STR_NEWACCOUNTPASSWORD (&stringBase0[0x3DB])
 #define STR_NEWACCOUNTNAME (&stringBase0[0x3EE])
 #define STR_MAIN_MENU_SCREEN (&stringBase0[0x4D1])
 
-/* Local to menu.o in retail (portrait_list$245). */
 static ModeSelectPortrait portrait_list[] = {
     { &stringBase0[0x0], 0x1E },
     { &stringBase0[0xE], 0x1F },
@@ -324,12 +274,6 @@ static ModeSelectPortrait portrait_list[] = {
 };
 
 static int button_checklist[] = {7, 4, 6, 5, 2, 1, 3};
-
-static int track_list[] = {
-    0x1B4F, 0x1B50, 0x1B51, 0x1B52, 0x1B53, 0x1B54, 0x1B55,
-    0x1B56, 0x1B57, 0x1B58, 0x1B59, 0x1B5A, 0x1B5B, 0x1B5C,
-    0x1B5D, 0x1B5E, 0x1B5F, 0x1B60, 0x1B61, 0x1B62, 0x1B63,
-};
 
 void adjust_screen_reset(void) {
     adjust_display_offset(0, 0, 1);
@@ -415,7 +359,7 @@ void adjust_brightness(int delta) {
 }
 
 void play_current_soundtrack(void) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -424,7 +368,7 @@ void play_current_soundtrack(void) {
 }
 
 const char* get_current_soundtrack_composer(void) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -434,7 +378,7 @@ const char* get_current_soundtrack_composer(void) {
 }
 
 const char* get_current_soundtrack_description(void) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -444,7 +388,7 @@ const char* get_current_soundtrack_description(void) {
 }
 
 const char* get_current_soundtrack_title(void) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -454,7 +398,7 @@ const char* get_current_soundtrack_title(void) {
 }
 
 int get_current_soundtrack(void) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -464,7 +408,7 @@ int get_current_soundtrack(void) {
 }
 
 void set_current_soundtrack(int index) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
         pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -473,7 +417,7 @@ void set_current_soundtrack(int index) {
 }
 
 void get_soundtrack_title_list(const char*** titles_out, int* count_out, int* stride_out) {
-    SoundtrackScreenPdata* pdata;
+    struct SoundtrackScreenPdata* pdata;
 
     pdata = get_screen_pdata();
     if (pdata != 0) {
@@ -483,22 +427,16 @@ void get_soundtrack_title_list(const char*** titles_out, int* count_out, int* st
     }
 }
 
-/* TODO: [near miss] 97.54%; residue is loop induction GPRs and local pool labels. */
-float p_soundtrack(void) {
-    SoundtrackScreenPdata* pdata;
+static inline void soundtrack_build_titles(struct SoundtrackScreenPdata* pdata) {
+    static int track_list[] = {
+        0x1B4F, 0x1B50, 0x1B51, 0x1B52, 0x1B53, 0x1B54, 0x1B55,
+        0x1B56, 0x1B57, 0x1B58, 0x1B59, 0x1B5A, 0x1B5B, 0x1B5C,
+        0x1B5D, 0x1B5E, 0x1B5F, 0x1B60, 0x1B61, 0x1B62, 0x1B63,
+    };
     int track;
 
-    pdata = (SoundtrackScreenPdata*)get_mkpdata_generic(sizeof(SoundtrackScreenPdata));
-    if (pdata == 0) {
-        gamelogic_jump(6, p_main_menu);
-    }
-    mk_insert(&pdata->hdr, &aproc->pdata_list);
-    zero_pdata_payload(sizeof(SoundtrackScreenPdata), &pdata->hdr);
-    setup_sound_banks(9);
-    wait_for_sound_banks_to_load();
-
-    pdata->title_count = 0;
-    for (track = 0; track < 21; track++) {
+    pdata->title_count = track = 0;
+    while (track < 21) {
         if ((gp_data.cat5 & (1 << track)) != 0) {
             pdata->sound_ids[pdata->title_count] = track_list[track];
             pdata->titles[pdata->title_count].meta =
@@ -513,10 +451,26 @@ float p_soundtrack(void) {
                 get_string_by_id(0x10000 | (track + 0x6A));
             pdata->title_count++;
         }
+        track++;
     }
+}
+
+float p_soundtrack(void) {
+    struct SoundtrackScreenPdata* pdata;
+
+    pdata = (struct SoundtrackScreenPdata*)get_mkpdata_generic(sizeof(struct SoundtrackScreenPdata));
+    if (pdata == 0) {
+        gamelogic_jump(6, p_main_menu);
+    }
+    mk_insert(&pdata->hdr, &aproc->pdata_list);
+    zero_pdata_payload(sizeof(struct SoundtrackScreenPdata), &pdata->hdr);
+    setup_sound_banks(9);
+    wait_for_sound_banks_to_load();
+
+    soundtrack_build_titles(pdata);
 
     push_game_state(9);
-    load_screen(&stringBase0[0x3BA], 0x90046, &pdata->hdr, 1);
+    load_screen(STR_SOUNDTRACK_SCREEN, 0x90046, &pdata->hdr, 1);
     turn_camera_on();
     turn_controllers_on();
     wait_for_screen_close();
@@ -534,14 +488,14 @@ const char* get_screens_online_options_newaccountname(void) {
 
 const char* get_p2_player_name(void) {
     if (p2_profile_status == 1) {
-        return p2_profile->name;
+        return p2_profile.name;
     }
     return get_string_by_id(0x10003);
 }
 
 const char* get_p1_player_name(void) {
     if (p1_profile_status == 1) {
-        return p1_profile->name;
+        return p1_profile.name;
     }
     return get_string_by_id(0x10002);
 }
@@ -573,16 +527,16 @@ void controller_setup_save_to_profile(int player, int save) {
     SwitchMapEntry* temp_map;
     PlayerProfile* profile;
     int i;
-    ControllerConfigPdata* pdata;
+    struct ControllerConfigPdata* pdata;
 
     if (player == 0) {
-        profile = p1_profile;
+        profile = &p1_profile;
         rumble_on = &p1_rumble_on;
         temp_map = p1_temp_switch_map;
         use_temp_map = &p1_use_temp_switch_map;
         temp_rumble = &p1_temp_rumble_state;
     } else {
-        profile = p2_profile;
+        profile = &p2_profile;
         rumble_on = &p2_rumble_on;
         temp_map = p2_temp_switch_map;
         use_temp_map = &p2_use_temp_switch_map;
@@ -591,7 +545,7 @@ void controller_setup_save_to_profile(int player, int save) {
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        pdata = (ControllerConfigPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerConfigPdata*)pdata_of_proc(proc);
         if (player == 0) {
             pdata->p1_save = save;
         } else {
@@ -612,14 +566,14 @@ void controller_setup_save_to_profile(int player, int save) {
 }
 #pragma optimize_for_size reset
 
-void cconfig_get_button_textures(RwTexture*** textures_out) {
-    (*textures_out)[0] = load_named_tga_from_slot(0x90046, &stringBase0[0x40B]);
-    (*textures_out)[1] = load_named_tga_from_slot(0x90046, &stringBase0[0x414]);
-    (*textures_out)[2] = load_named_tga_from_slot(0x90046, &stringBase0[0x41D]);
-    (*textures_out)[3] = load_named_tga_from_slot(0x90046, &stringBase0[0x426]);
-    (*textures_out)[6] = load_named_tga_from_slot(0x90046, &stringBase0[0x42F]);
-    (*textures_out)[4] = load_named_tga_from_slot(0x90046, &stringBase0[0x438]);
-    (*textures_out)[5] = load_named_tga_from_slot(0x90046, &stringBase0[0x441]);
+void cconfig_get_button_textures(GVTexturePair out) {
+    out.colors[0] = load_named_tga_from_slot(0x90046, &stringBase0[0x40B]);
+    out.colors[1] = load_named_tga_from_slot(0x90046, &stringBase0[0x414]);
+    out.colors[2] = load_named_tga_from_slot(0x90046, &stringBase0[0x41D]);
+    out.colors[3] = load_named_tga_from_slot(0x90046, &stringBase0[0x426]);
+    out.colors[6] = load_named_tga_from_slot(0x90046, &stringBase0[0x42F]);
+    out.colors[4] = load_named_tga_from_slot(0x90046, &stringBase0[0x438]);
+    out.colors[5] = load_named_tga_from_slot(0x90046, &stringBase0[0x441]);
 }
 
 int controller_get_texture_index_for_button(int player, int button) {
@@ -637,11 +591,11 @@ int controller_get_texture_index_for_button(int player, int button) {
 
 int controller_get_player_last_button(int player) {
     MkProc* proc;
-    ControllerConfigPdata* pdata;
+    struct ControllerConfigPdata* pdata;
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        pdata = (ControllerConfigPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerConfigPdata*)pdata_of_proc(proc);
         if (pdata == 0) {
             return 0;
         }
@@ -654,29 +608,28 @@ int controller_get_player_last_button(int player) {
 }
 
 #pragma optimize_for_size on
-/* TODO: [near miss] 97.53%; algorithm and CFG agree; NV register coloring remains. */
 void cconfig_assign_button(int player, int button) {
-    ControllerConfigPdata* pdata;
+    struct ControllerConfigPdata* pdata;
+    int cell;
     SwitchMapEntry* temp_map;
     int* rumble_on;
     PlyrInfo* plyr;
-    int cell;
-    int new_bit;
-    int old_bit;
+    unsigned int new_bit;
+    unsigned int old_bit;
     int old_index;
 
-    pdata = (ControllerConfigPdata*)pdata_of_proc(aproc);
+    pdata = (struct ControllerConfigPdata*)pdata_of_proc(aproc);
     if (pdata != 0) {
         if (player == 0) {
+            plyr = &g_game_info.plyr0;
             cell = pdata->p1_cell;
             temp_map = p1_temp_switch_map;
             rumble_on = &p1_rumble_on;
-            plyr = &g_game_info.plyr0;
         } else {
+            plyr = &g_game_info.plyr1;
             cell = pdata->p2_cell;
             temp_map = p2_temp_switch_map;
             rumble_on = &p2_rumble_on;
-            plyr = &g_game_info.plyr1;
         }
 
         if (cell == 7) {
@@ -703,8 +656,8 @@ void cconfig_assign_button(int player, int button) {
         }
 
         if (cell < 6) {
-            new_bit = default_switch_map[button].mask;
             old_bit = temp_map[button_checklist[cell]].mask;
+            new_bit = default_switch_map[button].mask;
             if (old_bit != new_bit) {
                 old_index = find_bit(temp_map, new_bit);
                 if (old_index >= 0) {
@@ -721,11 +674,11 @@ void cconfig_assign_button(int player, int button) {
 #pragma optimize_for_size on
 void cconfig_set_current_cell(int player, int cell) {
     MkProc* proc;
-    ControllerConfigPdata* pdata;
+    struct ControllerConfigPdata* pdata;
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        pdata = (ControllerConfigPdata*)pdata_of_proc(proc);
+        pdata = (struct ControllerConfigPdata*)pdata_of_proc(proc);
         if (pdata != 0) {
             if (player == 0) {
                 pdata->p1_cell = cell - 1;
@@ -761,24 +714,24 @@ void controller_setup_p1_state(int enabled) {
 
 /* TODO: [near miss] 98.554214%; retail base-plus-player walk agrees; NV register coloring remains. */
 float p_controller_config(void) {
-    ControllerConfigPdata* pdata;
-    ControllerConfigPdata* live_pdata;
+    struct ControllerConfigPdata* pdata;
+    struct ControllerConfigPdata* live_pdata;
     MkProc* proc;
     PlyrInfo* p1;
     PlyrInfo* p2;
-    MenuPlayerWalkView* players;
-    MenuPlayerWalkView* player_view;
+    struct MenuPlayerWalkView* players;
+    struct MenuPlayerWalkView* player_view;
     int* button_ptr;
     int player;
     int player_offset;
     int button_index;
 
-    pdata = (ControllerConfigPdata*)get_mkpdata_generic(sizeof(ControllerConfigPdata));
+    pdata = (struct ControllerConfigPdata*)get_mkpdata_generic(sizeof(struct ControllerConfigPdata));
     if (pdata == 0) {
         gamelogic_jump(6, p_main_menu);
     }
     mk_insert(&pdata->hdr, &aproc->pdata_list);
-    zero_pdata_payload(sizeof(ControllerConfigPdata), &pdata->hdr);
+    zero_pdata_payload(sizeof(struct ControllerConfigPdata), &pdata->hdr);
 
     p1 = &g_game_info.plyr0;
     unassign_player(p1);
@@ -792,7 +745,7 @@ float p_controller_config(void) {
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        live_pdata = (ControllerConfigPdata*)pdata_of_proc(proc);
+        live_pdata = (struct ControllerConfigPdata*)pdata_of_proc(proc);
         if (live_pdata != 0) {
             init_temp_switch_map(0, 1);
             live_pdata->p1_last_button = 1;
@@ -804,7 +757,7 @@ float p_controller_config(void) {
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        live_pdata = (ControllerConfigPdata*)pdata_of_proc(proc);
+        live_pdata = (struct ControllerConfigPdata*)pdata_of_proc(proc);
         if (live_pdata != 0) {
             init_temp_switch_map(1, 1);
             live_pdata->p1_last_button = 1;
@@ -818,13 +771,13 @@ float p_controller_config(void) {
     turn_controllers_on();
     push_game_state(0xE);
     target_game_mode = MENU_TARGET_IDLE;
-    players = (MenuPlayerWalkView*)&g_game_info;
+    players = (struct MenuPlayerWalkView*)&g_game_info;
 
     while (target_game_mode == MENU_TARGET_IDLE) {
         player = 0;
         player_offset = 0;
         do {
-            player_view = (MenuPlayerWalkView*)((char*)players + player_offset);
+            player_view = (struct MenuPlayerWalkView*)((char*)players + player_offset);
             if (player_view->player.player_state == 1) {
                 int pad;
 
@@ -870,10 +823,10 @@ float p_controller_config(void) {
 
 /* TODO: [near miss] 86.98%; algorithm exact; branch scheduling remains. */
 float p_version_code(void) {
-    VersionCodePdata* pdata;
+    struct VersionCodePdata* pdata;
     StringObj* text;
 
-    pdata = (VersionCodePdata*)apdata;
+    pdata = (struct VersionCodePdata*)apdata;
     if (check_switch(0, 7) != 0 && check_switch(0, 2) != 0) {
         pdata->ticks++;
         if (pdata->ticks < 0x168) {
@@ -887,7 +840,7 @@ float p_version_code(void) {
             text = string_left_xy(0, 0, mk6_version_string, 0x208, 0x1E, 1);
         }
         if (text != 0) {
-            ((StringObjVisBits*)&text->flags)->keep_when_suppress = 1;
+            text->visibility.keep_when_suppress = 1;
         }
         return sleep_ticks_neg_one;
     }
@@ -897,9 +850,9 @@ float p_version_code(void) {
 
 float p_game_options(void) {
     GameSettings saved_settings;
-    VersionCodePdata* version_pdata;
-    OptionsSoundPdata* sound_pdata;
-    void* sound_handle;
+    struct VersionCodePdata* version_pdata;
+    struct OptionsSoundPdata* sound_pdata;
+    MslSoundHandle sound_handle;
 
     memory_move_game_setting(&saved_settings, &game_settings);
     get_menu_mode_sub_var();
@@ -910,13 +863,13 @@ float p_game_options(void) {
     set_button_repeat_time(6);
 
     if (_create_mkproc_generic_nostack(0x20A1, 0x1F, p_version_code,
-                                       sizeof(VersionCodePdata),
+                                       sizeof(struct VersionCodePdata),
                                        (MkHdr**)&version_pdata) != 0) {
         version_pdata->ticks = 0;
     }
 
     sound_handle = snd_req(0x1C0A);
-    sound_pdata = (OptionsSoundPdata*)get_mkpdata_generic(sizeof(OptionsSoundPdata));
+    sound_pdata = (struct OptionsSoundPdata*)get_mkpdata_generic(sizeof(struct OptionsSoundPdata));
     if (sound_pdata != 0) {
         mk_insert(&sound_pdata->hdr, &aproc->pdata_list);
         sound_pdata->sound_handle = sound_handle;
@@ -940,14 +893,14 @@ float p_game_options(void) {
 
 float p_pause_menu(void) {
     MkProcEntryFn next_proc;
-    PauseMenuPdata* pdata;
-    MkVtableMkprocLocal* vtbl;
+    struct PauseMenuPdata* pdata;
+    MkVtableMkproc* vtbl;
     unsigned int scheme;
     int screen_slot;
     const char* screen_name;
     int jump_mode;
 
-    pdata = (PauseMenuPdata*)apdata;
+    pdata = (struct PauseMenuPdata*)apdata;
     next_proc = 0;
     jump_mode = 6;
 
@@ -1011,7 +964,7 @@ float p_pause_menu(void) {
             g_game_info.pause_flag_bits.controllers_disabled = 0;
         }
         _mkproc_sleep_ticks = sleep_ticks_one;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+        vtbl = aproc->vtbl;
         vtbl->sleep();
     }
 
@@ -1049,7 +1002,7 @@ float p_pause_menu(void) {
         eat_switch_edge(pdata->player, 5);
     } else {
         _mkproc_sleep_ticks = sleep_ticks_one;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+        vtbl = aproc->vtbl;
         vtbl->sleep();
     }
 
@@ -1081,7 +1034,6 @@ const char* get_pause_menu_name(void) {
     }
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: string relocation targets our stringBase0 instead of retail @stringBase0. */
 int get_pause_menu_ssh(void) {
     int scheme;
     int slot;
@@ -1121,38 +1073,41 @@ int get_pause_menu_ssh(void) {
     return slot;
 }
 
-/* TODO: [near miss] 97.40506%; canonical bit extraction retained; equivalent allowed-state branch join remains; stop at lowering */
+static inline int pause_menu_allowed(void) {
+    if (find_mkproc_pid(0x9011) != 0) {
+        return 0;
+    }
+    if (find_mkproc_pid(0x208B) != 0) {
+        return 0;
+    }
+    if (mode_of_play == 6) {
+        if ((int)display_off != 0) {
+            return 0;
+        }
+        if (g_game_info.flag_bits.high_res_path != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 float p_pause_menu_switch(void) {
-    PauseMenuPdata* pdata;
+    struct PauseMenuPdata* pdata;
     MkProc* proc;
     int can_pause;
     int player;
     int was_paused;
 
-    if (switch_pdata->state->event != 2) {
+    if (switch_pdata->player->player_state != 2) {
         return sleep_ticks_neg_one;
     }
 
-    if (find_mkproc_pid(0x9011) != 0) {
-        can_pause = 0;
-    } else if (find_mkproc_pid(0x208B) != 0) {
-        can_pause = 0;
-    } else if (mode_of_play == 6) {
-        if ((int)display_off != 0) {
-            can_pause = 0;
-        } else if (g_game_info.flag_bits.high_res_path != 0) {
-            can_pause = 0;
-        } else {
-            can_pause = 1;
-        }
-    } else {
-        can_pause = 1;
-    }
+    can_pause = pause_menu_allowed();
 
     if (can_pause != 0) {
-        player = switch_pdata->state->player;
+        player = switch_pdata->player->pad_index;
         proc = _create_mkproc_generic_bigstack(0x208B, 0x1F, p_pause_menu,
-                                               sizeof(PauseMenuPdata), (MkHdr**)&pdata);
+                                               sizeof(struct PauseMenuPdata), (MkHdr**)&pdata);
         if (proc != 0) {
             proc->flags_bits.skip_if_paused = 1;
             pdata->player = player;
@@ -1176,8 +1131,8 @@ float p_main_menu(void) {
     int tries;
     int portrait;
     unsigned int flags;
-    ControllerWatcherPdata* watcherPdata;
-    MkVtableMkprocLocal* vtbl;
+    struct ControllerWatcherPdata* watcherPdata;
+    MkVtableMkproc* vtbl;
     unsigned int switchTime;
     PlyrInfo* konquestPlyr;
     int konquestPort;
@@ -1257,7 +1212,8 @@ float p_main_menu(void) {
     add_art_section_by_name_async(0x90046, portrait_list[portrait & 0xFFFF].sec_name);
 
     watcherPdata = 0;
-    _create_mkproc_generic_nostack(0x902F, 0x1F, p_controller_watcher, 0xC,
+    _create_mkproc_generic_nostack(0x902F, 0x1F, p_controller_watcher,
+                                   sizeof(struct ControllerWatcherPdata),
                                    (MkHdr**)&watcherPdata);
     if (watcherPdata != 0) {
         watcherPdata->last_num_controllers = get_num_controllers();
@@ -1373,7 +1329,7 @@ float p_main_menu(void) {
         }
 
         if (last_switch_time != (int)switchTime) {
-            switchTime = (unsigned int)last_switch_time;
+            switchTime = last_switch_time;
             main_menu_timeout_ticks = 0xE10;
         }
 
@@ -1391,16 +1347,16 @@ float p_main_menu(void) {
         }
 
         _mkproc_sleep_ticks = sleep_ticks_one;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+        vtbl = aproc->vtbl;
         vtbl->sleep();
     }
 }
 
 static float p_controller_watcher(void) {
-    ControllerWatcherPdata* pdata;
+    struct ControllerWatcherPdata* pdata;
     int count;
 
-    pdata = (ControllerWatcherPdata*)apdata;
+    pdata = (struct ControllerWatcherPdata*)apdata;
     count = get_num_controllers();
     if (count != pdata->last_num_controllers) {
         pdata->last_num_controllers = count;

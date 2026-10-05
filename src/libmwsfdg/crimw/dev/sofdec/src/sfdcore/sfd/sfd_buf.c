@@ -674,9 +674,9 @@ int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
     buffers[7].output_transport = 9;
     for (index = 0; index < 3; index++) {
         buffers[7].work.user_channels[index].stream_joint = 0;
-        buffers[7].work.user_channels[index].object = 0;
         buffers[7].work.user_channels[index].handle_callback = 0;
         buffers[7].work.user_channels[index].object_callback = 0;
+        buffers[7].work.user_channels[index].object = 0;
     }
     return 0;
 }

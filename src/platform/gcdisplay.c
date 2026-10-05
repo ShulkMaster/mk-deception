@@ -1,75 +1,32 @@
 #include "platform/gcdisplay.h"
+#include "runtime/cstring.h"
+#include "libmkparticle/gc_state.h"
+#include "platform/display_metrics.h"
+#include "platform/gcio.h"
+#include "platform/gprofile_gcn.h"
+#include "runtime/mk_obj.h"
 
 #include "dolphin/cache.h"
 #include "dolphin/gx.h"
 #include "dolphin/os.h"
+#include "dolphin/pad.h"
 #include "dolphin/vi.h"
 #include "mw/mwMemHeap.h"
 #include "platform/gcutils.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 #include "rw/rwengine.h"
+#include "rw/gamecube.h"
 
-/*
- * gcdisplay.o - native display + loading dragon image.
- * Function order matches retail ASM.
- */
-
-typedef struct GcNativeDisplay {
-    GXRenderModeObj* rmode; /* +0x00 */
-    void* fifo;             /* +0x04 */
-    void* xfbDisp;          /* +0x08 */
-    void* xfbCopy;          /* +0x0C */
-} GcNativeDisplay;
+struct GcNativeDisplay {
+    GXRenderModeObj* rmode;
+    void* fifo;
+    void* xfbDisp;
+    void* xfbCopy;
+};
 
 typedef void (*NativeRenderCb)(void* arg);
 
-void* memcpy(void* dest, const void* src, unsigned long n);
-unsigned long strlen(const char* s);
-
-
-void RwGameCubeGetXFBs(void** disp, void** copy);
-
-
-void save_projection_matrix(void);
-void set_2d_projection(void);
-void restore_projection_matrix(void);
-
-char* strcpy(char* dest, const char* src);
-void PADReset(unsigned int mask);
-void PADRead(void* status);
-int init_controller(void);
-void* get_mkx_mem(void* userdata);
-
-/* Dolphin PADStatus - 12 bytes (err @ +0x0A). */
-typedef struct PADStatus {
-    unsigned short button;
-    signed char stickX;
-    signed char stickY;
-    signed char substickX;
-    signed char substickY;
-    unsigned char triggerLeft;
-    unsigned char triggerRight;
-    unsigned char analogA;
-    unsigned char analogB;
-    signed char err;
-} PADStatus;
-
-extern GXRenderModeObj GXNtsc480ProgSoft;
-
-void GProfile_GCN_GxDrawDone(void);
-
-extern int screen_width;
-extern int screen_height;
-extern unsigned long _RwDlFifoSize;
-extern void* _RwDl_FIFO_XFB;
-extern void* _RwDlDefaultFifo;
-extern void* _RwGCXFB1;
-extern void* _RwGCXFB2;
-extern void* _RwGCXFBCopy;
-extern void* _RwGCXFBDisp;
-extern int _RwDlPixelFormat;
-/* Generated under build/ from the user's retail gcdisplay.o; not repository assets. */
 unsigned short loading_palette[0x100] = {
 #include "platform/gcdisplay_loading_palette.inc"
 };
@@ -77,9 +34,8 @@ unsigned char loading_image[0x10000] = {
 #include "platform/gcdisplay_loading_image.inc"
 };
 
-/* .bss / .sdata / .sbss (this TU) */
 GXTexObj feedbackTex;
-static GcNativeDisplay gc_native_display;
+static struct GcNativeDisplay gc_native_display;
 static GXColor Black = {0, 0, 0, 0xFF};
 static const GXColor kTextWhite = {0xFF, 0xFF, 0xFF, 0xFF};
 static const GXColor kRenderBlack = {0, 0, 0, 0xFF};
@@ -104,7 +60,7 @@ static void CheckFor480PMode(void);
 static void displayContinueMessage(PADStatus* pads, char* msg);
 static void gcSetup480P(void);
 static int gc_prompt_for_480P(PADStatus* pads);
-static void display_dragon_with_text(DragonTextPrompt* prompt);
+static void display_dragon_with_text(void* arg);
 static void display_image(void);
 
 static inline int timed_out_10s(OSTime start) {
@@ -114,7 +70,7 @@ static inline int timed_out_10s(OSTime start) {
 
     now = OSGetTime();
     diff = now - start;
-    limit = ((*(unsigned long*)0x800000F8) >> 2) * 10;
+    limit = (__OSBusClock >> 2) * 10;
     return diff > (OSTime)limit;
 }
 
@@ -136,7 +92,7 @@ static inline int font_string_width(char* s) {
             lineW = 0;
         }
         s = OSGetFontWidth(s, &charW);
-        lineW += FontSpace + (FontSize * charW) / (int)FontData->cellWidth;
+        lineW += FontSpace + (FontSize * charW) / FontData->cellWidth;
     }
     if (maxW < lineW) {
         maxW = lineW;
@@ -158,28 +114,24 @@ static inline int font_string_height(char* s) {
             lines++;
         }
     }
-    return (lines * (((int)font->leading * (int)FontSize) / (int)font->cellWidth) + 0xF) /
-           0x10;
+    lines *= (font->leading * FontSize) / font->cellWidth;
+    return (lines + 0xF) / 0x10;
 }
 
-/* ========================================================================= */
-/* Retail function order                                                     */
-/* ========================================================================= */
-
 void feedback_effect(void) {
+    Mtx texMtx;
     Mtx posMtx = {
         {1.0f, 0.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, -1.0f, 0.0f},
     };
-    Mtx texMtx;
     GXColor color = kFeedbackColor;
     GXColor amb;
     GXColor mat;
+    int h;
+    int w;
     int full_w;
     int full_h;
-    short w;
-    short h;
 
     RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
     RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 0);
@@ -209,8 +161,8 @@ void feedback_effect(void) {
     if (old_use_feedback_effect == use_feedback_effect) {
         full_w = screen_width;
         full_h = screen_height;
-        w = full_w;
-        h = full_h;
+        w = (short)full_w;
+        h = (short)full_h;
         GXClearVtxDesc();
         GXSetVtxDesc(9, 1);
         GXSetVtxDesc(0xD, 1);
@@ -221,18 +173,18 @@ void feedback_effect(void) {
         wgPipe[0] = 0;
         wgPipe[0] = 0;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)w;
+        wgPipe[0] = w;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)full_w;
+        wgPipe[0] = full_w;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)w;
-        wgPipe[0] = (unsigned short)h;
-        wgPipe[0] = (unsigned short)full_w;
-        wgPipe[0] = (unsigned short)full_h;
+        wgPipe[0] = w;
+        wgPipe[0] = h;
+        wgPipe[0] = full_w;
+        wgPipe[0] = full_h;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)h;
+        wgPipe[0] = h;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)full_h;
+        wgPipe[0] = full_h;
     }
 
     GXSetTexCopySrc(0, 0, screen_width, screen_height);
@@ -260,25 +212,43 @@ void gc_setup_feedback_buffer_for_konquest(void) {
 void setup_post_effect_buffers(void) {
 }
 
+static inline void romfont_load_sheet(void* sheet, void* previousSheet, GXTexObj* texObj, Mtx texMtx) {
+    float invW;
+    float invH;
+
+    if (previousSheet != sheet) {
+        LastSheet = sheet;
+        GXInitTexObj(texObj, sheet, FontData->sheetWidth, FontData->sheetHeight,
+                     FontData->sheetFormat, 0, 0, 0);
+        GXInitTexObjLOD(texObj, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
+        GXLoadTexObj(texObj, 0);
+        invW = 1.0f / (float)FontData->sheetWidth;
+        invH = 1.0f / (float)FontData->sheetHeight;
+        PSMTXScale(texMtx, invW, invH, 1.0f);
+        GXLoadTexMtxImm(texMtx, 0x1E, 1);
+        GXSetNumTexGens(1);
+        GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
+    }
+}
+
+/* TODO: [near miss] 99.80%; sheet comparison agrees; texture y register allocation remains. */
 int romfont_puts(int x, int y, char* text) {
-    int penX;
     int charW;
     void* sheet;
     int sheetX;
     int sheetY;
-    short x0;
     short x1;
-    short y0;
+    short x0;
     short y1;
+    short y0;
     int u0;
     int u1;
-    int v0;
     short v1;
+    int v0;
     unsigned short cellW;
+    int penX;
     GXTexObj texObj;
     Mtx texMtx;
-    float invW;
-    float invH;
 
     LastSheet = 0;
     GXClearVtxDesc();
@@ -294,54 +264,42 @@ int romfont_puts(int x, int y, char* text) {
         if (*text == '\n') {
             penX = 0;
             text++;
-            y += ((int)FontData->leading * (int)FontSize) / (int)FontData->cellWidth;
+            y += (FontData->leading * FontSize) / FontData->cellWidth;
             continue;
         }
 
         text = OSGetFontTexture(text, &sheet, &sheetX, &sheetY, &charW);
-        if (LastSheet != sheet) {
-            LastSheet = sheet;
-            GXInitTexObj(&texObj, sheet, FontData->sheetWidth, FontData->sheetHeight,
-                         FontData->sheetFormat, 0, 0, 0);
-            GXInitTexObjLOD(&texObj, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
-            GXLoadTexObj(&texObj, 0);
-            invW = 1.0f / (float)FontData->sheetWidth;
-            invH = 1.0f / (float)FontData->sheetHeight;
-            PSMTXScale(texMtx, invW, invH, 1.0f);
-            GXLoadTexMtxImm(texMtx, 0x1E, 1);
-            GXSetNumTexGens(1);
-            GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
-        }
+        romfont_load_sheet(sheet, LastSheet, &texObj, texMtx);
 
         cellW = FontData->cellWidth;
         x0 = x + penX;
         x1 = x0 + FontSize;
         u0 = sheetX;
-        u1 = sheetX + cellW;
         v0 = sheetY;
+        y0 = (short)y - (FontData->ascent * FontSize) / cellW;
+        y1 = (short)y + (FontData->descent * FontSize) / cellW;
         v1 = sheetY + FontData->cellHeight;
-        y0 = (short)y - (FontData->ascent * FontSize) / (int)cellW;
-        y1 = (short)y + (FontData->descent * FontSize) / (int)cellW;
 
         GXBegin(0x80, 0, 4);
-        wgPipe[0] = (unsigned short)x0;
-        wgPipe[0] = (unsigned short)y0;
-        wgPipe[0] = (unsigned short)u0;
-        wgPipe[0] = (unsigned short)v0;
-        wgPipe[0] = (unsigned short)x1;
-        wgPipe[0] = (unsigned short)y0;
-        wgPipe[0] = (unsigned short)u1;
-        wgPipe[0] = (unsigned short)v0;
-        wgPipe[0] = (unsigned short)x1;
-        wgPipe[0] = (unsigned short)y1;
-        wgPipe[0] = (unsigned short)u1;
-        wgPipe[0] = (unsigned short)v1;
-        wgPipe[0] = (unsigned short)x0;
-        wgPipe[0] = (unsigned short)y1;
-        wgPipe[0] = (unsigned short)u0;
-        wgPipe[0] = (unsigned short)v1;
+        u1 = u0 + cellW;
+        wgPipe[0] = x0;
+        wgPipe[0] = y0;
+        wgPipe[0] = u0;
+        wgPipe[0] = v0;
+        wgPipe[0] = x1;
+        wgPipe[0] = y0;
+        wgPipe[0] = u1;
+        wgPipe[0] = v0;
+        wgPipe[0] = x1;
+        wgPipe[0] = y1;
+        wgPipe[0] = u1;
+        wgPipe[0] = v1;
+        wgPipe[0] = x0;
+        wgPipe[0] = y1;
+        wgPipe[0] = u0;
+        wgPipe[0] = v1;
 
-        penX += FontSpace + (FontSize * charW) / (int)FontData->cellWidth;
+        penX += FontSpace + (FontSize * charW) / FontData->cellWidth;
     }
 
     return (penX + 0xF) / 0x10;
@@ -372,14 +330,14 @@ void gc_native_display_render_image(void) {
     gc_native_display_render(render_image, 0);
 }
 
+/* TODO: [near miss] 97.78%; clear-color load precedes matrix setup; local literal regresses the exact constant pool. */
 void gc_native_display_render_movie(void* ctx) {
+    GXColor clearColor = kMovieRenderBlack;
     Mtx posMtx = {
         {1.0f, 0.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, -1.0f, 0.0f},
     };
-    GXColor clearColor = kMovieRenderBlack;
-    GXColor fogColor;
 
     GXSetCoPlanar(0);
     GXSetCullMode(0);
@@ -387,8 +345,7 @@ void gc_native_display_render_movie(void* ctx) {
     GXSetScissor(0, 0, gc_native_display.rmode->fbWidth, gc_native_display.rmode->efbHeight);
     GXSetScissorBoxOffset(0, 0);
     GXSetNumIndStages(0);
-    fogColor = clearColor;
-    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
+    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, clearColor);
     GXSetFogRangeAdj(0, 0, 0);
     GXSetBlendMode(0, 4, 5, 0);
     GXSetColorUpdate(1);
@@ -399,7 +356,6 @@ void gc_native_display_render_movie(void* ctx) {
     GXSetDstAlpha(0, 0);
     GXSetPixelFmt(0, 0);
     GXLoadPosMtxImm(posMtx, 0);
-    clearColor = Black;
     GXSetCopyClear(clearColor, 0x00FFFFFFu);
     GProfile_GCN_GxDrawDone();
     VIWaitForRetrace();
@@ -407,16 +363,17 @@ void gc_native_display_render_movie(void* ctx) {
     GXCopyDisp(_RwGCXFBDisp, 1);
 }
 
+/* TODO: [near miss] 98.88%; captured black-load schedule remains; literal form regresses constant-pool data. */
 static void gc_native_display_render(NativeRenderCb cb, void* arg) {
+    GXColor black = kRenderBlack;
     Mtx posMtx = {
         {1.0f, 0.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, -1.0f, 0.0f},
     };
-    GXColor clearColor = kRenderBlack;
+    GXColor clearColor;
     GXColor fogColor;
-    void* xfbA;
-    void* xfbB;
+    void* framebuffers[2];
     void* curXfb;
     int first;
     int i;
@@ -424,10 +381,10 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     first = 1;
 
     if (gc_native_display.xfbDisp != 0) {
-        xfbA = gc_native_display.xfbDisp;
-        xfbB = gc_native_display.xfbCopy;
+        framebuffers[0] = gc_native_display.xfbDisp;
+        framebuffers[1] = gc_native_display.xfbCopy;
     } else {
-        RwGameCubeGetXFBs(&xfbA, &xfbB);
+        RwGameCubeGetXFBs(&framebuffers[0], &framebuffers[1]);
     }
 
     GXSetCoPlanar(0);
@@ -438,7 +395,7 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     GXSetScissorBoxOffset(0, 0);
     GXSetNumIndStages(0);
 
-    fogColor = clearColor;
+    fogColor = black;
     GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
     GXSetFogRangeAdj(0, 0, 0);
     GXSetBlendMode(0, 4, 5, 0);
@@ -453,10 +410,9 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     VISetBlack(0);
     VIFlush();
 
-    clearColor = Black;
+    clearColor = black;
+    curXfb = framebuffers[0];
     GXSetCopyClear(clearColor, 0x00FFFFFFu);
-
-    curXfb = xfbA;
     for (i = 0; i < uFrameBlastCount; i++) {
         mode = gc_native_display.rmode;
         if (mode->field_rendering != 0) {
@@ -482,18 +438,18 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
         VIFlush();
         VIWaitForRetrace();
 
-        if (curXfb == xfbA) {
-            curXfb = xfbB;
+        if (curXfb == framebuffers[0]) {
+            curXfb = framebuffers[1];
         } else {
-            curXfb = xfbA;
+            curXfb = framebuffers[0];
         }
     }
 }
+
+/* TODO: [near miss] 99.47%; GXColor copy slots and font-width registers differ; stop at coloring. */
 static void render_text(void* text) {
     char* s;
     GXColor black;
-    GXColor mat;
-    GXColor amb;
     int w;
     int msgW;
     int msgH;
@@ -509,10 +465,8 @@ static void render_text(void* text) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    mat = black;
-    GXSetChanMatColor(0, mat);
-    amb = black;
-    GXSetChanAmbColor(0, amb);
+    GXSetChanMatColor(0, black);
+    GXSetChanAmbColor(0, black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -523,9 +477,9 @@ static void render_text(void* text) {
     GXBegin(0x80, 0, 4);
     wgPipe[0] = 0;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
+    wgPipe[0] = w;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
+    wgPipe[0] = w;
     wgPipe[0] = 0x1E0;
     wgPipe[0] = 0;
     wgPipe[0] = 0x1E0;
@@ -544,13 +498,14 @@ static void render_text(void* text) {
     restore_projection_matrix();
 }
 
-/* Retail keeps this helper out of line while other small helpers in this TU inline. */
 #pragma dont_inline on
+/* TODO: [near miss] 92.98%; named white-color copy prologue differs; anonymous initializer needs TU data reconciliation. */
 static void render_text_without_clear(char* text, int x, int y) {
     char* walk;
-    GXColor color = kTextWhite;
+    GXColor color;
 
     walk = text;
+    color = kTextWhite;
     if (FontData != 0) {
         for (; *walk != '\0'; walk++) {
         }
@@ -600,12 +555,12 @@ static void render_image(void* unused) {
     GXBegin(0x80, 0, 4);
     wgPipe[0] = 0;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
+    wgPipe[0] = w;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
-    wgPipe[0] = (unsigned short)h;
+    wgPipe[0] = w;
+    wgPipe[0] = h;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)h;
+    wgPipe[0] = h;
 
     GXSetNumChans(0);
     GXSetNumTexGens(0);
@@ -616,26 +571,20 @@ static void render_image(void* unused) {
     restore_projection_matrix();
 }
 
+/* TODO: [near miss] 98.67%; FIFO/XFB publication agrees; member-load order and owner GPR differ. */
 void gc_native_display_pass_to_RW(void) {
-    GcNativeDisplay* d;
-    void* xfbDisp;
-    void* fifo;
-    void* xfbCopy;
-
     GXDrawDone();
     if (pal_565 != 0) {
         _mwMemFree(pal_565, 0, 0);
         pal_565 = 0;
     }
-    d = &gc_native_display;
-    xfbDisp = d->xfbDisp;
-    fifo = d->fifo;
-    xfbCopy = d->xfbCopy;
-    _RwGCXFBDisp = xfbDisp;
-    _RwGCXFBCopy = xfbCopy;
-    _RwDlDefaultFifo = fifo;
+    _RwGCXFBDisp = gc_native_display.xfbDisp;
+    _RwGCXFBCopy = gc_native_display.xfbCopy;
+    _RwDlDefaultFifo = gc_native_display.fifo;
 }
 
+/* TODO: [near miss] 99.29%; equivalent TV-format dispatch omits retail
+ * fallback jump; copy-height ABI and field predicate agree. */
 void gc_native_display_init(void) {
     int tvFormat;
     GXRenderModeObj* mode;
@@ -646,22 +595,22 @@ void gc_native_display_init(void) {
     void* xfb1;
     void* xfb2;
     float yscale;
-    unsigned short copyHeight;
+    unsigned long copyHeight;
     int pixFmt;
 
     gc_grab_renderpipe();
     VIInit();
     tvFormat = VIGetTvFormat();
-    if (tvFormat == 1 || tvFormat < 1 || tvFormat >= 3) {
-        gc_native_display.rmode = &GXNtsc480IntDf;
-    } else {
+    if (tvFormat != 1 && tvFormat >= 1 && tvFormat < 3) {
         gc_native_display.rmode = &GXMpal480IntDf;
+    } else {
+        gc_native_display.rmode = &GXNtsc480IntDf;
     }
 
     mode = gc_native_display.rmode;
-    xfbBytes = (((int)mode->fbWidth + 0xF) & 0xFFF0) * (int)mode->xfbHeight;
+    xfbBytes = ((mode->fbWidth + 0xF) & 0xFFF0) * mode->xfbHeight;
     xfbHalf = xfbBytes * 2;
-    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (unsigned long)(xfbBytes * 4) + 0x1F, 5, 0,
+    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
                        0, 0);
     fifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
     _RwDl_FIFO_XFB = raw;
@@ -669,8 +618,8 @@ void gc_native_display_init(void) {
     gc_native_display.fifo = fifo;
     DCInvalidateRange(fifo, _RwDlFifoSize);
 
-    xfb1 = (void*)((unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize);
-    xfb2 = (void*)((unsigned char*)xfb1 + xfbHalf);
+    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    xfb2 = (unsigned char*)xfb1 + xfbHalf;
     _RwGCXFBDisp = xfb1;
     _RwGCXFB1 = xfb1;
     gc_native_display.xfbDisp = xfb1;
@@ -700,8 +649,7 @@ void gc_native_display_init(void) {
         yscale = GXGetYScaleFactor(mode->efbHeight, mode->xfbHeight);
     }
     copyHeight = GXSetDispCopyYScale(yscale);
-    mode = gc_native_display.rmode;
-    GXSetDispCopyDst(mode->fbWidth, copyHeight);
+    GXSetDispCopyDst(gc_native_display.rmode->fbWidth, copyHeight);
     mode = gc_native_display.rmode;
     GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, mode->vfilter);
 
@@ -714,8 +662,7 @@ void gc_native_display_init(void) {
 
     mode = gc_native_display.rmode;
     GXSetFieldMode(mode->field_rendering,
-                   (unsigned char)(((unsigned int)mode->xfbHeight - (unsigned int)mode->viHeight) >>
-                                   31));
+                   mode->xfbHeight < mode->viHeight);
 
     gc_release_renderpipe();
 
@@ -730,8 +677,8 @@ void gc_native_display_init(void) {
 
 static void CheckFor480PMode(void) {
     PADStatus pads[4];
-    int done;
-    int want480p;
+    unsigned int want480p;
+    unsigned char done;
     int i;
 
     want480p = 0;
@@ -744,14 +691,15 @@ static void CheckFor480PMode(void) {
         done = 1;
         PADRead(pads);
         for (i = 0; i < 2; i++) {
-            if (pads[i].err == -2 || pads[i].err == -3) {
+            if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
                 done = 0;
             }
         }
     }
 
     for (i = 0; i < 2; i++) {
-        if (pads[i].err == 0 && (pads[i].button & 0x200) == 0x200) {
+        if (pads[i].err == PAD_ERR_NONE &&
+            (pads[i].button & PAD_BUTTON_B) == PAD_BUTTON_B) {
             want480p = 1;
         }
     }
@@ -782,6 +730,7 @@ static void CheckFor480PMode(void) {
     uFrameBlastCount = 0xF;
 }
 
+/* TODO: [near miss] 99.92%; A-button edge CFG agrees; one XOR source-order row remains after staging checks. */
 static void displayContinueMessage(PADStatus* pads, char* msg) {
     DragonTextPrompt prompt;
     char yesBuf[20];
@@ -812,7 +761,7 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
             ready = 1;
             PADRead(pads);
             for (i = 0; i < 2; i++) {
-                if (pads[i].err == -2 || pads[i].err == -3) {
+                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
                     ready = 0;
                 }
             }
@@ -834,7 +783,7 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
         }
 
         gc_grab_renderpipe();
-        gc_native_display_render((NativeRenderCb)display_dragon_with_text, &prompt);
+        gc_native_display_render(display_dragon_with_text, &prompt);
         gc_release_renderpipe();
 
         if (timed_out_10s(start) != 0) {
@@ -847,7 +796,9 @@ static void gcSetup480P(void) {
     int xfbBytes;
     int xfbHalf;
     void* raw;
+    GXRenderModeObj* mode;
     float yscale;
+    unsigned long copyHeight;
     int i;
 
     gc_grab_renderpipe();
@@ -867,10 +818,10 @@ static void gcSetup480P(void) {
     }
 
     gc_native_display.rmode = &GXNtsc480ProgSoft;
-    xfbBytes = (((int)gc_native_display.rmode->fbWidth + 0xF) & 0xFFF0) *
-               (int)gc_native_display.rmode->xfbHeight;
+    xfbBytes = ((gc_native_display.rmode->fbWidth + 0xF) & 0xFFF0) *
+               gc_native_display.rmode->xfbHeight;
     xfbHalf = xfbBytes * 2;
-    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (unsigned long)(xfbBytes * 4) + 0x1F, 5, 0,
+    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
                        0, 0);
     _RwDl_FIFO_XFB = raw;
     _RwDlDefaultFifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
@@ -900,7 +851,9 @@ static void gcSetup480P(void) {
                      gc_native_display.rmode->efbHeight);
     yscale = GXGetYScaleFactor(gc_native_display.rmode->efbHeight,
                               gc_native_display.rmode->xfbHeight);
-    GXSetDispCopyDst(gc_native_display.rmode->fbWidth, GXSetDispCopyYScale(yscale));
+    copyHeight = GXSetDispCopyYScale(yscale);
+    mode = gc_native_display.rmode;
+    GXSetDispCopyDst(mode->fbWidth, copyHeight);
     GXSetCopyFilter(gc_native_display.rmode->aa, gc_native_display.rmode->sample_pattern, 1,
                     gc_native_display.rmode->vfilter);
 
@@ -912,9 +865,7 @@ static void gcSetup480P(void) {
 
     GXSetFieldMode(
         gc_native_display.rmode->field_rendering,
-        (unsigned char)(((unsigned int)gc_native_display.rmode->xfbHeight -
-                         (unsigned int)gc_native_display.rmode->viHeight) >>
-                        31));
+        gc_native_display.rmode->xfbHeight < gc_native_display.rmode->viHeight);
 
     gc_release_renderpipe();
 
@@ -937,7 +888,11 @@ void pokeFilter(void* vfilter) {
     GXRenderModeObj* mode;
 
     mode = gc_native_display.rmode;
-    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, (unsigned char*)vfilter);
+    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, vfilter);
+}
+
+static inline unsigned int changed_buttons(unsigned short previous, unsigned short current) {
+    return previous ^ current;
 }
 
 static int gc_prompt_for_480P(PADStatus* pads) {
@@ -974,7 +929,7 @@ static int gc_prompt_for_480P(PADStatus* pads) {
             ready = 1;
             PADRead(pads);
             for (i = 0; i < 2; i++) {
-                if (pads[i].err == -2 || pads[i].err == -3) {
+                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
                     ready = 0;
                 }
             }
@@ -993,7 +948,7 @@ static int gc_prompt_for_480P(PADStatus* pads) {
                     yes = 0;
                     break;
                 }
-                if ((unsigned short)(btn & 0x100 & (prev[i].button ^ btn)) != 0) {
+                if ((unsigned short)((btn & 0x100) & changed_buttons(prev[i].button, btn)) != 0) {
                     done = 1;
                     break;
                 }
@@ -1002,19 +957,23 @@ static int gc_prompt_for_480P(PADStatus* pads) {
 
         prompt.yes_hi = yes;
         gc_grab_renderpipe();
-        gc_native_display_render((NativeRenderCb)display_dragon_with_text, &prompt);
+        gc_native_display_render(display_dragon_with_text, &prompt);
         gc_release_renderpipe();
 
         if (timed_out_10s(start) != 0) {
             done = 1;
         }
     }
-    return yes == 0;
+    if (yes != 0) {
+        return 1;
+    }
+    return 0;
 }
 
-/* TODO: [near miss] 98.15%; w (r31 vs r28) and first width-loop coloring, GXColor arg slots,
- * two mask instructions and the TU pooled "YESNO" offset (unreferenced "Run 60Hz?") remain. */
-static void display_dragon_with_text(DragonTextPrompt* prompt) {
+/* TODO: [near miss] 98.20%; width-loop coloring, GXColor copy slots, mask codegen
+ * and the pooled YESNO offset remain. */
+static void display_dragon_with_text(void* arg) {
+    DragonTextPrompt* prompt = arg;
     GXColor black;
     int w;
     int h;
@@ -1047,12 +1006,12 @@ static void display_dragon_with_text(DragonTextPrompt* prompt) {
     GXBegin(0x80, 0, 4);
     wgPipe[0] = 0;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
+    wgPipe[0] = w;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)w;
-    wgPipe[0] = (unsigned short)h;
+    wgPipe[0] = w;
+    wgPipe[0] = h;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)h;
+    wgPipe[0] = h;
 
     GXSetNumChans(0);
     GXSetNumTexGens(0);
@@ -1116,27 +1075,27 @@ static void display_image(void) {
     int i;
     unsigned short* palette;
     unsigned short src;
-    unsigned short dst;
     short left;
+    int right;
     GXTlutObj tlut;
     GXTexObj tex;
     Mtx texMtx;
 
     if (pal_565 == 0) {
-        palette = _mwMemMalloc(permanent_heap, 0x200, 5, 0, 0, 0);
+        palette = _mwMemMalloc(permanent_heap, sizeof(loading_palette), 5, 0, 0, 0);
         if (palette == 0) {
             return;
         }
         pal_565 = palette;
         for (i = 0; i < 0x100; i++) {
             src = loading_palette[i];
-            dst = ((src >> 10) & 0x1F) | (src << 11) | ((src & 0x3E0) << 1);
-            pal_565[i] = dst;
+            pal_565[i] = ((src * 2) & 0x07C0) | ((src << 11) & 0xF800) |
+                         ((src >> 10) & 0x001F);
         }
     }
 
-    DCFlushRange(loading_image, 0x10000);
-    DCFlushRange(pal_565, 0x200);
+    DCFlushRange(loading_image, sizeof(loading_image));
+    DCFlushRange(pal_565, sizeof(loading_palette));
     GXInitTlutObj(&tlut, pal_565, 1, 0x100);
     GXLoadTlut(&tlut, 0);
     GXInitTexObjCI(&tex, loading_image, 0x100, 0x100, 9, 0, 0, 0, 0);
@@ -1157,44 +1116,54 @@ static void display_image(void) {
     GXSetVtxAttrFmt(0, 9, 0, 3, 0);
     GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
     GXBegin(0x80, 0, 4);
-    wgPipe[0] = (unsigned short)left;
+    wgPipe[0] = left;
+    right = left;
+    right += 0x100;
     wgPipe[0] = 0x70;
     wgPipe[0] = 0;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)(left + 0x100);
+    wgPipe[0] = right;
     wgPipe[0] = 0x70;
     wgPipe[0] = 0x100;
     wgPipe[0] = 0;
-    wgPipe[0] = (unsigned short)(left + 0x100);
+    wgPipe[0] = right;
     wgPipe[0] = 0x170;
     wgPipe[0] = 0x100;
     wgPipe[0] = 0x100;
-    wgPipe[0] = (unsigned short)left;
+    wgPipe[0] = left;
     wgPipe[0] = 0x170;
     wgPipe[0] = 0;
     wgPipe[0] = 0x100;
 }
 
+/* TODO: [near miss] 96.43%; 8x4 tile traversal and instruction order agree;
+ * 27 localized GPR operands remain. */
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
-    int pixel;
+    const unsigned char* image;
+    const unsigned char* tile_source;
+    unsigned char* output;
     int tile;
-    int tx;
-    int ty;
-    int x;
-    int y;
+    int output_offset;
+    int pixel;
+    int tile_x;
+    int tile_y;
 
-    tmp = _mwMemMalloc(wave_heap, 0x10000, 5, 0, 0, 0);
+    tmp = _mwMemMalloc(wave_heap, sizeof(loading_image), 5, 0, 0, 0);
+    image = loading_image;
+    output_offset = 0;
     for (tile = 0; tile < 0x800; tile++) {
-        tx = tile % 32;
-        ty = tile / 32;
+        tile_x = (tile % 32) * 8;
+        tile_y = (tile / 32) * 4;
+        tile_source = image + tile_x;
+        output = tmp + output_offset;
         for (pixel = 0; pixel < 0x20; pixel++) {
-            x = tx * 8 + (pixel % 8);
-            y = ty * 4 + (pixel / 8);
-            tmp[tile * 0x20 + pixel] = loading_image[y * 0x100 + x];
+            int y = tile_y + (pixel / 8);
+            *output++ = tile_source[y * 0x100 + (pixel % 8)];
         }
+        output_offset += 0x20;
     }
-    memcpy(dest, tmp, 0x10000);
+    memcpy(dest, tmp, sizeof(loading_image));
     _mwMemFree(tmp, 0, 0);
 }
 

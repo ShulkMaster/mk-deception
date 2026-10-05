@@ -1,3 +1,4 @@
+#include "cri/adx_mgc.h"
 #include "dolphin/os.h"
 #include "movie/MovieConfig.h"
 #include "movie/mwMovie.h"
@@ -7,9 +8,9 @@
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 
-typedef struct MwsPlayer MwsPlayer;
+struct MwsPlayer;
 
-typedef struct MwsPlayerInterface {
+struct MwsPlayerInterface {
     void* reserved[3];
     void (*vsync)(void);
     int (*execute_server)(MwsPlayer*);
@@ -20,13 +21,13 @@ typedef struct MwsPlayerInterface {
     void (*get_time)(MwsPlayer*, int*, int*);
     void (*pause)(MwsPlayer*, int);
     void (*set_volume)(MwsPlayer*, int);
-} MwsPlayerInterface;
+};
 
 struct MwsPlayer {
     MwsPlayerInterface* interface;
 };
 
-typedef struct MwsInitParam {
+struct MwsInitParam {
     float frame_rate;
     int maximum_width;
     int decoder_count;
@@ -35,9 +36,9 @@ typedef struct MwsInitParam {
     int field_14;
     int field_18;
     int svm_parameter;
-} MwsInitParam;
+};
 
-typedef struct MwsCreateParams {
+struct MwsCreateParams {
     int file_type;
     int maximum_bps;
     int width;
@@ -50,18 +51,18 @@ typedef struct MwsCreateParams {
     int buffer_format;
     int field_28;
     int field_2C;
-} MwsCreateParams;
+};
 
-typedef struct MwsTransportPair {
+struct MwsTransportPair {
     int first;
     int second;
-} MwsTransportPair;
+};
 
-typedef struct MwsTransportFrameInfo {
+struct MwsTransportFrameInfo {
     MwsTransportPair pairs[7];
-} MwsTransportFrameInfo;
+};
 
-typedef struct MwsFrameOutput {
+struct MwsFrameOutput {
     void* frame;
     int frame_structure;
     int width;
@@ -83,26 +84,14 @@ typedef struct MwsFrameOutput {
     int display_mode;
     int reserved_4C;
     MwsTransportFrameInfo transport;
-} MwsFrameOutput;
-
-typedef struct MwMoviePlayerParams {
-    unsigned int maximum_bps;
-    int audio_channel;
-    unsigned int composition_flag;
-    unsigned short width;
-    unsigned short height;
-    unsigned short output_width;
-    unsigned short output_height;
-    unsigned short frame_count;
-    unsigned short fade_frames;
-} MwMoviePlayerParams;
+};
 
 struct _mwMovPlayer {
     MwsPlayer* player_handle;
     int reserved_04;
     MwsFrameOutput frame;
     int state;
-    MwMoviePlayerParams create;
+    MwMovieCreateParams create;
     unsigned short fade_frame;
     unsigned short reserved_AE;
     int previous_frame;
@@ -117,7 +106,7 @@ typedef void (*MovieProcessCallback)(_mwMovPlayer*, void*, int, int,
                                      unsigned short, unsigned short, int);
 typedef void (*MovieDiscErrorCallback)(void);
 
-typedef struct mwMovieSetup {
+struct mwMovieSetup {
     int once;
     int initialized;
     float refresh_rate;
@@ -130,18 +119,17 @@ typedef struct mwMovieSetup {
     MovieProcessCallback process;
     MovieDiscErrorCallback disc_error;
     int cri_error;
-} mwMovieSetup;
+};
 
 typedef char MwsInitParamSizeCheck[sizeof(MwsInitParam) == 0x20 ? 1 : -1];
 typedef char MwsCreateParamsSizeCheck[sizeof(MwsCreateParams) == 0x30 ? 1 : -1];
 typedef char MwsFrameOutputSizeCheck[sizeof(MwsFrameOutput) == 0x88 ? 1 : -1];
-typedef char MwMoviePlayerParamsSizeCheck[
-    sizeof(MwMoviePlayerParams) == 0x18 ? 1 : -1];
+typedef char MwMovieCreateParamsSizeCheck[
+    sizeof(MwMovieCreateParams) == 0x18 ? 1 : -1];
 typedef char MwMoviePlayerSizeCheck[sizeof(_mwMovPlayer) == 0xB8 ? 1 : -1];
 typedef char MwMovieSetupSizeCheck[sizeof(mwMovieSetup) == 0x30 ? 1 : -1];
 
 extern "C" {
-void ADXM_SetupThrd(int);
 void ADXM_ShutdownThrd(void);
 void ADXM_SetCbErr(void (*callback)(void*, char*), void* object);
 void mwPlyInitSfdFx(MwsInitParam*);
@@ -253,6 +241,7 @@ extern "C" void mwMovieSetTapoutCallback(void* callback)
     MoviePlayerSetup.tapout = (MovieTapoutCallback)callback;
 }
 
+/* TODO: [near miss] 87.71%; entry, panic-argument and final setup scheduling remain; whole-TU mode audit pending. */
 extern "C" int mwMovieInit(MwMovieInitParams* params)
 {
     if (MoviePlayerSetup.once == 0) {
@@ -302,10 +291,10 @@ extern "C" int mwMovieInit(MwMovieInitParams* params)
     MoviePlayerSetup.volume = params->volume;
     MoviePlayerSetup.tapout = (MovieTapoutCallback)params->tapout;
     MoviePlayerSetup.start = (MovieStartCallback)params->start;
-    MoviePlayerSetup.stop = (MovieStopCallback)params->stop;
-    MoviePlayerSetup.vsync = (MovieVsyncCallback)params->vsync;
+    MoviePlayerSetup.stop = params->stop;
+    MoviePlayerSetup.vsync = params->vsync;
     MoviePlayerSetup.process = (MovieProcessCallback)params->process;
-    MoviePlayerSetup.disc_error = (MovieDiscErrorCallback)params->disc_error;
+    MoviePlayerSetup.disc_error = params->disc_error;
     MoviePlayerSetup.initialized = 1;
     return 1;
 }
@@ -324,6 +313,7 @@ extern "C" float mwMovieGetVolume(void)
     return MoviePlayerSetup.volume;
 }
 
+/* TODO: [near miss] 92.59259%; zero-load scheduling remains; whole-TU scheduling fix awaits integration. */
 extern "C" int mwMovieDbVolFromLinear(float volume)
 {
     int decibels;
@@ -331,7 +321,7 @@ extern "C" int mwMovieDbVolFromLinear(float volume)
     if (volume == 0.0f) {
         return -960;
     }
-    decibels = (int)(100.0f * (float)log10(volume * volume));
+    decibels = 100.0f * (float)log10(volume * volume);
     if (decibels > 0) {
         return 0;
     }
@@ -359,6 +349,7 @@ extern "C" void mwMovieSetMovieVolume(void* handle, float volume)
     MoviePlayerSetup.volume = volume;
 }
 
+/* TODO: [near miss] 79.28%; setup, panic and final store scheduling remain. */
 extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
 {
     _mwMovPlayer* player;
@@ -370,7 +361,7 @@ extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
     }
     player = (_mwMovPlayer*)mwMovMalloc(sizeof(_mwMovPlayer));
     memset(player, 0, sizeof(_mwMovPlayer));
-    memcpy(&player->create, params, sizeof(MwMoviePlayerParams));
+    memcpy(&player->create, params, sizeof(MwMovieCreateParams));
     createSofdecPlayer(player);
     player->state = 0;
     return player;
@@ -390,6 +381,7 @@ extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player)
 #pragma scheduling reset
 #pragma peephole reset
 
+/* TODO: [near miss] 91.50000%; entry/exit and panic scheduling await whole-TU mode audit. */
 extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
 {
     switch (player->state) {
@@ -412,6 +404,7 @@ extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
     }
 }
 
+/* TODO: [near miss] 91.50%; player/panic/save scheduling differs; whole-unit mode audit is pending. */
 extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
                                                const char* filename)
 {
@@ -435,6 +428,7 @@ extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
     }
 }
 
+/* TODO: [near miss] 93.61%; null-test, panic arguments and restores differ; paired TU mode integration pending. */
 extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -446,7 +440,6 @@ extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
     case 1:
     case 3:
         player->player_handle->interface->pause(player->player_handle, 0);
-        /* fall through */
     case 2:
         stopMoviePlay(player);
         player->state = 0;
@@ -461,6 +454,7 @@ extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
     }
 }
 
+/* TODO: [near miss] 93.92%; null-test, panic-argument and epilogue scheduling remain; whole-TU mode audit is pending. */
 extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -614,6 +608,7 @@ static void createSofdecPlayer(_mwMovPlayer* player)
     mwPlySetFrmSync(player->player_handle, 1);
 }
 
+/* TODO: [near miss] 90.80488%; null-test/panic scheduling and epilogue await verified TU scheduling/nopeephole flags. */
 static void destroySofdecPlayer(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -655,6 +650,7 @@ static void startMoviePlay(_mwMovPlayer* player, char* fileName, bool loop)
     }
 }
 
+/* TODO: [near miss] 88.91%; assertion argument staging and null-test/restore lowering remain. */
 static void stopMoviePlay(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -666,6 +662,7 @@ static void stopMoviePlay(_mwMovPlayer* player)
     player->player_handle->interface->stop(player->player_handle);
 }
 
+/* TODO: [breakthrough needed] 76.84%; retail frame-copy/save and assertion staging need verification. */
 static int executeMovieFrame(_mwMovPlayer* player)
 {
     MwsFrameOutput frame;
@@ -703,7 +700,8 @@ static int executeMovieFrame(_mwMovPlayer* player)
         player->frame.reserved_4C = frame.reserved_4C;
         destination = player->frame.transport.pairs;
         source = frame.transport.pairs;
-        pairs_remaining = 7;
+        pairs_remaining = sizeof(frame.transport.pairs) /
+                          sizeof(frame.transport.pairs[0]);
         do {
             *destination++ = *source++;
         } while (--pairs_remaining != 0);
@@ -718,6 +716,7 @@ static int executeMovieFrame(_mwMovPlayer* player)
     return 0;
 }
 
+/* TODO: [near miss] 94.98425%; whole-TU scheduling/peephole modes await coordinator build gate. */
 static void updatePlayerState(_mwMovPlayer* player)
 {
     int status;

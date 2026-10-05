@@ -2,12 +2,12 @@
 
 #include "mw/mwMemPriv.h"
 
-/* TODO: [near miss] 99.13%; only GPR coloring differs. */
+/* TODO: [near miss] 99.57%; block-size and allocation-extent registers remain reversed. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
-    u32 block_prefix;
     u32 block_size;
     u32 header_size;
+    u8 block_prefix;
     int alignment;
     MwMemUsedHeader* free_head;
 
@@ -15,7 +15,7 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     block_size = heap->blockSize;
     header_size = block_prefix - sizeof(MwMemUsedHeader);
     header = mwMemHeaderBefore(block, block_prefix);
-    header_size += block_size;
+    header_size = block_size + header_size;
     header->allocationSize = header_size;
     header->prefixSize = 0;
     header->heapIndex = 0;
@@ -79,36 +79,43 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     return result;
 }
 
-/* TODO: [near miss] 95.21%; free-list CFG matches; loop GPR coloring and one separately materialized zero remain. */
-void hdrlessHeapResetHeap(_mwMemHeap* heap) {
+static inline void hdrlessHeapAlignArena(_mwMemHeap* heap) {
     u32 alignment_mask;
     u32 alignment_inverse;
-    u32 block_stride;
-    u32 block_count;
-    u32 available_size;
-    u32 index;
-    u32 header_size;
     u8* arena_start;
-    MwMemUsedHeader* header;
 
     if (heap != 0) {
-        if (heap != 0) {
-            alignment_mask = (1 << privGetAlignFromMwMemFlags(heap->flags)) - 1;
-            alignment_inverse = ~alignment_mask;
-            heap->blockPrefixSize =
-                ((heap->blockSize + alignment_mask) & alignment_inverse) - heap->blockSize;
-            arena_start = heap->heapStart + heap->blockPrefixSize;
-            heap->arenaAlignmentPadding =
-                ((u32)(arena_start + alignment_mask) & alignment_inverse) - (u32)arena_start;
-        }
+        alignment_mask = (1 << privGetAlignFromMwMemFlags(heap->flags)) - 1;
+        alignment_inverse = ~alignment_mask;
+        heap->blockPrefixSize =
+            ((heap->blockSize + alignment_mask) & alignment_inverse) - heap->blockSize;
+        arena_start = heap->heapStart + heap->blockPrefixSize;
+        heap->arenaAlignmentPadding =
+            ((u32)(arena_start + alignment_mask) & alignment_inverse) - (u32)arena_start;
+    }
+}
+
+/* TODO: [near miss] 98.09782%; alignment temporaries and separate zero remain; loop matches. */
+void hdrlessHeapResetHeap(_mwMemHeap* heap) {
+    u32 index;
+    MwMemUsedHeader* header;
+    u32 available_size;
+    u32 block_count;
+    u32 block_stride;
+    u8* arena_start;
+    u32 header_size;
+
+    if (heap != 0) {
+        u8 arena_padding;
+        hdrlessHeapAlignArena(heap);
         index = 0;
         heap->usedList = 0;
         heap->freeList = 0;
         heap->freeTail = 0;
         arena_start = heap->heapStart;
-        available_size =
-            heap->heapEnd - arena_start - heap->arenaAlignmentPadding;
-        header = mwMemHeaderAt(arena_start, heap->arenaAlignmentPadding);
+        arena_padding = heap->arenaAlignmentPadding;
+        available_size = heap->heapEnd - arena_start - arena_padding;
+        header = mwMemHeaderAt(arena_start, arena_padding);
         block_stride = heap->blockSize + heap->blockPrefixSize;
         header->next = 0;
         block_count = available_size / block_stride;
@@ -150,17 +157,21 @@ void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) 
     hdrlessHeapResetHeap(heap);
 }
 
-/* TODO: [near miss] 97.70%; same arithmetic; destination GPR reuse differs. */
+static inline u32 hdrlessBlockStride(u32 block_size, u32 alignment_mask) {
+    return (MW_MEM_ALIGN_UP_16(block_size) + alignment_mask) & ~alignment_mask;
+}
+
 u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     u32 alignment;
     u32 alignment_mask;
+    u32 block_count;
     u32 block_size;
 
     alignment = 1 << privGetAlignFromMwMemFlags(params->flags);
     alignment_mask = alignment - 1;
-    block_size =
-        (MW_MEM_ALIGN_UP_16(params->blockSize) + alignment_mask) & ~alignment_mask;
-    block_size *= params->blockCount;
-    block_size += alignment;
+    block_count = params->blockCount;
+    block_size = hdrlessBlockStride(params->blockSize, alignment_mask);
+    block_size = block_count * block_size;
+    block_size = alignment + block_size;
     return block_size + 0x70;
 }

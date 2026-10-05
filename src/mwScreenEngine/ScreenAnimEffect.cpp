@@ -16,7 +16,7 @@ int ScreenAnimEffect::GetMaxTime() {
 
     maxTime = 0;
     i = 0;
-    count = (int)m_tracks->count;
+    count = m_tracks->count;
     while (i < count) {
         t = ScreenAnimControlAt(m_tracks, i)->GetMaxTime();
         if (t > maxTime) {
@@ -52,7 +52,7 @@ unsigned int ScreenAnimEffect::Process(int time, int direction,
     count = 0;
     obj = GetObject(elements);
     if (obj != 0) {
-        count = (int)m_tracks->count;
+        count = m_tracks->count;
         for (i = 0; i < count; i++) {
             ctrl = ScreenAnimControlAt(m_tracks, i);
             firstKey = ScreenAnimKeyAt(ctrl->m_keys, 0);

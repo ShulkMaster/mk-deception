@@ -18,9 +18,15 @@ typedef struct SFHStreamRecord {
     unsigned char id;
     unsigned char codec;
     /* Audio layer/channels; video bitrate bytes. */
-    unsigned char codec_bytes[2];
+    union {
+        unsigned char codec_bytes[2];
+        unsigned short codec_word;
+    };
     /* Audio sample-rate bytes; video picture dimensions and frame rate. */
-    unsigned char media_bytes[4];
+    union {
+        unsigned char media_bytes[4];
+        unsigned int media_word;
+    };
     unsigned char effective_features;
     unsigned char color_type;
     unsigned char picture_type;
@@ -78,12 +84,17 @@ static inline int sfh_is_analyzable(const SFHHandle* handle)
 
 static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
 {
-    const unsigned char* bytes = data + offset;
+    /* Header packet fields are word-aligned and stored little-endian. */
+    const unsigned int* words = (const unsigned int*)data;
+    unsigned int word = words[offset / sizeof(*words)];
 
-    return (unsigned int)bytes[0] |
-           ((unsigned int)bytes[1] << 8) |
-           ((unsigned int)bytes[2] << 16) |
-           ((unsigned int)bytes[3] << 24);
+    unsigned int swapped = (word << 8) & 0x00FF0000U;
+
+    swapped = (swapped & ~0xFF000000U) | (word << 24);
+
+    swapped = (swapped & ~0x0000FF00U) | ((word >> 8) & 0x0000FF00U);
+    swapped = (swapped & ~0x000000FFU) | (word >> 24);
+    return swapped;
 }
 
 static inline signed short sfh_read_le_s16(const unsigned char* data, int offset)
@@ -140,11 +151,13 @@ static inline int sfh_read_header_s16(const SFHHandle* handle, int offset,
 static inline const SFHStreamRecord* sfh_find_stream(
     const unsigned char* header, unsigned int stream_id)
 {
-    const SFHStreamRecord* stream = 0;
+    const SFHStreamRecord* stream;
     const SFHStreamRecord* candidate;
     int i;
 
-    for (i = 0; i < 26; i++) {
+    i = 0;
+    stream = 0;
+    for (; i < 26; i++) {
         candidate = (const SFHStreamRecord*)(header + 0x180);
         if (candidate->id == stream_id) {
             stream = candidate;
@@ -212,15 +225,16 @@ static inline int sfh_is_effective_video(const SFHStreamRecord* stream,
     return valid;
 }
 
-/* TODO: [near miss] 97.524270%; 32-bit search ID matches donor width;
- * stream-search coloring and key-load schedule remain. */
+/* TODO: [near miss] 98.49515%; stream/header/index register ownership and one search copy remain. */
 int SFH_AnlyFtrFxType(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (!sfh_is_effective_video(stream, stream_id)) return 0;
     if (handle->version < 0xD2) return 0;
@@ -228,15 +242,17 @@ int SFH_AnlyFtrFxType(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.524270%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [near miss] 98.49515%; typed search/gates agree; header/result/index GPR ownership and one extra copy remain. */
 int SFH_AnlyFtrGopM(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle)
+        ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->gop_m;
@@ -244,15 +260,15 @@ int SFH_AnlyFtrGopM(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.524270%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
-int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id,
-                    int* result)
+/* TODO: [breakthrough] 98.49515%; search key ordering fixed; result/counter/header GPR assignments and one copy remain. */
+int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id, int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->gop_n;
@@ -260,8 +276,8 @@ int SFH_AnlyFtrGopN(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.371130%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [near miss] 97.52577%; search result/index volatile homes disagree;
+ * local joins regress; pointer/counter homes and one copy order remain. */
 int SFH_AnlyFtrExpand(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -275,8 +291,7 @@ int SFH_AnlyFtrExpand(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [near miss] 97.55102%; search-result/index r3/r7 swap and key-load schedule remain. */
 int SFH_AnlyFtrShcFixFlg(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
@@ -290,8 +305,8 @@ int SFH_AnlyFtrShcFixFlg(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [near miss] 97.55102%; search result/index homes match Expand's residual;
+ * search initialization agrees; pointer/index homes remain. */
 int SFH_AnlyFtrFixFlg(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -305,38 +320,40 @@ int SFH_AnlyFtrFixFlg(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [near miss] 98.41837%; validated-search select retains real header snapshot;
+ * header copy and stream/index homes remain; stop at staging. */
 int SFH_AnlyFtrPicType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->picture_type;
     return 1;
 }
 
-/* TODO: [near miss] 97.397960%; mutable handle and 32-bit search ID agree;
- * search-result register coloring remains. */
+/* TODO: [breakthrough] 98.41837%; search key ordering fixed; result/index/header GPR assignments and one copy remain. */
 int SFH_AnlyFtrColType(SFHHandle* handle, unsigned char stream_id,
                        int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (!sfh_is_effective_video(stream, stream_id)) return 0;
     *result = stream->color_type;
     return 1;
 }
 
-/* TODO: [near miss] 97.747750%; typed media bytes and 32-bit search ID agree;
- * search coloring and key-load schedule remain. */
+/* TODO: [near miss] 97.88288%; search-result/index r3/r7 swap and key-load schedule remain; rate switch agrees. */
 int SFH_AnlyElemPicRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
@@ -350,8 +367,7 @@ int SFH_AnlyElemPicRate(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 96.584160%; typed media bytes and 32-bit search ID agree;
- * picture-size load/result register lifetimes remain. */
+/* TODO: [near miss] 97.22772%; width nibble extraction agrees; shared search result/index/current registers remain. */
 int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
                       int* width, int* height)
 {
@@ -365,7 +381,7 @@ int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
     if (sfh_stream_class(stream_id) != 0xE0) return 0;
     dimensions = stream->media_bytes;
     *width = dimensions[0];
-    *width = (*width << 4) | (dimensions[1] >> 4);
+    *width = (*width << 4) | ((dimensions[1] >> 4) & 0xF);
     *width &= 0xFFF;
     *height = dimensions[1];
     *height = (*height << 8) | dimensions[2];
@@ -373,63 +389,68 @@ int SFH_AnlyElemPicSz(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.000000%; portable bytes and 32-bit search ID agree;
- * retail's halfword load remains unmatched by safe byte access. */
+/* TODO: [near miss] 98.39%; typed halfword and byte swap agree; search result/index/header registers and one copy differ. */
 int SFH_AnlyElemBitRate(SFHHandle* handle, unsigned char stream_id,
                         int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
+    int encoded_rate;
     int bit_rate;
     int value;
 
     *result = 0;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (sfh_stream_class(stream_id) != 0xE0) return 0;
+    encoded_rate = stream->codec_word;
     bit_rate = (signed short)(unsigned short)(
-        ((unsigned short)stream->codec_bytes[1] << 8) |
-        stream->codec_bytes[0]);
+        ((encoded_rate << 8) & 0xFF00) |
+        (unsigned char)(encoded_rate >> 8));
     value = bit_rate;
     if (bit_rate == 0xFFFF) value = 0;
     *result = value;
     return 1;
 }
 
-/* TODO: [near miss] 97.023810%; mutable handle and 32-bit search ID agree;
- * search/codec register coloring remains. */
+/* TODO: [near miss] 98.21429%; video codec/search gates agree; header/result/index GPR ownership and one extra copy remain. */
 int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle)
+        ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (sfh_stream_class(stream_id) != 0xE0) return 0;
     *result = stream->codec;
     return 1;
 }
 
-/* TODO: [near miss] 91.494255%; bytewise decode and 32-bit search ID agree;
- * retail's word load/swap remains a portability ceiling. */
+/* TODO: [breakthrough] 92.93104%; word/endian decode agree; search GPRs and reverse-endian store fold remain. */
 int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
+    unsigned int word;
 
     *result = 0;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (sfh_stream_class(stream_id) != 0xC0) return 0;
-    *result = ((unsigned int)stream->media_bytes[3] << 24) |
-              ((unsigned int)stream->media_bytes[2] << 16) |
-              ((unsigned int)stream->media_bytes[1] << 8) |
-              stream->media_bytes[0];
+    word = stream->media_word;
+    *result = ((word << 8) & 0x00FF0000U) | (word << 24) |
+              ((word >> 8) & 0x0000FF00U) | (word >> 24);
     return 1;
 }
 
-/* TODO: [near miss] 96.987950%; mutable handle and 32-bit search ID agree;
- * search/channel register coloring remains. */
+/* TODO: [near miss] 97.16868%; search result/index r3/r7 swap and one clrlwi/mr order remain. */
 int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -442,8 +463,8 @@ int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.102270%; mutable handle and 32-bit search ID agree;
- * search/codec-layer register coloring remains. */
+/* TODO: [near miss] 97.27273%; search result/index volatile homes disagree;
+ * negative select is neutral with zero output; shared web evidence needed. */
 int SFH_AnlyElemLayer(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -457,47 +478,45 @@ int SFH_AnlyElemLayer(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 97.023810%; mutable handle and 32-bit search ID agree;
- * search/codec register coloring remains. */
+/* TODO: [near miss] 98.21429%; validated search retains actual header snapshot;
+ * extra header copy and search-result/index volatile homes remain. */
 int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
                          int* result)
 {
     const SFHStreamRecord* stream;
+    const unsigned char* header;
 
     *result = -1;
-    stream = sfh_get_stream(handle, stream_id);
+    header = handle->header;
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
     if (stream == 0) return 0;
     if (sfh_stream_class(stream_id) != 0xC0) return 0;
     *result = stream->codec;
     return 1;
 }
 
-/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
- * retail word-load and validation lowering still differ. */
+/* TODO: [near miss] 91.41%; aligned endian decode agrees; native byte-insert lowering needs whole-TU mode evidence. */
 int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
     *result = 0;
     return sfh_read_header_u32(handle, 0xC0, result);
 }
 
-/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
- * retail word-load and validation lowering still differ. */
+/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
 int SFH_AnlyMaxPlyLenVid(SFHHandle* handle, int* result)
 {
     *result = 0;
     return sfh_read_header_u32(handle, 0xBC, result);
 }
 
-/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
- * retail word-load and validation lowering still differ. */
+/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
 int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
 {
     *result = 0;
     return sfh_read_header_u32(handle, 0xB8, result);
 }
 
-/* TODO: [near miss] 90.11364%; bytewise header decode is portable;
- * retail word-load and version-validation lowering still differ. */
+/* TODO: [breakthrough] 92.39%; aligned word decode recovered; byte-insertion scheduling remains. */
 int SFH_AnlyByteRate(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -528,8 +547,7 @@ int SFH_AnlyNumElemTot(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0xB0, result);
 }
 
-/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
- * retail word-load and validation lowering still differ. */
+/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
 int SFH_AnlyPackSiz(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -548,8 +566,7 @@ int SFH_AnlyPackType(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0x84, result);
 }
 
-/* TODO: [near miss] 89.23077%; bytewise header decode is portable;
- * retail word-load and validation lowering still differ. */
+/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
 int SFH_AnlyHdrSiz(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -608,8 +625,8 @@ static inline int sfh_anly_hdr_tool_ver(SFHHandle* handle, int* major,
     char tool_version[33];
     int tool_major;
     int tool_minor;
-    unsigned char header_major;
-    unsigned char header_minor;
+    int header_major;
+    int header_minor;
 
     *major = 0;
     *minor = 0;
@@ -631,25 +648,52 @@ static inline int sfh_anly_hdr_tool_ver(SFHHandle* handle, int* major,
     return 1;
 }
 
-/* TODO: [near miss] 94.188034%; parsing and selection match structurally;
- * donor declaration order is neutral, so stop at register coloring. */
 int SFH_AnlyHdrToolVer(SFHHandle* handle, int* major, int* minor)
 {
-    return sfh_anly_hdr_tool_ver(handle, major, minor);
+    const unsigned char* header;
+    const unsigned char* tool_string;
+    char tool_version[33];
+    int tool_major;
+    int tool_minor;
+    int header_major;
+    int header_minor;
+
+    *major = 0;
+    *minor = 0;
+    header = handle->header;
+    tool_version[0] = 0;
+    tool_string = header + 0x60;
+    if (!sfh_get_tool_str(handle, tool_string, tool_version)) return 0;
+    header_major = header[0x38];
+    header_minor = header[0x39];
+    if (!sfh_get_str_ver(tool_version, &tool_major, &tool_minor)) return 0;
+
+    if (header_major * 100 + header_minor >= tool_major * 100 + tool_minor) {
+        *major = header_major;
+        *minor = header_minor;
+    } else {
+        *major = tool_major;
+        *minor = tool_minor;
+    }
+    return 1;
 }
 
-static inline int sfh_query_features(const SFHHandle* handle,
-                                     unsigned int stream_id,
-                                     unsigned int expected_class,
-                                     int* result)
+static inline const SFHStreamRecord* sfh_feature_stream(
+    const SFHHandle* handle, unsigned int stream_id)
 {
     const unsigned char* header = handle->header;
     const SFHStreamRecord* stream;
+
+    stream = !sfh_is_analyzable(handle) ? 0 : sfh_find_stream(header, stream_id);
+    return stream;
+}
+
+static inline int sfh_effective_features(
+    const SFHStreamRecord* stream, unsigned int stream_id,
+    unsigned int expected_class)
+{
     int valid;
 
-    if (!sfh_is_analyzable(handle)) return 0;
-    stream = sfh_find_stream(header, stream_id);
-    if (stream == 0) return 0;
     if (sfh_stream_class(stream_id) != expected_class) {
         valid = 0;
     } else if (stream->effective_features > 1) {
@@ -659,15 +703,14 @@ static inline int sfh_query_features(const SFHHandle* handle,
     } else {
         valid = 1;
     }
-    *result = valid;
-    return 1;
+    return valid;
 }
 
-/* TODO: [near miss] 95.417060%; widened ID and shared typed feature helper
- * preserve both arms; 32-bit search width helps siblings, owner coloring remains. */
+/* TODO: [near miss] 99.67%; nullable lookup/decoder/shared return match; twelve search result/index register operands remain. */
 int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
                     int* result)
 {
+    const SFHStreamRecord* stream;
     int stream_class;
     unsigned int stream_id_value;
 
@@ -676,16 +719,23 @@ int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
     stream_class = sfh_stream_class(stream_id_value);
     switch (stream_class) {
     case 0xC0:
-        return sfh_query_features(handle, stream_id_value, 0xC0, result);
+        stream = sfh_feature_stream(handle, stream_id_value);
+        if (stream == 0) return 0;
+        *result = sfh_effective_features(stream, stream_id_value, 0xC0);
+        break;
     case 0xE0:
-        return sfh_query_features(handle, stream_id_value, 0xE0, result);
+        stream = sfh_feature_stream(handle, stream_id_value);
+        if (stream == 0) return 0;
+        *result = sfh_effective_features(stream, stream_id_value, 0xE0);
+        break;
     default:
         return 0;
     }
+    return 1;
 }
 
-/* TODO: [near miss] 96.166664%; retail flow and 32-bit search ID agree;
- * search coloring and equivalent key-load schedule remain. */
+/* TODO: [breakthrough] 96.25%; shared search zero initialization restored;
+ * pointer/counter homes and one copy-order difference remain. */
 int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     int* result)
 {
@@ -702,14 +752,14 @@ int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.61290%; typed free helper restores early CFG;
- * stop at cmpwi versus Boolean materialization and register coloring. */
+/* TODO: [near miss] 98.32258%; only free-state Boolean materialization differs;
+ * propagation-off closes it but regresses nine siblings; retain the honest helper. */
 int SFH_IsSfdHeader(SFHHandle* handle, int* result)
 {
     static const char signature[] = "SofdecStream            ";
     const unsigned char* identifier;
-    int major = 0;
-    int minor = 0;
+    int major;
+    int minor;
 
     *result = 0;
     identifier = handle->header + 0x20;

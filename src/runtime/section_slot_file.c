@@ -1,16 +1,15 @@
 #include "runtime/section_slot_file.h"
+#include "runtime/section.h"
 #include "runtime/cstring.h"
 
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 
-typedef struct SsfReqQueue {
+struct SsfReqQueue {
     SsfReqLink head;
     SsfReqLink* tail;
-} SsfReqQueue;
-
-extern MkProc* saved_aproc;
+};
 
 static void priv_sec_slot_file_read_all(SsfReq* request);
 static SsfReq* sec_slot_file_open_file_async_withcallback(
@@ -21,7 +20,7 @@ static void sec_slot_file_queue_open_callback(void* user,
                                                int success);
 
 static SsfReq ssf_req_Pool[40];
-static SsfReqQueue ssf_req_Queue;
+static struct SsfReqQueue ssf_req_Queue;
 static SsfReq* ssf_req_FreeList;
 static SsfReq* ssf_req_CurrentItem;
 
@@ -60,6 +59,15 @@ static inline void recycle_request(SsfReq* request) {
     ssf_req_FreeList = request;
 }
 
+static inline SsfReq* allocate_request(void) {
+    SsfReq* request = ssf_req_FreeList;
+    if (request != 0) {
+        ssf_req_FreeList = request->link.next;
+        memset(request, 0, sizeof(*request));
+    }
+    return request;
+}
+
 static inline SsfReq* dequeue_request(void) {
     SsfReq* request = ssf_req_Queue.head.next;
 
@@ -73,6 +81,44 @@ static inline SsfReq* dequeue_request(void) {
         request->queued = 0;
     }
     return request;
+}
+
+static inline void enqueue_request(SsfReq* request, MkFileInfo* info,
+                                   void* userdata, SsfReqCompletion completion) {
+    SsfReq* next_request;
+    MkFileEntry* previous_ssf;
+    MkFileEntry* requested_ssf;
+
+    request->ssf_file = get_current_ssf_file();
+    previous_ssf = 0;
+    request->loading = 1;
+    request->userdata = userdata;
+    request->completion = completion;
+    request->info = info;
+    ssf_req_Queue.tail->next = request;
+    ssf_req_Queue.tail = &request->link;
+    request->link.next = 0;
+    request->queued = 1;
+
+    if (ssf_req_CurrentItem == 0) {
+        next_request = dequeue_request();
+        if (next_request != 0) {
+            ssf_req_CurrentItem = next_request;
+            requested_ssf = next_request->ssf_file;
+            if (requested_ssf != 0) {
+                previous_ssf = get_current_ssf_file();
+                if (previous_ssf != requested_ssf) {
+                    load_ssf(requested_ssf);
+                }
+            }
+            mk_file_open_async_withcallback(
+                next_request->info, "rb", next_request->userdata,
+                sec_slot_file_queue_open_callback, next_request);
+            if (previous_ssf != requested_ssf && previous_ssf != 0) {
+                load_ssf(previous_ssf);
+            }
+        }
+    }
 }
 
 int sec_slot_file_open_read_async(SecSlotFileEntry* file, SecSlot* slot,
@@ -94,19 +140,22 @@ int sec_slot_file_open_read_async_queued(SecSlotFileEntry* file, SecSlot* slot,
 static void priv_sec_slot_file_read_all(SsfReq* request) {
     SecSlotFileEntry* file = request->owner;
     SecSlot* slot = request->slot;
-    int file_size = 0;
+    int file_size;
     unsigned int aligned_size;
+    SsfReq* async_request;
+    unsigned int reserved_size;
 
     if (file == 0 || request->file_entry == 0) {
         return;
     }
+    file_size = 0;
     if (file->async_req != 0 && file->async_req->file_entry != 0) {
         file_size = mk_file_length(file->async_req->file_entry);
     }
 
     aligned_size = (file_size + 0x7FF) & ~0x7FF;
     if ((int)aligned_size >
-        (int)((slot->base + (slot->buffer_size & 0x7FFFFFFF)) -
+        ((slot->base + (slot->buffer_size & 0x7FFFFFFF)) -
               file->buffer)) {
         if (file->buffer != 0 && file->next != 0 &&
             file->next->buffer == 0) {
@@ -116,12 +165,14 @@ static void priv_sec_slot_file_read_all(SsfReq* request) {
         return;
     }
 
-    if (file->async_req != 0 && file->async_req->file_entry != 0) {
-        file->async_req->hwfile =
-            mk_file_read_async(file->buffer, 1, file_size,
-                               file->async_req->file_entry);
+    async_request = file->async_req;
+    reserved_size = (file_size + 0x7F) & ~0x7F;
+    if (async_request != 0 && async_request->file_entry != 0) {
+        async_request->hwfile =
+            mk_file_read_async(file->buffer, 1, aligned_size,
+                               async_request->file_entry);
     }
-    file->size_or_flag = (file_size + 0x7F) & ~0x7F;
+    file->size_or_flag = reserved_size;
     if (file->buffer != 0 && file->next != 0 && file->next->buffer == 0) {
         file->next->buffer = file->buffer + file->size_or_flag;
     }
@@ -161,9 +212,10 @@ void sec_slot_file_cancel_async(SecSlotFileEntry* file) {
         SsfReq* item = link->next;
 
         while (item != 0) {
-            if (item == request) {
-                link->next = item->link.next;
-                if (item->link.next == 0) {
+            if (request == item) {
+                SsfReq* next = item->link.next;
+                link->next = next;
+                if (next == 0) {
                     ssf_req_Queue.tail = link;
                 }
                 request->link.next = 0;
@@ -188,7 +240,7 @@ void sec_slot_file_cancel_async(SecSlotFileEntry* file) {
         if (request->hwfile != 0) {
             saved_aproc = aproc;
             aproc = 0;
-            mk_hwfile_cancel(request->hwfile);
+            mk_hwfile_cancel(&request->hwfile);
             aproc = saved_aproc;
             mk_hwfile_free_request(request->hwfile);
             request->hwfile = 0;
@@ -216,6 +268,7 @@ void sec_slot_file_free_async(SecSlotFileEntry* file) {
 }
 
 #pragma dont_inline on
+/* TODO: [near miss] 95.07%; queue-removal staging and owner register allocation differ. */
 void sec_slot_file_close_file(SecSlotFileEntry* file) {
     SsfReq* request = file->async_req;
 
@@ -275,11 +328,7 @@ static SsfReq* sec_slot_file_open_file_async_withcallback(
     SsfReq* result;
 
     file->section_info = info;
-    request = ssf_req_FreeList;
-    if (request != 0) {
-        ssf_req_FreeList = request->link.next;
-        memset(request, 0, sizeof(*request));
-    }
+    request = allocate_request();
     file->async_req = request;
     result = request;
     request->owner = file;
@@ -287,39 +336,7 @@ static SsfReq* sec_slot_file_open_file_async_withcallback(
     request->field_0x1C = field_0x1C;
 
     if (queued != 0) {
-        SsfReq* next_request;
-        MkFileEntry* previous_ssf = 0;
-        MkFileEntry* requested_ssf;
-
-        request->ssf_file = get_current_ssf_file();
-        request->loading = 1;
-        request->userdata = userdata;
-        request->completion = completion;
-        request->info = info;
-        ssf_req_Queue.tail->next = request;
-        ssf_req_Queue.tail = &request->link;
-        request->link.next = 0;
-        request->queued = 1;
-
-        if (ssf_req_CurrentItem == 0) {
-            next_request = dequeue_request();
-            if (next_request != 0) {
-                ssf_req_CurrentItem = next_request;
-                requested_ssf = next_request->ssf_file;
-                if (requested_ssf != 0) {
-                    previous_ssf = get_current_ssf_file();
-                    if (previous_ssf != requested_ssf) {
-                        load_ssf(requested_ssf);
-                    }
-                }
-                mk_file_open_async_withcallback(
-                    next_request->info, "rb", next_request->userdata,
-                    sec_slot_file_queue_open_callback, next_request);
-                if (previous_ssf != requested_ssf && previous_ssf != 0) {
-                    load_ssf(previous_ssf);
-                }
-            }
-        }
+        enqueue_request(request, info, userdata, completion);
         result = file->async_req;
     } else {
         request->file_entry = mk_file_open(info, "rb", userdata);
@@ -333,38 +350,51 @@ void sec_slot_file_wait_on_ssf(MkFileEntry* ssf_file) {
     }
 }
 
+static inline void start_next_queued_request(void) {
+    SsfReq* next_request = ssf_req_Queue.head.next;
+    MkFileEntry* previous_ssf = 0;
+    MkFileEntry* requested_ssf;
+    ssf_req_CurrentItem = 0;
+    if (next_request != 0) {
+        SsfReq* following = next_request->link.next;
+        next_request->link.next = 0;
+        ssf_req_Queue.head.next = following;
+        if (following == 0) {
+            ssf_req_Queue.tail = &ssf_req_Queue.head;
+        }
+        next_request->queued = 0;
+    }
+    if (next_request != 0) {
+        ssf_req_CurrentItem = next_request;
+        requested_ssf = next_request->ssf_file;
+        if (requested_ssf != 0) {
+            previous_ssf = get_current_ssf_file();
+            if (previous_ssf != requested_ssf) {
+                load_ssf(requested_ssf);
+            }
+        }
+        mk_file_open_async_withcallback(
+            next_request->info, "rb", next_request->userdata,
+            sec_slot_file_queue_open_callback, next_request);
+        if (previous_ssf != requested_ssf && previous_ssf != 0) {
+            load_ssf(previous_ssf);
+        }
+    }
+}
+
 static void sec_slot_file_queue_open_callback(void* user,
-                                               MkFileEntry* file_entry,
+                                               MkFileEntry* opened_file,
                                                int success) {
     SsfReq* request = user;
+    SecSlotFileEntry* file;
+    MkFileEntry* file_entry = opened_file;
 
     request->loading = 0;
     if (request->cancelled != 0) {
-        SsfReq* next_request;
-        MkFileEntry* previous_ssf = 0;
-        MkFileEntry* requested_ssf;
-
         mk_file_close(file_entry);
         request->file_entry = 0;
         request->completion(request);
-        next_request = dequeue_request();
-        ssf_req_CurrentItem = 0;
-        if (next_request != 0) {
-            ssf_req_CurrentItem = next_request;
-            requested_ssf = next_request->ssf_file;
-            if (requested_ssf != 0) {
-                previous_ssf = get_current_ssf_file();
-                if (previous_ssf != requested_ssf) {
-                    load_ssf(requested_ssf);
-                }
-            }
-            mk_file_open_async_withcallback(
-                next_request->info, "rb", next_request->userdata,
-                sec_slot_file_queue_open_callback, next_request);
-            if (previous_ssf != requested_ssf && previous_ssf != 0) {
-                load_ssf(previous_ssf);
-            }
-        }
+        start_next_queued_request();
         recycle_request(request);
         return;
     }
@@ -375,8 +405,8 @@ static void sec_slot_file_queue_open_callback(void* user,
     }
     request->file_entry = file_entry;
     request->completion(request);
-    if (success == 0 && request->owner != 0) {
-        SecSlotFileEntry* file = request->owner;
+    file = request->owner;
+    if (success == 0 && file != 0) {
 
         if (file->buffer != 0 && file->next != 0 &&
             file->next->buffer == 0) {
@@ -387,18 +417,19 @@ static void sec_slot_file_queue_open_callback(void* user,
     }
 }
 
-/* TODO: [near miss] 90.22%; index initialized before queue publication;
- * remaining zero-copy/pool-base GPR scheduling differs. */
-void init_sec_slot_files(void) {
-    int index;
+static inline void initialize_ssf_request_free_list(void) {
+    int index = 0;
 
-    index = 0;
-    ssf_req_Queue.head.next = 0;
-    ssf_req_Queue.tail = &ssf_req_Queue.head;
     ssf_req_CurrentItem = 0;
     ssf_req_FreeList = ssf_req_Pool;
-    for (; index < 39; index++) {
+    for (; index < (int)(sizeof(ssf_req_Pool) / sizeof(ssf_req_Pool[0])) - 1; index++) {
         ssf_req_Pool[index].link.next = &ssf_req_Pool[index + 1];
     }
-    ssf_req_Pool[39].link.next = 0;
+    ssf_req_Pool[sizeof(ssf_req_Pool) / sizeof(ssf_req_Pool[0]) - 1].link.next = 0;
+}
+
+void init_sec_slot_files(void) {
+    ssf_req_Queue.head.next = 0;
+    ssf_req_Queue.tail = &ssf_req_Queue.head;
+    initialize_ssf_request_free_list();
 }

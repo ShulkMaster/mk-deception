@@ -2,6 +2,7 @@
 #define LIBMKPARTICLE_PFX_MEMORY_H
 
 typedef struct PfxVm PfxVm;
+typedef struct PfxBehavior PfxBehavior;
 
 typedef struct PfxBuildInfo {
     int behavior_count;             /* +0x00 */
@@ -60,7 +61,7 @@ int pfx_estimate_render_size(PfxVm* vm);
 int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate);
 void pfx_particle_set_memory(PfxParticleMemory* particle,
                              PfxEstimate* estimate, void* memory);
-void pfx_copy_behavior_list(void* vm, int count, const void* behaviors);
+void pfx_copy_behavior_list(PfxVm* vm, int count, const PfxBehavior* behaviors);
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align);
 
 #endif

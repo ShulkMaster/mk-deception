@@ -4,16 +4,16 @@
 
 #define SRAM_SIZE (sizeof(OSSram) + sizeof(OSSramEx))
 
-typedef struct SramControl {
+struct SramControl {
     unsigned char sram[SRAM_SIZE];
     unsigned long offset;
     int interrupts_enabled;
     int locked;
     int synchronized;
     void (*callback)(void);
-} SramControl;
+};
 
-static SramControl Scb __attribute__((aligned(32)));
+static struct SramControl Scb __attribute__((aligned(32)));
 
 static int WriteSram(void* buffer, unsigned long offset, unsigned long size);
 
@@ -37,7 +37,7 @@ static int WriteSram(void* buffer, unsigned long offset, unsigned long size)
     offset <<= 6;
     command = 0xA0000000 | (offset + 0x100);
     error = 0;
-    error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
+    error |= !EXIImm(0, &command, sizeof(command), EXI_WRITE, 0);
     error |= !EXISync(0);
     error |= !EXIImmEx(0, buffer, size, EXI_WRITE);
     error |= !EXIDeselect(0);
@@ -58,7 +58,7 @@ static inline int ReadSram(void* buffer)
     }
     command = 0x20000100;
     error = 0;
-    error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
+    error |= !EXIImm(0, &command, sizeof(command), EXI_WRITE, 0);
     error |= !EXISync(0);
     error |= !EXIDma(0, buffer, SRAM_SIZE, EXI_READ, 0);
     error |= !EXISync(0);
@@ -87,8 +87,8 @@ static inline void* LockSram(unsigned long offset)
     return &Scb.sram[offset];
 }
 
-OSSram* __OSLockSram(void) { return (OSSram*)LockSram(0); }
-OSSramEx* __OSLockSramEx(void) { return (OSSramEx*)LockSram(sizeof(OSSram)); }
+OSSram* __OSLockSram(void) { return LockSram(0); }
+OSSramEx* __OSLockSramEx(void) { return LockSram(sizeof(OSSram)); }
 
 static int UnlockSram(int commit, unsigned long offset)
 {
@@ -100,13 +100,13 @@ static int UnlockSram(int commit, unsigned long offset)
             if ((sram->flags & 3U) > 2U) sram->flags &= ~3;
             sram->checkSum = sram->checkSumInv = 0;
             for (word = (unsigned short*)&sram->counterBias;
-                 word < (unsigned short*)&Scb.sram[0x14]; word++) {
+                 word < (unsigned short*)&Scb.sram[sizeof(OSSram)]; word++) {
                 sram->checkSum += *word;
                 sram->checkSumInv += ~*word;
             }
         }
         if (offset < Scb.offset) Scb.offset = offset;
-        if (Scb.offset <= 0x14) {
+        if (Scb.offset <= sizeof(OSSram)) {
             OSSramEx* extended = (OSSramEx*)(Scb.sram + sizeof(OSSram));
             if ((extended->gbs & 0x7C00U) == 0x5000U ||
                 (extended->gbs & 0xC0U) == 0xC0U)
@@ -139,7 +139,7 @@ int __OSReadROM(void* buffer, signed long length, signed long offset)
     }
     command = offset << 6;
     error = 0;
-    error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
+    error |= !EXIImm(0, &command, sizeof(command), EXI_WRITE, 0);
     error |= !EXISync(0);
     error |= !EXIDma(0, buffer, length, EXI_READ, 0);
     error |= !EXISync(0);
@@ -158,9 +158,6 @@ unsigned int OSGetProgressiveMode(void)
 
 void OSSetProgressiveMode(unsigned int enabled)
 {
-#ifndef DEBUG
-    unsigned long padding[1];
-#endif
     OSSram* sram;
 
     enabled = (enabled << 7) & 0x80;
@@ -211,9 +208,6 @@ unsigned short OSGetGbsMode(void)
 
 void OSSetGbsMode(unsigned short mode)
 {
-#ifndef DEBUG
-    unsigned long padding[1];
-#endif
     OSSramEx* sram;
 
     if ((mode & 0x7C00U) == 0x5000U || (mode & 0xC0U) == 0xC0U) mode = 0;

@@ -1,4 +1,5 @@
 #include "runtime/bone_matcher.h"
+#include "runtime/anim_api_ext.h"
 #include "game/game_info.h"
 #include "game/blood.h"
 #include "game/weapon.h"
@@ -58,7 +59,6 @@ void obj_unhide_material_by_id(MkObj* object, int id);
 void obj_hide_material_by_id(MkObj* object, int id);
 void mkobj_zero_bone_rots(MkObj* object);
 int get_player_number(MkObj* object);
-int build_bones_tbl(MkObj* object, const int* tags);
 void pull_bone_hierarchy_mkobj(MkObj* object);
 void obj_force_culling_off(MkObj* object);
 void start_cloth_bones(MkObj* object);
@@ -71,7 +71,6 @@ void material_set_zbias(RpMaterial* material, float bias);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
 void advance_my_moveset(void);
-void update_bone_hierarchy(MkHdr* object);
 void mkobj_bones_dest_mat_no_update(MkObj* object);
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
 
@@ -416,7 +415,6 @@ static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
     return object;
 }
 
-
 static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
     MkObj* weapon = MK_HDR_LIVE(latch->obj, latch->instance);
 
@@ -612,12 +610,6 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
                        &attach->attachment_child_offset, &attach->attachment_rotation, 1);
 }
 
-
-
-
-
-
-
 static int plyr_obj_item_grab(PlyrPdata* player,
                        PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
@@ -670,7 +662,6 @@ static int plyr_obj_item_grab(PlyrPdata* player,
 
     if (secondary_latch != 0) {
         matcher = MK_HDR_LIVE((WeaponBoneMatcherState*) secondary_latch->obj, secondary_latch->instance);
-
     }
     if (matcher == 0) {
         matcher = start_bone_matcher(
@@ -714,19 +705,34 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     return 0;
 }
 
+static inline MkHdr* find_item_bone_matcher(MkPtr** list, MkObj* item) {
+    if (mklist_is_valid(list)) {
+        MkPtr* cursor = *list;
+        while (cursor != 0) {
+            MkHdr* hdr = cursor->hdr;
+            if (cursor->instance != hdr->instance) {
+                MkPtr* next = cursor->next;
+                discard_stale_mkptr(cursor);
+                cursor = next;
+            } else {
+                if (hdr != 0) {
+                    WeaponBoneMatcherState* matcher = (WeaponBoneMatcherState*)hdr;
+                    if (MK_HDR_LIVE(matcher->child_obj, matcher->child_instance) == item) {
+                        return hdr;
+                    }
+                }
+                cursor = cursor->next;
+            }
+        }
+    }
+    return 0;
+}
 
-/* TODO: [breakthrough needed] 87.398380%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
-
-
-
-
-/* TODO: [breakthrough needed] 90.691055%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static MkObj* plyr_obj_item_release(PlyrPdata* player,
                              PlyrMirrorObjLatch* item_latch,
                              PlyrMirrorObjLatch* secondary_latch) {
     MkObj* player_object;
     MkObj* item;
-    MkObj* linked_item;
     MkPtr* link_ptr;
     MkPtr* next;
 
@@ -750,40 +756,23 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
                 MK_HDR_LIVE(secondary_latch->obj, secondary_latch->instance);
             object_to_destroy = (MkHdr*)secondary_object;
         } else {
-            object_to_destroy = 0;
-            link_ptr = player->item_links;
-            while (link_ptr != 0) {
-                WeaponBoneMatcherState* link;
-
-                if (link_ptr->instance != link_ptr->hdr->instance) {
-                    next = link_ptr->next;
-                    discard_stale_mkptr(link_ptr);
-                    link_ptr = next;
-                    continue;
-                }
-                link = (WeaponBoneMatcherState*)link_ptr->hdr;
-                linked_item = MK_HDR_LIVE(link->child_obj, link->child_instance);
-
-                if (linked_item == item) {
-                    object_to_destroy = &link->hdr;
-                    break;
-                }
-                link_ptr = link_ptr->next;
-            }
+            object_to_destroy = find_item_bone_matcher(&player->item_links, item);
         }
 
         if (object_to_destroy != 0 && object_to_destroy->instance != 0) {
             object_to_destroy->typed_vtbl->destroy(object_to_destroy);
         }
 
-        link_ptr = item->child_list;
-        while (link_ptr != 0) {
-            if (link_ptr->instance != link_ptr->hdr->instance) {
-                next = link_ptr->next;
-                discard_stale_mkptr(link_ptr);
-                link_ptr = next;
-            } else {
-                link_ptr = link_ptr->next;
+        if (mklist_is_valid(&item->child_list)) {
+            link_ptr = item->child_list;
+            while (link_ptr != 0) {
+                if (link_ptr->instance != link_ptr->hdr->instance) {
+                    next = link_ptr->next;
+                    discard_stale_mkptr(link_ptr);
+                    link_ptr = next;
+                } else {
+                    link_ptr = link_ptr->next;
+                }
             }
         }
     }
@@ -917,7 +906,7 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/* TODO: [near miss] 93.76%; NV-register coloring and mirror-slot base reloads differ. */
+/* TODO: [near miss] 99.36047%; retail slot reloads restored; first owner/candidate GPR pair differs. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;
@@ -934,16 +923,19 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
         weapon_object->hide_flag_bits.bit6 =
             player_object->hide_flag_bits.bit6;
     }
+    slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[1].primary);
     if (weapon_object != 0) {
         weapon_object->hide_flag_bits.bit6 =
             player_object->hide_flag_bits.bit6;
     }
+    slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[2].primary);
     if (weapon_object != 0) {
         weapon_object->hide_flag_bits.bit6 =
             player_object->hide_flag_bits.bit6;
     }
+    slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[3].primary);
     if (weapon_object != 0) {
         weapon_object->hide_flag_bits.bit6 =
@@ -1156,12 +1148,20 @@ void init_weapon_trails(void) {
     weapon_trail_mkobj_list = 0;
 }
 
-/* TODO: [near miss] 99.41%; owner lookup matches via set_alt_costume_weapon_zbias; residual is localized register/scheduling. */
+static inline void lock_weapon_cloth_bones(MkObj* weapon) {
+    unsigned int bone_index;
+    for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
+        if (weapon->bones[bone_index] != 0 &&
+            !weapon->bones[bone_index]->flags_54_bits.cloth_candidate) {
+            weapon->bones[bone_index]->flags_54_bits.calculation_locked = 1;
+        }
+    }
+}
+
 MkObj* load_weapon(
     WeaponDefinition* definition, MkObj* player_object) {
     MkObj* weapon;
     MkObj* trail_model;
-    unsigned int bone_index;
     int player_number;
 
     trail_model = 0;
@@ -1184,14 +1184,7 @@ MkObj* load_weapon(
 
     if (definition->bone_tags != 0) {
         build_bones_tbl(weapon, definition->bone_tags);
-        for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
-            MkBone* bone;
-
-            bone = weapon->bones[bone_index];
-            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
-                bone->flags_54_bits.calculation_locked = 1;
-            }
-        }
+        lock_weapon_cloth_bones(weapon);
         specskin_initialize_clump(weapon->clump);
         specskin_force_clipping_clump(weapon->clump, 1);
     }
@@ -1246,29 +1239,20 @@ MkObj* load_weapon_reflection(
     return reflection;
 }
 
-MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
-    MkObj* reflection;
-
-    if (definition->reflection_model_name == 0) {
-        return 0;
-    }
-    reflection = load_named_model_for_bgnd(
-        definition->reflection_model_name, 0x5013, 0);
-    if (reflection == 0) {
-        return 0;
-    }
+static inline MkObj* prepare_bgnd_weapon_reflection(
+    MkObj* reflection, WeaponDefinition* definition) {
     if (definition->bone_tags == 0) {
         if (reflection->hdr.instance != 0) {
             reflection->hdr.typed_vtbl->destroy((MkHdr*)reflection);
         }
-        reflection = 0;
+        return 0;
     } else {
         SetupShadowPlayerPipeline(reflection->clump);
         if (build_bones_tbl(reflection, definition->bone_tags) == 0) {
             if (reflection->hdr.instance != 0) {
                 reflection->hdr.typed_vtbl->destroy((MkHdr*)reflection);
             }
-            reflection = 0;
+            return 0;
         } else {
             pull_bone_hierarchy_mkobj(reflection);
             reflection->light_flags = 4;
@@ -1282,6 +1266,21 @@ MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
             }
         }
     }
+    return reflection;
+}
+
+MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
+    MkObj* reflection;
+
+    if (definition->reflection_model_name == 0) {
+        return 0;
+    }
+    reflection = load_named_model_for_bgnd(
+        definition->reflection_model_name, 0x5013, 0);
+    if (reflection == 0) {
+        return 0;
+    }
+    reflection = prepare_bgnd_weapon_reflection(reflection, definition);
     if (reflection != 0 &&
         (g_game_info.section->flags70 & 8) != 0) {
         reflection->hide_flag_bits.hidden = 0;
@@ -1293,7 +1292,6 @@ MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
 MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
     MkObj* weapon;
     MkObj* trail_model;
-    unsigned int bone_index;
 
     trail_model = 0;
     weapon = load_named_model_from_slot(
@@ -1311,12 +1309,7 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
 
     if (definition->bone_tags != 0) {
         build_bones_tbl(weapon, definition->bone_tags);
-        for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
-            if (weapon->bones[bone_index] != 0 &&
-                !weapon->bones[bone_index]->flags_54_bits.cloth_candidate) {
-                weapon->bones[bone_index]->flags_54_bits.calculation_locked = 1;
-            }
-        }
+        lock_weapon_cloth_bones(weapon);
         specskin_initialize_clump(weapon->clump);
         specskin_force_clipping_clump(weapon->clump, 1);
     }

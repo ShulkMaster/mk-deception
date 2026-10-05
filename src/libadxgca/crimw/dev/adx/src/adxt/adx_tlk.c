@@ -1,5 +1,5 @@
 #include "cri/adx_dcd.h"
-#include "cri/adxt_internal.h"
+#include "cri/adx_tlk.h"
 #include "cri/sj.h"
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
@@ -311,9 +311,8 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
-/* TODO: [near miss] 99.873566%; only adxt_time_unit's .bss offset differs (retail
- * keeps adxt_fileid_buf in declaration order); `= {0}` moves it to .data and RE4-style
- * uninitialized reverse declarations scramble .bss further. */
+/* TODO: [blocked] 99.98850%; adxt_time_unit BSS +0x38 vs retail +0x48;
+ * recover LOCAL adxt_fileid_buf allocation before the trailing scalars. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;
@@ -395,8 +394,8 @@ s32 ADXT_GetErrCode(ADXTHandle* handle)
     return handle->error_code;
 }
 
-/* TODO: [near miss] 98.977270%; retail loop CFG and 0xC0 handle stride agree;
- * do/while spelling was neutral, leaving register/pooled-global residue. */
+/* TODO: [near miss] 98.97727%; shared helper handle/index homes swap; declaration
+ * reversal closes this body but regresses DiscardSmpl, while open-coding adds a base copy. */
 void ADXT_ExecServer(void)
 {
     adxt_ExecServers();
@@ -654,21 +653,25 @@ void ADXT_Stop(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.531250%; ADXTHandle offsets and reset/start CFG agree; only loop temporary register coloring remains. */
-void ADXT_StartSj(ADXTHandle* handle, SJ* input)
+static inline void adxt_ResetOutputJoints(ADXTHandle* handle)
 {
     s32 channel;
 
+    for (channel = 0; channel < handle->maximum_channels; channel++) {
+        SJ* output = handle->output_sj[channel];
+        output->interface->reset(output);
+    }
+}
+
+void ADXT_StartSj(ADXTHandle* handle, SJ* input)
+{
     if (handle == 0 || input == 0) {
         ADXERR_CallErrFunc1(adxt_start_sj_error);
         return;
     }
     ADXT_Stop(handle);
     ADXCRS_Lock();
-    for (channel = 0; channel < handle->maximum_channels; channel++) {
-        handle->output_sj[channel]->interface->reset(
-            handle->output_sj[channel]);
-    }
+    adxt_ResetOutputJoints(handle);
     ADXSJD_SetInSj(handle->decoder, input);
     handle->input_sj = input;
     ADXSJD_Start(handle->decoder);
@@ -691,14 +694,23 @@ void ADXT_StartSj(ADXTHandle* handle, SJ* input)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.523810%; file/decoder CFG and size agree;
- * only loop pointer/count register coloring remains. */
+static inline SJ* adxt_reset_output_streams(ADXTHandle* handle)
+{
+    SJ* input;
+    s32 channel;
+
+    input = handle->stream_sj;
+    for (channel = 0; channel < handle->maximum_channels; channel++) {
+        handle->output_sj[channel]->interface->reset(handle->output_sj[channel]);
+    }
+    return input;
+}
+
 void adxt_start_stm(
     ADXTHandle* handle, const char* filename, void* directory,
     s32 file_offset, s32 file_sectors)
 {
     SJ* input;
-    s32 channel;
 
     ADXSTM_SetBufSize(
         handle->stream, handle->reload_threshold_sectors * ADXT_SECTOR_SIZE,
@@ -711,11 +723,7 @@ void adxt_start_stm(
     ADXSTM_BindFileNw(
         handle->stream, filename, directory, file_offset, file_sectors);
     ADXSTM_Start(handle->stream);
-    input = handle->stream_sj;
-    for (channel = 0; channel < handle->maximum_channels; channel++) {
-        handle->output_sj[channel]->interface->reset(
-            handle->output_sj[channel]);
-    }
+    input = adxt_reset_output_streams(handle);
     ADXSJD_SetInSj(handle->decoder, input);
     handle->input_sj = input;
     ADXSJD_Start(handle->decoder);

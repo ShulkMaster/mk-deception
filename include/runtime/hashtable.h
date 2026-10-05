@@ -11,25 +11,25 @@ typedef struct HashtableEntry {
     union {
         const char* key;
         char* writable_key;
-    } key_ptr;                       /* +0x00 */
-    void* value;                     /* +0x04 */
-    int instance;                    /* +0x08: caller-owned generation/tag */
-    struct HashtableEntry* next;     /* +0x0C: bucket chain or recycled entry */
-} HashtableEntry;                    /* 0x10 */
+    } key_ptr;
+    void* value;
+    int instance;
+    struct HashtableEntry* next;
+} HashtableEntry;
 
 typedef struct Hashtable {
-    int initialized;                 /* +0x00 */
-    HashtableEntry** buckets;        /* +0x04 */
-    int bucket_count;                /* +0x08 */
-    HashtableEntry* entry_pool;      /* +0x0C */
-    int allocation_index;            /* +0x10 */
-    int capacity;                    /* +0x14 */
-    struct _mwMemHeap* heap;         /* +0x18 */
-    int owns_keys;                   /* +0x1C */
-    char* key_storage;               /* +0x20 */
-    int key_storage_capacity;        /* +0x24 */
-    int key_storage_used;            /* +0x28 */
-} Hashtable;                         /* 0x2C */
+    int initialized;
+    HashtableEntry** buckets;
+    int bucket_count;
+    HashtableEntry* entry_pool;
+    int allocation_index;
+    int capacity;
+    struct _mwMemHeap* heap;
+    int owns_keys;
+    char* key_storage;
+    int key_storage_capacity;
+    int key_storage_used;
+} Hashtable;
 
 typedef void (*HashtableForeachFn)(void* value);
 

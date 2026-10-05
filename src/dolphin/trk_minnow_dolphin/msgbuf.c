@@ -9,6 +9,10 @@ enum {
 
 MessageBuffer gTRKMsgBufs[3];
 
+enum {
+    TRK_MESSAGE_BUFFER_COUNT = sizeof(gTRKMsgBufs) / sizeof(gTRKMsgBufs[0]),
+};
+
 static inline void TRKSetBufferUsed(MessageBuffer* message, BOOL used) {
     message->is_in_use = used;
 }
@@ -16,7 +20,7 @@ static inline void TRKSetBufferUsed(MessageBuffer* message, BOOL used) {
 DSError TRKInitializeMessageBuffers(void) {
     int index;
 
-    for (index = 0; index < 3; index++) {
+    for (index = 0; index < TRK_MESSAGE_BUFFER_COUNT; index++) {
         TRKInitializeMutex(&gTRKMsgBufs[index]);
         TRKAcquireMutex(&gTRKMsgBufs[index]);
         TRKSetBufferUsed(&gTRKMsgBufs[index], 0);
@@ -30,7 +34,7 @@ DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** output) {
     int index;
 
     *output = 0;
-    for (index = 0; index < 3; index++) {
+    for (index = 0; index < TRK_MESSAGE_BUFFER_COUNT; index++) {
         MessageBuffer* message = TRKGetBuffer(index);
         TRKAcquireMutex(message);
         if (!message->is_in_use) {
@@ -39,7 +43,7 @@ DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** output) {
             error = DS_NoError;
             *output = message;
             *buffer_id = index;
-            index = 3;
+            index = TRK_MESSAGE_BUFFER_COUNT;
         }
         TRKReleaseMutex(message);
     }
@@ -51,14 +55,14 @@ DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** output) {
 
 MessageBuffer* TRKGetBuffer(MessageBufferID buffer_id) {
     MessageBuffer* message = 0;
-    if (buffer_id >= 0 && buffer_id < 3) {
+    if (buffer_id >= 0 && buffer_id < TRK_MESSAGE_BUFFER_COUNT) {
         message = &gTRKMsgBufs[buffer_id];
     }
     return message;
 }
 
 void TRKReleaseBuffer(MessageBufferID buffer_id) {
-    if (buffer_id != -1 && buffer_id >= 0 && buffer_id < 3) {
+    if (buffer_id != -1 && buffer_id >= 0 && buffer_id < TRK_MESSAGE_BUFFER_COUNT) {
         MessageBuffer* message = &gTRKMsgBufs[buffer_id];
         TRKAcquireMutex(message);
         TRKSetBufferUsed(message, 0);

@@ -8,9 +8,8 @@ class mwFile;
 class mwFileCommand;
 class mwFileServer;
 
-enum mwTargetMemAlign {
-    MW_TARGET_MEM_ALIGN_DEFAULT = 0
-};
+#include "mw/mwFileMemTraits.h"
+#include "runtime/cstring.h"
 
 enum mwFileSeekOrigin {
     MWF_SEEK_START,
@@ -135,13 +134,6 @@ private:
     unsigned char field_0x04[0x14];
 };
 
-class mwFileMemTraits {
-public:
-    static void deallocate(void*);
-    static void* allocate(
-        unsigned long, mwTargetMemAlign, const char*);
-};
-
 union mwFileServerManagerStorage {
     unsigned long alignment;
     unsigned char bytes[0x8C];
@@ -174,8 +166,6 @@ extern void _mwFilePlatformTick();
 extern bool _mwFilePlatformIsInServiceThread();
 extern int _mwFilePlatformInit(mwFileInitParam*);
 extern int _mwFileMountInit();
-
-extern "C" char* strchr(const char*, int);
 
 extern "C" mwFileCommand* mwFileCloseAsync(
     mwFile*, mwFileCallback, void*);
@@ -231,7 +221,7 @@ static inline void setDefaultInitParam(mwFileInitParam* parameters)
         parameters->max_open_files = 0x10;
         parameters->field_0x06 = 0;
         parameters->max_commands =
-            (unsigned short)(parameters->max_open_files * 2);
+            parameters->max_open_files * 2;
         parameters->flags = 3;
         parameters->allocator_context = 0;
         parameters->command_retries = 10;
@@ -272,7 +262,7 @@ extern "C" int mwFileClose(mwFile* file)
 
     result = mwFileWaitForCompletion(command);
     mwFileFreeCommand(command);
-    return (int)result.value.bytes;
+    return result.value.bytes;
 }
 
 extern "C" mwFile* mwFileOpen(const char* path, int flags)
@@ -292,6 +282,7 @@ void _mwFileServiceThread()
     spServers->serviceThread();
 }
 
+/* TODO: [near miss] 91.66666%; compact callback truth conversion needs verified whole-TU size mode. */
 void _mwFileTickEx(bool perform_callbacks)
 {
     _mwFilePlatformTick();
@@ -333,6 +324,8 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
 
 extern "C" void mwFileGetDefaultInitParam(mwFileInitParam*);
 
+/* TODO: [breakthrough needed] 89.51%; retail's unreachable diagnostic block needs original guard evidence;
+ * compact saves need a verified whole-TU size-mode check. */
 extern "C" int mwFileInit(mwFileInitParam* parameters)
 {
     mwFileInitParam default_parameters;

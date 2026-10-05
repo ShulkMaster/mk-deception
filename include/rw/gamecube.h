@@ -5,6 +5,18 @@
 #include "rw/gamecube_globals.h"
 #include "rw/rpworld_types.h"
 
+extern unsigned int _RwDlFifoSize;
+extern void* _RwDl_FIFO_XFB;
+extern void* _RwDlDefaultFifo;
+extern void* _RwGCXFB1;
+extern void* _RwGCXFB2;
+extern void* _RwGCXFBCopy;
+extern void* _RwGCXFBDisp;
+void RwGameCubeGetXFBs(void** displayed, void** copying);
+
+extern int _RwDlPixelFormat;
+extern GXRenderModeObj* _RwDlRenderMode;
+
 typedef struct RpSkin RpSkin;
 typedef struct RwResEntry RwResEntry;
 typedef struct RpInterpolator RpInterpolator;

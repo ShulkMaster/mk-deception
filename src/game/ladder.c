@@ -1,5 +1,7 @@
 #include "game/ladder.h"
+#include "game/game.h"
 #include "game/plyr.h"
+#include "game/plyr_globals.h"
 #include "game/cloth.h"
 #include "platform/io.h"
 #include "platform/main_jump.h"
@@ -17,6 +19,7 @@
 #include "game/settings.h"
 #include "platform/main.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/asset.h"
 #include "runtime/fonts.h"
 #include "runtime/light.h"
@@ -26,30 +29,30 @@
 
 #pragma use_lmw_stmw on
 
-typedef struct LadderCoinType {
+struct LadderCoinType {
     int type;
     const char* name;
-} LadderCoinType;
+};
 
-typedef struct LadderEntry {
+struct LadderEntry {
     int background_id;
     int locked_background_id;
     int character_id;
     int locked_character_id;
-} LadderEntry;
+};
 
-typedef struct LadderModelEntry {
+struct LadderModelEntry {
     int character_id;
     const char* model_name;
-} LadderModelEntry;
+};
 
-typedef struct LadderPlacement {
+struct LadderPlacement {
     Vec position;
     float angle_y;
     int mirrored;
-} LadderPlacement;
+};
 
-typedef struct LadderBgndAnimations {
+struct LadderBgndAnimations {
     AnimScript* default_piece;
     AnimScript* piece_six;
     AnimScript* pieces_one_three_five;
@@ -58,53 +61,45 @@ typedef struct LadderBgndAnimations {
     AniData* other_paths[25];
     AniData* intro_camera;
     AniData* travel_camera;
-} LadderBgndAnimations;
+};
 
-typedef struct LadderObjVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
-    MkVtblFn fn3;
-    void (*destroy)(MkObj* object);
-} LadderObjVtable;
-
-typedef struct LadderStringRef {
+struct LadderStringRef {
     StringObj* object;
     unsigned int instance;
-} LadderStringRef;
+};
 
-typedef struct LadderHudEntry {
+struct LadderHudEntry {
     int background_id;
     char* texture_name;
     int x;
     int y;
-} LadderHudEntry;
+};
 
-typedef struct LadderCharacterTexture {
+struct LadderCharacterTexture {
     int character_id;
     char* texture_name;
-} LadderCharacterTexture;
+};
 
-typedef struct LadderDataRegion {
-    LadderCoinType coin_offsets[6];
+struct LadderDataRegion {
+    struct LadderCoinType coin_offsets[6];
     const char* ladder_koins[4];
     int koin_awards[9];
     int puzzle_koin_awards[7];
     int chess_koin_awards[7];
-    LadderHudEntry ladder_hud[35];
-    LadderHudEntry puzzle_hud[6];
-    LadderCharacterTexture puzzle_characters[12];
+    struct LadderHudEntry ladder_hud[35];
+    struct LadderHudEntry puzzle_hud[6];
+    struct LadderCharacterTexture puzzle_characters[12];
     char pad38C[0x974];
     float camera_frames[8][2];
-    LadderPlacement player_positions[8];
-    LadderPlacement defeated_positions[8];
-    LadderPlacement small_positions[8];
-    LadderModelEntry models[25];
-} LadderDataRegion;
+    struct LadderPlacement player_positions[8];
+    struct LadderPlacement defeated_positions[8];
+    struct LadderPlacement small_positions[8];
+    struct LadderModelEntry models[25];
+};
 
-#define LADDER_DATA_REGION ((LadderDataRegion*)coin_offset_tbl)
+#define LADDER_DATA_REGION ((struct LadderDataRegion*)coin_offset_tbl)
 
-LadderCoinType coin_offset_tbl[6] = {
+struct LadderCoinType coin_offset_tbl[6] = {
     {0, "LAD_WALLETKOIN_PLATINUM"},
     {1, "LAD_WALLETKOIN_ONYX"},
     {2, "LAD_WALLETKOIN_SAPPHIRE"},
@@ -129,7 +124,7 @@ extern LightDef ladder_skinned_obj_light_def;
 extern LightDef ladder_skinned_obj_ambient_light_def;
 extern unsigned char ladder_piece_ground_colls[];
 extern const int ladder_piece_bones[];
-extern LadderBgndAnimations bgnd_animations;
+extern struct LadderBgndAnimations bgnd_animations;
 
 void insert_ground_me_mkobj(MkObj* object);
 AnimPdata* animate_obj(
@@ -143,8 +138,8 @@ AnimPdata* animate_obj(
 static int ladder_data_tbl_offset = -1;
 static int curr_ladder_pos;
 int curr_ladder_char;
-static LadderStringRef bgnd_name_item;
-static LadderEntry* current_ladder_tbl;
+static struct LadderStringRef bgnd_name_item;
+static struct LadderEntry* current_ladder_tbl;
 static const float chess_leader_award_normal = 200.0f;
 static const float chess_leader_award_hard = 300.0f;
 static const float chess_leader_award_max = 400.0f;
@@ -228,8 +223,8 @@ int get_ladder_position(void) {
     return curr_ladder_pos;
 }
 
-/* TODO: [near miss] 97.15909%; compiler retains byte offset across background
- * query instead of retail index; strength-reduction control is neutral. */
+/* TODO: [near miss] 97.15909%; CSE retains a byte offset across lock query;
+ * whole-unit CSE-off closes this body but regresses siblings. */
 int advance_ladder_position(void) {
     int ladder_size;
     int mode;
@@ -319,9 +314,10 @@ void one_player_ladder_init(void) {
 
 /* TODO: [near miss] 89.73%; algorithm complete; frame is 0x10 larger than retail and
  * nonvolatile allocation plus award-tail branching differ. */
+/* TODO: [Scope warn] Moving the late difficulty-array block drops 89.73% to 82.53%. */
 static void build_ladder_hud_data(void) {
     char text_buffer[120];
-    LadderDataRegion* ladder_data;
+    struct LadderDataRegion* ladder_data;
     StringObj* arena_name;
     const char* text;
     const char* coin;
@@ -486,11 +482,10 @@ static void build_ladder_hud_data(void) {
 
 /* TODO: [breakthrough needed] 78.94%; compare nonvolatile lifetimes and address expressions. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
-    LadderDataRegion* ladder_data;
-    LadderModelEntry* model_entry;
-    LadderPlacement* defeated_placement;
-    LadderPlacement* placement;
-    LadderObjVtable* vtable;
+    struct LadderDataRegion* ladder_data;
+    struct LadderModelEntry* model_entry;
+    struct LadderPlacement* defeated_placement;
+    struct LadderPlacement* placement;
     const char* model_name;
     AnimScript* piece_animation;
     AnimPdata* animation;
@@ -570,8 +565,7 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     first_sobj = obj_first_sobj(object);
     if (first_sobj == 0) {
         if (object->hdr.instance != 0) {
-            vtable = (LadderObjVtable*)object->hdr.vtbl;
-            vtable->destroy(object);
+            object->hdr.typed_vtbl->destroy(&object->hdr);
         }
         return;
     }
@@ -614,11 +608,11 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
             set_anim_script_frame(
                 60.0f,
                 animation,
-                (AniData*)bgnd_animations.defeated_piece,
+                bgnd_animations.defeated_piece,
                 0x20);
         } else {
             set_anim_script(
-                animation, (AniData*)bgnd_animations.defeated_piece, 0x20);
+                animation, bgnd_animations.defeated_piece, 0x20);
         }
         animation->step = 1.0f;
     }
@@ -630,28 +624,16 @@ extern unsigned char char_piece_ground_colls[];
 extern const char* pz_ladder_koins[2];
 extern unsigned short n_pz_ladder_koins;
 extern PlyrPdata* his_pdata;
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
 float p_puzzle_fighter(void);
-float p_gamelogic(void);
-float p_animate(void);
 float p_animated_intro_done(void);
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
                      float* final_speed, int mode, float rate);
 void tag_team_activate_player(MkObj* object, int player);
 MkProc* create_mkproc_headtracking(int pid, MkObj* object, PlyrPdata* pdata);
-void ground_me(MkObj* object);
-
-typedef struct LadderProcessVtable {
-    MkVtblFn functions[4];
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-} LadderProcessVtable;
 
 static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;
-    ((LadderProcessVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 }
 /* TODO: [breakthrough needed] 83.60%; canonical script fields improve
  * matching; frame is 0x10 smaller than retail; remaining differences need localized recovery. */
@@ -661,7 +643,7 @@ float p_ladder_select(void) {
     MkProc* tracking;
     CameraPdata* camera;
     CameraPdata* saved_camera;
-    LadderDataRegion* data;
+    struct LadderDataRegion* data;
     int i;
     int j;
     int character;
@@ -822,7 +804,7 @@ float p_ladder_select(void) {
         AnimPdata* animation;
         PlyrPdata* pdata;
         unsigned int script;
-        LadderPlacement* placement;
+        struct LadderPlacement* placement;
         if (curr_ladder_pos > 0) {
             saved_camera = get_pdata_of_camera();
             saved_speed = saved_camera->speed;
@@ -851,7 +833,7 @@ float p_ladder_select(void) {
                 animation_proc = 0;
             animation = (AnimPdata*)pdata_of_proc(animation_proc);
             set_anim_script(animation, pdata->fighter_definition->duck_exit_animation, 0x20);
-            animation->script = (AnimScript*)pdata->fighter_definition->duck_exit_animation;
+            animation->script = pdata->fighter_definition->duck_exit_animation;
             if (opponent->player_index != 12)
                 tracking = create_mkproc_headtracking(0x6006, object, pdata);
             if (opponent->flags_14_bits.alternate_costume)
@@ -925,7 +907,7 @@ float p_ladder_select(void) {
     } else ladder_sleep(90.0f * inverse_game_speed);
     fade_to_black(10, 1);
     if (tracking != 0 && tracking->hdr.instance != 0)
-        ((LadderProcessVtable*)tracking->hdr.vtbl)->destroy(tracking);
+        tracking->vtbl->destroy(tracking);
     if (mode_of_play == 6) gamelogic_jump(3, p_puzzle_fighter);
     gamelogic_jump(2, p_gamelogic);
     return -1.0f;

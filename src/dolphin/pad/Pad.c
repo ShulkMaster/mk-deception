@@ -3,12 +3,7 @@
 #include "dolphin/si.h"
 #include "runtime/cstring.h"
 
-typedef unsigned char u8;
-typedef signed char s8;
-typedef unsigned short u16;
-typedef unsigned long u32;
-typedef signed long s32;
-typedef int BOOL;
+#include "dolphin/types.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -25,7 +20,7 @@ const char* __PADVersion = "<< Dolphin SDK - PAD\tdebug build: Apr  5 2004 03:56
 const char* __PADVersion = "<< Dolphin SDK - PAD\trelease build: Apr  5 2004 04:14:49 (0x2301) >>";
 #endif
 
-#define PAD_ALL                                                                                                        \
+#define PAD_ALL            \
     (                      \
         PAD_BUTTON_LEFT  | \
         PAD_BUTTON_RIGHT | \
@@ -64,17 +59,12 @@ u32 __PADSpec;
 
 // prototypes
 static void PADTypeAndStatusCallback(s32 chan, u32 type);
-static u16 GetWirelessID(s32 chan);
-static void SetWirelessID(s32 chan, u16 id);
 static void DoReset();
 static void PADEnable(s32 chan);
-static void ProbeWireless(s32 chan);
 static void PADProbeCallback(s32 chan, u32 error, OSContext *context);
 static void PADDisable(s32 chan);
 static void UpdateOrigin(s32 chan);
 static void PADOriginCallback(s32 chan, u32 error, OSContext *context);
-static void PADFixCallback(s32 unused, u32 error, struct OSContext *context);
-static void PADResetCallback(s32 unused, u32 error, struct OSContext *context);
 static void PADReceiveCheckCallback(s32 chan, u32 error);
 static void SPEC0_MakeStatus(s32 chan, PADStatus *status, u32 data[2]);
 static void SPEC1_MakeStatus(s32 chan, PADStatus *status, u32 data[2]);
@@ -413,7 +403,7 @@ u32 PADRead(PADStatus* status) {
     enabled = OSDisableInterrupts();
     motor = 0;
 
-    for (chan = 0; chan < 4; chan++, status++) {
+    for (chan = 0; chan < SI_MAX_CHAN; chan++, status++) {
         chanBit = PAD_CHAN0_BIT >> chan;
         chanShift = 8 * (SI_MAX_CHAN - 1 - chan);
 
@@ -485,11 +475,6 @@ u32 PADRead(PADStatus* status) {
     OSRestoreInterrupts(enabled);
     return motor;
 }
-
-typedef struct XY {
-    u8 line;
-    u8 count;
-} XY;
 
 void PADSetSamplingRate(u32 msec) {
     SISetSamplingRate(msec);
@@ -588,7 +573,7 @@ static void SPEC0_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     status->substickX = (s8)(data[1]);
     status->substickY = (s8)(data[1] >> 8);
     status->triggerLeft = (u8)(data[0] >> 8);
-    status->triggerRight = (u8)data[0];
+    status->triggerRight = data[0];
     status->analogA = 0;
     status->analogB = 0;
     if (170 <= status->triggerLeft)
@@ -615,7 +600,7 @@ static void SPEC1_MakeStatus(s32 chan, PADStatus* status, u32 data[2]) {
     status->substickY = (s8)(data[1] >> 8);
 
     status->triggerLeft = (u8)(data[0] >> 8);
-    status->triggerRight = (u8)data[0];
+    status->triggerRight = data[0];
 
     status->analogA = 0;
     status->analogB = 0;
@@ -742,7 +727,7 @@ int PADGetType(s32 chan, u32* type) {
 }
 
 BOOL PADSync(void) {
-    return ResettingBits == 0 && (s32)ResettingChan == 32 && !SIBusy();
+    return ResettingBits == 0 && ResettingChan == 32 && !SIBusy();
 }
 
 void PADSetAnalogMode(u32 mode) {
@@ -763,7 +748,7 @@ void PADSetAnalogMode(u32 mode) {
     OSRestoreInterrupts(enabled);
 }
 
-static void (*SamplingCallback)();
+static PADSamplingCallback SamplingCallback;
 
 static BOOL OnReset(BOOL final) {
     BOOL sync;
@@ -845,7 +830,7 @@ BOOL __PADDisableRumble(BOOL disable) {
 }
 
 BOOL PADIsBarrel(s32 chan) {
-    if (chan < 0 || chan >= 4) {
+    if (chan < 0 || chan >= SI_MAX_CHAN) {
         return FALSE;
     }
 

@@ -23,7 +23,7 @@ s32 CARDGetSerialNo(s32 chan, u64* serialNo)
         return result;
     }
 
-    id = (CARDID*)card->workArea;
+    id = card->workArea;
     for (code = 0, i = 0; i < sizeof(id->serial) / sizeof(u64); ++i) {
         code ^= *(u64*)&id->serial[sizeof(u64) * i];
     }

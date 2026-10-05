@@ -18,10 +18,8 @@
 
 #pragma use_lmw_stmw on
 
-
 extern int mcard_msg_active;
 extern int mcard_hault_msg_active;
-extern int f_writing_to_memcard;
 extern _mslSystem* msi;
 
 static const char stringBase0[] =
@@ -104,7 +102,6 @@ static inline void sleep_aproc(float ticks) {
     _mkproc_sleep_ticks = ticks;
     aproc->vtbl->sleep();
 }
-
 
 static inline int is_hault_message_id(int id) {
     if (id < 0x14) {
@@ -208,7 +205,7 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
     return ret;
 }
 
-/* TODO: [breakthrough needed] 77.27778%; retail pool restored; remaining call/branch lowering needs comparison. */
+/* TODO: [breakthrough needed] 78.44%; retail pool restored; remaining call/branch lowering needs comparison. */
 void gc_boot_space_check(void) {
     int prevStatus[2];
     int device;
@@ -341,19 +338,12 @@ static void mcard_msg_card_change_at_format_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_changed_at_format(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x8d, 0));
     set_memcard_popup_message_body_text(nbc_find_text(0x8c, 0));
-    partA = nbc_find_text(0x8f, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x8e, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x8e, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x8f, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x90, 0));
     set_memcard_popup_message_type(0xb);
@@ -392,21 +382,14 @@ void mcard_msg_card_inaccessable_in_konq(void) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_auto_save(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x88, 0));
-    partA = nbc_find_text(0x28, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x27, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS, nbc_find_text(0x27, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x28, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
@@ -418,7 +401,6 @@ void mcard_msg_auto_save(int device) {
 
 /* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_save_failed(int device) {
-    (void)device;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x83, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -432,7 +414,6 @@ void mcard_msg_save_failed(int device) {
 
 /* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_failed(int device) {
-    (void)device;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x87, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -446,7 +427,6 @@ void mcard_msg_create_failed(int device) {
 
 /* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_successful(int device) {
-    (void)device;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x86, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -459,7 +439,6 @@ void mcard_msg_create_successful(int device) {
 }
 
 void mcard_msg_save_successful(int device) {
-    (void)device;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x82, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_BODY_SPACES);
@@ -535,23 +514,27 @@ static void mcard_msg_load_no_card_konq_region_hault_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.71429%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_load_no_card_konq_region_hault(const char* profileName, int unused, int device) {
-    const char* part5;
-    const char* part6;
-    const char* part7;
-    const char* part8;
+static inline void build_konquest_no_card_body(void)
+{
+    sprintf(message_buffer, STR_MC_FMT_KONQUEST_BODY,
+            nbc_find_text(5, 0), message_buf_temp1,
+            nbc_find_text(6, 0), message_buf_temp2,
+            nbc_find_text(7, 0), nbc_find_text(8, 0));
+    set_memcard_popup_message_body_text(message_buffer);
+}
 
-    (void)device;
+/* TODO: [near miss] 99.95238%; body operations agree; five shared profile/body buffer offsets need BSS placement. */
+void mcard_msg_load_no_card_konq_region_hault(
+    const char* profileName, int player, int device) {
     if (profileName == 0) {
-        profileName = "";
+        profileName = STR_MC_FMT_SPACE;
     }
-    if (unused < 0 || unused >= 2) {
-        unused = 0;
+    if (player < 0 || player >= 2) {
+        player = 0;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(4, 0));
-    if (unused == 1) {
+    if (player == 1) {
         strcpy(message_buf_temp1, nbc_find_text(0x6d, 0));
     } else {
         strcpy(message_buf_temp1, nbc_find_text(0x6e, 0));
@@ -561,18 +544,12 @@ void mcard_msg_load_no_card_konq_region_hault(const char* profileName, int unuse
     } else {
         strcpy(message_buf_temp2, nbc_find_text(0x6f, 0));
     }
-    part8 = nbc_find_text(8, 0);
-    part7 = nbc_find_text(7, 0);
-    part6 = nbc_find_text(6, 0);
-    part5 = nbc_find_text(5, 0);
-    sprintf(message_buffer, STR_MC_FMT_KONQUEST_BODY, part5, message_buf_temp1,
-            part6, message_buf_temp2, part7, part8);
-    set_memcard_popup_message_body_text(message_buffer);
+    build_konquest_no_card_body();
     set_memcard_popup_message_options_text(nbc_find_text(0x80, 0));
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();
     mcard_msg_active = 0x24;
-    msg_load_no_card_konq_region_hault_player = unused;
+    msg_load_no_card_konq_region_hault_player = player;
     msg_load_no_card_konq_region_hault_answer = 0;
     prepare_for_haulting_message();
     sleep_aproc(1.0f);
@@ -641,13 +618,12 @@ static void mcard_msg_cant_enter_konquest_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 95.30864%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_cant_enter_konquest(int device, const char* profileName) {
     if (device < 0 || device >= 2) {
         return;
     }
     if (profileName == 0) {
-        profileName = "";
+        profileName = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x75, 0));
@@ -700,22 +676,18 @@ static void mcard_msg_save_no_card_konq_region_hault_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.71429%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int unused) {
-    const char* part5;
-    const char* part6;
-    const char* part7;
-    const char* part8;
+/* TODO: [near miss] 99.95238%; body operations agree; five shared profile/body buffer offsets need BSS placement. */
+void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int player) {
 
     if (profileName == 0) {
-        profileName = "";
+        profileName = STR_MC_FMT_SPACE;
     }
-    if (unused < 0 || unused >= 2) {
-        unused = 0;
+    if (player < 0 || player >= 2) {
+        player = 0;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(4, 0));
-    if (unused == 1) {
+    if (player == 1) {
         strcpy(message_buf_temp1, nbc_find_text(0x6d, 0));
     } else {
         strcpy(message_buf_temp1, nbc_find_text(0x6e, 0));
@@ -725,17 +697,11 @@ void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int unuse
     } else {
         strcpy(message_buf_temp2, nbc_find_text(0x6f, 0));
     }
-    part8 = nbc_find_text(8, 0);
-    part7 = nbc_find_text(7, 0);
-    part6 = nbc_find_text(6, 0);
-    part5 = nbc_find_text(5, 0);
-    sprintf(message_buffer, STR_MC_FMT_KONQUEST_BODY, part5, message_buf_temp1,
-            part6, message_buf_temp2, part7, part8);
-    set_memcard_popup_message_body_text(message_buffer);
+    build_konquest_no_card_body();
     set_memcard_popup_message_options_text(nbc_find_text(0x7f, 0));
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();
-    msg_save_no_card_konq_region_hault_player = unused;
+    msg_save_no_card_konq_region_hault_player = player;
     msg_save_no_card_konq_region_hault_answer = 0;
     mcard_msg_active = 0x20;
     prepare_for_haulting_message();
@@ -812,7 +778,7 @@ static void mcard_msg_name_conflict_rtn(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 77.29474%; retail pool restored; remaining call/branch lowering needs comparison. */
+/* TODO: [breakthrough needed] 77.35%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_name_conflict(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x68, 0));
@@ -879,21 +845,23 @@ static void mcard_msg_format_failed_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_format_failed(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
+static inline void format_failed_body(int device) {
+    const char* suffix;
+    const char* slot_name;
+    const char* prefix;
+    suffix = nbc_find_text(0x60, 0);
+    slot_name = nbc_find_text(gc_mc_default_name[device], 0);
+    prefix = nbc_find_text(0x5f, 0);
+    sprintf(message_buffer, STR_MC_FMT_SSS, prefix, slot_name, suffix);
+}
 
+void mcard_msg_format_failed(int device) {
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x5e, 0));
-    partA = nbc_find_text(0x60, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x5f, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    format_failed_body(device);
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x10, 0));
     set_memcard_popup_message_type(5);
@@ -904,22 +872,26 @@ void mcard_msg_format_failed(int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_format_successful(int device) {
+static inline void set_memcard_slot_message_body(int device, int first_text,
+                                                int last_text, const char* format) {
     const char* partA;
     const char* slotName;
     const char* partB;
 
+    partA = nbc_find_text(first_text, 0);
+    slotName = nbc_find_text(gc_mc_default_name[device], 0);
+    partB = nbc_find_text(last_text, 0);
+    sprintf(message_buffer, format, partB, slotName, partA);
+    set_memcard_popup_message_body_text(message_buffer);
+}
+
+void mcard_msg_format_successful(int device) {
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x5b, 0));
-    partA = nbc_find_text(0x5d, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x5c, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
-    set_memcard_popup_message_body_text(message_buffer);
+    set_memcard_slot_message_body(device, 0x5d, 0x5c, STR_MC_FMT_SSS);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
     fire_up_memcard_mesage_screen();
@@ -928,21 +900,14 @@ void mcard_msg_format_successful(int device) {
     sleep_aproc(60.0f);
 }
 
-/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_formating(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x58, 0));
-    partA = nbc_find_text(0x5a, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x59, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS, nbc_find_text(0x59, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x5a, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
@@ -964,21 +929,14 @@ static void mcard_msg_format_confirmation_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_format_confirmation(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x55, 0));
-    partA = nbc_find_text(0x57, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x56, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS, nbc_find_text(0x56, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x57, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x11, 0));
     set_memcard_popup_message_type(8);
@@ -986,10 +944,8 @@ void mcard_msg_format_confirmation(int device) {
     msg_format_confirmation_answer = 0;
     mcard_msg_active = 0x13;
     prepare_for_haulting_message();
-    {
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
 }
 
 /* TODO: [breakthrough needed] 73.34%; pad poll call schedule differs; compare retail call order. */
@@ -1004,21 +960,23 @@ static void mcard_msg_no_file_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 96.5625%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_no_file(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
+static inline void no_file_body(int device) {
+    const char* suffix;
+    const char* slot_name;
 
+    suffix = nbc_find_text(0xe, 0);
+    slot_name = nbc_find_text(gc_mc_default_name[device], 0);
+    sprintf(message_buffer, STR_MC_FMT_SS,
+        nbc_find_text(0xd, 0), slot_name, suffix);
+}
+
+void mcard_msg_no_file(int device) {
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0xc, 0));
-    partA = nbc_find_text(0xe, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0xd, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    no_file_body(device);
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x11, 0));
     set_memcard_popup_message_type(0xc);
@@ -1029,7 +987,6 @@ void mcard_msg_no_file(int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [breakthrough needed] 90.68%; player pad poll schedule differs; compare retail call order. */
 static void mcard_msg_card_gone_rtn(void) {
     if (msg_card_gone_player == 0) {
         if (check_switch_action(get_p1_pad(), 0) != 0) {
@@ -1040,7 +997,7 @@ static void mcard_msg_card_gone_rtn(void) {
             eat_switch_action(get_p1_pad(), 1);
             format_msg_accept(&msg_card_gone_answer, 2);
         }
-    } else {
+    } else if (msg_card_gone_player == 1) {
         if (check_switch_action(get_p2_pad(), 0) != 0) {
             eat_switch_action(get_p2_pad(), 0);
             format_msg_accept(&msg_card_gone_answer, 1);
@@ -1049,19 +1006,19 @@ static void mcard_msg_card_gone_rtn(void) {
             eat_switch_action(get_p2_pad(), 1);
             format_msg_accept(&msg_card_gone_answer, 2);
         }
+    } else {
+        mcard_hault_msg_active = 0;
+        pause_procs(0);
+        mcard_msg_remove_screen();
     }
 }
 
-/* TODO: [near miss] 90.14706%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_gone(const char* profileName, int device) {
-    const char* name;
-
     if (device < 0 || device >= 2) {
         return;
     }
-    name = profileName;
-    if (name == 0) {
-        name = STR_MC_FMT_SPACE;
+    if (profileName == 0) {
+        profileName = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(4, 0));
@@ -1072,19 +1029,19 @@ void mcard_msg_card_gone(const char* profileName, int device) {
         strcat(message_buffer, nbc_find_text(0x6e, 0));
     }
     strcat(message_buffer, nbc_find_text(6, 0));
-    if (strlen(name) == 0) {
-        strcat(message_buffer, nbc_find_text(0x6f, 0));
+    if (strlen(profileName) != 0) {
+        strcat(message_buffer, profileName);
     } else {
-        strcat(message_buffer, name);
+        strcat(message_buffer, nbc_find_text(0x6f, 0));
     }
     strcat(message_buffer, nbc_find_text(7, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(nbc_find_text(0x10, 0));
     set_memcard_popup_message_type(0xc);
     fire_up_memcard_mesage_screen();
+    msg_card_gone_player = device;
     msg_card_gone_answer = 0;
     mcard_msg_active = 2;
-    msg_card_gone_player = device;
     prepare_for_haulting_message();
     sleep_aproc(1.0f);
 }
@@ -1106,34 +1063,21 @@ static void mcard_msg_crc_failure_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_crc_failure(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
-    if (name == 0) {
-        name = STR_MC_FMT_SPACE;
+    if (nameOrNull == 0) {
+        nameOrNull = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x17, 0));
-    partA = nbc_find_text(0x19, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x18, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x18, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x19, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x1c, 0);
-    optB = nbc_find_text(0x1b, 0);
-    optC = nbc_find_text(0x1a, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS, nbc_find_text(0x1a, 0),
+        nameOrNull, nbc_find_text(0x1b, 0), nbc_find_text(0x1c, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();
@@ -1154,34 +1098,22 @@ static void mcard_msg_incompatible_card_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_incompatible_card(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
-    if (name == 0) {
-        name = STR_MC_FMT_SPACE;
+    if (nameOrNull == 0) {
+        nameOrNull = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x52, 0));
-    partA = nbc_find_text(0x54, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x53, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x53, 0),
+            nbc_find_text(gc_mc_default_name[device], 0),
+            nbc_find_text(0x54, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x13, 0);
-    optC = nbc_find_text(0x12, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS, nbc_find_text(0x12, 0),
+            nameOrNull, nbc_find_text(0x13, 0), nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xc);
     fire_up_memcard_mesage_screen();
@@ -1219,34 +1151,24 @@ static void mcard_msg_wrong_device_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_wrong_device(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
+void mcard_msg_wrong_device(const char* name, int device) {
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
     if (name == 0) {
         name = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x48, 0));
-    partA = nbc_find_text(0x4a, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x49, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS,
+            nbc_find_text(0x49, 0),
+            nbc_find_text(gc_mc_default_name[device], 0),
+            nbc_find_text(0x4a, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x13, 0);
-    optC = nbc_find_text(0x12, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS,
+            nbc_find_text(0x12, 0), name,
+            nbc_find_text(0x13, 0), nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xc);
     fire_up_memcard_mesage_screen();
@@ -1267,34 +1189,21 @@ static void mcard_msg_card_damaged_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_card_damaged(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
-    if (name == 0) {
-        name = STR_MC_FMT_SPACE;
+    if (nameOrNull == 0) {
+        nameOrNull = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x45, 0));
-    partA = nbc_find_text(0x47, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x46, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x46, 0),
+            nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x47, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x13, 0);
-    optC = nbc_find_text(0x12, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS, nbc_find_text(0x12, 0), nameOrNull,
+            nbc_find_text(0x13, 0), nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(5);
     fire_up_memcard_mesage_screen();
@@ -1319,34 +1228,24 @@ static void mcard_msg_another_market_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 92.63736%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_another_market(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
+void mcard_msg_another_market(const char* name, int device) {
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
     if (name == 0) {
         name = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x42, 0));
-    partA = nbc_find_text(0x44, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x43, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS,
+        nbc_find_text(0x43, 0),
+        nbc_find_text(gc_mc_default_name[device], 0),
+        nbc_find_text(0x44, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x14, 0);
-    optB = nbc_find_text(0x13, 0);
-    optC = nbc_find_text(0x12, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS,
+        nbc_find_text(0x12, 0), name,
+        nbc_find_text(0x13, 0), nbc_find_text(0x14, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();
@@ -1371,39 +1270,25 @@ static void mcard_msg_sys_corrupt_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 91.42857%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_sys_corrupt(const char* nameOrNull, int device) {
-    const char* name;
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
 
     if (device < 0 || device >= 2) {
         return;
     }
-    name = nameOrNull;
-    if (name == 0) {
-        name = STR_MC_FMT_SPACE;
+    if (nameOrNull == 0) {
+        nameOrNull = STR_MC_FMT_SPACE;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x3c, 0));
-    partA = nbc_find_text(0x3e, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x3d, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x3d, 0),
+            nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x3e, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x41, 0);
-    optB = nbc_find_text(0x40, 0);
-    optC = nbc_find_text(0x3f, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, name, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SSSS, nbc_find_text(0x3f, 0), nameOrNull,
+            nbc_find_text(0x40, 0), nbc_find_text(0x41, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();
     msg_crc_failure_answer = 0;
-    msg_sys_corrupt_answer = 0;
     mcard_msg_active = 0xd;
     prepare_for_haulting_message();
     sleep_aproc(1.0f);
@@ -1490,29 +1375,20 @@ static void mcard_msg_mu_removed_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 94.593025%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_mu_removed(const char* nameOrNull, int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-    const char* optA;
-    const char* optB;
-    const char* optC;
 
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x2f, 0));
-    partA = nbc_find_text(0x31, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x30, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(
+        message_buffer, STR_MC_FMT_SS, nbc_find_text(0x30, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x31, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x13, 0);
-    optC = nbc_find_text(0x12, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSSS, optC, nameOrNull, optB, optA);
+    sprintf(
+        message_buffer, STR_MC_FMT_SSSS, nbc_find_text(0x12, 0), nameOrNull,
+        nbc_find_text(0x13, 0), nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xc);
     fire_up_memcard_mesage_screen();
@@ -1548,21 +1424,16 @@ void mcard_msg_delete_successful_generic(void) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_delete_failed(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x23, 0));
-    partA = nbc_find_text(0x25, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x24, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS,
+            nbc_find_text(0x24, 0),
+            nbc_find_text(gc_mc_default_name[device], 0),
+            nbc_find_text(0x25, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
@@ -1572,21 +1443,14 @@ void mcard_msg_delete_failed(int device) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_delete_successful(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x20, 0));
-    partA = nbc_find_text(0x22, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x21, 0);
-    sprintf(message_buffer, STR_MC_FMT_SSS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SSS, nbc_find_text(0x21, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x22, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
@@ -1596,21 +1460,23 @@ void mcard_msg_delete_successful(int device) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
-void mcard_msg_deleting_file(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
+static inline void format_deleting_body(int device) {
+    const char* suffix;
+    const char* slot_name;
+    const char* prefix;
+    suffix = nbc_find_text(0x1f, 0);
+    slot_name = nbc_find_text(gc_mc_default_name[device], 0);
+    prefix = nbc_find_text(0x1e, 0);
+    sprintf(message_buffer, STR_MC_FMT_SS, prefix, slot_name, suffix);
+}
 
+void mcard_msg_deleting_file(int device) {
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x1d, 0));
-    partA = nbc_find_text(0x1f, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x1e, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    format_deleting_body(device);
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(8);
@@ -1620,7 +1486,6 @@ void mcard_msg_deleting_file(int device) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 99.91071%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_storage(const char* text) {
     if (text == 0) {
         text = STR_MC_FMT_SPACE;
@@ -1639,49 +1504,32 @@ void mcard_msg_no_storage(const char* text) {
 }
 
 void mcard_msg_read(int device) {
-    (void)device;
 }
 
-/* TODO: [near miss] 96.370964%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_deleting_data(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x2c, 0));
-    partA = nbc_find_text(0x2e, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x2d, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS, nbc_find_text(0x2d, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x2e, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);
     fire_up_memcard_mesage_screen();
     mcard_msg_active = 0xb;
     prepare_for_sleeping_message();
-    sleep_aproc(90.0f);
+    sleep_aproc(30.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_create(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x29, 0));
-    partA = nbc_find_text(0x2b, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x2a, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
-    set_memcard_popup_message_body_text(message_buffer);
+    set_memcard_slot_message_body(device, 0x2b, 0x2a, STR_MC_FMT_SS);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(6);
     fire_up_memcard_mesage_screen();
@@ -1690,21 +1538,14 @@ void mcard_msg_create(int device) {
     sleep_aproc(30.0f);
 }
 
-/* TODO: [near miss] 96.451614%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_save(int device) {
-    const char* partA;
-    const char* slotName;
-    const char* partB;
-
     if (device < 0 || device >= 2) {
         return;
     }
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x26, 0));
-    partA = nbc_find_text(0x28, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    partB = nbc_find_text(0x27, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS, partB, slotName, partA);
+    sprintf(message_buffer, STR_MC_FMT_SS, nbc_find_text(0x27, 0),
+        nbc_find_text(gc_mc_default_name[device], 0), nbc_find_text(0x28, 0));
     set_memcard_popup_message_body_text(message_buffer);
     set_memcard_popup_message_options_text(STR_MC_FMT_SPACE);
     set_memcard_popup_message_type(9);

@@ -1,770 +1,1034 @@
-# Matching playbook, tier 2: common detail
+# Playbook tier 2: common (H rules)
 
-Detail for the H rules indexed in [tier 1](playbook-1-core.md). Read only the
-section whose rule the triage selected. Every item requires its rule's evidence
-before use; named symbols are exemplars that reached exact.
+Detail for H rules indexed in [tier 1](playbook-1-core.md). Read only the
+section triage picked. Every bullet needs its rule's evidence first. Symbols =
+exemplars that reached exact. `[da]` = mk-da import (tier 1).
 
 ## H01
 
-ABI: wrong argument/return registers. REQUIRE all callers and the callee ABI.
+ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
 
-- A pointer-looking r3 may address the caller-created copy of a by-value
-  aggregate. Verify the caller copy before adding pointer snapshots (inventory
-  image creation passes a texture pair by value). Keep a `cmpw`-evidenced
-  signed loop count.
-- If a pointer-returning lookup precedes a binding call, check whether its
-  result is the next call's first argument. Keep a retail post-lookup owner
-  reload with a used typed result local; nesting the lookup can cache the owner
-  too early (Puzzle projectile initializer).
-- Virtual calls: verify the typed callback receives its object. A legacy
-  unprototyped vtable slot can leave r3 holding the vtable (Krypt biography
-  destructor: `StringObjVtable` + explicit object). For raw vtable casts
-  (`((void**)self->vtbl)[0x44/4]`) with retail `lwz r12,0(this); lwz
-  r12,off(r12)`, call the real virtual through the canonical class
-  (`RefreshOption__11SpreadSheetFi`: +0x44/+0x48/+0x4C are
-  Update/RefreshCollection/RefreshOption). Typed virtuals prove dispatch, not
-  class layout or destructor contract.
-- Variadic calls: canonical prototype; check the CR marker (`crclr`) as well as
-  argument registers.
-- A register live at `bl` is not an argument if the callee overwrites it
-  first. A preceding store can leave its object address in r3; do not add it
-  when the callee reads only globals (Puzzle random-fatality check). Fix the
-  prototype and every caller together.
-- IF a TU-local prototype adds an argument whose register is only a leftover
-  from a preceding store, REQUIRE the callee definition and retail register
-  consumption. TRY correcting that prototype and call together; the phantom
-  argument can cause an extra owner reload (`r_pz_fighter_block_hi`).
-- Unused-argument addendum: IF a caller reloads a constant before a call where
-  retail reuses an earlier register, REQUIRE callee ASM proving the parameter
-  is never read plus an independent signature source, TRY removing it from
-  declaration, definition, and callers (`SFHDS_InitFhd`, closing
-  `sfply_InitHn` with one H15 declaration-order check).
-- Conversely, trace registers consumed before overwrite back to the caller:
-  m2c can drop an argument computed before a branch together with its
-  apparently dead computation. A wrapper that leaves r3 untouched before
-  `pdata_of_proc`/`xfer_proc` may forward an explicit process pointer (spear
-  wrappers), not `aproc`.
-- A forwarding wrapper can need float arguments with no FP instructions:
-  `collision_2` passes incoming f1/f2 through. Do not replace them with zero.
-- Trace event payload words through dispatch before naming them IDs; they may
-  carry live object pointers.
-- Pointer outputs: check whether the callee reads the incoming value before
-  writing, and trace caller initialization on every path. If retail depends on
-  uninitialized stack, record it (N08); neither a zero initializer nor an
-  indeterminate read is faithful.
-- Returns: a void wrapper can leave a callee result in r3 and still match; if a
-  real caller consumes it, recover the typed return. Process callbacks may
-  need a float result no C caller reads (moves.c fatality and roll-up callbacks
-  as `MkProcEntryFn`).
-- A pointer-result cast can hide an undeclared function's implicit int return.
-  Include the canonical header first (`pfx_get_emitter`), and replace duplicate
-  partial layouts with the shared type when offsets agree.
-- Wide scalars: a 64-bit value passed as high/low scalars needs callee register
-  consumption, every caller, and a donor prototype; recover the by-value
-  `long long` and drop the splitting union (`SFBUF_UpdateFlowCnt(long long,
-  unsigned int)`).
-- Under opt off, `GXBool` locals can drop redundant masks; keep full-width
+- Saved scalar param rotates around a call, word ops identical: REQUIRE
+  caller type, callee param, stored member agree. TRY canonical signedness in
+  public decl + def; implicit unsigned->signed makes another web
+  (`pfxvm_spawn_line_1i`). Check every header consumer; match alone does not
+  justify a type change.
+- Pointer-looking r3 can be caller-made copy of a by-value aggregate. Verify
+  caller copy before adding snapshots (inventory image: texture pair by
+  value). Keep `cmpw`-proven signed loop count.
+- Flag init into original word + separate passed word = aggregate-address ABI
+  of one-word POD. Confirm all callers, callee reads, pinned-compiler
+  value-vs-pointer probe, then fix canonical prototype. Typed initializer /
+  constructor helpers recover each expansion's original/copy homes
+  (`get_mkproc_nostack`, `bleed_startup`). Never model compiler copies as
+  unused 2nd array element. Recheck header consumers together.
+- Pointer-returning lookup before a binding call: result may be next call's
+  first arg. Keep retail post-lookup owner reload with used typed result
+  local; nesting the lookup caches owner too early (Puzzle projectile init).
+- Virtuals: typed callback must receive its object. Legacy unprototyped
+  vtable slot can leave r3 = vtable (Krypt biography dtor: `StringObjVtable`
+  + explicit object). Raw `((void**)self->vtbl)[0x44/4]` with retail `lwz
+  r12,0(this); lwz r12,off(r12)` -> call real virtual via canonical class
+  (`RefreshOption__11SpreadSheetFi`: +0x44/+0x48/+0x4C =
+  Update/RefreshCollection/RefreshOption). Typed virtual proves dispatch, not
+  layout or dtor contract.
+- Variadic: canonical prototype; check `crclr` and arg regs.
+- Reg live at `bl` is not arg if callee overwrites first. Prior store can
+  leave its object address in r3; don't add it when callee reads only globals
+  (Puzzle random-fatality check). Fix prototype + all callers together.
+- TU-local prototype adds arg whose reg is only leftover from prior store:
+  REQUIRE callee def + retail reg consumption. TRY fixing prototype + call
+  together; phantom arg can add owner reload (`r_pz_fighter_block_hi`). Null
+  aggregate-field store can leave zero in apparent arg reg (`repel_a_from_b`):
+  check every path, fix private defs too. Keep sibling signatures whose
+  callers explicitly stage that arg, even if body ignores it.
+- Unused arg: caller reloads constant before call where retail reuses earlier
+  reg. REQUIRE callee ASM never reads param + independent signature source.
+  TRY removing from decl, def, callers (`SFHDS_InitFhd`; `sfply_InitHn`
+  closed with one H15 decl-order check).
+- Reverse: trace regs consumed before overwrite back to caller. m2c can drop
+  an arg computed before a branch with its "dead" computation. Wrapper leaving
+  r3 untouched before `pdata_of_proc`/`xfer_proc` may forward explicit process
+  pointer (spear wrappers), not `aproc`.
+- Forwarding wrapper can need float args with no FP instrs: `collision_2`
+  passes f1/f2 through. Don't replace with zero.
+- Event payload words: trace through dispatch before calling them IDs; may be
+  live object pointers.
+- Pointer outputs: does callee read incoming value before writing? Trace
+  caller init on every path. Retail depends on uninit stack -> record (N08);
+  zero init and indeterminate read both unfaithful.
+- Detached OS thread entry, retail never sets return reg: REQUIRE every
+  registration uses detached attr 1, OSCreateThread puts entry in saved PC,
+  OSExitThread discards return on that path. TRY void entry + explicit
+  address cast at OS registration (`adxm_mwidle_proc`); keep canonical OS
+  API. Not for joinable threads whose exit value is read.
+- Returns: void wrapper can leave callee result in r3 and still match; real
+  caller consumes it -> recover typed return. Process callbacks may need
+  float result no C caller reads (moves.c fatality/roll-up callbacks as
+  `MkProcEntryFn`).
+- Pointer-result cast can hide implicit int return. Include canonical header
+  first (`pfx_get_emitter`); replace duplicate partial layouts with shared
+  type when offsets agree.
+- 64-bit passed as hi/lo scalars: REQUIRE callee reg use, every caller, donor
+  prototype. Recover by-value `long long`, drop splitting union
+  (`SFBUF_UpdateFlowCnt(long long, unsigned int)`).
+- Opt off: `GXBool` locals can drop redundant masks; keep full-width
   masks/enums and public prototypes.
+- Interleaved FP/GPR params, only float/pointer setup order differs: REQUIRE
+  same order in every retail caller + callee arg saves, banks preserve
+  physical ABI. TRY canonical param order in header, def, all calls
+  (`pfx_emitter_run_frame`: emitter, float, pfx). One caller's scheduling is
+  not evidence.
+- Conditional call target `[da]`: retail picks one of two functions, calls
+  via `r12` with no extra `mr`; function-pointer local adds moves. REQUIRE
+  both targets real symbols. TRY `(cond ? a : b)(args)`; keep retail branch
+  sense (`beq`/`bne` picks first arm) (`_rwForAllEdges`).
 
 ## H02
 
-Layout: wrong offset/width or opaque owner. REQUIRE multiple accesses plus the
+Layout: wrong offset/width or opaque owner. REQUIRE multiple accesses +
 allocation or compiler layout.
 
-- One differing offset in a 99%+ function is a wrong member
-  (`sfsee_GetInputEndPosition` read `input_transport` +0x1354 instead of
-  `output_transport` +0x1358; Sindel sonic sound's flag is +8, not +0; Puzzle
-  fill's message is +0x0C, not +0x10; mk_chess rescue is +0x50, not +0x4C).
-  Adjacent zero stores can also be wrong members (`ADXB_DecodeHeaderAiff`
-  resets +0x88/+0x8C, not +0x90/+0x94). Adjacent-field substitutions are
-  behavior bugs (player wake-up tests object pointers at GameInfo+0x100/+0x16C,
-  not pdata at +0xFC/+0x168).
-- Separate an allocation returned through an output pointer from the interior
-  base passed to its initializer (Krypt raw particle: `MkPfx`, VM at +0x40).
-  Verify the enclosing owner separately from the storage (collision init
-  stores into PlyrInfo+18). A placeholder with matching fields can hide an
-  extra dereference.
-- Recover canonical fields and arrays within proven extents. Keep an unproven
-  gap as one width-correct offset-named reserved member; no invented split or
-  union.
-- Owner-type addendum: a sparse overlay whose padding stands in for pointer
-  members, a sibling-type view, or a pointer squeezed into a 32-bit integer is
-  the wrong owner even at an unchanged score; it breaks wider-pointer builds.
-  Use the canonical typed slot or owner.
-- Aggregate extent (with H14): an address-taken aggregate with a correct prefix
-  but a larger retail frame needs a donor type or callee ABI plus the exact
-  stack extent; put the tail in the type with a size assertion, never a
-  padding local (`CFT_YCC420PLN` in `SFX_CnvFrmYcc420plnToY84C44`).
-- Bitsets: capacity comes from the accessor bound and byte index (Krypt shows
-  400 coffins but accepts 600 bits, 75 bytes).
-- Trace unnamed scalar groups to typed API arguments before naming them (Krypt
-  VM +0x154..+0x15C feed `GXInitLightAttn` k0/k1/k2).
-- Opaque or differently signed pointers: trace every assignment and use, pick
-  the proven element type, remove redundant casts. Keep unsigned bitmask
-  conversions distinct from signed sentinel/division semantics.
-- Arrays: derive origin separately from stride; a fixed offset in every
-  iteration may be a global header. An array view one word shorter than the
-  ELF symbol means a header (fatality loader: +4+i*12 in 184 bytes is a header
-  plus fifteen records). Bound every write in a full iteration before choosing
-  list-builder capacity.
-- Identical cursor stride does not prove identical ownership; follow each
-  pointer load (mk_chess drone +0x108 vs embedded mode cursors). Runtime owners
-  are not interchangeable with similar static tables.
-- MWCC can place the vptr after members declared before the first virtual
-  (`IRefCntRes` needs virtuals before `reference_count` for +0/+4). Nested
-  anonymous structs inside a union can measure size 1; pointer unions restored
-  FighterSlot 0x0C / PlyrInfo 0x6C. Probe layout and recheck callers.
-- Opcode variants in one instruction union can have different trailing fields;
-  recover a typed variant and verify both producer and dispatcher.
-- Hardware and low-memory owners (with H05/H18): VI registers are volatile MMIO
-  at 0xCC002000; the PAD/OS reset byte is an unqualified absolute RAM variable;
-  DVD DI/PI and SI banks are absolute volatile arrays. GX FIFO byte/half/word/
-  float writes share one absolute volatile union at 0xCC008000. Equal addresses
-  do not make the same compiler-visible owner, and one wrong owner can cause
-  large scheduling differences. Once confirmed, check every sibling regardless
-  of score. Do not infer volatility from an address or generalize a FIFO union.
-- Shared-BSS base relocations: resolve the symbol base, then the member offset.
-- Fixed board scans (with H09): replace byte-offset accumulators with typed row
-  indexing (`board_rows[row][column]`); MWCC derives stride accumulators
-  itself. Keep each nested loop's own pretest and increment, and distinguish
-  checks before the row increment from a do/while condition after it.
-- CRI buffers (with H07): an index scaled by the `SFBUF_WORK` stride with
-  offsets folded through the handle needs the donor's shifted-handle view and
-  private inlines. Keep the embedded supply record and per-variant clear
-  extents; do not transplant donor init where MKD retail differs. Keep
-  wrapped-range tests as direct branches, not a `contains` Boolean.
+- One differing offset in 99%+ function = wrong member
+  (`sfsee_GetInputEndPosition`: `input_transport` +0x1354 vs
+  `output_transport` +0x1358; Sindel sonic flag +8 not +0; Puzzle fill msg
+  +0x0C not +0x10; mk_chess rescue +0x50 not +0x4C). Adjacent zero stores can
+  be wrong members (`ADXB_DecodeHeaderAiff` resets +0x88/+0x8C, not
+  +0x90/+0x94). Adjacent-field swaps are behavior bugs (wake-up tests object
+  ptrs at GameInfo+0x100/+0x16C, not pdata +0xFC/+0x168).
+- Separate allocation returned via out-pointer from interior base passed to
+  its initializer (Krypt raw particle: `MkPfx`, VM at +0x40). Verify enclosing
+  owner apart from storage (collision init stores into PlyrInfo+18).
+  Placeholder with matching fields can hide extra deref.
+- Recover canonical fields/arrays inside proven extents. Unproven gap = one
+  width-correct offset-named reserved member; no invented split or union.
+- Wrong owner even at unchanged score: sparse overlay with padding standing in
+  for pointers, sibling-type view, pointer in 32-bit int. Breaks wide-pointer
+  builds. Use canonical typed slot/owner.
+- Aggregate extent (+H14): address-taken aggregate, prefix right, retail frame
+  bigger -> REQUIRE donor type or callee ABI + exact stack extent. Tail goes in
+  the type with size assert, never padding local (`CFT_YCC420PLN` in
+  `SFX_CnvFrmYcc420plnToY84C44`). Frame bigger, body exact `[da]`: real local
+  array/struct whose every byte the code reads (`HVQM4DecodeAdpcmCh2` `u8
+  header[4]`, 0x30 -> 0x38).
+- Literal over-allocation `[da]`: retail allocates more than verified struct.
+  REQUIRE literal allocator arg + full access/stride/layout evidence. Keep
+  literal size + minimal verified type; no invented tail fields for `sizeof`
+  (`HVQM4DecSoundCreate`: 0x20 alloc, 0x18 context).
+- Bitsets: capacity from accessor bound + byte index (Krypt: 400 coffins
+  shown, 600 bits/75 bytes accepted).
+- Unnamed scalar groups: trace to typed API args before naming (Krypt VM
+  +0x154..+0x15C feed `GXInitLightAttn` k0/k1/k2).
+- Opaque/differently signed pointers: trace every assign/use, pick proven
+  element type, drop redundant casts. Unsigned bitmask conversions stay
+  distinct from signed sentinel/division semantics.
+- `void*` read-only input keeps field address (extra `addi`) retail folds into
+  each access `[da]`: REQUIRE retail only reads it. TRY `u8*` (`const` neutral)
+  (`_rpWriteSectRights`).
+- Arrays: origin apart from stride; fixed offset every iteration may be global
+  header. Array view one word shorter than ELF symbol = header (fatality
+  loader: +4+i*12 in 184 bytes = header + 15 records). Bound every write in a
+  full iteration before picking list capacity.
+- Same cursor stride != same owner; follow each pointer load (mk_chess drone
+  +0x108 vs embedded mode cursors). Runtime owners != similar static tables.
+- MWCC can put vptr after members declared before first virtual
+  (`IRefCntRes`: virtuals before `reference_count` for +0/+4). Nested
+  anonymous structs in a union can measure size 1; pointer unions restored
+  FighterSlot 0x0C / PlyrInfo 0x6C. Probe layout, recheck callers.
+- Opcode variants in one instruction union can differ in trailing fields;
+  typed variant, verify producer + dispatcher.
+- Hardware/low-memory owners (+H05/H18): VI regs = volatile MMIO 0xCC002000;
+  PAD/OS reset byte = unqualified absolute RAM var; DVD DI/PI and SI banks =
+  absolute volatile arrays; GX FIFO byte/half/word/float = one absolute
+  volatile union at 0xCC008000. Equal address != same compiler-visible owner;
+  wrong owner can cause big scheduling diffs. Confirmed -> check every
+  sibling regardless of score. Don't infer volatile from address; don't
+  generalize FIFO union.
+- Shared-BSS base relocs: resolve symbol base, then member offset.
+- Callback-record loads can look like coloring. REQUIRE each loaded reg traced
+  to indirect call args, same fields checked in record producers. TRY fixing
+  record layout + callback prototype together, keep producer store order
+  (`sfmps_CopyPrvate`: handle cb +4, object cb +8, object +0xC;
+  `SFD_SetUsrSj` stores 4th arg in handle-cb slot).
+- Fixed board scans (+H09): typed row indexing (`board_rows[row][column]`),
+  not byte accumulators; MWCC derives strides. Keep each nested loop's
+  pretest + increment; check-before-row-increment != do/while after.
+- CRI buffers (+H07): index scaled by `SFBUF_WORK` stride with offsets folded
+  via handle -> donor shifted-handle view + private inlines. Keep embedded
+  supply record and per-variant clear extents; don't transplant donor init
+  where MKD differs. Wrapped-range tests = direct branches, not `contains`
+  Boolean.
 
 ## H03
 
-Signedness and narrowing. REQUIRE loads, callers, arithmetic range.
+Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
 
-- Keep promoted accumulators full-width. A sign extension plus `subfc`/`subfe`
-  can be a 64-bit unsigned range compare.
-- `addis x,v,H; cmplwi x,L` tests `(L - (H << 16)) mod 2^32`; H=0, L=0xC602 is
-  positive 0xC602. m2c prints such constants as negative unsigned values;
-  signed equality against the positive constant restores `addis`. An `addis
-  ...,0` before `cmplwi` against a constant above signed-16 range points to
-  removing an unsupported unsigned cast (Puzzle 0xF000).
-- Conditional expressions assigned to unsigned locals: test an explicit
-  conversion at that boundary; do not change canonical storage.
-- A 16-bit callee return does not prove a 16-bit function type; narrow at the
-  caller's real boundary, once. A cast at a helper call converts again to the
-  parameter type; if only one selector must be unsigned, use an explicit
-  local selector.
-- Narrowing before a range check means modulo, not saturation; omit provably
-  unreachable clamps. Proven byte-range FP input can convert straight to a byte.
-- FP compares: decode the full CR predicate including `cror`; m2c equality can
-  mean `<=` or `>=`. `value <= 0` and `!(0 < value)` differ on NaN.
-- A narrowed random result used in a guard and a later table read keeps both
-  boundaries; keep the narrowed sample in a full-width index if a short local
-  adds a second mask.
-- `i < count + 1` with unsigned index and signed count, not a cast before the
-  addition (`PackArgs`).
+- Transition mask: outer + repeat-loop copies coalesce, retail keeps both.
+  REQUIRE local is bits, every value to signed callee fits. TRY unsigned mask
+  local, keep canonical prototype + nonempty guard (`pz_fighter_laugh`, mask
+  3, optional bit 8). Type change alone before loop helper; no empty branch or
+  duplicate local.
+- Promoted accumulators stay full width. Sign extend + `subfc`/`subfe` can be
+  64-bit unsigned range compare.
+- `addis x,v,H; cmplwi x,L` tests `(L - (H << 16)) mod 2^32`; H=0, L=0xC602 =
+  positive 0xC602. m2c prints these as negative unsigned; signed equality
+  vs positive constant restores `addis`. `addis ...,0` before `cmplwi`
+  against const > s16 range -> remove unsupported unsigned cast (Puzzle
+  0xF000).
+- `cmplwi` mode chain with unsigned field/literals in retail `[da]`: `== 4U`
+  literals (`gop_decode`).
+- Ternary into unsigned local: test explicit conversion at that boundary;
+  don't change canonical storage.
+- 16-bit callee return != 16-bit function type; narrow once at caller's real
+  boundary. Cast at helper call converts again to param type; only one
+  selector unsigned -> explicit local selector.
+- Narrow before range check = modulo, not saturation; drop provably dead
+  clamps. Proven byte-range FP input converts straight to byte.
+- FP compares: decode full CR predicate incl `cror`; m2c equality can mean
+  `<=`/`>=`. `value <= 0` != `!(0 < value)` on NaN.
+- Narrowed random result used in guard + later table read keeps both
+  boundaries; keep sample in full-width index if short local adds 2nd mask.
+  Packed ID, proven low-16 payload, retail narrows once before full-width
+  index shift: TRY `(unsigned short)id` into unsigned full-width index; short
+  local adds mask, bitmask expr gives other web
+  (`load_model_from_slot_transl`).
+- `i < count + 1`, unsigned index + signed count; no cast before the add
+  (`PackArgs`).
 - Branch-free signed compare: `xor`, `srawi 1`, `and`, `subf`, sign-bit
-  extract. The ANDed operand picks the direction (lhs gives `rhs < lhs`).
-  Evaluate lhs=-1, rhs=0 before mapping to `<` or `>`.
-- Unsigned timer wrap with `subfic -1`: spell the wrap arm
-  `(0xFFFFFFFF - start) + current` before `current - start` (`gcCiStopTr`).
-- TRK connection checks keep a local `BOOL` and separate early returns.
-- A stored `Vec` component may be rounded relative to the incoming FP argument;
-  read the stored component when retail does.
+  extract. ANDed operand picks direction (lhs -> `rhs < lhs`). Evaluate
+  lhs=-1, rhs=0 before mapping to `<`/`>`.
+- Unsigned timer wrap with `subfic -1`: wrap arm `(0xFFFFFFFF - start) +
+  current` before `current - start` (`gcCiStopTr`).
+- TRK connection checks: local `BOOL` + separate early returns.
+- Stored `Vec` component can be rounded vs incoming FP arg; read stored
+  component when retail does.
+- Byte locals `[da]`: retail `lbz` then to float or small-int subtract; `u32`
+  local swaps regs/adds conversions. TRY block-local `u8`, cast at use; signed
+  delta gets own cast (`_rwGeneratePerspClippedVertexZLO`).
+- Signed extrema `[da]`: retail `cmpw` on extrema, donor keeps `u8` min/max.
+  TRY `int` extrema, sample stays `u8` (`GetAotBasis`).
+- Pointer-difference index `[da]`: retail signed divide (`divw` / signed shift
+  seq) by record size; unsigned index merges webs/drops temp. TRY `s32` index
+  (`PipelineNodeDestroy`, /40).
 
 ## H04
 
 Bits. REQUIRE storage width, bit position, every use.
 
-- A narrowed byte assigned into one proven bit uses the typed bit assignment;
-  keep the full-width nonzero test if it controls a separate action.
-- `li 1` + `rlwimi` into a byte is a one-bit field assignment
-  (`flags_bits.konquest_mode = 1`); the live r3 constant is insertion input,
-  not an argument. `li 0` + `rlwimi` at distinct positions are separate field
-  clears; keep their store order and reloads.
-- `lwz` + `clrlwi 24` selects the low numeric byte, not the byte at the address.
-- For `extrwi.` of one flag, or extraction followed by Boolean normalization,
-  the existing bitfield preserves the normalization a raw mask erases.
-- Mask-then-shift: assign the whole expression to the decoded value.
-- Keep packed sign/flag bits until their last consumer; mask only the address.
-- Check index masks against allocation extent (VM dirty-page LUT needs a 13-bit
-  index); per sibling.
-- Packed LUT macros: restore every replicated flag bit
-  (`mpvvlc_InitCbpSub1` needs `((cbp & 3) << 14)`). Sofdec combined VLC indices
-  mask 0x3FF/0xFFF before sign extraction.
-- Staged bytes: a four-byte code built with two inserts then shifts/ORs is
-  `code <<= 8; code |= next;` per byte, with promoted int locals for reused
-  bytes (`SFHDS_SetHdr`).
-- CRI bit window: `current |= following >> shift; value = current >> threshold`
-  in a typed inline reader; peeks shift `current` first, then OR the spill
-  (`mps_dec`). Keep each reader's state-transition timing.
+- Narrowed byte into one proven bit: typed bit assignment; keep full-width
+  nonzero test if it gates a separate action.
+- `li 1` + `rlwimi` into byte = one-bit field assign
+  (`flags_bits.konquest_mode = 1`); live r3 const = insert input, not arg.
+  `li 0` + `rlwimi` at distinct positions = separate field clears; keep store
+  order + reloads.
+- `lwz` + `clrlwi 24` = low numeric byte, not byte at address.
+- `extrwi.` of one flag, or extract + Boolean normalize: existing bitfield
+  keeps normalization raw mask erases.
+- Mask-then-shift: assign whole expression to decoded value.
+- Keep packed sign/flag bits to last consumer; mask only the address.
+- Index masks vs allocation extent (VM dirty-page LUT = 13-bit index); per
+  sibling.
+- Packed LUT macros: restore every replicated flag bit (`mpvvlc_InitCbpSub1`
+  needs `((cbp & 3) << 14)`). Sofdec combined VLC indices mask 0x3FF/0xFFF
+  before sign extract.
+- 4-byte code via two inserts then shifts/ORs = `code <<= 8; code |= next;`
+  per byte, promoted int locals for reused bytes (`SFHDS_SetHdr`).
+- CRI bit window: `current |= following >> shift; value = current >>
+  threshold` in typed inline reader; peeks shift `current` first, then OR
+  spill (`mps_dec`). Keep each reader's state-transition timing.
 
 ## H05
 
-Cached value vs retail reload. REQUIRE a call, sleep, aliasing store, or poll
+Cached vs retail reload. REQUIRE call, sleep, aliasing store, or poll
 boundary.
 
-- Process factories are call boundaries: reload a global player slot after one
+- Process factories = call boundaries: reload global player slot after
   (sidekick intro).
-- Index array members through the owner when retail reloads it each iteration
-  or after a call, instead of an advancing entry pointer.
-- A cached subobject pointer can remove loads without any call; use
-  `owner->object` at each observed access (Puzzle object motion). Keep
-  component store order (z/y/x).
-- Test a helper that loads from its owner only at a proven reload boundary.
-- A buffer reused as callee output is not the retained input; preserve an
-  invariant displacement separately. Verify with a nonzero output mutation.
-- Qualifier: if retail stores through an output pointer before loading handle
-  state but the compiler hoists the load, remove an unsupported `const` on the
-  handle (`SFH_AnlyNumElem*`). For a vector setter with interleaved component
-  loads/stores, verify writable caller inputs and related setter signatures;
-  unsupported pointee const can hoist all source loads before destination
-  stores (`camera_set_center_of_rotation`). Keep genuine const (M12).
-- Pre-call snapshots: loads immediately before a call become typed locals at
-  that boundary, one at a time (`sfmpv_DecodePicAtr`). Keep distinct reads
-  across intervening calls instead of one long alias.
-- CRI frame slot reloaded after a publication and after a conversion call:
-  access the slot directly; keep a frame local only across the conversion
-  (`sfmpv_CalcRepeatField`).
-- Independent field reads between two inlined switches: place the typed copies
-  at that boundary (`mwl_convFrmInfFromSFD`).
+- Retail reloads owner per iteration or after call: index members through
+  owner, not advancing entry pointer.
+- Two material traversals reload atomic + geometry between calls: REQUIRE
+  callback boundary + both owner loads. TRY `ctrl->atomic->geometry` per
+  traversal (`uv_scroll_dual_pass`); cached geometry adds saved reg.
+- Cached subobject pointer can drop loads with no call; use `owner->object` at
+  each access (Puzzle object motion). Keep component store order z/y/x.
+- Helper loading from owner: test only at proven reload boundary.
+- Buffer reused as callee output != retained input; keep invariant
+  displacement separate. Verify with nonzero output mutation.
+- Const qualifier: retail stores via out-pointer before loading handle state,
+  compiler hoists load -> drop unsupported `const` on handle
+  (`SFH_AnlyNumElem*`). Vector setter with interleaved component load/store:
+  verify writable caller inputs + related setter signatures; bogus pointee
+  const hoists all source loads before dest stores
+  (`camera_set_center_of_rotation`). Keep genuine const (M12).
+- Pre-call snapshots: loads right before call -> typed locals at that
+  boundary, one at a time (`sfmpv_DecodePicAtr`). Distinct reads across
+  intervening calls, not one long alias.
+- CRI frame slot reloaded after publication + after conversion call: access
+  slot directly; frame local only across conversion (`sfmpv_CalcRepeatField`).
+- Independent field reads between two inlined switches: typed copies at that
+  boundary (`mwl_convFrmInfFromSFD`).
 - Stack out-record fields live across later calls: typed locals right after
-  the producer (`sfmps_CopyDstBuft`).
-- A global loaded once and tested in both arms: one local before the branch
-  (`round_over`).
-- Owner fields reread after an inlined helper that writes the stack (fast
-  sqrt): take a typed position pointer after the helper and read through it
-  (`mks_bgnd_cam_offset_away`). A field null-tested before it is cached is
-  tested directly, then assigned (`p_create_decoy`). IF the reread follows a
-  float-bits helper and a scoped `opt_common_subs off` reproduces it but
-  rotates the volatile GPRs, TRY a unit-private helper that reads the word
-  through `*(unsigned int*)&value` (address-taken input): its stack stores
-  kill the pointer-based CSE of `obj->pos` with CSE on, direct `plyr_obj` /
-  `his_obj` reads stay CSE'd, and no pragma is needed
-  (`drone_ai_victim_avoid`).
-- A callback and its opaque object loaded before state mutation: snapshot both
+  producer (`sfmps_CopyDstBuft`).
+- Global loaded once, tested in both arms: one local before branch
+  (`round_over`). Field read once before switch/call chain, not written
+  between `[da]`: real local (`HVQM4DecSoundDecode` channel count).
+- Owner fields reread after inlined helper that writes stack (fast sqrt):
+  typed position pointer after helper, read through it
+  (`mks_bgnd_cam_offset_away`). Field null-tested before cached: test
+  directly, then assign (`p_create_decoy`). Allocation result tested before
+  field store, ours stores then reloads `[da]`: `if ((p->field = Alloc(...))
+  == NULL)` (`decv_init`).
+- Reread after float-bits helper, scoped `opt_common_subs off` reproduces it
+  but rotates volatile GPRs: TRY unit-private helper reading word via
+  `*(unsigned int*)&value` (address-taken input). Its stack stores kill
+  pointer-CSE of `obj->pos` with CSE on; direct `plyr_obj`/`his_obj` reads
+  stay CSE'd; no pragma (`drone_ai_victim_avoid`).
+- Callback + opaque object loaded before state mutation: snapshot both
   (`SFXLIB_Error`).
-- Input combinations across a process transfer: keep every button read and
-  reload pdata; down+right then down+left is not one down test.
-- `volatile` only for proven interrupt/debugger completion flags, on both
-  declaration and definition.
+- Inputs across process transfer: keep every button read, reload pdata;
+  down+right then down+left != one down test.
+- Retail loads same word twice, ours CSEs `[da]`: REQUIRE each access type
+  independently proven (signed `cmpw`, byte load, unsigned export). TRY that
+  type at each use. Type chosen only to stop CSE = forcing
+  (`_rwDlGetRenderState`).
+- Guarded global reload `[da]`: `if (n > 0) n--;` as load, compare, reload,
+  sub, no call/store between. No GC 1.0-2.7 flag, pragma, type, wrapper, or
+  CFG reproduces it; only `volatile` does. `const`-qualified read (cast,
+  const ptr local, const macro) also reproduces it = fake alias, reject.
+- `volatile` only for proven interrupt/debugger/thread-shared state, on decl
+  + def (never per access). Needs: minimal repro reuses load on every
+  compiler/flag, every honest non-volatile form fails, real sharing, user
+  ruling; cite in note `[da]`. Qualifier that reproduces a reload proves the
+  reload, not the original qualifier. Escalation-accepted volatile: note
+  "accepted after escalation, no honest form matched; revisit". Always reopen
+  (mk-da `vdisp_init` later closed with honest reads + decl order).
 
 ## H06
 
-Retained value or address. REQUIRE shared uses and an unchanged ownership
-interval. Reject redundant aliases, identity wrappers, and permuter residue.
+Retained value or address. REQUIRE shared uses + unchanged ownership
+interval. Reject redundant aliases, identity wrappers, permuter residue.
 
-- Snapshots retail keeps: a render-quad pointer before a fade test (separate
-  alpha reads); a member-array pointer before a range loop; a search key across
-  list cleanup, with a separate owner read for publication; a real subobject
-  pointer when one base register serves several accesses (`SFTIM_GetTimeSub`
-  keeps `SfdTimerState*`).
-- Consecutive XYZ stores through one address use the position pointer for
-  those stores only; later component copies keep their owner reloads
-  (`setup_tombstones` with `RwV3d`).
-- A field-address load-update alone does not prove a pointer-to-field local.
-- An index retained across calls with table addresses rebuilt later stays a
-  typed index, not a cached entry pointer (`run_ending`, right-stick dispatch).
-- Save/restore is not a self-store if an intervening helper writes the field
-  (air-move init must restore the animation step).
-- Keep original and advanced snapshots only while both are live.
+- Trailing buffered overlap computes byte difference before adding dest:
+  REQUIRE bounds proving offset + same copy length. TRY `destination +
+  (length - overlap)`; left-assoc pointer math can shift adjacent 64-bit temp
+  allocation (`mwFileBuffer::readInRange`).
+- Nested array member: ours adds board base before combining row/col/field
+  offsets, retail combines offsets then one indexed load. REQUIRE same
+  dimensions, coordinate narrowing, layout, single load. TRY typed
+  pointer-to-member slot local and deref; else inline slot accessor returning
+  that address, deref in caller (`mk_chess_spell_move_target_to_target`).
+  Value-return accessor may keep original grouping. No flattening across
+  subarray bounds, no invented byte offsets.
+- Async setup returns owner field after call, retail saves it before: REQUIRE
+  traced store/load + callback boundary. TRY returning real pre-call snapshot
+  (`add_art_section_async`). Existing-item and new-item paths returning same
+  index kind -> one result local for both. No extra value just for coloring.
+- Unrolled frame-to-buffer binding derives via saved subarray pointer, retail
+  derives from owner: REQUIRE proven reserved prefix + contiguous per-frame
+  entries. TRY genuine subarray base folded into each assign, keep pointer
+  association (`&user->entries[1] + index` in `sfmpv_InitInf`). Drop unused
+  alias; `&user->entries[index + 1]` can change unrolling. Check every store
+  + whole unit.
+- Equality guard compares stored object with supplied pointer: REQUIRE traced
+  receiver reg into next call. TRY calling via stored owner expression when
+  retail keeps that load, keep null predicates (`ScreenMgr::RemoveScreen`).
+  Equal pointers != interchangeable source owners.
+- Snapshots retail keeps: render-quad ptr before fade test (separate alpha
+  reads); member-array ptr before range loop; search key across list cleanup
+  with separate owner read for publication; real subobject ptr when one base
+  reg serves several accesses (`SFTIM_GetTimeSub` keeps `SfdTimerState*`).
+- Consecutive XYZ stores via one address: position pointer for those stores
+  only; later component copies keep owner reloads (`setup_tombstones`,
+  `RwV3d`).
+- Field-address load-update alone != pointer-to-field local.
+- Index kept across calls, table addresses rebuilt later = typed index, not
+  cached entry ptr (`run_ending`, right-stick dispatch).
+- Save/restore not a self-store if helper between writes field (air-move init
+  restores animation step).
+- Original + advanced snapshots only while both live.
 - Callback accounting can need separate sample/previous/current snapshots
-  before wrap correction (`ADXB_ExecHndl`).
-- Keep every random draw; narrow at the evidenced boundary, full-width after.
-- A call-free inline predicate can create a result lifetime; test its checks in
-  the consumer accumulator without moving lazy calls.
-- Copy-then-transform keeps both values (a distance before squaring it).
-- Debug-format values preloaded before an effectful call use typed snapshots;
-  a post-call read stays direct (`SFTST_Calc`).
-- A missing island repeated in several callers is a private inline helper
+  before wrap fix (`ADXB_ExecHndl`).
+- Keep every random draw; narrow at proven boundary, full width after.
+- Strided fill, ops match, input base rotates below stride/count/range:
+  REQUIRE cursor advancing to new record each iteration. TRY real working
+  cursor from input base for record access + byte-stride advance
+  (`_pfxvm_init_multiply_float_range_v3`); keep typed record view + draw
+  count; no aliases, no flag change.
+- Call-free inline predicate can create result lifetime; test its checks in
+  consumer accumulator without moving lazy calls.
+- Copy-then-transform keeps both (distance before squaring).
+- Debug-format values preloaded before effectful call: typed snapshots;
+  post-call read stays direct (`SFTST_Calc`).
+- Missing island repeated in several callers = private inline helper
   (`__ARQPopTaskQueueHi`); verify no emitted symbol.
-- Owners and table selection: a typed pointer to the actual table array
-  replaces a container local; keep both reloads when a getter separates them.
-  One pointer per independently selected owner. Repeated pure field checks can
-  read members directly. Select the typed scalar, not the entry pointer, when
-  each branch loads one field before Boolean returns.
-- Scope and placement (with H14): initialize an output pointer at entry only if
-  retail zeros it there; keep snapshots in their owning scope at the observed
-  load point; a table snapshot may follow a category early return. Separate
-  count arithmetic from its later publication. Name a squared distance before
-  an inlined sqrt only if its type keeps the float boundary. Inverse-length
-  normalization can need a typed inline float helper keeping the bit estimate.
-  Swapped temporary FPRs on independent coordinate differences: reverse the
-  source expression order. Widen a narrowed random sample at the evidenced
-  helper boundary. Consume lookahead in place only after its last decoding use.
-  If conversion-constant addressing differs with identical arithmetic, keep a
-  genuinely used scan index through its scale lookup, not a constant-pool
-  pointer.
-- Coefficient decoding: form the sign threshold after unsigned amplitude
-  extraction; keep a real `extended_base = packed * 2`.
+- Owners/table selection: typed pointer to actual table array replaces
+  container local; keep both reloads when getter separates them. One pointer
+  per independently selected owner. Repeated pure field checks read members
+  directly. Each branch loads one field before Boolean return -> select typed
+  scalar, not entry ptr.
+- Scope/placement (+H14): init out-pointer at entry only if retail zeros it
+  there; snapshots in owning scope at observed load point; table snapshot may
+  follow category early return. Separate count math from later publication.
+  Name squared distance before inlined sqrt only if type keeps float
+  boundary. Inverse-length normalize can need typed inline float helper
+  keeping bit estimate. Swapped temp FPRs on independent coordinate diffs:
+  reverse source expression order. Widen narrowed random sample at proven
+  helper boundary. Consume lookahead in place only after last decode use.
+  Conversion-constant addressing differs, arithmetic same: keep real scan
+  index through scale lookup, not const-pool pointer.
+- Coefficient decode: sign threshold after unsigned amplitude extract; keep
+  real `extended_base = packed * 2`.
 
 ## H07
 
-Inline boundary. REQUIRE the retail call boundary, signature, and active inline
-settings. Verify emitted calls, helper symbols, and every consumer.
+Inline boundary. REQUIRE retail call boundary, signature, active inline
+settings. Verify emitted calls, helper symbols, every consumer.
 
-- A `dont_inline` region also suppresses expansion inside its function, and
-  moving the pragma inside a body does not narrow it. Restore evidenced
-  caller-before-callee order before forcing policy.
-- `static` vs `static inline`: plain `static` can emit an unused out-of-line
-  body (`adxb_EntrySte` in `ADXB_EvokeDecode`); `static inline` does not.
-- Keep a callee out of line while explicit helpers still expand: scoped
-  `auto_inline off` at the callee definition (`LSC_EntryFileRange`). A static
-  helper retail calls under `-inline auto`: object-level `-inline noauto`
-  (dvdlow `SeekTwiceBeforeRead`, `__OSCacheInit`), rechecking every function.
-- Deleting a nested `static inline` lowers the enclosing function's cost and
-  `-inline auto` may then expand it into callers
-  (`plyr_weapon_trail_hide` inlined 4x). Check callers' instruction counts.
-- Moving a body: canonical declarations must precede it (no implicit int). One
-  fixed edge can expose another auto-inline; with nested helpers, place the
-  final caller before the callee when retail requires the call.
-- Run a no-setting control to prove a pragma is needed.
-- A donor or private helper may exist only as an inlined island; extract it
-  when retail groups a complete loop and its publications
-  (`sfmps_UpdateStreamBounds`). An unrolled clear plus folded status tail is a
-  status-returning helper (`MPS_Init`); stop if every honest form erases dead
-  retail branches.
-- IF a wrapper loads an endpoint then compares it with itself before a shared
-  inlined loop, REQUIRE the same clamp shape in sibling wrappers and the same
-  loop body. TRY passing that endpoint through the existing inline clamp before
-  entering the loop (`ani_to_end` and `animpdata_ani_to_end`).
-- Inline limits: test `inline_max_size` and `inline_max_total_size` together in
-  an isolated diagnostic. This proves expansion, not retail pragma values.
-  Prefer a typed inline helper over a macro when the macro changes reference
-  ownership or stack placement. The TU-level limit is M13.
-- Predicate and selection helpers (H07/H11):
-  - Repeated Boolean joins or selections: a meaningful helper, keeping
-    consumer-specific loads, null guards, failure cleanup, and shared
-    publication (`ReadSram`).
-  - A bounded scan with found and exhausted assignments joining before one
-    test: assign at the two loop exits, e.g. an unconditional `for` with a
-    found `break` and a `++index >= 8` `break` (`sfply_IsBpaOn`, no `goto`).
-  - Return the stopping index (limit on exhaustion) instead of a Boolean plus
-    a repeated guard. Put a boundary scan and its neighbor updates in one
-    helper.
-  - Move cleanup gated by a returned Boolean into the operation. Structured
-    break-to-cleanup and early returns replace `goto`.
-  - Sentinel validation with callback failures returns right after the
-    callbacks; successful publication stays after the loop.
-  - A wrapper returning an inline result can merge pointer/null paths; use the
-    direct traversal in that wrapper.
-  - A lookup defined after its consumer: shared inline body plus the public
-    wrapper preserves public order.
-  - Reuse an existing lookup only when bounds, first-match order, and fallback
-    agree. Preserve the caller's precondition; do not add a null guard.
-  - Button dispatch: eligibility stays outside the suppression predicate; a
-    single switch can recover one game-state read.
-  - FP comparison via `mfcr` or a result held across calls: a returned
-    predicate or early-return decision.
-  - A reset result joining later decisions: false-initialized result assigned
-    the helper's return.
-  - A simple threshold check through an inlined typed Boolean helper
-    (`sfx_IsEnoughWork(s32)` removed an accidental 64-bit compare).
-  - Extracting inline conversion helpers can zero a public wrapper; the
-    donor's scoped `dont_inline` restored both (`sfxzmv_MakeCnvZTbl`).
-  - Recursive consumers: scoped `auto_inline off` with explicit inline helpers.
-  - A local dispatch-table copy before validation: a typed selection/
-    validation helper with explicit returns; verify the copy itself.
-  - Inventory ownership checks keep the bit-read result across the item-type
-    lookup inside the helper, with the original lazy bounds checks.
-  - After extracting a helper, remove the Boolean normalization and caller
-    snapshots it makes redundant.
-- Decoder phases: a typed inline phase boundary with genuine inputs/outputs,
-  including cursor setup when the phase owns it; an outer decode owner can span
-  init to publication. Flattening nested phases can undo gains.
-- Repeated fill/clear with an advancing cursor: a pointer-to-pointer helper
-  that stores and advances the caller's cursor, over the full array extent.
-- Escape-window shifts: a typed inline value helper can fix scheduling (Dc11)
-  but is context-dependent (it regressed the Nintra first-code phase).
-- A donor table-construction macro can encode loop-lifetime boundaries; keep
-  its separate counters (`sfxzmv_MakeOrgZ32TblByCCIR`).
-- An `inline` helper can still emit a call under the TU settings; a canonical
-  field-access macro can replace it locally (RenderWare default atomic
-  callback). Audit evaluation count.
+- `dont_inline` region also blocks expansion inside its function; moving
+  pragma into body doesn't narrow it. Restore proven caller-before-callee
+  order before forcing policy.
+- Plain `static` can emit unused out-of-line body (`adxb_EntrySte` in
+  `ADXB_EvokeDecode`); `static inline` doesn't. Live donor helper with no
+  retail symbol -> `static inline` `[da]`.
+- Donor inlines or table-dispatches, retail calls each routine directly (or
+  reverse) `[da]`: REQUIRE retail `bl` targets + helper's own symbol. TRY
+  dropping `inline` on helpers retail calls; replace table dispatch with
+  direct branches on real selector bits (mk-da `MotionComp`). Donor calls a
+  dispatch helper there -> `static inline` helper doing direct dispatch may be
+  the original. Table/typedef unused after that, no retail symbol, no table
+  data or `.rela.data` -> delete it.
+- One-purpose inline helper for a fast path the shared helper can't make:
+  only when shared form measured worse; record measurement `[da]`.
+- Keep callee out of line while explicit helpers still expand: scoped
+  `auto_inline off` at callee def (`LSC_EntryFileRange`). Static helper
+  retail calls under `-inline auto`: object `-inline noauto` (dvdlow
+  `SeekTwiceBeforeRead`, `__OSCacheInit`); recheck every function.
+- Deleting nested `static inline` lowers enclosing cost; `-inline auto` may
+  then expand it into callers (`plyr_weapon_trail_hide` 4x). Check callers'
+  instruction counts.
+- Moving a body: canonical decls must precede it (no implicit int). One fixed
+  edge can expose another auto-inline; nested helpers -> final caller before
+  callee when retail needs the call.
+- No-setting control proves a pragma is needed.
+- Donor/private helper may exist only as inlined island; extract when retail
+  groups a whole loop + publications (`sfmps_UpdateStreamBounds`). Unrolled
+  clear + folded status tail = status-returning helper (`MPS_Init`); stop if
+  every honest form erases dead retail branches.
+- Wrapper loads endpoint, compares with itself before shared inlined loop:
+  REQUIRE same clamp in sibling wrappers + same loop. TRY endpoint through
+  existing inline clamp before loop (`ani_to_end`, `animpdata_ani_to_end`).
+- Inlined unlink compares updated head with itself + keeps null-result
+  assign: REQUIRE canonical unlink's local-head store, returned node, real
+  publication via previous link. TRY `node = ListRemove(&node)` on local head,
+  keep asserts; never write self-compare (`ListNodeAlloc`).
+- Inline limits: test `inline_max_size` + `inline_max_total_size` together in
+  isolated diagnostic; proves expansion, not retail pragma values. Typed
+  inline helper over macro when macro changes ref ownership or stack. TU
+  limit = M13.
+- Predicate/selection helpers (+H11):
+  - Retail keeps classified values across lazy queries, reloads at admission,
+    queue mutation, breakout: REQUIRE full policy decisions/effects, same
+    input + publication order. TRY typed inlines taking those real values,
+    owning full scan/compaction indices; early operation return can keep
+    caller's later work (`pz_fighter_fight_request`). Verify expansion + every
+    sibling; no isolated-load extraction, no control flag.
+  - Repeated Boolean joins/selections: meaningful helper keeping
+    consumer-specific loads, null guards, failure cleanup, shared publication
+    (`ReadSram`).
+  - Bounded scan, found + exhausted assignments join before one test: assign
+    at both exits, e.g. unconditional `for` with found `break` and `++index >=
+    8` `break` (`sfply_IsBpaOn`, no `goto`).
+  - Return stopping index (limit on exhaustion), not Boolean + repeated guard.
+    Boundary scan + neighbor updates in one helper.
+  - Cleanup gated by returned Boolean -> move into the operation. Structured
+    break-to-cleanup + early returns replace `goto`.
+  - Sentinel validation with callback failures returns right after callbacks;
+    success publication after loop.
+  - Wrapper returning inline result can merge ptr/null paths; direct
+    traversal in that wrapper.
+  - Lookup defined after its consumer: shared inline body + public wrapper
+    keeps public order. Retail expands allocation, raster tests, cleanup
+    before public def (`image`) -> expose typed impl before consumer, verify
+    both bodies. Keep explicit public body if wrapper changes codegen. Move
+    proven `dont_inline` scope with its callee group; reset before wrappers
+    retail keeps out of line.
+  - Reuse existing lookup only if bounds, first-match order, fallback agree.
+    Keep caller precondition; no added null guard.
+  - Button dispatch: eligibility outside suppression predicate; one switch can
+    recover one game-state read.
+  - FP compare via `mfcr` or result held across calls: returned predicate or
+    early-return decision.
+  - Reset result joining later decisions: false-init result assigned helper's
+    return.
+  - Simple threshold via inlined typed Boolean helper (`sfx_IsEnoughWork(s32)`
+    removed accidental 64-bit compare).
+  - Extracting inline conversion helpers can zero a public wrapper; donor's
+    scoped `dont_inline` restored both (`sfxzmv_MakeCnvZTbl`).
+  - Recursive consumers: scoped `auto_inline off` + explicit inline helpers.
+  - Local dispatch-table copy before validation: typed selection/validation
+    helper, explicit returns; verify the copy.
+  - Inventory ownership checks keep bit-read result across item-type lookup
+    inside helper, original lazy bounds checks.
+  - After extracting helper, drop Boolean normalization + caller snapshots it
+    made redundant.
+- Decoder phases: typed inline phase boundary with real inputs/outputs, incl
+  cursor setup it owns; outer decode owner can span init to publication.
+  Flattening nested phases can undo gains.
+- Null gate before bounded wait keeps enter-branch + jump past wait: REQUIRE
+  null skips only this operation, caller snapshots live across callbacks. TRY
+  complete inline wait with null early return incl process selection +
+  counter setup; passing only constant counter inits too late
+  (`drone_set_difficulty_level`). Verify countdown + later owner reloads; no
+  caller return or lifetime block.
+- Object loop owner/index regs + derived zero differ around repeated callback
+  phase: REQUIRE same callback + publication order. TRY typed inline owning
+  whole indexed phase, direct canonical array access, not record-rebasing
+  pointer local (`p_obj_ctrl`). Verify reloads after callbacks + consumers;
+  drop padded offset view if canonical array matches.
+- Repeated fill/clear with advancing cursor: pointer-to-pointer helper
+  storing + advancing caller cursor over full extent.
+- Escape-window shifts: typed inline value helper can fix scheduling (Dc11),
+  context-dependent (regressed Nintra first-code phase).
+- Donor table-construction macro can encode loop-lifetime boundaries; keep
+  separate counters (`sfxzmv_MakeOrgZ32TblByCCIR`).
+- `inline` helper can still emit a call under TU settings; canonical
+  field-access macro can replace it locally (RW default atomic callback).
+  Audit evaluation count.
+- Retained object + returned effect handle swap saved regs: REQUIRE same
+  effect selection, position query, publication in sibling consumers. TRY
+  typed inline owning whole operation, passing real object snapshot
+  (`flash_hit_at_bid_with_y`). Wrapper around snapshot load only != proven
+  boundary.
 
 ## H08
 
-Latch diamond. REQUIRE null-before-instance reads and no call in between.
+Latch diamond. REQUIRE null-before-instance reads, no call between.
 
-- Use a typed accessor returning the validated pointer or null; pass the owner
-  if argument evaluation hoists reads. No empty valid arm.
-- IF retail explicitly skips a null assignment on the valid instance arm,
-  REQUIRE the separate null-owner arm and the same pointer test. TRY selecting
-  the validated pointer with `condition ? pointer : 0`
-  (`destroy_sobj_ctrl_proc`).
-- Reuse an existing accessor before adding a latch view; its success return
-  keeps the branch an open-coded empty arm folds away (Konquest grounding). A
-  shared owner-typed process accessor can replace a padded latch view.
-- Repeated object slots: reuse accessors and reload the owner after each
-  effectful call.
-- Direct-return addendum: when source merges null arms but retail keeps them
-  separate, `return object;` on the valid instance and `return 0;` in each
-  failure arm (`reaction_xfer_him`, `get_mission_state`). Measure per owner.
-- Owner-index addendum: retail folds member offsets into loads where source
-  forms `&array[i]`: an inline helper taking owner plus index
-  (`fighter_severed_limb_live_object`).
-- Direct-owner accessors suit adjacent load/validation; cached forms suit real
-  intervening effects. Extracting a latch can change a caller's inlining; check
-  every caller.
+- Typed accessor returning validated ptr or null; pass owner if arg eval
+  hoists reads. No empty valid arm.
+- Open-coded rejection merges null arms, swaps saved owner/object: REQUIRE
+  canonical lazy ptr/instance macro + verified header-at-zero layout. TRY
+  macro directly on owner fields with its header type, restore concrete
+  result type (`p_mk_chess_apply_force`). Separately staged ptr can keep
+  extra volatile copy.
+- Retail skips null assignment on valid arm: REQUIRE separate null-owner arm +
+  same ptr test. TRY `condition ? pointer : 0` (`destroy_sobj_ctrl_proc`).
+- Reuse existing accessor before adding latch view; its success return keeps
+  the branch an empty arm folds away (Konquest grounding). Shared owner-typed
+  process accessor can replace padded latch view.
+- Repeated object slots: reuse accessors, reload owner after each effectful
+  call.
+- Source merges null arms, retail separate: `return object;` on valid,
+  `return 0;` in each failure arm (`reaction_xfer_him`, `get_mission_state`).
+  Measure per owner.
+- Retail folds member offsets into loads where source forms `&array[i]`:
+  inline helper taking owner + index (`fighter_severed_limb_live_object`).
+- Direct-owner accessors suit adjacent load/validate; cached forms suit real
+  effects between. Extracting a latch can change caller inlining; check every
+  caller.
 
 ## H09
 
-Loops. REQUIRE zero-iteration behavior and test/update order.
+Loops. REQUIRE zero-trip behavior + test/update order.
 
-- A dynamic bound loaded once into CTR: snapshot the bound, keep per-iteration
-  pointer reloads. A fixed positive extent: test bounded `for`/`<` against
-  do/while/`!=`. An unsigned ascending index keeps `cmplwi`/`ble` + CTR.
-- A rotated top test may need a top guard. Keep polling, sleep, and countdown
-  order, including the final input recheck.
-- IF retail tests a frame bound at loop entry and exact equality after the
-  sleep, REQUIRE both edges and zero-iteration behavior. TRY a pretested loop
-  with an equality `break` after the sleep (`ani_to_frame_x_call`).
-- Check the first edge into a counted search: a branch to the initial compare
-  means a pretested loop that can skip every iteration.
-- Table scan to the first matching ID: bounded `for` with a found `break`.
-- IF retail places a hoisted loop-invariant load in a block after the final
-  return (`b tail` ... `tail: lwz; b header`), REQUIRE an otherwise matching
-  `for(;;)` block order. TRY a pretested loop whose condition only becomes
-  constant after optimization, such as `while (!found)` on a flag zeroed at
-  entry. The front end rotates it, so backend LICM appends the new preheader at
-  the function end. `for(;;)`, `while (1)` and `(1 == 1)` are folded too early
-  and keep the preheader inline (`drone_ai_fetch_next_AIState`).
-- Delimiter scan: a typed inline scanner returning right after the count store
+- Dynamic bound loaded once into CTR: snapshot bound, keep per-iteration
+  pointer reloads. Fixed positive extent: test bounded `for`/`<` vs
+  do/while/`!=`. Unsigned ascending index keeps `cmplwi`/`ble` + CTR.
+- Fixed reverse array clear, only zero/index setup order differs: REQUIRE same
+  descending order + unused final iterator. TRY `for (i = count; i-- != 0;)
+  array[i] = 0` (defined final wrap) (`ScreenObject::ClearActiveObjects`).
+- Rotated top test may need top guard. Keep polling, sleep, countdown order
+  incl final input recheck.
+- Frame bound at entry + exact equality after sleep: REQUIRE both edges +
+  zero-trip. TRY pretested loop with equality `break` after sleep
+  (`ani_to_frame_x_call`).
+- First edge into counted search: branch to initial compare = pretested loop
+  that can skip all.
+- Table scan to first matching ID: bounded `for` + found `break`.
+- Hoisted invariant load in block after final return (`b tail` ... `tail:
+  lwz; b header`): REQUIRE otherwise matching `for(;;)` block order. TRY
+  pretested loop whose condition is constant only after optimization (`while
+  (!found)`, flag zeroed at entry). Front end rotates it; backend LICM appends
+  preheader at function end. `for(;;)`, `while (1)`, `(1 == 1)` fold too early
+  (`drone_ai_fetch_next_AIState`).
+- Delimiter scan: typed inline scanner returning right after count store
   (`sfmps_DecodeOneUnit`, no `goto`).
-- Fixed ramp: a paired CTR loop from a single-entry `for` when the donor has
-  one (`CFT_MakeArgb8888AlpLumiTbl`); not for clamped interleaved ramps. A pair
-  of updates per iteration can be a fixed pair-count loop.
-- Owner walk: separate count, pointer, and index locals; `owner++` at the end of
-  the body when retail advances it before the index (`MPS_Finish`).
-- Retail `mulli`/`add` per iteration: `entry = &table[i]` inside the loop, not
-  an advancing pointer (`LSC_ExecServer`).
-- Two strength-reduced pointer walks can need declaration order different from
-  assignment order (`sfxzmv_MakeCnvZTbl`).
+- Fixed ramp: paired CTR loop from single-entry `for` when donor has one
+  (`CFT_MakeArgb8888AlpLumiTbl`); not for clamped interleaved ramps. Pair of
+  updates per iteration can be fixed pair-count loop.
+- Owner walk: separate count, pointer, index locals; `owner++` at body end
+  when retail advances it before index (`MPS_Finish`).
+- Retail `mulli`/`add` per iteration: `entry = &table[i]` in loop, not
+  advancing pointer (`LSC_ExecServer`).
+- Two strength-reduced pointer walks can need decl order != assignment order
+  (`sfxzmv_MakeCnvZTbl`).
+- Walking pointer, buffer, other input colored wrong order (retail: walker
+  lowest callee-saved) `[da]`: REQUIRE retail also keeps index (bound, stored
+  or passed position). TRY `buffer[index]`, no cursor local, before any
+  coloring search. MWCC strength-reduces index into pointer created after
+  params; explicit cursor local is created before them, swaps webs (`mflGetS`:
+  3 tries after 60 manual + 185k permuter on cursor shape). Fixed-width char
+  padding variant: H21.
+- Prologue scheduling differs, body exact `[da]`: bound/end pointer written in
+  byte math retail doesn't need. TRY loop's element units (`end = out +
+  (width >> 1)`, not `(u32*)(row + (width << 1 & ~3))`) (`vdisp_copy_frame`).
 - No dummy one-trip loop.
 
 ## H10
 
-Switch dispatch. REQUIRE the full finite case/default/fallthrough set and text
-order.
+Switch. REQUIRE full finite case/default/fallthrough set + text order.
 
-- m2c can omit labels that share an arm even above 99%. Verify finite bounds
-  before accepting a decompiled default arm.
-- Recover case order, shared tails, nested switches inside outer cases, and
-  where each default is emitted.
-- A small ordered hardware-ID sequence can be an `if`/`else if` chain
-  (`InitMetroTRKCommTable`); two adjacent priority cases can require a real
+- m2c can omit labels sharing an arm even >99%. Verify finite bounds before
+  accepting decompiled default.
+- Compare-tree split one past adjacent error-code cluster: REQUIRE callee/API
+  defs + identical destinations. TRY explicit shared cases, not rewritten
+  tree (`mem_card_read`: CARD_RESULT_NOPERM, CARD_RESULT_LIMIT).
+- Recover case order, shared tails, nested switches, where each default is
+  emitted.
+- Small ordered hardware-ID sequence can be `if`/`else if` chain
+  (`InitMetroTRKCommTable`); two adjacent priority cases can need real
   `switch` (`ARQPostRequest`).
-- Per-arm address formation: retain the real index; a table base formed before
-  dispatch stays one owner.
-- Explicitly compared no-op cases get an evidenced `case N: break;`.
-- Idle states in a dense table: one case per table entry; keep one state local
-  across the pre-server check (`sfply_ExecOne`).
-- Dead-branch addendum: a compare tree ending in an unreachable extra `b join`
-  needs one empty label just beyond the tested range sharing the other empty
-  cases' `break` (`go_into_twitch_death`, `go_into_major_pain`).
-- Jump-table layout: an edit that raises `.text` but lowers `.data` moved case
-  addresses; reject it (`mk_chess_set_game_mode`).
-- A float constant loaded once at the join: one return after the chain; keep
-  early returns inside cases (`p_chomper_controller`). Two cases sharing a call
-  where one only guards: `if (!cond) break;` falling into `default`
-  (`p_game_loop`).
-- Ordered classifier: staged shift/or key, each arm assigns one result, shared
-  return (`MPV_CheckDelim`).
+- Per-arm address formation: keep real index; table base formed before
+  dispatch = one owner.
+- Explicitly compared no-op cases: proven `case N: break;`.
+- Idle states in dense table: one case per entry; one state local across
+  pre-server check (`sfply_ExecOne`).
+- Compare tree ending in unreachable extra `b join`: one empty label just past
+  tested range sharing other empty cases' `break` (`go_into_twitch_death`,
+  `go_into_major_pain`).
+- Same dead `b default`, plus loaded selector in r4/r6/r7 where ours uses r0:
+  REQUIRE enum switch, sentinel shares `default`. TRY enum `*_FORCE_32BIT =
+  0x7FFFFFFF` label before `default`; constant too big for `cmpwi` keeps
+  selector off r0. No invented small label (`case 6`). Check sibling ports
+  (PS2 MW MIPS compares 0x7FFFFFFF) (`mwMemHeapGetMaxFreeBlock`,
+  `privInitSystemHeap`, `mwMemHeapStrategyCallback`).
+- Missing-ID guard + nullable attachment arm match except unreachable
+  shared-exit branch: REQUIRE real zero sentinel, kept lookup/null order. TRY
+  two-arm `switch`, attachment in `default`, direct `case 0` failure return
+  (`replace_sobj_texture_with_named_wiff`); no extra cases, no dead return.
+- Jump-table layout: edit raising `.text` but lowering `.data` moved case
+  addresses; reject (`mk_chess_set_game_mode`).
+- Float const loaded once at join: one return after chain, early returns
+  inside cases (`p_chomper_controller`). Two cases sharing a call, one only
+  guards: `if (!cond) break;` into `default` (`p_game_loop`).
+- Ordered classifier: staged shift/or key, each arm assigns one result,
+  shared return (`MPV_CheckDelim`).
+- Small state constants (2/3, 4/5) stored to a field, diff = staging of
+  those constants `[da]`: REQUIRE retail writes only those values. TRY local
+  `enum` of states + explicit `if`/`else` assigning them, not ternary, `s32`
+  local, or default-zero (`mslStreamStart`).
 - No speculative labels.
 
 ## H11
 
-Joins. REQUIRE actual branch destinations and effect ownership.
+Joins. REQUIRE real branch destinations + effect ownership.
 
-- Identify the target instruction: a branch to a final store differs from one
-  past it. Trace failure branches to their destination before calling a
-  difference scheduling-only (Krypt coffin effects: one failure skips every
-  later object).
-- Nullable owner with result initialized before the guard: null-initialized
-  result, assigned from the validated accessor inside the guard, one return.
-- First verify retail tests the owner at all; drop an unsupported fallback.
-- Extra early-failure assignment: a positive gate sharing the final return. If
-  a real state still lowers differently, try a one-case switch with the
-  existing default.
-- Final integer Booleans: `!= 0` and `== 1` differ even when the value is 0/1.
-  Test arm order separately; a two-value selection uses the real conditional,
-  whose zero-first vs nonzero-first order picks different carry code.
-- IF retail keeps one tested state word live through multiple bit tests, then
-  loads 1 or 0 in separate arms, REQUIRE the same input value and branches.
-  TRY a block-local state sample with explicit result arms instead of a compact
-  `&&` assignment (`is_he_blocking_throw`).
-- A null-failure block before independent gates: positive pointer guard with
-  an else-return, then the gates.
-- Merge null/invalid failures with `||` only when retail shares the return;
-  keep bounds/state failures separate. Separate success returns inside action
-  arms when retail does. Never omit a return.
-- Pointer-membership Booleans: sequential tests with explicit returns
+- Identify target instruction: branch to final store != branch past it.
+  Trace failure branches before calling it scheduling (Krypt coffin effects:
+  one failure skips all later objects).
+- Nullable owner, result init before guard: null-init result, assigned from
+  validated accessor inside guard, one return.
+- First verify retail tests owner at all; drop unsupported fallback.
+- Extra early-failure assign: positive gate sharing final return. Real state
+  still lowers different -> one-case switch with existing default.
+- Final int Booleans: `!= 0` vs `== 1` differ even for 0/1 values. Test arm
+  order separately; two-value select uses real conditional, zero-first vs
+  nonzero-first picks different carry code.
+- Sequential predicates share one retail epilogue: real result local owns
+  whole chain incl first success arm. Result local only after early return
+  tests different join (`should_i_weapon_block`).
+- One tested state word live through several bit tests, then 1/0 in
+  separate arms: REQUIRE same input + branches. TRY block-local state sample
+  + explicit result arms, not compact `&&` (`is_he_blocking_throw`).
+- Null-failure block before independent gates: positive ptr guard with
+  else-return, then gates.
+- `||` merge of null/invalid only when retail shares return; keep null test
+  before lazy reads. Nested exclusion folds to one skip branch, retail has
+  conditional to body + unconditional shared return: TRY combined
+  early-return guard (`trial_load_monk`). Bounds/state failures with
+  different exits stay separate. Separate success returns inside action arms
+  when retail does. Never omit a return.
+- Pointer-membership Booleans: sequential tests, explicit returns
   (`__DVDLowTestAlarm`).
-- Inlined validators: ordered direct returns instead of a result plus
-  `else if` chain (`ADX_DecodeInfoExIdly`). A stored owner, local invalid
-  result, and expanded error callback are three open-coded stages
-  (`MPS_Destroy`); one typed local for the shared work pointer
-  (`MPS_SetErrFn`, `MPSLIB_SetErr`).
-- Trace negation scope: `!(A && B && C) && D` is not
-  `!((A && B && C) && D)`.
-- Temporary board simulation: keep every restoration and the final rebuild,
-  including zero-iteration paths.
+- Inlined validators: ordered direct returns, not result + `else if`
+  (`ADX_DecodeInfoExIdly`). Stored owner, local invalid result, expanded
+  error callback = three open-coded stages (`MPS_Destroy`); one typed local
+  for shared work ptr (`MPS_SetErrFn`, `MPSLIB_SetErr`).
+- Negation scope: `!(A && B && C) && D` != `!((A && B && C) && D)`.
+- Temp board simulation: keep every restore + final rebuild, incl zero-trip.
 - Genuine cleanup edges: M08.
+- Failure clears retained owner then branches to shared final return
+  (`get_mkobj_frame`): REQUIRE that exact destination + measured structured
+  alternatives. AGENTS.md forward `goto` only if those regress and shared exit
+  avoids duplicated init or fake flag. Retail jumps from inside wait loop to
+  shared end-of-iteration block `[da]`: three failed structured forms, then
+  one local `goto` (mk-da `gop_decode`). Record measurements in task report.
 
 ## H12
 
-POD copies: aggregate assignment for word/CTR copies, components for
+POD copies: aggregate assign for word/CTR copies, components for
 `lfs`/`stfs`. Three interleaved word copies in a particle stream can be one
-`Vec` assignment. Keep API byte strides and copy order; only then test
-declaration order. Event buffer extent comes from the consumer copy as well as
-producer stores. No invented initialization.
+`Vec` assign. Keep API byte strides + copy order; then test decl order. Event
+buffer extent from consumer copy + producer stores. No invented init.
+Copy reorders loads vs stores, each loaded word used `[da]`: name every
+loaded word in a local so all loads precede stores (`IntraAotBlock`
+`temp0..temp3`).
 
 ## H13
 
-Intrusive lists: exact typed reciprocal-store order; save next before a
-mutating callback; reload links as retail does. Repeated stale-node removal
-that differs only in saved-successor allocation: a typed inline helper
-returning the successor, keeping save-next, clear-header, destroy order.
+Intrusive lists: exact typed reciprocal-store order; save next before
+mutating callback; reload links as retail. Repeated stale-node removal
+differing only in saved-successor allocation: typed inline helper returning
+successor, keep save-next, clear-header, destroy order.
 
 ## H14
 
-Stack slots and store order. REQUIRE real address-taken locals, offsets,
+Stack slots + store order. REQUIRE real address-taken locals, offsets,
 lifetimes.
 
-- At -O4, address-taken locals get slots in reverse declaration order. Reverse
-  declarations when retail runs the other way; size a genuine buffer from the
-  frame gap once its maximum write fits (`p_setup_konquest_map`).
-- Declaration order and block scope interact; measure each and the
-  combination with initialization fixed. Block scope means an existing
-  `if`/loop/`else` body: a bare `{ }` added only to scope a temporary is force
-  matching, not honest source (`validate_save_location`'s dummy slot local).
-- MWCC keeps stack-member stores in source order. Same instruction count, a
-  different store interleave, and a different `stmw` set are store-order
-  evidence: write members in retail's `stw` offset order
-  (`mwMemAllocateFixedBlockHeaps`, `mwMemHeapInit`).
-- Separate declaration from initialization only without const, aggregate,
-  scope, or lifetime changes; reordered initialized declarations reorder
-  stores. A branch-local scalar with the wrong register can move to the
-  function's declaration group, keeping its load in the branch.
-- Initialize after a lock/lookup when the accumulator has no earlier use
-  (`SFMPVF_GetNumFrm`). Keep a process-creation output's zero init inside the
-  creation guard.
-- Mutually exclusive paths with per-path stack slots: distinct typed locals
-  (`TRKDoContinue`, `TRKDoStep`); a per-branch `Vec` declared in each block.
-  A final switch joining one epilogue: result initialized before the switch.
-- A donor inline result that must outlive another argument gets its own local
-  before the call. Keep separate loop counters.
-- CRI frame-plane order: store strides and base plane before aligning height
-  (`SFD_CalcYccPlane`); assign size locals at first use and the plane-array
-  pointer after the picture-type branch (`sfmpv_SetFrmPara`); declare the
-  frame-buffer pointer before frame size (`sfmpv_ChkBufSiz`). A timecode
-  converter's two scale stores are both real (`sftim_Tc2Time29N`).
-- Formatted-text buffers: size from the callee's maximum output including the
-  terminator.
-- Distinguish compiler-created by-value copies. No padding locals.
+- -O4: address-taken locals slotted in reverse decl order. Reverse decls when
+  retail runs other way; size real buffer from frame gap once max write fits
+  (`p_setup_konquest_map`).
+- Decl order and block scope interact; measure each + combo with init fixed.
+  Block scope = existing `if`/loop/`else` body; bare `{ }` only to scope a temp
+  = force matching (`validate_save_location` dummy slot local).
+- MWCC keeps stack-member stores in source order. Same instr count, different
+  store interleave, different `stmw` set = store-order evidence: write members
+  in retail `stw` offset order (`mwMemAllocateFixedBlockHeaps`,
+  `mwMemHeapInit`).
+- Split decl from init only without const/aggregate/scope/lifetime change;
+  reordered initialized decls reorder stores. Branch-local scalar with wrong
+  reg can move to function decl group, load stays in branch.
+- Init after lock/lookup when accumulator has no earlier use
+  (`SFMPVF_GetNumFrm`). Process-creation output zero init stays in creation
+  guard.
+- Exclusive paths with per-path slots: distinct typed locals (`TRKDoContinue`,
+  `TRKDoStep`); per-branch `Vec` declared in each block. Final switch joining
+  one epilogue: result init before switch.
+- Donor inline result outliving another arg gets own local before call. Keep
+  separate loop counters.
+- CRI frame-plane order: store strides + base plane before aligning height
+  (`SFD_CalcYccPlane`); size locals at first use, plane-array ptr after
+  picture-type branch (`sfmpv_SetFrmPara`); frame-buffer ptr declared before
+  frame size (`sfmpv_ChkBufSiz`). Timecode converter's two scale stores both
+  real (`sftim_Tc2Time29N`).
+- Formatted-text buffers: size = callee max output incl terminator.
+- Tell compiler-made by-value copies apart. No padding locals.
 
 ## H15
 
-Coloring with identical operations. Check association and staging first; then
-at most one honest lifetime/declaration insight; then stop (tier 4). No register
-carousel or invented uses.
+Coloring, identical ops. Association + staging first; then max one honest
+lifetime/decl insight; then stop (tier 4). No register carousel, no invented
+uses. Checklist `[da]`: grouping -> one decl/scope change -> H26 / real
+cached local -> tier 4. Copy of in-scope value, reuse of unrelated variable,
+branch-only alias = dishonest even at 100.
 
-- Integer association: when retail adds a random increment and then a fixed
-  one, try two sequential additions to the accumulator. Operand order matters
-  independently of staging; this does not extend to FP reassociation.
-  `channel_count * (sample_count * 2)` differs from
-  `sample_count * (channel_count << 1)` (`ADXB_ExecOneAiff16`). Ceiling division
-  `length + size` then decrement: name the count, add, decrement, divide.
-- Two-call sum: `A() + B()` evaluates B first; a staging local keeps the old
-  order (`ADXSTM_Create`). Nested call arguments behave the same: in
-  `f(g(1), g(2))` MWCC calls `g(2)` first, so a staged local for the second
-  string argument is residue (`_trial_add_required_sequence`).
-- Select spelling: `x = p ? 0 : C;` vs `x = C; if (p) x = 0;` give identical
-  instructions but different allocation (`gc_aram_mwmem_heap_setup`).
-- Scaled argument: `MEMPRINT(fmt, size_kb *= 1.0f / 1024.0f, name)`
+- Decl order + scope `[da]` (mk-da's top rule): lifetimes look shifted ->
+  one honest move of where a real local is declared (outer vs block, before vs
+  after another local's first use). GC/1.2.5 colors in decl order.
+- Two independent init loops share one index, only 2nd loop rotates
+  constants/address regs: REQUIRE separate arrays, no shared index value. TRY
+  C++ loop-local index for 2nd loop (`ScreenObject::ScreenObject`); keep
+  iteration/store order; no bare blocks or per-store wrappers.
+- Compound reassociation `[da]`: MWCC rewrites `x += a + b` as `(a + x) + b`.
+  One add/or/xor commuted -> fold constant term into previous statement or
+  split `x += a; x += b;` so running value stays left operand
+  (`HVQM4BufaCreate`: `= product + 64; += nodes; += 32;`). Random then fixed
+  increment: two sequential adds. Operand order matters apart from staging;
+  not for FP. `channel_count * (sample_count * 2)` != `sample_count *
+  (channel_count << 1)` (`ADXB_ExecOneAiff16`). Ceiling div: name count, add,
+  decrement, divide.
+- Name real base quantity `[da]`: size math right ops, wrong staging. TRY
+  `u32 pixels = width * height;` then derive scaled sizes. Never copy of
+  existing local (`decv_init`).
+- `A() + B()` evaluates B first; staging local keeps old order
+  (`ADXSTM_Create`). `f(g(1), g(2))` calls `g(2)` first; staged local for 2nd
+  string arg = residue (`_trial_add_required_sequence`).
+- Select spelling: `x = p ? 0 : C;` vs `x = C; if (p) x = 0;` same instrs,
+  different allocation (`gc_aram_mwmem_heap_setup`).
+- Scaled arg: `MEMPRINT(fmt, size_kb *= 1.0f / 1024.0f, name)`
   (`mwMemUserConfigOutofMemoryCallback`); siblings may differ.
-- FP temporaries: MWCC numbers temporaries per statement (a pooled constant
-  first) and colors newest-first into the lowest free volatile FPR. Stage a
-  negation and a copy into result locals in earlier statements
-  (`ai_side_clearances`). Pool label numbers are not pool order.
-- Narrow parameters: an explicit cast or u16 local hoists the argument load; an
-  implicit conversion to a `unsigned short` parameter does not (`drone_loop`).
-  Needs callee evidence of the narrow parameter; a u16 return makes callers
-  re-normalize.
-- `!value` instead of `value == 0` in an argument can change allocation;
-  it does not transfer to branch conditions.
-- Declarations: swap two real scalar coordinate declarations; declare a slot
-  pointer beside its index.
-- Volatile FPRs around an inlined helper: the helper's temporaries take the
-  lowest FPRs and the caller's float locals that live across it take the next
-  ones in declaration order (earliest lowest). Give each value its own local
-  (position, delta) instead of reusing one, name the square products, and
-  write the dot product in retail operand order. These levers are coupled:
-  each alone is neutral or reversed, so search them jointly on the host
-  (`mks_get_victim_to_tr_dot`: normalized components declared first, z before
+- FP temps: numbered per statement (pooled const first), colored newest-first
+  into lowest free volatile FPR. Stage negation + copy into result locals in
+  earlier statements (`ai_side_clearances`). Pool label numbers != pool order.
+- Narrow params: explicit cast or u16 local hoists arg load; implicit
+  conversion to `unsigned short` param doesn't (`drone_loop`). Needs callee
+  narrow-param evidence; u16 return makes callers re-normalize.
+- `!value` vs `value == 0` in an arg can change allocation; not for branch
+  conditions.
+- Decls: swap two real scalar coordinate decls; slot pointer beside its index.
+- Byte copy coalesces with int producer, not dead owner: REQUIRE same scope,
+  ops, types. TRY int producer declared before intervening owners, byte
+  consumer after (`ScreenWaitAnimAction::Update`); confirm full decl order in
+  full TU, not reduced search.
+- Signed-short coords with retail `extsh` beside full dims: `int` locals
+  init `(short)` at coordinate boundary. Normalized values + FIFO write widths
+  unchanged; `short` locals use other allocation class (`feedback_effect`).
+- Volatile FPRs around inlined helper: helper temps take lowest FPRs; caller
+  floats live across it take next in decl order (earliest lowest). Own local
+  per value (position, delta), name square products, dot product in retail
+  operand order. Coupled levers: each alone neutral/reversed -> search jointly
+  on host (`mks_get_victim_to_tr_dot`: normalized components first, z before
   x).
-- Remove redundant aliases: read a mirrored field directly
-  (`SFCON_UpdateConcatTime`); write through a single-use global owner at the
-  final store (`GXSetZTexture`); keep owner selection at the lazy validation
-  boundary; pass the original member to a validator.
-- Staging: assign a float getter sample before accumulating; keep a memory read
-  that precedes both Boolean branches unconditional; capture a counter
-  postincrement when retail compares the old value; stage the dividend in the
-  remainder local.
-- Restore a typed private search helper when an inlined fixed-array search
-  only swaps index and pointer (`sjmem_SearchFreeObj`, `lsc_SearchFreeObj`).
-- A typed subrecord owner for unrolled stores (`MPVCMC_InitObj`).
-- Evolve dead input parameters as out-count/return accumulators or decode
-  cursors when retail keeps their registers (`SJRBF_IsGetChunk`,
-  `MPSDEC_DecHdMpeg1`), only after their original last use.
-- WAV deinterleave: the donor's mutable u16 view, and its byte-swap macro when
-  each argument is a side-effect-free load (`ADXB_ExecOneWav16`).
+- Drop redundant aliases: read mirrored field direct
+  (`SFCON_UpdateConcatTime`); write via single-use global owner at final store
+  (`GXSetZTexture`); pass sole-use member to existing helper
+  (`obj_find_material_by_id`); owner selection at lazy validation boundary;
+  pass original member to validator.
+- Pool-slot free-list pop: selected node = result, update canonical slot head
+  directly. REQUIRE unchanged pool/index before store
+  (`hashtable_store_with_instance`); no recompute local.
+- Staging: float getter sample before accumulate; memory read before both
+  Boolean branches stays unconditional; capture counter post-increment when
+  retail compares old value; stage dividend in remainder local.
+- Inlined fixed-array search only swaps index/pointer: restore typed private
+  search helper (`sjmem_SearchFreeObj`, `lsc_SearchFreeObj`).
+- Typed subrecord owner for unrolled stores (`MPVCMC_InitObj`).
+- Dead input params evolve into out-count/return accumulators or decode
+  cursors when retail keeps their regs (`SJRBF_IsGetChunk`,
+  `MPSDEC_DecHdMpeg1`), only after original last use.
+- WAV deinterleave: donor mutable u16 view + its byte-swap macro when each
+  arg is side-effect-free load (`ADXB_ExecOneWav16`).
+- Field value colors wrong, one-shot `T* x = s->field;` before test gives
+  wrong web `[da]`: REQUIRE retail reads field in test and in branch. TRY test
+  field directly in condition, bind local inside branch; MWCC CSE-merges both
+  loads into one web (`mslSoundStop`).
+- Equality vs constant, esp recursive code MWCC inlines `[da]`: swap operands
+  (`1 == depth`); changes value numbering in inlined copies
+  (`AllocateToLeaf`).
 
 ## H16
 
-Nest a single-use result; keep the original callback owner at an untyped
-boundary. Store forwarding: `g = f(); use(g);` forwards without a reload even
-under `-opt nocse` (`gc_aram_init`). No manufactured return contract.
+Nest single-use result; keep original callback owner at untyped boundary.
+`g = f(); use(g);` forwards without reload even under `-opt nocse`
+(`gc_aram_init`). No manufactured return contract.
 
-- IF a script wrapper moves a saved string result through an extra register,
-  REQUIRE retail's argument-fetch order. TRY direct producer expressions in
-  both call arguments, then verify the compiler preserves that order
-  (`_konquest_start_nis_anims_load`).
-- IF scalar script arguments follow a string resolver call, REQUIRE whether
-  retail retains the original argument frame or reloads `current_args`.
-  TRY the observed snapshot boundary: retain the frame for
-  `_pfx_spawn_at_bid`, reload it for `_bgnd_set_fx_z_offset`.
+- Retail publishes owner before validating two nullable refs, only
+  owner/result regs differ: REQUIRE same store + lazy instance read order. TRY
+  typed publication helper fed by actual owner assignment expression; drop
+  outer owner alias (`pw_plyr_force`).
+- Returned pointer moved via temp before setting consumer arg: REQUIRE staging
+  belongs to observed branch, keeps producer/consumer order. TRY named typed
+  result in that branch; direct forwarding where retail has it
+  (`render_mkatomic`).
+- Script wrapper moves saved string result via extra reg: REQUIRE retail
+  arg-fetch order. TRY direct producer expressions in both args; verify order
+  kept (`_konquest_start_nis_anims_load`).
+- Scalar script args after string resolver: REQUIRE whether retail keeps
+  original arg frame or reloads `current_args`. Keep frame for
+  `_pfx_spawn_at_bid`, reload for `_bgnd_set_fx_z_offset`.
+- 0/1 from a call shifted via different reg (`cntlzw`; `srwi` into r0 then
+  `mr` vs straight to saved reg) `[da]`: other spelling; `!f()` and `f() == 0`
+  materialize differently (`RwStreamClose`). See H19.
 
 ## H17
 
-`-opt off` TUs (RenderWare `rw/`; flags in `configure.py`). Nothing is
-dead-code-eliminated, so a retail store to an unread local is source evidence:
-restore the vendor statement (`ptr = 0;` after a free, a declared-first
-`size = 0;`, an assert-only `heap = RxHeapGetGlobalHeap();`). Named
-intermediates create register homes; a nested ternary into one local can be
-required (`RtQuatConvertFromMatrix`). Nonvolatile homes rank by reference count;
-at equal counts the earlier-declared local gets the higher register. If a
-declaration swap is neutral, the counts differ: a scratch-only probe
-(`(void)x;` or empty `if (x) {}` emit no code) that flips the colors shows
-retail has one more reference. Never land the probe. Boolean lowering: M01
-size-bit addendum.
+`-opt off` TUs (RW `rw/`; flags in `configure.py`). No DCE, so retail store
+to unread local = source evidence: restore vendor statement (`ptr = 0;` after
+free, declared-first `size = 0;`, assert-only `heap =
+RxHeapGetGlobalHeap();`). Named intermediates make reg homes; nested ternary
+into one local can be required (`RtQuatConvertFromMatrix`). Nonvolatile homes
+rank by ref count; equal counts -> earlier-declared gets higher reg. Decl swap
+neutral -> counts differ: scratch-only probe (`(void)x;` or empty `if (x) {}`,
+no code) flipping colors shows retail has one more ref. Never land probe.
+Boolean lowering: M01 size bit.
 
 ## H18
 
-Fixed addresses: declare MWCC absolute-address variables
-(`extern unsigned long __OSBusClock : 0x800000F8;`,
-`extern volatile unsigned long __PIRegs[] : 0xCC003000;`), not pointer-cast
-macros. A volatile deref macro pins loads against neighboring stores; a plain
-deref macro lets MWCC CSE reloads retail keeps. Match SDK signedness (a `long`
-apploader offset gives `cmpwi`). Once the clock is an absolute variable, spell
-SDK tick macros per use.
+Fixed addresses: MWCC absolute-address vars (`extern unsigned long
+__OSBusClock : 0x800000F8;`, `extern volatile unsigned long __PIRegs[] :
+0xCC003000;`), not pointer-cast macros. Volatile deref macro pins loads vs
+neighbor stores; plain deref macro lets MWCC CSE reloads retail keeps. Match
+SDK signedness (`long` apploader offset -> `cmpwi`). Clock as absolute var ->
+spell SDK tick macros per use.
 
 ## H19
 
-Retail materializes an inlined test as 0/1 (`li r0,1; b; li r0,0; cmpwi`):
-spell the helper `if (cond) { return 1; } return 0;` or the macro
-`(cond) == 0 ? 0 : 1`. `return cond != 0` folds away. Drop extra `? 1 : 0` at
-call sites once the macro has it (`ENTRY_IS_DIRECTORY` in `DVDOpen`).
+Retail materializes inlined test as 0/1 (`li r0,1; b; li r0,0; cmpwi`): helper
+`if (cond) { return 1; } return 0;` or macro `(cond) == 0 ? 0 : 1`. `return
+cond != 0` folds away. Drop extra `? 1 : 0` at call sites once macro has it
+(`ENTRY_IS_DIRECTORY` in `DVDOpen`). Early-success search: whole scan in
+predicate, return 0 only after exhaustion; caller-owned flag keeps extra live
+reg (`mk_chess_drone_fetch_non_king_vulnerable_matchup`).
+
+Retail normalizes existing predicate return with `subic`/`subfe.` before
+guard: REQUIRE canonical predicate body, same call order. TRY `== 0` instead
+of `!`; MWCC can keep inline Boolean boundary
+(`pselect_update_profile_settings`).
 
 ## H20
 
-MWCC colors scalar-replaced struct members after declared scalars. When retail
-keeps an inlined bit-reader/cursor state in low registers, rewrite the state as
-declared scalar locals driven by macros (CRI `BS_*` shape), order the
-declarations, and load init values straight into them (`mps_dec`).
+MWCC colors scalar-replaced struct members after declared scalars. Retail
+keeps inlined bit-reader/cursor state in low regs: rewrite state as declared
+scalar locals driven by macros (CRI `BS_*`), order decls, load init values
+straight in (`mps_dec`).
 
 ## H21
 
-An inlined helper loop whose fresh locals color above the loop temps while
-retail reuses dead outer registers: open-code it and reuse the function's
-existing locals; MWCC colors a reused local's second web after the loop temps
-(`AddRequestingCS_ByThread`).
+Helper locals and web kind.
 
-If inlined table accessors preserve the operations but miscolor the scaled
-index and table owners, check whether unrelated branch definitions share one
-caller local. Try a named runtime-table base with typed indexing and scope each
-definition owner to the branch that uses it. Fold a single-use owner directly
-into its call argument when appropriate; do not retain an unused assignment
-inside the argument. This recovered the table registers in
-`drone_ai_check_attack`; its remaining parameter nonvolatile swap is a hard stop
-(tier 4 Hard stops: simplify stall broken by spill cost).
-
-IF a function sits under consumer-scoped `opt_propagation off` and the only
-residue is volatile coloring inside an inlined helper (same loads, owner and
-partial-sum registers shifted by one, e.g. retail `plyr_pdata` r5/count r4 vs
-built r4/r3), REQUIRE that the residue vanishes with the pragma removed while
-another region then regresses (whole-TU control). TRY making the shared helper
-copy-free: a ternary body instead of `if (p) return x; return 0;`, and direct
-member expressions as call arguments instead of a staged `style` local. With
-propagation off, each inline expansion keeps its parameter and return copies,
-and the allocator colors around them; propagation-on users are unaffected, so
-the helper edit is safe for its other callers (`ai_weapon_style_move_count` in
-`drone_ai_check_dont_touch_attack_phase2`). Both edits are needed; either alone
-is neutral. The same rewrite regressed `drone_ai_check_attack`, whose residue
-is a parameter pair, not helper copies.
-
-IF the residue is a rotation of volatile GPRs over identical operations and
-CFG, REQUIRE classifying each miscolored web by kind before any declaration
-sweep: MWCC colors the highest-numbered web first (lowest free volatile), and
-the number follows the web's kind, measured in `drone_ai_victim_avoid`: a
-codegen temp (union-member load inside an inlined sqrt) colors before an
-address-valued local (`drone = cond ? &g_A : &g_B`, unmoved by any declaration
-order), which colors before an inlined helper's named local, which colors
-before caller named locals (reverse declaration order; block-scoped ones
-last) and CSE'd global reads. TRY changing a web's kind, not its position:
-reading the helper's input word twice through `*(unsigned int*)&value` turns
-the bit-word temp into a CSE web that colors after the named/CSE'd objects;
-reading `plyr_obj` / `his_obj` directly instead of caching them turns the
-object owners into CSE webs. The union helper under `opt_common_subs off`
-(bits r5) was 99.44, a pointer-cast helper with a named `bits` local 99.72,
-CSE'd bits with cached owners 99.69, and CSE'd bits with direct global reads
-100 (retail drone r5, player r6, bits r7, opponent r8, second bits r6).
+- Fixed-width char padding differs only in cursor/const regs: REQUIRE kept
+  length/index already bounding same stores. TRY direct array index, drop
+  redundant advancing pointer (`pne_set_players_name_to_default`). Not all
+  char walks; keep termination behavior.
+- Bounded char-normalize pass swaps cursor + replacement const after separate
+  copy: REQUIRE same fixed extent + conditional stores. TRY inline helper
+  owning whole pass (`does_name_already_exist`). Keep processing past embedded
+  NUL; no string-terminated walk or scalar getter.
+- Array-reset loop rotates base/index/element regs: REQUIRE complete reset
+  phase repeated by other callers. TRY typed inline owning zeroing + sentinel
+  init incl index (`bleed_init`). Naming only element/base may not reproduce
+  helper-local allocation. Keep every store; check consumers when sharing.
+- Guarded player/start owners swap volatile regs: REQUIRE same canonical
+  background fields, angle-copy slots, player reload after position store. TRY
+  real per-player round-start helper owning angle `Vec` + background
+  snapshot; null guard stays in caller (`move_plyrs_to_round_start`). Audit
+  each player selector.
+- Validated indexed accessor swaps runtime/index regs: REQUIRE same null
+  guard, signed bounds, indexed return. TRY typed inline accessor, named
+  runtime owner, single-use index passed directly (`fx_restart_emit`). Both as
+  expressions folds runtime offset into later loads; both named restores
+  wrong pair.
+- Operation's retained owner loads via temp before moving to saved reg:
+  REQUIRE operation snapshots real owner handle once, keeps it across
+  callbacks. TRY owner's address to typed inline owning whole operation,
+  read-only handle param, one initial deref (`aniproc_land`). Later global
+  reloads stay outside at retail boundaries; no getter-only extraction, no
+  handle reread in loop. Compare every consumer.
+- Inlined search swaps bound snapshot + tag temp: REQUIRE unsigned bound
+  invariant, no calls/stores in search. TRY reading owner's bound directly in
+  indexed loop, no named count (`cloth_bones_init_by_tbl`). Changes bound's
+  web kind, keeps CTR loop; check shared helper consumers.
+- Inlined helper loop's fresh locals color above loop temps, retail reuses
+  dead outer regs: open-code + reuse existing locals; MWCC colors reused
+  local's 2nd web after loop temps (`AddRequestingCS_ByThread`).
+- Generation-validation latch swaps owner/object regs: REQUIRE read-only
+  canonical latch members, no call/store between. TRY existing latch macro on
+  direct owner-member expressions, not staged aliases
+  (`save_konq_common_data_to_buffer`). Verify one owner/object load, null
+  guard before instance read, snapshot placement across earlier calls, shared
+  consumers. No getter, no mode change to keep aliases.
+- Inlined table accessors miscolor scaled index + table owners: check if
+  unrelated branch defs share one caller local. TRY named runtime-table base,
+  typed indexing, each def owner scoped to its branch. Fold single-use owner
+  into call arg; no unused assign inside arg (`drone_ai_check_attack`; its
+  param swap = hard stop, tier 4).
+- Under consumer-scoped `opt_propagation off`, residue = volatile coloring in
+  inlined helper (same loads, owner/partial-sum regs shifted one, retail
+  `plyr_pdata` r5/count r4 vs ours r4/r3): REQUIRE residue gone with pragma
+  removed while another region regresses (whole-TU control). TRY copy-free
+  shared helper: ternary body, not `if (p) return x; return 0;`, and direct
+  member exprs as args, not staged `style` local. Propagation off keeps each
+  expansion's param/return copies; propagation-on users unaffected
+  (`ai_weapon_style_move_count` in
+  `drone_ai_check_dont_touch_attack_phase2`). Both edits needed. Same rewrite
+  regressed `drone_ai_check_attack` (param pair, not helper copies).
+- Volatile GPR rotation, same ops/CFG: REQUIRE classify each miscolored web by
+  kind before any decl sweep. MWCC colors highest-numbered web first (lowest
+  free volatile); number follows kind (measured, `drone_ai_victim_avoid`):
+  codegen temp (union load in inlined sqrt) < address-valued local (`drone =
+  cond ? &g_A : &g_B`, immune to decl order) < inlined helper named local <
+  caller named locals (reverse decl order; block-scoped last) and CSE'd global
+  reads. TRY changing kind, not position: reading helper input word twice via
+  `*(unsigned int*)&value` makes bit-word temp a CSE web coloring after
+  named/CSE'd objects; direct `plyr_obj`/`his_obj` reads make owners CSE webs.
+  Union helper + `opt_common_subs off` 99.44; pointer-cast + named `bits`
+  99.72; CSE'd bits + cached owners 99.69; CSE'd bits + direct globals 100.
+- Moving inline helper boundaries around code already colored right is
+  byte-identical `[da]`; only helpers in the block where miscolored values are
+  created move a web.
 
 ## H22
 
-One-row operand, constant, or copy residue. Try one at a time:
+One-row operand/constant/copy residue. One at a time:
 
 - `x = REG; x &= ~m;` as two statements when retail loads into the variable.
-- Constant on the left (`0x80000000 <= p`) or swapped `==` operands for
-  `cmplw` order. MWCC 1.2.5 colors the local written second into r3; make one
-  side a direct expression instead of a local (`DVDLowRead`).
-- `a = b = 0` when one zero register feeds both stores (rightmost first).
-- `x += y + c` instead of a temporary sum.
-- `(unsigned int)` casts on `%x` pointer arguments create retail's copies.
-- An inlined `{ call(); return 1; }` for an unread `li rN,1` after a call.
-- A stored-but-unread local from a parameter (debug assert value).
-- A pointer local declared before its sibling in an inner loop.
+- Const on left (`0x80000000 <= p`) or swapped `==` for `cmplw` order. MWCC
+  1.2.5 colors local written second into r3; make one side direct expr, not
+  local (`DVDLowRead`).
+- Float `!= 0.0f`, only reversed `fcmpu` operands, swap neutral: REQUIRE same
+  lazy predicate + zero/NaN behavior. TRY scalar truth test
+  (`pfx_emitter_exhausted`): both zeros false, NaN true. No relational or
+  arithmetic zero identity.
+- Equality swap neutral, retail compares masked member vs requested ID: name
+  real loaded ID first. Keep producer's unsigned type, check inline consumers
+  (`fade_material`, shared `find_geometry_material_by_id`).
+- `a = b = 0` when one zero reg feeds both stores (rightmost first).
+- `x += y + c` instead of temp sum.
+- Only `fmuls` operand order differs, swap neutral: REQUIRE same scale +
+  consumers. TRY stage real scaled local then compound multiply
+  (`emit_in_range`: `half_width = width; half_width *= 0.5f`).
+- Base + const field + dynamic offset (`addi` then `stwx`), ours folds field
+  into store `[da]`: `(base + 0xC) + offset`, not `base + (offset + 0xC)`.
+  Never hide offset in pointer representation (`_rwResourcesClose`).
+- Retail compares before loading default const; `x = default; if (...) x =
+  other;` hoists const load `[da]`: `x = cond ? other : default;`
+  (`RwStreamWriteReal`).
+- `(unsigned int)` casts on `%x` pointer args make retail's copies.
+- Inlined `{ call(); return 1; }` for unread `li rN,1` after call.
+- Stored-but-unread local from param (debug assert value).
+- Pointer local declared before its sibling in inner loop.
 
-For SDK code, check other matched decomps on the same compiler (bfbb, prime,
-pikmin2) for their local-vs-expression split.
+SDK code: check other matched decomps on same compiler (bfbb, prime,
+pikmin2) for local-vs-expression split.
 
 ## H23
 
-If a symbol lives in this object per `splits.txt`/`symbols.txt` but the source
-only declares it `extern`, define it in the unit with retail constness (`.data`
-is non-const) and data order, values from the split `.obj` blocks. Probe with
-zero initializers first. MWCC folds bases for same-unit objects (mixer tables in
-`__MIXSetPan`, `MIXInitChannel`).
+Symbol lives in this object per `splits.txt`/`symbols.txt` but source only
+`extern`s it: define in unit, retail constness (`.data` = non-const) + data
+order, values from split `.obj` blocks. Probe with zero inits first. MWCC
+folds bases for same-unit objects (mixer tables in `__MIXSetPan`,
+`MIXInitChannel`). Codec/lookup tables `[da]`: import only ELF OBJECT ranges
+(size, address, reloc targets), check byte-for-byte vs DOL; never regenerate
+from formula or pull unrelated upstream tables.
 
 ## H24
 
-MWCC 1.2.5 reserves one stack slot per inline expansion when a helper returns
-through a single-exit local (`T v; if ... else ...; return v;`), sized by the
-return type. Early-return and macro spellings reserve nothing. Pick the
-spelling that gives retail's `stwu` immediate; scratch-compile first
-(`__MIXGetVolume` as `u32` in `MIXInitChannel`: 43 x 4 = 0xB0).
+MWCC 1.2.5 reserves one stack slot per inline expansion when helper returns
+via single-exit local (`T v; if ... else ...; return v;`), sized by return
+type. Early-return + macro spellings reserve none. Pick spelling giving
+retail `stwu` immediate; scratch-compile first (`__MIXGetVolume` as `u32` in
+`MIXInitChannel`: 43 x 4 = 0xB0).
 
 ## H25
 
-A thin inline latch wrapper evaluates its argument once, before the body; a
-macro re-reads it at each use. When the argument is a global pointer or is read
-before the null test, copy it to a typed local, then use the macro
-(`player = plyr_pdata; MK_LIVE(player->p, player->p_instance)`). Keep the helper
-when the argument is a latch address reused in member writes, or when retail
-reuses another variable's zero on the failure path.
+Thin inline latch wrapper evaluates arg once before body; macro rereads at
+each use. Arg is global pointer or read before null test: copy to typed local,
+then macro (`player = plyr_pdata; MK_LIVE(player->p, player->p_instance)`).
+Keep helper when arg is latch address reused in member writes, or retail
+reuses another var's zero on failure path.
+
+## H26
+
+In-place derivation `[da]`. IF retail derives value in the register it was
+loaded into, REQUIRE one meaning for the variable, TRY computing it in steps
+in one local (`margin = width; margin = (640 - margin) & ~1;`). mk-da: `bytes
+= samples * 2; bytes *= track; code += bytes;` keeps shift/mul operand order;
+capacity becomes byte count then `&= ~127`; next-page ptr set from allocation
+then advanced. Never a second meaning or a copy of an in-scope value.
+
+## H27
+
+Statement order follows retail schedule `[da]`. IF loads, stores, or pointer
+advances ordered differently, REQUIRE unchanged semantics (no alias between
+moved accesses), TRY statements in retail order: compute packed words before
+storing, advance cursors after stores, load node output ptr before size store
+(mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
+
+- Copy getter/setter, retail loads run ahead of stores (L0 L1 S0 L2 S1),
+  ours alternate or swap first two loads: REQUIRE source pointer only read.
+  TRY `const T*` source param (header + def), plain member copies; MWCC hoists
+  const-source loads above dest stores. Staged locals, pragmas, compiler
+  revisions don't reproduce it (`mwMemHeapGetInfo`, `mwMemHeapGetParams`,
+  `mwMemSystemSetParams`; mk-da `mwMemSystemSetParams` same const form).
 
 ## Traps
 
-- ELF `NOBITS` sections are zero storage; never read `sh_offset` as their
-  initializer before "fixing" a data-value mismatch.
-- Automated extraction must parse C identifiers (`0.0f * body` is not a pointer
-  declaration); reject malformed generated source.
-- Keep host (PC) branches out of Deception source; portable corrections need
-  retail and behavioral evidence.
+- ELF `NOBITS` = zero storage; never read `sh_offset` as initializer before
+  "fixing" data-value mismatch.
+- Auto extraction must parse C identifiers (`0.0f * body` is not a pointer
+  decl); reject malformed generated source.
+- No host (PC) branches in Deception source; portable fixes need retail +
+  behavior evidence.
+- Renaming locals never changes MWCC coloring `[da]`. "Neutral across decl
+  orders" is not a name effect.

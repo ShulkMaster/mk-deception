@@ -43,10 +43,10 @@ int ScreenAnimScene::CalculateMaxTime() {
                 maxTime = t;
             }
             effectIdx += 1;
-            effectOffset += 4;
+            effectOffset += sizeof(effects->effects[0]);
         }
         trackIdx += 1;
-        trackOffset += 0x0C;
+        trackOffset += sizeof(SEAnimTrack_t);
     }
     data->maxTime = maxTime;
     return maxTime;
@@ -54,7 +54,7 @@ int ScreenAnimScene::CalculateMaxTime() {
 
 void ScreenAnimScene::PlayUntilTime(int time) {
     m_flags |= ANIM_SCENE_PLAYING;
-    m_untilTime = (float)time;
+    m_untilTime = time;
     /* Retail: fcmpo until vs (float)m_time; ble -> clear 0x20, else set. */
     if (m_untilTime > (float)m_time) {
         m_flags |= ANIM_SCENE_FORWARD;
@@ -100,14 +100,14 @@ void ScreenAnimScene::Process(int dt) {
         m_time += (int)((float)dt * m_speed);
         if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time > m_untilTime) {
-                m_time = (int)m_untilTime;
+                m_time = m_untilTime;
             }
         }
     } else {
         m_time -= (int)((float)dt * m_speed);
         if ((m_flags & ANIM_SCENE_UNTIL_TIME) > 0) {
             if ((float)m_time < m_untilTime) {
-                m_time = (int)m_untilTime;
+                m_time = m_untilTime;
             }
         }
     }
@@ -120,7 +120,7 @@ void ScreenAnimScene::Process(int dt) {
             ScreenAnimEffect* effect = track->effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
-                done = (int)effect->Process(localTime, dir, m_elements);
+                done = effect->Process(localTime, dir, m_elements);
                 if (done != 0) {
                     finished += 1;
                 }
@@ -174,7 +174,7 @@ unsigned int ScreenAnimScene::GetState() {
 }
 
 void ScreenAnimScene::ResetTime() {
-    if ((int)(m_flags & ANIM_SCENE_FORWARD) > 0) {
+    if ((m_flags & ANIM_SCENE_FORWARD) > 0) {
         m_time = 0;
     } else {
         m_time = m_data->maxTime;

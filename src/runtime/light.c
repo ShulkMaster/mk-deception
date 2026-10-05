@@ -7,10 +7,7 @@
 #include "rw/rplight.h"
 #include "rw/rwframe.h"
 
-typedef int (*MkObjDestroyFn)(MkObj* obj);
-
-/* Retail .data objects are 0x28 bytes each. */
-typedef struct SpecularLightDef {
+struct SpecularLightDef {
     int type;
     MkProcEntryFn procFn;
     int flags;
@@ -18,18 +15,18 @@ typedef struct SpecularLightDef {
     float field1C;
     float field20;
     float field24;
-} SpecularLightDef;
+};
 
 LightPdata* light_pdata;
 MkObj* light_obj;
 
 static int main_plyr_light_created;
 
-static SpecularLightDef default_specular_light_def = {
+static struct SpecularLightDef default_specular_light_def = {
     3, 0, 1, {0.75f, 0.75f, 0.75f, 1.0f}, 0.9f, 2.87f, 0.0f,
 };
 
-static SpecularLightDef default_bgnd_specular_light_def = {
+static struct SpecularLightDef default_bgnd_specular_light_def = {
     3, 0, 2, {0.75f, 0.75f, 0.75f, 1.0f}, 0.1f, 0.27f, 0.8f,
 };
 
@@ -42,7 +39,7 @@ static inline MkxRpLight* probe_mkx(MkHdr* hdr) {
 
     ok = 0;
     if (hdr != 0) {
-        if (hdr->vtbl->destroy == (MkVtblFn)vdestroy_mkx_rplight) {
+        if (hdr->light_vtbl->destroy == vdestroy_mkx_rplight) {
             ok = 1;
         }
     }
@@ -53,14 +50,12 @@ static inline MkxRpLight* probe_mkx(MkHdr* hdr) {
 }
 
 static inline MkObj* valid_linked_obj(MkxRpLight* mkx) {
-    MkObj* obj;
+    MkObj* obj = mkx->obj;
 
-    obj = mkx->obj;
-    if (obj == 0) {
-        return 0;
-    }
-    if (obj->hdr.instance != mkx->obj_instance) {
-        return 0;
+    if (obj != 0) {
+        obj = obj->hdr.instance == mkx->obj_instance ? obj : 0;
+    } else {
+        obj = 0;
     }
     return obj;
 }
@@ -70,24 +65,15 @@ static inline unsigned char rp_light_type(RpLight* light) {
 }
 
 static inline void mkobj_or_flag(MkObj* obj, unsigned char bit) {
-    obj->flags_08 = (unsigned char)(obj->flags_08 | bit);
+    obj->flags_08 = obj->flags_08 | bit;
 }
 
 static inline void clear_light_low_flags(RpLight* light) {
     light->object.object.flags =
-        (unsigned char)(light->object.object.flags & 0xFC);
+        light->object.object.flags & 0xFC;
 }
 
-static inline void destroy_owned_mkobj(MkObj* mkobj, MkObj* parent) {
-    if (mkobj == 0 || parent != 0) {
-        return;
-    }
-    if (mkobj->hdr.instance == 0) {
-        return;
-    }
-    ((MkObjDestroyFn)mkobj->hdr.vtbl->destroy)(mkobj);
-}
-
+/* TODO: [breakthrough] 83.45%; linked-object latch matches; search loop and return/frame CFG remain. */
 int adjust_point_light_associated_with_obj_radius(MkObj* obj, float delta) {
     MkxRpLight* found;
     MkxRpLight* entry;
@@ -152,6 +138,8 @@ void obj_change_to_skinned_obj_light_list(MkObj* obj, LightDef* def) {
     }
 }
 
+/* TODO: [breakthrough needed] 81.79487%; frame and light-owner CFG differ;
+ * recover retail creation and lifetime boundaries. */
 RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     RpLight* light;
     RwFrame* frame;
@@ -230,16 +218,15 @@ RpLight* create_default_specular_light(void) {
     return find_specular_light(&plyr_light_list, (LightDef*)&default_specular_light_def);
 }
 
-/* TODO: [near miss] 98.82%; positive validated-hdr selection restored;
- * pointer propagation and node/hdr GPR roles remain. */
 RpLight* get_bgnd_specular_light(void) {
-    MkPtr* node;
+    MkPtr* node = bgnd_spec_light_list;
     MkxRpLight* mkx;
     RpLight* light;
+    MkHdr* hdr;
 
-    node = bgnd_spec_light_list;
     while (node != 0) {
-        mkx = probe_mkx(node->hdr);
+        hdr = node->hdr;
+        mkx = probe_mkx(hdr);
         if (mkx != 0) {
             light = mkx->light;
             if ((int)light->object.object.subType == 1) {
@@ -271,18 +258,27 @@ RpLight* get_specular_light(void) {
     return 0;
 }
 
-/* TODO: [near miss] 92.56%; CFG matches; defs/list and def/light nonvolatile homes are swapped (retail defs r28, list r25). */
-void load_back_in_lights(LightDef** defs, MkPtr** list) {
-    RpLight* light;
-    MkxRpLight* entry;
-    MkObj* obj;
-    LightDef* def;
-    int index;
-    unsigned int spotIndex;
+static inline void restore_light_world(RpLight* light, const LightDef* def) {
+    RpLightSetColor(light, &def->color);
+    if (RpLightGetWorld(light) == 0) {
+        RpWorldAddLight(World, light);
+    }
+}
 
+void load_back_in_lights(LightDef** defs, MkPtr** list) {
+    const LightDef* def;
+    MkxRpLight* entry;
+    RpLight* spot_light;
+    MkObj* obj;
+    RpLight* ambient_light;
+    LightDef** cursor;
+    unsigned int spotIndex;
+    int index;
+
+    cursor = defs;
     spotIndex = 0;
     for (index = 0; index < 3; index++) {
-        def = *defs;
+        def = *cursor;
         if (def != 0) {
             switch (def->type) {
             case 0:
@@ -292,26 +288,20 @@ void load_back_in_lights(LightDef** defs, MkPtr** list) {
             case 5:
                 continue;
             case 1:
-                light = fetch_light(list, 1, 0)->light;
-                if (light == 0) {
+                ambient_light = fetch_light(list, 1, 0)->light;
+                if (ambient_light == 0) {
                     continue;
                 }
-                RpLightSetColor(light, &def->color);
-                if (RpLightGetWorld(light) == 0) {
-                    RpWorldAddLight(World, light);
-                }
+                restore_light_world(ambient_light, def);
                 break;
             case 3:
                 entry = fetch_light(list, 3, spotIndex);
-                light = entry->light;
-                if (light == 0) {
+                spot_light = entry->light;
+                if (spot_light == 0) {
                     continue;
                 }
                 spotIndex++;
-                RpLightSetColor(light, &def->color);
-                if (RpLightGetWorld(light) == 0) {
-                    RpWorldAddLight(World, light);
-                }
+                restore_light_world(spot_light, def);
                 obj = valid_linked_obj(entry);
                 if (obj != 0) {
                     obj->dir_x = def->field1C;
@@ -322,7 +312,7 @@ void load_back_in_lights(LightDef** defs, MkPtr** list) {
                 break;
             }
         }
-        defs++;
+        cursor++;
     }
 }
 
@@ -345,7 +335,7 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
             } else {
                 ok = 0;
                 if (hdr != 0) {
-                    if (hdr->vtbl->destroy == (MkVtblFn)vdestroy_mkx_rplight) {
+                    if (hdr->light_vtbl->destroy == vdestroy_mkx_rplight) {
                         ok = 1;
                     }
                 }
@@ -355,7 +345,7 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
                     mkx = 0;
                 }
                 if (mkx != 0) {
-                    lightType = (int)mkx->light->object.object.subType;
+                    lightType = mkx->light->object.object.subType;
                     switch (lightType) {
                     case 1:
                         if (type == 3) {
@@ -474,66 +464,55 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     }
 
     _rwObjectHasFrameSetFrame(light, frame);
-    mkobj_or_flag(mkobj, 0x10);
-    mkobj_or_flag(mkobj, 0x80);
+    mkobj->flags_08_bits.transform_dirty = 1;
+    mkobj->flags_08_bits.bit7 = 1;
     mkobj->light_flags = def->flags;
     mkobj->pos.value.x = def->field1C;
     mkobj->pos.value.y = def->field20;
     mkobj->pos.value.z = def->field24;
-    mkobj->dir_x = def->field28;
-    mkobj->dir_y = def->field2C;
-    mkobj->dir_z = def->field30;
+    mkobj->ang_row.value.x = def->field28;
+    mkobj->ang_row.value.y = def->field2C;
+    mkobj->ang_row.value.z = def->field30;
     insert_fgnd_mkobj(mkobj);
     update_mkobj(mkobj);
     RpWorldAddLight(World, light);
     return light;
 }
 
-
-
-
-
-
-/* TODO: [breakthrough needed] 89.14%; call/inlining boundary needs recovery (bl RwFrameDestroy); no further evidence-backed source change. */
+/* TODO: [near miss] 99.57%; linked-object latch homes and owner-load folding remain. */
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;
     MkObj* mkobj;
     MkxRpLight* mkx;
     MkPtr* node;
-    MkPtr* next;
     MkxRpLight* headMkx;
     MkObj* linked;
     LightPdata* lp;
     MkProc* mkproc;
     int count;
     int procId;
-    int ok;
 
-    light = 0;
     frame = 0;
     mkobj = parent;
-    ok = 0;
 
     switch (def->type) {
     case 1:
         light = RpLightCreate(2);
         if (light == 0) {
-            break;
+            goto failed;
         }
         RpLightSetColor(light, &def->color);
         RpWorldAddLight(World, light);
-        ok = 1;
-        break;
+        goto created;
 
     case 2:
         count = 0;
         if (list != 0) {
             node = *list;
             while (node != 0) {
-                mkx = MKX_RPLIGHT_FROM_HDR(node->hdr);
-                if (node->instance != mkx->hdr.instance) {
-                    next = node->next;
+                if (node->instance != node->hdr->instance) {
+                    MkPtr* next = node->next;
                     discard_stale_mkptr(node);
                     node = next;
                 } else {
@@ -548,7 +527,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
 
             if (linked != 0) {
                 if (linked->hdr.instance != 0) {
-                    ((MkObjDestroyFn)linked->hdr.vtbl->destroy)(linked);
+                    ((MkVtableMkobj*)linked->hdr.vtbl)->destroy(linked);
                 }
                 headMkx->obj = 0;
                 headMkx->obj_instance = 0;
@@ -557,25 +536,25 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         if (parent == 0) {
             frame = RwFrameCreate();
             if (frame == 0) {
-                break;
+                goto failed;
             }
             mkobj = get_mkobj_frame(0x2001, frame);
             if (mkobj == 0) {
-                break;
+                goto failed;
             }
         } else {
             frame = parent->frame;
         }
         light = RpLightCreate(0x80);
         if (light == 0) {
-            break;
+            goto failed;
         }
         _rwObjectHasFrameSetFrame(light, frame);
         RpLightSetColor(light, &def->color);
         RpLightSetRadius(light, def->field1C);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
-        mkobj_or_flag(mkobj, 0x40);
+        mkobj->flags_08_bits.airborne = 1;
         if (parent == 0) {
             mkobj->pos.value.x = def->field20;
             mkobj->pos.value.y = def->field24;
@@ -583,8 +562,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
             insert_fgnd_mkobj(mkobj);
             update_mkobj(mkobj);
         }
-        ok = 1;
-        break;
+        goto created;
 
     case 3:
         if (list == &bgnd_spec_light_list) {
@@ -604,67 +582,69 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         if (parent == 0) {
             frame = RwFrameCreate();
             if (frame == 0) {
-                break;
+                goto failed;
             }
             mkobj = get_mkobj_frame(procId, frame);
             if (mkobj == 0) {
-                break;
+                goto failed;
             }
         } else {
             frame = parent->frame;
         }
         light = RpLightCreate(1);
         if (light == 0) {
-            break;
+            goto failed;
         }
         _rwObjectHasFrameSetFrame(light, frame);
         RpLightSetColor(light, &def->color);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
-        mkobj_or_flag(mkobj, 0x40);
-        mkobj_or_flag(mkobj, 0x08);
+        mkobj->flags_08_bits.airborne = 1;
+        mkobj->flags_08_bits.angular_velocity_enabled = 1;
         if (parent == 0) {
-            mkobj->dir_x = def->field1C;
-            mkobj->dir_y = def->field20;
-            mkobj->dir_z = def->field24;
+            mkobj->ang_row.value.x = def->field1C;
+            mkobj->ang_row.value.y = def->field20;
+            mkobj->ang_row.value.z = def->field24;
             insert_fgnd_mkobj(mkobj);
             update_mkobj(mkobj);
         }
-        ok = 1;
-        break;
+        goto created;
 
     case 4:
         light = create_spot_light(parent, def);
         if (light != 0) {
-            ok = 1;
+            goto created;
         }
-        break;
+        goto failed;
 
     case 5:
         light = create_type5_spot(parent, def);
-        if (light != 0) {
-            ok = 1;
+        if (light == 0) {
+            goto failed;
         }
-        break;
+        goto created;
 
     default:
-        break;
+        goto failed;
     }
 
-    if (ok == 0) {
-        destroy_owned_mkobj(mkobj, parent);
-        mkobj = 0;
-        if (frame != 0) {
-            RwFrameDestroy(frame);
+failed:
+    if (mkobj != 0 && parent == 0) {
+        if (mkobj->hdr.instance != 0) {
+            ((MkVtableMkobj*)mkobj->hdr.vtbl)->destroy(mkobj);
         }
-        return 0;
+        mkobj = 0;
     }
+    if (frame != 0) {
+        RwFrameDestroy(frame);
+    }
+    goto done;
 
+created:
     clear_light_low_flags(light);
     if (def->procFn != 0) {
-        lp = 0;
         mkproc = _create_mkproc_generic_tinystack(
-            0x5009, 0x28, def->procFn, 0x14, (MkHdr**)&lp);
+            0x5009, 0x28, def->procFn, sizeof(LightPdata), (MkHdr**)&lp);
         if (mkproc != 0) {
             lp->light = light;
             mkproc->pre_destroy = pre_light;
@@ -672,10 +652,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
             if (mkobj == 0) {
                 mkobj = get_mkobj_frame(0x2003, 0);
                 if (mkobj == 0) {
-                    if (frame != 0) {
-                        RwFrameDestroy(frame);
-                    }
-                    return 0;
+                    goto failed;
                 }
                 lp->obj = 0;
                 lp->obj_instance = 0;
@@ -698,6 +675,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     } else if (mkx != 0) {
         mk_insert(&mkx->hdr, &master_clean_up_list);
     }
+done:
     return mkobj;
 }
 
@@ -706,21 +684,7 @@ static void post_light(void) {
     light_obj = 0;
 }
 
-/* TODO: [near miss] 92.67%; instance validation branch differs;
- * nested live-handle selection regresses; retain typed validation. */
 static void pre_light(void) {
-    LightPdata* pd;
-    MkObj* obj;
-
-    pd = LIGHT_PDATA_FROM_HDR(apdata);
-    light_pdata = pd;
-    obj = pd->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != pd->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
-    light_obj = obj;
+    light_pdata = LIGHT_PDATA_FROM_HDR(apdata);
+    light_obj = MK_HDR_LIVE(light_pdata->obj, light_pdata->obj_instance);
 }

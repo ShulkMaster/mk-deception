@@ -4,6 +4,8 @@
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "platform/gcutils.h"
+#include "platform/gcARam.h"
+#include "runtime/mk_cmdscript.h"
 #include "runtime/asset.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_proc.h"
@@ -11,10 +13,6 @@
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
-extern _mwMemHeap* SystemSwappableHeap;
-extern SectionSlotDef* section_memory_maps[];
-extern void load_string_bank(int bank, const char* name);
-extern void load_string_bank_async(int bank, const char* name);
 
 static SecSysState sec_sys_state;
 MkProc* saved_aproc;
@@ -23,7 +21,6 @@ static SecSlot* get_sec_slot_from_handle(int handle);
 static void free_all_slot_groups_after_pos(int position);
 static void free_all_slots_in_group(SecSlotGroup* group);
 
-/* The async file API carries the retail section type through its userdata slot. */
 #define SEC_FILE_USERDATA(type) ((void*)(type))
 
 static void append_slot_file(SecSlot* slot, SecSlotFileEntry* file) {
@@ -33,9 +30,11 @@ static void append_slot_file(SecSlot* slot, SecSlotFileEntry* file) {
         tail = tail->next;
     }
     if (tail != 0) {
-        file->buffer = tail->size_or_flag == 0
-                           ? 0
-                           : tail->buffer + tail->size_or_flag;
+        if (tail->size_or_flag == 0U) {
+            file->buffer = 0;
+        } else {
+            file->buffer = tail->buffer + tail->size_or_flag;
+        }
         tail->next = file;
     } else {
         file->buffer = slot->base;
@@ -59,22 +58,20 @@ int load_systemart_phase_1(void) {
 }
 
 void load_art_section_by_name(int handle, const char* name) {
+    MkFileInfo* info;
     get_sec_slot_from_handle(handle);
-    {
-        MkFileInfo* info = find_section_by_name(name);
-        if (info != 0) {
-            load_art_section(handle, info);
-        }
+    info = find_section_by_name(name);
+    if (info != 0) {
+        load_art_section(handle, info);
     }
 }
 
 void load_art_section_by_name_async(int handle, const char* name) {
+    MkFileInfo* info;
     get_sec_slot_from_handle(handle);
-    {
-        MkFileInfo* info = find_section_by_name(name);
-        if (info != 0) {
-            load_art_section_async(handle, info);
-        }
+    info = find_section_by_name(name);
+    if (info != 0) {
+        load_art_section_async(handle, info);
     }
 }
 
@@ -88,7 +85,7 @@ int get_shared_art_section_for_plyr_pdata(PlyrPdata* pdata) {
     return -1;
 }
 
-int get_shared_art_section_for_player(SharedArtPlayer* player) {
+int get_shared_art_section_for_player(MkObj* player) {
     if (player->oid == 0x1001) {
         return 0x3000B;
     }
@@ -122,18 +119,8 @@ void load_art_section_async_language(int handle, MkFileInfo* info) {
     load_art_section_async(handle, info);
 }
 
-static MkFileInfo* select_pal_animation(MkFileInfo* info) {
-    if (refresh_rate() == 50) {
-        MkFileInfo* pal_info = 0;
-        unsigned int file_count = num_files_in_ssf(get_current_ssf_file());
-        if ((unsigned int)(get_ssf_dir_index(info) + 1) < file_count) {
-            pal_info = offset_mk_file_info(info, 1);
-        }
-        if (pal_info != 0 && strstr(pal_info->name, "_50") != 0) {
-            info = pal_info;
-        }
-    }
-    return info;
+static inline int section_uses_pal_animation(void) {
+    return refresh_rate() == 50;
 }
 
 void add_anim_section_by_name_async_pal(int handle, const char* name,
@@ -143,7 +130,20 @@ void add_anim_section_by_name_async_pal(int handle, const char* name,
     get_sec_slot_from_handle(handle);
     info = find_section_by_name(name);
     if (info != 0) {
-        add_anim_section_async(handle, select_pal_animation(info), palette_table,
+        if (section_uses_pal_animation() != 0) {
+            MkFileInfo* pal_info = 0;
+            unsigned int file_count = num_files_in_ssf(get_current_ssf_file());
+
+            if ((unsigned int)(get_ssf_dir_index(info) + 1) < file_count) {
+                pal_info = offset_mk_file_info(info, 1);
+            }
+            if (pal_info != 0 && strstr(pal_info->name, "_50") != 0) {
+                info = pal_info;
+            }
+        }
+    }
+    if (info != 0) {
+        add_anim_section_async(handle, info, palette_table,
                                allow_duplicate, clear_palette);
     }
 }
@@ -151,8 +151,18 @@ void add_anim_section_by_name_async_pal(int handle, const char* name,
 void add_anim_section_async_pal(int handle, MkFileInfo* info,
                                 int* palette_table, int allow_duplicate,
                                 int clear_palette) {
-    add_anim_section_async(handle, select_pal_animation(info), palette_table,
-                           allow_duplicate, clear_palette);
+    if (section_uses_pal_animation() != 0) {
+        MkFileInfo* pal_info = 0;
+        unsigned int file_count = num_files_in_ssf(get_current_ssf_file());
+
+        if ((unsigned int)(get_ssf_dir_index(info) + 1) < file_count) {
+            pal_info = offset_mk_file_info(info, 1);
+        }
+        if (pal_info != 0 && strstr(pal_info->name, "_50") != 0) {
+            info = pal_info;
+        }
+    }
+    add_anim_section_async(handle, info, palette_table, allow_duplicate, clear_palette);
 }
 
 void add_anim_section_by_name_async(int handle, const char* name,
@@ -167,15 +177,17 @@ void add_anim_section_by_name_async(int handle, const char* name,
     }
 }
 
+/* TODO: [near miss] 99.87%; pre-open file index uses r29 instead of retail r28. */
 int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
                            int allow_duplicate, int clear_palette) {
-    SecSlot* slot;
+    int file_index;
     SecSlotFileEntry* file;
+    SecSlot* slot;
 
     if (!allow_duplicate) {
-        int loaded = is_section_loading_or_loaded(handle, info);
-        if (loaded != 0) {
-            return loaded;
+        file_index = is_section_loading_or_loaded(handle, info);
+        if (file_index != 0) {
+            return file_index;
         }
     }
     slot = get_sec_slot_from_handle(handle);
@@ -183,42 +195,43 @@ int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
     memset(file, 0, sizeof(*file));
     append_slot_file(slot, file);
     if (clear_palette) {
-        file->flags |= 0x80;
+        file->flag_bits.clear_palette = 1;
     }
     file->palette_table = palette_table;
+    file_index = slot->file_count;
     sec_slot_file_open_read_async(file, slot, handle, info,
                                   SEC_FILE_USERDATA(SEC_FILE_TYPE_ANIM));
-    return slot->file_count;
+    return file_index;
 }
 
+/* TODO: [near miss] 97.10526%; guarded traversal agrees; retail keeps an initial head-to-cursor copy; honest forms exhausted. */
 void wait_for_slot_load(int handle) {
     SecSlotFileEntry* file = get_sec_slot_from_handle(handle)->files;
+
     if (file == 0) {
         return;
     }
-    do {
-        if (file != 0) {
+    while (file != 0) {
+        if (file->load_state == 0) {
+            sec_slot_file_wait_for_load(file);
             if (file->load_state == 0) {
-                sec_slot_file_wait_for_load(file);
-                if (file->load_state == 0) {
-                    if (file->section_info->type == SEC_FILE_TYPE_ANIM) {
-                        process_anim_section_data(file);
-                    } else if (file->section_info->type == SEC_FILE_TYPE_ART) {
-                        process_art_section_data(file);
-                    }
+                if (file->section_info->type == SEC_FILE_TYPE_ANIM) {
+                    process_anim_section_data(file);
+                } else if (file->section_info->type == SEC_FILE_TYPE_ART) {
+                    process_art_section_data(file);
                 }
             }
-            file = file->next;
         }
-    } while (file != 0);
+        file = file->next;
+    }
 }
 
 int load_art_section_async(int handle, MkFileInfo* info) {
-    SecSlot* slot = get_sec_slot_from_handle(handle);
     SecSlotFileEntry* file;
+    SecSlot* slot = get_sec_slot_from_handle(handle);
 
     if (slot->files != 0) {
-        if (slot->files->section_info == info && slot->files->next == 0) {
+        if (info == slot->files->section_info && slot->files->next == 0) {
             return 1;
         }
         unload_section_slot(handle);
@@ -247,29 +260,31 @@ void add_art_section_by_name_async(int handle, const char* name) {
 }
 
 int add_art_section_async(int handle, MkFileInfo* info) {
-    SecSlot* slot;
     SecSlotFileEntry* file;
-    int loaded = is_section_loading_or_loaded(handle, info);
-    if (loaded != 0) {
-        return loaded;
+    SecSlot* slot;
+    int file_index = is_section_loading_or_loaded(handle, info);
+    if (file_index != 0) {
+        return file_index;
     }
     slot = get_sec_slot_from_handle(handle);
     file = _mwMemMalloc(section_table_heap, sizeof(*file), 3, 0, 0, 0);
     memset(file, 0, sizeof(*file));
     append_slot_file(slot, file);
+    file_index = slot->file_count;
     sec_slot_file_open_read_async(file, slot, handle, info,
                                   SEC_FILE_USERDATA(SEC_FILE_TYPE_ART));
-    return slot->file_count;
+    return file_index;
 }
 
 static void release_slot_file_data(SecSlotFileEntry* file) {
     if (file->load_state != 0) {
-        if (file->section_info->type == SEC_FILE_TYPE_ART) {
+        int type = file->section_info->type;
+        if (type == SEC_FILE_TYPE_ART) {
             annihilate_art_section_data(file);
-        } else if ((file->section_info->type == SEC_FILE_TYPE_ANIM) &
+        } else if ((type == SEC_FILE_TYPE_ANIM) &
                    ((file->flags & 0x80) != 0)) {
-            int index;
             int* palette = file->palette_table;
+            int index;
             for (index = 0; index < file->member_count; index++) {
                 *palette = 0;
                 palette++;
@@ -284,6 +299,7 @@ static void release_slot_file_data(SecSlotFileEntry* file) {
     file->section_id = 0;
 }
 
+/* TODO: [near miss] 97.17%; palette loop agrees; type temporary r3 vs r0 and flag-load schedule remain. */
 void unload_section_slot_file(int handle, int file_index) {
     SecSlot* slot;
     SecSlotFileEntry* file;
@@ -305,10 +321,9 @@ void unload_section_slot_file(int handle, int file_index) {
     slot->file_count--;
 }
 
-void unload_section_slot(int handle) {
-    SecSlot* slot = get_sec_slot_from_handle(handle);
+static inline void release_section_slot_files(SecSlot* slot) {
     SecSlotFileEntry* file = slot->files;
-    SecSlotFileEntry* next;
+    SecSlotFileEntry* released;
 
     while (file != 0) {
         release_slot_file_data(file);
@@ -317,12 +332,18 @@ void unload_section_slot(int handle) {
     }
     file = slot->files;
     while (file != 0) {
-        next = file->next;
-        _mwMemFree(file, 0, 0);
-        file = next;
+        released = file;
+        file = file->next;
+        _mwMemFree(released, 0, 0);
     }
     slot->files = 0;
     slot->file_count = 0;
+}
+
+/* TODO: [near miss] 96.79%; both traversal owners agree; section type and eager flag schedule remain. */
+void unload_section_slot(int handle) {
+    SecSlot* slot = get_sec_slot_from_handle(handle);
+    release_section_slot_files(slot);
 }
 
 int is_section_loading_or_loaded(int handle, MkFileInfo* info) {
@@ -380,7 +401,7 @@ static SecSlot* get_sec_slot_from_handle(int handle) {
     unsigned int index;
 
     group_id = handle >> 16;
-    slot_id = (unsigned short)handle;
+    slot_id = handle;
 
     group = find_sec_slot_group(group_id);
     count = group->slot_count;
@@ -408,20 +429,12 @@ int get_current_section_memory_scheme(void) {
     return sec_sys_state.current_map - section_memory_maps;
 }
 
-void set_section_memory_scheme(int scheme) {
-    SectionSlotDef** new_map = &section_memory_maps[scheme];
-    int common_position;
-    int group_count;
-    unsigned int required_memory;
-    SectionSlotDef* definition;
-    int group_index;
-
-    if (sec_sys_state.current_map == new_map) {
-        return;
-    }
-    common_position = -1;
-    if (sec_sys_state.current_map != 0 && new_map != 0) {
-        SectionSlotDef* old_def = *sec_sys_state.current_map;
+static inline int common_section_position(SectionSlotDef** old_map,
+                                          SectionSlotDef** new_map) {
+    int position;
+    position = -1;
+    if (old_map != 0 && new_map != 0) {
+        SectionSlotDef* old_def = *old_map;
         SectionSlotDef* new_def = *new_map;
         while (old_def->group_id != -1 && new_def->group_id != -1) {
             int definitions_match;
@@ -435,11 +448,38 @@ void set_section_memory_scheme(int scheme) {
             if (!definitions_match) {
                 break;
             }
-            common_position++;
+            position++;
             old_def++;
             new_def++;
         }
     }
+    return position;
+}
+
+static inline int count_section_slots(const SectionPerSlotDef* definitions) {
+    int count = 0;
+
+    while (definitions->slot_index != -1) {
+        count++;
+        definitions++;
+    }
+    return count;
+}
+
+/* TODO: [breakthrough] 91.21%; unsigned size, prefix and map reload recovered;
+ * slot-footprint lowering and allocator register homes remain. */
+void set_section_memory_scheme(int scheme) {
+    SectionSlotDef** new_map = &section_memory_maps[scheme];
+    int common_position;
+    int group_count;
+    unsigned int required_memory;
+    SectionSlotDef* definition;
+    int group_index;
+
+    if (sec_sys_state.current_map == new_map) {
+        return;
+    }
+    common_position = common_section_position(sec_sys_state.current_map, new_map);
     if (common_position >= 0) {
         free_all_slot_groups_after_pos(common_position);
     }
@@ -456,15 +496,15 @@ void set_section_memory_scheme(int scheme) {
         return;
     }
     sec_sys_state.group_count = group_count;
-    definition = *new_map;
+    definition = *sec_sys_state.current_map;
     for (group_index = 0; definition->group_id != -1;
          group_index++, definition++) {
         SecSlotGroup* group;
-        SectionPerSlotDef* per_slot;
-        unsigned char* buffer_position;
-        SecSlot* slot;
         int slot_count;
+        unsigned char* buffer_position;
         int slot_index;
+        SecSlot* slot;
+        SectionPerSlotDef* per_slot;
 
         if (group_index <= common_position) {
             continue;
@@ -478,11 +518,7 @@ void set_section_memory_scheme(int scheme) {
         group->group_id = definition->group_id;
         group->map_index = group_index;
         buffer_position = group->buffer;
-        slot_count = 0;
-        for (per_slot = definition->per_slot_defs; per_slot->slot_index != -1;
-             per_slot++) {
-            slot_count++;
-        }
+        slot_count = count_section_slots(definition->per_slot_defs);
         group->slot_count = slot_count;
         group->slots = _mwMemMalloc(section_table_heap,
                                     slot_count * sizeof(*group->slots), 3, 0, 0, 0);
@@ -493,8 +529,8 @@ void set_section_memory_scheme(int scheme) {
             unsigned int allocation_size;
             slot->slot_id = per_slot->slot_index;
             slot->buffer_size = per_slot->buffer_size;
-            allocation_size = (unsigned int)per_slot->buffer_size & 0x7FFFFFFF;
-            if ((unsigned int)per_slot->buffer_size != allocation_size) {
+            allocation_size = per_slot->buffer_size & 0x7FFFFFFFU;
+            if (per_slot->buffer_size != allocation_size) {
                 slot->base = _mwMemMalloc(SystemSwappableHeap, allocation_size,
                                           7, 0, 0, 0);
             } else {
@@ -522,26 +558,14 @@ static void free_all_slot_groups_after_pos(int position) {
     }
 }
 
+/* TODO: [near miss] 97.61%; traversal agrees; shared section-type register and eager flag-load order remain. */
 static void free_all_slots_in_group(SecSlotGroup* group) {
-    int slot_index;
+    SecSlot* slot;
+    unsigned int slot_index;
     for (slot_index = 0; slot_index < group->slot_count; slot_index++) {
-        SecSlot* slot = &group->slots[slot_index];
-        SecSlotFileEntry* file = slot->files;
-        SecSlotFileEntry* next;
-        while (file != 0) {
-            release_slot_file_data(file);
-            file = file->next;
-            slot->file_count--;
-        }
-        file = slot->files;
-        while (file != 0) {
-            next = file->next;
-            _mwMemFree(file, 0, 0);
-            file = next;
-        }
-        slot->files = 0;
-        slot->file_count = 0;
-        if ((slot->buffer_size & 0x80000000U) != 0) {
+        slot = &group->slots[slot_index];
+        release_section_slot_files(slot);
+        if (slot->buffer_size != (slot->buffer_size & 0x7FFFFFFFU)) {
             _mwMemFree(slot->base, 0, 0);
         }
     }

@@ -1,10 +1,7 @@
 #include "platform/gprofile_gcn.h"
 #include "dolphin/gx.h"
+#include "rw/dlbrkpt.h"
 
-typedef void (*MwyGxDrawDoneCallback)(void* userData);
-
-void MWY_GCN_RW_InsertGxDrawDoneCallback(MwyGxDrawDoneCallback callback,
-                                        void* userData);
 static void s_GProfile_GCN_GxDrawDone_Handler(void* userData);
 
 void GProfile_GCN_GxDrawDone(void) {
@@ -19,5 +16,8 @@ void GProfile_GCN_GxDrawDone(void) {
 }
 
 static void s_GProfile_GCN_GxDrawDone_Handler(void* userData) {
-    *(volatile int*)userData = 0;
+    volatile int* done;
+
+    done = userData;
+    *done = 0;
 }

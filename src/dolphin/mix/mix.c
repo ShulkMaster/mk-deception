@@ -1,7 +1,8 @@
 #include "dolphin/ax.h"
+#include "dolphin/ai.h"
 #include "dolphin/os.h"
 
-typedef struct MIXChannel {
+struct MIXChannel {
     AXVPB* voice;
     u32 mode;
     s32 input;
@@ -31,9 +32,9 @@ typedef struct MIXChannel {
     u16 vBR1;
     u16 vBS;
     u16 vBS1;
-} MIXChannel;
+};
 
-static MIXChannel __MIXChannel[64];
+static struct MIXChannel __MIXChannel[AX_MAX_VOICES];
 static s32 __MIXDvdStreamAttenCurrent;
 static s32 __MIXDvdStreamAttenUser;
 static u32 __MIXSoundMode;
@@ -204,7 +205,7 @@ static inline u32 __MIXGetVolume(s32 attenuation)
     return volume;
 }
 
-static void __MIXSetPan(MIXChannel* channel)
+static void __MIXSetPan(struct MIXChannel* channel)
 {
     u32 pan;
     u32 surround_pan;
@@ -234,7 +235,7 @@ void MIXInit(void)
 {
     int i;
 
-    for (i = 0; i < 64; i++) {
+    for (i = 0; i < AX_MAX_VOICES; i++) {
         __MIXChannel[i].mode = 0x50000000;
         __MIXChannel[i].input = 0;
         __MIXChannel[i].aux_a = -0x3C0;
@@ -267,7 +268,7 @@ int MIXGetSoundMode(void)
 void MIXInitChannel(AXVPB* voice, u32 mode, int input, int aux_a, int aux_b,
                     int pan, int surround_pan, int fader)
 {
-    MIXChannel* channel;
+    struct MIXChannel* channel;
     BOOL enabled;
     u16 mixer_control;
     u16* mix;
@@ -392,7 +393,7 @@ void MIXReleaseChannel(AXVPB* voice)
 
 void MIXSetInput(AXVPB* voice, long input)
 {
-    MIXChannel* channel = &__MIXChannel[voice->index];
+    struct MIXChannel* channel = &__MIXChannel[voice->index];
 
     channel->input = input;
     channel->mode |= 0x10000000;
@@ -400,7 +401,7 @@ void MIXSetInput(AXVPB* voice, long input)
 
 void MIXSetPan(AXVPB* voice, int pan)
 {
-    MIXChannel* channel = &__MIXChannel[voice->index];
+    struct MIXChannel* channel = &__MIXChannel[voice->index];
 
     if (pan < 0) {
         pan = 0;
@@ -414,7 +415,7 @@ void MIXSetPan(AXVPB* voice, int pan)
 
 void MIXSetSPan(AXVPB* voice, int pan)
 {
-    MIXChannel* channel = &__MIXChannel[voice->index];
+    struct MIXChannel* channel = &__MIXChannel[voice->index];
 
     if (pan < 0) {
         pan = 0;
@@ -428,7 +429,7 @@ void MIXSetSPan(AXVPB* voice, int pan)
 
 void MIXSetFader(AXVPB* voice, int volume)
 {
-    MIXChannel* channel = &__MIXChannel[voice->index];
+    struct MIXChannel* channel = &__MIXChannel[voice->index];
 
     channel->fader = volume;
     channel->mode |= 0x40000000;
@@ -439,7 +440,7 @@ void MIXUpdateSettings(void)
     int i;
     int set_new_mix_level;
     int set_new_input_level;
-    MIXChannel* channel;
+    struct MIXChannel* channel;
     AXVPB* voice;
     u16 mixer_control;
     u16* mix;

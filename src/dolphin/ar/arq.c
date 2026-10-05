@@ -37,7 +37,6 @@ void __ARQPopTaskQueueHi(void)
     }
 }
 
-
 void __ARQServiceQueueLo(void)
 {
     if (__ARQRequestPendingLo == 0 && __ARQRequestQueueLo != 0) {
@@ -76,7 +75,6 @@ void __ARQServiceQueueLo(void)
 
 void __ARQCallbackHack(unsigned long requestAddress)
 {
-    (void)requestAddress;
 }
 
 void __ARQInterruptServiceRoutine(void)

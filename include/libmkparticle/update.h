@@ -23,8 +23,8 @@ void pfxvm_update_bounce(PfxBehavior* behavior, unsigned int field,
                          unsigned int velocity_field,
                          unsigned int bounce_count_field, float scale);
 void pfxvm_update_fade_alpha(PfxBehavior* behavior, unsigned int color_field,
-                             unsigned int age_field, int start_alpha,
-                             int end_alpha, float start_time, float duration);
+                             unsigned int age_field, float start_time,
+                             float duration, int start_alpha, int end_alpha);
 void pfxvm_update_lerp_color(PfxBehavior* behavior, unsigned int color_field,
                              unsigned int age_field, int color_count,
                              int first_color, void* colors, float duration);

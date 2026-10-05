@@ -8,8 +8,7 @@
 #define ANIM_KEY_LINEAR 2
 #define ANIM_KEY_HOLD 8
 
-/* TODO: [near miss] 99.57%; keyA/keyB fetches and ease-call order match; only n (retail r31) vs
- * (i-1)*4 offset (r30) and span/ratio f31/f30 coloring remain; split span locals regress to ~91.8%. */
+/* TODO: [near miss] 99.62%; component count/previous-key index GPR pair and duration/divisor FPR coloring remain. */
 void ScreenAnimControl::GetValue(float* out, int time) {
     unsigned int count;
     ScreenAnimKey* first;
@@ -18,7 +17,6 @@ void ScreenAnimControl::GetValue(float* out, int time) {
     int minT;
     int maxT;
     unsigned int i;
-    float t;
     float easeT;
     float valB[4];
     float valA[4];
@@ -40,7 +38,7 @@ void ScreenAnimControl::GetValue(float* out, int time) {
 
     if (count == 1) {
         first->GetValue(valB);
-        CopyValue(out, valB, (unsigned int)n);
+        CopyValue(out, valB, n);
         return;
     }
 
@@ -53,7 +51,7 @@ void ScreenAnimControl::GetValue(float* out, int time) {
             time = maxT + ((time - minT) % (maxT - minT));
         } else {
             ScreenAnimKeyAt(m_keys, 0)->GetValue(valB);
-            CopyValue(out, valB, (unsigned int)n);
+            CopyValue(out, valB, n);
             return;
         }
     } else if (time >= maxT) {
@@ -62,19 +60,19 @@ void ScreenAnimControl::GetValue(float* out, int time) {
             time = minT + ((time - minT) % (maxT - minT));
         } else {
             ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetValue(valB);
-            CopyValue(out, valB, (unsigned int)n);
+            CopyValue(out, valB, n);
             return;
         }
     }
 
     if (ScreenAnimKeyAt(m_keys, 0)->GetTime() >= time) {
         ScreenAnimKeyAt(m_keys, 0)->GetValue(valB);
-        CopyValue(out, valB, (unsigned int)n);
+        CopyValue(out, valB, n);
         return;
     }
     if (ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetTime() <= time) {
         ScreenAnimKeyAt(m_keys, m_keys->count - 1)->GetValue(valB);
-        CopyValue(out, valB, (unsigned int)n);
+        CopyValue(out, valB, n);
         return;
     }
 
@@ -84,7 +82,7 @@ void ScreenAnimControl::GetValue(float* out, int time) {
         }
         if ((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_HOLD) != 0) {
             ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valB);
-            CopyValue(out, valB, (unsigned int)n);
+            CopyValue(out, valB, n);
             return;
         }
 
@@ -92,17 +90,16 @@ void ScreenAnimControl::GetValue(float* out, int time) {
         keyA = ScreenAnimKeyAt(m_keys, i - 1);
         tB = keyB->GetTime();
         tA = keyA->GetTime();
-        t = (float)(tB - tA);
+        easeT = tB - tA;
         tA = keyA->GetTime();
-        t = (float)(time - tA) / t;
+        easeT = (float)(time - tA) / easeT;
         keyA = ScreenAnimKeyAt(m_keys, i - 1);
         keyB = ScreenAnimKeyAt(m_keys, i);
-        easeT = Ease(t, keyA->GetEaseOut(), keyB->GetEaseIn());
+        easeT = Ease(easeT, keyA->GetEaseOut(), keyB->GetEaseIn());
 
         ScreenAnimKeyAt(m_keys, i)->GetValue(valB);
         ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valA);
 
-        /* Linear blend when A is linear and B is linear or hold; else Hermite. */
         if (((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
              (ScreenAnimKeyAt(m_keys, i)->GetFlags() & ANIM_KEY_LINEAR) != 0) ||
             ((ScreenAnimKeyAt(m_keys, i - 1)->GetFlags() & ANIM_KEY_LINEAR) != 0 &&
@@ -165,7 +162,6 @@ void ScreenAnimControl::ComputeHermiteBasis(float t, float* out) {
     float negT2;
     float h;
 
-    /* Retail order: t2, load 3/2/1, t3, 3*t2, fnmsubs t-=2*t2, fneg -t2, h. */
     t2 = t * t;
     c3 = 3.0f;
     c2 = 2.0f;

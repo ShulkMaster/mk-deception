@@ -1,4 +1,5 @@
 #include "game/collision.h"
+#include "runtime/anim_api_ext.h"
 #include "game/blood.h"
 #include "game/game_info.h"
 #include "platform/display.h"
@@ -9,62 +10,64 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/image.h"
 #include "runtime/cam.h"
+#include "runtime/cam_shake.h"
 #include "runtime/utils.h"
 #include "runtime/asset.h"
 #include "runtime/cstdio.h"
+#include "game/plyr_globals.h"
+#include "runtime/sound.h"
+#include "runtime/light.h"
 
-typedef struct LightDef LightDef;
-
-typedef struct MiscBgndData {
+struct MiscBgndData {
     int collision_object_id;
     int collision_object_id2;
     void* object;
     float test_float;
     unsigned int test_value;
-} MiscBgndData;
+};
 
-typedef struct PlayerBodyExplodePdata {
+struct PlayerBodyExplodePdata {
     MkHdr hdr;
     PlyrInfo* player;
     Vec direction;
     float scale;
-} PlayerBodyExplodePdata;
+};
 
-typedef struct MkObjRef {
+struct MkObjRef {
     MkObj* object;
     unsigned int instance;
-} MkObjRef;
+};
 
-typedef struct FishScreamPdata {
+struct FishScreamPdata {
     MkHdr hdr;
     int player_index;
-} FishScreamPdata;
+};
 
-typedef struct FishAttackPdata {
+struct FishAttackPdata {
     MkHdr hdr;
-    int fish_index; /* +0x08 */
-    int lifetime; /* +0x0C */
-    int state_ticks; /* +0x10 */
-    int state; /* +0x14 */
-    int turn_step; /* +0x18 */
-    int turn_limit; /* +0x1C */
-    int turning_left; /* +0x20 */
-    int active; /* +0x24 */
-    struct FishModelPair* models; /* +0x28 */
-    int use_good_fish; /* +0x2C */
-    MkObj* target; /* +0x30 */
-    unsigned int target_instance; /* +0x34 */
-    MkObj* fish; /* +0x38 */
-    unsigned int fish_instance; /* +0x3C */
-} FishAttackPdata;
+    int fish_index;
+    int lifetime;
+    int state_ticks;
+    int state;
+    int turn_step;
+    int turn_limit;
+    int turning_left;
+    int active;
+    struct FishModelPair* models;
+    int use_good_fish;
+    MkObj* target;
+    unsigned int target_instance;
+    MkObj* fish;
+    unsigned int fish_instance;
+};
 
-typedef struct FishModelPair {
+struct FishModelPair {
     MkObj* bad_fish;
     MkObj* good_fish;
     MkObj* reserved;
-} FishModelPair;
+};
 
-typedef struct FishAttackData {
+struct FishAttackData {
     int target_bone;
     int model_index;
     int lifetime;
@@ -72,9 +75,9 @@ typedef struct FishAttackData {
     float offset_y;
     float offset_z;
     float field_18;
-} FishAttackData;
+};
 
-typedef struct MabSkinnedLightDef {
+struct MabSkinnedLightDef {
     int type;
     MkProcEntryFn proc;
     int flags;
@@ -82,15 +85,15 @@ typedef struct MabSkinnedLightDef {
     float field_1c;
     float field_20;
     float field_24;
-} MabSkinnedLightDef;
+};
 
-typedef struct MabGenericPositionPdata {
+struct MabGenericPositionPdata {
     MkHdr hdr;
     char pad08[0x10];
-    Vec position; /* +0x18 */
-} MabGenericPositionPdata;
+    Vec position;
+};
 
-typedef struct CameraBouncePdata {
+struct CameraBouncePdata {
     MkHdr hdr;
     MkObj* object;
     unsigned int object_instance;
@@ -98,13 +101,12 @@ typedef struct CameraBouncePdata {
     float trigger_distance;
     float velocity_scale;
     float direction_scale;
-} CameraBouncePdata;
+};
 
-typedef struct SkyTempleExplodeMonitorPdata {
+struct SkyTempleExplodeMonitorPdata {
     MkHdr hdr;
     PlyrInfo* player;
-} SkyTempleExplodeMonitorPdata;
-
+};
 
 #define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
     do {                                                                  \
@@ -123,7 +125,7 @@ static inline void mab_copy_vec_components(Vec* destination, const Vec* source) 
 
 double __fabs(double value);
 
-typedef struct FenceSection {
+struct FenceSection {
     float offset_z;
     char pad04[4];
     float offset_x;
@@ -131,81 +133,60 @@ typedef struct FenceSection {
     void* marker;
     float x;
     float z;
-} FenceSection;
+};
 
-typedef struct SkyTempleBodysplatPdata {
-    MkHdr hdr;
-    char pad08[0x10];
-    Vec position;
-} SkyTempleBodysplatPdata;
+struct ObjectMonitorThresholds {
+    Vec min_pos;
+    Vec min_vel;
+};
 
-typedef struct ObjectMonitorThresholdTriplet {
-    float x;
-    float y;
-    float z;
-} ObjectMonitorThresholdTriplet;
-
-typedef struct ObjectMonitorThresholds {
-    ObjectMonitorThresholdTriplet min_pos;
-    ObjectMonitorThresholdTriplet min_vel;
-} ObjectMonitorThresholds;
-
-typedef struct ObjectMonitorPdata {
+struct ObjectMonitorPdata {
     MkHdr hdr;
     int state;
-    ObjectMonitorThresholds thresholds;
+    struct ObjectMonitorThresholds thresholds;
     float velocity_scale;
     float vertical_step;
     float settle_height;
     void (*callback)(MkSobj* object);
     MkHdr* target;
     unsigned int target_instance;
-} ObjectMonitorPdata;
+};
 
-typedef struct ObjectMonitorConfig {
+struct ObjectMonitorConfig {
     MkHdr* target;
-    ObjectMonitorThresholds thresholds;
+    struct ObjectMonitorThresholds thresholds;
     float velocity_scale;
     float vertical_step;
     float settle_height;
     void (*callback)(MkSobj* object);
-} ObjectMonitorConfig;
+};
 
-
-typedef struct ObjectMonitorSpawnLocals {
-    ObjectMonitorPdata* pdata;
-    ObjectMonitorConfig config;
-} ObjectMonitorSpawnLocals;
-
-typedef struct FishObjectLatch {
+struct FishObjectLatch {
     char pad00[0x10];
     MkObj* object;
     unsigned int instance;
     char pad18[0x18];
-    unsigned int flags; /* +0x30 */
+    unsigned int flags;
     char pad34[4];
     float field_38;
-} FishObjectLatch;
+};
 
-typedef struct YinyangFishPair {
+struct YinyangFishPair {
     MkObj* good_fish;
     MkObj* bad_fish;
-    FishObjectLatch* active_fish;
-} YinyangFishPair;
+    struct FishObjectLatch* active_fish;
+};
 
 int yy_evil_time_active;
 int yinyang_ok_to_switch;
 int yinyang_good_music_index;
 int yinyang_evil_music_index;
 MslSoundHandle yinyang_current_music;
-static MiscBgndData misc_bgnd_data;
+static struct MiscBgndData misc_bgnd_data;
 static CollisionShape fortress_exclusion_zone;
-static MkObjRef debug_p2_axis_item;
-static MkObjRef debug_p1_axis_item;
+static struct MkObjRef debug_p2_axis_item;
+static struct MkObjRef debug_p1_axis_item;
 
-extern MkObj* plyr_obj;
-
-MslSoundHandle snd_req(int sound_id);
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle plyr_snd_req(int sound_id);
 void init_collision_system(void);
@@ -213,7 +194,6 @@ int is_weapon_style(int style);
 void advance_active_moveset(FighterMirror* fighter);
 static float p_player_body_explode(void);
 static float p_xpd_obj_monitor(void);
-int build_bones_tbl(MkObj* object, const int* tags);
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     FighterMirror* fighter, int sound_id);
 MkObj* obj_sever_limb(
@@ -225,7 +205,6 @@ void bgnd_hide_mirror_guys(void);
 float p_anim_idle(void);
 void mkobj_zero_bone_rots(MkObj* object);
 void add_facial_damage(FighterMirror* fighter, float amount);
-void shake_camera(int strength, MkHdr* pdata, float duration);
 extern MkPtr* gusher_list;
 static float p_monitor_objs_sobjs(void);
 void p_statue_xpd_callback(MkSobj* object);
@@ -235,8 +214,6 @@ static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
-void obj_change_to_skinned_obj_light_list(MkObj* object, LightDef* light);
-void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 float p_track_cam_ang_y_light(void);
 
 const char* rock_xpd_effects[6] = {
@@ -248,7 +225,7 @@ const char* rock_dust_effects[6] = {
     "dust_gnd_pnd3", "dust_gnd_pnd4", "dust_gnd_pnd5",
 };
 
-FishAttackData fish_data_tbl[13] = {
+struct FishAttackData fish_data_tbl[13] = {
     {0x19, 1, 0xDC, 0.0f, 0.0f, 0.0f, 0.0f},
     {0x18, 4, 0xE2, 0.0f, 0.0f, 0.0f, 0.0f},
     {0x08, 7, 0xE0, 0.0f, 0.0f, 0.0f, 0.0f},
@@ -264,7 +241,7 @@ FishAttackData fish_data_tbl[13] = {
     {0, 0x0E, 0xFF, -0.25f, 1.57f, 0.0f, 0.0f},
 };
 
-static MabSkinnedLightDef skinned_obj_light_def = {
+static struct MabSkinnedLightDef skinned_obj_light_def = {
     3, p_track_cam_ang_y_light, 0,
     {1.0f, 1.0f, 1.0f, 1.0f},
     6.010f, 3.190f, 0.0f,
@@ -429,7 +406,7 @@ MkObj* cut_player_in_half(MkObj* player_object) {
 }
 
 int get_offset_of_closest_fence_section(
-    Vec* point, FenceSection* sections, int offset,
+    Vec* point, struct FenceSection* sections, int offset,
     int apply_offset) {
     Vec fence_position;
     Vec direction;
@@ -470,13 +447,7 @@ int get_offset_of_closest_fence_section(
     return closest;
 }
 
-
-
-
-
-
-
-/* TODO: [near miss] 97.29%; position copy load scheduling (z load hoisted above the x store) remains. */
+/* TODO: [near miss] 97.29%; x/z/y copy preloads z; supported whole-TU scheduling controls regress. */
 void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     MkObj* object;
 
@@ -508,19 +479,20 @@ void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     }
 }
 
-/* TODO: [near miss] 98.00%; body matches; retail has two unreachable branches (b epilogue; b e4) after the return that no loop shape tried reproduces. */
+/* TODO: [near miss] 98.00%; two unreachable retail branches remain; structured-loop forms are
+ * neutral and whole-TU peephole control regresses. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
-    MkObjRef splat;
+    struct MkObjRef splat;
     MkObj* object;
-    MabGenericPositionPdata* pdata;
+    struct MabGenericPositionPdata* pdata;
     Vec direction;
     float scale;
 
     splat.object = 0;
     splat.instance = 0;
     scale = 0.5f;
-    pdata = (MabGenericPositionPdata*)apdata;
+    pdata = (struct MabGenericPositionPdata*)apdata;
     object = load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
     if (object != 0) {
         insert_fgnd_mkobj(object);
@@ -563,12 +535,10 @@ static inline MkObj* fighter_severed_limb_live_object(
     return object;
 }
 
-
-
 /* TODO: [near miss] 99.83%; only the else-branch fish web colors r25 vs retail r24
  * (fish helper/macro reshapes regress; 120s permuter found nothing). */
 float p_fish_attack(void) {
-    FishAttackPdata* pdata;
+    struct FishAttackPdata* pdata;
     MkObj* fish;
     MkObj* target;
     Vec target_position;
@@ -578,7 +548,7 @@ float p_fish_attack(void) {
     float distance;
     int fish_index;
 
-    pdata = (FishAttackPdata*)apdata;
+    pdata = (struct FishAttackPdata*)apdata;
     fish_index = pdata->fish_index;
 
     if (pdata->active == 1) {
@@ -602,7 +572,7 @@ float p_fish_attack(void) {
                 insert_fgnd_mkobj(fish);
             } else {
                 if (fish->hdr.instance != 0) {
-                    fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+                    fish->hdr.typed_vtbl->destroy(&fish->hdr);
                 }
                 return -1.0f;
             }
@@ -810,13 +780,13 @@ float p_fish_attack(void) {
     RESOLVE_MAB_OBJECT_IN_PLACE(
         fish, pdata->fish, pdata->fish_instance);
     if (fish != 0 && fish->hdr.instance != 0) {
-        fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+        fish->hdr.typed_vtbl->destroy(&fish->hdr);
     }
     return -1.0f;
 }
 
 float p_fish_attack_scream_sounds(void) {
-    FishScreamPdata* pdata = (FishScreamPdata*)apdata;
+    struct FishScreamPdata* pdata = (struct FishScreamPdata*)apdata;
     PlyrInfo* player;
 
     if (pdata->player_index == 0) {
@@ -836,10 +806,10 @@ float p_fish_attack_scream_sounds(void) {
 }
 
 float p_fish_attack_sounds(void) {
-    FishScreamPdata* scream_pdata;
+    struct FishScreamPdata* scream_pdata;
     int elapsed_ticks;
 
-    scream_pdata = (FishScreamPdata*)apdata;
+    scream_pdata = (struct FishScreamPdata*)apdata;
     if (_create_mkproc_generic_tinystack(
             0x209A, 0x1F, p_fish_attack_scream_sounds, 0x28,
             (MkHdr**)&scream_pdata) != 0) {
@@ -872,17 +842,18 @@ float p_fish_attack_sounds(void) {
 }
 
 void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
-    FishAttackPdata* fish_pdata;
-    FishScreamPdata* scream_pdata;
+    struct FishAttackPdata* fish_pdata;
+    struct FishScreamPdata* scream_pdata;
     void* blood_proc;
     int fish_index;
 
     for (fish_index = 0; fish_index < 13; fish_index++) {
         if (_create_mkproc_generic_nostack(
-                0x209A, 0x1F, p_fish_attack, 0x40,
+                0x209A, 0x1F, p_fish_attack,
+                sizeof(struct FishAttackPdata),
                 (MkHdr**)&fish_pdata) != 0) {
             fish_pdata->use_good_fish = target_kind;
-            fish_pdata->models = (FishModelPair*)attack_kind;
+            fish_pdata->models = (struct FishModelPair*)attack_kind;
             fish_pdata->target = target;
             fish_pdata->target_instance = target->hdr.instance;
             fish_pdata->fish_index = fish_index;
@@ -893,10 +864,10 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     blood_proc = proc_create(p_fish_attack_bloodsplat, 0x209C);
     snd_req(0x154);
     if (blood_proc != 0) {
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.x =
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.x =
             target->pos.value.x;
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.y = -0.185f;
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.z =
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.y = -0.185f;
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.z =
             target->pos.value.z;
     }
 
@@ -911,17 +882,16 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-
-/* TODO: [near miss] 99.54%; one row: retail seeds the limb offset with mr r29,r28 (as when init_plyr_severed_limb_list is inlined); a direct call does not inline here. */
+/* TODO: [near miss] 99.54%; limb-offset seed uses li instead of mr; inline initialization introduces owner-register regressions. */
 static float p_player_body_explode(void) {
     PlyrInfo* player;
-    PlayerBodyExplodePdata* pdata;
+    struct PlayerBodyExplodePdata* pdata;
     MkProc* anim_proc;
     MkObj* object;
     int limb;
     int body_part;
 
-    pdata = (PlayerBodyExplodePdata*)apdata;
+    pdata = (struct PlayerBodyExplodePdata*)apdata;
     player = pdata->player;
 
     player->slot.mirror_a->flags_09_bits.head_tracking = 0;
@@ -976,11 +946,11 @@ static float p_player_body_explode(void) {
 
 void player_body_explode(
     PlyrInfo* player, Vec* direction, float scale) {
-    PlayerBodyExplodePdata* pdata;
+    struct PlayerBodyExplodePdata* pdata;
 
     if (_create_mkproc_generic_nostack(
             0x2097, 0x1F, p_player_body_explode,
-            sizeof(PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
+            sizeof(struct PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
         pdata->player = player;
         pdata->direction.x = direction->x;
         pdata->direction.y = direction->y;
@@ -1015,7 +985,7 @@ void init_plyr_severed_limb_list(PlyrInfo* player) {
 }
 
 void yinyang_set_bad_fish_hide_flag(
-    YinyangFishPair* fish, int hide, int count) {
+    struct YinyangFishPair* fish, int hide, int count) {
     int index;
 
     for (index = 0; index < count; index++) {
@@ -1033,7 +1003,7 @@ void yinyang_set_bad_fish_hide_flag(
 }
 
 void yinyang_set_good_fish_hide_flag(
-    YinyangFishPair* fish, int hide, int count) {
+    struct YinyangFishPair* fish, int hide, int count) {
     int index;
 
     for (index = 0; index < count; index++) {
@@ -1061,7 +1031,7 @@ void obj_setup_for_animation(
 }
 
 /* TODO: [near miss] 99.63%; initializer pool base/frame pointer swap r10/r11; the @511 pool object vs ...rodata.0 naming is TU data layout. */
-void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
+void yinyang_make_fish_jump(struct YinyangFishPair* fish, int count) {
     RwFrame* camera_frame = Camera->object.object.parent;
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
     Vec cylinder_axis = {0.0f, 1.0f, 0.0f};
@@ -1073,7 +1043,7 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     float intersection_a;
     float intersection_b;
     float intersection;
-    YinyangFishPair* current;
+    struct YinyangFishPair* current;
     int index;
 
     camera_direction.x = camera_frame->modelling.at.x;
@@ -1137,10 +1107,10 @@ static float p_monitor_objs_sobjs(void) {
     int all_settled;
     MkSobj* object;
     MkPtr* iterator;
-    ObjectMonitorPdata* pdata;
+    struct ObjectMonitorPdata* pdata;
     MkObj* target;
 
-    pdata = (ObjectMonitorPdata*)apdata;
+    pdata = (struct ObjectMonitorPdata*)apdata;
     all_settled = 1;
     target = (MkObj*)MK_LIVE(pdata->target, pdata->target_instance);
 
@@ -1213,37 +1183,37 @@ static float p_monitor_objs_sobjs(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 83.97%; spawn/config algorithm recovered; retail batches the six threshold words before storing (one aggregate assignment regresses to 71.99). */
 void do_yinyang_statue_explosion(MkHdr* statue) {
-    ObjectMonitorSpawnLocals locals;
+    struct ObjectMonitorPdata* pdata;
+    struct ObjectMonitorConfig config;
 
     if (statue == 0) {
         return;
     }
 
-    locals.config.target = statue;
-    locals.config.velocity_scale = 0.45f;
-    locals.config.thresholds.min_pos.x = 0.01f;
-    locals.config.thresholds.min_pos.y = 0.03f;
-    locals.config.thresholds.min_pos.z = 0.01f;
-    locals.config.thresholds.min_vel.x = 0.01f;
-    locals.config.thresholds.min_vel.y = 0.01f;
-    locals.config.thresholds.min_vel.z = 0.01f;
-    locals.config.vertical_step = 0.003f;
-    locals.config.settle_height = 0.15f;
-    locals.config.callback = p_statue_xpd_callback;
+    config.target = statue;
+    config.velocity_scale = 0.45f;
+    config.thresholds.min_pos.x = 0.01f;
+    config.thresholds.min_pos.y = 0.03f;
+    config.thresholds.min_pos.z = 0.01f;
+    config.thresholds.min_vel.x = 0.01f;
+    config.thresholds.min_vel.y = 0.01f;
+    config.thresholds.min_vel.z = 0.01f;
+    config.vertical_step = 0.003f;
+    config.settle_height = 0.15f;
+    config.callback = p_statue_xpd_callback;
 
     if (_create_mkproc_generic_nostack(
             0x2095, 0x1F, p_monitor_objs_sobjs,
-            sizeof(ObjectMonitorPdata), (MkHdr**)&locals.pdata) != 0) {
-        locals.pdata->velocity_scale = locals.config.velocity_scale;
-        locals.pdata->target = locals.config.target;
-        locals.pdata->target_instance = locals.config.target->instance;
-        locals.pdata->thresholds.min_pos = locals.config.thresholds.min_pos;
-        locals.pdata->thresholds.min_vel = locals.config.thresholds.min_vel;
-        locals.pdata->vertical_step = locals.config.vertical_step;
-        locals.pdata->settle_height = locals.config.settle_height;
-        locals.pdata->callback = locals.config.callback;
+            sizeof(struct ObjectMonitorPdata), (MkHdr**)&pdata) != 0) {
+        pdata->velocity_scale = config.velocity_scale;
+        pdata->target = config.target;
+        pdata->target_instance = config.target->instance;
+        pdata->thresholds.min_pos = config.thresholds.min_pos;
+        pdata->thresholds.min_vel = config.thresholds.min_vel;
+        pdata->vertical_step = config.vertical_step;
+        pdata->settle_height = config.settle_height;
+        pdata->callback = config.callback;
     }
 }
 
@@ -1269,14 +1239,13 @@ void p_statue_xpd_callback(MkSobj* object) {
     }
 }
 
-
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     int frame;
     int sound_delay;
-    SkyTempleExplodeMonitorPdata* pdata;
+    struct SkyTempleExplodeMonitorPdata* pdata;
 
-    pdata = (SkyTempleExplodeMonitorPdata*)apdata;
+    pdata = (struct SkyTempleExplodeMonitorPdata*)apdata;
     frame = 0;
     sound_delay = 0;
 
@@ -1361,14 +1330,14 @@ static float p_xpd_obj_monitor(void) {
 }
 
 float p_skytemple_bodysplat(void) {
-    MkObjRef splat;
+    struct MkObjRef splat;
     MkObj* object;
-    SkyTempleBodysplatPdata* pdata;
+    struct MabGenericPositionPdata* pdata;
     float scale;
 
     splat.object = 0;
     splat.instance = 0;
-    pdata = (SkyTempleBodysplatPdata*)apdata;
+    pdata = (struct MabGenericPositionPdata*)apdata;
     object = load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
     if (object != 0) {
         insert_fgnd_mkobj(object);
@@ -1398,7 +1367,7 @@ float p_skytemple_bodysplat(void) {
 }
 
 static float p_cam_bounce_monitor(void) {
-    CameraBouncePdata* pdata;
+    struct CameraBouncePdata* pdata;
     MkObj* object;
     Vec saved_velocity;
     Vec saved_angular_velocity;
@@ -1407,7 +1376,7 @@ static float p_cam_bounce_monitor(void) {
     float distance;
     float reflection;
 
-    pdata = (CameraBouncePdata*)apdata;
+    pdata = (struct CameraBouncePdata*)apdata;
     object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
     if (camera_obj == 0 || object == 0) {
         return -1.0f;
@@ -1460,7 +1429,6 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-
 /* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
@@ -1468,7 +1436,8 @@ void skytemple_player_explode(
     MkProc* anim_proc;
     MkProc* bounce_proc;
     MkObj* limb;
-    SkyTempleExplodeMonitorPdata* monitor_pdata;
+    struct SkyTempleExplodeMonitorPdata* monitor_pdata;
+    ScreenObj* splat_effect;
     float saved_gravity;
     float limb_y;
     float saved_facial_damage;
@@ -1517,7 +1486,7 @@ void skytemple_player_explode(
         limb->gravity = -0.003f;
 
         if (limb_index == 0) {
-            CameraBouncePdata* bounce_pdata;
+            struct CameraBouncePdata* bounce_pdata;
             CameraObj* camera;
             MkObj* bounce_object;
             Vec gusher_position;
@@ -1527,6 +1496,7 @@ void skytemple_player_explode(
             float camera_delta_x;
             float direction_scale = 0.025f;
             unsigned int limb_instance;
+            MkHdr* gusher;
 
             mkobj_zero_bone_rots(limb);
             limb->ang_vel.x = 0.09f;
@@ -1549,7 +1519,7 @@ void skytemple_player_explode(
                 bounce_object->pos_vel.z = camera_delta_z * direction_scale;
                 if (_create_mkproc_generic_tinystack(
                         0x2092, 0x1F, p_cam_bounce_monitor,
-                        sizeof(CameraBouncePdata),
+                        sizeof(struct CameraBouncePdata),
                         (MkHdr**)&bounce_pdata) != 0) {
                     bounce_pdata->object = bounce_object;
                     bounce_pdata->object_instance =
@@ -1569,13 +1539,11 @@ void skytemple_player_explode(
             gusher_direction.x = 0.8f;
             gusher_direction.y = -1.0f;
             gusher_direction.z = 0.0f;
-            {
-                MkHdr* gusher = (MkHdr*)start_gusher(
-                    heart_beat, player->slot.fighter, limb, 0x10,
-                    &gusher_position, &gusher_direction);
-                if (gusher != 0) {
-                    mk_insert(gusher, &gusher_list);
-                }
+            gusher = (MkHdr*)start_gusher(
+                heart_beat, player->slot.fighter, limb, 0x10,
+                &gusher_position, &gusher_direction);
+            if (gusher != 0) {
+                mk_insert(gusher, &gusher_list);
             }
         } else {
             float velocity;
@@ -1601,32 +1569,28 @@ void skytemple_player_explode(
         }
     }
 
-    {
-        if (_create_mkproc_generic_tinystack(
-                0x208E, 0x1F, p_xpd_obj_monitor,
-                sizeof(SkyTempleExplodeMonitorPdata),
-                (MkHdr**)&monitor_pdata) == 0) {
-            return;
-        }
-        monitor_pdata->player = player;
+    if (_create_mkproc_generic_tinystack(
+            0x208E, 0x1F, p_xpd_obj_monitor,
+            sizeof(struct SkyTempleExplodeMonitorPdata),
+            (MkHdr**)&monitor_pdata) == 0) {
+        return;
     }
+    monitor_pdata->player = player;
 
-    {
-        ScreenObj* effect = load_named_2d_pfxobj(
-            0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);
-        if (effect != 0) {
-            effect->x = 0;
-            effect->y = 0x48;
-            effect->flag_bits.scaled = 1;
-            effect->scale_x = 2.0f;
-            effect->scale_y = 2.0f;
-        }
+    splat_effect = load_named_2d_pfxobj(
+        0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);
+    if (splat_effect != 0) {
+        splat_effect->x = 0;
+        splat_effect->y = 0x48;
+        splat_effect->flag_bits.scaled = 1;
+        splat_effect->scale_x = 2.0f;
+        splat_effect->scale_y = 2.0f;
     }
 
     if (proc_create(p_skytemple_bodysplat, 0x208F) != 0) {
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.x = x;
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.y = y;
-        ((MabGenericPositionPdata*)mab_generic_pdata)->position.z = z;
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.x = x;
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.y = y;
+        ((struct MabGenericPositionPdata*)mab_generic_pdata)->position.z = z;
     }
 
     _mkproc_sleep_ticks = 8.0f;

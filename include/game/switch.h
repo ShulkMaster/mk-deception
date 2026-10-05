@@ -5,11 +5,12 @@
 
 typedef struct PlyrInfo PlyrInfo;
 
-/* Generic switch process payload; player follows its owned MkHdr. */
 typedef struct SwitchPdata {
     MkHdr hdr;
     PlyrInfo* player;
 } SwitchPdata;
+
+extern SwitchPdata* switch_pdata;
 
 float pad_l2_proc(void);
 float pad_r2_proc(void);

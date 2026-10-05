@@ -115,12 +115,31 @@ s32 adxt_dbg_rna_ndata = 0;
 s32 adxt_dbg_ndt = 0;
 s32 adxt_dbg_nch = 0;
 
-/* TODO: [breakthrough needed] 95.932990%; donor-backed stream-mode switch now matches retail's termination CFG; PLAYING/PREP lifetimes and SJ helper lowering remain unresolved. */
+static inline void adxt_finish_playing_input(ADXTHandle* handle) {
+    s32 decoder_channels;
+
+    s32 channel;
+
+    decoder_channels = ADXSJD_GetNumChan(handle->decoder);
+    adxt_dbg_nch = decoder_channels;
+    for (channel = 0; channel < decoder_channels; channel++) {
+        adxt_dbg_ndt = handle->output_sj[channel]->interface->get_num_data(
+            handle->output_sj[channel], 1);
+        if (adxt_dbg_ndt >= ADXT_MIN_PLAY_DATA) {
+            break;
+        }
+    }
+    if (channel == decoder_channels) {
+        ADXRNA_SetTransSw(handle->rna, 0);
+        handle->status = ADXT_STATUS_DRAINING;
+    }
+}
+
+/* TODO: [near miss] 99.61%; retained owners and PLAYING loop agree; BUFFERING loop coloring remains. */
 void ADXT_ExecHndl(ADXTHandle* handle)
 {
     SJCK chunk;
     s32 decoder_channels;
-    s32 channel;
     s32 buffer_data;
     s32 buffer_room;
     s32 bytes;
@@ -132,31 +151,25 @@ void ADXT_ExecHndl(ADXTHandle* handle)
 
     if (handle->status == ADXT_STATUS_PLAYING) {
         if (ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
-            decoder_channels = ADXSJD_GetNumChan(handle->decoder);
-            adxt_dbg_nch = decoder_channels;
-            for (channel = 0; channel < decoder_channels; channel++) {
-                adxt_dbg_ndt = handle->output_sj[channel]->interface->get_num_data(
-                    handle->output_sj[channel], 1);
-                if (adxt_dbg_ndt >= ADXT_MIN_PLAY_DATA) {
-                    break;
-                }
-            }
-            if (channel == decoder_channels) {
-                ADXRNA_SetTransSw(handle->rna, 0);
-                handle->status = ADXT_STATUS_DRAINING;
-            }
+            adxt_finish_playing_input(handle);
         }
     } else if (handle->status == ADXT_STATUS_DECODING_HEADER) {
         adxt_stat_decinfo(handle);
     } else if (handle->status == ADXT_STATUS_BUFFERING) {
-        buffer_data = ADXRNA_GetNumData(handle->rna);
-        buffer_room = ADXRNA_GetNumRoom(handle->rna);
+        AdxSjdHandle* decoder;
+        AXRNAHandle* rna;
+
+        rna = handle->rna;
+        decoder = handle->decoder;
+
+        buffer_data = ADXRNA_GetNumData(rna);
+        buffer_room = ADXRNA_GetNumRoom(rna);
         if (buffer_data >= handle->maximum_decode_samples * 2 ||
-            buffer_room <= ADXSJD_GetBlkSmpl(handle->decoder) ||
+            buffer_room <= ADXSJD_GetBlkSmpl(decoder) ||
             ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
             if (handle->suppress_playback == 0) {
                 if (handle->paused == 0) {
-                    ADXRNA_SetPlaySw(handle->rna, 1);
+                    ADXRNA_SetPlaySw(rna, 1);
                     handle->playback_time = 0;
                     handle->playback_start_vsync = adxt_vsync_cnt;
                 }
@@ -165,14 +178,18 @@ void ADXT_ExecHndl(ADXTHandle* handle)
             handle->decoder_ready = 1;
         }
         if (ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
+            s32 channel;
+
             decoder_channels = ADXT_GetNumChan(handle);
             bytes = handle->maximum_decode_samples * decoder_channels * 2;
             for (channel = 0; channel < decoder_channels; channel++) {
-                handle->output_sj[channel]->interface->get_chunk(
-                    handle->output_sj[channel], 0, bytes, &chunk);
+                SJ* output = handle->output_sj[channel];
+
+                output->interface->get_chunk(
+                    output, 0, bytes, &chunk);
                 memset(chunk.data, 0, chunk.len);
-                handle->output_sj[channel]->interface->put_chunk(
-                    handle->output_sj[channel], 1, &chunk);
+                output->interface->put_chunk(
+                    output, 1, &chunk);
             }
         }
     } else if (handle->status == ADXT_STATUS_DRAINING) {
@@ -210,7 +227,6 @@ void ADXT_ExecHndl(ADXTHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.550606%; explicit handle alias matched the RE4 lifetime hypothesis but MWCC retained the same r30/r31 coloring; no clean local lever remains. */
 void adxt_stat_decinfo(ADXTHandle* handle)
 {
     signed char channel_error[32];
@@ -224,6 +240,7 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     s32 eos_sector;
     s32 channel_count;
     s32 total_samples;
+    s32 output_bits;
 
     decoder = handle->decoder;
     transpose = 0;
@@ -302,7 +319,8 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     sample_rate = ADXSJD_GetSfreq(decoder);
     channel_count = ADXSJD_GetNumChan(decoder);
     total_samples = ADXSJD_GetTotalNumSmpl(decoder);
-    ADXRNA_SetBitPerSmpl(handle->rna, ADXSJD_GetOutBps(decoder));
+    output_bits = ADXSJD_GetOutBps(decoder);
+    ADXRNA_SetBitPerSmpl(handle->rna, output_bits);
     ADXRNA_SetSfreq(handle->rna, sample_rate);
     ADXRNA_SetNumChan(handle->rna, channel_count);
     ADXRNA_SetTotalNumSmpl(handle->rna, total_samples);
@@ -318,7 +336,8 @@ void adxt_stat_decinfo(ADXTHandle* handle)
         ADXAMP_SetSfreq(handle->amplifier, sample_rate);
     }
     if (ADXSJD_GetFormat(decoder) == 2) {
-        ADXRNA_SetStmHdInfo(handle->rna, ADXSJD_GetSpsdInfo(decoder));
+        u8* stream_header = ADXSJD_GetSpsdInfo(decoder);
+        ADXRNA_SetStmHdInfo(handle->rna, stream_header);
     }
     ADXRNA_SetTransSw(handle->rna, 1);
     if (adxt_enddecinfo_cbfn != 0) {
@@ -328,7 +347,7 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
-/* TODO: [near miss] 99.026740%; declaration order now matches retail's +0x8/+0xA s16 locals and removes one saved-register mismatch, but remaining differences are register coloring. */
+/* TODO: [near miss] 99.95%; second split length is retained across stream callbacks; first scan-length temporary uses r0 instead of r4. */
 void adxt_nlp_trap_entry(void* object)
 {
     ADXTHandle* handle = (ADXTHandle*)object;
@@ -343,6 +362,7 @@ void adxt_nlp_trap_entry(void* object)
     s32 first_info_status;
     s32 second_info_status;
     s32 first_consumed;
+    s32 second_consumed;
 
     if (handle->link_enabled == 0) {
         return;
@@ -373,6 +393,7 @@ void adxt_nlp_trap_entry(void* object)
             &second_info_length);
     }
     first_consumed += first_info_length;
+    second_consumed = second_info_length;
     if (first_info_status != 0 && second_info_status != 0) {
         input->interface->unget_chunk(input, 1, &second_chunk);
         input->interface->unget_chunk(input, 1, &first_chunk);
@@ -388,7 +409,7 @@ void adxt_nlp_trap_entry(void* object)
     } else {
         input->interface->put_chunk(input, 0, &first_chunk);
         SJ_SplitChunk(
-            &second_chunk, second_info_length,
+            &second_chunk, second_consumed,
             &second_chunk, &second_remainder);
         input->interface->put_chunk(input, 0, &second_chunk);
         input->interface->unget_chunk(input, 1, &second_remainder);
@@ -483,6 +504,7 @@ void adxt_trap_entry(void* object)
     s32 loop_start_position;
     s32 loop_start_offset;
     s32 loop_end_position;
+    s32 loop_sample_count;
 
     loop_start_position = ADXSJD_GetLpStartPos(decoder);
     loop_start_offset = ADXSJD_GetLpStartOfst(decoder);
@@ -500,8 +522,9 @@ void adxt_trap_entry(void* object)
     }
     input->interface->put_chunk(input, 0, &chunk);
     ADXSJD_SetTrapCnt(decoder, 0);
-    handle->loop_sample_count = loop_end_position - loop_start_position;
-    ADXSJD_SetTrapNumSmpl(decoder, handle->loop_sample_count);
+    loop_sample_count = loop_end_position - loop_start_position;
+    handle->loop_sample_count = loop_sample_count;
+    ADXSJD_SetTrapNumSmpl(decoder, loop_sample_count);
     ADXSJD_SetTrapDtLen(decoder, loop_start_offset);
     ADXSJD_SetDecPos(decoder, loop_start_position);
     if (handle->stream_type == ADXT_STREAM_TYPE_MEMORY) {
@@ -521,14 +544,16 @@ void adxt_trap_entry_lps(void* object)
     s32 loop_start_position;
     s32 loop_start_offset;
     s32 loop_end_position;
+    s32 loop_sample_count;
 
     loop_start_position = ADXSJD_GetLpStartPos(decoder);
     loop_start_offset = ADXSJD_GetLpStartOfst(decoder);
     loop_end_position = ADXSJD_GetLpEndPos(decoder);
     ADXSJD_TakeSnapshot(decoder);
     ADXSJD_SetTrapCnt(decoder, 0);
-    handle->loop_sample_count = loop_end_position - loop_start_position;
-    ADXSJD_SetTrapNumSmpl(decoder, handle->loop_sample_count);
+    loop_sample_count = loop_end_position - loop_start_position;
+    handle->loop_sample_count = loop_sample_count;
+    ADXSJD_SetTrapNumSmpl(decoder, loop_sample_count);
     ADXSJD_SetTrapDtLen(decoder, loop_start_offset);
     ADXSJD_SetDecPos(decoder, loop_start_position);
     ADXSJD_EntryTrapFunc(decoder, adxt_trap_entry, handle);

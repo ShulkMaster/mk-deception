@@ -1,15 +1,16 @@
+#include "libmkparticle/random.h"
 #include "libmkparticle/vm.h"
 #include "math/gxMath.h"
+#include "runtime/utils.h"
+#include "fdlibm.h"
 
-float frand(float);
-unsigned int random(void);
-double sqrt(double);
+union RandomFloatBits {
+    float f;
+    unsigned int u;
+};
 
 static inline float rnd_inverse_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate;
+    union RandomFloatBits estimate;
     float product;
     float correction;
 
@@ -40,10 +41,7 @@ static inline void rnd_normalize(PfxVec3* vector) {
 }
 
 static inline float rnd_sqrt_table(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } estimate;
+    union RandomFloatBits estimate;
     unsigned int bits;
 
     if (!(0.0f < value)) {
@@ -141,7 +139,7 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z *= radius;
 }
 
-/* TODO: [breakthrough] 44.565216%; sqrt halfword indexing corrected;
+/* TODO: [breakthrough] 45.0%; sqrt halfword indexing corrected;
  * remaining source-shape/FP differences need localized retail audit. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
@@ -189,7 +187,7 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
     output->z *= length;
 }
 
-/* TODO: [breakthrough] 57.986576%; sqrt halfword indexing corrected;
+/* TODO: [breakthrough] 58.456375%; sqrt halfword indexing corrected;
  * remaining source-shape/FP differences need localized retail audit. */
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     PfxVec3 random_vector;

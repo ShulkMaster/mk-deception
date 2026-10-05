@@ -1,19 +1,14 @@
 #include "mw/mwFile.h"
 #include "mw/mwFileGlue.h"
+#include "mw/mwFileMemTraits.h"
 #include "mw/mwMemHeap.h"
 #include "platform/disc_error.h"
 #include "runtime/cstdlib.h"
 
-class mwFileMemTraits {
-public:
-    static void deallocate(void* ptr);
-    static void* allocate(unsigned long size, mwTargetMemAlign align, const char* name);
-};
-
-typedef union mwFileInitFlagValue {
+union mwFileInitFlagValue {
     float value;
     unsigned int flags;
-} mwFileInitFlagValue;
+};
 
 static const char stringBase0[] =
     "game\0"
@@ -56,11 +51,7 @@ static const char stringBase0[] =
 #define MOUNT_MKO (&stringBase0[0x96])
 #define PATH_MKO (&stringBase0[0x9A])
 
-const int gap_04_802EA424_rodata = 0;
-
-/* Force .sdata2 via const floats; MWF_INIT_DVD bit pattern is 0x00000020. */
-const mwFileInitFlagValue MWF_INIT_DVD = {4.484155085839415e-44f}; /* 0x00000020 */
-const float gap_09_805117EC_sdata2 = 0.0f;
+const mwFileInitFlagValue MWF_INIT_DVD = {4.484155085839415e-44f};
 
 void mwfile_init_for_mk(void* allocator_context) {
     mwFileInitParam init;
@@ -97,6 +88,5 @@ void mwFileMemTraits::deallocate(void* ptr) {
 void* mwFileMemTraits::allocate(unsigned long size,
                                 mwTargetMemAlign align,
                                 const char* name) {
-    (void)name;
     return _mwMemMalloc(mwfile_heap, size, align, 0, 0, 0);
 }

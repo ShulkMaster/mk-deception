@@ -1,11 +1,8 @@
-#include "dolphin/exi.h"
-#include "dolphin/trk.h"
+#include "dolphin/UDP_Stubs.h"
 
 __declspec(weak) int udp_cc_initialize(volatile u8** flag_out,
                                        EXICallback handler)
 {
-    (void)flag_out;
-    (void)handler;
     return -1;
 }
 
@@ -26,15 +23,11 @@ __declspec(weak) int udp_cc_close(void)
 
 __declspec(weak) int udp_cc_read(u8* destination, int size)
 {
-    (void)destination;
-    (void)size;
     return 0;
 }
 
 __declspec(weak) int udp_cc_write(const u8* source, int size)
 {
-    (void)source;
-    (void)size;
     return 0;
 }
 

@@ -1,8 +1,11 @@
 #include "runtime/mk_struct.h"
+#include "platform/display.h"
 
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "game/plyr.h"
+#include "game/game_info.h"
+#include "game/game.h"
 #include "game/settings.h"
 #include "game/attract.h"
 #include "game/cloth.h"
@@ -12,32 +15,12 @@
 #include "runtime/mk_cmdscript.h"
 #include "runtime/utils.h"
 #include "runtime/mk_mem.h"
-
-typedef struct GameInfoInitView {
-    unsigned int field_00;
-    unsigned int field_04;
-    unsigned char pad_008[0x9C];
-    PlyrInfo plyr0;
-    PlyrInfo plyr1;
-    unsigned char pad_17C[0x8C];
-    unsigned int field_208;
-    unsigned int field_20C;
-} GameInfoInitView;
-
-typedef char GameInfoInitViewSize[(sizeof(GameInfoInitView) == 0x210) ? 1 : -1];
+#include "runtime/anim_api.h"
+#include "runtime/mk_obj.h"
+#include "game/weapon.h"
 
 static const char stringBase0[0xA] = "get_mkhdr";
 
-void reset_ani_data_space(void);
-void init_weapon_trails(void);
-void start_obj_proc(void);
-void start_bone_hierarchy_proc(void);
-void start_morph_proc(void);
-void set_background_color(int r, int g, int b, int a);
-void init_bet_info_struct(void);
-
-extern int force_bgnd_num;
-extern GameInfoInitView g_game_info;
 
 MkPtr* mkptr_list = 0;
 MkPtr* free_mkptrs = 0;
@@ -102,7 +85,7 @@ static void discard_mkptr(MkPtr* ptr);
             if ((ptr_)->f.no_own == 0) {                                            \
                 if ((ptr_)->instance == hdr_->instance) {                          \
                     if (hdr_->instance != 0) {                                     \
-                        ((int (*)(MkHdr*))hdr_->vtbl->destroy)(hdr_);              \
+                        hdr_->typed_vtbl->destroy(hdr_);              \
                     }                                                              \
                 }                                                                  \
             }                                                                      \
@@ -167,12 +150,12 @@ MkHdr* get_mkhdr_generic(unsigned int size) {
     if (hdr == 0) {
         return 0;
     }
-    hdr->vtbl = &vtbl_mkhdr_generic;
+    hdr->typed_vtbl = &vtbl_mkhdr_generic;
     ASSIGN_INSTANCE(hdr->instance);
     return hdr;
 }
 
-int vdestroy_mkhdr_generic(MkHdr* hdr) {
+void vdestroy_mkhdr_generic(MkHdr* hdr) {
     hdr->instance = 0;
     _mwMemFree(hdr, 0, 0);
 }
@@ -326,18 +309,15 @@ void destroy_mkptr(MkPtr* ptr) {
             }
         }
     }
-    {
-        MkPtr* zero = 0;
-        ptr->instance = 0;
-        ptr->hdr = 0;
-        ptr->list = &free_mkptrs;
-        ptr->next = free_mkptrs;
-        ptr->prev = zero;
-        if (free_mkptrs != 0) {
-            free_mkptrs->prev = ptr;
-        }
-        free_mkptrs = ptr;
+    ptr->instance = 0;
+    ptr->hdr = 0;
+    ptr->list = &free_mkptrs;
+    ptr->next = free_mkptrs;
+    ptr->prev = 0;
+    if (free_mkptrs != 0) {
+        free_mkptrs->prev = ptr;
     }
+    free_mkptrs = ptr;
 }
 
 void mk_pull_destroy(MkHdr* hdr, MkPtr** list) {
@@ -582,7 +562,7 @@ void mk_system_init(void) {
     game_settings.field_4C = 0;
     game_settings.field_50 = 0;
     init_cmdscript_system();
-    g_game_info.field_04 = 0;
+    g_game_info.feature_flags_word = 0;
     atm_reset_current_page(0);
     reset_game_state();
     push_game_state(0);
@@ -703,7 +683,7 @@ void mkhdr_memfree(MkHdr* hdr) {
     _mwMemFree(hdr, 0, 0);
 }
 
-MkHdr* get_mkhdr(MkVtable5* vtbl, unsigned int size) {
+MkHdr* get_mkhdr(void* vtbl, unsigned int size) {
     MkHdr* hdr;
 
     if (size <= 0x40U) {

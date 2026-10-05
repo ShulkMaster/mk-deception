@@ -54,6 +54,13 @@ void restore_previous_ssf(void);
 void save_current_ssf(void);
 void init_ssf_system(void);
 
+extern MkFileEntry puzzlefighter_file_table[49];
+extern MkFileEntry misc_anims_list_file_table[5];
+extern MkFileInfo sec_pz_shared_anims;
+extern MkFileInfo sec_reduced_shared_anims;
+extern MkFileInfo sec_hand_anims;
+extern MkFileInfo sec_shared_anims;
+
 extern const MkFileEntry attract_file_table[];
 extern const MkFileEntry msel_art_file_table[];
 extern const MkFileEntry pselect_file_table[];

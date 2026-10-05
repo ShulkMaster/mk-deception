@@ -3,18 +3,17 @@
 #include "game/memcard.h"
 #include "platform/gcmcardmsg.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/cstring.h"
+#include "runtime/utils.h"
+#include "game/nbc.h"
+#include "game/menu.h"
+#include "platform/gcmcard.h"
+#include "mw/mwScreenEngineGlue.h"
 
-void* memcpy(void* dst, const void* src, int size);
-const char* nbc_find_text(int index, int table);
-int get_language(void);
-int update_storage_status(int arg);
 int is_memcard_scanner_running(void);
-void push_video_settings(void);
-void fire_screen_studio_event(int event, int arg);
 
 static const float default_volume_scale = 100.0f;
 static const float default_volume_offset = 0.005f;
-static const double int_to_float_bias = 4503601774854144.0;
 
 GameSettings default_game_settings = {
     0.75f, 0.75f, 0.75f, 0.75f, 0.75f, 1.0f, 2, 2, 2, 2, 2, 60, 5, 3, 1,
@@ -22,8 +21,6 @@ GameSettings default_game_settings = {
 };
 
 GameSettings game_settings;
-const int gap_05_8033E3C4_data = 0;
-int gap_06_803B34AC_bss;
 
 int game_settings_status;
 int game_settings_device;
@@ -345,7 +342,7 @@ int save_gsettings(int device) {
 }
 
 void init_gsettings(void) {
-    memcpy(&game_settings, &default_game_settings, 0x6C);
+    memcpy(&game_settings, &default_game_settings, sizeof(GameSettings));
     game_settings_status = 0;
     game_settings_device = -1;
 }

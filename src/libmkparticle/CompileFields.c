@@ -36,7 +36,7 @@ void _pfx_emitter_compile(PfxVmEmitter* emitter,
         case 7: {
             PfxSpawnTable* table;
 
-            table = (PfxSpawnTable*)registry->tables
+            table = registry->tables
                 [emitter->instructions[i].spawn.table.table_index];
             if (table->type !=
                 pfx_field_get_type(emitter->instructions[i].spawn.table.field)) {

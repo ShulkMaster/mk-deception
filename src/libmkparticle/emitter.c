@@ -1,20 +1,16 @@
+#include "libmkparticle/random.h"
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/fields.h"
 #include "libmkparticle/metrics.h"
+#include "libmkparticle/spawn.h"
+#include "libmkparticle/particle.h"
 
-float rnd_between(float minimum, float maximum);
-int pfx_get_struct_size(PfxVm* pfx, int description);
-PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
-void _pfxvm_execute_spawn(PfxVm* pfx, int emitter_index);
-
-/* TODO: [near miss] 99.79%; equivalent equality operand order remains; stop after pure operand trial. */
 int pfx_emitter_exhausted(PfxVmEmitter* emitter)
 {
     int final_cycle;
-    float cycle_length;
 
     final_cycle = 1;
-    if (0.0f != (cycle_length = emitter->cycle_length) &&
+    if (0.0f != emitter->cycle_length &&
         emitter->cycle_limit == 0) {
         final_cycle = 0;
     }
@@ -32,7 +28,7 @@ int pfx_emitter_exhausted(PfxVmEmitter* emitter)
             emitter->birth_count >= emitter->birth_limit) {
             return 1;
         }
-        if (cycle_length != 0.0f &&
+        if (emitter->cycle_length &&
             emitter->cycle_position >= emitter->current_cycle_length) {
             return 1;
         }
@@ -40,10 +36,9 @@ int pfx_emitter_exhausted(PfxVmEmitter* emitter)
     return 0;
 }
 
-/* TODO: [near miss] 89.28%; retail loads the field before the 0.0f constant and tests the bitfield with extrwi + cmplwi (unfused). */
 int pfx_emitter_unused(PfxVmEmitter* emitter)
 {
-    if (emitter->cycle_position != 0.0f) {
+    if (emitter->cycle_position) {
         return 0;
     }
     if (emitter->cycle_index != 0) {
@@ -55,7 +50,6 @@ int pfx_emitter_unused(PfxVmEmitter* emitter)
     return emitter->birth_count == 0;
 }
 
-/* TODO: [near miss] 99.82%; one equivalent base-register selection differs. */
 int pfx_emitter_restart_cycle(PfxVmEmitter* emitter)
 {
     int cycle_index;
@@ -70,7 +64,6 @@ int pfx_emitter_restart_cycle(PfxVmEmitter* emitter)
     return 1;
 }
 
-/* TODO: [near miss] 98.84%; pre-call emitter base register coloring differs. */
 void pfx_emitter_reset(PfxVmEmitter* emitter)
 {
     float variation;
@@ -87,9 +80,8 @@ void pfx_emitter_reset(PfxVmEmitter* emitter)
     emitter->flags.bits.cycle_paused = 1;
 }
 
-/* TODO: [near miss] 93.82%; two bit tests are fused (retail extrwi + cmplwi) and local load scheduling differs. */
-int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
-                                float frame_time)
+int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, float frame_time,
+                                PfxVm* pfx)
 {
     float cycle_time;
     int birth_count;
@@ -102,7 +94,7 @@ int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
         return 0;
     }
 
-    if (emitter->cycle_length != 0.0f) {
+    if (emitter->cycle_length) {
         if (emitter->cycle_position >= emitter->current_cycle_length) {
             emitter->cycle_position = emitter->current_cycle_length;
             if (pfx_emitter_restart_cycle(emitter) == 0) {
@@ -128,11 +120,11 @@ int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
     }
 
     if (emitter->flags.bits.constant_rate != 0) {
-        birth_count = (int)emitter->birth_rate;
+        birth_count = emitter->birth_rate;
     } else {
         emitter->partial_birth += emitter->birth_rate * cycle_time;
-        birth_count = (int)emitter->partial_birth;
-        emitter->partial_birth -= (float)birth_count;
+        birth_count = emitter->partial_birth;
+        emitter->partial_birth -= birth_count;
         if (emitter->partial_birth > 0.00001f) {
             birth_count++;
             emitter->partial_birth -= 1.0f;
@@ -152,17 +144,15 @@ int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
     return birth_count;
 }
 
-/* TODO: [near miss] 95.48%; one bit test is fused (retail extrwi + cmplwi) and GPR allocation differs. */
 void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time)
 {
-    PfxFieldBuffer destination;
-    PfxFieldBuffer source;
-    PfxVmEmitter* emitter;
-    PfxEmitterTransfer* transfer;
-    int available;
-    int birth_count;
-    int first_particle;
     int spawn_index;
+    int first_particle;
+    PfxFieldBuffer destination;
+    int transfer_count;
+    PfxVmEmitter* emitter;
+    int birth_count;
+    int available;
 
     pfxmetrics_event(pfx->metrics, 0x1001);
     if (pfx->emitter_transfers != 0) {
@@ -173,8 +163,10 @@ void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time)
     available = pfx->particle_capacity - pfx->particle_cursor;
     emitter = pfx_get_emitter(pfx, emitter_index);
     if (emitter->flags.bits.emission_enabled != 0) {
+        PfxEmitterTransfer* transfer;
+
         birth_count =
-            _pfx_emitter_get_birthcount(emitter, pfx, frame_time);
+            _pfx_emitter_get_birthcount(emitter, frame_time, pfx);
         for (transfer = pfx->emitter_transfers; transfer != 0;
              transfer = transfer->next) {
             birth_count += transfer->particle_count;
@@ -190,10 +182,10 @@ void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time)
 
         for (transfer = pfx->emitter_transfers; transfer != 0;
              transfer = transfer->next) {
-            int transfer_count;
-
             transfer_count = transfer->particle_count;
             if (transfer_count != 0) {
+                PfxFieldBuffer source;
+
                 if (transfer_count > available) {
                     transfer_count = available;
                 }

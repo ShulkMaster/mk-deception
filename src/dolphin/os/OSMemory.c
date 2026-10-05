@@ -50,7 +50,6 @@ static void MEMIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     unsigned long addr;
     unsigned long cause;
 
-    (void)interrupt;
     cause = __MEMRegs[0xF];
     addr = ((unsigned long)(__MEMRegs[0x12] & 0x3FF) << 16) | __MEMRegs[0x11];
     __MEMRegs[0x10] = 0;

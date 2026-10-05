@@ -23,7 +23,6 @@ public:
     int Init();
     void DoneLoadingScreens();
     void Dispose();
-    /* Soft ceiling: IsInited ~50% - MWCC 2.7 omits retail bool-normalize. */
     int IsInited() const;
 
     char* GetName();

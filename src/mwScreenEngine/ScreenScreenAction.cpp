@@ -5,9 +5,7 @@
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/Screen.h"
 
-extern "C" {
-void* memcpy(void* dst, const void* src, unsigned long n);
-}
+#include "runtime/cstring.h"
 
 /* Exit/special: m_arg == 0x3EE drives DisposeSet + stage latch on mgr. */
 enum { kExitSpecialArg = 0x3EE };
@@ -31,7 +29,7 @@ int ScreenOpenScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
 
         stack.StartLocal();
         name = params->GetScreenName(0);
-        memcpy(m_screenName, name, 0x80);
+        memcpy(m_screenName, name, sizeof(m_screenName));
 
         foundPhase0 = 0;
         mgr->FindScreen(name, &foundPhase0);
@@ -41,7 +39,7 @@ int ScreenOpenScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
             m_alive = 0;
             m_yield = 0;
         } else {
-            m_loadResult = (unsigned int)mgr->LoadScreen(name, 0);
+            m_loadResult = mgr->LoadScreen(name, 0);
             m_phase += 1;
         }
 
@@ -61,7 +59,7 @@ int ScreenOpenScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
             m_alive = 0;
             m_yield = 0;
         } else if (m_loadResult == 0) {
-            m_loadResult = (unsigned int)mgr->InitBranchPath();
+            m_loadResult = mgr->InitBranchPath();
         }
         stack.EndLocal();
     }
@@ -100,7 +98,7 @@ int ScreenExitScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
         }
 
         name = params->GetScreenName(0);
-        memcpy(m_screenName, name, 0x80);
+        memcpy(m_screenName, name, sizeof(m_screenName));
 
         stack.StartLocal();
         m_loadResult = 0;
@@ -114,7 +112,7 @@ int ScreenExitScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
     if (m_phase == 1) {
         stack.StartLocal();
         if (m_arg != kExitSpecialArg) {
-            m_loadResult = (unsigned int)mgr->LoadScreen(m_screenName, 0);
+            m_loadResult = mgr->LoadScreen(m_screenName, 0);
         }
         m_phase += 1;
         if ((unsigned int)stack.EndLocal() == 1u) {
@@ -151,7 +149,7 @@ int ScreenExitScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
                 }
             }
         } else if (m_loadResult == 0) {
-            m_loadResult = (unsigned int)mgr->InitBranchPath();
+            m_loadResult = mgr->InitBranchPath();
         }
     }
 
@@ -187,7 +185,7 @@ int ScreenReplaceScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
 
     if (m_phase == 0) {
         replaceName = params->GetScreenName(0);
-        memcpy(m_screenName, params->GetName(1), 0x80);
+        memcpy(m_screenName, params->GetName(1), sizeof(m_screenName));
 
         mgr->FindScreen(replaceName, &found);
         m_phase += 1;
@@ -263,10 +261,10 @@ int ScreenTransitionScreenAction::Update(ScreenMgr* mgr,
 
     if (m_phase == 0) {
         name = params->GetScreenName(0);
-        memcpy(m_screenName, name, 0x80);
+        memcpy(m_screenName, name, sizeof(m_screenName));
         name2 = params->GetScreenName(1);
-        memcpy(m_screenName2, name2, 0x80);
-        m_flag = (unsigned int)params->GetBoolean(2);
+        memcpy(m_screenName2, name2, sizeof(m_screenName2));
+        m_flag = params->GetBoolean(2);
 
         if ((int)params->GetCount() >= 4) {
             m_preloadId = params->GetInt(3);
@@ -301,7 +299,7 @@ int ScreenTransitionScreenAction::Update(ScreenMgr* mgr,
         }
         mgr->RemoveScreen(m_screen);
         stack.StartLocal();
-        m_loadResult = (unsigned int)mgr->LoadScreen(m_screenName, 0);
+        m_loadResult = mgr->LoadScreen(m_screenName, 0);
         m_phase += 1;
         if ((unsigned int)stack.EndLocal() == 1u) {
             return 1;
@@ -325,7 +323,7 @@ int ScreenTransitionScreenAction::Update(ScreenMgr* mgr,
             }
             m_phase += 1;
         } else if (m_loadResult == 0) {
-            m_loadResult = (unsigned int)mgr->InitBranchPath();
+            m_loadResult = mgr->InitBranchPath();
         }
         if ((unsigned int)stack.EndLocal() == 1u) {
             return 1;
@@ -357,8 +355,8 @@ int ScreenInsertScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
     m_blocksEvents = 1;
 
     if (m_phase == 0) {
-        memcpy(m_anchorName, params->GetScreenName(0), 0x80);
-        memcpy(m_screenName, params->GetScreenName(1), 0x80);
+        memcpy(m_anchorName, params->GetScreenName(0), sizeof(m_anchorName));
+        memcpy(m_screenName, params->GetScreenName(1), sizeof(m_screenName));
         m_insertMode = params->GetInt(2);
 
         mgr->FindScreen(m_anchorName, &anchor);
@@ -369,7 +367,7 @@ int ScreenInsertScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
 
         mgr->FindScreen(m_screenName, &insertScreen);
         if (insertScreen == 0) {
-            m_loadResult = (unsigned int)mgr->LoadScreen(m_screenName, 0);
+            m_loadResult = mgr->LoadScreen(m_screenName, 0);
         } else {
             m_loadResult = 1;
         }
@@ -392,7 +390,7 @@ int ScreenInsertScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
             m_alive = 0;
             m_yield = 0;
         } else if (m_loadResult == 0) {
-            m_loadResult = (unsigned int)mgr->InitBranchPath();
+            m_loadResult = mgr->InitBranchPath();
         }
     }
 

@@ -1,22 +1,7 @@
+#include "mw/mwFile.h"
+
 struct mwFileTypeInfo;
-struct mwFile;
-class mwFileCommand;
 class mwFileServer;
-
-union mwFileAsyncValue {
-    void* pointer;
-    mwFile* file;
-    unsigned long bytes;
-};
-
-struct _mwFileAsyncResult {
-    mwFileAsyncValue value;
-    int error;
-};
-
-typedef _mwFileAsyncResult mwFileAsyncResult;
-typedef void (*mwFileCallback)(
-    mwFileCommand*, mwFileAsyncResult, void*);
 
 class mwFileQueryable {
 public:

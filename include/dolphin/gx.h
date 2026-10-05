@@ -173,6 +173,8 @@ typedef struct GXRenderModeObj {
 extern "C" {
 #endif
 
+extern GXRenderModeObj GXNtsc480ProgSoft;
+
 void GXSetNumTexGens(unsigned char count);
 void GXSetDrawSync(unsigned short token);
 unsigned short GXReadDrawSync(void);

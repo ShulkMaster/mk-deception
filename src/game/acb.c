@@ -1,13 +1,22 @@
 #include "game/acb.h"
+#include "game/plyr_globals.h"
 
+#include "game/controller.h"
 #include "game/game_info.h"
 #include "game/movelist.h"
+#include "game/plyr.h"
+#include "runtime/fonts.h"
 #include "libmkparticle/pfx2d.h"
+#include "mw/mwScreenEngineGlue.h"
+#include "platform/display_metrics.h"
 #include "runtime/cam.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/plyr_info.h"
+#include "runtime/utils.h"
 
 static const char movelist_charmap[] = "lrRLYBAX...../.:.";
 
@@ -24,55 +33,48 @@ static const char stringBase0[] =
 static const float movelist_loop_neg_one = -1.0f;
 static const float movelist_loop_pos_one = 1.0f;
 
-static int vdestroy_movelist(void* self);
+struct MovelistVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(MovelistPdata* owner);
+};
+typedef char check_MovelistVtable_size[(sizeof(struct MovelistVtable) == sizeof(MkVtable5)) ? 1 : -1];
 
-MkVtable5 vtbl_movelist = {
+static void vdestroy_movelist(MovelistPdata* pdata);
+
+struct MovelistVtable vtbl_movelist = {
     not_mkproc,
     is_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_movelist,
+    vdestroy_movelist,
 };
 
 static char space[] = " ";
 
-extern GlobalPlayerEntry global_player_data[];
 extern int pause_player;
-extern int screen_width;
-extern int screen_height;
 extern unsigned char p1_profile_switch_map[];
 
-void* get_screen_pdata(void);
-void set_game_switch_map(void* map);
-void set_default_switch_map(void* map);
-void screen_share_pdata(void* pdata);
-void toggle_normal_2d_rendering(int enable);
-int is_special_move_available(void* char_data, void* arg);
-void rewrite_button_string(const char* charmap, const char* src, int player_side, void* switch_map);
-void* load_2d_pfxobj_with_texture(int id, void* texture, int arg2, int arg3);
-void* load_named_2d_pfxobj(int arg0, int id, const char* name, int arg3, int arg4);
-void hide_or_show_2d_obj_by_id(int id, int show);
 char* get_current_screen_name(void);
-int strcmp(const char* a, const char* b);
-int sprintf(char* buf, const char* fmt, ...);
 
 static void init_movelist(MovelistPdata* movelist_pdata);
 static float p_loop_movelist(void);
 
 static inline void movelist_set_pfx_byte_flags(
-    MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
-    pfx_obj->flags_0C_bits.bit4 = set_bit4;
+    ScreenObj* pfx_obj, int set_bit4, int set_bit1) {
+    pfx_obj->flag_bits.hidden = set_bit4;
     if (set_bit1 != 0) {
-        pfx_obj->flags_0C_bits.bit1 = 1;
+        pfx_obj->flag_bits.bit1 = 1;
     }
 }
-
 
 static inline void movelist_show_valid_style(MovelistPdata* screen_pdata) {
     int zero;
     int style_index;
     int move_count;
-    MovelistPfxObj* pfx_obj;
+    ScreenObj* pfx_obj;
 
     zero = 0;
     do {
@@ -137,13 +139,12 @@ void movelist_change_move(int delta) {
 
 #pragma opt_propagation reset
 
-
 void movelist_change_style(int delta) {
     MovelistPdata* screen_pdata;
     int zero;
     int style_index;
     int move_count;
-    MovelistPfxObj* pfx_obj;
+    ScreenObj* pfx_obj;
 
     screen_pdata = get_screen_pdata();
     zero = 0;
@@ -195,11 +196,11 @@ void start_movelist(void) {
     MkProc* proc;
 
     destroy_mkprocs_pid(0x9008);
-    proc = _create_mkproc_generic_bigstack(0x9008, 0x1F, p_loop_movelist, 0x898,
+    proc = _create_mkproc_generic_bigstack(0x9008, 0x1F, p_loop_movelist, sizeof(MovelistPdata),
                                            (MkHdr**)&movelist_pdata);
     if (proc != 0) {
-        movelist_pdata->vtbl = &vtbl_movelist;
-        zero_pdata_payload(0x898, (MkHdr*)movelist_pdata);
+        movelist_pdata->hdr.vtbl = MK_VTABLE_ADDRESS(vtbl_movelist);
+        zero_pdata_payload(sizeof(MovelistPdata), &movelist_pdata->hdr);
         proc->flags_bits.skip_if_paused = 1;
         if (pause_player == 1) {
             pad_ptr = &g_game_info.plyr1;
@@ -221,20 +222,17 @@ void start_movelist(void) {
         char_index = movelist_pdata->plyr->pad_index;
         movelist_pdata->switch_map = g_game_info.pads[char_index].switch_map;
         set_default_switch_map(movelist_pdata->plyr);
-        screen_share_pdata(movelist_pdata);
+        screen_share_pdata(&movelist_pdata->hdr);
         init_movelist(movelist_pdata);
     }
     toggle_normal_2d_rendering(0);
 }
 
-static int vdestroy_movelist(void* self) {
-    MovelistPdata* pdata;
-
-    pdata = self;
+static void vdestroy_movelist(MovelistPdata* pdata) {
     destroy_list(&pdata->obj_list);
     toggle_normal_2d_rendering(1);
-    pdata->field_04 = 0;
-    mkhdr_memfree(self);
+    pdata->hdr.instance = 0;
+    mkhdr_memfree(&pdata->hdr);
 }
 
 static void init_movelist(MovelistPdata* movelist_pdata) {
@@ -243,13 +241,13 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     int style_slot;
     GameInfoPlyr* screen_wrapper;
     FighterMirror* char_data;
-    void* move_table;
+    MovelistRow* move_table;
     MovelistPdata* screen_pdata;
     MovelistRow* row;
     int row_index;
     MovelistMoveEntry* move_entry;
-    MovelistPfxObj* pfx_obj;
-    MovelistPfxObj* named_pfx;
+    ScreenObj* pfx_obj;
+    ScreenObj* named_pfx;
     int style_index;
     int max_move;
     int display_move;
@@ -257,11 +255,11 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     int half_screen_w;
     MoveTableContainer* table_container;
     ScriptSlot* cmo;
-    const char* row_rewrite_src;
+    char* row_rewrite_src;
     int row_field;
     const char* row_button_text;
     int row_style_index;
-    void* row_special_arg;
+    int row_special_arg;
 
     screen_wrapper = movelist_pdata->plyr;
     char_data = screen_wrapper->slot.fighter;
@@ -272,7 +270,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     if (move_table != 0) {
         row_count = get_row_count_for_table_by_pointer(cmo, move_table);
         for (row_index = 0; row_index < row_count; row_index++) {
-            row = &((MovelistRow*)move_table)[row_index];
+            row = &move_table[row_index];
             row_rewrite_src = row->rewrite_src;
             row_field = row->field4;
             row_button_text = row->button_text;
@@ -292,7 +290,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
                     GameInfoPlyr* inner;
 
                     inner = screen_pdata->plyr;
-                    if (is_special_move_available(inner->slot.fighter, row_special_arg) == 0) {
+                    if (is_special_move_available(inner->slot.pdata, row_special_arg) == 0) {
                         continue;
                     }
                 }
@@ -366,7 +364,7 @@ static float p_loop_movelist(void) {
 
     screen_name = get_current_screen_name();
     if (screen_name == 0 || strcmp(screen_name, STR_PAUSE_MOVELIST) != 0) {
-        return movelist_loop_pos_one;
+        return movelist_loop_neg_one;
     }
-    return movelist_loop_neg_one;
+    return movelist_loop_pos_one;
 }

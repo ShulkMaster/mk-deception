@@ -6,10 +6,9 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/si.h"
+#include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
 
-extern void* memset(void*, int, unsigned long);
-extern void* memcpy(void*, const void*, unsigned long);
 extern void EnableMetroTRKInterrupts(void);
 extern unsigned long __DVDLongFileNameFlag;
 extern unsigned long __PADSpec;
@@ -50,8 +49,6 @@ unsigned long OSGetConsoleType(void)
     if (BootInfo == 0 || BootInfo->console_type == 0) return 0x10000002;
     return BootInfo->console_type;
 }
-
-static void OSExceptionInit(void);
 
 static void OSExceptionInit(void);
 void OSDefaultExceptionHandler(__OSException exception, OSContext* context);
@@ -103,29 +100,34 @@ void __OSDBINTEND(void);
 void __OSDBJUMPSTART(void);
 void __OSDBJUMPEND(void);
 
-/* TODO: [breakthrough] 94.35%; retail computes the integrator size before the first DBPrintf and its
- * strings sit at +0x160 in the pool; __OSDBINTEND relocs name retail's same-address __OSDBJUMPSTART. */
+/* TODO: [near miss] 99.96875%; all 160 instructions agree; five decoded-equal data addends and OS.c function order remain. */
 static void OSExceptionInit(void)
 {
+    unsigned long* location;
+    unsigned long jump_size;
     __OSException exception;
+    unsigned long* opcode = (unsigned long*)__OSEVSetNumber;
+    unsigned long old_opcode = *opcode;
     unsigned char* handler = (unsigned char*)__OSEVStart;
     unsigned long handler_size =
         (unsigned char*)__OSEVEnd - (unsigned char*)__OSEVStart;
-    unsigned long* opcode = (unsigned long*)__OSEVSetNumber;
-    unsigned long old_opcode = *opcode;
     void* destination = (void*)0x80000060;
 
     if (*(unsigned long*)destination == 0) {
-        unsigned long size =
-            (unsigned char*)__OSDBINTEND - (unsigned char*)__OSDBINTSTART;
+        unsigned long size;
+
         DBPrintf("Installing OSDBIntegrator\n");
+        size = (unsigned char*)__OSDBJUMPSTART -
+               (unsigned char*)__OSDBINTSTART;
         memcpy(destination, (void*)__OSDBINTSTART, size);
         DCFlushRangeNoSync(destination, size);
         __sync();
         ICInvalidateRange(destination, size);
     }
-    for (exception = 0; exception < OS_EXCEPTION_COUNT; exception++) {
-        unsigned long size;
+    location = __OSExceptionLocations;
+    jump_size = (unsigned char*)__OSDBJUMPEND -
+                (unsigned char*)__OSDBJUMPSTART;
+    for (exception = 0; exception < OS_EXCEPTION_COUNT; location++, exception++) {
         unsigned long offset;
         if (BI2DebugFlag && *BI2DebugFlag >= 2 &&
             __DBIsExceptionMarked(exception)) {
@@ -133,18 +135,16 @@ static void OSExceptionInit(void)
             continue;
         }
         *opcode = old_opcode | exception;
-        size = (unsigned char*)__OSDBJUMPEND -
-               (unsigned char*)__OSDBJUMPSTART;
         if (__DBIsExceptionMarked(exception)) {
             DBPrintf(">>> OSINIT: exception %d vectored to debugger\n", exception);
-            memcpy((void*)__DBVECTOR, (void*)__OSDBJUMPSTART, size);
+            memcpy((void*)__DBVECTOR, (void*)__OSDBJUMPSTART, jump_size);
         } else {
             unsigned long* db_vector = (unsigned long*)__DBVECTOR;
-            for (offset = 0; offset < size; offset += 4) {
+            for (offset = 0; offset < jump_size; offset += sizeof(*db_vector)) {
                 *db_vector++ = NOP_INSTRUCTION;
             }
         }
-        destination = (void*)(0x80000000 + __OSExceptionLocations[exception]);
+        destination = (void*)(0x80000000 + *location);
         memcpy(destination, handler, handler_size);
         DCFlushRangeNoSync(destination, handler_size);
         __sync();
@@ -193,7 +193,7 @@ asm void __OSPSInit(void)
     SEQ___OSPSInit();
 }
 
-/* TODO: [breakthrough needed] 82.56410%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
+/* TODO: [breakthrough needed] 83.06%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
 void OSInit(void)
 {
     unsigned long console_type;

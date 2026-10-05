@@ -20,26 +20,26 @@ static OSTime LastReadIssued;
 static volatile int LastCommandWasRead;
 static volatile unsigned long NextCommandNumber;
 
-typedef struct DVDBuffer {
+struct DVDBuffer {
     void* address;
     unsigned long length;
     unsigned long offset;
-} DVDBuffer;
+};
 
-typedef struct DVDLowCommand {
+struct DVDLowCommand {
     signed long command;
     void* address;
     unsigned long length;
     unsigned long offset;
     DVDLowCallback callback;
-} DVDLowCommand;
+};
 
-static DVDLowCommand CommandList[3];
+static struct DVDLowCommand CommandList[3];
 static OSAlarm AlarmForWA;
 static OSAlarm AlarmForTimeout;
 static OSAlarm AlarmForBreak;
-static DVDBuffer Prev;
-static DVDBuffer Curr;
+static struct DVDBuffer Prev;
+static struct DVDBuffer Curr;
 
 static void Read(void*, unsigned long, unsigned long, DVDLowCallback);
 
@@ -197,7 +197,7 @@ static inline int AudioBufferOn(void)
     return 0;
 }
 
-static inline int HitCache(const DVDBuffer* current, const DVDBuffer* previous)
+static inline int HitCache(const struct DVDBuffer* current, const struct DVDBuffer* previous)
 {
     unsigned long previous_end =
         (previous->offset + previous->length - 1) >> 15;

@@ -4,15 +4,14 @@
 #include "rw/rwcore_types.h"
 #include "movie/mwsfx.h"
 
-typedef struct RwMovieProcessCtx {
+struct RwMovieProcessCtx {
     int handle;
     int field_0x04;
-    MwsFrameInfo frame; /* +0x08 -- source frame descriptor */
-} RwMovieProcessCtx;
+    MwsFrameInfo frame;
+};
 
-/* MWCC emits .sbss in reverse declaration order. */
+static RwRaster* TargetRaster;
 int gap_08_805108C4_sbss;
-RwRaster* TargetRaster;
 
 void MovieManager_RW_Set_Target_Raster(RwRaster* raster) {
     TargetRaster = raster;
@@ -23,13 +22,12 @@ void MovieManager_RW_ProcessFrame(void* context, int unused, int width, int heig
     void* pixels;
     RwRaster* raster;
 
-    (void)unused;
     ctx = (RwMovieProcessCtx*)context;
     pixels = RwRasterLock(TargetRaster, 0, 0xd);
     raster = TargetRaster;
     mwPlyFxSetOutBufPitchHeight(ctx->handle, raster->width << 2, raster->height);
     mwPlyFxCnvFrmARGB8888(ctx->handle, &ctx->frame, pixels);
-    DCFlushRangeNoSync(pixels, (unsigned long)((width * height) << 2));
+    DCFlushRangeNoSync(pixels, (width * height) << 2);
     RwRasterUnlock(TargetRaster);
 }
 

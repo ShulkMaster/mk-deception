@@ -1,11 +1,12 @@
 #include "dolphin/dvd.h"
 #include "dolphin/os.h"
+#include "ctype.h"
 
-typedef struct FSTEntry {
+struct FSTEntry {
     unsigned long type_and_name_offset;
     unsigned long parent_or_position;
     unsigned long next_or_length;
-} FSTEntry;
+};
 
 #define ENTRY_IS_DIRECTORY(entry) \
     (((FstStart[(entry)].type_and_name_offset & 0xFF000000) == 0) ? 0 : 1)
@@ -18,10 +19,8 @@ typedef struct FSTEntry {
 extern volatile unsigned long __DIRegs[] : 0xCC006000;
 #define DI_REGS __DIRegs
 
-extern int tolower(int character);
-
 static OSBootInfo* BootInfo;
-static FSTEntry* FstStart;
+static struct FSTEntry* FstStart;
 static char* FstStringStart;
 static unsigned long MaxEntryNum;
 static unsigned long currentDirectory;
@@ -38,7 +37,7 @@ void __DVDFSInit(void)
     FstStart = BootInfo->fst_location;
     if (FstStart) {
         MaxEntryNum = FstStart->next_or_length;
-        FstStringStart = (char*)FstStart + MaxEntryNum * sizeof(FSTEntry);
+        FstStringStart = (char*)FstStart + MaxEntryNum * sizeof(struct FSTEntry);
     }
 }
 
@@ -159,8 +158,6 @@ int DVDFastOpen(long entry_number, DVDFileInfo* file_info)
     return 1;
 }
 
-/* TODO: [breakthrough needed] 89.600000%; DVDFileInfo stores and path/error
- * flow match; retail materializes the directory predicate before returning. */
 int DVDOpen(const char* file_name, DVDFileInfo* file_info)
 {
     long entry;

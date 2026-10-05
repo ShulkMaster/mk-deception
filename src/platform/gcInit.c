@@ -5,13 +5,9 @@
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "platform/display.h"
-
-extern void init_debug_timers(void);
-
-extern RwMemoryFunctions mem_funcs;
-extern int debug_message_handler_set;
-extern int screen_height;
-extern int screen_width;
+#include "platform/gcutils.h"
+#include "platform/io.h"
+#include "platform/display_metrics.h"
 
 static void* _rwDolphinHeapRealloc(void* memory, unsigned long size,
                                     unsigned int hint);

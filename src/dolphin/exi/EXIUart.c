@@ -135,11 +135,10 @@ int WriteUARTN(void* buffer, unsigned long length)
     locked = EXILock(Chan, Dev, 0);
     if (locked == 0) {
         return 0;
-    } else {
-        pointer = buffer;
     }
+    pointer = buffer;
 
-    while ((unsigned long)pointer - (unsigned long)buffer < length) {
+    while ((unsigned long)(pointer - (char*)buffer) < length) {
         if (*(signed char*)pointer == '\n') {
             *pointer = '\r';
         }
@@ -155,7 +154,7 @@ int WriteUARTN(void* buffer, unsigned long length)
             break;
         }
 
-        if (queue_length >= 12 || (unsigned long)queue_length >= length) {
+        if (queue_length >= 12 || queue_length >= length) {
             if (!EXISelect(Chan, Dev, EXI_FREQ_8M)) {
                 error = 3;
                 break;
@@ -164,7 +163,7 @@ int WriteUARTN(void* buffer, unsigned long length)
             EXIImm(Chan, &command, sizeof(command), EXI_WRITE, 0);
             EXISync(Chan);
             while (queue_length != 0 && length != 0) {
-                if (queue_length < 4 && (unsigned long)queue_length < length) {
+                if (queue_length < 4 && queue_length < length) {
                     break;
                 }
 

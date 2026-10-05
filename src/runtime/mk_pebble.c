@@ -4,6 +4,7 @@
 #include "runtime/mk_pebble.h"
 
 #include "game/collision.h"
+#include "platform/display.h"
 #include "runtime/cstring.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_plugins.h"
@@ -13,18 +14,15 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
-extern RwCamera* Camera;
-
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);
 static RpAtomic* pebble_render_callback(RpAtomic* atomic);
 
-int vdestroy_pebble(PebbleData* pebble_data) {
+void vdestroy_pebble(PebbleData* pebble_data) {
     if (pebble_data->pebbles != 0) {
         free_mem(pebble_data->pebbles);
     }
     pebble_data->hdr.instance = 0;
     mkhdr_memfree(&pebble_data->hdr);
-    /* Retail's int vtable slot deliberately leaves r3 from mkhdr_memfree. */
 }
 
 /* TODO: [near miss] 98.47%; CFG and stores agree (identity init is RwMatrixSetIdentityMacro); only the
@@ -103,7 +101,7 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     if (atomic == 0) {
         return atomic;
     }
-    frame = (RwFrame*)atomic->object.parent;
+    frame = atomic->object.parent;
     if (frame == 0) {
         return atomic;
     }
@@ -134,7 +132,7 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     }
     if (!sobj->flags09_bits.bit3) {
         camera = Camera;
-        cull_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+        cull_ltm = RwFrameGetLTM(atomic->object.parent);
         visible_count = 0;
         atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
         sphere_offset.value.x = atomic_sphere->center.x - cull_ltm->pos.x;

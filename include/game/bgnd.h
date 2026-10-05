@@ -45,6 +45,8 @@ extern "C" {
 
 /* Critical Krypt / background entry points (Wave 2 NonMatching scaffold). */
 
+void bgnd_pfx_resume_effect(const char* name);
+void bgnd_pfx_reset_effect(const char* name);
 void bgnd_anim_camera_ended(void);
 void bgnd_anim_camera_setup(void);
 void bgnd_clear_danger_zone_callback(PlyrPdata* pdata);
@@ -122,6 +124,7 @@ void bgnd_init_pebbles(int player, unsigned int first, unsigned int end);
 void bgnd_unhide_sobj_list(unsigned int* object_ids);
 void load_bgnd_style(int player, const char* script_name, void* script_args);
 int is_bgnd_locked(int bgnd_id);
+int get_bgnd_flags(void);
 int load_background(int bgnd_id);
 void destroy_background_extras(void);
 

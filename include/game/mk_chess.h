@@ -1,6 +1,14 @@
 #ifndef MKD_GAME_MK_CHESS_H
 #define MKD_GAME_MK_CHESS_H
 
+float p_board_switch_4(void);
+float p_board_switch_over_3(void);
+float p_board_switch_3(void);
+float p_board_switch_1(void);
+float p_board_switch_r2(void);
+float p_board_switch_l1(void);
+float p_board_switch_2(void);
+
 #include "runtime/mk_struct.h"
 #include "math/gxVect.h"
 #include "msl/msl_types.h"
@@ -113,7 +121,7 @@ typedef struct ChessPieceRuntimeFields {
     unsigned int primary_effect; /* +0x10 */
     unsigned int secondary_effect; /* +0x14 */
     int queued_event; /* +0x18 */
-    int event_time; /* +0x1C */
+    unsigned int event_time; /* +0x1C; buffered-event clock stamp */
     unsigned int event_script; /* +0x20 - command-script function index */
 } ChessPieceRuntimeFields;
 
@@ -147,7 +155,7 @@ typedef struct ChessPiece {
     AniScript* requested_script; /* +0x58 */
     struct AnimPdata* animation; /* +0x5C */
     union { int proc_state; struct MkProc* proc; }; /* +0x60 */
-    unsigned int field_64;
+    int field_64; /* +0x64 - process stack kind */
     ChessPieceMovement* movement; /* +0x68 */
     struct ChessPieceMoveMap* move_map; /* +0x6C - packed three-bit cell values */
     unsigned int access_restrictions[6]; /* +0x70 */
@@ -170,6 +178,7 @@ typedef struct ChessCell {
     unsigned int second_emitter; /* +0x18 */
     int square_type; /* +0x1C */
     union {
+        unsigned int flags_word; /* +0x20 - full state cleared when placing a cell */
         unsigned char flags; /* +0x20 */
         struct {
             unsigned char emitter_active : 1;
@@ -178,7 +187,6 @@ typedef struct ChessCell {
             unsigned char pad : 5;
         } flag_bits;
     };
-    char pad21[3];
     float saved_parameters[4]; /* +0x24 - serialized special-cell parameters */
 } ChessCell; /* 0x34 */
 
@@ -189,7 +197,18 @@ typedef struct ChessBoardRow {
 typedef struct ChessSideHudState {
     char pad00[8];
     union {
-        struct { unsigned char flags; unsigned char flags_09; char pad0A[2]; };
+        struct {
+            unsigned char flags;
+            union {
+                unsigned char flags_09;
+                struct {
+                    unsigned char sliding : 1;
+                    unsigned char slide_out : 1;
+                    unsigned char : 6;
+                } team_art_bits;
+            };
+            char pad0A[2];
+        };
         struct {
             unsigned char cursor_update : 1;
             unsigned char cursor_scaling : 1;
@@ -209,8 +228,6 @@ typedef struct ChessSideHudState {
     ChessPiece* selected_piece; /* +0x18 */
     ChessPiece* saved_piece; /* +0x1C - selection suspended by spell HUD */
 } ChessSideHudState;
-
-
 
 typedef struct ChessSideState {
     MkHdr hdr;
@@ -360,9 +377,14 @@ typedef struct ChessBoardSave {
         struct { ChessSaveSide sides[2]; char padE90[0x14]; };
         struct {
             int restore_pending;
-            ChessSaveInputFlags input_flags;
-            ChessSaveFlags flags;
-            char pad06[2];
+            union {
+                unsigned int control_flags_word; /* +0x04 - full input/save flag reset */
+                struct {
+                    ChessSaveInputFlags input_flags;
+                    ChessSaveFlags flags;
+                    char pad06[2];
+                };
+            };
             Vec camera_position;
             ChessSavedTeam teams[2]; /* +0x14 */
         };
@@ -610,6 +632,7 @@ void mk_chess_set_viewing_quadrant(struct CameraObj* camera);
 void mk_chess_enable_cam_zoom_sound(int enabled);
 void mk_chess_cleanup(void);
 void mk_chess_in_fight_setup(void);
+int mk_chess_check_for_fatality(void);
 float p_board_switch_4(void);
 float p_board_switch_over_3(void);
 float p_board_switch_3(void);

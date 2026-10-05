@@ -1,16 +1,16 @@
 typedef void (*Destructor)(void* object, int complete);
 
-typedef struct DestructorChain {
+struct DestructorChain {
     struct DestructorChain* next;
     Destructor destructor;
     void* object;
-} DestructorChain;
+};
 
-DestructorChain* __global_destructor_chain;
+struct DestructorChain* __global_destructor_chain;
 
 void __destroy_global_chain(void)
 {
-    DestructorChain* current;
+    struct DestructorChain* current;
 
     while ((current = __global_destructor_chain) != 0) {
         __global_destructor_chain = current->next;
@@ -18,7 +18,7 @@ void __destroy_global_chain(void)
     }
 }
 
-void* __register_global_object(void* object, Destructor destructor, DestructorChain* registration)
+void* __register_global_object(void* object, Destructor destructor, struct DestructorChain* registration)
 {
     registration->next = __global_destructor_chain;
     registration->destructor = destructor;

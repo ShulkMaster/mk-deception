@@ -155,7 +155,7 @@ static void gc_generic_render(PfxVm* vm) {
         bottom = right = dv = du = 1.0f;
         v = u = 0.0f;
     }
-    GXBegin(0x80, 0, (unsigned short)(count * 4));
+    GXBegin(0x80, 0, count * 4);
     for (i = 0; i < count; i++) {
         switch (uv_mode) {
         case 0: {
@@ -183,8 +183,8 @@ static void gc_generic_render(PfxVm* vm) {
             corner.z = base_corner.z;
         }
         if (angles) {
-            float sine = (float)sin(-*angles);
-            float cosine = (float)cos(-*angles);
+            float sine = sin(-*angles);
+            float cosine = cos(-*angles);
             axis1.x = base1.x * cosine - base0.x * sine;
             axis1.y = base1.y * cosine - base0.y * sine;
             axis1.z = base1.z * cosine - base0.z * sine;

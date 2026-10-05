@@ -95,24 +95,33 @@ int SetScreenVisibleAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-/* TODO: [near miss] 95.8%; retail operator mapping restored; Boolean-result lowering remains. */
-int ScreenIntegerCompare(int lhs, int op, int rhs) {
+unsigned int ScreenIntegerCompare(int lhs, int op, int rhs) {
+    unsigned int result;
+
     switch (op) {
     case kCompareEqual:
-        return lhs == rhs;
+        result = lhs == rhs;
+        break;
     case kCompareNotEqual:
-        return lhs != rhs;
+        result = lhs != rhs;
+        break;
     case kCompareGreater:
-        return lhs > rhs;
+        result = lhs > rhs;
+        break;
     case kCompareGreaterEqual:
-        return lhs >= rhs;
+        result = lhs >= rhs;
+        break;
     case kCompareLess:
-        return lhs < rhs;
+        result = lhs < rhs;
+        break;
     case kCompareLessEqual:
-        return lhs <= rhs;
+        result = lhs <= rhs;
+        break;
     default:
-        return 0;
+        result = 0;
+        break;
     }
+    return result;
 }
 
 int ScreenElseAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
@@ -129,22 +138,17 @@ int ScreenElseAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-/* TODO: [near miss] 97.81%; action-id decision tree and dead stage loops match; register/scheduling residue remains. */
+/* TODO: [near miss] 97.88%; decision tree and focus comparison match; method-wide owner/value GPR rotation remains. */
 int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                  int /*dt*/) {
     ScreenParams* params;
     ScreenObject* object;
     int arg;
-    int paramIndex;
+    unsigned int paramIndex;
     int lhs;
-    int op;
-    int rhs;
     int matched;
-    int stage;
     int exclude;
     int i;
-    ScreenObject* probe;
-    ScreenNode* node;
 
     params = m_params;
     m_alive = 0;
@@ -158,33 +162,39 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
 
     switch (arg) {
     case kArgQuestionVisible:
+    {
         paramIndex = 1;
-        node = params->GetScreenNode(0);
-        lhs = (int)node->IsVisible();
+        ScreenNode* node = params->GetScreenNode(0);
+        lhs = node->IsVisible();
         break;
+    }
     case kArgQuestionFocus:
     {
         int focusIndex;
 
-        probe = params->GetScreenObject(0);
+        ScreenObject* probe = params->GetScreenObject(0);
         paramIndex = 2;
         focusIndex = params->GetInt(1);
-        lhs = (probe == probe->m_parent->GetFocus(focusIndex));
+        lhs = (probe->m_parent->GetFocus(focusIndex) == probe);
         break;
     }
     case kArgQuestionEnabled:
+    {
         paramIndex = 1;
-        probe = params->GetScreenObject(0);
-        lhs = (int)((probe->m_ext->flags >> 1) & 1);
+        ScreenObject* probe = params->GetScreenObject(0);
+        lhs = (probe->m_ext->flags >> 1) & 1;
         break;
+    }
     case kArgQuestionStage:
+    {
         paramIndex = 1;
-        stage = params->GetInt(0);
+        int stage = params->GetInt(0);
         if (stage == 0) {
-            stage = (int)m_flags;
+            stage = m_flags;
         }
         lhs = mgr->GetStage(stage);
         break;
+    }
     case kArgQuestionGameVar:
     {
         int resourceId;
@@ -198,11 +208,11 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
         return 1;
     }
 
-    op = params->GetInt((unsigned int)paramIndex++);
-    rhs = params->GetInt((unsigned int)paramIndex++);
+    int op = params->GetInt(paramIndex++);
+    int rhs = params->GetInt(paramIndex++);
 
     if (arg == kArgQuestionAllStages) {
-        exclude = params->GetInt((unsigned int)paramIndex);
+        exclude = params->GetInt(paramIndex);
         matched = 1;
         i = 3;
         do {
@@ -271,7 +281,8 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-/* TODO: [near miss] 98.20%; only nonvolatile register coloring differs. */
+/* TODO: [near miss] 98.20755%; this/manager/params and scalar saved-register homes differ;
+ * branch scoping and scalar declaration order do not close the residue. */
 int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                                     int /*dt*/) {
     ScreenParams* params;
@@ -288,7 +299,7 @@ int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/
             flag = params->GetBoolean(2);
             mgr->SetConfirmUser(value - 1, (unsigned int)(flag != 0), confirmId);
         } else {
-            stageIndex = (int)m_flags;
+            stageIndex = m_flags;
             if (params->GetInt(0) != 0) {
                 stageIndex = params->GetInt(0);
             }
@@ -424,7 +435,7 @@ int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
         target = params->GetScreenObject(0);
         parent = target->m_parent;
         if (target->m_parent != 0) {
-            focusIndex = (int)m_flags;
+            focusIndex = m_flags;
             if (focusIndex > 0 && parent->GetFocus(focusIndex) == 0) {
                 focusIndex = 0;
             }

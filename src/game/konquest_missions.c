@@ -1,3 +1,10 @@
+#include "game/game.h"
+#include "runtime/anim_transition.h"
+#include "runtime/anim_api_ext.h"
+#include "runtime/anim_api.h"
+#include "game/pfxscript_api.h"
+#include "game/konquest_missions.h"
+#include "game/pwrbar.h"
 #include "game/game_info.h"
 #include "game/blood.h"
 #include "game/controller.h"
@@ -23,409 +30,343 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
+#include "runtime/sound.h"
+#include "game/plyr_globals.h"
+#include "runtime/utils.h"
+#include "platform/main.h"
+#include "game/memcard.h"
+#include "game/ejb.h"
+#include "game/plyr.h"
+#include "game/moves.h"
+#include "game/nis.h"
+#include "runtime/plyr_anim_pdata.h"
+#include "platform/display_metrics.h"
 
-typedef struct KonquestMissionFightInfo {
+/* TODO: [review] unused after PlyrInfo migration; removal pending comment policy. */
+struct KonquestMissionFightInfo {
     int field_0x0;
-    int animation_side;                /* +0x04 */
-    int player_state;                  /* +0x08 */
-    float current_health;               /* +0x0C */
-    float maximum_health;               /* +0x10 */
+    int animation_side;
+    int player_state;
+    float current_health;
+    float maximum_health;
     char pad14[0x2C];
-    int field_40;                        /* +0x40 */
+    int field_40;
     char pad44[0x10];
-    int character_id;                    /* +0x54 */
+    int character_id;
     union {
         PlyrPdata* pdata;
         FighterMirror* fighter;
-    };                                   /* +0x58 */
-    MkObj* active_object;               /* +0x5C */
+    };
+    MkObj* active_object;
     char pad60[4];
-    MkProc* process;                    /* +0x64 */
-} KonquestMissionFightInfo;
+    MkProc* process;
+};
 
-typedef struct KonquestMissionTuneEntry {
+struct KonquestMissionTuneEntry {
     int round_one_music;
     int later_round_music;
     int end_music;
-} KonquestMissionTuneEntry;
+};
 
-typedef struct KonquestMissionTuneTable {
+struct KonquestMissionTuneTable {
     int basic_round_one_music[3];
-    KonquestMissionTuneEntry entries[2];
+    struct KonquestMissionTuneEntry entries[2];
     int script_music;
-} KonquestMissionTuneTable;
+};
 
-typedef struct KonquestMissionCondition {
+struct KonquestMissionCondition {
     int value;
     int type;
-} KonquestMissionCondition;
+};
 
-typedef struct KonquestSuccessCondition {
-    KonquestMissionCondition condition;
+struct KonquestSuccessCondition {
+    struct KonquestMissionCondition condition;
     int required_count;
     int current_count;
-} KonquestSuccessCondition;
+};
 
-typedef struct KonquestScreenLatch {
+struct KonquestScreenLatch {
     ScreenObj* object;
     unsigned int instance;
-} KonquestScreenLatch;
+};
 
-typedef struct KonquestStringLatch {
+struct KonquestStringLatch {
     StringObj* object;
     unsigned int instance;
-} KonquestStringLatch;
+};
 
-typedef struct KonquestBackgroundBox {
-    union {
-        struct {
-            KonquestScreenLatch fill;
-            KonquestScreenLatch top;
-            KonquestScreenLatch bottom;
-            KonquestScreenLatch left;
-            KonquestScreenLatch right;
-        };
-        KonquestScreenLatch pieces[5];
-    };
-} KonquestBackgroundBox;
+struct KonquestBackgroundBox {
+    struct KonquestScreenLatch pieces[5];
+};
 
-typedef struct KonquestRequiredAttack {
+struct KonquestRequiredAttack {
     unsigned char type;
     unsigned char value;
     char pad02[2];
     int flags;
     struct KonquestRequiredAttack* next;
-} KonquestRequiredAttack;
+};
 
-typedef struct KonquestRequiredSequence {
+struct KonquestRequiredSequence {
     const char* message;
     const char* message_parameter;
-    KonquestRequiredAttack* current;
-    KonquestRequiredAttack* first;
-} KonquestRequiredSequence;
+    struct KonquestRequiredAttack* current;
+    struct KonquestRequiredAttack* first;
+};
 
-typedef struct KonquestRequiredSequenceList {
+struct KonquestRequiredSequenceList {
     unsigned char sequence_count;
     unsigned char current_sequence;
     char pad02[2];
-    KonquestRequiredSequence entries[12];
-    KonquestRequiredAttack attacks[40];
+    struct KonquestRequiredSequence entries[12];
+    struct KonquestRequiredAttack attacks[40];
     int attack_count;
-} KonquestRequiredSequenceList;
+};
 
-typedef struct KonquestMissionState {
+struct KonquestMissionState {
     MkHdr hdr;
     union {
         struct {
-            int combo_hits;            /* +0x008 */
-            float combo_damage;        /* +0x00C */
-            int combo_complete;        /* +0x010 */
+            int combo_hits;
+            float combo_damage;
+            int combo_complete;
             char pad014[0x17C];
-            int bleeding_required;     /* +0x190 */
+            int bleeding_required;
             char pad194[0x11C];
         };
         struct {
-            KonquestSuccessCondition success_conditions[35];
+            struct KonquestSuccessCondition success_conditions[35];
             char success_pad238[0x78];
         };
-        KonquestRequiredSequenceList required_sequences;
+        struct KonquestRequiredSequenceList required_sequences;
     };
-    int display_item_a;                /* +0x2B0 */
-    const char* display_format;         /* +0x2B4 */
-    unsigned char progress_count;       /* +0x2B8 */
-    unsigned char progress_required;    /* +0x2B9 */
+    int display_item_a;
+    const char* display_format;
+    unsigned char progress_count;
+    unsigned char progress_required;
     char pad2BA[2];
-    int display_item_c;                /* +0x2BC */
-    int move_description_flipped;      /* +0x2C0 */
-    const char* move_message;           /* +0x2C4 */
-    const char* move_message_param;     /* +0x2C8 */
-    int trial_type;                    /* +0x2CC */
-    int condition_value;               /* +0x2D0 */
-    int condition_player;              /* +0x2D4 */
-    int condition_mode;                /* +0x2D8 */
-    int condition_active;              /* +0x2DC */
-    int condition_ticks;               /* +0x2E0 */
-    int drone_difficulty;               /* +0x2E4 */
-    int field_2E8;                     /* +0x2E8 */
-    unsigned int current_setup_function;        /* +0x2EC */
-    int next_setup_function;           /* +0x2F0 */
-    unsigned int winner_end_function;  /* +0x2F4 */
-    unsigned int loser_end_function;   /* +0x2F8 */
-    unsigned int tick_script_function; /* +0x2FC */
-    int display_flags;                 /* +0x300 */
-    unsigned int player_one_switch_state; /* +0x304 */
-    unsigned int player_two_switch_state; /* +0x308 */
-    int field_30C;                     /* +0x30C */
-    KonquestStringLatch move_string;       /* +0x310 */
-    KonquestStringLatch move_param_string; /* +0x318 */
-    StringObj* progress_string;         /* +0x320 */
-    unsigned int progress_string_instance; /* +0x324 */
-    StringObj* countdown_string;        /* +0x328 */
-    unsigned int countdown_string_instance; /* +0x32C */
-    KonquestBackgroundBox background_boxes[3]; /* +0x330 */
-    MkProc* monk_process;              /* +0x3A8 */
-    unsigned int monk_process_instance; /* +0x3AC */
-    MkProc* script_process;            /* +0x3B0 */
-    unsigned int script_process_instance; /* +0x3B4 */
-    MkObj* monk;                       /* +0x3B8 */
-    unsigned int monk_instance;        /* +0x3BC */
-    AniTextureControl* monk_face_texture; /* +0x3C0 */
-    unsigned int monk_face_texture_instance; /* +0x3C4 */
-    KonquestMissionFightInfo* fight;   /* +0x3C8 */
-    KonquestMissionFightInfo* drone;   /* +0x3CC */
-    int num_rounds;                    /* +0x3D0 */
-    int round_timer;                   /* +0x3D4 */
-    ScriptSlot* tick_script;           /* +0x3D8 */
-    int mission_index;                 /* +0x3DC */
-    int player_one_wrapup_state;        /* +0x3E0 */
-    int player_two_wrapup_state;        /* +0x3E4 */
-    float round_health_restoration;    /* +0x3E8 */
-    KonquestMissionTuneTable* tune_table; /* +0x3EC */
-    int randomized_side;               /* +0x3F0 */
-    int transform_complete;             /* +0x3F4 */
-    int restriction_phase;             /* +0x3F8 */
-    union {
-        struct {
-            float player_one_damage_scale;
-            float player_two_damage_scale;
-        };
-        float damage_scale[2];
-    };                                 /* +0x3FC */
-    unsigned int restriction_flags;    /* +0x404 */
-} KonquestMissionState;
+    int display_item_c;
+    int move_description_flipped;
+    const char* move_message;
+    const char* move_message_param;
+    int trial_type;
+    int condition_value;
+    int condition_player;
+    int condition_mode;
+    int condition_active;
+    int condition_ticks;
+    int drone_difficulty;
+    int field_2E8;
+    unsigned int current_setup_function;
+    int next_setup_function;
+    unsigned int winner_end_function;
+    unsigned int loser_end_function;
+    unsigned int tick_script_function;
+    int display_flags;
+    unsigned int player_one_switch_state;
+    unsigned int player_two_switch_state;
+    int field_30C;
+    struct KonquestStringLatch move_string;
+    struct KonquestStringLatch move_param_string;
+    StringObj* progress_string;
+    unsigned int progress_string_instance;
+    StringObj* countdown_string;
+    unsigned int countdown_string_instance;
+    struct KonquestBackgroundBox background_boxes[3];
+    MkProc* monk_process;
+    unsigned int monk_process_instance;
+    MkProc* script_process;
+    unsigned int script_process_instance;
+    MkObj* monk;
+    unsigned int monk_instance;
+    AniTextureControl* monk_face_texture;
+    unsigned int monk_face_texture_instance;
+    PlyrInfo* fight;
+    PlyrInfo* drone;
+    int num_rounds;
+    int round_timer;
+    ScriptSlot* tick_script;
+    int mission_index;
+    int player_one_wrapup_state;
+    int player_two_wrapup_state;
+    float round_health_restoration;
+    struct KonquestMissionTuneTable* tune_table;
+    int randomized_side;
+    int transform_complete;
+    int restriction_phase;
+    float damage_scale[2];
+    unsigned int restriction_flags;
+};
 
-typedef struct KonquestMissionSaveData {
+struct KonquestMissionSaveData {
     char pad00[0x0C];
-    int region_index;                    /* +0x0C */
+    int region_index;
     char pad10[0x28];
-    char fight_name[0x40];             /* +0x38 */
-    unsigned int mission_pair_a;       /* +0x78 */
-    unsigned int mission_pair_b;       /* +0x7C */
-    int next_value_a;                  /* +0x80 */
-    int next_value_b;                  /* +0x84 */
-    int next_mission;                  /* +0x88 */
-    unsigned int background_and_flags; /* +0x8C */
+    char fight_name[0x40];
+    unsigned int mission_pair_a;
+    unsigned int mission_pair_b;
+    int next_value_a;
+    int next_value_b;
+    int next_mission;
+    unsigned int background_and_flags;
     int passed_last_mission;
     int progression;
-} KonquestMissionSaveData;
+};
 
-typedef struct KonquestRegionAsset {
+struct KonquestRegionAsset {
     void* fight_files;
     MkFileEntry* art_files;
     char pad08[4];
     char* string_bank;
     char pad10[4];
-} KonquestRegionAsset;
+};
 
-typedef struct KonquestMissionRegion {
+struct KonquestMissionRegion {
     char pad00[0x24];
-    int background_id;                 /* +0x24 */
-} KonquestMissionRegion;
+    int background_id;
+};
 
-typedef struct KonquestMissionPdata {
+struct KonquestMissionPdata {
     char pad00[0x28];
-    KonquestMissionRegion* region;      /* +0x28 */
-} KonquestMissionPdata;
+    struct KonquestMissionRegion* region;
+};
 
-typedef struct KonquestMissionStateLatch {
-    KonquestMissionState* state;
+struct KonquestMissionStateLatch {
+    struct KonquestMissionState* state;
     unsigned int instance;
-} KonquestMissionStateLatch;
+};
 
-typedef struct KonquestMissionProcVtable {
-    void* reserved[6];
-    void (*sleep)(void);
-} KonquestMissionProcVtable;
-
-typedef struct KonquestMissionJumpVtable {
-    void* reserved[9];
-    float (*jump_sleep)(MkProcEntryFn entry, float ticks);
-} KonquestMissionJumpVtable;
-
-typedef struct KonquestBloodRushPdata {
+struct KonquestBloodRushPdata {
     MkHdr hdr;
     int player;
     float rate;
-} KonquestBloodRushPdata;
+};
 
-typedef struct DroneOverrideInfo {
+struct DroneOverrideInfo {
     float likelihood_scale;
     unsigned int flags;
-} DroneOverrideInfo;
+};
 
-typedef struct KonquestRequiredMove {
+struct KonquestRequiredMove {
     char pad00[8];
     struct KonquestRequiredMove* next;
     struct KonquestRequiredMove* sentinel;
     int message;
     int message_parameter;
-} KonquestRequiredMove;
+};
 
-typedef struct KonquestRequiredMoveProgress {
+struct KonquestRequiredMoveProgress {
     unsigned char required;
     unsigned char current;
-} KonquestRequiredMoveProgress;
+};
 
-typedef struct KonquestTrialScriptAttrs {
+struct KonquestTrialScriptAttrs {
     char pad00[0x3C];
     int condition_ticks;
-} KonquestTrialScriptAttrs;
+};
 
-typedef struct KonquestTrialAnimations {
-    AnimScript* monk_animation;          /* +0x00 */
+struct KonquestTrialAnimations {
+    AnimScript* monk_animation;
     char pad04[4];
-    void* loser_start;                  /* +0x08 */
+    void* loser_start;
     char pad0C[8];
-    void* loser_loop;                   /* +0x14 */
-    AnimScript* monk_transform_animation; /* +0x18 */
-    void* transform_animation;          /* +0x1C */
-} KonquestTrialAnimations;
+    void* loser_loop;
+    AnimScript* monk_transform_animation;
+    void* transform_animation;
+};
 
-typedef struct KonquestRoundStartPositions {
-    char pad00[0x0C];
-    Vec player_one_position;
-    Vec player_one_angles;
-    Vec player_two_position;
-    Vec player_two_angles;
-} KonquestRoundStartPositions;
-
-typedef struct TrialWrapupEntry {
+struct TrialWrapupEntry {
     int sound_id;
     LipSyncKeyframe* lip_sync;
     float post_sound_delay;
     int animation_id;
-} TrialWrapupEntry;
+};
 
-typedef struct TrialWrapupData {
-    TrialWrapupEntry* selected_success;
-    TrialWrapupEntry* success_table;
-    TrialWrapupEntry* selected_failure;
-    TrialWrapupEntry* failure_table;
-} TrialWrapupData;
+struct TrialWrapupData {
+    struct TrialWrapupEntry* selected_success;
+    struct TrialWrapupEntry* success_table;
+    struct TrialWrapupEntry* selected_failure;
+    struct TrialWrapupEntry* failure_table;
+};
 
-typedef struct KonquestAnimScriptView {
-    char pad00[0x18];
-    unsigned int frame_count;
-} KonquestAnimScriptView;
-
-typedef struct KonquestSwitchPdata {
+struct KonquestSwitchPdata {
     MkHdr hdr;
     PlyrInfo* player;
-} KonquestSwitchPdata;
+};
 
-typedef struct KonquestTrialWindowPdata {
+struct KonquestTrialWindowPdata {
     MkHdr hdr;
-    int left;                           /* +0x08 */
-    int bottom;                         /* +0x0C */
-    int priority;                       /* +0x10 */
-    int width;                          /* +0x14 */
-    int top;                            /* +0x18 */
-    unsigned int prompt_flags;          /* +0x1C */
-    int timeout;                        /* +0x20 */
-    unsigned int color;                 /* +0x24 */
-    int font;                           /* +0x28 */
-    int controller_port;                /* +0x2C */
-    const char* button_charmap;         /* +0x30 */
-    int swap_buttons;                   /* +0x34 */
-    char text[0x4B0];                   /* +0x38 */
-    int visible_item_count;             /* +0x4E8 */
-    int art_slot;                       /* +0x4EC */
-    KonquestScreenLatch frame[9];       /* +0x4F0 */
-    KonquestScreenLatch prompt_ok;      /* +0x538 */
-    KonquestScreenLatch prompt_retry;   /* +0x540 */
-    KonquestScreenLatch prompt_548;     /* +0x548 */
-    KonquestScreenLatch prompt_550;     /* +0x550 */
-    KonquestScreenLatch prompt_cancel;  /* +0x558 */
-} KonquestTrialWindowPdata;
+    int left;
+    int bottom;
+    int priority;
+    int width;
+    int top;
+    unsigned int prompt_flags;
+    int timeout;
+    unsigned int color;
+    int font;
+    int controller_port;
+    const char* button_charmap;
+    int swap_buttons;
+    char text[0x4B0];
+    int visible_item_count;
+    int art_slot;
+    struct KonquestScreenLatch frame[9];
+    struct KonquestScreenLatch prompt_ok;
+    struct KonquestScreenLatch prompt_retry;
+    struct KonquestScreenLatch prompt_548;
+    struct KonquestScreenLatch prompt_550;
+    struct KonquestScreenLatch prompt_cancel;
+};
 
-static KonquestMissionState* mission_state;
-static KonquestMissionStateLatch mission_state_item;
+static struct KonquestMissionState* mission_state;
+static struct KonquestMissionStateLatch mission_state_item;
 static AnimPdata* current_anim_pdata;
 char danton20_charmap[] = "|][<}=+{.....&.@.";
 char movelist_charmap[] = "lrRLYBAX...../.:.";
-TrialWrapupEntry generic_char_success_table[5] = {
+struct TrialWrapupEntry generic_char_success_table[5] = {
     {0x39, 0, 10.0f, 0x0A}, {0x3A, 0, 10.0f, 0x0B},
     {0x3B, 0, 10.0f, 0x0A}, {0x3C, 0, 10.0f, 0x0C},
     {0x3D, 0, 10.0f, 0x0D}
 };
-TrialWrapupEntry generic_char_failure_table[5] = {
+struct TrialWrapupEntry generic_char_failure_table[5] = {
     {0x3E, 0, 10.0f, 0x0E}, {0x3F, 0, 10.0f, 0x0F},
     {0x40, 0, 10.0f, 0x10}, {0x41, 0, 10.0f, 0x11},
     {0x42, 0, 0.0f, 0x12}
 };
-TrialWrapupData generic_char_wrapup_data = {
+struct TrialWrapupData generic_char_wrapup_data = {
     0, generic_char_success_table, 0, generic_char_failure_table
 };
-extern KonquestMissionSaveData konquest_save_data;
+extern struct KonquestMissionSaveData konquest_save_data;
 extern MslSoundHandle bgnd_music_ptr1;
-extern MkObj* plyr_obj;
-extern int force_bgnd_num;
-extern KonquestMissionPdata* konquest_pdata;
-extern int mode_of_play;
-extern float inverse_game_speed;
-extern int screen_width;
-extern AnimPdata* plyr_anim_pdata;
+extern struct KonquestMissionPdata* konquest_pdata;
 extern MkProc* plyr_anim_proc;
-extern KonquestTrialAnimations bgnd_animations;
-extern unsigned char* p1_profile_konquest;
+extern struct KonquestTrialAnimations bgnd_animations;
 extern int mcard_msg_active;
-extern KonquestRegionAsset konquest_region_data[9];
+extern struct KonquestRegionAsset konquest_region_data[9];
 extern int round_winner;
 extern int winner;
 extern int f_fatality_finished;
 int text_window_state;
 
-int adjust_p1_life(float amount);
-int adjust_p2_life(float amount);
-MslSoundHandle snd_req(int sound);
 void snd_stop(MslSoundHandle sound);
-void transition_to_anim_script(
-    float transition_frames, AnimPdata* animation,
-    AnimScript* script, unsigned int flags);
-void setDroneOverrideSwitch(int activated, DroneOverrideInfo* info);
-void fade_to_black(int ticks, int flags);
-void fade_from_black(int ticks, int flags);
-void gamelogic_jump(int action, MkProcEntryFn entry);
-float p_konquest_ending(void);
-float p_gamelogic(void);
-float j_exit_blend_stance(void);
-float j_exit(void);
+void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
 void set_ani_speed(float speed);
-void blend_to_stance(float blend);
 static float p_run_special_move(void);
 static float call_mission_script(void);
 void move_player(MkObj* object, const Vec* position, Vec* angle);
 int is_weapon_style(PlyrFighterDefinition* fighter);
-int is_timer_off(void);
 int is_pX_airborn(int player);
-extern int game_tick_ctr;
 MkProc* konquest_set_dialog_text(
     const char* text, const LipSyncKeyframe* lip_sync_keyframes);
 void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
-void display_numerical_change(
-    StringObj* string, int font, int start, int change,
-    int ticks, int acceleration_interval);
-void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
-void pfx_2d_obj_set_alpha(ScreenObj* object, unsigned char alpha);
 void duck_sounds(float volume);
-unsigned int randu0(unsigned int max);
-unsigned int fx_by_owner(const char* name, unsigned int owner);
-unsigned int fx_next_emitter(unsigned int handle);
-void fx_restart_emit(unsigned int handle);
-void get_bone_world_pos(MkObj* object, int bone, Vec* position);
-AnimScript* get_animation(int animation_id);
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 MslSoundHandle plyr_snd_req(int sound_id);
-void rotate_towards_him(float blend_time);
 void plyr_weapon_hide(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
 void plyr_weapon_show(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
-void init_pwr_bars(void);
-int are_powerbars_retracted(void);
-void extend_powerbars(void);
-void start_powerbar_monitor(void);
-void update_plyr_medals(void);
 void do_win_effect(void);
 void end_music(void);
 void destroy_onscreen_fight_2d_objects(void);
@@ -434,12 +375,9 @@ MkProc* load_hero_model(AnimScript* animation);
 void insert_ground_me_mkobj(MkObj* object);
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 static void trial_load_monk(void);
-void push_game_state(int state);
-void pop_game_state(void);
-void xfer_player_proc(MkProc* process, MkProcEntryFn entry);
 static void increment_required_moves_progress(
-    KonquestRequiredSequence* sequence,
-    KonquestRequiredSequenceList* list);
+    struct KonquestRequiredSequence* sequence,
+    struct KonquestRequiredSequenceList* list);
 MkObj* trial_get_monk(void);
 void trial_show_monk(int show);
 void trial_show_text_window(
@@ -451,8 +389,8 @@ static float p_finish_countdown(void);
 float p_show_text_window(void);
 static float p_transform_into_monk(void);
 static float p_transform_into_player(void);
-static void set_prompt_items(KonquestTrialWindowPdata* unused);
-static void plot_and_show_window_frame(KonquestTrialWindowPdata* unused);
+static void set_prompt_items(struct KonquestTrialWindowPdata* unused);
+static void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused);
 static void text_window_fade_out(unsigned char ticks);
 static void increment_progress_count(unsigned char increment);
 static void trial_show_move_message(void);
@@ -465,32 +403,22 @@ static float p_finish_transform_player(void);
 void become_plyr1_proc(void);
 void become_plyr2_proc(void);
 void face_opponent_now(void);
-void blend_to_ani(void* animation, int transition, float blend);
 void ani_to_blend_frame(float frame);
-float p_animate(void);
 float p_do_lip_synch(void);
 float getup_from_ground(void);
-float switch_proc_advance_moveset(void);
 float j_stay_down_dead(void);
 void start_mkpfx_FadeSnapShot(void);
 void move_plyrs_to_round_start(void);
 void start_constrain_proc(void);
 void stop_tunes(void);
-float p_anim_idle(void);
-int transition_to_anim_script_frame(
-    float transition_frames, float frame, AnimPdata* animation,
-    AnimScript* script, unsigned int flags);
 void animpdata_ani_1_frame(AnimPdata* animation);
 void animpdata_ani_to_frame_x(AnimPdata* animation, float frame);
 void shake_camera(int strength, float duration);
 void hide_player(PlyrPdata* player, int hide_weapons);
-void rotate_towards_position(const Vec* target, float max_step);
-void pre_switchp(void);
-void post_switchp(void);
 static void start_hero_transform_effect(MkObj* object);
 static float p_blood_rush(void);
 
-static inline ScreenObj* get_screen_latch(KonquestScreenLatch* latch) {
+static inline ScreenObj* get_screen_latch(struct KonquestScreenLatch* latch) {
     ScreenObj* raw = latch->object;
     ScreenObj* live;
 
@@ -498,8 +426,7 @@ static inline ScreenObj* get_screen_latch(KonquestScreenLatch* latch) {
     return live;
 }
 
-
-static inline void hide_screen_latch(KonquestScreenLatch* latch) {
+static inline void hide_screen_latch(struct KonquestScreenLatch* latch) {
     ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object != 0) {
@@ -507,7 +434,7 @@ static inline void hide_screen_latch(KonquestScreenLatch* latch) {
     }
 }
 
-static inline void hide_background_box(KonquestBackgroundBox* box) {
+static inline void hide_background_box(struct KonquestBackgroundBox* box) {
     int index;
 
     for (index = 0; index < 5; index++) {
@@ -515,16 +442,16 @@ static inline void hide_background_box(KonquestBackgroundBox* box) {
     }
 }
 
-
 static inline StringObj* get_countdown_string_latch(
-    KonquestMissionState* state) {
-    StringObj* raw = state->countdown_string;
-    StringObj* live;
-
-    live = MK_LIVE(raw, state->countdown_string_instance);
-    return live;
+    struct KonquestMissionState* state) {
+    if (state->countdown_string != 0) {
+        if (state->countdown_string->instance == state->countdown_string_instance) {
+            return state->countdown_string;
+        }
+        return 0;
+    }
+    return 0;
 }
-
 
 static inline MkProc* get_process_latch(
     MkProc* process, unsigned int instance) {
@@ -543,7 +470,7 @@ static inline MkProc* get_process_latch(
 }
 
 static inline ScreenObj* load_prompt(
-    KonquestTrialWindowPdata* pdata, KonquestScreenLatch* latch,
+    struct KonquestTrialWindowPdata* pdata, struct KonquestScreenLatch* latch,
     const char* name, int insert) {
     ScreenObj* object = get_screen_latch(latch);
 
@@ -563,7 +490,7 @@ static inline ScreenObj* load_prompt(
 }
 
 static inline void place_frame_piece(
-    KonquestScreenLatch* latch, int x, int y,
+    struct KonquestScreenLatch* latch, int x, int y,
     float scale_x, float scale_y, int scaled) {
     ScreenObj* object = get_screen_latch(latch);
 
@@ -582,7 +509,7 @@ static inline void place_frame_piece(
     }
 }
 
-static inline void destroy_screen_latch(KonquestScreenLatch* latch) {
+static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
     ScreenObj* object = get_screen_latch(latch);
 
     if (object != 0) {
@@ -596,8 +523,8 @@ static inline void destroy_screen_latch(KonquestScreenLatch* latch) {
 }
 
 static inline void text_window_fade_in(unsigned char ticks) {
-    KonquestTrialWindowPdata* pdata =
-        (KonquestTrialWindowPdata*)apdata;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
     unsigned char alpha = 0;
 
     if (pdata != 0) {
@@ -624,14 +551,14 @@ static inline void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-static inline KonquestMissionState* get_mission_state(void) {
-    KonquestMissionState* state = mission_state_item.state;
+static inline struct KonquestMissionState* get_mission_state(void) {
+    struct KonquestMissionState* state = mission_state_item.state;
 
     return MK_HDR_LIVE(state, mission_state_item.instance);
 }
 
 static inline MkObj* get_mission_monk(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     MkObj* raw;
     MkObj* live;
 
@@ -645,16 +572,16 @@ static inline MkObj* get_mission_monk(void) {
     return live;
 }
 
-static inline char** get_trial_sign_list(void) {
-    static char* sign_list[3] = {
-        (char*)0x0A93000F, (char*)0x0A930010, (char*)0x0A930011
+static inline unsigned int* get_trial_sign_list(void) {
+    static unsigned int sign_list[3] = {
+        0x0A93000F, 0x0A930010, 0x0A930011
     };
 
     return sign_list;
 }
 
 int trial_never_passed_this_mission(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -664,14 +591,14 @@ int trial_never_passed_this_mission(void) {
 }
 
 void drone_set_handicap(int player, float handicap) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return;
     }
-    if ((player == 0 && state->fight->animation_side == 0) ||
-        (player == 1 && state->fight->animation_side == 1)) {
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
         g_game_info.plyr0.field_10 = handicap;
         if (g_game_info.plyr0.field_0C > handicap) {
             g_game_info.plyr0.field_0C = handicap;
@@ -685,8 +612,8 @@ void drone_set_handicap(int player, float handicap) {
 }
 
 void drone_start_bleeding(int player, float rate) {
-    KonquestBloodRushPdata* pdata;
-    KonquestMissionState* state;
+    struct KonquestBloodRushPdata* pdata;
+    struct KonquestMissionState* state;
     MkObj* fighter;
     MkObj* mirror;
     Vec velocity = {0.0f, 0.0f, 0.0f};
@@ -698,8 +625,8 @@ void drone_start_bleeding(int player, float rate) {
         return;
     }
 
-    if ((player == 0 && state->fight->animation_side == 0) ||
-        (player == 1 && state->fight->animation_side == 1)) {
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
         direction.x = 1.0f;
         mirror = g_game_info.plyr0.slot.mirror_a;
         fighter = (MkObj*)g_game_info.plyr0.slot.fighter;
@@ -714,15 +641,15 @@ void drone_start_bleeding(int player, float rate) {
 
     if (_create_mkproc_generic_nostack(
             0x501B, 0x1F, p_blood_rush,
-            sizeof(KonquestBloodRushPdata), (MkHdr**)&pdata) != 0) {
+            sizeof(struct KonquestBloodRushPdata), (MkHdr**)&pdata) != 0) {
         pdata->player = ((PlyrPdata*)fighter)->plyr_num;
         pdata->rate = -1.0f * rate;
     }
 }
 
 float p_blood_rush(void) {
-    KonquestBloodRushPdata* pdata =
-        (KonquestBloodRushPdata*)apdata;
+    struct KonquestBloodRushPdata* pdata =
+        (struct KonquestBloodRushPdata*)apdata;
     int player = pdata->player;
     float rate = pdata->rate;
 
@@ -738,13 +665,13 @@ float p_blood_rush(void) {
 
 int trial_invisible_callback(PlyrPdata* player) {
     int player_number = player->plyr_num;
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 1;
     }
-    if (player_number != state->fight->animation_side &&
+    if (player_number != state->fight->field_04 &&
         (state->restriction_flags & 0x20)) {
         return 0;
     }
@@ -752,14 +679,14 @@ int trial_invisible_callback(PlyrPdata* player) {
 }
 
 int trial_change_style_callback(int player) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 1;
     }
-    if (((player == 0 && state->fight->animation_side == 0) ||
-         (player == 1 && state->fight->animation_side == 1)) &&
+    if (((player == 0 && state->fight->field_04 == 0) ||
+         (player == 1 && state->fight->field_04 == 1)) &&
         (state->restriction_flags & 2)) {
         return 0;
     }
@@ -767,14 +694,14 @@ int trial_change_style_callback(int player) {
 }
 
 int trial_block_callback(int player) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 1;
     }
-    if (((player == 0 && state->fight->animation_side == 0) ||
-         (player == 1 && state->fight->animation_side == 1)) &&
+    if (((player == 0 && state->fight->field_04 == 0) ||
+         (player == 1 && state->fight->field_04 == 1)) &&
         (state->restriction_flags & 1)) {
         return 0;
     }
@@ -782,7 +709,7 @@ int trial_block_callback(int player) {
 }
 
 void trial_set_special_restrictions(unsigned int restrictions) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -793,7 +720,7 @@ void trial_set_special_restrictions(unsigned int restrictions) {
 float trial_damage_callback(
     int player, int damage_type, float damage) {
     int player_side = player == 0;
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -802,27 +729,27 @@ float trial_damage_callback(
     damage *= state->damage_scale[player];
 
     if (state->restriction_flags & 4) {
-        if (player_side == state->fight->animation_side &&
+        if (player_side == state->fight->field_04 &&
             !is_weapon_style(
                 (&g_game_info.plyr0)[player_side]
                     .slot.pdata->fighter_definition)) {
             damage = 0.0f;
         }
     } else if (state->restriction_flags & 8) {
-        if (player_side == state->fight->animation_side) {
+        if (player_side == state->fight->field_04) {
             if (state->restriction_phase == 0) {
-                if (state->fight->pdata->state == 0x120C) {
+                if (state->fight->slot.pdata->state == 0x120C) {
                     state->restriction_phase = 1;
                 } else {
                     damage = 0.0f;
                 }
-            } else if (state->drone->pdata->state == 0) {
+            } else if (state->drone->slot.pdata->state == 0) {
                 state->restriction_phase = 0;
                 damage = 0.0f;
             }
         }
     } else if ((state->restriction_flags & 0x10) &&
-               player_side == state->fight->animation_side &&
+               player_side == state->fight->field_04 &&
                damage_type != 1) {
         damage = 0.0f;
     }
@@ -830,24 +757,24 @@ float trial_damage_callback(
 }
 
 void drone_set_damage_multiplier(int player, float multiplier) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return;
     }
-    if ((player == 0 && state->fight->animation_side == 0) ||
-        (player == 1 && state->fight->animation_side == 1)) {
-        state->player_one_damage_scale = multiplier;
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
+        state->damage_scale[0] = multiplier;
         return;
     }
-    state->player_two_damage_scale = multiplier;
+    state->damage_scale[1] = multiplier;
 }
 
 void show_text(
     int font, unsigned int color, unsigned int string_id, float x, float y,
     float scale, unsigned int prompt_flags, int duration) {
-    KonquestTrialWindowPdata* pdata;
+    struct KonquestTrialWindowPdata* pdata;
 
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
@@ -856,9 +783,9 @@ void show_text(
         pdata->visible_item_count = 0;
         pdata->top = 0;
         pdata->left = (float)screen_width * x;
-        pdata->bottom = (int)(480.0f - (480.0f * y));
+        pdata->bottom = 480.0f - (480.0f * y);
         pdata->priority = 4;
-        pdata->width = (int)((float)screen_width * scale);
+        pdata->width = (float)screen_width * scale;
         pdata->prompt_flags = prompt_flags;
         pdata->font = font;
         pdata->color = color;
@@ -866,7 +793,7 @@ void show_text(
         pdata->swap_buttons = 0;
         pdata->art_slot = 0x2001E;
         if (prompt_flags & 0x400) {
-            duration = (int)((float)duration * inverse_game_speed);
+            duration = (float)duration * inverse_game_speed;
         }
         pdata->timeout = duration - 0x18;
         strcpy(pdata->text, get_string_by_id(string_id));
@@ -909,7 +836,7 @@ void give_koin_award(int amount, int type) {
     snd_req(0x15EC);
     add_to_konq_profile_value(type + 7, amount);
     sign = load_2d_pfxobj_xy(
-        0x2001E, 0x9008, (char*)0x0A930012, 0,
+        0x2001E, 0x9008, 0x0A930012, 0,
         screen_width / 2 - 0x80, 0x66, 0x24);
     title = create_wrapped_string(
         0x9008, load_font(3),
@@ -921,7 +848,7 @@ void give_koin_award(int amount, int type) {
         type = 2;
     }
     koin = load_2d_pfxobj_xy(
-        0x2001E, 0x9008, (char*)koin_list[type], 0,
+        0x2001E, 0x9008, koin_list[type], 0,
         screen_width / 2 - 0x40, 0xB6, 0x23);
     load_font(3);
     if (amount > 99999) {
@@ -972,7 +899,7 @@ void konquest_run_ending(void) {
 }
 
 void trial_set_round_health_restoration(float restoration) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -991,7 +918,7 @@ void cleanup_mission_state(void) {
 }
 
 void trial_mirror_anims_if_needed(void) {
-    if (mission_state->fight->animation_side == 1) {
+    if (mission_state->fight->field_04 == 1) {
         camera_set_animation_mirror_plane(3);
     }
 }
@@ -1007,7 +934,7 @@ void drone_set_anim_step(float step) {
 }
 
 void trial_end_tunes(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     int music;
 
     mission_state = state;
@@ -1028,7 +955,7 @@ void trial_end_tunes(void) {
 
 void trial_start_tunes(void) {
     int music = 0;
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     unsigned int function;
 
     mission_state = state;
@@ -1101,12 +1028,12 @@ void trial_setup_nis_scene(int setup) {
     CamVec3 camera_angle = {0.0f, 3.1415927f, 0.0f};
 
     if (mission_state->fight ==
-        (KonquestMissionFightInfo*)&g_game_info.plyr1) {
+        &g_game_info.plyr1) {
         monk_position.x = -1.0f;
     }
 
     if (setup != 0) {
-        KonquestMissionState* state = get_mission_state();
+        struct KonquestMissionState* state = get_mission_state();
         MkObj* raw;
         MkObj* monk;
 
@@ -1175,6 +1102,21 @@ int current_player_is_drone(void) {
     return 0;
 }
 
+static inline void set_monk_lip_synch_texture(KonquestLipSyncPdata* lip) {
+    struct KonquestMissionState* state;
+    AniTextureControl* texture;
+    unsigned int instance;
+
+    state = mission_state;
+    texture = state->monk_face_texture;
+    instance = state->monk_face_texture_instance;
+    lip->texture = texture;
+    lip->texture_instance = instance;
+}
+
+/* TODO: [breakthrough] 99.62%; lazy face-process validation and texture-pair publication agree;
+ * six owner/result register and load-order rows remain. */
+
 void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     KonquestLipSyncPdata* lip;
     MkProc* process = _create_mkproc_generic_nostack(
@@ -1188,26 +1130,19 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     lip->keyframes = keyframes;
 
     if (aproc->pid == 0x9007) {
-        KonquestMissionState* state;
-        KonquestLipSyncPdata* target;
-
         mission_state = get_mission_state();
         if (mission_state == 0) {
             return;
         }
         lip->mode = 2;
-        state = mission_state;
-        target = lip;
-        target->texture = state->monk_face_texture;
-        target->texture_instance = state->monk_face_texture_instance;
+        set_monk_lip_synch_texture(lip);
         return;
     }
 
     if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
         AnimPdata* animation;
 
-        process = get_process_latch(
-            plyr_pdata->face_anim_proc,
+        process = MK_LIVE(plyr_pdata->face_anim_proc,
             plyr_pdata->face_anim_proc_instance);
         if (process == 0) {
             return;
@@ -1215,7 +1150,7 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
         animation = (AnimPdata*)pdata_of_proc(process);
         if (animation != 0) {
             set_anim_script(
-                animation, (AniData*)plyr_pdata->face_animations[0], 3);
+                animation, plyr_pdata->face_animations[0], 3);
             animation->step = 1.0f;
             animation->transition_step = 0.2f;
             animation->hand_transition = 1.0f;
@@ -1232,35 +1167,33 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     }
 }
 
-/* TODO: [near miss] 97.5%; flag-guard exit polarity remains; early-return control neutral. */
 void trial_register_special_move(unsigned int move) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
-    if (state != 0 && mode_of_play == 8) {
-        if (g_game_info.flag_bits.lens_flare_enabled) {
-            if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
-                plyr_pdata != 0) {
-                trial_register_attack(plyr_pdata->plyr_num, 3, move);
-            }
-        }
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
+        plyr_pdata != 0) {
+        trial_register_attack(plyr_pdata->plyr_num, 3, move);
     }
 }
 
-/* TODO: [near miss] 97.5%; flag-guard exit polarity remains; early-return control neutral. */
 void trial_register_script_function(unsigned int function) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
-    if (state != 0 && mode_of_play == 8) {
-        if (g_game_info.flag_bits.lens_flare_enabled) {
-            if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
-                plyr_pdata != 0) {
-                trial_register_attack(
-                    plyr_pdata->plyr_num,
-                    plyr_pdata->player_slot, function);
-            }
-        }
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
+        plyr_pdata != 0) {
+        trial_register_attack(
+            plyr_pdata->plyr_num,
+            plyr_pdata->player_slot, function);
     }
 }
 
@@ -1269,10 +1202,10 @@ int trial_show_standard_fight_messages(void) {
 }
 
 /* TODO: [near miss] 99.36%; first prompt latch goes through r4 then mr r29 in retail; four string-pool offsets (TU layout). */
-void set_prompt_items(KonquestTrialWindowPdata* unused) {
+void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
     int y;
-    KonquestTrialWindowPdata* pdata =
-        (KonquestTrialWindowPdata*)apdata;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
     ScreenObj* object;
 
     if (pdata == 0) {
@@ -1326,9 +1259,9 @@ void set_prompt_items(KonquestTrialWindowPdata* unused) {
 }
 
 /* TODO: [near miss] 99.75%; frame[0] latch object and pdata->bottom swap r10/r11 (coloring only). */
-void plot_and_show_window_frame(KonquestTrialWindowPdata* unused) {
-    KonquestTrialWindowPdata* pdata =
-        (KonquestTrialWindowPdata*)apdata;
+void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
     int left;
     int right;
     int bottom;
@@ -1372,8 +1305,8 @@ void plot_and_show_window_frame(KonquestTrialWindowPdata* unused) {
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void text_window_fade_out(unsigned char ticks) {
-    KonquestTrialWindowPdata* pdata =
-        (KonquestTrialWindowPdata*)apdata;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
     int alpha = 0xFF;
     unsigned char alpha_step = 0xFF / ticks;
     ScreenObj* object;
@@ -1426,9 +1359,9 @@ static void text_window_fade_out(unsigned char ticks) {
 /* TODO: [near miss] 92.81%; frame loop hoists frame_flags.word (retail reloads it from
  * the stack) and the JNY_WINDOW01 string-pool offset differs (0x6c vs 0xa2). */
 float p_show_text_window(void) {
-    KonquestTrialWindowPdata* pdata =
-        (KonquestTrialWindowPdata*)apdata;
-    KonquestTrialWindowPdata* window = pdata;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
+    struct KonquestTrialWindowPdata* window = pdata;
     int result = 0;
 
     if ((pdata->prompt_flags & 0x10) && pdata != 0) {
@@ -1446,7 +1379,7 @@ float p_show_text_window(void) {
         for (index = 0; index < 9; index++) {
             ScreenObj* object = load_2d_pfxobj(
                 pdata->art_slot, 0x9004,
-                (char*)(unsigned long)(
+                (unsigned long)(
                     get_artid_of_named_item_in_slot(
                         pdata->art_slot, "JNY_WINDOW01", 1) + index),
                 frame_flags.word, pdata->priority);
@@ -1457,7 +1390,7 @@ float p_show_text_window(void) {
         }
     }
 
-    pdata = (KonquestTrialWindowPdata*)apdata;
+    pdata = (struct KonquestTrialWindowPdata*)apdata;
     if (pdata != 0) {
         int alignment;
         StringObj* string;
@@ -1573,7 +1506,7 @@ void trial_set_next_mission(
 
 int trial_get_drone_difficulty(void) {
     int index;
-    KonquestMissionState* state;
+    struct KonquestMissionState* state;
     int completed;
 
     state = get_mission_state();
@@ -1585,18 +1518,18 @@ int trial_get_drone_difficulty(void) {
     if (state->drone_difficulty == 9) {
         completed = 0;
         for (index = 0; index < 0x1C2; index++) {
-            if (p1_profile_konquest[index + 0x6C] != 0) {
+            if (((unsigned char*)p1_profile_konquest)[index + 0x6C] != 0) {
                 completed++;
             }
         }
         state->drone_difficulty =
-            (int)(7.0f * ((float)completed / 106.0f) + 0.5f);
+            7.0f * ((float)completed / 106.0f) + 0.5f;
     }
     return mission_state->drone_difficulty;
 }
 
 int trial_get_round_length(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -1606,7 +1539,7 @@ int trial_get_round_length(void) {
 }
 
 void trial_set_tick_function(unsigned int script_enabled) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1616,7 +1549,7 @@ void trial_set_tick_function(unsigned int script_enabled) {
 
 void trial_setup_onscreen_display_items(
     int item_c, int enabled, const char* format) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1626,8 +1559,21 @@ void trial_setup_onscreen_display_items(
     }
 }
 
+static inline void destroy_current_countdown_string(void) {
+    if (get_countdown_string_latch(mission_state) != 0) {
+        StringObj* string = mission_state->countdown_string;
+        if (string->instance != 0) {
+            string->typed_vtbl->destroy(string);
+        }
+        mission_state->countdown_string = 0;
+        mission_state->countdown_string_instance = 0;
+    }
+}
+
+/* TODO: [near miss] 96.33093%; two latch validations retain register/CSE
+ * differences; whole-unit propagation-off regresses other consumers. */
 void trial_start_countdown(int countdown, float x, float y) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1639,21 +1585,13 @@ void trial_start_countdown(int countdown, float x, float y) {
 
         text[0] = (char)countdown + '0';
         text[1] = '\0';
-        screen_x = (int)((float)screen_width * x);
-        screen_y = (int)(480.0f * y);
+        screen_x = (float)screen_width * x;
+        screen_y = 480.0f * y;
         change = -countdown;
         load_font(1);
         destroy_mkprocs_pid(0x900D);
 
-        string = get_countdown_string_latch(mission_state);
-        if (string != 0) {
-            string = mission_state->countdown_string;
-            if (string->instance != 0) {
-                ((int (*)(StringObj*))string->vtbl->destroy)(string);
-            }
-            mission_state->countdown_string = 0;
-            mission_state->countdown_string_instance = 0;
-        }
+        destroy_current_countdown_string();
 
         string = string_center_xy(
             0x9005, 1, text, screen_x, screen_y, 0x22);
@@ -1666,42 +1604,33 @@ void trial_start_countdown(int countdown, float x, float y) {
 
         if (_create_mkproc_generic_tinystack(
                 0x900D, 0x1F, p_finish_countdown, 0, 0) == 0) {
-            string = get_countdown_string_latch(mission_state);
-            if (string != 0) {
-                string = mission_state->countdown_string;
-                if (string->instance != 0) {
-                    ((int (*)(StringObj*))string->vtbl->destroy)(string);
-                }
-                mission_state->countdown_string = 0;
-                mission_state->countdown_string_instance = 0;
-            }
+            destroy_current_countdown_string();
         }
     }
 }
 
+/* TODO: [near miss] 99.24%; countdown-owner latch registers remain. */
 static float p_finish_countdown(void) {
     StringObj* string;
+    struct KonquestMissionState* state;
 
     aproc->flags_bits.use_game_speed = 1;
     string = get_countdown_string_latch(mission_state);
     if (string != 0) {
         update_string_obj(string, 1, "0");
         _mkproc_sleep_ticks = 60.0f;
-        ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
-    {
-        KonquestMissionState* state = mission_state;
-
-        string = get_countdown_string_latch(state);
-        if (string != 0) {
-            string = state->countdown_string;
-            if (string->instance != 0) {
-                ((int (*)(StringObj*))string->vtbl->destroy)(string);
-            }
-            mission_state->countdown_string = 0;
-            mission_state->countdown_string_instance = 0;
+    state = mission_state;
+    string = get_countdown_string_latch(state);
+    if (string != 0) {
+        string = state->countdown_string;
+        if (string->instance != 0) {
+            string->typed_vtbl->destroy(string);
         }
+        mission_state->countdown_string = 0;
+        mission_state->countdown_string_instance = 0;
     }
     return -1.0f;
 }
@@ -1722,7 +1651,7 @@ void trial_do_dialog(
         if (wait != 0) {
             while (MK_LIVE(&dialog->hdr, instance) != 0) {
                 _mkproc_sleep_ticks = 1.0f;
-                ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
         }
     }
@@ -1745,8 +1674,8 @@ void trial_show_spoken_text_window(
 /* TODO: [near miss] 97.69%; one zero store (top) and the width fctiwz are scheduled differently around the stack round-trip. */
 void trial_show_text_window(
     int string_id, float x, float y, float scale, int style, int flags) {
-    KonquestMissionState* state;
-    KonquestTrialWindowPdata* pdata;
+    struct KonquestMissionState* state;
+    struct KonquestTrialWindowPdata* pdata;
     const char* text;
     int swap_buttons = 0;
     int drone_is_right;
@@ -1762,7 +1691,7 @@ void trial_show_text_window(
     mission_state = state;
     if (state != 0) {
         drone_is_right = is_a_to_the_right_of_b(
-            state->fight->active_object, state->drone->active_object);
+            state->fight->slot.mirror_a, state->drone->slot.mirror_a);
     } else {
         drone_is_right = 0;
     }
@@ -1780,15 +1709,15 @@ void trial_show_text_window(
         text_window_state = 0;
         pdata->visible_item_count = 0;
         pdata->top = 0;
-        pdata->left = (int)((float)window_width * x);
-        pdata->bottom = (int)(480.0f - (480.0f * y));
+        pdata->left = (float)window_width * x;
+        pdata->bottom = 480.0f - (480.0f * y);
         pdata->priority = 0x24;
-        pdata->width = (int)((float)window_width * scale);
+        pdata->width = (float)window_width * scale;
         pdata->prompt_flags = flags | 0x10;
         pdata->font = 6;
         pdata->timeout = -1;
         pdata->color = string_id;
-        pdata->controller_port = mission_state->fight->field_0x0;
+        pdata->controller_port = mission_state->fight->pad_index;
         pdata->button_charmap = danton20_charmap;
         pdata->swap_buttons = swap_buttons;
         pdata->art_slot = 0x2001E;
@@ -1809,7 +1738,7 @@ void trial_show_text_window(
 
 void trial_set_ending_functions(
     int winner_function, int loser_function) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1819,7 +1748,7 @@ void trial_set_ending_functions(
 }
 
 void trial_set_round_timer(int ticks) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1828,7 +1757,7 @@ void trial_set_round_timer(int ticks) {
 }
 
 void trial_set_num_rounds(int rounds) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1837,7 +1766,7 @@ void trial_set_num_rounds(int rounds) {
 }
 
 static float p_flip_move_description(void) {
-    KonquestMissionState* state;
+    struct KonquestMissionState* state;
     int flipped;
 
     if (mission_state->display_item_c == 0) {
@@ -1847,8 +1776,8 @@ static float p_flip_move_description(void) {
     mission_state = state;
     if (state != 0) {
         flipped = is_a_to_the_right_of_b(
-            state->fight->active_object,
-            state->drone->active_object);
+            state->fight->slot.mirror_a,
+            state->drone->slot.mirror_a);
     } else {
         flipped = 0;
     }
@@ -1860,39 +1789,45 @@ static float p_flip_move_description(void) {
 }
 
 void drone_set_special_directions(int unused, int flags) {
-    DroneOverrideInfo info;
+    struct DroneOverrideInfo info;
 
     info.flags = flags;
     info.likelihood_scale = (flags & 1) ? 0.0f : 1.0f;
     setDroneOverrideSwitch(unused, &info);
 }
 
-void drone_set_difficulty_level(int difficulty) {
-    KonquestMissionFightInfo* drone = mission_state->drone;
-    FighterMirror* fighter = drone->fighter;
+static inline void wait_for_current_drone_getup(void) {
     MkProc* idle_process;
     int timeout = 0xF0;
 
-    if (mission_state->fight->animation_side == 1) {
+    if (mission_state->fight->field_04 == 1) {
         idle_process = g_game_info.plyr0.idle_proc;
     } else {
         idle_process = g_game_info.plyr1.idle_proc;
     }
-    if (idle_process != 0) {
-        while (timeout != 0 && idle_process->entry == getup_from_ground) {
-            _mkproc_sleep_ticks = 1.0f;
-            timeout--;
-            ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
-        }
+    if (idle_process == 0) {
+        return;
     }
+    while (timeout != 0 && idle_process->entry == getup_from_ground) {
+        _mkproc_sleep_ticks = 1.0f;
+        timeout--;
+        aproc->vtbl->sleep();
+    }
+}
+
+void drone_set_difficulty_level(int difficulty) {
+    PlyrInfo* drone = mission_state->drone;
+    PlyrPdata* fighter = drone->slot.pdata;
+
+    wait_for_current_drone_getup();
     if (difficulty == 8) {
         if (drone->player_state == 0) {
-            fighter->field_2C8 = 1;
+            fighter->drone_handoff_pending = 1;
         }
         drone->player_state = 3;
     } else if (difficulty != 8) {
         if (drone->player_state == 3) {
-            fighter->field_2C8 = 1;
+            fighter->drone_handoff_pending = 1;
         }
         drone->player_state = 0;
     }
@@ -1900,7 +1835,7 @@ void drone_set_difficulty_level(int difficulty) {
 }
 
 void trial_set_next_setup_function(int setup_function) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -1914,7 +1849,7 @@ void drone_blend_to_ani(
     transition_to_anim_script(
         blend, current_anim_pdata, animation, transition);
     _mkproc_sleep_ticks = 1.0f;
-    ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 }
 
 void drone_face_monk(void) {
@@ -1941,13 +1876,29 @@ float trial_run_loser_animation_script(void) {
     ani_to_blend_frame(10.0f);
     blend_to_ani(bgnd_animations.loser_loop, 0, 0.1f);
     xfer_proc(plyr_anim_proc, p_animate);
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_stay_down_dead, 0.0f);
     return 0.0f;
 }
 
+static inline MkProc* mission_script_process_live(struct KonquestMissionState* state)
+{
+    MkProc* process = state->script_process;
+    MkProc* live;
+    if (process != 0) {
+        if (process->instance == state->script_process_instance) {
+            live = process;
+        } else {
+            live = 0;
+        }
+    } else {
+        live = 0;
+    }
+    return live;
+}
+
 void drone_set_script(int player, int script_function) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     MkProc* process;
     CmdScript* script;
 
@@ -1956,8 +1907,7 @@ void drone_set_script(int player, int script_function) {
         return;
     }
     if (player == 2) {
-        process = get_process_latch(
-            state->script_process, state->script_process_instance);
+        process = mission_script_process_live(state);
         if (process != 0) {
             script = get_cmdscript_for_proc(process);
             script->unk28 = script_function;
@@ -1966,8 +1916,8 @@ void drone_set_script(int player, int script_function) {
         return;
     }
 
-    if ((player == 0 && state->fight->animation_side == 0) ||
-        (player == 1 && state->fight->animation_side == 1)) {
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
         process = g_game_info.plyr0.idle_proc;
         script = get_cmdscript_for_proc(process);
         script->unk28 = script_function;
@@ -1988,19 +1938,19 @@ static float call_mission_script(void) {
         cmdscript_execute(mission_state->tick_script);
     }
     if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
-        ((KonquestMissionJumpVtable*)aproc->vtbl)
+        aproc->vtbl
             ->jump_sleep(j_exit, 0.0f);
         return 0.0f;
     }
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
-        ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 }
 
 void drone_apply_damage(int player, float damage) {
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         adjust_p1_life(damage);
         return;
     }
@@ -2010,8 +1960,8 @@ void drone_apply_damage(int player, float damage) {
 void drone_set_health(int player, float health) {
     float* current_health;
 
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         current_health = &g_game_info.plyr0.field_0C;
     } else {
         current_health = &g_game_info.plyr1.field_0C;
@@ -2021,41 +1971,42 @@ void drone_set_health(int player, float health) {
 
 void drone_set_position(
     int player, float x, float y, float z) {
-    KonquestMissionFightInfo* fighter;
+    PlyrInfo* fighter;
     Vec position;
 
     position.x = x;
     position.y = y;
     position.z = z;
-    if (mission_state->fight->animation_side == 1) {
+    if (mission_state->fight->field_04 == 1) {
         position.x = -position.x;
         position.z = -position.z;
     }
     fighter = player == 0 ? mission_state->fight : mission_state->drone;
     move_player(
-        fighter->active_object, &position,
-        &fighter->active_object->ang);
+        fighter->slot.mirror_a, &position,
+        &fighter->slot.mirror_a->ang);
     force_midpoint_calculation_update = 1;
 }
 
+/* TODO: [near miss] 98.98%; selectors and waits agree; null-idle guard skips one shared-exit branch. */
 void drone_change_to_style(int player, int style) {
-    KonquestMissionFightInfo* info;
     FighterMirror* fighter;
-    MkProc* idle_process;
     int timeout;
     int attempts;
+    PlyrInfo* info;
+    MkProc* idle_process;
 
     attempts = 0;
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         info = mission_state->fight;
     } else {
         info = mission_state->drone;
     }
-    fighter = info->fighter;
+    fighter = info->slot.fighter;
     timeout = 0xF0;
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         idle_process = g_game_info.plyr0.idle_proc;
     } else {
         idle_process = g_game_info.plyr1.idle_proc;
@@ -2064,41 +2015,41 @@ void drone_change_to_style(int player, int style) {
         while (timeout != 0 && idle_process->entry == getup_from_ground) {
             _mkproc_sleep_ticks = 1.0f;
             timeout--;
-            ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
     }
     while (fighter->style_idx != style && attempts < 5) {
-        KonquestSwitchPdata* pdata;
+        struct KonquestSwitchPdata* pdata;
         MkProc* process = _create_mkproc_generic_tinystack(
             0x3002, 6, switch_proc_advance_moveset,
-            sizeof(KonquestSwitchPdata), (MkHdr**)&pdata);
+            sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
 
         if (process != 0) {
             process->pre_destroy = pre_switchp;
             process->destroy_cb = post_switchp;
-            pdata->player = (PlyrInfo*)info;
+            pdata->player = info;
         }
         _mkproc_sleep_ticks = 15.0f;
-        ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
         attempts++;
     }
 }
 
 void drone_do_special_move(int player, int script_function) {
-    KonquestMissionFightInfo* fighter;
+    PlyrInfo* fighter;
     CmdScript* script;
 
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         fighter = mission_state->fight;
     } else {
         fighter = mission_state->drone;
     }
-    script = get_cmdscript_for_proc(fighter->process);
+    script = get_cmdscript_for_proc(fighter->idle_proc);
     if (script != 0) {
         script->unk28 = script_function;
         xfer_proc(
-            fighter->process, p_run_special_move);
+            fighter->idle_proc, p_run_special_move);
     }
 }
 
@@ -2111,14 +2062,14 @@ static float p_run_special_move(void) {
 }
 
 void drone_dispatch_switches(int player) {
-    SwitchMapEntry* switch_map;
-    PlyrInfo* player_info;
-    unsigned int switch_state;
-    unsigned int mask;
     int index;
+    unsigned int mask;
+    SwitchMapEntry* switch_map;
+    unsigned int switch_state;
+    PlyrInfo* player_info;
 
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         switch_map = g_game_info.pads[0].switch_map;
         player_info = &g_game_info.plyr0;
         switch_state = mission_state->player_one_switch_state;
@@ -2127,13 +2078,12 @@ void drone_dispatch_switches(int player) {
         player_info = &g_game_info.plyr1;
         switch_state = mission_state->player_two_switch_state;
     }
-    mask = 1;
-    for (index = 0; index < 16; index++, mask <<= 1) {
+    for (index = 0, mask = 1; index < 16; index++, mask <<= 1) {
         if ((switch_state & mask) != 0) {
-            KonquestSwitchPdata* pdata;
+            struct KonquestSwitchPdata* pdata;
             MkProc* process = _create_mkproc_generic_tinystack(
                 0x3002, 6, switch_map[index].proc_fn,
-                sizeof(KonquestSwitchPdata), (MkHdr**)&pdata);
+                sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
 
             if (process != 0) {
                 process->pre_destroy = pre_switchp;
@@ -2149,8 +2099,8 @@ void drone_set_switch_state(int player, unsigned int switch_state) {
     MkObj* second;
     unsigned int* stored_state;
 
-    if ((player == 0 && mission_state->fight->animation_side == 0) ||
-        (player == 1 && mission_state->fight->animation_side == 1)) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
         first = g_game_info.plyr0.slot.mirror_a;
         stored_state = &mission_state->player_one_switch_state;
         second = g_game_info.plyr1.slot.mirror_a;
@@ -2169,7 +2119,7 @@ void drone_set_switch_state(int player, unsigned int switch_state) {
 }
 
 int get_konquest_drone_switch_state(int player) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -2182,6 +2132,7 @@ int get_konquest_drone_switch_state(int player) {
 }
 
 #pragma dont_inline on
+/* TODO: [blocked] 95.85%; matching paused for coordinator's MkProcInitFlags ABI batch; inspect string latch after landing. */
 static void increment_progress_count(unsigned char increment) {
     StringObj* string;
     char text[48];
@@ -2196,7 +2147,7 @@ static void increment_progress_count(unsigned char increment) {
         snd_req(0x15EB);
     }
     if (increment != 0 && (mission_state->display_flags & 2)) {
-        mission_state->drone->current_health = 1.0f;
+        mission_state->drone->field_0C = 1.0f;
     }
     if (mission_state->display_item_a == 0) {
         return;
@@ -2266,7 +2217,7 @@ static void trial_show_move_message(void) {
             movelist_charmap, text,
             mission_state->move_description_flipped,
             (int*)g_game_info
-                .pads[mission_state->fight->field_0x0].switch_map);
+                .pads[mission_state->fight->pad_index].switch_map);
         string = MK_LIVE(mission_state->move_param_string.object, mission_state->move_param_string.instance);
         if (string != 0) {
             update_string_obj(string, 7, text);
@@ -2293,17 +2244,17 @@ static void trial_show_move_message(void) {
  * the other four latches match. */
 static void show_background_box(
     int style, int x, int y, int priority, int width, int height) {
-    KonquestBackgroundBox* box =
+    struct KonquestBackgroundBox* box =
         &mission_state->background_boxes[style];
     ScreenObj* object;
 
-    object = get_screen_latch(&box->fill);
+    object = get_screen_latch(&box->pieces[0]);
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x2001E, 0x9006, (char*)0x0A93000D, 0, priority);
+            0x2001E, 0x9006, 0x0A93000D, 0, priority);
         if (object != 0) {
-            box->fill.object = object;
-            box->fill.instance = object->instance;
+            box->pieces[0].object = object;
+            box->pieces[0].instance = object->instance;
         }
     }
     if (object != 0) {
@@ -2316,13 +2267,13 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->top);
+    object = get_screen_latch(&box->pieces[1]);
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x2001E, 0x9006, (char*)0x0A93000E, 0, priority);
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
         if (object != 0) {
-            box->top.object = object;
-            box->top.instance = object->instance;
+            box->pieces[1].object = object;
+            box->pieces[1].instance = object->instance;
         }
     }
     if (object != 0) {
@@ -2335,13 +2286,13 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->bottom);
+    object = get_screen_latch(&box->pieces[2]);
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x2001E, 0x9006, (char*)0x0A93000E, 0, priority);
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
         if (object != 0) {
-            box->bottom.object = object;
-            box->bottom.instance = object->instance;
+            box->pieces[2].object = object;
+            box->pieces[2].instance = object->instance;
         }
     }
     if (object != 0) {
@@ -2354,13 +2305,13 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->left);
+    object = get_screen_latch(&box->pieces[3]);
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x2001E, 0x9006, (char*)0x0A93000E, 0, priority);
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
         if (object != 0) {
-            box->left.object = object;
-            box->left.instance = object->instance;
+            box->pieces[3].object = object;
+            box->pieces[3].instance = object->instance;
         }
     }
     if (object != 0) {
@@ -2373,13 +2324,13 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->right);
+    object = get_screen_latch(&box->pieces[4]);
     if (object == 0) {
         object = load_2d_pfxobj(
-            0x2001E, 0x9006, (char*)0x0A93000E, 0, priority);
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
         if (object != 0) {
-            box->right.object = object;
-            box->right.instance = object->instance;
+            box->pieces[4].object = object;
+            box->pieces[4].instance = object->instance;
         }
     }
     if (object != 0) {
@@ -2400,18 +2351,18 @@ void trial_set_move_message(
 }
 
 void trial_clear_provision(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
-    if (state != 0 && plyr_obj == state->fight->active_object) {
+    if (state != 0 && plyr_obj == state->fight->slot.mirror_a) {
         state->condition_active = 0;
     }
 }
 
 void trial_register_combo(
     int player, int hit_count, PlyrPdata* pdata, float damage) {
-    KonquestMissionState* state = get_mission_state();
-    KonquestMissionFightInfo* fight;
+    struct KonquestMissionState* state = get_mission_state();
+    PlyrInfo* fight;
     int complete;
 
     mission_state = state;
@@ -2425,37 +2376,36 @@ void trial_register_combo(
     if (fight == 0) {
         return;
     }
-    if (player == fight->animation_side) {
+    if (player == fight->field_04 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
         return;
     }
-    if (g_game_info.flag_bits.lens_flare_enabled) {
-        if (state->trial_type == 3) {
-            complete = 0;
-            if (state->combo_damage > 0.0f && damage >= state->combo_damage) {
+    if (state->trial_type == 3) {
+        complete = 0;
+        if (state->combo_damage > 0.0f && damage >= state->combo_damage) {
+            complete = 1;
+        }
+        if (state->combo_hits > 0) {
+            if (hit_count >= state->combo_hits) {
                 complete = 1;
+            } else {
+                complete = 0;
             }
-            if (state->combo_hits > 0) {
-                if (hit_count >= state->combo_hits) {
-                    complete = 1;
-                } else {
-                    complete = 0;
-                }
-            }
-            state->combo_complete = complete;
-            return;
         }
-        if (state->trial_type != 1) {
-            return;
-        }
-        if (player != fight->animation_side) {
-            KonquestRequiredSequenceList* list =
-                &state->required_sequences;
-            KonquestRequiredSequence* sequence =
-                &list->entries[list->current_sequence];
+        state->combo_complete = complete;
+        return;
+    }
+    if (state->trial_type != 1) {
+        return;
+    }
+    if (player != fight->field_04) {
+        struct KonquestRequiredSequenceList* list =
+            &state->required_sequences;
+        struct KonquestRequiredSequence* sequence =
+            &list->entries[list->current_sequence];
 
-            if (sequence != 0) {
-                sequence->current = sequence->first;
-            }
+        if (sequence != 0) {
+            sequence->current = sequence->first;
         }
     }
 }
@@ -2467,60 +2417,54 @@ void trial_set_combo_requirement(int hits, float damage) {
 
 void trial_add_required_attack(
     unsigned char attack, unsigned char count, int flags) {
-    KonquestRequiredSequenceList* list =
+    struct KonquestRequiredSequenceList* list =
         &mission_state->required_sequences;
-    KonquestRequiredSequence* sequence =
+    struct KonquestRequiredSequence* sequence =
         &list->entries[list->current_sequence - 1];
-    KonquestRequiredAttack* required_attack =
+    struct KonquestRequiredAttack* required_attack =
         &list->attacks[list->attack_count];
 
-    if (sequence != 0 && required_attack != 0) {
-        if (list == 0) {
-            return;
-        }
-        required_attack->type = attack;
-        required_attack->value = count;
-        required_attack->flags = flags;
-        required_attack->next = 0;
-        if (sequence->current != 0) {
-            sequence->current->next = required_attack;
-        } else {
-            sequence->first = required_attack;
-        }
-        sequence->current = required_attack;
-        list->attack_count++;
+    if (sequence == 0 || required_attack == 0 || list == 0) {
+        return;
     }
+    required_attack->type = attack;
+    required_attack->value = count;
+    required_attack->flags = flags;
+    required_attack->next = 0;
+    if (sequence->current != 0) {
+        sequence->current->next = required_attack;
+    } else {
+        sequence->first = required_attack;
+    }
+    sequence->current = required_attack;
+    list->attack_count++;
 }
 
-/* TODO: [near miss] 95.43%; string arguments, 16-byte entry selection, counters and progress agree; only the second defensive-null branch polarity differs. */
 void trial_add_required_sequence(
     const char* message, const char* message_parameter) {
-    KonquestRequiredSequenceList* list =
+    struct KonquestRequiredSequenceList* list =
         &mission_state->required_sequences;
-    KonquestRequiredSequence* sequence =
+    struct KonquestRequiredSequence* sequence =
         &list->entries[list->current_sequence];
 
-    if (sequence != 0) {
-        if (list != 0) {
-            sequence->message_parameter = message_parameter;
-            sequence->message = message;
-            list->current_sequence++;
-            list->sequence_count++;
-            mission_state->progress_required++;
-        }
+    if (sequence == 0 || list == 0) {
+        return;
     }
+    sequence->message_parameter = message_parameter;
+    sequence->message = message;
+    list->current_sequence++;
+    list->sequence_count++;
+    mission_state->progress_required++;
 }
 
 void trial_register_attack(
     int player, unsigned char attack_type, unsigned char attack_value) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     int trial_type;
 
     mission_state = state;
-    if (state == 0 || mode_of_play != 8) {
-        return;
-    }
-    if (!g_game_info.flag_bits.lens_flare_enabled) {
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
         return;
     }
     if (active_cmdscript != 0 && plyr_pdata != 0 &&
@@ -2528,15 +2472,12 @@ void trial_register_attack(
         attack_type = 3;
     }
     trial_type = state->trial_type;
-    if (trial_type == 1) {
-        KonquestRequiredSequenceList* list;
-        KonquestRequiredSequence* sequence;
-        KonquestRequiredAttack* required_attack;
-        unsigned int sequence_index;
+    if (trial_type == 1 && player == state->fight->field_04) {
+        unsigned char sequence_index;
+        struct KonquestRequiredSequenceList* list;
+        struct KonquestRequiredSequence* sequence;
+        struct KonquestRequiredAttack* required_attack;
 
-        if (player != state->fight->animation_side) {
-            return;
-        }
         sequence_index = state->required_sequences.current_sequence;
         list = &state->required_sequences;
         sequence = &list->entries[sequence_index];
@@ -2558,11 +2499,11 @@ void trial_register_attack(
         }
         state->condition_value = sequence_index;
         mission_state->condition_player =
-            mission_state->drone->animation_side;
+            mission_state->drone->field_04;
         mission_state->condition_mode = 1;
         mission_state->condition_active = 1;
         if (active_cmdscript != 0 && active_cmdscript->attrs_table != 0) {
-            KonquestTrialScriptAttrs* attrs =
+            struct KonquestTrialScriptAttrs* attrs =
                 active_cmdscript->attrs_table;
 
             mission_state->condition_ticks = attrs->condition_ticks;
@@ -2570,19 +2511,19 @@ void trial_register_attack(
             mission_state->condition_ticks = 1;
         }
     } else if (trial_type == 0 &&
-               player == state->fight->animation_side) {
+               player == state->fight->field_04) {
         trial_increment_state_value(player, 5, 0);
     }
 }
 
 void trial_set_type(int type) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
         state->trial_type = type;
         if (type == 2) {
-            KonquestMissionState* active_state = mission_state;
+            struct KonquestMissionState* active_state = mission_state;
 
             active_state->display_flags = 9;
             mission_state->randomized_side = (unsigned short)randu0(2);
@@ -2590,9 +2531,10 @@ void trial_set_type(int type) {
     }
 }
 
+/* TODO: [near miss] 99.91%; final winner dispatch is equivalent; branch polarity and winner-immediate order remain. */
 int trial_check_state(void) {
-    KonquestMissionState* state = get_mission_state();
     int complete = 0;
+    struct KonquestMissionState* state = get_mission_state();
     int index;
     int result;
     float fight_health;
@@ -2605,18 +2547,21 @@ int trial_check_state(void) {
     if (!g_game_info.flag_bits.lens_flare_enabled) {
         return 0;
     }
-    fight_health = state->fight->current_health;
-    drone_health = state->drone->current_health;
+    fight_health = state->fight->field_0C;
+    drone_health = state->drone->field_0C;
     switch (state->trial_type) {
-    case 0:
+    case 0: {
+        struct KonquestSuccessCondition* conditions = state->success_conditions;
+
+        index = 0;
         complete = 1;
-        for (index = 0; index < 35 && complete; index++) {
-            if (state->success_conditions[index].current_count <
-                state->success_conditions[index].required_count) {
+        for (; index < 35 && complete; index++) {
+            if (conditions[index].current_count < conditions[index].required_count) {
                 complete = 0;
             }
         }
         break;
+    }
     case 2:
         if (drone_health == 0.0f) {
             complete = 1;
@@ -2640,14 +2585,14 @@ int trial_check_state(void) {
             mission_state->current_setup_function =
                 mission_state->next_setup_function;
             mission_state->next_setup_function = 0;
-            if (mission_state->fight->animation_side == 0) {
+            if (mission_state->fight->field_04 == 0) {
                 result = 1;
             }
             return result;
         }
         if (drone_health == 0.0f || fight_health == 0.0f) {
             result = 1;
-            if (mission_state->fight->animation_side == 0) {
+            if (mission_state->fight->field_04 == 0) {
                 result = 2;
             }
             return result;
@@ -2658,23 +2603,28 @@ int trial_check_state(void) {
     }
     if (g_game_info.field_204 <= 0) {
         if (complete) {
-            result = 2;
-            if (mission_state->fight->animation_side == 0) {
-                result = 1;
+            switch (mission_state->fight->field_04) {
+            case 0:
+                break;
+            default:
+                return 2;
             }
-            return result;
+            return 1;
+        } else {
+            switch (mission_state->fight->field_04) {
+            case 0:
+                break;
+            default:
+                return 1;
+            }
+            return 2;
         }
-        result = 1;
-        if (mission_state->fight->animation_side == 0) {
-            result = 2;
-        }
-        return result;
     }
     return 0;
 }
 
 void trial_add_success_condition(int index, int value, int required_count) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state != 0) {
@@ -2686,71 +2636,65 @@ void trial_add_success_condition(int index, int value, int required_count) {
 }
 
 void trial_state_collision_check(int collision_result, int player) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     int airborne;
     int boost_active;
     int condition_mode;
 
     mission_state = state;
-    if (state != 0 && mode_of_play == 8) {
-        if (g_game_info.flag_bits.lens_flare_enabled) {
-            if (state->condition_active != 0) {
-                state->condition_ticks--;
-                if (mission_state->condition_ticks < 0) {
-                    mission_state->condition_ticks = 0;
-                }
-                if (mission_state->trial_type == 0) {
-                    KonquestSuccessCondition* conditions =
-                        mission_state->success_conditions;
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if (state->condition_active != 0) {
+        state->condition_ticks--;
+        if (mission_state->condition_ticks < 0) {
+            mission_state->condition_ticks = 0;
+        }
+        if (mission_state->trial_type == 0) {
+            struct KonquestSuccessCondition* conditions =
+                mission_state->success_conditions;
 
-                    if (mission_state->condition_player != player) {
-                        return;
-                    }
-                    airborne = is_pX_airborn(player);
-                    if (player == 0) {
-                        boost_active = (unsigned int)game_tick_ctr <
-                            g_game_info.plyr1.slot.pdata
-                                ->damage_boost_until;
-                    } else {
-                        boost_active = (unsigned int)game_tick_ctr <
-                            g_game_info.plyr0.slot.pdata
-                                ->damage_boost_until;
-                    }
-                    condition_mode = mission_state->condition_mode;
-                    if ((condition_mode == 1 && collision_result == 1) ||
-                        (condition_mode == 2 && airborne != 0 &&
-                         collision_result == 1) ||
-                        (condition_mode == 3 && boost_active != 0 &&
-                         collision_result == 1) ||
-                        (condition_mode == 0 && collision_result == 0)) {
-                        increment_progress_count(1);
-                        conditions[mission_state->condition_value]
-                            .current_count++;
+            if (mission_state->condition_player != player) {
+                return;
+            }
+            airborne = is_pX_airborn(player);
+            if (player == 0) {
+                boost_active = g_game_info.plyr1.slot.pdata
+                    ->damage_boost_until > (unsigned int)game_tick_ctr;
+            } else {
+                boost_active = g_game_info.plyr0.slot.pdata
+                    ->damage_boost_until > (unsigned int)game_tick_ctr;
+            }
+            condition_mode = mission_state->condition_mode;
+            if ((condition_mode == 1 && collision_result == 1) ||
+                (condition_mode == 2 && airborne != 0 &&
+                 collision_result == 1) ||
+                (condition_mode == 3 && boost_active != 0 &&
+                 collision_result == 1) ||
+                (condition_mode == 0 && collision_result == 0)) {
+                increment_progress_count(1);
+                conditions[mission_state->condition_value].current_count++;
+                mission_state->condition_active = 0;
+            }
+        } else if (mission_state->trial_type == 1) {
+            struct KonquestRequiredSequenceList* list =
+                &mission_state->required_sequences;
+            struct KonquestRequiredSequence* sequence =
+                &list->entries[mission_state->condition_value];
+
+            if (sequence == 0 || list == 0) {
+                return;
+            }
+            if (mission_state->condition_player == player) {
+                if (collision_result == 0) {
+                    if (mission_state->condition_ticks == 0) {
+                        sequence->current = sequence->first;
                         mission_state->condition_active = 0;
                     }
-                } else if (mission_state->trial_type == 1) {
-                    KonquestRequiredSequenceList* list =
-                        &mission_state->required_sequences;
-                    KonquestRequiredSequence* sequence =
-                        &list->entries[mission_state->condition_value];
-
-                    if (sequence != 0) {
-                        if (list == 0) {
-                            return;
-                        }
-                        if (mission_state->condition_player == player) {
-                            if (collision_result == 0) {
-                                if (mission_state->condition_ticks == 0) {
-                                    sequence->current = sequence->first;
-                                    mission_state->condition_active = 0;
-                                }
-                            } else {
-                                increment_required_moves_progress(
-                                    sequence, list);
-                                mission_state->condition_active = 0;
-                            }
-                        }
-                    }
+                } else {
+                    increment_required_moves_progress(sequence, list);
+                    mission_state->condition_active = 0;
                 }
             }
         }
@@ -2758,8 +2702,8 @@ void trial_state_collision_check(int collision_result, int player) {
 }
 
 static int register_condition(
-    const KonquestMissionCondition* condition) {
-    KonquestMissionState* state = get_mission_state();
+    const struct KonquestMissionCondition* condition) {
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -2772,35 +2716,35 @@ static int register_condition(
     case 1:
         state->condition_value = condition->value;
         mission_state->condition_player =
-            mission_state->fight->animation_side;
+            mission_state->fight->field_04;
         mission_state->condition_mode = 1;
         mission_state->condition_active = 1;
         break;
     case 2:
         state->condition_value = condition->value;
         mission_state->condition_player =
-            mission_state->drone->animation_side;
+            mission_state->drone->field_04;
         mission_state->condition_mode = 1;
         mission_state->condition_active = 1;
         break;
     case 3:
         state->condition_value = condition->value;
         mission_state->condition_player =
-            mission_state->fight->animation_side;
+            mission_state->fight->field_04;
         mission_state->condition_mode = 0;
         mission_state->condition_active = 1;
         break;
     case 4:
         state->condition_value = condition->value;
         mission_state->condition_player =
-            mission_state->drone->animation_side;
+            mission_state->drone->field_04;
         mission_state->condition_mode = 2;
         mission_state->condition_active = 1;
         break;
     case 5:
         state->condition_value = condition->value;
         mission_state->condition_player =
-            mission_state->drone->animation_side;
+            mission_state->drone->field_04;
         mission_state->condition_mode = 3;
         mission_state->condition_active = 1;
         break;
@@ -2809,9 +2753,9 @@ static int register_condition(
 }
 
 static void increment_required_moves_progress(
-    KonquestRequiredSequence* sequence,
-    KonquestRequiredSequenceList* list) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestRequiredSequence* sequence,
+    struct KonquestRequiredSequenceList* list) {
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -2838,36 +2782,24 @@ static void increment_required_moves_progress(
     }
 }
 
-/* TODO: [breakthrough needed] 90.378784%; entry guard fixed;
- * retained condition-array/index boundary remains unresolved. */
+/* TODO: [breakthrough needed] 92.05%; guard joins agree; retained condition-array/index boundary needs evidence. */
 void trial_increment_state_value(
     int player, int state_index, int opponent_event) {
-    KonquestMissionState* state = get_mission_state();
-    KonquestSuccessCondition* conditions;
+    struct KonquestMissionState* state = get_mission_state();
+    struct KonquestSuccessCondition* conditions;
 
     mission_state = state;
-    if (state != 0 && mode_of_play == 8) {
-        if (!g_game_info.flag_bits.lens_flare_enabled) {
-            return;
-        }
-        if (opponent_event == 0 &&
-            player != state->fight->animation_side) {
-            return;
-        }
-        if (opponent_event == 1 &&
-            player == state->fight->animation_side) {
-            return;
-        }
-        if (state->trial_type != 0) {
-            return;
-        }
-
+    if (!(state != 0 && mode_of_play == 8) ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if ((opponent_event != 0 || player == state->fight->field_04) &&
+        (opponent_event != 1 || player != state->fight->field_04) &&
+        state->trial_type == 0) {
         conditions = state->success_conditions;
-        if (conditions[state_index].required_count <= 0) {
-            return;
-        }
-        if (conditions[state_index].current_count >=
-            conditions[state_index].required_count) {
+        if (conditions[state_index].required_count <= 0 ||
+            conditions[state_index].current_count >=
+                conditions[state_index].required_count) {
             return;
         }
         if (register_condition(&conditions[state_index].condition)) {
@@ -2877,21 +2809,10 @@ void trial_increment_state_value(
     }
 }
 
-
-
 #pragma dont_inline on
-/* TODO: [breakthrough needed] 96.370964%; validation join remains;
- * inlining barrier preserves counter call but blocks canonical helper. */
 float p_konquest_register_bleeding(void) {
-    KonquestMissionState* state = mission_state_item.state;
-
-    if (state != 0) {
-        if (state->hdr.instance != mission_state_item.instance) {
-            state = 0;
-        }
-    } else {
-        state = 0;
-    }
+    struct KonquestMissionState* state = MK_HDR_LIVE(mission_state_item.state,
+                                                mission_state_item.instance);
 
     mission_state = state;
     if (state == 0) {
@@ -2904,10 +2825,10 @@ float p_konquest_register_bleeding(void) {
     if (state->trial_type != 0 || state->bleeding_required <= 0) {
         return -1.0f;
     }
-    if (state->drone->pdata->postround_value == 0.0f) {
+    if (state->drone->slot.pdata->postround_value == 0.0f) {
         return -1.0f;
     }
-    if (state->fight->animation_side == 0) {
+    if (state->fight->field_04 == 0) {
         become_plyr2_proc();
     } else {
         become_plyr1_proc();
@@ -2918,7 +2839,7 @@ float p_konquest_register_bleeding(void) {
 #pragma dont_inline reset
 
 static float p_trial_tick(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -2936,38 +2857,34 @@ static float p_trial_tick(void) {
 void trial_start_new_round(void) {
     g_game_info.flag_bits.field_bit0 = 0;
     if (mission_state->round_health_restoration > 0.0) {
-        mission_state->fight->current_health +=
+        mission_state->fight->field_0C +=
             mission_state->round_health_restoration;
     } else {
-        mission_state->fight->current_health =
-            mission_state->fight->maximum_health;
+        mission_state->fight->field_0C =
+            mission_state->fight->field_10;
     }
-    if (mission_state->fight->current_health > 1.0) {
-        mission_state->fight->current_health = 1.0f;
+    if (mission_state->fight->field_0C > 1.0) {
+        mission_state->fight->field_0C = 1.0f;
     }
-    mission_state->drone->current_health =
-        mission_state->drone->maximum_health;
+    mission_state->drone->field_0C =
+        mission_state->drone->field_10;
 }
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 98.829865%; typed alpha/function/flag fields, narrowed sign index and
- * mission latch fixed; sign-position argument scheduling and GPR coloring remain. */
+/* TODO: [near miss] 99.14584%; winner/loser flag scheduling, sign loader arguments and monk latch homes differ. */
 int trial_end_round(void) {
-    KonquestMissionState* state;
-    KonquestRequiredSequenceList* sequences;
-    ScreenObj* sign;
+    struct KonquestMissionState* state;
+    struct KonquestRequiredSequenceList* sequences;
     MkObj* monk;
     MkProc* player_process;
+    int drone_round_limit;
     int player_rounds;
     int drone_rounds;
-    int drone_round_limit;
+    int i = 0x168;
     int player_won_round = 0;
     int retry;
     int value;
-    int i = 0x168;
-    unsigned short sign_index;
-    unsigned char alpha;
 
     g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
@@ -2994,12 +2911,12 @@ int trial_end_round(void) {
 
     if (round_winner == 1) {
         g_game_info.plyr0.field_40++;
-        if (state->fight->animation_side == 0) {
+        if (state->fight->field_04 == 0) {
             player_won_round = 1;
         }
     } else if (round_winner == 2) {
         g_game_info.plyr1.field_40++;
-        if (state->fight->animation_side == 1) {
+        if (state->fight->field_04 == 1) {
             player_won_round = 1;
         }
     }
@@ -3044,6 +2961,9 @@ int trial_end_round(void) {
         if (player_won_round != 0 &&
             player_rounds < mission_state->num_rounds) {
             if (!(mission_state->display_flags & 1)) {
+                unsigned short sign_index;
+                ScreenObj* sign;
+
                 _mkproc_sleep_ticks = 15.0f;
                 aproc->vtbl->sleep();
                 snd_req(0x15E8);
@@ -3054,24 +2974,25 @@ int trial_end_round(void) {
                     ((screen_width - 0x280) / 2) + 0xC0,
                     0x138, 0x24);
                 if (sign != 0) {
-                    alpha = 0;
-                    while (alpha < 0xF0) {
-                        pfx_2d_obj_set_alpha(sign, alpha);
+                    unsigned char fade_in_alpha = 0;
+                    unsigned char fade_out_alpha;
+                    while (fade_in_alpha < 0xF0) {
+                        pfx_2d_obj_set_alpha(sign, fade_in_alpha);
                         _mkproc_sleep_ticks = 1.0f;
                         aproc->vtbl->sleep();
-                        alpha += 8;
+                        fade_in_alpha += 8;
                     }
                     _mkproc_sleep_ticks = 60.0f;
                     aproc->vtbl->sleep();
-                    alpha = 0xF0;
-                    while (alpha != 0) {
-                        pfx_2d_obj_set_alpha(sign, alpha);
+                    fade_out_alpha = 0xF0;
+                    while (fade_out_alpha != 0) {
+                        pfx_2d_obj_set_alpha(sign, fade_out_alpha);
                         _mkproc_sleep_ticks = 1.0f;
                         aproc->vtbl->sleep();
-                        alpha -= 8;
+                        fade_out_alpha -= 8;
                     }
                     if (sign->instance != 0) {
-                        ((void (*)(ScreenObj*))sign->vtbl->destroy)(sign);
+                        sign->typed_vtbl->destroy(sign);
                     }
                 }
                 _mkproc_sleep_ticks = 30.0f;
@@ -3117,7 +3038,7 @@ int trial_end_round(void) {
         mission_state = state;
         if (state != 0) {
             if (monk != 0) {
-                player_process = state->fight->process;
+                player_process = state->fight->idle_proc;
                 xfer_proc(player_process, p_transform_into_monk);
                 while (player_process->entry == p_transform_into_monk) {
                     _mkproc_sleep_ticks = 1.0f;
@@ -3208,36 +3129,35 @@ int trial_end_round(void) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
-/* TODO: [near miss] 95.31%; real side staging is byte-neutral;
- * only nonvolatile-free register coloring remains; stop here. */
 void skip_end_of_trial_wrapup(void) {
-    if (mission_state->fight->animation_side ==
-        (aproc->pid != 0x1001)) {
+    if ((aproc->pid == 0x1001 ? 0 : 1) ==
+        mission_state->fight->field_04) {
         mission_state->player_one_wrapup_state = 2;
         return;
     }
     mission_state->player_two_wrapup_state = 2;
 }
 
+/* TODO: [near miss] 99.89%; equality comparison operand order remains. */
 float end_of_trial_wrapup(int winner) {
     if (mission_state->display_flags & 1) {
         mission_state->player_one_wrapup_state = 2;
         mission_state->player_two_wrapup_state = 2;
         return 0.0f;
     }
-    if (mission_state->fight->animation_side ==
-        (aproc->pid != 0x1001)) {
+    if ((aproc->pid != 0x1001) ==
+        mission_state->fight->field_04) {
         if (mission_state->player_one_wrapup_state != 0) {
             mission_state->player_one_wrapup_state = 2;
             return 0.0f;
         }
         mission_state->player_one_wrapup_state = 1;
         if (winner != 0) {
-            ((KonquestMissionJumpVtable*)aproc->vtbl)
+            aproc->vtbl
                 ->jump_sleep(successful_trial_player_wrapup, 0.0f);
             return 0.0f;
         }
-        ((KonquestMissionJumpVtable*)aproc->vtbl)
+        aproc->vtbl
             ->jump_sleep(successful_trial_player_wrapup, 0.0f);
         return 0.0f;
     }
@@ -3247,22 +3167,17 @@ float end_of_trial_wrapup(int winner) {
     }
     mission_state->player_two_wrapup_state = 1;
     if (winner != 0) {
-        ((KonquestMissionJumpVtable*)aproc->vtbl)
+        aproc->vtbl
             ->jump_sleep(failed_trial_drone_wrapup, 0.0f);
         return 0.0f;
     }
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(successful_trial_drone_wrapup, 0.0f);
     return 0.0f;
 }
 
-
-
-
-
-
-static inline TrialWrapupEntry* wrapup_select_entry(
-    TrialWrapupEntry* table, unsigned short choice) {
+static inline struct TrialWrapupEntry* wrapup_select_entry(
+    struct TrialWrapupEntry* table, unsigned short choice) {
     int i;
 
     for (i = 0; i < choice; i++) {
@@ -3275,9 +3190,9 @@ static float failed_trial_drone_wrapup(void) {
     int sound_id;
     LipSyncKeyframe* lip_sync;
     int generic;
-    TrialWrapupData* wrapup =
-        mission_state->drone->pdata->status_data->trial_wrapup_data;
-    TrialWrapupEntry* entry;
+    struct TrialWrapupData* wrapup =
+        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
+    struct TrialWrapupEntry* entry;
     MkProc* animation_process;
     AnimPdata* animation_pdata;
     AnimScript* animation;
@@ -3336,7 +3251,7 @@ static float failed_trial_drone_wrapup(void) {
         transition_to_anim_script(
             0.1f, plyr_anim_pdata, animation, 3);
         animation_duration =
-            ((KonquestAnimScriptView*)animation)->frame_count;
+            animation->frame_count;
         if (animation_duration > 10.0f) {
             animation_duration -= 10.0f;
         }
@@ -3373,25 +3288,18 @@ static float failed_trial_drone_wrapup(void) {
         }
     }
     mission_state->player_two_wrapup_state = 2;
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
-
-
-
-
-
-
-
 
 static float successful_trial_drone_wrapup(void) {
     int sound_id;
     LipSyncKeyframe* lip_sync;
     int generic;
-    TrialWrapupData* wrapup =
-        mission_state->drone->pdata->status_data->trial_wrapup_data;
-    TrialWrapupEntry* entry;
+    struct TrialWrapupData* wrapup =
+        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
+    struct TrialWrapupEntry* entry;
     MkProc* animation_process;
     AnimPdata* animation_pdata;
     AnimScript* animation;
@@ -3453,7 +3361,7 @@ static float successful_trial_drone_wrapup(void) {
         transition_to_anim_script(
             0.1f, plyr_anim_pdata, animation, 0x4003);
         animation_duration =
-            ((KonquestAnimScriptView*)animation)->frame_count;
+            animation->frame_count;
         if (animation_duration > 10.0f) {
             animation_duration -= 10.0f;
         }
@@ -3493,7 +3401,7 @@ static float successful_trial_drone_wrapup(void) {
         plyr_weapon_show(plyr_pdata, 0, plyr_pdata->mirror_slots);
     }
     mission_state->player_two_wrapup_state = 2;
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
@@ -3502,16 +3410,14 @@ static float successful_trial_player_wrapup(void) {
     set_ani_speed(1.0f);
     blend_to_stance(0.1f);
     _mkproc_sleep_ticks = 10.0f;
-    ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     mission_state->player_one_wrapup_state = 2;
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
 
-
-
-static inline void trial_transform_monk_into_player(KonquestMissionState* state,
+static inline void trial_transform_monk_into_player(struct KonquestMissionState* state,
                                                     MkObj* monk) {
     MkProc* script_process;
 
@@ -3532,9 +3438,9 @@ static inline void trial_transform_monk_into_player(KonquestMissionState* state,
 }
 
 void trial_round_init(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     int i;
-    KonquestRequiredSequenceList* sequences;
+    struct KonquestRequiredSequenceList* sequences;
     MkObj* monk;
     MkProc* process;
     int flipped;
@@ -3643,7 +3549,7 @@ void trial_round_init(void) {
         mission_state = state;
         if (state != 0) {
             flipped = is_a_to_the_right_of_b(
-                state->fight->active_object, state->drone->active_object);
+                state->fight->slot.mirror_a, state->drone->slot.mirror_a);
         } else {
             flipped = 0;
         }
@@ -3652,8 +3558,8 @@ void trial_round_init(void) {
     trial_show_move_message();
     increment_progress_count(0);
     if (mission_state->drone_difficulty == 8 &&
-        mission_state->drone->field_0x0 >= 0) {
-        turn_port_off(mission_state->drone->field_0x0);
+        mission_state->drone->pad_index >= 0) {
+        turn_port_off(mission_state->drone->pad_index);
     }
     mission_state->field_2E8 = 0;
     g_game_info.field_204 = mission_state->round_timer;
@@ -3661,8 +3567,8 @@ void trial_round_init(void) {
 
 void trial_game_init(void) {
     char mission_name[64];
-    KonquestMissionState* state = (KonquestMissionState*)get_mkhdr(
-        &vtbl_mkpdata_generic, sizeof(KonquestMissionState));
+    struct KonquestMissionState* state = (struct KonquestMissionState*)get_mkhdr(
+        &vtbl_mkpdata_generic, sizeof(struct KonquestMissionState));
 
     mission_state = state;
     if (state != 0) {
@@ -3673,16 +3579,16 @@ void trial_game_init(void) {
         mission_state_item.instance = mission_state->hdr.instance;
         if (g_game_info.plyr0.player_state == 2) {
             mission_state->fight =
-                (KonquestMissionFightInfo*)&g_game_info.plyr0;
+                &g_game_info.plyr0;
             mission_state->drone =
-                (KonquestMissionFightInfo*)&g_game_info.plyr1;
+                &g_game_info.plyr1;
         } else {
             mission_state->fight =
-                (KonquestMissionFightInfo*)&g_game_info.plyr1;
+                &g_game_info.plyr1;
             mission_state->drone =
-                (KonquestMissionFightInfo*)&g_game_info.plyr0;
+                &g_game_info.plyr0;
         }
-        unassign_player((PlyrInfo*)mission_state->drone);
+        unassign_player(mission_state->drone);
         g_game_info.pads[2].flag_bits.connected = 1;
         assign_player(2);
         g_game_info.pads[2].flag_bits.connected = 0;
@@ -3692,8 +3598,8 @@ void trial_game_init(void) {
         mission_state->drone_difficulty = konquest_save_data.next_value_b;
         mission_state->mission_index = konquest_save_data.next_mission;
         mission_state->current_setup_function = 1;
-        mission_state->player_one_damage_scale = 1.0f;
-        mission_state->player_two_damage_scale = 1.0f;
+        mission_state->damage_scale[0] = 1.0f;
+        mission_state->damage_scale[1] = 1.0f;
         if (mission_state->display_flags & 1) {
             mission_state->trial_type = 2;
         }
@@ -3722,13 +3628,13 @@ void trial_game_init(void) {
 }
 
 PlyrInfo* trial_get_drone_info(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 0;
     }
-    return (PlyrInfo*)state->drone;
+    return state->drone;
 }
 
 void trial_setup_fight(void) {
@@ -3754,15 +3660,14 @@ void trial_setup_fight(void) {
         (unsigned short)konquest_save_data.background_and_flags;
 }
 
-
-/* TODO: [near miss] 96.650480%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_transform_into_monk(void) {
-    MkProc* script_process = mission_state->script_process;
+    MkProc* script_process;
+    MkProc* animation_process = plyr_anim_proc;
     AnimPdata* animation = plyr_anim_pdata;
 
-    script_process = MK_LIVE(script_process, mission_state->script_process_instance);
-    if (plyr_anim_proc != 0 && animation != 0) {
-        xfer_proc(plyr_anim_proc, p_anim_idle);
+    script_process = MK_LIVE(mission_state->script_process, mission_state->script_process_instance);
+    if (animation_process != 0 && animation != 0) {
+        xfer_proc(animation_process, p_anim_idle);
         animation->step = -1.0f;
         transition_to_anim_script_frame(
             0.05f, 105.0f, animation,
@@ -3784,11 +3689,10 @@ static float p_transform_into_monk(void) {
             aproc->vtbl->sleep();
         }
     }
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
-
 
 static float p_transform_into_player(void) {
     MkProc* monk_process;
@@ -3805,7 +3709,7 @@ static float p_transform_into_player(void) {
             bgnd_animations.monk_transform_animation, 0x43);
         animpdata_ani_to_frame_x(animation, 32.0f);
         snd_req(0x15EF);
-        player_process = mission_state->fight->process;
+        player_process = mission_state->fight->idle_proc;
         xfer_player_proc(player_process, p_finish_transform_player);
         while (player_process->entry == p_finish_transform_player) {
             animpdata_ani_1_frame(animation);
@@ -3813,20 +3717,19 @@ static float p_transform_into_player(void) {
             aproc->vtbl->sleep();
         }
     }
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(p_idle, 0.0f);
     return 0.0f;
 }
 
-
 static float p_finish_transform_player(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     MkProc* animation_process;
     AnimPdata* animation;
     MkObj* monk;
 
     mission_state = state;
-    animation_process = MK_LIVE(state->fight->pdata->anim_proc, state->fight->pdata->anim_proc_instance);
+    animation_process = MK_LIVE(state->fight->slot.pdata->anim_proc, state->fight->slot.pdata->anim_proc_instance);
     animation = (AnimPdata*)pdata_of_proc(animation_process);
     monk = get_mission_monk();
 
@@ -3842,7 +3745,7 @@ static float p_finish_transform_player(void) {
     start_hero_transform_effect(plyr_obj);
     shake_camera(3, 0.03f);
     _mkproc_sleep_ticks = 15.0f;
-    ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 
     plyr_obj->flags_08_bits.scale_active = 1;
     plyr_obj->scale.z = 1.0f;
@@ -3859,23 +3762,16 @@ static float p_finish_transform_player(void) {
             plyr_obj->scale.y = 1.0f;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
     plyr_obj->scale.y = 1.0f;
     update_mkobj(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     plyr_obj->flags_08_bits.scale_active = 0;
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
-
-
-
-
-
-
-
 
 /* TODO: [near miss] 97.87%; single update_mkobj call recovered; monk process/monk swap r29/r30 (retail copies the process after its check, loads monk direct). */
 static float p_finish_transform_monk(void) {
@@ -3886,10 +3782,10 @@ static float p_finish_transform_monk(void) {
     MkProc* monk_process;
     AnimPdata* animation;
     MkObj* player_object;
-    KonquestMissionState* state = mission_state;
-    PlyrPdata* fighter = state->fight->pdata;
+    struct KonquestMissionState* state = mission_state;
+    PlyrPdata* fighter = state->fight->slot.pdata;
 
-    player_object = state->fight->active_object;
+    player_object = state->fight->slot.mirror_a;
 
     sidekick = MK_HDR_LIVE(fighter->sidekick_obj, fighter->sidekick_instance);
     monk_process = MK_LIVE(state->monk_process, state->monk_process_instance);
@@ -3897,7 +3793,7 @@ static float p_finish_transform_monk(void) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = -0.8f;
     } else {
-        ((KonquestMissionJumpVtable*)aproc->vtbl)
+        aproc->vtbl
             ->jump_sleep(p_idle, 0.0f);
         return 0.0f;
     }
@@ -3911,7 +3807,7 @@ static float p_finish_transform_monk(void) {
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
         32.0f, animation,
-        (AniData*)bgnd_animations.monk_transform_animation, 0x43);
+        bgnd_animations.monk_transform_animation, 0x43);
     monk->pos.value.x = player_object->pos.value.x;
     monk->pos.value.y = player_object->pos.value.y;
     monk->pos.value.z = player_object->pos.value.z;
@@ -3925,7 +3821,7 @@ static float p_finish_transform_monk(void) {
     aproc->vtbl->sleep();
 
     xfer_camera(p_idle, 1);
-    hide_player(mission_state->fight->pdata, 1);
+    hide_player(mission_state->fight->slot.pdata, 1);
     move_player(player_object, &position, &angles);
     if (sidekick != 0) {
         sidekick->pos.value.x = position.x;
@@ -3942,7 +3838,7 @@ static float p_finish_transform_monk(void) {
     xfer_proc(monk_process, p_animate);
     transition_to_anim_script(
         0.1f, animation, bgnd_animations.monk_animation, 0x40);
-    ((KonquestMissionJumpVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(p_idle, 0.0f);
     return 0.0f;
 }
@@ -4032,15 +3928,8 @@ static void start_hero_transform_effect(MkObj* hero) {
     fx_restart_emit(emitter);
 }
 
-
-
-
-
-
-/* TODO: [breakthrough needed] 94.671050%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void trial_load_monk(void) {
-    KonquestMissionState* state = get_mission_state();
-    KonquestRoundStartPositions* starts;
+    struct KonquestMissionState* state = get_mission_state();
     const Vec* position;
     const Vec* angles;
     MkProc* monk_process;
@@ -4051,23 +3940,20 @@ static void trial_load_monk(void) {
     AniTextureControl* face_texture;
 
     mission_state = state;
-    if (state != 0 && state->fight->character_id != 0x1A) {
-        if (state->fight->character_id == 0x19) {
-            return;
-        }
+    if (state == 0 || state->fight->player_index == 0x1A || state->fight->player_index == 0x19) {
+        return;
+    }
+    if (state->fight->field_04 == 0) {
+        position = &g_game_info.misc->player0_start;
+        angles = &g_game_info.misc->player0_angles;
+    } else {
+        position = &g_game_info.misc->player1_start;
+        angles = &g_game_info.misc->player1_angles;
+    }
 
-        starts = (KonquestRoundStartPositions*)g_game_info.misc;
-        if (state->fight->animation_side == 0) {
-            position = &starts->player_one_position;
-            angles = &starts->player_one_angles;
-        } else {
-            position = &starts->player_two_position;
-            angles = &starts->player_two_angles;
-        }
-
-        monk_process = load_hero_model(bgnd_animations.monk_animation);
-        if (monk_process != 0) {
-        player_object = mission_state->fight->active_object;
+    monk_process = load_hero_model(bgnd_animations.monk_animation);
+    if (monk_process != 0) {
+        player_object = mission_state->fight->slot.mirror_a;
         player_object->hide_flag_bits.hidden = 1;
         xfer_proc(monk_process, p_animate);
         animation = (AnimPdata*)pdata_of_proc(monk_process);
@@ -4096,8 +3982,7 @@ static void trial_load_monk(void) {
             monk->flags_09_bits.bit6 = 1;
         }
 
-        script_process = _create_mkproc_generic_bigstack(
-            0x9007, 0x1F, p_idle, 0, 0);
+        script_process = _create_mkproc_generic_bigstack(0x9007, 0x1F, p_idle, 0, 0);
         if (script_process != 0) {
             set_process_as_scriptable(script_process);
             mission_state->script_process = script_process;
@@ -4105,12 +3990,10 @@ static void trial_load_monk(void) {
             script_process->pre_destroy = pw_konquest_trial_monk;
             script_process->destroy_cb = ps_konquest_trial_monk;
         }
-            face_texture = konquest_create_monk_face_ani_texture(monk);
-            if (face_texture != 0) {
-                mission_state->monk_face_texture = face_texture;
-                mission_state->monk_face_texture_instance =
-                    face_texture->instance;
-            }
+        face_texture = konquest_create_monk_face_ani_texture(monk);
+        if (face_texture != 0) {
+            mission_state->monk_face_texture = face_texture;
+            mission_state->monk_face_texture_instance = face_texture->instance;
         }
     }
 }
@@ -4120,7 +4003,7 @@ static void ps_konquest_trial_monk(void) {
 }
 
 static void pw_konquest_trial_monk(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     MkProc* process;
 
     mission_state = state;
@@ -4155,7 +4038,7 @@ void konquest_map_setup_fight(
 }
 
 MkObj* trial_get_monk(void) {
-    KonquestMissionState* state = get_mission_state();
+    struct KonquestMissionState* state = get_mission_state();
     MkObj* monk;
 
     mission_state = state;

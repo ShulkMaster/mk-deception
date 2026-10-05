@@ -52,7 +52,6 @@ protected:
     int error;
     unsigned char callback_depth;
     unsigned char pending_delete;
-    unsigned char reserved_0E[2];
     volatile int reference_count;
     mwFileServer* server;
     mwFileCallback callback;
@@ -115,8 +114,6 @@ public:
 
 class mwFileCommandProgress {
 };
-
-extern "C" void mwFileTick();
 
 template <class T>
 class mwFileClassTypeInfo {
@@ -375,7 +372,7 @@ mwFileCommand* mwFileReadAsync(
     } else {
         if (file_size < offset + length) {
             unsigned long truncated_length =
-                (unsigned long)(file_size - offset);
+                file_size - offset;
             _mwFileNoOp(
                 &stringBase0[READ_TRUNCATE_MESSAGE], file->getDebugName(),
                 (int)offset, length, truncated_length);
