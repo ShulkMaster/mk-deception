@@ -2,7 +2,6 @@
 
 #include "mw/mwMemPlatform.h"
 
-/* Retail's disabled-debug message pool. Other debug routines were stripped. */
 static const char stringBase0[] =
     "\n\0"
     "*****************************************************************\n\0"
