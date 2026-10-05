@@ -12,7 +12,7 @@
  *
  * Soft ceilings: native2d_draw ~97.9% (r3<->r4 y/WGPIPE + first alpha lwz);
  * instance_geometry ~92.1% (raster r5 vs r4 + ptr++ vs li offs).
- * Matched: init/begin/end/set/reset/init_object.
+ * Matched: init/begin/end/set/reset.
  */
 
 int native2d_init(int pool_size);
