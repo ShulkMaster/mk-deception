@@ -7,7 +7,7 @@ DBInterface* __DBInterface;
 
 void DBInit(void)
 {
-    __DBInterface = (DBInterface*)OSPhysicalToCached(0x40);
+    __DBInterface = OSPhysicalToCached(0x40);
     __DBInterface->exception_destination =
         (void (*)(void))OSCachedToPhysical(__DBExceptionDestination);
     DBVerbose = 1;
@@ -16,7 +16,7 @@ void DBInit(void)
 void __DBExceptionDestinationAux(void)
 {
     unsigned long* context_address = (unsigned long*)0xC0;
-    OSContext* context = (OSContext*)OSPhysicalToCached(*context_address);
+    OSContext* context = OSPhysicalToCached(*context_address);
 
     OSReport("DBExceptionDestination\n");
     OSDumpContext(context);
