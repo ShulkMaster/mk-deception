@@ -1,4 +1,5 @@
 #include "libmkparticle/particle.h"
+#include "fdlibm.h"
 #include "libmkparticle/behavior.h"
 #include "libmkparticle/config.h"
 #include "libmkparticle/emitter.h"
@@ -14,7 +15,6 @@
 #include "runtime/cstring.h"
 
 int printf(const char* format, ...);
-double pow(double base, double exponent);
 
 static const float s_zero = 0.0f;
 
@@ -31,13 +31,13 @@ static union {
     int integer;
 } null_value;
 
-typedef struct PfxDiagnosticStrings {
+struct PfxDiagnosticStrings {
     char invalid_struct_field[37];
     char warning_format[16];
     char halt_format[13];
-} PfxDiagnosticStrings;
+};
 
-static PfxDiagnosticStrings diagnostic_strings = {
+static struct PfxDiagnosticStrings diagnostic_strings = {
     "Invalid field ID for get_struct_size",
     "PFX WARNING:%s\n",
     "PFX HALT:%s\n"
@@ -82,7 +82,7 @@ int get_field_size(int type) {
     return size;
 }
 
-/* TODO: [near miss] 99.94546% report; shared-table addressing uses render_fields + 0x48; retain the bounded backing array. */
+/* TODO: [near miss] 99.95%; bounded render/parametric backing storage differs from retail symbol bases; recover safe TU aliases. */
 int pfx_field_get_type(int field) {
     int index;
 
@@ -118,6 +118,7 @@ void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture) {
     pfx->has_texture = 1;
 }
 
+/* TODO: [breakthrough needed] 85.56%; audit retail frame-buffer and culling paths. */
 int pfx_frame_begin(PfxVm* pfx) {
     PfxVmEmitter* emitter;
     PfxRuntimeBuffer* buffer;
@@ -209,6 +210,7 @@ int pfx_frame_begin(PfxVm* pfx) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 80.84%; audit retail buffer-count and unlock paths. */
 void pfx_frame_end(PfxVm* pfx) {
     PfxRuntimeBuffer* buffer;
     int particle_bytes;
@@ -238,7 +240,6 @@ void pfx_frame_end(PfxVm* pfx) {
 }
 
 void pfx_frame_end_check(PfxVm* pfx) {
-    (void)pfx;
 }
 
 void update_live_particles(PfxVm* pfx) {
@@ -250,6 +251,7 @@ void update_live_particles(PfxVm* pfx) {
     pfx->transforms[index].live = live;
 }
 
+/* TODO: [breakthrough needed] 85.22%; audit retail field dispatch and stream-buffer layout. */
 void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {
     PfxRuntimeBuffer* buffer;
     PfxFieldDescription* description;
@@ -333,6 +335,7 @@ static int pfx_memory_is_set(PfxVm* pfx) {
     return pfx->typed_runtime_buffer_a != 0;
 }
 
+/* TODO: [breakthrough needed] 67.94%; audit retail field-require guards and flag publications. */
 void pfxvm_require_field(PfxVm* pfx, unsigned int field) {
     PfxFieldSet fields;
     int changed;
@@ -376,6 +379,8 @@ int pfx_get_struct_size(PfxVm* pfx, int field) {
     }
 }
 
+/* TODO: [breakthrough needed] 96.03%; second fatal null-word reload is reused;
+ * pointer/static-scope cleanup needs nonregressing section evidence. */
 void pfx_halt(const char* message) {
     if (_pfx_config.halt != 0) {
         _pfx_config.halt(message);
@@ -407,6 +412,7 @@ static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float* m) {
     out->z = m[14] + (v->z * m[10] + (v->x * m[2] + v->y * m[6]));
 }
 
+/* TODO: [breakthrough needed] 86.03%; audit remaining parametric spawn CFG/register differences against retail. */
 void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
     PfxParametricParticle* particles;
@@ -431,7 +437,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     for (emitter_index = 0; emitter_index < pfx->emitter_count;
          emitter_index++) {
         emitter = pfx_get_emitter(pfx, emitter_index);
-        birth_count = _pfx_emitter_get_birthcount(emitter, pfx, frame_time);
+        birth_count = _pfx_emitter_get_birthcount(emitter, frame_time, pfx);
         if (birth_count != 0) {
             for (birth = 0; birth < birth_count; birth++) {
                 particle->birth_time = pfx->elapsed_time;
@@ -461,6 +467,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     pfxmetrics_event(pfx->metrics, 0x2001);
 }
 
+/* TODO: [breakthrough needed] 85.99%; audit retail parametric loop and curve-field paths. */
 void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
     PfxParametricParticle* particle;
@@ -538,7 +545,7 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
         if (age <= state->lifetime && particle->birth_time > 0.0f) {
             *position = particle->position;
             if (has_damping) {
-                damping = (float)pow(state->damping, age);
+                damping = pow(state->damping, age);
             }
             position->x += damping * (particle->velocity.x * age);
             position->y += damping * (particle->velocity.y * age);
@@ -554,7 +561,7 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
                 if (texture_curve != 0 && !direct_texture) {
                     curve_position = normalized_age *
                                      (float)(state->texture_curve_count - 1);
-                    curve_index = (int)curve_position;
+                    curve_index = curve_position;
                     if (curve_index >= state->texture_curve_count) {
                         curve_index = state->texture_curve_count - 1;
                     }
@@ -570,7 +577,7 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
                 if (size_curve != 0) {
                     curve_position = normalized_age *
                                      (float)(state->size_curve_count - 1);
-                    curve_index = (int)curve_position;
+                    curve_index = curve_position;
                     if (curve_index >= state->size_curve_count) {
                         curve_index = state->size_curve_count - 1;
                     }
@@ -587,7 +594,7 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
                 if (color_curve != 0) {
                     curve_position = normalized_age *
                                      (float)(state->color_curve_count - 1);
-                    curve_index = (int)curve_position;
+                    curve_index = curve_position;
                     if (curve_index >= state->color_curve_count) {
                         curve_index = state->color_curve_count - 1;
                     }
@@ -597,13 +604,13 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
                     pfx_native_get_rgba(&state->color_curve[curve_index + 1],
                                         &r1, &g1, &b1, &a1);
                     inverse_fraction = 1.0f - fraction;
-                    color->r = (unsigned char)(inverse_fraction * r0 +
+                    color->r = (inverse_fraction * r0 +
                                                fraction * r1);
-                    color->g = (unsigned char)(inverse_fraction * g0 +
+                    color->g = (inverse_fraction * g0 +
                                                fraction * g1);
-                    color->b = (unsigned char)(inverse_fraction * b0 +
+                    color->b = (inverse_fraction * b0 +
                                                fraction * b1);
-                    color->a = (unsigned char)(inverse_fraction * a0 +
+                    color->a = (inverse_fraction * a0 +
                                                fraction * a1);
                 }
                 if (texture_frames != 0) {
@@ -684,9 +691,8 @@ void pfxsystem_set_frame_info(int unused0, int unused1, const float* matrix,
     int i;
     float* row;
 
-    (void)unused0;
-    (void)unused1;
-    memcpy(pfxsystem_globals.camera_facing, matrix, 0x40);
+    memcpy(pfxsystem_globals.camera_facing, matrix,
+           sizeof(pfxsystem_globals.camera_facing));
     for (i = 0; i < 4; i++) {
         row = &pfxsystem_globals.camera_facing[i * 4];
         /* Retail zeros translation column slots at +0x8C stride 0x10. */
@@ -715,7 +721,7 @@ void pfxsystem_set_global(int id, float value) {
     float* slot;
 
     if ((id & 0xF00) == 0x500) {
-        slot = (float*)pfx_get_field(0, -2, id);
+        slot = pfx_get_field(0, -2, id);
         if (slot != 0) {
             *slot = value;
         }
@@ -723,7 +729,7 @@ void pfxsystem_set_global(int id, float value) {
 }
 
 void pfx_set_renderstate(PfxRenderView* pfx) {
-    unsigned char flags;
+    unsigned int flags;
 
     flags = pfx->flags;
     if (((flags >> 3) & 1) != 0 && ((flags >> 2) & 1) != 0) {
@@ -737,10 +743,14 @@ void pfx_set_renderstate(PfxRenderView* pfx) {
     RwEngineInstance->dOpenDevice.fpRenderStateGet(0xA, &srcBlend);
     RwEngineInstance->dOpenDevice.fpRenderStateGet(0xB, &dstBlend);
 
-    if (pfx->blend_mode == 1) {
-        RwRenderStateSet_SRCBLEND_DESTBLEND(5, 2);
-    } else {
+    switch (pfx->blend_mode) {
+    case 0:
+    default:
         RwRenderStateSet_SRCBLEND_DESTBLEND(5, 6);
+        break;
+    case 1:
+        RwRenderStateSet_SRCBLEND_DESTBLEND(5, 2);
+        break;
     }
 }
 
@@ -761,17 +771,16 @@ PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index) {
 }
 
 int pfx_verify(PfxVerifyView* pfx) {
-    unsigned int flags;
-    unsigned char b;
+    int flags;
+    unsigned int byte_flags;
 
     flags = pfx->flags;
     if ((flags & 0x100) != 0 && (flags & 0x200) != 0) {
         return 0;
     }
-    b = pfx->byte_flags;
-    if (((b >> 5) & 1) == 0) {
+    byte_flags = pfx->byte_flags;
+    if (((byte_flags >> 5) & 1) == 0) {
         return 0;
     }
     return 1;
 }
-int pfx_get_struct_size(PfxVm* pfx, int field);
