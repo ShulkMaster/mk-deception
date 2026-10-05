@@ -1,7 +1,5 @@
 #include "dolphin/trk.h"
 
-extern DSError TRKWriteUARTN(const void* data, u32 length);
-
 DSError TRKMessageSend(MessageBuffer* message)
 {
     DSError write_error = TRKWriteUARTN(message->data, message->length);
