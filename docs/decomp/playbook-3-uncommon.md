@@ -413,6 +413,14 @@ built objects; only linked DOL hash catches wrong layout.
   NULL`). 2.7 C deferred: `= 0` prefix keeps forward decl order; uninit
   globals + function statics follow, reverse parse order (function static sits
   at its function's parse position) (`mwMem` `StrategyAllocationActive`).
+- 2.7 C `-inline auto` (not deferred), measured `ai.c`: `.sbss` tentatives =
+  reverse decl order, use irrelevant. `.bss` tentative defined before use =
+  first-use order by generated function, operand order as written (`c ? &A :
+  &B` -> A first); unexpanded inline bodies + decl order don't count. Object
+  only `extern` at first use, defined after the functions -> placed after the
+  first-use ones, reverse definition order. Retail `at_cam_data, g_DroneAI2,
+  g_DroneAI1` = static used first + `g_DroneAI1; g_DroneAI2;` defined at file
+  end, externs at top. All functions byte-identical either way.
 - Function-static `name$N` suffix differs: objdiff falls back to section
   offset. Fix offset, not parse numbering. MAP `UNUSED` data absent from split
   object: omit it, else later offsets shift (`mwMem` `heapIndex`).

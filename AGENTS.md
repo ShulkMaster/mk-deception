@@ -48,12 +48,18 @@ user.
   necessary but does not itself grant permission. With approval, the function
   may invoke a `SEQ_<function>()` macro generated under `build/` from that
   version's retail-derived assembly and may be added to
-  `config/<version>/asm_sequences.json`. Do not commit instruction payloads,
-  synthesize a fallback, or use this path for ordinary compiler-generated
-  functions. Automated, unattended, or goal-driven matching work must skip a
-  function once evidence shows that it requires assembly; it must not add an
-  assembly sequence or seek to satisfy the goal through one without explicit
-  user permission.
+  `config/<version>/asm_sequences.json`. When retail is C with an inline
+  `asm { }` block (SDK paired-single or cache helpers), keep the function in C
+  and approve only the block: a manifest entry with `function`, `address` and
+  `size` (and optional `operands`, macro parameter -> retail register) generates
+  `SEQ_<name>(...)`, invoked as `asm { SEQ_<name>(...) }`. A whole asm function
+  leaves MWCC's peephole off for the C that follows it, so a block is the honest
+  form for mixed code (`gx.a/GXLight` `GXLoadLightObjImm`). Do not commit
+  instruction payloads, synthesize a fallback, or use this path for ordinary
+  compiler-generated functions. Automated, unattended, or goal-driven matching
+  work must skip a function once evidence shows that it requires assembly; it
+  must not add an assembly sequence or seek to satisfy the goal through one
+  without explicit user permission.
 - Make one coherent matching change at a time, rebuild, and inspect the same
   objdiff mismatch before trying another change.
 - Preserve or explicitly account for the final retail SHA-1 check. A fuzzy

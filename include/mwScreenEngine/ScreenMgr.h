@@ -8,7 +8,7 @@
 class ScreenClient;
 class ScreenAction;
 
-typedef int (*ScreenRegisterFn)(const ScreenAction* action);
+typedef unsigned int (*ScreenRegisterFn)(const ScreenAction* action);
 
 struct ScreenRegisterEntry {
     ScreenRegisterFn fn; /* +0x00 */
@@ -17,12 +17,6 @@ struct ScreenRegisterEntry {
 
 /*
  * ScreenMgr -- Midway screen stack orchestrator (mwScreenEngine).
- *
- * Soft ceilings (codegen leftovers -- do not invent wrong algorithms):
- *   UpdateBranchPath ~81%  /  Reset ~87.6%
- *   BroadcastEvent ~82%  /  ProcessRegisterActions ~86.2%
- *   FindScreen ~89%
- * Prefer typed walks at retail offsets over Matching grind.
  *
  * =====================================================================
  * ScreenClient contract (retail LoadScreenSet path)
@@ -95,6 +89,7 @@ public:
     void ResetStagesTo(int value);
     int GetStage(int index);
     void SetStage(int index, int value);
+    void RegisterActionHandler(unsigned int id, ScreenRegisterFn fn);
     int ProcessRegisterActions(const ScreenAction* action);
 
     /* +0x00 vptr */

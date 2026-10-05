@@ -83,8 +83,8 @@ static const float kHalf = 0.5f;
 
 RwMatrix SpecularMatrix;
 void* ImagePixels = loading_image;
-int lbl_80510AC4;
-int MKSpecularInstances;
+static RwImage* Image;
+static int MKSpecularInstances;
 
 static RpMaterial* restore_specular_texture_material_callback(RpMaterial* material, void* data);
 static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material, void* texture);
@@ -146,6 +146,16 @@ static inline void specular_normalize(RwV3d* vector) {
         fast_inverse_sqrt(z_squared + (x_squared + y_squared));
 
     vector->x = x * inverse_length;
+    vector->y *= inverse_length;
+    vector->z *= inverse_length;
+}
+
+static inline void specular_normalize_in_place(RwV3d* vector) {
+    float inverse_length = fast_inverse_sqrt(
+        vector->z * vector->z +
+        (vector->x * vector->x + vector->y * vector->y));
+
+    vector->x *= inverse_length;
     vector->y *= inverse_length;
     vector->z *= inverse_length;
 }
@@ -220,7 +230,6 @@ RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,
     return atomic;
 }
 
-/* TODO: [near miss] 99.98%; the two inlined inverse-sqrt input slots (0x10/0x14) are swapped vs retail. */
 void SpecularMaterialCalcMatrix(RpMaterial* material) {
     struct SpecularMaterialExt* spec;
     RwMatrix* light_matrix;
@@ -229,8 +238,6 @@ void SpecularMaterialCalcMatrix(RpMaterial* material) {
     RwMatrix matrix;
     float dot;
     float reflection_scale;
-    float cross_length_squared;
-    float inverse_cross_length;
     float scaled_x;
     float scaled_y;
     float scaled_z;
@@ -261,13 +268,7 @@ void SpecularMaterialCalcMatrix(RpMaterial* material) {
         matrix.right.x = Yaxis.y * matrix.at.z - Yaxis.z * matrix.at.y;
         matrix.right.y = Yaxis.z * matrix.at.x - Yaxis.x * matrix.at.z;
         matrix.right.z = Yaxis.x * matrix.at.y - Yaxis.y * matrix.at.x;
-        cross_length_squared = matrix.right.z * matrix.right.z +
-                               (matrix.right.x * matrix.right.x +
-                                matrix.right.y * matrix.right.y);
-        inverse_cross_length = fast_inverse_sqrt(cross_length_squared);
-        matrix.right.x *= inverse_cross_length;
-        matrix.right.y *= inverse_cross_length;
-        matrix.right.z *= inverse_cross_length;
+        specular_normalize_in_place(&matrix.right);
 
         matrix.up.x = matrix.at.y * matrix.right.z - matrix.at.z * matrix.right.y;
         matrix.up.y = matrix.at.z * matrix.right.x - matrix.at.x * matrix.right.z;
@@ -277,8 +278,69 @@ void SpecularMaterialCalcMatrix(RpMaterial* material) {
     }
 }
 
+void SpecularMaterialSetup(RpMaterial* material, RpLight* light, void* frame,
+                           void* phong_texture) {
+    struct SpecularMaterialExt* spec;
+
+    spec = specular_material_ext(material);
+    if (material->surface.specular > kOne) {
+        material->surface.specular = kOne;
+    }
+    if (material->surface.ambient > kOne) {
+        material->surface.ambient = kOne;
+    }
+    if (material->surface.diffuse > kOne) {
+        material->surface.diffuse = kOne;
+    }
+    spec->light = light;
+    spec->frame = frame;
+    spec->phong_texture = phong_texture;
+    if (spec->tint.component[0] < 0x40) {
+        spec->tint.component[0] = 0x40;
+    }
+    if (spec->tint.component[1] < 0x40) {
+        spec->tint.component[1] = 0x40;
+    }
+    if (spec->tint.component[2] < 0x40) {
+        spec->tint.component[2] = 0x40;
+    }
+    material->pipeline = SpecSkinMaterialPipeline;
+}
+
 void specskin_initialize_clump(void* clump) {
     RpClumpForAllAtomics(clump, specskin_atomic_setup, 0);
+}
+
+void specskin_turn_off_specularity_on_clump(void* clump) {
+    RpClump* clump_ptr = clump;
+    RwLLLink* end = &clump_ptr->atomicList;
+    RwLLLink* link;
+
+    link = clump_ptr->atomicList.next;
+    while (link != end) {
+        RwLLLink* next;
+        RpGeometry* geometry;
+        RpMaterialList* material_list;
+        unsigned int material_count;
+        unsigned int index;
+        RpMaterial* material;
+        RpSurfaceProperties surface;
+
+        geometry = atomic_from_clump_link(link)->geometry;
+        next = link->next;
+        geometry->flags &= ~0x20;
+        material_list = &geometry->matList;
+        material_count = material_list->numMaterials;
+        index = 0;
+        while (index < material_count) {
+            material = _rpMaterialListGetMaterial(material_list, index);
+            surface = material->surface;
+            surface.specular = kZero;
+            material->surface = surface;
+            index++;
+        }
+        link = next;
+    }
 }
 
 void specskin_force_clipping_clump(void* clump, int value) {
@@ -370,7 +432,6 @@ RpMaterial* specskin_material_setup(RpMaterial* material,
                                     void* is_player) {
     int phong_index;
     RpMaterial* mat;
-    struct SpecularMaterialExt* spec;
     RpLight* light;
     int coeff_count;
     float threshold;
@@ -419,33 +480,10 @@ RpMaterial* specskin_material_setup(RpMaterial* material,
     }
     selected_texture = PhongTextures[phong_index];
     camera_frame = Camera->object.object.parent;
-    spec = specular_material_ext(mat);
-    if (mat->surface.specular > kOne) {
-        mat->surface.specular = kOne;
-    }
-    if (mat->surface.ambient > kOne) {
-        mat->surface.ambient = kOne;
-    }
-    if (mat->surface.diffuse > kOne) {
-        mat->surface.diffuse = kOne;
-    }
-    spec->light = light;
-    spec->frame = camera_frame;
-    spec->phong_texture = selected_texture;
-    if (spec->tint.component[0] < 0x40) {
-        spec->tint.component[0] = 0x40;
-    }
-    if (spec->tint.component[1] < 0x40) {
-        spec->tint.component[1] = 0x40;
-    }
-    if (spec->tint.component[2] < 0x40) {
-        spec->tint.component[2] = 0x40;
-    }
-    mat->pipeline = SpecSkinMaterialPipeline;
+    SpecularMaterialSetup(mat, light, camera_frame, selected_texture);
     return material;
 }
 
-/* TODO: [near miss] 93.88%; extension-offset/flags GPRs and final bit-extract schedule remain; source staging exhausted. */
 void specular_condition_clump(void* clump) {
     RpClump* clump_ptr;
     RwLLLink* link;
@@ -475,19 +513,19 @@ void specular_condition_clump(void* clump) {
         while (material_index < material_count) {
             material = material_at_index(
                 &geometry->matList, material_index);
+            spec = specular_material_ext(material);
             mkmat = mk_material_ext(material);
             flags = mkmat->flags;
             material_shininess = mkmat->shininess;
             material_tint = mkmat->tint;
             material_gloss = mkmat->gloss;
-            spec = specular_material_ext(material);
             spec->shininess = material_shininess;
             spec->tint = material_tint;
             spec->gloss = material_gloss;
-            spec->flags.reflective = flags >> 31;
-            spec->flags.flag_5 = (flags >> 27) & 1;
-            spec->flags.flag_4 = (flags >> 29) & 1;
-            spec->flags.flag_3 = (flags >> 30) & 1;
+            spec->flags.reflective = (flags & 0x80000000) == 0x80000000;
+            spec->flags.flag_5 = (flags & 0x08000000) == 0x08000000;
+            spec->flags.flag_4 = (flags & 0x20000000) == 0x20000000;
+            spec->flags.flag_3 = (flags & 0x40000000) == 0x40000000;
             if (material_shininess > kZero) {
                 specular_geometry_ext(geometry)->material_index =
                     material_index;

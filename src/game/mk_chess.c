@@ -907,10 +907,10 @@ static inline unsigned int* mk_chess_piece_restriction(
     if (piece == 0) {
         return 0;
     }
-    if (restriction < 6) {
-        return &piece->access_restrictions[restriction];
+    if (restriction >= 6) {
+        return &piece->access_restrictions[0];
     }
-    return &piece->access_restrictions[0];
+    return &piece->access_restrictions[restriction];
 }
 
 static inline int mk_chess_piece_access_allowed(
@@ -5954,7 +5954,7 @@ static float mk_chess_handle_repeatable_input(int port, ChessRepeatInput* input)
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 78.68%; retail has a redundant drone-rejection branch; resolve unsigned/lifetime lowering without fake reads. */
+/* TODO: [near miss] 86.47%; slot-before-latch and unsigned state test agree; retail keeps the redundant drone branch (ours if-converts) and colors pdata r5/manager r4. */
 static int mk_chess_check_input_from_correct_side_no_ai(void) {
     ChessManagerInfo* manager;
     unsigned int switch_player;
@@ -5963,10 +5963,10 @@ static int mk_chess_check_input_from_correct_side_no_ai(void) {
         return 0;
     }
 
-    manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     switch_player = switch_pdata->player->controller_slot;
+    manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
 
-    if (manager->input_state == 10) {
+    if (manager->input_state == 10U) {
         return 1;
     }
     if (switch_player == manager->active_side) {
@@ -7444,24 +7444,20 @@ static float p_mk_chess_start_fatality(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 77.98%; resolve retail lwz r31, camera_item@sda21 and its surrounding ownership/CFG before further tuning. */
 void mk_chess_camera_init_for_place_traps(void) {
     CameraObj* camera;
     Vec target;
 
     mk_chess_camera_init();
-    camera = camera_item.node;
-    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
-        camera = 0;
-    }
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     camera->pos.x = -38.45f;
     camera->pos.y = 24.8f;
     camera->pos.z = 0.0f;
-    target.x = 0.0f;
-    target.y = 0.0f;
     target.z = 0.0f;
+    target.y = 0.0f;
+    target.x = 0.0f;
     look_at_target(&target);
-    update_mkobj((MkHdr*)camera);
+    update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
     mk_chess_pdata->camera.viewing_quadrant = 3;
 }
 
@@ -8694,30 +8690,23 @@ void mk_chess_create_piece_obj(
     insert_ground_me_mkobj(piece->object);
 }
 
-/* TODO: [breakthrough needed] 57.92%; retail call boundary restored; caller frame and latch structure remain. */
 void mk_chess_register_name_and_portrait_in_team(
     unsigned int side_index,
     unsigned int portrait_index,
     ChessLibraryEntry* library) {
-    ChessSideState* side;
+    ChessScreenRef* portrait_ref;
     ScreenObj* portrait;
     unsigned int flags;
 
-    flags = side_index == 1 ? 0x20000000 : 0;
-    side = mk_chess_pdata->sides[side_index];
-    portrait = side->portraits[portrait_index].screen;
-    if (portrait != 0 &&
-        portrait->instance !=
-            side->portraits[portrait_index].instance) {
-        portrait = 0;
+    flags = 0;
+    if (side_index == 1) {
+        flags = 0x20000000;
     }
-
-    if (portrait == 0) {
-        portrait =
-            mk_chess_create_portrait_from_library(library, flags);
-        side->portraits[portrait_index].screen = portrait;
-        side->portraits[portrait_index].instance =
-            portrait->instance;
+    portrait_ref = &mk_chess_pdata->sides[side_index]->portraits[portrait_index];
+    if (mk_chess_live_screen(portrait_ref) == 0) {
+        portrait = mk_chess_create_portrait_from_library(library, flags);
+        portrait_ref->screen = portrait;
+        portrait_ref->instance = portrait->instance;
         hide_screen_obj(portrait);
     }
 }
@@ -9055,15 +9044,16 @@ float mk_chess_request_piece_fight(ChessPiece* piece, unsigned char x,
     return 0.0f;
 }
 
-/* TODO: [near miss] 79.94%; byte-coordinate ABI restored; typed board addressing and register scheduling remain. */
 void mk_chess_request_defender_won(
     ChessPiece* defender,
     unsigned char cell_x,
     unsigned char cell_y) {
     ChessGameEventData event;
+    ChessPiece** slot;
 
     mk_chess_set_game_mode(2);
-    event.piece = mk_chess_pdata->board[cell_x].cells[cell_y].piece;
+    slot = &mk_chess_pdata->board[cell_x].cells[cell_y].piece;
+    event.piece = *slot;
     event.other_piece = defender;
     mk_chess_game_event(3, event.pieces, 2, 0);
     mk_chess_remove_piece_at_cell_into_deadpool(cell_x, cell_y);
@@ -12486,11 +12476,9 @@ void mk_chess_spell_hud_retract_all_for_targetting(ChessHudState* hud) {
     turn_controllers_off();
 }
 
-/* TODO: [breakthrough needed] 73.295456%; HUD argument restored; retail branch 0x22898 and owner layout remain unresolved. */
 static void mk_chess_spell_hud_handle_names_slide_out(
     ChessSpellHudNames* names) {
     ScreenObj* cursor;
-    int vertex;
 
     mk_chess_spell_hud_show_my_spells((ChessHudState*)names);
     names->state = 2;
@@ -12498,21 +12486,15 @@ static void mk_chess_spell_hud_handle_names_slide_out(
     names->page = 4;
     turn_controllers_on();
 
-    cursor = mk_chess_pdata->manager.hud_cursor;
-    if (cursor != 0 &&
-        cursor->instance !=
-            mk_chess_pdata->manager.hud_cursor_instance) {
-        cursor = 0;
-    }
+    cursor = MK_LIVE(mk_chess_pdata->manager.hud_cursor,
+                     mk_chess_pdata->manager.hud_cursor_instance);
     if (mk_chess_place_spell_hud_cursor_at_open_slot(
             cursor, names->side, names->cursor_slot) == 0) {
         hide_screen_obj(cursor);
         return;
     }
 
-    for (vertex = 0; vertex < 4; vertex++) {
-        cursor->pfx2d->verts[vertex].a = 0xFF;
-    }
+    cursor->pfx2d->verts[0].a = 0xFF;
     unhide_screen_obj(cursor);
 }
 
@@ -12937,37 +12919,36 @@ void mk_chess_spell_rescue_current_target(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 77.24%; resolve retail mulli r3, r3, 0x208 and its surrounding ownership/CFG before further tuning. */
+static inline ChessPiece** mk_chess_spell_target_slot(
+    ChessSpellState* spell, unsigned int target) {
+    unsigned char x;
+    unsigned char y;
+
+    x = spell->target_x[target];
+    y = spell->target_y[target];
+    return &mk_chess_pdata->board[x].cells[y].piece;
+}
+
 void mk_chess_spell_target_add_access_restrictions(unsigned int target,
                                                    unsigned int restriction,
                                                    int duration, int reset) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[target];
-    unsigned int y = (unsigned char)spell->target_y[target];
-    ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
-    unsigned int* expires;
+    unsigned int* expires =
+        mk_chess_piece_restriction(*mk_chess_spell_target_slot(spell, target), restriction);
+    ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
+    unsigned int expiry = *expires;
+    unsigned int clock = manager->clock;
 
-    if (piece == 0) {
-        expires = 0;
-    } else if (restriction < 6) {
-        expires = &piece->access_restrictions[restriction];
-    } else {
-        expires = &piece->access_restrictions[0];
-    }
-
-    if ((*expires > (unsigned int)mk_chess_pdata->manager.clock) && (reset == 0)) {
-        *expires += duration;
+    if (expiry > clock && reset == 0) {
+        *expires = expiry + duration;
         return;
     }
-    *expires = mk_chess_pdata->manager.clock + duration;
+    *expires = clock + duration;
 }
 
-/* TODO: [breakthrough needed] 64.12%; resolve retail lwz r8, 0x38(r4) and its surrounding ownership/CFG before further tuning. */
 void mk_chess_spell_force_fight(void) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[0];
-    unsigned int y = (unsigned char)spell->target_y[0];
-    ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
+    ChessPiece* piece = *mk_chess_spell_target_slot(spell, 0);
 
     board_game_save_data.sides[spell->side].forced_fight_count++;
     mk_chess_request_piece_fight(
@@ -13021,39 +13002,25 @@ static inline void mk_chess_place_piece_at_cell(ChessPiece* piece,
     update_obj_pos(piece->object);
 }
 
-/* TODO: [near miss] 99.52381%; active-piece update retains swapped mode/piece pointer registers. */
 void mk_chess_spell_move_target_from_temp_area_to(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    ChessPiece* piece;
 
     mk_chess_place_piece_at_cell(spell->temporary_piece,
         spell->target_x[target], spell->target_y[target]);
 
-    piece = spell->temporary_piece;
-    if (piece->side == mk_chess_pdata->manager.active_side) {
-        mk_chess_pdata->manager.active_piece_by_side[piece->side] = piece;
+    if (spell->temporary_piece->side == mk_chess_pdata->manager.active_side) {
+        mk_chess_pdata->manager.active_piece_by_side[spell->temporary_piece->side] =
+            spell->temporary_piece;
     }
 }
 
-/* TODO: [near miss] 86.35%; typed target address grouping and pointer coloring remain. */
 void mk_chess_spell_move_target_to_temp_area(unsigned int target) {
+    ChessPiece* piece;
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[target];
-    unsigned int y = (unsigned char)spell->target_y[target];
-    ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
 
+    piece = *mk_chess_spell_target_slot(spell, target);
     mk_chess_remove_piece_from_board(piece);
     spell->temporary_piece = piece;
-}
-
-static inline ChessPiece** mk_chess_spell_target_slot(
-    ChessSpellState* spell, unsigned int target) {
-    unsigned char x;
-    unsigned char y;
-
-    x = spell->target_x[target];
-    y = spell->target_y[target];
-    return &mk_chess_pdata->board[x].cells[y].piece;
 }
 
 void mk_chess_spell_move_target_to_target(unsigned int source_target,
@@ -13071,13 +13038,10 @@ void mk_chess_spell_move_target_to_target(unsigned int source_target,
     }
 }
 
-/* TODO: [near miss] 79.38%; typed target/board address grouping differs; do not form out-of-bounds struct views. */
 float mk_chess_spell_get_target_health(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[target];
-    unsigned int y = (unsigned char)spell->target_y[target];
 
-    return mk_chess_pdata->board[x].cells[y].piece->health;
+    return (*mk_chess_spell_target_slot(spell, target))->health;
 }
 
 /* TODO: [near miss] 99.34782%; side and selected-piece volatile homes remain swapped. */
@@ -13091,24 +13055,18 @@ void mk_chess_spell_set_target_health(unsigned int target, float health) {
     mk_chess_refresh_side_health(side_index);
 }
 
-/* TODO: [near miss] 81.19%; typed target/board/class address grouping differs; preserve proven array extents. */
+/* TODO: [near miss] 96.67%; slot-helper grouping matches; volatile coloring left (retail spell r7, controller base r3). */
 float mk_chess_spell_get_target_max_health(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[target];
-    unsigned int y = (unsigned char)spell->target_y[target];
-    ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
+    ChessPiece* piece = *mk_chess_spell_target_slot(spell, target);
 
     return g_board_game_controller.class_definitions[piece->type].initial_power;
 }
 
-/* TODO: [near miss] 85.00%; typed target/board address grouping differs; stop without new layout evidence. */
 void mk_chess_spell_show_target_portrait(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    unsigned int x = (unsigned char)spell->target_x[target];
-    unsigned int y = (unsigned char)spell->target_y[target];
 
-    mk_chess_hud_set_piece_portrait(
-        mk_chess_pdata->board[x].cells[y].piece);
+    mk_chess_hud_set_piece_portrait(*mk_chess_spell_target_slot(spell, target));
 }
 
 static void mk_chess_show_select_trap_hud(void)
@@ -14260,16 +14218,10 @@ void mk_chess_snd_request(unsigned int event) {
     }
 }
 
-/* TODO: [near miss] 69.62%; same timer accesses; lwzx/stwx versus displaced loads/stores; preserve array bounds. */
 int mk_chess_piece_test_and_set_timer(unsigned int timer_slot,
                                       unsigned int duration) {
-    unsigned int* timer;
-    unsigned int now;
-
-    timer = &g_active_piece->runtime.timer_slots[timer_slot];
-    now = exec_tick_ctr;
-    if (*timer < now) {
-        *timer = now + duration;
+    if (g_active_piece->runtime.timer_slots[timer_slot] < exec_tick_ctr) {
+        g_active_piece->runtime.timer_slots[timer_slot] = exec_tick_ctr + duration;
         return 1;
     }
     return 0;

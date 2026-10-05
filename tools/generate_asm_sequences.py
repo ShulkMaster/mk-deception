@@ -25,7 +25,9 @@ INSTRUCTION_RE = re.compile(
     r"((?:[0-9A-Fa-f]{2}\s+){3}[0-9A-Fa-f]{2})\s*\*/\s*(.+?)\s*$"
 )
 SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-EXTERNAL_BRANCH_RE = re.compile(r"^(?:b|bl)\s+[A-Za-z_][A-Za-z0-9_]*$")
+EXTERNAL_BRANCH_RE = re.compile(
+    r"^b[a-z]*[+-]?\s+(?:cr[0-7],\s*)?[A-Za-z_][A-Za-z0-9_]*$"
+)
 ASSEMBLY_SYMBOL = r'(?:[A-Za-z_][A-Za-z0-9_]*|"[^"]+")'
 SYMBOL_RELOCATION_RE = re.compile(rf"^.*{ASSEMBLY_SYMBOL}@(h|ha|l)\b.*$")
 SDA21_BASE_RE = re.compile(
@@ -35,6 +37,12 @@ SDA21_IMMEDIATE_RE = re.compile(rf"(?P<symbol>{ASSEMBLY_SYMBOL})@sda21\b")
 SDA21_LI_RE = re.compile(
     rf"^li\s+(?P<dest>r[0-9]+),\s*(?P<symbol>{ASSEMBLY_SYMBOL})@sda21$"
 )
+LOCAL_BRANCH_RE = re.compile(
+    r"^b[a-z]*[+-]?\s+(?:cr[0-7],\s*)?\.L_(?P<target>[0-9A-Fa-f]{8})$"
+)
+REGISTER_RE = re.compile(r"^(?:r|f)(?:[0-9]|[12][0-9]|3[01])$")
+REGISTER_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_.])(?:r|f)(?:[12][0-9]|3[01]|[0-9])(?![A-Za-z0-9_])")
+GQR_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_])qr([0-7])(?![A-Za-z0-9_])")
 
 
 @dataclass(frozen=True)
@@ -131,8 +139,19 @@ def emit_macro(
     sda_symbols: dict[str, str],
     entries: tuple[str, ...] = (),
     end_entries: tuple[str, ...] = (),
+    block: bool = False,
+    operands: dict[str, str] | None = None,
 ) -> list[str]:
-    lines = [f"#define SEQ_{sequence.name}() \\", "    nofralloc; \\"]
+    """Emit SEQ_<name>.  A whole function is a `nofralloc` asm function body.
+    A block is a run of instructions inside a C function, invoked from an
+    inline `asm { SEQ_<name>(...) }` statement; with `operands` (macro
+    parameter -> retail register) every instruction is emitted as text with
+    those registers replaced by the C operands passed to the macro."""
+    parameters = list(operands) if operands else []
+    register_to_parameter = {register: name for name, register in (operands or {}).items()}
+    lines = [f"#define SEQ_{sequence.name}({', '.join(parameters)}) \\"]
+    if not block:
+        lines.append("    nofralloc; \\")
     # Exported entry labels inside the sequence, at their retail offsets.
     entry_at: dict[int, list[str]] = {}
     for label, offset in sequence.labels:
@@ -159,7 +178,11 @@ def emit_macro(
                 assembly = SDA21_IMMEDIATE_RE.sub(r"\g<symbol>", assembly)
             if "@sda21" in assembly:
                 raise ValueError(f"{sequence.name}: unsupported SDA21 syntax: {assembly}")
+            if register_to_parameter:
+                assembly = substitute_operands(assembly, register_to_parameter)
             lines.append(f"    {assembly};{suffix}")
+        elif register_to_parameter:
+            lines.append(f"    {substitute_operands(assembly, register_to_parameter)};{suffix}")
         elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
             assembly
         ):
@@ -171,6 +194,67 @@ def emit_macro(
         suffix = " \\" if index + 1 < len(end_entries) else ""
         lines.append(f"    entry {label};{suffix}")
     return lines
+
+
+def substitute_operands(assembly: str, register_to_parameter: dict[str, str]) -> str:
+    """Replace retail registers with C operand names; spell GQR operands as
+    the plain numbers CodeWarrior's inline assembler expects."""
+    assembly = REGISTER_TOKEN_RE.sub(
+        lambda match: register_to_parameter.get(match.group(0), match.group(0)), assembly
+    )
+    return GQR_TOKEN_RE.sub(r"\1", assembly)
+
+
+def block_sequence(
+    name: str,
+    parent: Sequence,
+    address: int,
+    size: int,
+    operands: dict[str, str] | None,
+) -> Sequence:
+    """Slice an inline-assembly block [address, address + size) out of a retail
+    function, refusing anything a C function's asm statement cannot hold."""
+    end = address + size
+    parent_end = parent.address + 4 * len(parent.instructions)
+    if address % 4 or size % 4 or size <= 0:
+        raise ValueError(f"{name}: block address and size must be positive multiples of 4")
+    if not parent.address <= address < end <= parent_end:
+        raise ValueError(
+            f"{name}: block 0x{address:X}..0x{end:X} is outside {parent.name} "
+            f"(0x{parent.address:X}..0x{parent_end:X})"
+        )
+    first = (address - parent.address) // 4
+    instructions = parent.instructions[first : first + size // 4]
+    for index, (_, assembly) in enumerate(instructions):
+        at = address + 4 * index
+        local = LOCAL_BRANCH_RE.fullmatch(assembly)
+        if local:
+            target = int(local.group("target"), 16)
+            if not address <= target <= end:
+                raise ValueError(f"{name}: branch at 0x{at:X} leaves the block ({assembly})")
+            if operands:
+                raise ValueError(
+                    f"{name}: branch at 0x{at:X}: operand blocks are emitted as text and "
+                    "may be rescheduled; use an opword block (no operands) for control flow"
+                )
+        elif EXTERNAL_BRANCH_RE.fullmatch(assembly) and not re.match(r"^bl\s", assembly):
+            raise ValueError(f"{name}: branch at 0x{at:X} leaves the block ({assembly})")
+    if operands:
+        used = {
+            token
+            for _, assembly in instructions
+            for token in REGISTER_TOKEN_RE.findall(assembly)
+        }
+        for parameter, register in operands.items():
+            if not SYMBOL_RE.fullmatch(parameter):
+                raise ValueError(f"{name}.operands: invalid parameter name {parameter!r}")
+            if not isinstance(register, str) or not REGISTER_RE.fullmatch(register):
+                raise ValueError(f"{name}.operands: invalid register {register!r}")
+            if register not in used:
+                raise ValueError(f"{name}.operands: {register} is not used by the block")
+        if len(set(operands.values())) != len(operands):
+            raise ValueError(f"{name}.operands: a register is mapped twice")
+    return Sequence(name, address, tuple(instructions))
 
 
 def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path, str]:
@@ -205,12 +289,6 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             raise ValueError(f"{name}.assembly: expected a path string")
         function_assembly = Path(entry_assembly)
         available = functions_for(function_assembly)
-        try:
-            sequence = available[name]
-        except KeyError as exc:
-            raise ValueError(
-                f"{function_assembly}: allowlisted function {name} not found"
-            ) from exc
         address = parse_int(entry.get("address"), f"{name}.address")
         size = parse_int(entry.get("size"), f"{name}.size")
         raw_sda_symbols = entry.get("sda_symbols", {})
@@ -225,6 +303,39 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                     f"{name}.sda_symbols: invalid source symbol {source_symbol!r}"
                 )
             sda_symbols[retail_symbol] = source_symbol
+        parent_name = entry.get("function")
+        raw_operands = entry.get("operands")
+        if parent_name is not None:
+            # Inline-assembly block inside a C function: SEQ_<name>(operands...)
+            # is invoked from an `asm { }` statement, not as a function body.
+            if not isinstance(parent_name, str) or not SYMBOL_RE.fullmatch(parent_name):
+                raise ValueError(f"{name}.function: invalid function name {parent_name!r}")
+            if name in available:
+                raise ValueError(f"{name}: a block must not reuse a retail function name")
+            try:
+                parent = available[parent_name]
+            except KeyError as exc:
+                raise ValueError(
+                    f"{function_assembly}: function {parent_name} for block {name} not found"
+                ) from exc
+            if "entries" in entry or "end_entries" in entry:
+                raise ValueError(f"{name}: blocks cannot export entry labels")
+            if raw_operands is not None and not isinstance(raw_operands, dict):
+                raise ValueError(f"{name}.operands: expected an object")
+            sequence = block_sequence(name, parent, address, size, raw_operands)
+            lines.extend(
+                emit_macro(sequence, sda_symbols, block=True, operands=raw_operands)
+            )
+            lines.append("")
+            continue
+        if raw_operands is not None:
+            raise ValueError(f'{name}.operands: only blocks (with "function") take operands')
+        try:
+            sequence = available[name]
+        except KeyError as exc:
+            raise ValueError(
+                f"{function_assembly}: allowlisted function {name} not found"
+            ) from exc
         if sequence.address != address:
             raise ValueError(
                 f"{name}: retail address 0x{sequence.address:X}, expected 0x{address:X}"

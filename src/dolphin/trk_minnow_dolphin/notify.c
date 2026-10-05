@@ -1,9 +1,6 @@
 #include "dolphin/trk.h"
 #include "dolphin/targimpl.h"
 
-extern DSError TRKRequestSend(MessageBuffer* buffer, int* request_id, int retries,
-                              int timeout, int blocking);
-
 DSError TRKDoNotifyStopped(MessageCommandID command)
 {
     int request_id;

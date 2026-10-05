@@ -1,6 +1,7 @@
 #include <dolphin/gx.h>
 #include "__gx.h"
 #include "runtime/cmath.h"
+#include "runtime/asm_sequences.inc"
 
 struct GXLightObjPriv {
     u32 reserved[3], color;
@@ -73,20 +74,28 @@ void GXInitLightColor(GXLightObj* light, GXColor color) {
     ((struct GXLightObjPriv*)light)->color=GXCOLOR_AS_U32(color);
 }
 
-static inline void PushLightScalar(const struct GXLightObjPriv* o) {
-    GX_WRITE_U32(0); GX_WRITE_U32(0); GX_WRITE_U32(0); GX_WRITE_U32(o->color);
-    GX_WRITE_F32(o->a[0]); GX_WRITE_F32(o->a[1]); GX_WRITE_F32(o->a[2]);
-    GX_WRITE_F32(o->k[0]); GX_WRITE_F32(o->k[1]); GX_WRITE_F32(o->k[2]);
-    GX_WRITE_F32(o->position[0]); GX_WRITE_F32(o->position[1]); GX_WRITE_F32(o->position[2]);
-    GX_WRITE_F32(o->direction[0]); GX_WRITE_F32(o->direction[1]); GX_WRITE_F32(o->direction[2]);
+static inline void PushLight(register const GXLightObj* lt_obj, register void* dest)
+{
+    register u32 zero, color;
+    register f32 a0_a1, a2_k0, k1_k2;
+    register f32 px_py, pz_dx, dy_dz;
+
+    asm {
+        SEQ_GXLoadLightObjImm_PushLight(lt_obj, dest, color, zero, a0_a1, a2_k0, k1_k2,
+                                        px_py, pz_dx, dy_dz)
+    }
 }
-/* TODO: [blocked] 0.000000%; retail requires paired-single psq_l/psq_st lowering for the light payload; stop without assembly or forced registers. */
-void GXLoadLightObjImm(const GXLightObj* light, GXLightID id) {
-    u32 index=31-__cntlzw(id), address;
-    index &= 7; address=index*0x10+0x600;
-    GX_WRITE_U8(0x10); GX_WRITE_U32(address|0xF0000);
-    PushLightScalar((const struct GXLightObjPriv*)light);
-    __GXData->bpSentNot=1;
+
+void GXLoadLightObjImm(const GXLightObj* light, GXLightID id)
+{
+    u32 index = 31 - __cntlzw(id), address;
+
+    index &= 7;
+    address = index * 0x10 + 0x600;
+    GX_WRITE_U8(0x10);
+    GX_WRITE_U32(address | 0xF0000);
+    PushLight(light, (void*)GXFIFO_ADDR);
+    __GXData->bpSentNot = 1;
 }
 
 void GXSetChanAmbColor(GXChannelID channel, GXColor color) {

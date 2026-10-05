@@ -424,15 +424,15 @@ static unsigned int g_minBlockHiHeldTime[9] = {
 extern PlyrPdata* his_pdata;
 extern MkProc* plyr_anim_proc;
 extern struct AiSharedAnimations shared_ani;
-struct DroneAI g_DroneAI2;
-struct DroneAI g_DroneAI1;
+extern struct DroneAI g_DroneAI1;
+extern struct DroneAI g_DroneAI2;
 int g_game_number = 10;
-int g_big_boss_intro_tap_out_f;
-int g_droneOverrideActiviated;
-int go_into_major_pain_please;
-int go_into_twitch_death_please;
-int g_fatality_game_number;
 struct DroneOverrideInfo g_DroneOverrideInfo;
+int g_fatality_game_number;
+int go_into_twitch_death_please;
+int go_into_major_pain_please;
+int g_droneOverrideActiviated;
+int g_big_boss_intro_tap_out_f;
 extern unsigned int randu0(unsigned short max);
 extern void shake_camera(int ticks, float strength);
 MslSoundHandle random_hit(int group);
@@ -3629,11 +3629,9 @@ int drone_ai_check_evade_arena(struct DroneAI* request) {
     return 0;
 }
 
-#pragma dont_inline on
 int drone_ai_check_for_knockdown_movement(struct DroneAI* drone) {
     return drone_ai_check_for_berserker_movement(drone);
 }
-#pragma dont_inline reset
 
 int drone_ai_check_for_ducker_movement(struct DroneAI* drone) {
     FighterAiTableContainer* moves;
@@ -5185,7 +5183,6 @@ int drone_ai_attacker_defenseless(struct DroneAI* drone) {
     }
     return 0;
 }
-#pragma opt_propagation reset
 
 void drone_ai_watcher_calculate_data(void) {
     struct DroneAI* drone;
@@ -5363,14 +5360,20 @@ static inline unsigned int ai_move_table_row_count(
 
 static inline unsigned int ai_fighter_table_row_count(
     PlyrFighterDefinition* fighter, unsigned int category) {
-    return ai_move_table_row_count(fighter->move_blend_data, category);
+    PlyrMoveBlendData* move_data;
+    FighterAiTable* tables;
+
+    move_data = fighter->move_blend_data;
+    if (move_data == 0) {
+        return 0;
+    }
+    tables = move_data->ai_tables;
+    return tables[category].usable_row_count;
 }
 
-#pragma opt_propagation off
-/* TODO: [near miss] 99.79%; drone/immediate saved pair differs;
- * spill-cost coloring pushes immediate first and pops drone into r31. */
 int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate) {
     AiFightstyleAttack* script;
+    int category;
     unsigned int special_count;
     unsigned int fightstyle_count;
     unsigned int attack_flags;
@@ -5474,8 +5477,6 @@ int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 0 || attack_state == 2) {
-        int category;
-
         attack_flags = 0;
         if (his_pdata->state != 0x600 &&
             (drone->difficulty_index >= 2 || (unsigned short)randu0(100) < 65)) {
@@ -5682,7 +5683,6 @@ int drone_super_combo_refresh(void) {
     return 0;
 }
 
-#pragma dont_inline on
 int drone_ai_check_push(struct DroneAI* request) {
     struct DroneAI* drone;
     MkProc* player_proc;
@@ -5701,9 +5701,7 @@ int drone_ai_check_push(struct DroneAI* request) {
     }
     return 0;
 }
-#pragma dont_inline reset
 
-#pragma dont_inline on
 void drone_ai_perform_jump_attack(struct DroneAI* request) {
     struct DroneAI* drone;
     MkProc* player_proc;
@@ -5717,7 +5715,6 @@ void drone_ai_perform_jump_attack(struct DroneAI* request) {
     drone->request_active = 1;
     set_my_state(0);
 }
-#pragma dont_inline reset
 
 int drone_ai_victim_ducking(void) {
     struct DroneAI* drone;
@@ -6508,7 +6505,6 @@ float drone_ai_perform_charge_up(void) {
     return 0.0f;
 }
 
-#pragma auto_inline off
 float drone_ai_perform_taunt(void) {
     struct DroneAI* drone;
     int style;
@@ -6554,7 +6550,6 @@ float drone_ai_perform_taunt(void) {
     AI_TRANSFER(drone_ai_perform_attack);
     return 0.0f;
 }
-#pragma auto_inline reset
 
 static float drone_ai_perform_push(void) {
     struct DroneAI* drone;
@@ -7445,7 +7440,6 @@ float drone_entry(void) {
     return 0.0f;
 }
 
-#pragma opt_propagation off
 static float drone_loop(void) {
     struct DroneAI* drone;
     unsigned int ticks;
@@ -7465,7 +7459,6 @@ static float drone_loop(void) {
     ticks += (unsigned short)randu0(g_randomDecisionBaseWaitTime[difficulty]);
     return ticks;
 }
-#pragma opt_propagation reset
 
 static inline int ai_should_counter_after_block(struct DroneAI* drone) {
     int likelihood;
@@ -8806,7 +8799,6 @@ int drone_ai_can_push(struct DroneAI* drone) {
     }
 }
 
-#pragma dont_inline on
 /* TODO: [Scope warn] attack-index tail scope: removing it drops 100% to 99.89362%. */
 static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags) {
@@ -9056,7 +9048,6 @@ static int get_random_fightstyle_index(
     return (int)lower +
            (unsigned short)randu0((unsigned int)upper - lower);
 }
-#pragma dont_inline off
 
 void drone_ai_increase_big_boss_stage(PlyrPdata* victim) {
     struct DroneAI* drone;
@@ -9479,7 +9470,6 @@ void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info) {
     }
 }
 
-#pragma dont_inline on
 int handicap_get_current_difficulty(struct DroneAI* drone) {
     short score;
     int difficulty;
@@ -9605,8 +9595,6 @@ int handicap_get_current_difficulty(struct DroneAI* drone) {
     }
     return difficulty;
 }
-
-#pragma dont_inline off
 
 static inline void ai_big_boss_walk_footstep(void) {
     unsigned short sound;
@@ -10044,3 +10032,6 @@ void generate_ai_table_moveset(PlyrWeaponStyle* moveset) {
         table++;
     } while (index < 14);
 }
+
+struct DroneAI g_DroneAI1;
+struct DroneAI g_DroneAI2;

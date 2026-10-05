@@ -91,7 +91,7 @@ extern float p_puzzle_fighter(void);
 extern float p_mk_chess(void);
 
 void xfer_puzzle_exit(int arg);
-int get_next_bgnd(void);
+unsigned int get_next_bgnd(void);
 
 static void atm_old_mkda_logo(void);
 static void atm_bio_screen(void);

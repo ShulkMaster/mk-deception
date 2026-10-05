@@ -970,8 +970,27 @@ static int gc_prompt_for_480P(PADStatus* pads) {
     return 0;
 }
 
-/* TODO: [near miss] 98.20%; width-loop coloring, GXColor copy slots, mask codegen
- * and the pooled YESNO offset remain. */
+int gc_prompt_for_refresh_rate(PADStatus* pads)
+{
+    DragonTextPrompt prompt;
+    char msgBuf[84];
+    char yesBuf[20];
+    char noBuf[20];
+
+    strcpy(msgBuf, "Run 60Hz?");
+    strcpy(yesBuf, "YES");
+    strcpy(noBuf, "NO");
+    prompt.message = msgBuf;
+    prompt.yes_str = yesBuf;
+    prompt.no_str = noBuf;
+    prompt.yes_hi = 1;
+    gc_grab_renderpipe();
+    gc_native_display_render(display_dragon_with_text, &prompt);
+    gc_release_renderpipe();
+    return 1;
+}
+
+/* TODO: [near miss] 98.20%; width-loop coloring, GXColor copy slots and mask codegen remain. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
     GXColor black;

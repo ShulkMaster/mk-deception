@@ -1481,25 +1481,20 @@ float p_show_text_window(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 85.51724%; background packing uses inverse rlwimi;
- * store-order control neutral; staged packing regressed and was reverted. */
 void trial_set_next_mission(
     int mission, int pair_a_low, int pair_a_high,
     int pair_b_low, int pair_b_high, int value_a, int value_b,
     int background_root) {
-    unsigned int old_background = konquest_save_data.background_and_flags;
-
-    pair_b_low |= (unsigned int)pair_b_high << 16;
-
     konquest_save_data.next_mission = mission;
     konquest_save_data.mission_pair_a =
         (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
-    konquest_save_data.mission_pair_b = pair_b_low;
+    konquest_save_data.mission_pair_b =
+        (unsigned int)pair_b_low | ((unsigned int)pair_b_high << 16);
     konquest_save_data.next_value_a = value_a;
     konquest_save_data.next_value_b = value_b;
     konquest_save_data.background_and_flags =
-        ((unsigned int)background_root << 16) |
-        (old_background & 0xFFFF);
+        (konquest_save_data.background_and_flags & 0xFFFF) |
+        ((unsigned int)background_root << 16);
     fade_to_black(8, 1);
     gamelogic_jump(2, p_gamelogic);
 }

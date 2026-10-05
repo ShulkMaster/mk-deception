@@ -1,3 +1,5 @@
+/* BUILD: retail object compiled with -opt nopeephole -schedule off (unscheduled
+ * prologues and panic-argument staging), like mwMovieGC.o. */
 #include "cri/adx_mgc.h"
 #include "dolphin/os.h"
 #include "movie/MovieConfig.h"
@@ -241,7 +243,6 @@ extern "C" void mwMovieSetTapoutCallback(void* callback)
     MoviePlayerSetup.tapout = (MovieTapoutCallback)callback;
 }
 
-/* TODO: [near miss] 87.71%; entry, panic-argument and final setup scheduling remain; whole-TU mode audit pending. */
 extern "C" int mwMovieInit(MwMovieInitParams* params)
 {
     if (MoviePlayerSetup.once == 0) {
@@ -313,7 +314,6 @@ extern "C" float mwMovieGetVolume(void)
     return MoviePlayerSetup.volume;
 }
 
-/* TODO: [near miss] 92.59259%; zero-load scheduling remains; whole-TU scheduling fix awaits integration. */
 extern "C" int mwMovieDbVolFromLinear(float volume)
 {
     int decibels;
@@ -349,7 +349,6 @@ extern "C" void mwMovieSetMovieVolume(void* handle, float volume)
     MoviePlayerSetup.volume = volume;
 }
 
-/* TODO: [near miss] 79.28%; setup, panic and final store scheduling remain. */
 extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
 {
     _mwMovPlayer* player;
@@ -381,7 +380,6 @@ extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player)
 #pragma scheduling reset
 #pragma peephole reset
 
-/* TODO: [near miss] 91.50000%; entry/exit and panic scheduling await whole-TU mode audit. */
 extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
 {
     switch (player->state) {
@@ -404,7 +402,6 @@ extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
     }
 }
 
-/* TODO: [near miss] 91.50%; player/panic/save scheduling differs; whole-unit mode audit is pending. */
 extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
                                                const char* filename)
 {
@@ -428,7 +425,6 @@ extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
     }
 }
 
-/* TODO: [near miss] 93.61%; null-test, panic arguments and restores differ; paired TU mode integration pending. */
 extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -454,7 +450,6 @@ extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
     }
 }
 
-/* TODO: [near miss] 93.92%; null-test, panic-argument and epilogue scheduling remain; whole-TU mode audit is pending. */
 extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -481,6 +476,8 @@ extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
     }
 }
 
+/* TODO: [breakthrough needed] 91.93%; retail keeps `finished` in a stack slot (address-taken local,
+ * e.g. an inlined helper given &finished); find the helper's evidence before changing source. */
 extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
 {
     int finished = 0;
@@ -608,7 +605,6 @@ static void createSofdecPlayer(_mwMovPlayer* player)
     mwPlySetFrmSync(player->player_handle, 1);
 }
 
-/* TODO: [near miss] 90.80488%; null-test/panic scheduling and epilogue await verified TU scheduling/nopeephole flags. */
 static void destroySofdecPlayer(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -650,7 +646,6 @@ static void startMoviePlay(_mwMovPlayer* player, char* fileName, bool loop)
     }
 }
 
-/* TODO: [near miss] 88.91%; assertion argument staging and null-test/restore lowering remain. */
 static void stopMoviePlay(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -662,7 +657,8 @@ static void stopMoviePlay(_mwMovPlayer* player)
     player->player_handle->interface->stop(player->player_handle);
 }
 
-/* TODO: [breakthrough needed] 76.84%; retail frame-copy/save and assertion staging need verification. */
+/* TODO: [breakthrough needed] 91.23%; header copy and +0x20 counter verified; the 0x38-byte transport
+ * copy is a lwzu/stwu ctr block-move loop (what -O4,s emits) but TU-wide ,s regresses five siblings. */
 static int executeMovieFrame(_mwMovPlayer* player)
 {
     MwsFrameOutput frame;
@@ -697,7 +693,6 @@ static int executeMovieFrame(_mwMovPlayer* player)
         player->frame.picture_user_data = frame.picture_user_data;
         player->frame.picture_user_size = frame.picture_user_size;
         player->frame.display_mode = frame.display_mode;
-        player->frame.reserved_4C = frame.reserved_4C;
         destination = player->frame.transport.pairs;
         source = frame.transport.pairs;
         pairs_remaining = sizeof(frame.transport.pairs) /
@@ -705,18 +700,17 @@ static int executeMovieFrame(_mwMovPlayer* player)
         do {
             *destination++ = *source++;
         } while (--pairs_remaining != 0);
-        if (frame.picture_order - player->previous_frame != 1) {
+        if (frame.display_time - player->previous_frame != 1) {
             MOVPRINT(STR_DROPPED_FRAMES, player->previous_frame,
-                     frame.picture_order);
+                     frame.display_time);
         }
-        player->previous_frame = frame.picture_order;
+        player->previous_frame = frame.display_time;
         displayMovieFrame(player);
         mwPlyRelCurFrm(player->player_handle);
     }
     return 0;
 }
 
-/* TODO: [near miss] 94.98425%; whole-TU scheduling/peephole modes await coordinator build gate. */
 static void updatePlayerState(_mwMovPlayer* player)
 {
     int status;
@@ -784,9 +778,9 @@ static void* mallocCallback(void*, unsigned int size)
     void* memory = mwMovMalloc(size);
 
     if (memory != 0) {
-        MOVPRINT(STR_ALLOCATED, (float)size * 0.0009765625f, memory);
+        MOVPRINT(STR_ALLOCATED, (float)size / 1024.0f, memory);
     } else {
-        MOVPRINT(STR_ALLOCATION_FAILED, (float)size * 0.0009765625f);
+        MOVPRINT(STR_ALLOCATION_FAILED, (float)size / 1024.0f);
     }
     return memory;
 }
