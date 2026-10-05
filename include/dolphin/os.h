@@ -117,6 +117,15 @@ extern unsigned long __OSBusClock : 0x800000F8;
 
 void OSReport(const char* format, ...);
 void OSInit(void);
+#define OS_CONSOLE_MASK        0xF0000000
+#define OS_CONSOLE_RETAIL      0x00000000
+#define OS_CONSOLE_DEVELOPMENT 0x10000000
+#define OS_CONSOLE_TDEV        0x20000000
+#define OS_CONSOLE_EMULATOR    0x10000000
+#define OS_CONSOLE_PC_EMULATOR 0x10000001
+#define OS_CONSOLE_ARTHUR      0x10000002
+#define OS_CONSOLE_MINNOW      0x10000003
+
 unsigned long OSGetConsoleType(void);
 void __OSInitSystemCall(void);
 void __OSInitMemoryProtection(void);

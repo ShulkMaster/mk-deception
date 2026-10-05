@@ -7,6 +7,7 @@
 #include "dolphin/dolphin_trk_glue.h"
 #include "dolphin/UDP_Stubs.h"
 #include "dolphin/EXI2_DDH_GCN.h"
+#include "runtime/asm_sequences.inc"
 
 typedef int (*DBInitializeFn)(volatile u8** input_pending,
                               EXICallback callback);
@@ -39,75 +40,24 @@ int gdev_cc_pre_continue(void);
 int gdev_cc_post_stop(void);
 int gdev_cc_initinterrupts(void);
 
-/* Handwritten privileged context restore; tracked in following.md. */
-void TRKLoadContext(OSContext* context, u32 exception_id);
+void TRKInterruptHandler(void);
 
-struct DBCommTable gDBCommTable;
+asm void TRKLoadContext(OSContext* context, u32 exception_id)
+{
+    SEQ_TRKLoadContext();
+}
+
+BOOL _MetroTRK_Has_Framing;
 u8 TRK_Use_BBA;
 
-static const u32 EndofProgramInstruction = 0x00454E44;
+struct DBCommTable gDBCommTable = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-void TRKUARTInterruptHandler(void)
+void TRKEXICallBack(signed long interrupt, OSContext* context)
 {
+    OSEnableScheduler();
+    TRKLoadContext(context, 0x500);
 }
 
-void InitializeProgramEndTrap(void)
-{
-    void* trap_address = (u8*)PPCHalt + 4;
-
-    TRK_memcpy(trap_address, &EndofProgramInstruction, sizeof(EndofProgramInstruction));
-    ICInvalidateRange(trap_address, sizeof(EndofProgramInstruction));
-    DCFlushRange(trap_address, sizeof(EndofProgramInstruction));
-}
-
-void TRK_board_display(const char* message)
-{
-    OSReport("%s\n", message);
-}
-
-void UnreserveEXI2Port(void)
-{
-    gDBCommTable.pre_continue();
-}
-
-void ReserveEXI2Port(void)
-{
-    gDBCommTable.post_stop();
-}
-
-DSError TRKWriteUARTN(const void* source, u32 size)
-{
-    return gDBCommTable.write((const u8*)source, size) == 0 ? 0 : -1;
-}
-
-int TRKReadUARTN(u8* destination, int size)
-{
-    return gDBCommTable.read(destination, size) == 0 ? 0 : -1;
-}
-
-int TRKPollUART(void)
-{
-    return gDBCommTable.peek();
-}
-
-void EnableEXI2Interrupts(void)
-{
-    if (!TRK_Use_BBA && gDBCommTable.initialize_interrupts != 0) {
-        gDBCommTable.initialize_interrupts();
-    }
-}
-
-void TRKEXICallBack(signed long interrupt, OSContext* context);
-
-DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
-                                   volatile u8** input_pending)
-{
-    gDBCommTable.initialize(input_pending, TRKEXICallBack);
-    gDBCommTable.open();
-    return 0;
-}
-
-/* TODO: [breakthrough needed] 89.84%; decoded strings agree; named rodata base retention and canonical TU placement remain. */
 int InitMetroTRKCommTable(int hardware_id)
 {
     int result = 1;
@@ -163,8 +113,61 @@ int InitMetroTRKCommTable(int hardware_id)
     return result;
 }
 
-void TRKEXICallBack(signed long interrupt, OSContext* context)
+DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
+                                   volatile u8** input_pending)
 {
-    OSEnableScheduler();
-    TRKLoadContext(context, 0x500);
+    gDBCommTable.initialize(input_pending, TRKEXICallBack);
+    gDBCommTable.open();
+    return 0;
+}
+
+void EnableEXI2Interrupts(void)
+{
+    if (!TRK_Use_BBA && gDBCommTable.initialize_interrupts != 0) {
+        gDBCommTable.initialize_interrupts();
+    }
+}
+
+int TRKPollUART(void)
+{
+    return gDBCommTable.peek();
+}
+
+int TRKReadUARTN(u8* destination, int size)
+{
+    return gDBCommTable.read(destination, size) == 0 ? 0 : -1;
+}
+
+DSError TRKWriteUARTN(const void* source, u32 size)
+{
+    return gDBCommTable.write((const u8*)source, size) == 0 ? 0 : -1;
+}
+
+void ReserveEXI2Port(void)
+{
+    gDBCommTable.post_stop();
+}
+
+void UnreserveEXI2Port(void)
+{
+    gDBCommTable.pre_continue();
+}
+
+void TRK_board_display(const char* message)
+{
+    OSReport("%s\n", message);
+}
+
+void InitializeProgramEndTrap(void)
+{
+    static const u32 EndofProgramInstruction = 0x00454E44;
+    u8* halt = (u8*)PPCHalt;
+
+    TRK_memcpy(halt + 4, &EndofProgramInstruction, sizeof(EndofProgramInstruction));
+    ICInvalidateRange(halt + 4, sizeof(EndofProgramInstruction));
+    DCFlushRange(halt + 4, sizeof(EndofProgramInstruction));
+}
+
+void TRKUARTInterruptHandler(void)
+{
 }

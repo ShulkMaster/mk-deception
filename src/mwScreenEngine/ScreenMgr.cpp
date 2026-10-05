@@ -1,3 +1,4 @@
+/* BUILD: retail pools string literals read-only (-str reuse,pool,readonly). */
 #include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/ScreenClient.h"
@@ -32,7 +33,6 @@ ScreenMgr::~ScreenMgr() {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 87.79%; field stores and both clears agree; empty literal uses SDA instead of retail rodata. */
 void ScreenMgr::Reset() {
     int i;
     int stack_index;
@@ -135,19 +135,17 @@ int ScreenMgr::InitBranchPath() {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-/* TODO: [near miss] 83.037598%; delimiter lifetime recovered; create/dispose register allocation remains. */
 int ScreenMgr::UpdateBranchPath(char* path) {
     char pathCopy[0x100];
     char* parts[10];
     const char* delimiters;
     int nParts;
     int matched;
-    int limit;
+    ScreenSet* child;
     ScreenSet* walk;
-    ScreenSet* keepParent;
+    ScreenSet* dead;
     ScreenSet* cur;
     ScreenSet* parent;
-    ScreenSet* child;
     int depth;
     int unloadId;
 
@@ -157,35 +155,30 @@ int ScreenMgr::UpdateBranchPath(char* path) {
     nParts = SplitPath(pathCopy, delimiters, parts, sizeof(parts) / sizeof(parts[0]));
 
     walk = m_rootSet;
-    keepParent = 0;
-    limit = nParts - 1;
-
-    for (matched = 0; walk != 0 && matched < m_branchDepth && matched < limit;
-         matched++) {
-        if (stricmp(walk->GetName(), parts[matched]) != 0) {
-            break;
-        }
-        keepParent = walk;
+    matched = 0;
+    parent = 0;
+    while (walk != 0 && matched < m_branchDepth && matched < nParts - 1 &&
+           stricmp(walk->GetName(), parts[matched]) == 0) {
+        parent = walk;
         walk = m_branch[matched + 1];
+        matched++;
     }
 
     cur = m_currentSet;
     if (cur != 0) {
-        while (cur != keepParent) {
+        while (cur != parent) {
             cur->BroadcastEvent(this, SCREEN_EVENT_UNLOAD, 0);
-            parent = cur->GetParent();
-            unloadId = cur->m_unloadId;
-            DisposeSet(cur, 1);
+            dead = cur;
+            cur = cur->GetParent();
+            unloadId = dead->m_unloadId;
+            DisposeSet(dead, 1);
             ScreenUtil::UnloadScreenSet(unloadId);
-            cur = parent;
         }
-        m_currentSet = keepParent;
+        m_currentSet = parent;
     }
 
-    depth = matched;
-    parent = keepParent;
     child = 0;
-    for (; depth < limit; depth++) {
+    for (depth = matched; depth < nParts - 1; depth++) {
         if (parent != 0) {
             child = parent->GetChild(parts[depth]);
         }
@@ -204,7 +197,7 @@ int ScreenMgr::UpdateBranchPath(char* path) {
     }
 
     if (nParts > 0) {
-        m_branchDepth = limit;
+        m_branchDepth = nParts - 1;
         if (m_branchDepth > 0) {
             m_currentSet = m_branch[m_branchDepth - 1];
         }
@@ -215,7 +208,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
 }
 #pragma dont_inline reset
 
-/* TODO: [breakthrough needed] 96.794868%; body closes with verified paired string-pooling mode; await object flag integration. */
 void ScreenMgr::LoadCompleted(ScreenSet* set) {
     if (set == m_currentSet && set != 0) {
         Screen* screen;
@@ -234,7 +226,6 @@ void ScreenMgr::LoadCompleted(ScreenSet* set) {
 }
 
 #pragma dont_inline on
-/* TODO: [breakthrough] 94.108696%; delimiter lifetime recovered; verified pooled-string mode awaits object flag integration. */
 int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
     char pathCopy[0x100];
     char* parts[10];
@@ -529,7 +520,6 @@ void ScreenMgr::FireEvent(int event, int arg, unsigned int force) {
 }
 #pragma dont_inline reset
 
-/* TODO: [breakthrough needed] 81.56%; broadcast loop shape differs from retail's countdown. */
 void ScreenMgr::BroadcastEvent(int event, int activeOnly, int arg) {
     int count = m_activeCount;
 
@@ -538,14 +528,13 @@ void ScreenMgr::BroadcastEvent(int event, int activeOnly, int arg) {
     }
 
     if (activeOnly != 0) {
-        Screen* screen = GetActiveScreen();
+        Screen* screen = count < 0 ? 0 : m_stack[count];
         if (screen != 0) {
             screen->BroadcastEvent(this, event, arg);
         }
     } else {
         int i = count + 1;
-        while (i != 0) {
-            i -= 1;
+        while (i-- != 0) {
             m_stack[i]->BroadcastEvent(this, event, arg);
         }
     }
@@ -637,23 +626,22 @@ void ScreenMgr::SetStage(int index, int value) {
     m_confirm[index - 1] = value;
 }
 
-/* TODO: [near miss] 86.16%; register-table walk: table reload, count register and id scheduling differ. */
+void ScreenMgr::RegisterActionHandler(unsigned int id, ScreenRegisterFn fn) {
+    ScreenUtil::ReportError("RegisterActionHandler", "ScreenMgr.cpp", 0);
+}
+
 int ScreenMgr::ProcessRegisterActions(const ScreenAction* action) {
-    int i;
     unsigned int id;
-    ScreenRegisterEntry* table;
+    int i;
 
     if (action != 0) {
         id = action->m_id;
-        i = 0;
-        table = m_registerTable;
-        while (i < m_registerCount) {
-            if (id == table[i].id) {
-                if ((unsigned int)table[i].fn(action) == 1) {
+        for (i = 0; i < m_registerCount; i++) {
+            if (id == m_registerTable[m_registerCount].id) {
+                if (m_registerTable[i].fn(action) == 1) {
                     return 1;
                 }
             }
-            i += 1;
         }
     }
     return 0;

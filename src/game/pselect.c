@@ -127,7 +127,7 @@ void ck_for_controller_removed(void);
 void set_default_button_repeat_time(void);
 void set_button_repeat_time(int ticks);
 void init_current_ladder_char(void);
-int get_next_bgnd(void);
+unsigned int get_next_bgnd(void);
 void unassign_player(PlyrInfo* plyr);
 void assign_player(int port);
 void ck_do_profile_save(void);

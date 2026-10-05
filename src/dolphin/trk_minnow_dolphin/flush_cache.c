@@ -1,7 +1,7 @@
-/* TODO: Missing implementation for retail unit flush_cache.c. */
+#include "dolphin/trk.h"
+#include "runtime/asm_sequences.inc"
 
-void *TRK_flush_cache(void)
+asm void TRK_flush_cache(u32 address, u32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ_TRK_flush_cache();
 }

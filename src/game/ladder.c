@@ -140,9 +140,6 @@ static int curr_ladder_pos;
 int curr_ladder_char;
 static struct LadderStringRef bgnd_name_item;
 static struct LadderEntry* current_ladder_tbl;
-static const float chess_leader_award_normal = 200.0f;
-static const float chess_leader_award_hard = 300.0f;
-static const float chess_leader_award_max = 400.0f;
 const char* ladder_koin_type_to_string(int type) {
     int i;
 
@@ -154,26 +151,25 @@ const char* ladder_koin_type_to_string(int type) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 79.23%; compare nonvolatile lifetimes and pool placement. */
-const char* get_rnd_chess_koin_type(int difficulty) {
-    const char* coin;
-    int coin_type;
-    int index;
+static inline int ladder_koin_string_to_type(const char* name) {
+    int i;
 
-    coin = chess_koins[randu0(n_chess_koins) & 0xFFFF];
-    coin_type = 0;
-    for (index = 0; index < 6; index++) {
-        if (strcmp(coin_offset_tbl[index].name, coin) == 0) {
-            coin_type = coin_offset_tbl[index].type;
-            break;
+    for (i = 0; i < 6; i++) {
+        if (strcmp(coin_offset_tbl[i].name, name) == 0) {
+            return coin_offset_tbl[i].type;
         }
     }
-    g_game_info.pselect.field_1e4 = coin_type;
+    return 0;
+}
+
+const char* get_rnd_chess_koin_type(int difficulty) {
+    const char* coin;
+
+    coin = chess_koins[randu0(n_chess_koins) & 0xFFFF];
+    g_game_info.pselect.field_1e4 = ladder_koin_string_to_type(coin);
     return coin;
 }
 
-/* TODO: [breakthrough needed] 49.333332%; retail retains float constant
- * conversions; constant-folding control is neutral; need source-boundary evidence. */
 int get_chess_leader_won_coin_award(void) {
     int difficulty;
     int award;
@@ -185,13 +181,13 @@ int get_chess_leader_won_coin_award(void) {
 
     award = 200;
     if (difficulty == 2) {
-        return chess_leader_award_normal;
+        return award * 1.0f;
     }
     if (difficulty == 3) {
-        return chess_leader_award_hard;
+        return award * 1.5f;
     }
     if (difficulty == 4) {
-        award = chess_leader_award_max;
+        award = award * 2.0f;
     }
     return award;
 }
@@ -635,8 +631,8 @@ static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;
     aproc->vtbl->sleep();
 }
-/* TODO: [breakthrough needed] 83.60%; canonical script fields improve
- * matching; frame is 0x10 smaller than retail; remaining differences need localized recovery. */
+/* TODO: [breakthrough] 88.19%; frame/stack slots and mode call pairs match;
+ * nonvolatile assignment differs (retail tracking r31, &g_game_info r29, data r28). */
 float p_ladder_select(void) {
     PlyrInfo* opponent;
     PlyrInfo* player;
@@ -655,16 +651,16 @@ float p_ladder_select(void) {
     int difficulty;
     int coin_type;
     float saved_speed;
-    float initial_speed;
-    float final_speed;
-    CamVec3 position;
-    CamVec3 angle = {0.0326f, 3.1415927f, 0.0f};
     StringObj* arena_name;
     const char* coin;
 
     data = LADDER_DATA_REGION;
     tracking = 0;
-    set_section_memory_scheme(mode_of_play == 6 ? 0 : 11);
+    if (mode_of_play != 6) {
+        set_section_memory_scheme(11);
+    } else {
+        set_section_memory_scheme(0);
+    }
     push_game_state(5);
     turn_controllers_off();
     if (g_game_info.plyr0.player_state == 0) {
@@ -690,7 +686,11 @@ float p_ladder_select(void) {
     setup_sound_banks(11);
     wait_for_sound_banks_to_load();
     set_process_as_scriptable(aproc);
-    load_background(mode_of_play == 6 ? 23 : 22);
+    if (mode_of_play == 6) {
+        load_background(23);
+    } else {
+        load_background(22);
+    }
     if (mode_of_play == 6) {
         for (i = 0; i < 6; i++) {
             for (j = 0; j < 6; j++) {
@@ -750,8 +750,15 @@ float p_ladder_select(void) {
         if (mode_of_play != 6) camera->speed = 0.5f * game_speed;
         camera_run_animation(0);
     } else {
-        snd_req(mode_of_play == 6 ? 0x1AA2 : 0x1AA0);
         if (mode_of_play == 6) {
+            snd_req(0x1AA2);
+        } else {
+            snd_req(0x1AA0);
+        }
+        if (mode_of_play == 6) {
+            CamVec3 position;
+            CamVec3 angle = {0.0326f, 3.1415927f, 0.0f};
+
             position.x = 0.0f;
             position.y = 3.571f * (float)(curr_ladder_pos-1) + -26.283203f;
             position.z = 7.376953f;
@@ -790,6 +797,10 @@ float p_ladder_select(void) {
             ladder_sleep(1.0f);
         }
     } else if (mode_of_play == 6) {
+        CamVec3 position;
+        float initial_speed;
+        float final_speed;
+
         initial_speed = 0.0f;
         final_speed = 0.0f;
         position.x = 0.0f;
@@ -892,13 +903,7 @@ float p_ladder_select(void) {
             }
             g_game_info.pselect.field_1e8 = award;
             coin = pz_ladder_koins[randu0(n_pz_ladder_koins) & 0xFFFF];
-            coin_type = 0;
-            for (i = 0; i < 6; i++) {
-                if (strcmp(coin_offset_tbl[i].name, coin) == 0) {
-                    coin_type = coin_offset_tbl[i].type;
-                    break;
-                }
-            }
+            coin_type = ladder_koin_string_to_type(coin);
             g_game_info.pselect.field_1e4 = coin_type;
             show_koin_award(0, award, coin_type, 0x23);
             ladder_sleep(30.0f);

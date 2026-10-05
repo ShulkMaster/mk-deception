@@ -771,76 +771,60 @@ void bgnd_level_transition_start(void) {
     g_game_info.plyr0.slot.pdata->collision_disabled = 1;
     g_game_info.plyr1.slot.pdata->collision_disabled = 1;
 }
-/* TODO: [breakthrough] 64.375%; canonical 64-bit unlock owner recovered; mask lifetime and return CFG remain. */
 int is_bgnd_locked(int bgnd_id) {
     unsigned long long unlocked;
-    unsigned long long mask;
 
-    if (bgnd_id < 0 || bgnd_id > 0x23) {
+    if (bgnd_id < 0) {
+        return 1;
+    }
+    if (bgnd_id > 0x23) {
         return 1;
     }
 
-    mask = 1ULL << bgnd_id;
     if (mode_of_play == 6) {
-        unlocked = gp_data.pz_bgnds.value | default_pz_bgnd_bits.value;
-        return (unlocked & mask) == 0;
+        unlocked = gp_data.pz_bgnds.value;
+        unlocked |= default_pz_bgnd_bits.value;
+        if ((unlocked & (1ULL << bgnd_id)) != 0) {
+            return 0;
+        }
+        return 1;
     }
 
-    if ((g_game_info.field_04 & 0x80) != 0 && (g_game_info.field_04 & 0x40) == 0) {
+    if (g_game_info.feature_flags.bits.high_bit && !g_game_info.feature_flags.bits.pad_6) {
         return 0;
     }
 
-    unlocked = gp_data.cat3.value | default_bgnd_bits.value;
-    return (unlocked & mask) == 0;
+    unlocked = gp_data.cat3.value;
+    unlocked |= default_bgnd_bits.value;
+    if ((unlocked & (1ULL << bgnd_id)) != 0) {
+        return 0;
+    }
+    return 1;
 }
 static int bgnd_cycle_tbl[22] = {
     0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
     0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
 };
 
-/* TODO: [breakthrough needed] 0%; canonical 64-bit snapshots recovered;
- * wholesale register/allocation alignment and inlined lock predicate remain. */
-int get_next_bgnd(void) {
-    int play_mode = mode_of_play;
-    unsigned long long puzzle_bits = gp_data.pz_bgnds.value;
-    int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
-    unsigned long long default_puzzle_bits = default_pz_bgnd_bits.value;
-    unsigned long long unlocked_bits = gp_data.cat3.value;
-    unsigned long long default_bits = default_bgnd_bits.value;
+unsigned int get_next_bgnd(void) {
+    unsigned int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
 
-    for (;;) {
-        int locked;
-
-        if (background < 0 || background > 0x23) {
-            locked = 1;
-        } else if (play_mode == 6) {
-            unsigned long long mask = 1ULL << background;
-            unsigned long long unlocked = puzzle_bits | default_puzzle_bits;
-            locked = (unlocked & mask) == 0;
-        } else if ((g_game_info.field_04 & 0x80) != 0 &&
-                   (g_game_info.field_04 & 0x40) == 0) {
-            locked = 0;
-        } else {
-            unsigned long long mask = 1ULL << background;
-            unsigned long long unlocked = unlocked_bits | default_bits;
-            locked = (unlocked & mask) == 0;
-        }
-        if (!locked) {
-            g_game_info.bgnd_cycle_index++;
-            if (bgnd_cycle_tbl[g_game_info.bgnd_cycle_index] == -1) {
-                g_game_info.bgnd_cycle_index = 0;
-            }
-            return background;
-        }
+    while (is_bgnd_locked(background)) {
         g_game_info.bgnd_cycle_index++;
         if (bgnd_cycle_tbl[g_game_info.bgnd_cycle_index] == -1) {
             g_game_info.bgnd_cycle_index = 0;
         }
         background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
-        if ((unsigned int)background > 0x23) {
+        if (background > 0x23) {
             return 0x12;
         }
     }
+
+    g_game_info.bgnd_cycle_index++;
+    if (bgnd_cycle_tbl[g_game_info.bgnd_cycle_index] == -1) {
+        g_game_info.bgnd_cycle_index = 0;
+    }
+    return background;
 }
 void bgnd_force_specularity_off_for_material(
     unsigned int object_id, unsigned int material_id) {

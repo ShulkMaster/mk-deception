@@ -142,6 +142,31 @@ After the applicable honest source check, stop at:
     args, scopes, variable identity, inline depth, `?:` vs if/else, pragmas,
     K&R order, TU isolation, 3rd param slot, long-lived `force`. Pair = hard
     stop unless a never-pushed neighbour can be removed with same stream.
+  - Never-pushed neighbour = higher-numbered side of every coalesced move
+    (`coalescenodes` keeps its matrix row). Coalesce only temp<->temp or
+    any<->physical. Nested inline helper `return inner(...);` = move between
+    two front-end result temps -> one stale node per expansion. Flat helper
+    (return expr computed straight into its own result temp) -> none.
+  - Closed (`drone_ai_check_attack`): both params at 29 = 12 physical + each
+    other + 16 coalesced temps. TRY drop exactly one coalesced temp, same
+    stream: flatten one helper level at one site
+    (`ai_fighter_table_row_count` with own null test + table load, not nested
+    `ai_move_table_row_count`). Dropped node inside another saved local's
+    range (`category`) rotates r25-r29 -> cross with decl order (`category` at
+    function scope before `special_count`). Flat alone: pair right, others
+    rotated. Decl alone: neutral. Both -> exact.
+  - Capture, not inference: gdb on `mwcceppc.exe` 2.7 under wibo (no
+    sjiswrap), `starti`, then hw breakpoints: `buildinterferencegraph`
+    0x57bfb0 (pcode before coalesce), `simplifygraph` 0x5088d0 (graph),
+    `rewritepcode` 0x508680 (colours). Globals: `interferencegraph` 0x5ea768,
+    `coloring_class` 0x5ef2cf (GPR = 4), `used_virtual_registers[]` 0x5eaa2c,
+    `n_real_registers[]` 0x5ea710, `pcbasicblocks` 0x5ea748. IGNode (pack 2):
+    next 0, spillTemp 4, cost 0xc, degree 0x12, reg 0x14, flags 0x16 (pushed
+    2, coalesced 4), count 0x18, neighbours 0x1a. PCode: next 0, op 0x20,
+    argCount 0x22, args 0x24 x 12 bytes (kind 0, class 1, reg 4); block
+    firstPCode 0x14. Replay simplify/select offline, drop one candidate node,
+    compare colours with retail -> names region where source must lose a
+    temp. Built-in `debug_listing` is stubbed in this binary.
 - Volatile rotation under scoped `opt_*` pragma is NOT a stop until H21
   web-kind check + pragma-free H05 mechanism measured
   (`drone_ai_victim_avoid` closed from recorded 99.44 ceiling: `opt_common_subs

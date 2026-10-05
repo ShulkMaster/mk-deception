@@ -1,3 +1,5 @@
+/* BUILD: retail object compiled with -opt nopeephole -schedule off -str reuse,pool:
+ * prologue LR saves stay ahead of the body and the assertion strings share one pool. */
 #include "cri/adx_sugc.h"
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
@@ -85,11 +87,6 @@ void __mwMovie_startVideo(_mwMovPlayer* player);
 void displayMovieFrame(_mwMovPlayer* player);
 }
 
-namespace {
-char stringBase0[] =
-    "mwMovieGC.cpp\0"
-    "Assertion failure: player != 0L";
-}
 
 static int mwMovie_video_initialized;
 
@@ -97,7 +94,6 @@ extern "C" void __mwMovie_initVideo(void)
 {
 }
 
-/* TODO: [near miss] 92.63158%; callback setup scheduling and player register home differ. */
 extern "C" void __mwMovie_startVideo(_mwMovPlayer* player)
 {
     if (MoviePlayerSetup.start != 0) {
@@ -106,7 +102,6 @@ extern "C" void __mwMovie_startVideo(_mwMovPlayer* player)
     mwMovie_video_initialized = 1;
 }
 
-/* TODO: [near miss] 87.50%; LR save schedules after setup base construction. */
 extern "C" void __mwMovie_shutdownVideo(void)
 {
     if (MoviePlayerSetup.stop != 0) {
@@ -123,7 +118,7 @@ extern "C" void __mwMovie_syncFrame(void)
 extern "C" void displayMovieFrame(_mwMovPlayer* player)
 {
     if (player == 0) {
-        OSPanic(stringBase0, 0x93, &stringBase0[0xE]);
+        OSPanic("mwMovieGC.cpp", 0x93, "Assertion failure: player != 0L");
     }
     if (MoviePlayerSetup.process != 0) {
         MoviePlayerSetup.process(player, player->frame.frame,

@@ -21,8 +21,6 @@
 #define RUMBLE_PROC_PID 0x2064
 #define CONTROLLER_FADEBOX_OID 0x2081
 #define CONTROLLER_ACCEPT_SWITCH 0xB
-#define CONTROLLER_FADEBOX_HIDDEN_FLAG 0x08
-#define CONTROLLER_FADEBOX_KEEP_FLAG 0x02
 #define CONTROLLER_SCREEN_CENTER ((screen_width - 0x280) / 2)
 
 struct RumblePdata {
@@ -88,18 +86,18 @@ int p1_rumble_on;
         string_center_xy((screen_oid), 3, get_string(0x1D),                          \
                          CONTROLLER_SCREEN_CENTER + 0x140, 0x154, 0);                \
         string_center_xy((screen_oid), 0, get_string(0x1E),                          \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0x122, 0);     \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0x122, 0);     \
         string_center_xy((screen_oid), 0, get_string(0x1F),                          \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0x10E, 0);     \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0x10E, 0);     \
         string_center_xy((screen_oid), 0, get_string(0x20),                          \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0xFA, 0);      \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0xFA, 0);      \
         sprintf((text_buffer), get_string(0x21), (port_number) + 1);                 \
         string_center_xy((screen_oid), 0, (text_buffer),                             \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0xE6, 0);      \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0xE6, 0);      \
         string_center_xy((screen_oid), 0, get_string(0x22),                          \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0xD2, 0);      \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0xD2, 0);      \
         string_center_xy((screen_oid), 0, get_string(0x23),                          \
-                         (player_x) + CONTROLLER_SCREEN_CENTER + 0xA0, 0xBE, 0);      \
+                         (player_x) + 0xA0 + CONTROLLER_SCREEN_CENTER, 0xBE, 0);      \
     } while (0)
 
 int find_bit(const SwitchMapEntry* switch_map, unsigned int bit) {
@@ -193,10 +191,9 @@ void ck_rumble_controller(int player, int strength, int ticks) {
     pdata->ticks = ticks;
 }
 
-/* TODO: [near miss] 83.81%; nonvolatile allocation and repeated screen-item latch/UI emission remain. */
+/* TODO: [near miss] 98.15%; locked flag/unpause test materialize as inline-return r0 (cmpwi) in retail; pdata/pad r27/r28 swap. */
 static float p_do_controller_removed(void) {
     struct ControllerRemovedPdata* pdata;
-    GcPadSlot* pad;
     PlyrInfo* player;
     ScreenObj* fadebox;
     int port;
@@ -214,13 +211,15 @@ static float p_do_controller_removed(void) {
 
     pdata = (struct ControllerRemovedPdata*)apdata;
     port = pdata->port;
-    if (port < 0 || port > 3) {
+    if (port < 0) {
+        return -1.0f;
+    }
+    if (port > 3) {
         return -1.0f;
     }
 
-    pad = &g_game_info.pads[port];
-    while ((g_game_info.flags & 0x80) != 0 || display_off != 0) {
-        if (pad->flag_bits.connected) {
+    while (g_game_info.flag_bits.high_res_path || display_off != 0) {
+        if (g_game_info.pads[port].flag_bits.connected) {
             unmute_all_game_sounds();
             return -1.0f;
         }
@@ -240,12 +239,12 @@ static float p_do_controller_removed(void) {
         controllers_locked = 1;
         break;
     }
-    if (!controllers_locked) {
+    if (controllers_locked == 0) {
         unmute_all_game_sounds();
         return -1.0f;
     }
 
-    player = pad->player;
+    player = g_game_info.pads[port].player;
     if (player == 0) {
         return -1.0f;
     }
@@ -265,10 +264,7 @@ static float p_do_controller_removed(void) {
         return -1.0f;
     }
 
-    fadebox = cnt_rem_fadebox_item.object;
-    if (fadebox != 0 && fadebox->instance != cnt_rem_fadebox_item.instance) {
-        fadebox = 0;
-    }
+    fadebox = MK_LIVE(cnt_rem_fadebox_item.object, cnt_rem_fadebox_item.instance);
     if (fadebox == 0) {
         fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
         if (fadebox != 0) {
@@ -276,8 +272,8 @@ static float p_do_controller_removed(void) {
             cnt_rem_fadebox_item.instance = fadebox->instance;
             fadebox->x = -0x32;
             fadebox->y = -0x32;
-            fadebox->flags |= CONTROLLER_FADEBOX_HIDDEN_FLAG;
-            fadebox->flags |= CONTROLLER_FADEBOX_KEEP_FLAG;
+            fadebox->flag_bits.scaled = 1;
+            fadebox->flag_bits.bit1 = 1;
             fadebox->scale_x = 50.0f;
             fadebox->scale_y = 40.0f;
             pfx_2d_obj_set_alpha(fadebox, 0xA5);
@@ -289,15 +285,8 @@ static float p_do_controller_removed(void) {
         pause_procs(1);
     }
 
-    for (;;) {
-        if (check_switch_edge(player_pad, CONTROLLER_ACCEPT_SWITCH)) {
-            break;
-        }
-
-        fadebox = cnt_rem_fadebox_item.object;
-        if (fadebox != 0 && fadebox->instance != cnt_rem_fadebox_item.instance) {
-            fadebox = 0;
-        }
+    while (!check_switch_edge(player_pad, CONTROLLER_ACCEPT_SWITCH)) {
+        fadebox = MK_LIVE(cnt_rem_fadebox_item.object, cnt_rem_fadebox_item.instance);
         if (fadebox == 0) {
             fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
             if (fadebox != 0) {
@@ -305,8 +294,8 @@ static float p_do_controller_removed(void) {
                 cnt_rem_fadebox_item.instance = fadebox->instance;
                 fadebox->x = -0x32;
                 fadebox->y = -0x32;
-                fadebox->flags |= CONTROLLER_FADEBOX_HIDDEN_FLAG;
-                fadebox->flags |= CONTROLLER_FADEBOX_KEEP_FLAG;
+                fadebox->flag_bits.scaled = 1;
+                fadebox->flag_bits.bit1 = 1;
                 fadebox->scale_x = 50.0f;
                 fadebox->scale_y = 40.0f;
                 pfx_2d_obj_set_alpha(fadebox, 0xA5);
@@ -326,12 +315,16 @@ static float p_do_controller_removed(void) {
             controllers_locked = 1;
             break;
         }
-        if (!controllers_locked) {
+        if (controllers_locked == 0) {
             break;
         }
 
         if (!g_game_info.feature_flags.bits.high_bit) {
-            pause_procs(display_off == 0);
+            if (display_off == 0) {
+                pause_procs(1);
+            } else {
+                pause_procs(0);
+            }
         }
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
@@ -467,26 +460,23 @@ void dispatch_right_sticks(int port) {
 }
 
 void dispatch_pad_sticks(int port) {
-    GcPadSlot* pad;
     float x;
     float y;
 
-    pad = &g_game_info.pads[port];
-    if (pad->flag_bits.connected == 0 ||
-        get_stick_pos(port, 0, &x, &y) == 0) {
-        return;
-    }
-    if (x < 0.0f) {
-        pad->buttons |= pad->switch_map[15].mask;
-    }
-    if (x > 0.0f) {
-        pad->buttons |= pad->switch_map[13].mask;
-    }
-    if (y < 0.0f) {
-        pad->buttons |= pad->switch_map[12].mask;
-    }
-    if (y > 0.0f) {
-        pad->buttons |= pad->switch_map[14].mask;
+    if (g_game_info.pads[port].flag_bits.connected &&
+        get_stick_pos(port, 0, &x, &y) != 0) {
+        if (x < 0.0f) {
+            g_game_info.pads[port].buttons |= g_game_info.pads[port].switch_map[15].mask;
+        }
+        if (x > 0.0f) {
+            g_game_info.pads[port].buttons |= g_game_info.pads[port].switch_map[13].mask;
+        }
+        if (y < 0.0f) {
+            g_game_info.pads[port].buttons |= g_game_info.pads[port].switch_map[12].mask;
+        }
+        if (y > 0.0f) {
+            g_game_info.pads[port].buttons |= g_game_info.pads[port].switch_map[14].mask;
+        }
     }
 }
 
@@ -503,13 +493,12 @@ int are_controllers_locked(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 83.74%; assignment gates and scheduling remain unresolved. */
 int assign_player(int port) {
     PlyrInfo* player;
     int old_port;
     int removed_proc_active;
 
-    if ((g_game_info.pads[port].flags & GC_PAD_FLAG_CONNECTED) == 0) {
+    if (g_game_info.pads[port].flag_bits.connected == 0) {
         return 0;
     }
     if (g_game_info.pads[port].player != 0 && are_controllers_locked() != 0) {
@@ -535,7 +524,53 @@ int assign_player(int port) {
         return 0;
     }
 
-    if (player == 0 || port < 0) {
+    if (player != 0 && port >= 0) {
+        old_port = player->pad_index;
+        if (old_port != -1 && player != 0) {
+            if (old_port > -1) {
+                g_game_info.pads[old_port].player = 0;
+                flush_controller_switch_buffers();
+            }
+            if (player->pad_index == 2) {
+                g_game_info.pads[player->pad_index].flag_bits.connected = 0;
+            }
+            player->pad_index = -1;
+            if (g_game_info.field_1F8 > 0) {
+                g_game_info.field_1F8--;
+            }
+        }
+
+        if (g_game_info.field_1F8 < 2) {
+            g_game_info.field_1F8++;
+        }
+
+        old_port = player->pad_index;
+        if (old_port > 0 && old_port != port && player != 0) {
+            if (old_port > -1) {
+                g_game_info.pads[old_port].player = 0;
+                flush_controller_switch_buffers();
+            }
+            if (player->pad_index == 2) {
+                g_game_info.pads[player->pad_index].flag_bits.connected = 0;
+            }
+            player->pad_index = -1;
+            if (g_game_info.field_1F8 > 0) {
+                g_game_info.field_1F8--;
+            }
+        }
+
+        g_game_info.pads[port].player = player;
+        g_game_info.pads[port].player->pad_index = port;
+        if (g_game_info.pads[port].player != 0 &&
+            g_game_info.pads[port].player->slot.fighter != 0) {
+            g_game_info.pads[port].player->slot.pdata->controller_port = port;
+        }
+        if (player == &g_game_info.plyr0) {
+            g_game_info.pads[port].player->field_04 = 0;
+        } else {
+            g_game_info.pads[port].player->field_04 = 1;
+        }
+    } else {
         g_game_info.field_1F8--;
         if (player != 0) {
             player->pad_index = -1;
@@ -543,52 +578,6 @@ int assign_player(int port) {
         }
         g_game_info.pads[port].player = 0;
         return 0;
-    }
-
-    old_port = player->pad_index;
-    if (old_port != -1 && player != 0) {
-        if (old_port >= 0) {
-            g_game_info.pads[old_port].player = 0;
-            flush_controller_switch_buffers();
-        }
-        if (player->pad_index == 2) {
-            g_game_info.pads[player->pad_index].flag_bits.connected = 0;
-        }
-        player->pad_index = -1;
-        if (g_game_info.field_1F8 > 0) {
-            g_game_info.field_1F8--;
-        }
-    }
-
-    if (g_game_info.field_1F8 < 2) {
-        g_game_info.field_1F8++;
-    }
-
-    old_port = player->pad_index;
-    if (old_port > 0 && old_port != port && player != 0) {
-        if (old_port >= 0) {
-            g_game_info.pads[old_port].player = 0;
-            flush_controller_switch_buffers();
-        }
-        if (player->pad_index == 2) {
-            g_game_info.pads[player->pad_index].flag_bits.connected = 0;
-        }
-        player->pad_index = -1;
-        if (g_game_info.field_1F8 > 0) {
-            g_game_info.field_1F8--;
-        }
-    }
-
-    g_game_info.pads[port].player = player;
-    g_game_info.pads[port].player->pad_index = port;
-    if (g_game_info.pads[port].player != 0 &&
-        g_game_info.pads[port].player->slot.fighter != 0) {
-        g_game_info.pads[port].player->slot.pdata->controller_port = port;
-    }
-    if (player == &g_game_info.plyr0) {
-        g_game_info.pads[port].player->field_04 = 0;
-    } else {
-        g_game_info.pads[port].player->field_04 = 1;
     }
     return 1;
 }

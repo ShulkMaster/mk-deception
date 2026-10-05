@@ -115,7 +115,7 @@ DSError TRKAppendBuffer(MessageBuffer* message, const void* data, u32 length) {
 
 DSError TRKReadBuffer(MessageBuffer* message, void* data, u32 length) {
     DSError error = DS_NoError;
-    u32 bytes_left;
+    unsigned int bytes_left;
 
     if (length == 0) {
         return DS_NoError;
@@ -226,7 +226,6 @@ static inline DSError TRKReadBuffer1_ui32(MessageBuffer* message, u32* value) {
     return error;
 }
 
-/* TODO: [near miss] 98.88%; retail compares the length register; scoped propagation off regresses. */
 DSError TRKReadBuffer1_ui64(MessageBuffer* message, u64* value) {
     DSError error;
     u8* big_endian_data;
@@ -253,7 +252,6 @@ DSError TRKReadBuffer1_ui64(MessageBuffer* message, u64* value) {
     return error;
 }
 
-/* TODO: [near miss] 98.29%; inlined read compares constant length 1 immediately, while retail compares the length register. */
 DSError TRKReadBuffer_ui8(MessageBuffer* message, u8* data, int count) {
     DSError error;
     int index;
@@ -265,7 +263,6 @@ DSError TRKReadBuffer_ui8(MessageBuffer* message, u8* data, int count) {
     return error;
 }
 
-/* TODO: [near miss] 98.916664%; inlined TRKReadBuffer bounds check compares the length register in retail but an immediate here (same residue as the ui8/ui64 readers). */
 DSError TRKReadBuffer_ui32(MessageBuffer* message, u32* data, int count) {
     DSError error;
     int index;

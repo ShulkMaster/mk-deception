@@ -27,8 +27,18 @@ static void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
 mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
-/* TODO: [near miss] 98.51%; equal suffix literals differ by retail
- * pool prefix +0x6f; recover stripped-function pool ownership. */
+extern "C" int mslTrackIsPlaying(int track)
+{
+    mslDebugPrintf("Error: mslTrackIsPlaying index %d out of range.\n", track);
+    return 0;
+}
+
+extern "C" int mslBankFindSoundID(mslLoadedBank* bank, const char* name)
+{
+    mslDebugPrintf("mslBankFindSoundID not active, MSL_SKIP_SOUND_NAMES defined.\n");
+    return -1;
+}
+
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
     mslAssetWave* wave;
@@ -512,8 +522,6 @@ static void mslBankReadAssetHeaderComplete(
     }
 }
 
-/* TODO: [blocked] 99.95122%; four decoded-equal diagnostics are +0x6F in retail;
- * recover authentic stripped-function strings without regressing the TU. */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -553,8 +561,6 @@ static void mslBankReadWavesComplete(
     }
 }
 
-/* TODO: [near miss] 99.9360%; all eight diagnostic strings agree;
- * shared string-pool allocation leaves different addends. */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -611,8 +617,6 @@ static void mslBankReadSoundsComplete(
     }
 }
 
-/* TODO: [blocked] 99.95834%; two decoded-equal diagnostics are +0x6F in retail;
- * recover authentic stripped-function strings without regressing the TU. */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -637,7 +641,6 @@ void mslBankOpenWavesComplete(
     }
 }
 
-/* TODO: [near miss] 99.94%; six decoded literals agree; TU string-pool layout differs. */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     char filename[0x100];
@@ -699,8 +702,6 @@ void mslBankOpenSoundsComplete(
     }
 }
 
-/* TODO: [near miss] 99.97%; body and selected string bytes agree; pooled addends
- * differ, with discarded-function string ordering unresolved. */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
     _mslAsyncResponse* response) {
@@ -731,8 +732,6 @@ void mslBankLoadAsyncInternal(
     }
 }
 
-/* TODO: [blocked] 99.99083%; decoded-equal null-responder diagnostic is +0x6F
- * in retail; recover authentic stripped-function pool provenance. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
@@ -950,6 +949,48 @@ static inline void mslBankFinishPlayInline(
     }
 }
 
+extern "C" unsigned long mslBankPlayQ(mslLoadedBank* bank, int sound_id, int track)
+{
+    if (bank == 0) {
+        mslDebugPrintf("mslBankPlayQ: NULL bank pointer.\n");
+        return 0;
+    }
+    if (track < 0) {
+        mslDebugPrintf("MSL Queue Play error...track out of range.\n");
+        return 0;
+    }
+    if (mslBankFindID(bank, sound_id) == 0) {
+        mslDebugPrintf("MSL Queue Play error.\n");
+    }
+    return 0;
+}
+
+extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
+{
+    mslBankSoundEntry* bank_sound;
+    _ListNode* node;
+
+    if (bank == 0) {
+        mslDebugPrintf("mslBankPlayPrep: NULL bank pointer.\n");
+        return 0;
+    }
+
+    bank_sound = mslBankFindID(bank, sound_id);
+    if (bank_sound != 0) {
+        node = mslBankSoundUseInline(bank_sound, gMsi);
+        if (node != 0) {
+            mslDebugPrintf("Error: async sound could not prep.  ID = %d\n",
+                           ListNodeID(&g_listPoolSound, node));
+            mslBankSoundUnUseInline(bank_sound);
+            mslDebugPrintf("Unable to load async sound.\n");
+            return 0;
+        }
+    }
+
+    mslDebugPrintf("mslBankPlayPrep error.\n");
+    return 0;
+}
+
 /* TODO: [near miss] 98.11%; pooled string layout and an early gMsi load differ; resolve across the TU. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
@@ -1056,7 +1097,80 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
     return 0;
 }
 
-/* TODO: [near miss] 99.93%; body exact; five decoded-equal strings have earlier TU pool placements. */
+extern "C" unsigned long mslBankPlay(mslLoadedBank* bank, int sound_id)
+{
+    if (bank == 0) {
+        mslDebugPrintf("mslBankPlay: NULL bank pointer.\n");
+        return 0;
+    }
+    mslDebugPrintf("MSL Bank Play error.\n");
+    return 0;
+}
+
+extern "C" int mslBankGetNumSounds(mslLoadedBank* bank)
+{
+    if (bank == 0) {
+        mslDebugPrintf("mslBankGetNumSounds NULL bank\n");
+        return 0;
+    }
+    return bank->sound_count;
+}
+
+extern "C" int mslBankGetIDs(mslLoadedBank* bank, int max_ids)
+{
+    if (bank == 0) {
+        mslDebugPrintf("mslBankGetIDs error:  NULL bank pointer.\n");
+        return 0;
+    }
+    if (bank->sound_id_count > max_ids) {
+        mslDebugPrintf("mslBankGetIDs found more than %d, punting rest\n", max_ids);
+    }
+    return 0;
+}
+
+extern "C" int mslBankSoundHasStream(mslBankSoundEntry* bank_sound)
+{
+    if (bank_sound == 0) {
+        mslDebugPrintf("mslBankSoundHasStream NULL sound\n");
+        return 0;
+    }
+    if (bank_sound->definition == 0) {
+        mslDebugPrintf("mslBankSoundHasStream never loaded??\n");
+    }
+    return 0;
+}
+
+extern "C" int mslBankSoundGetID(mslBankSoundEntry* bank_sound, const char* name)
+{
+    if (bank_sound == 0) {
+        mslDebugPrintf("mslBankSoundGetID NULL sound\n");
+        return -1;
+    }
+    if (bank_sound->definition == 0) {
+        mslDebugPrintf("mslBankSoundGetID never loaded??\n");
+        return -1;
+    }
+    mslDebugPrintf("mslBankSoundGetID \"%s\" Not Found\n", name);
+    return -1;
+}
+
+extern "C" void mslBankSoundUnPrep(mslBankSoundEntry* bank_sound)
+{
+    if (bank_sound == 0) {
+        mslDebugPrintf("mslBankSoundUnPrep given NULL msb\n");
+        return;
+    }
+    if (bank_sound->sound == 0) {
+        mslDebugPrintf("mslBankSoundUnPrep %x already unprepped!\n", bank_sound);
+    }
+}
+
+extern "C" int mslBankSoundPrep(mslBankSoundEntry* bank_sound, const char* name)
+{
+    mslDebugPrintf("mslBankSoundPrep nonLOD sound wasn't loaded: \"%s\"\n", name);
+    return 0;
+}
+
 int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
     mslRuntimeSound* sound;
@@ -1088,7 +1202,6 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     return unloaded;
 }
 
-/* TODO: [near miss] 99.94%; body exact; six decoded-equal string-pool addends remain. */
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
@@ -1128,8 +1241,6 @@ _ListNode* mslBankSoundUse(
     return node;
 }
 
-/* TODO: [near miss] 99.99048%; decoded diagnostic string agrees;
- * shared string-pool allocation leaves a different addend. */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
     int i;
@@ -1184,8 +1295,8 @@ extern "C" int mslBankUse(
     return 0;
 }
 
-/* TODO: [near miss] 98.37%; six decoded literals agree at different pool
- * offsets; ListNodeData zero/node argument setup is reordered. */
+/* TODO: [near miss] 98.41%; pool now exact; only ListNodeData(0, node) argument setup
+ * order differs (retail moves node before the zero); typed null and decl order are neutral. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =
@@ -1225,8 +1336,6 @@ void callbackPlay(
     }
 }
 
-/* TODO: [near miss] 99.98182%; body instructions and decoded literal agree;
- * string-pool addend 0x9E8 versus 0x911 remains. */
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
