@@ -1,7 +1,7 @@
 #include "dolphin/pad.h"
 #include "math.h"
 
-typedef struct PADClampRegion {
+struct PADClampRegion {
     unsigned char minTrigger;
     unsigned char maxTrigger;
     signed char minStick;
@@ -12,9 +12,9 @@ typedef struct PADClampRegion {
     signed char xySubstick;
     signed char radStick;
     signed char radSubstick;
-} PADClampRegion;
+};
 
-static const PADClampRegion ClampRegion = {
+static const struct PADClampRegion ClampRegion = {
     30, 180, 15, 72, 40, 15, 59, 31, 56, 44,
 };
 
