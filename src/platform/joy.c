@@ -1,9 +1,11 @@
 #include "platform/joy.h"
 #include "platform/io.h"
+#include "platform/main.h"
 
 #include "game/ai.h"
 #include "game/ejb.h"
 #include "game/game_info.h"
+#include "game/plyr_globals.h"
 #include "game/moves.h"
 #include "game/switch.h"
 #include "runtime/mk_obj.h"
@@ -12,39 +14,25 @@
 #include "runtime/plyr_anim_pdata.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
+#include "runtime/sound.h"
+#include "game/trial.h"
 
-typedef struct JoyProcVtable {
-    void* slots_00[6];
-    void (*sleep)(void);
-    void* slots_1C[2];
-    float (*jump_sleep)(MkProcEntryFn entry, float delay);
-} JoyProcVtable;
-
-/* ABI boundary: MkProc exposes its generic runtime vtable type. */
-#define JOY_PROC_VTABLE(proc) ((JoyProcVtable*)(proc)->vtbl)
-
-extern void trial_clear_provision(void);
 extern PlyrPdata* his_pdata;
-extern void trial_increment_state_value(int player, int state, int value);
-extern void snd_req(int sound);
 extern MkProc* plyr_anim_proc;
 extern int round_winner;
 extern int f_fatality_available;
 static int my_next_duck_state;
-extern unsigned int game_tick_ctr;
-extern int exec_tick_ctr;
 extern int g_drone_blocking_in_reaction;
-extern MkObj* plyr_obj;
 
-typedef struct JoySharedAnimations {
+struct JoySharedAnimations {
     unsigned char pad00[0x2E4];
     AniData* duck_block_animation;
-} JoySharedAnimations;
+};
 
-extern JoySharedAnimations shared_ani;
+extern struct JoySharedAnimations shared_ani;
 
 static inline void jump_to(MkProcEntryFn entry) {
-    JOY_PROC_VTABLE(aproc)->jump_sleep(entry, 0.0f);
+    aproc->vtbl->jump_sleep(entry, 0.0f);
 }
 
 void dodge_3d_scan(void) {
@@ -62,8 +50,6 @@ void dodge_3d_scan(void) {
     }
 }
 
-/* TODO: [near miss] 99.54044%; instructions and literal values agree;
- * generated literal relocation identity remains; stop at pool layout. */
 float joy_duck_loop(void) {
     back_to_normal();
     if (my_next_duck_state != 0) {
@@ -78,16 +64,16 @@ float joy_duck_loop(void) {
             blend_to_ani(plyr_pdata->fighter_definition->duck_exit_animation,
                          0x20, 0.1f);
             _mkproc_sleep_ticks = 5.0f;
-            JOY_PROC_VTABLE(aproc)->sleep();
+            aproc->vtbl->sleep();
             set_my_state(0);
         }
         _mkproc_sleep_ticks = 1.0f;
-        JOY_PROC_VTABLE(aproc)->sleep();
+        aproc->vtbl->sleep();
         jump_to(j_exit);
         return 0.0f;
     }
 
-    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+    xfer_proc(plyr_anim_proc, p_animate);
     plyr_pdata->duck_loop_counter = 10;
     if (plyr_pdata->state != 0x101) {
         plyr_pdata->duck_loop_counter = 0;
@@ -101,8 +87,6 @@ float joy_duck_loop(void) {
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 0x11, 0);
 
-    /* GQNE5D 800F9FD4..800F9FF8: either held Down or a continuing
-     * drone request branches back into the crouch body. */
     while (check_switch(plyr_pdata->controller_port, 0xE) != 0 ||
            (plyr_pdata->drone_request != 0 && plyr_pdata->field_728 != 1)) {
         if (check_for_dead_movement() != 0) {
@@ -118,7 +102,7 @@ float joy_duck_loop(void) {
                     blend_to_ani(shared_ani.duck_block_animation, 0, 0.1f);
                 }
                 plyr_anim_pdata->step = 1.0f;
-                jump_to((MkProcEntryFn)j_duck_block_loop);
+                jump_to(j_duck_block_loop);
                 return 0.0f;
             }
         } else if (plyr_pdata->field_728 == 2) {
@@ -133,14 +117,14 @@ float joy_duck_loop(void) {
                 blend_to_ani(shared_ani.duck_block_animation, 0, 0.1f);
             }
             plyr_anim_pdata->step = 1.0f;
-            jump_to((MkProcEntryFn)j_duck_block_loop);
+            jump_to(j_duck_block_loop);
             return 0.0f;
         } else if (plyr_pdata->field_728 == 3) {
             plyr_pdata->state = 0xA00;
             blend_to_ani(plyr_pdata->fighter_definition->duck_exit_animation,
                          0x20, 0.1f);
             _mkproc_sleep_ticks = 5.0f;
-            JOY_PROC_VTABLE(aproc)->sleep();
+            aproc->vtbl->sleep();
             set_my_state(0);
             jump_to(x_block);
             return 0.0f;
@@ -154,13 +138,13 @@ float joy_duck_loop(void) {
             set_my_state(0x101);
         }
         _mkproc_sleep_ticks = 1.0f;
-        JOY_PROC_VTABLE(aproc)->sleep();
+        aproc->vtbl->sleep();
     }
 
     blend_to_ani(plyr_pdata->fighter_definition->duck_exit_animation, 0x20,
                  0.1f);
     _mkproc_sleep_ticks = 5.0f;
-    JOY_PROC_VTABLE(aproc)->sleep();
+    aproc->vtbl->sleep();
     set_my_state(0);
     trial_clear_provision();
     jump_to(j_exit);
@@ -171,16 +155,15 @@ float joy_duck_remote_end(void) {
     blend_to_ani(plyr_pdata->fighter_definition->duck_exit_animation, 0x20,
                  0.1f);
     _mkproc_sleep_ticks = 5.0f;
-    JOY_PROC_VTABLE(aproc)->sleep();
+    aproc->vtbl->sleep();
     set_my_state(0);
     trial_clear_provision();
     jump_to(j_exit);
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.77%; code matches; only the .sdata2 literal symbols differ (retail pools anonymous @N constants). */
 float joy_duck_remote_start(void) {
-    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+    xfer_proc(plyr_anim_proc, p_animate);
     plyr_pdata->duck_loop_counter = 10;
     if (plyr_pdata->state != 0x101) {
         plyr_pdata->duck_loop_counter = 0;
@@ -205,13 +188,12 @@ float joy_duck_remote_start(void) {
             set_my_state(0x101);
         }
         _mkproc_sleep_ticks = 1.0f;
-        JOY_PROC_VTABLE(aproc)->sleep();
+        aproc->vtbl->sleep();
     }
     jump_to(j_exit);
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.54781%; instructions and literal values agree; generated literal identities remain */
 float p_joy_loop(void) {
     int angle_outside_limit;
     int allow_stance_transition;
@@ -260,11 +242,6 @@ float p_joy_loop(void) {
         return 0.0f;
     }
 
-    /* Retail compatibility: both movement guards take the absolute value of
-     * the boolean (angle > 2.7f), not of the angle. At 0x800FA458/0x800FA578,
-     * fcmpo and GT extraction precede integer-to-float conversion and the
-     * comparison with zero; each selected branch calls the angle helper again.
-     * Preserve this asymmetric guard, including the redundant evaluation. */
     if (check_switch(plyr_pdata->controller_port, 0xD) != 0) {
         angle_outside_limit = get_my_angle_y_error() > 2.7f;
         if ((float)angle_outside_limit >= 0.0f) {
@@ -346,8 +323,6 @@ float p_joy_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.67647%; instructions and literal values agree;
- * generated literal relocation identity remains; stop at pool layout. */
 float p_joy_entry(void) {
     float playback_rate = plyr_anim_pdata->step;
     int saved_state = plyr_pdata->state;
@@ -357,7 +332,7 @@ float p_joy_entry(void) {
 
     init_ground_move();
     back_to_normal();
-    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+    xfer_proc(plyr_anim_proc, p_animate);
     plyr_anim_pdata->step = playback_rate;
     plyr_anim_pdata->field_80 = field_80;
     plyr_anim_pdata->transition_step = field_AC;
@@ -369,7 +344,7 @@ float p_joy_entry(void) {
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
-        JOY_PROC_VTABLE(aproc)->sleep();
+        aproc->vtbl->sleep();
     }
     head_tracking_on();
     if (check_for_dead_movement() == 1) {
@@ -394,7 +369,6 @@ float p_joy_entry(void) {
     }
     if (check_switch(plyr_pdata->controller_port, 0xC) != 0 ||
         check_switch(plyr_pdata->controller_port, 0xE) != 0) {
-        /* The PID-specific state write precedes the unconditional publication. */
         if (aproc->pid == 0x1001) {
             plyr_pdata->special_move_disabled = 1;
         }
