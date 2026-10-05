@@ -349,7 +349,6 @@ void uv_to_opponent(Vec* direction);
 void wait_to_land(void);
 void setup_to_match_land_frame(
     float vertical_velocity, float gravity, float frames);
-void snd_req_vol(int sound_id, float volume);
 void head_tracking_off(void);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
 void init_3d_move_no_aniproc(void);
