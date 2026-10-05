@@ -20,7 +20,7 @@ static inline void InitDefaultHeap(void)
     arena_hi = (void*)OSRoundDown32B(arena_hi);
 
     OSSetCurrentHeap(OSCreateHeap(arena_lo, arena_hi));
-    OSSetArenaLo(arena_lo = arena_hi);
+    OSSetArenaLo(arena_hi);
 }
 
 __declspec(weak) void __sys_free(void* pointer)
