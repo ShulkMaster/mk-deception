@@ -1,19 +1,20 @@
 #include "dolphin/trk.h"
+#include "dolphin/dolphin_trk_glue.h"
 
-typedef struct TRKFramingState {
+struct TRKFramingState {
     int message_buffer_id;
     u32 receive_count;
     int receive_state;
     int is_escape;
     u32 checksum;
-} TRKFramingState;
+};
 
-typedef union PacketHeader {
+union PacketHeader {
     u8 bytes[0x40];
     u32 size;
-} PacketHeader;
+};
 
-static TRKFramingState gTRKFramingState;
+static struct TRKFramingState gTRKFramingState;
 volatile u8* gTRKInputPendingPtr;
 
 static const char packet_header[] = "TRK_Packet_Header \t    %ld bytes\n";
@@ -28,13 +29,10 @@ static const char invalid_header[] = "TestForPacket : Invalid size of packet hdr
 static const char invalid_packet[] = "TestForPacket : Invalid size of packet\n";
 static const char packet_result[] = "TestForPacket returning %ld\n";
 
-extern int TRKPollUART(void);
-extern DSError TRKReadUARTN(void* data, u32 length);
-
 MessageBufferID TRKTestForPacket(void)
 {
     u8 payload[0x880];
-    PacketHeader header;
+    union PacketHeader header;
     int buffer_id;
     MessageBuffer* buffer;
     MessageBufferID result;
