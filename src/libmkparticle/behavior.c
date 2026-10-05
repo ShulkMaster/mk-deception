@@ -3,10 +3,10 @@
 #include "libmkparticle/particle.h"
 #include "libmkparticle/table.h"
 #include "libmkparticle/vm.h"
+#include "libmkparticle/update.h"
 #include "runtime/cstring.h"
 
 void* memmove(void* destination, const void* source, unsigned long size);
-void set_vm_field(PfxVmField* field, unsigned int description);
 
 int pfx_num_behaviors(PfxVm* pfx)
 {
@@ -21,6 +21,7 @@ PfxBehavior* pfx_behavior(PfxVm* pfx, int index)
     return pfx->behavior_list[index];
 }
 
+/* TODO: [near miss] 99.09449%; two owner-forwarding rows and age-mask peephole fusion remain; TU mode parked. */
 void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
 {
     int index;
@@ -28,9 +29,9 @@ void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
     behavior->effect = pfx;
     if (pfx->field_0x22C != 0) {
         behavior->auxiliary_stream_100 = pfx->name_obj;
-        behavior->auxiliary_stream_100_stride = 0x28;
+        behavior->auxiliary_stream_100_stride = sizeof(PfxParametricParticle);
         behavior->auxiliary_stream_300 = pfx->name_obj;
-        behavior->auxiliary_stream_300_stride = 0x28;
+        behavior->auxiliary_stream_300_stride = sizeof(PfxParametricParticle);
     } else {
         behavior->auxiliary_stream_100 = 0;
         behavior->auxiliary_stream_100_stride = 0;
@@ -46,17 +47,18 @@ void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
             get_field_offset((PfxTableRegistry*)pfx,
                              instruction->field.description);
         switch (instruction->opcode) {
-        case 10:
-            if ((int)instruction->argument_0x14 < 0 ||
-                instruction->argument_0x14 >= 2) {
+        case 10: {
+            int table_index = instruction->argument_0x14;
+
+            if (table_index < 0 || table_index >= 2) {
                 return;
             }
-            instruction->argument_0x14 =
-                (unsigned int)pfx->tables[instruction->argument_0x14];
-            if (instruction->argument_0x14 == 0) {
+            instruction->arguments.table.table = pfx->tables[table_index];
+            if (instruction->arguments.table.table == 0) {
                 return;
             }
             break;
+        }
         case 2:
         case 11:
             instruction->argument_offset =
@@ -108,29 +110,33 @@ void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
     behavior->effect = pfx;
 }
 
+/* TODO: [breakthrough needed] 99.62%; three equivalent incoming-owner forwarding rows; TU peephole control is mixed. */
 void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
 {
     unsigned char* stream;
+    unsigned char* previous_stream;
+    int stride;
 
-    stream = source->stream_100 +
-             source->current_stream_100_stride * source->particle_count;
+    stride = source->current_streams[0].stride;
+    previous_stream = destination->current_streams[0].data;
+    stream = source->current_streams[0].data + stride * source->particle_count;
     if (destination->active_particle_count != 0) {
-        memmove(stream, destination->stream_100,
-                source->current_stream_100_stride *
-                    destination->active_particle_count);
+        memmove(stream, previous_stream,
+                stride * destination->active_particle_count);
     }
-    destination->stream_100 = stream;
+    destination->current_streams[0].data = stream;
 
-    stream = source->stream_300 +
-             source->current_stream_300_stride * source->particle_count;
+    stride = source->current_streams[1].stride;
+    previous_stream = destination->current_streams[1].data;
+    stream = source->current_streams[1].data + stride * source->particle_count;
     if (destination->active_particle_count != 0) {
-        memmove(stream, destination->stream_300,
-                source->current_stream_300_stride *
-                    destination->active_particle_count);
+        memmove(stream, previous_stream,
+                stride * destination->active_particle_count);
     }
-    destination->stream_300 = stream;
+    destination->current_streams[1].data = stream;
 }
 
+/* TODO: [breakthrough needed] 99.82%; TU peephole mode fixes text; shared jump-table regression needs recovery. */
 PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
                                   unsigned int field)
 {
@@ -147,7 +153,8 @@ PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
     return instruction;
 }
 
-/* TODO: [near miss] 98.99%; current-frame owner and guard corrected; remaining mr-dot versus explicit unsigned null compare; stop */
+/* TODO: [near miss] 98.99%; frame loops/layout agree; peephole merges null compare;
+ * whole-TU off closes body but regresses shared jump-table data. */
 void pfx_behaviors_frame_begin(PfxVm* pfx)
 {
     int index;
@@ -249,6 +256,8 @@ PfxInitInstruction* add_init_insn(PfxBehavior* behavior, int opcode,
     return instruction;
 }
 
+/* TODO: [breakthrough] 96.00885%; signed storage tags recovered;
+ * direct indexed members need pending whole-TU peephole mode integration. */
 void pfx_behavior_scan_fields(PfxBehavior* behavior,
                               unsigned int* particle_fields,
                               unsigned int* render_fields)
@@ -261,7 +270,7 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
 
     for (index = 0; index < behavior->update_instruction_count; index++) {
         PfxUpdateInstruction* instruction;
-        unsigned int storage;
+        int storage;
 
         instruction = &behavior->update_instructions[index];
         add_field(render_fields, instruction->field.description);
@@ -317,7 +326,7 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
 
     for (index = 0; index < behavior->kill_instruction_count; index++) {
         unsigned int description;
-        unsigned int storage;
+        int storage;
 
         description = behavior->kill_instructions[index].field.description;
         storage = description & 0xF00;
@@ -327,11 +336,15 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
     }
 }
 
+/* TODO: [breakthrough needed] 96.72%; body exact except mr./null compare; whole-TU peephole-off closes but regresses jump-table data. */
 void pfxvm_update_make_last_insn_first(PfxBehavior* behavior)
 {
     PfxUpdateInstruction instruction;
 
-    if (behavior == 0 || behavior->update_instruction_count < 1) {
+    if (behavior == 0) {
+        return;
+    }
+    if (behavior->update_instruction_count < 1) {
         return;
     }
 
