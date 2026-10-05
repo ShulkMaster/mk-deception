@@ -108,7 +108,7 @@ void pfxmetrics_init(PfxMetrics* metrics, const char* filename) {
         header = string_base + 5;
         version = 2;
         metrics_interface.write(handle, header, strlen(header));
-        metrics_interface.write(handle, &version, 4);
+        metrics_interface.write(handle, &version, sizeof(version));
         metrics_interface.close(handle);
     }
     metrics->frame_count = 0;
