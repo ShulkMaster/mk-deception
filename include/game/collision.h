@@ -105,6 +105,15 @@ typedef char PlayerCollisionDataSizeCheck[sizeof(PlayerCollisionData) == 0x9410 
 
 typedef void (*GlobalCollisionCallback)(const unsigned int* obstacle_id);
 
+struct ConstrainInfo;
+
+void generate_obstacles(int handle, char* name, MkPtr** obstacle_list);
+CollisionObj* get_collision_obj(void);
+float repel_check_plyrs(void);
+void repel_against_obstacle_list(
+    PlyrInfo* player, const Vec* previous_position, const Vec* movement,
+    Vec* position, struct ConstrainInfo* info);
+
 void build_col_shape_vertical_cylinder(
     CollisionShape* shape, const Vec* center, float radius, float height);
 void build_col_shape_vertical_box(
