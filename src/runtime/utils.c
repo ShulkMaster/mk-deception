@@ -1,12 +1,35 @@
 #include "game/ground_fx.h"
 #include "runtime/utils.h"
+#include "game/fx.h"
+#include "game/bgnd_jmt.h"
+#include "game/ai.h"
+#include "game/bgnd.h"
+#include "mw/mwScreenEngineGlue.h"
+#include "msl/mslcore.h"
+#include "runtime/mk_particle.h"
+#include "platform/display_metrics.h"
+#include "game/mcardmsg.h"
+#include "runtime/sound_data.h"
+#include "runtime/cmath.h"
+#include "runtime/cstring.h"
+#include "runtime/cstdio.h"
+#include "runtime/mtRand2.h"
+#include "platform/gcutils.h"
+#include "movie/MovieManager.h"
+#include "mw/mwFile.h"
+#include "game/konquest.h"
+#include "game/mk_chess.h"
+#include "game/minigames.h"
 
 #include "game/game_info.h"
+#include "game/game.h"
 #include "game/ladder.h"
 #include "game/menu.h"
 #include "game/plyr.h"
+#include "game/plyr_globals.h"
 #include "game/specular.h"
 #include "game/controller.h"
+#include "game/switch.h"
 #include "game/memcard.h"
 #include "game/nbc.h"
 #include "game/plyrprofile.h"
@@ -15,6 +38,7 @@
 #include "movie/MkMovies.h"
 #include "mw/mwMemHeap.h"
 #include "math/gxMath.h"
+#include "math/mk_math.h"
 #include "platform/main.h"
 #include "platform/gcmcard.h"
 #include "platform/display.h"
@@ -37,44 +61,28 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
 #include "runtime/sound.h"
+#include "runtime/sound_bank.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
 
-
-void* memset(void* dst, int c, unsigned long n);
-unsigned int genlrand(void);
-int get_platform_language_setting(void);
-int ck_eat_online_switches(void);
-long long debug_get_usec_timer(void);
 void limb_sever_reset_limbs(PlyrInfo* player);
 
-extern int screen_width;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern int p1_profile_device;
 extern int p2_profile_device;
 extern int p1_profile_slot;
 extern int p2_profile_slot;
-extern int f_writing_to_memcard;
-extern PlayerProfile p1_profile;
-extern PlayerProfile p2_profile;
 extern int p1_rumble_on;
 extern int p2_rumble_on;
-extern void fire_screen_studio_event(int event, int arg);
-extern int use_feedback_effect;
-extern MkPtr* pfx_render_list;
-extern MkPtr* pfx_clone_render_list;
 extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
-extern float game_volume;
 extern _mslSystem* msi;
 
 extern MkHdr* apdata_save;
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
 extern PlyrPdata* his_pdata;
 extern MkProc* plyr_anim_proc;
 extern int f_fatality_finished;
@@ -85,51 +93,28 @@ extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern unsigned char monk_ground_colls[];
 
-typedef struct GlobalObjectLatch {
-    void* object;
-    unsigned int instance;
-} GlobalObjectLatch;
-
-extern GlobalObjectLatch p1_freeze_light_item;
-extern GlobalObjectLatch p2_freeze_light_item;
-extern GlobalObjectLatch p1_freeze_proc_item;
-extern GlobalObjectLatch p2_freeze_proc_item;
-extern GlobalObjectLatch rope_proc_item;
-extern GlobalObjectLatch sobj_ctrl_proc_item;
-
 void init_bgnd_info_struct(void);
-void init_game_info_struct(void);
 void setDroneOverrideSwitch(int activated, void* info);
 void reset_obstacle_internal_id(void);
-void turn_switch_log_off(void);
-void delete_player(int player_index);
-void destroy_background_extras(void);
 void terminate_bgnd_collisions(void);
 void screen_engine_cleanup(void);
 void delete_light_lists(void);
-void cleanup_minigame_system(void);
-void cleanup_konquest(void);
-void mk_chess_cleanup(void);
-void cleanup_drone_ai(void);
 void cleanup_fight(void);
-void unload_all_effect_banks(void);
 void term_collision_system(void);
 void bleed_init(void);
 void initialize_background_danger_zones(void);
-void mslStopAll(_mslSystem* system);
 void mslUnDuckAll(_mslSystem* system);
 void init_collision_system(void);
-void init_screen_engine(void);
 void pfxscript_initialize(void);
 
-typedef struct FixedHeapConfigStorage {
+struct FixedHeapConfigStorage {
     FixedHeapConfig heaps;
     unsigned long field_0x34;
-} FixedHeapConfigStorage;
+};
 typedef char FixedHeapConfigStorageSizeCheck[
-    sizeof(FixedHeapConfigStorage) == 0x38 ? 1 : -1];
+    sizeof(struct FixedHeapConfigStorage) == 0x38 ? 1 : -1];
 
-static FixedHeapConfigStorage current_heap_block_counts;
+static struct FixedHeapConfigStorage current_heap_block_counts;
 static int game_state_stack[8];
 static int game_state_stack_depth = -1;
 static MkPtr* uv_scroll_control_list;
@@ -145,17 +130,17 @@ char pathname_buffer[0x78];
 UsecTimerData usec_timer_data[9];
 int depth_of_field_active;
 
-typedef struct LoadProfilePdata {
+struct LoadProfilePdata {
     MkHdr hdr;
     int player;
     int port;
     unsigned char* code;
-} LoadProfilePdata;
+};
 
-typedef struct ProfileCommonRumble {
+struct ProfileCommonRumble {
     char pad00[0xFC];
     int rumble;
-} ProfileCommonRumble;
+};
 
 static const float kFadeScaleX = 50.0f;
 static const float kFadeScaleY = 40.0f;
@@ -177,11 +162,6 @@ static const float kMinGameVol = 0.0f;
 
 static const Vec kDebugDamageBoneOffset = {0.0f, 0.0f, 0.0f};
 
-/*
- * utils.o @stringBase0 (0x802FF2A4). Offsets used by play_movie / fade_screen.
- * Movie basenames also appear here in retail; movie_info[] below uses its own
- * string literals so paths resolve without the ASM reloc pool.
- */
 static const char stringBase0[] =
     "ARCADE.SFD\0CHESS.SFD\0PUZZLE.SFD\0KONQUEST.SFD\0OPENINGN.SFD\0OPENINGW.SFD\0"
     "V_MK4FLY.SFD\0V_MKDRSB.SFD\0V_MKDTPC.SFD\0V_MKDTRL.SFD\0V_MKDTRS.SFD\0"
@@ -219,62 +199,57 @@ static const char stringBase0[] =
 #define STR_MONK_GROUND_COLLS (&stringBase0[0x389])
 #define MOVIE_NAME(offset) (&stringBase0[(offset)])
 
-/*
- * B17 P0: movie_info[] lifted from utils.o .data:0x80337220 (Ghidra + ASM).
- * NonMatching: retail table still comes from split ASM for sha1; this C copy is
- * for play_movie path resolution. Entry size 0x20; 45 slots (0..0x2C).
- */
 int screen_engine_movie_table[6] = {0, 1, 2, 3, 0x2A, 0x29};
 
 MovieInfoEntry movie_info[MOVIE_INFO_COUNT] = {
-    /* 0x00 */ { MOVIE_NAME(0x000), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x01 */ { MOVIE_NAME(0x00B), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x02 */ { MOVIE_NAME(0x015), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x03 */ { MOVIE_NAME(0x020), 256, 256, 0, 0, 0, 1, 1 },
-    /* 0x04 MOVIE_ID_INTRO */ { MOVIE_NAME(0x02D), 640, 400, MOVIE_NAME(0x03A), 736, 320, 0, 0 },
-    /* 0x05 */ { MOVIE_NAME(0x047), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x06 */ { MOVIE_NAME(0x054), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x07 */ { MOVIE_NAME(0x061), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x08 */ { MOVIE_NAME(0x06E), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x09 */ { MOVIE_NAME(0x07B), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0A */ { MOVIE_NAME(0x088), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0B */ { MOVIE_NAME(0x095), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0C */ { MOVIE_NAME(0x0A2), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0D */ { MOVIE_NAME(0x0AF), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0E */ { MOVIE_NAME(0x0BC), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x0F */ { MOVIE_NAME(0x0C9), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x10 */ { MOVIE_NAME(0x0D6), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x11 */ { MOVIE_NAME(0x0E3), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x12 */ { MOVIE_NAME(0x0F0), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x13 */ { MOVIE_NAME(0x0FD), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x14 */ { MOVIE_NAME(0x108), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x15 */ { MOVIE_NAME(0x113), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x16 */ { MOVIE_NAME(0x11E), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x17 */ { MOVIE_NAME(0x129), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x18 */ { MOVIE_NAME(0x134), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x19 */ { MOVIE_NAME(0x13F), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1A */ { MOVIE_NAME(0x14A), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1B */ { MOVIE_NAME(0x155), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1C */ { MOVIE_NAME(0x161), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1D */ { MOVIE_NAME(0x16D), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1E */ { MOVIE_NAME(0x17A), 640, 480, 0, 0, 0, 0, 0 },
-    /* 0x1F */ { MOVIE_NAME(0x187), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x20 */ { MOVIE_NAME(0x194), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x21 */ { MOVIE_NAME(0x1A1), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x22 */ { MOVIE_NAME(0x1AD), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x23 */ { MOVIE_NAME(0x1BA), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x24 */ { MOVIE_NAME(0x1C7), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x25 */ { MOVIE_NAME(0x1D4), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x26 */ { MOVIE_NAME(0x1E1), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x27 */ { MOVIE_NAME(0x1EE), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x28 */ { MOVIE_NAME(0x1FB), 640, 400, 0, 0, 0, 0, 0 },
-    /* 0x29 MOVIE_ID_TITLE */ { MOVIE_NAME(0x208), 640, 480, MOVIE_NAME(0x213), 704, 480, 0, 0 },
-    /* 0x2A MOVIE_ID_MIDWAY_LOGO */ { MOVIE_NAME(0x21E), 640, 480, MOVIE_NAME(0x228), 704, 480, 0, 0 },
-    /* 0x2B MOVIE_ID_QUAD */ { MOVIE_NAME(0x232), 640, 480, MOVIE_NAME(0x23C), 704, 480, 0, 0 },
-    /* 0x2C MOVIE_ID_TITLE_ALT */ { MOVIE_NAME(0x246), 640, 480, MOVIE_NAME(0x252), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x000), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x00B), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x015), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x020), 256, 256, 0, 0, 0, 1, 1 },
+    { MOVIE_NAME(0x02D), 640, 400, MOVIE_NAME(0x03A), 736, 320, 0, 0 },
+    { MOVIE_NAME(0x047), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x054), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x061), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x06E), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x07B), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x088), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x095), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0A2), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0AF), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0BC), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0C9), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0D6), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0E3), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0F0), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x0FD), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x108), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x113), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x11E), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x129), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x134), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x13F), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x14A), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x155), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x161), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x16D), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x17A), 640, 480, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x187), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x194), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1A1), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1AD), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1BA), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1C7), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1D4), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1E1), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1EE), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x1FB), 640, 400, 0, 0, 0, 0, 0 },
+    { MOVIE_NAME(0x208), 640, 480, MOVIE_NAME(0x213), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x21E), 640, 480, MOVIE_NAME(0x228), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x232), 640, 480, MOVIE_NAME(0x23C), 704, 480, 0, 0 },
+    { MOVIE_NAME(0x246), 640, 480, MOVIE_NAME(0x252), 704, 480, 0, 0 },
 };
 
-typedef struct FadeScreenPdata {
+struct FadeScreenPdata {
     MkHdr hdr;
     int to_fade;
     int frames;
@@ -286,59 +261,38 @@ typedef struct FadeScreenPdata {
     unsigned char color_g;
     unsigned char color_b;
     unsigned char alpha;
-} FadeScreenPdata;
+};
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-} MkVtableMkprocLocal;
-
-/*
- * blink_cursor pdata (get_mkhdr size 0x28). Toggles ScreenObjFlags.hidden
- * (byte +0x0C bit4 / 0x10) -- same bit as hide_screen_obj / show_or_hide
- * screen path. StringObjs use StringObjVisBits.hidden (0x80) instead.
- */
-typedef struct BlinkCursorPdata {
-    MkHdr hdr; /* +0x00 */
-    ScreenObj* obj; /* +0x08 */
-    int on_ticks; /* +0x0C */
-    int off_ticks; /* +0x10 */
-} BlinkCursorPdata;
-
-typedef MkProc* (*UtilsCreateMkprocFn)(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                       int pdata_size, MkHdr** pdata_out);
+struct BlinkCursorPdata {
+    MkHdr hdr;
+    ScreenObj* obj;
+    int on_ticks;
+    int off_ticks;
+};
 
 static const float kBlinkDoneTick = -1.0f;
 
 static float p_blink_cursor(void);
 static void show_or_hide_2dobj(MkHdr* hdr);
 
-typedef struct DebugDamagePdata {
+struct DebugDamagePdata {
     MkHdr hdr;
     StringObj* object;
     unsigned int object_instance;
     int direction;
     int alpha;
     int delay;
-} DebugDamagePdata;
+};
 
-void camera_get_screen_pos_from_world_pos(
-    const Vec* world, RwV2d* screen);
-int sprintf(char* dest, const char* fmt, ...);
 double __fabs(double value);
 
 static float p_debug_damage_txt(void) {
-    DebugDamagePdata* pdata;
+    struct DebugDamagePdata* pdata;
     StringObj* object;
     PfxFontInstance* part;
     unsigned char alpha;
 
-    pdata = (DebugDamagePdata*)apdata;
+    pdata = (struct DebugDamagePdata*)apdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -390,7 +344,7 @@ static float p_debug_damage_txt(void) {
 }
 
 void display_debug_damage(PlyrInfo* player, float damage) {
-    DebugDamagePdata* pdata;
+    struct DebugDamagePdata* pdata;
     StringObj* object;
     char text[0x50];
     Vec bone_offset = kDebugDamageBoneOffset;
@@ -410,7 +364,7 @@ void display_debug_damage(PlyrInfo* player, float damage) {
         screen_position.y, 0x1D);
     if (_create_mkproc_generic_nostack(
             0x209D, 0x1F, p_debug_damage_txt,
-            sizeof(DebugDamagePdata), (MkHdr**)&pdata) != 0) {
+            sizeof(struct DebugDamagePdata), (MkHdr**)&pdata) != 0) {
         pdata->object = object;
         pdata->object_instance = object->instance;
         pdata->delay = 60;
@@ -419,17 +373,7 @@ void display_debug_damage(PlyrInfo* player, float damage) {
     }
 }
 
-void Simple_MoviePlayFullScreen(const char* path, int width, int height, MovieTapoutFn tapout);
-int is_widescreen_mode(void);
-int strncmp(const char* a, const char* b, unsigned long n);
-int sprintf(char* dest, const char* fmt, ...);
-int snprintf(char* dest, unsigned long n, const char* fmt, ...);
 int printf(const char* fmt, ...);
-const char* pathname_create(const char* path, int flag);
-void* mwFileOpen(const char* path, int mode);
-void mwFileClose(void);
-
-
 
 static inline int fade_pause_allows_tick(void) {
     if (g_game_info.feature_flags.bits.high_bit == 0 &&
@@ -461,6 +405,7 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     int extra;
     char buf[0x100];
     const char* open_path;
+    _mwFile* file;
     unsigned int play_type;
     const char* path;
 
@@ -491,8 +436,9 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
             open_path = pathname_create(buf, 0);
         }
 
-        if (mwFileOpen(open_path, 0x21) != 0) {
-            mwFileClose();
+        file = mwFileOpen(open_path, 0x21);
+        if (file != 0) {
+            mwFileClose(file);
             Simple_MoviePlayFullScreen(path, width, height, tapout_cb);
             return 1;
         }
@@ -686,7 +632,6 @@ void setup_fixed_block_heaps(void) {
     mwMemAllocateFixedBlockHeaps(&current_heap_block_counts.heaps);
 }
 
-
 void load_and_set_refl_on_weapon(void) {
     int art_section;
     unsigned int art_id;
@@ -826,12 +771,12 @@ int get_language_setting(void) {
 static float p_blink_cursor(void) {
     int on_ticks;
     ScreenObj* live;
-    BlinkCursorPdata* pdata;
+    struct BlinkCursorPdata* pdata;
     unsigned int instance;
     int off_ticks;
     ScreenObj* object;
 
-    pdata = (BlinkCursorPdata*)apdata;
+    pdata = (struct BlinkCursorPdata*)apdata;
     if (pdata != 0) {
         object = pdata->obj;
         on_ticks = pdata->on_ticks;
@@ -850,7 +795,7 @@ static float p_blink_cursor(void) {
         if (live != 0) {
             live->flag_bits.hidden = 0;
             _mkproc_sleep_ticks = on_ticks;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } else {
             return kBlinkDoneTick;
         }
@@ -859,7 +804,7 @@ static float p_blink_cursor(void) {
         if (live != 0) {
             live->flag_bits.hidden = 1;
             _mkproc_sleep_ticks = off_ticks;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         } else {
             return kBlinkDoneTick;
         }
@@ -868,9 +813,9 @@ static float p_blink_cursor(void) {
 
 void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks) {
     MkProc* proc;
-    BlinkCursorPdata* pdata;
+    struct BlinkCursorPdata* pdata;
 
-    proc = ((UtilsCreateMkprocFn)_create_mkproc_generic_bigstack)(
+    proc = _create_mkproc_generic_bigstack(
         proc_id, 0x1F, p_blink_cursor, 0x28, (MkHdr**)&mab_generic_pdata);
     if (proc != 0) {
         pdata = mab_generic_pdata;
@@ -888,7 +833,7 @@ void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks) {
 void hide_or_show_2d_obj_by_id(int oid, int hide) {
     set_2dobj_hide_state = hide;
     set_2dobj_oid = oid;
-    apply_to_mklist((MkListApplyFn)show_or_hide_2dobj, &screen_obj_list);
+    apply_to_mklist(show_or_hide_2dobj, &screen_obj_list);
 }
 
 static void show_or_hide_2dobj(MkHdr* hdr) {
@@ -1029,13 +974,13 @@ RpMaterial* material_set_color(
     return material;
 }
 
-typedef struct MaterialColorById {
+struct MaterialColorById {
     int id;
     RwRGBA color;
-} MaterialColorById;
+};
 
 RpAtomic* set_atomic_material_color_by_id(
-    RpAtomic* atomic, MaterialColorById* color_by_id) {
+    RpAtomic* atomic, struct MaterialColorById* color_by_id) {
     RpMaterial* material;
     RpGeometry* geometry;
     MkmaterialPluginData* plugin;
@@ -1078,7 +1023,7 @@ RpAtomic* set_atomic_material_color(
 
 void obj_set_color_for_material_by_id(
     MkObj* obj, int id, RwRGBA* color) {
-    MaterialColorById color_by_id;
+    struct MaterialColorById color_by_id;
 
     color_by_id.color = *color;
     color_by_id.id = id;
@@ -1160,7 +1105,7 @@ void save_both_profiles(int unused) {
 #pragma dont_inline reset
 
 float p_load_profile(void) {
-    LoadProfilePdata* pdata;
+    struct LoadProfilePdata* pdata;
     int device;
     int slot;
     int scan_state;
@@ -1170,7 +1115,7 @@ float p_load_profile(void) {
     StorageProfileSlot* profile;
 
     scan_state = slot = device = 0;
-    pdata = (LoadProfilePdata*)apdata;
+    pdata = (struct LoadProfilePdata*)apdata;
     player = pdata->player;
     port = pdata->port;
     code = pdata->code;
@@ -1244,12 +1189,12 @@ float p_load_profile(void) {
 }
 
 int load_profile(int player, int port, unsigned char* code) {
-    LoadProfilePdata* pdata;
+    struct LoadProfilePdata* pdata;
     MkProc* proc;
 
     pdata = 0;
     proc = _create_mkproc_generic_bigstack(
-        LOAD_PROFILE_PROC_PID, 0x1F, p_load_profile, sizeof(LoadProfilePdata), (MkHdr**)&pdata);
+        LOAD_PROFILE_PROC_PID, 0x1F, p_load_profile, sizeof(struct LoadProfilePdata), (MkHdr**)&pdata);
     if (proc != 0) {
         pdata->player = player;
         pdata->port = port;
@@ -1272,10 +1217,10 @@ int load_profile(int player, int port, unsigned char* code) {
         if (player == 0) {
             while (p1_profile_load_complete == PROFILE_LOAD_PENDING) {
                 _mkproc_sleep_ticks = 1.0f;
-                ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+                aproc->vtbl->sleep();
             }
             if (p1_profile_load_complete == PROFILE_LOAD_OK) {
-                p1_rumble_on = ((ProfileCommonRumble*)p1_profile_common)->rumble;
+                p1_rumble_on = ((struct ProfileCommonRumble*)p1_profile_common)->rumble;
             }
             fire_screen_studio_event(PROFILE_LOAD_EVENT, 1);
             return p1_profile_load_complete;
@@ -1283,10 +1228,10 @@ int load_profile(int player, int port, unsigned char* code) {
 
         while (p2_profile_load_complete == PROFILE_LOAD_PENDING) {
             _mkproc_sleep_ticks = 1.0f;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
         if (p2_profile_load_complete == PROFILE_LOAD_OK) {
-            p2_rumble_on = ((ProfileCommonRumble*)p2_profile_common)->rumble;
+            p2_rumble_on = ((struct ProfileCommonRumble*)p2_profile_common)->rumble;
         }
         fire_screen_studio_event(PROFILE_LOAD_EVENT, 2);
         return p2_profile_load_complete;
@@ -1368,7 +1313,7 @@ void create_fade_box(void) {
     destroy_mkprocs_pid(FADE_PROC_PID);
     delete_screen_obj_oid(FADE_BLACK_OID);
     delete_screen_obj_oid(FADE_WHITE_OID);
-    obj = load_2d_pfxobj(0, FADE_BLACK_OID, (char*)0x10017, 0, 0xd);
+    obj = load_2d_pfxobj(0, FADE_BLACK_OID, 0x10017, 0, 0xd);
     if (obj != 0) {
         obj->x = -0x32;
         obj->y = -0x32;
@@ -1388,7 +1333,7 @@ static inline void publish_fade_screen_alpha(ScreenObj* obj, unsigned char alpha
 }
 
 static float p_fade_screen(void) {
-    FadeScreenPdata* pdata;
+    struct FadeScreenPdata* pdata;
     ScreenObj* obj;
     float volume_step;
     float volume;
@@ -1400,7 +1345,7 @@ static float p_fade_screen(void) {
         return kFadeSleepTick;
     }
 
-    pdata = (FadeScreenPdata*)apdata;
+    pdata = (struct FadeScreenPdata*)apdata;
     if (pdata == 0) {
         return kFadeDoneTick;
     }
@@ -1485,13 +1430,12 @@ static float p_fade_screen(void) {
     return done != 0 ? kFadeDoneTick : kFadeSleepTick;
 }
 
-/* Keep out-of-line so fade_from / fade_to wrappers match retail bl. */
 #pragma dont_inline on
 /* TODO: [near miss] 98.81%; owner reloads and saved-register homes agree;
  * initial vertex publication retains volatile-register swaps. */
 static void fade_screen(int frames, int color, int flag, int to_fade) {
-    FadeScreenPdata* pdata;
-    FadeScreenPdata* initial_fade;
+    struct FadeScreenPdata* pdata;
+    struct FadeScreenPdata* initial_fade;
     MkProc* proc;
     ScreenObj* obj;
     float volume_step;
@@ -1512,7 +1456,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
 
         proc = _create_mkproc_generic_nostack(
             FADE_PROC_PID, 0x1F, p_fade_screen,
-            sizeof(FadeScreenPdata), (MkHdr**)&pdata);
+            sizeof(struct FadeScreenPdata), (MkHdr**)&pdata);
         if (proc != 0) {
             pdata->frames = frames;
             pdata->color = color;
@@ -1687,8 +1631,6 @@ void set_screen_obj_alpha(ScreenObj* obj, float alpha) {
     }
 }
 
-extern double fmod(double x, double y);
-extern void MKMatrixSetIdentity(void* m);
 enum {
     kUvPass1 = 1,
     kUvPass2 = 2,
@@ -1700,7 +1642,6 @@ enum {
     kMatFxDualUvTransform = 6
 };
 
-/* Open-coded like retail; keep as macros so dual/pass sizes stay near ASM. */
 #define UV_WRAP(comp)                                                          \
     do {                                                                       \
         float _v = (comp);                                                     \
@@ -1721,7 +1662,7 @@ enum {
 
 #define UV_CLEAR_DIRTY(mtx)                                                    \
     do {                                                                       \
-        unsigned int* _flags = (unsigned int*)&(mtx)[3];                       \
+        unsigned int* _flags = &(mtx).flags;                                   \
         *_flags = *_flags & ~kUvMtxDirty;                                      \
     } while (0)
 
@@ -1735,30 +1676,30 @@ static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
 static void uv_scroll_dual_pass(UvScrollControl* ctrl) {
     float rate_v;
     rate_v = ctrl->rateV1;
-    ctrl->mtx1[12] += ctrl->rateU1 * game_speed;
-    ctrl->mtx1[13] += rate_v * game_speed;
-    UV_WRAP(ctrl->mtx1[12]);
-    UV_WRAP(ctrl->mtx1[13]);
+    ctrl->mtx1.pos.x += ctrl->rateU1 * game_speed;
+    ctrl->mtx1.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx1.pos.x);
+    UV_WRAP(ctrl->mtx1.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx1);
     rate_v = ctrl->rateV2;
-    ctrl->mtx2[12] += ctrl->rateU2 * game_speed;
-    ctrl->mtx2[13] += rate_v * game_speed;
-    UV_WRAP(ctrl->mtx2[12]);
-    UV_WRAP(ctrl->mtx2[13]);
+    ctrl->mtx2.pos.x += ctrl->rateU2 * game_speed;
+    ctrl->mtx2.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx2.pos.x);
+    UV_WRAP(ctrl->mtx2.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx2);
-    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix, &ctrl->mtx1[0]);
-    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix_2, &ctrl->mtx2[0]);
+    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix, &ctrl->mtx1);
+    RpGeometryForAllMaterials(ctrl->atomic->geometry, material_set_uv_scroll_matrix_2, &ctrl->mtx2);
 }
 
 static void uv_scroll_pass_2(UvScrollControl* ctrl) {
     RpAtomic* atomic;
     RpGeometry* geom;
     float rateV = ctrl->rateV2;
-    UV_ADVANCE_PAIR(ctrl->mtx2[12], ctrl->mtx2[13], ctrl->rateU2, rateV);
+    UV_ADVANCE_PAIR(ctrl->mtx2.pos.x, ctrl->mtx2.pos.y, ctrl->rateU2, rateV);
     UV_CLEAR_DIRTY(ctrl->mtx2);
     atomic = ctrl->atomic;
     geom = atomic->geometry;
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix_2, &ctrl->mtx2[0]);
+    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix_2, &ctrl->mtx2);
 }
 
 static void uv_scroll_pass_1(UvScrollControl* ctrl) {
@@ -1767,14 +1708,14 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
     float rate_v;
 
     rate_v = ctrl->rateV1;
-    ctrl->mtx1[12] += ctrl->rateU1 * game_speed;
-    ctrl->mtx1[13] += rate_v * game_speed;
-    UV_WRAP(ctrl->mtx1[12]);
-    UV_WRAP(ctrl->mtx1[13]);
+    ctrl->mtx1.pos.x += ctrl->rateU1 * game_speed;
+    ctrl->mtx1.pos.y += rate_v * game_speed;
+    UV_WRAP(ctrl->mtx1.pos.x);
+    UV_WRAP(ctrl->mtx1.pos.y);
     UV_CLEAR_DIRTY(ctrl->mtx1);
     atomic = ctrl->atomic;
     geom = atomic->geometry;
-    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1[0]);
+    RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1);
 }
 
 #pragma dont_inline off
@@ -1800,32 +1741,32 @@ static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
 static inline void uv_init_transform_pair(UvScrollControl* ctrl) {
     float one = 1.0f;
     float zero = 0.0f;
-    ctrl->mtx1[10] = one;
-    ctrl->mtx1[5] = one;
-    ctrl->mtx1[0] = one;
-    ctrl->mtx1[4] = zero;
-    ctrl->mtx1[2] = zero;
-    ctrl->mtx1[1] = zero;
-    ctrl->mtx1[9] = zero;
-    ctrl->mtx1[8] = zero;
-    ctrl->mtx1[6] = zero;
-    ctrl->mtx1[14] = zero;
-    ctrl->mtx1[13] = zero;
-    ctrl->mtx1[12] = zero;
-    *(unsigned int*)&ctrl->mtx1[3] = *(unsigned int*)&ctrl->mtx1[3] | kUvMtxFlags;
-    ctrl->mtx2[10] = one;
-    ctrl->mtx2[5] = one;
-    ctrl->mtx2[0] = one;
-    ctrl->mtx2[4] = zero;
-    ctrl->mtx2[2] = zero;
-    ctrl->mtx2[1] = zero;
-    ctrl->mtx2[9] = zero;
-    ctrl->mtx2[8] = zero;
-    ctrl->mtx2[6] = zero;
-    ctrl->mtx2[14] = zero;
-    ctrl->mtx2[13] = zero;
-    ctrl->mtx2[12] = zero;
-    *(unsigned int*)&ctrl->mtx2[3] = *(unsigned int*)&ctrl->mtx2[3] | kUvMtxFlags;
+    ctrl->mtx1.at.z = one;
+    ctrl->mtx1.up.y = one;
+    ctrl->mtx1.right.x = one;
+    ctrl->mtx1.up.x = zero;
+    ctrl->mtx1.right.z = zero;
+    ctrl->mtx1.right.y = zero;
+    ctrl->mtx1.at.y = zero;
+    ctrl->mtx1.at.x = zero;
+    ctrl->mtx1.up.z = zero;
+    ctrl->mtx1.pos.z = zero;
+    ctrl->mtx1.pos.y = zero;
+    ctrl->mtx1.pos.x = zero;
+    ctrl->mtx1.flags = ctrl->mtx1.flags | kUvMtxFlags;
+    ctrl->mtx2.at.z = one;
+    ctrl->mtx2.up.y = one;
+    ctrl->mtx2.right.x = one;
+    ctrl->mtx2.up.x = zero;
+    ctrl->mtx2.right.z = zero;
+    ctrl->mtx2.right.y = zero;
+    ctrl->mtx2.at.y = zero;
+    ctrl->mtx2.at.x = zero;
+    ctrl->mtx2.up.z = zero;
+    ctrl->mtx2.pos.z = zero;
+    ctrl->mtx2.pos.y = zero;
+    ctrl->mtx2.pos.x = zero;
+    ctrl->mtx2.flags = ctrl->mtx2.flags | kUvMtxFlags;
 }
 
 static inline void material_apply_scroll_effects(RpMaterial* material) {
@@ -1844,11 +1785,11 @@ static inline void material_apply_scroll_effects(RpMaterial* material) {
     }
 }
 
-static inline void material_advance_uv_pair(float* uv, float rateU, float rateV) {
-    uv[0] = rateU * game_speed + uv[0];
-    uv[1] = rateV * game_speed + uv[1];
-    UV_WRAP(uv[0]);
-    UV_WRAP(uv[1]);
+static inline void material_advance_uv_pair(RwV3d* uv, float rateU, float rateV) {
+    uv->x = rateU * game_speed + uv->x;
+    uv->y = rateV * game_speed + uv->y;
+    UV_WRAP(uv->x);
+    UV_WRAP(uv->y);
 }
 
 static void* material_scroll_uvs_callback(void* mat, void* data) {
@@ -1859,20 +1800,20 @@ static void* material_scroll_uvs_callback(void* mat, void* data) {
     flags = ctrl->pass_flags;
     pass1 = flags & kUvPass1;
     if (pass1 != 0 && (flags & kUvPass2) != 0) {
-        material_advance_uv_pair(&ctrl->mtx1[12], ctrl->rateU1, ctrl->rateV1);
+        material_advance_uv_pair(&ctrl->mtx1.pos, ctrl->rateU1, ctrl->rateV1);
         UV_CLEAR_DIRTY(ctrl->mtx1);
-        material_advance_uv_pair(&ctrl->mtx2[12], ctrl->rateU2, ctrl->rateV2);
+        material_advance_uv_pair(&ctrl->mtx2.pos, ctrl->rateU2, ctrl->rateV2);
         UV_CLEAR_DIRTY(ctrl->mtx2);
-        material_set_uv_scroll_matrix(mat, &ctrl->mtx1[0]);
-        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2[0]);
+        material_set_uv_scroll_matrix(mat, &ctrl->mtx1);
+        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2);
     } else if (pass1 != 0) {
-        material_advance_uv_pair(&ctrl->mtx1[12], ctrl->rateU1, ctrl->rateV1);
+        material_advance_uv_pair(&ctrl->mtx1.pos, ctrl->rateU1, ctrl->rateV1);
         UV_CLEAR_DIRTY(ctrl->mtx1);
-        material_set_uv_scroll_matrix(mat, &ctrl->mtx1[0]);
+        material_set_uv_scroll_matrix(mat, &ctrl->mtx1);
     } else if ((flags & kUvPass2) != 0) {
-        material_advance_uv_pair(&ctrl->mtx2[12], ctrl->rateU2, ctrl->rateV2);
+        material_advance_uv_pair(&ctrl->mtx2.pos, ctrl->rateU2, ctrl->rateV2);
         UV_CLEAR_DIRTY(ctrl->mtx2);
-        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2[0]);
+        material_set_uv_scroll_matrix_2(mat, &ctrl->mtx2);
     }
     return mat;
 }
@@ -1967,8 +1908,8 @@ static inline UvScrollControl* create_uv_scroll_control(void) {
         ctrl->rateV1 = 0.0f;
         ctrl->rateU2 = 0.0f;
         ctrl->rateV2 = 0.0f;
-        MKMatrixSetIdentity(&ctrl->mtx1[0]);
-        MKMatrixSetIdentity(&ctrl->mtx2[0]);
+        MKMatrixSetIdentity(&ctrl->mtx1);
+        MKMatrixSetIdentity(&ctrl->mtx2);
     }
     return ctrl;
 }
@@ -2035,8 +1976,8 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
         ctrl->rateV1 = 0.0f;
         ctrl->rateU2 = 0.0f;
         ctrl->rateV2 = 0.0f;
-        MKMatrixSetIdentity(&ctrl->mtx1[0]);
-        MKMatrixSetIdentity(&ctrl->mtx2[0]);
+        MKMatrixSetIdentity(&ctrl->mtx1);
+        MKMatrixSetIdentity(&ctrl->mtx2);
     }
     if (ctrl != 0) {
         ctrl->owner = owner;
@@ -2139,7 +2080,7 @@ float sfrand_ab(float a, float b) {
     random_low = (unsigned char)genlrand();
     random_high = (unsigned char)genlrand() << 8;
     random_value = random_high | random_low;
-    fraction = (float)random_value;
+    fraction = random_value;
     fraction /= 65535.0f;
     scaled = range * fraction;
     return low + scaled;
@@ -2155,7 +2096,7 @@ static inline float utils_random_magnitude(float max) {
     random_low = (unsigned char)genlrand();
     random_value = (unsigned char)genlrand() << 8;
     random_value = random_value | random_low;
-    fraction = (float)random_value;
+    fraction = random_value;
     fraction /= 65535.0f;
     return range * fraction;
 }
@@ -2320,7 +2261,7 @@ int get_game_state(void) {
 
 void reset_game_state(void) {
     game_state_stack_depth = -1;
-    memset(game_state_stack, 0, 0x20);
+    memset(game_state_stack, 0, sizeof(game_state_stack));
 }
 
 void init_global_vars(void) {
@@ -2341,17 +2282,17 @@ void init_global_vars(void) {
     plyr_anim_proc = 0;
     plyr_anim_pdata = 0;
 
-    p1_freeze_light_item.object = 0;
+    p1_freeze_light_item.obj = 0;
     p1_freeze_light_item.instance = 0;
-    p2_freeze_light_item.object = 0;
+    p2_freeze_light_item.obj = 0;
     p2_freeze_light_item.instance = 0;
     p1_freeze_proc_item.object = 0;
     p1_freeze_proc_item.instance = 0;
     p2_freeze_proc_item.object = 0;
     p2_freeze_proc_item.instance = 0;
-    rope_proc_item.object = 0;
+    rope_proc_item.proc = 0;
     rope_proc_item.instance = 0;
-    sobj_ctrl_proc_item.object = 0;
+    sobj_ctrl_proc_item.proc = 0;
     sobj_ctrl_proc_item.instance = 0;
 
     g_game_info.flag_bits.field_bit0 = 0;
