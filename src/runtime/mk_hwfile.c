@@ -9,7 +9,7 @@ static MkHwFileRequest handle_data[10];
 static int last_error;
 static int hwfile_initialized;
 
-static void* async_to_mwFile(MkHwFileRequest* request);
+static _mwFile* async_to_mwFile(MkHwFileRequest* request);
 static void open_callback(mwFileCommand* command, mwFileAsyncResult result,
                           void* arg);
 static void require_file_opened(MkHwFileRequest* request);
@@ -81,7 +81,7 @@ void mk_hwfile_wait_for_completion(void** command) {
     if (command != 0) {
         if (*command != 0) {
             while (*command != 0 &&
-                   !mwFileIsCommandCompleted((mwFileCommand*)*command, &result)) {
+                   !mwFileIsCommandCompleted(*command, &result)) {
                 if (aproc != 0 && aproc->stack_top != 0) {
                     _mkproc_sleep_ticks = 1.0f;
                     aproc->vtbl->sleep();
@@ -93,13 +93,13 @@ void mk_hwfile_wait_for_completion(void** command) {
     }
 }
 
-void mk_hwfile_wait_for_completion_or_null_request(MkHwFileRequest** command) {
+void mk_hwfile_wait_for_completion_or_null_request(void** command) {
     mwFileAsyncResult result;
 
     if (command != 0) {
         if (*command != 0) {
             while (*command != 0 &&
-                   !mwFileIsCommandCompleted((mwFileCommand*)*command, &result)) {
+                   !mwFileIsCommandCompleted(*command, &result)) {
                 if (aproc != 0 && aproc->stack_top != 0) {
                     _mkproc_sleep_ticks = 1.0f;
                     aproc->vtbl->sleep();
@@ -111,6 +111,7 @@ void mk_hwfile_wait_for_completion_or_null_request(MkHwFileRequest** command) {
     }
 }
 
+/* TODO: [near miss] 97.18%; retail retains an inner safe-free guard; pool owner and index still use swapped GPRs. */
 void mk_hwfile_close(MkHwFileRequest* request) {
     void* command;
     int byte_offset;
@@ -158,7 +159,7 @@ int mk_hwfile_tell(MkHwFileRequest* request) {
 
 int mk_hwfile_seek(MkHwFileRequest* request, int offset, int origin) {
     int result;
-    void* file;
+    _mwFile* file;
     if (request == 0) {
         return -1;
     }
@@ -171,11 +172,11 @@ int mk_hwfile_seek(MkHwFileRequest* request, int offset, int origin) {
     return result;
 }
 
-void mk_hwfile_cancel(MkHwFileRequest* request) {
-    if (request != 0 && request->mwFile != 0) {
-        mwFileAbortCommand(request->mwFile);
-        if (request->mwFile != 0) {
-            mk_hwfile_wait_for_completion(&request->mwFile);
+void mk_hwfile_cancel(void** command) {
+    if (command != 0 && *command != 0) {
+        mwFileAbortCommand(*command);
+        if (*command != 0) {
+            mk_hwfile_wait_for_completion(command);
         }
     }
 }
@@ -196,6 +197,7 @@ void* mk_hwfile_read_async(MkHwFileRequest* request, int offset, void* buffer,
 int mk_hwfile_read(MkHwFileRequest* request, void* buffer, int length) {
     mwFileCommand* command;
     mwFileAsyncResult result;
+    mwFileCommand** saved_command = &command;
     int bytes;
 
     if (buffer == 0) {
@@ -212,16 +214,18 @@ int mk_hwfile_read(MkHwFileRequest* request, void* buffer, int length) {
     if (command == 0) {
         return -1;
     }
-    while (command != 0 && !mwFileIsCommandCompleted(command, &result)) {
-        if (aproc != 0 && aproc->stack_top != 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        } else {
-            mwFileTick();
+    if (command != 0) {
+        while (command != 0 && !mwFileIsCommandCompleted(command, &result)) {
+            if (aproc != 0 && aproc->stack_top != 0) {
+                _mkproc_sleep_ticks = 1.0f;
+                aproc->vtbl->sleep();
+            } else {
+                mwFileTick();
+            }
         }
     }
     if (command != 0) {
-        mwFileFreeCommand(command);
+        mwFileFreeCommand(*saved_command);
     }
     if (result.error != 0) {
         return -1;
@@ -231,80 +235,76 @@ int mk_hwfile_read(MkHwFileRequest* request, void* buffer, int length) {
     return bytes;
 }
 
+/* TODO: [near miss] 98.98%; shared return/CTR scan match; count/entry and release pool/index registers remain. */
 MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     char path_buffer[256];
     MkHwFileRequest* request;
-    signed char* free_entry;
-    int remaining;
-    int index;
 
     if (path == 0) {
-        return 0;
-    }
-    if (mode == 0) {
-        return 0;
-    }
-    if (strlen(path) >= 250) {
-        return 0;
-    }
-    path_buffer[0] = '\0';
-    strcat(path_buffer, path);
-    if (!HANDLE_POOL_AVAILABLE(&handle_pool)) {
+        request = 0;
+    } else if (mode == 0) {
+        request = 0;
+    } else if (strlen(path) >= 250) {
         request = 0;
     } else {
-        index = 0;
-        free_entry = handle_pool.freelist;
-        remaining = handle_pool.count;
-        if (remaining > 0) {
-            do {
+        path_buffer[0] = '\0';
+        strcat(path_buffer, path);
+        if (!HANDLE_POOL_AVAILABLE(&handle_pool)) {
+            request = 0;
+        } else {
+            int index;
+            signed char* free_entry;
+
+            index = 0;
+            free_entry = handle_pool.freelist;
+            for (; index < handle_pool.count; index++, free_entry++) {
                 if (*free_entry == 0) {
                     break;
                 }
-                index++;
-                free_entry++;
-                remaining--;
-            } while (remaining != 0);
-        }
-        if (index == handle_pool.count) {
-            request = 0;
-        } else {
-            handle_pool.freeCount--;
-            handle_pool.freelist[index] = 1;
-            request = (MkHwFileRequest*)((unsigned char*)handle_pool.base +
-                                         handle_pool.handleSize * index);
-        }
-    }
-    if (request == 0) {
-        return 0;
-    }
-    memset(request, 0, sizeof(*request));
-    request->lateOpenCallback = 0;
-    request->lateOpenCallbackArg = 0;
-    request->openCommand = mwFileOpenAsync(
-        path_buffer, mwFileOpenModeToFlags(mode), open_callback, request);
-    if (request->openCommand == 0) {
-        int byte_offset;
-        int release_index;
-        if (HANDLE_POOL_AVAILABLE(&handle_pool) &&
-            request >= handle_pool.base &&
-            (unsigned char*)request <=
-                (unsigned char*)handle_pool.base +
-                    handle_pool.handleSize * (handle_pool.count - 1)) {
-            byte_offset = (unsigned char*)request -
-                          (unsigned char*)handle_pool.base;
-            release_index = byte_offset / handle_pool.handleSize;
-            if (byte_offset - release_index * handle_pool.handleSize == 0 &&
-                handle_pool.freelist[release_index] != 0) {
-                handle_pool.freelist[release_index] = 0;
-                handle_pool.freeCount++;
+            }
+            if (index == handle_pool.count) {
+                request = 0;
+            } else {
+                handle_pool.freeCount--;
+                handle_pool.freelist[index] = 1;
+                request = (MkHwFileRequest*)((unsigned char*)handle_pool.base +
+                                             handle_pool.handleSize * index);
             }
         }
-        return 0;
+        if (request == 0) {
+            request = 0;
+        } else {
+            memset(request, 0, sizeof(*request));
+            request->lateOpenCallback = 0;
+            request->lateOpenCallbackArg = 0;
+            request->openCommand = mwFileOpenAsync(
+                path_buffer, mwFileOpenModeToFlags(mode), open_callback, request);
+            if (request->openCommand == 0) {
+                MkHwFileHandlePool* pool = &handle_pool;
+                int byte_offset;
+                int release_index;
+
+                if (HANDLE_POOL_AVAILABLE(pool) &&
+                    request >= pool->base &&
+                    (unsigned char*)request <= (unsigned char*)pool->base +
+                        pool->handleSize * (pool->count - 1)) {
+                    byte_offset = (unsigned char*)request -
+                                  (unsigned char*)pool->base;
+                    release_index = byte_offset / pool->handleSize;
+                    if (byte_offset % pool->handleSize == 0 &&
+                        pool->freelist[release_index] != 0) {
+                        pool->freelist[release_index] = 0;
+                        pool->freeCount++;
+                    }
+                }
+                request = 0;
+            }
+        }
     }
     return request;
 }
 
-static void* async_to_mwFile(MkHwFileRequest* request) {
+static _mwFile* async_to_mwFile(MkHwFileRequest* request) {
     require_file_opened(request);
     return request->mwFile;
 }
@@ -333,16 +333,17 @@ static void open_callback(mwFileCommand* command, mwFileAsyncResult result,
     }
 }
 
+/* TODO: [breakthrough needed] 99.79%; TU .bss pool order differs; recover zero-fill emission order. */
 void mk_hwfile_init(void) {
     if (!hwfile_initialized) {
         if (HANDLE_POOL_STORAGE_AVAILABLE(&handle_pool, handle_data,
                                           handle_freelist)) {
-            handle_pool.count = 10;
-            handle_pool.freeCount = 10;
+            handle_pool.count = sizeof(handle_data) / sizeof(handle_data[0]);
+            handle_pool.freeCount = sizeof(handle_data) / sizeof(handle_data[0]);
             handle_pool.base = handle_data;
             handle_pool.handleSize = sizeof(MkHwFileRequest);
             handle_pool.freelist = handle_freelist;
-            memset(handle_freelist, 0, 10);
+            memset(handle_freelist, 0, sizeof(handle_freelist));
         }
         hwfile_initialized = 1;
     }

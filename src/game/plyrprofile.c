@@ -6,8 +6,11 @@
 #include "game/konquest_save.h"
 #include "game/memcard.h"
 #include "game/menu.h"
+#include "game/nbc.h"
 #include "game/pselect.h"
+#include "game/plyr.h"
 #include "platform/gcmcardmsg.h"
+#include "platform/gcmcard.h"
 #include "platform/io.h"
 #include "platform/main.h"
 #include "platform/main_jump.h"
@@ -17,34 +20,25 @@
 #include "runtime/plyr_info.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
+#include "mw/mwScreenEngineGlue.h"
+#include "runtime/sound.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
 
-char* nbc_find_text(int a, int b);
-void load_screen(const char* path, int slot, int a, int b);
-int update_storage_status(int flag);
-void fire_screen_studio_event(int id, int arg);
 void reset_sg_status(StorageDevice* device, int slot);
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned char region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes);
-int format_card_and_create_mkda_file(int device);
-int gc_delete_file(int device, const char* fileName);
-void set_player_state(PlyrInfo* plyr, int state);
-void setup_sound_banks(int bank);
-void wait_for_sound_banks_to_load(void);
 void ppc_set_stage_value(int stage);
 static void pne_set_players_name_to_default(char* name, int* charPos);
 static float p_player_profile_whats_loaded_screen(void);
 void set_sal_cursor(int v);
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition);
-int check_switch_action(int port, int action);
 int is_memcard_scanner_running(void);
 void kill_async_memcard_scan(void);
 int get_multi_profile_cursor_p1(void);
 int get_multi_profile_cursor_p2(void);
-void snd_req(int sound_id);
 void move_player_name(const char* src, char* dst);
 void move_player_pin(const unsigned char* src, unsigned char* dst);
 
@@ -53,33 +47,12 @@ extern char konq_region_data_buffer[];
 
 char player_name[0xB];
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc*);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry);
-} MkVtableMkprocLocal;
-
 static inline void mkproc_sleep(void) {
-    MkVtableMkprocLocal* vtbl;
-
-    vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
-    vtbl->sleep();
+    aproc->vtbl->sleep();
 }
 
-static inline float mkproc_jump_sleep(MkProcEntryFn entry) {
-    MkVtableMkprocLocal* vtbl;
-    float (*js)(float, MkProcEntryFn);
-
-    vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
-    js = (float (*)(float, MkProcEntryFn))vtbl->jump_sleep;
-    return js(0.0f, entry);
+static inline void mkproc_jump_sleep(MkProcEntryFn entry) {
+    aproc->vtbl->jump_sleep(entry, 0.0f);
 }
 
 static const float kOne = 1.0f;
@@ -119,13 +92,12 @@ static int scan_cards_timer = 0x3c;
 static int pos_device = -1;
 static int pos_slot = -1;
 
-typedef struct ProfileNameKey {
+struct ProfileNameKey {
     const char* name;
     unsigned char value;
-    unsigned char pad05[3];
-} ProfileNameKey;
+};
 
-ProfileNameKey pne_alpha_data_table[39] = {
+struct ProfileNameKey pne_alpha_data_table[39] = {
     {"NUM_00", '0'}, {"NUM_01", '1'}, {"NUM_02", '2'}, {"NUM_03", '3'},
     {"NUM_04", '4'}, {"NUM_05", '5'}, {"NUM_06", '6'}, {"NUM_07", '7'},
     {"NUM_08", '8'}, {"NUM_09", '9'},
@@ -141,13 +113,12 @@ ProfileNameKey pne_alpha_data_table[39] = {
     {"CHARACTER_DEL", '_'}, {"CHARACTER_END", '0'},
 };
 
-typedef struct ProfileCodeKey {
+struct ProfileCodeKey {
     int switch_index;
     unsigned char value;
-    unsigned char pad05[3];
-} ProfileCodeKey;
+};
 
-ProfileCodeKey pne_kode_data_table[12] = {
+struct ProfileCodeKey pne_kode_data_table[12] = {
     {12, 1}, {15, 2}, {14, 3}, {13, 4}, {2, 5}, {0, 6},
     {3, 7}, {1, 8}, {4, 9}, {7, 10}, {6, 11}, {5, 12},
 };
@@ -196,9 +167,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
                                      PPWLS_TIMEOUT_PROC_PDATA, &pdata);
 }
 
-#define PROFILE_COMMON_OFF 0x8
-#define PROFILE_SWITCHMAP_OFF 0x108
-#define PROFILE_KONQUEST_OFF 0x190
 #define KONQUEST_FIELD_68 0x68
 #define PROFILE_DEFAULT_UNLOCK_CAT7_LO 0x15804FB
 #define PROFILE_DEFAULT_UNLOCK_CAT5 0x3FF
@@ -212,7 +180,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
 PlayerProfile p1_profile;
 PlayerProfile p2_profile;
 extern int mcard_msg_active;
-extern SwitchMapEntry default_switch_map[];
 extern int p1_rumble_on;
 extern int p2_rumble_on;
 
@@ -220,7 +187,7 @@ static inline void copy_profile_switch_defaults(PlayerProfile* profile) {
     int i;
 
     for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        profile->switch_map[i] = (int)default_switch_map[i].mask;
+        profile->switch_map[i] = default_switch_map[i].mask;
     }
 }
 
@@ -236,14 +203,14 @@ static inline void clear_storage_in_use(int device, int slot) {
 static inline void set_profile_to_default_impl(PlayerProfile* profile) {
     unsigned char* konquest;
 
-    memset(profile, 0, PROFILE_SIZE);
+    memset(profile, 0, sizeof(*profile));
     profile->active = 1;
     strcpy(
         profile->name,
         nbc_find_text(NBC_DEFAULT_PROFILE_NAME, NBC_DEFAULT_PROFILE_SUB));
     copy_profile_switch_defaults(profile);
     konquest = profile->konquest;
-    memset(konquest, 0, PROFILE_KONQUEST_SIZE);
+    memset(konquest, 0, sizeof(profile->konquest));
     *(int*)(konquest + KONQUEST_FIELD_68) = PROFILE_KONQUEST_FIELD_68;
     profile->unlock_cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
     profile->unlock_cat6 = PROFILE_DEFAULT_UNLOCK_CAT5;
@@ -275,54 +242,51 @@ static inline int find_device_display_status_impl(int device, int compact_no_fil
     return 1;
 }
 
-/* TODO: [near miss] 87.22%; body is retail-correct; retail keeps a redundant upper-bound branch that structured C folds away. */
 void erase_player_profile(int device, int slot) {
     StorageDevice* base;
-    unsigned int* freeBlocks;
     int* freeBytes;
+    unsigned int* freeBlocks;
     const char* title;
     int region;
     int ok;
 
-    if (device >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0) {
-        if (slot < STORAGE_MAX_SLOTS) {
-            base = DEVICE_AT(device);
-            reset_sg_status(base, slot);
-            storage_status_change_calculations(device);
-            mcard_msg_deleting_data(device);
-            clear_region_buffer();
-
-            freeBlocks = &base->freeBlocks;
-            freeBytes = &base->freeBytes;
-            region = 1;
-            ok = 1;
-            while (region < 9 && ok != 0) {
-                title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
-                ok = save_konquest_region_to_memcard_w_error(
-                    device, slot, 5, title, (unsigned char)region,
-                    konq_region_data_buffer, 0, freeBlocks, freeBytes);
-                if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
-                    mcard_msg_end();
-                    mcard_msg_deleting_data(device);
-                }
-                region++;
-            }
-
-            if (ok != 0) {
-                title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
-                ok = save_to_memcard_w_error(
-                    device, 4, title, &base->settings, 0,
-                    freeBlocks, freeBytes);
-            }
-
-            if (ok != 0) {
-                mcard_msg_delete_successful_generic();
-            } else {
-                mcard_msg_delete_failed_generic();
-            }
-            mcard_msg_end();
-        }
+    if (device < 0 || device >= STORAGE_MAX_DEVICES || slot < 0 || slot >= STORAGE_MAX_SLOTS) {
+        return;
     }
+    base = DEVICE_AT(device);
+    reset_sg_status(base, slot);
+    storage_status_change_calculations(device);
+    mcard_msg_deleting_data(device);
+    clear_region_buffer();
+
+    freeBlocks = &base->freeBlocks;
+    freeBytes = &base->freeBytes;
+    region = 1;
+    ok = 1;
+    while (region < 9 && ok != 0) {
+        title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
+        ok = save_konquest_region_to_memcard_w_error(
+            device, slot, 5, title, region,
+            konq_region_data_buffer, 0, freeBlocks, freeBytes);
+        if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
+            mcard_msg_end();
+            mcard_msg_deleting_data(device);
+        }
+        region++;
+    }
+
+    if (ok != 0) {
+        ok = save_to_memcard_w_error(
+            device, 4, nbc_find_text(NBC_MEMCARD_TITLE, 1), &base->settings, 0,
+            freeBlocks, freeBytes);
+    }
+
+    if (ok != 0) {
+        mcard_msg_delete_successful_generic();
+    } else {
+        mcard_msg_delete_failed_generic();
+    }
+    mcard_msg_end();
 }
 
 /* TODO: [near miss] 97.64%; pos_device goes through r0 before r27, and retail seeds ok from region's li 1 (mr) in the erase loop. */
@@ -557,9 +521,10 @@ char* ppv_get_current_profile_name(void) {
     if (slot != 0) {
         return slot->name;
     }
-    return nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
+    return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
 }
 
+/* TODO: [breakthrough needed] 84.92553%; profile-walk guard/join and owner webs differ; inspect retail latch. */
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition) {
     int count;
@@ -800,10 +765,7 @@ void ppv_update_profile_cursor(int delta) {
     fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
 }
 
-/* TODO: [near miss] 99.38%; residue is the sleep/timer schedule. */
-float p_view_profile(void) {
-    int statusChanged;
-
+static inline int begin_profile_view(void) {
     number_profiles = 0;
     position = 0;
     screen_obj = 0;
@@ -811,12 +773,20 @@ float p_view_profile(void) {
     pos_device = -1;
     pos_slot = -1;
     pprofile_player = menu_player;
+    return pprofile_player;
+}
 
-    if (menu_player == 0 || menu_player == 1) {
-        pprofile_pad = (&g_game_info.plyr0)[menu_player].pad_index;
+float p_view_profile(void) {
+    int statusChanged;
+    int player;
+
+    player = begin_profile_view();
+
+    if (player == 0 || player == 1) {
+        pprofile_pad = g_game_info.players[player].pad_index;
         set_mode_of_play(3);
         push_game_state(0xD);
-        set_player_state(&(&g_game_info.plyr0)[pprofile_player], 2);
+        set_player_state(&g_game_info.players[pprofile_player], 2);
         setup_sound_banks(1);
         wait_for_sound_banks_to_load();
         pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles, &position);
@@ -845,7 +815,7 @@ float p_view_profile(void) {
 
     pop_game_state();
     set_mode_of_play(0xD);
-    set_player_state(&(&g_game_info.plyr0)[pprofile_player], 0);
+    set_player_state(&g_game_info.players[pprofile_player], 0);
     gamelogic_jump(6, p_main_menu);
     return kNegOne;
 }
@@ -858,14 +828,13 @@ int pne_is_name_already_used(void) {
     return 0;
 }
 
-static inline void initialize_player_name_entry(void) {
-    char* out;
+static inline void initialize_player_name_entry(void)
+{
     int i;
 
     if (first_button_press != 0) {
-        out = player_name;
         for (i = 0; i < 10; i++) {
-            *out++ = '_';
+            player_name[i] = '_';
         }
         first_button_press = 0;
         player_name[10] = '\0';
@@ -873,11 +842,23 @@ static inline void initialize_player_name_entry(void) {
     }
 }
 
+static inline void pp_store_player_name_char(unsigned char value, int position)
+{
+    char* out = player_name;
+    int i;
+
+    if (position > 0) {
+        for (i = 0; i < position; i++) {
+            out++;
+        }
+    }
+    *out = value;
+}
+
 void pp_name_entry_proces_char_entry(const char* key_name) {
     int found;
     int key;
     int i;
-    char* out;
     unsigned char value;
 
     found = 0;
@@ -939,13 +920,7 @@ void pp_name_entry_proces_char_entry(const char* key_name) {
         initialize_player_name_entry();
         if (pne_char_position < 10) {
             value = pne_alpha_data_table[key].value;
-            out = player_name;
-            if (pne_char_position > 0) {
-                for (i = 0; i < pne_char_position; i++) {
-                    out++;
-                }
-            }
-            *out = value;
+            pp_store_player_name_char(value, pne_char_position);
             fire_screen_studio_event(0x2FA8, 0);
             if (pne_char_position < 10) {
                 pne_char_position++;
@@ -960,13 +935,7 @@ void pp_name_entry_proces_char_entry(const char* key_name) {
         if (pne_char_position >= 1) {
             pne_char_position--;
             value = pne_alpha_data_table[key].value;
-            out = player_name;
-            if (pne_char_position > 0) {
-                for (i = 0; i < pne_char_position; i++) {
-                    out++;
-                }
-            }
-            *out = value;
+            pp_store_player_name_char(value, pne_char_position);
             fire_screen_studio_event(0x2FA8, 0);
         }
         break;
@@ -1023,16 +992,13 @@ static inline void initialize_profile_code(unsigned char code[6], int* digit) {
     clear_profile_code(code, digit);
 }
 
-static inline int scan_profile_code(unsigned char code[6], int* digit) {
+static inline int scan_profile_code(unsigned char code[6], int* digit,
+    int scan_pad, int scan_player) {
     int i;
     int position;
-    int scan_player;
-    int scan_pad;
     unsigned char* cursor;
 
     cursor = code;
-    scan_player = pprofile_player;
-    scan_pad = pprofile_pad;
     if (*digit < 6) {
         for (i = 0; i < 12; i++) {
             if (check_switch_edge(scan_pad,
@@ -1053,7 +1019,7 @@ static inline int scan_profile_code(unsigned char code[6], int* digit) {
 static inline void enter_profile_code(unsigned char code[6], int* digit) {
     int i;
 
-    while (scan_profile_code(code, digit)) {
+    while (scan_profile_code(code, digit, pprofile_pad, pprofile_player)) {
         create_profile_sleep(kOne);
         if (check_switch_edge(pprofile_pad, 0xB)) {
             for (i = 0; i < 6; i++) {
@@ -1088,15 +1054,33 @@ static inline int profile_codes_equal(
     return 1;
 }
 
-/* TODO: [near miss] 99.38028%; flat retail CFG with shared exit/restart jumps recovered;
- * code-reset zero reuse and GPR coloring remain. */
+static inline int create_profile_count(int device) {
+    return find_device_display_status_impl(device, 0) == 0
+        ? DEVICE_AT(device)->profileCount : -1;
+}
+
+static inline int find_free_profile_slot(StorageDevice* storage) {
+    int slot = -1;
+    int i;
+    if (storage->status == 0) {
+        for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+            if (storage->profiles[i].present == 0) {
+                slot = i;
+                break;
+            }
+        }
+    }
+    return slot;
+}
+
+/* TODO: [near miss] 99.71%; profile flow agrees; reset-loop zero reuse and
+ * code-entry helper/save-slot GPR coloring remain. */
 float p_create_profile(void) {
     int answered;
     int code_confirmed;
+    int timer;
     int attempts;
     int device;
-    int slot;
-    int timer;
     int profileCount;
     int i;
     char* name_cursor;
@@ -1105,10 +1089,10 @@ float p_create_profile(void) {
     turn_controllers_off();
     name_entry_done = 0;
     pprofile_player = menu_player;
-    if (menu_player == 0 || menu_player == 1) {
-        pprofile_pad = (&g_game_info.plyr0)[menu_player].pad_index;
+    if (pprofile_player == 0 || pprofile_player == 1) {
+        pprofile_pad = g_game_info.players[pprofile_player].pad_index;
         push_game_state(0xD);
-        set_player_state(&(&g_game_info.plyr0)[pprofile_player], 2);
+        set_player_state(&g_game_info.players[pprofile_player], 2);
         setup_sound_banks(1);
         wait_for_sound_banks_to_load();
         first_button_press = 1;
@@ -1249,11 +1233,7 @@ float p_create_profile(void) {
                     if (device >= 0 && device < STORAGE_MAX_DEVICES) {
                         update_storage_status(0);
                         if (DEVICE_AT(device)->status == STORAGE_STATUS_OK) {
-                            if (find_device_display_status_impl(device, 0) == 0) {
-                                profileCount = DEVICE_AT(device)->profileCount;
-                            } else {
-                                profileCount = -1;
-                            }
+                            profileCount = create_profile_count(device);
                             if (does_name_already_exist(player_name)) {
                                 mcard_msg_name_conflict();
                                 pne_set_players_name_to_default(
@@ -1262,15 +1242,7 @@ float p_create_profile(void) {
                             }
                             if (profileCount >= 0 &&
                                 profileCount < STORAGE_MAX_SLOTS) {
-                                slot = -1;
-                                if (DEVICE_AT(device)->status == 0) {
-                                    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-                                        if (DEVICE_AT(device)->profiles[i].present == 0) {
-                                            slot = i;
-                                            break;
-                                        }
-                                    }
-                                }
+                                int slot = find_free_profile_slot(DEVICE_AT(device));
                                 if (slot == -1) {
                                     goto exit;
                                 }
@@ -1338,7 +1310,7 @@ exit:
     pop_game_state();
     set_mode_of_play(0xD);
     fade_to_black(PROFILE_MENU_FADE_FRAMES, 1);
-    set_player_state(&(&g_game_info.plyr0)[pprofile_player], 0);
+    set_player_state(&g_game_info.players[pprofile_player], 0);
     gamelogic_jump(6, p_main_menu);
     return kNegOne;
 }
@@ -1362,18 +1334,18 @@ void format_value_to_display(char* dest, unsigned int value) {
     case 6:
         strncat(dest, number, length - 3);
         strcat(dest, ",");
-        strncat(dest, number + length - 3, 3);
+        strncat(dest, &number[length - 3], 3);
         break;
     case 7:
         strncat(dest, number, length - 6);
         strcat(dest, ".");
-        strncat(dest, number + length - 6, 2);
+        strncat(dest, &number[length - 6], 2);
         strcat(dest, " M");
         break;
     case 8:
         strncat(dest, number, length - 6);
         strcat(dest, ".");
-        strncat(dest, number + length - 6, 1);
+        strncat(dest, &number[length - 6], 1);
         strcat(dest, " M");
         break;
     case 9:
@@ -1383,7 +1355,7 @@ void format_value_to_display(char* dest, unsigned int value) {
     case 10:
         strncat(dest, number, length - 9);
         strcat(dest, ".");
-        strncat(dest, number + length - 9, 2);
+        strncat(dest, &number[length - 9], 2);
         strcat(dest, " G");
         break;
     default:
@@ -1617,6 +1589,7 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     }
 }
 
+/* TODO: [near miss] 99.65%; default stores agree; zero and two mask pairs use different registers. */
 void summarize_unlocked_items(void) {
     int device;
     int slot;
@@ -1625,8 +1598,8 @@ void summarize_unlocked_items(void) {
     gp_data.cat5 = 0;
     gp_data.cat2.value = default_alt_char_bits.value;
     gp_data.cat3.value = default_bgnd_bits.value;
-    gp_data.cat5 = PROFILE_DEFAULT_UNLOCK_CAT5;
     gp_data.cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
+    gp_data.cat5 = PROFILE_DEFAULT_UNLOCK_CAT5;
     gp_data.cat8.value = 0;
     gp_data.pz_chars.value = default_pz_char_bits.value;
     gp_data.pz_bgnds.value = default_pz_bgnd_bits.value;
@@ -1767,7 +1740,7 @@ static inline void advance_device_slot(int* device, int* slot) {
     }
 }
 
-/* TODO: [near miss] 99.67%; bare-scope slot temp removed (force matching); first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
+/* TODO: [near miss] 99.67%; first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
 int validate_save_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
@@ -2012,17 +1985,15 @@ void quit_from_konquest(void) {
 
 static inline int multi_code_matches_slot(
     const unsigned char* code, StorageProfileSlot* slot) {
-    const unsigned char* code_cursor;
     unsigned char* pin_cursor;
     int i;
 
-    code_cursor = code;
     pin_cursor = slot->pin;
     for (i = 0; i < 6; i++) {
-        if (*code_cursor != *pin_cursor) {
+        if (*code != *pin_cursor) {
             return 0;
         }
-        code_cursor++;
+        code++;
         pin_cursor++;
     }
     return 1;
@@ -2076,16 +2047,14 @@ static inline StorageProfileSlot* find_next_matching_profile(
 
 static inline void find_next_matching_slot(
     const unsigned char* code, int* device, int* slot) {
-    int startDevice;
-    int startSlot;
     int walkDevice;
     int walkSlot;
+    int startDevice;
+    int startSlot;
     int first;
 
-    startDevice = *device;
-    startSlot = *slot;
-    walkDevice = startDevice;
-    walkSlot = startSlot;
+    startDevice = walkDevice = *device;
+    startSlot = walkSlot = *slot;
     first = 1;
     advance_device_slot(&walkDevice, &walkSlot);
     while (walkDevice != startDevice || walkSlot != startSlot) {
@@ -2107,13 +2076,14 @@ static inline void find_next_matching_slot(
     *slot = -1;
 }
 
+/* TODO: [near miss] 92.90%; walk homes recovered; start/pin homes and exhaustion join remain; helper reuse inlines into scanner. */
 int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr) {
-    int i;
-    int startDevice;
-    int startSlot;
-    int device;
     int slot;
+    int device;
+    int startSlot;
+    int startDevice;
     int first;
+    int i;
 
     i = 0;
     *devicePtr = STORAGE_MAX_DEVICES - 1;
@@ -2200,7 +2170,7 @@ static inline int ppl_fill_matching_names(
     return count;
 }
 
-/* TODO: [near miss] 99.55%; shared pdata preserves retail layout; only dev-base vs code-cursor GPR (volatile/nonvolatile) swap remains. */
+/* TODO: [near miss] 99.55%; device-base/code-cursor registers remain; recover distinct owner web kinds. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
     MkProc* proc;
@@ -2223,13 +2193,13 @@ int ppl_get_multi_profile_names_p2(char** out) {
     return count;
 }
 
-/* TODO: [near miss] 99.36%; shared pdata preserves retail layout; remaining register coloring. */
+/* TODO: [near miss] 99.55%; equivalent scan; device-base/code-cursor GPR allocation remains. */
 int ppl_get_multi_profile_names_p1(char** out) {
     int i;
     MkProc* proc;
     ProfileCodePdata* list;
-    const unsigned char* code;
     int count;
+    const unsigned char* code;
 
     count = 0;
     for (i = 0; i < PPL_NAME_SLOTS; i++) {
@@ -2313,12 +2283,12 @@ static void ppl_get_multi_profile_icons(
     }
 }
 
-/* TODO: [near miss] 98.92857%; shared pdata preserves retail layout; remaining register coloring. */
+/* TODO: [near miss] 99.14%; count/device/code-cursor homes remain; typed layout agrees. */
 int ppl_get_multi_profile_count(int player) {
+    int count;
     MkProc* proc;
     ProfileCodePdata* list;
     const unsigned char* code;
-    int count;
 
     count = 0;
     if (player == 0) {
@@ -2338,8 +2308,8 @@ int ppl_get_multi_profile_count(int player) {
 
 static inline StorageProfileSlot* storage_profile_at(
     const int* devicePtr, const int* slotPtr) {
-    int device;
     int slot;
+    int device;
 
     device = *devicePtr;
     if (device >= 0 && device < STORAGE_MAX_DEVICES) {
@@ -2364,17 +2334,16 @@ static inline void mark_profile_as_in_use_impl(int device, int slot) {
     DEVICE_AT(device)->inUse[slot] = 1;
 }
 
-/* TODO: [near miss] 98.00595%; retail breaks jump straight to the rescan top with no post-loop
- * selected test (structured forms keep it); remaining diff is inlined-scan GPR coloring. */
+/* TODO: [near miss] 99.23611%; direct rescan CFG recovered; shared count coloring and one polling entry branch remain. */
 StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
                                           unsigned char* code, int* device, int* slot) {
     int matchCount;
     int previousCount;
     int cursor;
-    int timer;
-    int selected;
     int eventPlayer;
+    int selected;
     StorageProfileSlot* profile;
+    int timer;
 
     selected = 0;
     if (is_memcard_scanner_running() != 0) {
@@ -2419,7 +2388,7 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
         previousCount = matchCount;
         timer = 0;
 
-        while (selected == 0) {
+        for (;;) {
             matchCount = ppl_count_matching_profiles(code);
             if (previousCount != matchCount) {
                 break;
@@ -2459,9 +2428,9 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
             }
             _mkproc_sleep_ticks = kOne;
             mkproc_sleep();
-        }
-        if (selected != 0) {
-            return profile;
+            if (selected != 0) {
+                return profile;
+            }
         }
     }
 }
@@ -2653,7 +2622,7 @@ static inline int profile_name_text_equal(char* first, char* second) {
     int length;
     int i;
 
-    length = (int)strlen(first);
+    length = strlen(first);
     if (length != (int)strlen(second)) {
         return 0;
     }
@@ -2667,54 +2636,61 @@ static inline int profile_name_text_equal(char* first, char* second) {
     return 1;
 }
 
+static inline int profile_count_available_named(char* name) {
+    int device;
+    int slot;
+    int hits;
+
+    hits = 0;
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
+            if (DEVICE_AT(device)->profiles[slot].present != 0) {
+                if (profile_name_text_equal(
+                        name, DEVICE_AT(device)->profiles[slot].name) != 0 &&
+                    DEVICE_AT(device)->inUse[slot] == 0) {
+                    hits++;
+                }
+            }
+        }
+    }
+    return hits;
+}
+
 static void pne_set_players_name_to_default(char* name, int* charPos) {
     int suffix;
     int matches;
-    int hits;
-    int device;
-    int slot;
     int nameLen;
     int i;
-    char* p;
-    StorageDevice* dev;
 
     suffix = 0;
     matches = 1;
     while (matches != 0 && suffix < 0x63) {
         suffix++;
         sprintf(name, "%s %d", nbc_find_text(0xb, 1), suffix);
-        hits = 0;
-        for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-            dev = DEVICE_AT(device);
-            for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-                if (dev->profiles[slot].present != 0) {
-                    if (profile_name_text_equal(
-                            name, dev->profiles[slot].name) != 0 &&
-                        dev->inUse[slot] == 0) {
-                        hits++;
-                    }
-                }
-            }
-        }
-        matches = hits;
+        matches = profile_count_available_named(name);
     }
 
-    nameLen = (int)strlen(name);
-    p = name + nameLen;
+    nameLen = strlen(name);
     for (i = nameLen; i < 10; i++) {
-        *p++ = '_';
+        name[i] = '_';
     }
     name[10] = '\0';
     *charPos = nameLen;
 }
 
+static inline void profile_normalize_name(char* name) {
+    int i;
+    for (i = 0; i < 10; i++) {
+        if (*name == '_') {
+            *name = '\0';
+        }
+        name++;
+    }
+}
+
 int does_name_already_exist(const char* name) {
     char local[STORAGE_NAME_LEN];
     int i;
-    int device;
-    int slot;
-    int hits;
-    StorageDevice* dev;
     char* p;
     const char* q;
 
@@ -2723,29 +2699,9 @@ int does_name_already_exist(const char* name) {
     for (i = 0; i < 0xB; i++) {
         *p++ = *q++;
     }
-    p = local;
-    for (i = 0; i < 10; i++) {
-        if (*p == '_') {
-            *p = '\0';
-        }
-        p++;
-    }
+    profile_normalize_name(local);
 
-    hits = 0;
-    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        dev = DEVICE_AT(device);
-        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-            if (dev->profiles[slot].present == 0) {
-                continue;
-            }
-            if (profile_name_text_equal(
-                    local, dev->profiles[slot].name) != 0 &&
-                dev->inUse[slot] == 0) {
-                hits++;
-            }
-        }
-    }
-    return hits != 0;
+    return profile_count_available_named(local) != 0;
 }
 
 #define COFFIN_BIT_COUNT 0x258
@@ -2766,21 +2722,18 @@ void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
     }
 }
 
-/* TODO: [near miss] 98.46%; shift operands use swapped registers;
- * mask-first AND is neutral; stop at coloring. */
 int get_coffin_bit(const unsigned char* bits, unsigned int index) {
-    int mask;
-    unsigned int shift;
+    unsigned int mask;
 
     if (index >= COFFIN_BIT_COUNT) {
         return 0;
     }
-    shift = index & 7;
-    mask = 1 << shift;
+    mask = index & 7;
+    mask = 1u << mask;
     return (mask & bits[index >> 3]) != 0;
 }
 
-/* TODO: [near miss] 96.59574%; typed default masks preserve codegen; loop scheduling remains. */
+/* TODO: [near miss] 96.59574%; copy widths/indices agree; source base/index/value registers and preheader order remain. */
 void set_profile_to_default(PlayerProfile* profile) {
     set_profile_to_default_impl(profile);
 }

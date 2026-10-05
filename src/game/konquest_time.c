@@ -1,31 +1,22 @@
-typedef struct KonquestTime {
-    int year;         /* +0x00 */
-    int month;        /* +0x04, zero based */
-    int day_of_month; /* +0x08, zero based */
-    int day_of_week;  /* +0x0C */
-    int hour;         /* +0x10 */
-    int minute;       /* +0x14 */
-} KonquestTime;
-
-typedef struct KonquestTimedEvent {
-    KonquestTime time;               /* +0x00 */
-    unsigned int script_function;    /* +0x18 */
-    unsigned int event_slot_3_script; /* +0x1C */
-    void* path;                      /* +0x20 */
-    int path_id;                     /* +0x24 */
-} KonquestTimedEvent;
+#include "game/konquest_time.h"
 
 static inline unsigned int event_time_specificity(const KonquestTime* time) {
     int has_year = time->year != -1;
+    unsigned int specified = time->month == -1 ? 0 : 2;
 
-    return has_year | (time->month == -1 ? 0 : 2) |
-           (time->day_of_week == -1 ? 0 : 4) |
-           (time->day_of_month == -1 ? 0 : 8);
+    specified = has_year | specified;
+    specified |= time->day_of_week == -1 ? 0 : 4;
+    specified |= time->day_of_month == -1 ? 0 : 8;
+    return specified;
 }
 
-/* TODO: [near miss] 90.38%; retail loads year, month, day_of_week, day_of_month in that order; ours starts at day_of_week. */
 int is_valid_event_time(const KonquestTime* time) {
-    unsigned int specified = event_time_specificity(time);
+    int has_year = time->year != -1;
+    unsigned int specified = time->month == -1 ? 0 : 2;
+
+    specified = has_year | specified;
+    specified |= time->day_of_week == -1 ? 0 : 4;
+    specified |= time->day_of_month == -1 ? 0 : 8;
 
     if (specified == 0xF) {
         return 0;
@@ -236,16 +227,44 @@ static inline void advance_months(KonquestTime* time, int months) {
     }
 }
 
-/* TODO: [near miss] 87.71%; complete 16-case algorithm; eight-byte size delta, scheduling and one CR-setting subtract remain. */
+static inline int advance_weekday_in_year(
+    KonquestTime* time, int event_year, int event_day_of_week) {
+    int amount;
+    if (event_year < time->year) {
+        return 0;
+    }
+    if (event_year == time->year) {
+        amount = event_day_of_week - time->day_of_week;
+        if (amount < 0) {
+            amount += 7;
+        }
+        advance_days(time, amount);
+        if (time->year != event_year) {
+            return 0;
+        }
+    } else {
+        int initial_day_of_week = (event_year * 3) % 7;
+        time->year = event_year;
+        time->month = 0;
+        time->day_of_month = 0;
+        time->day_of_week = initial_day_of_week;
+        amount = event_day_of_week - initial_day_of_week;
+        if (amount < 0) {
+            amount += 7;
+        }
+        advance_days(time, amount);
+    }
+    return 1;
+}
+
 int calc_next_occurrence_of_event(
-    KonquestTime* result, const KonquestTime* event_time,
+    KonquestTime* result, KonquestTime* event_time,
     const KonquestTime* current) {
     KonquestTime next;
     unsigned int specified;
     int amount;
     int years_to_add;
     int event_is_later;
-    int success;
 
     if (result == 0 || current == 0 || event_time == 0) {
         return 0;
@@ -284,24 +303,28 @@ int calc_next_occurrence_of_event(
     case 0:
         *result = next;
         return 1;
-    case 1:
+    case 1: {
+        int success;
+        int event_year = event_time->year;
         *result = next;
-        if (event_time->year < result->year) {
+        if (event_year < result->year) {
             success = 0;
-        } else if (event_time->year == result->year) {
+        } else if (event_year == result->year) {
             success = 1;
         } else {
-            result->year = event_time->year;
+            result->year = event_year;
             result->month = 0;
-            result->day_of_week = (event_time->year * 3) % 7;
+            result->day_of_week = (event_year * 3) % 7;
             result->day_of_month = 0;
             success = 1;
         }
         return success != 0;
-    case 2:
+    }
+    case 2: {
+        int event_month = event_time->month;
         *result = next;
-        if (next.month != event_time->month) {
-            amount = event_time->month - result->month;
+        if (next.month != event_month) {
+            amount = event_month - result->month;
             if (amount < 0) {
                 amount += 12;
             }
@@ -311,128 +334,128 @@ int calc_next_occurrence_of_event(
             result->day_of_month = 0;
         }
         return 1;
+    }
     case 3:
         return find_month_in_a_year(
                    event_time->month, event_time->year, &next, result) != 0;
-    case 4:
+    case 4: {
+        int event_day_of_week = event_time->day_of_week;
         *result = next;
-        amount = event_time->day_of_week - result->day_of_week;
+        amount = event_day_of_week - result->day_of_week;
         if (amount < 0) {
             amount += 7;
         }
         advance_days(result, amount);
         return 1;
-    case 5:
+    }
+    case 5: {
+        int event_year = event_time->year;
+        int event_day_of_week = event_time->day_of_week;
         *result = next;
-        if (event_time->year < result->year) {
-            return 0;
-        } else if (event_time->year == result->year) {
-            amount = event_time->day_of_week - result->day_of_week;
-            if (amount < 0) {
-                amount += 7;
-            }
-            advance_days(result, amount);
-            if (result->year != event_time->year) {
-                return 0;
-            }
-        } else {
-            result->year = event_time->year;
-            result->month = 0;
-            result->day_of_month = 0;
-            result->day_of_week = (event_time->year * 3) % 7;
-            amount = event_time->day_of_week - result->day_of_week;
-            if (amount < 0) {
-                amount += 7;
-            }
-            advance_days(result, amount);
-        }
-        return 1;
-    case 6:
+        return advance_weekday_in_year(
+                   result, event_year, event_day_of_week) != 0;
+    }
+    case 6: {
+        int event_month = event_time->month;
+        int event_day_of_week = event_time->day_of_week;
         *result = next;
-        amount = event_time->day_of_week - result->day_of_week;
+        amount = event_day_of_week - result->day_of_week;
         if (amount < 0) {
             amount += 7;
         }
         advance_days(result, amount);
-        amount = event_time->month - result->month;
+        amount = event_month - result->month;
         if (amount < 0) {
             amount += 12;
         }
         if (amount > 0) {
-            amount =
-                ((30 - result->day_of_month + (amount - 1) * 30 + 6) / 7) *
-                7;
+            amount = 30 - result->day_of_month + (amount - 1) * 30;
+            amount = (amount + 6) / 7 * 7;
             advance_days(result, amount);
         }
         return 1;
+    }
     case 7:
         return find_next_day_of_week_and_month_in_a_year(
                    event_time->day_of_week, event_time->month,
                    event_time->year, &next, result) != 0;
-    case 8:
+    case 8: {
+        int event_day_of_month = event_time->day_of_month;
         *result = next;
-        amount = event_time->day_of_month - result->day_of_month;
+        amount = event_day_of_month - result->day_of_month;
         if (amount < 0) {
             amount += 30;
         }
         advance_days(result, amount);
         return 1;
+    }
     case 9:
         return find_next_day_of_month_in_a_year(
                    event_time->day_of_month, event_time->year, &next,
                    result) != 0;
-    case 10:
+    case 10: {
+        int event_month = event_time->month;
+        int event_day_of_month = event_time->day_of_month;
         *result = next;
-        amount = event_time->day_of_month - result->day_of_month;
+        amount = event_day_of_month - result->day_of_month;
         if (amount < 0) {
             amount += 30;
         }
         advance_days(result, amount);
-        amount = event_time->month - result->month;
+        amount = event_month - result->month;
         if (amount < 0) {
             amount += 12;
         }
         advance_months(result, amount);
         return 1;
+    }
     case 11:
         return find_next_day_of_month_and_month_in_a_year(
                    event_time->day_of_month, event_time->month,
                    event_time->year, &next, result) != 0;
-    case 12:
+    case 12: {
+        int event_day_of_month = event_time->day_of_month;
+        int event_day_of_week = event_time->day_of_week;
+        int months_to_advance;
         *result = next;
-        amount = event_time->day_of_month - result->day_of_month;
+        amount = event_day_of_month - result->day_of_month;
         if (amount < 0) {
             amount += 30;
         }
         advance_days(result, amount);
-        amount = event_time->day_of_week - result->day_of_week;
+        amount = event_day_of_week - result->day_of_week;
         if (amount < 0) {
             amount += 7;
         }
         if (amount & 1) {
-            amount = (amount + 7) / 2;
+            months_to_advance = (amount + 7) / 2;
         } else {
-            amount /= 2;
+            months_to_advance = amount / 2;
         }
-        advance_months(result, amount);
+        advance_months(result, months_to_advance);
         return 1;
+    }
     case 13:
         return find_next_day_of_week_and_day_of_month_in_a_year(
                    event_time->day_of_week, event_time->day_of_month,
                    event_time->year, &next, result) != 0;
-    case 14:
+    case 14: {
+        int event_day_of_week;
+        int event_month = event_time->month;
+        int event_day_of_month = event_time->day_of_month;
+        event_day_of_week = event_time->day_of_week;
         *result = next;
-        amount = event_time->day_of_month - result->day_of_month;
+        amount = event_day_of_month - result->day_of_month;
         if (amount < 0) {
             amount += 30;
         }
         advance_days(result, amount);
-        amount = event_time->month - result->month;
+        amount = event_month - result->month;
         if (amount < 0) {
             amount += 12;
         }
         advance_months(result, amount);
-        amount = event_time->day_of_week - result->day_of_week;
+        amount = event_day_of_week - result->day_of_week;
         if (amount < 0) {
             amount += 7;
         }
@@ -446,6 +469,7 @@ int calc_next_occurrence_of_event(
         result->day_of_week =
             (result->day_of_week + years_to_add * 3) % 7;
         return 1;
+    }
     case 15:
         return 0;
     }

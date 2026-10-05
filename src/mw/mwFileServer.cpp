@@ -88,7 +88,7 @@ class mwFileServer {
 public:
     mwFileServer() : manager(0) {}
     virtual ~mwFileServer();
-    virtual unsigned char isInitialized() const = 0;
+    virtual bool isInitialized() const = 0;
     virtual int service() = 0;
     virtual int addCommand(mwFileCommand*, unsigned char) = 0;
     virtual unsigned char isActive() const = 0;
@@ -107,7 +107,7 @@ class mwFileServerNotQueued : public mwFileServer {
 public:
     mwFileServerNotQueued();
     virtual ~mwFileServerNotQueued();
-    virtual unsigned char isInitialized() const;
+    virtual bool isInitialized() const;
     virtual int service();
     virtual int addCommand(mwFileCommand*, unsigned char);
     virtual unsigned char isActive() const;
@@ -116,20 +116,17 @@ public:
     int initialize(unsigned short command_count);
 
 private:
-    typedef mwFileMemAllocator<mwFileCommand*, 3> CommandAllocator;
-    typedef std::vector<mwFileCommand*, CommandAllocator> CommandVector;
-
     mwFileMutex mutex;
     mwProducerConsumerQueue<mwFileCommand*> pending_commands;
-    CommandVector active_commands;
-    unsigned char initialized;
+    std::vector<mwFileCommand*, mwFileMemAllocator<mwFileCommand*, 3> > active_commands;
+    bool initialized;
     unsigned char servicing;
 };
 
 class mwFileServerQueued : public mwFileServer {
 public:
     virtual ~mwFileServerQueued();
-    virtual unsigned char isInitialized() const;
+    virtual bool isInitialized() const;
     virtual int service();
     virtual int addCommand(mwFileCommand*, unsigned char);
     virtual unsigned char isActive() const;
@@ -146,27 +143,9 @@ unsigned char mwFileServerQueued::isActive() const
     return queryActive();
 }
 
-unsigned char mwFileServerQueued::isInitialized() const
+bool mwFileServerQueued::isInitialized() const
 {
     return queue0 != 0 && queue1 != 0;
-}
-
-mwFileServerNotQueued::mwFileServerNotQueued()
-    : initialized(false), servicing(false)
-{
-}
-
-unsigned char mwFileServerNotQueued::isInitialized() const
-{
-    return initialized;
-}
-
-int mwFileServerNotQueued::initialize(unsigned short command_count)
-{
-    pending_commands.resize(command_count);
-    active_commands.reserve(command_count);
-    initialized = true;
-    return 0;
 }
 
 unsigned char mwFileServerNotQueued::isActive() const
@@ -183,6 +162,26 @@ int mwFileServerNotQueued::addCommand(mwFileCommand* command,
     mutex.unlock();
     notifyCommandAdded();
     return 0;
+}
+
+bool mwFileServerNotQueued::isInitialized() const
+{
+    return initialized;
+}
+
+/* TODO: [near miss] 66.70%; body agrees; compact stmw/lmw save shape remains. */
+int mwFileServerNotQueued::initialize(unsigned short command_count)
+{
+    pending_commands.resize(command_count);
+    active_commands.reserve(command_count);
+    initialized = true;
+    return 0;
+}
+
+/* TODO: [breakthrough needed] 68.68%; derived vtable store precedes mutex construction; recover constructor boundary. */
+mwFileServerNotQueued::mwFileServerNotQueued()
+    : initialized(false), servicing(false)
+{
 }
 
 mwFileServer::~mwFileServer()

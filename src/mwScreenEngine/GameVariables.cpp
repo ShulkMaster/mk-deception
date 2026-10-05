@@ -39,7 +39,7 @@ GameVariables::GameVariables() {
     m_colMax = 0;
 }
 
-unsigned int GameVariables::IsValidInt(int /*a*/, int /*b*/, int /*c*/) {
+unsigned int GameVariables::IsValidInt(int a, int b, int c) {
     return 1;
 }
 
@@ -67,34 +67,34 @@ unsigned int GameVariables::IsValidCollectionRange(unsigned int id) {
 #pragma dont_inline reset
 
 void GameVariables::SetOptionRange(unsigned int minId, unsigned int maxId) {
-    m_optMin = (int)minId;
-    m_optMax = (int)maxId;
+    m_optMin = minId;
+    m_optMax = maxId;
 }
 
 void GameVariables::SetCollectionRange(unsigned int minId, unsigned int maxId) {
-    m_colMin = (int)minId;
-    m_colMax = (int)maxId;
+    m_colMin = minId;
+    m_colMax = maxId;
 }
 
-int GameVariables::HandleAction(ScreenMgr* /*mgr*/, const ScreenAction* /*action*/) {
+int GameVariables::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
     return 0;
 }
 
-void GameVariables::HandleEvent(ScreenObject* /*object*/, int /*event*/, int /*arg*/) {}
+void GameVariables::HandleEvent(ScreenObject* object, int event, int arg) {}
 
-int GameVariables::GetRowState(int /*id*/, int /*row*/) {
+int GameVariables::GetRowState(int id, int row) {
     return 0;
 }
 
-void GameVariables::SetRowState(int /*id*/, int /*row*/, int /*value*/) {}
+void GameVariables::SetRowState(int id, int row, int value) {}
 
-int GameVariables::GetColState(int /*id*/, int /*col*/) {
+int GameVariables::GetColState(int id, int col) {
     return 0;
 }
 
-void GameVariables::SetColState(int /*id*/, int /*col*/, int /*value*/) {}
+void GameVariables::SetColState(int id, int col, int value) {}
 
-int GameVariables::IsValidOption(int /*id*/) {
+int GameVariables::IsValidOption(int id) {
     return 1;
 }
 
@@ -127,8 +127,8 @@ void GameVariableDispatcher::Register(GameVariables* vars) {
     }
 }
 
-int GameVariableDispatcher::IsValidInt(unsigned int /*a*/, unsigned int b,
-                                       unsigned int /*c*/, unsigned int id,
+int GameVariableDispatcher::IsValidInt(unsigned int a, unsigned int b,
+                                       unsigned int c, unsigned int id,
                                        int value) {
     GameVariables* cur;
 
@@ -143,7 +143,7 @@ int GameVariableDispatcher::IsValidInt(unsigned int /*a*/, unsigned int b,
 }
 
 #pragma dont_inline on
-int GameVariableDispatcher::GetInt(unsigned int /*unused*/, unsigned int id) {
+int GameVariableDispatcher::GetInt(unsigned int unused, unsigned int id) {
     GameVariables* cur;
 
     cur = m_head;
@@ -156,7 +156,7 @@ int GameVariableDispatcher::GetInt(unsigned int /*unused*/, unsigned int id) {
     return 0;
 }
 
-void GameVariableDispatcher::SetInt(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::SetInt(unsigned int unused, unsigned int id,
                                     int value) {
     GameVariables* cur;
 
@@ -170,7 +170,7 @@ void GameVariableDispatcher::SetInt(unsigned int /*unused*/, unsigned int id,
     }
 }
 
-char* GameVariableDispatcher::GetString(unsigned int /*unused*/, unsigned int id) {
+char* GameVariableDispatcher::GetString(unsigned int unused, unsigned int id) {
     GameVariables* cur;
 
     cur = m_head;
@@ -183,7 +183,7 @@ char* GameVariableDispatcher::GetString(unsigned int /*unused*/, unsigned int id
     return 0;
 }
 
-void GameVariableDispatcher::GetIntArray(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::GetIntArray(unsigned int unused, unsigned int id,
                                          int* out, int count) {
     GameVariables* cur;
 
@@ -197,7 +197,7 @@ void GameVariableDispatcher::GetIntArray(unsigned int /*unused*/, unsigned int i
     }
 }
 
-void GameVariableDispatcher::SetIntArray(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::SetIntArray(unsigned int unused, unsigned int id,
                                          int* values, int count) {
     GameVariables* cur;
 
@@ -211,7 +211,7 @@ void GameVariableDispatcher::SetIntArray(unsigned int /*unused*/, unsigned int i
     }
 }
 
-void GameVariableDispatcher::SetString(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::SetString(unsigned int unused, unsigned int id,
                                        char* str) {
     GameVariables* cur;
 
@@ -225,7 +225,7 @@ void GameVariableDispatcher::SetString(unsigned int /*unused*/, unsigned int id,
     }
 }
 
-int GameVariableDispatcher::GetRowState(unsigned int /*unused*/, unsigned int id,
+int GameVariableDispatcher::GetRowState(unsigned int unused, unsigned int id,
                                         int row) {
     GameVariables* cur;
 
@@ -239,7 +239,7 @@ int GameVariableDispatcher::GetRowState(unsigned int /*unused*/, unsigned int id
     return 0;
 }
 
-int GameVariableDispatcher::GetColState(unsigned int /*unused*/, unsigned int id,
+int GameVariableDispatcher::GetColState(unsigned int unused, unsigned int id,
                                         int col) {
     GameVariables* cur;
 
@@ -253,7 +253,7 @@ int GameVariableDispatcher::GetColState(unsigned int /*unused*/, unsigned int id
     return 0;
 }
 
-void GameVariableDispatcher::SetRowState(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::SetRowState(unsigned int unused, unsigned int id,
                                          int row, int value) {
     GameVariables* cur;
 
@@ -267,7 +267,7 @@ void GameVariableDispatcher::SetRowState(unsigned int /*unused*/, unsigned int i
     }
 }
 
-void GameVariableDispatcher::SetColState(unsigned int /*unused*/, unsigned int id,
+void GameVariableDispatcher::SetColState(unsigned int unused, unsigned int id,
                                          int col, int value) {
     GameVariables* cur;
 
@@ -281,7 +281,7 @@ void GameVariableDispatcher::SetColState(unsigned int /*unused*/, unsigned int i
     }
 }
 
-int GameVariableDispatcher::IsValidOption(unsigned int /*unused*/, unsigned int id) {
+int GameVariableDispatcher::IsValidOption(unsigned int unused, unsigned int id) {
     GameVariables* cur;
 
     cur = m_head;
@@ -294,7 +294,7 @@ int GameVariableDispatcher::IsValidOption(unsigned int /*unused*/, unsigned int 
     return 0;
 }
 
-int GameVariableDispatcher::GetStringCollection(unsigned int /*unused*/,
+int GameVariableDispatcher::GetStringCollection(unsigned int unused,
                                                 unsigned int id, char*** out) {
     GameVariables* cur;
 
@@ -309,7 +309,7 @@ int GameVariableDispatcher::GetStringCollection(unsigned int /*unused*/,
     return 0;
 }
 
-int GameVariableDispatcher::GetStringMatrixCollection(unsigned int /*unused*/,
+int GameVariableDispatcher::GetStringMatrixCollection(unsigned int unused,
                                                       unsigned int id, char*** out,
                                                       int& rows) {
     GameVariables* cur;
@@ -325,7 +325,7 @@ int GameVariableDispatcher::GetStringMatrixCollection(unsigned int /*unused*/,
     return 0;
 }
 
-void GameVariableDispatcher::FreeStringCollection(unsigned int /*unused*/,
+void GameVariableDispatcher::FreeStringCollection(unsigned int unused,
                                                   unsigned int id, char** strings,
                                                   unsigned int count) {
     GameVariables* cur;
@@ -343,14 +343,14 @@ void GameVariableDispatcher::FreeStringCollection(unsigned int /*unused*/,
     }
 }
 
-int GameVariableDispatcher::GetTextureCollection(unsigned int /*unused*/, int id,
+int GameVariableDispatcher::GetTextureCollection(unsigned int unused, int id,
                                                  GMTextureInfo_t* out,
                                                  unsigned int& count) {
     GameVariables* cur;
 
     cur = m_head;
     while (cur != 0) {
-        if (cur->IsValidCollectionRange((unsigned int)id) != 0) {
+        if (cur->IsValidCollectionRange(id) != 0) {
             return cur->GetTextureCollection(id, out, count);
         }
         cur = cur->m_next;
@@ -358,13 +358,13 @@ int GameVariableDispatcher::GetTextureCollection(unsigned int /*unused*/, int id
     return 0;
 }
 
-void GameVariableDispatcher::FreeTextureCollection(unsigned int /*unused*/, int id,
+void GameVariableDispatcher::FreeTextureCollection(unsigned int unused, int id,
                                                    GMTextureInfo_t* info) {
     GameVariables* cur;
 
     cur = m_head;
     while (cur != 0) {
-        if (cur->IsValidCollectionRange((unsigned int)id) != 0) {
+        if (cur->IsValidCollectionRange(id) != 0) {
             cur->FreeTextureCollection(id, info);
             return;
         }
@@ -431,7 +431,7 @@ void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int ar
         if (object->m_objTag == kTagSCtl) {
             ctrl = (ScreenControl*)object;
             cur = m_head;
-            optionId = (unsigned int)ctrl->m_optionId;
+            optionId = ctrl->m_optionId;
             while (cur != 0) {
                 if (cur->IsValidOptionRange(optionId) != 0) {
                     cur->HandleEvent(object, event, arg);
@@ -450,11 +450,11 @@ void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int ar
 }
 
 int GameVariableDispatcher::GetInt(int id) {
-    return GetInt(GAME_VARIABLE_ANY_OWNER, (unsigned int)id);
+    return GetInt(GAME_VARIABLE_ANY_OWNER, id);
 }
 
 void GameVariableDispatcher::SetString(int id, char* str) {
-    SetString(GAME_VARIABLE_ANY_OWNER, (unsigned int)id, str);
+    SetString(GAME_VARIABLE_ANY_OWNER, id, str);
 }
 
 int GameVariableDispatcher::GetTextureCollection(int id, GMTextureInfo_t* out,
