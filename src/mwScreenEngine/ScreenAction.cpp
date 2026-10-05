@@ -16,7 +16,6 @@ ScreenAction::ScreenAction() {
 }
 
 ScreenAction::~ScreenAction() {
-    /* Retail deleting dtor: restore vptr then optional operator delete. */
 }
 
 void ScreenAction::Clear() {
@@ -39,8 +38,8 @@ void ScreenAction::Init(ScreenEvent* event, int eventIndex, ScreenObject* object
     field_0x14 = 0;
 }
 
-int ScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                         int /*dt*/) {
+int ScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
+                         int dt) {
     int handled;
     ScreenObject* object;
 
