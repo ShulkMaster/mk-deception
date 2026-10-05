@@ -6,5 +6,7 @@
 extern RwPluginRegistry atomicTKList;
 extern RwPluginRegistry clumpTKList;
 extern RwPluginRegistry geometryTKList;
+extern unsigned int lastSeenExtraData;
+extern unsigned int lastSeenRightsPluginId;
 
 #endif
