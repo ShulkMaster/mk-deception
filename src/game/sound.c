@@ -1,20 +1,26 @@
 #include "runtime/sound_tracker.h"
 #include "runtime/sound_data.h"
+#include "runtime/sound.h"
 
 #include "game/game_info.h"
+#include "game/settings.h"
 #include "math/mk_math.h"
 #include "platform/gcARam.h"
 #include "runtime/cam.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
+#include "msl/mslcore.h"
+#include "runtime/cstring.h"
+#include "platform/main.h"
+#include "rw/rwframe.h"
 
-typedef struct SoundRequest {
+struct SoundRequest {
     int sound_id;
     int apply_group_volume;
     float volume;
     mslLoadedBank* bank;
-} SoundRequest;
+};
 
 typedef struct SoundCallTable {
     int* sounds;
@@ -22,77 +28,62 @@ typedef struct SoundCallTable {
 } SoundCallTable;
 
 typedef struct SoundBankData {
-    mslLoadedBank* handle; /* +0x00 */
-    int async_state;    /* +0x04 */
-    unsigned char active; /* +0x08 */
+    mslLoadedBank* handle;
+    int async_state;
+    unsigned char active;
     char pad09[3];
-    char* name;         /* +0x0C */
-    void (*callback)(void*); /* +0x10 */
-    unsigned char callback_state; /* +0x14 */
+    char* name;
+    void (*callback)(void*);
+    unsigned char callback_state;
     char pad15[3];
-    int callback_field_18;   /* +0x18 */
-    int* callback_bank;      /* +0x1C */
-    int bank_index;          /* +0x20 */
-} SoundBankData; /* 0x24 */
+    int callback_field_18;
+    int* callback_bank;
+    int bank_index;
+} SoundBankData;
 
-typedef struct SoundBankCallback {
+struct SoundBankCallback {
     int field_00;
     int status;
     mslLoadedBank* handle;
     int* bank_index;
-} SoundBankCallback;
+};
 
 typedef struct LoadedSoundBank {
-    int bank_index;       /* +0x00 */
-    unsigned char active; /* +0x04 */
+    int bank_index;
+    unsigned char active;
     char pad05[3];
-} LoadedSoundBank; /* 0x08 */
+} LoadedSoundBank;
 
 typedef struct SoundBankLoadMode {
-    unsigned int* banks; /* +0x00 - bank/slot pairs */
-    int count;           /* +0x04 */
-    int transition_mode; /* +0x08 */
-    int slot_list;       /* +0x0C */
-    char* name;          /* +0x10 */
-} SoundBankLoadMode; /* 0x14 */
+    unsigned int* banks;
+    int count;
+    int transition_mode;
+    int slot_list;
+    char* name;
+} SoundBankLoadMode;
 
-typedef struct MslInitParam {
+struct MslInitParam {
     int size;
     int flags;
     int track_count;
-} MslInitParam;
+};
 
-typedef struct MslSystemInit {
+struct MslSystemInit {
     int size;
     int field_04;
     unsigned short first_voice;
     unsigned short voice_count;
     unsigned int aram_base;
     unsigned int aram_size;
-} MslSystemInit;
+};
 
-typedef struct CameraSoundFrame {
-    char pad00[0x40];
-    float position[3];
-} CameraSoundFrame;
-
-typedef struct CameraSoundObj {
-    char pad00[0x20];
-    CameraSoundFrame* frame;
-} CameraSoundObj;
-
-MslInitParam g_initDefault = {12, 1, 3};
-MslSystemInit g_sysinitDefault = {20, 0, 0, 64, 0, 0};
+struct MslInitParam g_initDefault = {sizeof(struct MslInitParam), 1, 3};
+struct MslSystemInit g_sysinitDefault = {sizeof(struct MslSystemInit), 0, 0, 64, 0, 0};
 extern SoundBankData sbank_data[];
 extern LoadedSoundBank loaded_sbank_data[];
 extern SoundBankLoadMode bank_load_table[];
-int last_sound_list_issued;
-extern float game_settings[];
-extern int mode_of_play;
 extern int mk_plyr_sound_table[];
 extern int mk_foot_sound_table[7][4];
-int p1_char_fvoice;
-int p2_char_fvoice;
 extern SoundCallTable foot_call_table[];
 extern SoundCallTable voice_call_table[];
 extern SoundCallTable hit_call_table[];
@@ -102,7 +93,7 @@ extern SoundCallTable pf_hit_call_table[];
 #include "src/game/sound_bank_data.inc"
 
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
-int snd_calculate_volume(SoundRequest* request);
+int snd_calculate_volume(struct SoundRequest* request);
 
 MslSoundHandle mslBankPlayVol(
     mslLoadedBank* bank, int sound, int field_0c, int priority, float volume,
@@ -119,13 +110,16 @@ void mslSetDuckVol(_mslSystem* system, float volume);
 void mslUnPauseAll(_mslSystem* system);
 void mslPauseAll(_mslSystem* system);
 
-_mslSystem* msi;
-int current_sound_shuffle_state;
-int current_konq_sound_shuffle_state;
-int sounds_muted;
-MslSoundHandle bgnd_music_ptr1;
-MslSoundHandle bgnd_music_ptr2;
 int gap_08_80510D94_sbss;
+static int last_sound_list_issued;
+static int p2_char_fvoice;
+static int p1_char_fvoice;
+_mslSystem* msi;
+static int current_konq_sound_shuffle_state;
+static int current_sound_shuffle_state;
+int sounds_muted;
+MslSoundHandle bgnd_music_ptr2;
+MslSoundHandle bgnd_music_ptr1;
 
 void yinyang_finish_music(void);
 void yinyang_stop_music(void);
@@ -139,22 +133,20 @@ int mslBankLoadAsyncCancelNamed(char* name);
 void mslBankUnLoad(mslLoadedBank* bank);
 float mslGetVol(_mslSystem* system);
 void mslSetVol(_mslSystem* system, float volume);
-void mslStopAll(_mslSystem* system);
-_mslSystem* mslInit(MslInitParam* init, MslSystemInit* system_init);
+_mslSystem* mslInit(struct MslInitParam* init, struct MslSystemInit* system_init);
 int mslSetWavePath(_mslSystem* system, const char* path);
-char* strcat(char* dest, const char* src);
 void mslBankLoadAsync(void* system, int flags, char* name, void* callback);
 void check_and_load_sound_bank_async(int bank, int slot);
 void* get_konquest_region_table(void);
-void lsba_callbank(SoundBankCallback* callback);
+static void lsba_callbank(void* userdata);
 
 void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {
     int group0[3] = {0x1C4, 0x1C4, 0x1C5};
     int group1[3] = {0x1B4, 0x1B5, 0x1B4};
     int group2[3] = {0x1C0, 0x1BF, 0x1C0};
-    SoundRequest request0;
-    SoundRequest request1;
-    SoundRequest request2;
+    struct SoundRequest request0;
+    struct SoundRequest request1;
+    struct SoundRequest request2;
     unsigned int choice;
     int sound_id;
 
@@ -215,122 +207,99 @@ void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {
     }
 }
 
-/* TODO: [near miss] 88.50%; ID validation and attenuation lifetime recovered; residue is loop-wide GPR/FPR coloring and camera-wrapper branches. */
-float p_track_sound(void) {
-    SoundTrackerPdata* pdata;
-    CameraObj* camera;
-    CameraSoundFrame* camera_frame;
-    MkPtr* node;
+static inline MslSoundHandle play_tracked_sound(int sound_id, float volume,
+                                                float pan)
+{
+    struct SoundRequest play_request;
+    MslSoundHandle handle = 0;
 
-    pdata = (SoundTrackerPdata*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return -1.0f;
+    if (sound_id == -1) {
+        return handle;
     }
+    if (sound_id < 0 || sound_id >= 0x1C0C) {
+        handle = 0;
+    } else {
+    SoundEntry* entry;
 
-    camera = camera_item.node;
-    if (camera == 0 || camera->hdr.instance != camera_item.instance) {
-        return -1.0f;
-    }
-    camera_frame = ((CameraSoundObj*)camera)->frame;
-
-    node = *pdata->sound_list;
-    while (node != 0) {
-        TrackedSound* sound;
-        MkPtr* next;
-        float pan;
-        float distance;
-        float volume;
-        SoundRequest update_request;
-        SoundRequest play_request;
-
-        sound = (TrackedSound*)node->hdr;
-        if (node->instance != sound->hdr.instance) {
-            next = node->next;
-            discard_stale_mkptr(node);
-            node = next;
-            continue;
+    play_request.sound_id = sound_id;
+    play_request.volume = volume;
+    play_request.apply_group_volume = 1;
+    if (snd_calculate_volume(&play_request)) {
+        if (pan < -2.0f) {
+            pan = -2.0f;
         }
+        if (pan > 2.0f) {
+            pan = 2.0f;
+        }
+        entry = &mk_sound_table[sound_id];
+        handle = mslBankPlayVolPanPitch(
+            play_request.bank, entry->bank,
+            entry->sound, entry->field_0c,
+            play_request.volume, pan, 1.0f,
+            entry->field_18);
+    }
+    }
+    return handle;
+}
 
-        if (sound->tracking_enabled != 0) {
-            distance = dist_v3_to_v3((Vec*)&sound->pos_x, (Vec*)camera_frame->position);
-            if (distance < sound->max_dist) {
-                if (sound->out_of_range != 0) {
-                    sound->out_of_range = 0;
-                }
-                if (sound->positional_pan != 0) {
-                    pan = get_pan_value(&sound->pos);
-                } else {
-                    pan = 0.0f;
-                }
-                volume =
-                    1.0f - ((distance - sound->min_dist) / (sound->max_dist - sound->min_dist));
+static inline void update_tracked_sound(TrackedSound* sound,
+                                        RwFrame* camera_frame)
+{
+    float distance;
+    float pan;
+    float volume;
+    struct SoundRequest update_request;
 
-                if (mslSoundIsValid(sound->sound_handle)) {
-                    MslSoundHandle handle;
+    if (sound->tracking_enabled != 0) {
+        distance = dist_v3_to_v3(&sound->pos, &camera_frame->modelling.pos_row.value);
+        if (distance < sound->max_dist) {
+            if (sound->out_of_range != 0) {
+                sound->out_of_range = 0;
+            }
+            pan = sound->positional_pan != 0 ?
+                get_pan_value(&sound->pos) : 0.0f;
+            volume =
+                1.0f - ((distance - sound->min_dist) / (sound->max_dist - sound->min_dist));
 
-                    handle = sound->sound_handle;
-                    update_request.sound_id = sound->sound_id;
-                    if (handle != 0 && update_request.sound_id != -1 &&
-                        update_request.sound_id >= 0 && update_request.sound_id < 0x1C0C) {
-                        update_request.volume = volume;
-                        update_request.apply_group_volume = 0;
-                        if (snd_calculate_volume(&update_request)) {
-                            if (pan < -2.0f) {
-                                pan = -2.0f;
-                            }
-                            if (pan > 2.0f) {
-                                pan = 2.0f;
-                            }
-                            if (mslSoundIsValid(handle)) {
-                                mslSoundSetVol(handle, update_request.volume);
-                                mslSoundSetPan(handle, pan);
-                            }
-                        }
-                    }
-                } else {
-                    int sound_id;
-                    MslSoundHandle handle;
-
-                    sound_id = sound->sound_id;
-                    if (sound_id != -1 && sound_id >= 0 && sound_id < 0x1C0C) {
-                        handle = 0;
-                        if (sound_id != -1 && sound_id >= 0 &&
-                            sound_id < 0x1C0C) {
-                            SoundEntry* entry;
-
-                            play_request.sound_id = sound_id;
-                            play_request.apply_group_volume = 1;
-                            play_request.volume = volume;
-                            if (snd_calculate_volume(&play_request)) {
-                                if (pan < -2.0f) {
-                                    pan = -2.0f;
-                                }
-                                if (pan > 2.0f) {
-                                    pan = 2.0f;
-                                }
-                                entry = &mk_sound_table[sound_id];
-                                handle = mslBankPlayVolPanPitch(
-                                    play_request.bank, entry->bank,
-                                    entry->sound, entry->field_0c,
-                                    play_request.volume, pan, 1.0f,
-                                    entry->field_18);
-                            }
-                        }
-                    } else {
-                        handle = 0;
-                    }
-                    sound->sound_handle = handle;
-                }
-            } else if (sound->out_of_range == 0) {
+            if (mslSoundIsValid(sound->sound_handle)) {
+                int sound_id;
                 MslSoundHandle handle;
 
                 handle = sound->sound_handle;
-                if (handle != 0 && mslSoundIsValid(handle)) {
-                    mslSoundStop(handle);
+                sound_id = sound->sound_id;
+                if (handle != 0 && sound_id != -1 &&
+                    sound_id >= 0 && sound_id < 0x1C0C) {
+                    update_request.sound_id = sound_id;
+                    update_request.volume = volume;
+                    update_request.apply_group_volume = 0;
+                    if (snd_calculate_volume(&update_request)) {
+                        if (pan < -2.0f) {
+                            pan = -2.0f;
+                        }
+                        if (pan > 2.0f) {
+                            pan = 2.0f;
+                        }
+                        if (mslSoundIsValid(handle)) {
+                            mslSoundSetVol(handle, update_request.volume);
+                            mslSoundSetPan(handle, pan);
+                        }
+                    }
                 }
-                sound->out_of_range = 1;
+            } else {
+                MslSoundHandle handle;
+                int sound_id;
+
+                sound_id = sound->sound_id;
+                if (sound_id == -1) {
+                    handle = 0;
+                } else if (sound_id < 0 || sound_id >= 0x1C0C) {
+                    handle = 0;
+                } else {
+                    handle = play_tracked_sound(sound_id, volume, pan);
+                }
+                sound->sound_handle = handle;
             }
-        } else if (mslSoundIsValid(sound->sound_handle)) {
+        } else if (sound->out_of_range == 0) {
             MslSoundHandle handle;
 
             handle = sound->sound_handle;
@@ -339,7 +308,51 @@ float p_track_sound(void) {
             }
             sound->out_of_range = 1;
         }
-        node = node->next;
+    } else if (mslSoundIsValid(sound->sound_handle)) {
+        MslSoundHandle handle;
+
+        handle = sound->sound_handle;
+        if (handle != 0 && mslSoundIsValid(handle)) {
+            mslSoundStop(handle);
+        }
+        sound->out_of_range = 1;
+    }
+}
+
+float p_track_sound(void) {
+    SoundTrackerPdata* pdata;
+    CameraObj* camera;
+    RwFrame* camera_frame;
+    TrackedSound* sound;
+    MkPtr* node;
+
+    pdata = (SoundTrackerPdata*)pdata_of_proc(aproc);
+    if (pdata == 0) {
+        return -1.0f;
+    }
+
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+    if (camera == 0) {
+        return -1.0f;
+    }
+    camera_frame = camera->frame;
+
+    if (pdata->sound_list != 0) {
+        node = *pdata->sound_list;
+        while (node != 0) {
+            MkPtr* next;
+
+            sound = (TrackedSound*)node->hdr;
+            if (node->instance != sound->hdr.instance) {
+                next = node->next;
+                discard_stale_mkptr(node);
+                node = next;
+                continue;
+            }
+
+            update_tracked_sound(sound, camera_frame);
+            node = node->next;
+        }
     }
     return 1.0f;
 }
@@ -427,7 +440,7 @@ void mute_all_game_sounds(void) {
 }
 
 static inline MslSoundHandle play_sound_vol(int sound_id, float volume) {
-    SoundRequest request;
+    struct SoundRequest request;
     MslSoundHandle handle = 0;
 
     if (sound_id == -1) {
@@ -728,7 +741,7 @@ void load_banks_on_list_async(int mode) {
                 if (bank_data->handle == 0 && bank_data->async_state == 0) {
                     bank_data->handle = 0;
                     bank_data->async_state = 1;
-                    bank_data->callback = (void (*)(void*))lsba_callbank;
+                    bank_data->callback = lsba_callbank;
                     bank_data->callback_field_18 = 0;
                     bank_data->callback_bank = &bank_data->bank_index;
                     bank_data->callback_state = 0;
@@ -847,12 +860,11 @@ void unload_slots_not_on_list(int mode) {
 
 #define SOUND_BANK_WAIT_SLEEP()                  \
     do {                                         \
-        typedef void (*SleepFn)(void*);          \
-        void* vtable;                            \
+        MkVtableMkproc* vtable;                  \
                                                  \
         _mkproc_sleep_ticks = 1.0f;              \
         vtable = aproc->vtbl;                    \
-        ((SleepFn*)vtable)[6](vtable);            \
+        vtable->sleep();                         \
     } while (0)
 
 /* TODO: [near miss] 86.00%; residue is loop branch emission. */
@@ -922,47 +934,33 @@ void load_pz_fighter_fatality_bank(int bank) {
     wait_for_a_sound_bank_to_load(bank);
 }
 
-typedef struct SoundFighterBanks {
-    char pad00[0x60];
-    int standard_0;
-    int standard_1;
-    char pad68[0x10];
-    int alternate_0;
-    int alternate_1;
-} SoundFighterBanks;
-
-typedef struct SoundFighter {
-    char pad00[0x6F8];
-    SoundFighterBanks* sound_banks;
-} SoundFighter;
-
-typedef struct KonquestSoundBanks {
+struct KonquestSoundBanks {
     char pad00[0x58];
     int bank_0;
     int bank_1;
-} KonquestSoundBanks;
+};
 
 int get_indirect_bank(unsigned int indirect_bank) {
-    SoundFighter* fighter;
-    KonquestSoundBanks* konquest;
+    PlyrPdata* fighter;
+    struct KonquestSoundBanks* konquest;
     int bank = -1;
 
     switch (indirect_bank) {
     case 0x01000000:
-        fighter = (SoundFighter*)g_game_info.plyr0.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->standard_0;
+        fighter = g_game_info.plyr0.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_60[0];
         break;
     case 0x01000001:
-        fighter = (SoundFighter*)g_game_info.plyr0.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->standard_1;
+        fighter = g_game_info.plyr0.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_60[1];
         break;
     case 0x01000002:
-        fighter = (SoundFighter*)g_game_info.plyr1.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->standard_0;
+        fighter = g_game_info.plyr1.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_60[0];
         break;
     case 0x01000003:
-        fighter = (SoundFighter*)g_game_info.plyr1.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->standard_1;
+        fighter = g_game_info.plyr1.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_60[1];
         break;
     case 0x01000004:
         if (g_game_info.section != 0) bank = g_game_info.section->sound_bank_0;
@@ -977,20 +975,20 @@ int get_indirect_bank(unsigned int indirect_bank) {
         if (g_game_info.section != 0) bank = g_game_info.section->sound_bank_3;
         break;
     case 0x01000008:
-        fighter = (SoundFighter*)g_game_info.plyr0.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->alternate_0;
+        fighter = g_game_info.plyr0.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_70[2];
         break;
     case 0x01000009:
-        fighter = (SoundFighter*)g_game_info.plyr0.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->alternate_1;
+        fighter = g_game_info.plyr0.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_70[3];
         break;
     case 0x0100000A:
-        fighter = (SoundFighter*)g_game_info.plyr1.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->alternate_0;
+        fighter = g_game_info.plyr1.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_70[2];
         break;
     case 0x0100000B:
-        fighter = (SoundFighter*)g_game_info.plyr1.slot.fighter;
-        if (fighter != 0 && fighter->sound_banks != 0) bank = fighter->sound_banks->alternate_1;
+        fighter = g_game_info.plyr1.slot.pdata;
+        if (fighter != 0 && fighter->runtime_data != 0) bank = fighter->runtime_data->fields_70[3];
         break;
     case 0x0100000C:
         konquest = get_konquest_region_table();
@@ -1011,18 +1009,24 @@ int get_indirect_bank(unsigned int indirect_bank) {
     return bank;
 }
 
-/* TODO: [near miss] 88.15%; residue is repeated switch-case GPR allocation. */
-void lsba_callbank(SoundBankCallback* callback) {
+/* TODO: [borked] 95.32%; callback status clear is byte, retail word; generator contract blocks type fix. */
+static void lsba_callbank(void* userdata) {
+    struct SoundBankCallback* callback = userdata;
     int bank;
+    mslLoadedBank* handle;
 
-    if (callback == 0 || callback->bank_index == 0) {
+    if (callback == 0) {
+        return;
+    }
+    if (callback->bank_index == 0) {
         return;
     }
 
     bank = *callback->bank_index;
+    handle = callback->handle;
     switch (callback->status) {
     case 0:
-        sbank_data[bank].handle = callback->handle;
+        sbank_data[bank].handle = handle;
         sbank_data[bank].async_state = 0;
         break;
     case 1:
@@ -1090,7 +1094,7 @@ void check_and_load_sound_bank_async(int bank, int slot) {
                 if (bank_data->handle == 0 && bank_data->async_state == 0) {
                     bank_data->handle = 0;
                     bank_data->async_state = 1;
-                    bank_data->callback = (void (*)(void*))lsba_callbank;
+                    bank_data->callback = lsba_callbank;
                     bank_data->callback_field_18 = 0;
                     bank_data->callback_bank = &bank_data->bank_index;
                     bank_data->callback_state = 0;
@@ -1105,42 +1109,38 @@ void check_and_load_sound_bank_async(int bank, int slot) {
 
 #undef CANCEL_OR_UNLOAD_BANK
 
-typedef struct DelayedSoundPdata {
+struct DelayedSoundPdata {
     MkHdr hdr;
     int sound_id;
-} DelayedSoundPdata;
+};
 
 float p_snd_req_delay(void);
 
-/* TODO: [near miss] 97.02%; residue is the final range-check branch emission. */
 void snd_req_delay(int sound_id, int delay) {
-    DelayedSoundPdata* pdata;
+    struct DelayedSoundPdata* pdata;
     MkProc* proc;
 
-    if (sound_id != -1) {
-        if (sound_id >= 0) {
-            if (sound_id < 0x1C0C) {
-                proc = _create_mkproc_generic_tinystack(
-                    0x3006, 0x27, p_snd_req_delay, sizeof(DelayedSoundPdata),
-                    (MkHdr**)&pdata);
-                if (proc != 0) {
-                    proc->sleep_ticks = (float)delay;
-                    pdata->sound_id = sound_id;
-                }
-            }
-        }
+    if (sound_id == -1 || sound_id < 0 || sound_id >= 0x1C0C) {
+        return;
+    }
+    proc = _create_mkproc_generic_tinystack(
+        0x3006, 0x27, p_snd_req_delay, sizeof(struct DelayedSoundPdata),
+        (MkHdr**)&pdata);
+    if (proc != 0) {
+        proc->sleep_ticks = delay;
+        pdata->sound_id = sound_id;
     }
 }
 
 float p_snd_req_delay(void) {
-    SoundRequest request;
+    struct SoundRequest request;
     int sound_id;
 
     if (aproc->pid != 0x3006) {
         return -1.0f;
     }
     if (apdata != 0) {
-        sound_id = ((DelayedSoundPdata*)apdata)->sound_id;
+        sound_id = ((struct DelayedSoundPdata*)apdata)->sound_id;
         if (sound_id != -1 && sound_id >= 0 && sound_id < 0x1C0C) {
             if (sound_id != -1 && sound_id >= 0 && sound_id < 0x1C0C) {
                 SoundEntry* entry;
@@ -1172,7 +1172,7 @@ void snd_stop(MslSoundHandle handle) {
 
 MslSoundHandle pan_vol_pitch_snd_req(
     int sound_id, float pan, float volume, float pitch) {
-    SoundRequest request;
+    struct SoundRequest request;
     MslSoundHandle handle = 0;
 
     if (sound_id == -1) {
@@ -1208,86 +1208,92 @@ MslSoundHandle pan_vol_pitch_snd_req(
     return handle;
 }
 
-/* TODO: [near miss] 98.33%; residue is duplicated validation branch emission. */
-MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume) {
-    SoundRequest request;
+static inline MslSoundHandle snd_play_pan_volume(int sound_id, float pan,
+                                                 float volume)
+{
+    struct SoundRequest request;
     MslSoundHandle handle;
 
+    handle = 0;
     if (sound_id == -1) {
-        return 0;
+        return handle;
     }
     if (sound_id < 0 || sound_id >= 0x1C0C) {
-        return 0;
-    }
+        handle = 0;
+    } else {
+        SoundEntry* entry;
 
-    handle = 0;
-    if (sound_id != -1) {
-        if (sound_id < 0 || sound_id >= 0x1C0C) {
-            handle = 0;
-        } else {
-            SoundEntry* entry;
-
-            request.sound_id = sound_id;
-            request.volume = volume;
-            request.apply_group_volume = 1;
-            if (snd_calculate_volume(&request)) {
-                if (pan < -2.0f) {
-                    pan = -2.0f;
-                }
-                if (pan > 2.0f) {
-                    pan = 2.0f;
-                }
-                entry = &mk_sound_table[sound_id];
-                handle = mslBankPlayVolPanPitch(
-                    request.bank, entry->bank, entry->sound, entry->field_0c,
-                    request.volume, pan, 1.0f, entry->field_18);
+        request.sound_id = sound_id;
+        request.volume = volume;
+        request.apply_group_volume = 1;
+        if (snd_calculate_volume(&request)) {
+            if (pan < -2.0f) {
+                pan = -2.0f;
             }
+            if (pan > 2.0f) {
+                pan = 2.0f;
+            }
+            entry = &mk_sound_table[sound_id];
+            handle = mslBankPlayVolPanPitch(
+                request.bank, entry->bank, entry->sound, entry->field_0c,
+                request.volume, pan, 1.0f, entry->field_18);
         }
     }
     return handle;
 }
 
-/* TODO: [near miss] 98.35%; residue is duplicated validation branch emission. */
-MslSoundHandle pan_snd_req(int sound_id, float pan) {
-    SoundRequest request;
-    MslSoundHandle handle;
-
+MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume) {
     if (sound_id == -1) {
         return 0;
     }
     if (sound_id < 0 || sound_id >= 0x1C0C) {
         return 0;
     }
+    return snd_play_pan_volume(sound_id, pan, volume);
+}
 
-    handle = 0;
-    if (sound_id != -1) {
-        if (sound_id < 0 || sound_id >= 0x1C0C) {
-            handle = 0;
-        } else {
-            SoundEntry* entry;
+static inline MslSoundHandle play_panned_sound(
+    int sound_id, float pan, float volume) {
+    struct SoundRequest request;
+    MslSoundHandle handle = 0;
+    SoundEntry* entry;
 
-            request.sound_id = sound_id;
-            request.volume = 1.0f;
-            request.apply_group_volume = 1;
-            if (snd_calculate_volume(&request)) {
-                if (pan < -2.0f) {
-                    pan = -2.0f;
-                }
-                if (pan > 2.0f) {
-                    pan = 2.0f;
-                }
-                entry = &mk_sound_table[sound_id];
-                handle = mslBankPlayVolPanPitch(
-                    request.bank, entry->bank, entry->sound, entry->field_0c,
-                    request.volume, pan, 1.0f, entry->field_18);
-            }
+    if (sound_id == -1) {
+        return handle;
+    }
+    if (sound_id < 0 || sound_id >= 0x1C0C) {
+        return 0;
+    }
+    request.sound_id = sound_id;
+    request.volume = volume;
+    request.apply_group_volume = 1;
+    if (snd_calculate_volume(&request)) {
+        if (pan < -2.0f) {
+            pan = -2.0f;
         }
+        if (pan > 2.0f) {
+            pan = 2.0f;
+        }
+        entry = &mk_sound_table[sound_id];
+        handle = mslBankPlayVolPanPitch(
+            request.bank, entry->bank, entry->sound, entry->field_0c,
+            request.volume, pan, 1.0f, entry->field_18);
     }
     return handle;
+}
+
+MslSoundHandle pan_snd_req(int sound_id, float pan) {
+    if (sound_id == -1) {
+        return 0;
+    }
+    if (sound_id < 0 || sound_id >= 0x1C0C) {
+        return 0;
+    }
+    return play_panned_sound(sound_id, pan, 1.0f);
 }
 
 void set_snd_vol(MslSoundHandle handle, int sound_id, float volume) {
-    SoundRequest request;
+    struct SoundRequest request;
 
     if (handle != 0) {
         request.sound_id = sound_id;
@@ -1300,7 +1306,7 @@ void set_snd_vol(MslSoundHandle handle, int sound_id, float volume) {
 }
 
 MslSoundHandle snd_req_vol(int sound_id, float volume) {
-    SoundRequest request;
+    struct SoundRequest request;
     MslSoundHandle handle = 0;
 
     if (sound_id == -1) {
@@ -1334,7 +1340,7 @@ MslSoundHandle snd_req(int sound_id) {
 }
 
 /* TODO: [near miss] 73.85%; residue is global-load and arithmetic scheduling. */
-int snd_calculate_volume(SoundRequest* request) {
+int snd_calculate_volume(struct SoundRequest* request) {
     SoundEntry* entry;
     SoundSubgroupVolume* subgroup;
     int bank_index;
@@ -1360,7 +1366,7 @@ int snd_calculate_volume(SoundRequest* request) {
             setting_index = subgroup->setting_index;
             if ((unsigned int)setting_index < 6) {
                 request->volume =
-                    game_settings[setting_index] * (request->volume * entry->base_volume) *
+                    game_settings.volume[setting_index] * (request->volume * entry->base_volume) *
                     subgroup->volume;
                 if (request->apply_group_volume != 0 && mode_of_play == 6 &&
                     entry->bank_index != 0x71 && entry->bank_index < 0x5F) {
@@ -1379,58 +1385,55 @@ int snd_calculate_volume(SoundRequest* request) {
     return result;
 }
 
-/* TODO: [near miss] 87.85%; residue is player-bank GPR allocation. */
+/* TODO: [near miss] 98.787880%; sound-ID addition order and equivalent sentinel exit remain. */
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     PlyrPdata* fighter, int sound_offset) {
-    SoundRequest request;
+    MslSoundHandle handle = 0;
     int player_bank = -1;
     int voice_offset = 0;
-    int sound_id;
-    MslSoundHandle handle = 0;
 
-    if (sound_offset < 0 || sound_offset >= 0x5C) {
-        return 0;
-    }
-
-    if ((void*)fighter == (void*)g_game_info.plyr0.slot.fighter) {
-        player_bank = loaded_sbank_data[9].active;
-        if (player_bank == 0x13) {
-            voice_offset = p1_char_fvoice != 0 ? 0x5C : 0;
-        }
-    }
-    if ((void*)fighter == (void*)g_game_info.plyr1.slot.fighter) {
-        player_bank = loaded_sbank_data[10].active;
-        if (player_bank == 0x13) {
-            voice_offset = p2_char_fvoice != 0 ? 0x5C : 0;
-        }
-    }
-    if (player_bank < 0 || player_bank >= 0x19) {
-        return 0;
-    }
-
-    sound_id = mk_plyr_sound_table[player_bank] + voice_offset + sound_offset;
-    if (sound_id == -1) {
-        return 0;
-    }
-    if (sound_id < 0 || sound_id >= 0x1C0C) {
-        return 0;
-    }
-
-    if (sound_id != -1) {
-        if (sound_id < 0 || sound_id >= 0x1C0C) {
-            handle = 0;
-        } else {
-            SoundEntry* entry;
-
-            request.sound_id = sound_id;
-            request.volume = 1.0f;
-            request.apply_group_volume = 1;
-            if (snd_calculate_volume(&request)) {
-                entry = &mk_sound_table[sound_id];
-                handle = mslBankPlayVol(
-                    request.bank, entry->bank, entry->sound, entry->field_0c,
-                    request.volume, entry->field_18);
+    if (sound_offset >= 0 && sound_offset < 0x5C) {
+        if (fighter == g_game_info.plyr0.slot.pdata) {
+            player_bank = loaded_sbank_data[9].active;
+            if (player_bank == 0x13) {
+                voice_offset = p1_char_fvoice ? 0 : 0x5C;
             }
+        }
+        if (fighter == g_game_info.plyr1.slot.pdata) {
+            player_bank = loaded_sbank_data[10].active;
+            if (player_bank == 0x13) {
+                voice_offset = p2_char_fvoice ? 0 : 0x5C;
+            }
+        }
+        if (player_bank >= 0 && player_bank < 0x19) {
+            int sound_id =
+                sound_offset + (mk_plyr_sound_table[player_bank] + voice_offset);
+            MslSoundHandle play_handle;
+            if (sound_id == -1) {
+                play_handle = 0;
+            } else if (sound_id < 0 || sound_id >= 0x1C0C) {
+                play_handle = 0;
+            } else {
+                struct SoundRequest request;
+                play_handle = 0;
+                if (sound_id != -1) {
+                    if (sound_id < 0 || sound_id >= 0x1C0C) {
+                        play_handle = 0;
+                    } else {
+                        SoundEntry* entry;
+                        request.sound_id = sound_id;
+                        request.volume = 1.0f;
+                        request.apply_group_volume = 1;
+                        if (snd_calculate_volume(&request)) {
+                            entry = &mk_sound_table[sound_id];
+                            play_handle = mslBankPlayVol(
+                                request.bank, entry->bank, entry->sound,
+                                entry->field_0c, request.volume, entry->field_18);
+                        }
+                    }
+                }
+            }
+            handle = play_handle;
         }
     }
     return handle;
@@ -1452,47 +1455,17 @@ void select_fighter_voice_in_bank(int player, int alternate_voice) {
     }
 }
 
-/* TODO: [near miss] 87.51%; residue is table-index and validation branch emission. */
 MslSoundHandle foot_snd_req(int foot_type) {
-    SoundRequest request;
     MslSoundHandle handle = 0;
-    int sound_id;
     int foot_bank;
 
     if (mode_of_play == 6) {
         return 0;
     }
-    if (foot_type < 0 || foot_type >= 7) {
-        return 0;
-    }
-
-    foot_bank = loaded_sbank_data[8].active;
-    if (foot_bank >= 4) {
-        return 0;
-    }
-    sound_id = mk_foot_sound_table[foot_type][foot_bank];
-    if (sound_id == -1) {
-        return 0;
-    }
-    if (sound_id < 0 || sound_id >= 0x1C0C) {
-        return 0;
-    }
-
-    if (sound_id != -1) {
-        if (sound_id < 0 || sound_id >= 0x1C0C) {
-            handle = 0;
-        } else {
-            SoundEntry* entry;
-
-            request.sound_id = sound_id;
-            request.volume = 1.0f;
-            request.apply_group_volume = 1;
-            if (snd_calculate_volume(&request)) {
-                entry = &mk_sound_table[sound_id];
-                handle = mslBankPlayVol(
-                    request.bank, entry->bank, entry->sound, entry->field_0c,
-                    request.volume, entry->field_18);
-            }
+    if (foot_type >= 0 && foot_type < 7) {
+        foot_bank = loaded_sbank_data[8].active;
+        if (foot_bank >= 0 && foot_bank < 4) {
+            handle = play_sound(mk_foot_sound_table[foot_type][foot_bank]);
         }
     }
     return handle;
@@ -1542,9 +1515,9 @@ void snd_death_voice(void) {
 
 /* TODO: [near miss] 97.15%; one extra saved GPR (stmw r27) and an extra li 0 in each -1 arm; branch-result coloring remains. */
 MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch) {
-    SoundRequest single_request;
-    SoundRequest alternate_request;
-    SoundRequest random_request;
+    struct SoundRequest single_request;
+    struct SoundRequest alternate_request;
+    struct SoundRequest random_request;
     unsigned char previous;
     int *sounds;
     int count;
@@ -1716,22 +1689,22 @@ MslSoundHandle random_snd_req(int group) {
     return pan_vol_pitch_random_snd_req(group, 0.0f, 1.0f, 1.0f);
 }
 
-typedef struct DelayedRandomSoundPdata {
+struct DelayedRandomSoundPdata {
     MkHdr hdr;
     int group;
-} DelayedRandomSoundPdata;
+};
 
 float p_random_snd_req_delay(void);
 
 void random_snd_req_delay(int group, int delay) {
-    DelayedRandomSoundPdata* pdata;
+    struct DelayedRandomSoundPdata* pdata;
     MkProc* proc;
 
     proc = _create_mkproc_generic_tinystack(
         0x3010, 0x27, p_random_snd_req_delay,
-        sizeof(DelayedRandomSoundPdata), (MkHdr**)&pdata);
+        sizeof(struct DelayedRandomSoundPdata), (MkHdr**)&pdata);
     if (proc != 0) {
-        proc->sleep_ticks = (float)delay;
+        proc->sleep_ticks = delay;
         pdata->group = group;
     }
 }
@@ -1742,21 +1715,17 @@ float p_random_snd_req_delay(void) {
     }
     if (apdata != 0) {
         pan_vol_pitch_random_snd_req(
-            ((DelayedRandomSoundPdata*)apdata)->group, 0.0f, 1.0f, 1.0f);
+            ((struct DelayedRandomSoundPdata*)apdata)->group, 0.0f, 1.0f, 1.0f);
     }
     return 0.0f;
 }
 
-/*
- * MWCC GC/2.7 exits internally on these recovered hit paths at optimization
- * levels 2-4. Level 1 preserves the retail algorithms without match-force C.
- */
 #pragma optimization_level 1
 
-/* TODO: [near miss] 74.69%; compiler-stable -O1 body; see the pragma note above. */
+/* TODO: [near miss] 74.69%; compiler-stable -O1 body; duplicated table indexing, FPR allocation and sentinel exits remain. */
 MslSoundHandle pan_vol_pitch_random_hit(
     int group, float pan, float volume, float pitch) {
-    SoundRequest request;
+    struct SoundRequest request;
     MslSoundHandle handle = 0;
     SoundEntry* entry;
     int* sounds;
@@ -1806,12 +1775,11 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return handle;
 }
 
-/* TODO: [near miss] 92.50%; residue is duplicate table-index calculation, sentinel branch and float-constant load scheduling. */
+/* TODO: [near miss] 92.57%; existing O1 scope duplicates table index; sentinel exit and constant load schedule differ. */
 MslSoundHandle random_hit(int group) {
-    SoundRequest request;
+    struct SoundRequest request;
     int* sounds;
     MslSoundHandle handle = 0;
-    SoundEntry* entry;
     SoundCallTable* table;
     SoundCallTable* call;
     int count;
@@ -1835,7 +1803,9 @@ MslSoundHandle random_hit(int group) {
             choice = randu0((unsigned short)count) & 0xFFFF;
             handle = 0;
             sound_id = sounds[choice];
-            if (sound_id != -1) {
+            if (sound_id == -1) {
+                return handle;
+            } else {
                 if (sound_id < 0 || sound_id >= 0x1C0C) {
                     handle = 0;
                 } else {
@@ -1843,7 +1813,7 @@ MslSoundHandle random_hit(int group) {
                     request.volume = 1.0f;
                     request.apply_group_volume = 1;
                     if (snd_calculate_volume(&request)) {
-                        entry = &mk_sound_table[sound_id];
+                        SoundEntry* entry = &mk_sound_table[sound_id];
                         handle = mslBankPlayVolPanPitch(
                             request.bank, entry->bank, entry->sound,
                             entry->field_0c, request.volume, 0.0f, 1.0f,
@@ -1858,7 +1828,8 @@ MslSoundHandle random_hit(int group) {
 
 #pragma optimization_level 4
 
-/* TODO: [near miss] 99.81%; pooled-string relocation label differs; stop at verified facade types. */
+/* TODO: [near miss] 99.97%; wave-path literal matches decoded retail bytes;
+ * pool addend differs (0x956 vs 0x8ab); recover the TU pool first-use order. */
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
     current_konq_sound_shuffle_state = 0;
