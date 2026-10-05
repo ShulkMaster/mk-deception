@@ -1,7 +1,11 @@
 #include "runtime/cam.h"
+#include "runtime/anim_api_ext.h"
+#include "runtime/cam_shake.h"
 #include "runtime/mk_obj.h"
+#include "runtime/mk_plugins.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/anim_types.h"
+#include "runtime/anim_api.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/image.h"
 #include "runtime/sound.h"
@@ -15,7 +19,9 @@
 #include "math/gxQuat.h"
 #include "math/mk_math.h"
 #include "game/game_info.h"
+#include "game/plyr_globals.h"
 #include "game/collision.h"
+#include "game/constrain.h"
 #include "game/moveset.h"
 #include "game/mk_chess.h"
 #include "platform/display.h"
@@ -29,75 +35,66 @@
 #include "rw/rpworld_types.h"
 #include "rw/rwtypehf.h"
 
-/* Camera runtime reconstructed from retail control flow, layouts, and callers. */
+union ScriptedCameraRadialValue {
+    int radial_movement;
+    float radial_step;
+};
 
-typedef struct ScriptedCameraData {
-    int movement_mode;       /* +0x00 */
-    int look_mode;           /* +0x04 */
-    Vec movement_offset;     /* +0x08 */
-    Vec lookat_offset;       /* +0x14 */
-    int glitch;              /* +0x20 */
-    float rotation_rate;     /* +0x24 */
-    float movement_rate;     /* +0x28 */
-    MkObj* movement_focus; /* +0x2C */
-    MkObj* lookat_focus;  /* +0x30 */
-    int mirror;           /* +0x34 */
-    float focus_angle;    /* +0x38 */
-    Vec focus_direction;  /* +0x3C */
-    int pos_move_done;       /* +0x48 */
-    int ang_move_done;       /* +0x4C */
-    int check_collisions;    /* +0x50 */
-    int custom_movement;     /* +0x54 */
-    Vec center_of_rotation;  /* +0x58 */
-    /* y stores either a float step or the raw integer rotation direction. */
-    Vec radial_vector;       /* +0x64 */
-    float final_speed;       /* +0x70 */
-    union {
-        int radial_movement;
-        float radial_step;
-    };                       /* +0x74 */
-    float radial_distance;   /* +0x78 */
-} ScriptedCameraData;
+struct ScriptedCameraData {
+    int movement_mode;
+    int look_mode;
+    Vec movement_offset;
+    Vec lookat_offset;
+    int glitch;
+    float rotation_rate;
+    float movement_rate;
+    MkObj* movement_focus;
+    MkObj* lookat_focus;
+    int mirror;
+    float focus_angle;
+    Vec focus_direction;
+    int pos_move_done;
+    int ang_move_done;
+    int check_collisions;
+    int custom_movement;
+    Vec center_of_rotation;
 
-typedef struct FadeBoxItem {
+    Vec radial_vector;
+    float final_speed;
+    union ScriptedCameraRadialValue radial;
+    float radial_distance;
+};
+
+struct FadeBoxItem {
     ScreenObj* node;
     unsigned int instance;
-} FadeBoxItem;
+};
 
 extern float DEFAULT_FIELD_OF_VIEW;
 extern float DEFAULT_ASPECTRATIO;
 extern float cam_fov;
 extern float camera_speed;
 extern float cam_rot_speed;
-extern RwMatrix* camera_mat;
 extern float field_of_view_ratio;
 extern int end_round_cam_done;
 extern int camera_mode;
-extern MkObj* plyr_obj;
 extern Vec tightrope_uv;
-extern Vec tightrope_perp_uv;
 extern Vec conversation_midpoint;
 extern float conversation_interaction_angle;
 extern float right_frustum_plane_dist;
 extern float left_frustum_plane_dist;
-extern FadeBoxItem lower_fade_box_item;
-extern FadeBoxItem upper_fade_box_item;
-/* Saved camera entry while intro anim runs (cam.o .sbss). */
+extern struct FadeBoxItem lower_fade_box_item;
+extern struct FadeBoxItem upper_fade_box_item;
+
 extern MkProcEntryFn old_camera_function;
 float get_constrain_player_distance(void);
 int get_game_state(void);
 int get_konquest_game_mode(void);
-void atomic_set_transl_flag(RpAtomic* atomic);
 void render_col_shape(const CollisionShape* shape, const unsigned int* color);
-extern int MksobjLocalOffset;
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
 float frand(float maximum);
 unsigned short randu0(unsigned int maximum);
-int build_bones_tbl(MkObj* object, const int* tags);
-void set_root_and_obj_movement_weights(AnimPdata* animation, float root_weight, float object_weight);
-void get_bone_offset_world_pos(MkObj* object, int bone, const Vec* offset,
-                               Vec* position);
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 
 Vec cam_ang_offset = {0.0f, 0.0f, 0.0f};
@@ -118,9 +115,8 @@ static Vec cam_right_uv;
 static float last_camera_distance = 2.6f;
 
 RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect);
-/* Must stay external so xfer_camera emits bl (local stub was inlined away). */
+
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
-void CameraDestroy(RwCamera* camera);
 float xz_ray_circle_intersection_dist(const Vec* ray_origin,
                                       const Vec* ray_direction,
                                       float radius);
@@ -135,7 +131,6 @@ static float p_move_widescreen_bars(void);
 static void look_at_interaction_target(Vec* target, int snap_angles);
 static void check_reverse_interaction_cam_targets(void);
 void get_play_camera_position(Vec* position);
-int player_is_stationary(PlyrPdata* player);
 int am_i_on_the_left(void);
 int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
@@ -144,12 +139,13 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
                                 float* initial_speed, float* final_speed,
                                 unsigned int direction, int reset, float time);
 
+union CameraFloatBits {
+    float f;
+    unsigned int u;
+};
 
 static inline float camera_inv_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } pun;
+    union CameraFloatBits pun;
     float guess;
     float first_step;
     float correction;
@@ -236,26 +232,26 @@ static inline float camera_fsqrt(float value) {
     return 0.5f * (guess * correction);
 }
 
-typedef struct BezierCamera {
-    Vec control[4];       /* +0x00 */
-    float step;           /* +0x30 */
-    float acceleration;   /* +0x34 */
-    float time;           /* +0x38 */
-    unsigned int phase;   /* +0x3C */
-    float decel_step;     /* +0x40 */
-    float accel_end;      /* +0x44 */
-    float decel_start;    /* +0x48 */
-    float minimum_step;   /* +0x4C */
-    float maximum_step;   /* +0x50 */
-} BezierCamera;
+struct BezierCamera {
+    Vec control[4];
+    float step;
+    float acceleration;
+    float time;
+    unsigned int phase;
+    float decel_step;
+    float accel_end;
+    float decel_start;
+    float minimum_step;
+    float maximum_step;
+};
 
-BezierCamera g_bezier_cam;
-static int BezierCamera_GetNextPoint(BezierCamera* camera, Vec* point);
+struct BezierCamera g_bezier_cam;
+static int BezierCamera_GetNextPoint(struct BezierCamera* camera, Vec* point);
 
 #define RESOLVE_CAMERA_OBJ(cam_)                                                               \
     do {                                                                                       \
         (cam_) = camera_item.node;                                                             \
-        (cam_) = MK_HDR_LIVE((cam_), camera_item.instance);                                   \
+        (cam_) = MK_HDR_LIVE((cam_), camera_item.instance);                                    \
     } while (0)
 
 static inline void chess_camera_look_at(const Vec* target) {
@@ -286,11 +282,11 @@ struct BackgroundDangerZone {
     int action;
     int test_mode;
     int cooldown;
-    int enabled; /* +0xA0 */
+    int enabled;
     char padA4[0x0C];
 };
 
-typedef struct InteractionCameraData {
+struct InteractionCameraData {
     MkObj* hero;
     unsigned int hero_instance;
     MkObj* target;
@@ -306,16 +302,16 @@ typedef struct InteractionCameraData {
     int reversed;
     int glitched;
     int blocked;
-} InteractionCameraData;
+};
 
-typedef struct InteractionCameraProcData {
+struct InteractionCameraProcData {
     MkHdr hdr;
     ScriptSlot* script_slot;
     unsigned int function_index;
     int field_10;
-} InteractionCameraProcData;
+};
 
-typedef struct SpecialMoveCameraData {
+struct SpecialMoveCameraData {
     MkObj* target;
     unsigned int target_instance;
     float orbit_yaw_offset;
@@ -325,14 +321,14 @@ typedef struct SpecialMoveCameraData {
     float look_pitch;
     int ease_ticks;
     int total_ticks;
-} SpecialMoveCameraData;
+};
 
-typedef struct ActiveNpcCameraView {
+struct ActiveNpcCameraView {
     char pad00[0x1D];
     unsigned char field_1D;
-} ActiveNpcCameraView;
+};
 
-typedef struct KonquestCameraPdataView {
+struct KonquestCameraPdataView {
     char pad00[0x24];
     void* camera_script;
     char pad28[0x1C];
@@ -345,32 +341,34 @@ typedef struct KonquestCameraPdataView {
     unsigned int movement_npc_instance;
     char pad200[0x0C];
     int conversation_mode_b;
-} KonquestCameraPdataView;
+};
 
-typedef struct WidescreenBarPdata {
+struct WidescreenBarPdata {
     MkHdr hdr;
     float step;
     int direction;
-} WidescreenBarPdata;
+};
 
-typedef struct InteractionNpcTargetInfo {
+struct InteractionNpcTargetInfo {
     char pad00[0x0C];
     MkObj* object;
-} InteractionNpcTargetInfo;
+};
 
-typedef struct InteractionNpc {
+struct InteractionNpc {
     MkHdr hdr;
     char pad08[0x0C];
-    InteractionNpcTargetInfo* target_info;
+    struct InteractionNpcTargetInfo* target_info;
     char pad1C[0x84];
     Vec pos;
-} InteractionNpc;
+};
 
-typedef struct AttractCameraState {
-    union {
-        Vec center;
-        MkObj* target;
-    };
+union AttractCameraReference {
+    Vec center;
+    MkObj* target;
+};
+
+struct AttractCameraState {
+    union AttractCameraReference reference;
     float field_0C;
     float field_10;
     float field_14;
@@ -383,76 +381,67 @@ typedef struct AttractCameraState {
     float field_48;
     int mode;
     unsigned int countdown;
-} AttractCameraState;
+};
 
-typedef void (*AttractCameraCallback)(AttractCameraState* state);
+typedef void (*AttractCameraCallback)(struct AttractCameraState* state);
 
-typedef struct AttractCameraSetup {
+struct AttractCameraSetup {
     AttractCameraCallback setup;
     AttractCameraCallback update;
     AttractCameraCallback move;
     AttractCameraCallback glitch_move;
-} AttractCameraSetup;
+};
 
-static void attract_setup_radial_sweep(AttractCameraState* state);
-static void attract_update_radial_sweep(AttractCameraState* state);
-static void attract_default_move(AttractCameraState* state);
-static void attract_default_glitch_move(AttractCameraState* state);
-static void attract_setup_gamecam(AttractCameraState* state);
-static void attract_move_gamecam(AttractCameraState* state);
-static void attract_glitch_move_gamecam(AttractCameraState* state);
-static void attract_setup_chase_cam(AttractCameraState* state);
-static void attract_update_chase_cam(AttractCameraState* state);
-static void attract_setup_flyby(AttractCameraState* state);
-static void attract_update_flyby(AttractCameraState* state);
-static void attract_move_flyby(AttractCameraState* state);
+static void attract_setup_radial_sweep(struct AttractCameraState* state);
+static void attract_update_radial_sweep(struct AttractCameraState* state);
+static void attract_default_move(struct AttractCameraState* state);
+static void attract_default_glitch_move(struct AttractCameraState* state);
+static void attract_setup_gamecam(struct AttractCameraState* state);
+static void attract_move_gamecam(struct AttractCameraState* state);
+static void attract_glitch_move_gamecam(struct AttractCameraState* state);
+static void attract_setup_chase_cam(struct AttractCameraState* state);
+static void attract_update_chase_cam(struct AttractCameraState* state);
+static void attract_setup_flyby(struct AttractCameraState* state);
+static void attract_update_flyby(struct AttractCameraState* state);
+static void attract_move_flyby(struct AttractCameraState* state);
 
-extern AttractCameraSetup attract_cam_setup_table[4];
+extern struct AttractCameraSetup attract_cam_setup_table[4];
 
-typedef struct CameraShakePdata {
+struct CameraShakePdata {
     MkHdr hdr;
     int count;
     float strength;
-} CameraShakePdata;
+};
 
-typedef struct CameraScriptPdata {
+struct CameraScriptPdata {
     MkHdr hdr;
     ScriptSlot* script_slot;
     unsigned int function_index;
     int flags;
-} CameraScriptPdata;
+};
 
-typedef struct CameraScriptMonitorItem {
+struct CameraScriptMonitorItem {
     MkProc* node;
     unsigned int instance;
-} CameraScriptMonitorItem;
-
-typedef struct DangerZoneAtomicView {
-    char pad00[0x18];
-    struct {
-        char pad00[8];
-        unsigned int flags;
-    }* field_18;
-} DangerZoneAtomicView;
+};
 
 static BackgroundDangerZone background_danger_zones[37];
 static int number_of_danger_zones;
-InteractionCameraData g_ic_data;
-ScriptedCameraData scripted_camera_data;
-static SpecialMoveCameraData smc_data;
+struct InteractionCameraData g_ic_data;
+struct ScriptedCameraData scripted_camera_data;
+static struct SpecialMoveCameraData smc_data;
 int force_midpoint_calculation_update;
-extern CameraScriptMonitorItem camera_script_monitor_item;
-extern ActiveNpcCameraView* g_active_npc;
-extern KonquestCameraPdataView* konquest_pdata;
+extern struct CameraScriptMonitorItem camera_script_monitor_item;
+extern struct ActiveNpcCameraView* g_active_npc;
+extern struct KonquestCameraPdataView* konquest_pdata;
 
-typedef union CameraVecBits {
+union CameraVecBits {
     float values[3];
     unsigned int words[3];
-} CameraVecBits;
+};
 
-/* Default krypt camera pose (@2947 / @2948 in cam.o rodata). */
-static const CameraVecBits kDefaultPos = {{-28.5f, 4.4f, 55.0f}};
-static const CameraVecBits kDefaultAng =
+static const union CameraVecBits kDefaultPos = {{-28.5f, 4.4f, 55.0f}};
+static const union CameraVecBits kDefaultAng =
     {{0.42f, 3.1415927410125732f, 0.0f}};
 static Vec unit_z;
 static RwMatrix camera_anim_fixup_matrix;
@@ -526,7 +515,7 @@ static inline void get_target_movement_vector_impl(
 }
 
 static void mkproc_jump_sleep(MkProcEntryFn entry) {
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(entry, 0.0f);
+    aproc->vtbl->jump_sleep(entry, 0.0f);
 }
 
 static void mkproc_sleep(void) {
@@ -602,7 +591,7 @@ static float kick_camera(void) {
     CameraObj* camera_check;
     CameraPdata* pdata;
     MkObj* attacker;
-    CameraShakePdata* shake;
+    struct CameraShakePdata* shake;
     Vec target_position;
     Vec bone_offset = {0.05f, 0.0f, 0.8f};
     Vec facing;
@@ -614,6 +603,7 @@ static float kick_camera(void) {
     float target_offset_x;
     float target_offset_y;
     float target_offset_z;
+    int flip_bone_offset;
 
     RESOLVE_CAMERA_OBJ(camera);
     if (camera == 0) {
@@ -626,29 +616,25 @@ static float kick_camera(void) {
         return 0.0f;
     }
     attacker = pdata->attacker;
-    {
-        int flip_bone_offset;
-
-        facing = (Vec){0.0f, 0.0f, 1.0f};
-        RESOLVE_CAMERA_OBJ(camera_check);
-        if (camera_check == 0) {
-            flip_bone_offset = 0;
+    facing = (Vec){0.0f, 0.0f, 1.0f};
+    RESOLVE_CAMERA_OBJ(camera_check);
+    if (camera_check == 0) {
+        flip_bone_offset = 0;
+    } else {
+        rotate_xz(&facing, &facing, attacker->ang.y);
+        if (cam_forward_uv.z * facing.x -
+                cam_forward_uv.x * facing.z <
+            0.0f) {
+            flip_bone_offset = 1;
         } else {
-            rotate_xz(&facing, &facing, attacker->ang.y);
-            if (cam_forward_uv.z * facing.x -
-                    cam_forward_uv.x * facing.z <
-                0.0f) {
-                flip_bone_offset = 1;
-            } else {
-                flip_bone_offset = 0;
-            }
-        }
-        if (flip_bone_offset != 0) {
-            bone_offset.x *= -1.0f;
+            flip_bone_offset = 0;
         }
     }
+    if (flip_bone_offset != 0) {
+        bone_offset.x *= -1.0f;
+    }
     if (_create_mkproc_generic_tinystack(
-            0x1007, 0x1E, p_shake_camera, sizeof(CameraShakePdata),
+            0x1007, 0x1E, p_shake_camera, sizeof(struct CameraShakePdata),
             (MkHdr**)&shake) != 0) {
         shake->count = 5;
         shake->strength = 0.02f;
@@ -1044,12 +1030,12 @@ float p_mk_chess_cam_bezier_controller(void) {
     }
 }
 
-void BezierCamera_SetOverallCameraTimeInTicks(BezierCamera* camera, float ticks) {
+void BezierCamera_SetOverallCameraTimeInTicks(struct BezierCamera* camera, float ticks) {
     ticks *= inverse_game_speed;
     camera->step = 1.0f / ticks;
 }
 
-void BezierCamera_LinearAccelerateDeccelerate(BezierCamera* camera, float acceleration,
+void BezierCamera_LinearAccelerateDeccelerate(struct BezierCamera* camera, float acceleration,
                                                float decel_step, float accel_end,
                                                float decel_start, float minimum_step,
                                                float maximum_step) {
@@ -1062,7 +1048,7 @@ void BezierCamera_LinearAccelerateDeccelerate(BezierCamera* camera, float accele
     camera->acceleration = acceleration * game_speed;
 }
 
-void BezierCamera_Init(BezierCamera* camera, float step, Vec* p0, Vec* p1,
+void BezierCamera_Init(struct BezierCamera* camera, float step, Vec* p0, Vec* p1,
                        Vec* p2, Vec* p3) {
     camera->control[0].x = p0->x;
     camera->control[0].y = p0->y;
@@ -1083,7 +1069,7 @@ void BezierCamera_Init(BezierCamera* camera, float step, Vec* p0, Vec* p1,
 }
 
 /* TODO: [near miss] 99.84252%; four coefficient FPR rows remain after honest p1 polynomial-term staging. */
-static int BezierCamera_GetNextPoint(BezierCamera* camera, Vec* point) {
+static int BezierCamera_GetNextPoint(struct BezierCamera* camera, Vec* point) {
     float t;
     float t2;
     float t3;
@@ -1236,8 +1222,6 @@ float p_mk_chess_cam_chase_cursor(void) {
     return 1.0f;
 }
 
-
-/* TODO: [near miss] 100% report; cam offset block relocates via ...data.0 instead of retail cam_ang_offset (TU data layout). */
 float p_mk_chess_cam_control(void) {
     Vec origin = {0.0f, 0.0f, 0.0f};
     float horizontal;
@@ -1349,14 +1333,10 @@ void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
     screen->y = output_y;
 }
 
-
-
-
-
 void remove_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
-    WidescreenBarPdata* pdata = 0;
+    struct WidescreenBarPdata* pdata = 0;
 
     upper = MK_LIVE(upper_fade_box_item.node, upper_fade_box_item.instance);
 
@@ -1373,23 +1353,22 @@ void remove_widescreen_bars(void) {
     }
     _create_mkproc_generic_tinystack(
             0x8229, 0x1F, p_move_widescreen_bars,
-            sizeof(WidescreenBarPdata), (MkHdr**)&pdata);
+            sizeof(struct WidescreenBarPdata), (MkHdr**)&pdata);
     if (pdata != 0) {
         pdata->step = 0.0f;
         pdata->direction = 0;
     }
 }
 
-
 /* TODO: [near miss] 99.96%; left_edge int->float subtract lands in f3 instead of a temp f1 (float coloring only). */
 static float p_move_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
-    WidescreenBarPdata* pdata;
+    struct WidescreenBarPdata* pdata;
     float left_edge;
     float step;
 
-    pdata = (WidescreenBarPdata*)pdata_of_proc(aproc);
+    pdata = (struct WidescreenBarPdata*)pdata_of_proc(aproc);
     left_edge = -(screen_width - 0x280);
     left_edge *= 0.5f;
     upper = MK_LIVE(upper_fade_box_item.node, upper_fade_box_item.instance);
@@ -1405,16 +1384,16 @@ static float p_move_widescreen_bars(void) {
             step = pdata->step / 60.0f;
             lower->pfx2d->verts[0].x = left_edge;
             lower->pfx2d->verts[1].x = left_edge;
-            lower->pfx2d->verts[2].x = (float)screen_width;
-            lower->pfx2d->verts[3].x = (float)screen_width;
+            lower->pfx2d->verts[2].x = screen_width;
+            lower->pfx2d->verts[3].x = screen_width;
             lower->pfx2d->verts[0].y = 0.0f;
             lower->pfx2d->verts[1].y = 0.0f;
             lower->pfx2d->verts[2].y = 0.0f;
             lower->pfx2d->verts[3].y = 0.0f;
             upper->pfx2d->verts[0].x = left_edge;
             upper->pfx2d->verts[1].x = left_edge;
-            upper->pfx2d->verts[2].x = (float)screen_width;
-            upper->pfx2d->verts[3].x = (float)screen_width;
+            upper->pfx2d->verts[2].x = screen_width;
+            upper->pfx2d->verts[3].x = screen_width;
             upper->pfx2d->verts[0].y = 480.0f;
             upper->pfx2d->verts[1].y = 480.0f;
             upper->pfx2d->verts[2].y = 480.0f;
@@ -1465,21 +1444,14 @@ static float p_move_widescreen_bars(void) {
     return -1.0f;
 }
 
-
-
-
-
-
-
 void add_widescreen_bars(float height) {
     ScreenObj* upper;
     ScreenObj* lower;
-    WidescreenBarPdata* pdata = 0;
+    struct WidescreenBarPdata* pdata = 0;
 
     upper = MK_LIVE(upper_fade_box_item.node, upper_fade_box_item.instance);
 
     lower = MK_LIVE(lower_fade_box_item.node, lower_fade_box_item.instance);
-
 
     if (find_mkproc_pid(0x8229) != 0) {
         destroy_mkprocs_pid(0x8229);
@@ -1499,8 +1471,8 @@ void add_widescreen_bars(float height) {
         }
     }
 
-    upper = load_2d_pfxobj(0, 0x2098, (char*)0x10017, 0, 0xF);
-    lower = load_2d_pfxobj(0, 0x2098, (char*)0x10017, 0, 0xF);
+    upper = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0xF);
+    lower = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0xF);
     if (upper == 0 || lower == 0) {
         return;
     }
@@ -1511,7 +1483,7 @@ void add_widescreen_bars(float height) {
     snd_req(0x15A4);
     _create_mkproc_generic_tinystack(
         0x8229, 0x1F, p_move_widescreen_bars,
-        sizeof(WidescreenBarPdata), (MkHdr**)&pdata);
+        sizeof(struct WidescreenBarPdata), (MkHdr**)&pdata);
     if (pdata != 0) {
         pdata->step = height;
         pdata->direction = 1;
@@ -1675,24 +1647,19 @@ float p_animate_and_freeze(void) {
 
 float p_animated_intro_done(void) {
     CameraObj* camera;
+    float final_speed;
+    float initial_speed;
+    Vec endpoint;
 
     end_round_cam_done = 0;
     g_game_info.pause_flag_bits.pad_bit6 = 1;
     camera_mode = 1;
     force_midpoint_calculation_update = 0;
-    {
-        float final_speed;
-        float initial_speed;
-
-        initial_speed = 0.0f;
-        final_speed = 0.0f;
-        {
-            Vec endpoint = {0.0f, 0.0f, 0.0f};
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1,
-                                        0.0f);
-        }
-    }
+    initial_speed = 0.0f;
+    final_speed = 0.0f;
+    endpoint = (Vec){0.0f, 0.0f, 0.0f};
+    move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
+    orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1, 0.0f);
 
     camera = camera_obj;
     camera_info.pdata->target_pos.x = camera->pos.x;
@@ -2126,7 +2093,6 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
                                                   int mode) {
     BackgroundDangerZone* zone;
     RwSphere* sphere;
-    DangerZoneAtomicView* atomic_view;
 
     if (number_of_danger_zones >= 37) {
         return 0;
@@ -2149,9 +2115,8 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
         zone->shape.sphere_radius = sphere->radius;
         zone->shape.type = 1;
         if (type == 1) {
-            atomic_view = (DangerZoneAtomicView*)atomic;
-            if (atomic_view->field_18 != 0) {
-                atomic_view->field_18->flags |= 0x40;
+            if (atomic->geometry != 0) {
+                atomic->geometry->flags |= 0x40;
             }
             atomic_set_transl_flag(atomic);
         }
@@ -2222,14 +2187,11 @@ void initialize_background_danger_zones(void) {
 
 /* TODO: [near miss] 96.94%; pdata capture and pitch/roll structure agree; saved camera-pointer registers and sqrt FPR coloring remain. */
 float p_krypt_camera_loop(void) {
-    union {
-        float f;
-        unsigned int u;
-    } guess_bits, value_bits;
+    union CameraFloatBits guess_bits, value_bits;
     CameraPdata* pdata;
     CameraObj* cam;
-    CameraVecBits default_pos;
-    CameraVecBits default_ang;
+    union CameraVecBits default_pos;
+    union CameraVecBits default_ang;
     float speed_scale;
     float dx;
     float dy;
@@ -2684,7 +2646,7 @@ void run_interaction_camera_script(void* owner, void* script) {
     if (process != 0) {
         g_ic_data.created_process = 0;
         process_data_header = pdata_of_proc(process);
-        ((InteractionCameraProcData*)process_data_header)->function_index =
+        ((struct InteractionCameraProcData*)process_data_header)->function_index =
             (unsigned int)script;
         xfer_proc(process, p_run_interaction_camera);
         return;
@@ -2693,20 +2655,20 @@ void run_interaction_camera_script(void* owner, void* script) {
     g_ic_data.created_process = 1;
     process = _create_mkproc_generic_bigstack(
         0x9006, 0x1F, p_run_interaction_camera,
-        sizeof(InteractionCameraProcData), &process_data_header);
+        sizeof(struct InteractionCameraProcData), &process_data_header);
     if (process != 0) {
         set_process_as_scriptable(process);
-        ((InteractionCameraProcData*)process_data_header)->script_slot =
-            (ScriptSlot*)owner;
-        ((InteractionCameraProcData*)process_data_header)->function_index =
+        ((struct InteractionCameraProcData*)process_data_header)->script_slot =
+            owner;
+        ((struct InteractionCameraProcData*)process_data_header)->function_index =
             (unsigned int)script;
     }
 }
 
 static float p_run_interaction_camera(void) {
-    InteractionCameraProcData* data;
+    struct InteractionCameraProcData* data;
 
-    data = (InteractionCameraProcData*)pdata_of_proc(aproc);
+    data = (struct InteractionCameraProcData*)pdata_of_proc(aproc);
     cmdscript_setup_execution(data->script_slot, data->function_index);
     cmdscript_execute(data->script_slot);
     while (MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance) != 0) {
@@ -2716,12 +2678,11 @@ static float p_run_interaction_camera(void) {
     return -1.0f;
 }
 
-
 void interaction_cam_set_target_info(
     float angle_a, float field_14, float field_18, float angle_b,
     float field_20, float field_24, int duration) {
     MkObj* hero;
-    InteractionNpc* movement_npc;
+    struct InteractionNpc* movement_npc;
     MkObj* target;
     float normalized_angle_a;
     float normalized_angle_b;
@@ -2729,7 +2690,6 @@ void interaction_cam_set_target_info(
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     movement_npc = MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance);
-
 
     while (g_ic_data.ticks != 0) {
         _mkproc_sleep_ticks = 1.0f;
@@ -2745,7 +2705,7 @@ void interaction_cam_set_target_info(
     g_ic_data.camera_height = field_18;
     g_ic_data.look_radius = field_20;
     g_ic_data.look_height = field_24;
-    g_ic_data.ticks = (int)((float)duration / get_game_speed());
+    g_ic_data.ticks = ((float)duration / get_game_speed());
     if (g_ic_data.ticks <= 1) {
         g_ic_data.ticks = 1;
         g_ic_data.glitched = 1;
@@ -2759,14 +2719,6 @@ void interaction_cam_set_target_info(
         xfer_proc(camera_info.proc, p_interaction_cam);
     }
 }
-
-
-
-
-
-
-
-
 
 /* TODO: [breakthrough needed] 86.26%; tick predicate staging improved; resolve midpoint/offset data layout and orbit FPR lifetimes. */
 static float p_interaction_cam(void) {
@@ -2876,7 +2828,7 @@ static float p_interaction_cam(void) {
                         half_dx = 0.5f * (hero->pos.value.x - target->pos.value.x);
                         half_dz = 0.5f * (hero->pos.value.z - target->pos.value.z);
                         interaction_angle =
-                            (float)atan2(half_dx, half_dz);
+                            atan2(half_dx, half_dz);
                     }
                 }
                 conversation_interaction_angle = interaction_angle;
@@ -3060,7 +3012,7 @@ static void check_reverse_interaction_cam_targets(void) {
                 half_dx = 0.5f * (hero->pos.value.x - target->pos.value.x);
                 half_dz = 0.5f * (hero->pos.value.z - target->pos.value.z);
                 conversation_interaction_angle =
-                    (float)atan2(half_dx, half_dz);
+                    atan2(half_dx, half_dz);
             }
         }
     }
@@ -3261,12 +3213,6 @@ void special_move_cam_setup(
         xfer_camera_impl(p_special_move_cam, 1);
     }
 }
-
-
-
-
-
-
 
 static float p_special_move_cam(void) {
     MkObj* target;
@@ -3488,23 +3434,16 @@ float get_pan_value(const Vec* position) {
 
 void camera_exit_script(void) {
     MkProcEntryFn restore_fn;
+    float final_speed;
+    float initial_speed;
+    Vec endpoint;
 
     memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
-    {
-        float final_speed;
-        float initial_speed;
-
-        initial_speed = 0.0f;
-        final_speed = 0.0f;
-        {
-            Vec endpoint = {0.0f, 0.0f, 0.0f};
-
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
-                              0.0f);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
-                                        1, 0.0f);
-        }
-    }
+    initial_speed = 0.0f;
+    final_speed = 0.0f;
+    endpoint = (Vec){0.0f, 0.0f, 0.0f};
+    move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
+    orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1, 0.0f);
     restore_fn = old_camera_function;
     if (camera_info.proc != 0) {
         xfer_proc(camera_info.proc, restore_fn);
@@ -3522,7 +3461,6 @@ void camera_exit_script(void) {
     destroy_mkprocs_pid(0x9006);
 }
 
-
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
@@ -3533,32 +3471,27 @@ void run_camera_script(int script, int argument, int flags) {
         monitor->vtbl->destroy(monitor);
     }
     process = _create_mkproc_generic_bigstack(
-        0x9006, 0x1D, p_run_camera_script, sizeof(CameraScriptPdata),
+        0x9006, 0x1D, p_run_camera_script, sizeof(struct CameraScriptPdata),
         &pdata_hdr);
     if (process != 0) {
+        float final_speed;
+        float initial_speed;
+        Vec endpoint;
+
         camera_script_monitor_item.node = process;
         camera_script_monitor_item.instance = process->instance;
-        ((CameraScriptPdata*)pdata_hdr)->script_slot = (ScriptSlot*)script;
-        ((CameraScriptPdata*)pdata_hdr)->function_index =
-            (unsigned int)argument;
-        ((CameraScriptPdata*)pdata_hdr)->flags = flags;
+        ((struct CameraScriptPdata*)pdata_hdr)->script_slot = (ScriptSlot*)script;
+        ((struct CameraScriptPdata*)pdata_hdr)->function_index =
+            argument;
+        ((struct CameraScriptPdata*)pdata_hdr)->flags = flags;
         old_camera_function = camera_info.proc->entry;
         set_process_as_scriptable(process);
         memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
-        {
-            float final_speed;
-            float initial_speed;
-            initial_speed = 0.0f;
-            final_speed = 0.0f;
-            {
-                Vec endpoint = {0.0f, 0.0f, 0.0f};
-
-                move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
-                                  0.0f);
-                orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
-                                            1, 0.0f);
-            }
-        }
+        initial_speed = 0.0f;
+        final_speed = 0.0f;
+        endpoint = (Vec){0.0f, 0.0f, 0.0f};
+        move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
+        orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1, 0.0f);
         if (camera_info.proc != 0) {
             xfer_proc(camera_info.proc, p_scripted_camera);
             if (Camera != 0) {
@@ -3580,20 +3513,20 @@ void run_camera_script(int script, int argument, int flags) {
 static float p_run_camera_script(void) {
     MkProcEntryFn restore_fn;
 
-    cmdscript_setup_execution(((CameraScriptPdata*)apdata)->script_slot,
-                              ((CameraScriptPdata*)apdata)->function_index);
-    cmdscript_execute(((CameraScriptPdata*)apdata)->script_slot);
-    if (((CameraScriptPdata*)apdata)->flags == 0) {
-        memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
-        {
-            float final_speed = 0.0f, initial_speed = 0.0f;
-            Vec endpoint = {0.0f, 0.0f, 0.0f};
+    cmdscript_setup_execution(((struct CameraScriptPdata*)apdata)->script_slot,
+                              ((struct CameraScriptPdata*)apdata)->function_index);
+    cmdscript_execute(((struct CameraScriptPdata*)apdata)->script_slot);
+    if (((struct CameraScriptPdata*)apdata)->flags == 0) {
+        float final_speed;
+        float initial_speed;
+        Vec endpoint;
 
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
-                              0.0f);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
-                                        1, 0.0f);
-        }
+        memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
+        final_speed = 0.0f;
+        initial_speed = 0.0f;
+        endpoint = (Vec){0.0f, 0.0f, 0.0f};
+        move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
+        orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1, 0.0f);
         while (get_cmdscript_for_proc(aproc)->state != 0) {
             _mkproc_sleep_ticks = 1.0f;
             mkproc_sleep();
@@ -3733,7 +3666,7 @@ float p_scripted_camera(void) {
         case 7:
             rotate_xz(&scripted_camera_data.radial_vector,
                       &scripted_camera_data.radial_vector,
-                      scripted_camera_data.radial_step);
+                      scripted_camera_data.radial.radial_step);
             target_position.x = scripted_camera_data.radial_vector.x +
                                 scripted_camera_data.center_of_rotation.x;
             target_position.y = scripted_camera_data.radial_vector.y +
@@ -3803,7 +3736,7 @@ float p_scripted_camera(void) {
                     scripted_camera_data.look_mode = 0;
                 }
                 if (scripted_camera_data.custom_movement != 0) {
-                    if (scripted_camera_data.radial_movement != 0) {
+                    if (scripted_camera_data.radial.radial_movement != 0) {
                         scripted_camera_data.pos_move_done =
                             orbit_position_to_end_point(
                                 &scripted_camera_data.center_of_rotation,
@@ -4075,9 +4008,8 @@ void camera_setup_simple_rotation(int ticks, float rotation) {
     scripted_camera_data.center_of_rotation.z =
         scripted_camera_data.lookat_focus->pos.value.z;
     scripted_camera_data.radial_distance = radial_distance;
-    scripted_camera_data.radial_step = radial_step;
+    scripted_camera_data.radial.radial_step = radial_step;
 }
-
 
 void camera_setup_tightrope_angle_offset(void* script_args, float height,
                                          float angle) {
@@ -4117,7 +4049,7 @@ void camera_setup_radial_sweep(void* script_args, float travel_time,
     scripted_camera_data.radial_vector.y = rotation_step;
     scripted_camera_data.radial_distance = radial_distance;
     scripted_camera_data.radial_vector.x = travel_time;
-    scripted_camera_data.radial_step = radial_step;
+    scripted_camera_data.radial.radial_step = radial_step;
     scripted_camera_data.final_speed = final_speed;
     scripted_camera_data.center_of_rotation.y = center_y;
 }
@@ -4186,7 +4118,7 @@ float camera_get_pos(unsigned int axis) {
 /* TODO: [near miss] 59.35%; XZ selection matches; Vec stack slots, FPR and latch scheduling differ. */
 void find_best_conversation_camera_position(void) {
     MkObj* focus = scripted_camera_data.lookat_focus;
-    InteractionNpc* npc = MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance);
+    struct InteractionNpc* npc = MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance);
     Vec focus_to_npc = {0.0f, 0.0f, 0.0f};
     Vec camera_to_focus = {0.0f, 0.0f, 0.0f};
     Vec right_offset;
@@ -4338,7 +4270,7 @@ void camera_set_custom_camera_movement_flag(int enabled) {
 }
 
 void camera_set_radial_movement(int enabled) {
-    scripted_camera_data.radial_movement = enabled;
+    scripted_camera_data.radial.radial_movement = enabled;
 }
 
 void camera_set_center_of_rotation(CamVec3* center) {
@@ -4435,26 +4367,21 @@ void camera_reset_pos_done_flag(void) {
 }
 
 void init_scripted_camera(void) {
+    float final_speed;
+    float initial_speed;
+    Vec endpoint;
+
     memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
-    {
-        float final_speed;
-        float initial_speed;
-
-        initial_speed = 0.0f;
-        final_speed = 0.0f;
-        {
-            Vec endpoint = { 0.0f, 0.0f, 0.0f };
-
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1,
-                                        0.0f);
-        }
-    }
+    initial_speed = 0.0f;
+    final_speed = 0.0f;
+    endpoint = (Vec){0.0f, 0.0f, 0.0f};
+    move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 0.0f);
+    orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1, 0.0f);
 }
 
 float p_attract_camera(void) {
-    AttractCameraState state;
-    AttractCameraSetup* callbacks = 0;
+    struct AttractCameraState state;
+    struct AttractCameraSetup* callbacks = 0;
     int use_glitch_move = 1;
     int next_mode;
     CameraObj* camera;
@@ -4502,7 +4429,7 @@ float p_attract_camera(void) {
     }
 }
 
-static void attract_glitch_move_gamecam(AttractCameraState* state) {
+static void attract_glitch_move_gamecam(struct AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;
 
@@ -4542,7 +4469,7 @@ static void attract_glitch_move_gamecam(AttractCameraState* state) {
     state->camera->ang.z = state->current_angles.z;
 }
 
-static void attract_default_glitch_move(AttractCameraState* state) {
+static void attract_default_glitch_move(struct AttractCameraState* state) {
     Vec direction;
 
     direction.x = state->target_position.x - state->current_position.x;
@@ -4562,7 +4489,7 @@ static void attract_default_glitch_move(AttractCameraState* state) {
 
 /* TODO: [near miss] 99.66%; real roll delta/step restores multiply;
  * only angle-rate/old-X f3/f5 coloring remains. */
-static void attract_move_flyby(AttractCameraState* state) {
+static void attract_move_flyby(struct AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;
     float delta_x;
@@ -4608,7 +4535,7 @@ static void attract_move_flyby(AttractCameraState* state) {
 
 /* TODO: [near miss] 97.84%; pointer-punned camera_fsqrt restores retail's position reload;
  * camera r5/move_rate f5 coloring remains (resolve/rate order measured). */
-static void attract_default_move(AttractCameraState* state) {
+static void attract_default_move(struct AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;
     float dx;
@@ -4673,7 +4600,7 @@ static void attract_default_move(AttractCameraState* state) {
     }
 }
 
-static void attract_update_flyby(AttractCameraState* state) {
+static void attract_update_flyby(struct AttractCameraState* state) {
     CameraObj* camera;
     float distance;
 
@@ -4694,9 +4621,9 @@ static void attract_update_flyby(AttractCameraState* state) {
         state->target_position.z = 0.5f * state->target_position.z;
     }
     state->target_position.y = camera->ground_plane + 1.55f;
-    state->current_position.x += state->center.x;
-    state->current_position.y += state->center.y;
-    state->current_position.z += state->center.z;
+    state->current_position.x += state->reference.center.x;
+    state->current_position.y += state->reference.center.y;
+    state->current_position.z += state->reference.center.z;
     distance = gxMathFastSqrt(
         state->current_position.x * state->current_position.x +
         state->current_position.z * state->current_position.z);
@@ -4705,7 +4632,7 @@ static void attract_update_flyby(AttractCameraState* state) {
     }
 }
 
-static void attract_update_chase_cam(AttractCameraState* state) {
+static void attract_update_chase_cam(struct AttractCameraState* state) {
     Vec forward = {0.0f, 0.0f, 1.0f};
     Vec* current_position;
 
@@ -4734,19 +4661,19 @@ static void attract_update_chase_cam(AttractCameraState* state) {
         current_position->y *= 2.0f;
         current_position->z *= 2.0f;
         rotate_xz(current_position, current_position,
-                  state->target->ang.y + 2.6f);
+                  state->reference.target->ang.y + 2.6f);
     }
-    state->current_position.x += state->target->pos.value.x;
-    state->current_position.y += state->target->pos.value.y;
-    state->current_position.z += state->target->pos.value.z;
+    state->current_position.x += state->reference.target->pos.value.x;
+    state->current_position.y += state->reference.target->pos.value.y;
+    state->current_position.z += state->reference.target->pos.value.z;
     state->current_position.y = camera_obj->ground_plane + 2.0f;
 }
 
-static void attract_move_gamecam(AttractCameraState* state) {
+static void attract_move_gamecam(struct AttractCameraState* state) {
     adj_cam_pos();
 }
 
-static void attract_update_radial_sweep(AttractCameraState* state) {
+static void attract_update_radial_sweep(struct AttractCameraState* state) {
     CameraObj* camera;
 
     RESOLVE_CAMERA_OBJ(camera);
@@ -4765,16 +4692,16 @@ static void attract_update_radial_sweep(AttractCameraState* state) {
         state->target_position.y = 0.5f * state->target_position.y;
         state->target_position.z = 0.5f * state->target_position.z;
     }
-    state->target_position.x = state->center.x + state->target_position.x;
-    state->target_position.y = state->center.y + state->target_position.y;
-    state->target_position.z = state->center.z + state->target_position.z;
+    state->target_position.x = state->reference.center.x + state->target_position.x;
+    state->target_position.y = state->reference.center.y + state->target_position.y;
+    state->target_position.z = state->reference.center.z + state->target_position.z;
     state->target_position.x = 0.5f * state->target_position.x;
     state->target_position.y = 0.5f * state->target_position.y;
     state->target_position.z = 0.5f * state->target_position.z;
     state->target_position.y = camera->ground_plane + 1.55f;
-    state->center.x = state->target_position.x;
-    state->center.y = state->target_position.y;
-    state->center.z = state->target_position.z;
+    state->reference.center.x = state->target_position.x;
+    state->reference.center.y = state->target_position.y;
+    state->reference.center.z = state->target_position.z;
 
     state->field_0C += 0.001f;
     if (state->field_0C >= 0.01f) {
@@ -4805,7 +4732,7 @@ static void attract_update_radial_sweep(AttractCameraState* state) {
         camera_obj->ground_plane + state->field_18;
 }
 
-static void attract_setup_flyby(AttractCameraState* state) {
+static void attract_setup_flyby(struct AttractCameraState* state) {
     MkObj* player;
     Vec travel;
     Vec start;
@@ -4864,34 +4791,34 @@ static void attract_setup_flyby(AttractCameraState* state) {
     length_squared = travel.z * travel.z +
                      (travel.x * travel.x + travel.y * travel.y);
     inverse_length = camera_inv_sqrt(length_squared);
-    state->center.x = travel.x * inverse_length;
-    state->center.y = travel.y * inverse_length;
-    state->center.z = travel.z * inverse_length;
+    state->reference.center.x = travel.x * inverse_length;
+    state->reference.center.y = travel.y * inverse_length;
+    state->reference.center.z = travel.z * inverse_length;
     state->field_44 = 0.1f;
     state->field_48 = 0.2f;
-    state->center.x *= -state->field_44;
-    state->center.y *= -state->field_44;
-    state->center.z *= -state->field_44;
+    state->reference.center.x *= -state->field_44;
+    state->reference.center.y *= -state->field_44;
+    state->reference.center.z *= -state->field_44;
     state->current_position.x = end_x;
     state->current_position.y = end_y;
     state->current_position.z = end_z;
 }
 
-static void attract_setup_gamecam(AttractCameraState* state) {
+static void attract_setup_gamecam(struct AttractCameraState* state) {
     force_midpoint_calculation_update = 1;
 }
 
-static void attract_setup_chase_cam(AttractCameraState* state) {
+static void attract_setup_chase_cam(struct AttractCameraState* state) {
     state->field_44 = 0.2f;
     state->field_48 = 0.2f;
     if (randu0(2) == 0) {
-        state->target = g_game_info.plyr0.slot.mirror_a;
+        state->reference.target = g_game_info.plyr0.slot.mirror_a;
     } else {
-        state->target = g_game_info.plyr1.slot.mirror_a;
+        state->reference.target = g_game_info.plyr1.slot.mirror_a;
     }
 }
 
-static void attract_setup_radial_sweep(AttractCameraState* state) {
+static void attract_setup_radial_sweep(struct AttractCameraState* state) {
     state->field_0C = 0.005f;
     state->field_10 = 3.0f;
     state->field_14 = 0.0f;
@@ -4901,18 +4828,18 @@ static void attract_setup_radial_sweep(AttractCameraState* state) {
 
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
-        state->center.x =
+        state->reference.center.x =
             g_game_info.plyr1.slot.mirror_a->pos.value.x +
             g_game_info.plyr0.slot.mirror_a->pos.value.x;
-        state->center.y =
+        state->reference.center.y =
             g_game_info.plyr1.slot.mirror_a->pos.value.y +
             g_game_info.plyr0.slot.mirror_a->pos.value.y;
-        state->center.z =
+        state->reference.center.z =
             g_game_info.plyr1.slot.mirror_a->pos.value.z +
             g_game_info.plyr0.slot.mirror_a->pos.value.z;
-        state->center.x = 0.5f * state->center.x;
-        state->center.y = 0.5f * state->center.y;
-        state->center.z = 0.5f * state->center.z;
+        state->reference.center.x = 0.5f * state->reference.center.x;
+        state->reference.center.y = 0.5f * state->reference.center.y;
+        state->reference.center.z = 0.5f * state->reference.center.z;
     }
 }
 
@@ -5210,7 +5137,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
     }
 
     if (initializing != 0) {
-        num_ticks = (unsigned int)(60.0f * time);
+        num_ticks = (60.0f * time);
         dx = camera->pos.x - center->x;
         dy = 0.0f;
         dz = camera->pos.z - center->z;
@@ -5255,7 +5182,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
         } else {
             desired_speed = angle / (0.6f * (float)num_ticks);
         }
-        blending_ticks = (unsigned int)(0.2f * (float)num_ticks);
+        blending_ticks = (0.2f * (float)num_ticks);
 
         if (*initial_speed == -1.0f) {
             current_speed = desired_speed;
@@ -5290,7 +5217,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
     if (absolute_angle_rotated >= decelerate_angle &&
         decelerating == 0) {
         decelerating = 1;
-        blending_ticks = (unsigned int)(0.2f * (float)num_ticks);
+        blending_ticks = (0.2f * (float)num_ticks);
         speed_increment = final_speed_increment;
     }
 
@@ -5372,7 +5299,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
     if (initializing != 0) {
         float initial_value;
 
-        num_ticks = (unsigned int)(60.0f * time);
+        num_ticks = (60.0f * time);
         distance = gxMathFastSqrt(distance_squared);
         inverse_distance = camera_inv_sqrt(distance_squared);
         unit_vector.x = dx * inverse_distance;
@@ -5386,7 +5313,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
         } else {
             desired_speed = distance / (0.6f * (float)num_ticks);
         }
-        blending_ticks = (unsigned int)(0.2f * (float)num_ticks);
+        blending_ticks = (0.2f * (float)num_ticks);
 
         initial_value = *initial_speed;
         if (initial_value == -1.0f) {
@@ -5417,7 +5344,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
 
     if (distance_traveled >= decelerate_distance && decelerating == 0) {
         decelerating = 1;
-        blending_ticks = (unsigned int)(0.2f * (float)num_ticks);
+        blending_ticks = (0.2f * (float)num_ticks);
         speed_increment = final_speed_increment;
     }
     if (blending_ticks != 0) {
@@ -5439,7 +5366,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
     return 0;
 }
 
-AttractCameraSetup attract_cam_setup_table[4] = {
+struct AttractCameraSetup attract_cam_setup_table[4] = {
     {attract_setup_radial_sweep, attract_update_radial_sweep,
      attract_default_move, attract_default_glitch_move},
     {attract_setup_gamecam, 0, attract_move_gamecam,
@@ -5534,15 +5461,15 @@ void shake_camera_y(int count, float strength) {
     MkHdr* pdata;
 
     if (_create_mkproc_generic_tinystack(0x1007, 0x1E, p_shake_camera_y,
-                                         sizeof(CameraShakePdata), &pdata) != 0) {
-        ((CameraShakePdata*)pdata)->count = count;
-        ((CameraShakePdata*)pdata)->strength = strength;
+                                         sizeof(struct CameraShakePdata), &pdata) != 0) {
+        ((struct CameraShakePdata*)pdata)->count = count;
+        ((struct CameraShakePdata*)pdata)->strength = strength;
     }
 }
 
 static float p_shake_camera_y(void) {
     int index;
-    CameraShakePdata* shake = (CameraShakePdata*)apdata;
+    struct CameraShakePdata* shake = (struct CameraShakePdata*)apdata;
 
     for (index = 0; index < shake->count; index++) {
         cam_ang_offset.y = shake->strength;
@@ -5559,15 +5486,15 @@ void shake_camera(int count, void* script_args, float strength) {
     MkHdr* pdata;
 
     if (_create_mkproc_generic_tinystack(0x1007, 0x1E, p_shake_camera,
-                                         sizeof(CameraShakePdata), &pdata) != 0) {
-        ((CameraShakePdata*)pdata)->count = count;
-        ((CameraShakePdata*)pdata)->strength = strength;
+                                         sizeof(struct CameraShakePdata), &pdata) != 0) {
+        ((struct CameraShakePdata*)pdata)->count = count;
+        ((struct CameraShakePdata*)pdata)->strength = strength;
     }
 }
 
 static float p_shake_camera(void) {
     int index;
-    CameraShakePdata* shake = (CameraShakePdata*)apdata;
+    struct CameraShakePdata* shake = (struct CameraShakePdata*)apdata;
 
     for (index = 0; index < shake->count; index++) {
         cam_ang_offset.x = shake->strength;
@@ -5582,17 +5509,15 @@ static float p_shake_camera(void) {
 
 /* TODO: [near miss] 94.76%; camera param colored r29 (retail r31) and the camera_item kill reuses the checked node instead of reloading it. */
 void CameraDestroy(RwCamera* camera) {
-    {
-        CameraObj* object;
+    CameraObj* object;
 
-        RESOLVE_CAMERA_OBJ(object);
-        if (object != 0) {
-            if (camera_item.node->hdr.instance != 0) {
-                camera_item.node->hdr.typed_vtbl->destroy(&camera_item.node->hdr);
-            }
-            camera_item.node = 0;
-            camera_item.instance = 0;
+    RESOLVE_CAMERA_OBJ(object);
+    if (object != 0) {
+        if (camera_item.node->hdr.instance != 0) {
+            camera_item.node->hdr.typed_vtbl->destroy(&camera_item.node->hdr);
         }
+        camera_item.node = 0;
+        camera_item.instance = 0;
     }
     camera_obj = 0;
 
@@ -6208,16 +6133,7 @@ static RwCamera* CameraCreate(int width, int height) {
 int init_camera(void) {
     int height;
     MkProc* process;
-    int proc_flags;
-    union {
-        int word;
-        struct {
-            unsigned char one_shot : 1;
-            unsigned char defer_run : 1;
-            unsigned char pad_bits : 6;
-            unsigned char pad_bytes[3];
-        } bits;
-    } flags;
+
     RwCamera* camera;
 
     memset(&camera_info, 0, sizeof(camera_info));
@@ -6260,10 +6176,7 @@ int init_camera(void) {
         update_mkobj(camera_obj);
     }
 
-    flags.word = 0;
-    flags.bits.defer_run = 1;
-    proc_flags = flags.word;
-    process = get_mkproc_bigstack(&proc_flags);
+    process = get_mkproc_bigstack(mkproc_init_flags_for_animation());
     camera_info.pdata = (CameraPdata*)get_mkhdr(&vtbl_mkpdata_camera,
                                                 sizeof(CameraPdata));
     camera_info.proc = create_mkproc(0x1D, process, 0x5005,
