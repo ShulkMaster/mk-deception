@@ -21,8 +21,8 @@ void pfxvm_spawn_disc(PfxVmEmitter* emitter, unsigned int field,
                       const PfxVec3* axis, float minimum_radius,
                       float maximum_radius);
 void pfxvm_spawn_roundrobin_mechanism(PfxVmEmitter* emitter,
-                                      unsigned int field, int count);
-void pfxvm_spawn_line_1i(PfxVmEmitter* emitter, unsigned int field,
+                                      int field, int count);
+void pfxvm_spawn_line_1i(PfxVmEmitter* emitter, int field,
                          int minimum, int maximum);
 void pfxvm_spawn_line_1f(PfxVmEmitter* emitter, unsigned int field,
                          float minimum, float maximum);
@@ -32,9 +32,9 @@ void pfxvm_spawn_sphere(PfxVmEmitter* emitter, unsigned int field,
                         float x, float y, float z, float minimum_radius,
                         float maximum_radius, int quadratic_radius);
 void pfxvm_spawn_from_pos(PfxVmEmitter* emitter, unsigned int field,
-                          unsigned int source_field, int clamp_y,
-                          float x, float y, float z, float minimum_length,
-                          float length_range, float clamped_y);
+                          unsigned int source_field, float x, float y, float z,
+                          float minimum_length, float length_range,
+                          int clamp_y, float clamped_y);
 void pfxvm_spawn_sphere_section(PfxVmEmitter* emitter, unsigned int field,
                                 float x, float y, float z, float radius,
                                 float radius_spread, float angle,
