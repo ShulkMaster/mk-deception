@@ -1,38 +1,29 @@
 #include "platform/disc_error.h"
 
+#include "game/controller.h"
 #include "libmkparticle/pfxfont.h"
 #include "dolphin/dvd.h"
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
 #include "platform/display.h"
+#include "platform/gcutils.h"
+#include "platform/main.h"
+#include "platform/display_metrics.h"
 #include "runtime/fonts.h"
+#include "runtime/sound.h"
+#include "runtime/mk_mem.h"
 #include "rw/rwcamera_internal.h"
 
-typedef int (*DiscErrorHandler)(int error, const char* text);
-
-typedef struct DiscErrorMapEntry {
+struct DiscErrorMapEntry {
     int error;
     int message;
-} DiscErrorMapEntry;
+};
 
-extern void pause_all_game_sounds(void);
-extern void unpause_all_game_sounds(void);
-extern void turn_all_rumble_motors_off(void);
-extern void gc_movie_start(void);
-extern void gc_stop_reset_watch(void);
-extern void gc_grab_renderpipe(void);
-extern void gc_release_renderpipe(void);
 extern void gc_native_display_render_text(const char* text);
-extern void handle_reset_switch(void);
-extern void do_delayed_mem_frees(void);
-
-extern int gameart_is_loaded;
-extern int screen_height;
-extern int screen_width;
 
 static int fs_error_handler(int error, const char* text);
 
-DiscErrorMapEntry error_map[30] = {
+struct DiscErrorMapEntry error_map[30] = {
     {-1, 1},  {-2, 1},  {-3, 1},  {-4, 1},  {-5, 1},  {-6, 1},
     {-7, 1},  {-8, 1},  {-9, 1},  {-10, 1}, {-11, 1}, {-12, 1},
     {-13, 1}, {-14, 1}, {-15, 1}, {-16, 1}, {-17, 1}, {-18, 1},
@@ -85,11 +76,10 @@ const char* disc_error_string_table[42] = {
     "An error has occurred. Turn the power off and\nrefer to the Nintendo GameCube Instruction\nBooklet for further instructions.",
 };
 
-static DiscErrorHandler async_error_handler = fs_error_handler;
-__declspec(section ".sdata") int gap_07_8050FC4C_sdata = 0;
+static int (*async_error_handler)(int error, const char* text) = fs_error_handler;
 
-int disc_error_occurred;
 static int in_error_handler;
+int disc_error_occurred;
 
 static __declspec(section ".sdata2") RwRGBA disc_clear_color = {0, 0, 0, 0xff};
 
@@ -107,7 +97,7 @@ static inline void render_disc_message(PfxFontString* string, const char* text) 
     top = (screen_height - height) / 2;
     left = (screen_width - width) / 2;
     pfxfont_string_init(string);
-    pfxfont_string_set(string, font, text, (float)width, 1);
+    pfxfont_string_set(string, font, text, width, 1);
 
     for (frame = 0; frame < 3; frame++) {
         RwRGBA clear_color = disc_clear_color;
@@ -115,7 +105,7 @@ static inline void render_disc_message(PfxFontString* string, const char* text) 
         RwCameraClear(Camera, &clear_color, 7);
         RwCameraBeginUpdate(Camera);
         pfxfont_begin_render();
-        pfxfont_string_render(string, (float)left, (float)screen_height - (float)(top + height));
+        pfxfont_string_render(string, left, (float)screen_height - (float)(top + height));
         pfxfont_end_render();
         RwCameraEndUpdate(Camera);
         RwCameraShowRaster(Camera, 0, 1);
@@ -199,7 +189,7 @@ static inline int disc_error_message(int error) {
     if (error == 0) {
         return 0;
     }
-    for (index = 0; index < 30; index++) {
+    for (index = 0; index < sizeof(error_map) / sizeof(error_map[0]); index++) {
         if (error == error_map[index].error) {
             return error_map[index].message;
         }
