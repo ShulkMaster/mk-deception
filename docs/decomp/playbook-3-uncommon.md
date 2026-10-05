@@ -1,458 +1,468 @@
-# Matching playbook, tier 3: uncommon
+# Playbook tier 3: uncommon (M rules)
 
-M rules: localized lowering, compiler modes, ABI shape, inline/macro
-boundaries, and data/link layout. Use them after the [tier 1](playbook-1-core.md)
-triage and the matching [tier 2](playbook-2-common.md) section. Select by
-mismatch, not by past score. M03/M04 spelling trials rarely close anything new;
-try one only with a concrete new hypothesis.
+Localized lowering, compiler modes, ABI shape, inline/macro boundaries,
+data/link layout. Use after [tier 1](playbook-1-core.md) triage + matching
+[tier 2](playbook-2-common.md) section. Pick by mismatch, not past score.
+M03/M04 spelling trials rarely close new things; only with a concrete new
+hypothesis. `[da]` = mk-da import (tier 1).
 
-Compiler-setting rules (M01, M13, M15, M16):
+Compiler settings (M01, M13, M15, M16):
 
-- Prefer an object-scope flag in `configure.py` over a per-function pragma
-  when a whole-TU control passes.
-- Scope a pragma to the measured consumer and reset it afterward.
-- Run the same source without the setting as a necessity control.
-- Compare every function and section against a pre-change report.
-- A result never establishes the retail pragma spelling.
-- Keep accepted TU flags fixed during fixed-TU-setting tasks.
+- Object-scope flag in `configure.py` beats per-function pragma when whole-TU
+  control passes.
+- Pragma scoped to measured consumer, reset after.
+- Necessity control: same source without the setting.
+- Compare every function + section vs pre-change report.
+- Result never proves retail pragma spelling.
+- Accepted TU flags stay fixed during fixed-TU-setting tasks.
+- Flag changes need two independent objects agreeing before lib scope; one
+  function's flag lead stays a note `[da]`.
 
 ## M01
 
-Compiler mode across a TU. IF compact saves, `divw`, or Boolean lowering
-repeat across the TU, REQUIRE sibling evidence plus all-function and section
-baselines.
+Compiler mode across a TU. IF compact saves, `divw`, Boolean lowering repeat
+across TU, REQUIRE sibling evidence + all-function and section baselines.
 
-- TU profile: object-wide `-O4,s` with the existing `-use_lmw_stmw on`; test
-  scheduling separately. When compact saves and indexed-loop lowering recur
-  together, try the profile before changing loop source; `-O4,p` to `-O4,s`
-  alone closed credits text.
-- IF retail copies an argument into a retained register and then masks or
-  loads through that copy, while the build forwards the original argument,
-  REQUIRE sibling evidence such as separate mask/compare instructions and
-  compatible same-library compiler settings. TRY `-opt nopeephole` as a
-  whole-TU control (`get_field_offset` in libmkparticle). Compare every
-  function and data section, including jump tables; reject any regression.
-  Use the compiler-exposed `#pragma peephole off` for a control;
-  `opt_peephole` is unrecognized in the pinned GC compiler and can give a
-  misleading neutral result (`TRKDoSetOption`). Verify the control is active.
-  Land a supported mode at object scope, remove scratch control pragmas, and
-  verify the full build and retail SHA-1. A per-function pragma found by a
-  permuter is diagnostic evidence, not an acceptable source fix.
-- Signed divide by two as `srawi`/`addze`: function-scoped
-  `optimize_for_size`, arithmetic unchanged.
-- Isolated integer-register save mismatch in an identical body:
-  `optimize_for_size` and `use_lmw_stmw` together (projectile sound setter).
-  When retail instead uses `_savefpr_29`/`_restfpr_29` with matching scalar
-  FP operations, the same supported local profile can restore compact FPR
-  helpers (`fxsys_set_v3` in `pfxscript`). Require the actual helper calls,
-  immediate push/pop scope, and comparison of every sibling; do not change
-  FP expression grouping to compensate for a save-only difference.
-- Typed vector copies that preload where retail interleaves loads, stores, and
-  owner reloads: consumer-scoped scheduling off. Reject it if the epilogue
-  restore order or aligned-frame setup regresses; that is a ceiling, not a
-  body-only match. If sibling leaf vector arithmetic repeats the same
-  component load/op/store pattern, scope the supported scheduling mode with
-  push/pop and verify every sibling (`v3_add_v3` in `mk_math`); a whole-unit
-  mode can regress unrelated functions.
-- Folded indexed accesses (`lwzx`/`stwx`) where retail does multiply/add/`lwz`:
-  real category/base locals plus consumer-scoped `opt_propagation off`; both
-  are needed, and the pragma alone may do nothing (move-list getter). The
-  pragma also keeps every inlined helper's parameter and return copies in that
-  consumer; if those recolor an otherwise exact region, spell the shared helper
-  copy-free (H21) rather than dropping the pragma.
-- A constant FP load or pooled string address moved across a selection
-  branch: propagation off, tested separately from scheduling and CSE (AI
-  avoidance reset, Puzzle burn controller).
-- A global pointer reloaded after a loop where retail retains the load but
-  built code reuses the loop test's register: try function-scoped
-  `opt_common_subs off` with an immediate reset and whole-TU comparison.
-  `opt_propagation off` was byte-neutral for `kabal_collide_victim`; the
-  CSE setting restored its retail `his_pdata` reload. Qualifier: when the
-  reload follows an inlined float-bits helper, the pragma reproduces the
-  reload but renumbers the volatile webs (`drone_ai_victim_avoid` stalled at
-  99.44 under it); an address-taken helper input (H05, H21) gives the reload
-  with CSE on and closed the function without a pragma.
-- A multi-row field where retail adds the offset to a reloaded owner before
-  `stfsx`: a typed row-array pointer plus propagation off (Puzzle crusher).
-- A fixed-count array copy lowered to two advancing pointers where retail has
-  one byte induction register: scoped `opt_strength_reduction off`. Loops only.
-- Size-bit addendum: an `-opt off` TU lowering `ptr != 0` as `neg/or/srwi`
-  where retail has `addic r0,x,-1; subfe`: put `-O4,s` in front of `-opt off`
-  at object scope when same-library siblings build that way. The `,s` bit
-  survives `-opt off`; no spelling produces the carry idiom (`rwfexist`). A
-  higher exact count can hide one lost function; compare each.
+- TU profile: object-wide `-O4,s` + existing `-use_lmw_stmw on`; test
+  scheduling separately. Compact saves + indexed-loop lowering together -> try
+  profile before changing loop source; `-O4,p` -> `-O4,s` alone closed
+  credits text.
+- `_savegpr`/`_restgpr` vs retail `stmw`/`lmw` in several functions of one
+  lib `[da]`: lib-scope `-use_lmw_stmw on`.
+- Library scheduling residue `[da]`: several functions in one lib exact in
+  body, differ only in prologue/epilogue/load scheduling (or keep CTR loops
+  and folded sign extensions retail lacks). REQUIRE independent proofs from
+  different objects that `scheduling off` / `optimization_level` closes them
+  with unchanged honest source. TRY offline sweep of `-O` levels over every
+  lib function (host pre-screen), apply level with zero regressions at lib
+  scope (mk-da RW `-O2,p`).
+- Retail copies arg into retained reg, then masks/loads via copy; ours
+  forwards original: REQUIRE sibling evidence (separate mask/compare instrs)
+  + compatible same-lib settings. TRY `-opt nopeephole` as whole-TU control
+  (`get_field_offset`, libmkparticle). Compare every function + data incl jump
+  tables; reject any regression. Control pragma = `#pragma peephole off`;
+  `opt_peephole` is unrecognized on pinned GC and gives fake neutral
+  (`TRKDoSetOption`). Verify control active. Land supported mode at object
+  scope, drop scratch pragmas, verify full build + SHA-1. Permuter-found
+  per-function pragma = evidence, not a fix.
+- Signed /2 as `srawi`/`addze`: function-scoped `optimize_for_size`,
+  arithmetic unchanged.
+- Isolated int-reg save mismatch, identical body: `optimize_for_size` +
+  `use_lmw_stmw` together (projectile sound setter). Retail
+  `_savefpr_29`/`_restfpr_29` with matching scalar FP: same local profile
+  restores compact FPR helpers (`fxsys_set_v3`, `pfxscript`). REQUIRE actual
+  helper calls, immediate push/pop, every sibling compared; don't regroup FP
+  math to fix save-only diff.
+- Typed vector copies preload where retail interleaves loads, stores, owner
+  reloads: consumer-scoped scheduling off. Reject if epilogue restore order or
+  aligned-frame setup regresses (ceiling, not body-only match). Sibling leaf
+  vector math repeating component load/op/store: scope scheduling mode with
+  push/pop, verify every sibling (`v3_add_v3`, `mk_math`); whole-unit mode can
+  regress others.
+- Folded indexed accesses (`lwzx`/`stwx`) where retail does mul/add/`lwz`:
+  real category/base locals + consumer-scoped `opt_propagation off`; both
+  needed, pragma alone may do nothing (move-list getter). Pragma also keeps
+  every inlined helper's param/return copies in that consumer; if those
+  recolor an exact region, make helper copy-free (H21), don't drop pragma.
+- FP const load or pooled string address moved across selection branch:
+  propagation off, tested apart from scheduling + CSE (AI avoidance reset,
+  Puzzle burn controller).
+- Global pointer reloaded after loop, ours reuses loop test's reg:
+  function-scoped `opt_common_subs off`, immediate reset, whole-TU compare.
+  Propagation off was neutral for `kabal_collide_victim`; CSE off restored
+  `his_pdata` reload. Reload after inlined float-bits helper: pragma
+  reproduces reload but renumbers volatile webs (`drone_ai_victim_avoid` stuck
+  99.44); address-taken helper input (H05, H21) closed it with CSE on, no
+  pragma.
+- Multi-row field, retail adds offset to reloaded owner before `stfsx`: typed
+  row-array pointer + propagation off (Puzzle crusher).
+- Fixed-count array copy as two advancing pointers, retail one byte
+  induction reg: scoped `opt_strength_reduction off`. Loops only.
+- Size bit: `-opt off` TU lowers `ptr != 0` as `neg/or/srwi`, retail `addic
+  r0,x,-1; subfe`: `-O4,s` before `-opt off` at object scope when same-lib
+  siblings build that way. `,s` survives `-opt off`; no spelling gives the
+  carry idiom (`rwfexist`). Higher exact count can hide one lost function;
+  compare each.
+- Dead ends `[da]`: compiler version sweeps never fixed a coloring residue;
+  `-opt level=3`, `-schedule on`, `nocse`, `-O3`, `-O4,s` fixed nothing on an
+  `-O4,p` lib (two regressed).
 
 ## M02
 
-Control-word or publication order. REQUIRE retail accesses and alias
-boundaries. Load a control word before subfield writes; publish owners at the
+Control-word or publication order. REQUIRE retail accesses + alias
+boundaries. Load control word before subfield writes; publish owners at
 observed point; reload counts after aliasing stores. Process/script transfers
-observe published state; never move a store past a transfer for a permuter
-score. In bounded candidate loops, check whether each trial is published
-before validation calls.
+observe published state; never move a store past a transfer for permuter
+score. Bounded candidate loops: check whether each trial publishes before
+validation calls.
 
-- Selected-minimum addendum: retail reads a saved 64-bit minimum, selects the
-  lower value, and writes both words even when unchanged: a typed minimum
-  local, conditionally replaced, always written back (`sfmps_CopyAudio`).
+- Saved 64-bit minimum read, lower selected, both words written even when
+  unchanged: typed minimum local, conditionally replaced, always written back
+  (`sfmps_CopyAudio`).
 
 ## M03
 
-IF an inverse-square-root guard differs by a CROR or operand reversal, REQUIRE
-tracing the unordered FP outcome as well as negative/zero inputs. `x <= 0` and
-`!(0 < x)` differ for NaN; preserve the retail predicate (`normalize_v3`). For
-the refinement, keep the rounded product tree and scale the existing estimate
-at its real phase boundary before adding new factor temporaries.
+FP operands + schedule. REQUIRE same math, grouping, rounding.
 
-IF normalization reloads its first component after refinement where retail
-retains it, TRY explicit `v->x = v->x * inverse` before adding a snapshot local.
-MWCC can retain the member read for the explicit assignment while reloading for
-compound assignment (`normalize_v3`). Verify the full FP instruction order and
-all shared inverse-square-root consumers.
-
-FP operands and schedule. REQUIRE the same math, grouping, and rounding.
-
-- Swap only commutative operands, or name genuine factors. Remove temporaries
-  only without reassociation. Keep polynomial-before-sqrt order.
-- Separate single-precision boundaries: name the intermediates in evaluation
-  order (`ADX_GetCoefficient`).
-- A rounded product before an addition: an explicit float conversion; verify
-  output bits.
-- Mixed fused and separate operations: narrow function-scoped `fp_contract`;
-  lexical toggles inside a function may do nothing.
-- If a vector is normalized before a second vector's deltas are formed, require
-  retail multiplies before the delta subtracts; name the normalized components
-  at that point. In `mks_get_victim_to_tr_dot`, this recovered the first
-  inverse-sqrt result's consumers without changing the arithmetic.
-- Constant width comes from `lfs`/`lfd` and pool bytes, not decompiler casts.
-- IF a three-component midpoint has correct separate multiply/add operations
-  but paired input loads or FP webs differ, REQUIRE the same difference, scale
-  and addition rounding. TRY a typed inline Vec output helper with explicit
-  subtraction, scaling and addition phases (`mk_chess_activate_piece_properties`).
-  A folded expression can differ from its decimal spelling: `3.0f * 0.075f`
-  is 0x3e666667, `0.225f` is 0x3e666666.
-- Check whether negation happens in FP before conversion or on the integer.
+- Inverse-sqrt guard differs by CROR or operand reversal: trace unordered
+  outcome + negative/zero inputs. `x <= 0` != `!(0 < x)` for NaN; keep retail
+  predicate (`normalize_v3`). Refinement: keep rounded product tree, scale
+  existing estimate at real phase boundary before adding factor temps.
+- Normalize reloads first component after refinement, retail keeps it: TRY
+  `v->x = v->x * inverse` before snapshot local; MWCC can keep member read for
+  explicit assign while reloading for compound (`normalize_v3`). Verify full
+  FP order + all inverse-sqrt consumers.
+- Swap only commutative operands, or name real factors. Drop temps only
+  without reassociation. Keep polynomial-before-sqrt order.
+- Separate single-precision boundaries: name intermediates in eval order
+  (`ADX_GetCoefficient`).
+- Rounded product before add: explicit float conversion; verify output bits.
+- Mixed fused + separate ops: narrow function-scoped `fp_contract`; lexical
+  toggles inside a function may do nothing. Retail `fmuls` + `fadds` where we
+  emit `fmadds` and rest of lib needs contraction on `[da]`: each product in
+  its own `f32` local before the sum, not a flag change (`VectorMultVector`).
+- Vector normalized before 2nd vector's deltas: REQUIRE retail multiplies
+  before delta subtracts; name normalized components there
+  (`mks_get_victim_to_tr_dot`).
+- Constant width from `lfs`/`lfd` + pool bytes, not decompiler casts.
+- 3-component midpoint, right separate mul/add, paired input loads or FP webs
+  differ: REQUIRE same difference, scale, add rounding. TRY typed inline Vec
+  output helper with explicit sub, scale, add phases
+  (`mk_chess_activate_piece_properties`). Folded expr != decimal spelling:
+  `3.0f * 0.075f` = 0x3e666667, `0.225f` = 0x3e666666.
+- Check whether negation is in FP before conversion or on the int.
 
 ## M04
 
-Compare boundaries and Boolean diamonds. REQUIRE equivalent bounds and pure
+Compare boundaries + Boolean diamonds. REQUIRE equivalent bounds, pure
 operands.
 
-- Try equivalent thresholds, ternaries, or guarded assignments for the observed
-  join. Bitwise Boolean evaluation evaluates both operands.
-- A final `cmpwi` with no consuming branch before a void epilogue can come
-  from a terminal return guard. REQUIRE a real validity or capacity condition
-  and a same-compiler reference with this lowering; try that guard before
-  forcing a dead instruction. `start_kabal_smoke_pfx` checks its ten-slot
-  emitter capacity, and exact `bgnd_append_texture_to_material` shows the
-  same no-branch compare from a terminal return guard.
-- `subic`/`subfe` normalization of a call result: a Boolean local
-  (`opened = get_coffin_bit(...) != 0`). `subfic`/`cntlzw`/`srwi` field
-  queries: an explicit inline success/failure return. A ternary can match
-  standalone yet fold to `cntlzw` once inlined (`SFLIB_CheckHn`); explicit `if`
-  returns keep the branches.
+- Try equivalent thresholds, ternaries, guarded assigns for observed join.
+  Bitwise Boolean evaluates both operands.
+- Final `cmpwi` with no consuming branch before void epilogue = terminal
+  return guard. REQUIRE real validity/capacity condition + same-compiler
+  reference with this lowering; try guard before forcing dead instr
+  (`start_kabal_smoke_pfx` 10-slot emitter capacity; exact
+  `bgnd_append_texture_to_material` same shape).
+- `subic`/`subfe` normalizing call result: Boolean local (`opened =
+  get_coffin_bit(...) != 0`). `subfic`/`cntlzw`/`srwi` field queries:
+  explicit inline success/failure return. Ternary can match standalone but
+  fold to `cntlzw` once inlined (`SFLIB_CheckHn`); explicit `if` returns keep
+  branches.
 - Identical calls before different actions in separate retail arms stay
   branch-local.
-- One equality dispatch with a conditional jump and an unconditional default:
-  a one-case switch with default.
-- Operand order of a returned signed compare (`a > b` vs `b < a`) differing
-  only in load homes: try once. Not for FP unordered compares.
-- A quotient computed once with a guarded subtraction of end padding: keep the
-  count and guard the subtraction (`ADXB_ExecOneAdx`).
-- Bounded copy: a donor-style minimum expression and a destination pointer
-  assigned right after chunk acquisition (`sfadxt_CopyData`).
-- Small-request dispatch where MWCC tests the mutating case first:
-  `if (request != no_op) { if (request < no_op) return state;
-  if (request < next_limit) state = next_state; } return state;`
-  (`sfply_StatPlay`).
+- One equality dispatch with conditional jump + unconditional default:
+  one-case switch with default.
+- Returned signed compare operand order (`a > b` vs `b < a`) differing only
+  in load homes: try once. Not for FP unordered.
+- Quotient once + guarded subtraction of end padding: keep count, guard the
+  subtraction (`ADXB_ExecOneAdx`).
+- Bounded copy: donor-style min expr + dest pointer set right after chunk
+  acquisition (`sfadxt_CopyData`).
+- Small-request dispatch where MWCC tests mutating case first: `if (request
+  != no_op) { if (request < no_op) return state; if (request < next_limit)
+  state = next_state; } return state;` (`sfply_StatPlay`).
 - Signed 64-bit clamp: `value = value > 0 ? value : 0`, one clamp per rebuild
   (`sfmpv_DecodePicAtr`).
+- Clamp default const hoisted before compare: H22 ternary.
 
 ## M05
 
-Integer-to-float scaffolding: a natural cast with proven signedness; remove
-fake 0x4330 `volatile` machinery. Genuine bit reinterpretation uses a
-supported typed union (see N10).
+Int-to-float scaffolding: natural cast with proven signedness; remove fake
+0x4330 `volatile` machinery. Real bit reinterpret = supported typed union
+(N10).
 
 ## M06
 
-A leading stack byte updated and the whole word passed: a byte-bitfield/word
-union in GC big-endian layout (`init_pwr_bars` flip word is 0x20000000, not
-0x20).
+Leading stack byte updated, whole word passed: byte-bitfield/word union in GC
+big-endian layout (`init_pwr_bars` flip word = 0x20000000, not 0x20).
 
-- Mixed `lbz`/`lhz`/`lwz` at one base: a typed byte/halfword/word union only
-  with confirmed alignment, extent, and endianness. Keep each consumer's width;
-  a word clear followed by byte bitfield updates needs a word view.
-- An 8x8 coefficient block cleared with double stores but decoded with Float32
-  stores: the donor's Float64 destination with localized Float32 casts, not a
-  union (`MPVABDEC_IntraBlock`).
+- Mixed `lbz`/`lhz`/`lwz` at one base: typed byte/half/word union only with
+  confirmed alignment, extent, endianness. Each consumer keeps its width; word
+  clear then byte bitfield updates needs word view.
+- 8x8 coefficient block cleared with double stores, decoded with Float32
+  stores: donor Float64 dest + localized Float32 casts, not union
+  (`MPVABDEC_IntraBlock`).
 
 ## M07
 
-Aggregate and packed addresses. REQUIRE stride, extent, ownership, and access
+Aggregate + packed addresses. REQUIRE stride, extent, ownership, access
 width.
 
-- Typed element/subobject pointers: a trailing table at `&items[count]`, a
-  payload at `header + 1`. Distinguish byte offsets from element indices:
-  `lhzx` with `(bits >> 10) & 0x3FFE` is C index `(bits >> 11) & 0x1FFF`.
+- Typed element/subobject ptrs: trailing table at `&items[count]`, payload at
+  `header + 1`. Byte offset != element index: `lhzx` with `(bits >> 10) &
+  0x3FFE` = C index `(bits >> 11) & 0x1FFF`.
 - Retail adds `index*stride` before field loads: `owner->array[index].member`,
-  not a cached element pointer (`mwPlyGetFxType`).
-- Stack vectors exchanging roles: trace each destination through all calls
-  (a difference vector updated in place into a midpoint).
-- Establish a localized-array base before an index getter, then advance it.
-- Uniform stack displacement: an adjacent-version source may show a real unused
-  local array (`__DSPHandler`'s four-byte array before `OSContext`). Restore
-  only that declaration, with no fake reads, and require the exact retail
-  frame size.
-- A contiguous run of copied fields can be one embedded aggregate
-  (`SFADXT_Destroy`, 0x1C-byte parameter block).
+  not cached element ptr (`mwPlyGetFxType`).
+- Stack vectors swapping roles: trace each dest through all calls (difference
+  vector updated in place into midpoint).
+- Localized-array base before index getter, then advance.
+- Uniform stack displacement: adjacent-version source or same function in a
+  donor decomp may show a real unused local (`__DSPHandler` 4-byte array before
+  `OSContext`; mk-da `STACK_PAD_VAR` copied from Pikmin's same function).
+  Restore only that verbatim decl, cite donor, no fake reads, exact retail
+  frame. Never extend to other functions.
+- Contiguous run of copied fields can be one embedded aggregate
+  (`SFADXT_Destroy`, 0x1C param block).
 - Fallback-prefix bytes: read `header[-2]`, `header -= 2`, then `header[1]`
   (`SFHDS_SetHdr`).
-- Apparently overlapping union arrays may be adjacent regions
+- "Overlapping" union arrays may be adjacent regions
   (`MPVTransformWorkspace`: six 0x80 DCT blocks then six 0x100 float blocks);
-  counters inside an opaque gap belong in the parameter record.
-- Records filled with one sentinel by direct stores: initialize fields in the
-  loop, not by aggregate copy (`MPS_Create`).
-- Sentinel lookahead: a current-sentinel local, advance the index after the
-  body, then load `records[index].sentinel` (`p_lightning_strike_effect`).
-- Execute retail table initialization before comparing decoder lookups
-  (Sofdec run/level tables biased by -16/-32/-32 bytes).
+  counters in opaque gap belong to param record.
+- Records filled with one sentinel by direct stores: init fields in loop, not
+  aggregate copy (`MPS_Create`).
+- Sentinel lookahead: current-sentinel local, advance index after body, then
+  load `records[index].sentinel` (`p_lightning_strike_effect`).
+- Run retail table init before comparing decoder lookups (Sofdec run/level
+  tables biased -16/-32/-32 bytes).
 
 ## M08
 
-Failure edges that bypass a shared success test. REQUIRE dominators and
-exactly-once cleanup after ordinary guards failed. Use a structured
-do/break region only for genuine cleanup edges, or a real allocation-result
-Boolean. No dummy status, one-trip `for`, or duplicated effects. A
-donor-backed shared-exit `goto` needs the AGENTS.md exception. After
-callback-containing allocation loops, `index == count` does not prove success
-if callbacks change `count` (`mslInit`); keep the correct behavior.
+Failure edges bypassing shared success test. REQUIRE dominators + exactly-once
+cleanup after ordinary guards fail. Structured do/break region only for real
+cleanup edges, or real allocation-result Boolean. No dummy status, one-trip
+`for`, duplicated effects. Donor-backed shared-exit `goto` needs AGENTS.md
+exception. After callback allocation loops, `index == count` doesn't prove
+success if callbacks change `count` (`mslInit`); keep correct behavior.
 
 ## M09
 
-Repeated tests around stores: separate guards. A nullable-list inline predicate
-only for a proven contract, not `&global != 0` residue.
+Repeated tests around stores: separate guards. Nullable-list inline predicate
+only for proven contract, not `&global != 0` residue.
 
 ## M10
 
-Unexpected masks, pairs, or argument copies. REQUIRE all callers and callee
-storage/return ABI. Recover full-width or byte ABI, typed conditional arms,
-aligned u64 pairs, by-value POD, or an actual POD return. A low r4 return can
-be the low u64 half.
+Unexpected masks, pairs, arg copies. REQUIRE all callers + callee storage/
+return ABI. Recover full-width or byte ABI, typed conditional arms, aligned
+u64 pairs, by-value POD, real POD return. Low r4 return can be low u64 half.
 
 ## M11
 
-Wrapper load order differs with correct registers: recover float/integer
-parameter interleaving (PPC fills GPRs and FPRs independently) in
-definitions, declarations, and every caller. Local snapshots alone can
-optimize back. Do not keep incompatible per-TU declarations to hide a caller
+Wrapper load order differs, regs right: recover float/int param interleave
+(PPC fills GPRs + FPRs independently) in defs, decls, every caller. Local
+snapshots alone optimize back. No incompatible per-TU decls to hide caller
 residue.
 
-- Script wrappers in `script_functions.c`: the retail load order of
-  `current_args` slots is the callee's parameter order. Reorder the callee's
-  parameters to ascending slot order, drop fake `current_args` or
-  `void* script_args` parameters, and apply the change to every declaration
-  and caller. Confirm the callers stay neutral: `got_hit_fx` callers
-  regressed, so its int-first order is real. A wrapper that calls
-  `get_animation` first rereads `current_args` after that call
-  (`_launch_n_land_ani`, `_two_player_animation`).
+- `script_functions.c` wrappers: retail `current_args` slot load order = callee
+  param order. Reorder callee params to ascending slot order, drop fake
+  `current_args` / `void* script_args` params, update every decl + caller.
+  Callers must stay neutral: `got_hit_fx` callers regressed, so its int-first
+  order is real. Wrapper calling `get_animation` first rereads `current_args`
+  after (`_launch_n_land_ani`, `_two_player_animation`).
 
 ## M12
 
-Alias analysis changes the access schedule. REQUIRE actual mutability and
-callers. Remove unsupported `const` or restore supported `const`; `const` alone
-does not prove non-aliasing.
+Alias analysis changes access schedule. REQUIRE real mutability + callers.
+Drop unsupported `const` or restore supported `const`; `const` alone doesn't
+prove non-aliasing.
 
-- Coordinate loads moved before intervening stores: compare the input
-  qualifier with mutable caller objects (Krypt position inputs, Puzzle flesh
-  path).
-- Tables and counts reloaded after global stores: remove unsupported pointee
-  `const` from each input separately, updating declarations and callers
-  (`SFD_SetMpvParaTbl`).
-- Read-only slot table at a private helper: the donor mutable-slot signature at
-  that helper only, with an explicit const-removal cast at the call; never
-  write through it (`sftrn_BuildSystem`, `sftrn_BuildAll`).
-- A separately cached destination owner is H05.
+- Coordinate loads moved before intervening stores: compare input qualifier
+  with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+- Tables/counts reloaded after global stores: drop unsupported pointee
+  `const` per input, update decls + callers (`SFD_SetMpvParaTbl`).
+- Read-only slot table at private helper: donor mutable-slot signature at that
+  helper only, explicit const-removal cast at call; never write through it
+  (`sftrn_BuildSystem`, `sftrn_BuildAll`).
+- Separately cached dest owner = H05.
 
 ## M13
 
-Canonical macro or inline expansion missing. REQUIRE the definition and
-repeated retail expansion. Prefer a typed inline helper when a macro keeps a
-reference swap or shifts stack offsets. Use a typed macro only when its lvalue
-and per-expansion locals are evidenced. Shared headers only for proven
-ownership; an unused O0 parameter takes `#pragma unused`, not a wrong prototype.
+Canonical macro/inline expansion missing. REQUIRE definition + repeated retail
+expansion. Typed inline helper beats macro when macro keeps a ref swap or
+shifts stack offsets. Typed macro only when its lvalue + per-expansion locals
+are proven. Shared headers only for proven ownership; unused O0 param takes
+`#pragma unused`, not wrong prototype.
 
 - Repeated block: one `static inline` at each repeated site
-  (`game_count_active_players`); leave already-exact spelled-out sites alone.
-- Fixed-record search: keep the donor's element count and induction (SFH's
-  26-record helper); one cursor advance per record when retail advances a
-  pointer.
-- Helper contracts that close functions (all verified with no emitted helper
-  symbol):
-  - A typed interface snapshot inside each private lifecycle helper
-    (`MWSST_Destroy`).
-  - A cached backend passed as a second input to a validity helper
-    (`MWSST_Reset`).
-  - A byte classifier with a typed unsigned accumulator assigned per arm
-    (`sfh_GetStmType`).
-  - A typed inline lookup followed by a standalone null check, not `||`
-    (GOP readers). Reject any trial that loses jump-table relocations.
-  - A status-returning inline with out-parameters (`sfadxt_ExcludeSilence`).
-  - A restore helper with separate null guards (`SFMPV_Seek`).
-  - A first-slot clear plus a bounded slot loop (`SFD_SetPicUsrBuf`).
-  - Branch-local zero results (`sfpl2_PauseSub`).
-  - Explicit 0/1 returns when retail branches (`sfply_StatPlay`).
-  - A named configured stop time after the negative-time guard
-    (`sfply_StatPlay`).
-  - Readiness/startability helpers and an entry-load request snapshot
-    (`sfply_StatPrep`).
-  - Transport-stop and handle-reset helpers (`SFD_Stop`, `SFD_Destroy`).
-  - Phase helpers for a long server (`sfadxt_ExecServerSub`).
-  - Time-update helpers with narrowed outputs (`sfadxt_GetTime`).
-  - A pause-off helper called after the reset (`SFADXT_Pause`).
-- A `dont_inline` scope inherited from scaffolding can force a shared helper
-  out of line; test removing it (`sfply_ExecOne`).
-- Do not import donor-only null guards, differing signatures, or codeless
-  register pins retail lacks.
-- Quantization and VLC macros: name the quantizer-scaled level inside each
-  expansion; follow the real consume/refill path; compare guarded
-  peek/extract/refill expansions sibling by sibling.
+  (`game_count_active_players`); leave already-exact spelled-out sites.
+- Fixed-record search: keep donor element count + induction (SFH 26-record
+  helper); one cursor advance per record when retail advances pointer.
+- Helper contracts that closed functions (no emitted helper symbol):
+  - typed interface snapshot inside each private lifecycle helper
+    (`MWSST_Destroy`)
+  - cached backend as 2nd input to validity helper (`MWSST_Reset`)
+  - byte classifier, typed unsigned accumulator assigned per arm
+    (`sfh_GetStmType`)
+  - typed inline lookup + standalone null check, not `||` (GOP readers);
+    reject trials losing jump-table relocs
+  - status-returning inline with out-params (`sfadxt_ExcludeSilence`)
+  - restore helper with separate null guards (`SFMPV_Seek`)
+  - first-slot clear + bounded slot loop (`SFD_SetPicUsrBuf`)
+  - branch-local zero results (`sfpl2_PauseSub`)
+  - explicit 0/1 returns where retail branches; named configured stop time
+    after negative-time guard (`sfply_StatPlay`)
+  - readiness/startability helpers + entry-load request snapshot
+    (`sfply_StatPrep`)
+  - transport-stop + handle-reset helpers (`SFD_Stop`, `SFD_Destroy`)
+  - phase helpers for long server (`sfadxt_ExecServerSub`)
+  - time-update helpers with narrowed outputs (`sfadxt_GetTime`)
+  - pause-off helper after reset (`SFADXT_Pause`)
+- `dont_inline` scope inherited from scaffolding can force shared helper out
+  of line; test removing it (`sfply_ExecOne`).
+- Donor version gaps, both ways: don't import donor-only null guards,
+  differing signatures, codeless reg pins retail lacks. Retail has guards/fast
+  paths/fills donor lacks `[da]`: REQUIRE version marker (mk-da: "HVQM4 1.5"
+  vs Pikmin's older decoder) + retail branch structure; add only
+  retail-proven branches around donor body.
+- Quantization/VLC macros: name quantizer-scaled level inside each expansion;
+  follow real consume/refill path; compare guarded peek/extract/refill
+  expansions sibling by sibling.
 - Auto-inline size limit: object-scope `-pragma "inline_max_size(N)"` (N 8..24
-  inlines a 3-instruction helper and keeps a 26-instruction static as a call).
-  Compiler 2.7 ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0`
-  do not clear the base `-inline auto`. Only when retail inlining proves the
-  limit.
+  inlines 3-instr helper, keeps 26-instr static as call). Compiler 2.7
+  ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0` don't clear
+  base `-inline auto`. Only when retail inlining proves the limit.
 
 ## M14
 
-Varargs setup. REQUIRE EABI `va_list` and variadic callers. `crclr` supports a
-variadic call, not arbitrary prototype guesses. If retail saves the whole GPR/
-FPR area and builds the `va_list` inline where the SDK macro emits a helper
-call, scope the `__builtin_va_info` form to the proven functions (`OSPanic`,
-as in `OSReport`).
+Varargs. REQUIRE EABI `va_list` + variadic callers. `crclr` supports a
+variadic call, not prototype guesses. Retail saves whole GPR/FPR area and
+builds `va_list` inline where SDK macro emits helper call: scope
+`__builtin_va_info` form to proven functions (`OSPanic`, like `OSReport`).
 
 ## M15
 
-String/constant identity, placement, or extent. REQUIRE ELF sizes, bytes,
-relocation addends, and use. Use `-c functionRelocDiffs=data_value`.
+String/constant identity, placement, extent. REQUIRE ELF sizes, bytes, reloc
+addends, use. Use `-c functionRelocDiffs=data_value`.
 
-- Pooled literals for anonymous pools, named objects for real symbols, natural
-  string bounds. Equal pool sizes do not prove correct strings (Krypt's swapped
-  coffin/dirt names). A relocation may name the first aggregate as a
-  section-wide base; check later base-plus-offset loads.
-- IF a pooled-string addend differs, REQUIRE decoding the retail bytes at
-  that effective offset and comparing the selected literal. Identical pool
-  bytes with different consumer addends select different strings; TRY the
-  evidenced literal before classifying TU layout residue
+- Pooled literals for anonymous pools, named objects for real symbols,
+  natural string bounds. Equal pool sizes != right strings (Krypt swapped
+  coffin/dirt names). Reloc may name first aggregate as section-wide base;
+  check later base+offset loads.
+- Pooled-string addend differs: REQUIRE decode retail bytes at effective
+  offset, compare selected literal. Same pool bytes + different addends =
+  different strings; TRY evidenced literal before calling it TU layout residue
   (`pz_fighter_chomper2_victim_crushed`).
-- A generic DecompStudio pool-name warning needs an independent
-  `functionRelocDiffs=all` check (`calc_cloth_dwp` passes despite that warning).
-  Compare effective consumer offsets as well as whole-pool bytes:
-  `konquest_make_monk_an_npc` addresses the correct `hero_npc` suffix while
-  unrelated later strings keep its whole-pool data-value comparison below 100.
-- Trace aggregate copies and each scalar load to its consumer; a named
-  aggregate comparison does not show which vector a caller uses.
-- Nonzero words inside reconstructed padding are initializer data; keep them
+- Generic DecompStudio pool-name warning needs independent
+  `functionRelocDiffs=all` check (`calc_cloth_dwp` passes despite it). Compare
+  effective consumer offsets + whole-pool bytes: `konquest_make_monk_an_npc`
+  addresses right `hero_npc` suffix while unrelated later strings keep pool
+  data-value <100.
+- Trace aggregate copies + each scalar load to consumer; named aggregate
+  compare doesn't show which vector a caller uses.
+- Nonzero words inside reconstructed padding = initializer data; keep
   offset-named.
-- Missing prefixes shared by many consumers can mean a missing real table
+- Missing prefixes shared by many consumers can mean missing real table
   (`global_background_data`).
-- An unused inline body can still emit initializer data.
-- Before modeling a terminal `gap_*`, check whether linker alignment already
-  produces the extent. In `jmt`, retail split `gap_*` symbols occupy the final
-  four bytes of `.data` and `.sdata2`; the built sections stop at those symbols'
-  offsets, and both sections have 8-byte alignment. Do not add fake source
-  objects merely to reproduce split padding.
+- Unused inline body can still emit initializer data.
+- Terminal `gap_*`: check linker alignment first. `jmt`: retail split `gap_*`
+  = final 4 bytes of `.data` + `.sdata2`; built sections stop at those
+  offsets, both 8-byte aligned. No fake source objects for split padding.
 - High-bit bytes in plain `char` pools: adjacent literals with fixed-width
-  octal escapes, keeping embedded NULs.
-- Float pools: retail `lis`/`lfs` per literal vs one pooled base: object-level
-  `-pooldata off` if the whole-object control passes (`SFADXT_SetSpeed`),
-  otherwise the donor's scoped `pool_data off` (`sfmpv_Pts2Tc`).
-- Split literals: `@stringBase0 + n` from separate literals with object-scope
-  `-str reuse,pool,readonly` (`mk_obj`). A one-character literal in `.rodata`
-  instead of `.sdata2`: `-sdata2 0 -str reuse,readonly` (`adx_errs`).
-- In `jmt`, first-use ordered effect-name literals with that object-scope flag
-  produce the retail `@stringBase0` symbol and preserve its bytes. Keep the
-  two angle vectors before the string pool; file-scope stand-ins preserved
-  bytes but changed aggregate-copy scheduling. Their bytes are identical,
-  so data-value matching alone missed crossed relocations: a typed inline
-  decoy-visual initializer preserved both functions' text while giving
-  `p_decoy` `.rodata+0` and `p_kabal_smoke` `.rodata+12` as retail does.
-  A typed angle-sum local with the nested scale expression from matched
-  `r_cyrax_blade` preserved exact text and ordered the two final `.sdata2`
-  float words as retail. Compare normalized relocation section/offset/type
-  targets as well as raw section bytes before claiming link equivalence.
+  octal escapes, keep embedded NULs.
+- Float pools: retail `lis`/`lfs` per literal vs one pooled base: object
+  `-pooldata off` if whole-object control passes (`SFADXT_SetSpeed`), else
+  donor scoped `pool_data off` (`sfmpv_Pts2Tc`).
+- Literals in `.data` or one pooled object, retail one local `@NNN` per
+  literal in `.rodata` `[da]`: `-str reuse,readonly` (not `pool`). Split
+  literals as `@stringBase0 + n`: object `-str reuse,pool,readonly` (`mk_obj`).
+  One-char literal in `.rodata` not `.sdata2`: `-sdata2 0 -str
+  reuse,readonly` (`adx_errs`).
+- `jmt`: first-use ordered effect-name literals + that flag give retail
+  `@stringBase0` with bytes. Keep two angle vectors before string pool;
+  file-scope stand-ins kept bytes but changed aggregate-copy scheduling. Bytes
+  identical, so data-value missed crossed relocs: typed inline decoy-visual
+  initializer gave `p_decoy` `.rodata+0`, `p_kabal_smoke` `.rodata+12` as
+  retail. Typed angle-sum local with nested scale expr from matched
+  `r_cyrax_blade` ordered the two final `.sdata2` floats. Compare normalized
+  reloc section/offset/type targets + raw bytes before claiming link
+  equivalence.
+- Bytes exact but DecompStudio shows `[order]` `[da]`: REQUIRE retail
+  addresses. TRY definitions in retail order with real forward decls.
 - Deferred order: parse-time symbols numbered backwards through `.text`
-  (`tools/deferred_scan.py`, Kendall tau < -0.5) mean `-inline deferred`;
-  functions are emitted in reverse source order. Try `-inline noauto,deferred`
-  with definitions reversed by `tools/reverse_deferred_tu.py`; retail-inlined
-  global callees get an `auto_inline on`/`reset` pair. Plain `deferred` after
-  `-inline auto` wipes static helpers. Land only on a measured whole-unit gain
-  (konquest gained; fatality and cam did not).
-- Pool residue: a file-scope pointer initialized with a literal pools it at the
-  declaration's position. Strings no code references mean linker-discarded or
-  debug code: check `orig/GQNE5D/files/mk6gc_release.MAP` (`UNUSED` with size,
-  `UNREFERENCED DUPLICATE` for weak copies). A plain `static` helper is compiled
-  standalone and keeps its pool data even when stripped; an `inline` helper
-  pools only at its inline sites. Restore a discarded function only with its
-  genuine body (`dsp_task`'s 2004 SDK `__DSP_add_task`); without a donor body,
-  stop. Keep named `static const` objects when converting them drops
-  placeholders (`adx_tlk`).
+  (`tools/deferred_scan.py`, Kendall tau < -0.5) = `-inline deferred`;
+  functions emitted in reverse source order. Try `-inline noauto,deferred` +
+  defs reversed by `tools/reverse_deferred_tu.py`; retail-inlined global
+  callees get `auto_inline on`/`reset` pair. Plain `deferred` after `-inline
+  auto` wipes static helpers. Land only on measured whole-unit gain (konquest
+  gained; fatality, cam didn't).
+- Deferred inline control: `#pragma dont_inline on` acts at CALLEE
+  definition; wrapping caller doesn't stop its callees inlining. Wrap retail
+  out-of-line callees in contiguous regions. Retail inlines self-recursion to
+  depth N (plus default getter): object `-inline auto,deferred,level=N`, no
+  per-function `inline_depth`; `noauto` loses it (`mwMemSystemSetParams`).
+  Inlined MAP `UNUSED` helper: restore as `static inline` when standalone
+  compile = MAP size (`privGeneralGetHeapFromPtr` 0x58,
+  `privGetUserSizeFromBlock` 0x44 closed `_mwMemRealloc`). Permuter NG strips
+  bodies after target; under deferred re-measure every lead in full TU.
+- Pool residue: file-scope pointer initialized with literal pools it at decl
+  position. Strings no code uses = linker-discarded or debug code: check
+  `orig/GQNE5D/files/mk6gc_release.MAP` (`UNUSED` + size, `UNREFERENCED
+  DUPLICATE` for weak copies). Plain `static` helper compiles standalone, keeps
+  pool data even stripped, and its body position sets literal numbering even
+  when `-inline auto` expands it at every call site `[da]`; `inline` helper
+  pools only at inline sites. Ordinary unused non-inline header function
+  explains literals with no code; include position explains numbering/order;
+  body values only literals support stay unproven `[da]`. Split a helper only
+  where retail shows separate source regions (line-number groups). Restore
+  discarded function only with genuine body (`dsp_task` 2004 SDK
+  `__DSP_add_task`); no donor body -> stop. Keep named `static const` objects
+  when converting drops placeholders (`adx_tlk`). Stripped-code restoration
+  needs the user's stripped-code ruling `[da]`.
 
 ## M16
 
-Global and zero-fill order; SHA fails at report-100. REQUIRE raw offsets,
-alignment, and SDA relocations. objdiff cannot compare `.bss`/`.sbss`, so
-compare `powerpc-eabi-nm -n -S` of retail and built objects.
+Global + zero-fill order; SHA fails at report-100. REQUIRE raw offsets,
+alignment, SDA relocs. objdiff can't compare `.bss`/`.sbss` (zero-filled
+compares equal, relocs by name): compare `powerpc-eabi-nm -n -S` of retail vs
+built objects; only linked DOL hash catches wrong layout.
 
-- MWCC emits uninitialized globals and statics in reverse declaration order
-  (`baim3d`, `fonts`). An uninitialized static among `= 0` globals follows all
-  of them. Compiler 1.2.5n places explicitly zero-initialized globals before
-  function statics (`GXInit` with `__piReg = NULL`).
-- IF a whole-TU deferred/noauto control changes tentative BSS allocation from
-  first use to reverse declaration order, REQUIRE each named object's retail
-  offset, size, alignment and binding. TRY reversing the complete tentative
-  declaration block along with the function definitions (M15), retaining the
-  explicit scalar-zero prefix (`ADXM_ShutdownThrd`). Reversing definitions
-  alone can put stacks before threads while fuzzy scores stay unchanged. Land
-  only after every function and the full BSS map agree or improve, using the
-  supported object flag and removing diagnostic source pragmas.
-- Explicit zero initializers in proven order can fix placement but may move an
-  object to another section (`sfmpv_ta_adr_tbl`, SVM aggregates); verify the
-  section.
-- Invented aggregates overlaying several retail symbols: separate objects with
-  retail names; fix first-use order with the donor's linker-discarded setter
+- MWCC emits uninit globals/statics in reverse decl order (`baim3d`,
+  `fonts`; mk-da `babinwor` passed objdiff, failed hash until reversed).
+  Uninit static among `= 0` globals follows all of them. 1.2.5n places
+  explicit zero-init globals before function statics (`GXInit`, `__piReg =
+  NULL`). 2.7 C deferred: `= 0` prefix keeps forward decl order; uninit
+  globals + function statics follow, reverse parse order (function static sits
+  at its function's parse position) (`mwMem` `StrategyAllocationActive`).
+- Function-static `name$N` suffix differs: objdiff falls back to section
+  offset. Fix offset, not parse numbering. MAP `UNUSED` data absent from split
+  object: omit it, else later offsets shift (`mwMem` `heapIndex`).
+- Whole-TU deferred/noauto control changes tentative BSS from first-use to
+  reverse decl order: REQUIRE each object's retail offset, size, align,
+  binding. TRY reversing whole tentative decl block with function defs (M15),
+  keep explicit scalar-zero prefix (`ADXM_ShutdownThrd`). Reversing defs alone
+  can put stacks before threads at same fuzzy score. Land only when every
+  function + full BSS map agree/improve, via supported object flag, diagnostic
+  pragmas removed.
+- Explicit zero inits in proven order fix placement but may move object to
+  another section (`sfmpv_ta_adr_tbl`, SVM aggregates); verify section.
+- Invented aggregates overlaying several retail symbols: separate objects
+  with retail names; fix first-use order with donor's linker-discarded setter
   (`mwPlySetFrmBuf`).
-- First reference: BSS order that starts with symbols used only by discarded
-  code needs those genuine donor routines restored (`svm.c`, `ADXF_GetNumCmd`,
-  `AXRNA_DbgDump`, `gcCiInit`). A donor-declared volatile build-pointer read
-  with a retail entry load is source, not a dead read (`LSC_Init`,
-  `ADXGC_SetupDvdFs`); prefer retail symbol binding over donor storage class.
-  If only a scalar prefix is proven, initialize that prefix and stop.
-- A small object's first `extern` must see the complete type for SDA
-  addressing (DVD thread queue); a multi-record table declared as a pointer
-  falsely selects SDA. All small globals in `.bss` with `lis` addressing where
-  the candidate uses `@sda21`: object flag `-sdata 0` (`sfd_tim`).
-- Distinguish a split gap from object alignment: `g_DSB_Buffers` needs
-  32-byte alignment, not a gap object.
-- Never model an `.sdata` gap with a section pragma on a zero static; it lands
-  in `.sbss`.
-- When sweeping flag changes, check ninja's exit status and delete
-  `main.dol`/`main.elf` first: a failed link leaves the old DOL, which still
-  hashes OK.
+- First reference: BSS order starting with symbols used only by discarded
+  code needs those genuine donor routines (`svm.c`, `ADXF_GetNumCmd`,
+  `AXRNA_DbgDump`, `gcCiInit`). Donor-declared volatile build-pointer read with
+  retail entry load = source, not dead read (`LSC_Init`, `ADXGC_SetupDvdFs`);
+  retail symbol binding beats donor storage class. Only scalar prefix proven
+  -> init that prefix, stop.
+- Small object's first `extern` must see complete type for SDA (DVD thread
+  queue); multi-record table declared as pointer falsely picks SDA. All small
+  globals in `.bss` with `lis` addressing where ours uses `@sda21`: object
+  `-sdata 0` (`sfd_tim`).
+- Split gap vs object alignment: `g_DSB_Buffers` needs 32-byte align, not gap
+  object.
+- Never model `.sdata` gap with section pragma on zero static; lands in
+  `.sbss`.
+- Flag sweeps: check ninja exit status, delete `main.dol`/`main.elf` first;
+  failed link leaves old DOL that still hashes OK.
 
 ## M17
 
-Vtables and weak destructors, including link-only differences. REQUIRE ELF
-relocations, hierarchy, weak owner, sizes, and order. Correct declarations,
-zero slots, and inline-visible destructors; verify weak emission with the
-linked SHA. Do not duplicate a deleting call's null guard.
+Vtables, weak dtors, link-only diffs, C++ emission. REQUIRE ELF relocs,
+hierarchy, weak owner, sizes, order. Fix decls, zero slots, inline-visible
+dtors; verify weak emission with linked SHA. Don't duplicate deleting call's
+null guard.
 
-- `extern "C" T f() {...}` definitions needing an implicit inline (struct copy
-  assignment, template instantiation) are deferred to the end of `.text`;
-  declare prototypes in an `extern "C" { }` block and use plain definitions
-  (`mwFileAsync`).
-- The linker keeps the first weak definition in link order; do not add a
-  specialization to own weak members an earlier object provides.
-- Vtables are emitted at TU end in reverse creation order. A key function
-  creates the vtable at its compile; without one, a weak vtable appears at the
-  first codegen reference (a derived constructor inlining the base
-  constructor, not a derived destructor).
+- `extern "C" T f() {...}` needing implicit inline (struct copy assign,
+  template instance) is deferred to end of `.text`; declare prototypes in
+  `extern "C" { }` block, plain defs (`mwFileAsync`).
+- Linker keeps first weak def in link order; no specialization to own weak
+  members an earlier object provides.
+- Vtables emitted at TU end in reverse creation order. Key function creates
+  vtable at its compile; none -> weak vtable at first codegen ref (derived
+  ctor inlining base ctor, not derived dtor).
+- extab/extabindex in object `[da]`: REQUIRE ELF section symbols. TRY
+  `-Cpp_exceptions on` at lib/object scope. Every function + data exact but
+  hash fails on two bytes in `.extab` (uninit record padding): REQUIRE retail
+  bytes there; coordinator sets `extab_padding=[b0, b1]` on the Object (dtk
+  extab clean). Metadata, not source (mk-da: Gecko_ExceptionPPC `[0x12,
+  0x00]`).
