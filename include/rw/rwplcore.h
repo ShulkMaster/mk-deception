@@ -21,10 +21,6 @@ typedef char RwV2dSizeCheck[sizeof(RwV2d) == 0x08 ? 1 : -1];
 typedef char RwV3dSizeCheck[sizeof(RwV3d) == 0x0C ? 1 : -1];
 typedef char RwBBoxSizeCheck[sizeof(RwBBox) == 0x18 ? 1 : -1];
 typedef char RwSphereSizeCheck[sizeof(RwSphere) == 0x10 ? 1 : -1];
-typedef struct RwError {
-    int pluginID;
-    int errorCode;
-} RwError;
 typedef struct RwPluginRegEntry RwPluginRegEntry;
 typedef struct RwStream RwStream;
 typedef struct RwPluginRegistry {
@@ -94,5 +90,4 @@ int RwEngineRegisterPlugin(int, unsigned int,
 int RwEngineGetPluginOffset(unsigned int pluginID);
 int _rwPluginRegistryOpen(void);
 int _rwPluginRegistryClose(void);
-int _rwpathisabsolute(const char*);
 #endif

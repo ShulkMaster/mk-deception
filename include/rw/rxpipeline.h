@@ -2,6 +2,7 @@
 #define RW_RXPIPELINE_H
 
 #include "rw/rwengine.h"
+#include "gameware/bapipe.h"
 
 typedef int RwTextureAddressMode;
 typedef int RwTextureFilterMode;
@@ -272,7 +273,6 @@ struct RxHeap {
 };
 typedef char RxHeapSizeCheck[sizeof(RxHeap) == 0x1C ? 1 : -1];
 
-extern int _rxPipelineGlobalsOffset;
 extern RxExecutionContext _rxExecCtxGlobal;
 extern RxHeap* _rxHeapGlobal;
 
@@ -287,8 +287,6 @@ static inline RxPipelinePlatformGlobals* rxPipelinePlatformData(void)
 }
 
 void _rxPacketDestroy(RxPacket* packet);
-int _rxPipelineOpen(void);
-int _rxPipelineClose(void);
 RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline);
 RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline);
 #define rpAtomicAssignPipeline(atomic, pipeline) \
@@ -330,9 +328,6 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
                              unsigned int entrySize, unsigned int keyOffset,
                              unsigned int keyLowerBound,
                              unsigned int keyUpperBound);
-void* _rwRenderPipelineOpen(void* instance, int offset, int size);
-void* _rwRenderPipelineClose(void* instance, int offset, int size);
-int _rwPipeAttach(void);
 int _rxWorldDevicePluginAttach(void);
 
 #endif

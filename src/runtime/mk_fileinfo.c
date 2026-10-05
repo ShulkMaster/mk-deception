@@ -1,6 +1,6 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/cstring.h"
-#include "rw/rwfile.h"
+#include "gameware/bafsys.h"
 
 #include "platform/gcutils.h"
 #include "runtime/mk_hwfile.h"
@@ -23,19 +23,19 @@ SsfContext previous_ssf;
 int num_files_loaded;
 
 void disable_default_filesystem(void) {
-    RwFileFunctions* file_interface = RwOsGetFileInterface();
+    RWbafsysUnk00* file_interface = RwOsGetFileInterface();
 
-    file_interface->exists = (RwFileExistsCall)renderware_fs_not_implemented;
-    file_interface->open = (RwFileOpenCall)renderware_fs_not_implemented;
-    file_interface->close = (RwFileCloseCall)renderware_fs_not_implemented;
-    file_interface->read = (RwFileReadCall)renderware_fs_not_implemented;
-    file_interface->write = (RwFileWriteCall)renderware_fs_not_implemented;
-    file_interface->gets = (RwFileGetsCall)renderware_fs_not_implemented;
-    file_interface->puts = (RwFilePutsCall)renderware_fs_not_implemented;
-    file_interface->eof = (RwFileEofCall)renderware_fs_not_implemented;
-    file_interface->seek = (RwFileSeekCall)renderware_fs_not_implemented;
-    file_interface->flush = (RwFileFlushCall)renderware_fs_not_implemented;
-    file_interface->tell = (RwFileTellCall)renderware_fs_not_implemented;
+    file_interface->unk00 = (RWCBRwfexist)renderware_fs_not_implemented;
+    file_interface->unk04 = (RWCBFopen)renderware_fs_not_implemented;
+    file_interface->unk08 = (RWCBFclose)renderware_fs_not_implemented;
+    file_interface->unk0C = (RWCBFread)renderware_fs_not_implemented;
+    file_interface->unk10 = (RWCBFwrite)renderware_fs_not_implemented;
+    file_interface->unk14 = (RWCBFgets)renderware_fs_not_implemented;
+    file_interface->unk18 = (RWCBFputs)renderware_fs_not_implemented;
+    file_interface->unk1C = (RWCBFeof)renderware_fs_not_implemented;
+    file_interface->unk20 = (RWCBFseek)renderware_fs_not_implemented;
+    file_interface->unk24 = (RWCBFflush)renderware_fs_not_implemented;
+    file_interface->unk28 = (RWCBFtell)renderware_fs_not_implemented;
 }
 
 static int renderware_fs_not_implemented(void) {

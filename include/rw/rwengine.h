@@ -3,35 +3,7 @@
 
 #include "runtime/cstdarg.h"
 #include "rw/rwcore_types.h"
-
-typedef int (*RwFileExistsCall)(const char* name);
-typedef void* (*RwFileOpenCall)(const char* name, const char* mode);
-typedef int (*RwFileCloseCall)(void* file);
-typedef unsigned int (*RwFileReadCall)(void* address, unsigned int size,
-                                       unsigned int count, void* file);
-typedef unsigned int (*RwFileWriteCall)(const void* address,
-                                        unsigned int size,
-                                        unsigned int count, void* file);
-typedef char* (*RwFileGetsCall)(char* buffer, int maxLength, void* file);
-typedef int (*RwFilePutsCall)(const char* buffer, void* file);
-typedef int (*RwFileEofCall)(void* file);
-typedef int (*RwFileSeekCall)(void* file, long offset, int origin);
-typedef int (*RwFileFlushCall)(void* file);
-typedef int (*RwFileTellCall)(void* file);
-
-typedef struct RwFileFunctions {
-    RwFileExistsCall exists;
-    RwFileOpenCall open;
-    RwFileCloseCall close;
-    RwFileReadCall read;
-    RwFileWriteCall write;
-    RwFileGetsCall gets;
-    RwFilePutsCall puts;
-    RwFileEofCall eof;
-    RwFileSeekCall seek;
-    RwFileFlushCall flush;
-    RwFileTellCall tell;
-} RwFileFunctions;
+#include "gameware/bafsys.h"
 
 typedef struct RwStringFunctions {
     int (*sprintf)(char*, const char*, ...);
@@ -143,7 +115,7 @@ typedef struct RwGlobals {
     RwDevice dOpenDevice;                   /* +0x010 */
     RwStandardFunc stdFunc[rwSTANDARDNUMOFSTANDARD]; /* +0x048 */
     RwLinkList dirtyFrameList;              /* +0x0BC */
-    RwFileFunctions fileFuncs;              /* +0x0C4 */
+    RWbafsysUnk00 unkC4;                    /* +0x0C4 */
     RwStringFunctions stringFuncs;          /* +0x0F0 */
     void* (*fpMalloc)(unsigned long size, unsigned int hint); /* +0x134 */
     void (*fpFree)(void* memory);            /* +0x138 */
@@ -158,8 +130,8 @@ typedef struct RwGlobals {
     unsigned int resArenaInitSize;           /* +0x154 */
 } RwGlobals;
 
-typedef char RwFileFunctionsSizeCheck[
-    sizeof(RwFileFunctions) == 0x2C ? 1 : -1];
+typedef char RWbafsysUnk00SizeCheck[
+    sizeof(RWbafsysUnk00) == 0x2C ? 1 : -1];
 typedef char RwStringFunctionsSizeCheck[
     sizeof(RwStringFunctions) == 0x44 ? 1 : -1];
 typedef char RwDeviceSizeCheck[sizeof(RwDevice) == 0x38 ? 1 : -1];

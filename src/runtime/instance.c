@@ -2,7 +2,7 @@
 #include "runtime/cstring.h"
 #include "platform/gcinstance.h"
 #include "rw/rwplcore.h"
-#include "rw/rwerror.h"
+#include "gameware/baerr.h"
 #include "rw/rpworld_registry.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
@@ -39,9 +39,9 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
     RwStream* stream = input_stream;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x8000001A);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x8000001A);
         RwErrorSet(&error);
         return 0;
     }
@@ -53,9 +53,9 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
             sizeof(chunk_info);
 
         if (read_ok == 0) {
-            RwError error;
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            RWbaerrUnk01 error;
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
@@ -65,40 +65,40 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
             return 0;
         }
         if (!RwStreamFindChunk(stream, 0xE, 0, &chunk_version)) {
-            RwError error;
+            RWbaerrUnk01 error;
             RpClumpDestroy(clump);
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
         read_ok = _rwFrameListStreamRead(stream, &frame_list) != 0;
         if (read_ok == 0) {
-            RwError error;
+            RWbaerrUnk01 error;
             RpClumpDestroy(clump);
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
         clump->object.parent = frame_list.frames[0];
         if (!RwStreamFindChunk(stream, 0x1A, 0, &chunk_version)) {
-            RwError error;
+            RWbaerrUnk01 error;
             _rwFrameListDeinitialize(&frame_list);
             RpClumpDestroy(clump);
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
         read_ok =
             inplaceGeometryListStreamRead(stream, &geometry_list) != 0;
         if (read_ok == 0) {
-            RwError error;
+            RWbaerrUnk01 error;
             _rwFrameListDeinitialize(&frame_list);
             RpClumpDestroy(clump);
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
@@ -111,12 +111,12 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
                 atomic = inplaceClumpAtomicStreamRead(
                     stream, &frame_list, &geometry_list);
             } else {
-                RwError error;
+                RWbaerrUnk01 error;
                 GeometryListDeinitialize(&geometry_list);
                 _rwFrameListDeinitialize(&frame_list);
                 RpClumpDestroy(clump);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
+                error.unk00 = 0x116;
+                error.unk04 = _rwerror(0x8000001A);
                 RwErrorSet(&error);
                 return 0;
             }
@@ -129,18 +129,18 @@ RpClump* inplaceClumpStreamRead(RwStream* input_stream) {
             _rwPluginRegistryReadDataChunks(&clumpTKList, stream, clump) !=
             0;
         if (read_ok == 0) {
-            RwError error;
+            RWbaerrUnk01 error;
             RpClumpDestroy(clump);
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
         return clump;
     } else {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -155,9 +155,9 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
     RpAtomic* atomic;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x8000001A);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x8000001A);
         RwErrorSet(&error);
         return 0;
     }
@@ -167,9 +167,9 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
         memset(&chunk_info, 0, sizeof(chunk_info));
         read_ok = RwStreamRead(stream, &chunk_info, length) == length;
         if (read_ok == 0) {
-            RwError error;
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            RWbaerrUnk01 error;
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
@@ -191,28 +191,28 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
             RpGeometry* geometry;
 
             if (!RwStreamFindChunk(stream, 0xF, 0, &version)) {
-                RwError error;
+                RWbaerrUnk01 error;
                 RpAtomicDestroy(atomic);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x8000001A);
+                error.unk00 = 0x116;
+                error.unk04 = _rwerror(0x8000001A);
                 RwErrorSet(&error);
                 return 0;
             }
             if (version >= 0x34000 && version <= 0x36003) {
                 geometry = RpGeometryStreamRead(stream);
                 if (geometry == 0) {
-                    RwError error;
+                    RWbaerrUnk01 error;
                     RpAtomicDestroy(atomic);
-                    error.pluginID = 0x116;
-                    error.errorCode = _rwerror(0x8000001A);
+                    error.unk00 = 0x116;
+                    error.unk04 = _rwerror(0x8000001A);
                     RwErrorSet(&error);
                     return 0;
                 }
             } else {
-                RwError error;
+                RWbaerrUnk01 error;
                 RpAtomicDestroy(atomic);
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(0x80000004);
+                error.unk00 = 0x116;
+                error.unk04 = _rwerror(0x80000004);
                 RwErrorSet(&error);
                 return 0;
             }
@@ -226,9 +226,9 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
             _rwPluginRegistryReadDataChunks(&atomicTKList, stream, atomic) !=
             0;
         if (read_ok == 0) {
-            RwError error;
-            error.pluginID = 0x116;
-            error.errorCode = _rwerror(0x8000001A);
+            RWbaerrUnk01 error;
+            error.unk00 = 0x116;
+            error.unk04 = _rwerror(0x8000001A);
             RwErrorSet(&error);
             return 0;
         }
@@ -239,9 +239,9 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
         }
         return atomic;
     } else {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -267,9 +267,9 @@ static RpGeometryList* inplaceGeometryListStreamRead(
             geometry_list->geometries = RwEngineInstance->fpMalloc(
                 count * sizeof(*geometry_list->geometries), 0x3000F);
             if (geometry_list->geometries == 0) {
-                RwError error;
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(
+                RWbaerrUnk01 error;
+                error.unk00 = 0x116;
+                error.unk04 = _rwerror(
                     0x80000013, count * sizeof(*geometry_list->geometries));
                 RwErrorSet(&error);
                 return 0;
@@ -299,9 +299,9 @@ static RpGeometryList* inplaceGeometryListStreamRead(
             index++;
         }
     } else {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -323,9 +323,9 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -409,10 +409,10 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        RwError error;
+        RWbaerrUnk01 error;
         RpGeometryDestroy(geometry);
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -458,9 +458,9 @@ RpGeometry* inplaceGeometryCreate_80056E98(int num_vertices, int num_triangles,
     if (num_vertices < 0 || num_vertices >= 0x10000 || num_triangles < 0) {
         if (num_vertices >= 0) {
             if (num_vertices >= 0x10000) {
-                RwError error;
-                error.pluginID = 0x116;
-                error.errorCode = _rwerror(6);
+                RWbaerrUnk01 error;
+                error.unk00 = 0x116;
+                error.unk04 = _rwerror(6);
                 RwErrorSet(&error);
             }
         }
@@ -534,9 +534,9 @@ static int inplaceGeometryAddMorphTargets(RpGeometry* geometry, int count) {
     engine = RwEngineInstance;
     morph_data = engine->fpMalloc(allocation_size, 0x3000F);
     if (morph_data == 0) {
-        RwError error;
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000013, allocation_size);
+        RWbaerrUnk01 error;
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000013, allocation_size);
         RwErrorSet(&error);
         return -1;
     }

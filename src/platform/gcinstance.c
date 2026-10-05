@@ -2,7 +2,7 @@
 #include "runtime/cstring.h"
 #include "dolphin/gx.h"
 #include "rw/dltextur.h"
-#include "rw/dltoken.h"
+#include "gameware/dltoken.h"
 #include "rw/gamecube_globals.h"
 #include "rw/gamecube_texture.h"
 #include "rw/native_internal.h"
@@ -11,7 +11,7 @@
 #include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/rwstream.h"
-#include "rw/rwerror.h"
+#include "gameware/baerr.h"
 #include "rw/batextur.h"
 #include "runtime/instance.h"
 #include "dolphin/cache.h"
@@ -35,18 +35,18 @@ RwStream* inplaceSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry) 
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        RwError error;
+        RWbaerrUnk01 error;
 
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
     if (version < 0x34002) {
-        RwError error;
+        RWbaerrUnk01 error;
 
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
@@ -163,18 +163,18 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
         return 0;
     }
     if (version < 0x34000 || version > 0x36003) {
-        RwError error;
+        RWbaerrUnk01 error;
 
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }
     if (version <= 0x34004) {
-        RwError error;
+        RWbaerrUnk01 error;
 
-        error.pluginID = 0x116;
-        error.errorCode = _rwerror(0x80000004);
+        error.unk00 = 0x116;
+        error.unk04 = _rwerror(0x80000004);
         RwErrorSet(&error);
         return 0;
     }

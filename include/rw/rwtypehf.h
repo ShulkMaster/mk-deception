@@ -4,6 +4,5 @@
 #include "rw/rwcore_types.h"
 
 void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame);
-void _rwObjectHasFrameReleaseFrame(void* object);
 
 #endif

@@ -13,11 +13,13 @@ permissions:
 
 jobs:
   build:
-    # This is a private build container.
-    # See https://github.com/encounter/dtk-template/blob/main/docs/github_actions.md
-    container: ghcr.io/shulkmaster/mkd:main
-
     runs-on: ubuntu-latest
+    # Private build image shared with MK: Deadly Alliance and gameware.
+    container:
+      image: ghcr.io/shulkmaster/mk-da-build:main
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +59,9 @@ jobs:
         cp -a /orig "${baseline_dir}/"
         cd "${baseline_dir}"
         python configure.py --map --version ${{ matrix.version }} \
-            --binutils /binutils --compilers /compilers
+            --binutils /binutils --compilers /compilers \
+            --dtk /tools/dtk --objdiff /tools/objdiff-cli \
+            --wrapper /tools/wibo --sjiswrap /tools/sjiswrap.exe
         ninja all_source build/${{ matrix.version }}/report.json
         mkdir -p "${GITHUB_WORKSPACE}/build/${{ matrix.version }}"
         cp build/${{ matrix.version }}/report.json \
@@ -76,7 +80,9 @@ jobs:
     - name: Build
       run: |
         python configure.py --map --version ${{ matrix.version }} \
-            --binutils /binutils --compilers /compilers
+            --binutils /binutils --compilers /compilers \
+            --dtk /tools/dtk --objdiff /tools/objdiff-cli \
+            --wrapper /tools/wibo --sjiswrap /tools/sjiswrap.exe
         ninja all_source progress build/${{ matrix.version }}/report.json
 
     - name: Upload maps
@@ -94,7 +100,7 @@ jobs:
     - name: Compare PR against branch baseline
       if: github.event_name == 'pull_request'
       run: |
-        build/tools/objdiff-cli report changes \
+        /tools/objdiff-cli report changes \
             --format json-pretty \
             build/${{ matrix.version }}/baseline.json \
             build/${{ matrix.version }}/report.json \
