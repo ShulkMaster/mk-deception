@@ -92,7 +92,7 @@ static void __GXAbortWaitPECopyDone(void) {
 }
 
 void __GXAbort(void) {
-    if (__GXData->abtWaitPECopy && GXGetGPFifo() != (GXFifoObj*)NULL) {
+    if (__GXData->abtWaitPECopy && GXGetGPFifo() != NULL) {
         __GXAbortWaitPECopyDone();
     }
 
@@ -105,7 +105,7 @@ void __GXAbort(void) {
 void GXAbortFrame(void) {
     __GXAbort();
 
-    if (GXGetGPFifo() != (GXFifoObj*)NULL) {
+    if (GXGetGPFifo() != NULL) {
         __GXCleanGPFifo();
         __GXInitRevisionBits();
         __GXData->dirtyState = 0;
@@ -167,7 +167,6 @@ void GXPixModeSync(void) {
     GX_WRITE_RAS_REG(__GXData->peCtrl);
     __GXData->bpSentNot = 0;
 }
-
 
 void GXPokeAlphaMode(GXCompare func, u8 threshold) {
     u32 reg;
@@ -239,7 +238,6 @@ void GXPokeZMode(GXBool compare_enable, GXCompare func, GXBool update_enable) {
     SET_REG_FIELD(769, reg, 1, 4, update_enable);
     GX_SET_PE_REG(0, reg);
 }
-
 
 GXDrawSyncCallback GXSetDrawSyncCallback(GXDrawSyncCallback cb) {
     GXDrawSyncCallback oldcb;
