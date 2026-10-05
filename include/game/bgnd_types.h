@@ -29,8 +29,6 @@ typedef struct BgndMisc {
 } BgndMisc;
 typedef char BgndMiscSizeCheck[(sizeof(BgndMisc) == 0x6C) ? 1 : -1];
 
-typedef struct BgndObstacleData BgndObstacleData;
-
 /*
  * Per-arena data table from cmdscript (retail get_data_table).
  * display uses flags70 + far_clip @ +0x90; load_background uses fog/clip head.
@@ -64,7 +62,7 @@ typedef struct BgndDataTable {
     unsigned int load_script;                  /* +0x64 - post-load cmdscript */
     char pad68[8];
     unsigned int flags70; /* +0x70 - bit0 shadow cam light */
-    BgndObstacleData* obstacle_data; /* +0x74 - arena constrain/collision definitions */
+    char* obstacle_data;
     char pad78[0x10];
     unsigned int flags88; /* +0x88 - bit0 early-out / locked */
     char* sky_name;       /* +0x8C */
