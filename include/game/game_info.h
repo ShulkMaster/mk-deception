@@ -19,6 +19,7 @@
  */
 
 #include "game/bgnd_types.h"
+#include "game/controller_types.h"
 #include "math/gxVect.h"
 #include "runtime/plyr_info.h"
 #include "runtime/mk_struct.h"
@@ -32,15 +33,6 @@ typedef struct SkyMkobj {
     char pad00[0x18];
     void* clump; /* +0x18 */
 } SkyMkobj;
-
-typedef float (*SwitchMapProcFn)(void);
-
-/* Logical controller row used by the input dispatcher (retail stride 0x0C). */
-typedef struct SwitchMapEntry {
-    unsigned int mask;       /* +0x00 */
-    SwitchMapProcFn proc_fn; /* +0x04 */
-    const char* label;       /* +0x08 */
-} SwitchMapEntry;
 
 typedef struct GcPadFlags {
     unsigned char disabled : 1;      /* bit7 */
@@ -177,10 +169,10 @@ typedef struct GameInfo {
     GameSwitchInputFlags switch_input_flags; /* +0x02 */
     char pad03;
     union {
+        unsigned int feature_flags_word;
         unsigned char field_04; /* +0x04 - raw attract/glue flags */
         GameFeatureFlags feature_flags;
     };
-    char pad05[3];
     int field_08;           /* +0x08 */
     BgndDataTable* section; /* +0x0C - get_data_table / art section */
     BgndMisc* misc;         /* +0x10 */
@@ -226,8 +218,13 @@ typedef struct GameInfo {
     MkPtr* npc_list; /* +0x94 - background NPC records */
     float crack_count; /* +0x98 - reset with crack pool, increments on placement */
     char pad9C[8];
-    PlyrInfo plyr0; /* +0xA4 */
-    PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
+    union {
+        struct {
+            PlyrInfo plyr0; /* +0xA4 */
+            PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
+        };
+        PlyrInfo players[2]; /* +0xA4, retail stride 0x6C */
+    };
     union {
         GcPadSlot pads[4]; /* +0x17C -- four physical GameCube ports */
         struct {
@@ -249,6 +246,8 @@ typedef struct GameInfo {
     int field_214; /* +0x214 - menu sets 0x1E; mwScreenEngineGlue sprintf (stw/lwz 0x214) */
     int field_218; /* +0x218 - reset_game_timer write (game.s stw 0x218) */
 } GameInfo; /* 0x21C */
+
+typedef char GameInfoSizeCheck[sizeof(GameInfo) == 0x21C ? 1 : -1];
 
 extern GameInfo g_game_info;
 
