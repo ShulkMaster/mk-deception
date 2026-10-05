@@ -36,6 +36,8 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
 static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
                               _mwMemHeap** outHeap, const char* name);
 static void privAddHeapToHeapList(_mwMemHeap* heap, _mwMemHeap* parent);
+static void privSetupHeap(_mwMemHeap* heap, _mwMemHeap* parent, u32 arenaSize, const char* name,
+                          int strategy);
 static void privFreeHeapHierarchy(_mwMemHeap* heap);
 static void privFreeVirtual(_mwMemHeap* heap);
 static void privFreeHeap(_mwMemHeap* heap);
@@ -516,7 +518,6 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
     return newBlock;
 }
 
-/* TODO: [near miss] 99.76%; zero-store constant r5 vs retail r0 and arena temp r0 vs r4 remain (coloring). */
 _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* defaults,
                               const char* function, u32 line) {
     _mwMemHeap* heap;
@@ -574,32 +575,18 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
         return 0;
     }
 
-    savedCallback = parent->strategyCallback;
-    parent->strategyCallback = 0;
-    arenaSize -= sizeof(*heap);
-    arenaSize &= ~0xFU;
-    savedOverflow = parent->overflowEnable;
-    parent->overflowEnable = 0;
+    arenaSize = (arenaSize - sizeof(*heap)) & ~0xFU;
     allocSize = arenaSize + sizeof(*heap);
     allocSize = MW_MEM_ALIGN_UP_16(allocSize);
+    savedCallback = parent->strategyCallback;
+    parent->strategyCallback = 0;
+    savedOverflow = parent->overflowEnable;
+    parent->overflowEnable = 0;
     heap = _mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
     parent->overflowEnable = savedOverflow;
 
-    if (heap != 0) {
-        heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
-        heap->name = name;
-        heap->magic = MW_MEM_HEAP_MAGIC_VALID;
-        heapCount++;
-        heap->heapIndex = privGetNewValidHeapIndex();
-        heap->arenaSize = arenaSize;
-        heap->overflowFlag = 0;
-        heap->strategy = strategy;
-        heap->strategyCallback = 0;
-        heap->peakUsedSize = 0;
-        heap->peakAllocationCount = 0;
-        privAddHeapToHeapList(heap, parent);
-    }
+    privSetupHeap(heap, parent, arenaSize, name, strategy);
     mwMemInitHeapByStrategy(heap, strategy, create);
     mwMemHeapSetParams(heap, defaults);
     return heap;
@@ -844,20 +831,7 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     heap->originalBuffer = buffer;
     heap->ownsBuffer = strategyType;
 
-    if (heap != 0) {
-        heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
-        heap->name = name;
-        heap->magic = MW_MEM_HEAP_MAGIC_VALID;
-        heapCount++;
-        heap->heapIndex = privGetNewValidHeapIndex();
-        heap->arenaSize = arenaSize;
-        heap->overflowFlag = 0;
-        heap->strategy = MW_MEM_STRATEGY_NORMAL;
-        heap->strategyCallback = 0;
-        heap->peakUsedSize = 0;
-        heap->peakAllocationCount = 0;
-        privAddHeapToHeapList(heap, 0);
-    }
+    privSetupHeap(heap, 0, arenaSize, name, MW_MEM_STRATEGY_NORMAL);
 
     mwMemResetHeapByStrategy(heap, 0);
     *outHeap = heap;
@@ -876,6 +850,24 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     }
 
     return 1;
+}
+
+static inline void privSetupHeap(_mwMemHeap* heap, _mwMemHeap* parent, u32 arenaSize,
+                                 const char* name, int strategy) {
+    if (heap != 0) {
+        heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
+        heap->name = name;
+        heap->magic = MW_MEM_HEAP_MAGIC_VALID;
+        heapCount++;
+        heap->heapIndex = privGetNewValidHeapIndex();
+        heap->arenaSize = arenaSize;
+        heap->overflowFlag = 0;
+        heap->strategy = strategy;
+        heap->strategyCallback = 0;
+        heap->peakUsedSize = 0;
+        heap->peakAllocationCount = 0;
+        privAddHeapToHeapList(heap, parent);
+    }
 }
 
 static void privAddHeapToHeapList(_mwMemHeap* heap, _mwMemHeap* parent) {
