@@ -17,11 +17,11 @@ static const char stringBase0[] =
     "MEM_ALWAYS_FAIL\0"
     "Assertion failure: MEM_ALWAYS_FAIL";
 
-MwMemSystemParams systemParams;
-int SystemInitialize;
-u32 heapCount;
-_mwMemHeap* mwMemSystemOverflowHeap;
-_mwMemHeap* newWrapperDefaultHeap;
+static MwMemSystemParams systemParams;
+static int SystemInitialize;
+int heapCount;
+static _mwMemHeap* mwMemSystemOverflowHeap;
+static _mwMemHeap* newWrapperDefaultHeap;
 _mwMemHeap* SystemHeap;
 _mwMemHeap* HeapList;
 
@@ -53,13 +53,15 @@ static inline void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
     case MW_MEM_STRATEGY_OVERFLOW:
         normHeapResetHeap(heap, wipeMode);
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         break;
     }
 }
 
-static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreateParams* create) {
-    switch (heap->strategy) {
+static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, u32 strategy,
+                                           MwMemHeapCreateParams* create) {
+    switch (strategy) {
     case MW_MEM_STRATEGY_FIXED:
         fixedBlockHeapInitHeap(heap, create->fixedInitParams);
         break;
@@ -72,20 +74,29 @@ static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreatePara
     case MW_MEM_STRATEGY_OVERFLOW:
         normHeapInitHeap(heap);
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         break;
     }
 }
 
-static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
+static inline int mwMemHeapHasValidMagic(_mwMemHeap* heap) {
+    if (heap->magic == MW_MEM_HEAP_MAGIC_VALID) {
+        return 1;
+    }
+    return 0;
+}
+
+static inline u32 mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* usedHdr;
-    int size;
+    u32 size;
 
     switch (heap->strategy) {
     case MW_MEM_STRATEGY_HDRLESS:
         return heap->blockSize + heap->blockPrefixSize;
     case MW_MEM_STRATEGY_FIXED:
-        return heap->blockSize + (heap->blockPrefixSize + 0x10);
+        size = heap->blockSize + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
+        return size;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
     case 3:
@@ -93,19 +104,77 @@ static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
         usedHdr = privGetUsedHdrFromBlock(block);
         size = privGetStatSizeFromUsed(usedHdr);
         return size;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         return 0;
     }
 }
 
-/* TODO: [breakthrough needed] 92.34%; strategy-switch lowering and diagnostic-pool addressing remain. */
+static inline void privAttemptingOverflowCallBack(MwMemMallocRequest* request, void* ptr) {
+    MwMemOverflowInfo info;
+
+    info.reason = 0;
+    info.ptr = ptr;
+    info.originHeap = request->heap;
+    info.destHeap = mwMemSystemOverflowHeap;
+    info.field_0x10 = 0;
+    info.size = request->size;
+    info.field_0x24 = 0;
+    info.field_0x28 = 0;
+    info.field_0x20 = 0;
+    info.field_0x1C = 0;
+    info.field_0x18 = 0;
+    info.systemParam = systemParams.field_0x00;
+    info.heapDiagnostic = request->heap->diagnosticValue;
+    info.field_0x34 = 0;
+    info.sourceFunction = request->function;
+    info.line = request->line;
+    info.file = request->file;
+    mwMemUserConfigAttemptingOverflowHeapCallback(&info);
+}
+
+static inline void privOutOfMemoryCallBack(MwMemMallocRequest* request, u32 reason, void* ptr) {
+    MwMemOverflowInfo info;
+
+    info.reason = reason;
+    info.ptr = ptr;
+    info.originHeap = request->heap;
+    info.destHeap = request->heap;
+    info.field_0x10 = 0;
+    info.size = request->size;
+    info.field_0x24 = 0;
+    info.field_0x28 = 0;
+    info.field_0x20 = 0;
+    info.field_0x1C = 0;
+    info.field_0x18 = 0;
+    info.systemParam = systemParams.field_0x00;
+    info.heapDiagnostic = request->heap->diagnosticValue;
+    info.field_0x34 = 0;
+    info.sourceFunction = request->function;
+    info.line = request->line;
+    info.file = request->file;
+    mwMemUserConfigOutofMemoryCallback(&info);
+}
+
+static inline u32 privGetNewValidHeapIndex(void) {
+    u32 index;
+
+    for (index = 0; index < sizeof(heapIndexArray); index++) {
+        if (heapIndexArray[index] == 0) {
+            heapIndexArray[index] = 1;
+            break;
+        }
+    }
+    return index;
+}
+
+/* TODO: [near miss] 95.08%; only diagnostic string addressing remains (sdata literal vs retail @stringBase0; TU string-pool mode). */
 static void privWipeHeap(_mwMemHeap* heap) {
     MwMemUsedHeader* usedHdr;
     _mwMemHeap* firstChild;
     int keepBlock;
     _mwMemHeap* sibling;
     void* block;
-    int strategy;
 
     if (heap != 0 && heap->magic + 0x41550000 == 0xBEAB) {
         usedHdr = heap->usedList;
@@ -131,8 +200,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
             }
         }
 
-        strategy = heap->strategy;
-        switch (strategy) {
+        switch (heap->strategy) {
         case MW_MEM_STRATEGY_FIXED:
             fixedBlockHeapResetHeap(heap, 1);
             break;
@@ -145,6 +213,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
         case MW_MEM_STRATEGY_OVERFLOW:
             normHeapResetHeap(heap, 1);
             break;
+        case MW_MEM_STRATEGY_FORCE_32BIT:
         default:
             break;
         }
@@ -152,7 +221,6 @@ static void privWipeHeap(_mwMemHeap* heap) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 100% instruction-exact, not link-exact: the diagnostic string relocates to the hand-built stringBase0 instead of retail's anonymous @stringBase0 (TU string pool). */
 static void privWipeVirtual(_mwMemHeap* virtualHeap) {
     _mwMemHeap* heap;
     MwMemUsedHeader* usedHdr;
@@ -181,61 +249,47 @@ static void privWipeVirtual(_mwMemHeap* virtualHeap) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-/* TODO: [near miss] 94.64%; equivalent root-restart traversal branch layout remains. */
 static void privWipeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
-    _mwMemHeap* child;
 
-    if (heap == 0 || heap->magic + 0x41550000 != 0xBEAB) {
-        return;
-    }
-
-    if (heap->strategy == MW_MEM_STRATEGY_VIRTUAL) {
-        privWipeVirtual(heap);
-        return;
-    }
-
-    if (heap->hierFirstChild == 0) {
-        privWipeHeap(heap);
-        return;
-    }
-
-    do {
-        cursor = heap;
-        do {
-            child = cursor->hierFirstChild;
-            while (child != 0 && child->dirty == 0) {
-                cursor = child;
-                child = cursor->hierFirstChild;
-            }
-            child = cursor->hierNext;
-            while (child != 0 && child->dirty == 0) {
-                cursor = child;
-                child = cursor->hierNext;
-            }
-            child = cursor->hierFirstChild;
-        } while (child != 0 && child->dirty == 0);
-        if (cursor->dirty == 0) {
-            privWipeHeap(cursor);
+    if (heap != 0 && heap->magic + 0x41550000 == 0xBEAB) {
+        if (heap->strategy == MW_MEM_STRATEGY_VIRTUAL) {
+            privWipeVirtual(heap);
+        } else if (heap->hierFirstChild == 0) {
+            privWipeHeap(heap);
+        } else {
+            do {
+                cursor = heap;
+                while (cursor->hierFirstChild != 0 &&
+                       cursor->hierFirstChild->dirty == 0) {
+                    while (cursor->hierFirstChild != 0 &&
+                           cursor->hierFirstChild->dirty == 0) {
+                        cursor = cursor->hierFirstChild;
+                    }
+                    while (cursor->hierNext != 0 && cursor->hierNext->dirty == 0) {
+                        cursor = cursor->hierNext;
+                    }
+                }
+                if (cursor->dirty == 0) {
+                    privWipeHeap(cursor);
+                }
+            } while (cursor != heap);
         }
-    } while (cursor != heap);
+    }
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 96.20%; predecessor-load scheduling remains after the unlink stores. */
 static void privFreeHeap(_mwMemHeap* heap) {
     _mwMemHeap* parent;
     _mwMemHeap* hier_next;
     _mwMemHeap* sibling;
     _mwMemHeap* next;
     _mwMemHeap* prev;
-    u32 zero;
 
     if (heap == 0) {
         return;
     }
 
-    zero = 0;
     heapCount--;
     heapIndexArray[heap->heapIndex] = 0;
 
@@ -265,13 +319,11 @@ static void privFreeHeap(_mwMemHeap* heap) {
     if (next == 0 && heap->listPrev == 0) {
         HeapList = 0;
         OSFreeToHeap(GameCubeSystemHeap, heap);
-    } else if (next == 0) {
+    } else if (next == 0 && heap->listPrev != 0) {
         prev = heap->listPrev;
-        if (prev != 0) {
-            HeapList = prev;
-            prev->listNext = 0;
-        }
-    } else if (heap->listPrev == 0) {
+        HeapList = prev;
+        prev->listNext = 0;
+    } else if (next != 0 && heap->listPrev == 0) {
         next->listPrev = 0;
     } else {
         prev = heap->listPrev;
@@ -289,36 +341,33 @@ static void privFreeVirtual(_mwMemHeap* heap) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 95.11%; equivalent root-restart destruction branch layout remains. */
 static void privFreeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
 
-    if (heap == 0 || heap->magic + 0x41550000 != 0xBEAB) {
-        return;
-    }
+    if (heap != 0 && heap->magic + 0x41550000 == 0xBEAB) {
+        if (heap->strategy == MW_MEM_STRATEGY_VIRTUAL) {
+            privFreeVirtual(heap);
+            return;
+        }
 
-    if (heap->strategy == MW_MEM_STRATEGY_VIRTUAL) {
-        privFreeVirtual(heap);
-        return;
-    }
+        if (heap->hierFirstChild == 0) {
+            privFreeHeap(heap);
+            return;
+        }
 
-    if (heap->hierFirstChild == 0) {
-        privFreeHeap(heap);
-        return;
-    }
-
-    do {
-        cursor = heap;
         do {
+            cursor = heap;
             while (cursor->hierFirstChild != 0) {
-                cursor = cursor->hierFirstChild;
+                while (cursor->hierFirstChild != 0) {
+                    cursor = cursor->hierFirstChild;
+                }
+                while (cursor->hierNext != 0) {
+                    cursor = cursor->hierNext;
+                }
             }
-            while (cursor->hierNext != 0) {
-                cursor = cursor->hierNext;
-            }
-        } while (cursor->hierFirstChild != 0);
-        privFreeHeap(cursor);
-    } while (cursor != heap);
+            privFreeHeap(cursor);
+        } while (cursor != heap);
+    }
 }
 #pragma dont_inline reset
 
@@ -366,14 +415,10 @@ static void privAddHeapToHeapList(_mwMemHeap* heap, _mwMemHeap* parent) {
     }
 }
 
-/* TODO: [breakthrough needed] 84.82%; index-base lifetime, initialization schedule and strategy dispatch remain. */
 static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
                               _mwMemHeap** outHeap, const char* name) {
     _mwMemHeap* heap;
     MwMemHeapParams defaultParams;
-    u32 index = 0;
-    u8* indexSlot;
-    u32 remaining;
 
     heap = (_mwMemHeap*)(((unsigned long)buffer + 0xF) & ~0xFUL);
     heap->sizeThreshold = 0;
@@ -385,18 +430,9 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     if (heap != 0) {
         heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
         heap->name = name;
-        indexSlot = heapIndexArray;
         heap->magic = MW_MEM_HEAP_MAGIC_VALID;
         heapCount++;
-        for (remaining = 0; remaining < 0x100; remaining++) {
-            if (*indexSlot == 0) {
-                heapIndexArray[index] = 1;
-                break;
-            }
-            index++;
-            indexSlot++;
-        }
-        heap->heapIndex = index;
+        heap->heapIndex = privGetNewValidHeapIndex();
         heap->arenaSize = arenaSize;
         heap->overflowFlag = 0;
         heap->strategy = MW_MEM_STRATEGY_NORMAL;
@@ -425,7 +461,6 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     return 1;
 }
 
-/* TODO: [near miss] 92.25%; equivalent strategy comparison tree and selector allocation remain. */
 void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
     MwMemUsedHeader* freeNode;
     u32 maxSize;
@@ -448,7 +483,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
         u32 block_prefix_size = heap->blockPrefixSize;
         u32 block_size = heap->blockSize;
 
-        *outCount = heap->currentFreeSize / (block_size + block_prefix_size + 0x10);
+        *outCount = heap->currentFreeSize / (block_size + block_prefix_size + sizeof(MwMemUsedHeader));
         if (*outCount == 0) {
             *outSize = 0;
         } else {
@@ -473,6 +508,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
         *outCount = count;
         *outSize = maxSize;
         return;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         *outCount = 0;
         *outSize = 0;
@@ -481,7 +517,6 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
 }
 
 #pragma opt_common_subs off
-/* TODO: [near miss] 99.39%; strategy selector coloring and equivalent branch polarity remain. */
 void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
                                 MwMemMallocRequest* request) {
     void* result;
@@ -501,6 +536,7 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
     case MW_MEM_STRATEGY_OVERFLOW:
         result = normHeapMallocMem(size, heap, flags, request);
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         if (mwMemUserConfigAssert(&stringBase0[0x1E], &stringBase0[0x16], 0x1060) != 0) {
             OSPanic(&stringBase0[0x16], 0x1060, &stringBase0[0x2E]);
@@ -516,7 +552,7 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
 }
 #pragma opt_common_subs reset
 
-/* TODO: [near miss] 89.93%; owner/result coloring and equivalent strategy dispatch remain. */
+/* TODO: [near miss] 98.88%; only ptr/heap saved GPRs swap (r31/r30) remains. */
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     _mwMemHeap* cursor;
     _mwMemHeap* heap;
@@ -534,7 +570,9 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     do {
         if ((u8*)ptr >= cursor->heapStart && (u8*)ptr < cursor->heapEnd) {
             heap = cursor;
-            if (cursor->hierFirstChild == 0) break;
+            if (cursor->hierFirstChild == 0) {
+                break;
+            }
             cursor = cursor->hierFirstChild;
         } else {
             cursor = cursor->hierNext;
@@ -547,7 +585,7 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
         statSize = heap->blockSize + heap->blockPrefixSize;
         break;
     case MW_MEM_STRATEGY_FIXED:
-        statSize = heap->blockSize + (heap->blockPrefixSize + 0x10);
+        statSize = heap->blockSize + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
         break;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
@@ -555,6 +593,7 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     case MW_MEM_STRATEGY_OVERFLOW:
         statSize = privGetStatSizeFromUsed(privGetUsedHdrFromBlock(ptr));
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         statSize = 0;
         break;
@@ -574,23 +613,24 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     case MW_MEM_STRATEGY_OVERFLOW:
         normHeapFreeMemFromBlock(ptr);
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         break;
     }
     priv_mwMem_CritSecExit();
 }
 
-/* TODO: [near miss] 92.43%; equivalent irregular strategy comparison trees remain. */
+/* TODO: [near miss] 99.97%; overflow magic test branches ble ('> 0') vs retail beq; static-local suffix $342 vs retail $314 (TU deferred numbering). */
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     static u32 StrategyAllocationActive;
     void* result;
     _mwMemHeap* heap;
-    MwMemOverflowInfo overflowInfo;
     u32 statSize;
+    int strategy;
 
     priv_mwMem_CritSecEnter();
     heap = request->heap;
-    if (heap->magic + 0x41550000 != 0xBEAB) {
+    if (heap->magic != MW_MEM_HEAP_MAGIC_VALID) {
         priv_mwMem_CritSecExit();
         return 0;
     }
@@ -607,7 +647,8 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         result = heap->strategyCallback(request->size, heap, request->flags, request);
         StrategyAllocationActive = 0;
     } else {
-        switch (heap->strategy) {
+        strategy = heap->strategy;
+        switch (strategy) {
         case MW_MEM_STRATEGY_FIXED:
             result = fixedBlockHeapAlloc(request->size, heap, request->flags, request);
             break;
@@ -620,6 +661,7 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         case MW_MEM_STRATEGY_OVERFLOW:
             result = normHeapMallocMem(request->size, heap, request->flags, request);
             break;
+        case MW_MEM_STRATEGY_FORCE_32BIT:
         default:
             result = 0;
             break;
@@ -629,27 +671,10 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     if (result == 0 && heap->overflowEnable != 0) {
         _mwMemHeap* overflowHeap;
 
-        overflowInfo.reason = 0;
-        overflowInfo.ptr = 0;
-        overflowInfo.originHeap = request->heap;
-        overflowInfo.destHeap = mwMemSystemOverflowHeap;
-        overflowInfo.field_0x10 = 0;
-        overflowInfo.size = request->size;
-        overflowInfo.field_0x24 = 0;
-        overflowInfo.field_0x28 = 0;
-        overflowInfo.field_0x20 = 0;
-        overflowInfo.field_0x1C = 0;
-        overflowInfo.field_0x18 = 0;
-        overflowInfo.systemParam = systemParams.field_0x00;
-        overflowInfo.heapDiagnostic = request->heap->diagnosticValue;
-        overflowInfo.field_0x34 = 0;
-        overflowInfo.sourceFunction = request->function;
-        overflowInfo.line = request->line;
-        overflowInfo.file = request->file;
-        mwMemUserConfigAttemptingOverflowHeapCallback(&overflowInfo);
+        privAttemptingOverflowCallBack(request, 0);
         heap->overflowFlag = 1;
         overflowHeap = mwMemSystemOverflowHeap;
-        if (overflowHeap->magic == MW_MEM_HEAP_MAGIC_VALID) {
+        if (mwMemHeapHasValidMagic(overflowHeap) > 0) {
             result = normHeapMallocMem(request->size, overflowHeap, request->flags, request);
         }
     }
@@ -669,20 +694,18 @@ void _mwMemFree(void* ptr, const char* file, u32 line) {
     _mwMemFreeVirtual(ptr, file, line);
 }
 
-/* TODO: [breakthrough needed] 84.50%; allocation lifetimes, strategy dispatch and saved-local layout remain. */
+/* TODO: [near miss] 99.76%; zero-store constant r5 vs retail r0 and arena temp r0 vs r4 remain (coloring). */
 _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* defaults,
                               const char* function, u32 line) {
-    _mwMemHeap* parent;
     _mwMemHeap* heap;
-    MwMemStrategyCallback savedCallback;
-    const char* name;
+    _mwMemHeap* parent;
     u8 savedOverflow;
-    u8 index;
-    u8* indexSlot;
+    MwMemStrategyCallback savedCallback;
+    u32 strategy;
+    const char* name;
     u32 arenaSize;
     u32 allocSize;
-    u32 remaining;
-    u32 strategy;
+    u32 extraSizeShift;
 
     if (heapCount > 0x100) {
         return 0;
@@ -695,6 +718,7 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     arenaSize = create->arenaSize;
     strategy = create->strategyType;
     name = create->name;
+    extraSizeShift = create->extraSizeShift;
     if (parent->strategy == MW_MEM_STRATEGY_VIRTUAL) {
         return 0;
     }
@@ -715,9 +739,10 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     case 3:
     case MW_MEM_STRATEGY_OVERFLOW:
         if (arenaSize != 0) {
-            arenaSize += create->extraSizeShift << 4;
+            arenaSize += extraSizeShift << 4;
         }
         break;
+    case MW_MEM_STRATEGY_FORCE_32BIT:
     default:
         arenaSize = 0;
         break;
@@ -729,31 +754,22 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
 
     savedCallback = parent->strategyCallback;
     parent->strategyCallback = 0;
-    arenaSize = (arenaSize - sizeof(*heap)) & ~0xFU;
+    arenaSize -= sizeof(*heap);
+    arenaSize &= ~0xFU;
     savedOverflow = parent->overflowEnable;
     parent->overflowEnable = 0;
-    allocSize = (arenaSize + sizeof(*heap) + 0xF) & ~0xFU;
+    allocSize = arenaSize + sizeof(*heap);
+    allocSize = MW_MEM_ALIGN_UP_16(allocSize);
     heap = _mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
     parent->overflowEnable = savedOverflow;
 
     if (heap != 0) {
-        heap->heapStart = (u8*)(heap + 1);
-        heap->heapEnd = heap->heapStart + arenaSize;
-        index = 0;
+        heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
         heap->name = name;
-        indexSlot = heapIndexArray;
         heap->magic = MW_MEM_HEAP_MAGIC_VALID;
         heapCount++;
-        for (remaining = 0; remaining < 0x100; remaining++) {
-            if (*indexSlot == 0) {
-                heapIndexArray[index] = 1;
-                break;
-            }
-            index++;
-            indexSlot++;
-        }
-        heap->heapIndex = index;
+        heap->heapIndex = privGetNewValidHeapIndex();
         heap->arenaSize = arenaSize;
         heap->overflowFlag = 0;
         heap->strategy = strategy;
@@ -762,12 +778,12 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
         heap->peakAllocationCount = 0;
         privAddHeapToHeapList(heap, parent);
     }
-    mwMemInitHeapByStrategy(heap, create);
+    mwMemInitHeapByStrategy(heap, strategy, create);
     mwMemHeapSetParams(heap, defaults);
     return heap;
 }
 
-/* TODO: [near miss] 97.51%; request stack stores and owner/copy scheduling remain. */
+/* TODO: [near miss] 98.57%; bounded-copy clamp result register (retail mr r28,r29) remains; request stores and call order agree. */
 void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
                     const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
@@ -778,37 +794,18 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
     u32 copySize;
 
     copySize = size;
-    request.heap = heap;
-    request.flags = flags;
     request.file = file;
     request.function = function;
     request.line = line;
     request.size = copySize;
+    request.heap = heap;
+    request.flags = flags;
     privGetAlignFromMwMemFlags(flags);
 
     if (ptr == 0) {
-        MwMemOverflowInfo nullOomInfo;
-
         newBlock = _mwMemMallocVirtual(&request);
         if (newBlock == 0) {
-            nullOomInfo.reason = 3;
-            nullOomInfo.ptr = ptr;
-            nullOomInfo.originHeap = request.heap;
-            nullOomInfo.destHeap = request.heap;
-            nullOomInfo.field_0x10 = 0;
-            nullOomInfo.size = request.size;
-            nullOomInfo.field_0x24 = 0;
-            nullOomInfo.field_0x28 = 0;
-            nullOomInfo.field_0x20 = 0;
-            nullOomInfo.field_0x1C = 0;
-            nullOomInfo.field_0x18 = 0;
-            nullOomInfo.systemParam = systemParams.field_0x00;
-            nullOomInfo.heapDiagnostic = request.heap->diagnosticValue;
-            nullOomInfo.field_0x34 = 0;
-            nullOomInfo.sourceFunction = request.function;
-            nullOomInfo.line = request.line;
-            nullOomInfo.file = request.file;
-            mwMemUserConfigOutofMemoryCallback(&nullOomInfo);
+            privOutOfMemoryCallBack(&request, 3, ptr);
         }
     } else if (copySize != 0) {
         owner = 0;
@@ -833,32 +830,11 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
 
         newBlock = _mwMemMallocVirtual(&request);
         if (newBlock != 0) {
-            if (copySize > oldSize) {
-                copySize = oldSize;
-            }
+            copySize = copySize > oldSize ? oldSize : copySize;
             newBlock = memcpy(newBlock, ptr, copySize);
             _mwMemFreeVirtual(ptr, &stringBase0[0x16], 0x867);
         } else {
-            MwMemOverflowInfo reallocOomInfo;
-
-            reallocOomInfo.reason = 3;
-            reallocOomInfo.ptr = ptr;
-            reallocOomInfo.originHeap = request.heap;
-            reallocOomInfo.destHeap = request.heap;
-            reallocOomInfo.field_0x10 = 0;
-            reallocOomInfo.size = request.size;
-            reallocOomInfo.field_0x24 = 0;
-            reallocOomInfo.field_0x28 = 0;
-            reallocOomInfo.field_0x20 = 0;
-            reallocOomInfo.field_0x1C = 0;
-            reallocOomInfo.field_0x18 = 0;
-            reallocOomInfo.systemParam = systemParams.field_0x00;
-            reallocOomInfo.heapDiagnostic = request.heap->diagnosticValue;
-            reallocOomInfo.field_0x34 = 0;
-            reallocOomInfo.sourceFunction = request.function;
-            reallocOomInfo.line = request.line;
-            reallocOomInfo.file = request.file;
-            mwMemUserConfigOutofMemoryCallback(&reallocOomInfo);
+            privOutOfMemoryCallBack(&request, 3, ptr);
         }
     } else {
         newBlock = 0;
@@ -867,14 +843,14 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
     return newBlock;
 }
 
-/* TODO: [near miss] 98.57%; total/result and line/zero coloring remain; stop at allocation. */
+#pragma opt_common_subs off
 void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
                    const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
-    MwMemOverflowInfo oomInfo;
     u32 total;
-    int align;
     void* result;
+    int align;
+    u32 aligned_total;
 
     total = nmemb * size;
     request.heap = heap;
@@ -886,43 +862,24 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
     align = privGetAlignFromMwMemFlags(flags);
     if (align == 4) {
         u32 alignment_mask = (1U << align) - 1U;
-        total = (total + alignment_mask) & ~alignment_mask;
+        aligned_total = (total + alignment_mask) & ~alignment_mask;
     } else {
-        total = (total + (1U << align) + 0xF) & ~0xFU;
+        aligned_total = (total + (1U << align) + 0xF) & ~0xFU;
     }
 
-    request.size = total;
+    request.size = aligned_total;
     result = _mwMemMallocVirtual(&request);
     if (result != 0) {
-        result = memset(result, 0, total);
+        result = memset(result, 0, aligned_total);
     } else {
-        oomInfo.reason = 2;
-        oomInfo.ptr = 0;
-        oomInfo.originHeap = request.heap;
-        oomInfo.destHeap = request.heap;
-        oomInfo.field_0x10 = 0;
-        oomInfo.size = request.size;
-        oomInfo.field_0x24 = 0;
-        oomInfo.field_0x28 = 0;
-        oomInfo.field_0x20 = 0;
-        oomInfo.field_0x1C = 0;
-        oomInfo.field_0x18 = 0;
-        oomInfo.systemParam = systemParams.field_0x00;
-        oomInfo.heapDiagnostic = request.heap->diagnosticValue;
-        oomInfo.field_0x34 = 0;
-        oomInfo.sourceFunction = request.function;
-        oomInfo.line = request.line;
-        oomInfo.file = request.file;
-        mwMemUserConfigOutofMemoryCallback(&oomInfo);
+        privOutOfMemoryCallBack(&request, 2, 0);
     }
     return result;
 }
 
-/* TODO: [near miss] 98.65%; line argument and zero value use opposite registers. */
 void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
                    const char* function, u32 line) {
     MwMemMallocRequest request;
-    MwMemOverflowInfo oomInfo;
     void* result;
 
     request.heap = heap;
@@ -933,80 +890,30 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
     request.flags = flags;
     result = _mwMemMallocVirtual(&request);
     if (result == 0) {
-        oomInfo.reason = 1;
-        oomInfo.ptr = 0;
-        oomInfo.originHeap = request.heap;
-        oomInfo.destHeap = request.heap;
-        oomInfo.field_0x10 = 0;
-        oomInfo.size = request.size;
-        oomInfo.field_0x24 = 0;
-        oomInfo.field_0x28 = 0;
-        oomInfo.field_0x20 = 0;
-        oomInfo.field_0x1C = 0;
-        oomInfo.field_0x18 = 0;
-        oomInfo.systemParam = systemParams.field_0x00;
-        oomInfo.heapDiagnostic = request.heap->diagnosticValue;
-        oomInfo.field_0x34 = 0;
-        oomInfo.sourceFunction = request.function;
-        oomInfo.line = request.line;
-        oomInfo.file = request.file;
-        mwMemUserConfigOutofMemoryCallback(&oomInfo);
+        privOutOfMemoryCallBack(&request, 1, 0);
     }
     return result;
 }
+#pragma opt_common_subs reset
 
-/* TODO: [near miss] 99.67%; first two independent field loads are scheduled in reverse order. */
-int mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
-    const char* name = heap->name;
-    u8* heap_start = heap->heapStart;
-    u8* heap_end;
-    u32 arena_size;
-    _mwMemHeap* hier_first_child;
-    _mwMemHeap* hier_prev;
-    _mwMemHeap* hier_next;
-    int strategy;
-    u8 overflow_flag;
-    u8 heap_index;
-    u32 current_used_size;
-    u32 peak_used_size;
-    u32 total_managed_size;
-    u32 current_allocation_count;
-    u32 peak_allocation_count;
-    u32 total_size;
-    u32 block_size;
-
-    info->name = name;
-    heap_end = heap->heapEnd;
-    info->heapStart = heap_start;
-    arena_size = heap->arenaSize;
-    info->heapEnd = heap_end;
-    hier_first_child = heap->hierFirstChild;
-    info->arenaSize = arena_size;
-    hier_prev = heap->hierPrev;
-    info->hierFirstChild = hier_first_child;
-    hier_next = heap->hierNext;
-    info->hierPrev = hier_prev;
-    strategy = heap->strategy;
-    info->hierNext = hier_next;
-    overflow_flag = heap->overflowFlag;
-    info->strategy = strategy;
-    heap_index = heap->heapIndex;
-    info->overflowFlag = overflow_flag;
-    current_used_size = heap->currentUsedSize;
-    info->heapIndex = heap_index;
-    peak_used_size = heap->peakUsedSize;
-    info->currentUsedSize = current_used_size;
-    total_managed_size = heap->totalManagedSize;
-    info->peakUsedSize = peak_used_size;
-    current_allocation_count = heap->currentAllocationCount;
-    info->totalManagedSize = total_managed_size;
-    peak_allocation_count = heap->peakAllocationCount;
-    info->currentAllocationCount = current_allocation_count;
-    total_size = heap->currentFreeSize;
-    info->peakAllocationCount = peak_allocation_count;
-    block_size = heap->blockSize;
-    info->totalSize = total_size;
-    info->blockSize = block_size;
+int mwMemHeapGetInfo(const _mwMemHeap* heap, MwMemHeapInfo* info) {
+    info->name = heap->name;
+    info->heapStart = heap->heapStart;
+    info->heapEnd = heap->heapEnd;
+    info->arenaSize = heap->arenaSize;
+    info->hierFirstChild = heap->hierFirstChild;
+    info->hierPrev = heap->hierPrev;
+    info->hierNext = heap->hierNext;
+    info->strategy = heap->strategy;
+    info->overflowFlag = heap->overflowFlag;
+    info->heapIndex = heap->heapIndex;
+    info->currentUsedSize = heap->currentUsedSize;
+    info->peakUsedSize = heap->peakUsedSize;
+    info->totalManagedSize = heap->totalManagedSize;
+    info->currentAllocationCount = heap->currentAllocationCount;
+    info->peakAllocationCount = heap->peakAllocationCount;
+    info->totalSize = heap->currentFreeSize;
+    info->blockSize = heap->blockSize;
     return 1;
 }
 
@@ -1017,16 +924,12 @@ int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
 }
 
 #pragma inline_depth(2)
-/* TODO: [near miss] 99.68%; two-word copy load/store registers remain; snapshot declaration changes are neutral. */
-int mwMemSystemSetParams(MwMemSystemParams* params) {
+int mwMemSystemSetParams(const MwMemSystemParams* params) {
     MwMemSystemParams defaults;
 
     if (params != 0) {
-        u32 field_0x04 = params->field_0x04;
-        u32 field_0x00 = params->field_0x00;
-
-        systemParams.field_0x00 = field_0x00;
-        systemParams.field_0x04 = field_0x04;
+        systemParams.field_0x00 = params->field_0x00;
+        systemParams.field_0x04 = params->field_0x04;
     } else {
         mwMemSystemGetDefaultParams(&defaults);
         mwMemSystemSetParams(&defaults);
@@ -1046,33 +949,19 @@ int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     return 1;
 }
 
-/* TODO: [near miss] 99.25%; first two independent field loads are scheduled in reverse order. */
-int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
-    u32 field_0x68;
-    u8 field_0x2E;
-    u8 field_0x2F;
-    u8 overflow_enable;
-    u32 diagnostic_value;
-    u32 field_0x44;
-
-    field_0x68 = heap->field_0x68;
+int mwMemHeapGetParams(const _mwMemHeap* heap, MwMemHeapParams* params) {
     params->strategyCallback = heap->strategyCallback;
-    field_0x2E = heap->paramByte0;
-    params->field_0x04 = field_0x68;
-    field_0x2F = heap->paramByte1;
-    params->paramByte0 = field_0x2E;
-    overflow_enable = heap->overflowEnable;
-    params->paramByte1 = field_0x2F;
-    diagnostic_value = heap->diagnosticValue;
-    params->overflowEnable = overflow_enable;
-    field_0x44 = heap->field_0x44;
-    params->diagnosticValue = diagnostic_value;
-    params->field_0x10 = field_0x44;
+    params->field_0x04 = heap->field_0x68;
+    params->paramByte0 = heap->paramByte0;
+    params->paramByte1 = heap->paramByte1;
+    params->overflowEnable = heap->overflowEnable;
+    params->diagnosticValue = heap->diagnosticValue;
+    params->field_0x10 = heap->field_0x44;
     return 1;
 }
 
 #pragma inline_depth(2)
-int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
+int mwMemHeapSetParams(_mwMemHeap* heap, const MwMemHeapParams* params) {
     MwMemHeapParams defaults;
 
     if (params != 0) {
@@ -1096,7 +985,6 @@ _mwMemHeap* mwMemSystemGetHeap(u32 which) {
     return *SystemHeapTable[which];
 }
 
-/* TODO: [near miss] 82.17%; equivalent signed comparison tree for the three selectors remains. */
 int mwMemSystemSetHeap(int which, _mwMemHeap* heap) {
     switch (which) {
     case 0:
@@ -1107,6 +995,7 @@ int mwMemSystemSetHeap(int which, _mwMemHeap* heap) {
     case 2:
         newWrapperDefaultHeap = heap;
         return 1;
+    case 3:
     default:
         return 0;
     }
