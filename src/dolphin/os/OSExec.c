@@ -4,13 +4,8 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "runtime/asm_sequences.inc"
-
-extern void* memset(void* destination, int value, unsigned long size);
-extern void* memcpy(void* destination, const void* source, unsigned long size);
-extern unsigned long strlen(const char* string);
-extern char* strcpy(char* destination, const char* source);
-extern int strncmp(const char* first, const char* second, unsigned long count);
-extern int sprintf(char* destination, const char* format, ...);
+#include "runtime/cstring.h"
+#include "runtime/cstdio.h"
 
 #define BOOT_REGION_START (*(volatile unsigned long*)0x812FDFF0)
 #define BOOT_REGION_END (*(volatile unsigned long*)0x812FDFEC)
@@ -95,7 +90,6 @@ void __OSGetExecParams(OSExecParams* params)
     }
 }
 
-/* TODO: [near miss] 98.78%; retail compares the apploader offset signed (cmpwi), ours unsigned (cmplwi). */
 static int GetApploaderPosition(void)
 {
     static long apploaderPosition;
@@ -180,7 +174,7 @@ static inline AppLoaderHeader* LoadApploader(void)
     header = OSAllocFromArenaLo(sizeof(AppLoaderHeader), 32);
     ReadDisc(header, sizeof(AppLoaderHeader), GetApploaderPosition());
     ReadDisc((void*)0x81200000, OSRoundUp32B(header->size),
-             GetApploaderPosition() + 0x20);
+             GetApploaderPosition() + sizeof(AppLoaderHeader));
     ICInvalidateRange((void*)0x81200000, OSRoundUp32B(header->size));
     return header;
 }
@@ -216,8 +210,6 @@ static inline int IsNewApploader(const AppLoaderHeader* header)
     return 0;
 }
 
-/* TODO: [blocked] 98.08%; boolean helpers and absolute-address globals match; retail calls Run out of line
- * (a privileged hand-written routine), ours inlines the C Run, which also swaps r27/r28. */
 void __OSBootDolSimple(unsigned long dol_offset, unsigned long restart_code,
                        void* region_start, void* region_end,
                        int args_use_default, int argc, char** argv)
@@ -258,7 +250,7 @@ void __OSBootDolSimple(unsigned long dol_offset, unsigned long restart_code,
     header = LoadApploader();
     if (IsNewApploader(header)) {
         if (dol_offset == 0xFFFFFFFF) {
-            dol_offset = GetApploaderPosition() + 0x20 + header->size;
+            dol_offset = GetApploaderPosition() + sizeof(AppLoaderHeader) + header->size;
         }
         params->boot_dol = dol_offset;
         dol_entry = LoadDol(params, (AppLoaderCallback)header->entry);
@@ -268,7 +260,7 @@ void __OSBootDolSimple(unsigned long dol_offset, unsigned long restart_code,
         BOOT_REGION_END = (unsigned long)region_end;
         BOOT_FLAG = 1;
         ReadDisc((void*)0x81300000, OSRoundUp32B(header->reboot_size),
-                 GetApploaderPosition() + 0x20 + header->size);
+                 GetApploaderPosition() + sizeof(AppLoaderHeader) + header->size);
         ICInvalidateRange((void*)0x81300000,
                           OSRoundUp32B(header->reboot_size));
         OSDisableInterrupts();
