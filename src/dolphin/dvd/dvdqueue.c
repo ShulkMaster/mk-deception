@@ -1,19 +1,19 @@
 #include "dolphin/dvd.h"
 #include "dolphin/os.h"
 
-typedef struct DVDWaitingQueue {
+struct DVDWaitingQueue {
     DVDCommandBlock* next;
     DVDCommandBlock* prev;
-} DVDWaitingQueue;
+};
 
-static DVDWaitingQueue WaitingQueue[4];
+static struct DVDWaitingQueue WaitingQueue[4];
 
 void __DVDClearWaitingQueue(void)
 {
     unsigned long priority;
     DVDCommandBlock* queue;
 
-    for (priority = 0; priority < 4; priority++) {
+    for (priority = 0; priority < sizeof(WaitingQueue) / sizeof(WaitingQueue[0]); priority++) {
         queue = (DVDCommandBlock*)&WaitingQueue[priority];
         queue->next = queue;
         queue->prev = queue;
@@ -57,7 +57,7 @@ DVDCommandBlock* __DVDPopWaitingQueue(void)
     DVDCommandBlock* queue;
 
     enabled = OSDisableInterrupts();
-    for (priority = 0; priority < 4; priority++) {
+    for (priority = 0; priority < sizeof(WaitingQueue) / sizeof(WaitingQueue[0]); priority++) {
         queue = (DVDCommandBlock*)&WaitingQueue[priority];
         if (queue->next != queue) {
             OSRestoreInterrupts(enabled);
@@ -76,7 +76,7 @@ int __DVDCheckWaitingQueue(void)
     DVDCommandBlock* queue;
 
     enabled = OSDisableInterrupts();
-    for (priority = 0; priority < 4; priority++) {
+    for (priority = 0; priority < sizeof(WaitingQueue) / sizeof(WaitingQueue[0]); priority++) {
         queue = (DVDCommandBlock*)&WaitingQueue[priority];
         if (queue->next != queue) {
             OSRestoreInterrupts(enabled);
