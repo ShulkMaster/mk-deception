@@ -1,16 +1,15 @@
 #include "runtime/section_slot_file.h"
+#include "runtime/section.h"
 #include "runtime/cstring.h"
 
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 
-typedef struct SsfReqQueue {
+struct SsfReqQueue {
     SsfReqLink head;
     SsfReqLink* tail;
-} SsfReqQueue;
-
-extern MkProc* saved_aproc;
+};
 
 static void priv_sec_slot_file_read_all(SsfReq* request);
 static SsfReq* sec_slot_file_open_file_async_withcallback(
@@ -21,7 +20,7 @@ static void sec_slot_file_queue_open_callback(void* user,
                                                int success);
 
 static SsfReq ssf_req_Pool[40];
-static SsfReqQueue ssf_req_Queue;
+static struct SsfReqQueue ssf_req_Queue;
 static SsfReq* ssf_req_FreeList;
 static SsfReq* ssf_req_CurrentItem;
 
@@ -156,7 +155,7 @@ static void priv_sec_slot_file_read_all(SsfReq* request) {
 
     aligned_size = (file_size + 0x7FF) & ~0x7FF;
     if ((int)aligned_size >
-        (int)((slot->base + (slot->buffer_size & 0x7FFFFFFF)) -
+        ((slot->base + (slot->buffer_size & 0x7FFFFFFF)) -
               file->buffer)) {
         if (file->buffer != 0 && file->next != 0 &&
             file->next->buffer == 0) {
