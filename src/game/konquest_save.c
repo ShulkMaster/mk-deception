@@ -239,14 +239,10 @@ void profile_region_change(void) {
 
 static inline void copy_common_konquest_profile_data(
     KonquestProfileSave* profile) {
-    KonquestPdata* pdata;
-    MkObj* candidate;
     MkObj* monk;
 
     memcpy(&profile->common_time[0], konquest_pdata->current_time, 0x18);
-    pdata = konquest_pdata;
-    candidate = pdata->monk_obj;
-    monk = MK_HDR_LIVE(candidate, pdata->monk_instance);
+    monk = MK_HDR_LIVE(konquest_pdata->monk_obj, konquest_pdata->monk_instance);
     if (monk != 0) {
         profile->monk_pos_x = monk->pos.value.x;
         profile->monk_pos_y = monk->pos.value.y;
@@ -308,7 +304,6 @@ int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     return 1;
 }
 #pragma opt_common_subs reset
-
 
 void full_konquest_load_from_memcard(void) {
     KonquestProfileSave* profile;
@@ -690,25 +685,19 @@ int save_konq_memory_to_krd_buffer(int region) {
     return 1;
 }
 
-/* TODO: [near miss] 98.375%; r4/r5 owner coloring in the monk latch remains;
- * retain typed snapshot and stop without new lifetime evidence. */
 void save_konq_common_data_to_buffer(void) {
     copy_common_konquest_profile_data(p1_profile_konquest);
 }
 
-/* TODO: [near miss] 98.07692%; predicate, widths and CFG agree at retail size;
- * local GPR coloring remains under the TU's supported -O4,s mode. */
 int validate_region_buffer(int region) {
     KonquestProfileSave* profile;
     KonquestRegionBuffer* buffer;
-    int bit;
     int loaded;
 
     profile = p1_profile_konquest;
     buffer = &konq_region_data_buffer;
-    bit = 1 << (region - 1);
-    loaded = (profile->regions_loaded_mask & bit) != 0;
-    if ((profile->regions_dirty & bit) &&
+    loaded = (profile->regions_loaded_mask & (1 << (region - 1))) != 0;
+    if ((profile->regions_dirty & (1 << (region - 1))) &&
         (buffer->header_valid == 0 ||
          buffer->loaded_snapshot != loaded ||
          buffer->region_id != region)) {
