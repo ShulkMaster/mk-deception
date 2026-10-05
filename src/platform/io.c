@@ -20,14 +20,6 @@
 
 #include "game/fatality.h"
 
-struct SwitchLogEntry {
-    int switch_index;
-    int tick;
-    const char* label;
-    int joy_state;
-    int mapped_index;
-};
-
 static float p_switch_log_fadeoff(void);
 
 static const char io_text[] =
@@ -78,8 +70,6 @@ static inline void clear_controller_buttons(GameInfo* game) {
     }
     game->pause_flag_bits.controllers_disabled = 1;
 }
-
-
 
 /* TODO: [breakthrough needed] 53.79487%; retail varargs/debug behavior remains unresolved. */
 void vdebug_print_message(const char* format, ...) {
