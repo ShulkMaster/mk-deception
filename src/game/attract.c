@@ -1,4 +1,19 @@
 #include "game/attract.h"
+#include "game/game.h"
+#include "game/controller.h"
+#include "game/ladder.h"
+#include "game/plyr.h"
+#include "platform/display.h"
+#include "platform/display_metrics.h"
+#include "platform/main.h"
+#include "platform/gcio.h"
+#include "game/profile_unlock.h"
+#include "game/minigames.h"
+#include "game/menu.h"
+#include "game/plyrprofile.h"
+#include "runtime/cam.h"
+#include "runtime/sound.h"
+#include "platform/gcutils.h"
 
 #include "game/game_info.h"
 #include "platform/io.h"
@@ -16,52 +31,27 @@
 #include "runtime/utils.h"
 #include "movie/movie_info.h"
 
-
-typedef struct GiDemoFlag {
-    unsigned char pad0 : 2;
-    unsigned char demo_mode : 1;
-    unsigned char pad1 : 5;
-} GiDemoFlag;
-
-typedef struct MkProcPauseFlag {
-    unsigned char pad0 : 4;
-    unsigned char skip_if_paused : 1;
-    unsigned char pad1 : 3;
-} MkProcPauseFlag;
-
-typedef struct AtmObjLatch {
+struct AtmObjLatch {
     MkHdr* obj;
     unsigned int instance;
-} AtmObjLatch;
+};
 
-typedef struct BioFileEntry {
+struct BioFileEntry {
     MkFileInfo* primary;
     MkFileInfo* alt;
     int sound_id;
     int unlock_bit;
     int string_id_a;
     int string_id_b;
-} BioFileEntry;
+};
 
-typedef struct BioFlasherPdata {
+struct BioFlasherPdata {
     MkHdr hdr;
     StringObj* press_start_obj;
     unsigned int press_start_inst;
     StringObj* bio_text_obj;
     unsigned int bio_text_inst;
-} BioFlasherPdata;
-
-typedef struct GpBioUnlock {
-    char pad00[0x20];
-    unsigned int unlock_hi;
-    unsigned int unlock_lo;
-    unsigned int alt_hi;
-    unsigned int alt_lo;
-} GpBioUnlock;
-
-typedef struct AtmFlashPdata {
-    int field_00;
-} AtmFlashPdata;
+};
 
 static const char stringBase0[] =
     "bio_strings_eng.mko\0"
@@ -79,49 +69,29 @@ static const float sleep_ticks_bio_tap = 45.0f;
 static const float bio_text_scale_a = 0.42f;
 static const float bio_text_scale_b = 0.92f;
 static const float bio_text_scale_c = 0.8f;
-static const double int_to_float_bias = 4503601774854144.0;
 
-extern BioFileEntry bio_file_table[];
-extern GpBioUnlock gp_data;
+extern struct BioFileEntry bio_file_table[];
 extern const MkFileEntry bios_file_table[];
 extern const MkFileEntry bio_text_file_table[];
 extern MkFileInfo sec_eu_biofont;
 
-extern int screen_width;
-extern int screen_height;
 extern int next_bio_screen;
 extern int b_game_timer_off;
-extern int __mini_game_display_ctrl;
 
 int gap_08_805107B4_sbss;
 int atm_current_page;
-AtmObjLatch press_start_item;
-AtmObjLatch press_start_proc_item;
+struct AtmObjLatch press_start_item;
+struct AtmObjLatch press_start_proc_item;
 static MkHdr* atm_flash_pdata;
 int atm_logo_tapped_out;
 int atm_movie_tapped_out;
 int memcard_boot_screen_displayed;
 
-extern float p_player_profile_boot_screen_entry_point(void);
-extern float p_main_menu(void);
 extern float p_puzzle_fighter(void);
 extern float p_mk_chess(void);
-extern float p_gamelogic(void);
 
-void set_player_state(PlyrInfo* plyr, int state);
-void unassign_player(PlyrInfo* player);
-void one_player_ladder_init(void);
-void scan_switches(void);
-void rnd_plyrs(void);
-void snd_req(int id);
 void snd_req_vol(int id, float volume);
 void xfer_puzzle_exit(int arg);
-void turn_display_off(void);
-void reset_game_speed(void);
-void turn_camera_on(void);
-void turn_camera_off(void);
-int is_widescreen_mode(void);
-void setup_sound_banks(int bank);
 int get_next_bgnd(void);
 
 static void atm_old_mkda_logo(void);
@@ -172,33 +142,31 @@ MkProcEntryFn atm_list[] = {
     (MkProcEntryFn)atm_demo_puzzle,
 };
 
-#define ATTRACT_PAGE_SETUP()                                                                       \
-    do {                                                                                           \
-        GiDemoFlag* _ap_f;                                                                         \
-        int _ap_zero;                                                                              \
-        _ap_zero = 0;                                                                              \
-        set_section_memory_scheme(SECTION_MEMORY_SCHEME_ATTRACT);                                  \
-        _ap_f = (GiDemoFlag*)&g_game_info.field_04;                                                \
-        g_game_info.plyr0.player_index = 0x2C;                                                     \
-        g_game_info.plyr1.player_index = 0x2C;                                                     \
-        g_game_info.plyr0.field_14 = _ap_zero;                                                     \
-        g_game_info.plyr1.field_14 = _ap_zero;                                                     \
-        _ap_f->demo_mode = _ap_zero;                                                               \
-        set_mode_of_play(0xD);                                                                     \
-        atm_logo_tapped_out = _ap_zero;                                                            \
-        atm_movie_tapped_out = _ap_zero;                                                           \
-        push_game_state(3);                                                                        \
-        set_player_state(&g_game_info.plyr0, _ap_zero);                                             \
-        set_player_state(&g_game_info.plyr1, _ap_zero);                                             \
-        g_game_info.field_1F8 = _ap_zero;                                                        \
-        one_player_ladder_init();                                                                  \
-        setup_sound_banks(1);                                                                      \
-        press_start_item.obj = 0;                                                                  \
-        press_start_item.instance = 0;                                                             \
-        press_start_proc_item.obj = 0;                                                             \
-        press_start_proc_item.instance = 0;                                                        \
-        load_font(0);                                                                              \
-        turn_controllers_on();                                                                     \
+#define ATTRACT_PAGE_SETUP() \
+    do { \
+        int _ap_zero; \
+        _ap_zero = 0; \
+        set_section_memory_scheme(SECTION_MEMORY_SCHEME_ATTRACT); \
+        g_game_info.plyr0.player_index = 0x2C; \
+        g_game_info.plyr1.player_index = 0x2C; \
+        g_game_info.plyr0.field_14 = _ap_zero; \
+        g_game_info.plyr1.field_14 = _ap_zero; \
+        g_game_info.feature_flags.bits.powerbars_locked = _ap_zero; \
+        set_mode_of_play(0xD); \
+        atm_logo_tapped_out = _ap_zero; \
+        atm_movie_tapped_out = _ap_zero; \
+        push_game_state(3); \
+        set_player_state(&g_game_info.plyr0, _ap_zero); \
+        set_player_state(&g_game_info.plyr1, _ap_zero); \
+        g_game_info.field_1F8 = _ap_zero; \
+        one_player_ladder_init(); \
+        setup_sound_banks(1); \
+        press_start_item.obj = 0; \
+        press_start_item.instance = 0; \
+        press_start_proc_item.obj = 0; \
+        press_start_proc_item.instance = 0; \
+        load_font(0); \
+        turn_controllers_on(); \
     } while (0)
 static int attract_widescreen_x(void);
 static void destroy_pfx_link(MkHdr* obj);
@@ -215,13 +183,10 @@ static void mkproc_jump_sleep(MkProcEntryFn entry) {
 }
 
 static void set_game_info_flag_bit5(int value) {
-    GiDemoFlag* gi_flags;
-
-    gi_flags = (GiDemoFlag*)&g_game_info.field_04;
     if (value != 0) {
-        gi_flags->demo_mode = 1;
+        g_game_info.feature_flags.bits.powerbars_locked = 1;
     } else {
-        gi_flags->demo_mode = 0;
+        g_game_info.feature_flags.bits.powerbars_locked = 0;
     }
 }
 
@@ -278,18 +243,15 @@ static StringObj* press_start_item_live(void) {
     return live;
 }
 
-typedef MkProc* (*AttractCreateMkprocFn)(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                         int pdata_size, MkHdr** out_pdata);
-
 static void atm_setup_press_start_flasher(void) {
     MkProc* proc;
-    AtmFlashPdata* pdata;
+    MkHdr* pdata;
     StringObj* str_obj;
     const char* text;
     int x;
 
-    proc = ((AttractCreateMkprocFn)_create_mkproc_generic_tinystack)(0x2005, 0x1F, p_flash_atm_text,
-                                                                     0xC, (MkHdr**)&pdata);
+    proc = _create_mkproc_generic_tinystack(0x2005, 0x1F, p_flash_atm_text,
+                                                                     0xC, &pdata);
     if (proc != 0) {
         proc->pre_destroy = pre_atm_flash;
         proc->destroy_cb = post_atm_flash;
@@ -307,8 +269,6 @@ static void atm_setup_press_start_flasher(void) {
 }
 
 static void atm_old_mkda_logo(void) {
-    ScreenObj* pfx_a;
-    ScreenObj* pfx_b;
     StringObj* start_item;
     int frame;
     int pressed;
@@ -324,10 +284,8 @@ static void atm_old_mkda_logo(void) {
     mkproc_sleep();
 
     x = attract_widescreen_x();
-    pfx_a = load_2d_pfxobj_xy(0x90046, 0x2018, (char*)0x01460000, 0, x, 0, 0x1E);
-    pfx_b = load_2d_pfxobj_xy(0x90046, 0x2018, (char*)0x01460001, 0, x + 0x200, 0, 0x1E);
-    (void)pfx_a;
-    (void)pfx_b;
+    load_2d_pfxobj_xy(0x90046, 0x2018, 0x01460000, 0, x, 0, 0x1E);
+    load_2d_pfxobj_xy(0x90046, 0x2018, 0x01460001, 0, x + 0x200, 0, 0x1E);
     load_font(0);
     turn_camera_on();
     fade_from_black(8, 1);
@@ -379,10 +337,10 @@ static void atm_bio_screen(void) {
     int pressed;
     int x;
     MkProc* flasher;
-    BioFlasherPdata* pdata;
+    struct BioFlasherPdata* pdata;
     StringObj* str_obj;
     const char* text;
-    BioFileEntry* entry;
+    struct BioFileEntry* entry;
     PfxFontSlot* font;
     int text_x;
     int text_y;
@@ -399,7 +357,7 @@ static void atm_bio_screen(void) {
     for (;;) {
         bio_index = next_bio_screen;
         unlock_bit = bio_file_table[bio_index].unlock_bit;
-        if (gp_unlock_bit_set(gp_data.unlock_hi, gp_data.unlock_lo, unlock_bit) != 0) {
+        if (gp_unlock_bit_set(gp_data.cat7.words[0], gp_data.cat7.words[1], unlock_bit) != 0) {
             break;
         }
         next_bio_screen = bio_index + 1;
@@ -412,7 +370,7 @@ static void atm_bio_screen(void) {
     use_alt = 0;
     if ((randu0(2U) & 0xFFFFU) != 0) {
         unlock_bit = bio_file_table[bio_index].unlock_bit;
-        if (gp_unlock_bit_set(gp_data.alt_hi, gp_data.alt_lo, unlock_bit) != 0) {
+        if (gp_unlock_bit_set(gp_data.cat8.words[0], gp_data.cat8.words[1], unlock_bit) != 0) {
             use_alt = 1;
         }
     }
@@ -420,8 +378,8 @@ static void atm_bio_screen(void) {
     next_bio_screen = (bio_index + 1) % 0x1A;
     load_font(0);
 
-    flasher = ((AttractCreateMkprocFn)_create_mkproc_generic_tinystack)(
-        0x2005, 0x1F, p_bio_press_start_flasher, 0x18, (MkHdr**)&pdata);
+    flasher = _create_mkproc_generic_tinystack(
+        0x2005, 0x1F, p_bio_press_start_flasher, sizeof(*pdata), (MkHdr**)&pdata);
     if (flasher != 0 && pdata != 0) {
         pdata->press_start_obj = 0;
         pdata->press_start_inst = 0;
@@ -459,6 +417,8 @@ static void atm_bio_screen(void) {
     }
 
     if (match != -1) {
+        int height;
+
         entry = &bio_file_table[match];
         if (use_alt != 0) {
             text = get_string_by_id(entry->string_id_b | 0x20000);
@@ -466,15 +426,11 @@ static void atm_bio_screen(void) {
             text = get_string_by_id(entry->string_id_a | 0x20000);
         }
 
-        {
-            int height;
-
-            height = screen_height;
-            font = load_font(0x10);
-            text_x = (bio_text_scale_a * (float)screen_width);
-            text_y = (bio_text_scale_b * (float)height);
-            text_y_off = (bio_text_scale_c * (float)height);
-        }
+        height = screen_height;
+        font = load_font(0x10);
+        text_x = (bio_text_scale_a * (float)screen_width);
+        text_y = (bio_text_scale_b * (float)height);
+        text_y_off = (bio_text_scale_c * (float)height);
 
         str_obj = create_wrapped_string(0x9017, font, text, text_x, text_y, 0x14A, text_y_off, 0, 1);
         str_obj->priority = 0x10;
@@ -518,47 +474,40 @@ static void atm_bio_screen(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/* TODO: [breakthrough needed] 90.19%; table-search CFG and instruction order still differ. */
-StringObj* put_bio_text(int unlock_bit, int use_alt) {
-    BioFileEntry* entry;
+static inline int find_bio_unlock_index(int unlock_bit)
+{
     int index;
-    const char* text;
-    PfxFontSlot* font;
-    StringObj* str_obj;
-    int text_x;
-    int text_y;
-    int text_y_off;
-    int height;
-    unsigned char color[4];
-
-    index = 0;
-    for (; index < 0x1A; index++) {
+    for (index = 0; index < 0x1A; index++) {
         if (bio_file_table[index].unlock_bit == unlock_bit) {
-            break;
+            return index;
         }
     }
-    if (index == 0x1A) {
-        index = -1;
-    }
+    return -1;
+}
+
+StringObj* put_bio_text(int unlock_bit, int use_alt) {
+    int index;
+    const char* text;
+    int height;
+    StringObj* str_obj;
+    unsigned char color[4];
+
+    index = find_bio_unlock_index(unlock_bit);
     if (index == -1) {
         return 0;
     }
 
     if (use_alt != 0) {
-        entry = &bio_file_table[index];
-        text = get_string_by_id(entry->string_id_b | 0x20000);
+        text = get_string_by_id(bio_file_table[index].string_id_b | 0x20000);
     } else {
-        entry = &bio_file_table[index];
-        text = get_string_by_id(entry->string_id_a | 0x20000);
+        text = get_string_by_id(bio_file_table[index].string_id_a | 0x20000);
     }
 
     height = screen_height;
-    font = load_font(0x10);
-    text_x = (bio_text_scale_a * (float)screen_width);
-    text_y = (bio_text_scale_b * (float)height);
-    text_y_off = (bio_text_scale_c * (float)height);
-
-    str_obj = create_wrapped_string(0x9017, font, text, text_x, text_y, 0x14A, text_y_off, 0, 1);
+    str_obj = create_wrapped_string(
+        0x9017, load_font(0x10), text, (bio_text_scale_a * (float)screen_width),
+        (bio_text_scale_b * (float)height), 0x14A,
+        (bio_text_scale_c * (float)height), 0, 1);
     str_obj->priority = 0x10;
     color[0] = 0xFF;
     color[1] = 0xFF;
@@ -570,25 +519,22 @@ StringObj* put_bio_text(int unlock_bit, int use_alt) {
 }
 
 static float p_bio_press_start_flasher(void) {
-    BioFlasherPdata* pdata;
+    struct BioFlasherPdata* pdata;
     StringObj* raw;
     StringObj* obj;
-    StringObjVisBits* bits;
 
-    pdata = (BioFlasherPdata*)apdata;
+    pdata = (struct BioFlasherPdata*)apdata;
 
     raw = pdata->press_start_obj;
     obj = MK_LIVE(raw, pdata->press_start_inst);
     if (obj != 0) {
-        bits = (StringObjVisBits*)&obj->flags;
-        bits->hidden = 0;
+        obj->visibility.hidden = 0;
     }
 
     raw = pdata->bio_text_obj;
     obj = MK_LIVE(raw, pdata->bio_text_inst);
     if (obj != 0) {
-        bits = (StringObjVisBits*)&obj->flags;
-        bits->hidden = 0;
+        obj->visibility.hidden = 0;
     }
 
     _mkproc_sleep_ticks = sleep_ticks_twenty;
@@ -597,15 +543,13 @@ static float p_bio_press_start_flasher(void) {
     raw = pdata->press_start_obj;
     obj = MK_LIVE(raw, pdata->press_start_inst);
     if (obj != 0) {
-        bits = (StringObjVisBits*)&obj->flags;
-        bits->hidden = 1;
+        obj->visibility.hidden = 1;
     }
 
     raw = pdata->bio_text_obj;
     obj = MK_LIVE(raw, pdata->bio_text_inst);
     if (obj != 0) {
-        bits = (StringObjVisBits*)&obj->flags;
-        bits->hidden = 1;
+        obj->visibility.hidden = 1;
     }
 
     return sleep_ticks_twenty;
@@ -625,30 +569,23 @@ static void atm_midway_logo(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
-/* TODO: [near miss] 97.84%; latch keep copy emits separate mr instructions across the diamond. */
 static float p_flash_atm_text(void) {
-    StringObj* raw;
     StringObj* item;
-    StringObjVisBits* bits;
 
     _mkproc_sleep_ticks = sleep_ticks_twenty;
     mkproc_sleep();
 
-    raw = (StringObj*)press_start_item.obj;
-    item = MK_LIVE(raw, press_start_item.instance);
+    item = press_start_item_live();
     if (item != 0) {
-        bits = (StringObjVisBits*)&item->flags;
-        bits->hidden = 0;
+        item->visibility.hidden = 0;
     }
 
     _mkproc_sleep_ticks = sleep_ticks_twenty;
     mkproc_sleep();
 
-    raw = (StringObj*)press_start_item.obj;
-    item = MK_LIVE(raw, press_start_item.instance);
+    item = press_start_item_live();
     if (item != 0) {
-        bits = (StringObjVisBits*)&item->flags;
-        bits->hidden = 1;
+        item->visibility.hidden = 1;
     }
 
     return sleep_ticks_one;
@@ -678,9 +615,8 @@ static void atm_demo_chess(void) {
     gamelogic_jump(5, p_mk_chess);
 }
 
-/* TODO: [near miss] 99.53333%; demo-bit/timer-zero volatile registers differ. */
+/* TODO: [near miss] 99.53%; demo flag byte, true bit, and timer zero use different GPRs. */
 static void atm_demo_fight(void) {
-    GiDemoFlag* flags;
     int bgnd;
 
     ATTRACT_PAGE_SETUP();
@@ -689,8 +625,7 @@ static void atm_demo_fight(void) {
     bgnd = get_next_bgnd();
     g_game_info.bgnd_id = bgnd;
     b_game_timer_off = 0;
-    flags = (GiDemoFlag*)&g_game_info.field_04;
-    flags->demo_mode = 1;
+    g_game_info.feature_flags.bits.powerbars_locked = 1;
     set_mode_of_play(0);
     gamelogic_jump(2, p_gamelogic);
 }
@@ -743,13 +678,10 @@ static void atm_mkda_logo(void) {
 
 float p_atm_start_button(void) {
     GameInfo* game;
-    GiDemoFlag* gi_flags;
     MkProc* proc;
-    MkProcPauseFlag* pflags;
 
     game = &g_game_info;
-    gi_flags = (GiDemoFlag*)&game->field_04;
-    if (gi_flags->demo_mode == 0) {
+    if (game->feature_flags.bits.powerbars_locked == 0) {
         return sleep_ticks_neg_one;
     }
 
@@ -759,11 +691,9 @@ float p_atm_start_button(void) {
     }
 
     turn_controllers_off();
-    gi_flags = (GiDemoFlag*)&game->field_04;
-    gi_flags->demo_mode = 0;
+    game->feature_flags.bits.powerbars_locked = 0;
     proc = aproc;
-    pflags = (MkProcPauseFlag*)&proc->flags;
-    pflags->skip_if_paused = 1;
+    proc->flags_bits.skip_if_paused = 1;
     pause_procs(1);
     snd_req_vol(0x1AA5, sleep_ticks_one_point_five);
     _mkproc_sleep_ticks = sleep_ticks_five;
@@ -797,7 +727,6 @@ float p_atm_loop(void) {
 
 float p_attract_mode(void) {
     GameInfo* game;
-    GiDemoFlag* gi_flags;
     int zero;
     int bgnd_slot;
     int x;
@@ -809,12 +738,11 @@ float p_attract_mode(void) {
     zero = 0;
     set_section_memory_scheme(SECTION_MEMORY_SCHEME_ATTRACT);
     game = &g_game_info;
-    gi_flags = (GiDemoFlag*)&game->field_04;
     game->plyr0.player_index = 0x2C;
     game->plyr1.player_index = 0x2C;
     game->plyr0.field_14 = zero;
     game->plyr1.field_14 = zero;
-    gi_flags->demo_mode = zero;
+    game->feature_flags.bits.powerbars_locked = zero;
     set_mode_of_play(0xD);
     atm_logo_tapped_out = zero;
     atm_movie_tapped_out = zero;
@@ -846,10 +774,10 @@ float p_attract_mode(void) {
             x = -0x40;
         }
 
-        legal_a = load_2d_pfxobj_xy(SEC_SLOT_HANDLE_ATTRACT_LEGAL, 0x2018, (char*)0x017E0000, 0, x,
+        legal_a = load_2d_pfxobj_xy(SEC_SLOT_HANDLE_ATTRACT_LEGAL, 0x2018, 0x017E0000, 0, x,
                                     0, 0x1E);
         x2 = x + 0x200;
-        legal_b = load_2d_pfxobj_xy(SEC_SLOT_HANDLE_ATTRACT_LEGAL, 0x2018, (char*)0x017E0001, 0,
+        legal_b = load_2d_pfxobj_xy(SEC_SLOT_HANDLE_ATTRACT_LEGAL, 0x2018, 0x017E0001, 0,
                                     x2, 0, 0x1E);
 
         turn_camera_on();

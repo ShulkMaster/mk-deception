@@ -1,4 +1,17 @@
 #include "platform/main.h"
+#include "game/attract.h"
+#include "game/controller.h"
+#include "game/konquest.h"
+#include "game/mcardmsg.h"
+#include "math/gxMath.h"
+#include "mw/mwMemHeap.h"
+#include "platform/gcdisplay.h"
+#include "platform/gcutils.h"
+#include "platform/io.h"
+#include "runtime/csetjmp.h"
+#include "runtime/mtRand2.h"
+#include "runtime/section.h"
+#include "runtime/sound.h"
 
 #include "game/game_info.h"
 #include "game/memcard.h"
@@ -7,6 +20,7 @@
 #include "libmkparticle/particle.h"
 #include "msl/mslcore.h"
 #include "mw/mwFileGlue.h"
+#include "mw/mwFile.h"
 #include "platform/display.h"
 #include "platform/gcARam.h"
 #include "platform/gcInit.h"
@@ -19,70 +33,6 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/pakfile.h"
 #include "runtime/utils.h"
-
-extern int __setjmp(void *buffer);
-
-extern void longjmp(void *buffer, int value);
-
-extern unsigned short GXMathSqrtTable[];
-
-extern void gc_start_reset_watch(void);
-
-extern void tile_image(void *image);
-
-extern void gc_native_display_init(void);
-
-extern void gc_grab_renderpipe(void);
-
-extern void gc_native_display_render_image(void);
-
-extern void gc_release_renderpipe(void);
-
-extern void gc_native_display_pass_to_RW(void);
-
-extern void mwMemUserConfigInitMemSystem(void);
-
-extern int refresh_rate(void);
-
-extern void mk_system_init(void);
-
-extern void init_section_system(void);
-
-extern void init_switch_log(void);
-
-extern int init_sounds(void);
-
-extern void konquest_state_init(void);
-
-extern void setup_sound_banks(int load_mode);
-
-extern int load_systemart_phase_1(void);
-
-extern int load_systemart_phase_2(void);
-
-extern void get_clean_system(void);
-
-extern void sgenrand(unsigned int seed);
-
-extern float p_attract_mode(void);
-
-extern void scan_remote_switches(void);
-
-extern int is_controller_removed(void);
-
-extern int ck_mcard_msg(void);
-
-extern void mcard_msg_handler(void);
-
-extern void unstack_switches(void);
-
-extern void mkpfx_set_environment(void);
-
-extern void mwFileTick(void);
-
-extern void Render(void);
-
-extern unsigned char loading_image[];
 
 static unsigned char exec_loop_jump_buffer[0x190];
 
@@ -98,7 +48,6 @@ void *empty_pdata;
 float game_speed;
 float inverse_game_speed;
 float sqrt_game_speed;
-extern int gameart_is_loaded;
 
 void gamelogic_jump(int mode, MainProcEntryFn entry) {
     static MkProc *proc;
@@ -118,14 +67,14 @@ void gamelogic_jump(int mode, MainProcEntryFn entry) {
     longjmp(exec_loop_jump_buffer, jump_target_mode);
 }
 
-typedef union MainFloatBits {
+union MainFloatBits {
     float value;
     unsigned int bits;
-} MainFloatBits;
+};
 
 static inline float main_sqrt(float value) {
-    MainFloatBits input;
-    MainFloatBits estimate;
+    union MainFloatBits input;
+    union MainFloatBits estimate;
 
     input.value = value;
     estimate.bits = (unsigned int) GXMathSqrtTable[(input.bits >> 11) & 0x1fff] << 8;
@@ -181,7 +130,7 @@ int main(void) {
     load_systemart_phase_2();
     gameart_is_loaded = 1;
     pfxsystem_init();
-    sgenrand((unsigned int) stop_usec_timer(3));
+    sgenrand(stop_usec_timer(3));
     _create_mkproc_generic_bigstack(0x2001, 0x1f, p_attract_mode, 0, 0);
     exec_tick_ctr = 0;
     game_tick_ctr = 0;
@@ -234,8 +183,8 @@ float get_game_speed(void) {
 }
 
 void set_game_speed(float speed) {
-    MainFloatBits estimate;
-    MainFloatBits input;
+    union MainFloatBits estimate;
+    union MainFloatBits input;
     float correction;
     float estimate_squared;
     float square_root = 0.0f;

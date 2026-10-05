@@ -1,4 +1,6 @@
 #include "game/game_info.h"
+#include "runtime/anim_api_ext.h"
+#include "game/bgnd_jmt.h"
 #include "math/gxMat.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
@@ -9,143 +11,129 @@
 #include "runtime/mk_proc.h"
 #include "runtime/shadow.h"
 #include "runtime/utils.h"
+#include "runtime/cstring.h"
+#include "runtime/mk_vtbl.h"
 
-typedef struct MkProcDestroyVtable {
-    void* reserved[4];
-    int (*destroy)(MkProc* proc);
-} MkProcDestroyVtable;
-
-typedef struct BgndDamageState {
-    float wait_ticks;       /* +0x00 */
-    int cliff_index;        /* +0x04 */
-    int attempt_count;      /* +0x08 */
+struct BgndDamageState {
+    float wait_ticks;
+    int cliff_index;
+    int attempt_count;
     int field_0C;
-    int valid;              /* +0x10 - last triggered cliff index */
-    int trigger_tick;       /* +0x14 */
+    int valid;
+    int trigger_tick;
     char pad18[0x14];
-} BgndDamageState; /* 0x2C */
-
-typedef struct BgndDamagePdata {
-    MkHdr hdr;
-    int watcher_round; /* +0x08 */
-    BgndDamageState state; /* +0x0C */
-} BgndDamagePdata;
-
-typedef union BgndDamagePdataRef {
-    MkHdr* hdr;
-    BgndDamagePdata* damage;
-} BgndDamagePdataRef;
-
-typedef struct RopeProcLatch {
-    MkProc* proc;
-    unsigned int instance;
-} RopeProcLatch;
-
-typedef struct BgndUpdateData BgndUpdateData;
-struct BgndUpdateVtable;
-typedef void (*BgndSlotUpdateFn)(BgndUpdateData* update, int index);
-
-typedef struct BgndUpdateSlot {
-    int blend_divisor; /* +0x00 */
-    int blend_numerator; /* +0x04 */
-    BgndSlotUpdateFn update_fn; /* +0x08 */
-    int enabled; /* +0x0C */
-    float start_value; /* +0x10 */
-    float end_value; /* +0x14 */
-    float shadow_scale; /* +0x18 */
-    float initial_speed; /* +0x1C */
-    float speed_param; /* +0x20 */
-    float speed; /* +0x24 */
-    float sin_rate; /* +0x28 */
-    float sin_phase; /* +0x2C */
-    float fall_acceleration; /* +0x30 */
-    float field_34;
-    float field_38;
-    Vec direction; /* +0x3C */
-} BgndUpdateSlot; /* 0x48 */
-
-typedef struct BgndUpdateCommand {
-    int delay;           /* +0x00 */
-    int slot_index;      /* +0x04 */
-    BgndUpdateSlot slot; /* +0x08 */
-} BgndUpdateCommand; /* 0x50 */
-
-typedef int (*BgndUpdateDestroyFn)(
-    BgndUpdateData* update, struct BgndUpdateVtable* vtable);
-
-typedef struct BgndUpdateVtable {
-    void* reserved[4];
-    BgndUpdateDestroyFn destroy;
-} BgndUpdateVtable;
-
-struct BgndUpdateData {
-    BgndUpdateVtable* vtbl;
-    unsigned int instance;
-    Vec origin; /* +0x08 */
-    MkSobj* object; /* +0x14 */
-    float origin_length; /* +0x18 */
-    int group_id;    /* +0x1C */
-    int remove_hide; /* +0x20 */
-    int active_slot; /* +0x24 */
-    BgndUpdateCommand commands[2]; /* +0x28 */
 };
 
-/* A command prefix begins 0x50 bytes apart; its slot payload starts at +0x30. */
-typedef struct BgndUpdateCommandBlock {
-    char pad00[0x28];
-    int delay;       /* +0x28 */
-    int slot_index;  /* +0x2C */
-    BgndUpdateSlot slot; /* +0x30 */
-} BgndUpdateCommandBlock;
+struct BgndDamagePdata {
+    MkHdr hdr;
+    int watcher_round;
+    struct BgndDamageState state;
+};
 
-typedef struct RopeSegment {
-    Vec velocity; /* +0x00 */
+struct BgndUpdateData;
+struct BgndUpdateVtable;
+typedef void (*BgndSlotUpdateFn)(struct BgndUpdateData* update, int index);
+
+struct BgndUpdateSlot {
+    int blend_divisor;
+    int blend_numerator;
+    BgndSlotUpdateFn update_fn;
+    int enabled;
+    float start_value;
+    float end_value;
+    float shadow_scale;
+    float initial_speed;
+    float speed_param;
+    float speed;
+    float sin_rate;
+    float sin_phase;
+    float fall_acceleration;
+    float field_34;
+    float field_38;
+    Vec direction;
+};
+
+struct BgndUpdateCommand {
+    int delay;
+    int slot_index;
+    struct BgndUpdateSlot slot;
+};
+
+typedef int (*BgndUpdateDestroyFn)(
+    struct BgndUpdateData* update, struct BgndUpdateVtable* vtable);
+
+struct BgndUpdateVtable {
+    void* reserved[4];
+    BgndUpdateDestroyFn destroy;
+};
+
+struct BgndUpdateData {
+    struct BgndUpdateVtable* vtbl;
+    unsigned int instance;
+    Vec origin;
+    MkSobj* object;
+    float origin_length;
+    int group_id;
+    int remove_hide;
+    int active_slot;
+    struct BgndUpdateCommand commands[2];
+};
+
+struct BgndUpdateCommandBlock {
+    char pad00[0x28];
+    int delay;
+    int slot_index;
+    struct BgndUpdateSlot slot;
+};
+
+struct RopeSegment {
+    Vec velocity;
     float pad0C;
-    Vec span; /* +0x10 */
+    Vec span;
     float pad1C;
-    Vec offset; /* +0x20 */
+    Vec offset;
     float pad2C;
-    float length_scale; /* +0x30 */
-    float damping; /* +0x34 */
+    float length_scale;
+    float damping;
     float field_38;
     float field_3C;
-    float inverse_length_scale; /* +0x40 */
-    int mode; /* +0x44 */
+    float inverse_length_scale;
+    int mode;
     float field_48;
-    int bone_tag; /* +0x4C */
-    MkBone* bone; /* +0x50 */
+    int bone_tag;
+    MkBone* bone;
     char pad54[0x0C];
-} RopeSegment; /* 0x60 */
+};
 
-typedef struct RopeInfo {
+struct RopeInfo {
     int bone_tag;
     int mode;
     float field_08;
     float inverse_length_scale;
     float field_10;
     float field_14;
-} RopeInfo;
+};
 
-typedef struct RopeControllerData {
+struct RopeControllerData {
     MkHdr hdr;
-    MkObj* model; /* +0x08 */
-    int segment_count; /* +0x0C */
-    RopeSegment segments[3]; /* +0x10 */
+    MkObj* model;
+    int segment_count;
+    struct RopeSegment segments[3];
     char pad130[0x60];
-    float damping; /* +0x190 */
-    MkObj* attached_model; /* +0x194 */
-    int attached_object_id; /* +0x198 */
-} RopeControllerData;
+    float damping;
+    MkObj* attached_model;
+    int attached_object_id;
+};
 
 static const float update_seconds_per_frame = 1.0f / 60.0f;
 
 static int rope_bones[] = {0x2001, 0x2002, 0x2003};
-RopeInfo g_rope_info[] = {
+struct RopeInfo g_rope_info[] = {
     {0x2001, 1, 0.0f, 0.0f, 0.0f, 0.0f},
     {0x2002, 2, 0.2f, 0.05f, 0.1f, 0.95f},
     {0x2003, 2, 0.2f, 0.05f, 0.1f, 0.95f},
 };
-static int n_rope_info = 3;
+static int n_rope_info = sizeof(g_rope_info) / sizeof(g_rope_info[0]);
 
 static inline float bgnd_inv_sqrt(float value) {
     union {
@@ -172,9 +160,6 @@ RopeProcLatch sobj_ctrl_proc_item;
 int g_ticks_delay;
 int g_delay_rnd;
 
-
-void build_bones_tbl(MkObj* object, const int* tags);
-void update_bone_hierarchy(void* object);
 void* get_bone_with_tag(void* object, int tag);
 
 static void rope_controller_init(MkHdr* pdata, MkObj* model);
@@ -183,30 +168,30 @@ static float p_watch_shadow(void);
 static float p_watch_cliffs(void);
 static float p_obj_ctrl(void);
 static float p_rope(void);
-static void update_func_shadow_scale(BgndUpdateData* update, int index);
-static void update_func_blend_start(BgndUpdateData* update, int index);
-static void update_func_fall(BgndUpdateData* update, int index);
-static void update_func_awayxz(BgndUpdateData* update, int index);
-static void update_func_sin(BgndUpdateData* update, int index);
+static void update_func_shadow_scale(struct BgndUpdateData* update, int index);
+static void update_func_blend_start(struct BgndUpdateData* update, int index);
+static void update_func_fall(struct BgndUpdateData* update, int index);
+static void update_func_awayxz(struct BgndUpdateData* update, int index);
+static void update_func_sin(struct BgndUpdateData* update, int index);
 MkSobj* bgnd_fetch_sobj(int model_index, int object_id);
 static void insert_obj_ctrl_section(MkSobj* object, int section);
 void bgnd_start_script_in_proc(int proc_id, int function_index);
 
 void start_cliff_watcher(float wait_ticks) {
-    BgndDamagePdataRef pdata;
+    struct BgndDamagePdata* pdata;
     MkProc* proc;
 
-    pdata.hdr = 0;
+    pdata = 0;
     if (find_mkproc_pid(0xB010) != 0) {
         return;
     }
 
     proc = _create_mkproc_generic_tinystack(
-        0xB010, 0x1F, p_watch_cliffs, 0x38, &pdata.hdr);
+        0xB010, 0x1F, p_watch_cliffs, sizeof(*pdata), (MkHdr**)&pdata);
     if (proc == 0) {
         return;
     }
-    if (pdata.hdr == 0) {
+    if (pdata == 0) {
         return;
     }
 
@@ -214,20 +199,20 @@ void start_cliff_watcher(float wait_ticks) {
         mk_insert((MkHdr*)proc, &g_game_info.bgnd_obj->child_list);
     }
 
-    memset(&pdata.damage->state, 0, sizeof(pdata.damage->state));
-    pdata.damage->state.wait_ticks = wait_ticks;
-    pdata.damage->watcher_round = -1;
+    memset(&pdata->state, 0, sizeof(pdata->state));
+    pdata->state.wait_ticks = wait_ticks;
+    pdata->watcher_round = -1;
 }
 
 void set_cliff_watcher_round(int round) {
     MkProc* proc;
-    BgndDamagePdata* pdata;
+    struct BgndDamagePdata* pdata;
 
     proc = find_mkproc_pid(0xB010);
     if (proc == 0) {
         pdata = 0;
     } else {
-        pdata = (BgndDamagePdata*)pdata_of_proc(proc);
+        pdata = (struct BgndDamagePdata*)pdata_of_proc(proc);
         if (pdata == 0) {
             pdata = 0;
         }
@@ -239,13 +224,13 @@ void set_cliff_watcher_round(int round) {
 
 int get_cliff_watcher_round(void) {
     MkProc* proc;
-    BgndDamagePdata* pdata;
+    struct BgndDamagePdata* pdata;
 
     proc = find_mkproc_pid(0xB010);
     if (proc == 0) {
         pdata = 0;
     } else {
-        pdata = (BgndDamagePdata*)pdata_of_proc(proc);
+        pdata = (struct BgndDamagePdata*)pdata_of_proc(proc);
         if (pdata == 0) {
             pdata = 0;
         }
@@ -258,13 +243,13 @@ int get_cliff_watcher_round(void) {
 
 void clear_cliff_data(void) {
     MkProc* proc;
-    BgndDamagePdata* pdata;
+    struct BgndDamagePdata* pdata;
 
     proc = find_mkproc_pid(0xB010);
     if (proc == 0) {
         pdata = 0;
     } else {
-        pdata = (BgndDamagePdata*)pdata_of_proc(proc);
+        pdata = (struct BgndDamagePdata*)pdata_of_proc(proc);
         if (pdata == 0) {
             pdata = 0;
         }
@@ -274,15 +259,15 @@ void clear_cliff_data(void) {
     }
 }
 
-BgndDamageState* get_cliff_data(void) {
+struct BgndDamageState* get_cliff_data(void) {
     MkProc* proc;
-    BgndDamagePdata* pdata;
+    struct BgndDamagePdata* pdata;
 
     proc = find_mkproc_pid(0xB010);
     if (proc == 0) {
         pdata = 0;
     } else {
-        pdata = (BgndDamagePdata*)pdata_of_proc(proc);
+        pdata = (struct BgndDamagePdata*)pdata_of_proc(proc);
         if (pdata == 0) {
             pdata = 0;
         }
@@ -294,12 +279,12 @@ BgndDamageState* get_cliff_data(void) {
 }
 
 static float p_watch_cliffs(void) {
-    BgndDamagePdata* pdata;
+    struct BgndDamagePdata* pdata;
     CmdScript* previous_script;
     CmdScript* script;
     int can_fall;
 
-    pdata = (BgndDamagePdata*)pdata_of_proc(aproc);
+    pdata = (struct BgndDamagePdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
@@ -359,24 +344,24 @@ static float p_watch_cliffs(void) {
 }
 
 int check_damage_valid_fc(void) {
-    BgndDamagePdataRef pdata;
-    BgndDamageState* damage;
+    struct BgndDamagePdata* pdata;
+    struct BgndDamageState* damage;
     MkProc* proc;
 
     if (g_game_info.bgnd_id == 6) {
         proc = find_mkproc_pid(0xB010);
         if (proc == 0) {
-            pdata.hdr = 0;
+            pdata = 0;
         } else {
-            pdata.hdr = pdata_of_proc(proc);
-            if (pdata.hdr == 0) {
-                pdata.hdr = 0;
+            pdata = (struct BgndDamagePdata*)pdata_of_proc(proc);
+            if (pdata == 0) {
+                pdata = 0;
             }
         }
-        if (pdata.hdr == 0) {
+        if (pdata == 0) {
             damage = 0;
         } else {
-            damage = &pdata.damage->state;
+            damage = &pdata->state;
         }
         if (damage != 0 && damage->valid != 0) {
             return 1;
@@ -450,23 +435,21 @@ static float p_watch_shadow(void) {
     return 1.0f;
 }
 
-
 void mks_set_update_delay(int ticks, int random_ticks) {
     g_delay_rnd = random_ticks;
     g_ticks_delay = ticks;
 }
 
-static inline int bgnd_update_active_slot(BgndUpdateData* update) {
+static inline int bgnd_update_active_slot(struct BgndUpdateData* update) {
     return update->active_slot;
 }
-
 
 void mks_removehide_by_group(int group_id, int remove_hide) {
     MkProc* proc;
     MkPtr** list;
     MkPtr* link;
     MkPtr* next;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
 
     proc = MK_LIVE(sobj_ctrl_proc_item.proc, sobj_ctrl_proc_item.instance);
 
@@ -480,7 +463,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -498,7 +481,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
                       float start_scale, float end_scale) {
     MkPtr** list;
     MkProc* proc;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     int slot_index;
     int previous_index;
     MkPtr* link;
@@ -516,7 +499,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -552,7 +535,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
 }
 
 void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     int slot_index;
     MkPtr** list;
     MkPtr* link;
@@ -571,7 +554,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -603,7 +586,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
                                  float velocity_z, float gravity) {
     MkPtr** list;
     MkProc* proc;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     int slot_index;
     int previous_index;
     MkPtr* link;
@@ -621,7 +604,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -661,12 +644,12 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                                   float random_range) {
     MkProc* proc;
     MkPtr** list;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     MkPtr* link;
     int slot_index;
-    BgndUpdateCommandBlock* command;
+    struct BgndUpdateCommandBlock* command;
     MkPtr* next;
-    BgndUpdateCommandBlock* previous;
+    struct BgndUpdateCommandBlock* previous;
     MkSobj* object;
     float inverse_length;
     float varied_speed;
@@ -687,7 +670,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -695,7 +678,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
         } else {
             if (update->group_id == group_id || group_id == -1) {
                 slot_index = update->active_slot;
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                command = (struct BgndUpdateCommandBlock*)((unsigned char*)update +
                                                     slot_index * 0x50);
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
@@ -714,7 +697,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                previous = (struct BgndUpdateCommandBlock*)((unsigned char*)update +
                                                      previous_index * 0x50);
                 varied_speed = speed +
                                (frand(random_range) - 0.5f * random_range);
@@ -748,7 +731,7 @@ void mks_set_sin_update_by_group(
     float sin_phase, int extra_flags) {
     MkPtr** list;
     MkProc* proc;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     int slot_index;
     int previous_index;
     MkPtr* link;
@@ -766,7 +749,7 @@ void mks_set_sin_update_by_group(
     }
     link = proc->pdata_list;
     while (link != 0) {
-        update = (BgndUpdateData*)link->hdr;
+        update = (struct BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
             next = link->next;
             discard_stale_mkptr(link);
@@ -807,26 +790,24 @@ void mks_set_sin_update_by_group(
     }
 }
 
-/* TODO: [breakthrough needed] 89.05%; flag-pair initialization and spawn scheduling
- * differ; allocator reads one flag, aggregate extent needs independent evidence. */
 void start_sobj_ctrl_proc(void) {
-    int flags[2];
+    MkProcInitFlags flags;
     MkProc* proc;
 
     if (sobj_ctrl_proc_item.proc != 0) {
         return;
     }
-    flags[0] = 0;
-    flags[1] = 0;
-    proc = create_mkproc(
-        0x1F, get_mkproc_nostack(&flags[0]), 0xB007, p_obj_ctrl, 0);
+    flags.value = 0;
+
+    proc = get_mkproc_nostack(flags);
+    proc = create_mkproc(0x1F, proc, 0xB007, p_obj_ctrl, 0);
     if (proc != 0) {
         g_delay_rnd = 0;
         g_ticks_delay = 0;
         sobj_ctrl_proc_item.proc = proc;
         sobj_ctrl_proc_item.instance = proc->instance;
         if (g_game_info.bgnd_obj != 0) {
-            mk_insert((MkHdr*)proc, &g_game_info.bgnd_obj->child_list);
+            mk_insert(&proc->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }
 }
@@ -841,7 +822,7 @@ void destroy_sobj_ctrl_proc(void) {
         proc = 0;
     }
     if (proc != 0 && proc->instance != 0) {
-        ((MkProcDestroyVtable*)proc->vtbl)->destroy(proc);
+        proc->vtbl->destroy(proc);
     }
     sobj_ctrl_proc_item.proc = 0;
     sobj_ctrl_proc_item.instance = 0;
@@ -870,14 +851,10 @@ void bgnd_insert_obj_ctrl_section(int object_id, int section) {
     }
 }
 
-
-
-
-
 static void insert_obj_ctrl_section(MkSobj* object, int section) {
     MkProc* proc;
     MkHdr* pdata;
-    BgndUpdateData* update;
+    struct BgndUpdateData* update;
     float length_squared;
     int index;
 
@@ -891,13 +868,13 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
         return;
     }
 
-    pdata = get_mkpdata_generic(sizeof(BgndUpdateData));
+    pdata = get_mkpdata_generic(sizeof(struct BgndUpdateData));
     if (pdata == 0) {
         return;
     }
     mk_insert(pdata, &proc->pdata_list);
 
-    update = (BgndUpdateData*)pdata;
+    update = (struct BgndUpdateData*)pdata;
     update->object = object;
     update->group_id = section;
     object->flags_08_bits.bit6 = 1;
@@ -932,16 +909,58 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     }
 }
 
-/* TODO: [near miss] 99.12%; residue is GPR coloring and li-zero versus mr-zero. */
-static float p_obj_ctrl(void) {
-    BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* slot;
+static inline void update_bgnd_command_slots(struct BgndUpdateData* update) {
     float blend;
     int index;
 
+    for (index = 0; index < 2; index++) {
+        if (update->commands[index].slot.update_fn != 0) {
+            if (update->commands[index].delay > 0) {
+                update->commands[index].delay--;
+            } else {
+                update->commands[index].slot.update_fn(update, index);
+                if (update->commands[index].slot.blend_divisor != -1) {
+                    if (update->commands[index].slot.enabled != 0 &&
+                        (update->commands[index].slot.enabled & 1) != 0) {
+                        if (update->commands[index].slot.blend_divisor == 0) {
+                            update->commands[index].slot.shadow_scale = 0.0f;
+                        } else {
+                            blend =
+                                (float)update->commands[index].slot.blend_numerator /
+                                (float)update->commands[index].slot.blend_divisor;
+                            update->commands[index].slot.shadow_scale =
+                                update->commands[index].slot.start_value * blend +
+                                update->commands[index].slot.end_value * (1.0f - blend);
+                        }
+                    }
+
+                    if (update->commands[index].slot.blend_divisor == 0) {
+                        update->commands[index].slot.speed =
+                            update->commands[index].slot.speed_param;
+                    } else {
+                        blend =
+                            (float)update->commands[index].slot.blend_numerator /
+                            (float)update->commands[index].slot.blend_divisor;
+                        update->commands[index].slot.speed =
+                            update->commands[index].slot.initial_speed * blend +
+                            update->commands[index].slot.speed_param * (1.0f - blend);
+                    }
+                    update->commands[index].slot.blend_numerator--;
+                    if (update->commands[index].slot.blend_numerator < 0) {
+                        update->commands[index].slot.blend_numerator = 0;
+                        update->commands[index].slot.update_fn = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static float p_obj_ctrl(void) {
+    struct BgndUpdateData* update;
+
     while (apdata != 0) {
-        update = (BgndUpdateData*)apdata;
+        update = (struct BgndUpdateData*)apdata;
         if (update->object != 0) {
             if (update->remove_hide >= 0) {
                 update->remove_hide--;
@@ -956,54 +975,14 @@ static float p_obj_ctrl(void) {
                 }
             }
 
-            for (index = 0; index < 2; index++) {
-                command = (BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    index * 0x50);
-                slot = &command->slot;
-                if (slot->update_fn != 0) {
-                    if (command->delay > 0) {
-                        command->delay--;
-                    } else {
-                        slot->update_fn(update, index);
-                        if (slot->blend_divisor != -1) {
-                            if (slot->enabled != 0 &&
-                                (slot->enabled & 1) != 0) {
-                                if (slot->blend_divisor == 0) {
-                                    slot->shadow_scale = 0.0f;
-                                } else {
-                                    blend = (float)slot->blend_numerator /
-                                            (float)slot->blend_divisor;
-                                    slot->shadow_scale =
-                                        slot->start_value * blend +
-                                        slot->end_value * (1.0f - blend);
-                                }
-                            }
-
-                            if (slot->blend_divisor == 0) {
-                                slot->speed = slot->speed_param;
-                            } else {
-                                blend = (float)slot->blend_numerator /
-                                        (float)slot->blend_divisor;
-                                slot->speed =
-                                    slot->initial_speed * blend +
-                                    slot->speed_param * (1.0f - blend);
-                            }
-                            slot->blend_numerator--;
-                            if (slot->blend_numerator < 0) {
-                                slot->blend_numerator = 0;
-                                slot->update_fn = 0;
-                            }
-                        }
-                    }
-                }
-            }
+            update_bgnd_command_slots(update);
         }
         next_apdata();
     }
     return 1.0f;
 }
 
-static void update_func_shadow_scale(BgndUpdateData* update, int index) {
+static void update_func_shadow_scale(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     float shadow_scale;
 
@@ -1025,30 +1004,29 @@ static void update_func_shadow_scale(BgndUpdateData* update, int index) {
     object->scale.z = shadow_scale;
 }
 
-/* TODO: [near miss] 91.41%; residue is blend-expression scheduling and FPR coloring. */
-static void update_func_blend_start(BgndUpdateData* update, int index) {
-    BgndUpdateSlot* slot;
+static void update_func_blend_start(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     float blend;
+    float object_part;
+    float origin_part;
 
     object = update->object;
     if (object == 0) {
         return;
     }
-
-    slot = &update->commands[index].slot;
-    if (slot->blend_divisor <= 0) {
+    if (update->commands[index].slot.blend_divisor <= 0) {
         object->pos.y = update->origin.y;
         return;
     }
 
     blend =
-        (float)slot->blend_numerator / (float)slot->blend_divisor;
-    object->pos.y =
-        object->pos.y * blend + update->origin.y * (1.0f - blend);
+        (float)update->commands[index].slot.blend_numerator / (float)update->commands[index].slot.blend_divisor;
+    object_part = object->pos.y * blend;
+    origin_part = update->origin.y * (1.0f - blend);
+    object->pos.y = object_part + origin_part;
 }
 
-static void update_func_awayxz(BgndUpdateData* update, int index) {
+static void update_func_awayxz(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     float distance;
     Vec delta;
@@ -1067,7 +1045,7 @@ static void update_func_awayxz(BgndUpdateData* update, int index) {
     object->pos.z += delta.z;
 }
 
-static void update_func_fall(BgndUpdateData* update, int index) {
+static void update_func_fall(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     Vec movement;
 
@@ -1086,8 +1064,7 @@ static void update_func_fall(BgndUpdateData* update, int index) {
         update_seconds_per_frame * update->commands[index].slot.fall_acceleration;
 }
 
-/* TODO: [near miss] 99.02%; residue is FPR coloring and float-pool labels. */
-static void update_func_sin(BgndUpdateData* update, int index) {
+static void update_func_sin(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     float frame_time;
     float base_angle;
@@ -1104,21 +1081,21 @@ static void update_func_sin(BgndUpdateData* update, int index) {
                          update->commands[index].slot.blend_numerator) / 60.0f;
 
     if ((update->commands[index].slot.enabled & 4) != 0) {
-        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = update->origin_length *
-                     (update->commands[index].slot.sin_rate + random_offset);
+                     (update->commands[index].slot.sin_rate +
+                      frand(update->commands[index].slot.sin_phase));
     } else if ((update->commands[index].slot.enabled & 8) != 0) {
-        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = object->pos.x *
-                     (update->commands[index].slot.sin_rate + random_offset);
+                     (update->commands[index].slot.sin_rate +
+                      frand(update->commands[index].slot.sin_phase));
     } else if ((update->commands[index].slot.enabled & 0x20) != 0) {
         base_angle = gxMathArcTanYX(update->origin.x, update->origin.z);
         random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle *= update->commands[index].slot.sin_rate + random_offset;
     } else {
-        random_offset = frand(update->commands[index].slot.sin_phase);
         base_angle = object->pos.x *
-                     (update->commands[index].slot.sin_rate + random_offset);
+                     (update->commands[index].slot.sin_rate +
+                      frand(update->commands[index].slot.sin_phase));
     }
 
     sine = gxMathSin(
@@ -1128,16 +1105,38 @@ static void update_func_sin(BgndUpdateData* update, int index) {
     update->commands[index].slot.field_34 = value;
 }
 
+static inline struct RopeControllerData* bgnd_find_rope_for_model(MkProc* proc,
+                                                          MkObj* model)
+{
+    MkPtr* iterator;
+    struct RopeControllerData* rope;
 
+    if (proc == 0) {
+        return 0;
+    }
+    iterator = first_mkptr(&proc->pdata_list);
+    if (iterator == 0) {
+        return 0;
+    }
+    rope = (struct RopeControllerData*)iterator->hdr;
+    while (rope != 0) {
+        if (rope->model == model) {
+            return rope;
+        }
+        iterator = next_mkptr(iterator);
+        if (iterator == 0) {
+            rope = 0;
+        } else {
+            rope = (struct RopeControllerData*)iterator->hdr;
+        }
+    }
+    return rope;
+}
 
-
-
-
-/* TODO: [near miss] 98.114750%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void bgnd_detach_rope(int model_index) {
     MkObj* model;
     MkProc* proc;
-    RopeControllerData* rope;
+    struct RopeControllerData* rope;
 
     model = g_bgnd_preloaded_models[model_index];
     if (model == 0) {
@@ -1146,30 +1145,7 @@ void bgnd_detach_rope(int model_index) {
 
     proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
 
-
-    if (proc == 0) {
-        rope = 0;
-    } else {
-        MkPtr* iterator;
-
-        iterator = first_mkptr(&proc->pdata_list);
-        if (iterator == 0) {
-            rope = 0;
-        } else {
-            rope = (RopeControllerData*)iterator->hdr;
-            while (rope != 0) {
-                if (rope->model == model) {
-                    break;
-                }
-                iterator = next_mkptr(iterator);
-                if (iterator == 0) {
-                    rope = 0;
-                } else {
-                    rope = (RopeControllerData*)iterator->hdr;
-                }
-            }
-        }
-    }
+    rope = bgnd_find_rope_for_model(proc, model);
 
     if (rope != 0) {
         rope->segments[rope->segment_count - 1].mode = 2;
@@ -1178,11 +1154,10 @@ void bgnd_detach_rope(int model_index) {
     }
 }
 
-/* TODO: [near miss] 98.647060%; branch lowering, relocation offsets; one-trial ceiling. */
 void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) {
     MkObj* model;
     MkProc* proc;
-    RopeControllerData* rope;
+    struct RopeControllerData* rope;
 
     model = g_bgnd_preloaded_models[model_index];
     if (model == 0) {
@@ -1191,30 +1166,7 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
 
     proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
 
-
-    if (proc == 0) {
-        rope = 0;
-    } else {
-        MkPtr* iterator;
-
-        iterator = first_mkptr(&proc->pdata_list);
-        if (iterator == 0) {
-            rope = 0;
-        } else {
-            rope = (RopeControllerData*)iterator->hdr;
-            while (rope != 0) {
-                if (rope->model == model) {
-                    break;
-                }
-                iterator = next_mkptr(iterator);
-                if (iterator == 0) {
-                    rope = 0;
-                } else {
-                    rope = (RopeControllerData*)iterator->hdr;
-                }
-            }
-        }
-    }
+    rope = bgnd_find_rope_for_model(proc, model);
 
     if (rope != 0) {
         float scale;
@@ -1222,7 +1174,7 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
 
         scale = 0.7f * length;
         for (i = 0; i < rope->segment_count; i++) {
-            RopeSegment* segment;
+            struct RopeSegment* segment;
 
             segment = &rope->segments[i];
             segment->length_scale *= scale / 10.0f;
@@ -1233,34 +1185,8 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
     }
 }
 
-
-
-
-
-
-/* TODO: [near miss] 96.811590%; branch/load placement and register allocation remain; no further evidence-backed source change. */
-void bgnd_attach_rope_to_bgnd_obj(
-    int rope_model_index, int target_model_index, int object_id) {
-    MkObj* target_model;
-    MkObj* rope_model;
-    MkProc* proc;
-    RopeControllerData* rope;
-
-    rope_model = g_bgnd_preloaded_models[rope_model_index];
-    if (rope_model == 0) {
-        return;
-    }
-    target_model = g_bgnd_preloaded_models[target_model_index];
-    if (target_model == 0) {
-        return;
-    }
-    if (rope_model == 0 || target_model == 0) {
-        return;
-    }
-
-    proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
-
-
+static inline struct RopeControllerData* find_rope_for_model(MkProc* proc, MkObj* rope_model) {
+    struct RopeControllerData* rope;
     if (proc == 0) {
         rope = 0;
     } else {
@@ -1270,64 +1196,87 @@ void bgnd_attach_rope_to_bgnd_obj(
         if (iterator == 0) {
             rope = 0;
         } else {
-            rope = (RopeControllerData*)iterator->hdr;
+            rope = (struct RopeControllerData*)iterator->hdr;
             while (rope != 0) {
                 if (rope->model == rope_model) {
-                    break;
+                    return rope;
                 }
                 iterator = next_mkptr(iterator);
                 if (iterator == 0) {
                     rope = 0;
                 } else {
-                    rope = (RopeControllerData*)iterator->hdr;
+                    rope = (struct RopeControllerData*)iterator->hdr;
                 }
             }
         }
     }
 
-    if (rope != 0) {
-        rope->segments[rope->segment_count - 1].mode = 3;
-        rope->attached_model = target_model;
-        rope->attached_object_id = object_id;
+    return rope;
+}
+
+void bgnd_attach_rope_to_bgnd_obj(
+    int rope_model_index, int target_model_index, int object_id) {
+    MkObj* target_model;
+    MkObj* rope_model;
+    MkProc* proc;
+    struct RopeControllerData* rope;
+
+    rope_model = g_bgnd_preloaded_models[rope_model_index];
+    if (rope_model == 0) {
+        return;
+    }
+    target_model = g_bgnd_preloaded_models[target_model_index];
+    if (target_model == 0) {
+        return;
+    }
+    if (rope_model != 0 && target_model != 0) {
+        proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
+
+        rope = find_rope_for_model(proc, rope_model);
+
+        if (rope != 0) {
+            rope->segments[rope->segment_count - 1].mode = 3;
+            rope->attached_model = target_model;
+            rope->attached_object_id = object_id;
+        }
     }
 }
 
-/* TODO: [near miss] 98.82%; live-handle validation aligns; proc/pdata GPR roles differ. */
+/* TODO: [near miss] 98.82%; typed rope owner and latch agree; process/rope saved-register pair remains. */
 void bgnd_preload_obj_attach_rope(int model_index) {
     MkProc* rope_proc;
     MkObj* model;
-    MkHdr* rope_pdata;
+    struct RopeControllerData* rope;
 
     model = g_bgnd_preloaded_models[model_index];
     if (model != 0) {
         rope_proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
         if (rope_proc != 0) {
-            rope_pdata = get_mkpdata_generic(0x1A0);
-            if (rope_pdata != 0) {
-                mk_insert(rope_pdata, &rope_proc->pdata_list);
-                rope_controller_init(rope_pdata, model);
+            rope = (struct RopeControllerData*)get_mkpdata_generic(0x1A0);
+            if (rope != 0) {
+                mk_insert(&rope->hdr, &rope_proc->pdata_list);
+                rope_controller_init(&rope->hdr, model);
             }
         }
     }
 }
 
-/* TODO: [near miss] 88.13%; residue is spawn-argument scheduling only. */
 void start_rope_proc(void) {
-    int flags[2];
+    MkProcInitFlags flags;
     MkProc* proc;
 
     if (rope_proc_item.proc != 0) {
         return;
     }
-    flags[0] = 0;
-    flags[1] = 0;
-    proc = create_mkproc(
-        0x16, get_mkproc_nostack(&flags[0]), 0xB003, p_rope, 0);
+    flags.value = 0;
+
+    proc = get_mkproc_nostack(flags);
+    proc = create_mkproc(0x16, proc, 0xB003, p_rope, 0);
     if (proc != 0) {
         rope_proc_item.proc = proc;
         rope_proc_item.instance = proc->instance;
         if (g_game_info.bgnd_obj != 0) {
-            mk_insert((MkHdr*)proc, &g_game_info.bgnd_obj->child_list);
+            mk_insert(&proc->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }
 }
@@ -1350,14 +1299,14 @@ static inline void rope_bone_world_matrix(
         (Vec*)&modelling->pos);
 }
 
-/* TODO: [near miss] 96.64%; rope info/modelling r27/r25 swap and stack-matrix address registers r28/r29 remain. */
+/* TODO: [near miss] 96.80%; rope info/model owner coloring and stack-matrix address registers remain. */
 static void rope_controller_init(MkHdr* pdata, MkObj* model) {
-    RopeControllerData* rope;
-    RopeInfo* info_base;
+    struct RopeControllerData* rope;
+    struct RopeInfo* info_base;
     int segment_count;
     int i;
 
-    rope = (RopeControllerData*)pdata;
+    rope = (struct RopeControllerData*)pdata;
     rope->model = model;
     rope->attached_model = 0;
     rope->attached_object_id = 0;
@@ -1369,8 +1318,8 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     rope->segment_count = segment_count;
     rope->damping = 0.975f;
     for (i = 0; i < rope->segment_count; i++) {
-        RopeInfo* info;
-        RopeSegment* segment;
+        struct RopeInfo* info;
+        struct RopeSegment* segment;
         MkBone* bone;
 
         segment = &rope->segments[i];
@@ -1395,7 +1344,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
         segment->bone = bone;
         bone->flags_54_bits.calculation_locked = 1;
         rope_bone_world_matrix(
-            (RwMatrix*)&bone->matrix, (RwMatrix*)bone->parent_matrix, model);
+            &bone->matrix, bone->parent_matrix, model);
 
         if (bone->transform_parent != 0) {
             MkBone* child;
@@ -1405,21 +1354,21 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
             child = bone->transform_parent;
             child->flags_54_bits.calculation_locked = 1;
             rope_bone_world_matrix(
-                (RwMatrix*)&child->matrix, (RwMatrix*)child->parent_matrix,
+                &child->matrix, child->parent_matrix,
                 model);
 
             if (bone->flags_54_bits.calculation_locked) {
                 bone_matrix = bone->matrix;
             } else {
                 rope_bone_world_matrix(
-                    (RwMatrix*)&bone_matrix, (RwMatrix*)bone->parent_matrix,
+                    &bone_matrix, bone->parent_matrix,
                     model);
             }
             if (child->flags_54_bits.calculation_locked) {
                 child_matrix = child->matrix;
             } else {
                 rope_bone_world_matrix(
-                    (RwMatrix*)&child_matrix, (RwMatrix*)child->parent_matrix,
+                    &child_matrix, child->parent_matrix,
                     model);
             }
             PSVECSubtract(
@@ -1450,39 +1399,22 @@ static inline void rope_update_bone_matrix(
         (Mat33*)model_matrix, (Vec*)&model_matrix->pos_vec);
 }
 
-static inline void rope_set_identity(RwMatrix* matrix) {
-    matrix->right.x = 1.0f;
-    matrix->right.y = 0.0f;
-    matrix->right.z = 0.0f;
-    matrix->up.x = 0.0f;
-    matrix->up.y = 1.0f;
-    matrix->up.z = 0.0f;
-    matrix->at.x = 0.0f;
-    matrix->at.y = 0.0f;
-    matrix->at.z = 1.0f;
-    matrix->pos.x = 0.0f;
-    matrix->pos.y = 0.0f;
-    matrix->pos.z = 0.0f;
-    matrix->flags |= 0x20003;
-}
-
 static inline void rope_point_bone_at(
-    MkBone* bone, Vec* direction, RwMatrixPosition* axis,
-    Quat* quaternion,
+    MkBone* bone, const RwMatrix* initial_matrix, Vec* direction,
+    RwMatrixPosition* axis, Quat* quaternion,
     RwMatrix* source, RwMatrix* rotation) {
     PSVECNormalize(direction, direction);
-    *axis = *(RwMatrixPosition*)&bone->parent_matrix->up;
+    *axis = *(const RwMatrixPosition*)&initial_matrix->up;
     PSVECNormalize(&axis->value, &axis->value);
     gxVectV3V3ToQuat(quaternion, &axis->value, direction);
     gxQuatQuatToMat((Mat33*)rotation, quaternion);
     *source = *bone->parent_matrix;
-    gxMat33x33(
-        (Mat33*)bone->parent_matrix, (const Mat33*)source,
-        (const Mat33*)rotation);
+    gxMat33x33((Mat33*)bone->parent_matrix, (const Mat33*)source,
+              (const Mat33*)rotation);
 }
 
-static inline RopeSegment* rope_next_segment(
-    RopeControllerData* rope, int index) {
+static inline struct RopeSegment* rope_next_segment(
+    struct RopeControllerData* rope, int index) {
     index++;
     if (index >= rope->segment_count) {
         return 0;
@@ -1490,8 +1422,8 @@ static inline RopeSegment* rope_next_segment(
     return &rope->segments[index];
 }
 
-static inline RopeSegment* rope_previous_segment(
-    RopeControllerData* rope, int index) {
+static inline struct RopeSegment* rope_previous_segment(
+    struct RopeControllerData* rope, int index) {
     index--;
     if (index < 0) {
         return 0;
@@ -1499,28 +1431,26 @@ static inline RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/* TODO: [near miss] 92.46%; retail aligns the matrix/vector workspace to 16 bytes; residue is stack offsets, register allocation and load scheduling. */
+/* TODO: [near miss] 99.02698%; frame and operations agree; owner GPR coloring and zero-compare operand order remain. */
 static void rope_controller_update(MkHdr* pdata) {
-    MkObj* model;
-    RopeControllerData* rope;
+    struct RopeControllerData* rope = (struct RopeControllerData*)pdata;
+    MkObj* model = rope->model;
     MKMATRIX inverse_model_matrix;
     MKMATRIX attached_matrix;
     MKMATRIX rotation;
     MKMATRIX source;
-    Vec acceleration;
-    Vec velocity_delta;
+    MKVECTOR acceleration;
+    MKVECTOR velocity_delta;
     RwMatrixPosition constraint_axis;
-    Vec correction;
-    Vec local_position;
-    Vec attached_position;
+    MKVECTOR correction;
+    MKVECTOR local_position;
+    MKVECTOR attached_position;
     Quat quaternion;
     RwMatrixPosition axis;
-    Vec direction;
-    Vec midpoint;
+    MKVECTOR direction;
+    MKVECTOR midpoint;
     int i;
 
-    rope = (RopeControllerData*)pdata;
-    model = rope->model;
     if (model == 0) {
         return;
     }
@@ -1528,9 +1458,10 @@ static void rope_controller_update(MkHdr* pdata) {
     RwMatrixInvert(&inverse_model_matrix, &model->frame->modelling);
 
     for (i = 0; i < rope->segment_count; i++) {
-        RopeSegment* segment;
-        RopeSegment* next;
+        struct RopeSegment* segment;
+        struct RopeSegment* next;
         MkBone* bone;
+        MkBone* parent;
 
         segment = &rope->segments[i];
         bone = segment->bone;
@@ -1540,12 +1471,14 @@ static void rope_controller_update(MkHdr* pdata) {
 
         if (segment->mode == 1) {
             if (bone->flags_54_bits.calculation_locked) {
-                rope_update_bone_matrix(bone, &model->frame->modelling);
+                const RwMatrix* model_matrix = &model->frame->modelling;
+                rope_update_bone_matrix(bone, model_matrix);
             }
             continue;
         }
 
-        if (bone->transform_parent == 0) {
+        parent = bone->transform_parent;
+        if (parent == 0) {
             continue;
         }
 
@@ -1567,7 +1500,7 @@ static void rope_controller_update(MkHdr* pdata) {
             PSVECAdd(
                 &segment->velocity, &velocity_delta, &segment->velocity);
 
-            if (segment->field_48 <= 0.0f) {
+            if (segment->field_48 >= 0.0f) {
                 float span_length;
                 float maximum_length;
 
@@ -1575,12 +1508,11 @@ static void rope_controller_update(MkHdr* pdata) {
                 maximum_length =
                     segment->length_scale + segment->field_48;
                 if (span_length > maximum_length) {
-                    PSVECScale(
-                        &segment->span, &segment->span,
-                        (rope->damping *
-                             (span_length - maximum_length) +
-                         maximum_length) /
-                            span_length);
+                    float scale;
+                    scale = rope->damping * (span_length - maximum_length) +
+                            maximum_length;
+                    scale /= span_length;
+                    PSVECScale(&segment->span, &segment->span, scale);
                     constraint_axis =
                         *(RwMatrixPosition*)&segment->span;
                     PSVECNormalize(
@@ -1601,15 +1533,15 @@ static void rope_controller_update(MkHdr* pdata) {
         }
 
         bone->parent_matrix->pos.x =
-            bone->transform_parent->parent_matrix->pos.x + segment->span.x;
+            segment->span.x + parent->parent_matrix->pos.x;
         bone->parent_matrix->pos.y =
-            bone->transform_parent->parent_matrix->pos.y + segment->span.y;
+            segment->span.y + parent->parent_matrix->pos.y;
         bone->parent_matrix->pos.z =
-            bone->transform_parent->parent_matrix->pos.z + segment->span.z;
+            segment->span.z + parent->parent_matrix->pos.z;
     }
 
     for (i = 0; i < rope->segment_count; i++) {
-        RopeSegment* segment;
+        struct RopeSegment* segment;
         MkBone* bone;
 
         segment = &rope->segments[i];
@@ -1620,6 +1552,7 @@ static void rope_controller_update(MkHdr* pdata) {
 
         if (segment->mode == 3 && rope->attached_model != 0) {
             MkBone* attached_bone;
+            MkBone* parent;
             RwMatrix* attached_model_matrix;
 
             segment->velocity.x = 0.0f;
@@ -1648,36 +1581,39 @@ static void rope_controller_update(MkHdr* pdata) {
             gxMat33Tx31(
                 &local_position, &attached_position,
                 (Mat33*)&inverse_model_matrix);
-            local_position.x += model->pos.value.x;
-            local_position.y += model->pos.value.y;
-            local_position.z += model->pos.value.z;
+            local_position.x += inverse_model_matrix.pos.x;
+            local_position.y += inverse_model_matrix.pos.y;
+            local_position.z += inverse_model_matrix.pos.z;
             bone->parent_matrix->pos.x = local_position.x;
             bone->parent_matrix->pos.y = local_position.y;
             bone->parent_matrix->pos.z = local_position.z;
 
-            if (bone->transform_parent != 0) {
+            parent = bone->transform_parent;
+            if (parent != 0) {
                 segment->span.x =
                     bone->parent_matrix->pos.x -
-                    bone->transform_parent->parent_matrix->pos.x;
+                    parent->parent_matrix->pos.x;
                 segment->span.y =
                     bone->parent_matrix->pos.y -
-                    bone->transform_parent->parent_matrix->pos.y;
+                    parent->parent_matrix->pos.y;
                 segment->span.z =
                     bone->parent_matrix->pos.z -
-                    bone->transform_parent->parent_matrix->pos.z;
+                    parent->parent_matrix->pos.z;
             }
         }
 
         if (bone->flags_54_bits.calculation_locked) {
-            rope_update_bone_matrix(bone, &model->frame->modelling);
+            const RwMatrix* model_matrix = &model->frame->modelling;
+            rope_update_bone_matrix(bone, model_matrix);
         }
     }
 
     for (i = 0; i < rope->segment_count; i++) {
-        RopeSegment* segment;
-        RopeSegment* previous;
-        RopeSegment* next;
+        struct RopeSegment* segment;
+        struct RopeSegment* previous;
+        struct RopeSegment* next;
         MkBone* bone;
+        RwMatrix* parent_matrix;
 
         segment = &rope->segments[i];
         bone = segment->bone;
@@ -1690,38 +1626,40 @@ static void rope_controller_update(MkHdr* pdata) {
 
             span_length = PSVECMag(&segment->span);
             if (span_length != 0.0f) {
-                PSVECScale(
-                    &segment->span, &segment->offset,
-                    -((span_length - segment->length_scale) *
-                      segment->inverse_length_scale) /
-                        span_length);
+                float extension = span_length - segment->length_scale;
+                PSVECScale(&segment->span, &segment->offset,
+                           -(extension * segment->inverse_length_scale) /
+                               span_length);
             }
         }
 
         previous = rope_previous_segment(rope, i);
         if (previous != 0) {
-            rope_set_identity(&source);
-            rope_set_identity(&rotation);
+            RwMatrixSetIdentityMacro(&rotation);
+            RwMatrixSetIdentityMacro(&source);
+            parent_matrix = bone->parent_matrix;
             PSVECScale(&segment->span, &direction, -1.0f);
             rope_point_bone_at(
-                bone, &direction, &axis, &quaternion, &source,
+                bone, parent_matrix, &direction, &axis, &quaternion, &source,
                 &rotation);
         } else if (segment->mode == 1) {
             next = rope_next_segment(rope, i);
             if (next != 0) {
                 PSVECAdd(&segment->span, &next->span, &midpoint);
                 PSVECScale(&midpoint, &midpoint, 0.5f);
-                rope_set_identity(&source);
-                rope_set_identity(&rotation);
+                RwMatrixSetIdentityMacro(&rotation);
+                RwMatrixSetIdentityMacro(&source);
+                parent_matrix = bone->parent_matrix;
                 PSVECSubtract(&segment->span, &midpoint, &direction);
                 rope_point_bone_at(
-                    bone, &direction, &axis, &quaternion, &source,
+                    bone, parent_matrix, &direction, &axis, &quaternion, &source,
                     &rotation);
             }
         }
 
         if (bone->flags_54_bits.calculation_locked) {
-            rope_update_bone_matrix(bone, &model->frame->modelling);
+            const RwMatrix* model_matrix = &model->frame->modelling;
+            rope_update_bone_matrix(bone, model_matrix);
         }
     }
 }

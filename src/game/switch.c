@@ -1,80 +1,31 @@
 #include "game/switch.h"
 #include "game/controller.h"
+#include "game/plyr_globals.h"
+#include "game/mk_chess.h"
+#include "game/menu.h"
+#include "game/konquest.h"
+#include "game/minigames.h"
+#include "game/moves.h"
+#include "platform/joy.h"
+#include "platform/io.h"
+#include "game/ejb.h"
+#include "game/attract.h"
 #include "game/game_info.h"
+#include "game/game.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_obj.h"
+#include "platform/display.h"
+#include "platform/main.h"
+#include "runtime/utils.h"
 
-typedef int s32;
-typedef float f32;
+static float switch_proc_up(void);
+static float switch_proc_down(void);
+float switch_proc_left(void);
+float switch_proc_right(void);
 
-
-
-typedef struct JoinPdata {
-    MkHdr hdr;
-    int port;
-} JoinPdata;
-
-
-extern SwitchPdata* switch_pdata;
-extern JoinPdata* mab_generic_pdata;
-extern unsigned long display_off;
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
-extern int exec_tick_ctr;
-extern f32 joy_dash_back(void);
-extern f32 joy_duck_loop(void);
-extern f32 x_angle_jump_left(void);
-extern f32 x_angle_jump_right(void);
-
-int get_game_state(void);
-int ok_to_join_in(void);
-MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id);
-f32 do_join_in(void);
-f32 p_pause_menu_switch(void);
-f32 p_switch_proc_start(void);
-f32 switch_proc_attack_4(void);
-f32 switch_proc_attack_3(void);
-f32 switch_proc_attack_1(void);
-f32 p_puzzle_switch_4(void);
-f32 p_puzzle_switch_3(void);
-f32 p_puzzle_switch_1(void);
-f32 p_konquest_switch_4(void);
-f32 p_konquest_switch_3(void);
-f32 p_konquest_switch_1(void);
-f32 p_board_switch_4(void);
-f32 p_board_switch_over_3(void);
-f32 p_board_switch_3(void);
-f32 p_board_switch_1(void);
-f32 p_atm_start_button(void);
-f32 p_block(void);
-f32 p_puzzle_switch_drop(void);
-f32 switch_proc_attack_5(void);
-f32 p_konquest_switch_R1(void);
-f32 p_board_switch_r2(void);
-f32 switch_proc_advance_moveset(void);
-f32 p_board_switch_l1(void);
-f32 switch_proc_pickup(void);
-f32 switch_proc_attack_2(void);
-f32 p_puzzle_switch_2(void);
-f32 p_konquest_inventory_switch(void);
-f32 p_board_switch_2(void);
-f32 p_puzzle_switch_right(void);
-f32 p_puzzle_switch_left(void);
-f32 p_puzzle_switch_down(void);
-f32 p_puzzle_switch_up(void);
-f32 p_puzzle_switch_lt_stick(void);
-f32 p_swap_levels(void);
-static f32 switch_proc_up(void);
-static f32 switch_proc_down(void);
-f32 switch_proc_left(void);
-f32 switch_proc_right(void);
-int check_switch(int port, int switch_index);
-int is_this_move_disabled_exec(int move_id);
-f32 which_way_is_towards(void);
-
-static void dash_back_check(f32 direction);
+static void dash_back_check(float direction);
 
 static inline int switch_input_eaten(void) {
     if (is_controller_removed()) {
@@ -86,12 +37,12 @@ static inline int switch_input_eaten(void) {
     return 0;
 }
 
-static f32 dispatch_switch(MkProcEntryFn entry) {
+static float dispatch_switch(MkProcEntryFn entry) {
     aproc->vtbl->jump_sleep(entry, 0.0f);
     return 0.0f;
 }
 
-f32 pad_rt_stick_btn_proc(void) {
+float pad_rt_stick_btn_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -101,7 +52,7 @@ f32 pad_rt_stick_btn_proc(void) {
     return -1.0f;
 }
 
-f32 pad_lt_stick_btn_proc(void) {
+float pad_lt_stick_btn_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -119,7 +70,7 @@ f32 pad_lt_stick_btn_proc(void) {
     return -1.0f;
 }
 
-f32 pad_select_proc(void) {
+float pad_select_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -129,7 +80,7 @@ f32 pad_select_proc(void) {
     return -1.0f;
 }
 
-f32 pad_start_proc(void) {
+float pad_start_proc(void) {
     int state;
 
     if (is_plyr_controller_enabled(switch_pdata->player) &&
@@ -163,7 +114,7 @@ f32 pad_start_proc(void) {
                 }
             case 7:
                 if (ok_to_join_in() && proc_create(do_join_in, 0x2073) != 0) {
-                    mab_generic_pdata->port = switch_pdata->player->pad_index;
+                    ((struct JoinInPdata*)mab_generic_pdata)->player = switch_pdata->player->pad_index;
                 }
                 break;
             case 3:
@@ -180,7 +131,7 @@ f32 pad_start_proc(void) {
     return -1.0f;
 }
 
-f32 pad_r2_proc(void) {
+float pad_r2_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -193,7 +144,7 @@ f32 pad_r2_proc(void) {
     return -1.0f;
 }
 
-f32 pad_r1_proc(void) {
+float pad_r1_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -207,7 +158,7 @@ f32 pad_r1_proc(void) {
     return -1.0f;
 }
 
-f32 pad_l2_proc(void) {
+float pad_l2_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -220,7 +171,7 @@ f32 pad_l2_proc(void) {
     return -1.0f;
 }
 
-f32 pad_l1_proc(void) {
+float pad_l1_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -233,7 +184,7 @@ f32 pad_l1_proc(void) {
     return -1.0f;
 }
 
-f32 pad_rrt_proc(void) {
+float pad_rrt_proc(void) {
     int eat_switch;
 
     if (is_plyr_controller_enabled(switch_pdata->player)) {
@@ -269,7 +220,7 @@ f32 pad_rrt_proc(void) {
     return -1.0f;
 }
 
-f32 pad_rlt_proc(void) {
+float pad_rlt_proc(void) {
     int eat_switch;
 
     if (is_plyr_controller_enabled(switch_pdata->player)) {
@@ -305,7 +256,7 @@ f32 pad_rlt_proc(void) {
     return -1.0f;
 }
 
-f32 pad_rdn_proc(void) {
+float pad_rdn_proc(void) {
     int eat_switch;
 
     if (is_plyr_controller_enabled(switch_pdata->player)) {
@@ -354,7 +305,7 @@ f32 pad_rdn_proc(void) {
     return -1.0f;
 }
 
-f32 pad_rup_proc(void) {
+float pad_rup_proc(void) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
             return -1.0f;
@@ -370,7 +321,7 @@ f32 pad_rup_proc(void) {
     return -1.0f;
 }
 
-static f32 dispatch_direction(
+static float dispatch_direction(
     MkProcEntryFn fight_entry, MkProcEntryFn puzzle_entry) {
     if (is_plyr_controller_enabled(switch_pdata->player)) {
         if (switch_input_eaten()) {
@@ -384,24 +335,24 @@ static f32 dispatch_direction(
     return -1.0f;
 }
 
-f32 pad_lrt_proc(void) {
+float pad_lrt_proc(void) {
     return dispatch_direction(switch_proc_right, p_puzzle_switch_right);
 }
 
-f32 pad_llt_proc(void) {
+float pad_llt_proc(void) {
     return dispatch_direction(switch_proc_left, p_puzzle_switch_left);
 }
 
-f32 pad_ldn_proc(void) {
+float pad_ldn_proc(void) {
     return dispatch_direction(switch_proc_down, p_puzzle_switch_down);
 }
 
-f32 pad_lup_proc(void) {
+float pad_lup_proc(void) {
     return dispatch_direction(switch_proc_up, p_puzzle_switch_up);
 }
 
-/* TODO: [near miss] 87.77778%; retail retains bit-result Boolean normalization;
- * helper reuse regresses; stop pending original abstraction evidence. */
+/* TODO: [near miss] 87.78%; unsigned bit-result normalization boundary unresolved;
+ * existing complete predicate reuse adds branches; retain direct guarded read. */
 int ck_eat_online_switches(void) {
     if (is_controller_removed()) {
         return 1;
@@ -409,12 +360,12 @@ int ck_eat_online_switches(void) {
     return g_game_info.switch_input_flags.eat_switches != 0;
 }
 
-f32 switch_proc_right(void) {
+float switch_proc_right(void) {
     dash_back_check(-1.0f);
     return -1.0f;
 }
 
-f32 switch_proc_left(void) {
+float switch_proc_left(void) {
     dash_back_check(1.0f);
     return -1.0f;
 }
@@ -450,8 +401,7 @@ static inline void set_switch_player_globals(PlyrInfo* player) {
     his_obj = player->slot.pdata->his_obj;
 }
 
-static f32 switch_proc_down(void) {
-    PlyrInfo* player = switch_pdata->player;
+static inline float check_player_duck(PlyrInfo* player) {
     int state;
 
     if (player != 0) {
@@ -473,13 +423,13 @@ static f32 switch_proc_down(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.40%; size-optimized frame matches; scans/inlined-player register pair (r30/r29) swapped. */
+static float switch_proc_down(void) {
+    return check_player_duck(switch_pdata->player);
+}
+
 #pragma optimize_for_size on
 #pragma use_lmw_stmw on
-static f32 switch_proc_up(void) {
-    int scans = 3;
-    PlyrInfo* player = switch_pdata->player;
-
+static inline float wait_for_angle_jump(PlyrInfo* player, int scans) {
     for (;;) {
         if (!angle_jump_held()) {
             break;
@@ -500,12 +450,16 @@ static f32 switch_proc_up(void) {
     }
     return -1.0f;
 }
+
+static float switch_proc_up(void) {
+    return wait_for_angle_jump(switch_pdata->player, 3);
+}
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
 #pragma optimize_for_size on
 #pragma use_lmw_stmw on
-static void dash_back_check(f32 direction) {
+static void dash_back_check(float direction) {
     PlyrInfo* player = switch_pdata->player;
     MkProc* idle_proc;
 
@@ -534,7 +488,7 @@ static void dash_back_check(f32 direction) {
 #pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-f32 angle_jump_scan_after_move(void) {
+float angle_jump_scan_after_move(void) {
     if (check_switch(plyr_pdata->controller_port, 0xC) &&
         check_switch(plyr_pdata->controller_port, 0xD)) {
         return dispatch_switch(x_angle_jump_right);

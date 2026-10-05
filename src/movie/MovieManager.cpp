@@ -52,7 +52,7 @@ void Simple_MoviePlayFullScreen(const char* path, int width, int height,
     if (movie == 0) {
         OSPanic(STR_FILE_MOVIEMANAGER, 0x2D8, STR_ASSERT_FAILED);
     } else {
-        mwMovieSetMovieVolume((_mwMovPlayer*)movie->handle, game_settings.volume[0]);
+        mwMovieSetMovieVolume(movie->handle, game_settings.volume[0]);
         if (tapout_cb != 0) {
             mwMovieSetTapoutCallback((void*)tapout_cb);
         }
@@ -91,6 +91,8 @@ void MovieDeleteTexture(RwTexture* texture) {
     RwTextureDestroy(texture);
 }
 
+/* TODO: [borked] 82.15385%; addressing mask clears bits16..23 instead of8..15;
+ * save/restore and parameter register differences also remain. */
 RwTexture* MovieNewTexture(int width, int height) {
     RwRaster* raster;
     void* pixels;
@@ -127,7 +129,7 @@ int MovieUpdate(MoviePlayer* movie) {
         if (movie->raster != 0) {
             MovieManager_RW_Set_Target_Raster(movie->raster);
         }
-        if (mwMoviePlayTick((_mwMovPlayer*)movie->handle) != 0) {
+        if (mwMoviePlayTick(movie->handle) != 0) {
             movie->state = 0;
             return 1;
         }
@@ -145,9 +147,9 @@ int MovieUpdate(MoviePlayer* movie) {
 void MovieStop(MoviePlayer* movie) {
     switch (movie->state) {
     case 2:
-        mwMovieUnPauseMovie((_mwMovPlayer*)movie->handle);
+        mwMovieUnPauseMovie(movie->handle);
     case 1:
-        mwMovieStopPlayback((_mwMovPlayer*)movie->handle);
+        mwMovieStopPlayback(movie->handle);
         movie->state = 0;
         break;
     case 0:
@@ -161,11 +163,11 @@ void MovieStop(MoviePlayer* movie) {
 void MovieDelete(MoviePlayer* movie) {
     switch (movie->state) {
     case 2:
-        mwMovieUnPauseMovie((_mwMovPlayer*)movie->handle);
+        mwMovieUnPauseMovie(movie->handle);
     case 1:
         MovieStop(movie);
     case 0:
-        mwMovieDestroyPlayer((_mwMovPlayer*)movie->handle);
+        mwMovieDestroyPlayer(movie->handle);
         movie->handle = 0;
         mwMovFree(movie);
         mwMovie_num_players--;
@@ -181,7 +183,7 @@ void MovieDelete(MoviePlayer* movie) {
 }
 
 MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, int height,
-                      void* create_flag, void* buffer_bytes) {
+                      unsigned int composition_flag, unsigned int maximum_bps) {
     MoviePlayer* player;
     MwMovieInitParams initParams;
     MwMovieCreateParams createParams;
@@ -232,7 +234,7 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
         mwMovie_initialized = 1;
     }
 
-    player = (MoviePlayer*)mwMovMalloc(0xC);
+    player = (MoviePlayer*)mwMovMalloc(sizeof(*player));
     if (player == 0) {
         mwMovLog(STR_OUT_OF_MEMORY);
     } else {
@@ -241,15 +243,15 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
 
         const_one = 1;
         const_four = 4;
-        createParams.const_one = const_one;
-        createParams.reserved0 = 0;
-        createParams.buffer_bytes = buffer_bytes;
-        createParams.width = (short)width;
-        createParams.height = (short)height;
-        createParams.create_flag = create_flag;
-        createParams.width2 = (short)width;
-        createParams.height2 = (short)height;
-        createParams.const_four = const_four;
+        createParams.frame_count = const_one;
+        createParams.audio_channel = 0;
+        createParams.maximum_bps = maximum_bps;
+        createParams.width = width;
+        createParams.height = height;
+        createParams.composition_flag = composition_flag;
+        createParams.output_width = width;
+        createParams.output_height = height;
+        createParams.fade_frames = const_four;
         player->handle = mwMovieCreatePlayer(&createParams);
         player->state = 0;
         player->raster = raster;
@@ -278,12 +280,12 @@ void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
         mwMovLog(STR_INVALID_START);
         return;
     }
-    mwMovieStartPlaybackLooping((_mwMovPlayer*)movie->handle, path);
+    mwMovieStartPlaybackLooping(movie->handle, path);
     movie->state = 1;
 }
 
 MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height) {
-    return MovieNew(raster, 0, 1, width, height, (void*)1, (void*)0x1E8480);
+    return MovieNew(raster, 0, 1, width, height, 1, 0x1E8480);
 }
 
 /* TODO: [near miss] 68.02%; switch shape matches; retail inlines MovieStop here (inlining-mode lead for MovieManager.o). */
@@ -299,12 +301,12 @@ void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
         mwMovLog(STR_INVALID_START);
         return;
     }
-    mwMovieStartPlayback((_mwMovPlayer*)movie->handle, path);
+    mwMovieStartPlayback(movie->handle, path);
     movie->state = 1;
 }
 
 MoviePlayer* MovieNewFullScreen(int width, int height) {
-    return MovieNew(0, 1, 0, width, height, 0, (void*)0x2DC6C0);
+    return MovieNew(0, 1, 0, width, height, 0, 0x2DC6C0);
 }
 
 }
