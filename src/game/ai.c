@@ -5363,14 +5363,21 @@ static inline unsigned int ai_move_table_row_count(
 
 static inline unsigned int ai_fighter_table_row_count(
     PlyrFighterDefinition* fighter, unsigned int category) {
-    return ai_move_table_row_count(fighter->move_blend_data, category);
+    PlyrMoveBlendData* move_data;
+    FighterAiTable* tables;
+
+    move_data = fighter->move_blend_data;
+    if (move_data == 0) {
+        return 0;
+    }
+    tables = move_data->ai_tables;
+    return tables[category].usable_row_count;
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.79%; drone/immediate saved pair differs;
- * spill-cost coloring pushes immediate first and pops drone into r31. */
 int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate) {
     AiFightstyleAttack* script;
+    int category;
     unsigned int special_count;
     unsigned int fightstyle_count;
     unsigned int attack_flags;
@@ -5474,8 +5481,6 @@ int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 0 || attack_state == 2) {
-        int category;
-
         attack_flags = 0;
         if (his_pdata->state != 0x600 &&
             (drone->difficulty_index >= 2 || (unsigned short)randu0(100) < 65)) {
