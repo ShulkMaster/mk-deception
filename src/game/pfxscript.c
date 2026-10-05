@@ -1,5 +1,7 @@
 #include "runtime/mk_cmdscript.h"
+#include "game/pfxscript.h"
 #include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_mem.h"
@@ -23,34 +25,36 @@
 #include "platform/main.h"
 #include "rw/rwcore_types.h"
 
-typedef struct PfxSpawnTableSlot {
+struct PfxSpawnTableSlot {
     int type;
     int row_count;
     PfxSpawnTable* table;
-} PfxSpawnTableSlot;
+};
 
-typedef struct PfxScriptEnvironment {
+union PfxBehaviorState {
+    unsigned int behavior_count; /* build setup phase */
+    PfxBehavior* behavior;       /* behavior-script execution phase */
+};
+
+struct PfxScriptEnvironment {
     int active;
     int field04;
     MkPfx* source_effect; /* +0x08 */
     struct PfxScriptVm* effect; /* +0x0C -- callback VM, not MkPfx owner */
     PfxVmEmitter* emitter; /* +0x10 */
     int* remaining_effects; /* +0x14 */
-    PfxSpawnTableSlot* spawn_tables; /* +0x18 */
+    struct PfxSpawnTableSlot* spawn_tables; /* +0x18 */
     char* effect_name_override; /* +0x1C */
     char* texture_name; /* +0x20 */
     unsigned int initialization_script; /* +0x24 */
     float drag_coefficient;   /* +0x28 */
     float growth_coefficient; /* +0x2C */
     float fields30[2];
-    union {
-        unsigned int behavior_count; /* build setup phase */
-        PfxBehavior* behavior;       /* behavior-script execution phase */
-    }; /* +0x38 */
+    union PfxBehaviorState behavior_state; /* +0x38 */
     PfxBehavior* next_behavior; /* +0x3C */
-} PfxScriptEnvironment;
+};
 
-typedef struct PfxScriptEffectFlags {
+struct PfxScriptEffectFlags {
     unsigned char vertex_color_enabled : 1; /* bit7 */
     unsigned char particle_size_enabled : 1; /* bit6 */
     unsigned char textured : 1;
@@ -58,51 +62,51 @@ typedef struct PfxScriptEffectFlags {
     unsigned char light_enabled : 1; /* bit3 */
     unsigned char light_mode : 1; /* bit2 */
     unsigned char pad_bits1_0 : 2;
-} PfxScriptEffectFlags;
+};
 
-typedef struct PfxRenderFlags {
+struct PfxRenderFlags {
     unsigned char pad_bit7 : 1;
     unsigned char custom_bounding_radius : 1; /* bit6 */
     unsigned char pad_bits5_0 : 6;
-} PfxRenderFlags;
+};
 
-typedef struct PfxOrientationFlags {
+struct PfxOrientationFlags {
     unsigned char face_y : 1; /* bit7 */
     unsigned char pad_bits6_5 : 2;
     unsigned char rotation_enabled : 1;
     unsigned char pad_bits3_0 : 4;
-} PfxOrientationFlags;
+};
 
-typedef struct PfxLifecycleFlags {
+struct PfxLifecycleFlags {
     unsigned char pad_bits7_5 : 3;
     unsigned char restart_cycle : 1; /* bit4 */
     unsigned char owner_special : 1; /* bit3 */
     unsigned char pad_bits2_0 : 3;
-} PfxLifecycleFlags;
+};
 
-typedef struct PfxHideFlags {
+struct PfxHideFlags {
     unsigned char hidden : 1; /* bit7 */
     unsigned char pad : 7;
-} PfxHideFlags;
+};
 
-typedef struct PfxZTestFlags {
+struct PfxZTestFlags {
     unsigned char pad : 7;
     unsigned char disabled : 1; /* bit0 */
-} PfxZTestFlags;
+};
 
-typedef struct PfxParametricFlags {
+struct PfxParametricFlags {
     unsigned char pad_bit7 : 1;
     unsigned char scan_flag_40 : 1;
     unsigned char scan_flag_20 : 1;
     unsigned char pad_bits4_0 : 5;
-} PfxParametricFlags;
+};
 
-typedef struct PfxScriptVm {
+struct PfxScriptVm {
     char pad00[0x40];
-    PfxRenderFlags render_flags; /* VM +0x40 */
+    struct PfxRenderFlags render_flags; /* VM +0x40 */
     char pad41[0x10F];
-    PfxScriptEffectFlags flags;
-    PfxOrientationFlags orientation_flags; /* +0x151 */
+    struct PfxScriptEffectFlags flags;
+    struct PfxOrientationFlags orientation_flags; /* +0x151 */
     char pad152[2];
     float light_direction_components[3]; /* +0x154 */
     PfxColor light_color; /* +0x160 */
@@ -126,26 +130,30 @@ typedef struct PfxScriptVm {
     PfxMetrics* load_metrics; /* +0x224 */
     float kill_plane; /* +0x228 */
     int initialization_mode; /* +0x22C */
-} PfxScriptVm;
+};
 
-typedef struct PfxScriptEffect {
+struct PfxEmitterHideView {
+    char pad40[0x40];
+    struct PfxHideFlags hide_flags; /* effect +0x80 */
+    char pad81[0xCF];
+};
+
+union PfxEmitterStorage {
+    struct PfxRenderFlags render_flags;
+    struct PfxEmitterHideView hide_view;
+    unsigned char emitters[0x110];
+};
+
+struct PfxScriptEffect {
     MkHdr hdr; /* +0x00 */
-    PfxLifecycleFlags lifecycle_flags; /* +0x08 */
+    struct PfxLifecycleFlags lifecycle_flags; /* +0x08 */
     char pad09[0x1F];
     float effect_value; /* +0x28 */
     int render_priority; /* +0x2C */
     char pad30[0x10];
-    union {
-        PfxRenderFlags render_flags; /* +0x40 */
-        struct {
-            char pad40[0x40];
-            PfxHideFlags hide_flags; /* +0x80 */
-            char pad81[0xCF];
-        };
-        unsigned char emitters[0x110]; /* +0x40 */
-    };
-    PfxScriptEffectFlags flags;
-    PfxOrientationFlags orientation_flags; /* +0x151 */
+    union PfxEmitterStorage emitter_storage; /* +0x40 */
+    struct PfxScriptEffectFlags flags;
+    struct PfxOrientationFlags orientation_flags; /* +0x151 */
     char pad152[2];
     float light_direction_components[3]; /* +0x154 */
     PfxColor light_color; /* +0x160 */
@@ -155,8 +163,8 @@ typedef struct PfxScriptEffect {
     char pad178[0x0A];
     short texture_animation_enabled; /* +0x182 */
     char pad184[0x0C];
-    PfxZTestFlags ztest_flags; /* +0x190 */
-    PfxParametricFlags parametric_flags; /* +0x191 */
+    struct PfxZTestFlags ztest_flags; /* +0x190 */
+    struct PfxParametricFlags parametric_flags; /* +0x191 */
     char pad192[2];
     float decal_plane[6]; /* +0x194 */
     float aspect_x; /* +0x1AC */
@@ -182,16 +190,16 @@ typedef struct PfxScriptEffect {
     PfxMetrics* metrics; /* +0x264 */
     int field268;
     int parametric; /* +0x26C */
-} PfxScriptEffect;
+};
 
-typedef struct PfxVertexColorArgs {
+struct PfxVertexColorArgs {
     unsigned int red;
     unsigned int green;
     unsigned int blue;
     unsigned int alpha;
-} PfxVertexColorArgs;
+};
 
-typedef struct PfxLightArgs {
+struct PfxLightArgs {
     unsigned int red;
     unsigned int green;
     unsigned int blue;
@@ -199,28 +207,28 @@ typedef struct PfxLightArgs {
     float direction_components[3];
     int mode;
     Vec position;
-} PfxLightArgs;
+};
 
-typedef struct PfxScriptColorRow {
+struct PfxScriptColorRow {
     int red;
     int green;
     int blue;
     int alpha;
-} PfxScriptColorRow;
+};
 
-typedef struct PfxParametricEmitterDescription {
+struct PfxParametricEmitterDescription {
     PfxVec3 origin;
     unsigned int initialization_script;
-} PfxParametricEmitterDescription;
+};
 
-typedef struct PfxParametricEffectDescription {
+struct PfxParametricEffectDescription {
     char* effect_name;
     int effect_id;
     char* texture_name;
-    PfxParametricEmitterDescription* emitter;
+    struct PfxParametricEmitterDescription* emitter;
     float* table_a;
     float* table_b;
-    PfxScriptColorRow* color_table;
+    struct PfxScriptColorRow* color_table;
     float field1C;
     float field20;
     float field24;
@@ -232,57 +240,57 @@ typedef struct PfxParametricEffectDescription {
     float allocation_count;
     int blend_mode;
     float effect_value;
-} PfxParametricEffectDescription;
+};
 
-typedef struct PfxStepTextureDescription {
+struct PfxStepTextureDescription {
     char* name;
     int frame_count;
     float horizontal_scale;
     float animation_speed; /* +0x0C */
-} PfxStepTextureDescription;
+};
 
-typedef struct PfxStepEffectDescription {
+struct PfxStepEffectDescription {
     char* effect_name;
     int effect_id;
-    PfxStepTextureDescription* texture;
-    PfxParametricEmitterDescription* emitter;
+    struct PfxStepTextureDescription* texture;
+    struct PfxParametricEmitterDescription* emitter;
     unsigned int* behavior_scripts;
     float emitter_lifetime;
     int field18;
     float allocation_count;
     int blend_mode;
     float effect_value;
-} PfxStepEffectDescription;
+};
 
-typedef struct PfxBankLoadRow {
+struct PfxBankLoadRow {
     unsigned int function_index;
     int effect_count;
-} PfxBankLoadRow;
+};
 
 typedef void (*PfxBankDestroyFn)(MkHdr* bank);
 
-typedef struct PfxBankVtablePrefix {
+struct PfxBankVtablePrefix {
     void* reserved[4];
     PfxBankDestroyFn destroy;
-} PfxBankVtablePrefix;
+};
 
-typedef struct PfxBank PfxBank;
+struct PfxBank;
 
-typedef struct PfxBankLatch {
-    PfxBank* bank;
+struct PfxBankLatch {
+    struct PfxBank* bank;
     unsigned int bank_instance;
-} PfxBankLatch;
+};
 
-typedef struct PfxEffectLatch {
-    PfxScriptEffect* effect;
+struct PfxEffectLatch {
+    struct PfxScriptEffect* effect;
     unsigned int effect_instance;
-} PfxEffectLatch;
+};
 
-typedef struct PfxResolvedHandle {
-    PfxBank* bank;
+struct PfxResolvedHandle {
+    struct PfxBank* bank;
     int effect_index;
-    PfxScriptEffect* effect;
-} PfxResolvedHandle;
+    struct PfxScriptEffect* effect;
+};
 
 struct PfxBank {
     MkHdr hdr;
@@ -292,13 +300,13 @@ struct PfxBank {
     unsigned int owner_flags; /* +0x14 */
     int effect_count; /* +0x18 */
     int effect_capacity; /* +0x1C */
-    PfxEffectLatch* effects; /* +0x20 */
+    struct PfxEffectLatch* effects; /* +0x20 */
     unsigned int* effect_owners; /* +0x24 */
 };
 
-static void vdestroy_effectbank(PfxBank* bank);
-static PfxResolvedHandle cached_info = { 0, 0, 0 };
-static PfxScriptEnvironment pfxscript_environment = {
+static void vdestroy_effectbank(struct PfxBank* bank);
+static struct PfxResolvedHandle cached_info = { 0, 0, 0 };
+static struct PfxScriptEnvironment pfxscript_environment = {
     0,
     0,
     0,
@@ -315,49 +323,52 @@ static PfxScriptEnvironment pfxscript_environment = {
     0,
     0,
 };
-static MkVtable5 vtbl_effectbank = {
+struct PfxBankVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(struct PfxBank* owner);
+};
+typedef char check_PfxBankVtable_size[(sizeof(struct PfxBankVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+static struct PfxBankVtable vtbl_effectbank = {
     not_mkproc,
     not_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    (MkVtblFn)vdestroy_effectbank,
+    vdestroy_effectbank,
 };
 static unsigned int bank_instance_counter[16] = { 0 };
 static int g_profile_enabled;
 static float parametric_birthrate = 1.0f;
-static PfxBank* current_effect_bank;
+static struct PfxBank* current_effect_bank;
 /* Retail .sbss symbol; no recovered clean-C consumer in this unit. */
-static const PfxParametricEffectDescription* g_effect_description;
+static const struct PfxParametricEffectDescription* g_effect_description;
 static PfxBehavior* behavior_buffer;
 static void* old_ltm;
 
-static PfxBankLatch banks[16];
+static struct PfxBankLatch banks[16];
 static unsigned int cached_handle;
 static ScriptSlot* g_pfx_cmo;
-static void bank_run_fx(PfxBank* bank);
+static void bank_run_fx(struct PfxBank* bank);
 
-void* memset(void* destination, int value, unsigned long size);
-void* memcpy(void* destination, const void* source, unsigned long size);
-int strcmp(const char* left, const char* right);
-unsigned long strlen(const char* text);
-char* strcpy(char* destination, const char* source);
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner);
 static void build_step_effect(
-    ScriptSlot* script, const PfxStepEffectDescription* description, int emitter_count);
+    ScriptSlot* script, const struct PfxStepEffectDescription* description, int emitter_count);
 static void build_parametric_effect_from_table(
-    ScriptSlot* script, const PfxParametricEffectDescription* description, int update);
+    ScriptSlot* script, const struct PfxParametricEffectDescription* description, int update);
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 static void resolve_pfx_handle(
-    unsigned int handle, PfxResolvedHandle* resolved);
-static void initialize_effect(PfxScriptVm* effect);
+    unsigned int handle, struct PfxResolvedHandle* resolved);
+static void initialize_effect(struct PfxScriptVm* effect);
 void texture_animation(float horizontal_scale, int vertical_frames, float speed);
-void fx_reset_emit(unsigned int effect);
 static inline void bank_destroy(MkHdr* bank);
-PfxScriptEffect* find_pfx_by_name(const char* name);
-void restart_effect_ppfx(PfxScriptEffect* effect);
-static inline PfxScriptEffect* resolve_effect_handle(unsigned int handle) {
-    PfxResolvedHandle resolved;
+struct PfxScriptEffect* find_pfx_by_name(const char* name);
+void restart_effect_ppfx(struct PfxScriptEffect* effect);
+static inline struct PfxScriptEffect* resolve_effect_handle(unsigned int handle) {
+    struct PfxResolvedHandle resolved;
     int kind = (handle >> 14) & 3;
 
     if (kind != 1 && kind != 2) {
@@ -370,7 +381,7 @@ static inline PfxScriptEffect* resolve_effect_handle(unsigned int handle) {
 
 static float p_update_effects(void);
 
-static inline PfxScriptEnvironment* active_pfx_environment(void) {
+static inline struct PfxScriptEnvironment* active_pfx_environment(void) {
     if (pfxscript_environment.active != 0) {
         return &pfxscript_environment;
     }
@@ -378,7 +389,7 @@ static inline PfxScriptEnvironment* active_pfx_environment(void) {
 }
 
 void fx_transfer(unsigned int handle, unsigned int owner) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -412,15 +423,15 @@ int emitter_id_from_handle(unsigned int handle) {
 }
 
 MkPfx* pfx_from_handle(unsigned int handle) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     return (MkPfx*)resolved.effect;
 }
 
 unsigned int fx_next_emitter(unsigned int handle) {
-    PfxResolvedHandle resolved;
-    PfxScriptEffect* effect;
+    struct PfxResolvedHandle resolved;
+    struct PfxScriptEffect* effect;
     int type;
     int emitter_index;
 
@@ -457,7 +468,7 @@ unsigned int fx_next_emitter(unsigned int handle) {
 }
 
 MkPfx* pfx_from_emitter(unsigned int handle) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
     int type;
 
     type = (handle >> 14) & 3;
@@ -468,12 +479,12 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/* TODO: [near miss] 96.36364%; effect/latch coloring and handle packing remain. */
+/* TODO: [near miss] 97.58%; generation byte uses rotate/insert instead of retail
+ * shift/OR; all register homes and lookup control flow agree. */
 unsigned int fx_by_id(int effect_id, unsigned int owner) {
-    PfxBankLatch* bank_latch;
-    PfxEffectLatch* effect_latch;
-    PfxScriptEffect* effect;
-    PfxBank* bank;
+    struct PfxBankLatch* bank_latch;
+    struct PfxScriptEffect* effect;
+    struct PfxBank* bank;
     int bank_index;
     int effect_index;
 
@@ -485,14 +496,14 @@ unsigned int fx_by_id(int effect_id, unsigned int owner) {
             for (effect_index = 0;
                  effect_index < bank->effect_count;
                  effect_index++) {
-                effect_latch = &bank->effects[effect_index];
-                effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
+                effect = MK_HDR_LIVE(bank->effects[effect_index].effect,
+                                     bank->effects[effect_index].effect_instance);
 
                 if (effect != 0 && effect->effect_id == effect_id) {
                     return (bank->handle_bank & 0xF) |
                         ((effect_index & 0x3FF) << 4) |
                         0x4000 |
-                        (bank->handle_generation << 24);
+                        (bank->handle_generation * 0x01000000U);
                 }
             }
         }
@@ -558,10 +569,10 @@ unsigned int fx(const char* name) {
 
 /* TODO: [near miss] 81.11%; latch search agrees; prologue saves (stmw vs stw) and register coloring remain. */
 unsigned int fx2(unsigned int bank_handle, const char* name) {
-    PfxBankLatch* bank_latch;
-    PfxEffectLatch* effect_latch;
-    PfxBank* bank;
-    PfxScriptEffect* effect;
+    struct PfxBankLatch* bank_latch;
+    struct PfxEffectLatch* effect_latch;
+    struct PfxBank* bank;
+    struct PfxScriptEffect* effect;
     int bank_index;
     int effect_index;
 
@@ -596,22 +607,22 @@ unsigned int fx2(unsigned int bank_handle, const char* name) {
 }
 
 void fx_hide(unsigned int handle, int hidden) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
-        resolved.effect->hide_flags.hidden = hidden;
+        resolved.effect->emitter_storage.hide_view.hide_flags.hidden = hidden;
     }
 }
 
 void fx_set(unsigned int handle, int field, float value) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
     float* destination;
     PfxVm* emitters;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
-        emitters = (PfxVm*)resolved.effect->emitters;
+        emitters = (PfxVm*)resolved.effect->emitter_storage.emitters;
 
         if ((field & 0xF00) == 0x200) {
             destination = pfx_get_field(emitters, -2, field);
@@ -623,13 +634,13 @@ void fx_set(unsigned int handle, int field, float value) {
 }
 
 void fx_get_v3(unsigned int handle, int field, Vec* value) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
     Vec* source;
     PfxVm* emitters;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
-        emitters = (PfxVm*)resolved.effect->emitters;
+        emitters = (PfxVm*)resolved.effect->emitter_storage.emitters;
 
         if ((field & 0xF00) == 0x200) {
             source = pfx_get_field(emitters, -2, field);
@@ -644,7 +655,7 @@ void fx_get_v3(unsigned int handle, int field, Vec* value) {
 
 void fx_set_param_v3(
     unsigned int handle, int parameter, float x, float y, float z) {
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
     PfxVec3* target;
 
     target = 0;
@@ -657,7 +668,7 @@ void fx_set_param_v3(
                 int emitter_index;
 
                 effect = resolve_effect_handle(handle);
-                runtime = (PfxVm*)effect->emitters;
+                runtime = (PfxVm*)effect->emitter_storage.emitters;
                 if (runtime == 0) {
                     emitter = 0;
                 } else {
@@ -673,7 +684,7 @@ void fx_set_param_v3(
                 }
             } else {
                 target = pfx_get_field(
-                    (PfxVm*)effect->emitters, -2, parameter);
+                    (PfxVm*)effect->emitter_storage.emitters, -2, parameter);
             }
             if (target != 0) {
                 target->x = x;
@@ -685,7 +696,7 @@ void fx_set_param_v3(
 }
 
 void fx_disable_ztest(unsigned int handle, int disabled) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -694,7 +705,7 @@ void fx_disable_ztest(unsigned int handle, int disabled) {
 }
 
 void fx_set_render_priority(unsigned int handle, int priority) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -703,7 +714,7 @@ void fx_set_render_priority(unsigned int handle, int priority) {
 }
 
 void create_y_mirror_effect(int field_28) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxClone* clone;
     MkObj* render_object;
 
@@ -721,9 +732,9 @@ void create_y_mirror_effect(int field_28) {
     }
 }
 
-void set_vertex_color(const PfxVertexColorArgs* color) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
-    PfxScriptVm* effect;
+void set_vertex_color(const struct PfxVertexColorArgs* color) {
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptVm* effect;
 
     effect = environment->effect;
     if (effect != 0 && effect->flags.vertex_color_enabled) {
@@ -734,9 +745,9 @@ void set_vertex_color(const PfxVertexColorArgs* color) {
 }
 
 /* TODO: [near miss] 71.01%; size and algorithm exact; residue is the unrolled three-vector copy. */
-void set_light(const PfxLightArgs* light) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
-    PfxScriptVm* effect;
+void set_light(const struct PfxLightArgs* light) {
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptVm* effect;
     int component;
 
     effect = environment->effect;
@@ -755,8 +766,8 @@ void set_light(const PfxLightArgs* light) {
 }
 
 void z_bias(float bias) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -766,8 +777,8 @@ void z_bias(float bias) {
 }
 
 void face_y(void) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -777,8 +788,8 @@ void face_y(void) {
 }
 
 void particle_size(float size) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -789,7 +800,7 @@ void particle_size(float size) {
 }
 
 void set_decal_plane(float* plane) {
-    PfxScriptVm* effect;
+    struct PfxScriptVm* effect;
 
     effect = active_pfx_environment()->effect;
     if (effect != 0) {
@@ -804,8 +815,8 @@ void set_decal_plane(float* plane) {
 }
 
 void set_aspect_ratio(float x, float y) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -816,8 +827,8 @@ void set_aspect_ratio(float x, float y) {
 }
 
 void set_bounding_radius(float radius) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -832,74 +843,74 @@ void enable_profiling(int enabled) {
 }
 
 void initial_multiply_float(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
         pfxvm_initial_multiply_float_range(
-            environment->behavior,
+            environment->behavior_state.behavior,
             unused, &range);
     }
 }
 
 void initial_set_float(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
         pfxvm_initial_set_float_range(
-            environment->behavior,
+            environment->behavior_state.behavior,
             unused, &range);
     }
 }
 
 void initial_divert(int unused, float minimum, float maximum) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxFloatRange range;
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         range.center = minimum;
         range.variation = maximum;
         pfxvm_initial_divert(
-            environment->behavior,
+            environment->behavior_state.behavior,
             unused, &range);
     }
 }
 
 void initial_add_v3(int destination, int source) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_initial_add_v3(
-            environment->behavior, destination, source);
+            environment->behavior_state.behavior, destination, source);
     }
 }
 
 void initial_reflect(int field) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_initial_reflect(environment->behavior, field);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_initial_reflect(environment->behavior_state.behavior, field);
     }
 }
 
 void kill_on_y_less_than_field(int field, int reference_field) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_kill_on_y_less_than_field(
-            environment->behavior, field, reference_field);
+            environment->behavior_state.behavior, field, reference_field);
     }
 }
 
 void change_on_y_less_than_field(int field, int source) {
-    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* behavior = active_pfx_environment()->behavior_state.behavior;
     PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
     if (behavior != 0 && next_behavior != 0) {
@@ -908,7 +919,7 @@ void change_on_y_less_than_field(int field, int source) {
 }
 
 void change_on_y_less(int field, float value) {
-    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* behavior = active_pfx_environment()->behavior_state.behavior;
     PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
     if (behavior != 0 && next_behavior != 0) {
@@ -917,7 +928,7 @@ void change_on_y_less(int field, float value) {
 }
 
 void change_on_less(int field, float value) {
-    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* behavior = active_pfx_environment()->behavior_state.behavior;
     PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
     if (behavior != 0 && next_behavior != 0) {
@@ -926,7 +937,7 @@ void change_on_less(int field, float value) {
 }
 
 void change_on_greater(int field, float value) {
-    PfxBehavior* behavior = active_pfx_environment()->behavior;
+    PfxBehavior* behavior = active_pfx_environment()->behavior_state.behavior;
     PfxBehavior* next_behavior = active_pfx_environment()->next_behavior;
 
     if (behavior != 0 && next_behavior != 0) {
@@ -935,97 +946,97 @@ void change_on_greater(int field, float value) {
 }
 
 void kill_roundrobin(int field) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_kill_roundrobin(environment->behavior, field);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_kill_roundrobin(environment->behavior_state.behavior, field);
     }
 }
 
 void kill_percent(float percent) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_kill_percent(environment->behavior, percent);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_kill_percent(environment->behavior_state.behavior, percent);
     }
 }
 
 void kill_on_greater(int field, float value) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_kill_on_greater(environment->behavior, field, value);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_kill_on_greater(environment->behavior_state.behavior, field, value);
     }
 }
 
 void udpate_roundrobin(int field) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_roundrobin(environment->behavior, field);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_roundrobin(environment->behavior_state.behavior, field);
     }
 }
 
 void update_assign(int destination, int source) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_assign(
-            environment->behavior, destination, source);
+            environment->behavior_state.behavior, destination, source);
     }
 }
 
 void update_texanim_hold(int texture_field, int age_field, float frame_time,
                          int frame_count, int frame_offset) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_animate_texture(
-            environment->behavior, texture_field, age_field, frame_count,
+            environment->behavior_state.behavior, texture_field, age_field, frame_count,
             frame_offset, 0, 0, frame_time);
     }
 }
 
 void update_texanim(int texture_field, int age_field, float frame_time,
                     int frame_count, int frame_offset) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_animate_texture(
-            environment->behavior, texture_field, age_field, frame_count,
+            environment->behavior_state.behavior, texture_field, age_field, frame_count,
             frame_offset, 0, 1, frame_time);
     }
 }
 
 void update_fade_alpha2(int color_field, int age_field, float start_time,
                         float duration, int start_alpha, int end_alpha) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_fade_alpha(
-            environment->behavior, color_field, age_field, start_alpha,
-            end_alpha, start_time, duration);
+            environment->behavior_state.behavior, color_field, age_field, start_time,
+            duration, start_alpha, end_alpha);
     }
 }
 
 /* TODO: [near miss] 76.508194%; typed color-table loop retains existing instruction scheduling residue. */
 void update_lerp_color(
     int color_field, int age_field, float duration, int color_count,
-    int first_color, const PfxScriptColorRow* table) {
-    PfxScriptEnvironment* environment;
+    int first_color, const struct PfxScriptColorRow* table) {
+    struct PfxScriptEnvironment* environment;
     PfxColor* colors;
     PfxColor* color;
-    const PfxScriptColorRow* row_data;
+    const struct PfxScriptColorRow* row_data;
     unsigned int row_count;
     int remaining;
 
     environment = active_pfx_environment();
-    if (environment->behavior == 0 || g_pfx_cmo == 0) {
+    if (environment->behavior_state.behavior == 0 || g_pfx_cmo == 0) {
         return;
     }
 
@@ -1048,73 +1059,73 @@ void update_lerp_color(
         row_data++;
     } while (--remaining != 0);
     pfxvm_update_lerp_color(
-        environment->behavior, color_field, age_field, color_count,
+        environment->behavior_state.behavior, color_field, age_field, color_count,
         first_color, colors, duration);
 }
 
 void update_fade_alpha(int color_field, int age_field, float start_time,
                        float duration) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_fade_alpha(
-            environment->behavior, color_field, age_field, 0xFF, 0,
-            start_time, duration);
+            environment->behavior_state.behavior, color_field, age_field, start_time,
+            duration, 0xFF, 0);
     }
 }
 
 void update_wrapbox(int field, float scale, float x, float y, float z) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_wrapbox(environment->behavior, field, scale, x, y, z);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_wrapbox(environment->behavior_state.behavior, field, scale, x, y, z);
     }
 }
 
 void update_mul_scalar(int field, float x, float y, float z) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_mul_scalar(environment->behavior, field, x, y, z);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_mul_scalar(environment->behavior_state.behavior, field, x, y, z);
     }
 }
 
 void update_copy(int field) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_copy(environment->behavior, field);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_copy(environment->behavior_state.behavior, field);
     }
 }
 
 void update_add_constant(int field, float value) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_add_constant(environment->behavior, field, value);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_add_constant(environment->behavior_state.behavior, field, value);
     }
 }
 
 void update_add_constant_v3(int field, float x, float y, float z) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
-    if (environment->behavior != 0) {
-        pfxvm_update_add_constant_v3(environment->behavior, field, x, y, z);
+    if (environment->behavior_state.behavior != 0) {
+        pfxvm_update_add_constant_v3(environment->behavior_state.behavior, field, x, y, z);
     }
 }
 
 void update_bounce(int field, int velocity_field, int bounce_count_field,
                    float scale) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_bounce(
-            environment->behavior, field, velocity_field,
+            environment->behavior_state.behavior, field, velocity_field,
             bounce_count_field, scale);
     }
 }
@@ -1122,7 +1133,7 @@ void update_bounce(int field, int velocity_field, int bounce_count_field,
 void update_add(int destination, int source) {
     PfxBehavior* behavior;
 
-    behavior = active_pfx_environment()->behavior;
+    behavior = active_pfx_environment()->behavior_state.behavior;
     if (behavior != 0) {
         pfxvm_update_add(behavior, destination, source);
         if ((source & 0xF00) != 0x200) {
@@ -1132,15 +1143,15 @@ void update_add(int destination, int source) {
 }
 
 void update_attract(int field, int target_field, float strength) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment->behavior != 0) {
+    if (environment->behavior_state.behavior != 0) {
         pfxvm_update_attract(
-            environment->behavior, field, target_field, strength);
+            environment->behavior_state.behavior, field, target_field, strength);
     }
 }
 
-void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
+void create_multiemit_parametric_fx(struct PfxParametricEffectDescription* effect,
                                     char* name, int emitter_count) {
     char* saved;
 
@@ -1153,7 +1164,7 @@ void create_multiemit_parametric_fx(PfxParametricEffectDescription* effect,
     }
 }
 
-void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
+void create_parametric_fx(struct PfxParametricEffectDescription* effect, char* name) {
     char* saved;
 
     if (effect != 0 && name != 0) {
@@ -1164,7 +1175,7 @@ void create_parametric_fx(PfxParametricEffectDescription* effect, char* name) {
     }
 }
 
-void create_multiemit_step_fx(PfxStepEffectDescription* effect,
+void create_multiemit_step_fx(struct PfxStepEffectDescription* effect,
                               char* name, int emitter_count) {
     char* saved;
 
@@ -1176,7 +1187,7 @@ void create_multiemit_step_fx(PfxStepEffectDescription* effect,
     }
 }
 
-void create_step_fx(PfxStepEffectDescription* effect, char* name) {
+void create_step_fx(struct PfxStepEffectDescription* effect, char* name) {
     char* saved;
 
     if (effect != 0 && name != 0) {
@@ -1187,7 +1198,7 @@ void create_step_fx(PfxStepEffectDescription* effect, char* name) {
     }
 }
 
-void create_step_effect(const PfxStepEffectDescription* effect) {
+void create_step_effect(const struct PfxStepEffectDescription* effect) {
     if (effect != 0) {
         build_step_effect(active_cmdscript->mko, effect, 1);
     }
@@ -1196,15 +1207,15 @@ void create_step_effect(const PfxStepEffectDescription* effect) {
 /* TODO: [breakthrough needed] 56.48%; step table scalar types and owner/VM
  * bases corrected; remaining control-flow/register reconstruction needs evidence. */
 static void build_step_effect(
-    ScriptSlot* script, const PfxStepEffectDescription* description,
+    ScriptSlot* script, const struct PfxStepEffectDescription* description,
     int emitter_count) {
-    PfxScriptEnvironment* environment;
-    PfxSpawnTableSlot table_slots[2];
+    struct PfxScriptEnvironment* environment;
+    struct PfxSpawnTableSlot table_slots[2];
     PfxBuildInfo build;
     PfxVmEmitter emitter_template;
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
     PfxVm* runtime;
-    PfxScriptVm* script_runtime;
+    struct PfxScriptVm* script_runtime;
     PfxVmEmitter* emitter;
     PfxVmEmitter* first_emitter;
     PfxBehavior* behavior;
@@ -1274,7 +1285,7 @@ static void build_step_effect(
         script, description->behavior_scripts);
     build.behavior_count = behavior_count;
     environment = active_pfx_environment();
-    environment->behavior_count = behavior_count;
+    environment->behavior_state.behavior_count = behavior_count;
     if (behavior_count == 0U) {
         return;
     }
@@ -1286,7 +1297,7 @@ static void build_step_effect(
         behavior = &behavior_buffer[behavior_index];
         memset(behavior, 0, sizeof(*behavior));
         environment = active_pfx_environment();
-        environment->behavior = behavior;
+        environment->behavior_state.behavior = behavior;
         if (behavior_index + 1 < behavior_count) {
             environment = active_pfx_environment();
             environment->next_behavior =
@@ -1357,7 +1368,7 @@ static void build_step_effect(
         return;
     }
 
-    runtime = (PfxVm*)effect->emitters;
+    runtime = (PfxVm*)effect->emitter_storage.emitters;
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
         for (emitter_index = 0;
@@ -1442,7 +1453,7 @@ static void build_step_effect(
         emitter->transform = transform;
     }
 
-    script_runtime = (PfxScriptVm*)runtime;
+    script_runtime = (struct PfxScriptVm*)runtime;
     script_runtime->vertex_color.r = 0xFF;
     script_runtime->vertex_color.g = 0xFF;
     script_runtime->vertex_color.b = 0xFF;
@@ -1478,27 +1489,38 @@ static void build_step_effect(
     }
 }
 
-/* TODO: [near miss] 91.5614%; zero materialization, flag-load scheduling and constant name remain. */
-/* TODO: [near miss] 91.64912%; only shared-zero materialization and flag-load scheduling remain; stop at coloring. */
-void reset_effect(const char* name) {
-    PfxScriptEffect* effect;
-    int emitter_index;
-    PfxVm* runtime;
-    PfxVmEmitter* emitter;
+static inline void pfx_reset_behavior_particles(PfxVm* runtime)
+{
     int field_index;
+
+    for (field_index = 0;
+         field_index < runtime->behavior_count;
+         field_index++) {
+        runtime->behavior_list[field_index]->particle_count = 0;
+    }
+}
+
+static inline void pfx_reset_effect_emitters(struct PfxScriptEffect* effect) {
+    PfxVm* runtime = (PfxVm*)effect->emitter_storage.emitters;
+    PfxVmEmitter* emitter;
+    int emitter_index;
+    effect->lifecycle_flags.restart_cycle = 0;
+    for (emitter_index = 0; emitter_index < runtime->emitter_count; emitter_index++) {
+        emitter = pfx_get_emitter(runtime, emitter_index);
+        emitter->flags.bits.cycle_paused = 1;
+        emitter->cycle_index = 0;
+        pfx_emitter_reset(emitter);
+    }
+}
+
+void reset_effect(const char* name) {
+    struct PfxScriptEffect* effect;
+    PfxVm* runtime;
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        runtime = (PfxVm*)effect->emitters;
-        effect->lifecycle_flags.restart_cycle = 0;
-        for (emitter_index = 0;
-             emitter_index < runtime->emitter_count;
-             emitter_index++) {
-            emitter = pfx_get_emitter(runtime, emitter_index);
-            emitter->flags.bits.cycle_paused = 1;
-            emitter->cycle_index = 0;
-            pfx_emitter_reset(emitter);
-        }
+        runtime = (PfxVm*)effect->emitter_storage.emitters;
+        pfx_reset_effect_emitters(effect);
 
         if (runtime->parametric != 0) {
             memset(
@@ -1506,11 +1528,7 @@ void reset_effect(const char* name) {
                 runtime->parametric->particle_capacity *
                     sizeof(PfxParametricParticle));
         } else {
-            for (field_index = 0;
-                 field_index < runtime->behavior_count;
-                 field_index++) {
-                runtime->behavior_list[field_index]->particle_count = 0;
-            }
+            pfx_reset_behavior_particles(runtime);
         }
 
         runtime->particle_cursor = 0;
@@ -1518,14 +1536,12 @@ void reset_effect(const char* name) {
     }
 }
 
-/* TODO: [near miss] 98.70%; residue is split nonvolatile saves only. */
-void reset_effect_ppfx(PfxScriptEffect* effect) {
+void reset_effect_ppfx(struct PfxScriptEffect* effect) {
     PfxVm* runtime;
     PfxVmEmitter* emitter;
     int emitter_index;
-    int field_index;
 
-    runtime = (PfxVm*)effect->emitters;
+    runtime = (PfxVm*)effect->emitter_storage.emitters;
     effect->lifecycle_flags.restart_cycle = 0;
     for (emitter_index = 0;
          emitter_index < runtime->emitter_count;
@@ -1542,23 +1558,17 @@ void reset_effect_ppfx(PfxScriptEffect* effect) {
             runtime->parametric->particle_capacity *
                 sizeof(PfxParametricParticle));
     } else {
-        for (field_index = 0;
-             field_index < runtime->behavior_count;
-             field_index++) {
-            runtime->behavior_list[field_index]->particle_count = 0;
-        }
+        pfx_reset_behavior_particles(runtime);
     }
 
     runtime->particle_cursor = 0;
     runtime->elapsed_time = 0.0f;
 }
 
-/* TODO: [near miss] 98.33334%; only equivalent loop-zero materialization differs; stop at shared-zero coloring. */
 void fx_reset(unsigned int handle) {
-    PfxResolvedHandle resolved;
-    PfxScriptEffect* effect;
+    struct PfxResolvedHandle resolved;
+    struct PfxScriptEffect* effect;
     PfxVm* runtime;
-    int index;
 
     resolve_pfx_handle(handle, &resolved);
     effect = resolved.effect;
@@ -1566,7 +1576,7 @@ void fx_reset(unsigned int handle) {
         return;
     }
 
-    runtime = (PfxVm*)effect->emitters;
+    runtime = (PfxVm*)effect->emitter_storage.emitters;
     fx_reset_emit(handle);
     if (runtime->parametric != 0) {
         memset(
@@ -1574,37 +1584,36 @@ void fx_reset(unsigned int handle) {
             runtime->parametric->particle_capacity *
                 sizeof(PfxParametricParticle));
     } else {
-        for (index = 0; index < runtime->behavior_count; index++) {
-            runtime->behavior_list[index]->particle_count = 0;
-        }
+        pfx_reset_behavior_particles(runtime);
     }
 
     runtime->particle_cursor = 0;
     runtime->elapsed_time = 0.0f;
 }
 
+static inline PfxVmEmitter* emitter_from_runtime(PfxVm* runtime, int index);
+
 static inline PfxVmEmitter* emitter_from_handle(unsigned int handle) {
-    PfxScriptEffect* effect;
-    PfxVm* runtime;
-    int emitter_index;
-
-    effect = resolve_effect_handle(handle);
-    runtime = (PfxVm*)effect->emitters;
-    if (runtime == 0) {
-        return 0;
-    }
-
-    emitter_index = (handle >> 16) & 0xF;
-    if (emitter_index < 0 || emitter_index >= runtime->emitter_count) {
-        return 0;
-    }
-    return &runtime->emitters[emitter_index];
+    PfxVm* runtime = (PfxVm*)resolve_effect_handle(handle)->emitter_storage.emitters;
+    return emitter_from_runtime(runtime, (handle >> 16) & 0xF);
 }
 
-/* TODO: [near miss] 99.50%; runtime/index domain recovered; compact saves plus shared helper coloring remain; pause control stops at coloring. */
+static inline PfxVmEmitter* emitter_from_runtime(PfxVm* runtime, int index) {
+    PfxVmEmitter* emitter;
+
+    if (runtime == 0) {
+        emitter = 0;
+    } else if (index < 0 || index >= runtime->emitter_count) {
+        emitter = 0;
+    } else {
+        emitter = &runtime->emitters[index];
+    }
+    return emitter;
+}
+
 void fx_restart_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
 
     emitter = emitter_from_handle(handle);
     effect = resolve_effect_handle(handle);
@@ -1616,7 +1625,6 @@ void fx_restart_emit(unsigned int handle) {
     }
 }
 
-/* TODO: [near miss] 99.44%; runtime/index domain recovered; compact saves and helper coloring remain. */
 void fx_reset_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
 
@@ -1630,7 +1638,7 @@ void fx_reset_emit(unsigned int handle) {
 }
 
 void restart_effect(const char* name) {
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
     PfxVmEmitter* emitter;
 
     effect = find_pfx_by_name(name);
@@ -1643,7 +1651,7 @@ void restart_effect(const char* name) {
     }
 }
 
-void restart_effect_ppfx(PfxScriptEffect* effect) {
+void restart_effect_ppfx(struct PfxScriptEffect* effect) {
     PfxVmEmitter* emitter = effect->emitter;
 
     effect->lifecycle_flags.restart_cycle = 1;
@@ -1654,18 +1662,17 @@ void restart_effect_ppfx(PfxScriptEffect* effect) {
 
 /* TODO: [near miss] 81.91304%; zero lifetime across emitter lookup differs; stop. */
 void resume_effect(const char* name) {
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
     PfxVmEmitter* emitter;
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
         effect->lifecycle_flags.restart_cycle = 1;
-        emitter = pfx_get_emitter((PfxVm*)effect->emitters, 0);
+        emitter = pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0);
         emitter->flags.bits.cycle_paused = 0;
     }
 }
 
-/* TODO: [near miss] 99.40000%; runtime/index domain and compact saves agree; helper register coloring remains. */
 void fx_pause_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
 
@@ -1676,10 +1683,9 @@ void fx_pause_emit(unsigned int handle) {
     }
 }
 
-/* TODO: [near miss] 99.47%; runtime/index domain recovered; compact saves and helper coloring remain. */
 void fx_resume_emit(unsigned int handle) {
     PfxVmEmitter* emitter;
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
 
     emitter = emitter_from_handle(handle);
     effect = resolve_effect_handle(handle);
@@ -1690,8 +1696,8 @@ void fx_resume_emit(unsigned int handle) {
 }
 
 void kill_at_plane(float plane) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
 
     environment = active_pfx_environment();
     effect = environment->effect;
@@ -1701,7 +1707,7 @@ void kill_at_plane(float plane) {
 }
 
 void set_cycle_emission(int enabled) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -1712,7 +1718,7 @@ void set_cycle_emission(int enabled) {
 }
 
 void set_cycle_length(float length, float position) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -1726,7 +1732,7 @@ void set_cycle_length(float length, float position) {
 /* TODO: [breakthrough needed] 80.44%; retail registry-index argument restored;
  * remaining table-slot control-flow/register reconstruction needs evidence. */
 void spawn_random_size(const float* table) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
     PfxSpawnTable* copied_table;
     unsigned int row_count;
@@ -1781,7 +1787,7 @@ void set_drag_coefficient(float coefficient) {
 }
 
 void set_rotation(float angle, float variance) {
-    PfxScriptVm* effect;
+    struct PfxScriptVm* effect;
     PfxVmEmitter* emitter;
 
     effect = active_pfx_environment()->effect;
@@ -1796,8 +1802,8 @@ void set_rotation(float angle, float variance) {
 void texture_animation_with_vsize(
     int vertical_frames, float horizontal_scale, float vertical_scale,
     float speed) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
     RwRaster* texture;
     float width;
     float height;
@@ -1814,9 +1820,9 @@ void texture_animation_with_vsize(
                 effect->runtime_flags |= 0x100;
             }
             pfx_texture_animate(
-                (PfxVm*)effect, (int)width,
-                (int)(horizontal_scale * width),
-                (int)(vertical_scale * height),
+                (PfxVm*)effect, width,
+                (horizontal_scale * width),
+                (vertical_scale * height),
                 vertical_frames, speed);
             effect->texture_animation_enabled = 1;
         }
@@ -1824,8 +1830,8 @@ void texture_animation_with_vsize(
 }
 
 void texture_animation(float horizontal_scale, int vertical_frames, float speed) {
-    PfxScriptEnvironment* environment;
-    PfxScriptVm* effect;
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
     RwRaster* texture;
     float width;
     float height;
@@ -1842,9 +1848,9 @@ void texture_animation(float horizontal_scale, int vertical_frames, float speed)
                 effect->runtime_flags |= 0x100;
             }
             pfx_texture_animate(
-                (PfxVm*)effect, (int)width,
-                (int)(horizontal_scale * width),
-                (int)(height / (horizontal_scale * (float)vertical_frames)),
+                (PfxVm*)effect, width,
+                (horizontal_scale * width),
+                (height / (horizontal_scale * (float)vertical_frames)),
                 vertical_frames, speed);
             effect->texture_animation_enabled = 1;
         }
@@ -1852,7 +1858,7 @@ void texture_animation(float horizontal_scale, int vertical_frames, float speed)
 }
 
 void spawn_color(int field, int red, int green, int blue, int alpha) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
@@ -1861,7 +1867,7 @@ void spawn_color(int field, int red, int green, int blue, int alpha) {
 }
 
 void emission_duration(float duration) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -1876,7 +1882,7 @@ void emission_duration(float duration) {
 void emit_cylindrical(
     int field, float x, float y, float z, float radius,
     float height, float start, float end) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
     if (environment->emitter != 0) {
@@ -1893,7 +1899,7 @@ void emit_cartesian(
     int field, float x, float y, float z,
     float width, float height, float depth) {
     float half = 0.5f;
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_box(
@@ -1906,7 +1912,7 @@ void emit_cartesian(
 void emit_disc2(
     int field, float x, float y, float z,
     float inner_radius, float outer_radius) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
     if (environment->emitter != 0) {
@@ -1921,7 +1927,7 @@ void emit_disc2(
 
 void emit_disc(
     int field, float x, float y, float z, float outer_radius) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     PfxVec3 axis;
 
     if (environment->emitter != 0) {
@@ -1936,7 +1942,7 @@ void emit_disc(
 void emit_spherical_section(int field, float x, float y, float z,
                             float radius, float radius_spread,
                             float angle, float angle_spread) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -1949,28 +1955,28 @@ void emit_spherical_section(int field, float x, float y, float z,
 void emit_from_pos_clamp_y(int field, int source, float x, float y, float z,
                            float minimum_length, float length_range,
                            float clamped_y) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_from_pos(
-            environment->emitter, field, source, 1,
-            x, y, z, minimum_length, length_range, clamped_y);
+            environment->emitter, field, source,
+            x, y, z, minimum_length, length_range, 1, clamped_y);
     }
 }
 
 void emit_from_pos(int field, int source, float x, float y, float z,
                    float minimum_length, float length_range) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_from_pos(
-            environment->emitter, field, source, 0,
-            x, y, z, minimum_length, length_range, 0.0f);
+            environment->emitter, field, source,
+            x, y, z, minimum_length, length_range, 0, 0.0f);
     }
 }
 
 void emit_spherical_from_boundary(int field, float radius) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_sphere(
@@ -1980,7 +1986,7 @@ void emit_spherical_from_boundary(int field, float radius) {
 }
 
 void emit_spherical(int field, float radius) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_sphere(
@@ -1991,7 +1997,7 @@ void emit_spherical(int field, float radius) {
 
 void emit_cuboid(int field, float x, float y, float z) {
     float half = 0.5f;
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_box(
@@ -2001,7 +2007,7 @@ void emit_cuboid(int field, float x, float y, float z) {
 }
 
 void emit_from_point(float x, float y, float z) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -2014,7 +2020,7 @@ void emit_from_point(float x, float y, float z) {
 }
 
 void emit_color(int field, int red, int green, int blue, int alpha) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_point_color(
@@ -2023,7 +2029,7 @@ void emit_color(int field, int red, int green, int blue, int alpha) {
 }
 
 void emit_uv(int field, float u, float v) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -2031,21 +2037,20 @@ void emit_uv(int field, float u, float v) {
     }
 }
 
-/* TODO: [near miss] 99.58%; commutative FP operands and constant relocation
- * remain; reversed source operands are neutral; stop at coloring. */
 void emit_in_range(int unused, float center, float width) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
     float half_width;
 
     if (environment->emitter != 0) {
-        half_width = width * 0.5f;
+        half_width = width;
+        half_width *= 0.5f;
         pfxvm_spawn_line_1f(environment->emitter, unused,
                             center - half_width, center + half_width);
     }
 }
 
 void emit_value(int field, float value) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -2054,7 +2059,7 @@ void emit_value(int field, float value) {
 }
 
 void emit_value_i(int field, int value) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
 
     environment = active_pfx_environment();
     if (environment->emitter != 0) {
@@ -2064,7 +2069,7 @@ void emit_value_i(int field, int value) {
 }
 
 void emit_constant_rate(void) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -2075,7 +2080,7 @@ void emit_constant_rate(void) {
 }
 
 void emit_roundrobin_mechanism(int field, int source) {
-    PfxScriptEnvironment* environment = active_pfx_environment();
+    struct PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->emitter != 0) {
         pfxvm_spawn_roundrobin_mechanism(
@@ -2083,31 +2088,35 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 94.50000%; two equivalent early-exit branch pairs differ; positive guards and explicit returns neutral; stop at lowering. */
+/* TODO: [near miss] 99.57%; two supported OIDs lower as a range instead of retail equality pairs. */
 void bind_to_bone(int bone_index) {
-    PfxScriptEnvironment* environment;
+    struct PfxScriptEnvironment* environment;
     MkPfx* effect;
     MkObj* object;
 
     environment = active_pfx_environment();
     effect = environment->source_effect;
-    if (bone_index != 0 && active_cmdscript != 0) {
-        if (active_cmdscript->mko != 0 &&
-            active_cmdscript->mko->load_ctx != 0) {
-            object = active_cmdscript->mko->load_ctx->bgnd_obj;
-            if (object->oid == 0x1001 || object->oid == 0x1002) {
-                effect->bound_obj = object;
-                if (effect->bound_obj != 0) {
-                    pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
-                }
-            }
+    if (bone_index == 0 || active_cmdscript == 0 || active_cmdscript->mko == 0) {
+        return;
+    }
+    if (active_cmdscript->mko->load_ctx == 0) return;
+    object = active_cmdscript->mko->load_ctx->bgnd_obj;
+    switch (object->oid) {
+    case 0x1001:
+    case 0x1002:
+        effect->bound_obj = object;
+        if (effect->bound_obj != 0) {
+            pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
         }
+        break;
+    default:
+        return;
     }
 }
 
 void fx_bind_emitter_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -2117,7 +2126,7 @@ void fx_bind_emitter_to_obj_bone(
 }
 
 void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -2127,7 +2136,7 @@ void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object) {
 
 void fx_bind_render_to_obj_bone(
     unsigned int handle, MkObj* object, int bone_index) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     if (resolved.effect != 0) {
@@ -2136,29 +2145,33 @@ void fx_bind_render_to_obj_bone(
     }
 }
 
-void parametric_update(const PfxParametricEffectDescription* effect) {
+void parametric_update(const struct PfxParametricEffectDescription* effect) {
     if (effect != 0) {
         build_parametric_effect_from_table(
             active_cmdscript->mko, effect, 1);
     }
 }
 
-/* TODO: [near miss] 94.65116%; zero materialization and clear-loop register coloring remain. */
-/* TODO: [near miss] 94.65116%; zero-copy materialization and clear-loop register coloring only; stop. */
-void unload_all_effect_banks(void) {
+static inline void destroy_active_pfxscript_banks(void) {
     int index;
 
     for (index = 0; index < 15; index++) {
-        PfxBank* bank;
+        struct PfxBank* bank;
 
         bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0) {
             bank_destroy(&bank->hdr);
         }
     }
-    for (index = 0; index < 15; index++) {
-        banks[index].bank = 0;
-        banks[index].bank_instance = 0;
+}
+
+void unload_all_effect_banks(void) {
+    int clear_index;
+
+    destroy_active_pfxscript_banks();
+    for (clear_index = 0; clear_index < 15; clear_index++) {
+        banks[clear_index].bank = 0;
+        banks[clear_index].bank_instance = 0;
     }
 }
 
@@ -2178,12 +2191,12 @@ int load_effect_bank(char* name) {
     return 0xDEADBABE;
 }
 
-typedef struct PfxLoadScriptLatch {
+struct PfxLoadScriptLatch {
     CmdScript* command;
     ScriptSlot* script;
-} PfxLoadScriptLatch;
+};
 
-static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
+static inline void pfx_cleanup_load_script(struct PfxLoadScriptLatch* latch) {
     if (latch->command == 0) {
         memset(latch, 0, sizeof(*latch));
     } else {
@@ -2197,18 +2210,17 @@ static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
     }
 }
 
-/* TODO: [breakthrough needed] 73.07%; retail bank-latch handle validation
- * restored; remaining cleanup expansion and control-flow/register differences
- * need local evidence. */
+/* TODO: [breakthrough needed] 73.07%; bank-latch validation restored;
+ * cleanup expansion and control-flow/register differences need local evidence. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
-    PfxLoadScriptLatch load;
+    struct PfxLoadScriptLatch load;
     CmdScript* command;
     CmdScript* saved_command;
     ScriptSlot* script;
-    PfxBankLoadRow* rows;
-    PfxBank* bank;
-    PfxBank* raw_bank;
-    PfxScriptVm* built_effect;
+    struct PfxBankLoadRow* rows;
+    struct PfxBank* bank;
+    struct PfxBank* raw_bank;
+    struct PfxScriptVm* built_effect;
     MkObj* parent;
     unsigned int row_count;
     unsigned int row_index;
@@ -2220,7 +2232,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     int language;
     unsigned int owner;
     unsigned int allocation_size;
-    PfxBankLatch* bank_latch;
+    struct PfxBankLatch* bank_latch;
 
     memset(&load, 0, sizeof(load));
     command = alloc_cmdscript();
@@ -2316,12 +2328,12 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     bank_handle = 0;
     if (bank_index < 15) {
         allocation_size = sizeof(*bank) +
-                          total_effects * sizeof(PfxEffectLatch) +
+                          total_effects * sizeof(struct PfxEffectLatch) +
                           total_effects * sizeof(unsigned int) +
                           strlen(name) + 1;
-        bank = (PfxBank*)get_mkhdr(&vtbl_effectbank, allocation_size);
+        bank = (struct PfxBank*)get_mkhdr(&vtbl_effectbank, allocation_size);
         if (bank != 0) {
-            bank->effects = (PfxEffectLatch*)(bank + 1);
+            bank->effects = (struct PfxEffectLatch*)(bank + 1);
             bank->effect_owners =
                 (unsigned int*)(bank->effects + total_effects);
             bank->name = (char*)(bank->effect_owners + total_effects);
@@ -2330,7 +2342,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
             strcpy(bank->name, name);
             memset(
                 bank->effects, 0,
-                total_effects * sizeof(PfxEffectLatch));
+                total_effects * sizeof(struct PfxEffectLatch));
             memset(
                 bank->effect_owners, 0,
                 total_effects * sizeof(unsigned int));
@@ -2409,12 +2421,12 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
 /* TODO: [breakthrough needed] 48.88%; builder frame, scheduling and bitfield
  * lowering remain after the canonical pointer parameter correction. */
 static void build_parametric_effect_from_table(
-    ScriptSlot* script, const PfxParametricEffectDescription* description, int update) {
-    PfxParametricEmitterDescription* emitter_description;
-    PfxScriptEnvironment* environment;
-    PfxSpawnTableSlot table_slots[2];
+    ScriptSlot* script, const struct PfxParametricEffectDescription* description, int update) {
+    struct PfxParametricEmitterDescription* emitter_description;
+    struct PfxScriptEnvironment* environment;
+    struct PfxSpawnTableSlot table_slots[2];
     PfxBuildInfo build;
-    PfxScriptEffect* effect;
+    struct PfxScriptEffect* effect;
     PfxVm* runtime;
     PfxVmEmitter emitter_template;
     PfxVmEmitter* emitter;
@@ -2469,7 +2481,7 @@ static void build_parametric_effect_from_table(
     }
 
     environment->effect = 0;
-    environment->behavior = 0;
+    environment->behavior_state.behavior = 0;
     environment->fields30[0] = 0.0f;
     environment->fields30[1] = 0.0f;
     environment->texture_name = description->texture_name;
@@ -2484,7 +2496,7 @@ static void build_parametric_effect_from_table(
     environment->emitter = 0;
     effect = 0;
     new_pfx_create_raw_userdata(
-        &build, 0, (int)(1.1f * description->allocation_count),
+        &build, 0, (1.1f * description->allocation_count),
         create_flags, 0, (PfxInitCb)initialize_effect, 0, 0,
         (void**)&effect);
     if (effect == 0) {
@@ -2492,7 +2504,7 @@ static void build_parametric_effect_from_table(
         return;
     }
 
-    runtime = (PfxVm*)effect->emitters;
+    runtime = (PfxVm*)effect->emitter_storage.emitters;
     if (environment->emitter != 0) {
         for (emitter_index = 0;
              emitter_index < runtime->emitter_count;
@@ -2658,7 +2670,7 @@ static void build_parametric_effect_from_table(
 }
 
 MkPfx* find_pfx_by_handle(unsigned int handle) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
 
     resolve_pfx_handle(handle, &resolved);
     return (MkPfx*)resolved.effect;
@@ -2667,7 +2679,7 @@ MkPfx* find_pfx_by_handle(unsigned int handle) {
 /* Retail emits both public lookup wrappers out of line and byte-exact. */
 MkPfx* find_pfx_by_name_by_bankowner(
     const char* name, unsigned int owner) {
-    PfxResolvedHandle resolved;
+    struct PfxResolvedHandle resolved;
     unsigned int handle;
 
     handle = fx_by_owner(name, owner);
@@ -2675,8 +2687,8 @@ MkPfx* find_pfx_by_name_by_bankowner(
     return (MkPfx*)resolved.effect;
 }
 
-PfxScriptEffect* find_pfx_by_name(const char* name) {
-    PfxResolvedHandle resolved;
+struct PfxScriptEffect* find_pfx_by_name(const char* name) {
+    struct PfxResolvedHandle resolved;
     unsigned int handle;
 
     handle = fx_by_owner(name, 0xFF);
@@ -2684,11 +2696,12 @@ PfxScriptEffect* find_pfx_by_name(const char* name) {
     return resolved.effect;
 }
 
-/* TODO: [near miss] 93.21%; environment/effect/emitter setup recovered; residue is code emission. */
-static void initialize_effect(PfxScriptVm* effect) {
-    PfxScriptEnvironment* environment;
+static void initialize_effect(struct PfxScriptVm* effect) {
+    struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
     ScriptSlot* script;
+    char* texture_name;
+    LoadBgndCtx* load_ctx;
 
     environment = active_pfx_environment();
     if (environment->effect == 0) {
@@ -2700,12 +2713,13 @@ static void initialize_effect(PfxScriptVm* effect) {
     effect->initialization_mode = environment->field04;
 
     environment = active_pfx_environment();
+    texture_name = environment->texture_name;
     script = g_pfx_cmo;
-    if (environment->texture_name != 0 &&
-        environment->texture_name[0] != '\0') {
+    load_ctx = script->load_ctx;
+    if (texture_name != 0 && texture_name[0] != '\0') {
         effect->flags.textured = 1;
         effect->texture = load_named_tga_from_slot(
-            script->load_ctx->art_id, environment->texture_name);
+            load_ctx->art_id, texture_name);
     }
 
     if ((effect->runtime_flags & 0x20) == 0) {
@@ -2723,48 +2737,42 @@ static void initialize_effect(PfxScriptVm* effect) {
         environment = active_pfx_environment();
         environment->emitter = emitter;
         push_script_stack_frame(0);
-        environment = active_pfx_environment();
-        cmdscript_setup_execution(script, environment->initialization_script);
+        cmdscript_setup_execution(
+            script, active_pfx_environment()->initialization_script);
         cmdscript_execute(script);
-        environment = active_pfx_environment();
-        environment->emitter = 0;
+        active_pfx_environment()->emitter = 0;
     }
 }
 
-/* TODO: [near miss] 95.55556%; bank-clear zero reuse and register coloring remain. */
-void pfxscript_initialize(void) {
-    union {
-        int word;
-        struct {
-            unsigned char reserved_high : 2;
-            unsigned char no_destroy : 1;
-            unsigned char reserved_low : 5;
-            unsigned char reserved_bytes[3];
-        } bits;
-    } flags;
-    int proc_flags;
+static inline void clear_pfxscript_banks(void)
+{
     int index;
 
     for (index = 0; index < 15; index++) {
         banks[index].bank = 0;
         banks[index].bank_instance = 0;
     }
-    flags.word = 0;
+}
+
+void pfxscript_initialize(void) {
+    MkProcInitFlags flags;
+
+    clear_pfxscript_banks();
+    flags.value = 0;
     cached_handle = 0;
     flags.bits.no_destroy = 1;
-    proc_flags = flags.word;
-    create_mkproc(0x2E, get_mkproc_nostack(&proc_flags), 0x7777,
+
+    create_mkproc(0x2E, get_mkproc_nostack(flags), 0x7777,
                   p_update_effects, 0);
 }
 
-/* TODO: [near miss] 93.93939%; loop-zero initialization and return relocation remain. */
-/* TODO: [near miss] 93.94%; zero sharing differs (mr versus li);
- * real do-loop control is neutral; stop at compiler ceiling. */
+/* TODO: [near miss] 93.93939%; loop-zero sharing differs (mr versus li);
+ * pointer/instance latch and bank calls agree. */
 static float p_update_effects(void) {
     int index;
 
     for (index = 0; index < 15; index++) {
-        PfxBank* bank;
+        struct PfxBank* bank;
 
         bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0) {
@@ -2778,14 +2786,14 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
     int index;
 
     for (index = 0; index < 15; index++) {
-        PfxBank* bank;
+        struct PfxBank* bank;
 
         bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0 && (bank->owner_flags & owner_flags) != 0) {
             if (bank->hdr.instance != 0U) {
-                PfxBankVtablePrefix* vtbl;
+                struct PfxBankVtablePrefix* vtbl;
 
-                vtbl = (PfxBankVtablePrefix*)bank->hdr.vtbl;
+                vtbl = (struct PfxBankVtablePrefix*)bank->hdr.vtbl;
                 vtbl->destroy(&bank->hdr);
             }
             banks[index].bank = 0;
@@ -2795,23 +2803,24 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
 }
 
 static inline void bank_destroy(MkHdr* bank) {
-    PfxBankVtablePrefix* vtbl;
+    struct PfxBankVtablePrefix* vtbl;
 
     if (bank->instance != 0U) {
-        vtbl = (PfxBankVtablePrefix*)bank->vtbl;
+        vtbl = (struct PfxBankVtablePrefix*)bank->vtbl;
         vtbl->destroy(bank);
     }
 }
 
-/* TODO: [near miss] 96.47%; exact runtime loop; one-instruction residue. */
-static void bank_run_fx(PfxBank* bank) {
-    PfxEffectLatch* effect_latch;
-    PfxScriptEffect* effect;
-    PfxVm* runtime;
-    PfxResolvedHandle transfer;
-    PfxVmEmitter* emitter;
+/* TODO: [near miss] 98.21%; runtime address precedes parametric load in retail;
+ * retained source swaps only those operations; full helper probe needs free TU. */
+static void bank_run_fx(struct PfxBank* bank) {
+    struct PfxEffectLatch* effect_latch;
+    struct PfxScriptEffect* effect;
     int effect_index;
+    PfxVm* runtime;
+    struct PfxResolvedHandle transfer;
     int emitter_index;
+    PfxVmEmitter* emitter;
 
     for (effect_index = 0;
          effect_index < bank->effect_capacity;
@@ -2822,7 +2831,7 @@ static void bank_run_fx(PfxBank* bank) {
             continue;
         }
 
-        runtime = (PfxVm*)effect->emitters;
+        runtime = (PfxVm*)effect->emitter_storage.emitters;
         if (effect->parametric != 0) {
             runtime->elapsed_time += game_speed;
             if (pfx_frame_begin(runtime) == 0) {
@@ -2834,12 +2843,12 @@ static void bank_run_fx(PfxBank* bank) {
             pfx_frame_end(runtime);
         } else {
             pfx_run(runtime, game_speed);
-            if (bank->effect_owners[effect_index] != 0) {
+            if ((int)bank->effect_owners[effect_index] != 0) {
                 resolve_pfx_handle(
                     bank->effect_owners[effect_index], &transfer);
                 if (transfer.effect != 0) {
                     pfxvm_create_transfer(
-                        (PfxVm*)transfer.effect->emitters,
+                        (PfxVm*)transfer.effect->emitter_storage.emitters,
                         runtime);
                     transfer.effect->lifecycle_flags.restart_cycle = 1;
                 }
@@ -2867,10 +2876,10 @@ static void bank_run_fx(PfxBank* bank) {
 /* TODO: [near miss] 85.35%; exact owned-effect search; four-instruction residue. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner) {
-    PfxBankLatch* bank_latch;
-    PfxEffectLatch* effect_latch;
-    PfxBank* bank;
-    PfxScriptEffect* effect;
+    struct PfxBankLatch* bank_latch;
+    struct PfxEffectLatch* effect_latch;
+    struct PfxBank* bank;
+    struct PfxScriptEffect* effect;
     unsigned int handle;
     int bank_index;
     int effect_index;
@@ -2901,42 +2910,39 @@ static unsigned int banks_find_owned_fx(
     return 0;
 }
 
-static inline PfxScriptEffect* pfx_checked_effect_type(PfxScriptEffect* effect) {
-    if (effect != 0) {
-        if (effect->hdr.vtbl == &vtbl_pfx) {
-            return effect;
-        }
-        effect = 0;
-    }
-    return effect;
-}
+static inline void pfx_destroy_bank_effects(struct PfxBank* bank) {
+    struct PfxEffectLatch* effect_latch;
+    struct PfxScriptEffect* effect;
+    int effect_index = 0;
 
-/* TODO: [breakthrough needed] 92.84%; validator joins and loop-zero lifetimes remain. */
-static void vdestroy_effectbank(PfxBank* bank) {
-    PfxEffectLatch* effect_latch;
-    PfxScriptEffect* effect;
-    int effect_index;
-
-    for (effect_index = 0; effect_index < bank->effect_count; effect_index++) {
+    for (; effect_index < bank->effect_count; effect_index++) {
         bank->effect_owners[effect_index] = 0;
         effect_latch = &bank->effects[effect_index];
         effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
-        effect = pfx_checked_effect_type(effect);
-        if (effect != 0 && effect->hdr.instance != 0) {
-            effect->hdr.typed_vtbl->destroy(&effect->hdr);
+        if (effect != 0) {
+            effect = effect->hdr.vtbl == MK_VTABLE_ADDRESS(vtbl_pfx) ? effect : 0;
+            if (effect != 0 && effect->hdr.instance != 0) {
+                effect->hdr.typed_vtbl->destroy(&effect->hdr);
+            }
         }
     }
+}
+
+/* TODO: [near miss] 98.36207%; complete destruction phase and loop-zero copy agree;
+ * four saved register homes rotate across the loop and final free. */
+static void vdestroy_effectbank(struct PfxBank* bank) {
+    pfx_destroy_bank_effects(bank);
     bank->hdr.instance = 0;
     mkhdr_memfree(&bank->hdr);
 }
 
 /* TODO: [near miss] 86.00%; retail invalid-handle early return kept; residue not yet classified. */
 static void resolve_pfx_handle(
-    unsigned int handle, PfxResolvedHandle* resolved) {
-    PfxBankLatch* bank_latch;
-    PfxEffectLatch* effect_latch;
-    PfxBank* bank;
-    PfxScriptEffect* effect;
+    unsigned int handle, struct PfxResolvedHandle* resolved) {
+    struct PfxBankLatch* bank_latch;
+    struct PfxEffectLatch* effect_latch;
+    struct PfxBank* bank;
+    struct PfxScriptEffect* effect;
     int bank_index;
     int effect_index;
     int handle_type;
