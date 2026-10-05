@@ -20,8 +20,8 @@ static void WriteCallback(s32 chan, s32 result)
     u16* fat1;
 
     if (result >= 0) {
-        fat0 = (u16*)((u8*)card->workArea + 0x6000);
-        fat1 = (u16*)((u8*)card->workArea + 0x8000);
+        fat0 = (u16*)((u8*)card->workArea + 3 * CARD_SYSTEM_BLOCK_SIZE);
+        fat1 = (u16*)((u8*)card->workArea + 4 * CARD_SYSTEM_BLOCK_SIZE);
 
         if (card->currentFat == fat0) {
             card->currentFat = fat1;
@@ -53,7 +53,7 @@ static void EraseCallback(s32 chan, s32 result)
 
     if (result >= 0) {
         fat = __CARDGetFatBlock(card);
-        offset = (u32)fat - (u32)card->workArea;
+        offset = (u8*)fat - (u8*)card->workArea;
         address = card->sectorSize * (offset / CARD_SYSTEM_BLOCK_SIZE);
         result = __CARDWrite(chan, address, CARD_SYSTEM_BLOCK_SIZE, fat,
                              WriteCallback);
@@ -88,13 +88,13 @@ s32 __CARDAllocBlock(s32 chan, u32 cBlock, CARDCallback callback)
     }
 
     fat = __CARDGetFatBlock(card);
-    if (fat[3] < cBlock) {
+    if (fat[CARD_FAT_FREEBLOCKS] < cBlock) {
         return CARD_RESULT_INSSPACE;
     }
 
-    fat[3] -= cBlock;
+    fat[CARD_FAT_FREEBLOCKS] -= cBlock;
     startBlock = 0xFFFF;
-    iBlock = fat[4];
+    iBlock = fat[CARD_FAT_LASTSLOT];
     count = 0;
     while (cBlock > 0) {
         if (card->cBlock - CARD_NUM_SYSTEM_BLOCK < ++count) {
@@ -118,7 +118,7 @@ s32 __CARDAllocBlock(s32 chan, u32 cBlock, CARDCallback callback)
         }
     }
 
-    fat[4] = iBlock;
+    fat[CARD_FAT_LASTSLOT] = iBlock;
     card->startBlock = startBlock;
     return __CARDUpdateFatBlock(chan, fat, callback);
 }
@@ -141,7 +141,7 @@ s32 __CARDFreeBlock(s32 chan, u16 block, CARDCallback callback)
         nextBlock = fat[block];
         fat[block] = 0;
         block = nextBlock;
-        ++fat[3];
+        ++fat[CARD_FAT_FREEBLOCKS];
     }
 
     return __CARDUpdateFatBlock(chan, fat, callback);
@@ -153,13 +153,13 @@ s32 __CARDUpdateFatBlock(s32 chan, u16* fat, CARDCallback callback)
     u32 address;
 
     card = &__CARDBlock[chan];
-    ++fat[2];
-    __CARDCheckSum(fat + 2, CARD_SYSTEM_BLOCK_SIZE - sizeof(u32), fat,
-                   fat + 1);
+    ++fat[CARD_FAT_CHECKCODE];
+    __CARDCheckSum(fat + CARD_FAT_CHECKCODE, CARD_SYSTEM_BLOCK_SIZE - sizeof(u32),
+                   fat + CARD_FAT_CHECKSUM, fat + CARD_FAT_CHECKSUMINV);
     DCStoreRange(fat, CARD_SYSTEM_BLOCK_SIZE);
 
     card->eraseCallback = callback;
-    address = ((u32)fat - (u32)card->workArea) /
+    address = ((u8*)fat - (u8*)card->workArea) /
               CARD_SYSTEM_BLOCK_SIZE * card->sectorSize;
     return __CARDEraseSector(chan, address, EraseCallback);
 }
