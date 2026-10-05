@@ -1,21 +1,20 @@
 #include <dolphin/gx.h>
 #include "__gx.h"
+#include "runtime/cmath.h"
 
-extern f32 cosf(f32 value);
-
-typedef struct GXLightObjPriv {
+struct GXLightObjPriv {
     u32 reserved[3], color;
     f32 a[3], k[3], position[3], direction[3];
-} GXLightObjPriv;
-typedef char GXLightObjPriv_size[(sizeof(GXLightObjPriv) == 0x40) ? 1 : -1];
+};
+typedef char GXLightObjPriv_size[(sizeof(struct GXLightObjPriv) == 0x40) ? 1 : -1];
 #define GXCOLOR_AS_U32(color) (*(u32*)&(color))
 
 void GXInitLightAttn(GXLightObj* light, f32 a0, f32 a1, f32 a2, f32 k0, f32 k1, f32 k2) {
-    GXLightObjPriv* o = (GXLightObjPriv*)light;
+    struct GXLightObjPriv* o = (struct GXLightObjPriv*)light;
     o->a[0]=a0; o->a[1]=a1; o->a[2]=a2; o->k[0]=k0; o->k[1]=k1; o->k[2]=k2;
 }
 void GXInitLightAttnA(GXLightObj* light, f32 a0, f32 a1, f32 a2) {
-    GXLightObjPriv* o = (GXLightObjPriv*)light;
+    struct GXLightObjPriv* o = (struct GXLightObjPriv*)light;
     o->a[0]=a0; o->a[1]=a1; o->a[2]=a2;
 }
 void GXInitLightSpot(GXLightObj* light, f32 cutoff, GXSpotFn function) {
@@ -23,8 +22,8 @@ void GXInitLightSpot(GXLightObj* light, f32 cutoff, GXSpotFn function) {
     f32 r;
     f32 d;
     f32 cr;
-    GXLightObjPriv* o;
-    o = (GXLightObjPriv*)light;
+    struct GXLightObjPriv* o;
+    o = (struct GXLightObjPriv*)light;
     if (cutoff <= 0.0f || cutoff > 90.0f)
         function = GX_SP_OFF;
     r = (3.1415927f * cutoff) / 180.0f;
@@ -49,8 +48,8 @@ void GXInitLightSpot(GXLightObj* light, f32 cutoff, GXSpotFn function) {
 }
 void GXInitLightDistAttn(GXLightObj* light, f32 distance, f32 brightness, GXDistAttnFn function) {
     f32 k0, k1, k2;
-    GXLightObjPriv* o;
-    o = (GXLightObjPriv*)light;
+    struct GXLightObjPriv* o;
+    o = (struct GXLightObjPriv*)light;
     if (distance < 0.0f) function=GX_DA_OFF;
     if (brightness <= 0.0f || brightness >= 1.0f) function=GX_DA_OFF;
     switch (function) {
@@ -65,16 +64,16 @@ void GXInitLightDistAttn(GXLightObj* light, f32 distance, f32 brightness, GXDist
     o->k[0]=k0; o->k[1]=k1; o->k[2]=k2;
 }
 void GXInitLightPos(GXLightObj* light, f32 x, f32 y, f32 z) {
-    GXLightObjPriv* o=(GXLightObjPriv*)light; o->position[0]=x; o->position[1]=y; o->position[2]=z;
+    struct GXLightObjPriv* o=(struct GXLightObjPriv*)light; o->position[0]=x; o->position[1]=y; o->position[2]=z;
 }
 void GXInitLightDir(GXLightObj* light, f32 x, f32 y, f32 z) {
-    GXLightObjPriv* o=(GXLightObjPriv*)light; o->direction[0]=-x; o->direction[1]=-y; o->direction[2]=-z;
+    struct GXLightObjPriv* o=(struct GXLightObjPriv*)light; o->direction[0]=-x; o->direction[1]=-y; o->direction[2]=-z;
 }
 void GXInitLightColor(GXLightObj* light, GXColor color) {
-    ((GXLightObjPriv*)light)->color=GXCOLOR_AS_U32(color);
+    ((struct GXLightObjPriv*)light)->color=GXCOLOR_AS_U32(color);
 }
 
-static inline void PushLightScalar(const GXLightObjPriv* o) {
+static inline void PushLightScalar(const struct GXLightObjPriv* o) {
     GX_WRITE_U32(0); GX_WRITE_U32(0); GX_WRITE_U32(0); GX_WRITE_U32(o->color);
     GX_WRITE_F32(o->a[0]); GX_WRITE_F32(o->a[1]); GX_WRITE_F32(o->a[2]);
     GX_WRITE_F32(o->k[0]); GX_WRITE_F32(o->k[1]); GX_WRITE_F32(o->k[2]);
@@ -86,7 +85,7 @@ void GXLoadLightObjImm(const GXLightObj* light, GXLightID id) {
     u32 index=31-__cntlzw(id), address;
     index &= 7; address=index*0x10+0x600;
     GX_WRITE_U8(0x10); GX_WRITE_U32(address|0xF0000);
-    PushLightScalar((const GXLightObjPriv*)light);
+    PushLightScalar((const struct GXLightObjPriv*)light);
     __GXData->bpSentNot=1;
 }
 
