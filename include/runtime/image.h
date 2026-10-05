@@ -27,14 +27,14 @@ typedef struct ScreenObjVtable {
     void (*destroy)(ScreenObj* object);
 } ScreenObjVtable;
 
-/* ScreenObj +0x0C flags; the hide bit is 0x10. */
 typedef struct ScreenObjFlags {
     unsigned char pad0 : 2;
     unsigned char bit5 : 1;
     unsigned char hidden : 1;
     unsigned char scaled : 1;
     unsigned char bit2 : 1;
-    unsigned char pad1 : 2;
+    unsigned char bit1 : 1;
+    unsigned char bit0 : 1;
 } ScreenObjFlags;
 
 typedef struct ScreenObjDrawFlags {
@@ -64,21 +64,15 @@ typedef struct AtcAlphaFlag {
     unsigned char pad1 : 6;
 } AtcAlphaFlag;
 
-/* ATC list handle: pointer + cached instance (ck_ani_texture_control_item). */
 struct AniTextureControlItem {
-    AniTextureControl* atc; /* +0x00 */
-    int instance;           /* +0x04 */
+    AniTextureControl* atc;
+    int instance;
 };
 
-/*
- * Animated texture control (0x198). Flags at +0x0c are packed:
- * bit7 owns/filter, bit6 alpha frames, bit5 multi-material mode,
- * bits4-3 material count (0..3), bits10-3 material id (ushort overlay).
- */
 struct AniTextureControl {
-    MkVtable5* vtbl;                 /* +0x00 */
-    unsigned int instance;           /* +0x04 */
-    int frame;                       /* +0x08 */
+    MkVtable5* vtbl;
+    unsigned int instance;
+    int frame;
     union {
         unsigned int flags_word;
         struct {
@@ -97,65 +91,39 @@ struct AniTextureControl {
             };
             unsigned short flags_hi_word;
         };
-    };                               /* +0x0C */
-    float frame_f;                   /* +0x10 */
-    int numframes;                   /* +0x14 */
-    float framerate;                 /* +0x18 */
-    const char* name;                /* +0x1C */
-    RpMaterial* materials[3];        /* +0x20 */
-    RpAtomic* atomic;                /* +0x2C */
-    ScreenObj* screen_obj;           /* +0x30 */
-    int screen_obj_instance;         /* +0x34 */
-    RwTexture* textures[44];         /* +0x38 */
-    RwTexture* alpha_textures[44];   /* +0xE8 */
+    };
+    float frame_f;
+    int numframes;
+    float framerate;
+    const char* name;
+    RpMaterial* materials[3];
+    RpAtomic* atomic;
+    ScreenObj* screen_obj;
+    int screen_obj_instance;
+    RwTexture* textures[44];
+    RwTexture* alpha_textures[44];
 };
 
-/*
- * AniTextureControl screen link + ATC list (see AniTextureControl above).
- * Pfx2dObj lives in libmkparticle/pfx2d.h (0xD0 pool objects).
- */
-
-/* Clump/mkobj extension blob: ATC list head at +0x28 (mk_insert target). */
 struct ImageClumpExt {
     char pad00[0x28];
-    MkPtr* atc_list; /* +0x28 */
+    MkPtr* atc_list;
 };
 
-/*
- * MkSobj-shaped object used by attach_named_wiff_to_first_material.
- * atomic @ +0x14 matches MkSobj; clump_ext @ +0x1C is image-local.
- */
 struct ImageMkSobj {
-    MkHdr hdr;                 /* +0x00 */
+    MkHdr hdr;
     char pad08[0x0C];
-    RpAtomic* atomic;          /* +0x14 */
-    void* frame;               /* +0x18 */
-    ImageClumpExt* clump_ext;  /* +0x1C */
+    RpAtomic* atomic;
+    void* frame;
+    ImageClumpExt* clump_ext;
 };
 
-/*
- * 2D screen object (0x38). Priority at +0x1c; Pfx2dObj* at +0x34.
- * +0x20/+0x24 zeroed on create; no other image.o readers yet.
- *
- * Retail: 2D draw contract:
- *   Frame: display.Render() -> render_2d_objs(0)
- *   Per ScreenObj (vtbl_mkpdata_screen_obj) on matching layer bit:
- *     pfx2d_begin_render -> copy x/y/scale -> pfx2d_render -> pfx2d_end_render
- *     (end_render batches native2d_draw)
- *   ScreenEngine marker (vtbl_screen_engine):
- *     screen_engine_render -> ScreenMgr::Render
- *   load_*_2d_pfxobj* return NULL if load_tga fails -- no list entry.
- * Soft ceiling: load_2d_pfxobj_with_texture ~97.8%; insert_* ~98.6-99.3%;
- *   find_atc ~99.1%; update_atc_block ~92.9%; ck_ani ~91.5%; append_wiff ~83%.
- * Matched: render_2d_objs; MaterialFindAniTexture; load_wiff_screen_pfxobj.
- */
 struct ScreenObj {
     union {
-        MkVtable5* vtbl;       /* +0x00 */
+        MkVtable5* vtbl;
         ScreenObjVtable* typed_vtbl;
     };
-    unsigned int instance; /* +0x04 */
-    int oid;               /* +0x08 */
+    unsigned int instance;
+    int oid;
     union {
         unsigned int flags_word;
         struct {
@@ -166,17 +134,17 @@ struct ScreenObj {
             };
             unsigned char flags_pad[3];
         };
-    };                     /* +0x0C */
-    RwRaster* texture;     /* +0x10; raster from RwTexture* */
-    int x;                 /* +0x14 */
-    int y;                 /* +0x18 */
-    int priority;          /* +0x1C */
-    int field_0x20;        /* +0x20 */
-    int field_0x24;        /* +0x24 */
-    float scale_x;         /* +0x28 */
-    float scale_y;         /* +0x2C */
-    unsigned int blend;    /* +0x30 */
-    Pfx2dObj* pfx2d;       /* +0x34 */
+    };
+    RwRaster* texture;
+    int x;
+    int y;
+    int priority;
+    int field_0x20;
+    int field_0x24;
+    float scale_x;
+    float scale_y;
+    unsigned int blend;
+    Pfx2dObj* pfx2d;
 };
 
 extern int suppress_normal_2d_items;
@@ -222,10 +190,10 @@ int destroy_ani_texture_control(AniTextureControl* atc);
 
 void render_2d_objs(int layer);
 ScreenObj* load_named_2d_pfxobj(int slot, int oid, const char* name, int flags, int priority);
-ScreenObj* load_2d_pfxobj(int slot, int oid, char* name, int flags, int priority);
+ScreenObj* load_2d_pfxobj(int slot, int oid, unsigned int art_oid, int flags, int priority);
 ScreenObj* load_named_2d_pfxobj_xy(int slot, int oid, const char* name, int flags, int x, int y,
                                     int priority);
-ScreenObj* load_2d_pfxobj_xy(int slot, int oid, char* name, int flags, int x, int y, int priority);
+ScreenObj* load_2d_pfxobj_xy(int slot, int oid, unsigned int art_oid, int flags, int x, int y, int priority);
 ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, int priority);
 
 void delete_screen_obj_oid(int oid);
