@@ -15,7 +15,7 @@ static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensit
 static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity);
 static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity);
 static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner);
+static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner);
 
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
 static const GXColor OpaqueBlack = {0, 0, 0, 255};
@@ -331,37 +331,43 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensit
     GXSetTevKColor(1, konst);
 }
 
-void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
-    RwLLLink* link = clump->atomicList.next;
+/* TODO: [near miss] 99.20%; atomic/list homes and automatic index-update schedule differ. */
+void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
     RwLLLink* sentinel = &clump->atomicList;
+    RwLLLink* link = clump->atomicList.next;
+    RwLLLink* next;
+    RpGeometry* geometry;
+    RpMaterial* material;
+    unsigned int index;
 
     while (link != sentinel) {
         RpAtomic* atomic = rpAtomicFromClumpNode(link);
-        RpGeometry* geometry = atomic->geometry;
-        RwLLLink* next = link->next;
         MksobjPluginData* atomic_data = MK_ATOMIC_PLUGIN(atomic);
+
+        geometry = atomic->geometry;
+        next = link->next;
 
         if (atomic_data->field_0C != 0) {
             SetupMKPipelinesOnAtomic(atomic, owner);
+            link = next;
+            continue;
         } else if (geometry->numMorphTargets == 1 &&
                    RpSkinGeometryGetSkin(geometry) == 0) {
             unsigned int material_count = geometry->matList.numMaterials;
-            unsigned int index;
-            int material_offset = 0;
-            for (index = 0; index < material_count; index++, material_offset += 4) {
-                RpMaterial* material = *(RpMaterial**)(
-                    (unsigned char*)geometry->matList.materials + material_offset);
-                MkmaterialPluginData* material_data =
-                    MK_MATERIAL_PLUGIN(material);
+            for (index = 0; index < material_count; index++) {
+                MkmaterialPluginData* material_data;
+
+                material = geometry->matList.materials[index];
                 RpMatFXMaterialGetEffects(material);
+                material_data = MK_MATERIAL_PLUGIN(material);
                 if (material_data->flags & 0x10000000) {
-                    float* scroll = material_data->vec4;
+                    MkmaterialUvScroll* scroll = material_data->vec4;
                     RpMatFXAtomicEnableEffects(atomic);
                     if (scroll != 0) {
-                        float u1 = scroll[0];
-                        float v1 = scroll[1];
-                        float u2 = scroll[2];
-                        float v2 = scroll[3];
+                        float u1 = scroll->u1;
+                        float v1 = scroll->v1;
+                        float u2 = scroll->u2;
+                        float v2 = scroll->v2;
                         if (RpMatFXMaterialGetEffects(material) & 4) {
                             RpMatFXMaterialSetEffects(material, 6);
                         } else {
@@ -377,14 +383,15 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
     }
 }
 
-/* TODO: [breakthrough needed] 89.71%; retail vtxfmt .bss order differs (skinned at +0x30, generic at +0x0) and the geometry reload in the material loop differs. */
-static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
+/* TODO: [breakthrough needed] 95.78%; vertex-format BSS first-reference order and effect-free retail guard need original inline/compiler evidence. */
+static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;
-    int has_uv_scroll = 0;
     int atomic_effects;
     int material_count;
+    int material_index;
     int index;
+    int has_uv_scroll = 0;
 
     if (!bInitVtxFmts) {
         RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned);
@@ -404,8 +411,8 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     geometry = atomic->geometry;
     material_count = geometry->matList.numMaterials;
     for (index = 0; index < material_count; index++) {
-        MkmaterialPluginData* data =
-            MK_MATERIAL_PLUGIN(geometry->matList.materials[index]);
+        RpMaterial* material = geometry->matList.materials[index];
+        MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
         if (data->flags & 0x10000000) {
             has_uv_scroll = 1;
             break;
@@ -419,16 +426,16 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     atomic_data = MK_ATOMIC_PLUGIN(atomic);
     switch (atomic_data->field_0C) {
     case 0x300:
-        RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_skinned);
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
         atomic->pipeline = SpecSkinAtomicPipeline;
         break;
     case 0x301:
     case 0x302:
-        RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_skinned);
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
         atomic->pipeline = RpSkinGetGameCubePipeline(1);
         break;
     case 0x303:
-        RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_skinned2);
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned2);
         atomic->pipeline = RpSkinGetGameCubePipeline(1);
         break;
     case 0x304:
@@ -437,30 +444,36 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
         if (!has_uv_scroll && atomic_effects == 0) {
             atomic->pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
         }
-        RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_generic);
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_generic);
         break;
     }
 
-    for (index = 0; index < material_count; index++) {
-        RpMaterial* material = geometry->matList.materials[index];
+    material_index = 0;
+    while (material_index < material_count) {
+        RpMaterial* material = geometry->matList.materials[material_index];
         MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
-        float* scroll = data->vec4;
+        MkmaterialUvScroll* scroll = data->vec4;
+        int material_type = data->field_20;
         float u1;
         float v1;
         float u2;
         float v2;
         if (scroll != 0) {
-            u1 = scroll[0];
-            v1 = scroll[1];
-            u2 = scroll[2];
-            v2 = scroll[3];
+            v1 = scroll->v1;
+            u2 = scroll->u2;
+            v2 = scroll->v2;
+            u1 = scroll->u1;
         } else {
-            u1 = 0.0f;
-            v1 = 0.0f;
-            u2 = 0.0f;
-            v2 = 0.0f;
+            u1 = v1 = u2 = v2 = 0.0f;
         }
-        switch (data->field_20) {
+        switch (material_type) {
+        case 0:
+        case 0x302:
+        case 0x303:
+        case 0x304:
+        case 0x305:
+            material->pipeline = 0;
+            break;
         case 0x300:
         case 0x307:
             RpMatFXMaterialSetEffects(material, 5);
@@ -472,13 +485,7 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
             material_start_uv_scroll(owner, material, u1, v1, u2, v2);
             material->pipeline = 0;
             break;
-        case 0:
-        case 0x302:
-        case 0x303:
-        case 0x304:
-        case 0x305:
-            material->pipeline = 0;
-            break;
         }
+        material_index++;
     }
 }
