@@ -1,7 +1,14 @@
-#include "runtime/anim_pdata.h"
+#include "runtime/plyr_anim_pdata.h"
+#include "runtime/anims.h"
+#include "runtime/mk_cmdscript.h"
+#include "runtime/mk_pdata.h"
 #include "runtime/mk_vtbl.h"
 #include "game/pz_fighters.h"
 #include "game/game_info.h"
+#include "game/plyr_globals.h"
+#include "game/ejb.h"
+#include "game/plyr.h"
+#include "platform/display_metrics.h"
 #include "game/minigames.h"
 #include "game/pz_fatality.h"
 #include "math/gxMath.h"
@@ -11,113 +18,85 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/asset.h"
 #include "runtime/cstring.h"
+#include "runtime/utils.h"
 
 #define PZ_FIGHTER_DISTANCE_FIXED 0x04
 
-typedef float (*PuzzleFighterEntry)(void);
-typedef float (*PuzzleProcessTransfer)(PuzzleFighterEntry entry, float delay);
-typedef struct AniScript AniScript;
-typedef struct PuzzlePresentState PuzzlePresentState;
-typedef struct PuzzleProjectile PuzzleProjectile;
+struct PuzzleProjectile;
 
-typedef MkProc PuzzleProcess;
-
-
-typedef struct FirstMoveMadeRow {
-    PuzzleFighterEntry reaction;
+struct FirstMoveMadeRow {
+    MkProcEntryFn reaction;
     unsigned int percent;
     unsigned int type;
-} FirstMoveMadeRow;
+};
 
-typedef struct FirstMoveMadeTable {
+struct FirstMoveMadeTable {
     unsigned int count;
-    FirstMoveMadeRow rows[15];
-} FirstMoveMadeTable; /* 0xB8 */
+    struct FirstMoveMadeRow rows[15];
+};
 
-typedef AnimPdata PuzzleAnimPdata;
-
-
-
-typedef union PuzzleFloatBits {
+union PuzzleFloatBits {
     float value;
     unsigned int bits;
-} PuzzleFloatBits;
+};
 
-
-
-
-typedef struct PuzzleEffectBankContext {
+struct PuzzleEffectBankContext {
     int slot;
     int field_04;
     int field_08;
-} PuzzleEffectBankContext;
+};
 
 typedef void (*PuzzleObjectArrivalFn)(int x, int y);
 
-typedef struct PuzzleObjectMotion {
+struct PuzzleObjectMotion {
     MkHdr hdr;
-    int complete; /* +0x08 */
-    Vec start; /* +0x0C */
-    Vec target; /* +0x18 */
-    float velocity_x; /* +0x24 */
-    float velocity_y; /* +0x28 */
+    int complete;
+    Vec start;
+    Vec target;
+    float velocity_x;
+    float velocity_y;
     int field_2C;
-    PuzzleObjectArrivalFn arrival; /* +0x30 */
-    ScreenObj* object; /* +0x34 */
-    float gravity_step; /* +0x38 */
-    float gravity_accumulator; /* +0x3C */
-    int minimum_velocity_y; /* +0x40 */
-    int bounce_enabled; /* +0x44 */
-    int rise_ticks; /* +0x48 */
-    int fall_ticks; /* +0x4C */
-    int lifetime; /* +0x50 */
-    int target_ticks; /* +0x54 */
-    AniTextureControl* texture_control; /* +0x58 */
-    int arrived; /* +0x5C */
-} PuzzleObjectMotion; /* 0x60 */
+    PuzzleObjectArrivalFn arrival;
+    ScreenObj* object;
+    float gravity_step;
+    float gravity_accumulator;
+    int minimum_velocity_y;
+    int bounce_enabled;
+    int rise_ticks;
+    int fall_ticks;
+    int lifetime;
+    int target_ticks;
+    AniTextureControl* texture_control;
+    int arrived;
+};
 
-typedef struct PuzzleCmdScriptView {
-    char pad00[0x28];
-    int function_index;
-} PuzzleCmdScriptView;
+struct PuzzleSharedAnimations {
+    AniData* entries[149];
+};
 
-typedef struct PuzzleSharedAnimations {
-    AniScript* entries[149];
-} PuzzleSharedAnimations; /* 0x254 */
-
-typedef struct PuzzleRegisteredMove {
+struct PuzzleRegisteredMove {
     int script_move;
     unsigned int chance;
     unsigned int conditions;
-} PuzzleRegisteredMove;
+};
 
-typedef struct PuzzleCharacterMoveTable {
+struct PuzzleCharacterMoveTable {
     unsigned int count;
-    PuzzleRegisteredMove moves[15];
-} PuzzleCharacterMoveTable; /* 0xB8 */
+    struct PuzzleRegisteredMove moves[15];
+};
 
-typedef struct PuzzleFighterMoveTables {
+struct PuzzleFighterMoveTables {
     unsigned int common_count;
     int common_moves[15];
-    PuzzleCharacterMoveTable characters[14];
-} PuzzleFighterMoveTables; /* 0xA50 */
+    struct PuzzleCharacterMoveTable characters[14];
+};
 
-PuzzleSharedAnimations pz_shared_ani;
+struct PuzzleSharedAnimations pz_shared_ani;
 PuzzleFightersEngine g_pz_fighters_engine;
-PuzzleFighterMoveTables g_pz_fighter_tables;
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
+struct PuzzleFighterMoveTables g_pz_fighter_tables;
 extern PlyrPdata* his_pdata;
-extern PuzzleAnimPdata* plyr_anim_pdata;
-extern int screen_width;
-extern PuzzleProjectile* g_global_projectile;
+extern struct PuzzleProjectile* g_global_projectile;
 static ScriptSlot* pz_shared_cmo;
-extern PuzzleProcess* _create_mkproc_generic_tinystack(
-    int proc_id, int priority, PuzzleFighterEntry entry, int pdata_size,
-    MkHdr** out_pdata);
-extern PuzzleProcess* _create_mkproc_generic_bigstack(
-    int proc_id, int priority, PuzzleFighterEntry entry, int pdata_size,
-    MkHdr** out_pdata);
 
 double sqrt(double value);
 float puzzle_fighter_get_super_bar_level(unsigned int player);
@@ -135,14 +114,8 @@ static int pz_fighters_idle_process(void);
 static float pz_fighters_handle_next_pending_move_simplified(void);
 static void pz_fighter_calculate_start_pos(void);
 static float p_puzzle_fighter_master(void);
-void load_reduced_shared_and_hand_anims(void);
-void load_pz_shared_anims(void);
-void set_process_as_scriptable(PuzzleProcess* proc);
-ScriptSlot* cmdscript_loadfile_by_name(int language, char* name);
-void cmdscript_setup_execution(ScriptSlot* slot, unsigned int function_index);
-void cmdscript_execute(ScriptSlot* slot);
 void load_effect_bank_with_context(
-    char* name, PuzzleEffectBankContext* context);
+    char* name, struct PuzzleEffectBankContext* context);
 float pz_fighter_exit(void);
 float p_plyr_pz_fighter_entry(void);
 float pz_fighter_dizzy(void);
@@ -161,42 +134,34 @@ float pz_fighter_active_warmup1(void);
 float pz_fighter_active_warmup2(void);
 float pz_fighter_bow_warmup(void);
 float r_pz_call_script_function(void);
-void xfer_player_proc(PuzzleProcess* proc, PuzzleFighterEntry entry);
-PuzzleCmdScriptView* get_cmdscript_for_proc(PuzzleProcess* proc);
 static float pz_fighter_move_into_fighting_position_now(void);
 int pz_fighter_walk_until_fight_distance(void);
 int pz_fighter_walk_until_danger_or_in_wrong_direction(void);
 void pz_fighter_walk_FB_true(
     int (*test)(void), unsigned int duration, int forward);
-float xz_distance_between_players(void);
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared);
 void pz_fighter_reaction_xfer_him(int reaction);
-PuzzleProcess* pz_fighter_get_player_proc(unsigned int player);
+MkProc* pz_fighter_get_player_proc(unsigned int player);
 void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y);
 float p_plyr_pz_fighter_start(void);
 
-static inline PuzzleProcess* pz_fighter_player_proc(unsigned int player) {
+static inline MkProc* pz_fighter_player_proc(unsigned int player) {
     if (player == 0) {
         return g_game_info.plyr0.idle_proc;
     }
     return g_game_info.plyr1.idle_proc;
 }
 void attack_to_frame_x(
-    AniScript* animation, float frame1, float frame2, float frame3,
+    AniData* animation, float frame1, float frame2, float frame3,
     float frame4, unsigned int field0C, unsigned int field10, int field14);
 void force_forward(float velocity, int duration, float damping, int interval);
 void force_away(float velocity, int duration, float damping, int interval);
 void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
-unsigned int randu0(unsigned int max);
 void puzzle_fighter_get_num_blocks_on_screen(
     unsigned int* player1_blocks, unsigned int* player2_blocks);
 int puzzle_fighter_plyr_winning_big_based_on_points(void);
 void face_opponent_now(void);
-void blend_to_stance(float blend);
-void init_ground_move(void);
-void back_to_normal(void);
-void rotate_towards_him(float rate);
 void glitch_to_stance(float blend);
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move);
 static float pz_fighter_handle_center_pos_minor_adjustment(PuzzleFighterMove* move);
@@ -248,11 +213,7 @@ void pz_fighter_shake_camera(int duration, float strength);
 static void pz_fighter_perform_end_of_round_anims(
     unsigned int player, unsigned int other_player);
 static float p_objects_moving(void);
-/*
- * Emission-only near miss: 99.84375%, exact retail 0x300 size. Mutable Vec
- * inputs recover retail's alias-driven start/target reloads; all 192
- * instructions align and only six register arguments differ.
- */
+
 void pz_fighter_anim_object_to(
     unsigned int player, int mirror, int frame, Vec* start,
     Vec* target, Vec* velocity, int minimum_velocity_y,
@@ -267,13 +228,9 @@ void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);
-/* TODO: [near miss] 98.43%; coordinate load order/FPR allocation remains;
- * declaration-order trial is neutral, retain the typed squared-distance math. */
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
     float* player1_absolute, float* player2_absolute);
-/* TODO: [near miss] 97.906975%; same coordinate FPR allocation as the absolute
- * variant; operations, store order and signed-distance guards agree. */
 void pz_fighters_calc_distance_to_desired_idle_pos(
     float* player1_distance, float* player2_distance);
 void pz_fighter_classify_move_8012260C(
@@ -290,7 +247,7 @@ float pz_fighter_back_and_forth_showoff(void);
 float pz_fighter_punch_dizzyfall(void);
 float pz_fighter_footstomp(void);
 
-static FirstMoveMadeTable fistMoveMadeTable = {
+static struct FirstMoveMadeTable fistMoveMadeTable = {
     3,
     {
         {pz_fighter_back_and_forth_showoff, 30, 6},
@@ -301,9 +258,9 @@ static FirstMoveMadeTable fistMoveMadeTable = {
 
 static inline PlyrPdata* puzzle_player_pdata(unsigned int player) {
     if (player == 0) {
-        return (PlyrPdata*)g_game_info.plyr0.slot.fighter;
+        return g_game_info.plyr0.slot.pdata;
     }
-    return (PlyrPdata*)g_game_info.plyr1.slot.fighter;
+    return g_game_info.plyr1.slot.pdata;
 }
 
 static inline MkObj* puzzle_fighter_object(int player) {
@@ -312,8 +269,6 @@ static inline MkObj* puzzle_fighter_object(int player) {
     }
     return g_game_info.plyr1.slot.mirror_a;
 }
-
-
 
 static inline float pz_fighter_signed_idle_distance(unsigned int player) {
     MkObj* player1;
@@ -341,9 +296,8 @@ static inline float pz_fighter_signed_idle_distance(unsigned int player) {
     return player == 0 ? player1_distance : player2_distance;
 }
 
-
 static inline void pz_start_round_animation(
-    unsigned int player, int fighter_state, PuzzleFighterEntry entry) {
+    unsigned int player, int fighter_state, MkProcEntryFn entry) {
     PlyrPdata* pdata;
 
     pdata = puzzle_player_pdata(player);
@@ -357,7 +311,6 @@ static inline void pz_start_round_animation(
         xfer_proc(pz_fighter_player_proc(player), entry);
     }
 }
-
 
 int pz_fighter_fatality_over(void) {
     return g_pz_fighters_engine.fatality_abort == 0;
@@ -382,7 +335,6 @@ static inline void pz_fighter_start_immediate_request(
         g_pz_fighters_engine.breakout = 1;
     }
 }
-
 
 static inline void pz_fighter_check_board_spread(
     unsigned int player, unsigned int block_count,
@@ -477,7 +429,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         break;
     case 1:
     {
-        PuzzleEffectBankContext effect_context;
+        struct PuzzleEffectBankContext effect_context;
         unsigned int index;
 
         g_pz_fighters_engine.balance = 0.0f;
@@ -679,13 +631,11 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         aproc->vtbl->sleep();
         break;
     case 11:
-    {
         g_pz_fighters_engine.round_running = 1;
         g_pz_fighters_engine.pending_move_count = 0;
         pz_fighter_queue_super_move(event->player);
         pz_fighter_begin_super_move();
         break;
-    }
     case 14:
         g_pz_fighters_engine.pending_move_count = 0;
         pz_fighter_begin_super_move();
@@ -875,52 +825,128 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
     }
 }
 
-/* TODO: [breakthrough needed] 88.48%; queue-compaction induction remains structurally different; retain typed pointer loop and stop before pointer-arithmetic forcing. */
-static void pz_fighter_fight_request(
-    unsigned int player, unsigned int block_count, int chain_count,
-    unsigned int event_type) {
-    PuzzleFighterMove* pending_move;
-    unsigned int move;
-    unsigned int priority;
+static inline void pz_fighter_compact_requests(unsigned int priority)
+{
     unsigned int index;
     unsigned int copy_index;
-    int continuation;
-    int accepted;
-    int super_ready;
-
-    pz_fighter_classify_move_8012260C(
-        block_count, chain_count, &move, &priority, event_type);
-    continuation = 0;
+    index = 0;
+    if (priority == 15) {
+        g_pz_fighters_engine.pending_move_count = 0;
+        return;
+    }
+    while (index < g_pz_fighters_engine.pending_move_count) {
+        if (g_pz_fighters_engine.pending_moves[index].mode == 1) {
+            for (copy_index = index;
+                 copy_index <
+                 g_pz_fighters_engine.pending_move_count;
+                 copy_index++) {
+                memcpy(
+                    &g_pz_fighters_engine.pending_moves[copy_index],
+                    &g_pz_fighters_engine.pending_moves[copy_index + 1],
+                    sizeof(PuzzleFighterMove));
+            }
+            g_pz_fighters_engine.pending_move_count--;
+        } else {
+            index++;
+        }
+    }
+}
+static inline void pz_fighter_request_breakout(
+    unsigned int player, unsigned int priority)
+{
     if (g_pz_fighters_engine.random_fatality_active == 1) {
-        do {
-            if (priority <= 14) {
-                if (puzzle_fighter_get_super_bar_level(0) > 0.95f) {
+        if (g_pz_fighters_engine.fighter_move.player != player) {
+            if (priority == 11) {
+                if (g_pz_fighters_engine.fighter_move.mode <= 9) {
+                    g_pz_fighters_engine.breakout = 1;
+                }
+            } else if (priority == 12 || priority == 13) {
+                if (g_pz_fighters_engine.fighter_move.mode <= 11) {
+                    g_pz_fighters_engine.breakout = 1;
+                }
+            } else if (priority == 14 || priority == 15) {
+                if (g_pz_fighters_engine.fighter_move.mode <= 13) {
+                    g_pz_fighters_engine.breakout = 1;
+                }
+            }
+        } else if ((priority == 14 || priority == 15) &&
+                   g_pz_fighters_engine.fighter_move.mode <= 13) {
+            g_pz_fighters_engine.breakout = 1;
+        }
+    }
+}
+static inline int pz_fighter_request_is_accepted(
+    unsigned int move, unsigned int priority)
+{
+    unsigned int index;
+    if (move == 13) {
+        if (g_pz_fighters_engine.random_fatality_active == 1 &&
+            g_pz_fighters_engine.fighter_move.script_move == 13) {
+            return 0;
+        }
+        for (index = 0;
+             index < g_pz_fighters_engine.pending_move_count; index++) {
+            if (g_pz_fighters_engine.pending_moves[index].script_move == 13) {
+                return 0;
+            }
+        }
+    } else if (g_pz_fighters_engine.random_fatality_active == 1 &&
+               g_pz_fighters_engine.fighter_move.mode != 15 &&
+               g_pz_fighters_engine.fighter_move.mode > priority + 3) {
+        return 0;
+    }
+    return 1;
+}
+static inline int pz_fighter_request_can_continue(
+    unsigned int player, unsigned int move, unsigned int priority,
+    unsigned int event_type)
+{
+    int super_ready;
+    if (g_pz_fighters_engine.random_fatality_active == 1) {
+        if (priority <= 14) {
+            if (puzzle_fighter_get_super_bar_level(0) > 0.95f) {
+                super_ready = 1;
+            } else {
+                super_ready = 0;
+            }
+            if (super_ready == 0) {
+                if (puzzle_fighter_get_super_bar_level(1) > 0.95f) {
                     super_ready = 1;
                 } else {
                     super_ready = 0;
                 }
-                if (super_ready == 0) {
-                    if (puzzle_fighter_get_super_bar_level(1) > 0.95f) {
-                        super_ready = 1;
-                    } else {
-                        super_ready = 0;
-                    }
-                    if (super_ready == 0 &&
-                        g_pz_fighters_engine.immediate_request_active == 0) {
-                        continuation =
-                            g_pz_fighters_engine.random_fatality_active == 1 &&
-                            g_pz_fighters_engine.fighter_move.player == player &&
-                            g_pz_fighters_engine.fighter_move.runtime_bits.enabled == 1 &&
-                            event_type <= 1 &&
-                            (priority > 1 || move == 1 ||
-                             g_pz_fighters_engine.fighter_move.policy_bits.bit1);
-                        break;
-                    }
+                if (super_ready == 0 &&
+                    g_pz_fighters_engine.immediate_request_active == 0) {
+                    goto check_continuation;
                 }
             }
-            pz_fighter_disallow_continuation();
-        } while (0);
+        }
+        pz_fighter_disallow_continuation();
+        return 0;
     }
+check_continuation:
+    if (g_pz_fighters_engine.random_fatality_active == 1 &&
+        g_pz_fighters_engine.fighter_move.player == player &&
+        g_pz_fighters_engine.fighter_move.runtime_bits.enabled == 1 &&
+        (event_type == 0 || event_type == 1) &&
+        (priority > 1 || move == 1 ||
+         g_pz_fighters_engine.fighter_move.policy_bits.bit1)) {
+        return 1;
+    }
+    return 0;
+}
+static void pz_fighter_fight_request(
+    unsigned int player, unsigned int block_count, int chain_count,
+    unsigned int event_type) {
+    unsigned int move;
+    unsigned int priority;
+    int continuation;
+    int accepted;
+
+    pz_fighter_classify_move_8012260C(
+        block_count, chain_count, &move, &priority, event_type);
+    continuation = pz_fighter_request_can_continue(
+        player, move, priority, event_type);
 
     if (continuation == 1) {
         g_pz_fighters_engine.fighter_move.continuation_move = move;
@@ -929,30 +955,7 @@ static void pz_fighter_fight_request(
         return;
     }
 
-    if (move == 13) {
-        if (g_pz_fighters_engine.random_fatality_active == 1 &&
-            g_pz_fighters_engine.fighter_move.script_move == 13) {
-            accepted = 0;
-        } else {
-            accepted = 1;
-            for (index = 0;
-                 index < g_pz_fighters_engine.pending_move_count;
-                 index++) {
-                if (g_pz_fighters_engine.pending_moves[index].script_move ==
-                    13) {
-                    accepted = 0;
-                    break;
-                }
-            }
-        }
-    } else if (
-        g_pz_fighters_engine.random_fatality_active == 1 &&
-        g_pz_fighters_engine.fighter_move.mode != 15 &&
-        g_pz_fighters_engine.fighter_move.mode > priority + 3) {
-        accepted = 0;
-    } else {
-        accepted = 1;
-    }
+    accepted = pz_fighter_request_is_accepted(move, priority);
 
     if (!accepted) {
         return;
@@ -978,50 +981,9 @@ static void pz_fighter_fight_request(
         return;
     }
 
-    index = 0;
-    if (priority == 15) {
-        g_pz_fighters_engine.pending_move_count = 0;
-    } else {
-        pending_move = &g_pz_fighters_engine.pending_moves[0];
-        while (index < g_pz_fighters_engine.pending_move_count) {
-            if (pending_move->mode == 1) {
-                for (copy_index = index;
-                     copy_index <
-                     g_pz_fighters_engine.pending_move_count;
-                     copy_index++) {
-                    memcpy(
-                        &g_pz_fighters_engine.pending_moves[copy_index],
-                        &g_pz_fighters_engine.pending_moves[copy_index + 1],
-                        sizeof(PuzzleFighterMove));
-                }
-                g_pz_fighters_engine.pending_move_count--;
-            } else {
-                index++;
-                pending_move++;
-            }
-        }
-    }
+    pz_fighter_compact_requests(priority);
 
-    if (g_pz_fighters_engine.random_fatality_active == 1) {
-        if (g_pz_fighters_engine.fighter_move.player != player) {
-            if (priority == 11) {
-                if (g_pz_fighters_engine.fighter_move.mode <= 9) {
-                    g_pz_fighters_engine.breakout = 1;
-                }
-            } else if (priority == 12 || priority == 13) {
-                if (g_pz_fighters_engine.fighter_move.mode <= 11) {
-                    g_pz_fighters_engine.breakout = 1;
-                }
-            } else if (priority == 14 || priority == 15) {
-                if (g_pz_fighters_engine.fighter_move.mode <= 13) {
-                    g_pz_fighters_engine.breakout = 1;
-                }
-            }
-        } else if ((priority == 14 || priority == 15) &&
-                   g_pz_fighters_engine.fighter_move.mode <= 13) {
-            g_pz_fighters_engine.breakout = 1;
-        }
-    }
+    pz_fighter_request_breakout(player, priority);
 
     if (event_type == 3) {
         pz_fighter_buffer_new_move(1, player, move, priority);
@@ -1097,7 +1059,6 @@ static void pz_fighter_buffer_new_move(
         g_pz_fighters_engine.pending_move_count++;
     }
 }
-
 
 void pz_fighter_classify_move_8012260C(
     unsigned int block_count, int chain_count, unsigned int* move,
@@ -1291,8 +1252,8 @@ static float p_puzzle_fighter_master(void) {
     g_pz_fighters_engine.balance_update_timer = balance_timer;
     if ((float)balance_timer == 0.0f) {
         int balance_step =
-            (int)(g_pz_fighters_engine.balance -
-                  g_pz_fighters_engine.pending_balance);
+            g_pz_fighters_engine.balance -
+            g_pz_fighters_engine.pending_balance;
 
         g_pz_fighters_engine.balance_update_timer = 360;
         if ((float)balance_step > 0.1f ||
@@ -1589,7 +1550,6 @@ static int pz_fighter_check_for_player_to_center_position_control(void) {
 }
 
 /* TODO: [near miss] 98.95%; first select matches retail's one-branch CFG;
- * sus random scope open after calling xz_distance_between_players
  * FPR colors and result/store zero sharing remain. */
 static int pz_fighter_individual_plyr_do_something(
     unsigned int player, unsigned int other_state) {
@@ -1597,34 +1557,32 @@ static int pz_fighter_individual_plyr_do_something(
     float player_distance;
     float signed_distance;
 
-    player_distance = xz_distance_between_players();
-    {
-        MkObj* player1;
-        MkObj* player2;
-        float player1_distance;
-        float dz1;
-        float dx1;
-        float dz2;
-        float dx2;
+    MkObj* player1;
+    MkObj* player2;
+    float player1_distance;
+    float dz1;
+    float dx1;
+    float dz2;
+    float dx2;
 
-        g_pz_fighters_engine.fighters_positioned = 0;
-        player1 = g_game_info.plyr0.slot.mirror_a;
-        dz1 = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
-        dx1 = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-        player1_distance = dx1 * dx1 + dz1 * dz1;
-        if (dx1 > 0.0f) {
-            player1_distance = -1.0f * player1_distance;
-        }
-        player2 = g_game_info.plyr1.slot.mirror_a;
-        dz2 = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
-        dx2 = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        signed_distance = dx2 * dx2 + dz2 * dz2;
-        if (dx2 < 0.0f) {
-            signed_distance = -1.0f * signed_distance;
-        }
-        if (player == 0) {
-            signed_distance = player1_distance;
-        }
+    player_distance = xz_distance_between_players();
+    g_pz_fighters_engine.fighters_positioned = 0;
+    player1 = g_game_info.plyr0.slot.mirror_a;
+    dz1 = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx1 = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
+    player1_distance = dx1 * dx1 + dz1 * dz1;
+    if (dx1 > 0.0f) {
+        player1_distance = -1.0f * player1_distance;
+    }
+    player2 = g_game_info.plyr1.slot.mirror_a;
+    dz2 = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx2 = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+    signed_distance = dx2 * dx2 + dz2 * dz2;
+    if (dx2 < 0.0f) {
+        signed_distance = -1.0f * signed_distance;
+    }
+    if (player == 0) {
+        signed_distance = player1_distance;
     }
 
     if (player_distance > 1.45f &&
@@ -1687,8 +1645,6 @@ static int pz_fighter_individual_plyr_do_something(
     return result;
 }
 
-/* TODO: [near miss] 98.34906%; duplicate zero and second-player distance FPRs
- * remain; sibling declaration trials are neutral; retain state/call order. */
 static int pz_fighters_idle_process(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -1701,8 +1657,7 @@ static int pz_fighters_idle_process(void) {
 
     fighters = &g_pz_fighters_engine;
     if (fighters->positioning_active == 0) {
-        moved = 0;
-        fighters->fighters_positioned = 0;
+        fighters->fighters_positioned = moved = 0;
         player1 = g_game_info.plyr0.slot.mirror_a;
         dz = player1->pos.value.z - fighters->player1_idle_z;
         dx = player1->pos.value.x - fighters->player1_idle_x;
@@ -1711,11 +1666,11 @@ static int pz_fighters_idle_process(void) {
             player1_distance = -1.0f * player1_distance;
         }
         player2 = g_game_info.plyr1.slot.mirror_a;
-        dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
         dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        player2_distance = dx * dx + dz * dz;
+        player2_distance = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+        player2_distance = dx * dx + player2_distance * player2_distance;
         if (dx < 0.0f) {
-            player2_distance = -1.0f * player2_distance;
+            player2_distance = player2_distance * -1.0f;
         }
         if (player1_distance < -0.1f || player1_distance > 0.1f) {
             g_pz_fighters_engine.fighter_state[0] = 1;
@@ -1858,18 +1813,18 @@ static inline void pz_fighter_pop_pending_event(void) {
     do {                                                                  \
         pz_fighter_shake_camera(3, 0.02f);                                \
         g_pz_fighters_engine.fighter_move.mode = 15;                      \
-        if (((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state != 0x605 || \
+        if (g_game_info.plyr0.slot.pdata->state != 0x605 || \
             g_pz_fighters_engine.fighter_move.policy_bits.bit4) {               \
             g_pz_fighters_engine.fighter_state[0] = 3;                    \
-            ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->state |= 0x1200; \
+            g_game_info.plyr0.slot.pdata->state |= 0x1200; \
             xfer_proc(                                                    \
                 g_game_info.plyr0.idle_proc,                              \
                 pz_fighters_react_to_bomb_explosion);                    \
         }                                                                 \
-        if (((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state != 0x605 || \
+        if (g_game_info.plyr1.slot.pdata->state != 0x605 || \
             g_pz_fighters_engine.fighter_move.policy_bits.bit4) {               \
             g_pz_fighters_engine.fighter_state[1] = 3;                    \
-            ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->state |= 0x1200; \
+            g_game_info.plyr1.slot.pdata->state |= 0x1200; \
             xfer_proc(                                                    \
                 g_game_info.plyr1.idle_proc,                              \
                 pz_fighters_react_to_bomb_explosion);                    \
@@ -1910,7 +1865,7 @@ void pz_fighter_anim_object_to(
     float gravity_step,
     int bounce,
     PuzzleObjectArrivalFn arrival) {
-    PuzzleObjectMotion* motion;
+    struct PuzzleObjectMotion* motion;
 
     if (player >= 2) {
         return;
@@ -1926,7 +1881,7 @@ void pz_fighter_anim_object_to(
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_objects_moving,
-            sizeof(PuzzleObjectMotion), (MkHdr**)&motion) != 0 &&
+            sizeof(struct PuzzleObjectMotion), (MkHdr**)&motion) != 0 &&
         motion != 0) {
         motion->start.x = start->x;
         motion->start.y = start->y;
@@ -1960,8 +1915,8 @@ void pz_fighter_anim_object_to(
 
         motion->gravity_step = gravity_step;
         motion->gravity_accumulator = 0.0f;
-        motion->object->x = (int)start->x;
-        motion->object->y = (int)start->y;
+        motion->object->x = start->x;
+        motion->object->y = start->y;
         motion->minimum_velocity_y = minimum_velocity_y;
         motion->bounce_enabled = bounce;
         motion->rise_ticks = -1;
@@ -1974,9 +1929,9 @@ void pz_fighter_anim_object_to(
 }
 
 static float p_objects_moving(void) {
-    PuzzleObjectMotion* motion;
+    struct PuzzleObjectMotion* motion;
 
-    motion = (PuzzleObjectMotion*)apdata;
+    motion = (struct PuzzleObjectMotion*)apdata;
     if (motion->complete == 1) {
         return -1.0f;
     }
@@ -2022,7 +1977,7 @@ static float p_objects_moving(void) {
         motion->velocity_y -= 1.0f;
     }
     if (motion->velocity_y < (float)motion->minimum_velocity_y) {
-        motion->velocity_y = (float)motion->minimum_velocity_y;
+        motion->velocity_y = motion->minimum_velocity_y;
     }
 
     if (motion->arrived == 0 &&
@@ -2044,8 +1999,18 @@ static float p_objects_moving(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.325584%; constraint operations/CFG agree; function-scope
- * fighter/distance trial is neutral; remaining GPR/FPR allocation. */
+static inline void offset_constraint_fighter(
+    MkObj* fighter, const Vec* axis, float scale) {
+    float move_x = axis->x;
+    float move_z = axis->z;
+
+    move_x *= scale;
+    move_z *= scale;
+    fighter->pos.value.x = fighter->pos.value.x + move_x;
+    fighter->pos.value.z = fighter->pos.value.z + move_z;
+}
+
+/* TODO: [near miss] 99.70930%; positive-arm scaled distance/X movement FPRs remain; other constraint operations agree. */
 static void check_fighter_constraints(void) {
     unsigned int player;
 
@@ -2053,11 +2018,8 @@ static void check_fighter_constraints(void) {
         MkObj* fighter;
         float distance;
 
-        if (player == 0) {
-            fighter = g_game_info.plyr0.slot.mirror_a;
-        } else {
-            fighter = g_game_info.plyr1.slot.mirror_a;
-        }
+        fighter = player == 0 ? g_game_info.plyr0.slot.mirror_a
+                              : g_game_info.plyr1.slot.mirror_a;
         distance =
             g_pz_fighters_engine.constraint_axis.x *
                 (g_pz_fighters_engine.fighter_posts[0].x - fighter->pos.value.x) +
@@ -2065,22 +2027,11 @@ static void check_fighter_constraints(void) {
                 (g_pz_fighters_engine.fighter_posts[0].z - fighter->pos.value.z);
 
         if (distance > 0.01) {
-            float scaled_distance = distance / 5.0f;
-            float move_x;
-            float move_z;
-
-            move_x = g_pz_fighters_engine.constraint_axis.x * scaled_distance;
-            move_z = g_pz_fighters_engine.constraint_axis.z * scaled_distance;
-            fighter->pos.value.x = fighter->pos.value.x + move_x;
-            fighter->pos.value.z = fighter->pos.value.z + move_z;
+            offset_constraint_fighter(
+                fighter, &g_pz_fighters_engine.constraint_axis, distance / 5.0f);
         } else if (distance < 0.002) {
-            float move_x =
-                g_pz_fighters_engine.constraint_axis.x * distance;
-            float move_z =
-                g_pz_fighters_engine.constraint_axis.z * distance;
-
-            fighter->pos.value.x = fighter->pos.value.x + move_x;
-            fighter->pos.value.z = fighter->pos.value.z + move_z;
+            offset_constraint_fighter(
+                fighter, &g_pz_fighters_engine.constraint_axis, distance);
         }
 
         if (g_pz_fighters_engine.y_constraint_enabled[player] == 1 &&
@@ -2426,14 +2377,9 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
     return 0.0f;
 }
 
-
 #undef PZ_DISPATCH_HAPPY_REACTION
 #undef PZ_DISPATCH_BOMB_REACTION
 
-/*
- * Common retail event setup. The macro intentionally open-codes this sequence:
- * every handler in the retail TU repeats it before transferring a fighter.
- */
 #define PZ_PREPARE_FIGHTER_EVENT(move_ptr)                                \
     do {                                                                  \
         MkObj* event_fighter;                                             \
@@ -2459,9 +2405,9 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
         event_dz = event_z - event_fighter->pos.value.z;                        \
         event_distance = event_dx * event_dx + event_dz * event_dz;       \
         if ((move_ptr)->player == 0) {                                    \
-            event_pdata = (PlyrPdata*)g_game_info.plyr0.slot.fighter;     \
+            event_pdata = g_game_info.plyr0.slot.pdata;     \
         } else {                                                          \
-            event_pdata = (PlyrPdata*)g_game_info.plyr1.slot.fighter;     \
+            event_pdata = g_game_info.plyr1.slot.pdata;     \
         }                                                                 \
         if (event_distance < 2.45f) {                                     \
             (move_ptr)->distance_class = 1;                               \
@@ -2483,9 +2429,9 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
 
 static void pz_fighter_perform_end_of_round_anims(
     unsigned int winner_player, unsigned int loser_player) {
-    PuzzleProcess* proc;
+    MkProc* proc;
     PlyrPdata* pdata;
-    PuzzleCmdScriptView* script;
+    CmdScript* script;
     PuzzleFightersEngine* engine;
     unsigned short selection;
 
@@ -2512,7 +2458,7 @@ static void pz_fighter_perform_end_of_round_anims(
         engine->fighter_move.active_flags = 1;
         engine->fighter_move.player = winner_player;
         script = get_cmdscript_for_proc(proc);
-        script->function_index = 0x2E;
+        script->unk28 = 0x2E;
         xfer_player_proc(proc, r_pz_call_script_function);
     } else if (selection < 85) {
         pz_start_round_animation(
@@ -2529,9 +2475,9 @@ static void pz_fighter_perform_end_of_round_anims(
 
 static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     PuzzleFightersEngine* engine;
-    PuzzleProcess* process;
+    MkProc* process;
     PlyrPdata* fighter;
-    PuzzleFighterEntry reaction;
+    MkProcEntryFn reaction;
     unsigned int selected_player;
     unsigned short roll;
     unsigned int index;
@@ -2599,9 +2545,9 @@ static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     dz = target_z - fighter->pos.value.z;
     distance = dx * dx + dz * dz;
     if (move->player == 0) {
-        pdata = (PlyrPdata*)g_game_info.plyr0.slot.fighter;
+        pdata = g_game_info.plyr0.slot.pdata;
     } else {
-        pdata = (PlyrPdata*)g_game_info.plyr1.slot.fighter;
+        pdata = g_game_info.plyr1.slot.pdata;
     }
     roll = (unsigned short)randu0(100);
     other_player = 0;
@@ -2804,7 +2750,7 @@ static float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
 static float pz_fighter_handle_move(PuzzleFighterMove* move) {
     PlyrPdata* pdata;
     unsigned int script_move;
-    PuzzleProcess* process;
+    MkProc* process;
     MkObj* fighter;
     float target_x;
     float target_z;
@@ -2831,9 +2777,9 @@ static float pz_fighter_handle_move(PuzzleFighterMove* move) {
     dz = target_z - fighter->pos.value.z;
     distance = dx * dx + dz * dz;
     if (move->player == 0) {
-        pdata = (PlyrPdata*)g_game_info.plyr0.slot.fighter;
+        pdata = g_game_info.plyr0.slot.pdata;
     } else {
-        pdata = (PlyrPdata*)g_game_info.plyr1.slot.fighter;
+        pdata = g_game_info.plyr1.slot.pdata;
     }
     if (distance < 2.45f) {
         move->distance_class = 1;
@@ -2880,7 +2826,6 @@ static float pz_fighter_handle_move(PuzzleFighterMove* move) {
 
 #undef PZ_PREPARE_FIGHTER_EVENT
 
-
 float pz_fighter_process_random_fatality_event(
     PuzzleFatalityRandomEvent* event, PuzzleFatalityProcessFn reaction) {
     PlyrPdata* fighter = puzzle_player_pdata(event->side);
@@ -2908,22 +2853,13 @@ void pz_fighter_force_repel_during_attack(void) {
     g_pz_fighters_engine.force_repel = 1;
 }
 
-/*
- * Shared Puzzle attack setup, distance policy, reaction window, and animation
- * completion pipeline; see the evidence-backed near-match note below.
- */
-float pz_fighter_ani_attack(
-    int reaction, unsigned int reaction_mode, float end_frame,
-    float reaction_frame, float hit_distance);
 void pz_fighter_startup_attack(
-    AniScript* animation, float frame1, float frame2, float frame3,
+    AniData* animation, float frame1, float frame2, float frame3,
     float frame4, unsigned int field0C, unsigned int field10, int field14,
     unsigned int reaction_mode, float desired_distance);
 
-/* TODO: [breakthrough] 96.52%; startup mixed ABI order recovered;
- * remaining startup/animation FPR staging needs comparison. */
 void pz_fighter_attack(
-    AniScript* animation, PuzzleAttackParameters* attack, int reaction) {
+    AniData* animation, PuzzleAttackParameters* attack, int reaction) {
     float frame4 = attack->field_18;
 
     if (attack->walk_to_range == 1) {
@@ -2962,8 +2898,8 @@ void pz_fighter_attack(
         frame4, attack->field_0C, attack->field_10, attack->field_14,
         attack->reaction_mode, attack->desired_distance);
     pz_fighter_ani_attack(
-        reaction, attack->reaction_mode, attack->end_frame,
-        attack->reaction_frame, attack->hit_distance);
+        attack->end_frame, reaction, attack->reaction_frame,
+        attack->hit_distance, attack->reaction_mode);
     g_pz_fighters_engine.force_repel = 0;
 }
 
@@ -2971,12 +2907,13 @@ void pz_fighter_dont_fudge_desired_distance(void) {
     g_pz_fighters_engine.fighter_move.active_flags |= PZ_FIGHTER_DISTANCE_FIXED;
 }
 
-/* TODO: [near miss] 99.52991%; reaction/mode and two real loop-latch saved registers remain. */
+/* TODO: [near miss] 99.57%; reaction/mode and reaction-started saved GPRs differ in nine rows. */
 float pz_fighter_ani_attack(
-    int reaction, unsigned int reaction_mode, float end_frame,
-    float reaction_frame, float hit_distance) {
-    int reaction_started = 0;
+    float end_frame, int reaction, float reaction_frame,
+    float hit_distance, unsigned int reaction_mode) {
+    int reaction_started;
     int frame_clamped = 0;
+    reaction_started = 0;
 
     while (plyr_anim_pdata->frame <= end_frame && frame_clamped == 0) {
         advance_anim(plyr_anim_pdata);
@@ -3018,7 +2955,7 @@ float pz_fighter_ani_attack(
 }
 
 void pz_fighter_startup_attack(
-    AniScript* animation, float frame1, float frame2, float frame3,
+    AniData* animation, float frame1, float frame2, float frame3,
     float frame4, unsigned int field0C, unsigned int field10, int field14,
     unsigned int reaction_mode, float desired_distance) {
     float distance;
@@ -3073,31 +3010,31 @@ void pz_fighter_startup_attack(
         field0C, field10, field14);
 }
 
-/* TODO: [near miss] 97.97298%; coordinate FPR allocation remains; sibling
- * declaration-order trials were neutral; walk thresholds and transfer agree. */
+/* TODO: [near miss] 98.51%; coordinate FPR homes differ; walk thresholds and transfer agree. */
 static float pz_fighter_move_into_desired_position(void) {
     MkObj* player1 = puzzle_fighter_object(0);
-    float dx;
-    float dz;
+    MkObj* player2;
+    float dx1;
+    float dz1;
+    float dx2;
+    float dz2;
     float distance1;
     float distance2;
     float distance;
 
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
-    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    distance1 = dx * dx + dz * dz;
-    if (dx > 0.0f) {
+    dz1 = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx1 = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
+    distance1 = dx1 * dx1 + dz1 * dz1;
+    if (dx1 > 0.0f) {
         distance1 = -1.0f * distance1;
     }
 
-    {
-        MkObj* player2 = puzzle_fighter_object(1);
-        dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
-        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        distance2 = dx * dx + dz * dz;
-        if (dx < 0.0f) {
-            distance2 = -1.0f * distance2;
-        }
+    player2 = puzzle_fighter_object(1);
+    dz2 = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx2 = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+    distance2 = dx2 * dx2 + dz2 * dz2;
+    if (dx2 < 0.0f) {
+        distance2 = -1.0f * distance2;
     }
 
     distance = distance2;
@@ -3136,10 +3073,13 @@ static float pz_fighter_move_into_fighting_position_now(void) {
     return 0.0f;
 }
 
+/* TODO: [borked] 99.06383%; player1 fuses z-square instead of retail x-square;
+ * correct expression leaves producer coloring at 98.51064%; recover lifetime. */
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
     float* player1_absolute, float* player2_absolute) {
     MkObj* player1 = puzzle_fighter_object(0);
+    MkObj* player2;
     float dz;
     float dx;
 
@@ -3151,39 +3091,38 @@ void pz_fighters_calc_distance_to_desired_idle_pos_abs(
         *player1_distance = -1.0f * *player1_distance;
     }
 
-    {
-        MkObj* player2 = puzzle_fighter_object(1);
-        dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
-        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        *player2_distance = dx * dx + dz * dz;
-        *player2_absolute = *player2_distance;
-        if (dx < 0.0f) {
-            *player2_distance = -1.0f * *player2_distance;
-        }
+    player2 = puzzle_fighter_object(1);
+    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+    *player2_distance = dx * dx + dz * dz;
+    *player2_absolute = *player2_distance;
+    if (dx < 0.0f) {
+        *player2_distance = -1.0f * *player2_distance;
     }
 }
 
 void pz_fighters_calc_distance_to_desired_idle_pos(
     float* player1_distance, float* player2_distance) {
     MkObj* player1 = puzzle_fighter_object(0);
-    float dz;
     float dx;
+    float dz;
+    MkObj* player2;
+    float player2_dx;
+    float player2_dz;
 
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
     dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
+    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
     *player1_distance = dx * dx + dz * dz;
     if (dx > 0.0f) {
         *player1_distance = -1.0f * *player1_distance;
     }
 
-    {
-        MkObj* player2 = puzzle_fighter_object(1);
-        dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
-        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        *player2_distance = dx * dx + dz * dz;
-        if (dx < 0.0f) {
-            *player2_distance = -1.0f * *player2_distance;
-        }
+    player2 = puzzle_fighter_object(1);
+    player2_dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+    player2_dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    *player2_distance = player2_dx * player2_dx + player2_dz * player2_dz;
+    if (player2_dx < 0.0f) {
+        *player2_distance = -1.0f * *player2_distance;
     }
 }
 
@@ -3245,9 +3184,8 @@ static void pz_fighter_snap_to_distance(
     xz_distance_between_players();
 }
 
-/* TODO: [near miss] 72.608696%; direct canonical engine-field access moves the
- * base formation toward retail; center FPR scheduling and two extra stores
- * remain after five bounded attempts. */
+/* TODO: [near miss] 73.04%; center FPR scheduling, engine base formation,
+ * and extra stores remain. */
 static void pz_fighter_calculate_start_pos(void) {
     float screen_scale = 1.0f;
     float post1_scale;
@@ -3383,9 +3321,16 @@ float p_plyr_pz_fighter_start(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.63918%; final object/player-index registers differ. */
+static inline void release_pz_fighter_y_constraint(MkObj* object) {
+    int player = 0;
+    if (object->oid == 0x1002) {
+        player = 1;
+    }
+    object->flags_09_bits.launched = 1;
+    g_pz_fighters_engine.y_constraint_enabled[player] = 0;
+}
+
 float p_plyr_pz_fighter_entry(void) {
-    MkObj* object;
     int player;
 
     if (plyr_pdata->fatality_shove_active == 1) {
@@ -3414,13 +3359,7 @@ float p_plyr_pz_fighter_entry(void) {
     init_ground_move();
     plyr_obj->flags_09_bits.bit4 = 1;
     back_to_normal();
-    object = plyr_obj;
-    player = 0;
-    if (object->oid == 0x1002) {
-        player = 1;
-    }
-    object->flags_09_bits.launched = 1;
-    g_pz_fighters_engine.y_constraint_enabled[player] = 0;
+    release_pz_fighter_y_constraint(plyr_obj);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_loop, 0.0f);
     return 0.0f;
 }
@@ -3452,7 +3391,6 @@ int pz_fighter_is_winning_big(unsigned int player) {
     return 0;
 }
 
-
 float pz_fighter_check_breakout(void) {
     if (g_pz_fighters_engine.breakout == 1) {
         aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
@@ -3476,7 +3414,7 @@ MkObj* pz_fighter_get_player_obj(unsigned int player) {
     return g_game_info.plyr1.slot.mirror_a;
 }
 
-PuzzleProcess* pz_fighter_get_player_proc(unsigned int player) {
+MkProc* pz_fighter_get_player_proc(unsigned int player) {
     return pz_fighter_player_proc(player);
 }
 
