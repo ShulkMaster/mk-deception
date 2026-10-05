@@ -148,9 +148,9 @@ static void _RefreshData(ScreenObject* obj, int refreshOptions) {
             if (child->m_objTag == kScreenTagSCTL) {
                 /* Retail: beq to RefreshCollection when refreshOptions==0. */
                 if (refreshOptions != 0) {
-                    ((ScreenControl*)child)->RefreshOption();
+                    static_cast<ScreenControl*>(child)->RefreshOption();
                 } else {
-                    ((ScreenControl*)child)->RefreshCollection();
+                    static_cast<ScreenControl*>(child)->RefreshCollection();
                 }
             }
             _RefreshData(child, refreshOptions);
@@ -164,7 +164,7 @@ void ScreenControl::RefreshAllCollections(Screen* screen) {
 
     root = screen->GetRoot();
     if (root->m_objTag == kScreenTagSCTL) {
-        ((ScreenControl*)root)->RefreshCollection();
+        static_cast<ScreenControl*>(root)->RefreshCollection();
     }
     _RefreshData(root, 0);
 }
@@ -174,7 +174,7 @@ void ScreenControl::RefreshAllOptions(Screen* screen) {
 
     root = screen->GetRoot();
     if (root->m_objTag == kScreenTagSCTL) {
-        ((ScreenControl*)root)->RefreshOption();
+        static_cast<ScreenControl*>(root)->RefreshOption();
     }
     _RefreshData(root, 1);
 }
