@@ -119,7 +119,7 @@ void GXSetFogRangeAdj(GXBool enable, u16 center, const GXFogAdjTable *table) {
 
     if (enable) {
         ASSERTMSGLINE(334, table != NULL, "GXSetFogRangeAdj: table pointer is null");
-        for (i = 0; i < 10; i += 2) {
+        for (i = 0; i < sizeof(table->r) / sizeof(table->r[0]); i += 2) {
             range_adj = 0;
             SET_REG_FIELD(338, range_adj, 12, 0, table->r[i]);
             SET_REG_FIELD(339, range_adj, 12, 12, table->r[i + 1]);
