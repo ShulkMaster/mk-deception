@@ -1,6 +1,8 @@
 #ifndef MCARDMSG_H
 #define MCARDMSG_H
 
+extern int f_writing_to_memcard;
+
 int get_p2_pad(void);
 int get_p1_pad(void);
 void set_memcard_popup_message_type(int type);
