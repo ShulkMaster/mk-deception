@@ -1,5 +1,7 @@
+#include "game/pwrbar.h"
 #include "game/game_info.h"
 #include "game/mab.h"
+#include "game/fx.h"
 
 #include "runtime/asset.h"
 #include "runtime/fonts.h"
@@ -11,21 +13,21 @@
 #include "runtime/sound.h"
 #include "runtime/utils.h"
 
-typedef struct LightningAlphaStep {
+struct LightningAlphaStep {
     int alpha;
     unsigned int ticks;
-} LightningAlphaStep;
+};
 
-typedef struct LightningPdata {
-    MkHdr hdr;        /* +0x00 */
-    Vec position;     /* +0x08 */
-    PlyrInfo* owner;  /* +0x14 */
-} LightningPdata;
+struct LightningPdata {
+    MkHdr hdr;
+    Vec position;
+    PlyrInfo* owner;
+};
 
 typedef char LightningAlphaStepSizeCheck[
-    sizeof(LightningAlphaStep) == 0x08 ? 1 : -1];
+    sizeof(struct LightningAlphaStep) == 0x08 ? 1 : -1];
 typedef char LightningPdataSizeCheck[
-    sizeof(LightningPdata) == 0x18 ? 1 : -1];
+    sizeof(struct LightningPdata) == 0x18 ? 1 : -1];
 
 static const char STR_BOLT_OBJECT[] = "BOLT_OBJECT";
 
@@ -34,7 +36,7 @@ static const float kCameraShakeAmount = 0.02f;
 static const float kFadeSleepTicks = 1.0f;
 static const float kProcReturnNegOne = -1.0f;
 
-LightningAlphaStep lightning_alpha[] = {
+struct LightningAlphaStep lightning_alpha[] = {
     {0xFF, 6},
     {0, 4},
     {0xFF, 3},
@@ -45,27 +47,25 @@ LightningAlphaStep lightning_alpha[] = {
 };
 
 void shake_camera(int frames, float amount);
-void kill_all_fstyle_signs(void);
-extern float p_move_pbars_off_screen(void);
 
 static inline void mkproc_sleep(void) {
     aproc->vtbl->sleep();
 }
 
 static float p_lightning_strike_effect(void) {
-    LightningAlphaStep* step;
-    LightningPdata* pdata;
+    struct LightningAlphaStep* step;
+    struct LightningPdata* pdata;
     MkObj* bolt;
     MkSobj* sobj;
     int alpha;
     int art_slot;
     int step_index;
     int step_alpha;
-    LightningAlphaStep* steps;
+    struct LightningAlphaStep* steps;
     PlyrInfo* owner;
 
     _mkproc_sleep_ticks = kProcSleepTicks;
-    pdata = (LightningPdata*)apdata;
+    pdata = (struct LightningPdata*)apdata;
     mkproc_sleep();
 
     owner = pdata->owner;
@@ -117,9 +117,9 @@ static float p_lightning_strike_effect(void) {
 }
 
 void do_lightning_strike(PlyrInfo* owner, Vec* position) {
-    LightningPdata* pdata;
+    struct LightningPdata* pdata;
 
-    if (_create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, sizeof(LightningPdata),
+    if (_create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, sizeof(struct LightningPdata),
                                          (MkHdr**)&pdata) == 0) {
         return;
     }
