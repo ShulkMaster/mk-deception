@@ -16,9 +16,9 @@ typedef void (*SfdBufferObjectCallback)(SfdCallbackObject object,
 
 typedef struct SfdBufferChannel {
     SJ* stream_joint;
-    SfdCallbackObject object;
     SfdBufferHandleCallback handle_callback;
     SfdBufferObjectCallback object_callback;
+    SfdCallbackObject object;
 } SfdBufferChannel;
 
 typedef struct SfdPtsEntry {
@@ -194,7 +194,7 @@ typedef int (*SfdAudioGetVolumeFn)(SfdHandle*, SfdAudioOutputCallbacks*);
 typedef void (*SfdAudioSetSpeedFn)(SfdHandle*, int);
 
 struct SfdAudioOutputCallbacks {
-    int reserved_00;
+    void* output_context;
     SfdAudioSetPanFn set_pan;
     SfdAudioGetPanFn get_pan;
     SfdAudioSetVolumeFn set_volume;
@@ -343,7 +343,7 @@ int SFTRN_Init(SfdTransportRegistry* registry,
                SfdTransportRegistry* source);
 
 int SFD_SetUsrSj(SfdHandle* handle, int channel, SJ* stream_joint,
-                 SfdCallbackObject object);
+                 SfdBufferHandleCallback callback);
 
 extern const SfdTransportInterface SFD_tr_in_mem;
 extern const SfdTransportInterface SFD_tr_uo;
