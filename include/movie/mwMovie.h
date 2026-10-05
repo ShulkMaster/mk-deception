@@ -18,15 +18,15 @@ typedef struct MwMovieInitParams {
 } MwMovieInitParams;
 
 typedef struct MwMovieCreateParams {
-    void* buffer_bytes;
-    int reserved0;
-    void* create_flag;
-    short width;
-    short height;
-    short width2;
-    short height2;
-    short const_one;
-    short const_four;
+    unsigned int maximum_bps;
+    int audio_channel;
+    unsigned int composition_flag;
+    unsigned short width;
+    unsigned short height;
+    unsigned short output_width;
+    unsigned short output_height;
+    unsigned short frame_count;
+    unsigned short fade_frames;
 } MwMovieCreateParams;
 
 #ifdef __cplusplus
