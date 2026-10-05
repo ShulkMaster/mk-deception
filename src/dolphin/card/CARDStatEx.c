@@ -55,11 +55,11 @@ s32 __CARDSetStatusExAsync(s32 chan, s32 fileNo, CARDDir* status,
         return __CARDPutControlBlock(card, result);
     }
 
-    for (name = status->fileName; name < (u8*)&status->time; name++) {
+    for (name = status->fileName; name < status->fileName + sizeof(status->fileName); name++) {
         if (*name != 0) {
             continue;
         }
-        while (++name < (u8*)&status->time) {
+        while (++name < status->fileName + sizeof(status->fileName)) {
             *name = 0;
         }
         break;
