@@ -6,10 +6,9 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/si.h"
+#include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
 
-extern void* memset(void*, int, unsigned long);
-extern void* memcpy(void*, const void*, unsigned long);
 extern void EnableMetroTRKInterrupts(void);
 extern unsigned long __DVDLongFileNameFlag;
 extern unsigned long __PADSpec;
@@ -50,8 +49,6 @@ unsigned long OSGetConsoleType(void)
     if (BootInfo == 0 || BootInfo->console_type == 0) return 0x10000002;
     return BootInfo->console_type;
 }
-
-static void OSExceptionInit(void);
 
 static void OSExceptionInit(void);
 void OSDefaultExceptionHandler(__OSException exception, OSContext* context);
@@ -143,7 +140,7 @@ static void OSExceptionInit(void)
             memcpy((void*)__DBVECTOR, (void*)__OSDBJUMPSTART, jump_size);
         } else {
             unsigned long* db_vector = (unsigned long*)__DBVECTOR;
-            for (offset = 0; offset < jump_size; offset += 4) {
+            for (offset = 0; offset < jump_size; offset += sizeof(*db_vector)) {
                 *db_vector++ = NOP_INSTRUCTION;
             }
         }
@@ -196,7 +193,7 @@ asm void __OSPSInit(void)
     SEQ___OSPSInit();
 }
 
-/* TODO: [breakthrough needed] 82.56410%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
+/* TODO: [breakthrough needed] 83.06%; PPC setup now matches; retail still uses a smaller saved-register frame and different DriveInfo/string lifetimes. */
 void OSInit(void)
 {
     unsigned long console_type;
