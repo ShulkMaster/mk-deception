@@ -4,7 +4,7 @@
 #include "runtime/anim_types.h"
 
 void set_anim_script(
-    AnimPdata* animation, AniData* script, int flags);
+    AnimPdata* animation, AniData* script, unsigned int flags);
 int set_anim_script_frame(
     float frame, AnimPdata* animation, AniData* script,
     unsigned int flags);
@@ -18,6 +18,10 @@ MkProc* create_mkproc_face_anim(
     int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
 MkProc* create_mkproc_hand_anim(
     int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
+float p_anim_idle(void);
+int transition_to_anim_script_frame(
+    float transition_frames, float frame, AnimPdata* animation,
+    AnimScript* script, unsigned int flags);
 AnimPdata* get_mkpdata_anim(void);
 void vdestroy_mkpdata_anim(AnimPdata* animation);
 
