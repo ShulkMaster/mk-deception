@@ -4,7 +4,6 @@
 #include "dolphin/trk.h"
 #include "runtime/cfile.h"
 
-extern u8 GetUseSerialIO(void);
 extern u8 TRKAccessFile(u8 command, file_handle handle, size_t* count, u8* buffer);
 extern u8 TRKOpenFile(u8 command, const char* name, u8 mode, file_handle* handle);
 extern u8 TRKCloseFile(u8 command, file_handle handle);
@@ -19,13 +18,13 @@ enum {
     TRK_POSITION_FILE = 0xD4,
 };
 
-typedef enum {
+enum TRKFileOpenMode {
     TRK_FILE_OPEN_READ = 0x01,
     TRK_FILE_OPEN_WRITE = 0x02,
     TRK_FILE_OPEN_APPEND = 0x04,
     TRK_FILE_OPEN_BINARY = 0x08,
     TRK_FILE_OPEN_CREATE = 0x10,
-} TRKFileOpenMode;
+};
 
 int __position_file(file_handle handle, file_position* position, int mode,
                     IdleProc idle)
@@ -72,7 +71,7 @@ int __close_file(file_handle handle)
 
 int __open_file(const char* name, FileMode* mode, FILE* file)
 {
-    TRKFileOpenMode trk_mode;
+    enum TRKFileOpenMode trk_mode;
     int open_mode;
     int io_mode;
     unsigned int binary;
