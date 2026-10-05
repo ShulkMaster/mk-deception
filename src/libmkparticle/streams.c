@@ -25,6 +25,8 @@ void* streampool_lock(int stream, int size) {
     return info->current_buffer + info->write_offset;
 }
 
+/* TODO: [near miss] 86.66666%; stream-owner/offset registers and aligned-size
+ * load ordering differ; inspect genuine member-value staging. */
 void streampool_unlock(int stream, int size) {
     PfxStreamBufferInfo* info;
 
@@ -41,8 +43,8 @@ void streampool_nextframe(void) {
     int i;
 
     for (i = 0; i < STREAM_COUNT; i++) {
-        PfxStreamBufferInfo* info;
         int frame;
+        PfxStreamBufferInfo* info;
 
         info = &streambuffer_info[i];
         if (info->write_offset > 0) {
@@ -98,6 +100,8 @@ int streampool_size(int stream) {
     return info->frame_size - info->alloc_size - lock_size;
 }
 
+/* TODO: [near miss] 91.29032%; owner/result registers and index scheduling
+ * differ; inspect pointer and allocation-size staging. */
 void* streampool_alloc(int stream, int size) {
     PfxStreamBufferInfo* info;
     unsigned char* result;
@@ -115,7 +119,6 @@ void* streampool_alloc(int stream, int size) {
     return result - size;
 }
 
-/* TODO: [near miss] 85.71%; retail keeps a redundant clrlwi after the xori (compiler-version lead for libmkparticle). */
 void streampool_skiprenderstream(void) {
     streambuffer_info[0].reverse ^= 1;
 }
