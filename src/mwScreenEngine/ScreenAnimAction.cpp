@@ -209,18 +209,3 @@ int ScreenPlayAnimUntilAction::Update(ScreenMgr* mgr,
     m_alive = 0;
     return 1;
 }
-
-ScreenPlayAnimUntilAction::~ScreenPlayAnimUntilAction() {
-}
-
-ScreenSnapAnimAction::~ScreenSnapAnimAction() {
-}
-
-ScreenWaitAnimAction::~ScreenWaitAnimAction() {
-}
-
-ScreenStopAnimAction::~ScreenStopAnimAction() {
-}
-
-ScreenSetAnimSpeedAction::~ScreenSetAnimSpeedAction() {
-}

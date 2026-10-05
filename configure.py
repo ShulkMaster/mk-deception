@@ -994,7 +994,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mwMemNormal.o", source="mw/mwMemNormal.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"]),
-            Object(NonMatching, "mwMem.o", source="mw/mwMem.c",
+            Object(Matching, "mwMem.o", source="mw/mwMem.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2",
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "sound_assets.o", source="game/sound_assets.c"),
@@ -1051,7 +1051,7 @@ config.libs = [
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "nbc.o", source="game/nbc.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object(NonMatching, "acb.o", source="game/acb.c",
+            Object(Matching, "acb.o", source="game/acb.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "image.o", source="runtime/image.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -1177,7 +1177,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object(NonMatching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+            Object(Matching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "mk_render.o", source="runtime/mk_render.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -2204,7 +2204,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileHandle.o",
                 source="mw/mwFileHandle.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
@@ -2394,7 +2394,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimAction.o",
                 source="mwScreenEngine/ScreenAnimAction.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
@@ -2581,7 +2581,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/vm_kill.o",
                 source="libmkparticle/vm_kill.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -2596,13 +2596,13 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/compile.o",
                 source="libmkparticle/compile.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/emitter.o",
                 source="libmkparticle/emitter.c",
                 extra_cflags=[
@@ -2866,7 +2866,7 @@ config.libs = [
         "exi",
         [
             Object(
-                NonMatching,
+                Matching,
                 "exi.a/EXIBios.o",
                 source="dolphin/exi/EXIBios.c",
                 extra_cflags=["-schedule off"],

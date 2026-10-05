@@ -364,7 +364,7 @@ static float p_loop_movelist(void) {
 
     screen_name = get_current_screen_name();
     if (screen_name == 0 || strcmp(screen_name, STR_PAUSE_MOVELIST) != 0) {
-        return movelist_loop_pos_one;
+        return movelist_loop_neg_one;
     }
-    return movelist_loop_neg_one;
+    return movelist_loop_pos_one;
 }
