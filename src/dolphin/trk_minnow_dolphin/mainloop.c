@@ -2,8 +2,6 @@
 
 extern void TRKTargetInterrupt(TRKEvent* event);
 extern void TRKTargetSupportRequest(void);
-extern int TRKTargetStopped(void);
-extern int TRKTargetContinue(void);
 
 void TRKNubMainLoop(void)
 {
