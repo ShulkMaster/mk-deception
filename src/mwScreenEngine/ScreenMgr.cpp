@@ -154,7 +154,7 @@ int ScreenMgr::UpdateBranchPath(char* path) {
     strcpy(m_pathBuf, path);
     delimiters = "/\\";
     strcpy(pathCopy, path);
-    nParts = SplitPath(pathCopy, delimiters, parts, 10);
+    nParts = SplitPath(pathCopy, delimiters, parts, sizeof(parts) / sizeof(parts[0]));
 
     walk = m_rootSet;
     keepParent = 0;
@@ -244,7 +244,7 @@ int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
     ScreenSet* parent;
 
     strcpy(pathCopy, path);
-    nParts = SplitPath(pathCopy, delimiters, parts, 10);
+    nParts = SplitPath(pathCopy, delimiters, parts, sizeof(parts) / sizeof(parts[0]));
     *outScreen = 0;
     depth = 0;
 
