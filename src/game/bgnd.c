@@ -1,4 +1,7 @@
 #include "game/bgnd.h"
+#include "runtime/anim_api_ext.h"
+#include "game/pfxscript_api.h"
+#include "platform/display.h"
 #include "game/profile_unlock.h"
 #include "game/ejb.h"
 #include "game/game_info.h"
@@ -149,11 +152,6 @@ typedef char ShBloodPebbleControlSize[
     (sizeof(ShBloodPebbleControl) == 0x40) ? 1 : -1];
 typedef struct BgndObstacleEventData BgndObstacleEventData;
 typedef int (*BgndArenaObstacleCallback)(BgndObstacleEventData* event);
-typedef struct MorphScript {
-    unsigned int frame_count;
-    unsigned short* frame_table;
-} MorphScript;
-
 typedef struct BgndDangerZone {
     int shape_type;             /* +0x00 */
     unsigned int obstacle_id;   /* +0x04 */
@@ -320,10 +318,6 @@ static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
     float distance_limit_sq, float heading_offset, float heading_divisor,
     float movement_scale_a, float movement_scale_b, int surface);
-
-
-
-
 
 static inline void set_subobject_transl(MkSobj* object) {
     RpAtomic* atomic;
@@ -534,7 +528,6 @@ typedef struct BgndCollisionItem {
 
 float p_animate(void);
 int is_sobj_hidden(void* sobj);
-void update_mksobj(MkSobj* sobj);
 void set_arena_obstacle_callback(BgndArenaObstacleCallback callback);
 void reset_collision_system(void);
 void drone_ai_ok_to_think(void);
@@ -564,24 +557,16 @@ static float p_bgnd_script_in_proc(void);
 static void bgnd_pebble_burst_at(int player, const Vec* position,
                                  unsigned int first, unsigned int end);
 int fx_by_owner(const char* name, int owner);
-int fx_next_emitter(int effect);
-void fx_restart_emit(unsigned int effect);
 void fx_resume_emit(unsigned int effect);
-int emitter_id_from_handle(unsigned int handle);
 void resume_effect(const char* name);
 void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     unsigned int effect, float x, float y, float z);
 void fx_reset(unsigned int effect);
-void fx_set_param_v3(
-    unsigned int effect, int parameter, float x, float y, float z);
 void start_blood_particles(int effect, int bone_id, PlyrPdata* player,
                            void* limb);
-int get_first_shape_center_for_obstacle_id(unsigned int obstacle_id,
-                                           Vec* center);
 void set_collision_render_state(int enabled);
 void shake_camera(int amplitude, float duration);
-int snd_req_vol(int sound_id, float volume);
 double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
 void move_player(MkObj* object, const Vec* position, const Vec* angles);
@@ -598,7 +583,6 @@ static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
 extern int nb_slave_bones[];
 extern int konquest_npc_bones[];
 extern MkFlippedBoneMap flipped_nb_slave_bones;
-extern RwCamera* Camera;
 extern float fog_density;
 extern float fog_distance;
 extern float fog_color_real[4];
@@ -647,8 +631,6 @@ extern BgndSobjLaunchMonitor* g_sobj_launch_monitor_pdata;
 extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
 extern PebbleData* g_bgnd_cracks;
 extern unsigned int g_bgnd_last_crack_overwritten;
-extern void* obj_start_morph(MkObj* object, unsigned int sobj_id,
-                             MorphScript* script, unsigned int flags);
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8);
@@ -671,7 +653,6 @@ extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
 extern void load_bgnd_fstyle_sign(int player);
 extern void insert_ground_me_mkobj(MkObj* object);
 extern AnimScript** bgnd_animation_table;
-extern int build_bones_tbl(MkObj* object, const int* bone_tags);
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
     float transition_frames);
@@ -679,9 +660,7 @@ extern RpAtomic* set_atomic_material_alpha(RpAtomic* atomic,
                                             unsigned int alpha);
 extern RpAtomic* set_atomic_material_specular(RpAtomic* atomic,
                                                unsigned int specular);
-extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void plyr_turn_off_shadowbox(PlyrInfo* player);
-extern void plyr_turn_on_mirrorguy(PlyrInfo* player);
 extern void plyr_turn_on_shadowbox(PlyrInfo* player);
 extern void run_camera_script(ScriptSlot* script, int argument, int flags);
 extern void force_forward(float force, int duration, float damping,
@@ -735,7 +714,6 @@ BgndPebblePlayerData* g_pebbles_pdata[20] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
 void load_background_anims(void* anims, int bgnd_id);
@@ -743,7 +721,6 @@ void init_weapon_trail_light_list(void);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
 extern MkVtable5 vtbl_slaughterhouse_pdata;
-void set_background_color(int r, int g, int b, int a);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);
@@ -932,7 +909,7 @@ AnimPdata* animate_obj(
         }
         object->flipped_bone_map = flipped_bones;
         object->ground_colls = ground_collisions;
-        set_anim_script(animation, (AniData*)script, 0x21);
+        set_anim_script(animation, script, 0x21);
         animation->step = playback_rate;
         if (active != 0) {
             set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
@@ -1712,9 +1689,6 @@ static void sh_update_blood_fall_pebbles(
 static inline void sh_normalize_blood_direction(Vec* direction);
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-
-
-
 static float p_sh_bottom_floor_blood_fall(void) {
     ShBloodFallProcessData* data;
     PebbleData* pebbles;
@@ -1950,15 +1924,6 @@ static void sh_update_blood_fall_pebbles(
     }
 }
 
-
-
-
-
-
-
-
-
-
 static inline float sh_random_blood_pebble_direction(Vec* rotated_direction) {
     Vec direction = {0.0f, 0.0f, 1.0f};
     float angle;
@@ -1990,7 +1955,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     small = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
 
     largest = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
-
 
     if (large != 0) {
         int index;
@@ -2132,8 +2096,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     }
 }
 
-
-
 void sh_lower_level_pebble_unhide(void) {
     MkObj* object;
 
@@ -2175,12 +2137,6 @@ void sh_lower_level_pebble_hide(void) {
         }
     }
 }
-
-
-
-
-
-
 
 /* TODO: [near miss] 98.844536%; typed sobj bit4 matches; r30/r31 owner-object coloring remains. */
 static void sh_load_objs(void) {
@@ -2288,7 +2244,6 @@ static void sh_load_objs(void) {
         hide_obj(object);
     }
 }
-
 
 static inline void sh_hide_latched_object(MkHdrLatch* latch) {
     MkHdr* object;
@@ -2683,7 +2638,6 @@ static float p_bl_beetle_brains(void) {
     return 1.0f;
 }
 extern int is_load_meter_active(void);
-extern void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 
 static inline int bl_beetle_near_bone(
     BlBeetleControl* beetle, MkObj* fighter, int bone, float limit_sq) {
@@ -3422,7 +3376,7 @@ static inline void bl_init_beetle(
     beetle->personality = personality;
     beetle->movement_state = movement_state;
     beetle->personality_ticks = personality_ticks;
-    beetle->heading_degrees = (float)(unsigned short)randu0(360);
+    beetle->heading_degrees = (unsigned short)randu0(360);
     beetle->heading_step = 0.0f;
     beetle->wall_ticks = (unsigned short)randu0(60);
     beetle->heading_ticks = 0;
@@ -3754,7 +3708,7 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     int aligned;
 
     eligible = 0;
-    reaction_flag = (float)(g_current_reaction_info.flags & 0x100);
+    reaction_flag = (g_current_reaction_info.flags & 0x100);
     if (g_game_info.plyr0.field_0C == 0.0f ||
         g_game_info.plyr1.field_0C == 0.0f) {
         return 0;
@@ -4177,8 +4131,6 @@ float bgnd_launch_chunk(
     const Vec* scale, int field_0C, float vertical_accel, int field_10);
 
 extern unsigned int fx(const char* name);
-extern void fx_set_param_v3(
-    unsigned int effect, int parameter, float x, float y, float z);
 extern void shake_camera_y(int count, float strength);
 
 static inline void bl_front_wall_effect_at(
@@ -4237,7 +4189,7 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     float camera_dz;
 
     data = (BlWallBreakControllerData*)apdata;
-    _mkproc_sleep_ticks = (float)data->initial_delay;
+    _mkproc_sleep_ticks = data->initial_delay;
     aproc->vtbl->sleep();
     g_go_back_to_fight_position = 0;
 
@@ -4469,7 +4421,6 @@ static float p_beetle_lair_watch_remaining_fall_scene(void) {
 
 extern MkProc* plyr_anim_proc;
 extern unsigned char shared_ani[];
-extern float p_anim_idle(void);
 extern void face_opponent_now(void);
 extern void avoid_double_ani(void);
 extern void init_air_move(void);
@@ -4707,13 +4658,6 @@ static float victim_fall_down_a_level(void) {
     }
 }
 
-
-
-
-
-
-
-
 /* TODO: [breakthrough] 97.121216%; fifth typed wall-position vector fixes frame; wall writes and TU rodata offset remain. */
 static float p_beetle_lair_front_wall_breaking(void) {
     Vec camera_velocity = {0.0f, 0.0f, -0.05f};
@@ -4727,7 +4671,6 @@ static float p_beetle_lair_front_wall_breaking(void) {
     MkSobj* wall;
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
 
     _mkproc_sleep_ticks = 3.0f;
     data = (BlWallBreakControllerData*)apdata;
@@ -4784,7 +4727,6 @@ extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
                              float* final_speed, int reset, float time);
 extern void get_current_target(Vec* target);
 
-
 /* TODO: [near miss] 99.93%; code exact; @1626 aggregate-literal pool offsets are 0x120 higher than retail (TU data layout). */
 static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     Vec cut_position = {4.996f, 2.0f, 27.5f};
@@ -4810,8 +4752,8 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     BlWallBreakCameraData* data;
 
     elapsed = 0;
-    follow_ticks = (int)(120.0f * inverse_game_speed);
-    move_ticks = (int)(100.0f * inverse_game_speed);
+    follow_ticks = (120.0f * inverse_game_speed);
+    move_ticks = (100.0f * inverse_game_speed);
     data = (BlWallBreakCameraData*)apdata;
 
     go_to_camera_cut(&cut_position, &cut_target);
@@ -4820,7 +4762,6 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     xfer_camera(p_idle_camera, 1);
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
 
     get_current_target(&look_target);
     current_target.x = look_target.x;
@@ -4988,12 +4929,6 @@ static inline void bl_column_normalize_vector(Vec* vector) {
     vector->y *= inverse_length;
     vector->z *= inverse_length;
 }
-
-
-
-
-
-
 
 static inline void bl_set_vector(Vec* vector, float x, float y, float z) {
     vector->x = x;
@@ -5249,7 +5184,7 @@ static float p_launch_final_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = (float)pow(0.992, game_speed);
+    damping = pow(0.992, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -5351,7 +5286,7 @@ static float p_launch_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = (float)pow(0.992, game_speed);
+    damping = pow(0.992, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -6311,7 +6246,7 @@ void bgnd_create_named_npc_in_slot(
         npc->animation->obj_instance = object->hdr.instance;
         set_root_and_obj_movement_weights(npc->animation, 0.0f, 1.0f);
         set_anim_script(
-            npc->animation, (AniData*)bgnd_animation_table[animation_id], 0);
+            npc->animation, bgnd_animation_table[animation_id], 0);
         npc->animation->hand_transition = 0.125f;
         npc->command_process = _create_mkproc_generic_bigstack(
             0xC016, 0x1F, bgnd_npc_idle, sizeof(BgndNpcAniCommand),
@@ -6685,7 +6620,7 @@ static int launch_sobj_watch_dist_from_orgin(
     z = entry->object->pos.z;
     z_squared = z * z;
     squared = x_squared + z_squared;
-    threshold = (float)distance_squared;
+    threshold = distance_squared;
     return squared > threshold;
 }
 static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
@@ -7245,7 +7180,7 @@ float bgnd_pebble_fetch_current_info(unsigned int field) {
     case 14:
         return g_current_pebble->scale.z;
     case 15:
-        return (float)g_current_pebble->state;
+        return g_current_pebble->state;
     default:
         return 0.0f;
     }
@@ -7300,7 +7235,7 @@ void bgnd_pebble_set_current_info(unsigned int field, void* script,
         g_current_pebble->angular_velocity.z = value;
         break;
     case 15:
-        g_current_pebble->state = (unsigned int)value;
+        g_current_pebble->state = value;
         break;
     }
 }
@@ -7394,7 +7329,7 @@ void bgnd_pebble_launch_at_time(
     pebble->end_behavior = 4;
     pebble->bounce_ticks = 0;
     pebble->launch_ticks =
-        (unsigned int)((float)delay * inverse_game_speed);
+        ((float)delay * inverse_game_speed);
     if (pebble->launch_ticks == 0) {
         pebble->launch_ticks = 1;
     }
@@ -7436,7 +7371,7 @@ void bgnd_pebble_simple_launch_at_time(int player, int index,
     pebble->state = 3;
     pebble->bounce_ticks = 0;
     pebble->launch_ticks =
-        (unsigned int)((float)delay * inverse_game_speed);
+        ((float)delay * inverse_game_speed);
     if (pebble->launch_ticks == 0) {
         pebble->launch_ticks = 1;
     }
@@ -9864,13 +9799,13 @@ void spad_set_vector(int index, unsigned int source) {
         output->z = g_active_obstacle_event_data->player_pdata->plyr_info->slot.mirror_a->ang.z;
         break;
     case 0x1A:
-        output->x = (float)g_active_obstacle_event_data->player_pdata->plyr_num;
+        output->x = g_active_obstacle_event_data->player_pdata->plyr_num;
         break;
     case 0x1B:
-        output->x = (float)g_active_obstacle_event_data->player_pdata->attack_counter;
+        output->x = g_active_obstacle_event_data->player_pdata->attack_counter;
         break;
     case 0x1C:
-        output->x = (float)g_active_obstacle_event_data->player_pdata->state;
+        output->x = g_active_obstacle_event_data->player_pdata->state;
         break;
     case 0x19:
         output->x = g_active_obstacle_event_data->impact_vector->x;
@@ -9878,7 +9813,7 @@ void spad_set_vector(int index, unsigned int source) {
         output->z = g_active_obstacle_event_data->impact_vector->z;
         break;
     case 0x1D:
-        output->x = (float)g_active_obstacle_event_data->flags;
+        output->x = g_active_obstacle_event_data->flags;
         break;
     }
 }
@@ -10039,7 +9974,7 @@ float bgnd_process_collision_info(
     case 3: {
         Vec* output = &g_bgnd_scratch_pad_vectors[(unsigned int)value3];
         MkSobj* object = obj_find_sobj_by_id(
-            g_game_info.bgnd_obj, (unsigned int)value2);
+            g_game_info.bgnd_obj, value2);
         Vec scaled;
 
         scaled.x = g_game_info.impact_vector.x;
@@ -10057,23 +9992,23 @@ float bgnd_process_collision_info(
     case 4:
         if (g_game_info.collision_player_side != 0) {
             special_move_cam_setup2(
-                value1, value2, value3, value4, value5, (int)value6,
-                (int)value7, (int)value8, g_game_info.player_objects[1],
+                value1, value2, value3, value4, value5, value6,
+                value7, value8, g_game_info.player_objects[1],
                 g_game_info.player_objects[0]);
         }
         break;
     case 0x3C:
         if (g_active_obstacle_event_data->flag_bits.player_side) {
             special_move_cam_setup2(
-                value1, value2, value3, value4, value5, (int)value6,
-                (int)value7, (int)value8, g_game_info.player_objects[1],
+                value1, value2, value3, value4, value5, value6,
+                value7, value8, g_game_info.player_objects[1],
                 g_game_info.player_objects[0]);
         }
         break;
     case 0x28:
         special_move_cam_setup2(
-            value1, value2, value3, value4, value5, (int)value6, (int)value7,
-            (int)value8, g_game_info.player_objects[1],
+            value1, value2, value3, value4, value5, value6, value7,
+            value8, g_game_info.player_objects[1],
             g_game_info.player_objects[0]);
         break;
 
@@ -10101,7 +10036,7 @@ float bgnd_process_collision_info(
         info->slot.mirror_a->flags_0B_bits.bit6 = 1;
         info->slot.mirror_a->flags_0B_bits.bit3 = 1;
         info->slot.mirror_a->flags_09_bits.face_opponent = 0;
-        result = (float)g_game_info.collision_player_pdata->plyr_num;
+        result = g_game_info.collision_player_pdata->plyr_num;
         break;
     }
     case 8: {
@@ -10116,7 +10051,7 @@ float bgnd_process_collision_info(
         info->slot.mirror_a->flags_0B_bits.bit6 = 1;
         info->slot.mirror_a->flags_0B_bits.bit3 = 1;
         info->slot.mirror_a->flags_09_bits.face_opponent = 0;
-        result = (float)g_game_info.collision_player_pdata->his_plyr_pdata->
+        result = g_game_info.collision_player_pdata->his_plyr_pdata->
             plyr_num;
         break;
     }
@@ -10206,10 +10141,10 @@ float bgnd_process_collision_info(
         return g_active_obstacle_event_data->player_pdata->plyr_info->
             slot.mirror_a->pos.value.z;
     case 0x30:
-        result = (float)g_active_obstacle_event_data->event_id;
+        result = g_active_obstacle_event_data->event_id;
         break;
     case 0x27:
-        result = (float)g_game_info.collision_event_id;
+        result = g_game_info.collision_event_id;
         break;
     case 0x29:
         g_game_info.player_objects[0]->pos.value.y = value1;
@@ -10576,7 +10511,7 @@ void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     switch (info_id) {
     case 4:
         player = g_current_reaction_info.player_info->slot.pdata;
-        player->online_sync_index = (int)value;
+        player->online_sync_index = value;
         if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 1;
         } else {
@@ -10702,7 +10637,7 @@ void bgnd_fade_object(int object_id, void* script, float fade_step) {
             data->object = object;
             data->fade_step = fade_step;
             data->alpha = 255.0f;
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
             object = data->object;
             alpha = data->alpha_int;
             atomic = object->atomic;
@@ -10732,7 +10667,7 @@ static float p_bgnd_fade_object(void) {
         data->complete = 1;
         data->alpha = 0.0f;
     }
-    data->alpha_int = (unsigned int)data->alpha;
+    data->alpha_int = data->alpha;
     object = data->object;
     alpha = data->alpha_int;
     atomic = object->atomic;
@@ -10782,7 +10717,7 @@ void pulsate_object(
             data->field_48 = 1.0f;
             data->field_3C = 1.0f;
             data->field_40 = 1.0f;
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
 
             object = data->object;
             alpha = data->alpha_int;
@@ -10835,7 +10770,7 @@ void bgnd_pulsate_object(
             data->field_48 = 1.0f;
             data->field_3C = 1.0f;
             data->field_40 = 1.0f;
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
 
             object = data->object;
             alpha = data->alpha_int;
@@ -10881,7 +10816,7 @@ void bgnd_pulsate_object_with_caps_and_scale(
             data->field_18 = fade_out_step;
             data->field_20 = 0;
             data->field_1C = max_hold_ticks;
-            data->alpha = (float)max_alpha;
+            data->alpha = max_alpha;
             data->field_2C = min_alpha;
             data->field_30 = max_alpha;
             data->field_34 = scale_step_xz;
@@ -10894,7 +10829,7 @@ void bgnd_pulsate_object_with_caps_and_scale(
             data->field_3C = min_scale_xz;
             data->field_40 = min_scale_y;
             data->object->flags_08_bits.scale_dirty = 1;
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
 
             object = data->object;
             alpha = data->alpha_int;
@@ -10936,7 +10871,7 @@ void bgnd_pulsate_object_with_caps(
             data->field_18 = fade_out_step;
             data->field_20 = 0;
             data->field_1C = max_hold_ticks;
-            data->alpha = (float)max_alpha;
+            data->alpha = max_alpha;
             data->field_34 = 0.0f;
             data->field_38 = 0.0f;
             data->field_44 = 1.0f;
@@ -10945,7 +10880,7 @@ void bgnd_pulsate_object_with_caps(
             data->field_40 = 1.0f;
             data->field_2C = min_alpha;
             data->field_30 = max_alpha;
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
 
             object = data->object;
             alpha = data->alpha_int;
@@ -10976,7 +10911,7 @@ static float p_bgnd_pulsate_object(void) {
         data->field_20 = 2;
         data->field_1C = 1;
         data->alpha = 0.0f;
-        data->alpha_int = (unsigned int)data->alpha;
+        data->alpha_int = data->alpha;
         object = data->object;
         alpha = data->alpha_int;
         atomic = object->atomic;
@@ -10994,11 +10929,11 @@ static float p_bgnd_pulsate_object(void) {
                 data->alpha -= data->field_18;
             } else {
                 data->field_1C = 1;
-                data->alpha = (float)data->field_2C;
+                data->alpha = data->field_2C;
             }
 
             if (data->alpha > (float)data->field_2C) {
-                sine_index = (unsigned int)(
+                sine_index = (
                     (data->alpha - (float)data->field_2C) *
                     (float)(0x100U / (data->field_30 - data->field_2C)));
                 if (data->object->scale.x > data->field_3C) {
@@ -11015,7 +10950,7 @@ static float p_bgnd_pulsate_object(void) {
                         (data->field_48 - data->field_40) + data->field_40;
                 }
             }
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
             object = data->object;
             alpha = data->alpha_int;
             atomic = object->atomic;
@@ -11031,12 +10966,12 @@ static float p_bgnd_pulsate_object(void) {
             }
             if (data->alpha >= (float)data->field_30) {
                 data->field_1C = 1;
-                data->alpha = (float)data->field_30;
+                data->alpha = data->field_30;
             }
 
             if (data->alpha >= (float)data->field_2C &&
                 data->alpha < (float)data->field_30) {
-                sine_index = (unsigned int)(
+                sine_index = (
                     (data->alpha - (float)data->field_2C) *
                     (float)(0x100U / (data->field_30 - data->field_2C)));
                 if (data->object->scale.x < data->field_44) {
@@ -11056,7 +10991,7 @@ static float p_bgnd_pulsate_object(void) {
                 data->object->scale.x = data->field_3C;
                 data->object->scale.z = data->field_3C;
             }
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
             object = data->object;
             alpha = data->alpha_int;
             atomic = object->atomic;
@@ -11108,7 +11043,7 @@ static float p_pulsate_object(void) {
         data->field_20 = 2;
         data->field_1C = 1;
         data->alpha = 0.0f;
-        data->alpha_int = (unsigned int)data->alpha;
+        data->alpha_int = data->alpha;
         object = data->object;
         alpha = data->alpha_int;
         atomic = object->atomic;
@@ -11126,11 +11061,11 @@ static float p_pulsate_object(void) {
                 data->alpha -= data->field_18;
             } else {
                 data->field_1C = 1;
-                data->alpha = (float)data->field_2C;
+                data->alpha = data->field_2C;
             }
 
             if (data->alpha > (float)data->field_2C) {
-                sine_index = (unsigned int)(
+                sine_index = (
                     (data->alpha - (float)data->field_2C) *
                     (float)(0x100U / (data->field_30 - data->field_2C)));
                 if (data->object->scale.x > data->field_3C) {
@@ -11147,7 +11082,7 @@ static float p_pulsate_object(void) {
                         (data->field_48 - data->field_40) + data->field_40;
                 }
             }
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
             object = data->object;
             alpha = data->alpha_int;
             atomic = object->atomic;
@@ -11163,12 +11098,12 @@ static float p_pulsate_object(void) {
             }
             if (data->alpha >= (float)data->field_30) {
                 data->field_1C = 1;
-                data->alpha = (float)data->field_30;
+                data->alpha = data->field_30;
             }
 
             if (data->alpha >= (float)data->field_2C &&
                 data->alpha < (float)data->field_30) {
-                sine_index = (unsigned int)(
+                sine_index = (
                     (data->alpha - (float)data->field_2C) *
                     (float)(0x100U / (data->field_30 - data->field_2C)));
                 if (data->object->scale.x < data->field_44) {
@@ -11188,7 +11123,7 @@ static float p_pulsate_object(void) {
                 data->object->scale.x = data->field_3C;
                 data->object->scale.z = data->field_3C;
             }
-            data->alpha_int = (unsigned int)data->alpha;
+            data->alpha_int = data->alpha;
             object = data->object;
             alpha = data->alpha_int;
             atomic = object->atomic;
@@ -11226,7 +11161,6 @@ static float p_pulsate_object(void) {
     return 1.0f;
 }
 
-
 void bgnd_make_mkobj_transl(MkObj* object) {
     set_subobject_transl(obj_first_sobj(object));
 }
@@ -11257,7 +11191,6 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
         }
     }
 }
-
 
 static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
     MkProc* object = owner->own_player_proc;
@@ -11566,10 +11499,10 @@ void bgnd_set_sobj_uv_scroll_abs_values(
         item = &bgnd_uv_scroll_control_item[index];
         control = MK_HDR_LIVE(item->control, item->instance);
         if (control != 0) {
-            control->mtx1[12] = u1;
-            control->mtx1[13] = v1;
-            control->mtx2[12] = u2;
-            control->mtx2[13] = v2;
+            control->mtx1.pos.x = u1;
+            control->mtx1.pos.y = v1;
+            control->mtx2.pos.x = u2;
+            control->mtx2.pos.y = v2;
         }
     }
 }
@@ -12163,7 +12096,7 @@ float rad_to_degrees(void* script, float radians) {
 float int_to_float(int value) { return value; }
 int float_to_int(void* script, float value) {
     (void)script;
-    return (int)value;
+    return value;
 }
 void obj_sobj_set_material(MkSobj* object, unsigned int alpha) {
     RpAtomic* atomic;
@@ -12201,12 +12134,6 @@ float p_track_cam_ang_y_light(void) {
     return -1.0f;
 }
 
-
-
-
-
-
-
 void load_bgnd_style(int player, const char* script_name, void* script_args) {
     GlobalMoveset* moveset;
     MkFileInfo* animation_section;
@@ -12219,7 +12146,7 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
             cmdscript_loadfile_by_name(player + 12, script_name);
         if (moveset->script != 0) {
             if (moveset->script->table_count != 0) {
-                moveset->definition = (MovesetDefinition*)get_data_table(
+                moveset->definition = get_data_table(
                     moveset->script, moveset->script->table_count);
                 moveset->animation_header =
                     moveset->definition->animation_header;
@@ -12404,7 +12331,7 @@ int load_background(int bgnd_id) {
 
     RwImageSetGamma(1.0f);
 
-    load_ssf((MkFileEntry*)global_background_data[bgnd_id].ssf_entry);
+    load_ssf(global_background_data[bgnd_id].ssf_entry);
     g_game_info.cmdscript =
         cmdscript_loadfile_by_name(0xB, global_background_data[bgnd_id].script_name);
     g_game_info.section = get_data_table(
@@ -12456,7 +12383,7 @@ int load_background(int bgnd_id) {
     }
 
     g_game_info.bgnd_obj =
-        (MkObj*)load_named_model_from_slot(art_id, "BACKGROUND", 0x1004, 0);
+        load_named_model_from_slot(art_id, "BACKGROUND", 0x1004, 0);
 
     if (g_game_info.section != 0) {
         if (g_game_info.section->anims != 0) {
@@ -12493,17 +12420,17 @@ int load_background(int bgnd_id) {
     }
 
     set_background_color(
-        (int)g_game_info.section->bg_r,
-        (int)g_game_info.section->bg_g,
-        (int)g_game_info.section->bg_b,
-        (int)g_game_info.section->bg_a);
+        g_game_info.section->bg_r,
+        g_game_info.section->bg_g,
+        g_game_info.section->bg_b,
+        g_game_info.section->bg_a);
 
     g_game_info.field_34 = 0.0f;
 
     art_name = g_game_info.section->sky_name;
     if (art_name != 0 && art_name[0] != 0) {
         g_game_info.sky =
-            (MkObj*)load_named_model_from_slot(art_id, art_name, 0x201F, 0);
+            load_named_model_from_slot(art_id, art_name, 0x201F, 0);
     }
 
     if (g_game_info.sky != 0) {
