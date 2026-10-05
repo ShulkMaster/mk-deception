@@ -1,6 +1,8 @@
 #ifndef MKD_GAME_PFXSCRIPT_H
 #define MKD_GAME_PFXSCRIPT_H
 
+#include "game/pfxscript_api.h"
+
 struct PfxStepEffectDescription;
 void create_step_fx(struct PfxStepEffectDescription* effect, char* name);
 void create_multiemit_step_fx(struct PfxStepEffectDescription* effect,
@@ -18,7 +20,7 @@ void fx_bind_emitter_to_obj_bone(unsigned int handle, struct MkObj* object, int 
 unsigned int fx(const char* name);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
 void fx_reset(unsigned int effect);
+void fx_reset_emit(unsigned int effect);
 void resume_effect(const char* name);
 
 #endif
-
