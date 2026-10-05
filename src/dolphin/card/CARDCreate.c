@@ -23,12 +23,12 @@ static void CreateCallbackFat(s32 chan, s32 result)
         entry->permission = 4;
         entry->copyTimes = 0;
         entry->startBlock = card->startBlock;
-        entry->bannerFormat = 0;
+        entry->bannerFormat = CARD_STAT_BANNER_NONE;
         entry->iconAddr = (u32)-1;
-        entry->iconFormat = 0;
-        entry->iconSpeed = 0;
+        entry->iconFormat = CARD_STAT_ICON_NONE;
+        entry->iconSpeed = CARD_STAT_SPEED_END;
         entry->commentAddr = (u32)-1;
-        entry->iconSpeed = (entry->iconSpeed & ~3) | 1;
+        entry->iconSpeed = (entry->iconSpeed & ~CARD_STAT_SPEED_MASK) | CARD_STAT_SPEED_FAST;
         card->fileInfo->offset = 0;
         card->fileInfo->iBlock = entry->startBlock;
         entry->time = OSGetTime() / (__OSBusClock / 4);
