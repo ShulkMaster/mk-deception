@@ -4,6 +4,8 @@
 #include "mwScreenEngine/TextureCollection.h"
 #include "runtime/mk_fileinfo.h"
 
+extern int target_game_mode;
+
 /*
  * menu.o - NonMatching Midway menu (boot -> MAIN_MENU).
  *
@@ -31,6 +33,7 @@
  *      include/mw/mwScreenEngineGlue.h, include/runtime/asset.h.
  */
 
+float p_pause_menu_switch(void);
 void adjust_screen_reset(void);
 void adjust_screen_position(int direction);
 int get_color_red_value(void);
@@ -68,7 +71,7 @@ int get_num_modeselect_portraits(void);
 void set_menu_mode(int mode);
 
 void controller_setup_save_to_profile(int player, int save);
-void cconfig_get_button_textures(RwTexture*** textures_out);
+void cconfig_get_button_textures(GVTexturePair out);
 int controller_get_texture_index_for_button(int player, int button);
 int controller_get_player_last_button(int player);
 void cconfig_assign_button(int player, int button);
