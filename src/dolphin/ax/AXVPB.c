@@ -74,8 +74,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy the whole PB struct. (size: 0xF4)
         u32* src;
         u32* dst;
-        src = (void*)ppbUser;
-        dst = (void*)ppbDsp;
+        src = (u32*)ppbUser;
+        dst = (u32*)ppbDsp;
 
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -132,8 +132,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
 
         if (pvpb->updateCounter != 0) {
             u32 count;
-            src = (void*)&__AXUpdates[pvpb->index];
-            dst = (void*)pvpb->updateData;
+            src = (u32*)&__AXUpdates[pvpb->index];
+            dst = (u32*)pvpb->updateData;
             for (count = pvpb->updateCounter; count; count--) {
                 *(dst) = *(src); dst+=1; src+=1;
             }
@@ -164,8 +164,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy AXPBMIX.
         u16* src;
         u16* dst;
-        src = (void*)&ppbUser->mix;
-        dst = (void*)&ppbDsp->mix;
+        src = (u16*)&ppbUser->mix;
+        dst = (u16*)&ppbDsp->mix;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -194,8 +194,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         u16* src;
         u16* dst;
         u32* dst_;
-        src = (void*)&ppbUser->itd;
-        dst = (void*)&ppbDsp->itd;
+        src = (u16*)&ppbUser->itd;
+        dst = (u16*)&ppbDsp->itd;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -227,8 +227,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy UPDATE struct.
         u16* src;
         u16* dst;
-        dst = (void*)&ppbDsp->update;
-        src = (void*)&ppbUser->update;
+        dst = (u16*)&ppbDsp->update;
+        src = (u16*)&ppbUser->update;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -240,8 +240,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
             u32* dst_;
             u32 count;
 
-            dst_ = (void*)&__AXUpdates[pvpb->index];
-            src_ = (void*)&pvpb->updateData;
+            dst_ = (u32*)&__AXUpdates[pvpb->index];
+            src_ = (u32*)&pvpb->updateData;
 
             for (count = pvpb->updateCounter; count; count--) {
                 *(dst_) = *(src_); dst_+=1; src_+=1;
@@ -253,8 +253,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy DPOP struct.
         u16* src;
         u16* dst;
-        dst = (void*)&ppbDsp->dpop;
-        src = (void*)&ppbUser->dpop;
+        dst = (u16*)&ppbDsp->dpop;
+        src = (u16*)&ppbUser->dpop;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -278,8 +278,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy FIR struct.
         u16* src;
         u16* dst;
-        dst = (void*)&ppbDsp->fir;
-        src = (void*)&ppbUser->fir;
+        dst = (u16*)&ppbDsp->fir;
+        src = (u16*)&ppbUser->fir;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src);
@@ -304,8 +304,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy ADDR struct.
         u32* src;
         u32* dst;
-        dst = (void*)&ppbDsp->addr;
-        src = (void*)&ppbUser->addr;
+        dst = (u32*)&ppbDsp->addr;
+        src = (u32*)&ppbUser->addr;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -319,8 +319,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy ADPCM struct.
         u32* src;
         u32* dst;
-        dst = (void*)&ppbDsp->adpcm;
-        src = (void*)&ppbUser->adpcm;
+        dst = (u32*)&ppbDsp->adpcm;
+        src = (u32*)&ppbUser->adpcm;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -340,8 +340,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy SRC struct.
         u16* src;
         u16* dst;
-        dst = (void*)&ppbDsp->src;
-        src = (void*)&ppbUser->src;
+        dst = (u16*)&ppbDsp->src;
+        src = (u16*)&ppbUser->src;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -355,8 +355,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         // copy ADPCMLOOP struct.
         u16* src;
         u16* dst;
-        dst = (void*)&ppbDsp->adpcmLoop;
-        src = (void*)&ppbUser->adpcmLoop;
+        dst = (u16*)&ppbDsp->adpcmLoop;
+        src = (u16*)&ppbUser->adpcmLoop;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src);
@@ -373,8 +373,8 @@ void __AXServiceVPB(AXVPB* pvpb) {
         u16* src;
         u16* dst;
 
-        dst = (void*)&ppbDsp->lpf;
-        src = (void*)&ppbUser->lpf;
+        dst = (u16*)&ppbDsp->lpf;
+        src = (u16*)&ppbUser->lpf;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
         *(dst) = *(src); dst+=1; src+=1;
@@ -481,18 +481,21 @@ void __AXVPBInit(void) {
     __AXMaxDspCycles = OS_BUS_CLOCK / 400;
     __AXRecDspCycles = 0;
 
-#define BUFFER_MEMSET(buffer, size)    \
-    {                                  \
-        p = (u32*)&buffer;             \
-        for (i = size; i != 0; i--) {  \
-            *p = 0;                    \
-            p++;                       \
-        }                              \
+    p = (u32*)&__AXPB;
+    for (i = sizeof(__AXPB) / sizeof(u32); i != 0; i--) {
+        *p = 0;
+        p++;
     }
-
-    BUFFER_MEMSET(__AXPB, 0xF40);
-    BUFFER_MEMSET(__AXITD, 0x400);
-    BUFFER_MEMSET(__AXVPB, 0x22C0);
+    p = (u32*)&__AXITD;
+    for (i = sizeof(__AXITD) / sizeof(u32); i != 0; i--) {
+        *p = 0;
+        p++;
+    }
+    p = (u32*)&__AXVPB;
+    for (i = sizeof(__AXVPB) / sizeof(u32); i != 0; i--) {
+        *p = 0;
+        p++;
+    }
 
     for (i = 0; i < AX_MAX_VOICES; i++) {
         ppb = &__AXPB[i];
@@ -509,13 +512,13 @@ void __AXVPBInit(void) {
         pvpb->itdBuffer = ppbi;
         __AXSetPBDefault(pvpb);
 
-        if (i == 0x3F) {
+        if (i == AX_MAX_VOICES - 1) {
             pvpb->pb.nextHi = pvpb->pb.nextLo = ppb->nextHi = ppb->nextLo = 0;
         } else {
             pvpb->pb.nextHi = (u16)(  (u32)((char*)ppb + sizeof(AXPB)) >> 16 );
             pvpb->pb.nextLo = (u16)(  (u32)((char*)ppb + sizeof(AXPB)) );
             ppb->nextHi = (u16)(  (u32)((char*)ppb + sizeof(AXPB)) >> 16 );
-            ppb->nextLo = (u16)(  (u32)((char*)ppb + sizeof(AXPB)) );
+            ppb->nextLo = (u16)(  (u32)(ppb + 1) );
         }
 
         pvpb->pb.currHi = (u16)(((u32)ppb) >> 16);
@@ -537,7 +540,6 @@ void __AXVPBInit(void) {
 
     DCFlushRange(__AXPB, sizeof(__AXPB));
 }
-
 
 void AXSetVoiceSrcType(AXVPB* p, u32 type) {
     BOOL old;
@@ -585,22 +587,19 @@ void AXSetVoiceState(AXVPB* p, u16 state) {
     OSRestoreInterrupts(old);
 }
 
-
 void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr) {
     BOOL old;
     u32* dst;
     u32* src;
 
-    dst = (void*)&p->pb.addr;
-    src = (void*)addr;
+    dst = (u32*)&p->pb.addr;
+    src = (u32*)addr;
 
     old = OSDisableInterrupts();
-    {
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src);
-    }
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src);
 
     switch(addr->format) {
     case 0:
@@ -644,29 +643,26 @@ void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr) {
     OSRestoreInterrupts(old);
 }
 
-
 void AXSetVoiceAdpcm(AXVPB* p, AXPBADPCM* adpcm) {
     BOOL old;
     u32* dst;
     u32* src;
 
-    dst = (void*)&p->pb.adpcm;
-    src = (void*)adpcm;
+    dst = (u32*)&p->pb.adpcm;
+    src = (u32*)adpcm;
 
     old = OSDisableInterrupts();
 
-    {
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-    }
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
     p->sync |= AX_SYNC_FLAG_COPYADPCM;
     OSRestoreInterrupts(old);
 }
@@ -676,19 +672,17 @@ void AXSetVoiceSrc(AXVPB* p, AXPBSRC* src_) {
     u16* dst;
     u16* src;
 
-    dst = (void*)&p->pb.src;
-    src = (void*)src_;
+    dst = (u16*)&p->pb.src;
+    src = (u16*)src_;
 
     old = OSDisableInterrupts();
-    {
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-        *(dst) = *(src); dst+=1; src+=1;
-    }
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
+    *(dst) = *(src); dst+=1; src+=1;
     p->sync &= ~(AX_SYNC_FLAG_COPYRATIO);
     p->sync |= AX_SYNC_FLAG_COPYSRC;
     OSRestoreInterrupts(old);
