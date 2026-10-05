@@ -1,17 +1,5 @@
 /* BUILD: -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction). */
 
-/*
- * GameVariables.o -- option/collection dispatcher (mwScreenEngine).
- *
- * Drives menu confirm (GetInt/SetInt/HandleEvent -> target_game_mode via
- * ScreenControl option ids / m_objTag 'SCtl').
- *
- * GameVariables is the abstract base; the dispatcher walks the m_next chain,
- * filters with the non-virtual range helpers, and makes ordinary virtual
- * calls on the node. Declaration order in the header is the vtable slot
- * order -- see GameVariables.h before touching it.
- */
-
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenAction.h"
 #include "mwScreenEngine/ScreenControl.h"
@@ -27,11 +15,10 @@ enum {
     kArgRefreshCollectionAlt = 0x7e1,
     kInitRefreshCollection = 0x7d0,
     kInitRefreshOption = 0x7d1,
-    kTagSCtl = 0x5343746c /* 'SCtl' */
+    kTagSCtl = 0x5343746c
 };
 
 GameVariables::GameVariables() {
-    /* Retail store order: vtbl (implicit), m_next, opt*, col* -- pad14 unset. */
     m_next = 0;
     m_optMin = 0;
     m_optMax = 0;
@@ -43,7 +30,6 @@ unsigned int GameVariables::IsValidInt(int a, int b, int c) {
     return 1;
 }
 
-/* Keep range helpers out-of-line -- dispatcher walks bl these (not inline). */
 #pragma dont_inline on
 unsigned int GameVariables::IsValidOptionRange(unsigned int id) {
     unsigned int ok;
@@ -380,7 +366,6 @@ int GameVariableDispatcher::HandleAction(ScreenMgr* mgr, const ScreenAction* act
     int arg;
     GameVariables* cur;
 
-    /* Case order follows retail .text body order, not numeric order. */
     params = action->m_params;
     if (params != 0) {
         arg = action->m_arg;
@@ -423,10 +408,6 @@ void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int ar
     GameVariables* cur;
     ScreenControl* ctrl;
 
-    /*
-     * Retail order: non-null object first (tag @ +0x3C = m_objTag 'SCtl'),
-     * then null-object head vcall. Confirm path: SCtl + optionId @ +0x98.
-     */
     if (object != 0) {
         if (object->m_objTag == kTagSCtl) {
             ctrl = (ScreenControl*)object;
