@@ -6,7 +6,7 @@
 
 typedef struct AnimTagFrame AnimTagFrame;
 typedef struct AnimEntryName AnimEntryName;
-typedef struct AniData AniData;
+typedef struct AnimScript AniData;
 typedef struct MkObj MkObj;
 typedef struct PlyrPdata PlyrPdata;
 
