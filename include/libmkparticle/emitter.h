@@ -8,8 +8,8 @@ PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
 int pfx_emitter_unused(PfxVmEmitter* emitter);
 int pfx_emitter_restart_cycle(PfxVmEmitter* emitter);
 void pfx_emitter_reset(PfxVmEmitter* emitter);
-int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, PfxVm* pfx,
-                                float frame_time);
+int _pfx_emitter_get_birthcount(PfxVmEmitter* emitter, float frame_time,
+                                PfxVm* pfx);
 void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time);
 void pfx_emitter_scan_for_fields(PfxVmEmitter* emitter,
                                  unsigned int* fields);
