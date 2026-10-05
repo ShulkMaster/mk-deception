@@ -85,7 +85,7 @@ static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
     return is_playing;
 }
 
-/* TODO: [near miss] 97.47%; diagnostic string addressing remains; retry pool layout with whole-TU evidence. */
+/* TODO: [near miss] 97.47%; body agrees; two decoded-equal diagnostic pool-address addis remain. */
 extern "C" void mslUpdateTracks(_mslSystem* system) {
     unsigned long track_index;
     int saved_guard;
@@ -149,7 +149,35 @@ void _mslSoundStop(_mslSound* sound) {
     mslSoundDeactivate(sound, 1);
 }
 
-/* TODO: [near miss] 99.26%; lifecycle, size and diagnostic relocation match; only nonvolatile/zero register coloring differs. */
+static inline void mslSoundReleaseDefinition(mslRuntimeSound* sound) {
+    if (sound->definition != 0) {
+        mslCmdItem* command =
+            sound->definition->commands;
+        int i;
+
+        if (command != 0) {
+            for (i = 0;
+                 i < sound->definition->command_count;
+                 i++, command++) {
+                if (command->type == 1 &&
+                    command->attached_wave != 0) {
+                    mslWaveUnCopy(
+                        sound->system,
+                        command->attached_wave);
+                    command->attached_wave = 0;
+                }
+            }
+            _mwMemFree(
+                sound->definition->commands, 0, 0);
+            sound->definition->commands = 0;
+        }
+        _mwMemFree(sound->definition, 0, 0);
+        sound->definition = 0;
+    }
+}
+
+/* TODO: [near miss] 99.65%; definition teardown matches; retained node and
+ * command cursor remain a nonvolatile register pair after honest form checks. */
 static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     _ListNode* sound_node = 0;
@@ -178,13 +206,11 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
             runtime_sound->track = -1;
         }
 
-        {
-            ListPool* pool = &g_listPoolSound;
-            int index = runtime_sound - (mslRuntimeSound*)pool->elements;
+        ListPool* pool = &g_listPoolSound;
+        int index = runtime_sound - (mslRuntimeSound*)pool->elements;
 
-            sound_node = &pool->nodes[index];
-            sound_node = ListRemove(&sound_node);
-        }
+        sound_node = &pool->nodes[index];
+        sound_node = ListRemove(&sound_node);
     }
 
     runtime_sound->flags &= ~0x8000;
@@ -203,38 +229,13 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
             currentUpdateSound = 0;
         }
 
-        if (copied_sound->definition != 0) {
-            int i;
-            mslCmdItem* command =
-                copied_sound->definition->commands;
-
-            if (command != 0) {
-                for (i = 0;
-                     i < copied_sound->definition->command_count;
-                     i++, command++) {
-                    if (command->type == 1 &&
-                        command->attached_wave != 0) {
-                        mslWaveUnCopy(
-                            copied_sound->system,
-                            command->attached_wave);
-                        command->attached_wave = 0;
-                    }
-                }
-                _mwMemFree(
-                    copied_sound->definition->commands, 0, 0);
-                copied_sound->definition->commands = 0;
-            }
-            _mwMemFree(copied_sound->definition, 0, 0);
-            copied_sound->definition = 0;
-        }
+        mslSoundReleaseDefinition(copied_sound);
 
         copied_sound->bank_sound_entry = 0;
-        {
-            _ListNode* list = original_node;
+        _ListNode* list = original_node;
 
-            ListNodeFree(
-                &g_listPoolSound, ListRemove(&list));
-        }
+        ListNodeFree(
+            &g_listPoolSound, ListRemove(&list));
 
         if (bank_sound != 0) {
             mslBankSoundUnUse(bank_sound);
@@ -319,68 +320,55 @@ void _mslSoundPause(_mslSound* sound) {
     }
 }
 
-/* TODO: [near miss] 98.02%; diagnostic pool addresses restored; track-scan
- * GPR coloring and result/branch scheduling remain. */
-extern "C" int mslSoundPlayNow(_ListNode* node) {
-    mslRuntimeSound* sound =
-        (mslRuntimeSound*)ListNodeData(0, node);
-    unsigned long play_flags = sound->flags & ~8;
-    int track_result;
-
+static inline int select_sound_track(mslRuntimeSound* sound, unsigned long play_flags) {
     if (sound->track == -1) {
         int track;
 
-        for (track = sound->system->track_count;
-             track < 0x40; track++) {
+        for (track = sound->system->track_count; track < 0x40; track++) {
             if (sound->system->tracks[track].sound == 0) {
                 sound->track = track;
                 break;
             }
         }
-
         if (sound->track == -1) {
             mslDebugPrintf(&stringBase0[0x167]);
-            track_result = -1;
-        } else {
-            track_result = sound->track;
+            return -1;
         }
-    } else if (sound->system->track_count <=
-               (unsigned long)sound->track) {
-        mslDebugPrintf(
-            &stringBase0[0x187],
-            sound->track, sound->system->track_count);
-        track_result = -1;
     } else {
+        if (sound->system->track_count <= (unsigned long)sound->track) {
+            mslDebugPrintf(&stringBase0[0x187],
+                sound->track, sound->system->track_count);
+            return -1;
+        }
         if ((play_flags & 8) == 0) {
             int replace_result;
             mslRuntimeSound* current =
-                (mslRuntimeSound*)sound->system->tracks[
-                    sound->track].sound;
+                (mslRuntimeSound*)sound->system->tracks[sound->track].sound;
 
             if (current != 0) {
                 if (current->priority > sound->priority) {
                     replace_result = -1;
                 } else {
-                    mslSoundDeactivate(
-                        (_mslSound*)current, current->flags & 1);
+                    mslSoundDeactivate((_mslSound*)current, current->flags & 1);
                     sound->system->tracks[sound->track].sound = 0;
                     replace_result = 1;
                 }
             } else {
                 replace_result = 0;
             }
-
             if (replace_result < 0) {
-                track_result = -1;
-            } else {
-                track_result = sound->track;
+                return -1;
             }
-        } else {
-            track_result = sound->track;
         }
     }
+    return sound->track;
+}
 
-    if (track_result < 0) {
+extern "C" int mslSoundPlayNow(_ListNode* node) {
+    mslRuntimeSound* sound =
+        (mslRuntimeSound*)ListNodeData(0, node);
+
+    if (select_sound_track(sound, sound->flags & ~8) < 0) {
         return 0;
     }
 
@@ -420,13 +408,11 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
     return 1;
 }
 
-/* TODO: [near miss] 96.57%; retail allocation, copy, and rollback agree;
- * postloop failure recheck adds 12 bytes and extends a GPR lifetime. */
+/* TODO: [near miss] 99.61%; shared failure cleanup CFG recovered; base/rollback owner allocation remains. */
 extern "C" int mslSoundAttach(
     mslRuntimeSound* sound, mslBankSoundEntry* bank_sound) {
-    mslRuntimeSound* base_sound;
+    const mslRuntimeSound* base_sound;
     mslBankSoundDefinition* definition;
-    mslCmdItem* command;
     mslCmdItem* source_command;
     int i;
 
@@ -434,7 +420,7 @@ extern "C" int mslSoundAttach(
         return 0;
     }
 
-    base_sound = (mslRuntimeSound*)bank_sound->sound;
+    base_sound = (const mslRuntimeSound*)bank_sound->sound;
     sound->end_time = 0.0f;
     sound->bank_sound_entry = bank_sound;
     sound->adjustments = 0;
@@ -457,10 +443,12 @@ extern "C" int mslSoundAttach(
         definition->command_count * sizeof(mslCmdItem),
         3, 0, 0, 0);
     if (definition->commands != 0) {
+        mslCmdItem* command;
+        mslCmdItem* wave_command;
         source_command = base_sound->definition->commands;
         command = definition->commands;
         for (i = 0; i < definition->command_count;
-             i++, source_command++, command++) {
+             i++, command++, source_command++) {
             command->source.offset = source_command->source.offset;
             command->target.offset = source_command->target.offset;
             command->type = source_command->type;
@@ -490,14 +478,14 @@ extern "C" int mslSoundAttach(
         }
 
         sound->current_command = definition->commands;
-        command = sound->current_command;
-        for (i = 0; i < definition->command_count; i++, command++) {
-            if (command->type == 1) {
-                command->attached_wave = mslWaveCopy(
-                    sound->system, command->attached_wave,
+        wave_command = sound->current_command;
+        for (i = 0; i < definition->command_count; i++, wave_command++) {
+            if (wave_command->type == 1) {
+                wave_command->attached_wave = mslWaveCopy(
+                    sound->system, wave_command->attached_wave,
                     bank_sound->owner_bank,
-                    (const char*)command->source.pointer, 1);
-                if (command->attached_wave == 0) {
+                    (const char*)wave_command->source.pointer, 1);
+                if (wave_command->attached_wave == 0) {
                     mslCmdItem* rollback = sound->current_command;
                     int j;
 
@@ -509,16 +497,15 @@ extern "C" int mslSoundAttach(
                         }
                         rollback->attached_wave = 0;
                     }
-                    break;
+                    goto failure_cleanup;
                 }
             }
         }
 
-        if (i >= definition->command_count) {
-            return 0;
-        }
+        return 0;
     }
 
+failure_cleanup:
     definition = sound->definition;
     if (definition != 0) {
         _mwMemFree(definition->commands, 0, 0);
@@ -571,7 +558,6 @@ extern "C" int mslSoundIsReady(_mslSound* sound) {
     return 1;
 }
 
-
 extern "C" void mslSoundUnCopy(_ListNode* node) {
     int i;
     mslCmdItem* command;
@@ -623,9 +609,8 @@ extern "C" void mslSoundUncommit(_mslSound* sound) {
     }
 }
 
-
-/* TODO: [breakthrough needed] 97.04%; writable diagnostic violates retail
- * placement; late pool definition still scores87.62% through base hoisting. */
+/* TODO: [breakthrough needed] 97.85%; string pooling restores diagnostic
+ * instructions; reconcile mixed TU pool layout before changing its mode. */
 extern "C" int mslSoundUnLoad(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     mslCmdItem* command;
@@ -673,14 +658,12 @@ extern "C" int mslSoundUnLoad(_mslSound* sound) {
         }
     }
 
-    {
-        ListPool* pool = &g_listPoolSound;
-        int index = runtime_sound - (mslRuntimeSound*)pool->elements;
-        _ListNode* node = &pool->nodes[index];
+    ListPool* pool = &g_listPoolSound;
+    int index = runtime_sound - (mslRuntimeSound*)pool->elements;
+    _ListNode* node = &pool->nodes[index];
 
-        ListNodeFree(
-            &g_listPoolSound, ListRemove(&node));
-    }
+    ListNodeFree(
+        &g_listPoolSound, ListRemove(&node));
     return 0;
 }
 
@@ -761,7 +744,6 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
     mslSoundInit(node, system);
     return node;
 }
-
 
 /*
  * Resolve every wave command against the owning bank, lazily load its base
@@ -846,35 +828,28 @@ extern "C" int mslCmdsLoad(
     return 1;
 }
 
-
 /*
  * Publish a reusable bank sound only after every wave command has loaded and
  * received its private runtime copy. Retail embeds mslSoundNew here.
  */
-/* TODO: [near miss] 99.66%; pooled allocator diagnostic restored; definition
- * load/store scratch registers remain. */
 extern "C" _mslSound* mslSoundLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {
-    _mslSound* result = 0;
+    mslRuntimeSound* result = 0;
 
     if (mslCmdsLoad(system, bank, definition, flags) == 0) {
         return 0;
     }
 
-    {
-        _ListNode* node = mslSoundNew(system, 0);
+    _ListNode* node = mslSoundNew(system, 0);
 
-        if (node != 0) {
-            mslRuntimeSound* sound =
-                (mslRuntimeSound*)ListNodeData(0, node);
-            sound->definition = definition;
-            sound->current_command = sound->definition->commands;
-            sound->flags = flags;
-            result = (_mslSound*)sound;
-        }
+    if (node != 0) {
+        result = (mslRuntimeSound*)ListNodeData(0, node);
+        result->definition = definition;
+        result->current_command = result->definition->commands;
+        result->flags = flags;
     }
-    return result;
+    return (_mslSound*)result;
 }
 
 extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
