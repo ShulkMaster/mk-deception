@@ -2,21 +2,12 @@
  * Dynamic stream-file reader. Retail owns five 0x4000-byte buffers, five
  * in-flight read records, and 32 generation-tagged pending requests.
  *
- * The interrupt return wrapper and Initialize are report-exact. DMA-buffer
- * alignment now agrees with retail; pointer-validation portability remains
- * under review. ReturnBuffer and ServiceNextRead have retail operations and
- * narrow temporary/list-link scheduling residue. CancelRequest and QueueRequest
- * retain one short-circuit branch and allocator/string lifetime differences.
- * CancelRead (~89.76%) and FileReadCompletionCallback (90.00%) retain retail
- * ownership, calls, and algorithms; their residue is list-reload scheduling
- * and register allocation, with no opcode mismatch.
  */
 #include "msl/mslStreamFile.h"
 #include "msl/mslStreamFile_internal.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"
 #include "msl/mslsupport.h"
-
 
 typedef unsigned int u32;
 typedef unsigned char u8;
@@ -133,19 +124,24 @@ static inline int mslDSB_ReturnBuffer(void* buffer) {
     return result;
 }
 
-extern "C" void mslStreamFile_CancelRequest(void* handle) {
+static inline mslDSB_PendingAsyncRead* mslDSB_RequestFromOpaque(void* handle) {
     mslDSB_RequestHandle value;
     int index;
     mslDSB_PendingAsyncRead* request;
 
     value.value = mslDSB_HandleFromOpaque(handle);
     index = value.parts.index;
-    if (!(index >= 1 && index <= 32 &&
-          (request = &DSB_PAR_Pool[index - 1],
-           value.value == request->handle.value) &&
-          request->in_use != 0)) {
-        request = 0;
+    if (index >= 1 && index <= 32 &&
+        (request = &DSB_PAR_Pool[index - 1],
+         value.value == request->handle.value) &&
+        request->in_use != 0) {
+        return request;
     }
+    return 0;
+}
+
+extern "C" void mslStreamFile_CancelRequest(void* handle) {
+    mslDSB_PendingAsyncRead* request = mslDSB_RequestFromOpaque(handle);
     if (request != 0) {
         mslDSB_CancelRead(request, 1);
     }
@@ -193,19 +189,18 @@ extern "C" void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer) {
 }
 
 static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
+    int enabled;
     int service;
 
     if (buffer != 0) {
         service = 0;
-        unsigned long enabled = OSDisableInterrupts();
+        enabled = OSDisableInterrupts();
         mslDSB_PendingAsyncRead* queued;
 
         mslDSB_ReturnBuffer(buffer);
-        {
-            unsigned long inner = OSDisableInterrupts();
-            queued = DSB_PAR_Queue.first;
-            OSRestoreInterrupts(inner);
-        }
+        int inner = OSDisableInterrupts();
+        queued = DSB_PAR_Queue.first;
+        OSRestoreInterrupts(inner);
         if (queued != 0) {
             service = 1;
         }
@@ -216,6 +211,8 @@ static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
     }
 }
 
+/* TODO: [near miss] 97.74509%; buffer-validity helper return joins in a temporary;
+ * four success/failure result register rows remain. */
 extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
     unsigned long enabled;
     int service;
@@ -225,15 +222,14 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
         result = 0;
     } else {
         mslDSB_PendingAsyncRead* queued;
+        unsigned long inner;
 
         service = 0;
         enabled = OSDisableInterrupts();
         result = mslDSB_ReturnBuffer(buffer);
-        {
-            unsigned long inner = OSDisableInterrupts();
-            queued = DSB_PAR_Queue.first;
-            OSRestoreInterrupts(inner);
-        }
+        inner = OSDisableInterrupts();
+        queued = DSB_PAR_Queue.first;
+        OSRestoreInterrupts(inner);
         if (queued != 0) {
             service = 1;
         }
@@ -245,9 +241,9 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
     return result;
 }
 
-static inline mslDSB_PendingAsyncRead* mslDSB_AllocPending(void) {
+static inline void mslDSB_AllocPending(mslDSB_PendingAsyncRead*& request) {
     unsigned long enabled = OSDisableInterrupts();
-    mslDSB_PendingAsyncRead* request = DSB_PAR_FreeList;
+    request = DSB_PAR_FreeList;
 
     if (request != 0) {
         mslDSB_RequestHandleValue handle;
@@ -262,40 +258,41 @@ static inline mslDSB_PendingAsyncRead* mslDSB_AllocPending(void) {
     if (request == 0) {
         mslDebugPrintf(STREAM_STRING(0x31));
     }
-    return request;
 }
 
+/* TODO: [near miss] 93.40385%; request/retry CFG restored; hoisted diagnostic address and allocation webs enlarge frame. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {
-    mslDSB_PendingAsyncRead* request = 0;
+    mslDSB_PendingAsyncRead* request;
 
-    if (size != 0) {
+    if (size == 0) {
+        request = 0;
+    } else {
         const char* retry_strings;
+        unsigned long enabled;
 
-        request = mslDSB_AllocPending();
+        mslDSB_AllocPending(request);
         retry_strings = stringBase0;
         while (request == 0) {
             mslDebugPrintf(&retry_strings[0x85]);
-            request = mslDSB_AllocPending();
+            mslDSB_AllocPending(request);
         }
-        {
-            unsigned long enabled = OSDisableInterrupts();
+        enabled = OSDisableInterrupts();
 
-            request->file = file;
-            request->priority = priority;
-            request->callback = callback;
-            request->callback_data = callback_data;
-            request->request_offset = offset;
-            request->request_size = size;
-            request->next_offset = offset;
-            request->remaining = size;
-            *DSB_PAR_Queue.last_link = request;
-            DSB_PAR_Queue.last_link = &request->next;
-            request->next = 0;
-            request->queued = 1;
-            OSRestoreInterrupts(enabled);
-        }
+        request->file = file;
+        request->priority = priority;
+        request->callback = callback;
+        request->callback_data = callback_data;
+        request->request_offset = offset;
+        request->request_size = size;
+        request->next_offset = offset;
+        request->remaining = size;
+        *DSB_PAR_Queue.last_link = request;
+        DSB_PAR_Queue.last_link = &request->next;
+        request->next = 0;
+        request->queued = 1;
+        OSRestoreInterrupts(enabled);
         mslDSB_ServiceNextRead();
     }
     if (request != 0) {
@@ -315,15 +312,17 @@ static inline void mslDSB_FreeFileRead(mslDSB_FileRead* read) {
 static inline void mslDSB_UnlinkFileRead(
     mslDSB_PendingAsyncRead* request, mslDSB_FileRead* read) {
     if (read->previous != 0) {
-        read->previous->next = read->next;
-        if (read->next != 0) {
+        mslDSB_FileRead* next = read->next;
+        read->previous->next = next;
+        if (next != 0) {
             read->next->previous = read->previous;
         } else {
             request->last_read = read->previous;
         }
     } else {
-        request->first_read = read->next;
-        if (request->first_read != 0) {
+        mslDSB_FileRead* next = read->next;
+        request->first_read = next;
+        if (next != 0) {
             request->first_read->previous = 0;
         } else {
             request->last_read = 0;
@@ -333,8 +332,8 @@ static inline void mslDSB_UnlinkFileRead(
 }
 
 static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
-    unsigned long enabled = OSDisableInterrupts();
     mslDSB_RequestHandleValue handle;
+    unsigned long enabled = OSDisableInterrupts();
 
     request->in_use = 0;
     handle = request->handle.value;
@@ -345,8 +344,7 @@ static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 89.76%; list reloads and address lifetimes remain
- * (retail 0x318, current 0x320); portable address-delta trial scored 88.28%. */
+/* TODO: [near miss] 97.04546%; cancellation and queue reloads agree; invariant buffer-base/format hoist remains. */
 static void mslDSB_CancelRead(
     mslDSB_PendingAsyncRead* request, int invoke_callback) {
     if (request != 0) {
@@ -362,8 +360,6 @@ static void mslDSB_CancelRead(
             if (request->active_reads != 0) {
                 read = request->last_read;
                 while (read != 0) {
-                    mslDSB_FileRead* next;
-
                     mslDSB_UnlinkFileRead(request, read);
                     if (read->command != 0) {
                         mslDebugPrintf(
@@ -376,9 +372,8 @@ static void mslDSB_CancelRead(
                         mslDSB_ReturnBuffer(read->buffer);
                         read->buffer = 0;
                     }
-                    next = request->last_read;
                     mslDSB_FreeFileRead(read);
-                    read = next;
+                    read = request->last_read;
                 }
                 request->active_reads = 0;
             }
@@ -386,20 +381,24 @@ static void mslDSB_CancelRead(
             if (request->queued) {
                 unsigned long queue_enabled;
                 mslDSB_PendingAsyncRead** link;
+                mslDSB_PendingAsyncRead* queued;
                 mslDebugPrintf(STREAM_STRING(0x103));
                 queue_enabled = OSDisableInterrupts();
+                queued = DSB_PAR_Queue.first;
                 link = &DSB_PAR_Queue.first;
-                while (*link != 0) {
-                    if (*link == request) {
-                        *link = request->next;
-                        if (*link == 0) {
+                while (queued != 0) {
+                    if (request == queued) {
+                        mslDSB_PendingAsyncRead* next = queued->next;
+                        *link = next;
+                        if (next == 0) {
                             DSB_PAR_Queue.last_link = link;
                         }
                         request->next = 0;
                         request->queued = 0;
                         break;
                     }
-                    link = &(*link)->next;
+                    link = &queued->next;
+                    queued = queued->next;
                 }
                 OSRestoreInterrupts(queue_enabled);
             }
@@ -500,8 +499,7 @@ void mslDSB_ServiceNextRead(void) {
             }
             offset = request->next_offset;
             read->owner = request;
-            read->previous = request->last_read;
-            if (request->last_read != 0) {
+            if ((read->previous = request->last_read) != 0) {
                 request->last_read->next = read;
             } else {
                 request->first_read = read;
@@ -521,7 +519,7 @@ void mslDSB_ServiceNextRead(void) {
             }
             OSRestoreInterrupts(inner);
 
-            read->command = (mwFileCommand*)mwFileReadAsync(
+            read->command = mwFileReadAsync(
                 request->file, read->offset, buffer, read->size,
                 request->priority, mslDSB_FileReadCompletionCallback, read);
             read = 0;
@@ -538,89 +536,93 @@ void mslDSB_ServiceNextRead(void) {
     }
 }
 
-/* TODO: [near miss] 90.00%; error callbacks always receive null as in retail;
- * size is exact, with list-reload scheduling and GPR coloring remaining. */
+/* TODO: [near miss] 98.757065%; unlink and relative-offset staging recovered;
+ * saved-register allocation and string-symbol references remain. */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     /* Retail ignores the file result argument; only the owning request's
      * error latch selects the error callback path. */
+    mslDSB_PendingAsyncRead* request;
+    mslStreamFileCallback callback;
+    void* data;
+    int enabled;
     mslDSB_FileRead* read = (mslDSB_FileRead*)callback_data;
 
     if (read->command != command) {
         mwFileFreeCommand(command);
         return;
     }
-    {
-        mslDSB_PendingAsyncRead* request = read->owner;
-        unsigned long enabled = OSDisableInterrupts();
-        int final = 0;
-        int requeue = 0;
-        int error = 0;
-        mslStreamFileCallback callback;
-        void* data;
-        void* buffer;
+    request = read->owner;
+    enabled = OSDisableInterrupts();
+    int final;
+    int requeue;
+    int error;
+    void* buffer;
 
-        mslDSB_UnlinkFileRead(request, read);
-        request->active_reads--;
-        data = request->callback_data;
-        callback = request->callback;
-        buffer = read->buffer;
-        read->buffer = 0;
-        if (request->error) {
-            error = 0x44DEAD01;
-        }
+    mslDSB_UnlinkFileRead(request, read);
+    final = 0;
+    requeue = 0;
+    error = 0;
+    request->active_reads--;
+    data = request->callback_data;
+    callback = request->callback;
+    buffer = read->buffer;
+    read->buffer = 0;
+    if (request->error) {
+        error = 0x44DEAD01;
+    }
 
-        if (callback != 0) {
-            u32 offset = read->callback_offset - request->request_offset;
-            u32 size = read->callback_size;
+    if (callback != 0) {
+        u32 offset = read->callback_offset;
+        u32 size = read->callback_size;
+        offset -= request->request_offset;
 
-            if (error == 0) {
-                if (request->final_issued) {
-                    if (request->active_reads == 0) {
-                        final = 1;
-                    }
-                } else if (request->active_reads <= 1) {
-                    requeue = 1;
+        if (error == 0) {
+            if (request->final_issued) {
+                if (request->active_reads == 0) {
+                    final = 1;
                 }
-            } else {
-                request->error = 1;
-                final = 1;
-                request->final_issued = 1;
-                offset = 0;
-                mslDSB_ReturnBuffer(buffer);
-                buffer = 0;
-            }
-            callback(buffer, offset, size, error, final, data);
-            if (error != 0) {
-                request->callback = 0;
-                callback = 0;
+            } else if (request->active_reads <= 1) {
+                requeue = 1;
             }
         } else {
+            request->error = 1;
+            final = 1;
+            request->final_issued = 1;
+            offset = 0;
             mslDSB_ReturnBuffer(buffer);
+            buffer = 0;
         }
+        callback(buffer, offset, size, error, final, data);
+        if (error != 0) {
+            request->callback = 0;
+            callback = 0;
+        }
+    } else {
+        mslDSB_ReturnBuffer(buffer);
+    }
 
-        if (requeue) {
-            if (!request->queued) {
-                *DSB_PAR_Queue.last_link = request;
-                DSB_PAR_Queue.last_link = &request->next;
-                request->next = 0;
-                request->queued = 1;
-                callback = 0;
-            }
-        } else if (request->active_reads == 0) {
-            mslDSB_RequestHandleValue handle;
-            request->in_use = 0;
-            handle = request->handle.value;
-            memset(request, 0, sizeof(*request));
-            request->handle.value = handle;
-            request->next = DSB_PAR_FreeList;
-            DSB_PAR_FreeList = request;
+    if (requeue) {
+        if (!request->queued) {
+            *DSB_PAR_Queue.last_link = request;
+            DSB_PAR_Queue.last_link = &request->next;
+            request->next = 0;
+            request->queued = 1;
+            callback = 0;
         }
-        mslDSB_FreeFileRead(read);
-        OSRestoreInterrupts(enabled);
-        mwFileFreeCommand(command);
-        if (callback == 0) {
-            mslDSB_ServiceNextRead();
-        }
+    } else if (request->active_reads == 0) {
+        mslDSB_RequestHandleValue handle;
+        request->in_use = 0;
+        handle = request->handle.value;
+        memset(request, 0, sizeof(*request));
+        request->handle.value = handle;
+        request->next = DSB_PAR_FreeList;
+        DSB_PAR_FreeList = request;
+    }
+    mslDSB_FreeFileRead(read);
+    OSRestoreInterrupts(enabled);
+    mwFileFreeCommand(command);
+    if (callback == 0) {
+        mslDSB_ServiceNextRead();
     }
 }
