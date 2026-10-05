@@ -15,9 +15,9 @@ extern "C" {
 typedef void* (*PfxFontAllocFn)(unsigned int size);
 typedef void (*PfxFontFreeFn)(void* ptr);
 
-/* Defined in runtime/fonts.h (TGA face object); incomplete here for PfxFontSlot. */
-typedef struct FontFace FontFace;
+/* Font faces use the texture returned by the asset loader. */
 typedef struct RwTexture RwTexture;
+typedef RwTexture FontFace;
 
 /* Per-glyph metrics; table at FontMetrics+0x34, stride 0x24, index (ch-0x20). */
 typedef struct GlyphMetrics {
