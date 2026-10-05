@@ -29,8 +29,7 @@
 #include "game/plyr_globals.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/joy.h"
-#include "game/combat.h"
-
+#include "game/moves.h"
 
 struct EjbPlyrForcePdata {
     MkHdr hdr;
@@ -268,13 +267,13 @@ extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
 void unfreeze_player(void);
 
-int g_no_throw_f;
-int debug_int_2;
-int debug_int_1;
-float debug_z;
-float debug_y;
-float debug_x;
 struct EjbPlyrForcePdata* plyr_force_pdata;
+float debug_x;
+float debug_y;
+float debug_z;
+int debug_int_1;
+int debug_int_2;
+int g_no_throw_f;
 
 #define EJB_ADVANCE_TO_FRAME(animation, target_frame)                    \
     do {                                                                 \
