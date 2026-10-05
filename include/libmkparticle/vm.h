@@ -182,10 +182,15 @@ typedef void (*PfxSpawnCallback)(PfxVm* pfx, int first_particle,
                                  int particle_count);
 
 struct PfxVm {
-    PfxVec3 basis0;                    /* +0x000 */
-    char pad00C[4];
-    PfxVec3 basis1;                    /* +0x010 */
-    char pad01C[0x24];
+    union {
+        PfxMatrix matrix;             /* +0x000, complete effect transform */
+        struct {
+            PfxVec3 basis0;            /* +0x000 */
+            char pad00C[4];
+            PfxVec3 basis1;            /* +0x010 */
+            char pad01C[0x24];
+        };
+    };
     unsigned char frame_flags;         /* +0x040 */
     char pad041[3];
     union {
@@ -290,7 +295,7 @@ struct PfxVm {
     char* name;                        /* +0x21C */
     char pad220[4];
     PfxMetrics* metrics;               /* +0x224 */
-    char pad228[4];
+    float effect_scale;                /* +0x228 -- MkPfx scale at +0x268 */
     int field_0x22C;
     void* emitter_user_data;           /* +0x230 */
     void* effect_allocations;          /* +0x234 -- linked raw allocations */
