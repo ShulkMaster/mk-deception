@@ -1,4 +1,4 @@
-#include "dolphin/trk.h"
+#include "dolphin/main_TRK.h"
 
 static DSError TRK_mainError;
 
