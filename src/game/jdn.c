@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "fdlibm.h"
 #include "game/jdn.h"
 #include "libmkparticle/color.h"
 #include "libmkparticle/emitter.h"
@@ -6,7 +7,11 @@
 #include "libmkparticle/particle.h"
 #include "libmkparticle/vm.h"
 #include "math/gxVect.h"
+#include "math/gxMath.h"
 #include "runtime/mk_particle.h"
+#include "platform/main.h"
+#include "runtime/mtRand2.h"
+#include "runtime/utils.h"
 #include "runtime/cstring.h"
 
 static float pfx_glass_break_run(void);
@@ -24,17 +29,8 @@ static PfxColor glass_fragment_alphas[0xB5];
 float soul_sine[0x400];
 unsigned int g_kill_shard_fx;
 
-extern float game_speed;
-extern unsigned int reseed_rnd_tbl;
-
 MkPfx* create_pfx(int, int, float (*)(void), MkPfx**,
                   const unsigned int*, const char*);
-float frand(float);
-float sfrand(float);
-unsigned int randu0(unsigned int);
-void reload_rnd_tbl(void);
-double pow(double, double);
-float gxMathSin(float);
 
 /* TODO: [breakthrough needed] 76.66%; recover constructor call staging and float-store order. */
 MkPfx* start_pfx_glass_shards(
@@ -85,9 +81,9 @@ MkPfx* start_pfx_glass_shards(
     }
 
     set_pfx_texture(
-        (PfxVm*)glass->matrix, (void*)0x2001E, (void*)art_id);
+        (PfxVm*)glass->matrix, 0x2001E, art_id);
     if ((unsigned int)(art_id - 0x013D0000) == 8) {
-        for (index = 0; index <= 0xB4; index++) {
+        for (index = 0; index <= (int)(sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0])) - 1; index++) {
             pfx_native_set_rgba(&glass_fragment_alphas[index], 90.0f, 130.0f,
                 90.0f, 255.0f - 255.0f * (float)index / 181.0f);
         }
@@ -108,7 +104,7 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [breakthrough needed] 69.58%; compare retail particle-loop CFG and runtime stride use. */
+/* TODO: [breakthrough needed] 69.5835%; compare retail particle-loop CFG and runtime stride use. */
 static float pfx_glass_break_run(void) {
     MkPfx* glass = apfx;
     PfxVm* vm = (PfxVm*)glass->matrix;
@@ -141,6 +137,8 @@ static float pfx_glass_break_run(void) {
     float resting_damping = pow(0.975, game_speed);
     float gravity = 0.003f * game_speed;
     int index = 0;
+    PfxVmEmitter* emitter;
+    float* pending;
 
     while (index < vm->particle_cursor) {
         if (*src_life == (float)(glass->field_28C - 1)) {
@@ -226,66 +224,65 @@ static float pfx_glass_break_run(void) {
         index++;
     }
 
-    {
-        PfxVmEmitter* emitter = pfx_get_emitter(vm, 0);
-        float* pending = &emitter->birth_rate;
-        if (*pending != 0.0f) {
-            int count = *pending;
-            PfxColor color = {0x80, 0x80, 0x80, 0xFF};
-            vm->particle_cursor += count;
-            for (index = 0; index < vm->particle_cursor; index++) {
-                if (reseed_rnd_tbl != 0) reload_rnd_tbl();
-                *dst_life = 0.0f;
-                if (glass->field_294 == 9) {
-                    dst_pos->x = apfx_emitter_obj->pos.value.x + frand(0.8f);
-                    dst_pos->y = apfx_emitter_obj->pos.value.y + glass->field_298 + sfrand(0.5f);
-                    dst_pos->z = apfx_emitter_obj->pos.value.z + frand(0.8f);
-                } else {
-                    dst_pos->x = apfx_emitter_obj->pos.value.x - 0.1f + frand(0.2f);
-                    dst_pos->y = apfx_emitter_obj->pos.value.y + glass->field_298 + sfrand(0.5f);
-                    dst_pos->z = apfx_emitter_obj->pos.value.z - 0.1f + frand(0.2f);
-                }
-                switch (glass->field_294) {
-                case 0:
-                    dst_vel->x = glass->effect_center.x - 0.05f + frand(0.1f);
-                    dst_vel->y = glass->effect_center.y - 0.05f + frand(0.15f);
-                    dst_vel->z = glass->effect_center.z - 0.05f + frand(0.1f);
-                    break;
-                case 1:
-                    dst_vel->x = glass->effect_center.x + sfrand(0.05f);
-                    dst_vel->y = glass->effect_center.y + sfrand(0.01f);
-                    dst_vel->z = glass->effect_center.z + sfrand(0.05f);
-                    break;
-                case 6:
-                    dst_vel->x = glass->effect_center.x + sfrand(0.1f);
-                    dst_vel->y = glass->effect_center.y + sfrand(0.05f);
-                    dst_vel->z = glass->effect_center.z + sfrand(0.1f);
-                    *dst_life = 15.0f * game_speed;
-                    break;
-                case 9:
-                    dst_vel->x = sfrand(0.1f);
-                    dst_vel->y = glass->effect_center.y + sfrand(0.04f);
-                    dst_vel->z = sfrand(0.1f);
-                    break;
-                default:
-                    dst_vel->x = glass->effect_center.x + sfrand(0.05f);
-                    dst_vel->y = glass->effect_center.y + frand(0.07f);
-                    dst_vel->z = glass->effect_center.z + sfrand(0.05f);
-                    break;
-                }
-                *dst_time = randu0(0x14);
-                *dst_scale = glass->field_29C + frand(3.0f * glass->field_2A0);
-                *dst_color = color;
-                *dst_state = 0;
-                *dst_angle = frand(6.2831855f);
-                ADVANCE(dst_time, vstride); ADVANCE(dst_pos, fstride);
-                ADVANCE(dst_scale, fstride); ADVANCE(dst_vel, vstride);
-                ADVANCE(dst_color, fstride); ADVANCE(dst_state, vstride);
-                ADVANCE(dst_life, vstride); ADVANCE(dst_angle, fstride);
+    emitter = pfx_get_emitter(vm, 0);
+    pending = &emitter->birth_rate;
+    if (*pending != 0.0f) {
+        int count = *pending;
+        PfxColor color = {0x80, 0x80, 0x80, 0xFF};
+        vm->particle_cursor += count;
+        for (index = 0; index < vm->particle_cursor; index++) {
+            if (reseed_rnd_tbl != 0) reload_rnd_tbl();
+            *dst_life = 0.0f;
+            if (glass->field_294 == 9) {
+                dst_pos->x = apfx_emitter_obj->pos.value.x + frand(0.8f);
+                dst_pos->y = apfx_emitter_obj->pos.value.y + glass->field_298 + sfrand(0.5f);
+                dst_pos->z = apfx_emitter_obj->pos.value.z + frand(0.8f);
+            } else {
+                dst_pos->x = apfx_emitter_obj->pos.value.x - 0.1f + frand(0.2f);
+                dst_pos->y = apfx_emitter_obj->pos.value.y + glass->field_298 + sfrand(0.5f);
+                dst_pos->z = apfx_emitter_obj->pos.value.z - 0.1f + frand(0.2f);
             }
-            *pending = 0.0f;
+            switch (glass->field_294) {
+            case 0:
+                dst_vel->x = glass->effect_center.x - 0.05f + frand(0.1f);
+                dst_vel->y = glass->effect_center.y - 0.05f + frand(0.15f);
+                dst_vel->z = glass->effect_center.z - 0.05f + frand(0.1f);
+                break;
+            case 1:
+                dst_vel->x = glass->effect_center.x + sfrand(0.05f);
+                dst_vel->y = glass->effect_center.y + sfrand(0.01f);
+                dst_vel->z = glass->effect_center.z + sfrand(0.05f);
+                break;
+            case 6:
+                dst_vel->x = glass->effect_center.x + sfrand(0.1f);
+                dst_vel->y = glass->effect_center.y + sfrand(0.05f);
+                dst_vel->z = glass->effect_center.z + sfrand(0.1f);
+                *dst_life = 15.0f * game_speed;
+                break;
+            case 9:
+                dst_vel->x = sfrand(0.1f);
+                dst_vel->y = glass->effect_center.y + sfrand(0.04f);
+                dst_vel->z = sfrand(0.1f);
+                break;
+            default:
+                dst_vel->x = glass->effect_center.x + sfrand(0.05f);
+                dst_vel->y = glass->effect_center.y + frand(0.07f);
+                dst_vel->z = glass->effect_center.z + sfrand(0.05f);
+                break;
+            }
+            *dst_time = randu0(0x14);
+            *dst_scale = glass->field_29C + frand(3.0f * glass->field_2A0);
+            *dst_color = color;
+            *dst_state = 0;
+            *dst_angle = frand(6.2831855f);
+            ADVANCE(dst_time, vstride); ADVANCE(dst_pos, fstride);
+            ADVANCE(dst_scale, fstride); ADVANCE(dst_vel, vstride);
+            ADVANCE(dst_color, fstride); ADVANCE(dst_state, vstride);
+            ADVANCE(dst_life, vstride); ADVANCE(dst_angle, fstride);
         }
+        *pending = 0.0f;
     }
+
 #undef ADVANCE
     if (g_kill_shard_fx == 1 || vm->particle_cursor == 0) return -1.0f;
     return 1.0f;
@@ -294,7 +291,7 @@ static float pfx_glass_break_run(void) {
 /* TODO: [breakthrough needed] 70.64%; identify frame and stmw/lmw compiler-mode cause. */
 static void mkpfx_spawnupdate_glass_break(PfxVm* vm) {
     int index;
-    for (index = 0; index <= 0xB4; index++) {
+    for (index = 0; index <= (int)(sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0])) - 1; index++) {
         pfx_native_set_rgba(&glass_fragment_alphas[index], 128.0f, 128.0f,
             128.0f, 255.0f - 255.0f * (float)index / 181.0f);
     }
