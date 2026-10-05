@@ -1,114 +1,77 @@
 #include "game/gcspecskin.h"
+#include "game/specular.h"
+#include "math/mk_math.h"
+#include "platform/display.h"
+#include "platform/gcdisplay.h"
+#include "runtime/light.h"
+#include "runtime/mk_plugins.h"
+#include "rw/rplight.h"
 #include "rw/rpworld_types.h"
 #include "rw/rtquat.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwengine.h"
 #include "rw/rwframe.h"
+#include "rw/rpskin.h"
+#include "rw/rpmatfx.h"
 
-typedef union FloatBits {
+union FloatBits {
     float value;
     unsigned int bits;
-} FloatBits;
+};
 
-typedef struct SpecularLight {
-    char pad[0x4];
-    void* frame;
-} SpecularLight;
-
-typedef struct SpecularFlags {
+struct SpecularFlags {
     unsigned char unused_7 : 1;
     signed char reflective : 1;
     signed char flag_5 : 1;
     signed char flag_4 : 1;
     signed char flag_3 : 1;
     unsigned char unused_2_0 : 3;
-} SpecularFlags;
+};
 
-typedef union SpecularTint {
-    unsigned int value;
+struct SpecularTint {
     unsigned char component[4];
-} SpecularTint;
+};
 
-typedef struct SpecularMaterialExt {
-    SpecularLight* light;
+struct SpecularMaterialExt {
+    RpLight* light;
     void* frame;
     void* phong_texture;
     unsigned int saved_tex_c;
     RpSurfaceProperties saved_surface;
     int clip_value;
     float shininess;
-    SpecularTint tint;
+    struct SpecularTint tint;
     float gloss;
-    SpecularFlags flags;
+    struct SpecularFlags flags;
     char pad_2D[3];
-} SpecularMaterialExt;
+};
 
-typedef struct MkMaterialExt {
+struct MkMaterialExt {
     unsigned int flags;
     float shininess;
-    SpecularTint tint;
+    struct SpecularTint tint;
     int field_0xC;
     float gloss;
-} MkMaterialExt;
+};
 
-typedef struct SpecularGeometryExt {
+struct SpecularGeometryExt {
     int field_0x00;
     int material_index;
-} SpecularGeometryExt;
+};
 
-typedef struct GxLightSlot {
-    float field00;
-    float field04;
-    float field08;
-    unsigned int field0C;
-    float field10;
-    float field14;
-    float field18;
-    float field1C;
-    float field20;
-    float field24;
-    float field28;
-    float field2C;
-    float field30;
-    float field34;
-    float field38;
-    float field3C;
-} GxLightSlot;
-
-typedef struct GxLightBlock {
-    GxLightSlot primary[15];
-    GxLightSlot secondary[15];
+struct GxLightBlock {
+    RwMatrix primary[15];
+    RwMatrix secondary[15];
     int field_0x780;
-} GxLightBlock;
-
-typedef struct MkSObj {
-    char pad[0x80];
-    GxLightBlock* light_block;
-} MkSObj;
-
-typedef struct RpSkin RpSkin;
+};
 
 void material_restore_reflection_texture(void);
 void material_cache_reflection_texture(void);
 void material_set_reflection_texture(void* material, void* texture);
-RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
-RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
-void* get_specular_light(void);
-void* create_default_specular_light(void);
-void* get_bgnd_specular_light(void);
-void* create_default_bgnd_specular_light(void);
-RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry);
 int SpecularCreatePipelines(void);
 
-extern int SpecularMaterialOffset;
-extern int SpecularGeometryOffset;
-extern int MkmaterialLocalOffset;
-extern int MksobjLocalOffset;
-extern RwCamera* Camera;
 extern void* PhongTextures[3];
 extern float PhongCoefficients[3];
-extern RwV3d Yaxis;
-extern char loading_image[];
 
 static const float kOne = 1.0f;
 static const float kZero = 0.0f;
@@ -128,28 +91,26 @@ static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material,
 static RpAtomic* specskin_atomic_setup(RpAtomic* atomic, void* data);
 static void* MKSpecularOpen(void* instance, int offset, int size);
 static void* MKSpecularClose(void* instance, int offset, int size);
-RpMaterial* specskin_material_setup(RpMaterial* material,
-                                    void* is_player);
 
-static inline SpecularMaterialExt* specular_material_ext(RpMaterial* material) {
-    return (SpecularMaterialExt*)((char*)material + SpecularMaterialOffset);
+static inline struct SpecularMaterialExt* specular_material_ext(RpMaterial* material) {
+    return (struct SpecularMaterialExt*)((char*)material + SpecularMaterialOffset);
 }
 
-static inline MkMaterialExt* mk_material_ext(RpMaterial* material) {
-    return (MkMaterialExt*)((char*)material + MkmaterialLocalOffset);
+static inline struct MkMaterialExt* mk_material_ext(RpMaterial* material) {
+    return (struct MkMaterialExt*)((char*)material + MkmaterialLocalOffset);
 }
 
-static inline SpecularGeometryExt* specular_geometry_ext(
+static inline struct SpecularGeometryExt* specular_geometry_ext(
     RpGeometry* geometry) {
-    return (SpecularGeometryExt*)((char*)geometry + SpecularGeometryOffset);
+    return (struct SpecularGeometryExt*)((char*)geometry + SpecularGeometryOffset);
 }
 
 static inline RpAtomic* atomic_from_clump_link(RwLLLink* link) {
-    return (RpAtomic*)((char*)link - 0x40);
+    return RW_CONTAINER_OF(link, RpAtomic, inClumpLink);
 }
 
-static inline MkSObj* atomic_mksobj(RpAtomic* atomic) {
-    return *(MkSObj**)((char*)atomic + MksobjLocalOffset + 8);
+static inline MkSobj* atomic_mksobj(RpAtomic* atomic) {
+    return MK_ATOMIC_PLUGIN(atomic)->sobj;
 }
 
 static inline RpMaterial* material_at_index(
@@ -158,7 +119,7 @@ static inline RpMaterial* material_at_index(
 }
 
 static inline float fast_inverse_sqrt(float length_squared) {
-    FloatBits inverse;
+    union FloatBits inverse;
     float product;
     float correction;
     float result;
@@ -190,7 +151,7 @@ static inline void specular_normalize(RwV3d* vector) {
 }
 
 static RpMaterial* restore_specular_texture_material_callback(RpMaterial* material, void* data) {
-    SpecularMaterialExt* spec;
+    struct SpecularMaterialExt* spec;
 
     spec = specular_material_ext(material);
     if (spec->light != 0 && spec->saved_tex_c != 0) {
@@ -201,7 +162,7 @@ static RpMaterial* restore_specular_texture_material_callback(RpMaterial* materi
 }
 
 static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material, void* texture) {
-    SpecularMaterialExt* spec;
+    struct SpecularMaterialExt* spec;
     void* reflection_texture;
     RpSurfaceProperties surface;
 
@@ -260,8 +221,8 @@ RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,
 }
 
 /* TODO: [near miss] 99.98%; the two inlined inverse-sqrt input slots (0x10/0x14) are swapped vs retail. */
-void SpecularMaterialCalcMatrix(void* material) {
-    SpecularMaterialExt* spec;
+void SpecularMaterialCalcMatrix(RpMaterial* material) {
+    struct SpecularMaterialExt* spec;
     RwMatrix* light_matrix;
     RwMatrix* frame_matrix;
     RwV3d reflected;
@@ -275,8 +236,8 @@ void SpecularMaterialCalcMatrix(void* material) {
     float scaled_z;
 
     spec = specular_material_ext(material);
-    if (spec->light != 0 && spec->light->frame != 0) {
-        light_matrix = RwFrameGetLTM(spec->light->frame);
+    if (spec->light != 0 && spec->light->object.object.parent != 0) {
+        light_matrix = RwFrameGetLTM(spec->light->object.object.parent);
         frame_matrix = RwFrameGetLTM(spec->frame);
         reflected = frame_matrix->at;
 
@@ -320,23 +281,19 @@ void specskin_initialize_clump(void* clump) {
     RpClumpForAllAtomics(clump, specskin_atomic_setup, 0);
 }
 
-/* TODO: [near miss] 99.19%; the list cursor occupies r4 instead of retail r5. */
 void specskin_force_clipping_clump(void* clump, int value) {
-    int clip_value;
-    RpClump* clump_ptr;
+    RpClump* clump_ptr = clump;
+    RwLLLink* end = &clump_ptr->atomicList;
     RwLLLink* link;
-    RwLLLink* end;
-    RwLLLink* next;
-    RpGeometry* geometry;
-    RpMaterialList* material_list;
-    unsigned int material_count;
-    unsigned int index;
 
-    clip_value = value;
-    clump_ptr = clump;
-    end = &clump_ptr->atomicList;
-    link = end->next;
+    link = clump_ptr->atomicList.next;
     while (link != end) {
+        RwLLLink* next;
+        RpGeometry* geometry;
+        RpMaterialList* material_list;
+        unsigned int material_count;
+        unsigned int index;
+
         geometry = atomic_from_clump_link(link)->geometry;
         next = link->next;
         material_list = &geometry->matList;
@@ -344,8 +301,7 @@ void specskin_force_clipping_clump(void* clump, int value) {
         index = 0;
         while (index < material_count) {
             specular_material_ext(
-                _rpMaterialListGetMaterial(material_list, index))->clip_value =
-                clip_value;
+                _rpMaterialListGetMaterial(material_list, index))->clip_value = value;
             index++;
         }
         link = next;
@@ -353,13 +309,13 @@ void specskin_force_clipping_clump(void* clump, int value) {
 }
 
 static RpAtomic* specskin_atomic_setup(RpAtomic* atomic, void* data) {
-    MkSObj* mksobj;
+    MkSobj* mksobj;
     RpGeometry* geometry;
     RpAtomic* atom;
-    GxLightBlock* light_block;
+    struct GxLightBlock* light_block;
     int count;
-    GxLightSlot* slot0;
-    GxLightSlot* slot1;
+    RwMatrix* slot0;
+    RwMatrix* slot1;
     unsigned int flags;
 
     mksobj = atomic_mksobj(atomic);
@@ -368,43 +324,43 @@ static RpAtomic* specskin_atomic_setup(RpAtomic* atomic, void* data) {
     atom = atomic;
     atom->pipeline = SpecSkinAtomicPipeline;
     RpGeometryForAllMaterials(geometry, specskin_material_setup, 0);
-    if (mksobj != 0 && mksobj->light_block == 0) {
+    if (mksobj != 0 && mksobj->matrices == 0) {
         light_block = RwEngineInstance->fpMalloc(0x790, 0x30000);
-        mksobj->light_block = light_block;
+        mksobj->matrices = (RwMatrix*)light_block;
         light_block->field_0x780 = 0;
         for (count = 0; count < 0xF; count++) {
             slot0 = &light_block->primary[count];
             slot1 = &light_block->secondary[count];
-            slot0->field28 = kOne;
-            slot0->field14 = kOne;
-            slot0->field00 = kOne;
-            slot0->field10 = kZero;
-            slot0->field08 = kZero;
-            slot0->field04 = kZero;
-            slot0->field24 = kZero;
-            slot0->field20 = kZero;
-            slot0->field18 = kZero;
-            slot0->field38 = kZero;
-            slot0->field34 = kZero;
-            slot0->field30 = kZero;
-            flags = slot0->field0C;
+            slot0->at.z = kOne;
+            slot0->up.y = kOne;
+            slot0->right.x = kOne;
+            slot0->up.x = kZero;
+            slot0->right.z = kZero;
+            slot0->right.y = kZero;
+            slot0->at.y = kZero;
+            slot0->at.x = kZero;
+            slot0->up.z = kZero;
+            slot0->pos.z = kZero;
+            slot0->pos.y = kZero;
+            slot0->pos.x = kZero;
+            flags = slot0->flags;
             flags = (flags | 0x20000) | 3;
-            slot0->field0C = flags;
-            slot1->field28 = kOne;
-            slot1->field14 = kOne;
-            slot1->field00 = kOne;
-            slot1->field10 = kZero;
-            slot1->field08 = kZero;
-            slot1->field04 = kZero;
-            slot1->field24 = kZero;
-            slot1->field20 = kZero;
-            slot1->field18 = kZero;
-            slot1->field38 = kZero;
-            slot1->field34 = kZero;
-            slot1->field30 = kZero;
-            flags = slot1->field0C;
+            slot0->flags = flags;
+            slot1->at.z = kOne;
+            slot1->up.y = kOne;
+            slot1->right.x = kOne;
+            slot1->up.x = kZero;
+            slot1->right.z = kZero;
+            slot1->right.y = kZero;
+            slot1->at.y = kZero;
+            slot1->at.x = kZero;
+            slot1->up.z = kZero;
+            slot1->pos.z = kZero;
+            slot1->pos.y = kZero;
+            slot1->pos.x = kZero;
+            flags = slot1->flags;
             flags = (flags | 0x20000) | 3;
-            slot1->field0C = flags;
+            slot1->flags = flags;
         }
     }
     return atom;
@@ -414,8 +370,8 @@ RpMaterial* specskin_material_setup(RpMaterial* material,
                                     void* is_player) {
     int phong_index;
     RpMaterial* mat;
-    SpecularMaterialExt* spec;
-    void* light;
+    struct SpecularMaterialExt* spec;
+    RpLight* light;
     int coeff_count;
     float threshold;
     float shininess;
@@ -489,22 +445,22 @@ RpMaterial* specskin_material_setup(RpMaterial* material,
     return material;
 }
 
-/* TODO: [near miss] 93.88%; tint copied through the union like retail; flags/offset registers (r0/r5 vs r7/r4) and one extract placement differ. */
+/* TODO: [near miss] 93.88%; extension-offset/flags GPRs and final bit-extract schedule remain; source staging exhausted. */
 void specular_condition_clump(void* clump) {
     RpClump* clump_ptr;
     RwLLLink* link;
     RpGeometry* geometry;
     RwLLLink* end;
     RwLLLink* next;
-    void* skin;
+    RpSkin* skin;
     unsigned int material_count;
     unsigned int material_index;
-    MkMaterialExt* mkmat;
-    SpecularMaterialExt* spec;
-    void* material;
+    struct MkMaterialExt* mkmat;
+    struct SpecularMaterialExt* spec;
+    RpMaterial* material;
     unsigned int flags;
     float material_shininess;
-    SpecularTint material_tint;
+    struct SpecularTint material_tint;
     float material_gloss;
 
     clump_ptr = clump;
