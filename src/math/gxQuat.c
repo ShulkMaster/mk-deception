@@ -15,6 +15,11 @@ static const float kInvSqrtScale = 0.0625f;
 static const float kNewtonIter12 = 12.0f;
 static const float kHalf = 0.5f;
 
+union GxQuatFloatBits {
+    float f;
+    unsigned int u;
+};
+
 /* TODO: [near miss] 89.40%; oneMinusT/absDot FPRs and scaled-q2-first order match; retail ranks
  * t f28, sign f29, theta f27 (ours f29/f27/f28); declaration order and a t copy do not move it. */
 void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
@@ -61,10 +66,7 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
 }
 
 static inline float gxQuatInvSqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } out, in;
+    union GxQuatFloatBits out, in;
     float result;
     float guess;
     float t1;
@@ -84,17 +86,14 @@ static inline float gxQuatInvSqrt(float value) {
 }
 
 static inline float gxQuatHalfSqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } out, in;
+    union GxQuatFloatBits out, in;
     float guess;
 
     in.f = value;
     if (value <= kZero) {
         return kZero;
     }
-    out.u = (unsigned int)GXMathSqrtTable[(in.u >> 11) & 0x1FFF] << 8;
+    out.u = GXMathSqrtTable[(in.u >> 11) & 0x1FFF] << 8;
     out.u |= (((in.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     guess = out.f;
     return kHalf * (guess * (kNewtonIter3 - (guess * guess) / value));
@@ -117,7 +116,6 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
         return;
     }
     if (dot < kV3ToQuatAntiParallelDot) {
-        /* 180 deg: pick a perpendicular axis and normalize. */
         axis.z = -v1->y;
         axis.y = v1->x;
         axis.x = kZero;
@@ -174,7 +172,6 @@ void gxQuatMul(Quat* out, const Quat* a, const Quat* b) {
 }
 
 void gxQuatCopy(Quat* dst, const Quat* src) {
-    /* Word-wise copy matches retail int loads/stores. */
     *dst = *src;
 }
 
