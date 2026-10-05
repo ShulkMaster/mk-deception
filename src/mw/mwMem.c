@@ -12,13 +12,13 @@
 
 static const char* mwMemVersion = "1.5 rev 1";
 
+_mwMemHeap* HeapList = 0;
+_mwMemHeap* SystemHeap = 0;
+static _mwMemHeap* newWrapperDefaultHeap = 0;
+static _mwMemHeap* mwMemSystemOverflowHeap = 0;
+int heapCount = 0;
+static int SystemInitialize = 0;
 static MwMemSystemParams systemParams;
-static int SystemInitialize;
-int heapCount;
-static _mwMemHeap* mwMemSystemOverflowHeap;
-static _mwMemHeap* newWrapperDefaultHeap;
-_mwMemHeap* SystemHeap;
-_mwMemHeap* HeapList;
 
 static u8 heapIndexArray[0x100];
 
@@ -84,7 +84,7 @@ static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, u32 strategy,
     }
 }
 
-static inline int mwMemHeapHasValidMagic(_mwMemHeap* heap) {
+static inline int mwMemIsHeapValid(_mwMemHeap* heap) {
     if (heap->magic == MW_MEM_HEAP_MAGIC_VALID) {
         return 1;
     }
@@ -609,7 +609,6 @@ void _mwMemFree(void* ptr, const char* file, u32 line) {
     _mwMemFreeVirtual(ptr, file, line);
 }
 
-/* TODO: [near miss] 99.97%; overflow magic test branches ble ('> 0') vs retail beq; static-local suffix 238 vs retail 314 (parse numbering; restoring stripped helpers raises it). */
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     static u32 StrategyAllocationActive;
     void* result;
@@ -658,13 +657,11 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     }
 
     if (result == 0 && heap->overflowEnable != 0) {
-        _mwMemHeap* overflowHeap;
-
         privAttemptingOverflowCallBack(request, 0);
         heap->overflowFlag = 1;
-        overflowHeap = mwMemSystemOverflowHeap;
-        if (mwMemHeapHasValidMagic(overflowHeap) > 0) {
-            result = normHeapMallocMem(request->size, overflowHeap, request->flags, request);
+        if (mwMemIsHeapValid(mwMemSystemOverflowHeap)) {
+            heap = mwMemSystemOverflowHeap;
+            result = normHeapMallocMem(request->size, heap, request->flags, request);
         }
     }
 
