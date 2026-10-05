@@ -233,6 +233,19 @@ static inline RpAtomic* rpAtomicFromClumpNode(RwLLLink* link)
 
 
 
+typedef struct RpGeometryChunkInfo {
+    unsigned int format;
+    int numTriangles;
+    int numVertices;
+    int numMorphTargets;
+} RpGeometryChunkInfo;
+
+typedef struct RpMorphTargetChunkInfo {
+    RwSphere sphere;
+    int hasVertices;
+    int hasNormals;
+} RpMorphTargetChunkInfo;
+
 typedef struct RpGeometry {
     RwObject object;
     unsigned int flags;
@@ -388,6 +401,7 @@ RpWorld* RpWorldAddAtomic(RpWorld* world, RpAtomic* atomic);
 RpWorld* RpWorldRemoveAtomic(RpWorld* world, RpAtomic* atomic);
 RpWorld* RpWorldAddClump(RpWorld* world, RpClump* clump);
 RpWorld* RpWorldRemoveClump(RpWorld* world, RpClump* clump);
+RpWorld* RpClumpGetWorld(const RpClump* clump);
 RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
 RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
 int RpWorldRegisterPlugin(int, unsigned int, RwPluginObjectConstructor,
