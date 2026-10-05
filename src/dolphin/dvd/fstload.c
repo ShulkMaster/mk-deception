@@ -14,7 +14,7 @@ static void cb(long result, DVDCommandBlock* block)
         switch (status) {
         case 0:
             status = 1;
-            DVDReadAbsAsyncForBS(block, bb2, 0x20, 0x420, cb);
+            DVDReadAbsAsyncForBS(block, bb2, sizeof(*bb2), 0x420, cb);
             return;
         case 1:
             status = 2;
@@ -45,7 +45,7 @@ void __fstLoad(void)
     static DVDCommandBlock block;
 
     OSGetArenaHi();
-    boot_info = (OSBootInfo*)OSPhysicalToCached(0);
+    boot_info = OSPhysicalToCached(0);
     temporary_id = (DVDDiskID*)OSRoundUp32B(id_storage);
     bb2 = (DVDBB2*)OSRoundUp32B(bb2Buffer);
 
@@ -62,7 +62,7 @@ void __fstLoad(void)
     boot_info->fst_location = bb2->fst_address;
     boot_info->fst_max_length = bb2->fst_max_length;
     id = &boot_info->disk_id;
-    memcpy(id, temporary_id, 0x20);
+    memcpy(id, temporary_id, sizeof(*id));
     OSReport("\n");
     OSReport("  Game Name ... %c%c%c%c\n", id->gameName[0], id->gameName[1],
              id->gameName[2], id->gameName[3]);
