@@ -1,4 +1,11 @@
 #include "game/ai.h"
+#include "game/ladder.h"
+#include "runtime/anim_api.h"
+#include "game/controller.h"
+#include "runtime/plyr_anim_pdata.h"
+#include "game/plyr_globals.h"
+#include "game/moves.h"
+#include "runtime/anim_transition.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/cam.h"
@@ -19,112 +26,106 @@
 #include "platform/joy.h"
 #include "platform/io.h"
 #include "runtime/image.h"
+#include "runtime/sound.h"
 
-typedef struct DroneAI {
-    int movement_state; /* +0x00 */
-    unsigned int match_mode; /* +0x04 */
-    unsigned int handicap_match_stage; /* +0x08 */
-    float reaction_scale; /* +0x0C */
-    unsigned int reaction_ticks; /* +0x10 */
-    PlyrPdata* player; /* +0x14 */
-    union {
-        unsigned int match_stage;
-        unsigned int handicap_stage;
-    }; /* +0x18 */
-    union {
-        unsigned int big_boss_stage;
-        unsigned int handicap_setting;
-    }; /* +0x1C */
-    unsigned int difficulty_update_tick; /* +0x20 */
-    unsigned int charge_cooldown_tick; /* +0x24 */
-    unsigned int next_style_change_tick; /* +0x28 */
-    float opponent_health; /* +0x2C */
-    float player_health; /* +0x30 */
-    float opponent_distance; /* +0x34 */
-    int opponent_out_of_range; /* +0x38 */
-    int background_attack_active; /* +0x3C */
-    int difficulty_index; /* +0x40 */
-    unsigned int decision_ready; /* +0x44 */
-    int attack_pending; /* +0x48 */
-    int jump_attack_pending; /* +0x4C */
-    unsigned int block_hold_ticks; /* +0x50 */
-    int special_reaction_active; /* +0x54 */
-    int block_request; /* +0x58 */
-    unsigned int block_subtype; /* +0x5C */
-    unsigned int special_reaction_ticks; /* +0x60 */
-    int special_reaction_state; /* +0x64 */
-    AiFightstyleAttack* script_attack; /* +0x68 */
-    int script_attack_ready; /* +0x6C */
-    int request_active; /* +0x70 */
-    int (*reaction_watcher)(void); /* +0x74 */
-    int attack_type; /* +0x78 */
-    int attack_latched; /* +0x7C */
-    int movement_attempt; /* +0x80 */
-    int force_attack; /* +0x84 */
-    unsigned int arena_collision_history; /* +0x88 */
-    unsigned int arena_collision_count; /* +0x8C */
-    int evade_arena_state; /* +0x90 */
-    Vec obstacle_target; /* +0x94 */
-    int danger_area_active; /* +0xA0 */
-    int danger_area_request; /* +0xA4 */
-    int danger_area_ready; /* +0xA8 */
-    int danger_side_step; /* +0xAC */
-    int taunt_pending; /* +0xB0 */
-    int hit_active; /* +0xB4 */
-    int fatality_decision; /* +0xB8 */
-    int command_active; /* +0xBC */
-    int super_combo_active; /* +0xC0 */
-    int avoid_position_request; /* +0xC4 */
-    Vec avoid_position_target; /* +0xC8 */
-    int avoid_position_ready; /* +0xD4 */
-    int danger_area_state; /* +0xD8 */
-    int big_boss_block_state; /* +0xDC */
-    int consecutive_losses; /* +0xE0 */
-    int reversal_pending; /* +0xE4 */
-    unsigned int opponent_round_attacks; /* +0xE8 */
-    int start_state_a; /* +0xEC */
-    int start_state_b; /* +0xF0 */
-    int attack_disable_request; /* +0xF4 */
-    int push_attempts; /* +0xF8 */
-    int danger_area_counter; /* +0xFC */
-    unsigned int big_boss_stage_hits; /* +0x100 */
-    unsigned int damage_transition_tick; /* +0x104 */
-    unsigned int duck_reaction_tick; /* +0x108 */
-    unsigned int duck_started_tick; /* +0x10C */
-    unsigned int next_special_voice_tick; /* +0x110 */
-    int* ai_command; /* +0x114 */
-    int ai_command_arg; /* +0x118 */
-    int ai_command_target; /* +0x11C */
-    float ai_command_value; /* +0x120 */
-    float walk_ticks; /* +0x124 */
-    int ai_command_flag0; /* +0x128 */
-    int ai_command_flag1; /* +0x12C */
-    int ai_command_flag2; /* +0x130 */
-    AiFightstyleAttack special_move; /* +0x134 */
-    float avoidance_area_duration; /* +0x13C */
-    float avoidance_position[3]; /* +0x140 */
-    unsigned int block_retry_tick; /* +0x14C */
-    unsigned int field_150; /* +0x150 */
-} DroneAI;
+struct DroneAI {
+    int movement_state;
+    unsigned int match_mode;
+    unsigned int handicap_match_stage;
+    float reaction_scale;
+    unsigned int reaction_ticks;
+    PlyrPdata* player;
+    unsigned int stage;
+    unsigned int boss_stage;
+    unsigned int difficulty_update_tick;
+    unsigned int charge_cooldown_tick;
+    unsigned int next_style_change_tick;
+    float opponent_health;
+    float player_health;
+    float opponent_distance;
+    int opponent_out_of_range;
+    int background_attack_active;
+    int difficulty_index;
+    unsigned int decision_ready;
+    int attack_pending;
+    int jump_attack_pending;
+    unsigned int block_hold_ticks;
+    int special_reaction_active;
+    int block_request;
+    unsigned int block_subtype;
+    unsigned int special_reaction_ticks;
+    int special_reaction_state;
+    AiFightstyleAttack* script_attack;
+    int script_attack_ready;
+    int request_active;
+    int (*reaction_watcher)(void);
+    int attack_type;
+    int attack_latched;
+    int movement_attempt;
+    int force_attack;
+    unsigned int arena_collision_history;
+    unsigned int arena_collision_count;
+    int evade_arena_state;
+    Vec obstacle_target;
+    int danger_area_active;
+    int danger_area_request;
+    int danger_area_ready;
+    int danger_side_step;
+    int taunt_pending;
+    int hit_active;
+    int fatality_decision;
+    int command_active;
+    int super_combo_active;
+    int avoid_position_request;
+    Vec avoid_position_target;
+    int avoid_position_ready;
+    int danger_area_state;
+    int big_boss_block_state;
+    int consecutive_losses;
+    int reversal_pending;
+    unsigned int opponent_round_attacks;
+    int start_state_a;
+    int start_state_b;
+    int attack_disable_request;
+    int push_attempts;
+    int danger_area_counter;
+    unsigned int big_boss_stage_hits;
+    unsigned int damage_transition_tick;
+    unsigned int duck_reaction_tick;
+    unsigned int duck_started_tick;
+    unsigned int next_special_voice_tick;
+    int* ai_command;
+    int ai_command_arg;
+    int ai_command_target;
+    float ai_command_value;
+    float walk_ticks;
+    int ai_command_flag0;
+    int ai_command_flag1;
+    int ai_command_flag2;
+    AiFightstyleAttack special_move;
+    float avoidance_area_duration;
+    float avoidance_position[3];
+    unsigned int block_retry_tick;
+    unsigned int field_150;
+};
 
-/* Retail ELF functions called before their definitions in this unit. */
 static float drone_ai_perform_range_attack(void);
-static int drone_ai_check_obstacles(DroneAI* request);
+static int drone_ai_check_obstacles(struct DroneAI* request);
 static int drone_ai_is_dizzy_watcher(void);
-static void drone_ai_check_next_AIState(DroneAI* drone);
+static void drone_ai_check_next_AIState(struct DroneAI* drone);
 static int drone_ai_process_scripted_cmd(void);
-int drone_ai_check_for_normal_blocking(DroneAI* drone);
-int drone_ai_check_for_special_move_reaction(DroneAI* drone);
+int drone_ai_check_for_normal_blocking(struct DroneAI* drone);
+int drone_ai_check_for_special_move_reaction(struct DroneAI* drone);
 int drone_ai_reversal_watcher(void);
-int drone_ai_check_external_request_breakouts(DroneAI* drone);
-int drone_ai_handle_arena_collisions(DroneAI* drone);
-int drone_ai_process_background_states(DroneAI* drone);
-int drone_ai_check_external_requests(DroneAI* drone);
-int drone_ai_check_evade_arena(DroneAI* drone);
-int drone_ai_check_for_aggressive_throw(DroneAI* drone);
-int drone_ai_check_for_big_boss_aggressive_movement(DroneAI* drone);
-int drone_ai_check_for_big_boss_passive_movement(DroneAI* drone);
-int drone_ai_should_passive_state_switch(DroneAI* drone);
+int drone_ai_check_external_request_breakouts(struct DroneAI* drone);
+int drone_ai_handle_arena_collisions(struct DroneAI* drone);
+int drone_ai_process_background_states(struct DroneAI* drone);
+int drone_ai_check_external_requests(struct DroneAI* drone);
+int drone_ai_check_evade_arena(struct DroneAI* drone);
+int drone_ai_check_for_aggressive_throw(struct DroneAI* drone);
+int drone_ai_check_for_big_boss_aggressive_movement(struct DroneAI* drone);
+int drone_ai_check_for_big_boss_passive_movement(struct DroneAI* drone);
+int drone_ai_should_passive_state_switch(struct DroneAI* drone);
 float drone_ai_passive(void);
 float drone_ai_attack(void);
 float drone_ai_defend(void);
@@ -147,7 +148,7 @@ void set_my_secondary_state(int state);
 int drone_ai_attacker_reacting_watcher(void);
 int drone_ai_attacker_defenseless_watcher(void);
 int drone_ai_attacker_not_facing_watcher(void);
-int drone_ai_push_watcher(DroneAI* drone);
+int drone_ai_push_watcher(struct DroneAI* drone);
 int drone_ai_opponent_inair_watcher(void);
 int drone_ai_beating_the_snot_out_of_him_watcher(void);
 int drone_ai_victim_dizzy(void);
@@ -166,24 +167,24 @@ int drone_ai_check_throw_restrictions(void);
 void execute_rumble(int reaction, int flags);
 void execute_hit_voice_sound(int hit_type, int hit_group, int flags);
 
-typedef struct DroneOverrideInfo {
-    float likelihood_scale; /* +0x00 */
-    unsigned int flags;     /* +0x04 */
-} DroneOverrideInfo;
+struct DroneOverrideInfo {
+    float likelihood_scale;
+    unsigned int flags;
+};
 
-typedef union AiFloatBits {
+union AiFloatBits {
     float f;
     unsigned int u;
-} AiFloatBits;
+};
 
-typedef struct AiSharedAnimations {
+struct AiSharedAnimations {
     char pad000[0x210];
-    AniData* back_getup_3; /* +0x210 */
+    AniData* back_getup_3;
     char pad214[0x0C];
-    AniData* back_getup_9; /* +0x220 */
+    AniData* back_getup_9;
     char pad224[0x28];
-    AniData* sit_getup_6; /* +0x24C */
-    AniData* sit_getup_12; /* +0x250 */
+    AniData* sit_getup_6;
+    AniData* sit_getup_12;
     char pad254[0xE4];
     AniData* field_338;
     AniData* field_33C;
@@ -191,23 +192,19 @@ typedef struct AiSharedAnimations {
     AniData* field_344;
     AniData* field_348;
     char pad34C[0x24];
-    AniData* major_pain_a; /* +0x370 */
-    AniData* twitch_death; /* +0x374 */
-    AniData* major_pain_b; /* +0x378 */
-} AiSharedAnimations;
+    AniData* major_pain_a;
+    AniData* twitch_death;
+    AniData* major_pain_b;
+};
 
-typedef struct AiWeaponStyleView {
-    int style_id;
-} AiWeaponStyleView;
+struct AiFightStyleRestrictionTable;
 
-typedef struct AiFightStyleRestrictionTable AiFightStyleRestrictionTable;
-
-typedef struct AiCharacterStateWeights {
+struct AiCharacterStateWeights {
     int character_id;
     int weights[2][9];
-} AiCharacterStateWeights; /* 0x4C */
+};
 
-typedef struct AiTauntCameraData {
+struct AiTauntCameraData {
     MkObj* object;
     unsigned int object_instance;
     unsigned int ticks;
@@ -216,7 +213,7 @@ typedef struct AiTauntCameraData {
     float height;
     float depth;
     int active;
-} AiTauntCameraData; /* 0x20 */
+};
 
 struct AiFightStyleRestrictionTable {
     int (*always_allowed[5])(void);
@@ -235,7 +232,7 @@ const int big_boss_reaction_tbl[0x139] = {
 #include "src/game/ai_big_boss_reaction_table.inc"
 };
 
-AiFightStyleRestrictionTable fight_style_restriction_table = {
+struct AiFightStyleRestrictionTable fight_style_restriction_table = {
     {always_true, always_true, always_true, always_true, always_true},
     drone_ai_check_reversal_restrictions,
     drone_ai_check_escape_restrictions,
@@ -376,7 +373,7 @@ static int g_likelihoodOfEvadeAttacking[9] = {
     50, 50, 100, 150, 150, 150, 175, 225, 300
 };
 
-static AiCharacterStateWeights g_likelihoodOfPCHRChangingState[40] = {
+static struct AiCharacterStateWeights g_likelihoodOfPCHRChangingState[40] = {
 #include "src/game/ai_pchr_state_weights.inc"
 };
 
@@ -424,25 +421,19 @@ static unsigned int g_minBlockHiHeldTime[9] = {
     300, 300, 240, 180, 120, 120, 60, 50, 40
 };
 
-extern MkObj* plyr_obj;
-extern MkObj* his_obj;
 extern PlyrPdata* his_pdata;
-extern AnimPdata* plyr_anim_pdata;
 extern MkProc* plyr_anim_proc;
-extern AiSharedAnimations shared_ani;
-DroneAI g_DroneAI2;
-DroneAI g_DroneAI1;
+extern struct AiSharedAnimations shared_ani;
+struct DroneAI g_DroneAI2;
+struct DroneAI g_DroneAI1;
 int g_game_number = 10;
 int g_big_boss_intro_tap_out_f;
 int g_droneOverrideActiviated;
 int go_into_major_pain_please;
 int go_into_twitch_death_please;
 int g_fatality_game_number;
-DroneOverrideInfo g_DroneOverrideInfo;
-extern ConstrainInfo constrain_info;
+struct DroneOverrideInfo g_DroneOverrideInfo;
 extern unsigned int randu0(unsigned short max);
-extern void snd_req(int sound_id);
-extern void random_snd_req(int sound_id);
 extern void shake_camera(int ticks, float strength);
 MslSoundHandle random_hit(int group);
 MslSoundHandle random_voice(int group);
@@ -469,13 +460,13 @@ void add_facial_damage(float amount);
 int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);
 static int drone_ai_im_dizzy(void);
-int drone_ai_check_for_berserker_movement(DroneAI* drone);
-int drone_ai_fetch_next_AIState(DroneAI* drone);
-int drone_ai_check_for_knockdown_movement(DroneAI* drone);
-static int drone_ai_change_attack_to_low(DroneAI* drone);
+int drone_ai_check_for_berserker_movement(struct DroneAI* drone);
+int drone_ai_fetch_next_AIState(struct DroneAI* drone);
+int drone_ai_check_for_knockdown_movement(struct DroneAI* drone);
+static int drone_ai_change_attack_to_low(struct DroneAI* drone);
 static int drone_ai_should_be_attacking(
-    DroneAI* drone, int* attack_state, int force);
-int handicap_get_current_difficulty(DroneAI* drone);
+    struct DroneAI* drone, int* attack_state, int force);
+int handicap_get_current_difficulty(struct DroneAI* drone);
 int is_he_airborn(void);
 int is_he_duck_blocking(void);
 static int InAttackRange(void);
@@ -484,41 +475,35 @@ static int InAttackRange_close(void);
 static int always_false(void);
 void advance_cur_cmd_idx(void);
 void drone_ai_reset_ai_cmd(void);
-float x_block(void);
 float side_step_to_center_with_jexit(void);
-void step_forward(void);
-void step_backward(void);
-float jump_towards_opponent(void);
 void drone_walk_FB_true(int (*test)(void), unsigned int ticks, int forward,
                         int allow_exit);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
-int handicap_calc_min_time_in_block(DroneAI* drone);
+int handicap_calc_min_time_in_block(struct DroneAI* drone);
 float drone_ai_watcher(void);
-static int drone_ai_force_change_style(DroneAI* drone, int style);
-void drone_ai_initialize(DroneAI* drone);
-void jump_away_opponent(void);
+static int drone_ai_force_change_style(struct DroneAI* drone, int style);
+void drone_ai_initialize(struct DroneAI* drone);
 float jump_away_opponent_with_j_exit(void);
 float drone_entry(void);
 static float drone_loop(void);
 float drone_ai_perform_combo_attack(void);
-int drone_ai_check_attack(DroneAI* drone, int force, int immediate);
+int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate);
 int is_weapon_style(PlyrFighterDefinition* fighter);
-int drone_ai_check_for_evade_attack(DroneAI* drone);
-int drone_ai_check_for_evade_movement(DroneAI* drone);
-int drone_ai_check_for_extreme_throw(DroneAI* drone);
-int drone_ai_check_for_throw(DroneAI* drone);
+int drone_ai_check_for_evade_attack(struct DroneAI* drone);
+int drone_ai_check_for_evade_movement(struct DroneAI* drone);
+int drone_ai_check_for_extreme_throw(struct DroneAI* drone);
+int drone_ai_check_for_throw(struct DroneAI* drone);
 int drone_ai_check_continue_combo(void);
-int drone_ai_check_for_passive_movement(DroneAI* drone);
-static int drone_ai_check_change_style(DroneAI* drone);
-int drone_ai_check_push(DroneAI* drone);
-int drone_ai_check_for_defend_movement(DroneAI* drone);
-int drone_ai_check_for_dodge_movement(DroneAI* drone);
-int drone_ai_check_for_ducker_movement(DroneAI* drone);
-int drone_ai_check_for_aggressive_movement(DroneAI* drone);
-int drone_ai_taunt_watcher(DroneAI* drone);
-int drone_ai_taunt_watcher_defense(DroneAI* drone);
+int drone_ai_check_for_passive_movement(struct DroneAI* drone);
+static int drone_ai_check_change_style(struct DroneAI* drone);
+int drone_ai_check_push(struct DroneAI* drone);
+int drone_ai_check_for_defend_movement(struct DroneAI* drone);
+int drone_ai_check_for_dodge_movement(struct DroneAI* drone);
+int drone_ai_check_for_ducker_movement(struct DroneAI* drone);
+int drone_ai_check_for_aggressive_movement(struct DroneAI* drone);
+int drone_ai_taunt_watcher(struct DroneAI* drone);
+int drone_ai_taunt_watcher_defense(struct DroneAI* drone);
 int is_big_boss(PlyrPdata* player);
-float joy_dash_back(void);
 float drone_ai_perform_attack(void);
 static float side_step_to_center_attack_with_jexit(void);
 static float drone_ai_perform_push(void);
@@ -537,32 +522,24 @@ float drone_walk_backwards_with_jexit(void);
 float drone_walk_backwards_further_with_jexit(void);
 float jump_towards_opponent_with_j_exit(void);
 float change_to_weapon_style_with_j_exit(void);
-void drone_ai_perform_jump_attack(DroneAI* request);
-unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone);
+void drone_ai_perform_jump_attack(struct DroneAI* request);
+unsigned int handicap_calc_likelihood_of_blocking(struct DroneAI* drone);
 int drone_ai_victim_speared_2(void);
-int drone_ai_attacker_defenseless(DroneAI* drone);
+int drone_ai_attacker_defenseless(struct DroneAI* drone);
 static float drone_ai_avoid_danger_area_now(void);
-int drone_ai_can_push(DroneAI* drone);
+int drone_ai_can_push(struct DroneAI* drone);
 static float drone_ai_perform_knockdown(void);
 int am_i_a_big_character(void);
 int am_i_airborn(void);
 float j_flying_kick(void);
 float j_flying_kick2(void);
-void ck_rumble_controller(int pad, int strength, int duration);
 void uv_to_opponent(Vec* direction);
 void snd_req_delay(int sound, int delay);
-void pre_attack_chores(void);
-void share_my_attack_info(float duration, float divisor);
 void init_ground_move_no_aniproc(void);
 void face_opponent_now(void);
 int random_foot(int group);
 void tightrope_restrictions_off(void);
-void transition_to_anim_script(
-    AnimPdata* anim, AniData* animation, int transition, float blend);
-void set_root_and_obj_movement_weights(
-    AnimPdata* animation, float root_weight, float object_weight);
 void ani_to_frame_x(float frame);
-float p_animate(void);
 float j_stay_down_dead(void);
 static float dk_screen_taunt(void);
 float drone_ai_perform_script_attack(void);
@@ -570,7 +547,7 @@ static float drone_ai_scripted_attack(void);
 int do_i_have_life_left(void);
 float r_call_player_char_script_function(void);
 float p_blend_to_stance_in_10(void);
-static int handicap_likelihood_for_combo_breaker(DroneAI* drone);
+static int handicap_likelihood_for_combo_breaker(struct DroneAI* drone);
 float drone_ai_change_style(void);
 void bgnd_restore_player(void);
 void enable_all_my_blocking(void);
@@ -586,7 +563,7 @@ static int get_random_fightstyle_index(
     int attack_group, FighterAiTable* table, int selection_mode);
 static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags);
-int drone_ai_enemy_inair_attack(DroneAI* drone);
+int drone_ai_enemy_inair_attack(struct DroneAI* drone);
 static AiFightstyleAttack* drone_ai_choose_move_from_category(
     unsigned int category, unsigned int likelihood, int* is_script);
 static float drone_ai_special_attack_now(void);
@@ -600,38 +577,36 @@ ScreenObj* display_image_by_plyr(
 void fight_fx_im_hit_with_breaker_flash(
     int player, MkObj* object, int bone, int use_bone, float y_offset);
 extern int f_fatality_was_done;
-extern AiFightStyleRestrictionTable fight_style_restriction_table;
+extern struct AiFightStyleRestrictionTable fight_style_restriction_table;
 int get_game_state(void);
-int get_fatality_available_flag(void);
 int can_i_do_fatality_now(int player);
 float do_my_suicide(void);
 static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
-    DroneAI* drone);
-int drone_ai_should_be_blocking(DroneAI* drone, int reaction);
-int drone_ai_check_projectile_head_on(DroneAI* drone);
-int drone_ai_check_projectile_side(DroneAI* drone);
-int drone_ai_check_propel_attack(DroneAI* drone);
-int drone_ai_check_dont_touch_attack_phase1(DroneAI* drone);
-int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone);
-int drone_ai_check_from_ground_attack_phase1(DroneAI* drone);
-int drone_ai_check_from_ground_attack_phase2(DroneAI* drone);
-int drone_ai_check_all_over_ground(DroneAI* drone);
-int drone_ai_check_all_over_ground_phase1(DroneAI* drone, int delay);
-int drone_ai_check_cant_dodge_attack(DroneAI* drone);
-int drone_ai_check_cant_dodge_attack2(DroneAI* drone);
-int drone_ai_check_avoid_danger_area(DroneAI* drone);
-int drone_ai_check_attack_from_above(DroneAI* drone);
-int drone_ai_check_mid_high_spinner(DroneAI* drone);
+    struct DroneAI* drone);
+int drone_ai_should_be_blocking(struct DroneAI* drone, int reaction);
+int drone_ai_check_projectile_head_on(struct DroneAI* drone);
+int drone_ai_check_projectile_side(struct DroneAI* drone);
+int drone_ai_check_propel_attack(struct DroneAI* drone);
+int drone_ai_check_dont_touch_attack_phase1(struct DroneAI* drone);
+int drone_ai_check_dont_touch_attack_phase2(struct DroneAI* drone);
+int drone_ai_check_from_ground_attack_phase1(struct DroneAI* drone);
+int drone_ai_check_from_ground_attack_phase2(struct DroneAI* drone);
+int drone_ai_check_all_over_ground(struct DroneAI* drone);
+int drone_ai_check_all_over_ground_phase1(struct DroneAI* drone, int delay);
+int drone_ai_check_cant_dodge_attack(struct DroneAI* drone);
+int drone_ai_check_cant_dodge_attack2(struct DroneAI* drone);
+int drone_ai_check_avoid_danger_area(struct DroneAI* drone);
+int drone_ai_check_attack_from_above(struct DroneAI* drone);
+int drone_ai_check_mid_high_spinner(struct DroneAI* drone);
 static float drone_ai_dodge_3d_with_counter(void);
 static float drone_ai_duck_attack(void);
 static float drone_ai_duck_throw_attack(void);
-int drone_ai_check_for_side_step_counter_attack(DroneAI* drone);
-int drone_ai_should_evade_attack(DroneAI* drone);
-int drone_ai_charge_up_watcher(DroneAI* drone);
-int drone_ai_charge_up_watcher_defense(DroneAI* drone);
+int drone_ai_check_for_side_step_counter_attack(struct DroneAI* drone);
+int drone_ai_should_evade_attack(struct DroneAI* drone);
+int drone_ai_charge_up_watcher(struct DroneAI* drone);
+int drone_ai_charge_up_watcher_defense(struct DroneAI* drone);
 float drone_ai_perform_charge_up(void);
 float drone_ai_perform_taunt(void);
-int get_ladder_position(void);
 int trial_get_drone_difficulty(void);
 int mk_chess_get_current_difficulty_for_ai(int side);
 extern int g_GameLossesInARow;
@@ -640,8 +615,8 @@ void init_3d_move_no_aniproc(void);
 static float p_lookat_cam(void);
 static void ai_side_clearances(float* right, float* left);
 static float ai_backward_clearance(void);
-static int drone_ai_should_evade_attack(DroneAI* drone);
-static AiTauntCameraData at_cam_data;
+static int drone_ai_should_evade_attack(struct DroneAI* drone);
+static struct AiTauntCameraData at_cam_data;
 static float jump_towards_opponent_with_jexit(void);
 float walk_forward_attackdist_with_jexit(void);
 static float walk_forward_attackdist2_with_jexit(void);
@@ -650,8 +625,6 @@ static float step_backward_with_jexit(void);
 int drone_ai_victim_dizzy_2(void);
 static int drone_ai_victim_dizzy_3(void);
 static int drone_ai_victim_throw_attempt(void);
-float do_my_fatality(void);
-float do_my_2nd_fatality(void);
 void show_player(PlyrPdata* player);
 
 #define AI_TRANSFER(entry) aproc->vtbl->jump_sleep((entry), 0.0f)
@@ -661,7 +634,6 @@ void show_player(PlyrPdata* player);
         _mkproc_sleep_ticks = (ticks);                                       \
         aproc->vtbl->sleep();                                                \
     } while (0)
-
 
 static inline void ai_side_clearances(float* right, float* left) {
     Vec origin;
@@ -751,7 +723,6 @@ void liukang_in_fight_random_snd_check(void) {
     }
 }
 
-
 void dk_taunt_at_screen(void) {
     PlyrPdata* player;
     MkProc* proc;
@@ -794,7 +765,7 @@ static float dk_screen_taunt(void) {
 }
 
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks) {
-    DroneAI* drone =
+    struct DroneAI* drone =
         get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
 
     if (drone->next_special_voice_tick < game_tick_ctr) {
@@ -903,8 +874,6 @@ float big_boss_taunt_cam_cut(void) {
     AI_TRANSFER(j_exit);
     return 0.0f;
 }
-
-
 
 static float p_lookat_cam(void) {
     CameraObj* camera;
@@ -1023,11 +992,9 @@ unsigned int big_boss_reaction_remap(unsigned int reaction) {
     return mapped_reaction;
 }
 
-
 void set_attackers_attack_region(int region) {
     plyr_pdata->attack_region = region;
 }
-
 
 float force_some_distance(void) {
     if (ai_backward_clearance() > 2.1336f &&
@@ -1038,7 +1005,6 @@ float force_some_distance(void) {
     AI_TRANSFER(j_exit);
     return 0.0f;
 }
-
 
 float give_some_distance(void) {
     float distance;
@@ -1065,7 +1031,6 @@ float give_some_distance(void) {
     return 0.0f;
 }
 
-
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
@@ -1080,8 +1045,7 @@ float go_into_twitch_death(void) {
         tightrope_restrictions_off();
         plyr_anim_pdata->step = 1.0f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.twitch_death, 0, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.twitch_death, 0);
         AI_SLEEP(1.0f);
         ani_to_frame_x(2.0f);
         plyr_obj->flags_09_bits.launched = 0;
@@ -1094,7 +1058,6 @@ float go_into_twitch_death(void) {
     return 0.0f;
 }
 
-
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1106,9 +1069,7 @@ float go_into_major_pain(void) {
             init_ground_move_no_aniproc();
             plyr_anim_pdata->step = 0.6f;
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.major_pain_a,
-                0, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.major_pain_a, 0);
             AI_SLEEP(1.0f);
             ani_to_frame_x(7.0f);
             plyr_obj->flags_09_bits.launched = 0;
@@ -1117,9 +1078,7 @@ float go_into_major_pain(void) {
             plyr_anim_pdata->step = 1.0f;
             plyr_anim_pdata->transition_weight = 0.5f;
             plyr_anim_pdata->flags |= 0x40;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.twitch_death,
-                0, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.twitch_death, 0);
             ani_to_frame_x(2.0f);
             plyr_obj->flags_09_bits.launched = 0;
         }
@@ -1151,9 +1110,7 @@ float go_into_major_pain(void) {
                     plyr_pdata->status_data->pain_voice);
             }
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.major_pain_b,
-                0, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.major_pain_b, 0);
             AI_SLEEP(1.0f);
             ani_to_frame_x(2.0f);
             init_air_move();
@@ -1169,9 +1126,8 @@ float go_into_major_pain(void) {
     return 0.0f;
 }
 
-
 float getup_from_ground(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     MkObj* object;
     unsigned int script;
     int use_random_voice = 0;
@@ -1204,8 +1160,7 @@ float getup_from_ground(void) {
 
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.field_338, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_338, 3);
         AI_SLEEP(1.0f);
         ani_to_frame_x(2.0f);
         plyr_obj->flags_09_bits.launched = 0;
@@ -1246,15 +1201,13 @@ float getup_from_ground(void) {
         if ((unsigned short)randu0(100) < 50 ||
             g_game_info.feature_flags.bits.high_bit) {
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.field_33C, 3, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_33C, 3);
             AI_SLEEP(1.0f);
             ani_to_frame_x(80.0f);
             init_ground_move();
         } else {
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.field_340, 3, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_340, 3);
             AI_SLEEP(1.0f);
             ani_to_frame_x(100.0f);
             init_ground_move();
@@ -1263,8 +1216,7 @@ float getup_from_ground(void) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.field_344, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_344, 3);
         AI_SLEEP(1.0f);
     } else if (plyr_pdata->death_type == 4) {
         init_ground_move_no_aniproc();
@@ -1278,8 +1230,7 @@ float getup_from_ground(void) {
 
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.field_348, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_348, 3);
         AI_SLEEP(1.0f);
         ani_to_frame_x(2.0f);
         ani_to_frame_x(88.0f);
@@ -1288,38 +1239,31 @@ float getup_from_ground(void) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.back_getup_9, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.back_getup_9, 3);
         AI_SLEEP(1.0f);
     } else if (plyr_pdata->death_type == 3) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         if ((plyr_anim_pdata->flags & 8) != 0) {
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.back_getup_9,
-                3, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.back_getup_9, 3);
             AI_SLEEP(1.0f);
         } else {
             plyr_anim_pdata->transition_weight = 0.5f;
-            transition_to_anim_script(
-                plyr_anim_pdata, shared_ani.back_getup_3,
-                3, 0.05f);
+            transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.back_getup_3, 3);
             AI_SLEEP(1.0f);
         }
     } else if (plyr_pdata->death_type == 6) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.sit_getup_12, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.sit_getup_12, 3);
         AI_SLEEP(1.0f);
     } else if (plyr_pdata->death_type == 5) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(
-            plyr_anim_pdata, shared_ani.sit_getup_6, 3, 0.05f);
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.sit_getup_6, 3);
         AI_SLEEP(1.0f);
     } else if (plyr_pdata->death_type == 10) {
         init_ground_move_no_aniproc();
@@ -1353,7 +1297,6 @@ static inline int ai_resolve_attack_region(PlyrPdata* player) {
     return player->attack_region;
 }
 
-/* Preserve the initial player snapshot and the resolved region result. */
 #pragma opt_common_subs off
 #pragma opt_propagation off
 void whoosh_fx(int hit_type) {
@@ -1990,7 +1933,7 @@ static float drone_ai_stupid_watcher(void) {
 }
 
 static inline void ai_transfer_active(MkProcEntryFn entry) {
-    DroneAI* active_drone;
+    struct DroneAI* active_drone;
     MkProc* player_proc;
 
     active_drone = get_player_number(plyr_obj) == 0
@@ -2026,7 +1969,7 @@ static inline int ai_watcher_can_start_action(void) {
     return 1;
 }
 
-static inline int ai_watcher_postround_check(DroneAI* drone) {
+static inline int ai_watcher_postround_check(struct DroneAI* drone) {
     if (plyr_pdata->postround_value == 0.0f) {
         return 0;
     }
@@ -2048,12 +1991,12 @@ static inline int ai_watcher_postround_check(DroneAI* drone) {
     return 0;
 }
 
-static inline DroneAI* ai_watcher_active_drone(void) {
+static inline struct DroneAI* ai_watcher_active_drone(void) {
     return get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
 }
 
 static inline int ai_watcher_victim_throw(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int result;
 
     if (!ai_watcher_can_act()) {
@@ -2075,7 +2018,7 @@ static inline int ai_watcher_victim_throw(void) {
 }
 
 static inline int ai_watcher_victim_dizzy(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int result;
 
     if (!ai_watcher_can_act()) {
@@ -2090,7 +2033,7 @@ static inline int ai_watcher_victim_dizzy(void) {
 }
 
 static inline int ai_watcher_victim_duck(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     unsigned int likelihood;
     unsigned int elapsed;
     int result = 0;
@@ -2132,7 +2075,7 @@ static inline int ai_watcher_victim_duck(void) {
 }
 
 static inline int ai_watcher_victim_avoidance(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int result;
 
     if (!ai_watcher_can_act()) {
@@ -2153,7 +2096,7 @@ static inline int ai_watcher_victim_avoidance(void) {
 }
 
 static inline int ai_watcher_victim_frozen_check(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int state;
     int result;
 
@@ -2173,7 +2116,7 @@ static inline int ai_watcher_victim_frozen_check(void) {
 }
 
 static inline int ai_watcher_victim_spear(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int result;
 
     if (plyr_pdata->character_id != 0) {
@@ -2192,7 +2135,7 @@ static inline int ai_watcher_victim_spear(void) {
 }
 
 static inline int ai_watcher_victim_slip(void) {
-    DroneAI* drone = ai_watcher_active_drone();
+    struct DroneAI* drone = ai_watcher_active_drone();
     int result;
 
     if (!ai_watcher_can_act()) {
@@ -2209,8 +2152,8 @@ static inline int ai_watcher_victim_slip(void) {
 }
 
 float drone_ai_watcher(void) {
-    DroneAI* drone;
-    DroneAI* active_drone;
+    struct DroneAI* drone;
+    struct DroneAI* active_drone;
     MkProc* player_proc;
     int player;
     int command_result;
@@ -2441,8 +2384,8 @@ float drone_ai_watcher(void) {
     if (active_drone->movement_state >= 9) {
         drone_ai_initialize(active_drone);
     }
-    if (active_drone->big_boss_stage > 1 &&
-        active_drone->match_stage == 4 && mode_of_play != 10) {
+    if (active_drone->boss_stage > 1 &&
+        active_drone->stage == 4 && mode_of_play != 10) {
         active_drone->movement_state = 8;
     }
     if (get_game_state() == 3 &&
@@ -2471,7 +2414,7 @@ static inline int ai_is_state_1300_attack(AiFightstyleAttack* attack) {
 }
 
 float drone_ai_ducker(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* script;
 
     drone = get_player_number(plyr_obj) == 0
@@ -2518,7 +2461,7 @@ static inline int ai_move_category_count(
     return tables[category].usable_row_count;
 }
 
-static inline int ai_range_move_count(const DroneAI* drone) {
+static inline int ai_range_move_count(const struct DroneAI* drone) {
     int count;
 
     count = 0;
@@ -2533,17 +2476,16 @@ static inline int ai_range_move_count(const DroneAI* drone) {
     return count;
 }
 
-static inline int ai_has_ranged_move(const DroneAI* drone) {
+static inline int ai_has_ranged_move(const struct DroneAI* drone) {
     if (ai_range_move_count(drone) != 0) {
         return 1;
     }
     return 0;
 }
 
-/* Preserve the category selection and table-base calculation when inlining. */
 #pragma opt_propagation off
 float drone_ai_mass_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int ranged_move_available;
 
     drone = get_player_number(plyr_obj) == 0
@@ -2560,8 +2502,8 @@ float drone_ai_mass_attack(void) {
             return 1.0f;
         }
     } else {
-        if (drone->big_boss_stage != 0) {
-            if (drone->big_boss_stage == 4) {
+        if (drone->boss_stage != 0) {
+            if (drone->boss_stage == 4) {
                 if (drone_ai_check_attack(drone, 0, 0) == 1) {
                     return 0.0f;
                 }
@@ -2574,7 +2516,7 @@ float drone_ai_mass_attack(void) {
             return 0.0f;
         }
 
-        if (drone->big_boss_stage != 0) {
+        if (drone->boss_stage != 0) {
             if ((unsigned short)randu0(100) < 90 &&
                 drone_ai_check_for_aggressive_throw(drone) == 1) {
                 return 0.0f;
@@ -2598,7 +2540,7 @@ float drone_ai_mass_attack(void) {
 #pragma opt_propagation reset
 
 float drone_ai_evade(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_for_evade_attack(drone) == 1) {
@@ -2617,7 +2559,7 @@ float drone_ai_evade(void) {
 }
 
 float drone_ai_defend(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if ((unsigned short)randu0(100) < 60) {
@@ -2637,7 +2579,7 @@ float drone_ai_defend(void) {
 }
 
 float drone_ai_dodge_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_change_style(drone) == 1) {
@@ -2657,7 +2599,7 @@ float drone_ai_dodge_attack(void) {
 }
 
 float drone_ai_berserk(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_for_berserker_movement(drone) == 1) {
@@ -2679,7 +2621,7 @@ float drone_ai_berserk(void) {
 }
 
 float drone_ai_knockdown(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_for_knockdown_movement(drone) == 1) {
@@ -2709,7 +2651,7 @@ float drone_ai_knockdown(void) {
 }
 
 float drone_ai_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_change_style(drone) == 1) {
@@ -2734,7 +2676,7 @@ float drone_ai_attack(void) {
 }
 
 float drone_ai_passive(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_for_passive_movement(drone) == 1) {
@@ -2743,7 +2685,7 @@ float drone_ai_passive(void) {
     return 0.0f;
 }
 
-int drone_ai_check_external_requests(DroneAI* request) {
+int drone_ai_check_external_requests(struct DroneAI* request) {
     if (request->danger_area_request == 1 &&
         request->danger_area_ready == 1) {
         ai_transfer_active(drone_ai_avoid_danger_area_now);
@@ -2759,7 +2701,7 @@ int drone_ai_check_external_requests(DroneAI* request) {
     return 0;
 }
 
-int drone_ai_check_external_request_breakouts(DroneAI* request) {
+int drone_ai_check_external_request_breakouts(struct DroneAI* request) {
     float dx;
     float dz;
 
@@ -2790,7 +2732,7 @@ int drone_ai_check_external_request_breakouts(DroneAI* request) {
 }
 
 int drone_ai_check_block_at_reactions(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     PlyrPdata* player;
     unsigned int action_lock_b;
     unsigned int likelihood;
@@ -2802,12 +2744,12 @@ int drone_ai_check_block_at_reactions(void) {
     }
     if (his_pdata->repeated_action_count >
         ((unsigned short)randu0(3) + 2)) {
-        if (drone->big_boss_stage == 0) {
-            if (drone->match_stage > 4 && (unsigned short)randu0(100) < 40) {
+        if (drone->boss_stage == 0) {
+            if (drone->stage > 4 && (unsigned short)randu0(100) < 40) {
                 return 1;
             }
-        } else if (drone->match_stage < 3 &&
-                   drone->big_boss_stage <= 2) {
+        } else if (drone->stage < 3 &&
+                   drone->boss_stage <= 2) {
             if ((unsigned short)randu0(100) < 30) {
                 return 1;
             }
@@ -2870,14 +2812,14 @@ static int drone_ai_is_dizzy_watcher(void) {
 }
 
 int drone_ai_reversal_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     if (plyr_pdata->state != 0x4000) {
         return 0;
     }
-    if (drone->match_stage > 6 && (unsigned short)randu0(100) < 80) {
+    if (drone->stage > 6 && (unsigned short)randu0(100) < 80) {
         drone->reversal_pending = 1;
     } else if (drone->difficulty_index < 4 || (unsigned short)randu0(100) < 20) {
         drone->jump_attack_pending = 1;
@@ -2892,7 +2834,7 @@ int drone_ai_reversal_watcher(void) {
 }
 
 int drone_ai_opponent_inair_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned short likelihood;
     int can_attack;
 
@@ -2915,7 +2857,7 @@ int drone_ai_opponent_inair_watcher(void) {
     }
 
     likelihood = g_likelihoodOfInAirAttack[drone->difficulty_index];
-    if (drone->big_boss_stage == 0) {
+    if (drone->boss_stage == 0) {
         likelihood = 5;
     }
     can_attack = (unsigned short)randu0(100) < likelihood;
@@ -2925,7 +2867,7 @@ int drone_ai_opponent_inair_watcher(void) {
     return 0;
 }
 
-int drone_ai_enemy_inair_attack(DroneAI* drone) {
+int drone_ai_enemy_inair_attack(struct DroneAI* drone) {
     AiFightstyleAttack* script;
 
     drone->script_attack_ready = 0;
@@ -2935,7 +2877,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
     }
     if (drone->opponent_distance > 5.9457946f) {
         if (plyr_pdata->ai_tables->tables[12].usable_row_count > 0) {
-            DroneAI* active;
+            struct DroneAI* active;
             FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
@@ -2948,7 +2890,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_tables[12].usable_row_count);
+                    selection_tables[12].usable_row_count);
                 row = selection_tables[12].rows;
                 row += row_index;
                 active->ai_command = row->commands;
@@ -2970,7 +2912,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
                 return 0;
             }
         } else {
-            DroneAI* active;
+            struct DroneAI* active;
             FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
@@ -2983,7 +2925,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_tables[12].usable_row_count);
+                    selection_tables[12].usable_row_count);
                 row = selection_tables[12].rows;
                 row += row_index;
                 active->ai_command = row->commands;
@@ -3009,7 +2951,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
                 }
             }
         } else {
-            DroneAI* active;
+            struct DroneAI* active;
             FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
@@ -3022,7 +2964,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_tables[0].usable_row_count);
+                    selection_tables[0].usable_row_count);
                 row = selection_tables[0].rows;
                 row += row_index;
                 active->ai_command = row->commands;
@@ -3044,9 +2986,7 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
     return 0;
 }
 
-
-
-int drone_ai_check_for_throw(DroneAI* drone) {
+int drone_ai_check_for_throw(struct DroneAI* drone) {
     unsigned int minimum_ticks;
     int can_throw;
     AiFightstyleAttack* script;
@@ -3088,7 +3028,7 @@ int drone_ai_check_for_throw(DroneAI* drone) {
 
     if (can_throw == 0) {
         can_throw = 0;
-    } else if (drone->big_boss_stage == 0) {
+    } else if (drone->boss_stage == 0) {
         can_throw = 0;
     } else if ((unsigned short)randu0(100) < 70) {
         can_throw = 0;
@@ -3117,7 +3057,7 @@ int drone_ai_check_for_throw(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_extreme_throw(DroneAI* drone) {
+int drone_ai_check_for_extreme_throw(struct DroneAI* drone) {
     unsigned int minimum_ticks;
     int can_throw;
 
@@ -3182,8 +3122,8 @@ int drone_ai_check_for_extreme_throw(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
-    DroneAI* command_drone;
+int drone_ai_check_for_aggressive_throw(struct DroneAI* drone) {
+    struct DroneAI* command_drone;
     FighterAiTable* tables;
     unsigned int min_hold_ticks;
     int throw_count;
@@ -3199,7 +3139,7 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
         return 0;
     }
     min_hold_ticks = g_minBlockHeldTime[drone->difficulty_index];
-    if (drone->big_boss_stage == 0) {
+    if (drone->boss_stage == 0) {
         should_throw = 0;
     } else {
         can_throw = 1;
@@ -3253,7 +3193,7 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
                 unsigned short row_index;
                 FighterAiMoveRow* row;
 
-                row_index = randu0((unsigned short)throw_count);
+                row_index = randu0(throw_count);
                 row = tables[11].rows;
                 row += row_index;
                 command_drone->ai_command = row->commands;
@@ -3278,7 +3218,7 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
 }
 
 int drone_ai_attacker_reacting_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned int likelihood;
     int can_attack;
 
@@ -3292,10 +3232,10 @@ int drone_ai_attacker_reacting_watcher(void) {
         if (can_attack == 1) {
             likelihood =
                 g_likelihoodOfReactAttack[drone->difficulty_index];
-            if (drone->big_boss_stage > 2) {
+            if (drone->boss_stage > 2) {
                 likelihood += 5;
             }
-            if (drone->match_stage == 0) {
+            if (drone->stage == 0) {
                 likelihood = 0;
             }
             can_attack = (unsigned short)randu0(100) < likelihood;
@@ -3308,7 +3248,7 @@ int drone_ai_attacker_reacting_watcher(void) {
     return 0;
 }
 
-int drone_ai_check_for_evade_attack(DroneAI* drone) {
+int drone_ai_check_for_evade_attack(struct DroneAI* drone) {
     int has_clearance;
 
     if (drone->opponent_distance < 5.9457946f) {
@@ -3335,8 +3275,8 @@ int drone_ai_check_for_evade_attack(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_side_step_counter_attack(DroneAI* drone) {
-    DroneAI* active_drone;
+int drone_ai_check_for_side_step_counter_attack(struct DroneAI* drone) {
+    struct DroneAI* active_drone;
     MkProc* player_proc;
     Vec facing;
     Vec to_opponent;
@@ -3390,7 +3330,7 @@ int drone_ai_check_for_side_step_counter_attack(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_for_big_boss_aggressive_movement(DroneAI* drone) {
+int drone_ai_check_for_big_boss_aggressive_movement(struct DroneAI* drone) {
     drone->movement_attempt = 0;
     if (drone->opponent_distance > 14.6f) {
         if ((unsigned short)randu0(6) == 0) {
@@ -3428,7 +3368,7 @@ int drone_ai_check_for_big_boss_aggressive_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
+int drone_ai_check_for_aggressive_movement(struct DroneAI* drone) {
     int has_clearance;
     int has_special_moves;
     int retry;
@@ -3483,7 +3423,7 @@ int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
             return 1;
         }
         if ((unsigned short)randu0(60) == 0 || retry == 1) {
-            if (drone->match_stage == 0 &&
+            if (drone->stage == 0 &&
                 drone->difficulty_index < 3) {
                 return 0;
             }
@@ -3510,7 +3450,7 @@ int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
             return 1;
         }
     }
-    if (drone->match_stage == 0 && drone->difficulty_index < 3) {
+    if (drone->stage == 0 && drone->difficulty_index < 3) {
         return 0;
     }
     if ((his_pdata->state & 0x400) != 0 && (unsigned short)randu0(60) == 0) {
@@ -3529,8 +3469,8 @@ static inline MkPtr* ai_discard_stale_obstacle_item(MkPtr* item) {
 }
 
 static inline float ai_obstacle_inverse_length(float squared) {
-    AiFloatBits estimate;
-    AiFloatBits input;
+    union AiFloatBits estimate;
+    union AiFloatBits input;
     float estimate_product;
     float correction;
 
@@ -3545,12 +3485,12 @@ static inline float ai_obstacle_inverse_length(float squared) {
            -(correction * (estimate_product * correction) - 12.0f);
 }
 
-static int drone_ai_check_obstacles(DroneAI* request) {
+static int drone_ai_check_obstacles(struct DroneAI* request) {
     ArenaObstacle* obstacle;
     MkPtr* obstacle_item;
     MkPtr* shape_item;
     CollisionObj* shape;
-    DroneAI* drone;
+    struct DroneAI* drone;
     MkProc* player_proc;
     Vec to_opponent;
     Vec center;
@@ -3559,7 +3499,6 @@ static int drone_ai_check_obstacles(DroneAI* request) {
     float squared_distance;
     float normalization_squared;
     float inverse_length;
-
 
     if (&constrain_info.obstacles != 0) {
         obstacle_item = constrain_info.obstacles;
@@ -3641,7 +3580,7 @@ static int drone_ai_check_obstacles(DroneAI* request) {
     return 0;
 }
 
-int drone_ai_handle_arena_collisions(DroneAI* request) {
+int drone_ai_handle_arena_collisions(struct DroneAI* request) {
     if (request->evade_arena_state == 0) {
         switch (request->movement_state) {
         case 0:
@@ -3678,7 +3617,7 @@ int drone_ai_handle_arena_collisions(DroneAI* request) {
     return 0;
 }
 
-int drone_ai_check_evade_arena(DroneAI* request) {
+int drone_ai_check_evade_arena(struct DroneAI* request) {
     if (request->evade_arena_state == 1) {
         ai_transfer_active(side_step_to_center_with_jexit);
         request->evade_arena_state = 2;
@@ -3691,12 +3630,12 @@ int drone_ai_check_evade_arena(DroneAI* request) {
 }
 
 #pragma dont_inline on
-int drone_ai_check_for_knockdown_movement(DroneAI* drone) {
+int drone_ai_check_for_knockdown_movement(struct DroneAI* drone) {
     return drone_ai_check_for_berserker_movement(drone);
 }
 #pragma dont_inline reset
 
-int drone_ai_check_for_ducker_movement(DroneAI* drone) {
+int drone_ai_check_for_ducker_movement(struct DroneAI* drone) {
     FighterAiTableContainer* moves;
     AiFightstyleAttack* script;
     int has_special_moves;
@@ -3764,7 +3703,7 @@ int drone_ai_check_for_ducker_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_berserker_movement(DroneAI* drone) {
+int drone_ai_check_for_berserker_movement(struct DroneAI* drone) {
     int has_special_moves;
 
     drone->movement_attempt = 0;
@@ -3803,8 +3742,8 @@ int drone_ai_check_for_berserker_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_dodge_movement(DroneAI* request) {
-    DroneAI* drone;
+int drone_ai_check_for_dodge_movement(struct DroneAI* request) {
+    struct DroneAI* drone;
     MkProc* player_proc;
 
     if (request->opponent_distance > 5.9457946f) {
@@ -3828,7 +3767,7 @@ int drone_ai_check_for_dodge_movement(DroneAI* request) {
     return 1;
 }
 
-int drone_ai_check_for_big_boss_passive_movement(DroneAI* drone) {
+int drone_ai_check_for_big_boss_passive_movement(struct DroneAI* drone) {
     int has_clearance;
 
     drone->movement_attempt = 0;
@@ -3867,7 +3806,7 @@ int drone_ai_check_for_big_boss_passive_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_passive_movement(DroneAI* drone) {
+int drone_ai_check_for_passive_movement(struct DroneAI* drone) {
     int has_clearance;
 
     drone->movement_attempt = 0;
@@ -3933,7 +3872,7 @@ int drone_ai_check_for_passive_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_defend_movement(DroneAI* drone) {
+int drone_ai_check_for_defend_movement(struct DroneAI* drone) {
     int has_clearance;
     int has_special_moves;
 
@@ -3993,7 +3932,7 @@ int drone_ai_check_for_defend_movement(DroneAI* drone) {
             return 1;
         }
         if ((unsigned short)randu0(200) == 0) {
-            if (drone->match_stage == 0 &&
+            if (drone->stage == 0 &&
                 drone->difficulty_index < 3) {
                 return 0;
             }
@@ -4019,7 +3958,7 @@ int drone_ai_check_for_defend_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_evade_movement(DroneAI* drone) {
+int drone_ai_check_for_evade_movement(struct DroneAI* drone) {
     int has_clearance;
 
     drone->movement_attempt = 0;
@@ -4095,7 +4034,7 @@ int drone_ai_check_for_evade_movement(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_for_special_move_reaction(DroneAI* drone) {
+int drone_ai_check_for_special_move_reaction(struct DroneAI* drone) {
     int opponent_state;
     int result;
 
@@ -4159,7 +4098,7 @@ int drone_ai_check_for_special_move_reaction(DroneAI* drone) {
     return result;
 }
 
-int drone_ai_check_all_over_ground(DroneAI* drone) {
+int drone_ai_check_all_over_ground(struct DroneAI* drone) {
     unsigned short roll;
 
     drone->special_reaction_active = 1;
@@ -4216,7 +4155,7 @@ static inline int ai_count_taunt_moves(void) {
     return count;
 }
 
-int drone_ai_check_avoid_danger_area(DroneAI* drone) {
+int drone_ai_check_avoid_danger_area(struct DroneAI* drone) {
     drone->special_reaction_active = 1;
     drone->danger_area_active = 0;
     drone->danger_area_counter = 0;
@@ -4243,8 +4182,7 @@ int drone_ai_check_avoid_danger_area(DroneAI* drone) {
     }
 }
 
-
-static inline int ai_should_block_super_move(DroneAI* drone) {
+static inline int ai_should_block_super_move(struct DroneAI* drone) {
     unsigned int likelihood;
 
     if ((g_DroneOverrideInfo.flags & 8) != 0) {
@@ -4253,7 +4191,7 @@ static inline int ai_should_block_super_move(DroneAI* drone) {
     if (g_DroneOverrideInfo.likelihood_scale == 0.0f) {
         return 0;
     }
-    if (drone->big_boss_stage < 4 &&
+    if (drone->boss_stage < 4 &&
         drone->block_retry_tick > game_tick_ctr) {
         return 0;
     }
@@ -4267,22 +4205,22 @@ static inline int ai_should_block_super_move(DroneAI* drone) {
     if (drone->movement_state != 1) {
         likelihood += 5;
     }
-    if (drone->match_stage < 2 && drone->difficulty_index < 3) {
+    if (drone->stage < 2 && drone->difficulty_index < 3) {
         likelihood = 1;
     }
-    likelihood = (unsigned int)(
-        (float)likelihood * g_DroneOverrideInfo.likelihood_scale);
+    likelihood =
+        (float)likelihood * g_DroneOverrideInfo.likelihood_scale;
     if ((unsigned short)randu0(100) < likelihood) {
         return 1;
     }
     return 0;
 }
 
-static inline void ai_update_block_retry(DroneAI* drone) {
+static inline void ai_update_block_retry(struct DroneAI* drone) {
     if (drone->player->his_plyr_pdata->field_234 == 0) {
         return;
     }
-    if (drone->big_boss_stage == 4) {
+    if (drone->boss_stage == 4) {
         drone->block_retry_tick = 0;
     } else if (drone->difficulty_index > 5 && (unsigned short)randu0(100) < 70) {
         drone->block_retry_tick = 0;
@@ -4294,7 +4232,7 @@ static inline void ai_update_block_retry(DroneAI* drone) {
     }
 }
 
-int drone_ai_check_attack_from_above(DroneAI* drone) {
+int drone_ai_check_attack_from_above(struct DroneAI* drone) {
     drone->special_reaction_active = 1;
     if (!ai_should_block_super_move(drone)) {
         return 0;
@@ -4305,7 +4243,7 @@ int drone_ai_check_attack_from_above(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_mid_high_spinner(DroneAI* drone) {
+int drone_ai_check_mid_high_spinner(struct DroneAI* drone) {
     if (drone->opponent_distance > 5.225796f) {
         return 0;
     }
@@ -4320,7 +4258,7 @@ int drone_ai_check_mid_high_spinner(DroneAI* drone) {
 }
 
 int drone_ai_check_all_over_ground_phase1(
-    DroneAI* drone, int delay) {
+    struct DroneAI* drone, int delay) {
     drone->special_reaction_active = 1;
     if (!ai_should_block_super_move(drone)) {
         return 0;
@@ -4354,7 +4292,7 @@ static inline int ai_not_facing(void) {
     return 0;
 }
 
-int drone_ai_check_cant_dodge_attack(DroneAI* drone) {
+int drone_ai_check_cant_dodge_attack(struct DroneAI* drone) {
     if (drone->opponent_distance > 9.0f || ai_not_facing() == 1) {
         return 0;
     }
@@ -4368,7 +4306,7 @@ int drone_ai_check_cant_dodge_attack(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_cant_dodge_attack2(DroneAI* drone) {
+int drone_ai_check_cant_dodge_attack2(struct DroneAI* drone) {
     if (drone->opponent_distance > 12.0f) {
         return 0;
     }
@@ -4382,7 +4320,7 @@ int drone_ai_check_cant_dodge_attack2(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_propel_attack(DroneAI* drone) {
+int drone_ai_check_propel_attack(struct DroneAI* drone) {
     if (drone->opponent_distance > 12.0f) {
         return 0;
     }
@@ -4400,7 +4338,7 @@ int drone_ai_check_propel_attack(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_projectile_side(DroneAI* drone) {
+int drone_ai_check_projectile_side(struct DroneAI* drone) {
     float distance;
 
     drone->special_reaction_active = 1;
@@ -4427,7 +4365,7 @@ int drone_ai_check_projectile_side(DroneAI* drone) {
     return 1;
 }
 
-int drone_ai_check_from_ground_attack_phase2(DroneAI* drone) {
+int drone_ai_check_from_ground_attack_phase2(struct DroneAI* drone) {
     unsigned int roll;
 
     if (drone->opponent_distance < 2.8103173f &&
@@ -4452,7 +4390,7 @@ int drone_ai_check_from_ground_attack_phase2(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_from_ground_attack_phase1(DroneAI* drone) {
+int drone_ai_check_from_ground_attack_phase1(struct DroneAI* drone) {
     drone->special_reaction_active = 1;
     if (!ai_should_block_super_move(drone)) {
         return 0;
@@ -4470,7 +4408,7 @@ int drone_ai_check_from_ground_attack_phase1(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_check_projectile_head_on(DroneAI* drone) {
+int drone_ai_check_projectile_head_on(struct DroneAI* drone) {
     int duck_reaction_active;
     unsigned int roll;
     unsigned short random_roll;
@@ -4544,7 +4482,7 @@ int drone_ai_check_projectile_head_on(DroneAI* drone) {
     return 0;
 }
 
-static inline void ai_close_dont_touch_attack(DroneAI* drone) {
+static inline void ai_close_dont_touch_attack(struct DroneAI* drone) {
     if (drone->difficulty_index < 6) {
         ai_transfer_active(drone_ai_perform_low_attack);
     } else {
@@ -4557,7 +4495,7 @@ static inline int ai_has_backward_clearance(void) {
     return ai_backward_clearance() > 2.1336f;
 }
 
-int drone_ai_check_dont_touch_attack_phase1(DroneAI* drone) {
+int drone_ai_check_dont_touch_attack_phase1(struct DroneAI* drone) {
     drone->special_reaction_active = 1;
     if (ai_should_block_super_move(drone) == 0) {
         return 0;
@@ -4595,9 +4533,8 @@ static inline int ai_count_charge_moves(void) {
     return count;
 }
 
-
 #pragma opt_propagation off
-int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
+int drone_ai_check_dont_touch_attack_phase2(struct DroneAI* drone) {
     unsigned short roll;
     int taunt_count;
     int charge_count;
@@ -4649,7 +4586,7 @@ int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
 }
 #pragma opt_propagation reset
 
-int drone_ai_charge_up_watcher(DroneAI* drone) {
+int drone_ai_charge_up_watcher(struct DroneAI* drone) {
     if ((unsigned short)randu0(100) < 20 &&
         (his_pdata->state & 0x1000) == 0) {
         if (ai_count_charge_moves() > 0 &&
@@ -4663,7 +4600,7 @@ int drone_ai_charge_up_watcher(DroneAI* drone) {
     return drone_ai_charge_up_watcher_defense(drone);
 }
 
-int drone_ai_charge_up_watcher_defense(DroneAI* drone) {
+int drone_ai_charge_up_watcher_defense(struct DroneAI* drone) {
     if (his_pdata->state != 0x4209) {
         return 0;
     }
@@ -4686,7 +4623,7 @@ int drone_ai_charge_up_watcher_defense(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_taunt_watcher(DroneAI* drone) {
+int drone_ai_taunt_watcher(struct DroneAI* drone) {
     if ((unsigned short)randu0(100) < 20 &&
         (his_pdata->state & 0x1000) == 0 &&
         ai_count_taunt_moves() > 0) {
@@ -4707,7 +4644,7 @@ int drone_ai_taunt_watcher(DroneAI* drone) {
     return drone_ai_taunt_watcher_defense(drone);
 }
 
-int drone_ai_push_watcher(DroneAI* drone) {
+int drone_ai_push_watcher(struct DroneAI* drone) {
     unsigned int minimum_ticks;
 
     minimum_ticks = g_minBlockHiHeldTime[drone->difficulty_index];
@@ -4734,7 +4671,7 @@ int drone_ai_push_watcher(DroneAI* drone) {
     return 0;
 }
 
-int drone_ai_taunt_watcher_defense(DroneAI* drone) {
+int drone_ai_taunt_watcher_defense(struct DroneAI* drone) {
     if (his_pdata->state != 0x420A) {
         return 0;
     }
@@ -4775,8 +4712,7 @@ static inline int ai_find_reversal_style(void) {
     return -1;
 }
 
-
-int drone_ai_check_for_normal_blocking(DroneAI* drone) {
+int drone_ai_check_for_normal_blocking(struct DroneAI* drone) {
     unsigned int reversal_likelihood;
     unsigned int roll;
     unsigned short random_roll;
@@ -4803,7 +4739,7 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
         if (drone->movement_state != 1) {
             reversal_likelihood += 5;
         }
-        if (drone->match_stage == 0) {
+        if (drone->stage == 0) {
             reversal_likelihood = 1;
         }
         if ((g_DroneOverrideInfo.flags & 8) != 0) {
@@ -4839,7 +4775,7 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
         random_roll = randu0(100);
         drone->attack_pending = 1;
         if (drone->player->his_plyr_pdata->field_234 != 0) {
-            if (drone->big_boss_stage == 4) {
+            if (drone->boss_stage == 4) {
                 drone->block_retry_tick = 0;
             } else if (drone->difficulty_index > 5 && (unsigned short)randu0(100) < 70) {
                 drone->block_retry_tick = 0;
@@ -4942,7 +4878,7 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
 }
 
 int drone_ai_attacker_not_facing_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int likelihood;
     int can_attack;
 
@@ -5001,7 +4937,7 @@ int drone_ai_attacker_not_facing_watcher(void) {
 }
 
 int drone_ai_attacker_defenseless_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -5022,7 +4958,7 @@ int drone_ai_attacker_defenseless_watcher(void) {
 }
 
 int drone_ai_beating_the_snot_out_of_him_watcher(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned int likelihood;
     int can_act;
     int can_retreat;
@@ -5060,7 +4996,7 @@ int drone_ai_beating_the_snot_out_of_him_watcher(void) {
         can_retreat = 0;
     if (can_retreat == 1) {
         likelihood = (his_pdata->hit_streak - 3) * 10 + 30;
-        if (drone->big_boss_stage == 4) {
+        if (drone->boss_stage == 4) {
             likelihood -= 20;
         }
         if ((unsigned short)randu0(100) < likelihood) {
@@ -5074,7 +5010,7 @@ int drone_ai_beating_the_snot_out_of_him_watcher(void) {
     return result;
 }
 
-static inline AiFightstyleAttack* ai_pick_status_special_move_for(DroneAI* active) {
+static inline AiFightstyleAttack* ai_pick_status_special_move_for(struct DroneAI* active) {
     FighterAiTable* tables;
     unsigned short row_index;
     FighterAiMoveRow* row;
@@ -5083,7 +5019,7 @@ static inline AiFightstyleAttack* ai_pick_status_special_move_for(DroneAI* activ
     if (tables[2].usable_row_count == 0) {
         return 0;
     }
-    row_index = (unsigned short)randu0((unsigned short)tables[2].usable_row_count);
+    row_index = randu0(tables[2].usable_row_count);
     row = tables[2].rows;
     row += row_index;
     active->ai_command = row->commands;
@@ -5096,7 +5032,7 @@ static inline AiFightstyleAttack* ai_pick_status_special_move_for(DroneAI* activ
 }
 
 static inline AiFightstyleAttack* ai_pick_status_special_move(void) {
-    DroneAI* active;
+    struct DroneAI* active;
 
     active = get_player_number(plyr_obj) == 0
                  ? &g_DroneAI1 : &g_DroneAI2;
@@ -5112,7 +5048,7 @@ static inline int ai_fighter_move_count(PlyrFighterDefinition* fighter, int cate
 }
 
 #pragma opt_propagation off
-int drone_ai_attacker_defenseless(DroneAI* drone) {
+int drone_ai_attacker_defenseless(struct DroneAI* drone) {
     PlyrFighterDefinition* combo_fighter;
     AiFightstyleAttack* script;
     unsigned int category;
@@ -5252,7 +5188,7 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
 #pragma opt_propagation reset
 
 void drone_ai_watcher_calculate_data(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int player;
     int ladder_position;
 
@@ -5289,13 +5225,13 @@ void drone_ai_watcher_calculate_data(void) {
         ladder_position = 4;
     }
 
-    drone->match_stage = ladder_position;
+    drone->stage = ladder_position;
     drone->player = plyr_pdata;
-    drone->big_boss_stage = game_settings.kombat_difficulty;
+    drone->boss_stage = game_settings.kombat_difficulty;
     drone->consecutive_losses = g_GameLossesInARow;
     drone->opponent_round_attacks = his_pdata->round_attack_count;
 
-    if (drone->big_boss_stage > 2) {
+    if (drone->boss_stage > 2) {
         if (drone->opponent_round_attacks >
             (unsigned int)(((int)drone->match_mode - 1) * 10 + 12 -
                            (int)drone->match_mode * 2)) {
@@ -5328,16 +5264,16 @@ void drone_ai_watcher_calculate_data(void) {
             drone->difficulty_index =
                 mk_chess_get_current_difficulty_for_ai(
                     drone->player->plyr_num);
-            drone->big_boss_stage =
+            drone->boss_stage =
                 game_settings.arcade_difficulty;
-            if (drone->big_boss_stage < 2) {
-                drone->match_stage = 2;
-            } else if (drone->big_boss_stage == 2) {
-                drone->match_stage = 4;
-            } else if (drone->big_boss_stage == 3) {
-                drone->match_stage = 6;
+            if (drone->boss_stage < 2) {
+                drone->stage = 2;
+            } else if (drone->boss_stage == 2) {
+                drone->stage = 4;
+            } else if (drone->boss_stage == 3) {
+                drone->stage = 6;
             } else {
-                drone->match_stage = 8;
+                drone->stage = 8;
             }
         }
     }
@@ -5358,7 +5294,7 @@ void drone_ai_watcher_calculate_data(void) {
     }
 }
 
-int drone_ai_process_background_states(DroneAI* request) {
+int drone_ai_process_background_states(struct DroneAI* request) {
     float distance;
 
     switch (request->background_attack_active) {
@@ -5385,7 +5321,7 @@ int drone_ai_process_background_states(DroneAI* request) {
 }
 
 static inline AiFightstyleAttack* ai_pick_special_move(unsigned int category) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     FighterAiTable* table;
     FighterAiMoveRow* row;
     unsigned short row_index;
@@ -5397,7 +5333,7 @@ static inline AiFightstyleAttack* ai_pick_special_move(unsigned int category) {
     if (table->usable_row_count == 0) {
         return 0;
     }
-    row_index = randu0((unsigned short)table->usable_row_count);
+    row_index = randu0(table->usable_row_count);
     row = table->rows;
     row += row_index;
     drone->ai_command = row->commands;
@@ -5431,12 +5367,9 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.79%; only the drone/immediate saved pair differs: MWCC
- * simplify stalls with both at the colour threshold and breaks the stall by
- * lowest spill cost, so immediate (5 reads) is pushed before drone and drone
- * pops first into r31; every flip found (more immediate reads, one fewer
- * never-pushed neighbour) changes the instruction stream. */
-int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
+/* TODO: [near miss] 99.79%; drone/immediate saved pair differs;
+ * spill-cost coloring pushes immediate first and pops drone into r31. */
+int drone_ai_check_attack(struct DroneAI* drone, int force, int immediate) {
     AiFightstyleAttack* script;
     unsigned int special_count;
     unsigned int fightstyle_count;
@@ -5457,9 +5390,9 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     }
 
     if ((his_pdata->state & 0x100) != 0) {
-        stage = drone->big_boss_stage;
+        stage = drone->boss_stage;
         elapsed = game_tick_ctr - drone->duck_reaction_tick;
-        if (stage < 2 || (stage == 2 && drone->match_stage < 4)) {
+        if (stage < 2 || (stage == 2 && drone->stage < 4)) {
             allow_special = 0;
         } else if (elapsed < 15) {
             if (stage == 4 && (unsigned short)randu0(100) < 70) {
@@ -5469,11 +5402,11 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
             }
         } else if (elapsed > 120) {
             allow_special = 1;
-        } else if (drone->big_boss_stage == 2 && (unsigned short)randu0(100) < 20) {
+        } else if (drone->boss_stage == 2 && (unsigned short)randu0(100) < 20) {
             allow_special = 1;
-        } else if (drone->big_boss_stage == 3 && (unsigned short)randu0(100) < 40) {
+        } else if (drone->boss_stage == 3 && (unsigned short)randu0(100) < 40) {
             allow_special = 1;
-        } else if (drone->big_boss_stage == 4 && (unsigned short)randu0(100) < 50) {
+        } else if (drone->boss_stage == 4 && (unsigned short)randu0(100) < 50) {
             allow_special = 1;
         } else {
             allow_special = 0;
@@ -5691,7 +5624,7 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
 #pragma opt_propagation reset
 
 float drone_ai_perform_combo_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     PlyrFighterDefinition* fighter;
     PlyrMoveBlendData* combo_table;
     unsigned int distant_count;
@@ -5729,7 +5662,7 @@ float drone_ai_perform_combo_attack(void) {
 }
 
 int drone_ai_check_combo_breaker(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int likelihood;
 
     drone = get_player_number(plyr_obj) == 0
@@ -5742,7 +5675,7 @@ int drone_ai_check_combo_breaker(void) {
 }
 
 int drone_super_combo_refresh(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->super_combo_active = 0;
@@ -5750,8 +5683,8 @@ int drone_super_combo_refresh(void) {
 }
 
 #pragma dont_inline on
-int drone_ai_check_push(DroneAI* request) {
-    DroneAI* drone;
+int drone_ai_check_push(struct DroneAI* request) {
+    struct DroneAI* drone;
     MkProc* player_proc;
 
     if (drone_ai_can_push(request) == 1 &&
@@ -5771,8 +5704,8 @@ int drone_ai_check_push(DroneAI* request) {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-void drone_ai_perform_jump_attack(DroneAI* request) {
-    DroneAI* drone;
+void drone_ai_perform_jump_attack(struct DroneAI* request) {
+    struct DroneAI* drone;
     MkProc* player_proc;
 
     request->background_attack_active = 0;
@@ -5786,9 +5719,8 @@ void drone_ai_perform_jump_attack(DroneAI* request) {
 }
 #pragma dont_inline reset
 
-
 int drone_ai_victim_ducking(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* script;
     int is_script;
 
@@ -5830,7 +5762,7 @@ int drone_ai_victim_ducking(void) {
 }
 
 int drone_ai_victim_slipping_on_vomit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (his_pdata->state != 0x4207) {
@@ -5850,7 +5782,7 @@ int drone_ai_victim_slipping_on_vomit(void) {
 }
 
 static int drone_ai_victim_throw_attempt(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* script;
     unsigned int likelihood;
     unsigned short roll;
@@ -5867,16 +5799,16 @@ static int drone_ai_victim_throw_attempt(void) {
 
     plyr_pdata->opponent_attack_counter = his_pdata->attack_counter;
     plyr_pdata->reaction_counter = his_pdata->attack_counter;
-    if (drone->big_boss_stage < 2) {
+    if (drone->boss_stage < 2) {
         likelihood = 30;
-        if (drone->match_stage == 0) {
+        if (drone->stage == 0) {
             likelihood = 100;
         } else if (drone->difficulty_index < 4) {
             likelihood = 60;
         }
-    } else if (drone->big_boss_stage == 2) {
+    } else if (drone->boss_stage == 2) {
         likelihood = 30;
-        if (drone->match_stage == 0) {
+        if (drone->stage == 0) {
             likelihood = 100;
         } else if (drone->difficulty_index < 3) {
             likelihood = 40;
@@ -5887,7 +5819,7 @@ static int drone_ai_victim_throw_attempt(void) {
         }
     } else {
         likelihood = 12;
-        if (drone->match_stage == 0) {
+        if (drone->stage == 0) {
             likelihood = 40;
         } else if (drone->difficulty_index < 3) {
             likelihood = 24;
@@ -5915,7 +5847,7 @@ static int drone_ai_victim_throw_attempt(void) {
         return 0;
     }
 
-    if (drone->big_boss_stage < 4 && (unsigned short)randu0(100) < 7) {
+    if (drone->boss_stage < 4 && (unsigned short)randu0(100) < 7) {
         drone->field_150 = 0;
     }
     if (xz_distance_between_players() < 4.84f) {
@@ -5939,7 +5871,7 @@ static int drone_ai_victim_throw_attempt(void) {
 }
 
 static int drone_ai_victim_avoid(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     float target_x;
     float target_z;
     float enemy_x;
@@ -6000,7 +5932,7 @@ static int drone_ai_victim_avoid(void) {
 }
 
 int drone_ai_victim_dizzy(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     float range;
     float desired_distance;
     float delta;
@@ -6082,10 +6014,8 @@ int drone_ai_victim_dizzy(void) {
     return 1;
 }
 
-
-
 static int drone_ai_im_dizzy(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -6124,9 +6054,9 @@ static int drone_ai_im_dizzy(void) {
 }
 
 static int drone_ai_victim_dizzy_3(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     PlyrPdata* player_data;
-    DroneAI* command_drone;
+    struct DroneAI* command_drone;
     FighterAiTable* tables;
     AiFightstyleAttack* category_script;
     AiFightstyleAttack* script;
@@ -6161,7 +6091,7 @@ static int drone_ai_victim_dizzy_3(void) {
             unsigned short row_index;
             FighterAiMoveRow* row;
 
-            row_index = randu0((unsigned short)ranged_count);
+            row_index = randu0(ranged_count);
             row = tables[1].rows;
             row += row_index;
             command_drone->ai_command = row->commands;
@@ -6197,7 +6127,7 @@ static int drone_ai_victim_dizzy_3(void) {
 }
 
 int drone_ai_victim_dizzy_2(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttackTable* scripts;
     AiFightstyleAttack* attacks;
 
@@ -6220,7 +6150,7 @@ int drone_ai_victim_dizzy_2(void) {
 }
 
 int drone_ai_victim_frozen(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int state;
 
     drone = get_player_number(plyr_obj) == 0
@@ -6243,7 +6173,7 @@ int drone_ai_victim_frozen(void) {
 }
 
 int drone_ai_victim_speared_2(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (his_pdata->state != 0x4204) {
@@ -6262,7 +6192,7 @@ int drone_ai_victim_speared_2(void) {
 }
 
 int drone_ai_victim_speared(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (his_pdata->state != 0x4204) {
@@ -6277,7 +6207,7 @@ int drone_ai_victim_speared(void) {
 }
 
 float drone_ai_perform_script_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* attack;
     int input_direction;
     int should_side_step;
@@ -6322,15 +6252,15 @@ float drone_ai_perform_script_attack(void) {
                g_game_info.pause_flag_bits.fatality_window == 0 &&
                (his_pdata->strafe_direction != 0 ||
                 input_direction != 0)) {
-        if (drone->big_boss_stage < 2) {
+        if (drone->boss_stage < 2) {
             should_side_step = 0;
-        } else if (drone->big_boss_stage == 2 &&
-                   drone->match_stage > 3 && (unsigned short)randu0(100) < 35) {
+        } else if (drone->boss_stage == 2 &&
+                   drone->stage > 3 && (unsigned short)randu0(100) < 35) {
             should_side_step = 1;
-        } else if (drone->big_boss_stage == 3 &&
+        } else if (drone->boss_stage == 3 &&
                    (unsigned short)randu0(100) < 60) {
             should_side_step = 1;
-        } else if (drone->big_boss_stage == 4 &&
+        } else if (drone->boss_stage == 4 &&
                    (unsigned short)randu0(100) < 85) {
             should_side_step = 1;
         } else {
@@ -6386,7 +6316,7 @@ float drone_ai_perform_script_attack(void) {
 }
 
 float jump_away_opponent_with_j_exit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     float right_clearance;
     float left_clearance;
 
@@ -6409,7 +6339,7 @@ float jump_away_opponent_with_j_exit(void) {
 }
 
 float jump_towards_opponent_with_j_exit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     jump_towards_opponent();
@@ -6419,7 +6349,7 @@ float jump_towards_opponent_with_j_exit(void) {
 }
 
 float drone_ai_perform_reversal(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->attack_pending = 0;
@@ -6428,7 +6358,7 @@ float drone_ai_perform_reversal(void) {
 }
 
 static float drone_ai_perform_impale_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->attack_pending = 0;
@@ -6462,7 +6392,7 @@ static inline int ai_find_knockdown_style(void) {
 }
 
 static float drone_ai_perform_knockdown(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* attack;
     int style;
     int can_attack;
@@ -6527,11 +6457,8 @@ static float drone_ai_perform_knockdown(void) {
     return 0.0f;
 }
 
-
-
-
 float drone_ai_perform_charge_up(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int style;
     PlyrWeaponStyle* candidate;
     int count;
@@ -6581,11 +6508,9 @@ float drone_ai_perform_charge_up(void) {
     return 0.0f;
 }
 
-
-
 #pragma auto_inline off
 float drone_ai_perform_taunt(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int style;
     PlyrWeaponStyle* candidate;
     int count;
@@ -6632,22 +6557,22 @@ float drone_ai_perform_taunt(void) {
 #pragma auto_inline reset
 
 static float drone_ai_perform_push(void) {
-    DroneAI* drone;
-    AiWeaponStyleView* second_style;
-    AiWeaponStyleView* first_style;
+    struct DroneAI* drone;
+    PlyrWeaponStyle* second_style;
+    PlyrWeaponStyle* first_style;
     AiFightstyleAttackTable* scripts;
     int style_index;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
-    first_style = (AiWeaponStyleView*)plyr_pdata->weapon_styles[0];
-    switch (first_style->style_id) {
+    first_style = plyr_pdata->weapon_styles[0];
+    switch (first_style->fighter_id) {
     case 5:
         style_index = 0;
         break;
     default:
-        second_style = (AiWeaponStyleView*)plyr_pdata->weapon_styles[1];
-        switch (second_style->style_id) {
+        second_style = plyr_pdata->weapon_styles[1];
+        switch (second_style->fighter_id) {
         case 5:
             style_index = 1;
             break;
@@ -6674,7 +6599,7 @@ static float drone_ai_perform_push(void) {
 }
 
 static float drone_ai_perform_weapon_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone_ai_force_change_style(drone, 2);
@@ -6689,7 +6614,7 @@ static float drone_ai_perform_weapon_attack(void) {
 }
 
 static float drone_ai_perform_low_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->attack_type = 3;
@@ -6699,7 +6624,7 @@ static float drone_ai_perform_low_attack(void) {
 }
 
 static float walk_backward_walk_ticks_jexit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int ticks;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -6716,7 +6641,7 @@ static float walk_backward_walk_ticks_jexit(void) {
 }
 
 float dash_back_with_jexit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (plyr_pdata != 0 && is_big_boss(plyr_pdata) != 0) {
@@ -6730,7 +6655,7 @@ float dash_back_with_jexit(void) {
 }
 
 static float jump_away_opponent_with_jexit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     jump_away_opponent();
@@ -6812,7 +6737,7 @@ float walk_forward_attackdist_with_jexit(void) {
 }
 
 float change_to_weapon_style_with_j_exit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone_ai_force_change_style(drone, 2);
@@ -6827,8 +6752,8 @@ static float step_forward_with_jexit(void) {
 }
 
 static float catch_opponent(void) {
-    DroneAI* active_drone;
-    DroneAI* command_drone;
+    struct DroneAI* active_drone;
+    struct DroneAI* command_drone;
     AiFightstyleAttack* script;
 
     active_drone = get_player_number(plyr_obj) == 0
@@ -6852,7 +6777,7 @@ static float jump_towards_opponent_with_jexit(void) {
 }
 
 static float jump_towards_opponent_with_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     jump_towards_opponent();
@@ -6863,7 +6788,7 @@ static float jump_towards_opponent_with_attack(void) {
 }
 
 static float drone_ai_special_attack_now(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->force_attack = 1;
@@ -6874,7 +6799,7 @@ static float drone_ai_special_attack_now(void) {
 }
 
 static float drone_ai_counter_attack_now(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (drone_ai_check_attack(drone, 1, 1) == 1) {
@@ -6889,7 +6814,7 @@ static float drone_ai_counter_attack_now(void) {
 }
 
 static float drone_ai_attack_obstacle_now(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* script;
     int can_attack;
 
@@ -6923,7 +6848,7 @@ static float drone_ai_attack_obstacle_now(void) {
 }
 
 static float drone_ai_dodge_3d_with_counter(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     Vec facing;
     Vec to_opponent;
     float right_clearance;
@@ -6991,9 +6916,8 @@ static float drone_ai_avoid_position_now(void) {
     return 0.0f;
 }
 
-
 static float drone_ai_avoid_danger_area_now(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -7046,7 +6970,7 @@ static float drone_ai_perform_block(void) {
     return 0.0f;
 }
 
-static inline float ai_finish_duck_throw_reaction(DroneAI* drone) {
+static inline float ai_finish_duck_throw_reaction(struct DroneAI* drone) {
     AiFightstyleAttack* script;
     unsigned int exposed_ticks = 0;
     int is_script;
@@ -7106,11 +7030,10 @@ static inline float ai_finish_duck_throw_reaction(DroneAI* drone) {
 }
 
 static float drone_ai_duck_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttackTable* scripts;
     AiFightstyleAttack* attacks;
     unsigned int exposed_ticks;
-
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -7169,14 +7092,14 @@ static float drone_ai_duck_attack(void) {
 }
 
 static float drone_ai_duck_throw_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     return ai_finish_duck_throw_reaction(drone);
 }
 
-static int drone_ai_check_change_style(DroneAI* drone) {
+static int drone_ai_check_change_style(struct DroneAI* drone) {
     MkObj* player_object;
     unsigned short random_ticks;
     unsigned int deadline;
@@ -7212,12 +7135,12 @@ static int drone_ai_check_change_style(DroneAI* drone) {
     return 1;
 }
 
-static void drone_ai_check_next_AIState(DroneAI* drone) {
+static void drone_ai_check_next_AIState(struct DroneAI* drone) {
     drone->movement_state = drone_ai_fetch_next_AIState(drone);
 }
 
 static float drone_ai_perform_range_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* script;
 
     drone = get_player_number(plyr_obj) == 0
@@ -7225,7 +7148,7 @@ static float drone_ai_perform_range_attack(void) {
     if (drone->opponent_distance > 14.6f) {
         script = ai_pick_status_special_move();
     } else {
-        DroneAI* ranged_drone;
+        struct DroneAI* ranged_drone;
         FighterAiTable* ranged_tables;
 
         ranged_drone = get_player_number(plyr_obj) == 0
@@ -7237,7 +7160,7 @@ static float drone_ai_perform_range_attack(void) {
             unsigned short row_index;
             FighterAiMoveRow* row;
 
-            row_index = randu0((unsigned short)ranged_tables[1].usable_row_count);
+            row_index = randu0(ranged_tables[1].usable_row_count);
             row = ranged_tables[1].rows;
             row += row_index;
             ranged_drone->ai_command = row->commands;
@@ -7260,7 +7183,7 @@ static float drone_ai_perform_range_attack(void) {
 }
 
 float drone_ai_change_style(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone_ai_force_change_style(drone, (unsigned short)randu0(3));
@@ -7269,7 +7192,7 @@ float drone_ai_change_style(void) {
 }
 
 float drone_ai_perform_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* attack;
     int can_attack;
     int is_special_attack;
@@ -7319,7 +7242,7 @@ float drone_ai_perform_attack(void) {
 }
 
 void drone_ai_reset_all(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(g_game_info.plyr0.slot.mirror_a) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -7330,13 +7253,13 @@ void drone_ai_reset_all(void) {
 }
 
 void drone_ai_finished_request(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->request_active = 0;
 }
 
-void drone_ai_initialize(DroneAI* drone) {
+void drone_ai_initialize(struct DroneAI* drone) {
     int ladder_position;
     unsigned short random_ticks;
     unsigned int deadline;
@@ -7440,7 +7363,7 @@ void drone_ai_initialize(DroneAI* drone) {
 }
 
 float drone_start(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
@@ -7464,7 +7387,7 @@ float drone_start(void) {
 }
 
 float drone_entry(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     PlyrPdata* action;
     int previous_state;
     int can_enter_loop;
@@ -7522,11 +7445,9 @@ float drone_entry(void) {
     return 0.0f;
 }
 
-
-
 #pragma opt_propagation off
 static float drone_loop(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned int ticks;
     int difficulty;
 
@@ -7546,7 +7467,7 @@ static float drone_loop(void) {
 }
 #pragma opt_propagation reset
 
-static inline int ai_should_counter_after_block(DroneAI* drone) {
+static inline int ai_should_counter_after_block(struct DroneAI* drone) {
     int likelihood;
 
     if ((g_DroneOverrideInfo.flags & 0x20) != 0) {
@@ -7578,7 +7499,7 @@ static inline int ai_should_counter_after_block(DroneAI* drone) {
 }
 
 float drone_blocking_done(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int counter;
 
     drone = get_player_number(plyr_obj) == 0
@@ -7630,7 +7551,7 @@ float drone_blocking_done(void) {
     return 0.0f;
 }
 
-static int drone_ai_force_change_style(DroneAI* drone, int style) {
+static int drone_ai_force_change_style(struct DroneAI* drone, int style) {
     if (is_big_boss(drone->player)) {
         return 0;
     }
@@ -7675,7 +7596,7 @@ static int drone_ai_force_change_style(DroneAI* drone, int style) {
 }
 
 int drone_ai_check_next_block_state(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     Vec facing;
     Vec to_opponent;
     unsigned int likelihood;
@@ -7697,7 +7618,7 @@ int drone_ai_check_next_block_state(void) {
     }
     if (facing_opponent == 1) {
         likelihood = (drone->difficulty_index - 4) * 5 + 55;
-        if (drone->big_boss_stage == 4 || get_game_state() == 3) {
+        if (drone->boss_stage == 4 || get_game_state() == 3) {
             likelihood = 70;
         }
         if (drone->opponent_distance > 14.6f) {
@@ -7720,13 +7641,13 @@ int drone_ai_check_next_block_state(void) {
     if (drone->movement_state == 2) {
         likelihood += 5;
     }
-    if (drone->big_boss_stage == 3) {
+    if (drone->boss_stage == 3) {
         likelihood += 5;
     }
     if ((unsigned short)randu0(100) < likelihood) {
         return 0;
     }
-    if (drone->big_boss_stage == 4) {
+    if (drone->boss_stage == 4) {
         return 0;
     }
     drone->attack_latched = 1;
@@ -7737,7 +7658,7 @@ int drone_ai_check_next_block_state(void) {
 }
 
 static inline int ai_reset_command_state(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->ai_command = 0;
@@ -7752,7 +7673,7 @@ static inline int ai_reset_command_state(void) {
 }
 
 static AiFightstyleAttack* get_special_move(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned int command;
     int function_index;
 
@@ -7806,7 +7727,7 @@ static AiFightstyleAttack* get_special_move(void) {
     return &drone->special_move;
 }
 
-static int drone_ai_change_attack_to_low(DroneAI* drone) {
+static int drone_ai_change_attack_to_low(struct DroneAI* drone) {
     unsigned int stage;
     unsigned int random_value;
     unsigned short roll;
@@ -7819,9 +7740,9 @@ static int drone_ai_change_attack_to_low(DroneAI* drone) {
         return 1;
     }
 
-    stage = drone->big_boss_stage;
+    stage = drone->boss_stage;
     if (stage < 2 ||
-        (stage == 2 && drone->match_stage < 2)) {
+        (stage == 2 && drone->stage < 2)) {
         return 0;
     }
     if (drone->opponent_distance > 2.0f) {
@@ -7852,7 +7773,6 @@ static int drone_ai_change_attack_to_low(DroneAI* drone) {
 
 int drone_ai_check_escape_restrictions(void) {
     int has_clearance;
-
 
     get_player_number(plyr_obj);
     if (ai_backward_clearance() > 2.1336f) {
@@ -7935,7 +7855,7 @@ int drone_ai_check_charge_up_restrictions(void) {
     return plyr_pdata->charge_up_disabled_until <= game_tick_ctr;
 }
 
-static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
+static int drone_ai_should_be_attacking(struct DroneAI* drone, int* attack_state,
                                         int force) {
     unsigned int attack_chance;
     int can_attack;
@@ -7972,7 +7892,7 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
         unsigned short adjustment = randu0(5);
         attack_chance -= adjustment;
     }
-    if (drone->match_stage == 0) {
+    if (drone->stage == 0) {
         attack_chance = 10;
     }
     if ((unsigned short)randu0(1000) < attack_chance || force == 1) {
@@ -8003,13 +7923,13 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
                 unsigned short adjustment = randu0(2);
                 combo_chance -= adjustment;
             }
-            if (drone->match_stage > 2 && drone->start_state_a == 1) {
+            if (drone->stage > 2 && drone->start_state_a == 1) {
                 combo_chance += 10;
             }
             if (drone->difficulty_index > 4) {
-                if (drone->big_boss_stage == 4) {
+                if (drone->boss_stage == 4) {
                     combo_chance = 70;
-                } else if (drone->big_boss_stage == 3) {
+                } else if (drone->boss_stage == 3) {
                     combo_chance = 40;
                 }
             }
@@ -8045,7 +7965,7 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
                 unsigned short adjustment = randu0(2);
                 popup_chance -= adjustment;
             }
-            if (drone->match_stage > 2 && drone->start_state_a == 1) {
+            if (drone->stage > 2 && drone->start_state_a == 1) {
                 popup_chance += 2;
             }
             if (get_game_state() == 3) {
@@ -8083,7 +8003,7 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
             if (special_chance < 0) {
                 special_chance = 1;
             }
-            if (drone->big_boss_stage == 4) {
+            if (drone->boss_stage == 4) {
                 special_chance -= 4;
             }
         }
@@ -8091,7 +8011,7 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
              drone->force_attack == 1) &&
             ((his_pdata->state & 0x800) == 0 || (unsigned short)randu0(100) < 20)) {
             *attack_state = 2;
-            if (drone->difficulty_index < 2 && drone->match_stage == 0) {
+            if (drone->difficulty_index < 2 && drone->stage == 0) {
                 *attack_state = 0;
             }
         }
@@ -8108,7 +8028,7 @@ static int drone_ai_should_be_attacking(DroneAI* drone, int* attack_state,
     return 0;
 }
 
-static int drone_ai_should_evade_attack(DroneAI* drone) {
+static int drone_ai_should_evade_attack(struct DroneAI* drone) {
     unsigned int likelihood;
 
     if (ai_watcher_can_start_action() == 0) {
@@ -8130,7 +8050,7 @@ static int drone_ai_should_evade_attack(DroneAI* drone) {
     return 0;
 }
 
-static inline int ai_state_weight(DroneAI* drone, int state) {
+static inline int ai_state_weight(struct DroneAI* drone, int state) {
     int difficulty_group;
     int character_state_index;
     int found;
@@ -8139,14 +8059,14 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     character_state_index = 0;
     found = 0;
 
-    if (drone->match_stage == 0) {
+    if (drone->stage == 0) {
         return g_likelihoodOfChangingStateE3FingEasyLevel[state];
     } else if (drone->difficulty_index == 0) {
         return g_likelihoodOfChangingStateFingEasyLevel[state];
     } else if (drone->difficulty_index < 3) {
         return g_likelihoodOfChangingStateEasyLevel[state];
     } else if (drone->difficulty_index > 4 &&
-               drone->big_boss_stage == 4) {
+               drone->boss_stage == 4) {
         return g_likelihoodOfChangingStateMAXLevel[state];
     } else {
         if (drone->difficulty_index > 5) {
@@ -8168,7 +8088,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-int drone_ai_fetch_next_AIState(DroneAI* drone) {
+int drone_ai_fetch_next_AIState(struct DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
     unsigned short roll;
@@ -8226,7 +8146,7 @@ int drone_ai_fetch_next_AIState(DroneAI* drone) {
     return drone->movement_state;
 }
 
-int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
+int drone_ai_should_be_blocking(struct DroneAI* drone, int reaction) {
     Vec facing;
     Vec to_opponent;
     unsigned int likelihood;
@@ -8250,7 +8170,7 @@ int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
         (his_pdata->secondary_state & 0x100) != 0) {
         plyr_pdata->opponent_attack_counter = his_pdata->attack_counter;
         plyr_pdata->opponent_attack_counter_copy = his_pdata->attack_counter;
-        if (drone->big_boss_stage < 4 &&
+        if (drone->boss_stage < 4 &&
             drone->block_retry_tick > game_tick_ctr) {
             return 0;
         }
@@ -8277,12 +8197,12 @@ int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
             }
             if (his_pdata->repeated_action_count >
                 ((unsigned short)randu0(3) + 2)) {
-                if (drone->big_boss_stage == 0) {
-                    if (drone->match_stage > 5 && (unsigned short)randu0(100) < 50) {
+                if (drone->boss_stage == 0) {
+                    if (drone->stage > 5 && (unsigned short)randu0(100) < 50) {
                         return 1;
                     }
-                } else if (drone->match_stage < 3 &&
-                           drone->big_boss_stage <= 2) {
+                } else if (drone->stage < 3 &&
+                           drone->boss_stage <= 2) {
                     if ((unsigned short)randu0(100) < 30) {
                         return 1;
                     }
@@ -8313,7 +8233,7 @@ int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
 }
 
 int drone_ai_should_roll(int aggressive) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int likelihood;
 
     if (plyr_pdata->drone_request == 0) {
@@ -8349,8 +8269,8 @@ int drone_ai_should_roll(int aggressive) {
 }
 
 static int drone_ai_process_scripted_cmd(void) {
-    DroneAI* drone;
-    DroneAI* active_drone;
+    struct DroneAI* drone;
+    struct DroneAI* active_drone;
     MkProc* player_proc;
     CmdScript* script;
     AiFightstyleAttackTable* attacks;
@@ -8558,7 +8478,7 @@ static float drone_ai_scripted_special_attack(void) {
 }
 
 static float drone_ai_scripted_change_style(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone_ai_force_change_style(drone, -1);
@@ -8567,7 +8487,7 @@ static float drone_ai_scripted_change_style(void) {
 }
 
 static float drone_ai_scripted_attack(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     AiFightstyleAttack* attack;
     int is_special_attack;
 
@@ -8610,20 +8530,20 @@ static float drone_ai_scripted_attack(void) {
     return 0.0f;
 }
 
-static inline int ai_combo_breakout_likelihood(DroneAI* drone) {
+static inline int ai_combo_breakout_likelihood(struct DroneAI* drone) {
     int likelihood;
 
     likelihood = g_likelihoodForComboBreakout[drone->difficulty_index];
     if (drone->movement_state == 5) {
         likelihood -= 10;
     }
-    if (drone->big_boss_stage == 3) {
+    if (drone->boss_stage == 3) {
         likelihood += 10;
     }
-    if (drone->big_boss_stage == 4) {
+    if (drone->boss_stage == 4) {
         likelihood += 25;
     }
-    if (drone->match_stage == 0) {
+    if (drone->stage == 0) {
         likelihood = 0;
     }
     if (get_game_state() == 3) {
@@ -8635,7 +8555,7 @@ static inline int ai_combo_breakout_likelihood(DroneAI* drone) {
     return likelihood;
 }
 
-static inline int ai_should_break_out_of_combo(DroneAI* drone) {
+static inline int ai_should_break_out_of_combo(struct DroneAI* drone) {
     Vec opponent_direction;
     Vec facing_direction;
     int likelihood;
@@ -8669,7 +8589,7 @@ static inline int ai_should_break_out_of_combo(DroneAI* drone) {
 }
 
 int drone_ai_check_switching_to(int command) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int should_break_out;
 
     drone = get_player_number(plyr_obj) == 0
@@ -8706,7 +8626,7 @@ int drone_ai_check_switching_to(int command) {
 }
 
 int drone_ai_check_button_direction(int direction) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int result;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -8725,7 +8645,7 @@ int drone_ai_check_button_direction(int direction) {
 }
 
 int drone_ai_check_button_press(int button) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int command_button;
     int result;
 
@@ -8768,7 +8688,7 @@ int drone_ai_check_button_press(int button) {
 }
 
 void advance_cur_cmd_idx(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int index;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -8802,7 +8722,7 @@ void advance_cur_cmd_idx(void) {
 }
 
 void drone_ai_reset_ai_cmd(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->ai_command = 0;
@@ -8816,14 +8736,14 @@ void drone_ai_reset_ai_cmd(void) {
 }
 
 void drone_ai_get_min_time_in_block(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     handicap_calc_min_time_in_block(drone);
 }
 
 int drone_ai_check_block_fakeout(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     int likelihood;
     int block_hits;
 
@@ -8832,7 +8752,7 @@ int drone_ai_check_block_fakeout(void) {
     likelihood = g_blockFakeOutPercentage[drone->difficulty_index];
     block_hits = plyr_pdata->block_hit_count;
     if (block_hits < 4) {
-        if (drone->big_boss_stage == 0) {
+        if (drone->boss_stage == 0) {
             likelihood = 20;
         } else if (drone->difficulty_index < 2) {
             likelihood = 5;
@@ -8851,10 +8771,10 @@ int drone_ai_check_block_fakeout(void) {
         if ((unsigned short)randu0(100) < 50) {
             likelihood += (unsigned short)randu0(10);
         }
-        if (drone->big_boss_stage == 4) {
+        if (drone->boss_stage == 4) {
             likelihood = 5;
         }
-        if (drone->big_boss_stage == 3) {
+        if (drone->boss_stage == 3) {
             likelihood -= 10;
         }
         if (likelihood < 0) {
@@ -8868,13 +8788,13 @@ int drone_ai_check_block_fakeout(void) {
 }
 
 void drone_ai_hit(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->hit_active = 0;
 }
 
-int drone_ai_can_push(DroneAI* drone) {
+int drone_ai_can_push(struct DroneAI* drone) {
     if (ai_watcher_can_start_action() == 0) {
         return 0;
     }
@@ -8886,35 +8806,11 @@ int drone_ai_can_push(DroneAI* drone) {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #pragma dont_inline on
+/* TODO: [Scope warn] attack-index tail scope: removing it drops 100% to 99.89362%. */
 static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned int command_kind;
     FighterAiTable* table;
     FighterAiMoveRow* row;
@@ -8924,7 +8820,7 @@ static AiFightstyleAttack* get_random_fightstyle_attack(
     int command;
     int attempts;
     int accepted;
-    DroneAI* reset_drone;
+    struct DroneAI* reset_drone;
 
     command_index = 0;
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -9043,7 +8939,7 @@ static AiFightstyleAttack* get_random_fightstyle_attack(
 
 static int get_random_fightstyle_index(
     int attack_group, FighterAiTable* table, int selection_mode) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     float lower_scale;
     float upper_scale;
     unsigned short roll;
@@ -9058,10 +8954,10 @@ static int get_random_fightstyle_index(
     lower_scale = 0.0f;
     upper_scale = 1.0f;
     roll = randu0(100);
-    if (drone->match_stage == 0 ||
-        drone->big_boss_stage == 0 ||
-        (drone->big_boss_stage == 1 &&
-         drone->match_stage < 4)) {
+    if (drone->stage == 0 ||
+        drone->boss_stage == 0 ||
+        (drone->boss_stage == 1 &&
+         drone->stage < 4)) {
         if (table->usable_row_count > 2) {
             upper = 2;
         }
@@ -9111,7 +9007,7 @@ static int get_random_fightstyle_index(
                     upper_scale = 0.85f;
                 }
             }
-            lower = (unsigned int)((float)count * lower_scale);
+            lower = (float)count * lower_scale;
             upper = (unsigned int)((float)count * upper_scale);
 
             if (selection_mode == 1) {
@@ -9126,8 +9022,8 @@ static int get_random_fightstyle_index(
             } else if (selection_mode == 2) {
                 lower = 0;
             }
-            if (drone->match_stage > 3 &&
-                drone->big_boss_stage > 1 &&
+            if (drone->stage > 3 &&
+                drone->boss_stage > 1 &&
                 (unsigned short)randu0(100) < 5) {
                 lower = 0;
                 upper = table->usable_row_count;
@@ -9155,15 +9051,15 @@ static int get_random_fightstyle_index(
     }
 
     if ((unsigned int)upper < lower) {
-        return (unsigned short)randu0((unsigned short)lower);
+        return (unsigned short)randu0(lower);
     }
     return (int)lower +
-           (unsigned short)randu0((unsigned short)((unsigned int)upper - lower));
+           (unsigned short)randu0((unsigned int)upper - lower);
 }
 #pragma dont_inline off
 
 void drone_ai_increase_big_boss_stage(PlyrPdata* victim) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     MkProc* opponent_proc;
     CmdScript* script;
 
@@ -9202,7 +9098,7 @@ void drone_ai_increase_big_boss_stage(PlyrPdata* victim) {
 }
 
 float drone_ai_get_big_boss_damage_scale(PlyrPdata* player) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     if (player == g_game_info.plyr0.slot.pdata) {
         drone = &g_DroneAI1;
@@ -9217,25 +9113,25 @@ float drone_ai_get_big_boss_damage_scale(PlyrPdata* player) {
     }
 
     if (drone->damage_transition_tick < game_tick_ctr) {
-        if (drone->big_boss_stage < 3) {
+        if (drone->boss_stage < 3) {
             return 0.42f;
         }
-        if (drone->big_boss_stage == 3) {
+        if (drone->boss_stage == 3) {
             return 0.32f;
         }
         return 0.25f;
     }
 
-    if (drone->big_boss_stage < 3) {
+    if (drone->boss_stage < 3) {
         return 0.75f;
     }
-    if (drone->big_boss_stage == 3) {
+    if (drone->boss_stage == 3) {
         return 0.65f;
     }
     return 0.55f;
 }
 
-int drone_ai_should_passive_state_switch(DroneAI* drone) {
+int drone_ai_should_passive_state_switch(struct DroneAI* drone) {
     unsigned short likelihood;
 
     drone->danger_area_state--;
@@ -9289,7 +9185,7 @@ static inline int ai_block_stage_multiplier(unsigned int boss_stage) {
 }
 
 static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
-    DroneAI* drone) {
+    struct DroneAI* drone) {
     int likelihood;
 
     likelihood =
@@ -9311,19 +9207,19 @@ static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
     if (likelihood < 0) {
         likelihood = 0;
     }
-    if (drone->match_stage == 0 && drone->difficulty_index < 3) {
+    if (drone->stage == 0 && drone->difficulty_index < 3) {
         likelihood = 5;
     }
     if (get_game_state() == 3) {
         likelihood += 5;
     } else if (his_pdata->state == 0x1219) {
-        if (drone->big_boss_stage == 0) {
+        if (drone->boss_stage == 0) {
             likelihood = 2;
-        } else if (drone->match_stage < 3) {
+        } else if (drone->stage < 3) {
             int multiplier;
 
-            multiplier = ai_block_stage_multiplier(drone->big_boss_stage);
-            likelihood += multiplier * (drone->match_stage + 1);
+            multiplier = ai_block_stage_multiplier(drone->boss_stage);
+            likelihood += multiplier * (drone->stage + 1);
         } else if (drone->difficulty_index < 4) {
             likelihood += 35;
         } else {
@@ -9332,17 +9228,16 @@ static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
     }
     if (drone->player->his_plyr_pdata->plyr_info->slot.mirror_a
             ->hide_flag_bits.hidden == 1) {
-        if (drone->big_boss_stage == 4) {
+        if (drone->boss_stage == 4) {
             likelihood -= 8;
         } else {
             likelihood /= 2;
         }
     }
-    return (unsigned int)(
-        (float)likelihood * g_DroneOverrideInfo.likelihood_scale);
+    return (float)likelihood * g_DroneOverrideInfo.likelihood_scale;
 }
 
-unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone) {
+unsigned int handicap_calc_likelihood_of_blocking(struct DroneAI* drone) {
     int likelihood;
 
     likelihood = g_likelihoodOfBlocking[drone->difficulty_index];
@@ -9367,7 +9262,7 @@ unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone) {
                 likelihood = 0;
             }
         } else {
-            if (drone->big_boss_stage == 4) {
+            if (drone->boss_stage == 4) {
                 likelihood -= 5;
             } else {
                 likelihood -= 12;
@@ -9385,26 +9280,26 @@ unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone) {
     if (likelihood < 0) {
         likelihood = 0;
     }
-    if (drone->match_stage == 0 && drone->difficulty_index < 3) {
+    if (drone->stage == 0 && drone->difficulty_index < 3) {
         likelihood = 0;
     }
-    if (drone->big_boss_stage == 3) {
+    if (drone->boss_stage == 3) {
         likelihood += 2;
     }
-    if (drone->big_boss_stage == 4) {
+    if (drone->boss_stage == 4) {
         likelihood += 8;
     }
     if (get_game_state() == 3) {
         likelihood -= 6;
     }
     if (his_pdata->state == 0x1219) {
-        if (drone->big_boss_stage == 0) {
+        if (drone->boss_stage == 0) {
             likelihood++;
-        } else if (drone->match_stage < 3) {
+        } else if (drone->stage < 3) {
             int stage_multiplier;
 
-            stage_multiplier = ai_block_stage_multiplier(drone->big_boss_stage);
-            likelihood += stage_multiplier * (drone->match_stage + 1);
+            stage_multiplier = ai_block_stage_multiplier(drone->boss_stage);
+            likelihood += stage_multiplier * (drone->stage + 1);
         } else if (drone->difficulty_index < 4) {
             likelihood += 25;
         } else {
@@ -9422,34 +9317,32 @@ unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone) {
     }
     if (drone->player->his_plyr_pdata->plyr_info
             ->slot.mirror_a->hide_flag_bits.hidden == 1) {
-        if (drone->big_boss_stage == 4) {
+        if (drone->boss_stage == 4) {
             likelihood -= 8;
         } else {
             likelihood /= 2;
         }
     }
-    return (unsigned int)(
-        (float)likelihood * g_DroneOverrideInfo.likelihood_scale);
+    return (float)likelihood * g_DroneOverrideInfo.likelihood_scale;
 }
 
-
-int handicap_calc_min_time_in_block(DroneAI* drone) {
+int handicap_calc_min_time_in_block(struct DroneAI* drone) {
     int minimum_ticks;
     unsigned short roll;
 
     minimum_ticks = g_minTimeInBlock[drone->difficulty_index];
     roll = randu0(100);
-    if (drone->big_boss_stage == 0) {
+    if (drone->boss_stage == 0) {
         if ((unsigned short)randu0(100) < 33) {
             minimum_ticks += (unsigned short)randu0(20) + 30;
         }
-    } else if (drone->big_boss_stage == 1) {
+    } else if (drone->boss_stage == 1) {
         if ((unsigned short)randu0(100) < 20) {
             minimum_ticks += (unsigned short)randu0(15) + 25;
         }
-    } else if (((drone->match_stage < 4 &&
-                 drone->big_boss_stage == 2) ||
-                drone->match_stage < 2) &&
+    } else if (((drone->stage < 4 &&
+                 drone->boss_stage == 2) ||
+                drone->stage < 2) &&
                (unsigned short)randu0(100) < 10) {
         minimum_ticks += (unsigned short)randu0(10) + 20;
     }
@@ -9468,7 +9361,7 @@ int handicap_calc_min_time_in_block(DroneAI* drone) {
             minimum_ticks = 12;
         }
     }
-    if (drone->big_boss_stage > 2) {
+    if (drone->boss_stage > 2) {
         minimum_ticks = (unsigned int)(0.75f * minimum_ticks);
     }
     if (is_big_boss(drone->player)) {
@@ -9480,30 +9373,30 @@ int handicap_calc_min_time_in_block(DroneAI* drone) {
     return minimum_ticks;
 }
 
-static int handicap_likelihood_for_combo_breaker(DroneAI* drone) {
+static int handicap_likelihood_for_combo_breaker(struct DroneAI* drone) {
     int likelihood;
 
     likelihood = g_likelihoodForComboBreaker[drone->difficulty_index];
     if (get_game_state() == 3) {
         return 1;
     }
-    if (drone->big_boss_stage < 2) {
+    if (drone->boss_stage < 2) {
         return 1;
     }
     if (mode_of_play == 10) {
-        if (drone->big_boss_stage == 2) {
+        if (drone->boss_stage == 2) {
             return 20;
         }
         likelihood = 50;
-        if (drone->big_boss_stage == 3) {
+        if (drone->boss_stage == 3) {
             likelihood = 35;
         }
         return likelihood;
     }
-    if (drone->match_stage == 0) {
+    if (drone->stage == 0) {
         return 0;
     }
-    if (drone->big_boss_stage == 2 && drone->match_stage < 3) {
+    if (drone->boss_stage == 2 && drone->stage < 3) {
         return 2;
     }
     if (drone->reaction_scale > 0.45f) {
@@ -9529,7 +9422,7 @@ static int handicap_likelihood_for_combo_breaker(DroneAI* drone) {
 }
 
 int drone_ai_check_continue_combo(void) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     unsigned short combo_roll;
     int stop_combo;
 
@@ -9549,11 +9442,11 @@ int drone_ai_check_continue_combo(void) {
     if (drone->difficulty_index == 0) {
         return 0;
     }
-    if (drone->match_stage == 0 && drone->difficulty_index < 5) {
+    if (drone->stage == 0 && drone->difficulty_index < 5) {
         return 0;
     }
     if (drone->command_active == 1) {
-        if (drone->big_boss_stage >= 3) {
+        if (drone->boss_stage >= 3) {
             return 1;
         }
         return drone->difficulty_index >= 4;
@@ -9561,7 +9454,7 @@ int drone_ai_check_continue_combo(void) {
     if ((unsigned short)randu0(100) < 5) {
         return 0;
     }
-    if (drone->big_boss_stage == 4) {
+    if (drone->boss_stage == 4) {
         return 1;
     }
     if (drone->difficulty_index <= 2) {
@@ -9576,7 +9469,7 @@ int drone_ai_check_continue_combo(void) {
     return (unsigned int)combo_roll >= 5U;
 }
 
-void setDroneOverrideSwitch(int activated, DroneOverrideInfo* info) {
+void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info) {
     g_DroneOverrideInfo.likelihood_scale = 1.0f;
     g_DroneOverrideInfo.flags = 0;
     g_droneOverrideActiviated = activated;
@@ -9587,7 +9480,7 @@ void setDroneOverrideSwitch(int activated, DroneOverrideInfo* info) {
 }
 
 #pragma dont_inline on
-int handicap_get_current_difficulty(DroneAI* drone) {
+int handicap_get_current_difficulty(struct DroneAI* drone) {
     short score;
     int difficulty;
     int opponent_rounds;
@@ -9596,36 +9489,36 @@ int handicap_get_current_difficulty(DroneAI* drone) {
 
     random_value = randu0(100);
     random_roll = random_value;
-    score = ((int)drone->handicap_stage + 4) * 5;
+    score = ((int)drone->stage + 4) * 5;
     if (score > 90) {
         score = 90;
     }
-    if (drone->handicap_stage > 5) {
+    if (drone->stage > 5) {
         score += 10;
     }
 
-    if (drone->handicap_setting == 0) {
+    if (drone->boss_stage == 0) {
         score -= 25;
-    } else if (drone->handicap_setting == 1) {
+    } else if (drone->boss_stage == 1) {
         score -= 20;
-    } else if (drone->handicap_setting == 2) {
-        if (drone->handicap_stage < 5) {
+    } else if (drone->boss_stage == 2) {
+        if (drone->stage < 5) {
             score -= 10;
         }
-    } else if (drone->handicap_setting == 3) {
+    } else if (drone->boss_stage == 3) {
         score += 20;
-    } else if (drone->handicap_setting == 4) {
+    } else if (drone->boss_stage == 4) {
         score += 50;
     }
 
     if (drone->match_mode == 1) {
         score -= 10;
     } else if (drone->match_mode == 3 &&
-               drone->handicap_stage > 2) {
+               drone->stage > 2) {
         score += 10;
     }
     if (drone->reaction_scale < -0.45f) {
-        score += (short)(drone->handicap_setting * 5 + 5);
+        score += (short)(drone->boss_stage * 5 + 5);
     }
     if (drone->reaction_scale > 0.45f) {
         score -= 10;
@@ -9636,7 +9529,7 @@ int handicap_get_current_difficulty(DroneAI* drone) {
     if (random_roll < 10) {
         score += 10;
     }
-    if (drone->handicap_setting > 2 && score < 40) {
+    if (drone->boss_stage > 2 && score < 40) {
         score = 40;
     }
     if (drone->start_state_a == 1 && score < 70) {
@@ -9665,12 +9558,12 @@ int handicap_get_current_difficulty(DroneAI* drone) {
     if (difficulty > 8) {
         difficulty = 8;
     }
-    if (drone->handicap_setting == 0 && difficulty > 4) {
+    if (drone->boss_stage == 0 && difficulty > 4) {
         difficulty = 4;
-    } else if (drone->handicap_setting == 1 && difficulty > 5) {
+    } else if (drone->boss_stage == 1 && difficulty > 5) {
         difficulty = 5;
     }
-    if (drone->handicap_setting < 4 && difficulty != 0) {
+    if (drone->boss_stage < 4 && difficulty != 0) {
         switch (difficulty) {
         case 1:
         case 2:
@@ -9708,11 +9601,10 @@ int handicap_get_current_difficulty(DroneAI* drone) {
     }
     if (get_game_state() == 3) {
         drone->difficulty_index = 8;
-        drone->handicap_stage = 8;
+        drone->stage = 8;
     }
     return difficulty;
 }
-
 
 #pragma dont_inline off
 
@@ -10022,7 +9914,7 @@ void force_ai_style(int style) {
 
 void drone_ai_set_avoidance_area(Vec* position, float duration) {
     PlyrPdata* opponent;
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     if (plyr_pdata != 0) {
         opponent = plyr_pdata->his_plyr_pdata;
@@ -10040,7 +9932,7 @@ void drone_ai_set_avoidance_area(Vec* position, float duration) {
 
 #pragma opt_propagation off
 void drone_ai_clear_avoidance_area_duration(int player) {
-    DroneAI* drone;
+    struct DroneAI* drone;
 
     drone = player == 0 ? &g_DroneAI1 : &g_DroneAI2;
     drone->avoidance_area_duration = 0.0f;
@@ -10048,7 +9940,7 @@ void drone_ai_clear_avoidance_area_duration(int player) {
 #pragma opt_propagation reset
 
 static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
-    DroneAI* drone;
+    struct DroneAI* drone;
     FighterAiTable* table;
     unsigned short row_index;
     FighterAiMoveRow* row;
@@ -10060,7 +9952,7 @@ static inline AiFightstyleAttack* drone_ai_choose_table_move(int category) {
     if (table->usable_row_count == 0) {
         return 0;
     }
-    row_index = randu0((unsigned short)table->usable_row_count);
+    row_index = randu0(table->usable_row_count);
     row = table->rows;
     row += row_index;
     drone->ai_command = row->commands;
