@@ -4,12 +4,12 @@
 #include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
 
-typedef struct OSResetFunctionQueue {
+struct OSResetFunctionQueue {
     OSResetFunctionInfo* head;
     OSResetFunctionInfo* tail;
-} OSResetFunctionQueue;
+};
 
-static OSResetFunctionQueue ResetFunctionQueue;
+static struct OSResetFunctionQueue ResetFunctionQueue;
 static unsigned long bootThisDol;
 
 #define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
