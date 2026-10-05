@@ -174,7 +174,7 @@ s32 __CARDReadStatus(s32 chan, u8* status)
     error = FALSE;
     error |= !EXIImm(chan, &command, 2, EXI_WRITE, NULL);
     error |= !EXISync(chan);
-    error |= !EXIImm(chan, status, 1, EXI_READ, NULL);
+    error |= !EXIImm(chan, status, sizeof(*status), EXI_READ, NULL);
     error |= !EXISync(chan);
     error |= !EXIDeselect(chan);
     return error ? CARD_RESULT_NOCARD : CARD_RESULT_READY;
@@ -193,7 +193,7 @@ int __CARDReadVendorID(s32 chan, u16* vendorID)
     error = FALSE;
     error |= !EXIImm(chan, &command, 2, EXI_WRITE, NULL);
     error |= !EXISync(chan);
-    error |= !EXIImm(chan, vendorID, 2, EXI_READ, NULL);
+    error |= !EXIImm(chan, vendorID, sizeof(*vendorID), EXI_READ, NULL);
     error |= !EXISync(chan);
     error |= !EXIDeselect(chan);
     return error ? CARD_RESULT_NOCARD : CARD_RESULT_READY;
@@ -524,7 +524,7 @@ void CARDInit(void)
         OSCreateAlarm(&card->alarm);
     }
 
-    __CARDSetDiskID((void*)OSPhysicalToCached(0));
+    __CARDSetDiskID(OSPhysicalToCached(0));
     OSRegisterResetFunction(&ResetFunctionInfo);
 }
 
