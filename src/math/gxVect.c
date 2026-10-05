@@ -6,11 +6,13 @@ static const float _464 = 3.0f;
 static const float _465 = 0.0625f;
 static const float _466 = 12.0f;
 
+union GxVectFloatBits {
+    float f;
+    unsigned int u;
+};
+
 float gxVectAngleZX(const Vec* v) {
-    union {
-        float f;
-        unsigned int u;
-    } input, estimate;
+    union GxVectFloatBits input, estimate;
     float lenSq;
     float invLen;
     float angle;
@@ -19,7 +21,6 @@ float gxVectAngleZX(const Vec* v) {
     float z;
     float x;
     float x2;
-    /* Integer bits are written through estimate; read its float view here. */
     float* estimateAsFloat = &estimate.f;
     float zz;
     float t1;
@@ -33,7 +34,6 @@ float gxVectAngleZX(const Vec* v) {
     if (lenSq <= _235) {
         invLen = _235;
     } else {
-        /* Fast inverse sqrt of (x*x + z*z) with one Newton step. */
         input.f = lenSq;
         guessBits = 0x5F375A00U - (input.u >> 1);
         estimate.u = guessBits;
