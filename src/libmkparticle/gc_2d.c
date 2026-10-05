@@ -11,12 +11,19 @@
 #include "rw/rwcore_types.h"
 
 /* WGPIPE at 0xCC008000 -- mixed short/word/float FIFO writes. */
-#define WGPIPE_U16 (*(volatile unsigned short*)GXFIFO_ADDR)
-#define WGPIPE_U32 (*(volatile unsigned int*)GXFIFO_ADDR)
-#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
+union Native2dFifo {
+    unsigned short u16;
+    unsigned int u32;
+    float f32;
+};
+
+volatile union Native2dFifo native2d_fifo : 0xCC008000;
+
+#define WGPIPE_U16 native2d_fifo.u16
+#define WGPIPE_U32 native2d_fifo.u32
+#define WGPIPE_F32 native2d_fifo.f32
 
 int native2d_init(int pool_size) {
-    (void)pool_size;
     return 1;
 }
 
@@ -46,73 +53,68 @@ void native2d_reset_renderstate(void) {
     reset_tev_stages();
 }
 
-/* TODO: [near miss] 97.94%; first alpha lwz uses r3 instead of r31 and y/WGPIPE r3/r4 coloring differs. */
-/* Retail native2d_draw requires O2 locally; applying O2 to the full object
- * regresses native2d_instance_geometry by 12.81 percentage points. */
 #pragma optimization_level 2
+/* TODO: [near miss] 97.95%; alpha load owner and Y/FIFO r3-r4 allocation remain. */
 void native2d_draw(Pfx2dObj* obj) {
-    Pfx2dObj* o;
     int y;
     int x;
     float u;
     float vt;
 
-    /* Retail: mr r31,r3 before lwz alpha_texture@0xB4(r31). */
-    o = obj;
-    if (o->alpha_texture != 0) {
+    if (obj->alpha_texture != 0) {
         GXSetNumTevStages(2);
-        _rwDlTextureSet(o->alpha_texture, 1);
+        _rwDlTextureSet(obj->alpha_texture, 1);
     } else {
         GXSetNumTevStages(1);
     }
-    _rwDlTextureSet(o->texture, 0);
+    _rwDlTextureSet(obj->texture, 0);
 
     GXBegin(0x80, 0, 4); /* GX_QUADS */
 
-    /* Load Y then X; write X then Y. (short)y forces extsh after lha. */
-    y = o->gpu[0].y;
-    x = o->gpu[0].x;
+    y = obj->gpu[0].y;
+    x = obj->gpu[0].x;
     WGPIPE_U16 = (unsigned short)x;
     WGPIPE_U16 = (unsigned short)(short)y;
-    WGPIPE_U32 = o->gpu[0].color;
-    vt = o->gpu[0].v;
-    u = o->gpu[0].u;
+    WGPIPE_U32 = obj->gpu[0].color;
+    vt = obj->gpu[0].v;
+    u = obj->gpu[0].u;
     WGPIPE_F32 = u;
     WGPIPE_F32 = vt;
 
-    y = o->gpu[1].y;
-    x = o->gpu[1].x;
+    y = obj->gpu[1].y;
+    x = obj->gpu[1].x;
     WGPIPE_U16 = (unsigned short)x;
     WGPIPE_U16 = (unsigned short)(short)y;
-    WGPIPE_U32 = o->gpu[1].color;
-    vt = o->gpu[1].v;
-    u = o->gpu[1].u;
+    WGPIPE_U32 = obj->gpu[1].color;
+    vt = obj->gpu[1].v;
+    u = obj->gpu[1].u;
     WGPIPE_F32 = u;
     WGPIPE_F32 = vt;
 
-    y = o->gpu[2].y;
-    x = o->gpu[2].x;
+    y = obj->gpu[2].y;
+    x = obj->gpu[2].x;
     WGPIPE_U16 = (unsigned short)x;
     WGPIPE_U16 = (unsigned short)(short)y;
-    WGPIPE_U32 = o->gpu[2].color;
-    vt = o->gpu[2].v;
-    u = o->gpu[2].u;
+    WGPIPE_U32 = obj->gpu[2].color;
+    vt = obj->gpu[2].v;
+    u = obj->gpu[2].u;
     WGPIPE_F32 = u;
     WGPIPE_F32 = vt;
 
-    y = o->gpu[3].y;
-    x = o->gpu[3].x;
+    y = obj->gpu[3].y;
+    x = obj->gpu[3].x;
     WGPIPE_U16 = (unsigned short)x;
     WGPIPE_U16 = (unsigned short)(short)y;
-    WGPIPE_U32 = o->gpu[3].color;
-    vt = o->gpu[3].v;
-    u = o->gpu[3].u;
+    WGPIPE_U32 = obj->gpu[3].color;
+    vt = obj->gpu[3].v;
+    u = obj->gpu[3].u;
     WGPIPE_F32 = u;
     WGPIPE_F32 = vt;
 }
 
-/* TODO: [near miss] 92.05%; raster r5/r4 reuse, FPR and lis 0x4330 coloring, and the vertex walk form differ. */
 #pragma optimization_level 4
+/* TODO: [near miss] 93.179779%; coordinate and UV operations agree; indexed
+ * walks still fold differently, with raster and FP register residue. */
 void native2d_instance_geometry(Pfx2dObj* obj) {
     float tex_w;
     float tex_h;
@@ -121,66 +123,44 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     float u_scale;
     float v_scale;
     float half;
-    float fx;
-    float fy;
-    float t;
     int i;
-    Pfx2dVert* src;
-    Pfx2dGpuVtx* dst;
     Pfx2dGpuVtx* gpu_base;
     PfxNativeRasterView* ras;
 
     ras = pfx_rw_texture_view(obj->texture)->raster;
-    tex_w = (float)ras->width;
-    tex_h = (float)ras->height;
+    tex_w = ras->width;
+    tex_h = ras->height;
 
     inv_w = 1.0f / tex_w;
     inv_h = 1.0f / tex_h;
-    /* Retail places addi gpu base between divs and (tex-1). */
     gpu_base = obj->gpu;
     u_scale = tex_w - 1.0f;
     v_scale = tex_h - 1.0f;
     half = 0.5f;
 
-    src = obj->verts;
-    dst = gpu_base;
     for (i = 0; i < 4; i++) {
-        /* Retail: i2f screen_h, i2f obj.y, sy*vy, fadds, fsubs (not fused). */
-        fy = (float)screen_height;
-        t = (float)obj->y;
-        t = t + obj->scale_y * src->y;
-        fy = fy - t;
+        float fy = (float)screen_height - ((float)obj->y + obj->scale_y * obj->verts[i].y);
 
-        fx = (float)obj->x;
-        fx = fx + obj->scale_x * src->x;
+        float fx = (float)obj->x + obj->scale_x * obj->verts[i].x;
 
-        dst->x = (short)(int)fx;
-        dst->y = (short)(int)fy;
+        gpu_base[i].x = (int)fx;
+        gpu_base[i].y = (int)fy;
 
-        t = u_scale * src->u;
-        t = half + t;
-        dst->u = inv_w * t;
+        gpu_base[i].u = inv_w * (half + u_scale * obj->verts[i].u);
 
-        t = 1.0f - src->v;
-        t = v_scale * t;
-        t = half + t;
-        dst->v = inv_h * t;
+        gpu_base[i].v = inv_h * (half + v_scale * (1.0f - obj->verts[i].v));
 
-        dst->rgba[0] = src->r;
-        dst->rgba[1] = src->g;
-        dst->rgba[2] = src->b;
-        dst->rgba[3] = src->a;
+        gpu_base[i].rgba[0] = obj->verts[i].r;
+        gpu_base[i].rgba[1] = obj->verts[i].g;
+        gpu_base[i].rgba[2] = obj->verts[i].b;
+        gpu_base[i].rgba[3] = obj->verts[i].a;
 
-        src++;
-        dst++;
     }
 }
 
-/* TODO: [near miss] 88.545456%; typed GPU pointer emits identical argument
- * scheduling; retain object-byte clear bounds and stop at the 44-byte ceiling. */
+/* TODO: [near miss] 88.55%; GPU clear bounds agree; memset argument setup order differs. */
 void native2d_init_object(Pfx2dObj* obj) {
-    /* Retail clears +0x74..+0xB7: GPU vertices and the alpha texture pointer.
-     * Include any alignment gap before that pointer on other data models. */
-    unsigned char* gpu = (unsigned char*)obj + RW_OFFSET_OF(Pfx2dObj, gpu);
-    memset(gpu, 0, RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));
+    /* Clear the GPU vertices, alpha texture pointer and intervening alignment. */
+    memset(obj->gpu, 0,
+           RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));
 }

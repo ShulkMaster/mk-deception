@@ -6,11 +6,8 @@
 
 #include "dolphin/card.h"
 #include "mw/mwMem.h"
+#include "mw/mwMemHeap.h"
 #include "runtime/mk_fileinfo.h"
-
-extern _mwMemHeap* wave_heap;
-
-extern char* strcpy(char* destination, const char* source);
 
 extern MkFileEntry nameentryart_file_table[];
 extern MkFileInfo sec_title;
@@ -20,18 +17,6 @@ CARDStat cardstat;
 unsigned int mc_icon_file_size;
 int mc_data_buffer_size;
 char* mc_data_buffer;
-void unload_memorycard_write_buffer(void);
-int create_memorycard_write_buffer(const void* data, unsigned int size);
-void load_icon_data(void);
-int update_memory_card_status(const CARDFileInfo* file);
-
-/*
- * Retail builds this unit with -inline noauto,deferred, which emits functions
- * in reverse source order. The definitions below are therefore in reverse of
- * the retail .text order; that order also fixes the pooled-string layout and
- * the anonymous .rodata initializer order.
- */
-
 
 int update_memory_card_status(const CARDFileInfo* file) {
     int result;

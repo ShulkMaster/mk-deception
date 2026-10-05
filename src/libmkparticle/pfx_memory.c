@@ -77,7 +77,7 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [breakthrough needed] 61.333332%; native-sized regions preserve retail
+/* TODO: [breakthrough needed] 61.439716%; native-sized regions preserve retail
  * output; remaining size/type traversal and lowering need evidence. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
@@ -168,7 +168,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     PfxFieldSet fields;
     int index;
 
-    cursor = (unsigned char*)memory;
+    cursor = memory;
     memset(cursor, 0, estimate->size);
     if (pfx->field_0x22C == 0) {
         pfx_particle_set_memory((PfxParticleMemory*)&pfx->particle_capacity,
@@ -186,7 +186,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 
     if (pfx->field_0x22C != 0) {
         pfx->name_obj = cursor;
-        parametric = (PfxParametricState*)pfx->name_obj;
+        parametric = pfx->name_obj;
         parametric->particle_capacity = pfx->particle_capacity;
         parametric->minimum_y = -10000.0f;
         cursor += estimate->parametric_memory_size;
@@ -260,22 +260,23 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 }
 
-void pfx_copy_behavior_list(void* vm, int count, const void* behaviors)
+/* TODO: [near miss] 95.00%; pointer induction versus byte offset and saved-register homes remain. */
+void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
-    PfxVm* pfx;
-    const PfxBehavior* source;
     int index;
+    const PfxBehavior* behavior;
 
-    pfx = (PfxVm*)vm;
-    source = (const PfxBehavior*)behaviors;
     if (count == pfx->behavior_count) {
-        for (index = 0; index < count; index++) {
-            memcpy(pfx_behavior(pfx, index)->segment_0xDC,
-                   source[index].segment_0xDC, 0x244);
-            memcpy(pfx_behavior(pfx, index)->segment_0x58,
-                   source[index].segment_0x58, 0x84);
-            memcpy(pfx_behavior(pfx, index)->segment_0x320,
-                   source[index].segment_0x320, 0x64);
+        for (index = 0, behavior = source; index < count; index++, behavior++) {
+            unsigned char* destination = pfx_behavior(pfx, index)->segment_0xDC;
+            memcpy(destination,
+                   behavior->segment_0xDC, sizeof(behavior->segment_0xDC));
+            destination = pfx_behavior(pfx, index)->segment_0x58;
+            memcpy(destination,
+                   behavior->segment_0x58, sizeof(behavior->segment_0x58));
+            destination = pfx_behavior(pfx, index)->segment_0x320;
+            memcpy(destination,
+                   behavior->segment_0x320, sizeof(behavior->segment_0x320));
         }
         if (count != 0) {
             pfx_behavior(pfx, 0)->link_0x384 = source[0].link_0x384;
@@ -283,21 +284,20 @@ void pfx_copy_behavior_list(void* vm, int count, const void* behaviors)
     }
 }
 
-/* TODO: [near miss] 93.67647%; pointer-sized header preserves retail output;
- * alignment-mask lifetime coloring remains; stop without forced lifetimes. */
+/* TODO: [near miss] 93.68%; negation/add scheduling and r4/r5 coloring remain;
+ * whole-TU propagation control needs an independent consumer/data audit. */
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 {
     unsigned char* allocation;
-    unsigned long align_mask;
     unsigned char* aligned;
 
     if (align < (int)sizeof(void*)) {
         align = sizeof(void*);
     }
 
-    allocation = (unsigned char*)get_mem(size + align);
+    allocation = get_mem(size + align);
     if (allocation != 0) {
-        align_mask = (unsigned long)-(long)align;
+        long align_mask = -(long)align;
         aligned = allocation + align;
         aligned = (unsigned char*)
             (align_mask & (unsigned long)(aligned + sizeof(void*) - 1));

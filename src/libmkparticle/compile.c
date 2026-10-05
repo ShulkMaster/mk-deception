@@ -18,11 +18,9 @@ static PfxEmitterInstruction* find_table_spawn(PfxVmEmitter* emitter,
     int i;
 
     for (i = 0; i < emitter->instruction_count; i++) {
-        PfxEmitterInstruction* instruction = &emitter->instructions[i];
-
-        if (instruction->opcode == 5 &&
-            instruction->field_description == field_description) {
-            return instruction;
+        if (emitter->instructions[i].opcode == 5 &&
+            emitter->instructions[i].field_description == field_description) {
+            return &emitter->instructions[i];
         }
     }
     return 0;
@@ -74,7 +72,7 @@ static void check_for_missing_spawns(PfxVm* pfx)
 {
     PfxVmEmitter* emitter;
 
-    if (pfx->flags_0x60 & 2) {
+    if ((int)(pfx->flags_0x60 & 2) != 0) {
         emitter = pfx_get_emitter(pfx, 0);
         if (!has_spawncode_for(emitter, 0x301)) {
             pfxvm_spawn_value(pfx_get_emitter(pfx, 0), 0x301, 0.0f);
@@ -127,6 +125,6 @@ void pfxvm_compile(PfxVm* pfx)
     check_for_missing_spawns(pfx);
     check_for_deterministic_spawn(pfx);
     _pfx_emitter_compile(
-        (PfxEmitterCompileView*)pfx_get_emitter(pfx, 0),
+        pfx_get_emitter(pfx, 0),
         (PfxTableRegistry*)pfx);
 }

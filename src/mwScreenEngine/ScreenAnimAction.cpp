@@ -7,7 +7,6 @@
 #include "mwScreenEngine/ScreenObject.h"
 #include "mwScreenEngine/ScreenParams.h"
 
-/* Action type ids in ScreenAction::m_arg (CreateAction / Init). */
 enum {
     kArgWaitAnim = 0x400,
     kArgWaitAnimCond = 0x420,
@@ -24,14 +23,14 @@ static ScreenAnimScene* _GetAnimAction(ScreenParams* params, ScreenObject* objec
 }
 
 ScreenPlayAnimAction::ScreenPlayAnimAction(AnimDirectionE direction) {
-    m_direction = (int)direction;
+    m_direction = direction;
 }
 
 ScreenPlayAnimAction::~ScreenPlayAnimAction() {
 }
 
-int ScreenPlayAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
+int ScreenPlayAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
+                                 int dt) {
     ScreenParams* params;
     ScreenAnimScene* scene;
     unsigned int resetTime;
@@ -47,7 +46,7 @@ int ScreenPlayAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
 
     scene = _GetAnimAction(params, m_object);
     if ((int)params->GetCount() > 1) {
-        resetTime = (unsigned int)params->GetBoolean(1);
+        resetTime = params->GetBoolean(1);
     }
     if (scene != 0) {
         scene->Play((AnimDirectionE)m_direction, resetTime);
@@ -55,8 +54,8 @@ int ScreenPlayAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
     return 1;
 }
 
-int ScreenSetAnimSpeedAction::Update(ScreenMgr* /*mgr*/,
-                                     ScreenActionStack& /*stack*/, int /*dt*/) {
+int ScreenSetAnimSpeedAction::Update(ScreenMgr* mgr,
+                                     ScreenActionStack& stack, int dt) {
     ScreenParams* params;
     ScreenAnimScene* scene;
     float speed;
@@ -69,7 +68,6 @@ int ScreenSetAnimSpeedAction::Update(ScreenMgr* /*mgr*/,
         return 1;
     }
 
-    /* Retail: GetFloat always, then SetSpeed if scene non-null (one NV GPR). */
     scene = _GetAnimAction(params, m_object);
     speed = params->GetFloat(1);
     if (scene != 0) {
@@ -78,8 +76,8 @@ int ScreenSetAnimSpeedAction::Update(ScreenMgr* /*mgr*/,
     return 1;
 }
 
-int ScreenStopAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
+int ScreenStopAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
+                                 int dt) {
     ScreenParams* params;
     ScreenAnimScene* scene;
 
@@ -96,15 +94,13 @@ int ScreenStopAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
     return 1;
 }
 
-/* TODO: [near miss] 99.80769%; flag copy takes r31 not retail's dead-screen r29;
- * byte-local and declaration-order forms neutral/worse; stop at coloring. */
-int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
-    unsigned char playingFlag;
+int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
+                                 int dt) {
+    int playing;
     ScreenParams* params;
     ScreenAnimScene* scene;
-    int playing;
     Screen* screen;
+    unsigned char playingFlag;
 
     params = m_params;
     if (params != 0) {
@@ -152,8 +148,8 @@ int ScreenWaitAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-int ScreenSnapAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
+int ScreenSnapAnimAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
+                                 int dt) {
     ScreenParams* params;
     ScreenAnimScene* scene;
     int time;
@@ -172,8 +168,8 @@ int ScreenSnapAnimAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*
     return 1;
 }
 
-int ScreenPlayAnimUntilAction::Update(ScreenMgr* /*mgr*/,
-                                      ScreenActionStack& /*stack*/, int /*dt*/) {
+int ScreenPlayAnimUntilAction::Update(ScreenMgr* mgr,
+                                      ScreenActionStack& stack, int dt) {
     ScreenParams* params;
     int time;
     ScreenAnimScene* scene;

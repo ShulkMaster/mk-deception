@@ -52,7 +52,7 @@ unsigned long mwFileBuffer::readInRange(unsigned char*& destination,
 
         if (position >= file_position && position < buffered_end) {
             unsigned long buffered_length =
-                (unsigned long)(buffered_end - position);
+                buffered_end - position;
             if (buffered_length > length) {
                 buffered_length = length;
             }
@@ -69,8 +69,8 @@ unsigned long mwFileBuffer::readInRange(unsigned char*& destination,
         if (length != 0 && position + length >= file_position &&
             position + length < buffered_end) {
             unsigned long buffered_length =
-                (unsigned long)(position + length - file_position);
-            memcpy(destination + length - buffered_length, buffer,
+                position + length - file_position;
+            memcpy(destination + (length - buffered_length), buffer,
                    buffered_length);
             bytes_read += buffered_length;
             length -= buffered_length;

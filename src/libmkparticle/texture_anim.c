@@ -3,8 +3,7 @@
 #include "libmkparticle/config.h"
 #include "libmkparticle/pfx_memory.h"
 
-/* TODO: [near miss] 98.14815%; only the f31 frame_time copy is early: retail copies it
- * after r3-r7, i.e. frame_time is the last parameter; needs header + src/game callers. */
+/* Retail copies frame_time after r3-r7; frame_time is the last parameter. */
 #pragma peephole off
 void pfx_texture_animate(PfxVm* vm,
                          int texture_width, int frame_width, int frame_height,
@@ -37,18 +36,18 @@ void pfx_texture_animate(PfxVm* vm,
     frames = pfx_effect_memory_alloc(vm, frame_count * sizeof(PfxTextureFrame), 4);
     vm->texture_frames = frames;
     vm->texture_frame_time = frame_time;
-    vm->texture_frame_count = (short)frame_count;
+    vm->texture_frame_count = frame_count;
     frames_per_row = texture_width / frame_width;
 
     if (_pfx_config.normalized_texture_coords != 0) {
         float scale;
 
-        scale = 1.0f / (float)texture_width;
-        u_step = (float)frame_width * scale;
-        v_step = (float)frame_height * scale;
+        scale = 1.0f / texture_width;
+        u_step = frame_width * scale;
+        v_step = frame_height * scale;
     } else {
-        u_step = (float)frame_width;
-        v_step = (float)frame_height;
+        u_step = frame_width;
+        v_step = frame_height;
     }
 
     vm->texture_u_step = u_step;
@@ -73,7 +72,7 @@ void pfx_texture_animate(PfxVm* vm,
 int pfx_texture_getframe(const PfxTextureAnim* anim, float time) {
     int frame;
 
-    frame = (int)(time / anim->frame_time);
+    frame = time / anim->frame_time;
     if (frame >= anim->frame_count) {
         switch (anim->mode) {
         case 0:

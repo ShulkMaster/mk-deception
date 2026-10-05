@@ -1,6 +1,7 @@
 #include "platform/gcmcard.h"
 
 #include "game/memcard.h"
+#include "game/mcardmsg.h"
 #include "game/nbc.h"
 #include "game/plyrprofile.h"
 #include "platform/gcmcardmsg.h"
@@ -9,30 +10,18 @@
 
 #pragma use_lmw_stmw on
 
-extern PlayerProfile p1_profile;
-
-extern void* mc_data_buffer;
-extern int mc_data_buffer_size;
-extern unsigned int mc_icon_file_size; /* defined unsigned in gcmcicon.c */
-extern int f_writing_to_memcard;
-
 void gc_mem_card_status_changes_for_one_device(int device);
 
 int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size);
 
 static void detached_slot_a(s32 chan, s32 result);
 static void detached_slot_b(s32 chan, s32 result);
-static int gc_get_memcard_serial_number(int device, unsigned int* out);
+static int gc_get_memcard_serial_number(int device, u64* out);
 
-/* .bss work areas for CARDMount (retail 0xA000 each) + IO buffer 0x8000. */
-static unsigned char mc_workArea_0[0xA000];
-static unsigned char mc_workArea_1[0xA000];
+static unsigned char mc_workArea_0[CARD_WORKAREA_SIZE];
+static unsigned char mc_workArea_1[CARD_WORKAREA_SIZE];
 static unsigned char gc_memcard_io_buffer[0x8000];
 
-/*
- * .sbss (retail ascending): force_insertions, force_removals, gc_seek_position,
- * insertions, removals, last_card_state. MWCC often reverses decl order.
- */
 static int last_card_state;
 static int removals;
 static int insertions;
@@ -40,15 +29,8 @@ int gc_seek_position;
 int force_removals;
 int force_insertions;
 
-/* Retail .data: per-slot serial cache (2 devices x 2 words). */
-static unsigned int last_card_serial_no[2][2] = {{0, 0}, {0, 0}};
+static u64 last_card_serial_no[2] = {0, 0};
 
-/*
- * .sdata2: per-slot bit masks (Slot A = 1, Slot B = 2); const keeps it there.
- * TODO(enum): slot masks (and the device indices used into mcmasks and the
- * per-device tables) likely become an enum once semantics are settled; keep
- * const so placement stays .sdata2.
- */
 const int mcmasks[2] = {1, 2};
 
 const char* get_device_reference_name(int device) {
@@ -73,7 +55,6 @@ int bad_load_region_data_result_resolution(int* result, int device) {
 int check_load_region_data_result(int* result, int device, int scratch, int flag) {
     int cont = 1;
 
-    (void)scratch;
     DEVICE_AT(device)->status = *result;
     switch (*result) {
     case 0:
@@ -178,19 +159,51 @@ int check_save_region_data_result(int* result, int device, int mode) {
     return cont;
 }
 
-/* TODO: [breakthrough needed] 90.88%; compare result dispatch and message call sequence. */
+static inline int gc_profile_no_space_result(const char* name, int device)
+{
+    return gc_no_space_routine(name, device) == 0;
+}
+
+static inline int gc_resolve_profile_crc_answer(int device)
+{
+    int answer = msg_crc_failure_answer;
+    int continue_loading;
+    switch (answer) {
+    case 2:
+        continue_loading = 0;
+        break;
+    case 3:
+        f_writing_to_memcard = 1;
+        mcard_msg_deleting_file(device);
+        if (gc_delete_file(device, "MKD") != 0) {
+            mcard_msg_delete_successful(device);
+            continue_loading = 0;
+            f_writing_to_memcard = 0;
+        } else {
+            mcard_msg_delete_failed(device);
+            continue_loading = 1;
+            f_writing_to_memcard = 0;
+        }
+        break;
+    case 1:
+    default:
+        continue_loading = 1;
+        break;
+    }
+    return continue_loading;
+}
+
+/* TODO: [near miss] 98.09689%; answer dispatch restored; device/index coloring and redundant format-result branch remain. */
 int check_load_profile_result(int* result, int device) {
     StorageDevice* dev;
     int cont;
     int answer;
     const char* name;
-    int status;
 
     dev = DEVICE_AT(device);
-    status = *result;
-    dev->status = status;
+    dev->status = *result;
 
-    switch (status) {
+    switch (*result) {
     case 8:
         reset_storage_device_status_structure(device);
         strcpy(dev->name, "");
@@ -210,15 +223,16 @@ int check_load_profile_result(int* result, int device) {
         mcard_msg_another_market(name, device);
         answer = msg_another_market_answer;
         switch (answer) {
+        case 1:
+        default:
+            cont = 1;
+            break;
         case 2:
             cont = 0;
             break;
         case 3:
             gc_format_procedure(device);
             cont = 0;
-            break;
-        default:
-            cont = 1;
             break;
         }
         break;
@@ -241,15 +255,16 @@ int check_load_profile_result(int* result, int device) {
         mcard_msg_sys_corrupt(name, device);
         answer = msg_sys_corrupt_answer;
         switch (answer) {
+        case 1:
+        default:
+            cont = 1;
+            break;
         case 2:
             cont = 0;
             break;
         case 3:
             gc_format_procedure(device);
             cont = 0;
-            break;
-        default:
-            cont = 1;
             break;
         }
         break;
@@ -275,7 +290,7 @@ int check_load_profile_result(int* result, int device) {
             *result = 5;
             dev->status = 5;
             name = nbc_find_text(0x70, 0);
-            cont = gc_no_space_routine(name, device) == 0;
+            cont = gc_profile_no_space_result(name, device);
         } else {
             reset_storage_device_status_structure(device);
             cont = 1;
@@ -285,7 +300,7 @@ int check_load_profile_result(int* result, int device) {
         reset_storage_device_status_structure(device);
         strcpy(dev->name, "");
         name = nbc_find_text(0x70, 0);
-        cont = gc_no_space_routine(name, device) == 0;
+        cont = gc_profile_no_space_result(name, device);
         break;
     case 6:
         reset_storage_device_status_structure(device);
@@ -293,28 +308,7 @@ int check_load_profile_result(int* result, int device) {
         DEVICE_AT(device)->freeBlocks = 0;
         name = nbc_find_text(0x70, 0);
         mcard_msg_crc_failure(name, device);
-        answer = msg_crc_failure_answer;
-        switch (answer) {
-        case 2:
-            cont = 0;
-            break;
-        case 3:
-            f_writing_to_memcard = 1;
-            mcard_msg_deleting_file(device);
-            if (gc_delete_file(device, "MKD") != 0) {
-                mcard_msg_delete_successful(device);
-                cont = 0;
-                f_writing_to_memcard = 0;
-            } else {
-                mcard_msg_delete_failed(device);
-                cont = 1;
-                f_writing_to_memcard = 0;
-            }
-            break;
-        default:
-            cont = 1;
-            break;
-        }
+        cont = gc_resolve_profile_crc_answer(device);
         break;
     case 4:
         name = nbc_find_text(0x70, 0);
@@ -340,20 +334,14 @@ int check_load_profile_result(int* result, int device) {
     return cont;
 }
 
-/* TODO: [breakthrough needed] 87.94%; compare save-result dispatch and prompt flow. */
 int check_save_profile_result(int* result, int device, int flag) {
-    StorageDevice* dev;
     int cont;
     int answer;
     const char* name;
-    int status;
 
-    dev = DEVICE_AT(device);
-    status = *result;
-    dev->status = status;
-    (void)flag;
+    DEVICE_AT(device)->status = *result;
 
-    switch (status) {
+    switch (*result) {
     case 8:
         name = nbc_find_text(0x70, 0);
         mcard_msg_incompatible_card(name, device);
@@ -367,15 +355,16 @@ int check_save_profile_result(int* result, int device, int flag) {
         mcard_msg_another_market(name, device);
         answer = msg_another_market_answer;
         switch (answer) {
+        case 1:
+        default:
+            cont = 1;
+            break;
         case 2:
             cont = 0;
             break;
         case 3:
             gc_format_procedure(device);
             cont = 0;
-            break;
-        default:
-            cont = 1;
             break;
         }
         break;
@@ -392,15 +381,16 @@ int check_save_profile_result(int* result, int device, int flag) {
         mcard_msg_sys_corrupt(name, device);
         answer = msg_sys_corrupt_answer;
         switch (answer) {
+        case 1:
+        default:
+            cont = 1;
+            break;
         case 2:
             cont = 0;
             break;
         case 3:
             gc_format_procedure(device);
             cont = 0;
-            break;
-        default:
-            cont = 1;
             break;
         }
         break;
@@ -421,7 +411,7 @@ int check_save_profile_result(int* result, int device, int flag) {
             *result = 5;
             DEVICE_AT(device)->status = 5;
             name = nbc_find_text(0x70, 0);
-            cont = gc_no_space_routine(name, device) == 0;
+            cont = gc_profile_no_space_result(name, device);
         } else {
             mcard_msg_no_file(device);
             if (msg_no_file_answer == 1) {
@@ -434,7 +424,7 @@ int check_save_profile_result(int* result, int device, int flag) {
         break;
     case 5:
         name = nbc_find_text(0x70, 0);
-        cont = gc_no_space_routine(name, device) == 0;
+        cont = gc_profile_no_space_result(name, device);
         break;
     case 4:
         name = nbc_find_text(0x70, 0);
@@ -943,7 +933,7 @@ static inline int finish_memcard_save_after_close(int device, CARDFileInfo* file
     return finish_memcard_save_after_unmount(device, result);
 }
 
-/* TODO: [breakthrough needed] 55.30%; compare create/write/checksum path and buffer ownership. */
+/* TODO: [breakthrough] 55.93%; native 64-bit remembered serial clear recovered; create/write/checksum ownership remains. */
 int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -981,7 +971,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         walk = buffer;
         bit = 0x80;
         while (n != 0) {
-            checksum += (int)((unsigned char)(*walk | (unsigned char)bit));
+            checksum += (unsigned char)(*walk | (unsigned char)bit);
             walk += 1;
             bit >>= 1;
             if (bit == 0) {
@@ -990,7 +980,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
             n -= 1;
         }
     }
-    *(int*)((unsigned char*)buffer + size - 4) = checksum;
+    *(int*)((unsigned char*)buffer + size - sizeof(checksum)) = checksum;
 
     do {
         rc = CARDProbeEx(device, 0, &sectorSize);
@@ -1120,8 +1110,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
                 result = 7;
             } else {
                 if (device >= 0 && device < 2) {
-                    last_card_serial_no[device][1] = 0;
-                    last_card_serial_no[device][0] = 0;
+                    last_card_serial_no[device] = 0;
                 }
                 result = 4;
             }
@@ -1248,8 +1237,8 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     return 0;
 }
 
-/* TODO: [breakthrough needed] 68.55%; compare serial probe/mount and error mapping branches. */
-static int gc_get_memcard_serial_number(int device, unsigned int* out) {
+/* TODO: [breakthrough] 68.68%; native 64-bit serial output recovered; probe/mount error CFG remains. */
+static int gc_get_memcard_serial_number(int device, u64* out) {
     s32 rc;
     s32 serialRc;
     u64 serial;
@@ -1258,9 +1247,8 @@ static int gc_get_memcard_serial_number(int device, unsigned int* out) {
     int mapped;
     int readSerial;
 
-    out[0] = 0;
-    out[1] = 0;
     serial = 0;
+    *out = 0;
 
     if (device < 0 || device > 1) {
         mapped = -99;
@@ -1332,12 +1320,10 @@ static int gc_get_memcard_serial_number(int device, unsigned int* out) {
             serialRc = CARDGetSerialNo(device, &serial);
         } while (serialRc == -1);
         if (serialRc != 0) {
-            out[0] = 0;
-            out[1] = 0;
+            *out = 0;
             mapped = serialRc;
         } else {
-            out[0] = serial >> 32;
-            out[1] = serial;
+            *out = serial;
         }
         if (device >= 0 && device < 2) {
             do {
@@ -1348,36 +1334,32 @@ static int gc_get_memcard_serial_number(int device, unsigned int* out) {
     return mapped;
 }
 
-/* TODO: [breakthrough needed] 87.39%; compare serial-change and insertion/removal flag branches. */
+/* TODO: [near miss] 99.39%; 64-bit serial and removal state recovered; flag publication homes remain. */
 void gc_mem_card_status_changes_for_one_device(int device) {
     int serialRc;
-    unsigned int serial[2];
+    u64 serial;
 
-    serial[1] = 0;
-    serial[0] = 0;
+    serial = 0;
     do {
     } while (CARDProbeEx(device, 0, 0) == -1);
 
-    serialRc = gc_get_memcard_serial_number(device, serial);
+    serialRc = gc_get_memcard_serial_number(device, &serial);
 
     switch (serialRc) {
     case 0: {
         unsigned int mask = mcmasks[device];
         if ((last_card_state & (int)mask) != 0) {
-            if (((serial[1] ^ last_card_serial_no[device][1]) |
-                 (serial[0] ^ last_card_serial_no[device][0])) != 0) {
-                last_card_serial_no[device][1] = serial[1];
+            if (serial != last_card_serial_no[device]) {
                 removals |= (int)mask;
                 insertions |= (int)mask;
                 last_card_state |= (int)mask;
-                last_card_serial_no[device][0] = serial[0];
+                last_card_serial_no[device] = serial;
             }
             return;
         }
-        last_card_serial_no[device][1] = serial[1];
         insertions |= (int)mask;
         last_card_state |= (int)mask;
-        last_card_serial_no[device][0] = serial[0];
+        last_card_serial_no[device] = serial;
         return;
     }
     case -6:
@@ -1389,29 +1371,31 @@ void gc_mem_card_status_changes_for_one_device(int device) {
             last_card_state |= (int)mask;
             insertions |= (int)mask;
         }
-        last_card_serial_no[device][1] = 0;
-        last_card_serial_no[device][0] = 0;
+        last_card_serial_no[device] = 0;
         return;
     }
     case -3: {
         unsigned int mask = mcmasks[device];
-        insertions &= (int)~mask;
-        if ((last_card_state & (int)mask) != 0) {
-            last_card_state &= (int)~mask;
-            removals |= (int)mask;
+        int state = last_card_state;
+        int pending = insertions;
+        unsigned int retained_mask = ~mask;
+
+        insertions = pending & (int)retained_mask;
+        if ((state & (int)mask) != 0) {
+            int removed = removals;
+            last_card_state = state & (int)retained_mask;
+            removals = removed | (int)mask;
         }
-        last_card_serial_no[device][1] = 0;
-        last_card_serial_no[device][0] = 0;
+        last_card_serial_no[device] = 0;
         return;
     }
     default:
-        last_card_serial_no[device][1] = 0;
-        last_card_serial_no[device][0] = 0;
+        last_card_serial_no[device] = 0;
         break;
     }
 }
 
-/* TODO: [near miss] 93.95%; device/changed register coloring differs; stop at coloring. */
+/* TODO: [near miss] 93.95%; device/result registers and two post-callback load pairs differ. */
 int update_storage_status_for_one_device(int device) {
     int changed = 0;
 
@@ -1436,10 +1420,10 @@ int update_storage_status_for_one_device(int device) {
     return changed;
 }
 
-/* TODO: [near miss] 94.23%; inlined helper's device/changed register coloring differs. */
+/* TODO: [near miss] 94.44%; inline device/mask allocation and post-callback load ordering remain. */
 int update_storage_status(int flag) {
-    int any = 0;
     int device;
+    int any = 0;
 
     for (device = 0; device < 2; device++) {
         if (update_storage_status_for_one_device(device)) {
@@ -1449,7 +1433,6 @@ int update_storage_status(int flag) {
     return any;
 }
 
-/* TODO: [near miss] 94.45%; CARD-result compare tree roots at -4 instead of retail -9. */
 int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
     CARDStat stat;
     int readLen;
@@ -1457,7 +1440,7 @@ int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
 
     do {
         result = CARDGetStatus(fileInfo->chan, fileInfo->fileNo, &stat);
-    } while (result == -1);
+    } while (result == CARD_RESULT_BUSY);
 
     if (stat.iconAddr != 0x40) {
         return -0x35;
@@ -1480,35 +1463,33 @@ int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
     do {
         result = CARDRead(fileInfo, gc_memcard_io_buffer, readLen,
                           gc_seek_position << 13);
-    } while (result == -1);
+    } while (result == CARD_RESULT_BUSY);
 
     switch (result) {
-    case 0:
+    case CARD_RESULT_READY:
         if (gc_seek_position == 0) {
             memcpy(buffer, gc_memcard_io_buffer + stat.offsetData, size);
         } else {
             memcpy(buffer, gc_memcard_io_buffer, size);
         }
         return 0;
-    case -3:
+    case CARD_RESULT_NOCARD:
         return -0xA;
-    case -4:
+    case CARD_RESULT_NOFILE:
         return -0x4;
-    case -14:
-    case -128:
+    case CARD_RESULT_NOPERM:
+    case CARD_RESULT_LIMIT:
+    case CARD_RESULT_CANCELED:
+    case CARD_RESULT_FATAL_ERROR:
     default:
         return -0x63;
     }
 }
 
 static void detached_slot_b(s32 chan, s32 result) {
-    (void)chan;
-    (void)result;
 }
 
 static void detached_slot_a(s32 chan, s32 result) {
-    (void)chan;
-    (void)result;
 }
 
 int init_gc_memcard(void) {

@@ -31,13 +31,13 @@ void set_2d_projection(void) {
     Mtx44 ortho;
 
     /* Signed int->float -> xoris + fsubs; ortho top=0 bottom=h left=0 right=w near=0 far=1. */
-    C_MTXOrtho(ortho, 0.0f, (float)screen_height, 0.0f, (float)screen_width, 0.0f, 1.0f);
+    C_MTXOrtho(ortho, 0.0f, screen_height, 0.0f, screen_width, 0.0f, 1.0f);
     GXSetProjection(ortho, 1); /* GX_ORTHOGRAPHIC */
 }
 
 void set_2d_position(int x, int y) {
-    posMatrix[0][3] = (float)x;
-    posMatrix[1][3] = (float)y;
+    posMatrix[0][3] = x;
+    posMatrix[1][3] = y;
     GXLoadPosMtxImm(posMatrix, 0);
 }
 
@@ -54,8 +54,8 @@ void restore_projection_matrix(void) {
 void apply_single_texture(void) {
     GXSetNumTevStages(1);
     GXSetNumTexGens(1);
-    GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
-    GXSetTevOrder(0, 0, 0, 4);
+    GXSetTexCoordGen2(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, 0x3C, 0, 0x7D);
+    GXSetTevOrder(0, GX_TEXCOORD0, GX_TEXMAP0, 4);
     GXSetTevOp(0, 0); /* GX_MODULATE */
 }
 #pragma dont_inline reset

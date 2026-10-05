@@ -1,26 +1,11 @@
+#include "mw/mwFile.h"
+
 struct mwFileTypeInfo {
 };
 
-class mwFile;
-class mwFileCommand;
 class mwFileDevice;
 class mwFileMountPoint;
 class mwFileServer;
-
-union mwFileAsyncValue {
-    void* pointer;
-    mwFile* file;
-    unsigned long bytes;
-};
-
-struct _mwFileAsyncResult {
-    mwFileAsyncValue value;
-    int error;
-};
-
-typedef _mwFileAsyncResult mwFileAsyncResult;
-typedef void (*mwFileCallback)(
-    mwFileCommand*, mwFileAsyncResult, void*);
 
 enum mwFileSeekOrigin {
     MWF_SEEK_START,
@@ -183,7 +168,7 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
         if (offset >= 0) {
             position += offset;
         } else {
-            offset = -offset;
+            offset = -(unsigned long long)offset;
             if (position < (unsigned long long)offset) {
                 _mwFileNoOp(
                     &stringBase0[SEEK_CURRENT_MESSAGE], (int)offset,
@@ -215,7 +200,7 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
         break;
     }
 
-    if (size < position) {
+    if (position > size) {
         _mwFileNoOp(
             &stringBase0[SEEK_PAST_END_MESSAGE], (int)offset,
             &stringBase0[EMPTY_DEBUG_NAME], (int)size);
