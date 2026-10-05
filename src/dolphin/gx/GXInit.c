@@ -71,7 +71,7 @@ static u32 GXTexRegionAddrTable[] = {
 };
 
 // prototypes
-static int __GXShutdown(int final);
+static int __GXShutdown(BOOL final);
 
 static OSResetFunctionInfo GXResetFuncInfo = {__GXShutdown, 0x7F, NULL, NULL};
 
@@ -89,7 +89,7 @@ static GXTexRegion*__GXDefaultTexRegionCallback(const GXTexObj* t_obj, GXTexMapI
 
     fmt = GXGetTexObjFmt(t_obj);
     mm = GXGetTexObjMipMap(t_obj);
-    id = (GXTexMapID)(id % GX_MAX_TEXMAP);
+    id = id % GX_MAX_TEXMAP;
 
     switch (fmt) {
     case GX_TF_RGBA8:
@@ -122,8 +122,6 @@ static void __GXDefaultVerifyCallback(GXWarningLevel level, u32 id, const char* 
 }
 #endif
 
-/* TODO: [near miss] 99.450000%; algorithm and layout match, but MWCC keeps
- * static-local relocation names/coloring different from retail. */
 static int __GXShutdown(BOOL final) {
     static u32 peCount;
     static OSTime time;
@@ -183,62 +181,55 @@ static int __GXShutdown(BOOL final) {
     return 1;
 }
 
-#define SOME_SET_REG_MACRO(reg, size, shift, val)                                                   \
-	do {                                                                                            \
-		(reg) = (u32)__rlwimi((u32)(reg), (val), (shift), (32 - (shift) - (size)), (31 - (shift))); \
-	} while (0);
-
 void __GXInitRevisionBits(void) {
     u32 i;
+    u32 reg1;
+    u32 reg2;
+    u32 reg;
 
     for (i = 0; i < 8; i++) {
-        s32 regAddr;
-        SOME_SET_REG_MACRO(__GXData->vatA[i], 1, 30, 1);
-        SOME_SET_REG_MACRO(__GXData->vatB[i], 1, 31, 1);
+        SET_REG_FIELD(0, __GXData->vatA[i], 1, 30, 1);
+        SET_REG_FIELD(0, __GXData->vatB[i], 1, 31, 1);
 
         GX_WRITE_U8(0x8);
         GX_WRITE_U8(i | 0x80);
         GX_WRITE_U32(__GXData->vatB[i]);
-        regAddr = i - 12;
     }
 
-    {
-        u32 reg1 = 0;
-        u32 reg2 = 0;
+    reg1 = 0;
+    reg2 = 0;
 
-        SOME_SET_REG_MACRO(reg1, 1, 0, 1);
-        SOME_SET_REG_MACRO(reg1, 1, 1, 1);
-        SOME_SET_REG_MACRO(reg1, 1, 2, 1);
-        SOME_SET_REG_MACRO(reg1, 1, 3, 1);
-        SOME_SET_REG_MACRO(reg1, 1, 4, 1);
-        SOME_SET_REG_MACRO(reg1, 1, 5, 1);
-        GX_WRITE_XF_REG(0, reg1);
+    SET_REG_FIELD(0, reg1, 1, 0, 1);
+    SET_REG_FIELD(0, reg1, 1, 1, 1);
+    SET_REG_FIELD(0, reg1, 1, 2, 1);
+    SET_REG_FIELD(0, reg1, 1, 3, 1);
+    SET_REG_FIELD(0, reg1, 1, 4, 1);
+    SET_REG_FIELD(0, reg1, 1, 5, 1);
+    GX_WRITE_XF_REG(0, reg1);
 
-        SOME_SET_REG_MACRO(reg2, 1, 0, 1);
-        GX_WRITE_XF_REG(0x12, reg2);
+    SET_REG_FIELD(0, reg2, 1, 0, 1);
+    GX_WRITE_XF_REG(0x12, reg2);
 #if DEBUG
-        __gxVerif->xfRegsDirty[0] = 0;
+    __gxVerif->xfRegsDirty[0] = 0;
 #endif
-    }
 
-    {
-        u32 reg = 0;
-        SOME_SET_REG_MACRO(reg, 1, 0, 1);
-        SOME_SET_REG_MACRO(reg, 1, 1, 1);
-        SOME_SET_REG_MACRO(reg, 1, 2, 1);
-        SOME_SET_REG_MACRO(reg, 1, 3, 1);
-        SOME_SET_REG_MACRO(reg, 8, 24, 0x58);
-        GX_WRITE_RAS_REG(reg);
-    }
+    reg = 0;
+    SET_REG_FIELD(0, reg, 1, 0, 1);
+    SET_REG_FIELD(0, reg, 1, 1, 1);
+    SET_REG_FIELD(0, reg, 1, 2, 1);
+    SET_REG_FIELD(0, reg, 1, 3, 1);
+    SET_REG_FIELD(0, reg, 8, 24, 0x58);
+    GX_WRITE_RAS_REG(reg);
 }
 
-/* TODO: [near miss] 99.973960%; RE4/m2c CFG and GXData layout agree; the
- * residual is only compiler-generated static-local relocation numbering. */
 GXFifoObj* GXInit(void* base, u32 size) {
     static u32 resetFuncRegistered;
     u32 i;
     u32 reg;
     u32 freqBase;
+#if DEBUG
+    s32 regAddr;
+#endif
 
     OSRegisterVersion(__GXVersion);
 
@@ -351,33 +342,28 @@ GXFifoObj* GXInit(void* base, u32 size) {
         GXInitTlutRegion(&__GXData->TlutRegions[i + 16], 0xE0000 + 0x8000 * i, GX_TLUT_1K);
     }
 
-    {
-        u32 reg = 0;
-#if DEBUG
-        s32 regAddr;
-#endif
-        GX_SET_CP_REG(3, reg);
+    reg = 0;
+    GX_SET_CP_REG(3, reg);
 
-        SET_REG_FIELD(0, __GXData->perfSel, 4, 4, 0);
-        GX_WRITE_U8(0x8);
-        GX_WRITE_U8(0x20);
-        GX_WRITE_U32(__GXData->perfSel);
+    SET_REG_FIELD(0, __GXData->perfSel, 4, 4, 0);
+    GX_WRITE_U8(0x8);
+    GX_WRITE_U8(0x20);
+    GX_WRITE_U32(__GXData->perfSel);
 #if DEBUG
-        regAddr = -12;
+    regAddr = -12;
 #endif
 
-        reg = 0;
-        GX_WRITE_XF_REG(6, reg);
+    reg = 0;
+    GX_WRITE_XF_REG(6, reg);
 
-        reg = 0x23000000;
-        GX_WRITE_RAS_REG(reg);
+    reg = 0x23000000;
+    GX_WRITE_RAS_REG(reg);
 
-        reg = 0x24000000;
-        GX_WRITE_RAS_REG(reg);
+    reg = 0x24000000;
+    GX_WRITE_RAS_REG(reg);
 
-        reg = 0x67000000;
-        GX_WRITE_RAS_REG(reg);
-    }
+    reg = 0x67000000;
+    GX_WRITE_RAS_REG(reg);
 
     __GXSetIndirectMask(0);
     __GXSetTmemConfig(2);
@@ -505,9 +491,9 @@ void __GXInitGX(void) {
     GXSetZTexture(GX_ZT_DISABLE, GX_TF_Z8, 0);
 
     for (i = GX_TEVSTAGE0; i < GX_MAX_TEVSTAGE; i++) {
-        GXSetTevKColorSel((GXTevStageID)i, GX_TEV_KCSEL_1_4);
-        GXSetTevKAlphaSel((GXTevStageID)i, GX_TEV_KASEL_1);
-        GXSetTevSwapMode((GXTevStageID)i, GX_TEV_SWAP0, GX_TEV_SWAP0);
+        GXSetTevKColorSel(i, GX_TEV_KCSEL_1_4);
+        GXSetTevKAlphaSel(i, GX_TEV_KASEL_1);
+        GXSetTevSwapMode(i, GX_TEV_SWAP0, GX_TEV_SWAP0);
     }
 
     GXSetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_RED, GX_CH_GREEN, GX_CH_BLUE, GX_CH_ALPHA);
@@ -516,7 +502,7 @@ void __GXInitGX(void) {
     GXSetTevSwapModeTable(GX_TEV_SWAP3, GX_CH_BLUE, GX_CH_BLUE, GX_CH_BLUE, GX_CH_ALPHA);
 
     for (i = GX_TEVSTAGE0; i < GX_MAX_TEVSTAGE; i++)
-        GXSetTevDirect((GXTevStageID)i);
+        GXSetTevDirect(i);
 
     GXSetNumIndStages(0);
     GXSetIndTexCoordScale(GX_INDTEXSTAGE0, GX_ITS_1, GX_ITS_1);
@@ -541,7 +527,7 @@ void __GXInitGX(void) {
     GXSetDispCopySrc(0, 0, rmode->fbWidth, rmode->efbHeight);
     GXSetDispCopyDst(rmode->fbWidth, rmode->efbHeight);
     GXSetDispCopyYScale((f32)(rmode->xfbHeight) / (f32)(rmode->efbHeight));
-    GXSetCopyClamp((GXFBClamp)(GX_CLAMP_TOP | GX_CLAMP_BOTTOM));
+    GXSetCopyClamp(GX_CLAMP_TOP | GX_CLAMP_BOTTOM);
     GXSetCopyFilter(rmode->aa, rmode->sample_pattern, GX_TRUE, rmode->vfilter);
     GXSetDispCopyGamma(GX_GM_1_0);
     GXSetDispCopyFrame2Field(GX_COPY_PROGRESSIVE);
