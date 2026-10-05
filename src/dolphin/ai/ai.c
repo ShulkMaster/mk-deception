@@ -2,14 +2,8 @@
 #include "dolphin/os.h"
 #include "runtime/asm_sequences.inc"
 
-#ifdef __MWERKS__
-#define AI_AT_ADDRESS(address) : (address)
-volatile unsigned short DSP_REGS[] AI_AT_ADDRESS(0xCC005000);
-volatile unsigned long AI_REGS[8] AI_AT_ADDRESS(0xCC006C00);
-#else
-#define DSP_REGS ((volatile unsigned short*)0xCC005000)
-#define AI_REGS ((volatile unsigned long*)0xCC006C00)
-#endif
+volatile unsigned short DSP_REGS[] : 0xCC005000;
+volatile unsigned long AI_REGS[8] : 0xCC006C00;
 #define AI_STREAM_STOP 0
 #define AI_STREAM_START 1
 #define AI_SAMPLERATE_32KHZ 0
@@ -268,12 +262,9 @@ static void __AI_SRC_INIT(void)
     unsigned long sample_32khz;
     unsigned long sample_48khz;
     unsigned long done = 0;
-    unsigned long volume = 0;
-    unsigned long init_count = 0;
     unsigned long walking = 0;
 
     walking = 0;
-    init_count = 0;
     temp = 0;
 
     while (!done) {
@@ -294,16 +285,13 @@ static void __AI_SRC_INIT(void)
         if (difference < bound_32KHz - buffer) {
             temp = min_wait;
             done = 1;
-            init_count++;
         } else if (difference >= bound_32KHz + buffer &&
                    difference < bound_48KHz - buffer) {
             temp = max_wait;
             done = 1;
-            init_count++;
         } else {
             done = 0;
             walking = 1;
-            init_count++;
         }
     }
     while (rising_48khz + temp > OSGetTime()) {}
