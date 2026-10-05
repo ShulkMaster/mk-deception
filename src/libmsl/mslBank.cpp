@@ -11,7 +11,6 @@
 #include "runtime/cstdio.h"
 #include "msl/mslgcn_break.h"
 
-
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data);
@@ -28,8 +27,8 @@ static void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
 mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
-/* TODO: [breakthrough needed] 98.51%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 98.51%; equal suffix literals differ by retail
+ * pool prefix +0x6f; recover stripped-function pool ownership. */
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
     mslAssetWave* wave;
@@ -84,8 +83,49 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
     return 0;
 }
 
-/* TODO: [breakthrough needed] 98.51%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+static inline void mslBankStopActiveSounds(mslLoadedBank* bank)
+{
+    _mslSound* sound;
+    _ListNode* node;
+    msl_u32 sound_id;
+    int saved_guard;
+
+    saved_guard = bank->system->sound_list_guard;
+    bank->system->sound_list_guard = 0;
+    node = bank->system->active_sounds;
+    while (node != 0) {
+        sound = (_mslSound*)ListNodeData(0, node);
+        sound_id = ListNodeID(&g_listPoolSound, node);
+
+        ListNext(&node);
+        if (sound->owner_bank == bank) {
+            mslDebugPrintf(
+                "Stopping sound in mslBankUnUseSound, %x (ID %08x)\n",
+                sound, sound_id);
+            _mslSoundStop(sound);
+        }
+    }
+    bank->system->sound_list_guard = saved_guard;
+}
+
+static inline void mslBankUnloadSounds(mslLoadedBank* bank)
+{
+    int i;
+    mslBankSoundEntry* sound_entry;
+
+    sound_entry = bank->sounds.pointer;
+    for (i = 0; i < bank->sound_count; i++, sound_entry++) {
+        if (sound_entry->sound != 0) {
+            mslSoundUncommit(sound_entry->sound);
+            mslSoundUnLoad(sound_entry->sound);
+        }
+        sound_entry->sound = 0;
+    }
+    bank->system = 0;
+}
+
+/* TODO: [near miss] 99.72321%; sound-stop and unload index agree;
+ * bank-entry owner register and decoded-equal pool shift remain. */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
         return 0;
@@ -93,39 +133,10 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
 
     bank->system->pending_bank_loads--;
     if (bank != 0 && bank->system != 0) {
-        int saved_guard;
-        _ListNode* node;
-        mslBankSoundEntry* sound_entry;
-        int i;
-        unsigned long sound_id;
-        _mslSound* sound;
 
-        saved_guard = bank->system->sound_list_guard;
-        bank->system->sound_list_guard = 0;
-        node = bank->system->active_sounds;
-        while (node != 0) {
-            sound = (_mslSound*)ListNodeData(0, node);
-            sound_id = ListNodeID(&g_listPoolSound, node);
+        mslBankStopActiveSounds(bank);
 
-            ListNext(&node);
-            if (sound->owner_bank == bank) {
-                mslDebugPrintf(
-                    "Stopping sound in mslBankUnUseSound, %x (ID %08x)\n",
-                    sound, sound_id);
-                _mslSoundStop(sound);
-            }
-        }
-        bank->system->sound_list_guard = saved_guard;
-
-        sound_entry = bank->sounds.pointer;
-        for (i = 0; i < bank->sound_count; i++, sound_entry++) {
-            if (sound_entry->sound != 0) {
-                mslSoundUncommit(sound_entry->sound);
-                mslSoundUnLoad(sound_entry->sound);
-            }
-            sound_entry->sound = 0;
-        }
-        bank->system = 0;
+        mslBankUnloadSounds(bank);
     }
 
     if (bank->asset_info != 0) {
@@ -236,8 +247,8 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 97.52%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 99.69811%; sound-stop and unload index agree;
+ * five entry-owner register rows and decoded-equal +0x6F pool shift remain. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
@@ -247,37 +258,8 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     response = async_bank->response;
     if (mslBankUse(async_bank->system, bank) != 0) {
         if (bank != 0 && bank->system != 0) {
-            int saved_guard = bank->system->sound_list_guard;
-            _ListNode* node;
-            mslBankSoundEntry* sound_entry;
-            int i;
-
-            bank->system->sound_list_guard = 0;
-            node = bank->system->active_sounds;
-            while (node != 0) {
-                _mslSound* sound = (_mslSound*)ListNodeData(0, node);
-                unsigned long sound_id =
-                    ListNodeID(&g_listPoolSound, node);
-
-                ListNext(&node);
-                if (sound->owner_bank == bank) {
-                    mslDebugPrintf(
-                        "Stopping sound in mslBankUnUseSound, %x (ID %08x)\n",
-                        sound, sound_id);
-                    _mslSoundStop(sound);
-                }
-            }
-            bank->system->sound_list_guard = saved_guard;
-
-            sound_entry = bank->sounds.pointer;
-            for (i = 0; i < bank->sound_count; i++, sound_entry++) {
-                if (sound_entry->sound != 0) {
-                    mslSoundUncommit(sound_entry->sound);
-                    mslSoundUnLoad(sound_entry->sound);
-                }
-                sound_entry->sound = 0;
-            }
-            bank->system = 0;
+            mslBankStopActiveSounds(bank);
+            mslBankUnloadSounds(bank);
         }
         use_failed = 1;
     }
@@ -299,8 +281,29 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
 static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
     unsigned long request_address);
 
-/* TODO: [breakthrough needed] 94.48%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+static inline void mslBankUploadResidentChunk(
+    void* buffer, unsigned long offset, int size, int final_chunk,
+    mslAsyncBank* async_bank, mslARQRequest* request) {
+    unsigned long destination;
+    void (*callback)(unsigned long);
+
+    request->stream_buffer = buffer;
+    callback = i_ARQCALLBACK_ReturnArqAndUserStreamBuffer;
+    request->callback_data = async_bank;
+    destination = async_bank->bank_data->resident_aram_block->base;
+    destination += offset;
+    if (final_chunk != 0) {
+        callback =
+            i_ARQCALLBACK_BankLoadResidentARamUpload_Complete;
+    }
+
+    DCFlushRange(buffer, size);
+    ARQPostRequest(
+        &request->request, 0, 0, 0, (unsigned long)buffer, destination, size,
+        callback);
+}
+
+/* TODO: [near miss] 98.95%; request/context GPR pair and equal +0x6F string-pool shift remain. */
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data) {
@@ -316,23 +319,8 @@ void mslBankLoadResidentWaveChunkDone(
                 "failed.\n");
             mslBankLoadAsyncFailed(async_bank, MSL_ERROR_SYSTEM);
         } else {
-            void (*callback)(unsigned long);
-            unsigned long destination;
-
-            request->stream_buffer = buffer;
-            callback = i_ARQCALLBACK_ReturnArqAndUserStreamBuffer;
-            request->callback_data = async_bank;
-            destination =
-                async_bank->bank_data->resident_aram_block->base + offset;
-            if (final_chunk != 0) {
-                callback =
-                    i_ARQCALLBACK_BankLoadResidentARamUpload_Complete;
-            }
-
-            DCFlushRange(buffer, size);
-            ARQPostRequest(
-                &request->request, 0, 0, 0, (unsigned long)buffer, destination, size,
-                callback);
+            mslBankUploadResidentChunk(
+                buffer, offset, size, final_chunk, async_bank, request);
         }
     } else {
         mslStreamFile_ReturnBuffer(buffer);
@@ -353,13 +341,17 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
         mslBankLoadResidentARamUploadComplete, callback_data);
 }
 
-/* TODO: [near miss] 97.68%; retail owner reloads and scoped state recovered;
- * pointer/index scheduling, GPR homes and diagnostic-pool offsets remain. */
+/* TODO: [near miss] 98.20%; real loop/ARAM staging and state homes improved;
+ * publication helpers regress; saved webs and equal pool shift remain. */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
+    _mslAsyncResponse* response;
+    int saved_guard;
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
     mslLoadedBank* bank;
     mslAssetInfo* asset_info;
+    msl_u32 sound_id;
+    _mslSound* sound;
     mslAssetWave* wave;
     char* next_name;
     unsigned long resident_base;
@@ -394,7 +386,7 @@ static void mslBankReadAssetHeaderComplete(
     next_name = asset_info->At(async_bank->string_offset);
 
     wave = asset_info->waves;
-    for (i = 0; i < async_bank->entry_count; i++, wave++) {
+    for (i = 0; i < async_bank->entry_count; wave++, i++) {
         if ((wave->name.offset & 0xf0000000) != 0x20000000) {
             wave->name.pointer = next_name;
             next_name = strchr(next_name, 0) + 1;
@@ -402,7 +394,7 @@ static void mslBankReadAssetHeaderComplete(
     }
 
     wave = bank->asset_info->waves;
-    for (i = 0; i < async_bank->entry_count; i++, wave++) {
+    for (i = 0; i < async_bank->entry_count; wave++, i++) {
         if (wave->has_secondary != 0 &&
             (wave->secondary_name.offset & 0xf0000000) !=
                 0x20000000) {
@@ -418,15 +410,15 @@ static void mslBankReadAssetHeaderComplete(
     }
 
     wave = asset_info->waves + 1;
-    for (i = 1; i < async_bank->entry_count; i++, wave++) {
+    for (i = 1; i < async_bank->entry_count; wave++, i++) {
         if (wave->resident != 0) {
             unsigned long primary_aram_offset;
 
             wave->sound_table =
                 (SPSoundTable*)asset_info->At(
                     (unsigned long)wave->sound_table);
-            primary_aram_offset =
-                (wave->primary_aram_offset += resident_base);
+            primary_aram_offset = resident_base + wave->primary_aram_offset;
+            wave->primary_aram_offset = primary_aram_offset;
             SPInitSoundTable(
                 wave->sound_table, primary_aram_offset,
                 g_MSL_GCN_ARAM_ZeroBase);
@@ -438,7 +430,8 @@ static void mslBankReadAssetHeaderComplete(
                     (SPSoundTable*)asset_info->At(
                         (unsigned long)wave->secondary_sound_table);
                 secondary_aram_offset =
-                    (wave->secondary_aram_offset += resident_base);
+                    resident_base + wave->secondary_aram_offset;
+                wave->secondary_aram_offset = secondary_aram_offset;
                 SPInitSoundTable(
                     wave->secondary_sound_table,
                     secondary_aram_offset,
@@ -464,21 +457,21 @@ static void mslBankReadAssetHeaderComplete(
 
     if (async_bank->wave_size == 0) {
         bank = async_bank->bank_data;
-        _mslAsyncResponse* response = async_bank->response;
+        response = async_bank->response;
         int use_failed = 0;
 
         if (mslBankUse(async_bank->system, bank) != 0) {
             if (bank != 0 && bank->system != 0) {
-                int saved_guard = bank->system->sound_list_guard;
                 _ListNode* node;
                 mslBankSoundEntry* sound_entry;
+
+                saved_guard = bank->system->sound_list_guard;
 
                 bank->system->sound_list_guard = 0;
                 node = bank->system->active_sounds;
                 while (node != 0) {
-                    _mslSound* sound = (_mslSound*)ListNodeData(0, node);
-                    unsigned long sound_id =
-                        ListNodeID(&g_listPoolSound, node);
+                    sound = (_mslSound*)ListNodeData(0, node);
+                    sound_id = ListNodeID(&g_listPoolSound, node);
 
                     ListNext(&node);
                     if (sound->owner_bank == bank) {
@@ -519,8 +512,8 @@ static void mslBankReadAssetHeaderComplete(
     }
 }
 
-/* TODO: [blocked] 99.95%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [blocked] 99.95122%; four decoded-equal diagnostics are +0x6F in retail;
+ * recover authentic stripped-function strings without regressing the TU. */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -560,8 +553,8 @@ static void mslBankReadWavesComplete(
     }
 }
 
-/* TODO: [blocked] 99.93%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [near miss] 99.9360%; all eight diagnostic strings agree;
+ * shared string-pool allocation leaves different addends. */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -618,8 +611,8 @@ static void mslBankReadSoundsComplete(
     }
 }
 
-/* TODO: [blocked] 99.95%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [blocked] 99.95834%; two decoded-equal diagnostics are +0x6F in retail;
+ * recover authentic stripped-function strings without regressing the TU. */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -644,8 +637,7 @@ void mslBankOpenWavesComplete(
     }
 }
 
-/* TODO: [blocked] 99.94%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [near miss] 99.94%; six decoded literals agree; TU string-pool layout differs. */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     char filename[0x100];
@@ -667,7 +659,7 @@ void mslBankOpenSoundsComplete(
                 mslDebugPrintf(
                     "mslBank %s is loaded at 0x%p\n",
                     bank->filename, bank_data);
-                memset(bank_data, 0, 0x48);
+                memset(bank_data, 0, sizeof(*bank_data));
                 bank->bank_data = bank_data;
             }
 
@@ -707,8 +699,8 @@ void mslBankOpenSoundsComplete(
     }
 }
 
-/* TODO: [blocked] 99.97%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [near miss] 99.97%; body and selected string bytes agree; pooled addends
+ * differ, with discarded-function string ordering unresolved. */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
     _mslAsyncResponse* response) {
@@ -739,8 +731,8 @@ void mslBankLoadAsyncInternal(
     }
 }
 
-/* TODO: [blocked] 99.99%; pooled string addends only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [blocked] 99.99083%; decoded-equal null-responder diagnostic is +0x6F
+ * in retail; recover authentic stripped-function pool provenance. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
@@ -1064,8 +1056,7 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
     return 0;
 }
 
-/* TODO: [breakthrough needed] 98.47%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 99.93%; body exact; five decoded-equal strings have earlier TU pool placements. */
 int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
     mslRuntimeSound* sound;
@@ -1080,6 +1071,7 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     }
 
     sound->bank_ref_count--;
+    sound = (mslRuntimeSound*)bank_sound->sound;
     if (sound->bank_ref_count <= 0) {
         if (sound->bank_ref_count < 0) {
             mslDebugPrintf(
@@ -1096,7 +1088,7 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     return unloaded;
 }
 
-/* TODO: [near miss] 97.92%; pooled string offsets and one load-order island remain. */
+/* TODO: [near miss] 99.94%; body exact; six decoded-equal string-pool addends remain. */
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
@@ -1111,10 +1103,10 @@ _ListNode* mslBankSoundUse(
         } else {
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
-            mslRuntimeSound* source =
-                (mslRuntimeSound*)bank_sound->sound;
+            mslRuntimeSound* source;
 
             copy->flags = bank_sound->flags;
+            source = (mslRuntimeSound*)bank_sound->sound;
             source->bank_ref_count++;
         }
     } else if ((bank_sound->flags & 2) != 0) {
@@ -1136,8 +1128,8 @@ _ListNode* mslBankSoundUse(
     return node;
 }
 
-/* TODO: [blocked] 99.99%; pooled string addend only: retail .rodata keeps strings of
- * linker-stripped functions (mslBankPlayQ/PlayPrep/GetIDs...) whose bodies are unknown. */
+/* TODO: [near miss] 99.99048%; decoded diagnostic string agrees;
+ * shared string-pool allocation leaves a different addend. */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
     int i;
@@ -1167,33 +1159,33 @@ extern "C" int mslBankUse(
         }
     }
 
-    {
-        int load_index;
-        mslBankSoundEntry* load_sound = bank->sounds.pointer;
+    int load_index;
+    mslBankSoundEntry* load_sound = bank->sounds.pointer;
 
-        for (load_index = 0; load_index < bank->sound_count;
-             load_index++, load_sound++) {
-            if ((load_sound->flags & 2) != 0) {
-                load_sound->sound = 0;
-            }
-            if (load_sound->sound == 0) {
-                load_sound->sound = mslSoundLoad(
-                    system, bank, load_sound->definition, load_sound->flags);
-            }
-            if (load_sound->sound != 0) {
-                mslRuntimeSound* runtime =
-                    (mslRuntimeSound*)load_sound->sound;
-                runtime->owner_bank = bank;
-            } else {
-                mslDebugPrintf(
-                    "Unable to load sound: [0x%08x]\n", load_index);
-            }
+    for (load_index = 0; load_index < bank->sound_count;
+         load_index++, load_sound++) {
+        if ((load_sound->flags & 2) != 0) {
+            load_sound->sound = 0;
+        }
+        if (load_sound->sound == 0) {
+            load_sound->sound = mslSoundLoad(
+                system, bank, load_sound->definition, load_sound->flags);
+        }
+        if (load_sound->sound != 0) {
+            mslRuntimeSound* runtime =
+                (mslRuntimeSound*)load_sound->sound;
+            runtime->owner_bank = bank;
+        } else {
+            mslDebugPrintf(
+                "Unable to load sound: [0x%08x]\n", load_index);
         }
     }
+
     return 0;
 }
 
-/* TODO: [near miss] 98.37%; pooled string offsets and one zero-register schedule remain. */
+/* TODO: [near miss] 98.37%; six decoded literals agree at different pool
+ * offsets; ListNodeData zero/node argument setup is reordered. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =
@@ -1233,8 +1225,8 @@ void callbackPlay(
     }
 }
 
-/* TODO: [breakthrough needed] 96.34%; complete-pool scratch
- * regresses TU code; resolve pooled addressing without losing matches. */
+/* TODO: [near miss] 99.98182%; body instructions and decoded literal agree;
+ * string-pool addend 0x9E8 versus 0x911 remains. */
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
@@ -1245,11 +1237,9 @@ void asyncLoadSound(
         _mslSound* loaded = mslSoundLoad(
             system, bank, bank_sound->definition, bank_sound->flags);
         if (loaded != 0) {
-            mslRuntimeSound* runtime = (mslRuntimeSound*)loaded;
-
             bank_sound->sound = loaded;
-            runtime->bank_ref_count = 1;
-            runtime->owner_bank = bank;
+            ((mslRuntimeSound*)bank_sound->sound)->bank_ref_count = 1;
+            ((mslRuntimeSound*)bank_sound->sound)->owner_bank = bank;
         } else {
             mslDebugPrintf("Unable to load async sound.\n");
         }
