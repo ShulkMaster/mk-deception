@@ -4,12 +4,12 @@
 #include "dolphin/vm.h"
 #include "runtime/asm_sequences.inc"
 
-typedef struct VMPageTableEntry {
+struct VMPageTableEntry {
     u32 virtual_page;
     u32 physical_page;
-} VMPageTableEntry;
+};
 
-static VMPageTableEntry* g_vmBasePageTable;
+static struct VMPageTableEntry* g_vmBasePageTable;
 static u32* g_vmBaseVMReversePageTable;
 static u8* g_vmBaseLockedPageTable;
 static void (*cbVMSwapPageIn)(u32);
@@ -21,7 +21,7 @@ void __VMBASEClearPageFromTLB(u32 virtual_address);
 void __VMBASESetVirtualAddressForPageInMRAM(u32 physical_page,
                                             u32 virtual_address);
 void VMBASESetPageLocked(u32 physical_page, BOOL locked);
-VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address);
+struct VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address);
 void __VMBASEInvalidateEntireTLB(void);
 void __VMBASESetSwapPageCallback(void (*callback)(u32));
 void __VMBASEInitPageTable(void);
@@ -43,15 +43,12 @@ void __VMBASEDSIExceptionHandler_SetBranchBack(void);
 void __VMBASEISIExceptionHandler_SetOriginalInstruction(void);
 void __VMBASEISIExceptionHandler_SetBranchBack(void);
 
+/* TODO: [breakthrough needed] 80.66666%; frame, signedness test and instruction scheduling differ. */
 void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
                 u32 pages_in_mram, BOOL enable_page_locking)
 {
     BOOL interrupts;
     u32 arena_bytes;
-
-    (void)isi_callback;
-    (void)pages_in_mram;
-    (void)enable_page_locking;
 
     if (g_baseInitialized == 0) {
         interrupts = OSDisableInterrupts();
@@ -82,15 +79,16 @@ void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
     }
 }
 
+/* TODO: [borked] 4.54545%; implementation remains a stub. */
 void VMBASEQuit(void)
 {
-    /* TODO: Missing canonical function implementation. */
 }
 
+/* TODO: [breakthrough needed] 62.18919%; frame and register scheduling differ. */
 void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
                              u32 physical_page)
 {
-    VMPageTableEntry* entry;
+    struct VMPageTableEntry* entry;
     BOOL interrupts;
 
     entry = __VMBASEVirtualAddrToPageTableAddr(virtual_address);
@@ -103,10 +101,11 @@ void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
     OSRestoreInterrupts(interrupts);
 }
 
+/* TODO: [breakthrough needed] 52.40000%; prologue and register scheduling differ. */
 void VMBASEClearPageTableEntry(u32 virtual_address, u32 physical_page)
 {
     BOOL interrupts;
-    VMPageTableEntry* entry;
+    struct VMPageTableEntry* entry;
 
     interrupts = OSDisableInterrupts();
     entry = __VMBASEVirtualAddrToPageTableAddr(virtual_address);
@@ -119,31 +118,29 @@ void VMBASEClearPageTableEntry(u32 virtual_address, u32 physical_page)
     OSRestoreInterrupts(interrupts);
 }
 
+/* TODO: [borked] 14.00000%; implementation remains a stub. */
 BOOL VMBASEIsPageValid(u32 virtual_address)
 {
-    (void)virtual_address;
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
+/* TODO: [borked] 14.00000%; implementation remains a stub. */
 BOOL VMBASEIsPageReferenced(u32 virtual_address)
 {
-    (void)virtual_address;
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
+/* TODO: [borked] 14.00000%; implementation remains a stub. */
 BOOL VMBASEIsPageDirty(u32 virtual_address)
 {
-    (void)virtual_address;
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
+/* TODO: [breakthrough needed] 69.50000%; prologue and register scheduling differ. */
 void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced)
 {
     BOOL interrupts;
-    VMPageTableEntry* entry;
+    struct VMPageTableEntry* entry;
 
     interrupts = OSDisableInterrupts();
     entry = __VMBASEVirtualAddrToPageTableAddr(virtual_address);
@@ -180,6 +177,7 @@ BOOL VMBASEIsPageLocked(u32 physical_page)
     return g_vmBaseLockedPageTable[physical_page];
 }
 
+/* TODO: [borked] 28.50000%; retained byte assignment omits retail Boolean normalization. */
 void VMBASESetPageLocked(u32 physical_page, BOOL locked)
 {
     g_vmBaseLockedPageTable[physical_page] = locked;
@@ -190,21 +188,22 @@ void __VMBASESetSwapPageCallback(void (*callback)(u32))
     cbVMSwapPageIn = callback;
 }
 
+/* TODO: [borked] 6.66667%; implementation remains a stub. */
 void __VMBASEInitPageTable(void)
 {
-    /* TODO: Missing canonical function implementation. */
 }
 
+/* TODO: [borked] 8.33333%; implementation remains a stub. */
 void __VMBASEInitLockedPageTable(void)
 {
-    /* TODO: Missing canonical function implementation. */
 }
 
+/* TODO: [borked] 8.33333%; implementation remains a stub. */
 void __VMBASEInitReversePageTable(void)
 {
-    /* TODO: Missing canonical function implementation. */
 }
 
+/* TODO: [breakthrough needed] 43.54651%; table-clearing loop shape and frame differ. */
 void __VMBASEInvalidatePageTable(void)
 {
     BOOL interrupts;
@@ -215,11 +214,12 @@ void __VMBASEInvalidatePageTable(void)
         g_vmBasePageTable[i].virtual_page = 0;
         g_vmBasePageTable[i].physical_page = 0;
     }
-    DCStoreRange(g_vmBasePageTable, 0x10000);
+    DCStoreRange(g_vmBasePageTable, 0x2000 * sizeof(*g_vmBasePageTable));
     __VMBASEInvalidateEntireTLB();
     OSRestoreInterrupts(interrupts);
 }
 
+/* TODO: [breakthrough needed] 38.79630%; table-clearing store and induction scheduling differ. */
 void __VMBASEInvalidateLockedPageTable(void)
 {
     u32 i;
@@ -229,15 +229,15 @@ void __VMBASEInvalidateLockedPageTable(void)
     }
 }
 
+/* TODO: [borked] 6.46667%; implementation remains a stub. */
 void *__VMBASEInvalidateReversePageTable(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address)
+/* TODO: [borked] 23.33333%; implementation remains a stub. */
+struct VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
@@ -273,9 +273,9 @@ asm void __VMBASEDSIServiceExceptionPrep(void)
 }
 #pragma pop
 
+/* TODO: [borked] 5.60000%; implementation remains a stub. */
 void *__VMBASEDSIServiceException(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
@@ -291,13 +291,13 @@ asm void __VMBASEISIServiceExceptionPrep(void)
 }
 #pragma pop
 
+/* TODO: [borked] 6.36364%; implementation remains a stub. */
 void *__VMBASEISIServiceException(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-/* TODO: [blocked] 3.89%; approved for a sequence, but MWCC 1.2.5n asm hits an internal
+/* TODO: [blocked] 3.88889%; approved for a sequence, but MWCC 1.2.5n asm hits an internal
  * compiler error on `lwz rX, code_label@l(rY)`; retail likely reads the patch slot from C. */
 void *__VMBASERestoreExceptionHandlers(void)
 {
