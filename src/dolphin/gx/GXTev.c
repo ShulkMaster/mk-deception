@@ -3,7 +3,7 @@
 
 #include "__gx.h"
 
-typedef struct GXTevColorOpEntry {
+struct GXTevColorOpEntry {
     u32 rid : 8;
     u32 dest : 2;
     u32 shift : 2;
@@ -14,9 +14,9 @@ typedef struct GXTevColorOpEntry {
     u32 selb : 4;
     u32 selc : 4;
     u32 seld : 4;
-} GXTevColorOpEntry;
+};
 
-typedef struct GXTevAlphaOpEntry {
+struct GXTevAlphaOpEntry {
     u32 rid : 8;
     u32 dest : 2;
     u32 shift : 2;
@@ -29,9 +29,9 @@ typedef struct GXTevAlphaOpEntry {
     u32 seld : 3;
     u32 swap : 2;
     u32 mode : 2;
-} GXTevAlphaOpEntry;
+};
 
-static GXTevColorOpEntry TEVCOpTableST0[5] = {
+static struct GXTevColorOpEntry TEVCOpTableST0[5] = {
     {192, 0, 0, 1, 0, 0, 15, 8, 10, 15},   // modulate
     {192, 0, 0, 1, 0, 0, 10, 8, 9, 15},    // decal
     {192, 0, 0, 1, 0, 0, 10, 12, 8, 15},   // blend
@@ -39,7 +39,7 @@ static GXTevColorOpEntry TEVCOpTableST0[5] = {
     {192, 0, 0, 1, 0, 0, 15, 15, 15, 10},  // passclr
 };
 
-static GXTevColorOpEntry TEVCOpTableST1[5] = {
+static struct GXTevColorOpEntry TEVCOpTableST1[5] = {
     {192, 0, 0, 1, 0, 0, 15, 8, 0, 15},   // modulate
     {192, 0, 0, 1, 0, 0, 0, 8, 9, 15},    // decal
     {192, 0, 0, 1, 0, 0, 0, 12, 8, 15},   // blend
@@ -47,7 +47,7 @@ static GXTevColorOpEntry TEVCOpTableST1[5] = {
     {192, 0, 0, 1, 0, 0, 15, 15, 15, 0},  // passclr
 };
 
-static GXTevAlphaOpEntry TEVAOpTableST0[5] = {
+static struct GXTevAlphaOpEntry TEVAOpTableST0[5] = {
     {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // modulate
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // decal
     {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // blend
@@ -55,7 +55,7 @@ static GXTevAlphaOpEntry TEVAOpTableST0[5] = {
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // passclr
 };
 
-static GXTevAlphaOpEntry TEVAOpTableST1[5] = {
+static struct GXTevAlphaOpEntry TEVAOpTableST1[5] = {
     {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // modulate
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0},  // decal
     {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // blend
@@ -73,11 +73,11 @@ void GXSetTevOp(GXTevStageID id, GXTevMode mode) {
     ASSERTMSGLINE(422, mode <= GX_PASSCLR, "GXSetTevOp: Invalid Tev Mode");
 
     if (id == GX_TEVSTAGE0) {
-        ctmp = (u32*)TEVCOpTableST0 + mode;
-        atmp = (u32*)TEVAOpTableST0 + mode;
+        ctmp = (u32*)&TEVCOpTableST0[mode];
+        atmp = (u32*)&TEVAOpTableST0[mode];
     } else {
-        ctmp = (u32*)TEVCOpTableST1 + mode;
-        atmp = (u32*)TEVAOpTableST1 + mode;
+        ctmp = (u32*)&TEVCOpTableST1[mode];
+        atmp = (u32*)&TEVAOpTableST1[mode];
     }
 
     tevReg = __GXData->tevc[id];
@@ -218,7 +218,7 @@ void GXSetTevColorS10(GXTevRegID id, GXColorS10 color) {
 
     CHECK_GXBEGIN(782, "GXSetTevColorS10");
     sRG = *(u32*)&color;
-    sBA = *((u32*)&color + 1);
+    sBA = *(u32*)&color.b;
 
     regRA = (0xE0 + id * 2) << 24;
     SET_REG_FIELD(789, regRA, 11,  0, (sRG >> 16) & 0x7FF);
