@@ -1,11 +1,13 @@
-typedef struct OSModuleInfo OSModuleInfo;
+#include "dolphin/os.h"
 
-typedef struct OSModuleQueue {
-    OSModuleInfo* head;
-    OSModuleInfo* tail;
-} OSModuleQueue;
+struct OSModuleInfo;
 
-extern OSModuleQueue __OSModuleInfoList : 0x800030C8;
+struct OSModuleQueue {
+    struct OSModuleInfo* head;
+    struct OSModuleInfo* tail;
+};
+
+extern struct OSModuleQueue __OSModuleInfoList : 0x800030C8;
 extern const void* __OSStringTable : 0x800030D0;
 
 void __OSModuleInit(void)
