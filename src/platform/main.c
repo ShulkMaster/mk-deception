@@ -44,7 +44,7 @@ float msecs_per_tick;
 int mode_of_play;
 int jmp_where_id;
 void *mab_generic_pdata;
-void *empty_pdata;
+MkHdr *empty_pdata;
 float game_speed;
 float inverse_game_speed;
 float sqrt_game_speed;
