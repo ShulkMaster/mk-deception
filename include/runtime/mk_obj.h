@@ -8,6 +8,8 @@
 #include "runtime/limb.h"
 #include "runtime/mk_obj_bone.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_obj_lists.h"
+#include "runtime/mk_obj_bone.h"
 #include "game/weapon_types.h"
 
 typedef struct  {
@@ -184,7 +186,6 @@ typedef struct MkSobjFlags08 {
     unsigned char bit0 : 1;
 } MkSobjFlags08;
 
-
 /*
  * Midway mksobj (partial) -- pebble/render/hide agree on atomic @ +0x14.
  * id in low 12 bits of id_flags; bit 0x80000000 used with priority 0x12.
@@ -290,8 +291,6 @@ typedef struct MkObjHideFlags {
     unsigned char pin_animation : 1; /* bit1 */
     unsigned char bit0 : 1;
 } MkObjHideFlags;
-
-
 
 /*
  * MkObj (partial) -- fields used by mk_obj + particle binds.
@@ -483,12 +482,20 @@ void sobj_set_transl_flag(MkSobj* sobj);
 Vec* sobj_get_world_pos(MkSobj* sobj);
 RpAtomic* obj_get_1st_atomic(MkObj* obj);
 void insert_bone_hierarchy_mkobj(MkObj* obj);
+void atomic_set_transl_flag(RpAtomic* atomic);
+void obj_set_rw_lights(MkObj* obj);
+void force_rw_lights(void);
+struct PlyrPdata;
+void mirror_guy(MkObj* source, MkObj* mirror, struct PlyrPdata* pdata);
+void render_fgnd_mkobjs(void);
+extern unsigned int uploaded_light_state;
 RwTexture* material_get_texture_pointer(
     RpMaterial* material, int use_matfx);
 void material_set_texture_pointer(
     RpMaterial* material, RwTexture* texture, int use_matfx);
 void* get_mkx_mem(void* allocation);
 MkObj* get_mkobj(int type, RpClump* clump);
+void destroy_clump(void* clump);
 MkObj* get_mkobj_frame(int type, RwFrame* frame);
 void destroy_mkobj(void* obj);
 
@@ -499,6 +506,9 @@ extern MkPtr* fgnd_mkobj_list;
 #endif
 
 /* Scale process data shared by its runtime owner and charge-up callers. */
+void start_obj_proc(void);
+void start_bone_hierarchy_proc(void);
+
 typedef struct ScaleScriptEntry {
     unsigned int flags;
     Vec scale;
