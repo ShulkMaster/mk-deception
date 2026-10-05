@@ -175,8 +175,6 @@ void* _rpGeometryOpen(void* instance, int offset, int size);
 void* _rpGeometryClose(void* instance, int offset, int size);
 void* _rpClumpOpen(void* instance, int offset, int size);
 void* _rpClumpClose(void* instance, int offset, int size);
-void* _rpSectorOpen(void* instance, int offset, int size);
-void* _rpSectorClose(void* instance, int offset, int size);
 void* _rpBinaryWorldOpen(void* instance, int offset, int size);
 void* _rpBinaryWorldClose(void* instance, int offset, int size);
 int _rpWorldObjRegisterExtensions(void);
@@ -406,14 +404,6 @@ RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
 RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
 int RpWorldRegisterPlugin(int, unsigned int, RwPluginObjectConstructor,
                               RwPluginObjectDestructor, RwPluginObjectCopy);
-int RpWorldSectorRegisterPlugin(
-    int size, unsigned int pluginID,
-    RwPluginObjectConstructor constructCB,
-    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-int RpWorldSectorRegisterPluginStream(
-    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
-    RwPluginDataChunkWriteCallBack writeCB,
-    RwPluginDataChunkGetSizeCallBack getSizeCB);
 int RpWorldPluginAttach(void);
 
 #endif

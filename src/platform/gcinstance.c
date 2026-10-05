@@ -2,7 +2,7 @@
 #include "runtime/cstring.h"
 #include "dolphin/gx.h"
 #include "rw/dltextur.h"
-#include "rw/dltoken.h"
+#include "gameware/dltoken.h"
 #include "rw/gamecube_globals.h"
 #include "rw/gamecube_texture.h"
 #include "rw/native_internal.h"

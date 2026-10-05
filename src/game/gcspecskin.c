@@ -2,7 +2,7 @@
 #include "dolphin/gx.h"
 #include "rw/alphapass.h"
 #include "rw/dltextur.h"
-#include "rw/dltoken.h"
+#include "gameware/dltoken.h"
 #include "rw/gamecube_globals.h"
 #include "rw/gcspecular.h"
 #include "rw/rpworld_types.h"
