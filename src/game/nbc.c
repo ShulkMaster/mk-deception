@@ -1,23 +1,18 @@
 #include "game/nbc.h"
 #include "platform/io.h"
+#include "runtime/utils.h"
 
-typedef struct TextTableInfo {
+struct TextTableInfo {
     const char** strings;
     int count;
-} TextTableInfo;
+};
 
 extern const char* gc_mc_msg_text[];
-int get_language(void);
 
-/*
- * Retail @stringBase0 + nbc_general_text + text_table_info live in this TU.
- * Empty fallback is stringBase0 + 0x1A62 (a single space).
- */
 static const char stringBase0[] =
 #include "game/nbc_stringBase0.inc"
 ;
 
-/* Separate four-byte zero gap following the retail 0x1A64-byte pool. */
 const unsigned int gap_04_80313324_rodata = 0;
 
 #define nbc_empty_string (&stringBase0[0x1A62])
@@ -26,7 +21,7 @@ const char* nbc_general_text[] = {
 #include "game/nbc_general_text.inc"
 };
 
-TextTableInfo text_table_info[] = {
+struct TextTableInfo text_table_info[] = {
     {gc_mc_msg_text, 0x91},
     {nbc_general_text, 0x4E},
 };
