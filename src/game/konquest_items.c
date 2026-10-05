@@ -1,49 +1,46 @@
 #include "game/konquest_items.h"
+#include "game/konquest.h"
 
 #include "game/nbc.h"
+#include "game/plyrprofile.h"
 #include "runtime/asset.h"
-#include "runtime/string_bank.h"
+#include "runtime/mk_cmdscript.h"
 #include "runtime/utils.h"
+#include "runtime/cstring.h"
 
 #define konquest_items_string_base "\0" "0"
 
-typedef struct CommonProfileSave {
-    char pad00[0x38]; /* +0x00 */
-    int kills;        /* +0x38 */
-    int fights_won;   /* +0x3C */
-    int fights_lost;  /* +0x40 */
-    int koins;        /* +0x44 */
-    int souls;        /* +0x48 */
-    int secrets;      /* +0x4C */
-} CommonProfileSave;
+struct CommonProfileSave {
+    char pad00[0x38];
+    int kills;
+    int fights_won;
+    int fights_lost;
+    int koins;
+    int souls;
+    int secrets;
+};
 
-typedef struct KonquestProfileSave {
-    char pad00[0x24];                         /* +0x000 */
-    unsigned char flags_300[38];              /* +0x024, 300 bits */
-    char pad4A[0x1E];                         /* +0x04A */
-    int last_character_trained_with;          /* +0x068 */
-    unsigned char trained_characters[0x1C2];  /* +0x06C */
-    unsigned char konquest_bytes[0x18];       /* +0x22E */
-    unsigned char flags_200_a[25];            /* +0x246, 200 bits */
-    unsigned char flags_200_b[25];            /* +0x25F, 200 bits */
-    unsigned char flags_200_c[25];            /* +0x278, 200 bits */
-    unsigned char inventory_bits[];           /* +0x291 */
-} KonquestProfileSave;
+struct KonquestProfileSave {
+    char pad00[0x24];
+    unsigned char flags_300[38];
+    char pad4A[0x1E];
+    int last_character_trained_with;
+    unsigned char trained_characters[0x1C2];
+    unsigned char konquest_bytes[0x18];
+    unsigned char flags_200_a[25];
+    unsigned char flags_200_b[25];
+    unsigned char flags_200_c[25];
+    unsigned char inventory_bits[];
+};
 
-typedef struct KonquestPdata {
-    char pad00[0x308];               /* +0x000 */
-    unsigned char pui_status_bits[]; /* +0x308 */
-} KonquestPdata;
+struct KonquestPdata {
+    char pad00[0x308];
+    unsigned char pui_status_bits[];
+};
 
-extern unsigned char p1_profile[];
-extern CommonProfileSave* p1_profile_common;
-extern KonquestProfileSave* p1_profile_konquest;
-extern KonquestPdata* konquest_pdata;
-
-int is_mark_as_unlocked(void* profile, int category, int character);
-int get_num_puis(void);
-int get_pui_inventory_bit_index(PuiItem* item);
-int strcmp(const char* a, const char* b);
+extern struct CommonProfileSave* p1_profile_common;
+extern struct KonquestProfileSave* p1_profile_konquest;
+extern struct KonquestPdata* konquest_pdata;
 
 int get_last_character_trained_with(void) {
     int count;
@@ -59,7 +56,7 @@ int get_last_character_trained_with(void) {
             if (character >= 0x2C) {
                 character = 0;
             }
-            if (is_mark_as_unlocked(p1_profile, 1, character) != 0) {
+            if (is_mark_as_unlocked(&p1_profile, 1, character) != 0) {
                 count++;
             }
         }
@@ -185,8 +182,6 @@ int get_number_items_in_inventory(void) {
     return count;
 }
 
-/* TODO: [review] switch shape is forced by retail's 1/13/7 compare tree: 0+default, 1, 2..6
- * and 7..12 must be separate targets in this order; 16 alternatives regressed. */
 void add_to_konq_profile_value(int type, int value) {
     int current;
 
