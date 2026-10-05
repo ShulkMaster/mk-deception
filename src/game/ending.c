@@ -1,5 +1,7 @@
 #include "game/game_info.h"
+#include "game/ending.h"
 #include "game/minigames.h"
+#include "game/menu.h"
 #include "mw/mwScreenEngineGlue.h"
 #include "runtime/fonts.h"
 #include "runtime/image.h"
@@ -10,86 +12,77 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 #include "runtime/section.h"
+#include "runtime/sound.h"
 #include "runtime/utils.h"
 #include "platform/gcutils.h"
 #include "platform/io.h"
 #include "platform/main.h"
 #include "platform/main_jump.h"
+#include "platform/display_metrics.h"
+#include "runtime/cstring.h"
 
 #pragma use_lmw_stmw on
 
-extern int screen_width;
 extern int text_window_state;
 extern float p_show_text_window(void);
-extern float p_main_menu(void);
-extern float p_credits_screen(void);
 extern int char_for_ending;
 extern int winner_for_ending;
 extern MkFileEntry bio_text_file_table;
 extern MkFileEntry endings_file_table;
 extern MkFileInfo sec_ending_champion;
 extern int champion_bad_guys[2];
-void setup_sound_banks(int bank);
-void wait_for_sound_banks_to_load(void);
-int snd_req(int sound_id);
 void snd_stop_all(void);
 void run_ending(int fighter);
 float p_character_ending_sequence(void);
-char* strcpy(char* dest, const char* src);
 
-typedef struct EndingScriptPdata {
+struct EndingScriptPdata {
     MkHdr hdr;
     unsigned int func_index;
     ScriptSlot* script;
-} EndingScriptPdata;
+};
 
-typedef union EndingScriptPdataOut {
+union EndingScriptPdataOut {
     MkHdr* hdr;
-    EndingScriptPdata* script;
-} EndingScriptPdataOut;
+    struct EndingScriptPdata* script;
+};
 
-typedef union EndingObjectRef {
-    MkHdr* hdr;
-    StringObj* string;
-} EndingObjectRef;
-
-typedef struct EndingTextWindowPdata {
-    MkHdr hdr;             /* +0x000 */
-    int x;                 /* +0x008 */
-    int y;                 /* +0x00C */
-    int font;              /* +0x010 */
-    int wrap_width;        /* +0x014 */
-    int field_018;         /* +0x018 */
-    int oid;               /* +0x01C */
-    int duration;          /* +0x020 */
-    int field_024;         /* +0x024 */
-    int alignment;         /* +0x028 */
-    int field_02C;         /* +0x02C */
-    int field_030;         /* +0x030 */
-    int field_034;         /* +0x034 */
-    char text[0x4B0];      /* +0x038 */
-    int field_4E8;         /* +0x4E8 */
-    int string_id;         /* +0x4EC */
-    char pad4F0[0x70];
-} EndingTextWindowPdata; /* 0x560 */
-
-typedef union EndingTextWindowPdataOut {
-    MkHdr* hdr;
-    EndingTextWindowPdata* pdata;
-} EndingTextWindowPdataOut;
-
-typedef struct EndingScrollPdata {
+struct EndingTextWindowPdata {
     MkHdr hdr;
-    float step;        /* +0x08 */
-    float accumulator; /* +0x0C */
-} EndingScrollPdata;
+    int x;
+    int y;
+    int font;
+    int wrap_width;
+    int field_018;
+    int oid;
+    int duration;
+    int field_024;
+    int alignment;
+    int field_02C;
+    int field_030;
+    int field_034;
+    char text[0x4B0];
+    int field_4E8;
+    int string_id;
+    char pad4F0[0x70];
+};
 
-typedef struct EndingScreenObjItem {
+union EndingTextWindowPdataOut {
+    MkHdr* hdr;
+    struct EndingTextWindowPdata* pdata;
+};
+
+struct EndingScrollPdata {
+    MkHdr hdr;
+    float step;
+    float accumulator;
+};
+
+struct EndingScreenObjItem {
     ScreenObj* object;
     unsigned int instance;
-} EndingScreenObjItem;
+};
 
-typedef struct EndingDataEntry {
+struct EndingDataEntry {
     int fighter;
     MkFileInfo* art_section;
     const char* script_function;
@@ -101,14 +94,14 @@ typedef struct EndingDataEntry {
     const char* image_3a;
     const char* image_3b;
     int speech_id;
-} EndingDataEntry; /* 0x2C */
+};
 
-extern EndingScreenObjItem ending_image_1a_item;
-extern EndingScreenObjItem ending_image_1b_item;
-extern EndingScreenObjItem ending_image_2a_item;
-extern EndingScreenObjItem ending_image_2b_item;
-extern EndingScreenObjItem ending_image_3a_item;
-extern EndingScreenObjItem ending_image_3b_item;
+extern struct EndingScreenObjItem ending_image_1a_item;
+extern struct EndingScreenObjItem ending_image_1b_item;
+extern struct EndingScreenObjItem ending_image_2a_item;
+extern struct EndingScreenObjItem ending_image_2b_item;
+extern struct EndingScreenObjItem ending_image_3a_item;
+extern struct EndingScreenObjItem ending_image_3b_item;
 extern MkFileInfo sec_ending_ashrah;
 extern MkFileInfo sec_ending_baraka;
 extern MkFileInfo sec_ending_boraicho;
@@ -136,10 +129,9 @@ extern MkFileInfo sec_ending_sindel;
 extern MkFileInfo sec_ending_subzero;
 extern MkFileInfo sec_ending_tanya;
 
-extern EndingDataEntry ending_data_table[26];
+extern struct EndingDataEntry ending_data_table[26];
 extern int ending_speech;
 extern int f_ending_speech_paused;
-
 
 static int scrolling_text_string_count;
 
@@ -150,7 +142,7 @@ static float p_scrolling_text(void);
 
 /* TODO: [breakthrough] 73.30%; typed 0x560-byte text-window pdata complete; allocation/FP shape differs. */
 void ending_show_text(int string_id, int duration) {
-    EndingTextWindowPdataOut pdata;
+    union EndingTextWindowPdataOut pdata;
     const char* text;
     int width;
 
@@ -161,8 +153,8 @@ void ending_show_text(int string_id, int duration) {
     text = get_string_by_id(string_id | 0x20000);
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(EndingTextWindowPdata), &pdata.hdr) != 0) {
-        zero_pdata_payload(sizeof(EndingTextWindowPdata), pdata.hdr);
+            sizeof(struct EndingTextWindowPdata), &pdata.hdr) != 0) {
+        zero_pdata_payload(sizeof(struct EndingTextWindowPdata), pdata.hdr);
         text_window_state = 0;
         pdata.pdata->field_4E8 = 0;
         pdata.pdata->field_018 = 0;
@@ -185,7 +177,7 @@ void ending_show_text(int string_id, int duration) {
 
 /* TODO: [breakthrough] 79.94%; credits lifecycle recovered; repeated state stores and process-pdata allocation shape differ. */
 float p_credits_screen(void) {
-    EndingScrollPdata* scroll_pdata;
+    struct EndingScrollPdata* scroll_pdata;
     ScriptSlot* credits_script;
     MkHdr* pdata_hdr;
 
@@ -226,9 +218,9 @@ float p_credits_screen(void) {
         0x209E,
         0x1F,
         p_scrolling_text,
-        sizeof(EndingScrollPdata),
+        sizeof(struct EndingScrollPdata),
         &pdata_hdr);
-    scroll_pdata = (EndingScrollPdata*)pdata_hdr;
+    scroll_pdata = (struct EndingScrollPdata*)pdata_hdr;
     scroll_pdata->accumulator = 0.0f;
     scroll_pdata->step = 0.5f * game_speed;
     _create_mkproc_generic_tinystack(
@@ -292,17 +284,17 @@ void credits_add_text(const char* center_text, const char* right_text, int monoc
 }
 
 static void count_scrolling_text_strings(MkHdr* object) {
-    EndingObjectRef text;
+    StringObj* text;
 
-    if (object->vtbl == &vtbl_mkpdata_string_obj) {
-        text.hdr = object;
+    if (object->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
+        text = (StringObj*)object;
     } else {
-        text.string = 0;
+        text = 0;
     }
-    if (text.string == 0) {
+    if (text == 0) {
         return;
     }
-    if (text.string->oid != 0x4008) {
+    if (text->oid != 0x4008) {
         return;
     }
     scrolling_text_string_count++;
@@ -311,9 +303,9 @@ static void count_scrolling_text_strings(MkHdr* object) {
 static void scroll_text_strings(MkHdr* object);
 
 static float p_scrolling_text(void) {
-    EndingScrollPdata* scroll;
+    struct EndingScrollPdata* scroll;
 
-    scroll = (EndingScrollPdata*)apdata;
+    scroll = (struct EndingScrollPdata*)apdata;
     scroll->accumulator += scroll->step;
     if (scroll->accumulator >= 1.0f) {
         scroll->accumulator -= 1.0f;
@@ -323,26 +315,26 @@ static float p_scrolling_text(void) {
 }
 
 static void scroll_text_strings(MkHdr* object) {
-    EndingObjectRef text;
+    StringObj* text;
 
-    if (object->vtbl == &vtbl_mkpdata_string_obj) {
-        text.hdr = object;
+    if (object->vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
+        text = (StringObj*)object;
     } else {
-        text.string = 0;
+        text = 0;
     }
 
-    if (text.string != 0 && text.string->oid == 0x4008) {
-        text.string->render_y++;
-        if (text.string->render_y >= 0x1E0 && object->instance != 0) {
-            ((void (*)(MkHdr*))object->vtbl->destroy)(object);
+    if (text != 0 && text->oid == 0x4008) {
+        text->render_y++;
+        if (text->render_y >= 0x1E0 && object->instance != 0) {
+            object->typed_vtbl->destroy(object);
         }
     }
 }
 
 static float p_ending_script_in_proc(void) {
-    EndingScriptPdata* pdata;
+    struct EndingScriptPdata* pdata;
 
-    pdata = (EndingScriptPdata*)pdata_of_proc(aproc);
+    pdata = (struct EndingScriptPdata*)pdata_of_proc(aproc);
     if (pdata->func_index == 0) {
         return -1.0f;
     }
@@ -354,7 +346,7 @@ static float p_ending_script_in_proc(void) {
 static inline int is_champion_bad_guy(int champion) {
     int index;
 
-    for (index = 0; index < 2; index++) {
+    for (index = 0; index < sizeof(champion_bad_guys) / sizeof(champion_bad_guys[0]); index++) {
         if (champion == champion_bad_guys[index]) {
             return 1;
         }
@@ -620,7 +612,7 @@ float p_character_ending_sequence(void) {
 static inline int find_ending_index(int fighter) {
     int index;
 
-    for (index = 0; index < 26; index++) {
+    for (index = 0; index < sizeof(ending_data_table) / sizeof(ending_data_table[0]); index++) {
         if (fighter == ending_data_table[index].fighter) {
             return index;
         }
@@ -633,7 +625,7 @@ void run_ending(int fighter) {
     ScreenObj* image;
     ScriptSlot* script;
     MkProc* ending_proc;
-    EndingScriptPdataOut pdata;
+    union EndingScriptPdataOut pdata;
     int script_function;
     int screen_x;
     int index;
@@ -732,7 +724,7 @@ void run_ending(int fighter) {
         0x20A0,
         0x1F,
         p_ending_script_in_proc,
-        sizeof(EndingScriptPdata),
+        sizeof(struct EndingScriptPdata),
         &pdata.hdr);
     if (ending_proc != 0 && pdata.script != 0) {
         pdata.script->func_index = script_function;
@@ -786,7 +778,7 @@ const char* get_ending_thumbnail_name(int fighter) {
     return ending_data_table[index].thumbnail;
 }
 
-EndingDataEntry ending_data_table[26] = {
+struct EndingDataEntry ending_data_table[26] = {
     {7, &sec_ending_ashrah, "run_ashrah_ending", "GICO_ENDING_ASHRAH02",
      "ENDING_ASHRAH1_A", "ENDING_ASHRAH1_B", "ENDING_ASHRAH2_A",
      "ENDING_ASHRAH2_B", 0, 0, 0x1A7F},
