@@ -2,19 +2,19 @@
 
 #include "game/konquest_save.h"
 #include "game/nbc.h"
+#include "game/mcardmsg.h"
 #include "game/plyrprofile.h"
 #include "platform/gcmcard.h"
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
+#include "runtime/sound.h"
+#include "mw/mwScreenEngineGlue.h"
+#include "runtime/utils.h"
 
 #pragma use_lmw_stmw on
 
-void pause_all_game_sounds(void);
-void unpause_all_game_sounds(void);
-void fire_screen_studio_event(int id, int arg);
-int get_mode_of_play(void);
 void mcard_msg_end(void);
 void mcard_msg_read(int device);
 void mcard_msg_save(int device);
@@ -32,9 +32,7 @@ void mcard_msg_profile_reset_confirmation(void);
 void mcard_msg_cant_enter_konquest(int device, const char* profileName);
 void update_storage_status_for_one_device(int device);
 
-extern int f_writing_to_memcard;
 extern char konq_region_data_buffer[0x1F54];
-extern PlayerProfile p1_profile;
 extern int p1_profile_device;
 extern int p1_profile_slot;
 extern int msg_cant_enter_konquest_answer;
@@ -54,18 +52,18 @@ static char left_full_card_space_string[0x32];
 ProfileUnlockSummary gp_data;
 StorageDevice storage_status[STORAGE_MAX_DEVICES];
 
-static int format_request_flag[2];
+static int format_request_flag[2] = {0, 0};
 static int states_when_device_full[1] = {STORAGE_STATUS_FULL};
 static int states_when_device_unformatted[1] = {STORAGE_STATUS_UNFORMATTED};
 
-void* p1_profile_common;
-void* p2_profile_common;
-void* p1_profile_konquest;
-void* p2_profile_konquest;
-int g_bMemCardScreensDisabled;
-static int wls_device_cursor;
-int mu_access_progress;
 static int gap_08_80510D6C_sbss;
+int mu_access_progress;
+static int wls_device_cursor;
+int g_bMemCardScreensDisabled;
+void* p2_profile_konquest;
+void* p1_profile_konquest;
+void* p2_profile_common;
+void* p1_profile_common;
 
 static const float kOne = 1.0f;
 static const float kThree = 3.0f;
@@ -74,10 +72,10 @@ static const float kThree = 3.0f;
 #define SAVE_PROFILE_STRIDE 0xFAA0
 #define SAVE_EVENT_PROGRESS 0x1FBB
 
-typedef struct KonquestRegionStateView {
+struct KonquestRegionStateView {
     unsigned char pad00[0x5D];
     unsigned char field_0x5D;
-} KonquestRegionStateView;
+};
 
 static inline char* storage_device_name(int device) {
     char* name = (char*)STR_SPACE;
@@ -274,12 +272,18 @@ static inline char* storage_device_display_name(int device) {
     return name;
 }
 
-/* TODO: [near miss] 93.89%; empty-name pool address is scheduled before the
- * cursor load; likely needs the anonymous readonly string pool. */
 char* get_right_storage_device_name(void) {
+    char* name = (char*)STR_EMPTY_NAME;
     int device = wls_device_cursor + 1;
 
-    return storage_device_display_name(device);
+    if (device < 0 || device >= 2) {
+        return name;
+    }
+    name = storage_device_name(device);
+    if (strlen(name) == 0) {
+        name = (char*)get_device_reference_name(device);
+    }
+    return name;
 }
 
 char* get_left_storage_device_space_needed(void) {
@@ -455,14 +459,14 @@ void reset_storage_device_status_structure(int device) {
 
     if (device >= 0 && device < STORAGE_MAX_DEVICES) {
         base = DEVICE_AT(device);
-    base->status = -1;
-    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        base->inUse[i] = 0;
-        set_profile_to_default((PlayerProfile*)&base->profiles[i]);
-    }
-    DEVICE_AT(device)->profileCount = 0;
-    summarize_unlocked_items();
-    set_gsettings_to_default(&base->settings);
+        base->status = -1;
+        for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+            base->inUse[i] = 0;
+            set_profile_to_default((PlayerProfile*)&base->profiles[i]);
+        }
+        DEVICE_AT(device)->profileCount = 0;
+        summarize_unlocked_items();
+        set_gsettings_to_default(&base->settings);
     }
 }
 
@@ -563,7 +567,7 @@ int load_konquest_region_from_memcard_w_error(
             }
             if (result == 0 &&
                 validate_region_buffer(
-                    ((KonquestRegionStateView*)p1_profile_konquest)->field_0x5D) == 0) {
+                    ((struct KonquestRegionStateView*)p1_profile_konquest)->field_0x5D) == 0) {
                 region_data_corruption_message_handler();
             }
             mcard_msg_end();
@@ -650,11 +654,10 @@ int load_from_memcard_w_error(int device, int mode, void* settings, char* cardNa
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 98.18%; switch emits a dead branch after the mode-6 fallthrough. */
 void end_save_message(int mode, int result, int device, int flag) {
     switch (mode) {
     case 5:
-        return;
+        break;
     case 3:
         if (result == 0) {
             mcard_msg_create_successful();
@@ -996,10 +999,17 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 98.24%; loop base/index coloring remains; stop at coloring. */
-void insert_mu(int device, int arg1, int arg2) {
-    StorageDevice* base;
+static inline void name_empty_storage_profiles(StorageDevice* base) {
     int i;
+
+    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+        if (base->profiles[i].present == 0) {
+            strcpy(base->profiles[i].name, nbc_find_text(7, 1));
+        }
+    }
+}
+
+void insert_mu(int device, int arg1, int arg2) {
 
     if (g_bMemCardScreensDisabled == 1) {
         return;
@@ -1008,15 +1018,10 @@ void insert_mu(int device, int arg1, int arg2) {
         reset_storage_device_status_structure(device);
         return;
     }
-    base = DEVICE_AT(device);
-    load_from_memcard_w_error(device, 2, &base->settings, base->name, STORAGE_NAME_LEN,
-                              &base->freeBlocks, &base->freeBytes);
-    if (device >= 0 && device < 2 && base->status == 0) {
-        for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-            if (base->profiles[i].present == 0) {
-                strcpy(base->profiles[i].name, nbc_find_text(7, 1));
-            }
-        }
+    load_from_memcard_w_error(device, 2, &DEVICE_AT(device)->settings, DEVICE_AT(device)->name, STORAGE_NAME_LEN,
+                              &DEVICE_AT(device)->freeBlocks, &DEVICE_AT(device)->freeBytes);
+    if (device >= 0 && device < 2 && DEVICE_AT(device)->status == 0) {
+        name_empty_storage_profiles(DEVICE_AT(device));
     }
 }
 
