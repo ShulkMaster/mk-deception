@@ -1,0 +1,4 @@
+[submodule "extern/gameware"]
+	path = extern/gameware
+	url = https://github.com/ShulkMaster/gameware.git
+	branch = main
