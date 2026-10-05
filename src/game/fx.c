@@ -1,9 +1,15 @@
 #include "game/ground_fx.h"
+#include "game/fx.h"
 #include "runtime/asset.h"
 #include "game/game_info.h"
 #include "game/moveset.h"
 #include "game/specular.h"
+#include "game/moves.h"
 #include "libmkparticle/compile.h"
+#include "libmkparticle/texture_anim.h"
+#include "libmkparticle/emitter.h"
+#include "libmkparticle/behavior.h"
+#include "libmkparticle/spawn.h"
 #include "runtime/cam.h"
 #include "runtime/image.h"
 #include "runtime/light.h"
@@ -13,9 +19,11 @@
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/section.h"
+#include "runtime/sound.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
 #include "platform/io.h"
+#include "platform/display_metrics.h"
 
 #define YINYANG_LENSFLARE_PID 0x3019
 #define FREEZE_TEXTURE_HANDLE 0x10005
@@ -24,76 +32,60 @@
 /* Retail TU-local; its body remains in the split assembly. */
 static void apply_special_fx_to_player(void* texture);
 
-typedef struct FreezeLightPdata {
+struct FreezeLightPdata {
     MkHdr hdr;
     PlyrMirrorObjLatch* light;
     MkObj* player_object;
     PlyrPdata* player;
-} FreezeLightPdata;
+};
 
-typedef struct FxRayPlane FxRayPlane;
+struct FxRayPlane;
 
-typedef struct LensflarePdata {
+struct LensflarePdata {
     MkHdr hdr;
     const Vec* sun_position;
     const struct LensFlareDefinition* lens_data;
-    const FxRayPlane* obstructions;
+    const struct FxRayPlane* obstructions;
     int obstruction_count;
-} LensflarePdata;
+};
 
-typedef struct LensFlareDefinition {
+struct LensFlareDefinition {
     float line_position;
     const char* texture_name;
-} LensFlareDefinition;
+};
 
-typedef struct LensFlareEntry {
+struct LensFlareEntry {
     ScreenObj* object;
     float line_position;
     float half_height;
     float half_width;
-} LensFlareEntry;
+};
 
-typedef struct LensFlareData {
-    LensFlareEntry entries[10];
+struct LensFlareData {
+    struct LensFlareEntry entries[10];
     int inserted;
     int count;
-} LensFlareData;
+};
 
-typedef struct FxProcTransferVtable {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
-    MkVtblFn fn3;
-    MkProcDestroyFn destroy;
-    MkProcFn dispatch;
-    MkProcFn sleep;
-    MkProcFn system_stack;
-    MkProcFn local_stack;
-    void (*transfer_sleep)(MkProcEntryFn entry, MkProc* proc, float ticks);
-} FxProcTransferVtable;
+struct FxScreenLoadFlagBits {
+    unsigned char bit7 : 1;
+    unsigned char bit6 : 1;
+    unsigned char reverse : 1; /* bit5 */
+    unsigned char bit4 : 1;
+    unsigned char alternate : 1; /* bit3 */
+    unsigned char low_bits : 3;
+    unsigned char padding[3];
+};
 
-typedef union FxScreenLoadFlags {
+union FxScreenLoadFlags {
     int value;
-    struct {
-        unsigned char bit7 : 1;
-        unsigned char bit6 : 1;
-        unsigned char reverse : 1; /* bit5 */
-        unsigned char bit4 : 1;
-        unsigned char alternate : 1; /* bit3 */
-        unsigned char low_bits : 3;
-        unsigned char padding[3];
-    } bits;
-} FxScreenLoadFlags;
+    struct FxScreenLoadFlagBits bits;
+};
 
-typedef struct FxScreenObjLatch {
+struct FxScreenObjLatch {
     ScreenObj* object;
     unsigned int instance;
-} FxScreenObjLatch;
-
-typedef struct FxHdrLatch {
-    MkHdr* object;
-    unsigned int instance;
-} FxHdrLatch;
+};
 
 struct FxRayPlane {
     int axis;
@@ -104,14 +96,14 @@ struct FxRayPlane {
 
 static const char fx_string_base[228];
 
-const LensFlareDefinition yinyang_lens_data[] = {
+const struct LensFlareDefinition yinyang_lens_data[] = {
     { -0.65f, &fx_string_base[0] }, { -0.5f, &fx_string_base[11] },
     { -0.35f, &fx_string_base[22] }, { -0.08f, &fx_string_base[33] },
     { 0.19f, &fx_string_base[33] }, { 0.5f, &fx_string_base[45] },
     { 0.75f, &fx_string_base[56] }, { 1.0f, &fx_string_base[67] },
     { 0.0f, 0 },
 };
-const LensFlareDefinition courtyard_lens_data[] = {
+const struct LensFlareDefinition courtyard_lens_data[] = {
     { -0.65f, &fx_string_base[78] }, { -0.5f, &fx_string_base[89] },
     { -0.35f, &fx_string_base[100] }, { -0.08f, &fx_string_base[111] },
     { 0.19f, &fx_string_base[111] }, { 0.5f, &fx_string_base[123] },
@@ -122,13 +114,13 @@ static float lensflare_proc2(void);
 static float lensflare_proc(void);
 static float fighting_style_sign_proc(void);
 
-typedef struct FightingStyleSignPdata {
+struct FightingStyleSignPdata {
     MkHdr hdr;
     GlobalMoveset* moveset;
     int player;
-} FightingStyleSignPdata;
+};
 
-typedef struct FxPfxDefinition {
+struct FxPfxDefinition {
     unsigned int flags;
     int field_04;
     int field_08;
@@ -158,46 +150,28 @@ typedef struct FxPfxDefinition {
     int lifetime_minimum;
     int lifetime_maximum;
     PfxInitCb initialize;
-} FxPfxDefinition;
+};
 
-
-
-extern int screen_width;
-extern int screen_height;
 ScreenObj* player_fstyle_sign[2] = { 0, 0 };
-static LensFlareData flare_data;
+static struct LensFlareData flare_data;
 PlyrMirrorObjLatch p1_freeze_light_item;
 PlyrMirrorObjLatch p2_freeze_light_item;
 FxHdrLatch p1_freeze_proc_item;
 FxHdrLatch p2_freeze_proc_item;
 GroundFxCallback small_ground_fx;
 GroundFxCallback large_ground_fx;
-static FxScreenObjLatch p1_skewer_item;
-static FxScreenObjLatch p1_skewer_tip_item;
-static FxScreenObjLatch p2_skewer_item;
-static FxScreenObjLatch p2_skewer_tip_item;
+static struct FxScreenObjLatch p1_skewer_item;
+static struct FxScreenObjLatch p1_skewer_tip_item;
+static struct FxScreenObjLatch p2_skewer_item;
+static struct FxScreenObjLatch p2_skewer_tip_item;
 static int f_p1_showing_fatatality;
 static int f_p2_showing_fatatality;
 static int f_p1_show_fatality_off;
 static int f_p2_show_fatality_off;
 extern int check_for_winner(void);
-extern int get_fatality_available_flag(void);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern MkPtr* freeze_light_list;
 extern PlyrPdata* his_pdata;
-extern int snd_req(int sound_id);
-extern PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
-extern void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
-extern void pfx_texture_animate(PfxVm* vm, int texture_width, int frame_width,
-                                int frame_height, int frame_count, float frame_time);
-extern void* pfx_behavior(PfxVm* vm, int emitter_index);
-extern void pfxvm_kill_on_intersect_plane_x(void* behavior, float plane);
-extern void pfxvm_kill_on_intersect_plane_y(void* behavior, float plane);
-extern void pfxvm_kill_on_intersect_plane_z(void* behavior, float plane);
-extern void pfxvm_spawn_line_1f(
-    PfxEmitter* emitter, int field, float minimum, float maximum);
-extern void pfxvm_kill_on_greater(
-    void* behavior, int field, float value);
 double __fabs(double value);
 static RpMaterial* material_set_specular(RpMaterial* material,
                                          void* data);
@@ -208,24 +182,24 @@ int FSTYLE_RGHT_START_X = 0x280;
 int SKEWER_LEFT_OVERHANG = 0x14;
 int SKEWER_RIGHT_OVERHANG = 0xA;
 
-typedef struct FxFreezeLightDefinition {
+struct FxFreezeLightDefinition {
     int type;
     MkProcEntryFn proc;
-    FxScreenLoadFlags flags;
+    union FxScreenLoadFlags flags;
     float color[4];
     float field_1C;
     float field_20;
     float field_24;
-} FxFreezeLightDefinition;
+};
 
-FxFreezeLightDefinition plyr_freeze_light = {
+struct FxFreezeLightDefinition plyr_freeze_light = {
     3, 0, 0x20,
     { 1.0f, 1.0f, 1.0f, 1.0f },
     0.0f, 0.0f, 0.0f,
 };
 Vec sun = { 0.0f, 0.0f, 0.0f };
 Vec yinyang_sun_pos = { -97.4000015f, 58.0f, -29.0f };
-FxRayPlane yinyang_flare_obstructions[3] = {
+struct FxRayPlane yinyang_flare_obstructions[3] = {
     { 0, -15.0f, { -15.0f, 0.0f, -2.8f },
       { -15.0f, 8.0f, 2.8f } },
     { 0, -39.8f, { -39.8f, 0.0f, 0.1f },
@@ -234,14 +208,16 @@ FxRayPlane yinyang_flare_obstructions[3] = {
       { -39.8f, 14.0f, 7.5f } },
 };
 Vec courtyard_sun_pos = { 105.993f, 79.428f, 259.765f };
-FxRayPlane courtyard_flare_obstructions[1] = {
+struct FxRayPlane courtyard_flare_obstructions[1] = {
     { 2, 22.25f, { -7.75f, 0.0f, 22.25f },
       { 8.16f, 9.55f, 22.25f } },
 };
 
 #pragma dont_inline on
+/* TODO: [near miss] 97.97%; axis load/compare precede the zero-vector copy;
+ * six setup-order rows remain; intersection body agrees. */
 static int rayintersection(
-    const Vec* origin, const Vec* direction, const FxRayPlane* plane) {
+    const Vec* origin, const Vec* direction, const struct FxRayPlane* plane) {
     Vec intersection = { 0.0f, 0.0f, 0.0f };
     float distance;
 
@@ -302,13 +278,8 @@ static const char fx_string_base[228] =
     "Tried to unfreeze a player who is NOT frozen!!\0"
     "TELE_ENERGY\0FX.C-created";
 
-
-
-
-
-
 static inline int lensflare_sun_blocked(
-    const FxRayPlane* const* planes, int count) {
+    const struct FxRayPlane* const* planes, int count) {
     CameraObj* camera;
     Vec direction;
     int blocked;
@@ -334,9 +305,9 @@ static inline int lensflare_sun_blocked(
 
 /* TODO: [breakthrough] 71.72%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
 static float lensflare_proc2(void) {
-    LensflarePdata* pdata;
+    struct LensflarePdata* pdata;
     CameraObj* camera;
-    LensFlareEntry* flare;
+    struct LensFlareEntry* flare;
     Vec angles;
     Vec direction;
     float horizontal;
@@ -348,7 +319,7 @@ static float lensflare_proc2(void) {
     int blocked;
     int index;
 
-    pdata = (LensflarePdata*)apdata;
+    pdata = (struct LensflarePdata*)apdata;
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (camera == 0) {
@@ -388,12 +359,12 @@ static float lensflare_proc2(void) {
                      (horizontal * flare->line_position)) +
                     (float)(screen_width / 2) - flare->half_width;
                 if (flare->object != 0) {
-                    flare->object->x = (int)screen_x;
+                    flare->object->x = screen_x;
                     flare->object->y =
-                        (int)(((float)(screen_height / 2) *
-                               (vertical * flare->line_position)) +
-                              (float)(screen_height / 2) -
-                              flare->half_height);
+                        ((float)(screen_height / 2) *
+                         (vertical * flare->line_position)) +
+                        (float)(screen_height / 2) -
+                        flare->half_height;
                 }
                 if (horizontal_abs >= vertical_abs) {
                     if (horizontal >= 0.0f) {
@@ -414,14 +385,10 @@ static float lensflare_proc2(void) {
                         255.0f *
                         (0.75f * (1.0f + vertical) + 0.25f);
                 }
-                flare->object->pfx2d->verts[0].a =
-                    (unsigned char)alpha_value;
-                flare->object->pfx2d->verts[1].a =
-                    (unsigned char)alpha_value;
-                flare->object->pfx2d->verts[2].a =
-                    (unsigned char)alpha_value;
-                flare->object->pfx2d->verts[3].a =
-                    (unsigned char)alpha_value;
+                flare->object->pfx2d->verts[0].a = alpha_value;
+                flare->object->pfx2d->verts[1].a = alpha_value;
+                flare->object->pfx2d->verts[2].a = alpha_value;
+                flare->object->pfx2d->verts[3].a = alpha_value;
                 flare->object->pfx2d->mirror = 1;
                 if (flare_data.inserted == 0) {
                     insert_screen_obj(flare->object);
@@ -441,15 +408,15 @@ static float lensflare_proc2(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 89.83%; member-wise sun copy, per-branch load calls and pdata_list_b match; argument materialization order and the transfer-sleep tail differ. */
 static float lensflare_proc(void) {
-    LensflarePdata* pdata;
+    struct LensflarePdata* pdata;
     ScreenObj* object;
-    LensFlareEntry* flare;
-    const LensFlareDefinition* definition;
+    struct LensFlareEntry* flare;
+    const struct LensFlareDefinition* definition;
     int count;
+    const char* texture_name;
 
-    pdata = (LensflarePdata*)apdata;
+    pdata = (struct LensflarePdata*)apdata;
     if (!g_game_info.flag_bits.lens_flare_enabled) {
         return 1.0f;
     }
@@ -462,12 +429,13 @@ static float lensflare_proc(void) {
     while (definition->texture_name != 0 && count < 10) {
         flare = &flare_data.entries[count];
         flare->line_position = definition->line_position;
+        texture_name = definition->texture_name;
         if (mode_of_play == 10 || mode_of_play == 9) {
             object = load_named_2d_pfxobj(
-                0x8003D, 0x301F, definition->texture_name, 0, 0xC);
+                0x8003D, 0x301F, texture_name, 0, 0xC);
         } else {
             object = load_named_2d_pfxobj(
-                0x2001E, 0x301F, definition->texture_name, 0, 0xC);
+                0x2001E, 0x301F, texture_name, 0, 0xC);
         }
         if (object != 0) {
             object->x = screen_width / 2 - object->pfx2d->tex_w / 2;
@@ -488,8 +456,7 @@ static float lensflare_proc(void) {
     }
     flare_data.inserted = 0;
     flare_data.count = count;
-    ((FxProcTransferVtable*)aproc->vtbl)->transfer_sleep(
-        lensflare_proc2, aproc, 1.0f);
+    aproc->vtbl->jump_sleep(lensflare_proc2, 1.0f);
     return 1.0f;
 }
 
@@ -498,7 +465,7 @@ static float lensflare_proc(void) {
 #define FSTYLE_SIGN_PRIORITY 0x2A
 
 void courtyard_start_lensflare(void) {
-    LensflarePdata* pdata;
+    struct LensflarePdata* pdata;
 
     _create_mkproc_generic_tinystack(
         YINYANG_LENSFLARE_PID, 0x20, lensflare_proc, sizeof(*pdata),
@@ -514,7 +481,7 @@ void yinyang_stop_lensflare(void) {
 }
 
 void yinyang_start_lensflare(void) {
-    LensflarePdata* pdata;
+    struct LensflarePdata* pdata;
 
     _create_mkproc_generic_tinystack(
         YINYANG_LENSFLARE_PID, 0x20, lensflare_proc, sizeof(*pdata),
@@ -538,18 +505,33 @@ static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
     return object;
 }
 
+static inline int fighting_style_sign_can_restart(int player)
+{
+    int winner;
 
+    if (get_fatality_available_flag() == 0) {
+        return 0;
+    }
+    if (g_game_info.pause_flag_bits.fatality_window) {
+        winner = check_for_winner();
+    } else {
+        return 0;
+    }
+    if (player == 0 && winner == 1) {
+        return 1;
+    }
+    if (player == 1 && winner == 2) {
+        return 1;
+    }
+    return 0;
+}
 
-
-
-/* TODO: [near miss] 93.16%; CFG agrees except pid temp (retail mr r31,r0 after sign load) and allow_restart join blocks; macro latch form regresses (moveset/player r29/r30 swap). */
+/* TODO: [near miss] 98.96227%; restart joins recovered; retail retains a PID selection copy; honest forms exhausted. */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
-    FightingStyleSignPdata* pdata;
+    struct FightingStyleSignPdata* pdata;
     ScreenObj* sign;
     MkProc* proc;
     int pid;
-    int winner;
-    int allow_restart;
 
     if (moveset == 0 || mode_of_play == 6 || g_game_info.flag_bits.high_res_path == 1) {
         return;
@@ -564,33 +546,15 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     }
     sign = global_moveset_live_style_sign(moveset);
 
-    if (sign == 0) {
+    if (sign == 0 ||
+        (player_fstyle_sign[player] == sign &&
+         fighting_style_sign_can_restart(player) == 0)) {
         return;
-    }
-
-    if (player_fstyle_sign[player] == sign) {
-        if (get_fatality_available_flag() == 0) {
-            allow_restart = 0;
-        } else if (g_game_info.pause_flag_bits.fatality_window) {
-            winner = check_for_winner();
-            if (player == 0 && winner == 1) {
-                allow_restart = 1;
-            } else if (player == 1 && winner == 2) {
-                allow_restart = 1;
-            } else {
-                allow_restart = 0;
-            }
-        } else {
-            allow_restart = 0;
-        }
-        if (allow_restart == 0) {
-            return;
-        }
     }
 
     proc = find_mkproc_pid(pid);
     if (proc != 0) {
-        pdata = (FightingStyleSignPdata*)pdata_of_proc(proc);
+        pdata = (struct FightingStyleSignPdata*)pdata_of_proc(proc);
         pdata->moveset = moveset;
         pdata->player = player;
         xfer_proc(proc, fighting_style_sign_proc);
@@ -608,11 +572,6 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
 
 /* The screen-object latches retain both pointer and instance for validation. */
 
-
-
-
-
-
 static void update_skewer_positions(int player) {
     ScreenObj* p1_body;
     ScreenObj* p1_tip = 0;
@@ -620,7 +579,7 @@ static void update_skewer_positions(int player) {
     ScreenObj* p2_tip = 0;
     ScreenObj* sign;
     PlyrPdata* player_data;
-    FxScreenLoadFlags flags;
+    union FxScreenLoadFlags flags;
 
     flags.value = 0;
     if (player == 0) {
@@ -630,12 +589,12 @@ static void update_skewer_positions(int player) {
             flags.bits.reverse = 0;
             flags.bits.alternate = 1;
             p1_body = load_2d_pfxobj(
-                0x10005, 0x2052, (char*)0x2001A, flags.value, 0x2B);
+                0x10005, 0x2052, 0x2001A, flags.value, 0x2B);
             if (p1_body != 0) {
                 p1_skewer_item.object = p1_body;
                 p1_skewer_item.instance = p1_body->instance;
                 p1_tip = load_2d_pfxobj(
-                    0x10005, 0x2052, (char*)0x2001B, 0, 0x2B);
+                    0x10005, 0x2052, 0x2001B, 0, 0x2B);
                 if (p1_tip != 0) {
                     p1_skewer_tip_item.object = p1_tip;
                     p1_skewer_tip_item.instance = p1_tip->instance;
@@ -663,7 +622,7 @@ static void update_skewer_positions(int player) {
                                 SKEWER_RIGHT_OVERHANG) / 8.0f;
                 }
             }
-            p1_tip->x = (int)(8.0f * p1_body->scale_x + (float)p1_body->x);
+            p1_tip->x = 8.0f * p1_body->scale_x + (float)p1_body->x;
             p1_tip->y = p1_body->y - 1;
         }
     }
@@ -675,14 +634,14 @@ static void update_skewer_positions(int player) {
             flags.bits.reverse = 0;
             flags.bits.alternate = 1;
             p2_body = load_2d_pfxobj(
-                0x10005, 0x2053, (char*)0x2001A, flags.value, 0x2B);
+                0x10005, 0x2053, 0x2001A, flags.value, 0x2B);
             if (p2_body != 0) {
                 p2_skewer_item.object = p2_body;
                 p2_skewer_item.instance = p2_body->instance;
                 flags.bits.reverse = 1;
                 flags.bits.alternate = 0;
                 p2_tip = load_2d_pfxobj(
-                    0x10005, 0x2053, (char*)0x2001B,
+                    0x10005, 0x2053, 0x2001B,
                     flags.value, 0x2B);
                 if (p2_tip != 0) {
                     p2_skewer_tip_item.object = p2_tip;
@@ -706,15 +665,6 @@ static void update_skewer_positions(int player) {
     }
 }
 
-
-
-
-
-
-
-
-
-/* TODO: [near miss] 98.54%; only the fatality-window test's block order in fx_fatality_available_for differs (retail: beq zero-block, call, b compare). */
 static inline int fx_fatality_available_for(int winner) {
     if (get_fatality_available_flag() == 0) {
         return 0;
@@ -726,15 +676,17 @@ static inline int fx_fatality_available_for(int winner) {
     return 0;
 }
 
+/* TODO: [near miss] 98.54%; inlined fatality-window branch order differs;
+ * retail shares the zero-result block before the winner comparison. */
 static float fighting_style_sign_proc(void) {
-    FightingStyleSignPdata* pdata;
+    struct FightingStyleSignPdata* pdata;
     GlobalMoveset* moveset;
     ScreenObj* sign;
     ScreenObj* skewer;
     int fatality;
     int width;
 
-    pdata = (FightingStyleSignPdata*)apdata;
+    pdata = (struct FightingStyleSignPdata*)apdata;
     if (pdata == 0) {
         return -1.0f;
     }
@@ -786,7 +738,7 @@ static float fighting_style_sign_proc(void) {
         if (fatality != 0 && f_p1_show_fatality_off == 0) {
             f_p1_showing_fatatality = 1;
             sign = load_2d_pfxobj(
-                0x10005, 0x2084, (char*)0x2001C, 0, 0x2A);
+                0x10005, 0x2084, 0x2001C, 0, 0x2A);
             if (sign != 0) {
                 pull_screen_obj(player_fstyle_sign[0]);
                 player_fstyle_sign[0] = sign;
@@ -863,7 +815,7 @@ static float fighting_style_sign_proc(void) {
         if (fatality != 0 && f_p2_show_fatality_off == 0) {
             f_p2_showing_fatatality = 1;
             sign = load_2d_pfxobj(
-                0x10005, 0x2084, (char*)0x2001C, 0, 0x2A);
+                0x10005, 0x2084, 0x2001C, 0, 0x2A);
             if (sign != 0) {
                 pull_screen_obj(player_fstyle_sign[1]);
                 player_fstyle_sign[1] = sign;
@@ -917,15 +869,13 @@ void load_bgnd_fstyle_sign(int player) {
     }
 }
 
-/* TODO: [near miss] 95.58%; retail indexes weapon_styles by a raw byte offset (no clrrwi) and colors r25-r31 differently. */
 void load_player_fstyle_signs(PlyrPdata* player) {
+    int style_index;
+    int slot;
     GlobalMoveset* moveset;
     ScreenObj* sign;
     int player_index;
     int slot_group;
-    int style_index;
-    unsigned int style_offset;
-    int slot;
 
     if (player == g_game_info.plyr0.slot.pdata) {
         p1_skewer_item.object = 0;
@@ -947,18 +897,16 @@ void load_player_fstyle_signs(PlyrPdata* player) {
         slot_group = 4;
     }
 
-    style_offset = 0;
-    for (style_index = 0; style_index < 3;
-         style_index++, style_offset += sizeof(player->weapon_styles[0])) {
-        moveset = player->weapon_styles[
-            style_offset / sizeof(player->weapon_styles[0])];
+    for (style_index = 0; style_index < 3; style_index++) {
+        moveset = player->weapon_styles[style_index];
         slot = (slot_group << 16) |
                (unsigned short)(style_index + 13);
         if (moveset->definition != 0) {
-            load_art_section(
-                slot,
-                find_section_by_name(
-                    moveset->definition->style_section_name));
+            MkFileInfo* section;
+
+            section = find_section_by_name(
+                moveset->definition->style_section_name);
+            load_art_section(slot, section);
             sign = load_named_2d_pfxobj(
                 slot, FSTYLE_SIGN_OID,
                 moveset->definition->style_sign_name, 0,
@@ -970,7 +918,6 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     }
     player_fstyle_sign[player_index] = 0;
 }
-
 
 void kill_all_fstyle_signs(void) {
     int player;
@@ -994,8 +941,6 @@ void kill_all_fstyle_signs(void) {
         }
     }
 }
-
-
 
 void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
     int style_index;
@@ -1093,16 +1038,14 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
     return atomic;
 }
 
-
 static float p_freeze_light(void) {
     PlyrMirrorObjLatch* item;
-    FreezeLightPdata* pdata;
+    struct FreezeLightPdata* pdata;
     MkObj* light;
 
-    pdata = (FreezeLightPdata*)apdata;
+    pdata = (struct FreezeLightPdata*)apdata;
     item = pdata->light;
     light = MK_HDR_LIVE(item->obj, item->instance);
-
 
     if (pdata->player->state_flags.bits.frozen == 0) {
         if (light != 0 && light->hdr.instance != 0) {
@@ -1117,12 +1060,6 @@ static float p_freeze_light(void) {
     }
     return 1.0f;
 }
-
-
-
-
-
-
 
 void unfreeze_player(void) {
     MkObj* player_object;
@@ -1231,7 +1168,7 @@ static void apply_special_fx_to_player(void* texture) {
     PlyrMirrorObjLatch* light_latch;
     int proc_id;
     FxHdrLatch* proc_latch;
-    FreezeLightPdata* proc_data;
+    struct FreezeLightPdata* proc_data;
     PlyrMirrorObjLatch* object_latch;
     MkObj* object;
     MkObj* light;
@@ -1338,13 +1275,13 @@ int can_i_do_fatality_now(int player) {
 
 MkPfx* create_pfx(
     int bind_source, int process_id, MkProcEntryFn entry,
-    MkPfx** effect_out, const FxPfxDefinition* definition,
+    MkPfx** effect_out, const struct FxPfxDefinition* definition,
     const char* name) {
     PfxBuildInfo build;
     MkPfx* effect;
     PfxVm* vm;
-    PfxEmitter* emitter;
-    void* behavior;
+    PfxVmEmitter* emitter;
+    PfxBehavior* behavior;
     Vec* origin;
     float lifetime;
 
@@ -1405,8 +1342,8 @@ MkPfx* create_pfx(
 
     if ((definition->flags & 4) == 0) {
         if (definition->texture != 0) {
-            set_pfx_texture(vm, (void*)0x10005,
-                            definition->texture);
+            set_pfx_texture(vm, 0x10005,
+                            (unsigned int)definition->texture);
         }
         if (definition->animate_texture != 0) {
             pfx_texture_animate(
