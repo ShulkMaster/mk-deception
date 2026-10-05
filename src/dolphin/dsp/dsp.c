@@ -1,20 +1,9 @@
-#include "dolphin/dsp.h"
+#include "dolphin/__dsp.h"
 
 volatile unsigned short DSP_REGISTERS[] : 0xCC005000;
 
 const char* __DSPVersion =
     "<< Dolphin SDK - DSP\trelease build: Apr  5 2004 04:15:32 (0x2301) >>";
-
-extern DSPTaskInfo* __DSP_rude_task;
-extern int __DSP_rude_task_pending;
-extern DSPTaskInfo* __DSP_first_task;
-extern DSPTaskInfo* __DSP_last_task;
-extern DSPTaskInfo* __DSP_curr_task;
-extern DSPTaskInfo* __DSP_tmp_task;
-
-void __DSPHandler(__OSInterrupt interrupt, OSContext* context);
-void __DSP_insert_task(DSPTaskInfo* task);
-void __DSP_boot_task(DSPTaskInfo* task);
 
 static int __DSP_init_flag;
 
