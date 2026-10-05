@@ -3107,7 +3107,7 @@ config.libs = [
             Object(NonMatching, "rwcore.a/baimage.obj", source="baimage.c"),
             Object(NonMatching, "rwcore.a/palquant.obj", source="palquant.c"),
             Object(Matching, "rwcore.a/baerr.obj", source="baerr.c", extra_cflags=["-opt", "off", "-opt", "space"]),
-            Object(NonMatching, "rwcore.a/rwgrp.obj", source="rwgrp.c"),
+            Object(Matching, "rwcore.a/rwgrp.obj", source="rwgrp.c", extra_cflags=["-opt", "off", "-opt", "space"]),
             Object(NonMatching, "rwcore.a/resmem.obj", source="resmem.c"),
             Object(NonMatching, "rwcore.a/baresour.obj", source="baresour.c"),
             Object(NonMatching, "rwcore.a/baresamp.obj", source="baresamp.c"),
