@@ -1,9 +1,9 @@
 #include "dolphin/trk.h"
 
-typedef union EndianTest {
+union EndianTest {
     u8 bytes[4];
     u32 word;
-} EndianTest;
+};
 
 enum {
     FALSE = 0,
@@ -68,7 +68,7 @@ void TRKNubWelcome(void)
 
 static inline BOOL TRKInitializeEndian(void)
 {
-    EndianTest endian_test;
+    union EndianTest endian_test;
     BOOL error = FALSE;
 
     gTRKBigEndian = TRUE;
