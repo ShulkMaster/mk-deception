@@ -4,35 +4,26 @@
 #include "runtime/mk_obj.h"
 #include "rw/gcspecular.h"
 
-/*
- * Midway RW plugin userdata layouts (offsets relative to *LocalOffset /
- * ColorSetGeometryOffset on the host Rp* object). See docs/renderware_re.md.
- */
-
-/* ColorSet geometry entry - stride 0x14 (one per mesh / material slot). */
 typedef struct ColorSetEntry {
-    unsigned int count;  /* +0x00 */
-    void** ptr_array;    /* +0x04 */
-    void*** arrays;      /* +0x08 - [color] -> void*[] freed per slot */
-    int* int_arrays_c;   /* +0x0C - int[count], zeroed per slot */
-    int* int_arrays_10;  /* +0x10 */
+    unsigned int count;
+    void** ptr_array;
+    void*** arrays;
+    int* int_arrays_c;
+    int* int_arrays_10;
 } ColorSetEntry;
 
-/* ColorSet geometry plugin - 0xC bytes (id 0x1BA). */
 typedef struct ColorSetPluginData {
-    unsigned int count;     /* +0x00 */
-    void** ptr4;            /* +0x04 */
-    ColorSetEntry* entries; /* +0x08 */
+    unsigned int count;
+    void** ptr4;
+    ColorSetEntry* entries;
 } ColorSetPluginData;
 
-/* Optional Mkmaterial heap block: flag + count + inline int[count]. */
 typedef struct MkmaterialExtra {
-    int field_00; /* +0x00 - stream flag bit */
-    int count;    /* +0x04 */
-    int* data;    /* +0x08 - points at inline ints after header */
+    int field_00;
+    int count;
+    int* data;
 } MkmaterialExtra;
 
-/* Two texture-coordinate scroll rates, streamed as four float values. */
 typedef struct MkmaterialUvScroll {
     float u1;
     float v1;
@@ -40,28 +31,24 @@ typedef struct MkmaterialUvScroll {
     float v2;
 } MkmaterialUvScroll;
 
-/* Mkmaterial material plugin - 0x24 bytes (id 0x895303). */
 typedef struct MkmaterialPluginData {
-    unsigned int flags;        /* +0x00 - low 12 bits material id */
-    float field_04;            /* +0x04 */
+    unsigned int flags;
+    float field_04;
     union {
-        unsigned char bytes_08[4]; /* +0x08 - default 0xFF... */
+        unsigned char bytes_08[4];
         unsigned int word_08;
     };
-    float field_0C;            /* +0x0C - default 5.0 */
-    float z_bias;              /* +0x10 */
-    MkmaterialUvScroll* vec4;  /* +0x14 - optional UV scroll rates */
-    int field_18;              /* +0x18 - zeroed; not streamed */
-    MkmaterialExtra* extra;    /* +0x1C */
-    unsigned int field_20;     /* +0x20 */
+    float field_0C;
+    float z_bias;
+    MkmaterialUvScroll* vec4;
+    int field_18;
+    MkmaterialExtra* extra;
+    unsigned int field_20;
 } MkmaterialPluginData;
 
-/* Mkobj clump plugin - 4 bytes (id 0x895301). */
 typedef struct MkobjPluginData {
-    MkObj* owner; /* +0x00 - owning Midway object */
+    MkObj* owner;
 } MkobjPluginData;
-
-/* MksobjPluginData (atomic, 0x10 B, id 0x895302) - defined in mk_obj.h */
 
 int RpColorSetPluginAttach(void);
 int RpMaterialMkmaterialPluginAttach(void);
