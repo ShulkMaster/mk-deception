@@ -50,8 +50,6 @@ SwitchMapEntry default_switch_map[16] = {
     {0x4000, pad_ldn_proc, "PAD_LDN"},
     {0x8000, pad_llt_proc, "PAD_LLT"}
 };
-extern PlayerProfile p1_profile;
-extern PlayerProfile p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
 SwitchMapEntry p2_profile_switch_map[PROFILE_SWITCHMAP_COUNT];
@@ -272,7 +270,7 @@ static float p_do_controller_removed(void) {
         fadebox = 0;
     }
     if (fadebox == 0) {
-        fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, (char*)0x10017, 0, 3);
+        fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
         if (fadebox != 0) {
             cnt_rem_fadebox_item.object = fadebox;
             cnt_rem_fadebox_item.instance = fadebox->instance;
@@ -301,7 +299,7 @@ static float p_do_controller_removed(void) {
             fadebox = 0;
         }
         if (fadebox == 0) {
-            fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, (char*)0x10017, 0, 3);
+            fadebox = load_2d_pfxobj(0, CONTROLLER_FADEBOX_OID, 0x10017, 0, 3);
             if (fadebox != 0) {
                 cnt_rem_fadebox_item.object = fadebox;
                 cnt_rem_fadebox_item.instance = fadebox->instance;
