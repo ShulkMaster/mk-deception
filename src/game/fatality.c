@@ -1,5 +1,8 @@
 /* TODO: [blocked] link: retail has anonymous 4-byte gaps in .data, .bss and .sbss and a 2-byte .rodata gap with no symbol users or relocations. */
 #include "runtime/mk_obj.h"
+#include "game/projectile.h"
+#include "runtime/anim_api_ext.h"
+#include "game/pfxscript_api.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api.h"
 #include "runtime/mk_cmdscript.h"
@@ -16,6 +19,8 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/fatality.h"
+#include "game/moves.h"
 #include "game/mab.h"
 #include "game/plyr.h"
 #include "game/cloth.h"
@@ -37,8 +42,6 @@ extern MkProc* plyr_anim_proc;
 extern PlyrPdata* his_pdata;
 extern int f_fatality_was_done;
 extern unsigned short GXMathSqrtTable[];
-extern float do_my_fatality(void);
-extern float do_my_2nd_fatality(void);
 extern float xz_distance_between_players(void);
 extern float p_anim_idle(void);
 extern int f_fatality_finished;
@@ -221,7 +224,10 @@ typedef struct FatalityObjectScalarPdata {
 
 typedef struct FatalityFacingController {
     char pad00[0x20];
-    unsigned char flags20;
+    struct {
+        unsigned char bit7 : 1;
+        unsigned char reserved : 7;
+    } flags_bits; /* +0x20 */
     char pad21[7];
     Vec angles; /* +0x28 */
 } FatalityFacingController;
@@ -240,10 +246,10 @@ typedef struct FatalityFaceObjectPdata {
 typedef union FatalityFakeMatcherFlags {
     unsigned char value;
     struct {
-        unsigned char has_parent_offset : 1;
-        unsigned char has_child_offset : 1;
-        unsigned char has_rotation : 1;
-        unsigned char mode : 1;
+        signed char has_parent_offset : 1;
+        signed char has_child_offset : 1;
+        signed char has_rotation : 1;
+        signed char mode : 1;
         unsigned char pad_low : 4;
     } bits;
 } FatalityFakeMatcherFlags;
@@ -271,16 +277,11 @@ typedef struct FatalityLightningFlashPdata {
     MkHdr hdr;
     MkObj* object;
     unsigned int object_instance;
-    struct FatalityUvScrollControl* scroll;
+    UvScrollControl* scroll;
     float scroll_step;
     int frame;
     float flash_range;
 } FatalityLightningFlashPdata;
-
-typedef struct FatalityUvScrollControl {
-    char pad00[0x1C];
-    float step;
-} FatalityUvScrollControl;
 
 typedef struct FatalityLightningScrollPdata {
     MkHdr hdr;
@@ -298,12 +299,6 @@ typedef struct FatalityLightningScaling {
     const float* y;
     const float* z;
 } FatalityLightningScaling;
-
-struct FatalityWeaponSource {
-    char pad00[0x58];
-    PlyrPdata* owner;
-    MkObj* player_object;
-};
 
 typedef struct FatalityWeaponReflectionSet {
     char pad00[0x14];
@@ -365,7 +360,7 @@ typedef struct FatalitySonicWavePdata {
     MkObj* projectile;
     unsigned int projectile_instance;
     PlyrMirrorObjLatch waves[5];
-    MkHdr* pebble;
+    PebbleData* pebble;
     Vec wave_offsets[5];
     Vec wave_positions[5];
     float wave_progress[5];
@@ -378,11 +373,6 @@ typedef struct FatalitySonicWavePdata {
     MslSoundHandle loop_sound;
     unsigned int player_mask;
 } FatalitySonicWavePdata;
-
-typedef struct FatalitySonicPebble {
-    MkHdr hdr;
-    RwMatrix* matrices;
-} FatalitySonicPebble;
 
 typedef struct FatalityIceSubobject {
     MkHdr hdr;
@@ -480,7 +470,6 @@ float raiden_lightning_sleep1[2] = {10.0f, 500.0f};
 float raiden_lightning_speed2[2] = {1.0f, 0.01f};
 float raiden_lightning_sleep2[2] = {15.0f, 500.0f};
 
-
 static FatalityState fatality_state;
 static float SD_SONIC_WAVES_TBS = 8.0f;
 static float SD_SONIC_WAVE_DIST_SCALE = 5.0f;
@@ -511,13 +500,6 @@ static inline MkObj* fatality_get_severed_limb(
 }
 
 static void start_3d_projectile_iceball(MkProcEntryFn entry);
-int get_bid_with_flip(MkObj* object, unsigned int bone_id);
-MkObj* start_projectile_from_plyr_bone(
-    int model_id, int bone_id, const char* model_name, float x_offset,
-    float y_offset, const Vec* bone_offset);
-void set_active_projectile_p_handler(MkProcEntryFn handler);
-void set_active_projectile_max_ticks(int ticks);
-void active_projectile_setup_done(void);
 float subzero_freeze_victim(void);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 void advance_active_moveset(PlyrPdata* player);
@@ -544,16 +526,12 @@ static float p_sd_sonic_waves(void);
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
-int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
     FatalityBoneMatcher* matcher, Vec* offset);
 FatalityBoneMatcher* start_bone_matcher(
     MkObj* parent, int parent_bone, MkObj* child, int child_bone,
     float blend_ticks);
 void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
-void get_bone_world_pos(MkObj* object, int bone_id, Vec* position);
-void get_bone_offset_world_pos(
-    MkObj* object, int bone_id, const Vec* offset, Vec* position);
 void obj_match_pos_ang_to_src_obj(MkObj* destination, MkObj* source);
 void calc_bone_world_mat(MkObj* object, int bone_id);
 void glitch_to_stance(AnimPdata* animation, float blend);
@@ -597,10 +575,7 @@ void material_set_zbias(RpMaterial* material, float bias);
 typedef int FatalityEffectHandle;
 extern FatalityEffectHandle fx_by_owner(
     const char* name, unsigned int owner);
-extern FatalityEffectHandle fx_next_emitter(
-    FatalityEffectHandle effect);
 extern void fx_resume_emit(FatalityEffectHandle handle);
-extern int emitter_id_from_handle(FatalityEffectHandle handle);
 extern MkPfx* find_pfx_by_name(const char* name);
 extern void reset_effect(const char* name);
 extern void resume_effect(const char* name);
@@ -721,29 +696,6 @@ static inline FatalityEffectHandle fatality_bind_next_emitter(
             effect, object, bone_id, emitter_id);
     }
     return emitter;
-}
-
-static inline void fatality_finish_sidekick(PlyrInfo* player_info) {
-    PlyrPdata* player;
-    MkProc* animation_proc;
-
-    if (player_info->player_index != 0x1B) {
-        return;
-    }
-    player = player_info->slot.pdata;
-    animation_proc = player->sidekick_anim_proc;
-    if (animation_proc != 0 &&
-        animation_proc->hdr.instance != player->sidekick_anim_instance) {
-        animation_proc = 0;
-    }
-    if (animation_proc != 0) {
-        xfer_proc(animation_proc, p_anim_idle);
-    }
-    if (player->plyr_num == 0) {
-        destroy_mkprocs_pid(0xC028);
-    } else {
-        destroy_mkprocs_pid(0xC029);
-    }
 }
 
 static inline MkObj* fatality_resolve_object_latch(
@@ -979,7 +931,6 @@ MkObj* subzero_start_iceman(void) {
     return iceman;
 }
 
-/* TODO: [near miss] 93.63%; loop bounds, alpha and validation agree; residue is code emission. */
 static float p_subzero_iceblock_alpha(void) {
     FatalityIceblockAlphaPdata* data;
     MkObj* object;
@@ -989,29 +940,25 @@ static float p_subzero_iceblock_alpha(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0 && object->hdr.instance != data->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
 
     for (index = 0; index < 6; index++) {
-        if (index <= data->active_material) {
-            if (data->material_alpha[index] < 0xA0) {
-                data->material_alpha[index] += 10;
-                data->color.alpha = data->material_alpha[index];
-                if (index != 0) {
-                    obj_set_color_for_material_by_id(
-                        object, index + 1, &data->color);
-                } else {
-                    obj_set_color_for_material_by_id(
-                        object, index, &data->color);
-                }
-            } else if (index >= data->active_material) {
-                data->active_material++;
+        if (index > data->active_material) {
+            break;
+        }
+        if (data->material_alpha[index] < 0xA0) {
+            data->material_alpha[index] += 10;
+            data->color.alpha = data->material_alpha[index];
+            if (index != 0) {
+                obj_set_color_for_material_by_id(object, index + 1, &data->color);
+            } else {
+                obj_set_color_for_material_by_id(object, index, &data->color);
             }
+        } else if (index >= data->active_material) {
+            data->active_material++;
         }
     }
     if (data->active_material >= 6) {
@@ -1090,7 +1037,6 @@ MkObj* subzero_start_iceblock(void) {
     return iceblock;
 }
 
-
 static float p_sz2_iceblock_scalar(void) {
     FatalityScalePdata* data;
     MkObj* object;
@@ -1110,6 +1056,7 @@ static float p_sz2_iceblock_scalar(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 95.24%; one unreachable default-exit branch remains. */
 void mks_start_fatality_iceball(int mode) {
     switch (mode) {
     case 0:
@@ -1167,7 +1114,6 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
         subobject->z_offset = -50.0f;
     }
 }
-
 
 float subzero_freeze_victim(void) {
     FatalityProjectilePdata* data;
@@ -1253,7 +1199,6 @@ float subzero_rx_freeze(void) {
     return 0.0f;
 }
 
-
 void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
     MkHdr* object = MK_LIVE(sound->object, sound->object_instance);
 
@@ -1269,11 +1214,11 @@ void sindel_scream_react_sound_start(void) {
     }
 }
 
-/* TODO: [near miss] 87.89%; all five wave objects and cleanup follow retail; residue is code emission. */
+/* TODO: [breakthrough] 96.81%; actual transform/creation flow restored; copy scheduling and null-allocation cleanup contract remain. */
 FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
     static const Vec emitter_offset = {0.0f, 0.075f, 0.23f};
     FatalitySonicWavePdata* data;
-    FatalitySonicPebble* pebble;
+    Vec local_offset;
     MkObj* wave;
     MkObj* object;
     float angle;
@@ -1292,7 +1237,7 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 wave = load_named_model_for_player(
                     "SN_CURL", plyr_pdata->plyr_num, 0x6013, 1);
                 if (wave == 0) {
-                    break;
+                    goto cleanup;
                 }
                 insert_fgnd_mkobj(wave);
                 data->waves[index].obj = wave;
@@ -1311,73 +1256,66 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 if (f_fatality_was_done != 0) {
                     wave->flags_08_bits.rotation_enabled = 1;
                     wave->ang.z = angle;
-                    angle += 3.1415927f;
                     wave->ang_vel.z = 0.9424778f;
+                    angle += 3.1415927f;
                 } else {
                     wave->ang.z =
                         am_i_on_the_left() != 0 ? 0.0f : 3.1415927f;
                     wave->ang_vel.z = 0.62831855f;
                 }
             }
-            if (index == 5) {
-                data->owner = plyr_obj;
-                data->owner_instance = plyr_obj->hdr.instance;
-                calc_bone_world_mat(plyr_obj, 0x10);
-                v3_x_mat(
-                    &data->origin, &emitter_offset,
-                    plyr_obj->bones[0]->parent_matrix);
-                data->velocity.x = 0.05f * plyr_obj->field_24->at.x;
-                data->velocity.y = 0.05f * plyr_obj->field_24->at.y;
-                data->velocity.z = 0.05f * plyr_obj->field_24->at.z;
-                data->velocity.y = 0.005f;
-                pebble = (FatalitySonicPebble*)data->pebble;
-                for (index = 0; index < 5; index++) {
-                    data->wave_progress[index] = 0.0f;
-                    data->wave_offsets[index].x = 0.0f;
-                    data->wave_offsets[index].y = 0.0f;
-                    data->wave_offsets[index].z = 0.0f;
-                    pebble->matrices[index].pos.x = 0.0f;
-                    pebble->matrices[index].pos.y = -10000.0f;
-                    pebble->matrices[index].pos.z = 0.0f;
-                }
-                data->frame = 0;
-                data->field_F0 = 0.0f;
-                data->duration = duration;
-                data->player_mask =
-                    1 << plyr_pdata->plyr_info->controller_slot;
-                if (f_fatality_was_done != 0) {
-                    data->sound = snd_req(0x327);
-                    data->loop_sound = snd_req(0x328);
-                } else {
-                    data->sound = snd_req(0x31B);
-                    data->loop_sound = 0;
-                }
-                return data;
+            data->owner = plyr_obj;
+            data->owner_instance = plyr_obj->hdr.instance;
+            local_offset = emitter_offset;
+            calc_bone_world_mat(plyr_obj, 0x10);
+            v3_x_mat(
+                &data->origin, &local_offset,
+                &plyr_obj->bones[0x10]->matrix);
+            data->velocity.x = 0.05f * plyr_obj->field_24->at.x;
+            data->velocity.y = 0.05f * plyr_obj->field_24->at.y;
+            data->velocity.z = 0.05f * plyr_obj->field_24->at.z;
+            data->velocity.y = 0.005f;
+            for (index = 0; index < 5; index++) {
+                data->wave_progress[index] = 0.0f;
+                data->wave_offsets[index].z = 0.0f;
+                data->wave_offsets[index].y = 0.0f;
+                data->wave_offsets[index].x = 0.0f;
+                data->pebble->pebbles[index].matrix.pos.z = 0.0f;
+                data->pebble->pebbles[index].matrix.pos.y = 0.0f;
+                data->pebble->pebbles[index].matrix.pos.x = 0.0f;
+                data->pebble->pebbles[index].matrix.pos.y = -10000.0f;
             }
+            data->frame = 0;
+            data->field_F0 = 0.0f;
+            data->duration = duration;
+            data->player_mask =
+                1 << plyr_pdata->plyr_info->controller_slot;
+            if (f_fatality_was_done != 0) {
+                data->sound = snd_req(0x327);
+                data->loop_sound = snd_req(0x328);
+            } else {
+                data->sound = snd_req(0x31B);
+                data->loop_sound = 0;
+            }
+            return data;
         }
     }
 
+cleanup:
     if (data != 0) {
         for (index = 0; index < 5; index++) {
-            object = data->waves[index].obj;
-            if (object != 0 &&
-                object->hdr.instance != data->waves[index].instance) {
-                object = 0;
-            }
+            object = MK_HDR_LIVE(data->waves[index].obj,
+                                 data->waves[index].instance);
             if (object != 0 && object->hdr.instance != 0) {
                 object->hdr.typed_vtbl->destroy(&object->hdr);
             }
         }
-        object = data->projectile;
-        if (object != 0 &&
-            object->hdr.instance != data->projectile_instance) {
-            object = 0;
-        }
+        object = MK_HDR_LIVE(data->projectile, data->projectile_instance);
         if (object != 0 && object->hdr.instance != 0) {
             object->hdr.typed_vtbl->destroy(&object->hdr);
         }
-        if (data->pebble != 0 && data->pebble->instance != 0) {
-            data->pebble->typed_vtbl->destroy(data->pebble);
+        if (data->pebble != 0 && data->pebble->hdr.instance != 0) {
+            data->pebble->hdr.typed_vtbl->destroy(&data->pebble->hdr);
         }
         data->pebble = 0;
         if (data->hdr.instance != 0) {
@@ -1387,7 +1325,6 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
     return 0;
 }
 
-/* TODO: [near miss] 99.26%; exact size; residue is register emission. */
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data) {
     MkObj* projectile;
@@ -1399,14 +1336,14 @@ static void sindel_load_projectile_obj_for_sonic_waves(
         obj_create_sobjs(projectile);
         subobject = obj_first_sobj(projectile);
         if (subobject != 0) {
-            data->pebble = (MkHdr*)create_pebble_userdata(subobject, 5, 0);
+            data->pebble = create_pebble_userdata(subobject, 5, 0);
             if (data->pebble != 0) {
                 insert_fgnd_mkobj(projectile);
                 data->projectile = projectile;
                 data->projectile_instance = projectile->hdr.instance;
                 projectile->light_flags = plyr_obj->light_flags;
                 mk_insert(&projectile->hdr, &plyr_obj->child_list);
-                subobject->flags_08 = 0;
+                subobject->flags_word_08 = 0;
                 subobject->flags_08_bits.bit6 = 1;
                 subobject->flags_08_bits.bit0 = 0;
                 subobject->flags09_bits.bit7 = 1;
@@ -1427,7 +1364,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
 /* TODO: [near miss] 74.15%; behavior fully recovered; residue is register allocation and scheduling. */
 static float p_sd_sonic_waves(void) {
     FatalitySonicWavePdata* data;
-    FatalitySonicPebble* pebble;
+    PebbleData* pebble;
     MkObj* projectile;
     MkObj* owner;
     MkObj* wave;
@@ -1464,7 +1401,7 @@ static float p_sd_sonic_waves(void) {
         } else {
             get_bone_world_pos(owner, 0xD, &owner_bone);
         }
-        pebble = (FatalitySonicPebble*)data->pebble;
+        pebble = data->pebble;
 
         for (index = 0; index < 5; index++) {
             wave = data->waves[index].obj;
@@ -1500,7 +1437,7 @@ static float p_sd_sonic_waves(void) {
             data->wave_progress[index] += game_speed;
             if (data->wave_progress[index] >= 20.0f) {
                 data->wave_progress[index] = 0.0f;
-                pebble->matrices[index].pos.y = -10000.0f;
+                pebble->pebbles[index].matrix.pos.y = -10000.0f;
                 wave->pos.value.y = -10000.0f;
                 continue;
             }
@@ -1557,8 +1494,8 @@ static float p_sd_sonic_waves(void) {
             fade = 1.0f - data->wave_progress[index] / 20.0f;
             obj_for_all_atomics_set_material_alpha(
                 wave, (int)(185.0f * fade + 70.0f));
-            MKMatrixSetIdentity(&pebble->matrices[index]);
-            y_angle_to_MKMATRIX(&pebble->matrices[index], owner->ang.y);
+            MKMatrixSetIdentity(&pebble->pebbles[index].matrix);
+            y_angle_to_MKMATRIX(&pebble->pebbles[index].matrix, owner->ang.y);
             if (data->wave_offsets[index].x < 1.0f) {
                 matrix_scale.x =
                     scale_proj.x * data->wave_offsets[index].x;
@@ -1570,15 +1507,15 @@ static float p_sd_sonic_waves(void) {
                 matrix_scale = scale_proj;
             }
             mat_scaled_by_v3(
-                &pebble->matrices[index], &pebble->matrices[index],
+                &pebble->pebbles[index].matrix, &pebble->pebbles[index].matrix,
                 &matrix_scale);
-            pebble->matrices[index].pos.x = wave->pos.value.x;
-            pebble->matrices[index].pos.y = wave->pos.value.y;
-            pebble->matrices[index].pos.z = wave->pos.value.z;
+            pebble->pebbles[index].matrix.pos.x = wave->pos.value.x;
+            pebble->pebbles[index].matrix.pos.y = wave->pos.value.y;
+            pebble->pebbles[index].matrix.pos.z = wave->pos.value.z;
             if ((index & 1) != 0) {
-                pebble->matrices[index].pos.y += 0.1f * index;
+                pebble->pebbles[index].matrix.pos.y += 0.1f * index;
             } else {
-                pebble->matrices[index].pos.y -= 0.1f * index;
+                pebble->pebbles[index].matrix.pos.y -= 0.1f * index;
             }
             alive++;
         }
@@ -1597,8 +1534,8 @@ static float p_sd_sonic_waves(void) {
     if (projectile != 0 && projectile->hdr.instance != 0) {
         projectile->hdr.typed_vtbl->destroy(&projectile->hdr);
     }
-    if (data->pebble != 0 && data->pebble->instance != 0) {
-        data->pebble->typed_vtbl->destroy(data->pebble);
+    if (data->pebble != 0 && data->pebble->hdr.instance != 0) {
+        data->pebble->hdr.typed_vtbl->destroy(&data->pebble->hdr);
     }
     data->pebble = 0;
     for (index = 0; index < 5; index++) {
@@ -1627,9 +1564,10 @@ void start_raiden_lightning_scroll(
     float u_step, float scroll_step) {
     FatalityLightningScrollPdata* scroll_data;
     FatalityLightningFlashPdata* flash_data;
-    FatalityUvScrollControl* control;
+    UvScrollControl* control;
 
     scroll_data = 0;
+    flash_data = 0;
     if (_create_mkproc_generic_nostack(
             0x602C, 0x1F, p_raiden_lightning_scrolling,
             sizeof(FatalityLightningScrollPdata),
@@ -1645,15 +1583,11 @@ void start_raiden_lightning_scroll(
     scroll_data->scalar_target.y = u_step;
     scroll_data->scalar_target.z = 1.0f;
     scroll_data->scaling = &raiden_scaling_data[scaling_index];
-    control = (FatalityUvScrollControl*)
-        find_uv_scroll_control_for_obj(object);
-    if (control != 0) {
-        control->step = scroll_step;
-    }
+    control = find_uv_scroll_control_for_obj(object);
+    control->rateU1 = scroll_step;
     if (!flash) {
         return;
     }
-    flash_data = 0;
     if (_create_mkproc_generic_nostack(
             0x602C, 0x1F, p_raiden_lightning_flash,
             sizeof(FatalityLightningFlashPdata),
@@ -1679,11 +1613,7 @@ float p_raiden_lightning_flash(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0 &&
-        object->hdr.instance != data->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1695,28 +1625,29 @@ float p_raiden_lightning_flash(void) {
     } else {
         object->hide_flag_bits.hidden = 0;
         if (data->scroll != 0) {
-            data->scroll->step =
-                randu0(3) == 0
-                    ? -data->scroll_step : data->scroll_step;
+            if ((unsigned short)randu0(3) == 0) {
+                data->scroll->rateU1 = -1.0f * data->scroll_step;
+            } else {
+                data->scroll->rateU1 = data->scroll_step;
+            }
         }
     }
     return frand(range);
 }
 
-/* TODO: [near miss] 95.35%; behavior agrees; residue is register/load scheduling. */
 static float p_raiden_lightning_scrolling(void) {
     FatalityLightningScrollPdata* data;
-    FatalityObjectScalarPdata* scalar;
+    union {
+        MkHdr* hdr;
+        FatalityObjectScalarPdata* data;
+    } scalar;
     MkObj* object;
 
     data = (FatalityLightningScrollPdata*)apdata;
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0 && object->hdr.instance != data->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1727,21 +1658,21 @@ static float p_raiden_lightning_scrolling(void) {
     if (_create_mkproc_generic_nostack(
             0x600A, 0x1F, p_obj_scalar_proc,
             sizeof(FatalityObjectScalarPdata),
-            (MkHdr**)&scalar) != 0) {
+            &scalar.hdr) != 0) {
         zero_pdata_payload(
-            sizeof(FatalityObjectScalarPdata), &scalar->hdr);
-        scalar->object = object;
-        scalar->object_instance = object->hdr.instance;
+            sizeof(FatalityObjectScalarPdata), scalar.hdr);
+        scalar.data->object = object;
+        scalar.data->object_instance = object->hdr.instance;
         object->flags_08_bits.scale_active = 1;
-        scalar->start.x = data->scalar_start.x;
-        scalar->start.y = data->scalar_start.y;
-        scalar->start.z = data->scalar_start.z;
-        scalar->target.x = data->scalar_target.x;
-        scalar->target.y = data->scalar_target.y;
-        scalar->target.z = data->scalar_target.z;
-        scalar->step.x = data->scalar_step.x;
-        scalar->step.y = data->scalar_step.y;
-        scalar->step.z = data->scalar_step.z;
+        scalar.data->start.x = data->scalar_start.x;
+        scalar.data->start.y = data->scalar_start.y;
+        scalar.data->start.z = data->scalar_start.z;
+        scalar.data->target.x = data->scalar_target.x;
+        scalar.data->target.y = data->scalar_target.y;
+        scalar.data->target.z = data->scalar_target.z;
+        scalar.data->step.x = data->scalar_step.x;
+        scalar.data->step.y = data->scalar_step.y;
+        scalar.data->step.z = data->scalar_step.z;
         object->scale.x = data->scalar_start.x;
         object->scale.y = data->scalar_start.y;
         object->scale.z = data->scalar_start.z;
@@ -1751,7 +1682,6 @@ static float p_raiden_lightning_scrolling(void) {
     return data->scaling->z[data->frame - 1];
 }
 
-/* TODO: [near miss] 95.55%; allocation, slot selection and cleanup follow retail; residue is code emission. */
 RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
     PlyrPdata* player, int bone_id, const char* model_name) {
     RaidenLightningBoltPdata* data;
@@ -1774,11 +1704,7 @@ RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
     if (model != 0) {
         subobject = obj_create_sobjs_by_id(model, 1);
         if (subobject != 0) {
-            parent = player->tracked_obj;
-            if (parent != 0 &&
-                parent->hdr.instance != player->tracked_obj_instance) {
-                parent = 0;
-            }
+            parent = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
             if (parent != 0) {
                 data->bolt = model;
                 data->bolt_instance = model->hdr.instance;
@@ -1800,7 +1726,7 @@ RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
         }
     }
 
-    if (process->instance != 0) {
+    if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);
     }
     if (model != 0 && model->hdr.instance != 0) {
@@ -1902,13 +1828,28 @@ static float p_raiden_summon_lightning_bolt(void) {
     return result;
 }
 
+static inline MkObj* fatality_live_mirror_object(PlyrMirrorObjLatch* latch)
+{
+    MkObj* object = latch->obj;
+    MkObj* live;
+    if (object != 0) {
+        if (object->hdr.instance == latch->instance) {
+            live = object;
+        } else {
+            live = 0;
+        }
+    } else {
+        live = 0;
+    }
+    return live;
+}
+
 void fix_axe_angle(const Vec* angles) {
     PlyrMirrorObjLatch* latch;
     MkObj* axe;
 
     latch = &fatality_state.player->mirror_slots->weapon[0].secondary;
-    axe = latch->obj;
-    axe = MK_HDR_LIVE(axe, latch->instance);
+    axe = fatality_live_mirror_object(latch);
 
     if (axe != 0) {
         YXZ_angles_to_quat(angles, &axe->orientation_quat);
@@ -1952,7 +1893,7 @@ void ft_mileena_start_veil_ripoff(void) {
             fatality_state.attacker_object, 7);
         get_bone_offset_world_pos(
             fatality_state.attacker_object, bone_id,
-            &veil_offset, &veil->pos.value);
+            (Vec*)&veil_offset, &veil->pos.value);
         veil->flags_09_bits.launched = 0;
         veil->flags_09_bits.bit6 = 0;
     }
@@ -2065,29 +2006,27 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
     return jug;
 }
 
-/* TODO: [near miss] 93.06%; exact size; residue is register allocation and early-return scheduling. */
+static inline FatalityEffectHandle fatality_spawn_root_emitter(
+    const char* name, unsigned int owner, MkObj* object) {
+    FatalityEffectHandle handle = fx_by_owner(name, owner);
+
+    if (handle == 0) {
+        return 0;
+    }
+    return fatality_bind_next_emitter(handle, object, 0x40000000, 0);
+}
+
 FatalityEffectHandle fatality_boraicho_light_fart_torch(MkObj* torch) {
     FatalityEffectHandle emitter;
     MkPfx* effect;
     int art_section;
 
-    emitter = fx_by_owner(
+    emitter = fatality_spawn_root_emitter(
         "bo_flame_throw",
-        1 << plyr_pdata->plyr_info->controller_slot);
+        1 << plyr_pdata->plyr_info->controller_slot, torch);
     if (emitter == 0) {
         return 0;
     }
-    emitter = fx_next_emitter(emitter);
-    if (emitter == 0) {
-        return 0;
-    }
-    fx_resume_emit(emitter);
-    effect = pfx_from_emitter(emitter);
-    if (effect == 0) {
-        return 0;
-    }
-    pfx_bind_emitter_num_to_obj(
-        effect, torch, 0, emitter_id_from_handle(emitter));
 
     effect = pfx_from_emitter(emitter);
     if (effect == 0) {
@@ -2096,8 +2035,8 @@ FatalityEffectHandle fatality_boraicho_light_fart_torch(MkObj* torch) {
     art_section =
         get_shared_art_section_for_plyr_pdata(fatality_state.player);
     set_pfx_texture(
-        (PfxVm*)effect->matrix, (void*)art_section,
-        (void*)0x86000B);
+        (PfxVm*)effect->matrix, art_section,
+        0x86000B);
     return emitter;
 }
 
@@ -2139,7 +2078,7 @@ MkObj* fatality_boraicho_get_torch(
     return torch;
 }
 
-/* TODO: [near miss] 91.71%; exact size; residue is GPR allocation and load scheduling. */
+/* TODO: [borked] 91.71154%; shared state union shifts matcher store +4; layout audit pending. */
 MkObj* fatality_ashrah_get_doll(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation) {
@@ -2178,7 +2117,6 @@ float call_fatality_script_function(void) {
     return 0.0f;
 }
 
-
 float p_bodyslam_bodysplat(void) {
     FatalityBodySplatPdata* data;
     MkObj* object;
@@ -2215,7 +2153,7 @@ void start_bodyslam_bodysplat(
             (MkHdr**)&data) == 0) {
         return;
     }
-    slot = fatality_state.player->plyr_num == 0
+    slot = fatality_state.context->slot.pdata->plyr_num == 0
                ? 0x3000B : 0x4000B;
     object = load_named_model_from_slot(
         slot, "BODYSPLAT", 0x6008, 0);
@@ -2305,15 +2243,14 @@ void fatality_explode_victim(PlyrInfo* player_info) {
     fatality_spawn_limb_blood(fighter, player, 9, 1, 2);
 }
 
-/* TODO: [near miss] 88.97%; exact size; residue is GPR save style and loop-induction scheduling. */
 void fire_multi_emitter_pfx_via_tbl(
-    const char* effect_name, const FatalityEmitterBind* table,
+    const char* effect_name, FatalityEmitterBind* table,
     MkObj* object, FatalityEffectHandle* handles) {
-    FatalityEffectHandle emitter;
-    MkPfx* effect;
-    const FatalityEmitterBind* bind;
-    int emitter_id;
     int index;
+    FatalityEmitterBind* bind;
+    int emitter_id;
+    MkPfx* effect;
+    FatalityEffectHandle emitter;
 
     emitter = fx_by_owner(
         effect_name,
@@ -2327,15 +2264,14 @@ void fire_multi_emitter_pfx_via_tbl(
     }
 
     index = 0;
-    bind = table;
-    while (bind->bone_id >= 0) {
+    while ((bind = &table[index])->bone_id >= 0) {
         emitter = fx_next_emitter(emitter);
         if (emitter == 0) {
             return;
         }
         fx_resume_emit(emitter);
         emitter_id = emitter_id_from_handle(emitter);
-        if ((unsigned int)(bind->bone_id + 0xC0000000) == 0) {
+        if (bind->bone_id == 0x40000000) {
             pfx_bind_emitter_num_to_obj(
                 effect, object, 0, emitter_id);
         } else {
@@ -2349,7 +2285,6 @@ void fire_multi_emitter_pfx_via_tbl(
             handles[index] = emitter;
         }
         index++;
-        bind++;
     }
 }
 
@@ -2384,13 +2319,49 @@ FatalityEffectHandle pfxhandle_bgnd_spawn_at_sobj_id(
 }
 
 FatalityEffectHandle pfxhandle_spawn_at_bid_next_bind_render(
-    FatalityEffectHandle effect, MkObj* object, int bone_id) {
-    return fatality_bind_next_emitter(effect, object, bone_id, 1);
+    FatalityEffectHandle effect_handle, MkObj* object, int bone_id)
+{
+    MkPfx* effect;
+
+    effect_handle = fx_next_emitter(effect_handle);
+    if (effect_handle == 0) {
+        return 0;
+    }
+    fx_resume_emit(effect_handle);
+    effect = pfx_from_emitter(effect_handle);
+    if (effect == 0) {
+        return 0;
+    }
+    emitter_id_from_handle(effect_handle);
+    if (bone_id == 0x40000000) {
+        pfx_bind_render_to_obj(effect, object, 0);
+    } else {
+        pfx_bind_render_to_obj_bone(effect, object, bone_id);
+    }
+    return effect_handle;
 }
 
 FatalityEffectHandle pfxhandle_spawn_at_bid_next(
     FatalityEffectHandle effect, MkObj* object, int bone_id) {
-    return fatality_bind_next_emitter(effect, object, bone_id, 0);
+    MkPfx* pfx;
+    int emitter_id;
+
+    effect = fx_next_emitter(effect);
+    if (effect == 0) {
+        return 0;
+    }
+    fx_resume_emit(effect);
+    pfx = pfx_from_emitter(effect);
+    if (pfx == 0) {
+        return 0;
+    }
+    emitter_id = emitter_id_from_handle(effect);
+    if ((unsigned int)(bone_id + 0xC0000000) == 0) {
+        pfx_bind_emitter_num_to_obj(pfx, object, 0, emitter_id);
+    } else {
+        pfx_bind_emitter_num_to_obj_bone(pfx, object, bone_id, emitter_id);
+    }
+    return effect;
 }
 
 FatalityEffectHandle pfxhandle_spawn_at_bid(
@@ -2451,15 +2422,38 @@ float p_fatality_cam(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 89.23%; exact size and control flow; residue is register allocation and inlined-helper scheduling. */
 static float end_of_fatality(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     if (g_game_info.field_200 != 3) {
         xfer_proc(fatality_state.attacker_proc, p_anim_idle);
         xfer_proc(fatality_state.victim_proc, player_sleep_forever);
-        fatality_finish_sidekick(fatality_state.player_info);
+        if (fatality_state.player_info->player_index == 0x1B) {
+            PlyrPdata* player = fatality_state.player_info->slot.pdata;
+            MkProc* animation_proc = MK_HDR_LIVE(
+                player->sidekick_anim_proc, player->sidekick_anim_instance);
+            if (animation_proc != 0) {
+                xfer_proc(animation_proc, p_anim_idle);
+            }
+            if (fatality_state.player_info->slot.pdata->plyr_num == 0) {
+                destroy_mkprocs_pid(0xC028);
+            } else {
+                destroy_mkprocs_pid(0xC029);
+            }
+        }
     } else {
-        fatality_finish_sidekick(fatality_state.context);
+        if (fatality_state.context->player_index == 0x1B) {
+            PlyrPdata* player = fatality_state.context->slot.pdata;
+            MkProc* animation_proc = MK_HDR_LIVE(
+                player->sidekick_anim_proc, player->sidekick_anim_instance);
+            if (animation_proc != 0) {
+                xfer_proc(animation_proc, p_anim_idle);
+            }
+            if (fatality_state.context->slot.pdata->plyr_num == 0) {
+                destroy_mkprocs_pid(0xC028);
+            } else {
+                destroy_mkprocs_pid(0xC029);
+            }
+        }
     }
     reset_game_speed();
     f_fatality_finished = 1;
@@ -2491,7 +2485,6 @@ void fkbm_obj_face_obj(
     }
 }
 
-/* TODO: [near miss] 88.71%; exact size; residue is register allocation and branch scheduling. */
 static float p_face_obj(void) {
     FatalityFaceObjectPdata* data;
     MkObj* source;
@@ -2503,18 +2496,15 @@ static float p_face_obj(void) {
     if (data == 0) {
         return -1.0f;
     }
-    source = data->source;
-    if (source != 0 && source->hdr.instance != data->source_instance) {
-        source = 0;
-    }
+    source = MK_HDR_LIVE(data->source, data->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    target = data->target;
-    if (target != 0 && target->hdr.instance != data->target_instance) {
-        target = 0;
+    target = MK_HDR_LIVE(data->target, data->target_instance);
+    if (target == 0) {
+        return -1.0f;
     }
-    if (target == 0 || data->source_bone < 0) {
+    if (data->source_bone < 0) {
         return -1.0f;
     }
 
@@ -2537,11 +2527,10 @@ static float p_face_obj(void) {
     direction.y = source_position.y - direction.y;
     direction.z = source_position.z - direction.z;
     v3_to_xy_ang(&data->controller->angles, &direction);
-    data->controller->flags20 |= 0x80;
+    data->controller->flags_bits.bit7 = 1;
     return 1.0f;
 }
 
-/* TODO: [near miss] 87.11%; exact size; residue is register allocation and bitfield/load scheduling. */
 void reset_fake_bone_matcher(
     FatalityFakeBoneMatcher* matcher, const Vec* parent_offset,
     const Vec* child_offset, const Vec* rotation, int child_bone,
@@ -2549,11 +2538,7 @@ void reset_fake_bone_matcher(
     MkObj* parent;
     MkBone* bone;
 
-    parent = matcher->parent;
-    if (parent != 0 &&
-        parent->hdr.instance != matcher->parent_instance) {
-        parent = 0;
-    }
+    parent = MK_HDR_LIVE(matcher->parent, matcher->parent_instance);
     if (parent == 0 || child == 0) {
         return;
     }
@@ -2581,10 +2566,10 @@ void reset_fake_bone_matcher(
         matcher->flags.bits.has_rotation = 1;
     }
     matcher->child_bone = child_bone;
-    bone = child->bones[child_bone];
-    if (bone == 0) {
+    if (child->bones[matcher->child_bone] == 0) {
         return;
     }
+    bone = child->bones[child_bone];
     bone->flags_54_bits.calculation_locked = 1;
     if (blend != 0.0f) {
         matcher->blend = blend;
@@ -2595,7 +2580,6 @@ void reset_fake_bone_matcher(
     }
 }
 
-/* TODO: [near miss] 90.18%; exact size; residue is register allocation and repeated pdata-load scheduling. */
 FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     MkObj* parent, MkObj* child, int child_bone,
     const Vec* parent_offset, const Vec* child_offset,
@@ -2608,57 +2592,58 @@ FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     process = _create_mkproc_generic_nostack(
         0x600C, 0x1F, p_fake_bone_matcher_proc,
         sizeof(FatalityFakeBoneMatcher), (MkHdr**)&matcher);
-    if (process == 0) {
-        return matcher;
-    }
-    zero_pdata_payload(
-        sizeof(FatalityFakeBoneMatcher), &matcher->hdr);
-    matcher->process = process;
-    matcher->process_instance = process->hdr.instance;
-    matcher->parent = parent;
-    matcher->parent_instance = parent->hdr.instance;
-    matcher->child = child;
-    matcher->child_instance = child->hdr.instance;
-    if (parent_offset != 0) {
-        matcher->parent_offset.x = parent_offset->x;
-        matcher->parent_offset.y = parent_offset->y;
-        matcher->parent_offset.z = parent_offset->z;
-        matcher->flags.bits.has_parent_offset = 1;
-    }
-    if (child_offset != 0) {
-        matcher->child_offset.x = child_offset->x;
-        matcher->child_offset.y = child_offset->y;
-        matcher->child_offset.z = child_offset->z;
-        matcher->flags.bits.has_child_offset = 1;
-    }
-    if (rotation != 0) {
-        matcher->rotation.x = rotation->x;
-        matcher->rotation.y = rotation->y;
-        matcher->rotation.z = rotation->z;
-        matcher->flags.bits.has_rotation = 1;
-    }
-    matcher->flags.bits.mode = mode;
-    matcher->child_bone = child_bone;
-    bone = child->bones[child_bone];
-    if (bone == 0) {
-        if (matcher->hdr.instance != 0) {
-            matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
+    if (process != 0) {
+        zero_pdata_payload(
+            sizeof(FatalityFakeBoneMatcher), &matcher->hdr);
+        matcher->process = process;
+        matcher->process_instance = process->hdr.instance;
+        matcher->parent = parent;
+        matcher->parent_instance = parent->hdr.instance;
+        matcher->child = child;
+        matcher->child_instance = child->hdr.instance;
+        if (parent_offset != 0) {
+            matcher->parent_offset.x = parent_offset->x;
+            matcher->parent_offset.y = parent_offset->y;
+            matcher->parent_offset.z = parent_offset->z;
+            matcher->flags.bits.has_parent_offset = 1;
         }
-        return 0;
+        if (child_offset != 0) {
+            matcher->child_offset.x = child_offset->x;
+            matcher->child_offset.y = child_offset->y;
+            matcher->child_offset.z = child_offset->z;
+            matcher->flags.bits.has_child_offset = 1;
+        }
+        if (rotation != 0) {
+            matcher->rotation.x = rotation->x;
+            matcher->rotation.y = rotation->y;
+            matcher->rotation.z = rotation->z;
+            matcher->flags.bits.has_rotation = 1;
+        }
+        matcher->flags.bits.mode = mode;
+        matcher->child_bone = child_bone;
+        if (child->bones[matcher->child_bone] == 0) {
+            if (matcher->hdr.instance != 0) {
+                matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
+            }
+            matcher = 0;
+        } else {
+            bone = child->bones[child_bone];
+            bone->flags_54_bits.calculation_locked = 1;
+            if (blend != 0.0f) {
+                matcher->blend = blend;
+                matcher->blend_target = blend;
+                matcher->parent_position.x = parent->pos.value.x;
+                matcher->parent_position.y = parent->pos.value.y;
+                matcher->parent_position.z = parent->pos.value.z;
+            }
+            mk_insert(&parent->hdr, &process->pdata_list_b);
+        }
     }
-    bone->flags_54_bits.calculation_locked = 1;
-    if (blend != 0.0f) {
-        matcher->blend = blend;
-        matcher->blend_target = blend;
-        matcher->parent_position.x = parent->pos.value.x;
-        matcher->parent_position.y = parent->pos.value.y;
-        matcher->parent_position.z = parent->pos.value.z;
-    }
-    mk_insert(&parent->hdr, &process->pdata_list);
     return matcher;
 }
 
-/* TODO: [near miss] 80.09%; exact size; residue is register allocation and instruction scheduling. */
+/* TODO: [borked] 90.11%; signed packed flags recovered;
+ * selected bone uses +40 parent_matrix instead of retail +0 matrix. */
 static float p_fake_bone_matcher_proc(void) {
     FatalityFakeBoneMatcher* matcher;
     MkObj* parent;
@@ -2747,7 +2732,6 @@ static float p_fake_bone_matcher_proc(void) {
     return 1.0f;
 }
 
-
 MkProc* get_fake_bone_matcher_proc(FatalityFakeBoneMatcher* matcher) {
     MkProc* result = 0;
 
@@ -2771,7 +2755,9 @@ void obj_grnd_bounce(
         data->object = object;
         data->object_instance = object->hdr.instance;
         if (velocity != 0) {
-            object->pos_vel = *velocity;
+            object->pos_vel.x = velocity->x;
+            object->pos_vel.y = velocity->y;
+            object->pos_vel.z = velocity->z;
         }
         object->flags_08_bits.gravity_enabled = 1;
         object->gravity = gravity;
@@ -2870,7 +2856,6 @@ void start_obj_scalar_proc(
         update_mkobj(object);
     }
 }
-
 
 float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
@@ -2995,12 +2980,10 @@ void obj_match_obj_pos(
     }
 }
 
-/* TODO: [near miss] 95.95588%; return/validation/displacement fixed; stop at FP scheduling/coloring. */
 static float p_obj_pos_matcher(void) {
     FatalityObjectMatcherPdata* data;
     MkObj* source;
     MkObj* destination;
-    float blend;
 
     data = (FatalityObjectMatcherPdata*)apdata;
     if (data == 0) {
@@ -3014,21 +2997,24 @@ static float p_obj_pos_matcher(void) {
     if (destination == 0) {
         return -1.0f;
     }
-    blend = data->blend;
-    if (blend == 1.0f) {
+    if (data->blend == 1.0f) {
         destination->pos.value.x = source->pos.value.x;
         destination->pos.value.y = source->pos.value.y;
         destination->pos.value.z = source->pos.value.z;
     } else {
+        float blend = data->blend;
         Vec displacement;
 
         displacement.x =
-            (source->pos.value.x - destination->pos.value.x) * blend;
+            source->pos.value.x - destination->pos.value.x;
         displacement.y =
-            (source->pos.value.y - destination->pos.value.y) * blend;
+            source->pos.value.y - destination->pos.value.y;
         displacement.z =
-            (source->pos.value.z - destination->pos.value.z) * blend;
-        destination->pos.value.x += displacement.x;
+            source->pos.value.z - destination->pos.value.z;
+        displacement.x *= blend;
+        displacement.y *= blend;
+        displacement.z *= blend;
+        destination->pos.value.x = destination->pos.value.x + displacement.x;
         destination->pos.value.y += displacement.y;
         destination->pos.value.z += displacement.z;
     }
@@ -3078,7 +3064,7 @@ void bone_matcher_set_ang_pos(
     }
 }
 
-/* TODO: [near miss] 92.14286%; validation/flag agree; stop at register homes and return moves. */
+/* TODO: [near miss] 92.14286%; validation/flag agree; latch CFG and flag agree; root/object homes and two return copies remain. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
@@ -3239,10 +3225,10 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
 }
 
 MkObj* clone_my_weapon(
-    WeaponDefinition* definition, FatalityWeaponSource* source) {
+    WeaponDefinition* definition, PlyrInfo* source) {
     MkObj* weapon;
 
-    weapon = load_weapon(definition, source->player_object);
+    weapon = load_weapon(definition, source->slot.mirror_a);
     if (weapon != 0) {
         obj_create_sobjs(weapon);
         sobj_set_priority(obj_first_sobj(weapon), 6);
@@ -3250,33 +3236,34 @@ MkObj* clone_my_weapon(
     return weapon;
 }
 
-/* TODO: [near miss] 98.25%; source/reflection and style register colors remain. */
-void clone_weapon_to_secondary(
-    WeaponDefinition* definition, FatalityWeaponSource* source) {
+static inline void clone_secondary_weapon(
+    PlyrInfo* source, WeaponDefinition* definition) {
     PlyrWeaponStyle* style;
-    PlyrMirrorObjLatch* weapon_latch;
-    PlyrMirrorObjLatch* reflection_latch;
     MkObj* weapon;
 
-    style = source->owner->weapon_styles[2];
-    weapon_latch = &style->mirror_slots.weapon[1].primary;
-    reflection_latch = &style->mirror_slots.weapon[1].mirror;
-    weapon = load_weapon(definition, source->player_object);
+    style = source->slot.pdata->weapon_styles[2];
+    weapon = load_weapon(definition, source->slot.mirror_a);
     if (weapon != 0) {
         MkObj* reflection;
 
-        weapon_latch->obj = weapon;
-        weapon_latch->instance = weapon->hdr.instance;
+        style->mirror_slots.weapon[1].primary.obj = weapon;
+        style->mirror_slots.weapon[1].primary.instance = weapon->hdr.instance;
         mk_insert(&weapon->hdr, &style->script->pdata_list);
-        reflection = load_weapon_reflection(definition, source->player_object);
+        reflection = load_weapon_reflection(definition, source->slot.mirror_a);
         if (reflection != 0) {
-            reflection_latch->obj = reflection;
-            reflection_latch->instance = reflection->hdr.instance;
+            style->mirror_slots.weapon[1].mirror.obj = reflection;
+            style->mirror_slots.weapon[1].mirror.instance = reflection->hdr.instance;
             mk_insert(&reflection->hdr, &style->script->pdata_list);
             obj_create_sobjs(reflection);
             sobj_set_priority(obj_first_sobj(reflection), 6);
         }
     }
+}
+
+void clone_weapon_to_secondary(
+    WeaponDefinition* definition, PlyrInfo* source)
+{
+    clone_secondary_weapon(source, definition);
 }
 
 void advance_to_weapon_style(PlyrPdata* player) {
