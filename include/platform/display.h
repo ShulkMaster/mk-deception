@@ -1,6 +1,7 @@
 #ifndef PLATFORM_DISPLAY_H
 #define PLATFORM_DISPLAY_H
 #include "rw/rplight.h"
+#include "math/mk_math_types.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwdevice.h"
 typedef struct RwTexture RwTexture;
@@ -21,10 +22,11 @@ extern const unsigned int rgba_blue;
 extern const unsigned int rgba_cyan;
 extern const unsigned int rgba_yellow;
 extern RwCamera* Camera; extern RpWorld* World;
+extern MKMATRIX camera_facing_matrix_ay;
 extern unsigned long f_render_all_atomics, display_off, renderware_initialized;
 int init_display(void); int AttachPlugins(void); void Render(void); void display_shutdown(void);
 void turn_display_on(void); void turn_display_off(void);
-void set_background_color(unsigned char, unsigned char, unsigned char);
+void set_background_color(int red, int green, int blue, int alpha);
 void wait_for_display_to_flush(void); void update_camera_facing_matrix(void);
 int set_render_state(int, int); void start_first_pass_render(void); void end_first_pass_render(void);
 void TakeCameraSnapShot(void); void DeleteCameraSnapShot(void);
