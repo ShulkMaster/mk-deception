@@ -12,7 +12,7 @@
 #include "dolphin/cache.h"
 #include "math/gxQuat.h"
 
-extern int screen_height;
+#include "platform/display_metrics.h"
 
 /* WGPIPE at 0xCC008000 -- s16 POS (1 frac bit) + f32 TEX0. */
 #define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
@@ -34,16 +34,14 @@ int nativefont_estimate_geometry_size(int glyph_count) {
 }
 
 static int get_num_newlines(const char* text) {
-    (void)text;
     return 0;
 }
 
 static float render_string(float x) {
-    return (float)(int)(0.5f + x);
+    return (int)(0.5f + x);
 }
 
 int nativefont_instance_geometry(NativeFontInstance* inst) {
-    (void)inst;
     return 0;
 }
 
@@ -79,8 +77,8 @@ void nativefont_string_render(NativeFontString* ctx, float x, float y) {
         pos[2][1] = src->ay;
         pos[2][2] = src->az;
         /* Snap to pixel centers; Y flipped into screen space. */
-        pos[0][3] = (float)(int)(0.5f + (src->tx + x));
-        pos[1][3] = (float)(int)(0.5f + (src->ty + ((float)screen_height - y)));
+        pos[0][3] = (int)(0.5f + (src->tx + x));
+        pos[1][3] = (int)(0.5f + (src->ty + ((float)screen_height - y)));
         pos[2][3] = 0.0f;
 
         GXLoadPosMtxImm(pos, 0);
@@ -128,7 +126,7 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
     }
 
     inst->locked = 0;
-    inst->dl_size = (unsigned int)GXEndDisplayList();
+    inst->dl_size = GXEndDisplayList();
     DCFlushRange(inst->dl, inst->size);
 }
 
@@ -141,8 +139,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     short y;
     float v;
 
-    (void)ctx;
-
     if (quad == 0 || inst->locked == 0) {
         return;
     }
@@ -150,32 +146,32 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     GXBegin(0x80, 0, 4); /* GX_QUADS */
 
     /* (x0, y1) (u0, v1) */
-    y = (short)((short)quad->y1 << 1);
-    WGPIPE_S16 = (short)((short)quad->x0 << 1);
+    y = (short)quad->y1 << 1;
+    WGPIPE_S16 = (short)quad->x0 << 1;
     WGPIPE_S16 = y;
     v = quad->v1;
     WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
     /* (x0, y0) (u0, v0) */
-    y = (short)((short)quad->y0 << 1);
-    WGPIPE_S16 = (short)((short)quad->x0 << 1);
+    y = (short)quad->y0 << 1;
+    WGPIPE_S16 = (short)quad->x0 << 1;
     WGPIPE_S16 = y;
     v = quad->v0;
     WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
     /* (x1, y0) (u1, v0) */
-    y = (short)((short)quad->y0 << 1);
-    WGPIPE_S16 = (short)((short)quad->x1 << 1);
+    y = (short)quad->y0 << 1;
+    WGPIPE_S16 = (short)quad->x1 << 1;
     WGPIPE_S16 = y;
     v = quad->v0;
     WGPIPE_F32 = quad->u1;
     WGPIPE_F32 = v;
 
     /* (x1, y1) (u1, v1) */
-    y = (short)((short)quad->y1 << 1);
-    WGPIPE_S16 = (short)((short)quad->x1 << 1);
+    y = (short)quad->y1 << 1;
+    WGPIPE_S16 = (short)quad->x1 << 1;
     WGPIPE_S16 = y;
     v = quad->v1;
     WGPIPE_F32 = quad->u1;
@@ -198,7 +194,6 @@ void nativefont_begin_render(void) {
 }
 
 void nativefont_string_cleanup(NativeFontString* ctx) {
-    (void)ctx;
 }
 
 void pfxfont_release_delayed_vertex_buffers(void) {}
