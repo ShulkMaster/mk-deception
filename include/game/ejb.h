@@ -1,11 +1,14 @@
 #ifndef GAME_EJB_H
 #define GAME_EJB_H
 
-typedef struct AniData AniData;
+typedef struct MkObj MkObj;
+typedef struct AnimScript AniData;
 typedef struct PlyrPdata PlyrPdata;
 typedef struct Vec Vec;
 
+int is_plyr_airborn(MkObj* object, PlyrPdata* player);
 int am_i_blocking(void);
+int joypad_state_5(PlyrPdata* pdata);
 int am_i_flipped_or_turned(void);
 int am_i_flipped(void);
 void back_to_normal(void);
