@@ -16,11 +16,7 @@ void ScreenNode::SetComponent(ScreenAnimControl* /*ctrl*/, float* /*values*/,
                               int /*unused*/) {}
 
 void* ScreenNode::operator new(unsigned long size) {
-    char* name;
-    int tag;
-    name = (char*)"SS-Node";
-    tag = 0x494e4954;
-    return ScreenUtil::Malloc(size, tag, name);
+    return ScreenUtil::Malloc(size, 0x494e4954, (char*)"SS-Node");
 }
 
 void ScreenNode::operator delete(void* p) {
