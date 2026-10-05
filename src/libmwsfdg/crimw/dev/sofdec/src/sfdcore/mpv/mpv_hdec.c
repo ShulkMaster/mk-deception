@@ -37,7 +37,7 @@ extern void MPVDEC_ResetMv(MPVMotionInfo* motion);
 extern int MPVLIB_CheckHn(MPVContext* context);
 extern int MPVM2V_DecodePicAtr(MPVContext* context, SJ* stream);
 
-#define MPVHDEC_READ_BITS(value, count)                                      \
+#define MPVHDEC_READ_BITS(value, count)                                       \
     do {                                                                      \
         int split = 32 - (count);                                             \
         if (bit_offset >= split) {                                            \
@@ -60,7 +60,7 @@ extern int MPVM2V_DecodePicAtr(MPVContext* context, SJ* stream);
 
 #define MPVHDEC_READ_FLAG(value)                                              \
     do {                                                                      \
-        (value) = bits >> 31;                                                  \
+        (value) = bits >> 31;                                                 \
         if (bit_offset == 31) {                                               \
             bits = next_bits;                                                 \
             next_bits = *words++;                                             \
@@ -325,7 +325,6 @@ int MPVHDEC_DecPicture(MPVContext* context, SJ* stream)
     }
 }
 
-/* TODO: [near miss] 97.588234%; donor/retail share the common delimiter result epilogue, but MWCC keeps the short-chunk zero directly in r3 instead of the live result register. */
 int MPV_GoNextDelimSj(SJ* stream)
 {
     SJCK chunk;
@@ -337,7 +336,8 @@ int MPV_GoNextDelimSj(SJ* stream)
         stream->interface->get_chunk(stream, 1, 0x7FFFFFFF, &chunk);
         if (chunk.len < 4) {
             stream->interface->unget_chunk(stream, 1, &chunk);
-            return 0;
+            delimiter_type = 0;
+            break;
         }
 
         delimiter = MPV_SearchDelim(chunk.data, chunk.len, -1);
@@ -352,8 +352,9 @@ int MPV_GoNextDelimSj(SJ* stream)
         SJ_SplitChunk(&chunk, delimiter - chunk.data, &chunk, &remainder);
         stream->interface->put_chunk(stream, 0, &chunk);
         stream->interface->unget_chunk(stream, 1, &remainder);
-        return delimiter_type;
+        break;
     }
+    return delimiter_type;
 }
 
 static inline void mpvhdec_ConsumeDelim(MPVContext* context, SJ* stream)
@@ -619,7 +620,6 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
-
 static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -694,7 +694,6 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     stream->interface->unget_chunk(stream, 1, &remainder);
     return 0;
 }
-
 
 static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 {
@@ -781,11 +780,12 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
+/* TODO: [near miss] 95.45%; result/stream homes agree; input data load is hoisted into the save sequence. */
 int MPV_DecodePicAtr(MPVContext* context, const SJCK* input,
                      int* consumed_size)
 {
-    SJ* stream;
     int result;
+    SJ* stream;
 
     stream = SJMEM_Create(input->data, input->len);
     if (stream == 0) {
