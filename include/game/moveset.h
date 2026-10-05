@@ -9,7 +9,7 @@ typedef struct MkObj MkObj;
 typedef struct MkPtr MkPtr;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct WeaponDefinition WeaponDefinition;
-typedef struct AniData AniData;
+typedef struct AnimScript AniData;
 
 typedef struct MovesetReflectionOwner {
     char pad00[0x94];
