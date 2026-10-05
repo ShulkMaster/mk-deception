@@ -90,7 +90,6 @@ int memcard_boot_screen_displayed;
 extern float p_puzzle_fighter(void);
 extern float p_mk_chess(void);
 
-void snd_req_vol(int id, float volume);
 void xfer_puzzle_exit(int arg);
 int get_next_bgnd(void);
 
