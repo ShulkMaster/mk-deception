@@ -1,20 +1,16 @@
-typedef signed char s8;
-typedef int s32;
-typedef unsigned int u32;
-
 #include "runtime/cstdarg.h"
 
 void* __va_arg(__va_list list, int type)
 {
     char* address;
-    s8* register_index = &list->gpr;
-    s32 index = list->gpr;
-    s32 maximum = 8;
-    s32 size = 4;
-    s32 increment = 1;
-    s32 even = 0;
-    s32 fpr_offset = 0;
-    s32 register_size = 4;
+    signed char* register_index = &list->gpr;
+    int index = list->gpr;
+    int maximum = 8;
+    int size = 4;
+    int increment = 1;
+    int even = 0;
+    int fpr_offset = 0;
+    int register_size = 4;
 
     if (type == 3) {
         register_index = &list->fpr;
@@ -37,7 +33,7 @@ void* __va_arg(__va_list list, int type)
     } else {
         *register_index = 8;
         address = list->input_arg_area;
-        address = (char*)(((u32)address + (size - 1)) & ~(size - 1));
+        address = (char*)(((unsigned int)address + (size - 1)) & ~(size - 1));
         list->input_arg_area = address + size;
     }
     if (type == 0)
