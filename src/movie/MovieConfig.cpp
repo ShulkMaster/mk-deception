@@ -3,7 +3,6 @@
 _mwMemHeap* MovieHeap;
 
 void mwMovLog(const char* message) {
-    (void)message;
 }
 
 void mwMovFree(void* memory) {
