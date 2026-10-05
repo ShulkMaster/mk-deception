@@ -123,7 +123,6 @@ static s32 DoMount(s32 chan) {
     u8 checkSum;
     int step;
 
-
     card = &__CARDBlock[chan];
     do {
     if (card->mountStep == 0) {
@@ -181,7 +180,7 @@ static s32 DoMount(s32 chan) {
                 sram->flashID[chan][i] = card->id[i];
                 checkSum += card->id[i];
             }
-            sram->flashIDCheckSum[chan] = (u8)~checkSum;
+            sram->flashIDCheckSum[chan] = ~checkSum;
             __OSUnlockSramEx(TRUE);
 
             return result;
@@ -241,7 +240,6 @@ void __CARDMountCallback(s32 chan, s32 result) {
     CARDControl* card;
     CARDCallback callback;
 
-
     card = &__CARDBlock[chan];
     switch (result) {
     case CARD_RESULT_READY:
@@ -278,7 +276,6 @@ void __CARDMountCallback(s32 chan, s32 result) {
 s32 CARDMountAsync(s32 chan, void* workArea, CARDCallback detachCallback, CARDCallback attachCallback) {
     CARDControl* card;
     BOOL enabled;
-
 
     if (chan < 0 || 2 <= chan)
         return CARD_RESULT_FATAL_ERROR;
@@ -342,7 +339,6 @@ static void DoUnmount(s32 chan, s32 result) {
     CARDControl* card;
     BOOL enabled;
 
-
     card = &__CARDBlock[chan];
     enabled = OSDisableInterrupts();
     if (card->attached) {
@@ -359,7 +355,6 @@ static void DoUnmount(s32 chan, s32 result) {
 s32 CARDUnmount(s32 chan) {
     CARDControl* card;
     s32 result;
-
 
     result = __CARDGetControlBlock(chan, &card);
     if (result < 0)
