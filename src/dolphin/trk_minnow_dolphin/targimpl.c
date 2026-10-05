@@ -1,7 +1,7 @@
-#include "dolphin/trk.h"
+#include "dolphin/targimpl.h"
 #include "runtime/cstring.h"
 
-typedef struct TRKStopInfoPacket {
+struct TRKStopInfoPacket {
     u32 length;
     u8 command;
     u8 reserved_05[3];
@@ -9,14 +9,13 @@ typedef struct TRKStopInfoPacket {
     u32 instruction;
     u32 exception_id;
     u8 reserved_14[0x2C];
-} TRKStopInfoPacket;
+};
 
 typedef char TRKStopInfoPacketSizeCheck[
-    sizeof(TRKStopInfoPacket) == 0x40 ? 1 : -1];
+    sizeof(struct TRKStopInfoPacket) == 0x40 ? 1 : -1];
 
 extern DSError TRKTargetAccessMemory(void* data, u32 address, u32* length,
                                     BOOL write, BOOL use_virtual_address);
-extern DSError TRKTargetReadInstruction(u32* instruction, u32 address);
 
 void TRKTargetSetInputPendingPtr(volatile u8* input_pending)
 {
@@ -46,7 +45,7 @@ u32 TRKTargetGetPC(void)
 
 void TRKTargetAddExceptionInfo(MessageBuffer* message)
 {
-    TRKStopInfoPacket packet;
+    struct TRKStopInfoPacket packet;
     u32 instruction;
 
     memset(&packet, 0, sizeof(packet));
@@ -61,7 +60,7 @@ void TRKTargetAddExceptionInfo(MessageBuffer* message)
 
 void TRKTargetAddStopInfo(MessageBuffer* message)
 {
-    TRKStopInfoPacket packet;
+    struct TRKStopInfoPacket packet;
     u32 instruction;
 
     memset(&packet, 0, sizeof(packet));
