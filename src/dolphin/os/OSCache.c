@@ -3,7 +3,7 @@
 #include "dolphin/os.h"
 #include "runtime/asm_sequences.inc"
 
-extern void DBPrintf(const char* format, ...);
+#include "dolphin/db.h"
 
 asm void DCEnable(void) {
     SEQ_DCEnable();
