@@ -1,15 +1,9 @@
 #include "math/gxVect.h"
 #include "runtime/asm_sequences.inc"
 
-extern float sqrtf(float value);
-
 const float PSVECMagHalf = 0.5f;
 const float PSVECMagThree = 3.0f;
 
-/*
- * Soft ceiling: retail implements this complete TU with paired-single leaves.
- * These typed scalar forms preserve the public algorithms and alias behavior.
- */
 asm void PSVECAdd(const Vec* a, const Vec* b, Vec* sum)
 {
     SEQ_PSVECAdd();
