@@ -139,7 +139,6 @@ typedef struct MwsLibraryWork {
 
 typedef struct MwsReferenceBuffers { void* buffers[2]; } MwsReferenceBuffers;
 
-
 typedef struct MwsPlayerInterface {
     void* reserved[3];
     void (*vsync)(void);
@@ -427,7 +426,7 @@ void mwSfdDestroy(MwsPlayer* player)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.768364%; shared free-loop declaration order changes register coloring; allocation behavior retained. */
+/* TODO: [near miss] 97.77%; player/create/size/pool/free-loop register rotation remains; CFG and stores agree. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;
