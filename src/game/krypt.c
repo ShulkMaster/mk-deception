@@ -241,7 +241,7 @@ static inline void rebuild_visible_coffin_rows(void) {
     Vec origin = {0.0f, 0.0f, 0.0f};
     int col;
     int row;
-    int row_end;
+    int first_row;
     float x;
     krypt_pdata->coffin_pebble_type0->count = 0;
     krypt_pdata->coffin_pebble_type1->count = 0;
@@ -249,15 +249,14 @@ static inline void rebuild_visible_coffin_rows(void) {
     krypt_pdata->coffin_pebble_type3->count = 0;
     krypt_pdata->lid_closed_pebbles->count = 0;
     krypt_pdata->lid_open_pebbles->count = 0;
-    row = krypt_pdata->current_row - 1;
-    if (row > 0x10) row = 0x10;
-    if (row < 0) row = 0;
+    first_row = krypt_pdata->current_row - 1;
+    if (first_row > 0x10) first_row = 0x10;
+    if (first_row < 0) first_row = 0;
     col = krypt_pdata->current_column - 4;
     if (col < 0) col = 0;
     else if (col > 0xB) col = 0xB;
     x = 3.0f * (float)col + -28.5f;
-    row_end = row + 4;
-    for (; row < row_end; row++) {
+    for (row = first_row; row < first_row + 4; row++) {
         origin.x = x;
         origin.y = 0.0f;
         origin.z = -(5.0f * (float)row - 50.0f);
@@ -390,12 +389,9 @@ void get_gallery_page_number_string(char* out) {
             (kontent_pdata->item_count - 1) / 12 + 1);
 }
 
-/* TODO: [near miss] 98.809525%; kontent and coffin table pointers swap r4/r5 in five rows. */
-char* get_long_coffin_description(void) {
-    int coffin;
+static inline char* gallery_coffin_long_description(int coffin) {
     CoffinEntry* entries;
 
-    coffin = kontent_pdata->items[kontent_pdata->current_selection];
     entries = coffin_data;
     if (gallery_data_loaded == 0) {
         return 0;
@@ -404,6 +400,10 @@ char* get_long_coffin_description(void) {
         return 0;
     }
     return entries[coffin].long_description;
+}
+
+char* get_long_coffin_description(void) {
+    return gallery_coffin_long_description(kontent_pdata->items[kontent_pdata->current_selection]);
 }
 
 char* get_coffin_blurb(void) {
@@ -1486,8 +1486,18 @@ static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.689117%; wallet-loop zero init is li r24,0 vs
- * retail mr r24,r25; all handle and address operations now agree. */
+static inline void krypt_set_wallet_text_visible(int visible) {
+    StringObj* wallet_text;
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        wallet_text = MK_LIVE(krypt_pdata->wallet_text[i].obj, krypt_pdata->wallet_text[i].obj_instance);
+        if (wallet_text != 0) {
+            if (visible) unhide_string_obj(wallet_text); else hide_string_obj(wallet_text);
+        }
+    }
+}
+
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1497,8 +1507,6 @@ void heads_up_display_visible(int visible) {
     StringObj* label_b;
     StringObj* value_a;
     StringObj* value_b;
-    StringObj* wallet_text;
-    int i;
 
     wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
 
@@ -1546,17 +1554,29 @@ void heads_up_display_visible(int visible) {
             hide_string_obj(value_b);
         }
     }
+    krypt_set_wallet_text_visible(visible);
+}
+static inline void krypt_update_wallet_text(void) {
+    StringObj* string_obj;
+    char value[8];
+    int i;
+
     for (i = 0; i < 6; i++) {
-        wallet_text = MK_LIVE(krypt_pdata->wallet_text[i].obj, krypt_pdata->wallet_text[i].obj_instance);
-        if (wallet_text != 0) {
-            if (visible) unhide_string_obj(wallet_text); else hide_string_obj(wallet_text);
+        format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
+        string_obj = krypt_pdata->wallet_text[i].obj;
+        string_obj = MK_LIVE(string_obj, krypt_pdata->wallet_text[i].obj_instance);
+        if (string_obj != 0) {
+            update_string_obj(string_obj, 0, value);
+        } else {
+            string_obj = string_center_xy(
+                0x8310, 0, value, screen_width / 2 + koin_position_offsets[i], 0x22, 0x4B);
+            krypt_pdata->wallet_text[i].obj = string_obj;
+            krypt_pdata->wallet_text[i].obj_instance = string_obj->instance;
         }
     }
 }
-/* TODO: [near miss] 99.44%; only the koin i*4 IV init remains (retail mr r29,r31, ours li r29,0);
- * i = 0 outside the for, ++i and a short counter did not reproduce it. */
+
 void init_heads_up_display(void) {
-    int i;
     ScreenObj* screen_obj;
     StringObj* string_obj;
     ScreenObj* award_notice_top;
@@ -1566,7 +1586,6 @@ void init_heads_up_display(void) {
     ScreenObj* award_frame;
     StringObj* right_label;
     StringObj* right_text;
-    char value[8];
     char* string;
 
     screen_obj = load_named_2d_pfxobj(0x140066, 0x830F, "OPEN_BUTTON", 0, 0x4C);
@@ -1607,19 +1626,7 @@ void init_heads_up_display(void) {
     krypt_pdata->wallet_front.obj = screen_obj;
     krypt_pdata->wallet_front.obj_instance = screen_obj->instance;
 
-    for (i = 0; i < 6; i++) {
-        format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
-        string_obj = krypt_pdata->wallet_text[i].obj;
-        string_obj = MK_LIVE(string_obj, krypt_pdata->wallet_text[i].obj_instance);
-        if (string_obj != 0) {
-            update_string_obj(string_obj, 0, value);
-        } else {
-            string_obj = string_center_xy(
-                0x8310, 0, value, screen_width / 2 + koin_position_offsets[i], 0x22, 0x4B);
-            krypt_pdata->wallet_text[i].obj = string_obj;
-            krypt_pdata->wallet_text[i].obj_instance = string_obj->instance;
-        }
-    }
+    krypt_update_wallet_text();
 
     award_notice_top = load_named_2d_pfxobj_xy(
         0x140066, 0x830F, "AWARD_NOTICE_TOP", 0,
@@ -1752,8 +1759,8 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 98.91167%; koin totals fold into profile+k*4 instead of
- * retail lwzx base; GPR and FPR coloring remain after row-helper flattening. */
+/* TODO: [near miss] 99.16%; row helper matches; koin totals fold into
+ * profile+k*4 instead of retail lwzx base; GPR coloring remains. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
@@ -3023,7 +3030,6 @@ static void update_use_key_string(void) {
     }
 }
 
-/* TODO: [near miss] 99.78%; row end and float-conversion bias swap r30/r31. */
 float p_krypt_loop(void) {
     handle_controller_input();
     if (krypt_pdata->layout_dirty != 0) {
@@ -3034,8 +3040,6 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.92938%; coffin relocation loop matches;
- * row-end bound and integer-to-float bias swap r30/r31. */
 float p_setup_krypt(void) {
     char* string_pool;
     MkFileEntry* file;

@@ -10,6 +10,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/section.h"
+#include "runtime/utils.h"
 #include "platform/io.h"
 
 union KonquestFloatBits {
@@ -230,7 +231,6 @@ static char global_fight_data_table_name[0x80];
 extern struct KonquestInteriorPdata* konquest_pdata;
 
 int is_pui_an_interior_item(const void* pui);
-int get_game_state(void);
 int get_konquest_game_mode(void);
 static int get_door_enum_from_exterior_door_bits(int door_bits);
 static float p_konq_interior_exit_point(void);
@@ -251,7 +251,6 @@ void generate_collision_objects(
     int handle, unsigned int art_oid, const Vec* position, const Vec* angles,
     MkPtr** secondary_list);
 void set_flag_for_all_collisions(MkPtr** list, unsigned int flags);
-void push_game_state(int state);
 void stop_time_passing(void);
 void pause_weather_effects(void);
 void konquest_hide_hud(int mode);
@@ -265,8 +264,6 @@ void suspend_hero_state_process(void);
 void resume_hero_state_process(void);
 void stop_hero_collisions(void);
 void start_hero_collisions(void);
-void fade_to_black(int ticks, int flags);
-void fade_from_black(int ticks, int flags);
 void set_monk_position(float x, float y, float z, float angle);
 void remove_fgnd_mkobj(void* object);
 void resume_weather_effects(void);
@@ -279,7 +276,6 @@ void konquest_set_object_to_state(
     int object_uid, int enumeration, int state);
 void start_time_passing(void);
 void konquest_show_hud(void);
-void pop_game_state(int state);
 float p_konquest_loop(void);
 float konquest_camera_loop(void);
 
@@ -713,7 +709,7 @@ void interior_exit_button_script(void) {
     }
 }
 
-/* TODO: [borked] 98.68%; NPC removal is unconditional versus retail guarded removal; resolve exit ABI and pool layout. */
+/* TODO: [borked] 98.68%; NPC removal lacks retail null guard; recover NPC loop and pool layout. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;

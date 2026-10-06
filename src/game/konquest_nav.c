@@ -1,12 +1,9 @@
 #include "math/mk_math.h"
+#include "math/gxMath.h"
 #include "platform/io.h"
 #include "runtime/asset.h"
 #include "runtime/mk_mem.h"
 
-union NavFloatBits {
-    float value;
-    unsigned int bits;
-};
 
 struct NavPortalEntry {
     int adjacentArea;
@@ -92,28 +89,6 @@ static inline struct NavPortalList* nav_get_portals(struct NavArea* area) {
     return (struct NavPortalList*)(boundaries + boundaryCount);
 }
 
-static inline float nav_inverse_sqrt(float lengthSquared) {
-    float inverseLength;
-
-    if (lengthSquared <= 0.0f) {
-        inverseLength = 0.0f;
-    } else {
-        union NavFloatBits estimateBits;
-        union NavFloatBits value;
-        float estimate;
-        float product;
-        float correction;
-
-        value.value = lengthSquared;
-        estimateBits.bits = 0x5F375A00U - (value.bits >> 1);
-        estimate = estimateBits.value;
-        product = estimate * (lengthSquared * estimate);
-        correction = 3.0f - product;
-        inverseLength = 0.0625f * estimate * correction *
-                        -(correction * (product * correction) - 12.0f);
-    }
-    return inverseLength;
-}
 
 static inline int nav_begin_area_search(int startArea) {
     struct KonquestNavData* nav = konquest_pdata->navData;
@@ -366,7 +341,7 @@ void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     selectedNearZ += selectedFarZ * blend;
     selectedNearX += selectedFarX * blend;
     lengthSquared = selectedNearX * selectedNearX + selectedNearZ * selectedNearZ;
-    inverseLength = nav_inverse_sqrt(lengthSquared);
+    inverseLength = gxMathFastInvSqrt(lengthSquared);
     out->x = selectedNearX * inverseLength;
     out->z = selectedNearZ * inverseLength;
     out->x = -out->x;
@@ -403,7 +378,7 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     nearestNormal.z += farthestNormal.z * (1.0f - ratio);
     lengthSquared = nearestNormal.x * nearestNormal.x +
                     nearestNormal.z * nearestNormal.z;
-    inverseLength = nav_inverse_sqrt(lengthSquared);
+    inverseLength = gxMathFastInvSqrt(lengthSquared);
     out->x = nearestNormal.x * inverseLength;
     out->z = nearestNormal.z * inverseLength;
     out->x = -out->x;

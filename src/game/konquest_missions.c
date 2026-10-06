@@ -42,26 +42,6 @@
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/display_metrics.h"
 
-/* TODO: [review] unused after PlyrInfo migration; removal pending comment policy. */
-struct KonquestMissionFightInfo {
-    int field_0x0;
-    int animation_side;
-    int player_state;
-    float current_health;
-    float maximum_health;
-    char pad14[0x2C];
-    int field_40;
-    char pad44[0x10];
-    int character_id;
-    union {
-        PlyrPdata* pdata;
-        FighterMirror* fighter;
-    };
-    MkObj* active_object;
-    char pad60[4];
-    MkProc* process;
-};
-
 struct KonquestMissionTuneEntry {
     int round_one_music;
     int later_round_music;
@@ -1555,8 +1535,10 @@ void trial_setup_onscreen_display_items(
 }
 
 static inline void destroy_current_countdown_string(void) {
-    if (get_countdown_string_latch(mission_state) != 0) {
-        StringObj* string = mission_state->countdown_string;
+    struct KonquestMissionState* state = mission_state;
+
+    if (get_countdown_string_latch(state) != 0) {
+        StringObj* string = state->countdown_string;
         if (string->instance != 0) {
             string->typed_vtbl->destroy(string);
         }
@@ -1565,8 +1547,7 @@ static inline void destroy_current_countdown_string(void) {
     }
 }
 
-/* TODO: [near miss] 96.33093%; two latch validations retain register/CSE
- * differences; whole-unit propagation-off regresses other consumers. */
+/* TODO: [near miss] 99.28%; both latch validations swap state/string r4/r5 (p_finish_countdown residue). */
 void trial_start_countdown(int countdown, float x, float y) {
     struct KonquestMissionState* state = get_mission_state();
 
@@ -2127,7 +2108,6 @@ int get_konquest_drone_switch_state(int player) {
 }
 
 #pragma dont_inline on
-/* TODO: [blocked] 95.85%; matching paused for coordinator's MkProcInitFlags ABI batch; inspect string latch after landing. */
 static void increment_progress_count(unsigned char increment) {
     StringObj* string;
     char text[48];
@@ -2152,14 +2132,8 @@ static void increment_progress_count(unsigned char increment) {
         text, mission_state->display_format,
         mission_state->progress_count,
         mission_state->progress_required);
-    string = mission_state->progress_string;
-    if (string != 0) {
-        if (string->instance != mission_state->progress_string_instance) {
-            string = 0;
-        }
-    } else {
-        string = 0;
-    }
+    string = MK_LIVE(mission_state->progress_string,
+        mission_state->progress_string_instance);
     if (string != 0) {
         update_string_obj(string, 6, text);
     } else {
@@ -2526,7 +2500,6 @@ void trial_set_type(int type) {
     }
 }
 
-/* TODO: [near miss] 99.91%; final winner dispatch is equivalent; branch polarity and winner-immediate order remain. */
 int trial_check_state(void) {
     int complete = 0;
     struct KonquestMissionState* state = get_mission_state();
@@ -2598,22 +2571,19 @@ int trial_check_state(void) {
     }
     if (g_game_info.field_204 <= 0) {
         if (complete) {
-            switch (mission_state->fight->field_04) {
-            case 0:
-                break;
-            default:
-                return 2;
+            if (mission_state->fight->field_04 == 0) {
+                result = 1;
+            } else {
+                result = 2;
             }
-            return 1;
         } else {
-            switch (mission_state->fight->field_04) {
-            case 0:
-                break;
-            default:
-                return 1;
+            if (mission_state->fight->field_04 == 0) {
+                result = 2;
+            } else {
+                result = 1;
             }
-            return 2;
         }
+        return result;
     }
     return 0;
 }
@@ -2867,7 +2837,7 @@ void trial_start_new_round(void) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 99.14584%; winner/loser flag scheduling, sign loader arguments and monk latch homes differ. */
+/* TODO: [near miss] 99.28%; sign loader x/arg scheduling, monk latch homes and medal-reset constant regs differ. */
 int trial_end_round(void) {
     struct KonquestMissionState* state;
     struct KonquestRequiredSequenceList* sequences;
@@ -2947,8 +2917,8 @@ int trial_end_round(void) {
     }
     if (player_rounds >= mission_state->num_rounds ||
         drone_rounds >= drone_round_limit) {
-        g_game_info.pause_flag_bits.fatality_window = 1;
         winner = round_winner != 1;
+        g_game_info.pause_flag_bits.fatality_window = 1;
     }
     f_fatality_finished = 1;
 
@@ -3768,7 +3738,7 @@ static float p_finish_transform_player(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.87%; single update_mkobj call recovered; monk process/monk swap r29/r30 (retail copies the process after its check, loads monk direct). */
+/* TODO: [near miss] 98.19%; monk via get_mission_monk loads direct; sidekick/monk r31/r30 swap and process temp+copy remain. */
 static float p_finish_transform_monk(void) {
     Vec position = {4000.0f, 0.0f, 4000.0f};
     Vec angles = {0.0f, 0.0f, 0.0f};
@@ -3792,13 +3762,7 @@ static float p_finish_transform_monk(void) {
             ->jump_sleep(p_idle, 0.0f);
         return 0.0f;
     }
-    state = get_mission_state();
-    mission_state = state;
-    if (state == 0) {
-        monk = 0;
-    } else {
-        monk = MK_HDR_LIVE(state->monk, state->monk_instance);
-    }
+    monk = get_mission_monk();
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
         32.0f, animation,

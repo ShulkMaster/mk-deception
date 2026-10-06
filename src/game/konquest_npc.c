@@ -870,14 +870,14 @@ static inline int npc_next_waypoint(KonquestNpc* npc) {
 }
 
 static inline int npc_nav_area_hint(int area) {
-    return (int)((unsigned int)area &
-                 (((unsigned int)area >> 31) - 1));
+    return (unsigned int)area &
+           (((unsigned int)area >> 31) - 1);
 }
 
 static inline void npc_get_path_position(KonquestNpc* npc, Vec* target) {
     if (npc->path != 0) {
         if ((unsigned int)(
-                npc->path->destination_type + (int)0x80000000) == 7) {
+                npc->path->destination_type + 0x80000000) == 7) {
             target->x = npc->path->destination.x;
             target->y = npc->path->destination.y;
             target->z = npc->path->destination.z;
@@ -1332,8 +1332,8 @@ void initialize_npc_data(void) {
     }
 }
 
-/* TODO: [near miss] 95.84615%; FPR scheduling in sphere normalization
- * and final floating-point boolean lowering remain. */
+/* TODO: [near miss] 97.08%; direction-scale fmuls operand/FPR order and final
+ * distance boolean lowering (retail beq/li vs mfcr) remain. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -1383,22 +1383,7 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     length_squared =
         direction_z * direction_z +
         (direction_x * direction_x + direction_y * direction_y);
-    if (length_squared <= 0.0f) {
-        inverse_length = 0.0f;
-    } else {
-        KonquestFloatBits estimate;
-        float product;
-        float correction;
-
-        estimate.value = length_squared;
-        estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
-        product = estimate.value *
-                  (length_squared * estimate.value);
-        correction = 3.0f - product;
-        inverse_length =
-            0.0625f * estimate.value * correction *
-            -((correction * (product * correction)) - 12.0f);
-    }
+    inverse_length = gxMathFastInvSqrt(length_squared);
 
     direction_x *= inverse_length;
     direction_y *= inverse_length;
@@ -1494,7 +1479,7 @@ static RpAtomic* AtomicFindTextureWithRootString(
     return atomic;
 }
 
-/* TODO: [breakthrough] 99.34270%; canonical two-argument bone setup removes unused r5;
+/* TODO: [breakthrough] 99.34%; canonical two-argument bone setup removes unused r5;
  * final instance-load base and setup flag scheduling remain. */
 static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     struct NpcManagerPdata* manager = npc_manager_pdata;
@@ -1532,7 +1517,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                             if (mouth_art_id != 0) {
                                 npc->art_id = mouth_art_id;
                             } else {
-                                npc->art_id = (unsigned int)-1;
+                                npc->art_id = -1;
                             }
                         }
                         if (npc->art_id != 0 &&
@@ -1561,7 +1546,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [breakthrough] 99.71983%; canonical two-argument bone call removes unused r5;
+/* TODO: [breakthrough] 99.72%; canonical two-argument bone call removes unused r5;
  * npc/art_id r30/r31 coloring remains. */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     unsigned int art_id;
@@ -1629,7 +1614,7 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
             if (mouth_art_id != 0) {
                 npc->art_id = mouth_art_id;
             } else {
-                npc->art_id = (unsigned int)-1;
+                npc->art_id = -1;
             }
         }
         if (npc->art_id != 0 && npc->art_id != (unsigned int)-1) {
@@ -1719,7 +1704,7 @@ static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
     return 1;
 }
 
-/* TODO: [near miss] 98.00%; initial manager load order and two retail branch-island instructions remain. */
+/* TODO: [near miss] 99.00%; visible-slot manager load schedules before index init (same as npc_make_invisible). */
 void npc_make_visible(KonquestNpc* npc) {
     struct NpcManagerModelSlot* slot = 0;
     struct KonquestNpcAnimState* animation = 0;
@@ -1804,26 +1789,28 @@ void npc_make_visible(KonquestNpc* npc) {
     if (slot != 0) {
         slot->available = 0;
         slot->data = npc->data;
-        if (npc->animation == 0) {
-            MkProc* proc = _create_mkproc_generic_bigstack(
-                0xA002, 8, p_npc_proc, sizeof(*animation),
-                (MkHdr**)&animation);
+    } else {
+        return;
+    }
+    if (npc->animation == 0) {
+        MkProc* proc = _create_mkproc_generic_bigstack(
+            0xA002, 8, p_npc_proc, sizeof(*animation),
+            (MkHdr**)&animation);
 
-            if (proc != 0) {
-                set_process_as_scriptable(proc);
-                proc->pre_destroy = npc_pre_wake;
-                proc->destroy_cb = npc_post_sleep;
-                npc->animation = animation;
-                npc->proc = proc;
-                animation->lip_texture = 0;
-                animation->lip_texture_instance = 0;
-                animation->owner_npc = npc;
-                animation->proc = 0;
-                animation->object = 0;
-                animation->editor_object = 0;
-                animation->dialog_anim = 0;
-                animation->alpha = 0;
-            }
+        if (proc != 0) {
+            set_process_as_scriptable(proc);
+            proc->pre_destroy = npc_pre_wake;
+            proc->destroy_cb = npc_post_sleep;
+            npc->animation = animation;
+            npc->proc = proc;
+            animation->lip_texture = 0;
+            animation->lip_texture_instance = 0;
+            animation->owner_npc = npc;
+            animation->proc = 0;
+            animation->object = 0;
+            animation->editor_object = 0;
+            animation->dialog_anim = 0;
+            animation->alpha = 0;
         }
     }
 }
@@ -1884,7 +1871,7 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
     }
 }
 
-/* TODO: [near miss] 99.0783%; visible-slot manager load schedules before counter init. */
+/* TODO: [near miss] 99.08%; visible-slot manager load schedules before counter init. */
 void npc_make_invisible(KonquestNpc* npc) {
     int index;
 
@@ -2106,8 +2093,8 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
         konquest_pdata->waypoint_script, waypoints);
     for (index = 0; index < count; index++) {
         KonquestNpcData* data = npc->data;
-        float delta_z = data->position.z - waypoints[index].position.z;
         float delta_x = data->position.x - waypoints[index].position.x;
+        float delta_z = data->position.z - waypoints[index].position.z;
         float distance = delta_x * delta_x + delta_z * delta_z;
 
         if (distance < nearest_distance) {
@@ -2119,7 +2106,7 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
     return nearest;
 }
 
-/* TODO: [near miss] 99.48%; nearest-search early returns restore retail CFG; nearest/current waypoint, script offset and delta register coloring remain. */
+/* TODO: [near miss] 99.50%; nearest/current waypoint, script offset and delta GPR/FPR coloring remain; stop at coloring. */
 static void npc_set_path(
     KonquestNpc* npc, KonquestWaypoint* waypoints, int table_index,
     int row_count, int waypoint, int travel_mode) {
@@ -2260,7 +2247,7 @@ void npc_assign_path_to_him(
     }
 }
 
-/* TODO: [near miss] 99.10714%; door ID and travel mode use swapped r30/r31; stop at coloring. */
+/* TODO: [near miss] 99.11%; door ID and travel mode use swapped r30/r31; stop at coloring. */
 void npc_assign_door_path(int door_id, int travel_mode) {
     KonquestWaypoint* path;
 
@@ -2274,7 +2261,7 @@ void npc_assign_door_path(int door_id, int travel_mode) {
     }
 }
 
-/* TODO: [breakthrough] 99.42553%; canonical two-argument bone call removes r5 staging;
+/* TODO: [breakthrough] 99.43%; canonical two-argument bone call removes r5 staging;
  * model-name pool addend and SObj register coloring remain. */
 void npc_shadow_init(void) {
     const char* shadow_model_name = "NPC_SHADOW";
@@ -2458,7 +2445,7 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     RwFrameUpdateObjects(shadow->frame);
 }
 
-/* TODO: [near miss] 98.93617%; three matrix-component FPRs are cyclically colored; check donor lifetime evidence. */
+/* TODO: [near miss] 98.94%; three matrix-component FPRs are cyclically colored; check donor lifetime evidence. */
 void npc_shadow_set_light_angle(const Vec* angles) {
     MKMATRIX rotation;
     float projection_z;
@@ -2548,7 +2535,7 @@ void npc_shadow_update(void) {
                             if (scale > 1.0f) {
                                 scale = 1.0f;
                             }
-                            alpha = (int)(scale * npc_shadows.alpha);
+                            alpha = scale * npc_shadows.alpha;
                             color.red = alpha;
                             color.blue = alpha;
                             color.green = alpha;
@@ -3067,7 +3054,7 @@ void npc_update(int update_all) {
     }
 }
 
-/* TODO: [near miss] 98.58%; script-name sum is reassociated (subi before add); retail adds name_offset + string_reloc, then subtracts 1. */
+/* TODO: [near miss] 99.87%; script-name add dest/operand coloring (r4,r0,r5 vs r5,r5,r0) remains; add-then-subi order matches. */
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
         int previous_state;
@@ -3118,15 +3105,17 @@ static void npc_invisible_update(KonquestNpc* npc) {
                         g_active_npc->wait_ticks = 0.0f;
                     }
                     if (g_active_npc->wait_ticks > 0.0f) {
+                        char* function_name;
+
                         memcpy(
                             active_cmdscript->stack_mem,
                             g_active_npc->saved_script_state,
                             sizeof(g_active_npc->saved_script_state));
                         function_index = script_function - 1;
-                        active_cmdscript->func_name =
-                            (char*)(slot->string_reloc +
-                                    slot->func_defs[function_index].name_offset -
-                                    1);
+                        function_name = (char*)slot->string_reloc;
+                        function_name +=
+                            slot->func_defs[function_index].name_offset;
+                        active_cmdscript->func_name = function_name - 1;
                         active_cmdscript->pc =
                             (unsigned int*)g_active_npc->saved_script_position;
                         active_cmdscript->stack_sp =
@@ -3340,7 +3329,7 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-/* TODO: [near miss] 98.84%; first-pass next coloring, (name_offset + string_reloc) - 1 reassociation, and +2 string-pool addends (TU "0" literal order) remain. */
+/* TODO: [near miss] 99.61%; next-cursor coloring, name add operand/dest coloring, and +2 string-pool addends (TU "0" literal order) remain. */
 void start_running_npcs(void) {
     struct NpcManagerPdata* manager;
     MkProc* manager_proc;
@@ -3424,9 +3413,9 @@ void start_running_npcs(void) {
                                 active_cmdscript->stack_mem,
                                 g_active_npc->saved_script_state,
                                 sizeof(g_active_npc->saved_script_state));
-                            relocated_name = (char*)(
-                                slot->string_reloc +
-                                slot->func_defs[function_index].name_offset);
+                            relocated_name = (char*)slot->string_reloc;
+                            relocated_name +=
+                                slot->func_defs[function_index].name_offset;
                             active_cmdscript->func_name = relocated_name - 1;
                             active_cmdscript->pc = (unsigned int*)
                                 g_active_npc->saved_script_position;
@@ -3703,7 +3692,7 @@ float p_npc_idle(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.85%; script-name decrement scheduling and post-setup NPC/event GPR coloring remain. */
+/* TODO: [near miss] 99.74%; post-setup NPC/event GPR swap and name add operand/dest coloring remain. */
 float p_npc_proc(void) {
     KonquestNpc* npc;
     struct KonquestNpcEvent* event;
@@ -3760,6 +3749,7 @@ float p_npc_proc(void) {
             unsigned int script_function;
             ScriptSlot* slot;
             ScriptFuncDef* function;
+            char* function_name;
 
             cmdscript_set_parameters(active_cmdscript, 1, npc->data);
             script_function = event->script_function;
@@ -3774,8 +3764,9 @@ float p_npc_proc(void) {
                         g_active_npc->saved_script_state,
                         sizeof(g_active_npc->saved_script_state));
                     function = &slot->func_defs[script_function - 1];
-                    active_cmdscript->func_name =
-                        (char*)slot->string_reloc + function->name_offset - 1;
+                    function_name = (char*)slot->string_reloc;
+                    function_name += function->name_offset;
+                    active_cmdscript->func_name = function_name - 1;
                     active_cmdscript->pc =
                         (unsigned int*)g_active_npc->saved_script_position;
                     active_cmdscript->stack_sp =
@@ -4228,10 +4219,10 @@ int npc_get_collision_direction_in_script(void) {
                 delta.y = hero->pos.value.y - object->pos.value.y;
                 delta.z = hero->pos.value.z - object->pos.value.z;
                 v3_to_xy_ang(&angles, &delta);
-                direction = (int)(norm_angle(
+                direction = norm_angle(
                     0.7853982f +
                     ang_sub_ang(angles.y, object->ang.y)) /
-                    1.5707964f);
+                    1.5707964f;
             }
         }
     }
@@ -4365,7 +4356,7 @@ static float p_hero_turn_and_face(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.196724%; monk instance latch branches differ; inspect shared validation shape. */
+/* TODO: [near miss] 98.20%; monk instance latch branches differ; inspect shared validation shape. */
 void hero_turn_to_face_position(const Vec* position) {
     MkObj* hero = konquest_pdata->monk;
     Vec direction = {0.0f, 0.0f, 0.0f};
@@ -4657,28 +4648,21 @@ void npc_set_ani_flags(unsigned int flags) {
     g_active_npc->animation_flags |= flags;
 }
 
-/* TODO: [near miss] 98.91892%; active NPC and animation owners differ only by r5/r4 coloring. */
 void npc_set_ani_frame(float frame) {
-    KonquestNpc* npc = g_active_npc;
-    struct KonquestNpcAnimState* state = npc->animation;
-    int has_active_animation;
-
-    has_active_animation = npc_animation_is_active(state);
-
-    if (has_active_animation != 0) {
+    if (npc_event_has_active_animation(g_active_npc) != 0) {
         AnimPdata* animation =
-            (AnimPdata*)pdata_of_proc(state->proc);
+            (AnimPdata*)pdata_of_proc(g_active_npc->animation->proc);
 
         animation->frame = frame;
         if (frame > animation->high_frame) {
             animation->frame = animation->high_frame;
         }
     } else {
-        npc->queued_animation_frame = frame;
+        g_active_npc->queued_animation_frame = frame;
     }
 }
 
-/* TODO: [near miss] 99.70874%; wait helper register coloring and one float-compare operand remain. */
+/* TODO: [near miss] 99.85%; only first npc_suspend_animation_wait script/npc r27/r28 coloring remains. */
 void npc_blend_to_ani_string(int* animation_ids) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, animation_ids);
@@ -4706,27 +4690,7 @@ void npc_blend_to_ani_string(int* animation_ids) {
         for (index = 0; index < count; index++, animation_ids++) {
             int animation_id = *animation_ids;
 
-            g_active_npc->queued_animation = get_animation(animation_id);
-            g_active_npc->animation_flags = 3;
-            g_active_npc->queued_animation_frame = 0.0f;
-            if (aproc->pid != 0xA014) {
-                struct KonquestNpcAnimState* state = g_active_npc->animation;
-                int has_active_animation;
-
-                has_active_animation = npc_animation_is_active(state);
-                if (has_active_animation != 0) {
-                    AniData* target = get_animation(animation_id);
-                    AnimPdata* current =
-                        (AnimPdata*)pdata_of_proc(g_active_npc->animation->proc);
-
-                    current->step = 1.0f;
-                    if (current->animation != target ||
-                        current->flags != 3 || current->step != 1.0f) {
-                        transition_to_anim_script(
-                            current, target, 3, 0.1f);
-                    }
-                }
-            }
+            npc_queue_active_animation(animation_id, 3);
             while (animation->frame < animation->high_frame - 10.0f) {
                 npc_ani_1_frame();
                 _mkproc_sleep_ticks = 1.0f;
@@ -4959,7 +4923,7 @@ static int is_npc_at_destination(
     if (next == active_path->current_waypoint) {
         return 1;
     }
-    if (destination_type == (int)0x80000007) {
+    if (destination_type == 0x80000007) {
         return 1;
     }
 
@@ -5101,7 +5065,7 @@ static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.72682%; wait/path/monk owner GPR coloring and animation compare operand order remain. */
+/* TODO: [near miss] 99.75%; wait-helper, path and monk-owner GPR coloring remain; stop at coloring. */
 void npc_travel_path(
     int destination_type, int destination, int travel_mode) {
     if (g_active_npc == 0) {
@@ -5154,31 +5118,12 @@ void npc_travel_path(
             Vec direction;
             Vec* navigation_direction = 0;
 
-            AnimPdata* idle_pdata;
-
             if (!g_active_npc->reaction_active &&
                 (is_game_mode_in_stack(1) != 0 ||
                  is_game_mode_in_stack(3) != 0) &&
                 npc_monk_in_greeting_range(g_active_npc) != 0) {
-                int idle_animation = g_active_npc->data->idle_animation;
-
-                g_active_npc->queued_animation = get_animation(idle_animation);
-                g_active_npc->animation_flags = 0;
-                g_active_npc->queued_animation_frame = 0.0f;
-                if (aproc->pid != 0xA014 &&
-                    npc_event_has_active_animation(g_active_npc) != 0) {
-                    AniData* idle = get_animation(idle_animation);
-                    idle_pdata =
-                        (AnimPdata*)pdata_of_proc(
-                            g_active_npc->animation->proc);
-
-                    idle_pdata->step = 1.0f;
-                    if (idle_pdata->animation != idle ||
-                        idle_pdata->flags != 0 ||
-                        idle_pdata->step != 1.0f) {
-                        transition_to_anim_script(idle_pdata, idle, 0, 0.1f);
-                    }
-                }
+                npc_queue_active_animation(
+                    g_active_npc->data->idle_animation, 0);
                 do {
                     _mkproc_sleep_ticks = 1.0f;
                     aproc->vtbl->sleep();
@@ -5229,7 +5174,7 @@ void npc_travel_path(
 
     g_active_npc->path->previous_waypoint =
         g_active_npc->path->current_waypoint;
-    if ((destination_type & (int)0x80000000) == 0) {
+    if ((destination_type & 0x80000000) == 0) {
         if (g_active_npc->path->waypoints == 0) {
             npc_turn_and_face_angle(
                 g_active_npc, g_active_npc->current_waypoint_angle);
@@ -5274,7 +5219,7 @@ static void npc_update_current_direction(
 
         if (path != 0) {
             if ((unsigned int)(
-                    path->destination_type + (int)0x80000000) == 7) {
+                    path->destination_type + 0x80000000) == 7) {
                 target_x = path->destination.x;
                 target_z = path->destination.z;
             } else if (path->waypoints == 0) {
@@ -5352,7 +5297,7 @@ float p_do_lip_synch(void) {
             }
             if (lip->mode == 3) {
                 AniData* animation =
-                    ((AniData**)lip->animation_table)[frame + 6];
+                    lip->animation_table[frame + 6];
 
                 if (animation != 0) {
                     transition_to_anim_script(
@@ -5874,7 +5819,7 @@ int is_this_the_monk_npc(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.63519%; seventeen rows exchange animation owner r27/r29 with monk_finished. */
+/* TODO: [near miss] 99.64%; seventeen rows exchange animation owner r27/r29 with monk_finished. */
 void npc_play_two_player_one_shot_anims(int npc_animation_id,
                                         int monk_animation_id) {
     int monk_finished;
@@ -6039,22 +5984,6 @@ void npc_set_dialog_anim(int animation) {
     }
 }
 
-static inline float npc_inverse_sqrt(float value) {
-    KonquestFloatBits estimate;
-    float product;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    estimate.value = value;
-    estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
-    product = estimate.value * (value * estimate.value);
-    correction = 3.0f - product;
-    return 0.0625f * estimate.value * correction *
-           -((correction * (product * correction)) - 12.0f);
-}
-
 static inline int npc_nav_direction(KonquestNpc* npc, int destination_area,
                                     int current_area, Vec* direction) {
     if (destination_area >= 0) {
@@ -6095,12 +6024,6 @@ static inline void npc_launch_waypoint_script(KonquestNpc* npc, int waypoint_ind
     }
 }
 
-static inline float npc_wrap_path_angle(float angle) {
-    int turn_units = (int)(166886.1f * angle);
-
-    turn_units &= 0xFFFFF;
-    return (float)turn_units * 0.000005992112f;
-}
 
 static int npc_update_pos_on_path(
     KonquestNpc* npc, int destination_type, int destination) {
@@ -6184,7 +6107,7 @@ static int npc_update_pos_on_path(
             length_squared =
                 direction.z * direction.z +
                 (direction.x * direction.x + direction.y * direction.y);
-            inverse_length = npc_inverse_sqrt(length_squared);
+            inverse_length = gxMathFastInvSqrt(length_squared);
             direction.x *= inverse_length;
             direction.y *= inverse_length;
             direction.z *= inverse_length;
@@ -6198,7 +6121,7 @@ static int npc_update_pos_on_path(
         npc->data->position.y += movement->y;
         npc->data->position.z += movement->z;
         npc->data->angle_y = gxMathArcTanYX(movement->x, movement->z);
-        npc->data->angle_y = npc_wrap_path_angle(npc->data->angle_y);
+        npc->data->angle_y = norm_angle_inline(npc->data->angle_y);
     } else {
         KonquestWaypoint* arrival_waypoints;
 
