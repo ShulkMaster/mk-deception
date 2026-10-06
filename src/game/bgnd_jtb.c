@@ -15,10 +15,6 @@
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
 
-union NbFloatBits {
-    float f;
-    unsigned int u;
-};
 
 void ani_to_frame_x(float frame);
 void launch_me_up(float velocity, float gravity);
@@ -115,24 +111,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id);
 static int nb_npc_hurt_player(
     struct NbNpcState* hit, unsigned int player_index, float impact);
 
-static inline float nb_fast_inverse_sqrt(float squared) {
-    union NbFloatBits bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-
-    bits.f = squared;
-    bits.u = 0x5F375A00U - (bits.u >> 1);
-    estimate = bits.f;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 void lower_mines_ani_to_point(
     void* script, float start_frame, float animation_step, float end_frame,
@@ -474,7 +452,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
             force = 0.05f + frand(0.05f);
         }
 
-        inverse_length = nb_fast_inverse_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             delta.x * delta.x + delta.z * delta.z);
         target.x = delta.x * inverse_length;
         target.z = delta.z * inverse_length;
@@ -544,12 +522,12 @@ static int nb_npc_hurt_player(
 
     random_hit(0xD);
     uv_from_angle_y(&facing, player_object->ang.y);
-    hit_length_inverse = nb_fast_inverse_sqrt(
+    hit_length_inverse = gxMathFastInvSqrt(
         hit->momentum.x * hit->momentum.x +
         hit->momentum.z * hit->momentum.z);
     direction_x = hit->momentum.x * hit_length_inverse;
     direction_z = hit->momentum.z * hit_length_inverse;
-    facing_length_inverse = nb_fast_inverse_sqrt(
+    facing_length_inverse = gxMathFastInvSqrt(
         facing.x * facing.x + facing.z * facing.z);
     facing.x *= facing_length_inverse;
     facing.z *= facing_length_inverse;
@@ -680,7 +658,7 @@ static float p_npc_on_pendulum_rope(void) {
         } else {
             if (distance > npc->rope_length + 0.002f ||
                 distance < npc->rope_length - 0.002f) {
-                inverse_length = nb_fast_inverse_sqrt(
+                inverse_length = gxMathFastInvSqrt(
                     displacement.x * displacement.x +
                     displacement.y * displacement.y +
                     displacement.z * displacement.z);
@@ -698,7 +676,7 @@ static float p_npc_on_pendulum_rope(void) {
             acceleration.z = 0.0f;
             acceleration.y = 0.0f;
             acceleration.x = 0.0f;
-            inverse_length = nb_fast_inverse_sqrt(
+            inverse_length = gxMathFastInvSqrt(
                 displacement.x * displacement.x +
                 displacement.y * displacement.y +
                 displacement.z * displacement.z);
@@ -728,7 +706,7 @@ static float p_npc_on_pendulum_rope(void) {
                     npc->momentum.x * npc->momentum.x +
                     npc->momentum.y * npc->momentum.y +
                     npc->momentum.z * npc->momentum.z;
-                inverse_length = nb_fast_inverse_sqrt(speed_squared);
+                inverse_length = gxMathFastInvSqrt(speed_squared);
                 velocity_direction.x = npc->momentum.x * inverse_length;
                 velocity_direction.y = npc->momentum.y * inverse_length;
                 velocity_direction.z = npc->momentum.z * inverse_length;
@@ -739,7 +717,7 @@ static float p_npc_on_pendulum_rope(void) {
                 tangent.y = cross.z * normal.x - cross.x * normal.z;
                 tangent.x = cross.y * normal.z - cross.z * normal.y;
                 tangent.z = cross.x * normal.y - cross.y * normal.x;
-                inverse_length = nb_fast_inverse_sqrt(
+                inverse_length = gxMathFastInvSqrt(
                     tangent.x * tangent.x + tangent.y * tangent.y +
                     tangent.z * tangent.z);
                 tangent.x *= inverse_length;
@@ -779,7 +757,7 @@ static float p_npc_on_pendulum_rope(void) {
         horizontal_direction.x = displacement.x;
         horizontal_direction.y = 0.0f;
         horizontal_direction.z = displacement.z;
-        inverse_length = nb_fast_inverse_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             horizontal_direction.x * horizontal_direction.x +
             horizontal_direction.y * horizontal_direction.y +
             horizontal_direction.z * horizontal_direction.z);
@@ -795,7 +773,7 @@ static float p_npc_on_pendulum_rope(void) {
         angle_vector.z =
             horizontal_direction.x * world_up.y -
             horizontal_direction.y * world_up.x;
-        inverse_length = nb_fast_inverse_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             angle_vector.x * angle_vector.x +
             angle_vector.y * angle_vector.y +
             angle_vector.z * angle_vector.z);
@@ -881,7 +859,7 @@ static void nb_get_desired_acceleration(
 
     squared_length =
         force_z * force_z + (force_x * force_x + force_y * force_y);
-    inv_length = nb_fast_inverse_sqrt(squared_length);
+    inv_length = gxMathFastInvSqrt(squared_length);
 
     force_y *= inv_length;
     force_x *= inv_length;
@@ -988,7 +966,7 @@ void rd_set_impact_vector(float scale) {
         g_game_info.player_objects[0]->pos.value.z;
 
     squared_length = impact.x * impact.x + impact.z * impact.z;
-    inverse_length = nb_fast_inverse_sqrt(squared_length);
+    inverse_length = gxMathFastInvSqrt(squared_length);
     impact.x *= inverse_length;
     impact.z *= inverse_length;
 
