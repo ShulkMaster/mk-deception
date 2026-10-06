@@ -391,10 +391,12 @@ softdec_mw_version = game_mw_version
 
 
 # Helper function for Dolphin libraries
-def DolphinLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
+def DolphinLib(
+    lib_name: str, objects: List[Object], mw_version: str = "GC/1.2.5n"
+) -> Dict[str, Any]:
     return {
         "lib": lib_name,
-        "mw_version": "GC/1.2.5n",
+        "mw_version": mw_version,
         "cflags": cflags_base,
         "progress_category": "sdk",
         "objects": objects,
@@ -956,7 +958,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(Matching, "gxVect.o", source="math/gxVect.c"),
-            Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+            Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt nocse"]),
             Object(
                 Matching,
                 "gxMat.o",
@@ -979,10 +981,10 @@ config.libs = [
             Object(Matching, "joy.o", source="platform/joy.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "MovieConfig.o", source="movie/MovieConfig.cpp"),
             Object(NonMatching, "MovieManager.o", source="movie/MovieManager.cpp",
-                   extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+                   extra_cflags=["-use_lmw_stmw on", "-inline noauto,deferred", "-O4,s"]),
+            Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto,deferred"]),
             Object(NonMatching, "MkMovies.o", source="movie/MkMovies.cpp",
-                   extra_cflags=["-use_lmw_stmw on"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
             Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
             Object(Matching, "mwFileGlue.o", source="mw/mwFileGlue.cpp"),
@@ -1053,7 +1055,7 @@ config.libs = [
                                  "-str reuse,pool,readonly", "-inline noauto"]),
             Object(NonMatching, "io.o", source="platform/io.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
-            Object(NonMatching, "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(NonMatching, "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt noloop"]),
             Object(NonMatching, "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "section_config.o", source="runtime/section_config.c"),
@@ -1064,7 +1066,9 @@ config.libs = [
             Object(Matching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
             Object(Matching, "specular.o", source="game/specular.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "minigames.o", source="game/minigames.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on",
+                                 "-str reuse,pool,readonly",
+                                 "-inline noauto,deferred"]),
             Object(NonMatching, "pz_moves.o", source="game/pz_moves.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
             Object(NonMatching, "pz_fatality.o", source="game/pz_fatality.c",
@@ -1167,7 +1171,7 @@ config.libs = [
                    source="game/konquest_time.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "cam.o", source="runtime/cam.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
             Object(NonMatching, "krypt.o", source="game/krypt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
@@ -1181,7 +1185,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "gcmcardmsg.o", source="platform/gcmcardmsg.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-opt nocse"]),
             Object(NonMatching, "gcio.o", source="platform/gcio.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "disc_error.o", source="platform/disc_error.c",
@@ -1203,10 +1207,10 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "ladder.o", source="game/ladder.c",
-                   extra_cflags=["-O4,s"]),
-            Object(NonMatching, "ending.o", source="game/ending.c", extra_cflags=["-O4,s"]),
+                   extra_cflags=["-O4,s", "-str reuse,pool,readonly"]),
+            Object(NonMatching, "ending.o", source="game/ending.c", extra_cflags=["-O4,s", "-str reuse,pool,readonly"]),
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on", "-str reuse,pool,readonly"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -1218,7 +1222,7 @@ config.libs = [
                                  "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(NonMatching, "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mk_render.o", source="runtime/mk_render.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "konquest_save.o", source="game/konquest_save.c",
@@ -1851,7 +1855,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_frm.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_frm.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2229,7 +2233,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFile.o",
                 source="mw/mwFile.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(
                 Matching,
@@ -2253,7 +2257,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileXPHandle.o",
                 source="mw/mwFileXPHandle.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(
                 Matching,
@@ -2479,10 +2483,10 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenSet.o",
                 source="mwScreenEngine/ScreenSet.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off", "-str reuse,pool,readonly"],
             ),
             Object(
                 Matching,
@@ -2568,7 +2572,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx_memory.o",
                 source="libmkparticle/pfx_memory.c",
-                extra_cflags=["-schedule off"],
+                extra_cflags=["-schedule off", "-inline noauto"],
             ),
             Object(
                 Matching,
@@ -2675,7 +2679,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/streams.o",
                 source="libmkparticle/streams.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -3002,7 +3006,7 @@ config.libs = [
         [
             Object(NonMatching, "vm.a/VM.o", source="libmkparticle/VM.c"),
             Object(
-                NonMatching,
+                Matching,
                 "vm.a/VMPageReplacement.o",
                 source="libmkparticle/VMPageReplacement.c",
             ),
@@ -3012,6 +3016,7 @@ config.libs = [
                 source="libmkparticle/VMMapping.c",
             ),
         ],
+        mw_version="GC/2.7",
     ),
     DolphinLib(
         "vmbase",
@@ -3022,6 +3027,7 @@ config.libs = [
                 source="libmkparticle/VMBase.c",
             ),
         ],
+        mw_version="GC/2.7",
     ),
     {
         "lib": "card",
