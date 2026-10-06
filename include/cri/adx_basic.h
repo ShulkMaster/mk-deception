@@ -14,7 +14,7 @@ typedef struct AdxDecodeParams {
     int room;
     int loop_samples;
 } AdxDecodeParams;
-typedef void (*AdxGetWriteInfo)(void*, int*, int*, int*);
+typedef short* (*AdxGetWriteInfo)(void*, int*, int*, int*);
 typedef void (*AdxAddWriteInfo)(void*, int, int);
 typedef struct AdxBasicDecoder {
     short used;
@@ -89,6 +89,16 @@ typedef struct AdxBasicDecoderExt {
 
 typedef char AdxBasicDecoderExtSizeCheck[
     sizeof(AdxBasicDecoderExt) == 0xF8 ? 1 : -1];
+
+void ADXB_ExecOneAiff(AdxBasicDecoder*);
+void ADXB_ExecOneAu(AdxBasicDecoder*);
+void ADXB_ExecOneWav(AdxBasicDecoder*);
+int ADXB_CheckAiff(const signed char*);
+int ADXB_CheckAu(const signed char*);
+int ADXB_CheckWav(const signed char*);
+int ADXB_DecodeHeaderAiff(AdxBasicDecoder*, signed char*, int);
+int ADXB_DecodeHeaderAu(AdxBasicDecoder*, signed char*, int);
+int ADXB_DecodeHeaderWav(AdxBasicDecoder*, signed char*, int);
 
 int ADXB_GetFormat(AdxBasicDecoderExt*);
 int ADXB_CheckSpsd(const signed char*);

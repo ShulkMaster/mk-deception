@@ -350,7 +350,7 @@ void adxt_stat_decinfo(ADXTHandle* handle)
 /* TODO: [near miss] 99.95%; second split length is retained across stream callbacks; first scan-length temporary uses r0 instead of r4. */
 void adxt_nlp_trap_entry(void* object)
 {
-    ADXTHandle* handle = (ADXTHandle*)object;
+    ADXTHandle* handle = object;
     AdxSjdHandle* decoder = handle->decoder;
     SJ* input = handle->input_sj;
     SJCK first_chunk;
@@ -478,7 +478,7 @@ void adxt_set_outpan(ADXTHandle* handle)
 
 void adxt_eos_entry(void* object)
 {
-    ADXTHandle* handle = (ADXTHandle*)object;
+    ADXTHandle* handle = object;
     ADXStream* stream = handle->stream;
     AdxSjdHandle* decoder = handle->decoder;
     s32 loop_start_offset;
@@ -497,7 +497,7 @@ void adxt_eos_entry(void* object)
 
 void adxt_trap_entry(void* object)
 {
-    ADXTHandle* handle = (ADXTHandle*)object;
+    ADXTHandle* handle = object;
     AdxSjdHandle* decoder = handle->decoder;
     SJ* input = handle->input_sj;
     SJCK chunk;
@@ -539,7 +539,7 @@ void adxt_trap_entry(void* object)
 
 void adxt_trap_entry_lps(void* object)
 {
-    ADXTHandle* handle = (ADXTHandle*)object;
+    ADXTHandle* handle = object;
     AdxSjdHandle* decoder = handle->decoder;
     s32 loop_start_position;
     s32 loop_start_offset;

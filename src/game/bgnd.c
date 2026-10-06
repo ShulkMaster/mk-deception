@@ -8550,10 +8550,12 @@ void bgnd_delete_danger_zone(unsigned int zone_index) {
         }
     }
 }
-/* TODO: [breakthrough needed] 67.68%; center stores and rebuild agree; folded null normalization shifts scheduling (456 vs 436 bytes). */
+/* TODO: [breakthrough needed] 88.74%; ID snapshots, reloads and shared flags agree;
+ * recover inline field-address boundaries for deletion and shape dispatch. */
 void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
+    unsigned int shape_obstacle_id;
     CollisionShape box_shape;
     CollisionShape cylinder_shape;
     CollisionShape special_cylinder_shape;
@@ -8562,42 +8564,51 @@ void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     zone->center.x = x;
     zone->center.y = y;
     zone->center.z = z;
-    if (g_active_bgnd_danger_zone <= 24 && zone->obstacle != 0) {
-        delete_obstacle_from_background_by_id(zone->obstacle_id);
-        zone->obstacle = 0;
+    if (g_active_bgnd_danger_zone <= 24) {
+        if (zone->obstacle != 0) {
+            ArenaObstacle** obstacle_slot = &zone->obstacle;
+            delete_obstacle_from_background_by_id(zone->obstacle_id);
+            *obstacle_slot = 0;
+        }
     }
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    switch (zone->shape_type) {
+    switch (bgnd_danger_zones[g_active_bgnd_danger_zone].shape_type) {
     case 0:
+        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+        shape_obstacle_id = zone->obstacle_id;
         build_col_shape_vertical_box(
             &box_shape, &zone->center, zone->width, zone->height,
             zone->depth, zone->y_angle);
         obstacle = add_shape_to_background_obstacle_list(
-            &box_shape, zone->obstacle_id);
+            &box_shape, shape_obstacle_id);
         obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
+        goto mark_danger_zone;
     case 1:
+        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+        shape_obstacle_id = zone->obstacle_id;
         build_col_shape_vertical_cylinder(
             &cylinder_shape, &zone->center, zone->width, zone->height);
         obstacle = add_shape_to_background_obstacle_list(
-            &cylinder_shape, zone->obstacle_id);
+            &cylinder_shape, shape_obstacle_id);
         obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
+        goto mark_danger_zone;
     case 2:
+        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+        shape_obstacle_id = zone->obstacle_id;
         build_col_shape_vertical_cylinder(
             &special_cylinder_shape, &zone->center, zone->width, zone->height);
         obstacle = add_shape_to_background_obstacle_list(
-            &special_cylinder_shape, zone->obstacle_id);
+            &special_cylinder_shape, shape_obstacle_id);
         obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.value |= 0x10;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
+        obstacle->flags.bits.inverted = 1;
+        goto mark_danger_zone;
     default:
         obstacle = 0;
-        break;
+        goto publish_obstacle;
     }
+mark_danger_zone:
+    obstacle->flags.bits.danger_zone = 1;
+publish_obstacle:
+    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
     zone->obstacle = obstacle;
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
@@ -8663,115 +8674,90 @@ void bgnd_set_danger_zone_radius(float radius) {
         bgnd_set_danger_zone_width(radius);
     }
 }
-/* TODO: [breakthrough needed] 67.01%; same rebuild as the y-angle setter; four folded null-normalization branches (488 vs 460 bytes). */
+static inline void remove_bgnd_danger_zone_obstacle(unsigned int zone_index) {
+    if (zone_index <= 24) {
+        if (bgnd_danger_zones[zone_index].obstacle != 0) {
+            delete_obstacle_from_background_by_id(bgnd_danger_zones[zone_index].obstacle_id);
+            bgnd_danger_zones[zone_index].obstacle = 0;
+        }
+    }
+}
+
+static inline ArenaObstacle* build_bgnd_danger_zone_box(
+    CollisionShape* shape, unsigned int zone_index) {
+    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
+    ArenaObstacle* obstacle;
+
+    build_col_shape_vertical_box(shape, &bgnd_danger_zones[zone_index].center,
+        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height,
+        bgnd_danger_zones[zone_index].depth, bgnd_danger_zones[zone_index].y_angle);
+    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
+    if (obstacle != 0) {
+        return obstacle;
+    }
+    return 0;
+}
+
+static inline ArenaObstacle* build_bgnd_danger_zone_cylinder(
+    CollisionShape* shape, unsigned int zone_index) {
+    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
+    ArenaObstacle* obstacle;
+
+    build_col_shape_vertical_cylinder(shape, &bgnd_danger_zones[zone_index].center,
+        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height);
+    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
+    if (obstacle != 0) {
+        return obstacle;
+    }
+    return 0;
+}
+
+static inline ArenaObstacle* rebuild_bgnd_danger_zone_obstacle(unsigned int zone_index) {
+    ArenaObstacle* obstacle;
+    CollisionShape special_cylinder_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape box_shape;
+
+    switch (bgnd_danger_zones[zone_index].shape_type) {
+    case 0:
+        obstacle = build_bgnd_danger_zone_box(&box_shape, zone_index);
+        break;
+    case 1:
+        obstacle = build_bgnd_danger_zone_cylinder(&cylinder_shape, zone_index);
+        break;
+    case 2:
+        obstacle = build_bgnd_danger_zone_cylinder(&special_cylinder_shape, zone_index);
+        obstacle->flags.bits.inverted = 1;
+        break;
+    default:
+        return 0;
+    }
+    obstacle->flags.bits.danger_zone = 1;
+    return obstacle;
+}
+
 void bgnd_set_danger_zone_depth(float depth) {
     ArenaObstacle* obstacle;
-    BgndDangerZone* zone;
-    CollisionShape box_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape special_cylinder_shape;
 
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    if (zone->shape_type == 0) {
-        if (g_active_bgnd_danger_zone <= 24) {
-            zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-            if (zone->obstacle != 0) {
-                delete_obstacle_from_background_by_id(zone->obstacle_id);
-                zone->obstacle = 0;
-            }
-        }
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        zone->depth = depth;
-        switch (zone->shape_type) {
-        case 0:
-            build_col_shape_vertical_box(
-                &box_shape, &zone->center, zone->width, zone->height,
-                zone->depth, zone->y_angle);
-            obstacle = add_shape_to_background_obstacle_list(
-                &box_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        case 1:
-            build_col_shape_vertical_cylinder(
-                &cylinder_shape, &zone->center, zone->width, zone->height);
-            obstacle = add_shape_to_background_obstacle_list(
-                &cylinder_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        case 2:
-            build_col_shape_vertical_cylinder(
-                &special_cylinder_shape, &zone->center, zone->width,
-                zone->height);
-            obstacle = add_shape_to_background_obstacle_list(
-                &special_cylinder_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.value |= 0x10;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        default:
-            obstacle = 0;
-            break;
-        }
-        zone->obstacle = obstacle;
-        set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+    if (bgnd_danger_zones[g_active_bgnd_danger_zone].shape_type == 0) {
+        remove_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+        bgnd_danger_zones[g_active_bgnd_danger_zone].depth = depth;
+        obstacle = rebuild_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+        bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle = obstacle;
+        set_background_obstacle_repel_flag(
+            bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle_id, 0);
         bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
     }
 }
-/* TODO: [breakthrough needed] 66.96%; rebuild sequence agrees; retail keeps redundant post-create null-normalization branches our build folds (488 vs 460 bytes). */
 void bgnd_set_danger_zone_y_angle(float y_angle) {
     ArenaObstacle* obstacle;
-    BgndDangerZone* zone;
-    CollisionShape box_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape special_cylinder_shape;
 
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    if (zone->shape_type == 0) {
-        if (g_active_bgnd_danger_zone <= 24) {
-            zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-            if (zone->obstacle != 0) {
-                delete_obstacle_from_background_by_id(zone->obstacle_id);
-                zone->obstacle = 0;
-            }
-        }
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        zone->y_angle = y_angle;
-        switch (zone->shape_type) {
-        case 0:
-            build_col_shape_vertical_box(
-                &box_shape, &zone->center, zone->width, zone->height,
-                zone->depth, zone->y_angle);
-            obstacle = add_shape_to_background_obstacle_list(
-                &box_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        case 1:
-            build_col_shape_vertical_cylinder(
-                &cylinder_shape, &zone->center, zone->width, zone->height);
-            obstacle = add_shape_to_background_obstacle_list(
-                &cylinder_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        case 2:
-            build_col_shape_vertical_cylinder(
-                &special_cylinder_shape, &zone->center, zone->width,
-                zone->height);
-            obstacle = add_shape_to_background_obstacle_list(
-                &special_cylinder_shape, zone->obstacle_id);
-            obstacle = obstacle != 0 ? obstacle : 0;
-            obstacle->flags.value |= 0x10;
-            obstacle->flags.bits.danger_zone = 1;
-            break;
-        default:
-            obstacle = 0;
-            break;
-        }
-        zone->obstacle = obstacle;
-        set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+    if (bgnd_danger_zones[g_active_bgnd_danger_zone].shape_type == 0) {
+        remove_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+        bgnd_danger_zones[g_active_bgnd_danger_zone].y_angle = y_angle;
+        obstacle = rebuild_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+        bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle = obstacle;
+        set_background_obstacle_repel_flag(bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle_id, 0);
         bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
     }
 }

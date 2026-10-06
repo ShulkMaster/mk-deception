@@ -137,43 +137,51 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough needed] 65.74%; aligned MKVECTOR frame matches retail's prologue; retail keeps f24-f31 live and a 0x1d0 frame, so the projection math is structured differently. */
-void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
-    PlyrPdata* owner = (PlyrPdata*)shadow;
+/* TODO: [near miss] 96.53%; AA/projection input scheduling and GPR coloring remain. */
+void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     MkObj* fighter;
     RwCamera* camera;
-    RwMatrix* frame_matrix;
+    RwFrame* frame;
     RwMatrix* dir_matrix;
     PlyrMirrorSlots* lights;
     MkObj* validated;
-    float shadow_scale;
     RwV2d view_window;
     RwCamera* ip_camera;
     RwRaster* src_raster;
-    RwRaster* dst_raster;
-    MkObj* box;
-    MKVECTOR plane_normal;
-    MKVECTOR plane_point;
-    MKVECTOR light_dir;
+    MKVECTOR center;
     MKVECTOR light_pos;
-    MKVECTOR light_at;
     MKVECTOR delta_pos;
-    MKVECTOR delta_at;
-    MKVECTOR work_a;
-    MKVECTOR work_b;
-    MKVECTOR work_c;
+    MKVECTOR light_dir;
+    MKVECTOR corner;
     MKVECTOR corner_a;
     MKVECTOR corner_b;
     MKVECTOR corner_c;
-    MKVECTOR corner_d;
-    MKVECTOR offset;
+    MKVECTOR plane_normal;
+    MKVECTOR edge_a;
+    MKVECTOR edge_b;
+    Vec center_offset;
+    Vec corner_a_spread;
+    Vec corner_a_offset;
+    Vec corner_b_spread;
+    Vec corner_b_offset;
+    Vec corner_c_spread;
+    Vec corner_c_offset;
+    Vec plane_point;
+    float right_x;
+    float right_y;
+    float right_z;
+    float up_x;
+    float up_y;
+    float up_z;
+    float shadow_scale;
     float proj_scale;
     float angle;
     float mag_a;
     float mag_b;
     int clear_flags;
     float aspect;
-    float inv_height;
+    float raster_width;
+    float half_texel;
 
     fighter = fighter_object;
     shadow_scale = kShadowScaleDefault;
@@ -186,48 +194,49 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
         &object->frame->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &rwCameraParentFrame(camera)->modelling;
-    frame_matrix->right = dir_matrix->right;
-    frame_matrix->up = dir_matrix->up;
-    frame_matrix->at = dir_matrix->at;
-    RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(rwCameraParentFrame(camera));
+    frame = rwCameraParentFrame(camera);
+    frame->modelling.right = dir_matrix->right;
+    frame->modelling.up = dir_matrix->up;
+    frame->modelling.at = dir_matrix->at;
+    RwMatrixUpdate(&frame->modelling);
+    RwFrameUpdateObjects(frame);
+    camera = ShadowCamera;
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
     view_window.x = shadow_scale;
     view_window.y = shadow_scale;
     RwCameraSetViewWindow(camera, &view_window);
-    frame_matrix = &rwCameraParentFrame(camera)->modelling;
-    frame_matrix->pos.x = fighter->pos.value.x;
-    frame_matrix->pos.y = fighter->pos.value.y;
-    frame_matrix->pos.z = fighter->pos.value.z;
-    frame_matrix->pos.x = frame_matrix->pos.x + frame_matrix->at.x * (kViewWindowBias * camera->farPlane);
-    frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->at.y * (kViewWindowBias * camera->farPlane);
-    frame_matrix->pos.z = frame_matrix->pos.z + frame_matrix->at.z * (kViewWindowBias * camera->farPlane);
-    RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(rwCameraParentFrame(camera));
+    camera = ShadowCamera;
+    frame = rwCameraParentFrame(camera);
+    frame->modelling.pos_vec = fighter->pos.value;
+    frame->modelling.pos.x = frame->modelling.pos.x + frame->modelling.at.x * (kViewWindowBias * camera->farPlane);
+    frame->modelling.pos.y = frame->modelling.pos.y + frame->modelling.at.y * (kViewWindowBias * camera->farPlane);
+    frame->modelling.pos.z = frame->modelling.pos.z + frame->modelling.at.z * (kViewWindowBias * camera->farPlane);
+    RwMatrixUpdate(&frame->modelling);
+    RwFrameUpdateObjects(frame);
     ShadowCameraUpdate_flag = 1;
-    ShadowCameraUpdate(camera, object->clump, 1);
+    ShadowCameraUpdate(ShadowCamera, object->clump, 1);
     lights = owner->mirror_slots;
     if (lights != NULL) {
-        validated = shadow_validate_fighter(lights->weapon[0].primary.obj, lights->weapon[0].primary.instance);
-        if (validated != NULL && shadow_fighter_visible(validated)) {
-            validated = shadow_validate_fighter(lights->weapon[0].mirror.obj, lights->weapon[0].mirror.instance);
+        validated = MK_HDR_LIVE(lights->weapon[0].primary.obj, lights->weapon[0].primary.instance);
+        if (validated != NULL && !validated->hide_flag_bits.hidden) {
+            validated = MK_HDR_LIVE(lights->weapon[0].mirror.obj, lights->weapon[0].mirror.instance);
             if (validated != NULL) {
                 ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
             }
         }
-        validated = shadow_validate_fighter(lights->weapon[1].primary.obj, lights->weapon[1].primary.instance);
-        if (validated != NULL && shadow_fighter_visible(validated)) {
-            validated = shadow_validate_fighter(lights->weapon[1].mirror.obj, lights->weapon[1].mirror.instance);
+        lights = owner->mirror_slots;
+        validated = MK_HDR_LIVE(lights->weapon[1].primary.obj, lights->weapon[1].primary.instance);
+        if (validated != NULL && !validated->hide_flag_bits.hidden) {
+            validated = MK_HDR_LIVE(lights->weapon[1].mirror.obj, lights->weapon[1].mirror.instance);
             if (validated != NULL) {
                 ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
             }
         }
     }
-    validated = shadow_validate_fighter(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
-    if (validated != NULL && shadow_fighter_visible(validated)) {
-        validated = shadow_validate_fighter(owner->mirror_obj.obj, owner->mirror_obj.instance);
+    validated = MK_HDR_LIVE(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
+    if (validated != NULL && !validated->hide_flag_bits.hidden) {
+        validated = MK_HDR_LIVE(owner->mirror_obj.obj, owner->mirror_obj.instance);
         if (validated != NULL) {
             ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
         }
@@ -235,22 +244,26 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     clear_flags = ShadowAA;
     ShadowCameraUpdate_flag = 0;
     if (clear_flags != 0) {
+        RwRaster* dst_raster = owner->shadow_raster;
+        RwRGBA clear_color = {0xFF, 0xFF, 0xFF, 0x00};
+
         ip_camera = ShadowIPCamera;
-        src_raster = owner->shadow_raster;
-        inv_height = src_raster->height;
+        raster_width = dst_raster->width;
         aspect = kOne / ip_camera->farPlane;
-        ip_camera->frameBuffer = src_raster;
-        RwCameraClear(ip_camera, &clear_color_black, 3);
+        src_raster = ShadowCameraRaster;
+        half_texel = kHalf / raster_width;
+        ip_camera->frameBuffer = dst_raster;
+        RwCameraClear(ip_camera, &clear_color, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(0xA, 2);
             set_render_state(0xB, 1);
             set_render_state(0x6, 0);
             set_render_state(0x2, 3);
             set_render_state(0x9, 2);
-            set_render_state(1, (int)ShadowCameraRaster);
-            Im2DRenderQuad(0xFF, kZero, kZero, inv_height, inv_height,
+            set_render_state(1, (int)src_raster);
+            Im2DRenderQuad(0xFF, kZero, kZero, raster_width, raster_width,
                            RwEngineInstance->dOpenDevice.zBufferFar, aspect,
-                           kHalf / inv_height);
+                           half_texel);
             set_render_state(0x6, 1);
             set_render_state(0xA, 5);
             set_render_state(0xB, 6);
@@ -267,64 +280,68 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
                          ShadowIPCamera, ShadowBlur);
     }
     dir_matrix = &ShadowDirectionMatrix;
-    plane_normal.x = kZero;
+    plane_normal.z = plane_normal.y = plane_normal.x = kZero;
     plane_normal.y = kOne;
-    plane_normal.z = kZero;
     plane_point.x = kZero;
-    plane_point.y = fighter->ground_colls_y;
     plane_point.z = kZero;
+    right_x = dir_matrix->right.x;
     light_pos.x = fighter->pos.value.x;
+    right_y = dir_matrix->right.y;
+    right_z = dir_matrix->right.z;
     light_pos.y = fighter->pos.value.y;
+    up_x = dir_matrix->up.x;
+    up_y = dir_matrix->up.y;
     light_pos.z = fighter->pos.value.z;
+    up_z = dir_matrix->up.z;
+    delta_pos.x = light_pos.x - plane_point.x;
+    delta_pos.z = light_pos.z - plane_point.z;
+    plane_point.y = fighter->ground_colls_y;
+    delta_pos.y = light_pos.y - plane_point.y;
     light_dir.x = dir_matrix->at.x;
     light_dir.y = dir_matrix->at.y;
     light_dir.z = dir_matrix->at.z;
-    delta_pos.x = light_pos.x - plane_point.x;
-    delta_pos.y = light_pos.y - plane_point.y;
-    delta_pos.z = light_pos.z - plane_point.z;
     proj_scale = kOne / PSVECDotProduct(&plane_normal, &light_dir);
     angle = -PSVECDotProduct(&plane_normal, &delta_pos) * proj_scale;
-    work_a.x = angle * light_dir.x;
-    work_a.y = angle * light_dir.y;
-    work_a.z = angle * light_dir.z;
-    PSVECAdd(&light_pos, &work_a, &work_b);
-    box = owner->shadowbox;
-    box->pos.value.x = work_b.x;
-    box->pos.value.z = work_b.z;
-    box->ang.y = gxVectAngleZX(&light_dir) - kPi;
-    work_c.x = (dir_matrix->up.x - dir_matrix->right.x) * shadow_scale;
-    work_c.y = (dir_matrix->up.y - dir_matrix->right.y) * shadow_scale;
-    work_c.z = (dir_matrix->up.z - dir_matrix->right.z) * shadow_scale;
-    PSVECAdd(&light_pos, &work_c, &corner_a);
-    angle = -PSVECDotProduct(&plane_normal, &corner_a) * proj_scale;
-    work_a.x = angle * light_dir.x;
-    work_a.y = angle * light_dir.y;
-    work_a.z = angle * light_dir.z;
-    PSVECAdd(&corner_a, &work_a, &corner_b);
-    corner_c.x = (dir_matrix->right.x + dir_matrix->up.x) * shadow_scale;
-    corner_c.y = (dir_matrix->right.y + dir_matrix->up.y) * shadow_scale;
-    corner_c.z = (dir_matrix->right.z + dir_matrix->up.z) * shadow_scale;
-    PSVECAdd(&light_pos, &corner_c, &corner_d);
-    angle = -PSVECDotProduct(&plane_normal, &corner_d) * proj_scale;
-    work_a.x = angle * light_dir.x;
-    work_a.y = angle * light_dir.y;
-    work_a.z = angle * light_dir.z;
-    PSVECAdd(&corner_d, &work_a, &offset);
-    work_c.x = (-dir_matrix->up.x - dir_matrix->right.x) * shadow_scale;
-    work_c.y = (-dir_matrix->up.y - dir_matrix->right.y) * shadow_scale;
-    work_c.z = (-dir_matrix->up.z - dir_matrix->right.z) * shadow_scale;
-    PSVECAdd(&light_pos, &work_c, &corner_a);
-    angle = -PSVECDotProduct(&plane_normal, &corner_a) * proj_scale;
-    work_a.x = angle * light_dir.x;
-    work_a.y = angle * light_dir.y;
-    work_a.z = angle * light_dir.z;
-    PSVECAdd(&corner_a, &work_a, &corner_c);
-    PSVECSubtract(&corner_b, &offset, &work_a);
-    PSVECSubtract(&corner_c, &offset, &work_b);
-    mag_a = PSVECMag(&work_a);
-    box->scale.x = mag_a;
-    mag_b = PSVECMag(&work_b);
-    box->scale.z = kHalf * mag_b;
+    center_offset.x = angle * light_dir.x;
+    center_offset.y = angle * light_dir.y;
+    center_offset.z = angle * light_dir.z;
+    PSVECAdd(&light_pos, &center_offset, &center);
+    owner->shadowbox->pos.value.x = center.x;
+    owner->shadowbox->pos.value.z = center.z;
+    owner->shadowbox->ang.y = gxVectAngleZX(&light_dir) - kPi;
+    corner_a_spread.x = (up_x - right_x) * shadow_scale;
+    corner_a_spread.y = (up_y - right_y) * shadow_scale;
+    corner_a_spread.z = (up_z - right_z) * shadow_scale;
+    PSVECAdd(&light_pos, &corner_a_spread, &corner);
+    angle = -PSVECDotProduct(&plane_normal, &corner) * proj_scale;
+    corner_a_offset.x = angle * light_dir.x;
+    corner_a_offset.y = angle * light_dir.y;
+    corner_a_offset.z = angle * light_dir.z;
+    PSVECAdd(&corner, &corner_a_offset, &corner_a);
+    corner_b_spread.x = (right_x + up_x) * shadow_scale;
+    corner_b_spread.y = (right_y + up_y) * shadow_scale;
+    corner_b_spread.z = (right_z + up_z) * shadow_scale;
+    PSVECAdd(&light_pos, &corner_b_spread, &corner);
+    angle = -PSVECDotProduct(&plane_normal, &corner) * proj_scale;
+    corner_b_offset.x = angle * light_dir.x;
+    corner_b_offset.y = angle * light_dir.y;
+    corner_b_offset.z = angle * light_dir.z;
+    PSVECAdd(&corner, &corner_b_offset, &corner_b);
+    corner_c_spread.x = (-up_x - right_x) * shadow_scale;
+    corner_c_spread.y = (-up_y - right_y) * shadow_scale;
+    corner_c_spread.z = (-up_z - right_z) * shadow_scale;
+    PSVECAdd(&light_pos, &corner_c_spread, &corner);
+    angle = -PSVECDotProduct(&plane_normal, &corner) * proj_scale;
+    corner_c_offset.x = angle * light_dir.x;
+    corner_c_offset.y = angle * light_dir.y;
+    corner_c_offset.z = angle * light_dir.z;
+    PSVECAdd(&corner, &corner_c_offset, &corner_c);
+    PSVECSubtract(&corner_b, &corner_a, &edge_a);
+    PSVECSubtract(&corner_c, &corner_a, &edge_b);
+    mag_a = PSVECMag(&edge_a);
+    owner->shadowbox->scale.x = mag_a;
+    mag_b = PSVECMag(&edge_b);
+    owner->shadowbox->scale.z = kHalf * mag_b;
     gc_enable_alpha_writes(0);
 }
 

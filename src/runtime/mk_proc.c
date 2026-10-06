@@ -278,7 +278,8 @@ MkProc* get_mkproc_tinystack(MkProcInitFlags flags) {
     return proc;
 }
 
-/* TODO: [near miss] 99.30%; five operand-register coloring differences remain. */
+/* TODO: [near miss] 99.30%; five vtable/flags register rows remain;
+ * stop until original constructor-lifetime evidence appears. */
 MkProc* get_mkproc_nostack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
 
@@ -293,12 +294,9 @@ MkProc* get_mkproc_nostack(MkProcInitFlags flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags;
-        MkVtableMkproc* vtbl;
+        int proc_flags = flags.value;
 
-        vtbl = &vtbl_mkproc_nostack;
-        proc_flags = flags.value;
-        proc->vtbl = vtbl;
+        proc->vtbl = &vtbl_mkproc_nostack;
         proc->flags = proc_flags;
         proc->stack_top = 0;
         proc->stack_ptr = proc->stack_top;
@@ -502,41 +500,8 @@ void mkproc_change_priority(MkProc* proc, int priority) {
     insert_proc_by_priority(proc, &active_proc_list);
 }
 
-/* TODO: [near miss] 98.77551%; only zero copy mr r31,r28 vs li r31,0 remains. */
 void insert_new_mkproc(MkProc* proc) {
-    MkPtr* next;
-    MkPtr* link;
-    int priority;
-    MkPtr* previous;
-    MkPtr* insert;
-
-    priority = proc->priority;
-    insert = get_mkptr_owns_mkhdr(&proc->hdr);
-    previous = 0;
-
-    if (proc_list_available(&active_proc_list)) {
-        link = active_proc_list;
-        while (link != 0) {
-            MkProc* current = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != current->instance) {
-                next = link->next;
-                discard_stale_mkptr(link);
-                link = next;
-                continue;
-            }
-            if (priority < current->priority) {
-                insert_mkptr_before(insert, link);
-                return;
-            }
-            previous = link;
-            link = link->next;
-        }
-    }
-    if (previous != 0) {
-        append_mkptr_after(insert, previous);
-    } else {
-        insert_mkptr(insert, &active_proc_list);
-    }
+    insert_proc_by_priority(proc, &active_proc_list);
 }
 
 float p_idle(void) {

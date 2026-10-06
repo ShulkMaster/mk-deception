@@ -79,8 +79,7 @@ void RNARES_Finish(void)
     }
 }
 
-/* TODO: [near miss] 97.98%; only offset/0x1000 r4<->r5 swap remains: retail keeps
- * 0x1000 as a variable (donor needs asm self-copy); stop at coloring. */
+/* TODO: [near miss] 97.98%; offset/0x1000 r4/r5 exchange remains; stop at coloring. */
 void RNARES_Init(void)
 {
     u32 offset;

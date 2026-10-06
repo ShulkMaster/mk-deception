@@ -1,8 +1,6 @@
 #include "sofdec/mpv_mc.h"
 #include "dolphin/types.h"
 
-extern int MPVLIB_CheckHn(MPVContext* context);
-extern int MPVERR_SetCode(MPVContext* context, int error);
 extern int MPV_GoNextDelimSj(SJ* stream);
 extern int MPV_MoveChunk(SJ* stream, int channel, int size);
 extern int MPVHDEC_DecPicture(MPVContext* context, SJ* stream);
@@ -13,14 +11,14 @@ extern void DCT_FsriSetGqr(void);
 extern void MPVUMC_InitOutRfb(MPVContext* context);
 extern void MPVCMC_InitMcOiRt(MPVContext* context);
 extern void MPVCMC_SetCcnt(MPVContext* context);
-extern void MPVCDEC_InitFrm(void* context);
+extern void MPVCDEC_InitFrm(MPVContext* context);
 extern void MPVUMC_EndOfFrame(MPVContext* context);
 extern void UTY_PushGqr(u32 saved[8]);
 extern void UTY_PopGqr(u32 saved[8]);
 
 int MPV_SkipFrmSj(void* handle, SJ* stream)
 {
-    MPVContext* context = (MPVContext*)handle;
+    MPVContext* context = handle;
     int delimiter_type;
     int error;
 
@@ -48,7 +46,7 @@ int MPV_SkipFrmSj(void* handle, SJ* stream)
 int MPV_DecodeFrmSj(void* handle, SJ* stream,
                     MPVFrameBuffers* buffers)
 {
-    MPVContext* context = (MPVContext*)handle;
+    MPVContext* context = handle;
     u32 saved_gqr[8];
     int initial_decoded;
     int initial_skipped;

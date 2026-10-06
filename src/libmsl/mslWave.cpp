@@ -1,22 +1,12 @@
 #include "msl/mslWave.h"
+#include "msl/mslWave_internal.h"
+#include "msl/mslgcn_globals.h"
 #include "msl/mslPlayable.h"
 #include "mw/mwMem.h"
 #include "runtime/cmath.h"
 
-extern int SoundBufferCount;
-extern int SoundBufferCountStream;
-extern int SoundBufferCountStatic;
 int DBMap[101];
-/* DBMap's section alignment reproduces retail's four trailing .bss bytes. */
 
-/*
- * Start one runtime wave and link it into the owning sound. Stream and
- * resident/static voices share the sound's bit-4 voice-steal policy, while
- * static voices first publish current volume/pan/pitch and prepare their
- * platform buffer.
- */
-/* Matched: 100% report-exact; static playback resets position through
- * the retail +0x50 SetCurrentPosition slot, not PrepForPlay. */
 extern "C" int mslWavePlay(
     _mslSystem* system, mslRuntimeSound* sound,
     mslRuntimeWave* wave, int play_state) {
@@ -177,7 +167,6 @@ extern "C" mslRuntimeWave* mslWaveLoad(
     return wave;
 }
 
-/* Matched: 100% report-exact; float ratio uses SetRelativeFrequency. */
 extern "C" int mslWaveSetPitch(
     mslRuntimeWave* wave, float pitch) {
     mslPlayable* playable = wave->playable;
@@ -186,8 +175,6 @@ extern "C" int mslWaveSetPitch(
     return 0;
 }
 
-/* Matched: 100% report-exact; mono-channel gate and relative pan
- * setter names/signatures follow the retail vtable. */
 extern "C" int mslWaveSetPan(
     mslRuntimeWave* wave, float pan) {
     mslPlayable* playable = wave->playable;
@@ -210,7 +197,6 @@ extern "C" int mslWaveSetPan(
     return 0;
 }
 
-/* Matched: 100% report-exact; normalized float uses SetRelativeVolume. */
 extern "C" int mslWaveSetVol(
     mslRuntimeWave* wave, _mslSystem* system, float volume) {
     mslPlayable* playable;

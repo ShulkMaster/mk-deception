@@ -27,13 +27,13 @@ void mslQueueDelete(mslQueue* queue) {
 
 mslQueue* mslQueueNew(int capacity) {
     mslQueue* queue =
-        (mslQueue*)_mwMemMalloc(MWSOUND_HEAP, sizeof(mslQueue), 3, 0, 0, 0);
+        _mwMemMalloc(MWSOUND_HEAP, sizeof(mslQueue), 3, 0, 0, 0);
 
     if (queue == 0) {
         return 0;
     }
 
-    queue->entries = (mslQueueEntry*)_mwMemMalloc(
+    queue->entries = _mwMemMalloc(
         MWSOUND_HEAP, capacity * sizeof(mslQueueEntry), 3, 0, 0, 0);
     if (queue->entries == 0) {
         _mwMemFree(queue, 0, 0);

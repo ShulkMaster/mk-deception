@@ -349,7 +349,8 @@ static inline int next_unlocked_bio(int* next_index, unsigned int hi,
     }
 }
 
-/* TODO: [near miss] 99.80%; operations/CFG agree; alternate-summary and screen/frame GPR allocation remains. */
+/* TODO: [near miss] 99.80%; twelve alternate-summary and screen/frame
+ * register rows remain; stop at coloring until new lifetime evidence. */
 static void atm_bio_screen(void) {
     static int next_bio_screen = -1;
     int bio_index;
@@ -611,7 +612,7 @@ static void atm_demo_chess(void) {
     gamelogic_jump(5, p_mk_chess);
 }
 
-/* TODO: [near miss] 99.53%; demo flag byte, true bit, and timer zero use different GPRs. */
+/* TODO: [near miss] 99.53%; demo byte/true/timer-zero operations agree; stop at volatile-register coloring. */
 static void atm_demo_fight(void) {
     int bgnd;
 

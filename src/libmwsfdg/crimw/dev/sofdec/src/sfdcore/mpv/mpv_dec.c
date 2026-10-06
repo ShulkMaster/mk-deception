@@ -19,7 +19,6 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
 
 static inline void mpvdec_CallMacroblockCallback(MPVContext* context)
 {
-    /* CRI stores this callback and its argument in 32-bit condition slots. */
     void (*callback)(void*) =
         (void (*)(void*))context->condition_state.conditions[8];
     void* argument = (void*)context->condition_state.conditions[9];
@@ -201,8 +200,6 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
-/* TODO: [near miss] 99.80%; only the mbtype/cbp descriptor and length temporaries swap r0/r3
- * (same residue as Ppic); int/u16/masked/re-read forms measured neutral. */
 void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
@@ -306,7 +303,6 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         }
 
         if ((context->field_344 & 0x20) == 0) {
-            u8 code_length;
             s16 descriptor;
 
             peek = bits >> 26;
@@ -314,15 +310,14 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
                 peek |= next_bits >> (58 - bit_offset);
             }
             descriptor = mpvvlc_b_mbtype[peek];
-            code_length = descriptor;
-            bit_offset += code_length;
-            context->field_344 = (u32)descriptor >> 8;
+                        context->field_344 = (u32)descriptor >> 8;
+            bit_offset += (u8)descriptor;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
                 next_bits = *words++;
             } else {
-                bits <<= code_length;
+                bits <<= (u8)descriptor;
             }
         }
 
@@ -397,7 +392,6 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
         }
 
         if ((context->field_344 & 2) != 0) {
-            u8 code_length;
             s16 descriptor;
 
             peek = bits >> 23;
@@ -405,15 +399,14 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
                 peek |= next_bits >> (55 - bit_offset);
             }
             descriptor = mpvvlc_cbp[peek];
-            code_length = descriptor;
-            bit_offset += code_length;
-            context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
+                        context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
+            bit_offset += (u8)descriptor;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
                 next_bits = *words++;
             } else {
-                bits <<= code_length;
+                bits <<= (u8)descriptor;
             }
         } else {
             context->cbp_mask = 0;
@@ -585,8 +578,6 @@ void MPVDEC_ResetMv(MPVMotionInfo* motion)
     motion->vertical = 0;
 }
 
-/* TODO: [near miss] 99.79%; only the mbtype/cbp descriptor and length temporaries swap r0/r3
- * (same residue as Bpic; int/u16/masked/re-read/declaration forms neutral). */
 void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
@@ -690,22 +681,20 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 
         if ((context->field_344 & 0x20) == 0) {
             s16 descriptor;
-            u8 code_length;
 
             peek = bits >> 27;
             if (bit_offset > 27) {
                 peek |= next_bits >> (59 - bit_offset);
             }
             descriptor = mpvvlc_p_mbtype[peek];
-            code_length = descriptor;
-            bit_offset += code_length;
-            context->field_344 = (u32)descriptor >> 8;
+                        context->field_344 = (u32)descriptor >> 8;
+            bit_offset += (u8)descriptor;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
                 next_bits = *words++;
             } else {
-                bits <<= code_length;
+                bits <<= (u8)descriptor;
             }
         }
 
@@ -758,22 +747,20 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 
         if ((context->field_344 & 2) != 0) {
             s16 descriptor;
-            u8 code_length;
 
             peek = bits >> 23;
             if (bit_offset > 23) {
                 peek |= next_bits >> (55 - bit_offset);
             }
             descriptor = mpvvlc_cbp[peek];
-            code_length = descriptor;
-            bit_offset += code_length;
-            context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
+                        context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
+            bit_offset += (u8)descriptor;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
                 next_bits = *words++;
             } else {
-                bits <<= code_length;
+                bits <<= (u8)descriptor;
             }
         } else {
             context->cbp_mask = 0;

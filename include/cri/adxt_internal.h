@@ -72,8 +72,6 @@ typedef struct ADXTHandle {
     s32 pending_file_sectors;
 } ADXTHandle;
 
-#if !defined(TARGET_PC)
 typedef char ADXTHandleSizeCheck[sizeof(ADXTHandle) == 0xC0 ? 1 : -1];
-#endif
 
 #endif

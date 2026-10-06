@@ -1,10 +1,10 @@
 #include "cri/sj.h"
+#include "sofdec/mws_sound.h"
 #include "cri/adxt_internal.h"
 
 typedef struct LSC LSC;
 typedef struct SfdHandle SfdHandle;
 typedef struct MwsPlayer MwsPlayer;
-typedef struct MwsStHandle MwsStHandle;
 typedef struct MwsSupply MwsSupply;
 
 typedef void (*MwsServerBorderCallback)(void* object);
@@ -18,13 +18,6 @@ struct MwsSupply {
     const MwsSupplyInterface* interface;
 };
 
-struct MwsStHandle {
-    int active;
-    unsigned char reserved_004[0x08];
-    SJ* stream;
-    int element_id;
-    void* backend;
-};
 
 struct MwsPlayer {
     int reserved_000;
@@ -81,7 +74,6 @@ typedef struct MwsLibraryWork {
     MwsPlayer players[8];
 } MwsLibraryWork;
 
-typedef char MwsStHandleSizeCheck[sizeof(MwsStHandle) == 0x18 ? 1 : -1];
 typedef char MwsPlayerSizeCheck[sizeof(MwsPlayer) == 0x2B8 ? 1 : -1];
 typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 
@@ -99,8 +91,6 @@ extern void MWSFSFX_DecideCompoMode(MwsPlayer* player);
 extern void MWSFSVM_Error(const char* message, ...);
 extern void MWSFSVM_GotoIdleBorder(void);
 extern int MWSFSVM_TestAndSet(int* value);
-extern int MWSST_GetStat(MwsStHandle* sound);
-extern void MWSST_Pause(MwsStHandle* sound, int paused);
 extern int MWSTM_GetStat(ADXStream* stream);
 extern int MWSTM_IsFsStatErr(ADXStream* stream);
 extern int MWSTM_ReqStart(ADXStream* stream);

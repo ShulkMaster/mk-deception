@@ -478,7 +478,7 @@ void Render(void) {
                         } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
                                    !flag_obj->hide_flag_bits.hidden) {
                             UpdateShadow(g_game_info.plyr0.slot.mirror_a,
-                                         (ShadowObject*)fighter,
+                                         (PlyrPdata*)fighter,
                                          g_game_info.plyr0.slot.mirror_b);
                             if (g_game_info.section->flags70 & 8) {
                                 mirror_guy(g_game_info.plyr0.slot.mirror_a,
@@ -501,7 +501,7 @@ void Render(void) {
                         } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
                                    !flag_obj->hide_flag_bits.hidden) {
                             UpdateShadow(g_game_info.plyr1.slot.mirror_a,
-                                         (ShadowObject*)fighter,
+                                         (PlyrPdata*)fighter,
                                          g_game_info.plyr1.slot.mirror_b);
                             if (g_game_info.section->flags70 & 8) {
                                 mirror_guy(g_game_info.plyr1.slot.mirror_a,

@@ -17,12 +17,10 @@ typedef struct SFHStreamRecord {
     unsigned char reserved[0x18];
     unsigned char id;
     unsigned char codec;
-    /* Audio layer/channels; video bitrate bytes. */
     union {
         unsigned char codec_bytes[2];
         unsigned short codec_word;
     };
-    /* Audio sample-rate bytes; video picture dimensions and frame rate. */
     union {
         unsigned char media_bytes[4];
         unsigned int media_word;
@@ -84,7 +82,6 @@ static inline int sfh_is_analyzable(const SFHHandle* handle)
 
 static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
 {
-    /* Header packet fields are word-aligned and stored little-endian. */
     const unsigned int* words = (const unsigned int*)data;
     unsigned int word = words[offset / sizeof(*words)];
 
@@ -100,9 +97,9 @@ static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
 static inline signed short sfh_read_le_s16(const unsigned char* data, int offset)
 {
     signed short value = *(const signed short*)(data + offset);
-    unsigned short bits = (unsigned short)value;
+    unsigned short bits = value;
 
-    return (signed short)(unsigned short)(((bits & 0xFF) << 8) |
+    return (unsigned short)(((bits & 0xFF) << 8) |
                                           ((bits >> 8) & 0xFF));
 }
 
@@ -112,7 +109,7 @@ static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
     const unsigned char* header = handle->header;
 
     if (!sfh_is_analyzable(handle)) return 0;
-    *result = (int)sfh_read_le32(header, offset);
+    *result = sfh_read_le32(header, offset);
     return 1;
 }
 
@@ -124,7 +121,7 @@ static inline int sfh_read_header_u32_version(const SFHHandle* handle,
 
     if (!sfh_is_analyzable(handle)) return 0;
     if (handle->version < minimum_version) return 0;
-    *result = (int)sfh_read_le32(header, offset);
+    *result = sfh_read_le32(header, offset);
     return 1;
 }
 

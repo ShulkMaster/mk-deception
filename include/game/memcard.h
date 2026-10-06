@@ -52,7 +52,13 @@ void create_right_mc_icon_list(GVTexturePair out, int count);
 void create_left_mc_icon_list(GVTexturePair out, int count);
 void get_right_mcard_text_matrix(char** out);
 void get_left_mcard_text_matrix(char** out);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* get_right_storage_device_space_needed(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* get_left_storage_device_space_needed(void);
 
 int is_device_unformatted(int device);

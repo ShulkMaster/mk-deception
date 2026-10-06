@@ -1472,7 +1472,7 @@ struct KonquestPuiListNode {
 void update_tile_grid(void);
 static float p_collide_monk(void);
 int collide_segment_against_global_collision_list_quads(
-    const Vec* start, const Vec* end, Vec* hit_point);
+    Vec* start, Vec* end, Vec* hit_point);
 int repel_against_global_collision_list(
     const Vec* position, Vec* movement, Vec* collision_position);
 static MkProc* konquest_display_award_tga(
@@ -7703,7 +7703,7 @@ void render_konquest_shadows(void) {
             return;
         }
         pdata_monk.shadowbox->hide_flag_bits.hidden = 0;
-        UpdateShadow(hero, (ShadowObject*)&pdata_monk, hero);
+        UpdateShadow(hero, &pdata_monk, hero);
         if (fix_camera_flip == 1) {
             pdata_monk.shadowbox->ang.y -= 3.1415927f;
             fix_camera_flip = 0;

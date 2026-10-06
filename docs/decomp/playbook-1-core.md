@@ -53,7 +53,9 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
 - Per-symbol 100 does not prove layout. Check raw offsets/sizes of statics
   (`.sbss` order) and anonymous literal pool order (reversed pair: each
   string matches, relocs wrong) `[da]`.
-- Jump table -> check `.data` too (H10).
+- Jump table -> check `.data` too (H10): table count and raw section size,
+  not only fuzzy score. Removed tables can leave that score unchanged
+  (`mk_chess_piece_event`).
 - Changed header/helper/macro -> recheck every consumer, exact ones too.
 - Finish: quality pass, full `ninja`, SHA-1, progress, `git diff --check`,
   status. Report report-exact vs data-value-exact vs link-exact; disclose
@@ -85,6 +87,7 @@ Tools:
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
+| Call args from one value computed in other order | H15, H16 |
 | Extra/missing `bl`, inlining differs | H07, M13 |
 | Retail compares value with itself before shared inlined loop | H07 |
 | Pointer+instance latch diamond | H08, H25 |
@@ -95,6 +98,9 @@ Tools:
 | POD copy loop; copy load/store order | H12 |
 | Intrusive list link order | H13 |
 | Stack slots, frame size, store order | H14, H24 |
+| Local struct in stack (`lfs`/`stfs` off r1) vs FPRs, or reverse | M07 |
+| Dead `b` after loop arm, `li r,0` on normal exit | H11, M13 |
+| `li rX,0` vs `mr rX,rZero` | H15, H11 |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |
@@ -105,6 +111,7 @@ Tools:
 | Compact saves, `divw`, Boolean lowering TU-wide; `_savegpr` vs `stmw` | M01 |
 | Scheduling-only residue across one library | M01 |
 | Control-word or publication order | M02 |
+| Near miss with `const` anywhere in sig/locals (Midway rarely used it) | M12 |
 | FP operands, rounding, constants, int-to-float, `fmadds` | M03, M05 |
 | Varargs setup | M14 |
 | Strings, pools, `.rodata`, constant identity, `[order]` | M15 |

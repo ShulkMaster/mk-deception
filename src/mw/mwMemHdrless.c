@@ -95,7 +95,8 @@ static inline void hdrlessHeapAlignArena(_mwMemHeap* heap) {
     }
 }
 
-/* TODO: [near miss] 98.09782%; alignment temporaries and separate zero remain; loop matches. */
+/* TODO: [near miss] 98.10%; alignment registers and one extra zero load
+ * remain; loop matches, stop until new ownership evidence. */
 void hdrlessHeapResetHeap(_mwMemHeap* heap) {
     u32 index;
     MwMemUsedHeader* header;

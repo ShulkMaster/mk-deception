@@ -30,7 +30,6 @@ static inline MSLGCN_ARamBlock* allocate_block(void) {
     return block;
 }
 
-// With deferred inlining, MWCC emits these definitions in reverse source order.
 MSLGCN_ARamBlock* MSLGCN_ARamBlock::GetObject(void) {
     return allocate_block();
 }
@@ -162,11 +161,11 @@ extern "C" void mslArqRequest_Init(void) {
     int index;
 
     mslARQ_Req_FreeList = mslARQ_Req_Pool;
-    for (index = 0; index < 23; index++) {
+    for (index = 0; index < (int)(sizeof(mslARQ_Req_Pool) / sizeof(mslARQ_Req_Pool[0])) - 1; index++) {
         mslARQ_Req_Pool[index].next_free =
             &mslARQ_Req_Pool[index + 1];
     }
-    mslARQ_Req_Pool[23].next_free = 0;
+    mslARQ_Req_Pool[sizeof(mslARQ_Req_Pool) / sizeof(mslARQ_Req_Pool[0]) - 1].next_free = 0;
 }
 
 extern "C" mslARQRequest* mslGetArqRequest(void) {

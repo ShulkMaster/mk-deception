@@ -55,7 +55,8 @@ static inline void dctFsriStoreSparseCoefficient(int coefficient, int index,
     PreIDCT[dctFsriScanIndex(coefficient)][index] = *value;
 }
 
-/* TODO: [breakthrough needed] Paired-single transform kernel remains unmatched. */
+/* TODO: [blocked] 19.04%; hand-scheduled paired-single kernel requires
+ * function-specific assembly authorization; scalar fallback retained. */
 static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
 {
     float* coefficients = params->coefficients;

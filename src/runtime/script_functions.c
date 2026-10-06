@@ -276,7 +276,7 @@ struct ScriptObjectIntArgs {
 
 struct ScriptVolumeArgs {
     unsigned int header;
-    const Vec* position;
+    Vec* position;
     float far_distance;
     float near_distance;
 };
@@ -570,8 +570,8 @@ struct LimbBoneAttachArgs {
     unsigned int header;
     PlyrInfo* target_player;
     int owner_bone;
-    const Vec* offset;
-    const Vec* rotation;
+    Vec* offset;
+    Vec* rotation;
     PlyrInfo* owner_player;
     int limb;
     int target_bone;
@@ -584,10 +584,10 @@ struct Gore2PebbleArgs {
     int bone;
     MkObj* source;
     FighterMirror* decal_owner;
-    const Vec* velocity;
+    Vec* velocity;
     const Vec* rotation;
-    const Vec* scale;
-    const Vec* position_offset;
+    Vec* scale;
+    Vec* position_offset;
     float vertical_acceleration;
     int bounce_count;
     float bounce_scale;
@@ -1138,11 +1138,6 @@ void fatality_release_other_player(void);
 int get_level_fatality_done_flag_state(void);
 void set_level_fatality_done_flag_state(int value);
 void limb_sever_destroy_existing_attach_proc(int a, int b);
-void limb_sever_bone_attach(
-    PlyrInfo* target_player, int owner_bone,
-    const Vec* offset, const Vec* rotation,
-    PlyrInfo* owner_player, int limb, int target_bone,
-    int include_children);
 MkHdr* limb_sever_pop_head_up(PlyrInfo* player, float x_velocity, float y_velocity,
                               float z_velocity, float angular_velocity);
 void* mks_limb_sever(int a, int b, int c);
@@ -1167,7 +1162,6 @@ void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 void* retrieve_bgnd_obj(void);
 void fkbm_obj_face_obj(int a, int b, int c, int d, int e);
-float mkobj_pos_pos_dot_normal_xz(int a, int b, int c);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
 MkSobj* obj_create_sobjs_by_id(MkObj* object, int id);
 void* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
@@ -2264,9 +2258,9 @@ int single_frame_collision_check(
 int special_move_cam_him(float, float, float, float, float, int, int, int);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
-    FighterMirror* decal_owner, const Vec* velocity,
-    const Vec* rotation, const Vec* scale,
-    const Vec* position_offset, float vertical_acceleration,
+    FighterMirror* decal_owner, Vec* velocity,
+    const Vec* rotation, Vec* scale,
+    Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
 int transition_to_anim_script_frame(
     float, float, AnimPdata*, AnimScript*, unsigned int);
@@ -5252,9 +5246,9 @@ void _insert_particle_mkobj(void) {
 
 void _mkobj_pos_pos_dot_normal_xz(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
-        mkobj_pos_pos_dot_normal_xz(((struct ScriptRawArgs*)current_args)->slots[0].i,
-                                    ((struct ScriptRawArgs*)current_args)->slots[1].i,
-                                    ((struct ScriptRawArgs*)current_args)->slots[2].i);
+        mkobj_pos_pos_dot_normal_xz(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
+                                    ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
+                                    ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 void _obj_get_bid_for_tid(void) {
@@ -5587,7 +5581,7 @@ void _get_pan_value(void) {
     float pan;
 
     args = (struct ScriptFloatPointerArgs*)current_args;
-    pan = get_pan_value((const Vec*)args->value);
+    pan = get_pan_value((Vec*)args->value);
     result = (struct ScriptFloatResult*)active_cmdscript;
     result->value = pan;
 }

@@ -78,8 +78,7 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [breakthrough needed] 89.28%; native-sized regions preserve retail
- * output; remaining size/type traversal and lowering need evidence. */
+/* TODO: [near miss] 93.08%; signed byte flag and CFG agree; compact saves and sum association remain; stop after honest staging check. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
 {
@@ -120,7 +119,7 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
             (estimate->field_count + 1) * sizeof(PfxFieldDescription);
     }
 
-    if ((build->flags & 0x80000000U) != 0) {
+    if (build->flag_bits.emitter_user_data != 0) {
         estimate->emitter_user_data_size = 0x40;
     }
     if (build->emitter_user_data_size != 0) {

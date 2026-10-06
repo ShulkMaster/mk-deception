@@ -154,59 +154,53 @@ static inline void init_cmdscript_fields(CmdScript* cs) {
     memset(cs->regs, 0, sizeof(cs->regs));
 }
 
-static inline void execute_cmdscript(ScriptSlot* slot) {
-    CmdScript* cs;
-    CmdScriptStackFrame* stack_base;
+static inline void dispatch_cmdscript_until_end(ScriptSlot* slot) {
     unsigned int instruction;
+    unsigned int* instruction_pc;
     unsigned int header;
     ScriptBuiltinFn builtin;
-    int stop;
 
-    cs = active_cmdscript;
-    if (cs == 0) {
-        return;
-    }
-    cs->mko = slot;
-    cs->state = 1;
-    cs->unk28 = 0;
-    stack_base = cs->stack_mem;
-    stop = 0;
-
-    while (cs->pc != (unsigned int*)slot->pad8c && stop == 0) {
-        instruction = *cs->pc;
-        while (instruction == 0 && cs->stack_sp != stack_base) {
-            cs->stack_end = cs->stack_sp;
-            cs->stack_sp--;
-            if ((unsigned int)cs->stack_sp < (unsigned int)stack_base) {
-                cs->state = 2;
+    while (active_cmdscript->pc != (unsigned int*)slot->pad8c) {
+        while ((instruction = *(instruction_pc = active_cmdscript->pc)) == 0 &&
+            active_cmdscript->stack_sp != active_cmdscript->stack_mem) {
+            active_cmdscript->stack_end = active_cmdscript->stack_sp;
+            active_cmdscript->stack_sp--;
+            if ((unsigned int)active_cmdscript->stack_sp < (unsigned int)active_cmdscript->stack_mem) {
+                active_cmdscript->state = 2;
             }
-            cs->prev_pc = cs->stack_sp->saved_prev_pc;
-            cs->pc = cs->stack_sp->return_pc;
-            if (cs->stack_sp->keep_alive == 0) {
-                stop = 1;
-                break;
+            active_cmdscript->prev_pc = active_cmdscript->stack_sp->saved_prev_pc;
+            active_cmdscript->pc = active_cmdscript->stack_sp->return_pc;
+            if (active_cmdscript->stack_sp->keep_alive == 0) {
+                return;
             }
-            instruction = *cs->pc;
         }
-        if (instruction == 0 || cs->state == 2 || stop != 0) {
+        if (instruction == 0 || active_cmdscript->state == 2) {
             break;
         }
 
-        cs->prev_pc = cs->pc;
-        builtin = *(ScriptBuiltinFn*)cs->pc;
-        cs->pc++;
-        current_args = cs->pc;
-        cs->pc = current_args + 1;
-        cs->arg_header = current_args;
+        active_cmdscript->prev_pc = instruction_pc;
+        builtin = *(ScriptBuiltinFn*)active_cmdscript->pc++;
+        current_args = active_cmdscript->pc++;
+        active_cmdscript->arg_header = current_args;
         header = *current_args;
-        cs->arg_word_count = header >> 16;
-        cs->pc += header & 0xffff;
+        active_cmdscript->arg_word_count = header >> 16;
+        active_cmdscript->pc += header & 0xffff;
         builtin();
     }
 
-    cs->stack_sp = stack_base;
-    cs->stack_end = stack_base + 1;
-    cs->state = 0;
+}
+
+static inline void execute_cmdscript(ScriptSlot* slot) {
+    if (active_cmdscript == 0) {
+        return;
+    }
+    active_cmdscript->mko = slot;
+    active_cmdscript->state = 1;
+    active_cmdscript->unk28 = 0;
+    dispatch_cmdscript_until_end(slot);
+    active_cmdscript->stack_sp = active_cmdscript->stack_mem;
+    active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
+    active_cmdscript->state = 0;
 }
 
 void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
@@ -233,16 +227,15 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
     }
 }
 
-/* TODO: [breakthrough needed] 63.30%; 101 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 99.26%; ownership, stack-pop CFG and dispatch agree; stack-probe register coloring remains. */
 float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
     pdata = (OneShotScriptPdata*)apdata;
-    if (pdata == 0) {
-        return kNegOne;
+    if (pdata != 0) {
+        cmdscript_setup_execution(pdata->script, pdata->func_index);
+        execute_cmdscript(pdata->script);
     }
-    cmdscript_setup_execution(pdata->script, pdata->func_index);
-    execute_cmdscript(pdata->script);
     return kNegOne;
 }
 
@@ -422,12 +415,17 @@ char* get_script_string_arg(int index) {
     return (char*)value;
 }
 
-/* TODO: [breakthrough needed] 62.96%; 13 rows differ; inspect retail CFG and operand types. */
 void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     unsigned int attrs_id;
+    unsigned int* attributes;
 
-    attrs_id = slot->func_defs[func_index - 1].attrs_id;
-    return resolve_table_row(slot, attrs_id);
+    func_index--;
+    attributes = &slot->func_defs[func_index].attrs_id;
+    attrs_id = *attributes;
+    if (attrs_id != 0) {
+        return resolve_table_row(slot, attrs_id);
+    }
+    return 0;
 }
 
 void* get_data_table_by_name(const char* name) {
@@ -567,60 +565,10 @@ void* get_data_table(ScriptSlot* slot, unsigned int index) {
     return resolve_table_row(slot, index);
 }
 
-/* TODO: [breakthrough needed] 66.91%; 91 rows differ; inspect retail CFG and operand types. */
-void cmdscript_execute(ScriptSlot* slot) {
-    CmdScript* cs;
-    CmdScriptStackFrame* stack_base;
-    unsigned int instruction;
-    unsigned int header;
-    ScriptBuiltinFn builtin;
-    int stop;
-
-    cs = active_cmdscript;
-    if (cs == 0) {
-        return;
-    }
-    cs->mko = slot;
-    cs->state = 1;
-    cs->unk28 = 0;
-    stack_base = cs->stack_mem;
-    stop = 0;
-
-    while (cs->pc != (unsigned int*)slot->pad8c && stop == 0) {
-        instruction = *cs->pc;
-        while (instruction == 0 && cs->stack_sp != stack_base) {
-            cs->stack_end = cs->stack_sp;
-            cs->stack_sp--;
-            if ((unsigned int)cs->stack_sp < (unsigned int)stack_base) {
-                cs->state = 2;
-            }
-            cs->prev_pc = cs->stack_sp->saved_prev_pc;
-            cs->pc = cs->stack_sp->return_pc;
-            if (cs->stack_sp->keep_alive == 0) {
-                stop = 1;
-                break;
-            }
-            instruction = *cs->pc;
-        }
-        if (instruction == 0 || cs->state == 2 || stop != 0) {
-            break;
-        }
-
-        cs->prev_pc = cs->pc;
-        builtin = *(ScriptBuiltinFn*)cs->pc;
-        cs->pc++;
-        current_args = cs->pc;
-        cs->pc = current_args + 1;
-        cs->arg_header = current_args;
-        header = *current_args;
-        cs->arg_word_count = header >> 16;
-        cs->pc += header & 0xffff;
-        builtin();
-    }
-
-    cs->stack_sp = stack_base;
-    cs->stack_end = stack_base + 1;
-    cs->state = 0;
+/* TODO: [near miss] 99.20792%; shared executor restores CFG and global reloads; dispatch probe GPR coloring remains. */
+void cmdscript_execute(ScriptSlot* slot)
+{
+    execute_cmdscript(slot);
 }
 
 /* TODO: [breakthrough] 93.06%; optional attrs and native string relocation agree; indexed attrs load and entry join remain. */
@@ -669,15 +617,16 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     }
 }
 
-/* TODO: [breakthrough needed] 67.32%; 98 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 99.34%; interpreter/transfer CFG agrees; eleven stack-probe register-color rows remain, stop at tier 1. */
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
         CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(active_cmdscript->continuation, kZero);
+        return kZero;
     } else {
         CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(j_exit, kZero);
+        return kZero;
     }
-    return kZero;
 }
 
 void cmdscript_unload(ScriptSlot* slot) {
@@ -1127,21 +1076,27 @@ void _set_bit_field(void) {
     *dst = (*dst & ~mask) | (src << shift);
 }
 
-/* TODO: [near miss] 60.25%; owner-relative address grouping and scheduling differ;
- * direct expression and full operand capture are neutral; stop at compiler ceiling. */
+static inline unsigned int* cmdscript_mutable_register_slot(
+    CmdScript* script, unsigned int index) {
+    return &script->regs[index];
+}
+
+/* TODO: [near miss] 95.94%; slot grouping and in-place extraction agree; stop at register coloring. */
 void _get_bit_field(void) {
+    unsigned int val;
     unsigned int* args;
     CmdScript* cs;
-    unsigned int val;
     unsigned int mask;
     unsigned int shift;
 
     args = current_args;
     cs = active_cmdscript;
-    val = cs->regs[args[2]];
+    val = *cmdscript_register_slot(cs, args[2]);
     mask = args[4];
     shift = args[3] >> 16;
-    cs->regs[args[1]] = (val & mask) >> shift;
+    val &= mask;
+    val >>= shift;
+    *cmdscript_mutable_register_slot(cs, args[1]) = val;
 }
 
 void _copy_stream_to_address(void) {
@@ -1387,7 +1342,8 @@ void _compare_int_int(void) {
     cs->regs[args[1]] = result;
 }
 
-/* TODO: [near miss] 98.06%; typed operand slots agree; volatile GPR homes differ. */
+/* TODO: [near miss] 98.06%; ten args/op/right-index register rows
+ * remain; stop until new operand-stream lifetime evidence. */
 static void _combine_float_float(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1422,7 +1378,7 @@ static void _combine_float_float(void) {
     destination->real = result;
 }
 
-/* TODO: [near miss] 98.66%; typed slots agree; args/op/right-index volatile GPR rotation remains (same as _compare_float_float). */
+/* TODO: [near miss] 98.66%; typed slots agree; nine args/selector/RHS-offset register rows remain; stop at coloring. */
 void _combine_uint_uint(void) {
     CmdScript* cs;
     CmdScriptRegister* destination;
@@ -1539,43 +1495,67 @@ void _copy_register_to_address(void) {
     memcpy((void*)*cmdscript_register_slot(script, destination_index), &value, size);
 }
 
-/* TODO: [breakthrough needed] 64.05%; 21 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 98.18%; indexed slots and load order agree;
+ * local index/add coloring remains; stop without a new owner-lifetime hypothesis. */
 void _copy_column_address_to_register(void) {
     unsigned int* args;
     CmdScript* script;
-    unsigned int table;
-    unsigned int row;
+    unsigned int* table_slot;
+    unsigned int* row_slot;
     unsigned int destination;
     unsigned int offset;
+    unsigned int table;
     unsigned int stride;
+    unsigned int row;
 
     args = current_args;
     script = active_cmdscript;
-    table = script->regs[args[2]];
-    row = script->regs[args[3]];
+    table_slot = &script->regs[args[2]];
+    row_slot = &script->regs[args[3]];
     destination = args[1];
+    table = *table_slot;
     offset = args[4];
     stride = args[5];
+    row = *row_slot;
     if (table != 0) {
-        script->regs[destination] = table + row * stride + offset;
+        unsigned int* destination_slot = &script->regs[destination];
+        *destination_slot = table + row * stride + offset;
     }
 }
 
-/* TODO: [breakthrough needed] 45.62%; 32 rows differ; inspect retail CFG and operand types. */
+/* TODO: [near miss] 93.38%; input snapshots and slot addressing agree; stop at index/load coloring and commuted adds. */
 void _copy_column_to_register(void) {
-    unsigned int value;
-    unsigned int dest_reg;
+    unsigned int* args;
+    CmdScript* script;
+    const unsigned int* table_slot;
+    const unsigned int* row_slot;
+    unsigned int destination;
+    unsigned int offset;
     unsigned int table;
+    unsigned int stride;
+    unsigned int row;
+    unsigned int size;
+    unsigned int value;
 
     value = 0;
-    dest_reg = current_args[1];
-    table = active_cmdscript->regs[current_args[2]];
+    args = current_args;
+    script = active_cmdscript;
+    table_slot = cmdscript_register_slot(script, args[2]);
+    row_slot = cmdscript_register_slot(script, args[3]);
+    destination = args[1];
+    offset = args[4];
+    table = *table_slot;
+    stride = args[5];
+    size = args[6];
+    row = *row_slot;
     if (table != 0) {
-        memcpy(&value,
-               (void*)(table + active_cmdscript->regs[current_args[3]] * current_args[5] +
-                       current_args[4]),
-               current_args[6]);
-        active_cmdscript->regs[dest_reg] = value;
+        unsigned int* destination_slot;
+
+        table += row * stride;
+        table += offset;
+        memcpy(&value, (void*)table, size);
+        destination_slot = cmdscript_mutable_register_slot(active_cmdscript, destination);
+        *destination_slot = value;
     }
 }
 

@@ -89,23 +89,17 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough] 26.76293%; inverse-sqrt ordered guard corrected; FP scheduling and source structure remain. */
+/* TODO: [breakthrough] 74.06%; ordered sqrt guards and parallel early exit recovered; Newton/geometry scheduling and FPR frame remain. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
-    float ax = cylAxis->x;
-    float ay = cylAxis->y;
-    float az = cylAxis->z;
-    float dx = dir->x;
-    float dy = dir->y;
-    float dz = dir->z;
+    float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
+    float ny = dir->z * cylAxis->x - dir->x * cylAxis->z;
+    float nz = dir->x * cylAxis->y - dir->y * cylAxis->x;
+    float lenN = nx * nx + ny * ny + nz * nz;
     float ox = origin->x - cylPos->x;
     float oy = origin->y - cylPos->y;
     float oz = origin->z - cylPos->z;
-    float nx = dy * az - dz * ay;
-    float ny = dz * ax - dx * az;
-    float nz = dx * ay - dy * ax;
-    float lenN = nx * nx + ny * ny + nz * nz;
-    float invLen = kZero;
+    float invLen = gxMathFastSqrt(lenN);
     float dist;
     int hit;
     float fx;
@@ -119,62 +113,49 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float chordOffset;
     float lenO;
 
-    if (kZero < lenN) {
-        invLen = gxMathFastSqrt(lenN);
-    }
-
-    if (kTiny <= invLen) {
-        invLen = kOne / invLen;
-        nx *= invLen;
-        ny *= invLen;
-        nz *= invLen;
-        dist = ox * nx + oy * ny + oz * nz;
-        if (dist < kZero) {
-            dist = -dist;
-        }
-        hit = (dist <= radius);
-        if (hit) {
-            fx = ny * az - nz * ay;
-            fy = nz * ax - nx * az;
-            fz = nx * ay - ny * ax;
-            lenQ = fx * fx + fy * fy + fz * fz;
-            invQ = kZero;
-            if (kZero < lenQ) {
-                invQ = mk_inv_sqrt(lenQ);
-            }
-            tMid = -((ox * ay - oy * ax) * nz + (oy * az - oz * ay) * nx +
-                     (oz * ax - ox * az) * ny);
-            tMid *= invLen;
-            halfChord = radius * radius - dist * dist;
-            if (kZero < halfChord) {
-                halfChord = gxMathFastSqrt(halfChord);
-            } else {
-                halfChord = kZero;
-            }
-            denom = dx * (fx * invQ) + dy * (fy * invQ) + dz * (fz * invQ);
-            chordOffset = halfChord / denom;
-            if (chordOffset < kZero) {
-                chordOffset = -chordOffset;
-            }
-            *tNear = tMid - chordOffset;
-            *tFar = tMid + chordOffset;
-        }
-        return hit;
-    }
-
-    dist = -(ox * ax + oy * ay + oz * az);
-    ox = ax * dist + ox;
-    oy = ay * dist + oy;
-    oz = az * dist + oz;
-    lenO = ox * ox + oy * oy + oz * oz;
-    dist = kZero;
-    if (kZero < lenO) {
+    if (invLen < kTiny) {
+        dist = -(ox * cylAxis->x + oy * cylAxis->y + oz * cylAxis->z);
+        ox = cylAxis->x * dist + ox;
+        oy = cylAxis->y * dist + oy;
+        oz = cylAxis->z * dist + oz;
+        lenO = ox * ox + oy * oy + oz * oz;
         dist = gxMathFastSqrt(lenO);
+        *tNear = kHugeNeg;
+        *tFar = kHugePos;
+        return dist <= radius;
     }
-    *tNear = kHugeNeg;
-    *tFar = kHugePos;
-    return dist <= radius;
+
+    invLen = kOne / invLen;
+    nx *= invLen;
+    ny *= invLen;
+    nz *= invLen;
+    dist = ox * nx + oy * ny + oz * nz;
+    if (dist < kZero) {
+        dist = -dist;
+    }
+    hit = (dist <= radius);
+    if (hit) {
+        fx = ny * cylAxis->z - nz * cylAxis->y;
+        fy = nz * cylAxis->x - nx * cylAxis->z;
+        fz = nx * cylAxis->y - ny * cylAxis->x;
+        lenQ = fx * fx + fy * fy + fz * fz;
+        invQ = mk_inv_sqrt(lenQ);
+        tMid = -((ox * cylAxis->y - oy * cylAxis->x) * nz + (oy * cylAxis->z - oz * cylAxis->y) * nx +
+                 (oz * cylAxis->x - ox * cylAxis->z) * ny);
+        tMid *= invLen;
+        halfChord = radius * radius - dist * dist;
+        halfChord = gxMathFastSqrt(halfChord);
+        denom = dir->x * (fx * invQ) + dir->y * (fy * invQ) + dir->z * (fz * invQ);
+        chordOffset = halfChord / denom;
+        if (chordOffset < kZero) {
+            chordOffset = -chordOffset;
+        }
+        *tNear = tMid - chordOffset;
+        *tFar = tMid + chordOffset;
+    }
+    return hit;
 }
+
 
 float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     float dx = b->x - a->x;
@@ -182,19 +163,19 @@ float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
-/* TODO: [breakthrough] 62.16%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
-float dist_xz_to_xz(const Vec* a, const Vec* b) {
+float dist_xz_to_xz(Vec* a, Vec* b) {
     return gxMathFastSqrt(dist2_xz_to_xz(a, b));
 }
 
-/* TODO: [breakthrough needed] 41.10%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void rotate_xz(Vec* out, const Vec* v, float ang) {
-    float c = gxMathCos(ang);
-    float s = gxMathSin(ang);
-    float x = v->x;
+void rotate_xz(Vec* out, const Vec* v, float ang)
+{
+    float x_component;
     float z = v->z;
-    out->x = z * s + x * c;
-    out->z = z * c - x * s;
+    float x = v->x;
+    x_component = x * gxMathCos(ang);
+    out->x = z * gxMathSin(ang) + x_component;
+    x_component = x * gxMathSin(ang);
+    out->z = z * gxMathCos(ang) - x_component;
 }
 
 #pragma push
@@ -211,8 +192,7 @@ void normalize_xz(Vec* v) {
     v->z *= inv;
 }
 
-/* TODO: [breakthrough] 70.59%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
-float length_xz(const Vec* v) {
+float length_xz(Vec* v) {
     return gxMathFastSqrt(v->x * v->x + v->z * v->z);
 }
 
@@ -220,42 +200,26 @@ float xz_dot_xz(const Vec* a, const Vec* b) {
     return a->x * b->x + a->z * b->z;
 }
 
-/* TODO: [near miss] 99.24%; mutable inputs and rounded component squares recovered;
- * four sum-register rows remain. */
 float xz_unit_vector_recip(Vec* out, Vec* from, Vec* to) {
     float inv;
-    float x;
-    float z_squared;
-    float x_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    x = out->x;
-    x_squared = x * x;
-    z_squared = out->z * out->z;
-    inv = mk_inv_sqrt(x_squared + z_squared);
-    out->x = x * inv;
+    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
+    out->x = out->x * inv;
     out->z *= inv;
     return inv;
 }
 
-/* TODO: [near miss] 93.67%; retained X and rounded squares agree;
- * read-only input load scheduling and inverse-square-root FPR homes remain. */
-void xz_unit_vector(Vec* out, Vec* from, const Vec* to) {
+void xz_unit_vector(Vec* out, Vec* from, Vec* to) {
     float inv;
-    float x;
-    float x_squared;
-    float z_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    x = out->x;
-    x_squared = x * x;
-    z_squared = out->z * out->z;
-    inv = mk_inv_sqrt(x_squared + z_squared);
-    out->x = x * inv;
+    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
+    out->x = out->x * inv;
     out->z *= inv;
 }
 
@@ -291,8 +255,7 @@ float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-/* TODO: [breakthrough] 46.34%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
-float dist_v3_to_v3(const Vec* a, const Vec* b) {
+float dist_v3_to_v3(Vec* a, Vec* b) {
     return gxMathFastSqrt(dist2_v3_to_v3(a, b));
 }
 
@@ -311,8 +274,7 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
-/* TODO: [near miss] 76.03%; sqrt and normalization agree; input-load scheduling remains. */
-float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
+float uv_v3_to_v3_dist(Vec* out, Vec* from, Vec* to) {
     float len;
     float inv;
     float x_squared;
@@ -338,15 +300,14 @@ float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
 }
 
 
-/* TODO: [breakthrough] 70.74545%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
-void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
+void uv_v3_to_v3(Vec* out, Vec* from, Vec* to) {
     float inv;
 
     out->x = to->x - from->x;
     out->y = to->y - from->y;
     out->z = to->z - from->z;
     inv = mk_inv_sqrt(out->x * out->x + out->y * out->y + out->z * out->z);
-    out->x *= inv;
+    out->x = out->x * inv;
     out->y *= inv;
     out->z *= inv;
 }
@@ -388,8 +349,7 @@ void zero_v3(Vec* v) {
     v->x = kZero;
 }
 
-/* TODO: [breakthrough] 62.16%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
-float length_v3(const Vec* v) {
+float length_v3(Vec* v) {
     return gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
 }
 
@@ -447,8 +407,8 @@ void scale_v3(Vec* out, const Vec* v, float s) {
 
 #pragma push
 #pragma scheduling off
-/* TODO: [near miss] 97.222221%; unity-load register and y/z load order differ;
- * whole-unit O2 control regresses matched consumers. */
+/* TODO: [near miss] 97.22%; unity FPR and y/z input-load order differ;
+ * arithmetic agrees; new source lifetime evidence needed. */
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
     float s;
     float component;
@@ -464,11 +424,10 @@ void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 16.11%; retail inlines norm_angle three times with different scheduling. */
 void norm_angles_v3(Vec* ang) {
-    ang->x = norm_angle(ang->x);
-    ang->y = norm_angle(ang->y);
-    ang->z = norm_angle(ang->z);
+    ang->x = norm_angle_inline(ang->x);
+    ang->y = norm_angle_inline(ang->y);
+    ang->z = norm_angle_inline(ang->z);
 }
 
 float norm_angle(float ang) {
@@ -485,8 +444,7 @@ void v3_to_xz_ang(Vec* ang, Vec* v) {
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
-/* TODO: [near miss] 85.00%; FP load/store scheduling differs; scoped scheduling-off regresses. */
-void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
+void v3_to_xy_ang_high_freq(Vec* ang, Vec* v) {
     float len;
     ang->z = kZero;
     len = gxMathFastSqrt(v->x * v->x + v->z * v->z);
@@ -502,8 +460,7 @@ void v3_to_xy_ang(Vec* ang, Vec* v) {
     ang->x = -gxMathArcTanYX(v->y, len);
 }
 
-/* TODO: [breakthrough needed] 55.85%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale) {
+void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, Vec* scale) {
     out->right.x = m->right.x * scale->x;
     out->right.y = m->right.y * scale->x;
     out->right.z = m->right.z * scale->x;
@@ -516,32 +473,28 @@ void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale) {
     out->flags &= ~1U;
 }
 
-/* TODO: [breakthrough needed] 45.27%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void v3_x_mat_sub_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* sub) {
-    out->x = (v->z * m->at.x + v->x * m->right.x + v->y * m->up.x) - sub->x;
-    out->y = (v->z * m->at.y + v->x * m->right.y + v->y * m->up.y) - sub->y;
-    out->z = (v->z * m->at.z + v->x * m->right.z + v->y * m->up.z) - sub->z;
+void v3_x_mat_sub_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* sub) {
+    out->x = (v->x * m->right.x + v->y * m->up.x + v->z * m->at.x) - sub->x;
+    out->y = (v->x * m->right.y + v->y * m->up.y + v->z * m->at.y) - sub->y;
+    out->z = (v->x * m->right.z + v->y * m->up.z + v->z * m->at.z) - sub->z;
 }
 
-/* TODO: [breakthrough needed] 49.49%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void v3_x_mat_add_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* add) {
-    out->x = add->x + v->z * m->at.x + v->x * m->right.x + v->y * m->up.x;
-    out->y = add->y + v->z * m->at.y + v->x * m->right.y + v->y * m->up.y;
-    out->z = add->z + v->z * m->at.z + v->x * m->right.z + v->y * m->up.z;
+void v3_x_mat_add_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* add) {
+    out->x = add->x + (v->x * m->right.x + v->y * m->up.x + v->z * m->at.x);
+    out->y = add->y + (v->x * m->right.y + v->y * m->up.y + v->z * m->at.y);
+    out->z = add->z + (v->x * m->right.z + v->y * m->up.z + v->z * m->at.z);
 }
 
-/* TODO: [breakthrough needed] 46.74%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void v3_x_mat(Vec* out, const Vec* v, const MKMATRIX* m) {
-    out->x = v->z * m->at.x + v->x * m->right.x + v->y * m->up.x;
-    out->y = v->z * m->at.y + v->x * m->right.y + v->y * m->up.y;
-    out->z = v->z * m->at.z + v->x * m->right.z + v->y * m->up.z;
+void v3_x_mat(Vec* out, Vec* v, MKMATRIX* m) {
+    out->x = v->x * m->right.x + v->y * m->up.x + v->z * m->at.x;
+    out->y = v->x * m->right.y + v->y * m->up.y + v->z * m->at.y;
+    out->z = v->x * m->right.z + v->y * m->up.z + v->z * m->at.z;
 }
 
-/* TODO: [breakthrough needed] 49.46%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
-void p3_x_mat(Vec* out, const Vec* p, const MKMATRIX* m) {
-    out->x = m->pos.x + p->z * m->at.x + p->x * m->right.x + p->y * m->up.x;
-    out->y = m->pos.y + p->z * m->at.y + p->x * m->right.y + p->y * m->up.y;
-    out->z = m->pos.z + p->z * m->at.z + p->x * m->right.z + p->y * m->up.z;
+void p3_x_mat(Vec* out, Vec* p, MKMATRIX* m) {
+    out->x = m->pos.x + (p->z * m->at.x + (p->x * m->right.x + p->y * m->up.x));
+    out->y = m->pos.y + (p->z * m->at.y + (p->x * m->right.y + p->y * m->up.y));
+    out->z = m->pos.z + (p->z * m->at.z + (p->x * m->right.z + p->y * m->up.z));
 }
 
 #pragma push
@@ -579,10 +532,14 @@ float ang_sub_ang(float a, float b) {
     return d;
 }
 
-/* TODO: [breakthrough needed] 49.38%; branch layout and FP scheduling differ. */
+/* TODO: [near miss] 51.15%; rounded products and branches agree; FP scheduling/register webs remain. */
 float quat_extract_ang_y(const Quat* q) {
-    float t = -(kTwo * (q->x * q->x + q->y * q->y) - kOne);
-    float s = kTwo * (q->z * q->x + q->w * q->y);
+    float xx = q->x * q->x;
+    float yy = q->y * q->y;
+    float zx = q->z * q->x;
+    float wy = q->w * q->y;
+    float t = -(kTwo * (xx + yy) - kOne);
+    float s = kTwo * (zx + wy);
     float ang;
 
     if (t >= kZero) {
@@ -598,8 +555,7 @@ float quat_extract_ang_y(const Quat* q) {
         if (-t < kTiny) {
             return kHalfPi;
         }
-        ang = gxMathArcTan(s / t);
-        return kPi + ang;
+        return kPi + gxMathArcTan(s / t);
     }
 }
 
@@ -726,51 +682,69 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     out->w = gxMathFastSqrt(half);
 }
 
-/* TODO: [breakthrough needed] 67.87%; FP operation order/scheduling differs. */
+/* TODO: [near miss] 95.82%; products, FP order and frame agree;
+ * quaternion component/product FPR coloring remains. */
 void quat_to_mat(MKMATRIX* out, const Quat* q) {
-    float x = q->x;
     float y = q->y;
     float z = q->z;
+    float x = q->x;
+    float yy = y * y;
     float w = q->w;
-    out->right.x = -(kTwo * (y * y + z * z) - kOne);
-    out->right.y = kTwo * (x * y + w * z);
-    out->right.z = kTwo * (z * x - w * y);
-    out->up.x = kTwo * (x * y - w * z);
-    out->up.y = -(kTwo * (x * x + z * z) - kOne);
-    out->up.z = kTwo * (y * z + w * x);
-    out->at.x = kTwo * (z * x + w * y);
-    out->at.y = kTwo * (y * z - w * x);
-    out->at.z = -(kTwo * (x * x + y * y) - kOne);
+    float zz = z * z;
+    float xy = x * y;
+    float wz = w * z;
+    float zx = z * x;
+    float wy = w * y;
+    float xx = x * x;
+    float yz;
+    float wx;
+
+    out->right.x = -(kTwo * (yy + zz) - kOne);
+    yz = y * z;
+    wx = w * x;
+    out->right.y = kTwo * (xy + wz);
+    out->right.z = kTwo * (zx - wy);
+    out->up.x = kTwo * (xy - wz);
+    out->up.y = -(kTwo * (xx + zz) - kOne);
+    out->up.z = kTwo * (yz + wx);
+    out->at.x = kTwo * (zx + wy);
+    out->at.y = kTwo * (yz - wx);
+    out->at.z = -(kTwo * (xx + yy) - kOne);
     out->flags = 3;
 }
 
-/* TODO: [breakthrough needed] 23.87%; matrix build order/scheduling differs from retail. */
+/* TODO: [near miss] 97.91667%; trig slots, product tree and stores agree; seventeen FP register rows remain. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
-    float cx;
-    float sx;
-    float cy;
     float sy;
-    float cz;
+    float cy;
+    float sx;
+    float cx;
     float sz;
+    float cz;
     MKMATRIX m;
+    float cycz;
+    float cysz;
+    float sysz;
+    float czsy;
 
     gxMathCosSin(&cx, &sx, angles->x);
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
 
-    m.right.x = sx * sy * sz + cy * cz;
+    cycz = cy * cz;
+    cysz = cy * sz;
+    czsy = cz * sy;
+    sysz = sy * sz;
+    m.right.x = sx * sysz + cycz;
     m.right.y = cx * sz;
-    m.right.z = cy * sz * sx - cz * sy;
-    m.up.x = sx * cz * sy - cy * sz;
+    m.right.z = cysz * sx - czsy;
+    m.up.x = sx * czsy - cysz;
     m.up.y = cx * cz;
-    m.up.z = sx * cy * cz + sy * sz;
+    m.up.z = sx * cycz + sysz;
     m.at.x = sy * cx;
     m.at.y = -sx;
     m.at.z = cy * cx;
     m.flags = 3;
-    m.pos.x = kZero;
-    m.pos.y = kZero;
-    m.pos.z = kZero;
     RtQuatConvertFromMatrix(out, &m);
 }
 
@@ -823,24 +797,33 @@ void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &saved, 2);
 }
 
+/* TODO: [near miss] 98.828125%; product tree and trig slots agree; eleven FP register rows remain; stop at coloring. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
+    float cz;
+    float sz;
     float cx;
     float sx;
     float cy;
     float sy;
-    float cz;
-    float sz;
+    float cycz;
+    float cysz;
+    float sysz;
+    float czsy;
 
     gxMathCosSin(&cx, &sx, angles->x);
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
 
-    m->right.x = sx * sy * sz + cy * cz;
+    cycz = cy * cz;
+    cysz = cy * sz;
+    sysz = sy * sz;
+    czsy = cz * sy;
+    m->right.x = sx * sysz + cycz;
     m->right.y = cx * sz;
-    m->right.z = cy * sz * sx - cz * sy;
-    m->up.x = sx * cz * sy - cy * sz;
+    m->right.z = cysz * sx - czsy;
+    m->up.x = sx * czsy - cysz;
     m->up.y = cx * cz;
-    m->up.z = sx * cy * cz + sy * sz;
+    m->up.z = sx * cycz + sysz;
     m->at.x = sy * cx;
     m->at.y = -sx;
     m->at.z = cy * cx;

@@ -66,11 +66,6 @@ struct EndingTextWindowPdata {
     char pad4F0[0x70];
 };
 
-union EndingTextWindowPdataOut {
-    MkHdr* hdr;
-    struct EndingTextWindowPdata* pdata;
-};
-
 struct EndingScrollPdata {
     MkHdr hdr;
     float step;
@@ -227,38 +222,42 @@ static inline int count_credits_text(void) {
 }
 
 
-/* TODO: [breakthrough] 73.31%; typed 0x560-byte text-window pdata complete; allocation/FP shape differs. */
+/* TODO: [near miss] 99.35185%; duration and width lifetimes recovered; twelve FP/GPR coloring rows remain; tier 2. */
 void ending_show_text(int string_id, int duration) {
-    union EndingTextWindowPdataOut pdata;
+    MkHdr* pdata;
     const char* text;
     int width;
+    int adjusted_duration;
+    int frame_rate;
 
-    if (refresh_rate() == 50) {
-        duration = 0.799 * (double)duration;
+    frame_rate = refresh_rate();
+    adjusted_duration = duration;
+    if (frame_rate == 50) {
+        adjusted_duration = 0.799 * (double)duration;
     }
 
     text = get_string_by_id(string_id | 0x20000);
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(struct EndingTextWindowPdata), &pdata.hdr) != 0) {
-        zero_pdata_payload(sizeof(struct EndingTextWindowPdata), pdata.hdr);
-        text_window_state = 0;
-        pdata.pdata->field_4E8 = 0;
-        pdata.pdata->field_018 = 0;
+            sizeof(struct EndingTextWindowPdata), &pdata) != 0) {
+        zero_pdata_payload(sizeof(struct EndingTextWindowPdata), pdata);
         width = screen_width;
-        pdata.pdata->x = (float)width * 0.08f;
-        pdata.pdata->y = 0x56;
-        pdata.pdata->font = 0x1D;
-        pdata.pdata->wrap_width = (float)width * 0.85f;
-        pdata.pdata->oid = 0x860;
-        pdata.pdata->alignment = 8;
-        pdata.pdata->duration = duration;
-        pdata.pdata->field_024 = -1;
-        pdata.pdata->field_02C = -1;
-        pdata.pdata->field_030 = 0;
-        pdata.pdata->field_034 = 0;
-        pdata.pdata->string_id = 0x50014;
-        strcpy(pdata.pdata->text, text);
+        text_window_state = 0;
+        ((struct EndingTextWindowPdata*)pdata)->field_4E8 = 0;
+        ((struct EndingTextWindowPdata*)pdata)->field_018 = 0;
+        ((struct EndingTextWindowPdata*)pdata)->x = (float)width * 0.08f;
+        ((struct EndingTextWindowPdata*)pdata)->y = 0x56;
+        ((struct EndingTextWindowPdata*)pdata)->font = 0x1D;
+        ((struct EndingTextWindowPdata*)pdata)->wrap_width = (float)width * 0.85f;
+        ((struct EndingTextWindowPdata*)pdata)->oid = 0x860;
+        ((struct EndingTextWindowPdata*)pdata)->alignment = 8;
+        ((struct EndingTextWindowPdata*)pdata)->duration = adjusted_duration;
+        ((struct EndingTextWindowPdata*)pdata)->field_024 = -1;
+        ((struct EndingTextWindowPdata*)pdata)->field_02C = -1;
+        ((struct EndingTextWindowPdata*)pdata)->field_030 = 0;
+        ((struct EndingTextWindowPdata*)pdata)->field_034 = 0;
+        ((struct EndingTextWindowPdata*)pdata)->string_id = 0x50014;
+        strcpy(((struct EndingTextWindowPdata*)pdata)->text, text);
     }
 }
 

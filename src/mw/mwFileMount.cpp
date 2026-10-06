@@ -22,6 +22,13 @@ public:
 class mwFileMountPoint : public mwFileQueryable {
 public:
     mwFileMountPoint(const char* name);
+    mwFileMountPoint(const char* first, const char* last)
+        : mount_count(0)
+    {
+        unsigned long length = last - first;
+        memcpy(name, first, length);
+        name[length] = '\0';
+    }
     virtual ~mwFileMountPoint();
     virtual int startOpenFileCommand(mwFileCommand*&, const char*,
                                      unsigned long, mwFileCallback, void*) = 0;
@@ -77,13 +84,27 @@ int mwFileDummyMountPoint::startOpenFileCommand(
 
 mwFileDummyMountPoint::mwFileDummyMountPoint(const char* first,
                                              const char* last)
-    : mwFileMountPoint("")
+    : mwFileMountPoint(first, last)
 {
-    unsigned long length = last - first;
-    memcpy(name, first, length);
-    name[length] = '\0';
 }
 }
+
+class mwFileCondition : public OSCond {
+public:
+    mwFileCondition();
+    ~mwFileCondition();
+    void signal();
+    void wait(mwFileMutex&);
+};
+
+template <class T, class Allocator>
+class circular_buffer {
+private:
+    std::vector<T, Allocator> values;
+    unsigned long read_index;
+    unsigned long write_index;
+    unsigned long count;
+};
 
 template <class T>
 class mwProducerConsumerQueue {
@@ -91,6 +112,11 @@ public:
     unsigned char consumeNonBlocking(T& value);
     void produce(T value);
     void resize(unsigned long size);
+
+private:
+    mwFileMutex mutex;
+    mwFileCondition condition;
+    circular_buffer<T, mwFileMemAllocator<T, 3> > buffer;
 };
 
 class mwFileDevice {
@@ -129,7 +155,7 @@ private:
     static mwFileMountTable* spTable;
 };
 
-mwFileMountPoint::~mwFileMountPoint()
+inline mwFileMountPoint::~mwFileMountPoint()
 {
 }
 
@@ -148,10 +174,14 @@ mwFileServer* mwFileDummyMountPoint::getServer()
 }
 }
 
-/* TODO: [near miss] 61.54%; direct init result retained; retail materializes a conditional zero result; TU order remains. */
 int _mwFileMountInit()
 {
-    return mwFileMountTable::initialize();
+    int error = mwFileMountTable::initialize();
+    int result = 0;
+    if (error != 0) {
+        result = error;
+    }
+    return result;
 }
 
 void mwFileDevice::serviceCallbacks()
@@ -165,13 +195,12 @@ void mwFileDevice::serviceCallbacks()
     }
 }
 
-/* TODO: [breakthrough needed] 35.45%; retail counted aggregate copy differs; coordinator object-mode trial is next. */
 void mwFileDevice::queueErrorCallback(const Callback& callback)
 {
     sQueue.produce(callback);
 }
 
-/* TODO: [breakthrough needed] 72.73%; incomplete queue layout causes SDA access; resolve callback-copy mode before retyping. */
+
 void mwFileDevice::initializeCallbacks(unsigned long size)
 {
     sQueue.resize(size);
@@ -183,16 +212,16 @@ int mwFileMountTable::getMountPointFromName(mwFileMountPoint*& mount_point,
     return getMountPointFromName(mount_point, name, name + strlen(name));
 }
 
-/* TODO: [breakthrough] 65.87%; typed lookup and cleanup recovered; constructor boundary and comparator homes remain. */
+/* TODO: [near miss] 99.96%; constructor and call-temporary ownership recovered;
+ * default comparator source/argument-copy stack slots remain reversed. */
 int mwFileMountTable::getMountPointFromName(
     mwFileMountPoint*& mount_point, const char* first, const char* last) const
 {
     mwFileMutexLock lock(mutex);
     mwFileDummyMountPoint query(first, last);
-    mwFileDummyMountPoint* key = &query;
     pointer_less<mwFileMountPoint> compare;
     mwFileMountPoint* const* found = std::lower_bound(
-        mounts.begin(), mounts.end(), key, compare);
+        mounts.begin(), mounts.end(), &query, compare);
 
     if (found == mounts.end()) {
         mount_point = 0;

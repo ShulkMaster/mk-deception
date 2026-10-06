@@ -77,6 +77,18 @@ struct PselectProfileView {
     int bg_team[5];
 };
 
+struct BgPselectCancelTeam {
+    int entries[6];
+    RwTexture** colors;
+    RwTexture** alphas;
+    int focus;
+};
+
+struct BgPselectCancelPdata {
+    MkHdr hdr;
+    struct BgPselectCancelTeam teams[2];
+};
+
 struct BgPselectTeamView {
     char pad00[8];
     int count;
@@ -556,12 +568,32 @@ static float p_wager_save_profiles(void) {
     return sleep_ticks_neg_one;
 }
 
-/* TODO: [breakthrough needed] 39.26%; wager save-process codegen differs; compare retail owners and call setup. */
-void wager_completed(void) {
-    int koin;
+static inline int wager_clamp_bet_to_balances(
+    int* p1_koins, int* p2_koins, unsigned int koin) {
     int p1_count;
     int p2_count;
-    int max_bet;
+
+    p1_count = p1_koins[koin];
+    g_game_info.pselect.field_1d0 = 1;
+    p2_count = p2_koins[koin];
+    if (p1_count > 0 && p2_count > 0) {
+        if (p1_count > p2_count) {
+            p1_count = p2_count;
+        }
+        if (g_game_info.pselect.field_1d8 > p1_count) {
+            g_game_info.pselect.field_1d8 = p1_count;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 99.34%; behavior, CFG and indexed debits agree;
+ * koin/first-balance array r7/r8 coloring remains; stop at coloring. */
+void wager_completed(void) {
+    int* p1_koins;
+    int* p2_koins;
+    int koin;
 
     if (wager_completed_ran != 0) {
         return;
@@ -569,31 +601,25 @@ void wager_completed(void) {
     wager_completed_ran = 1;
     set_default_button_repeat_time();
 
-    koin = get_current_wager_koin();
-    if (koin < 0 || koin > 6 ||
-        g_game_info.pselect.field_1d8 == 0) {
+    koin = wager_koin_order[g_game_info.pselect.field_1d4];
+    if (koin < 0 || koin > 6) {
+        wager_cancelled();
+        return;
+    }
+    if (g_game_info.pselect.field_1d8 == 0) {
         wager_cancelled();
         return;
     }
 
-    g_game_info.pselect.field_1d0 = 1;
-    p1_count = p1_profile.koins[koin];
-    p2_count = p2_profile.koins[koin];
-    if (p1_count <= 0 || p2_count <= 0) {
+    p1_koins = p1_profile.koins;
+    p2_koins = p2_profile.koins;
+    if (wager_clamp_bet_to_balances(p1_koins, p2_koins, koin) == 0) {
         wager_cancelled();
         return;
     }
 
-    max_bet = p1_count;
-    if (p2_count < max_bet) {
-        max_bet = p2_count;
-    }
-    if (max_bet < g_game_info.pselect.field_1d8) {
-        g_game_info.pselect.field_1d8 = max_bet;
-    }
-
-    p1_profile.koins[koin] -= g_game_info.pselect.field_1d8;
-    p2_profile.koins[koin] -= g_game_info.pselect.field_1d8;
+    p1_koins[koin] -= g_game_info.pselect.field_1d8;
+    p2_koins[koin] -= g_game_info.pselect.field_1d8;
     proc_create(p_wager_save_profiles, 0x209F);
 }
 
@@ -689,10 +715,9 @@ static float p_wager_repeat_process(void) {
     return sleep_ticks_one;
 }
 
-/* TODO: [breakthrough needed] 59.45%; wager controller codegen differs; compare retail owners and call setup. */
 void ck_decrement_bet(void) {
     MkProc* proc;
-    struct WagerRepeatPdata* pdata;
+    MkHdr* pdata;
     int koin;
 
     koin = get_current_wager_koin();
@@ -708,49 +733,44 @@ void ck_decrement_bet(void) {
         }
     }
 
-    if (p1_profile_status != 1 || p2_profile_status != 1) {
-        return;
-    }
-
-    if (g_game_info.pselect.field_1d8 > 0) {
-        g_game_info.pselect.field_1d8 -= g_game_info.pselect.field_1f0;
-        if (g_game_info.pselect.field_1d8 < 0) {
-            g_game_info.pselect.field_1d8 = 0;
-        }
-    }
-
-    proc = find_mkproc_pid(0x20A3);
-    if (proc == 0) {
-        pdata = 0;
-        g_game_info.pselect.field_1f0 = 1;
-        proc = _create_mkproc_generic_tinystack(
-            0x20A3, 0x1F, p_wager_repeat_process, 0xC, (MkHdr**)&pdata);
-        if (proc != 0) {
-            pdata->ticks = 7;
-        }
-    } else {
-        pdata = (struct WagerRepeatPdata*)pdata_of_proc(proc);
-        if (pdata != 0) {
-            pdata->ticks = 7;
-            g_game_info.pselect.field_1f0 += 3;
-            if (g_game_info.pselect.field_1f0 < 0x32) {
-                g_game_info.pselect.field_1f0 = 0x32;
+    if (p1_profile_status == 1 && p2_profile_status == 1) {
+        if (g_game_info.pselect.field_1d8 > 0) {
+            g_game_info.pselect.field_1d8 -= g_game_info.pselect.field_1f0;
+            if (g_game_info.pselect.field_1d8 < 0) {
+                g_game_info.pselect.field_1d8 = 0;
             }
-            if (g_game_info.pselect.field_1f0 < 0x1E) {
-                g_game_info.pselect.field_1f0 = 7;
+        }
+
+        proc = find_mkproc_pid(0x20A3);
+        if (proc != 0) {
+            pdata = pdata_of_proc(proc);
+            if (pdata != 0) {
+                ((struct WagerRepeatPdata*)pdata)->ticks = 7;
+                g_game_info.pselect.field_1f0 += 3;
+                if (g_game_info.pselect.field_1f0 < 0x32) {
+                    g_game_info.pselect.field_1f0 = 0x32;
+                }
+                if (g_game_info.pselect.field_1f0 < 0x1E) {
+                    g_game_info.pselect.field_1f0 = 7;
+                }
+            }
+        } else {
+            g_game_info.pselect.field_1f0 = 1;
+            proc = _create_mkproc_generic_tinystack(
+                0x20A3, 0x1F, p_wager_repeat_process, sizeof(struct WagerRepeatPdata), &pdata);
+            if (proc != 0) {
+                ((struct WagerRepeatPdata*)pdata)->ticks = 7;
             }
         }
     }
 }
 
-/* TODO: [breakthrough needed] 60.80%; wager controller codegen differs; compare retail owners and call setup. */
+/* TODO: [near miss] 99.40860%; CFG and output slot agree; nine affordability register rows remain; stop at coloring. */
 void ck_increment_bet(void) {
     MkProc* proc;
-    struct WagerRepeatPdata* pdata;
+    MkHdr* pdata;
     unsigned int next_amount;
     int koin;
-    int p1_count;
-    int p2_count;
 
     koin = get_current_wager_koin();
     if (koin < 0 || koin > 6) {
@@ -765,35 +785,28 @@ void ck_increment_bet(void) {
         }
     }
 
-    if (p1_profile_status != 1 || p2_profile_status != 1) {
-        return;
-    }
-
-    next_amount = g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
-    p1_count = p1_profile.koins[koin];
-    p2_count = p2_profile.koins[koin];
-    if (next_amount > (unsigned int)p1_count ||
-        next_amount > (unsigned int)p2_count) {
-        return;
-    }
-    g_game_info.pselect.field_1d8 = next_amount;
-
-    proc = find_mkproc_pid(0x20A4);
-    if (proc == 0) {
-        pdata = 0;
-        g_game_info.pselect.field_1f0 = 1;
-        proc = _create_mkproc_generic_tinystack(
-            0x20A4, 0x1F, p_wager_repeat_process, 0xC, (MkHdr**)&pdata);
-        if (proc != 0) {
-            pdata->ticks = 7;
-        }
-    } else {
-        pdata = (struct WagerRepeatPdata*)pdata_of_proc(proc);
-        if (pdata != 0) {
-            pdata->ticks = 7;
-            g_game_info.pselect.field_1f0 += 3;
-            if (g_game_info.pselect.field_1f0 > 0x32) {
-                g_game_info.pselect.field_1f0 = 3;
+    if (p1_profile_status == 1 && p2_profile_status == 1) {
+        next_amount = g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
+        if ((unsigned int)p1_profile.koins[koin] >= next_amount &&
+            (unsigned int)p2_profile.koins[koin] >= next_amount) {
+            g_game_info.pselect.field_1d8 = next_amount;
+            proc = find_mkproc_pid(0x20A4);
+            if (proc != 0) {
+                pdata = pdata_of_proc(proc);
+                if (pdata != 0) {
+                    ((struct WagerRepeatPdata*)pdata)->ticks = 7;
+                    g_game_info.pselect.field_1f0 += 3;
+                    if (g_game_info.pselect.field_1f0 > 0x32) {
+                        g_game_info.pselect.field_1f0 = 3;
+                    }
+                }
+            } else {
+                g_game_info.pselect.field_1f0 = 1;
+                proc = _create_mkproc_generic_tinystack(
+                    0x20A4, 0x1F, p_wager_repeat_process, sizeof(struct WagerRepeatPdata), &pdata);
+                if (proc != 0) {
+                    ((struct WagerRepeatPdata*)pdata)->ticks = 7;
+                }
             }
         }
     }
@@ -1572,10 +1585,10 @@ void pselect_player_moved(int player) {
                                     char_id);
 }
 
-/* TODO: [breakthrough] 70.93%; shared focus bound recovered; team indexing, table loads and callback owners remain. */
+/* TODO: [breakthrough] 94.48454%; native records and callback stores agree; count-address form, selector-index CSE, and GPR homes remain. */
 void bg_pselect_player_canceled(int player) {
-    struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
+    struct BgPselectCancelPdata* pdata;
+    int* entries;
     int count;
     int sel_pos;
     int char_id;
@@ -1589,25 +1602,24 @@ void bg_pselect_player_canceled(int player) {
         return;
     }
 
-    teamv = bg_team_view(pdata, player);
-    count = teamv->count;
+    entries = pdata->teams[player].entries;
+    count = entries[0];
     sel_pos = (player == 0) ? p1_selbox_pos : p2_selbox_pos;
 
-    if (count > 0 && count < 6) {
-        teamv->chars[count - 1] = 0x2C;
+    if (count >= 1 && count <= 5) {
+        entries[count] = 0x2C;
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, (char*)STR_HEAD_PROXY);
-        teamv->colors[count - 1] = tex;
+        pdata->teams[player].colors[count - 1] = tex;
     }
 
-    if (count > 1 && count < 7) {
+    if (count >= 2 && count <= 6) {
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT,
                                        pselect_char_tbl[sel_pos].head_name);
-        teamv->colors[count - 2] = tex;
-        teamv->chars[count - 2] = 0x2C;
-        char_id = pselect_char_at(sel_pos)->char_id;
-        teamv->focus =
-            bg_team_focus_of(get_screen_pdata(), player,
-                             char_id);
+        pdata->teams[player].colors[count - 2] = tex;
+        pdata->teams[player].entries[count - 1] = 0x2C;
+        char_id = pselect_char_id_at(sel_pos);
+        pdata->teams[player].focus =
+            bg_team_focus_of(get_screen_pdata(), player, char_id);
     }
 }
 

@@ -47,76 +47,58 @@ static inline void mpvmc_copy_shift3_row(const u8* reference, u8* destination)
     ((u32*)destination)[1] = (words[1] << 24) | (words[2] >> 8);
 }
 
-/* TODO: [breakthrough needed] 58.776318%; clean expansion now matches retail loads/prefetch and packing, but register/frame scheduling remains. */
+/* Pack eight rounded 2x2 pixel averages from the two reference rows. */
 void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
 {
-    int row;
-    u32 stride;
+    s32 row;
+    s32 stride;
     const u8* reference0;
     const u8* reference1;
     u32* destination;
-    u32 a0;
-    u32 b0;
-    u32 a1;
-    u32 b1;
-    u32 a2;
-    u32 b2;
-    u32 p0;
-    u32 p1;
-    u32 p2;
-    u32 p3;
-    u32 p4;
-    u32 p5;
-    u32 p6;
-    u32 p7;
+    s32 top0, bottom0, top1, bottom1, top2, bottom2;
+    u32 sum0, sum1, sum2, sum3, sum4, sum5, sum6, sum7;
 
     stride = context->reference_stride;
     reference0 = context->reference0;
     reference1 = context->reference1;
     destination = (u32*)context->destination;
-
     for (row = 0; row < 8; row++) {
-        a0 = reference0[0];
-        b0 = reference1[0];
+        top0 = reference0[0];
+        bottom0 = reference1[0];
         __dcbt((void*)reference1, stride);
-        a1 = reference0[1];
-        b1 = reference1[1];
-        p0 = a0 + a1 + b0 + b1 + 2;
-        a2 = reference0[2];
-        b2 = reference1[2];
-        p1 = a1 + a2 + b1 + b2 + 2;
-        a0 = reference0[3];
-        b0 = reference1[3];
-        p2 = a2 + a0 + b2 + b0 + 2;
-        a1 = reference0[4];
-        b1 = reference1[4];
-        p3 = a0 + a1 + b0 + b1 + 2;
-        a2 = reference0[5];
-        b2 = reference1[5];
-        p4 = a1 + a2 + b1 + b2 + 2;
-        a0 = reference0[6];
-        b0 = reference1[6];
-        p5 = a2 + a0 + b2 + b0 + 2;
-        a1 = reference0[7];
-        b1 = reference1[7];
-        p6 = a0 + a1 + b0 + b1 + 2;
-        a2 = reference0[8];
-        b2 = reference1[8];
-        p7 = a1 + a2 + b1 + b2 + 2;
-        destination[0] = (((p0 << 22) & 0xFF000000) |
-                          ((p1 << 14) & 0x00FF0000) |
-                          ((p2 << 6) & 0x0000FF00) |
-                          ((p3 >> 2) & 0x000000FF));
-        destination[1] = (((p4 << 22) & 0xFF000000) |
-                          ((p5 << 14) & 0x00FF0000) |
-                          ((p6 << 6) & 0x0000FF00) |
-                          ((p7 >> 2) & 0x000000FF));
+        top1 = reference0[1];
+        bottom1 = reference1[1];
+        sum0 = (u32)top0 + (u32)top1 + (u32)bottom0 + (u32)bottom1 + 2;
+        top2 = reference0[2];
+        bottom2 = reference1[2];
+        sum1 = (u32)top1 + (u32)top2 + (u32)bottom1 + (u32)bottom2 + 2;
+        top0 = reference0[3];
+        bottom0 = reference1[3];
+        sum2 = (u32)top2 + (u32)top0 + (u32)bottom2 + (u32)bottom0 + 2;
+        top1 = reference0[4];
+        bottom1 = reference1[4];
+        sum3 = (u32)top0 + (u32)top1 + (u32)bottom0 + (u32)bottom1 + 2;
+        top2 = reference0[5];
+        bottom2 = reference1[5];
+        sum4 = (u32)top1 + (u32)top2 + (u32)bottom1 + (u32)bottom2 + 2;
+        top0 = reference0[6];
+        bottom0 = reference1[6];
+        sum5 = (u32)top2 + (u32)top0 + (u32)bottom2 + (u32)bottom0 + 2;
+        top1 = reference0[7];
+        bottom1 = reference1[7];
+        sum6 = (u32)top0 + (u32)top1 + (u32)bottom0 + (u32)bottom1 + 2;
+        top2 = reference0[8];
+        bottom2 = reference1[8];
+        sum7 = (u32)top1 + (u32)top2 + (u32)bottom1 + (u32)bottom2 + 2;
+        destination[0] = (((sum0 << 22) & 0xFF000000) | ((sum1 << 14) & 0x00FF0000) | ((sum2 << 6) & 0x0000FF00) | ((sum3 >> 2) & 0x000000FF));
+        destination[1] = (((sum4 << 22) & 0xFF000000) | ((sum5 << 14) & 0x00FF0000) | ((sum6 << 6) & 0x0000FF00) | ((sum7 >> 2) & 0x000000FF));
         reference0 += stride;
         reference1 += stride;
         destination += 2;
     }
 }
 
+/* TODO: [blocked] 29.78%; vendor bit-insert assembly boundary lacks specific authorization; retain C fallback. */
 void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
     int row;
@@ -172,81 +154,113 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
     }
 }
 
-void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
+/* TODO: [near miss] 92.94%; all alignment operations agree; stop at aligned average scheduling and case1/2 coloring. */
+void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
 {
-    int row;
-    int alignment = (unsigned long)context->reference0 & 3;
-    u32 stride = context->reference_stride;
-    u32* destination = (u32*)context->destination;
-    const u8* reference0 = context->reference0 - alignment;
-    const u8* reference1 = context->reference1 - alignment;
+    s32 row;
+    u32 *destination;
+    const u8 *reference0;
+    const u8 *reference1;
+    s32 stride;
 
-    switch (alignment) {
+    u32 x0, x1;
+    u32 w0, a0, w1, a1, w2, a2;
+    u32 m1 = 0xFEFEFEFE;
+    u32 m2 = 0x01010101;
+
+    reference0 = context->reference0;
+    reference1 = context->reference1;
+    destination = (u32*)context->destination;
+    stride = context->reference_stride;
+    switch ((u32)reference0 & 3) {
     case 0:
-        for (row = 0; row < 4; row++) {
-            const u32* words0 = (const u32*)reference0;
-            const u32* words1 = (const u32*)reference1;
-            destination[0] = mpvmc_avg_words(words0[0], words1[0]);
-            destination[1] = mpvmc_avg_words(words0[1], words1[1]);
+        for (row = 0; row < 8; row++) {
+            w0 = ((const u32*)reference0)[0];
+            a0 = ((const u32*)reference1)[0];
+            w1 = ((const u32*)reference0)[1];
+            a1 = ((const u32*)reference1)[1];
+            x0 = w0 ^ a0;
+            x1 = w1 ^ a1;
+            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
+            destination[1] = (w1 & a1) + (((x1 & m1) >> 1) + (x1 & m2));
             reference0 += stride;
             reference1 += stride;
-            words0 = (const u32*)reference0;
-            words1 = (const u32*)reference1;
-            destination[2] = mpvmc_avg_words(words0[0], words1[0]);
-            destination[3] = mpvmc_avg_words(words0[1], words1[1]);
-            reference0 += stride;
-            reference1 += stride;
-            destination += 4;
+            destination += 2;
         }
         break;
     case 1:
+        reference0 -= 1;
+        reference1 -= 1;
         for (row = 0; row < 8; row++) {
-            const u32* words0 = (const u32*)reference0;
-            const u32* words1 = (const u32*)reference1;
-            u32 a0 = (words0[0] << 8) | (words0[1] >> 24);
-            u32 a1 = (words0[1] << 8) | reference0[8];
-            u32 b0 = (words1[0] << 8) | (words1[1] >> 24);
-            u32 b1 = (words1[1] << 8) | reference1[8];
-            destination[0] = mpvmc_avg_words(a0, b0);
-            destination[1] = mpvmc_avg_words(a1, b1);
+            w1 = ((const u32*)reference0)[1];
+            a1 = ((const u32*)reference1)[1];
+            w0 = ((const u32*)reference0)[0];
+            w2 = reference0[8];
             reference0 += stride;
+            a0 = ((const u32*)reference1)[0];
+            a2 = reference1[8];
             reference1 += stride;
+            w0 = (w0 << 8) | (w1 >> 24);
+            a0 = (a0 << 8) | (a1 >> 24);
+            w2 = (w1 << 8) | w2;
+            a2 = (a1 << 8) | a2;
+            x0 = w0 ^ a0;
+            x1 = w2 ^ a2;
+            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
+            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
             destination += 2;
         }
         break;
     case 2:
+        reference0 -= 2;
+        reference1 -= 2;
         for (row = 0; row < 8; row++) {
-            const u32* words0 = (const u32*)reference0;
-            const u32* words1 = (const u32*)reference1;
-            u32 a0 = (words0[0] << 16) | (words0[1] >> 16);
-            u32 a1 = (words0[1] << 16) | *(const unsigned short*)(reference0 + 8);
-            u32 b0 = (words1[0] << 16) | (words1[1] >> 16);
-            u32 b1 = (words1[1] << 16) | *(const unsigned short*)(reference1 + 8);
-            destination[0] = mpvmc_avg_words(a0, b0);
-            destination[1] = mpvmc_avg_words(a1, b1);
+            w1 = ((const u32*)reference0)[1];
+            a1 = ((const u32*)reference1)[1];
+            w0 = ((const u32*)reference0)[0];
+            w2 = *(const u16*)(reference0 + 8);
             reference0 += stride;
+            a0 = ((const u32*)reference1)[0];
+            a2 = *(const u16*)(reference1 + 8);
             reference1 += stride;
+            w0 = (w0 << 16) | (w1 >> 16);
+            a0 = (a0 << 16) | (a1 >> 16);
+            w2 = (w1 << 16) | w2;
+            a2 = (a1 << 16) | a2;
+            x0 = w0 ^ a0;
+            x1 = w2 ^ a2;
+            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
+            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
             destination += 2;
         }
         break;
-    default:
+    case 3:
+        reference0 -= 3;
+        reference1 -= 3;
         for (row = 0; row < 8; row++) {
-            const u32* words0 = (const u32*)reference0;
-            const u32* words1 = (const u32*)reference1;
-            u32 a0 = (words0[0] << 24) | (words0[1] >> 8);
-            u32 a1 = (words0[1] << 24) | (words0[2] >> 8);
-            u32 b0 = (words1[0] << 24) | (words1[1] >> 8);
-            u32 b1 = (words1[1] << 24) | (words1[2] >> 8);
-            destination[0] = mpvmc_avg_words(a0, b0);
-            destination[1] = mpvmc_avg_words(a1, b1);
+            w1 = ((const u32*)reference0)[1];
+            a1 = ((const u32*)reference1)[1];
+            w0 = ((const u32*)reference0)[0];
+            w2 = ((const u32*)reference0)[2];
             reference0 += stride;
+            a0 = ((const u32*)reference1)[0];
+            a2 = ((const u32*)reference1)[2];
             reference1 += stride;
+            w0 = (w0 << 24) | (w1 >> 8);
+            a0 = (a0 << 24) | (a1 >> 8);
+            w2 = (w1 << 24) | (w2 >> 8);
+            a2 = (a1 << 24) | (a2 >> 8);
+            x0 = w0 ^ a0;
+            x1 = w2 ^ a2;
+            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
+            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
             destination += 2;
         }
         break;
     }
 }
 
+/* TODO: [blocked] 24.18%; vendor indexed-update assembly lacks specific authorization; retain C fallback. */
 void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 {
     int row;

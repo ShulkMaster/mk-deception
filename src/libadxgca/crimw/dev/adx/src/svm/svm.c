@@ -4,20 +4,20 @@
 #undef va_start
 #define va_start(arguments, format) ((void)(format), __builtin_va_info(&(arguments)))
 
-typedef struct SVMServerCallback {
+struct SVMServerCallback {
     SVMServerFunction function;
     void* object;
-} SVMServerCallback;
+};
 
-typedef struct SVMCallback {
+struct SVMCallback {
     SVMCallbackFunction function;
     void* object;
-} SVMCallback;
+};
 
-typedef struct SVMErrorCallback {
+struct SVMErrorCallback {
     SVMErrorFunction function;
     void* object;
-} SVMErrorCallback;
+};
 
 const char* const svm_build =
     "\nSVM/GC Ver.1.54 Build:Sep  3 2004 17:48:15\n";
@@ -25,15 +25,15 @@ const char* const svm_build =
 volatile int svm_init_level = 0;
 volatile int svm_lock_level = 0;
 volatile int svm_locking_type = 0;
-static SVMCallback svm_post_waitv_func;
-static SVMCallback svm_pre_waitv_func;
+static struct SVMCallback svm_post_waitv_func;
+static struct SVMCallback svm_pre_waitv_func;
 static int (*svm_tas_fptr)(int* value);
 char svmerr_msg[128];
-static SVMErrorCallback svm_err_func;
-static SVMCallback svm_unlock_func;
-static SVMCallback svm_lock_func;
-static SVMCallback svm_goto_border_func[8];
-static SVMServerCallback svm_svr_ftbl[8][6];
+static struct SVMErrorCallback svm_err_func;
+static struct SVMCallback svm_unlock_func;
+static struct SVMCallback svm_lock_func;
+static struct SVMCallback svm_goto_border_func[8];
+static struct SVMServerCallback svm_svr_ftbl[8][6];
 int svm_svr_exec_flag[8];
 int svm_exec_cnt[8];
 
@@ -44,8 +44,6 @@ static const char svm_exec_id_error[] =
 static const char svm_exec_type_error[] =
     "1071302:SVM_ExecSvrFuncId:illegal svtype";
 
-/* RE4 preserves these unused helpers and APIs. Retail links their text out, but
- * their first references establish the observed SVM BSS ownership and order. */
 static void svm_itoa(int value, char* string, int length)
 {
     static char buffer[32];
@@ -88,7 +86,7 @@ void SVM_SetCbTestAndSet(int (*function)(int* value))
 
 static void svm_call_err1(const char* message)
 {
-    strncpy(svmerr_msg, message, 0x7F);
+    strncpy(svmerr_msg, message, sizeof(svmerr_msg) - 1);
     if (svm_err_func.function != 0) {
         svm_err_func.function(svm_err_func.object, svmerr_msg);
     }
@@ -139,7 +137,7 @@ int SVM_GetNumCbSvr(int server_type)
 
 static int svm_exec_svr(int server_type)
 {
-    SVMServerCallback* callback;
+    struct SVMServerCallback* callback;
     int index;
     int result;
 
@@ -267,12 +265,11 @@ void SVM_SetCbBdr(int server_id, SVMCallbackFunction function, void* object)
 void SVM_SetCbSvrId(int server_type, int id, SVMServerFunction function,
                     void* object)
 {
-    SVMServerCallback* callback;
+    struct SVMServerCallback* callback;
 
     if (id < 0 || id >= 6) {
         svm_call_err1("1071201:SVM_SetCbSvrId:illegal id");
     }
-    /* Retail compares id against 8 here, despite reporting server_type. */
     if (server_type < 0 || id >= 8) {
         svm_call_err1("1071202:SVM_SetCbSvrId:illegal svtype");
     }
@@ -300,7 +297,7 @@ void SVM_DelCbSvr(int server_type, int id)
 int SVM_SetCbSvr(int server_type, SVMServerFunction function, void* object)
 {
     int id;
-    SVMServerCallback* callback;
+    struct SVMServerCallback* callback;
 
     svm_lock();
     callback = svm_svr_ftbl[server_type];
@@ -323,7 +320,7 @@ int SVM_SetCbSvr(int server_type, SVMServerFunction function, void* object)
 
 void SVM_CallErr1(const char* message)
 {
-    strncpy(svmerr_msg, message, 0x7F);
+    strncpy(svmerr_msg, message, sizeof(svmerr_msg) - 1);
     if (svm_err_func.function != 0) {
         svm_err_func.function(svm_err_func.object, svmerr_msg);
     }

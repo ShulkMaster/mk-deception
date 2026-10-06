@@ -226,7 +226,7 @@ struct PfxVm {
     int particle_cursor;               /* +0x054 */
     int active_transform;              /* +0x058 */
     int previous_transform;            /* +0x05C */
-    unsigned int flags_0x60;           /* +0x060 */
+    int flags_0x60;           /* +0x060 */
     int particle_user_data_size;       /* +0x064 */
     void* particle_data;               /* +0x068 */
     int particle_vector_stride;        /* +0x06C */

@@ -10,9 +10,9 @@ class SoundBuffer_Playable;
 /* Canonical retail buffer hierarchy shared by producers and consumers. */
 class IRefCntRes {
 public:
-    virtual ~IRefCntRes() {}
+    virtual ~IRefCntRes();
     virtual void FreeObject(void) = 0;
-    virtual void FreeResources(void) {}
+    virtual void FreeResources(void);
     int reference_count; /* +0x04, after the virtual-table pointer */
 };
 
@@ -24,9 +24,7 @@ public:
         _mslBank* bank, _GameCubeFileEntry* entry);
     static SoundBuffer_Playable* CreatePlayableStaticBuffer(
         _mslBank* bank, _GameCubeFileEntry* entry);
-    /* Report-exact body; retail emission placement remains unresolved.
-     * Moving this definition late breaks inlining in derived destructors. */
-    virtual ~SoundBuffer() {}
+    virtual ~SoundBuffer();
     virtual void PrepForPlay(void);
     virtual int IsReadyToPlay(void);
     virtual int GetNumChannels(void);

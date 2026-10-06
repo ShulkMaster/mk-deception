@@ -322,14 +322,13 @@ static inline void sfmps_UpdatePlaybackSettings(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 98.76%; header slots agree; input-buffer address and
- * work/decoder/seek-snapshot registers still differ. */
+/* TODO: [near miss] 98.78%; one buffer-base instruction and work/decoder/
+ * seek-snapshot registers remain; original owner evidence needed. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     SfmpsWork* work = sfmps_GetWork(handle);
     SfdBufferState* input_buffer;
     int size;
-    int need;
     int prep_output2;
     int prep_output;
     int prep_user;
@@ -344,9 +343,11 @@ static void sfmps_ProcPrep(SfdHandle* handle)
                                  handle->transports[1].buffer_output3);
     if ((prep_output2 | prep_output | prep_user) != 1 &&
         SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
+        int need;
         size = handle->create_config.buffer.buffer_sizes[0];
         need = handle->conditions_primary[22];
-        input_buffer = &handle->buffers[handle->transports[1].parameter_10];
+        input_buffer = handle->buffers;
+        input_buffer += handle->transports[1].parameter_10;
         if (size <= 0) {
             size = input_buffer->work.ring.supply.buffer_size;
         }

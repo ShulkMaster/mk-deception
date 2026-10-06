@@ -26,7 +26,8 @@ typedef struct _mwFileInitParam {
     unsigned long field_0x18;
 } mwFileInitParam; /* 0x1C; the tag matches retail's `_mwFileInitParam` mangling */
 
-typedef int (*mwFileErrorCallback)(int operation, int error);
+typedef void (*mwFileErrorCallback)(int operation, int error, const char* path,
+                                    mwFileCommand* command, void* context);
 
 typedef union mwFileAsyncValue {
     void* pointer;

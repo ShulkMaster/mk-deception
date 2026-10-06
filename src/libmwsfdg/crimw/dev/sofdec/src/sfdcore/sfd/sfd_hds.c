@@ -433,8 +433,8 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
 /* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
  * preserves both the exact helper and the retail call; helper-only scope does not. */
 #pragma dont_inline on
-/* TODO: [blocked] 99.14%; retail keeps a `mr r30, r7` copy of header_flag; RE4 needs an asm
- * register pin for it and a plain typed copy is propagated away (measured neutral). */
+/* TODO: [near miss] 99.14%; header/header_flag nonvolatile coloring remains;
+ * in-place parameters fold byte loads; forms exhausted without new ownership evidence. */
 int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                  const unsigned char* data, int size, int* header_flag)
 {

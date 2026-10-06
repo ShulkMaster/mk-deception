@@ -107,7 +107,7 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
     return block;
 }
 
-/* TODO: [near miss] 96.47826%; capacity load order recovered; header/alignment registers and pointer-add grouping remain. */
+/* TODO: [near miss] 96.48%; equivalent payload-add schedule and header/alignment coloring remain; stop after honest forms. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     u32 alignment_mask;
     u32 base_block_size;

@@ -150,7 +150,7 @@ int init_camera(void);
 void skip_camera_intro(void);
 void do_victory_camera(VictoryCameraConfig* config);
 void camera_exit_script(void);
-float get_pan_value(const Vec* position);
+float get_pan_value(Vec* position);
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration);
@@ -207,7 +207,7 @@ void turn_off_sobj_if_camera_is_in_rectangle(MkSobj* object, const Vec* center,
                                              float max_x, float max_z);
 void turn_off_sobj_if_camera_is_in_cylinder(MkSobj* object, const Vec* center,
                                             float radius, float height);
-float get_volume_from_distance(const Vec* position, float far_distance,
+float get_volume_from_distance(Vec* position, float far_distance,
                                float near_distance);
 void camera_set_speed_scalar(float speed);
 void vdestroy_mkpdata_camera(MkHdr* pdata);
@@ -217,7 +217,7 @@ void camera_set_check_konquest_collisions_flag(int enabled);
 void camera_set_glitch_flag(void);
 void camera_set_lookat_offset_explicit(float x, float y, float z);
 void camera_set_lookat_offset(Vec* offset);
-void camera_set_lookat_offset_obj_rel(const Vec* offset, void* script_args);
+void camera_set_lookat_offset_obj_rel(Vec* offset, void* script_args);
 void camera_set_custom_camera_movement_flag(int enabled);
 void camera_set_radial_movement(int enabled);
 void camera_set_center_of_rotation(CamVec3* center);
@@ -227,7 +227,7 @@ void camera_set_final_speed(float speed);
 void camera_set_initial_speed(float speed);
 void camera_set_movement_offset_explicit(float x, float y, float z);
 void camera_set_movement_offset(Vec* offset);
-void camera_set_movement_offset_obj_rel(const Vec* offset, void* script_args);
+void camera_set_movement_offset_obj_rel(Vec* offset, void* script_args);
 void camera_set_look_mode(int mode);
 void camera_set_movement_mode(int mode);
 int camera_is_ang_move_done(void);

@@ -527,6 +527,12 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
+static inline void set_chan0_color(GXColor color)
+{
+    GXSetChanMatColor(0, color);
+    GXSetChanAmbColor(0, color);
+}
+
 /* TODO: [near miss] 99.954025%; by-value GXColor copy slots remain reversed; named
  * per-call locals coalesce, and a shared inline with display_dragon_with_text regresses. */
 static void render_image(void* unused) {
@@ -543,8 +549,7 @@ static void render_image(void* unused) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, black);
-    GXSetChanAmbColor(0, black);
+    set_chan0_color(black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -571,7 +576,6 @@ static void render_image(void* unused) {
     restore_projection_matrix();
 }
 
-/* TODO: [near miss] 98.67%; FIFO/XFB publication agrees; member-load order and owner GPR differ. */
 void gc_native_display_pass_to_RW(void) {
     GXDrawDone();
     if (pal_565 != 0) {
@@ -797,6 +801,8 @@ static void gcSetup480P(void) {
     int xfbHalf;
     void* raw;
     GXRenderModeObj* mode;
+    unsigned char* xfb1;
+    unsigned char* xfb2;
     float yscale;
     unsigned long copyHeight;
     int i;
@@ -828,13 +834,15 @@ static void gcSetup480P(void) {
     gc_native_display.fifo = _RwDlDefaultFifo;
     DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
 
-    _RwGCXFBDisp = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
-    _RwGCXFB1 = _RwGCXFBDisp;
-    gc_native_display.xfbDisp = _RwGCXFBDisp;
-    _RwGCXFB2 = (unsigned char*)_RwGCXFBDisp + xfbHalf;
-    gc_native_display.xfbCopy = _RwGCXFB2;
-    _RwGCXFBCopy = _RwGCXFB2;
-    DCFlushRange(_RwGCXFBDisp, xfbHalf);
+    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    xfb2 = xfb1 + xfbHalf;
+    _RwGCXFBDisp = xfb1;
+    _RwGCXFB1 = xfb1;
+    gc_native_display.xfbDisp = xfb1;
+    _RwGCXFB2 = xfb2;
+    gc_native_display.xfbCopy = xfb2;
+    _RwGCXFBCopy = xfb2;
+    DCFlushRange(xfb1, xfbHalf);
     DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
 
     VISetBlack(1);
@@ -990,7 +998,7 @@ int gc_prompt_for_refresh_rate(PADStatus* pads)
     return 1;
 }
 
-/* TODO: [near miss] 98.20%; width-loop coloring, GXColor copy slots and mask codegen remain. */
+/* TODO: [near miss] 98.21%; GXColor copy slots recovered; width-loop coloring, masks and y scheduling remain. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
     GXColor black;
@@ -1013,8 +1021,7 @@ static void display_dragon_with_text(void* arg) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, black);
-    GXSetChanAmbColor(0, black);
+    set_chan0_color(black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);

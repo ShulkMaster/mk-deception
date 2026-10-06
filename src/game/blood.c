@@ -2417,376 +2417,397 @@ static float p_pfx_bleed(void) {
     return 1.0f;
 }
 
-static inline int blood_bone_is_compatible(int requested, int candidate) {
-    switch (requested) {
-    case 0:
-    case 3:
-        return candidate >= 0 && candidate < 3;
-    case 6:
-    case 9:
-    case 13:
-        switch (candidate) {
-        case 3:
-        case 6:
-        case 12:
-        case 14:
-        case 15:
-        case 17:
-        case 18:
-        case 19:
-            return 1;
-        default:
-            return 0;
+static inline void blood_advance_bleed(MkHdr* hdr) {
+    struct BloodSpawnStep* step;
+    struct BleedPdata* pdata;
+    MkObj* object;
+    BloodModelData* model;
+    BloodPath* target;
+    BloodSurfaceRecord* records;
+    const int* record_indices;
+    int point_count;
+    int candidate;
+    int index;
+
+    pdata = (struct BleedPdata*)hdr;
+    if (pdata == 0) {
+        return;
+    }
+    if (--pdata->timer > 0) {
+        return;
+    }
+    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
+    if (object != 0 && !object->hide_flag_bits.hidden) {
+        step = pdata->step;
+        model = pdata->spawn_state;
+        target = &model->paths[step->target_index];
+        if (target != 0) {
+            records = model->surface.records;
+            record_indices = target->record_indices;
+            point_count = target->point_count;
+            for (index = 0; index < point_count; index++) {
+                candidate = records[record_indices[index]].bone;
+                if (candidate != (unsigned int)pdata->bone) {
+                    switch ((unsigned int)pdata->bone) {
+                    case 16:
+                        switch (candidate) {
+                        case 9:
+                        case 13:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    case 6:
+                    case 9:
+                    case 13:
+                        switch (candidate) {
+                        case 3:
+                        case 6:
+                        case 12:
+                        case 14:
+                        case 15:
+                        case 17:
+                        case 18:
+                        case 19:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    case 0:
+                    case 3:
+                        if (candidate >= 3 || candidate < 0) {
+                            continue;
+                        }
+                        break;
+                    case 17:
+                    case 19:
+                        switch (candidate) {
+                        case 19:
+                        case 21:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    case 21:
+                    case 23:
+                    case 25:
+                        switch (candidate) {
+                        case 23:
+                        case 25:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    case 15:
+                    case 18:
+                        switch (candidate) {
+                        case 18:
+                        case 20:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    case 20:
+                    case 22:
+                    case 24:
+                        switch (candidate) {
+                        case 22:
+                        case 24:
+                            break;
+                        default:
+                            continue;
+                        }
+                        break;
+                    default:
+                        continue;
+                    }
+                }
+                goto spawn;
+            }
+            goto cleanup;
+spawn:
+            obj_spawn_bld(object, 0, step->blood_type, step, target,
+                index, 0, pdata->art_id, pdata->owner);
+            if (step->delay < 0) {
+                goto cleanup;
+            }
+            pdata->timer = step->delay;
+            pdata->step++;
+            return;
         }
-    case 16:
-        return candidate == 9 || candidate == 13;
-    case 15:
-    case 18:
-        return candidate == 18 || candidate == 20;
-    case 17:
-    case 19:
-        return candidate == 19 || candidate == 21;
-    case 20:
-    case 22:
-    case 24:
-        return candidate == 22 || candidate == 24;
-    case 21:
-    case 23:
-    case 25:
-        return candidate == 23 || candidate == 25;
-    default:
-        return 0;
+    }
+cleanup:
+    if (pdata->hdr.instance != 0) {
+        pdata->hdr.typed_vtbl->destroy(&pdata->hdr);
     }
 }
 
-/* TODO: [breakthrough needed] 63.86%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 85.05%; reachable search/cleanup agree; dead null-dispatch island and coloring remain. */
 static float p_bleed(void) {
-    MkHdrVtable* vtbl;
-    BloodPath* target;
-    struct BleedPdata* pdata;
-    struct BloodSpawnStep* step;
     MkPtr** list;
     MkPtr* item;
     MkPtr* next;
-    MkObj* object;
-    int candidate;
-    int handled;
-    int index;
+    MkHdr* hdr;
 
     list = &aproc->pdata_list;
     if (list != 0) {
         item = *list;
         while (item != 0) {
-            pdata = (struct BleedPdata*)item->hdr;
-            if (item->instance != pdata->hdr.instance) {
+            hdr = item->hdr;
+            if (item->instance != hdr->instance) {
                 next = item->next;
                 discard_stale_mkptr(item);
                 item = next;
-                continue;
-            }
-            if (pdata == 0) {
+            } else {
+                blood_advance_bleed(hdr);
                 item = item->next;
-                continue;
             }
-
-            if (--pdata->timer <= 0) {
-                object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
-
-                if (object != 0 && !object->hide_flag_bits.hidden) {
-                    step = pdata->step;
-                    target = &pdata->spawn_state->paths[
-                        step->target_index];
-                    if (target != 0) {
-                        handled = 0;
-                        for (index = 0; index < target->point_count; index++) {
-                            candidate = pdata->spawn_state->surface.records[
-                                target->record_indices[index]].bone;
-                            if (candidate == pdata->bone ||
-                                blood_bone_is_compatible(
-                                    pdata->bone, candidate)) {
-                                obj_spawn_bld(
-                                    object, 0, step->blood_type,
-                                    step, target, index, 0,
-                                    pdata->art_id, pdata->owner);
-                                if (step->delay < 0) {
-                                    if (pdata->hdr.instance != 0) {
-                                        vtbl = pdata->hdr.typed_vtbl;
-                                        vtbl->destroy(&pdata->hdr);
-                                    }
-                                } else {
-                                    pdata->timer = step->delay;
-                                    pdata->step++;
-                                }
-                                handled = 1;
-                                break;
-                            }
-                        }
-                        if (handled) {
-                            item = item->next;
-                            continue;
-                        }
-                    }
-                }
-
-                if (pdata->hdr.instance != 0) {
-                    vtbl = pdata->hdr.typed_vtbl;
-                    vtbl->destroy(&pdata->hdr);
-                }
-            }
-            item = item->next;
         }
     }
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 65.23460%; canonical particle/footprint owners recovered; remaining CFG and register ordering need recovery. */
+/* TODO: [near miss] 97.73%; shared path/removal effects agree; register webs and load
+ * scheduling remain. */
 static void do_pfx_bleed(MkHdr* hdr) {
     struct BloodParticlePosition* destination;
     struct BloodParticlePosition* source;
-    struct BloodParticlePosition* destination_base;
-    struct BloodParticlePosition* source_base;
-    struct BloodVelocityState* states;
     struct BloodVelocityState* state;
     PfxVm* vm;
-    BloodSurfaceRecord* record;
-    BloodSurfaceRecord* previous_record;
-    BloodPath* path;
-    FighterMirror* owner;
-    MkProc* foot_proc;
-    MkBone* old_bone;
-    MkBone* new_bone;
     MkPfx* pfx;
-    MKMATRIX inverse;
-    Vec world_position;
-    Vec fall_velocity;
-    Vec local_position;
-    float edge_distance;
     int position_stride;
     int state_stride;
     int removed_count;
     int index;
-    int remove_particle;
-    int old_bone_id;
-    int new_bone_id;
 
     apdata = hdr;
     pfx_pre_wake();
     pfx = apfx;
-    if (pfx == 0) {
-        return;
-    }
+    if (pfx != 0) {
+        vm = (PfxVm*)pfx->matrix;
+        if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
+            position_stride = vm->transforms[0].particle_field_stride;
+            destination = pfx_get_field(vm, -2, 0x100);
+            source = pfx_get_field(vm, -1, 0x100);
+            state_stride = pfx_get_struct_size(vm, 0x600);
+            state = pfx_get_field(vm, -2, 0x600);
+            removed_count = 0;
+            index = 0;
 
-    vm = (PfxVm*)pfx->matrix;
-    if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
-        position_stride = vm->transforms[0].particle_field_stride;
-        destination_base = pfx_get_field(vm, -2, 0x100);
-        source_base = pfx_get_field(vm, -1, 0x100);
-        state_stride = pfx_get_struct_size(vm, 0x600);
-        states = pfx_get_field(vm, -2, 0x600);
-        removed_count = 0;
-        index = 0;
+            while (index < vm->particle_cursor - removed_count) {
+                if (state->spawn_delay > 0.0f) {
+                    state->spawn_delay -= game_speed;
+                    memcpy(destination, source, position_stride);
+                    goto advance_particle;
+                }
 
-        while (index < vm->particle_cursor - removed_count) {
-            state = PFX_FIELD_AT(states, state_stride * index);
-            destination = PFX_FIELD_AT(destination_base, position_stride * index);
-            source = PFX_FIELD_AT(source_base, position_stride * index);
-            remove_particle = 0;
+                if (state->flag_bits.bit7 == 0) {
+                    state->flag_bits.bit7 = 1;
+                    removed_count += obj_spawn_bld(
+                        apfx_render_obj, state, 1, state->step, state->path,
+                        state->point_index, &source->position, apfx->field_288,
+                        (PlyrPdata*)apfx->decal_owner);
+                }
 
-            if (state->spawn_delay > 0.0f) {
-                state->spawn_delay -= game_speed;
-                memcpy(destination, source, position_stride);
-                index++;
-                continue;
-            }
+                destination->position.x =
+                    source->position.x + state->velocity.x * game_speed;
+                destination->position.y =
+                    source->position.y + state->velocity.y * game_speed;
+                destination->position.z =
+                    source->position.z + state->velocity.z * game_speed;
+                destination->u = source->u;
+                destination->v = source->v;
+                state->travel_ticks -= game_speed;
 
-            if ((state->flags & 0x80) == 0) {
-                state->flags |= 0x80;
-                removed_count += obj_spawn_bld(
-                    apfx_render_obj, state, 1,
-                    state->step,
-                    state->path,
-                    state->point_index, &source->position,
-                    pfx->field_288, (PlyrPdata*)pfx->decal_owner);
-            }
+                if (!(state->travel_ticks >= 0.0f)) {
+                    BloodSurfaceRecord* record;
+                    BloodSurfaceRecord* next_record;
+                    BloodSurface* surface;
+                    const int* record_indices;
+                    const int* next_index;
+                    struct BloodSurfaceEdge* edge;
+                    int point_index;
+                    BloodPath* path;
+                    PlyrPdata* owner;
+                    MkProc* foot_proc;
+                    MkBone* old_bone;
+                    MkBone* new_bone;
+                    RwMatrix* old_matrix;
+                    RwMatrix* new_matrix;
+                    MKMATRIX inverse;
+                    Vec coordinate;
+                    float edge_distance;
+                    unsigned int old_bone_id;
+                    unsigned int new_bone_id;
 
-            destination->position.x =
-                source->position.x + state->velocity.x * game_speed;
-            destination->position.y =
-                source->position.y + state->velocity.y * game_speed;
-            destination->position.z =
-                source->position.z + state->velocity.z * game_speed;
-            destination->u = source->u;
-            destination->v = source->v;
-            state->travel_ticks -= game_speed;
-
-            if (state->travel_ticks <= 0.0f) {
-                path = state->path;
-                record = &path->surface->records[
-                    path->record_indices[state->point_index]];
-                edge_distance = v3_dot_v3(
-                    &record->edges[path->corner_indices[
-                        state->point_index]].normal,
-                    &destination->position) + 0.0005f;
-                if (edge_distance >= record->edges[
-                        path->corner_indices[state->point_index]].plane_distance) {
-                    state->point_index++;
-                    if (state->point_index >= path->point_count ||
-                        path->corner_indices[state->point_index] < 0) {
-                        if (state->path_point == 0 &&
-                            state->step->definition->disable_ground_splat == 0) {
-                            calc_bone_world_mat(apfx_render_obj, record->bone);
-                            old_bone = apfx_render_obj->bones[record->bone];
-                            world_position.x =
-                                destination->position.x *
-                                    old_bone->matrix.right.x +
-                                destination->position.y *
-                                    old_bone->matrix.up.x +
-                                destination->position.z *
-                                    old_bone->matrix.at.x + old_bone->delta.value.x;
-                            world_position.y =
-                                destination->position.x *
-                                    old_bone->matrix.right.y +
-                                destination->position.y *
-                                    old_bone->matrix.up.y +
-                                destination->position.z *
-                                    old_bone->matrix.at.y + old_bone->delta.value.y;
-                            world_position.z =
-                                destination->position.x *
-                                    old_bone->matrix.right.z +
-                                destination->position.y *
-                                    old_bone->matrix.up.z +
-                                destination->position.z *
-                                    old_bone->matrix.at.z + old_bone->delta.value.z;
-                            fall_velocity.x = world_position.x * 0.5f;
-                            fall_velocity.y = world_position.y * 0.5f - 0.002f;
-                            fall_velocity.z = world_position.z * 0.5f;
-                            spawn_bld_fall(
-                                "bleedfall", pfx->bone_mat,
-                                &destination->position, &fall_velocity,
-                                pfx->decal_owner);
-
-                            owner = pfx->decal_owner;
-                            foot_proc = ((PlyrPdata*)owner)->foot_print_proc;
-                            if (foot_proc != 0 &&
-                                foot_proc->instance ==
-                                    ((PlyrPdata*)owner)->foot_print_proc_instance &&
-                                foot_proc->entry == p_foot_print_wait) {
-                                xfer_proc(foot_proc, p_foot_print);
-                            }
-                        }
-                        remove_particle = 1;
-                    } else {
-                        previous_record = record;
-                        record = &path->surface->records[
-                            path->record_indices[state->point_index]];
-                        old_bone_id = previous_record->bone;
-                        new_bone_id = record->bone;
-                        if (old_bone_id != new_bone_id) {
-                            if (state->path_point == 0) {
-                                old_bone = apfx_render_obj->bones[old_bone_id];
-                                new_bone = apfx_render_obj->bones[new_bone_id];
-                                if (old_bone != 0 && new_bone != 0 &&
-                                    old_bone->parent_matrix != 0 &&
-                                    new_bone->parent_matrix != 0) {
-                                    world_position.x =
-                                        destination->position.x *
-                                            old_bone->parent_matrix->right.x +
-                                        destination->position.y *
-                                            old_bone->parent_matrix->up.x +
-                                        destination->position.z *
-                                            old_bone->parent_matrix->at.x +
-                                        old_bone->parent_matrix->pos.x;
-                                    world_position.y =
-                                        destination->position.x *
-                                            old_bone->parent_matrix->right.y +
-                                        destination->position.y *
-                                            old_bone->parent_matrix->up.y +
-                                        destination->position.z *
-                                            old_bone->parent_matrix->at.y +
-                                        old_bone->parent_matrix->pos.y;
-                                    world_position.z =
-                                        destination->position.x *
-                                            old_bone->parent_matrix->right.z +
-                                        destination->position.y *
-                                            old_bone->parent_matrix->up.z +
-                                        destination->position.z *
-                                            old_bone->parent_matrix->at.z +
-                                        old_bone->parent_matrix->pos.z;
-                                    local_position.x = world_position.x -
-                                        new_bone->parent_matrix->pos.x;
-                                    local_position.y = world_position.y -
-                                        new_bone->parent_matrix->pos.y;
-                                    local_position.z = world_position.z -
-                                        new_bone->parent_matrix->pos.z;
-                                    RwMatrixInvert(
-                                        &inverse, new_bone->parent_matrix);
-                                    destination->position.x =
-                                        local_position.x * inverse.right.x +
-                                        local_position.y * inverse.up.x +
-                                        local_position.z * inverse.at.x;
-                                    destination->position.y =
-                                        local_position.x * inverse.right.y +
-                                        local_position.y * inverse.up.y +
-                                        local_position.z * inverse.at.y;
-                                    destination->position.z =
-                                        local_position.x * inverse.right.z +
-                                        local_position.y * inverse.up.z +
-                                        local_position.z * inverse.at.z;
-                                    obj_spawn_bld(
-                                        apfx_render_obj, state, 1,
-                                        state->step,
-                                        state->path,
-                                        state->point_index,
-                                        &destination->position,
-                                        pfx->field_288,
-                                        (PlyrPdata*)pfx->decal_owner);
+                    path = state->path;
+                    point_index = state->point_index;
+                    record_indices = path->record_indices;
+                    surface = path->surface;
+                    record = &surface->records[record_indices[point_index]];
+                    edge = &record->edges[path->corner_indices[point_index]];
+                    edge_distance =
+                        0.0005f + v3_dot_v3(&edge->normal, &destination->position);
+                    if (!(edge_distance < edge->plane_distance)) {
+                        point_index++;
+                        state->point_index = point_index;
+                        if (point_index >= path->point_count ||
+                            path->corner_indices[point_index] < 0) {
+ground_fall:
+                            if (state->path_point == 0 &&
+                                state->step->definition->disable_ground_splat == 0) {
+                                calc_bone_world_mat(apfx_render_obj, record->bone);
+                                old_bone = apfx_render_obj->bones[record->bone];
+                                coordinate.x =
+                                    state->velocity.x * old_bone->matrix.right.x +
+                                    state->velocity.y * old_bone->matrix.up.x +
+                                    state->velocity.z * old_bone->matrix.at.x;
+                                coordinate.y =
+                                    state->velocity.x * old_bone->matrix.right.y +
+                                    state->velocity.y * old_bone->matrix.up.y +
+                                    state->velocity.z * old_bone->matrix.at.y;
+                                coordinate.z =
+                                    state->velocity.x * old_bone->matrix.right.z +
+                                    state->velocity.y * old_bone->matrix.up.z +
+                                    state->velocity.z * old_bone->matrix.at.z;
+                                coordinate.x += old_bone->delta.value.x;
+                                coordinate.y += old_bone->delta.value.y;
+                                coordinate.z += old_bone->delta.value.z;
+                                coordinate.x = 0.5f * coordinate.x;
+                                coordinate.y = 0.5f * coordinate.y;
+                                coordinate.z = 0.5f * coordinate.z;
+                                coordinate.y -= 0.002f;
+                                spawn_bld_fall("bleedfall", apfx->bone_mat,
+                                               &destination->position, &coordinate,
+                                               apfx->decal_owner);
+                                owner = (PlyrPdata*)apfx->decal_owner;
+                                foot_proc =
+                                    MK_HDR_LIVE(owner->foot_print_proc,
+                                                owner->foot_print_proc_instance);
+                                if (foot_proc != 0 &&
+                                    foot_proc->entry == p_foot_print_wait) {
+                                    xfer_proc(foot_proc, p_foot_print);
                                 }
                             }
-                            remove_particle = 1;
+
+                            goto remove_particle;
+                        } else {
+                            next_index = &record_indices[point_index];
+                            next_record = &surface->records[*next_index];
+                            record = &surface->records[next_index[-1]];
+                            new_bone_id = next_record->bone;
+                            old_bone_id = record->bone;
+                            if (old_bone_id != new_bone_id) {
+                                if (state->path_point == 0) {
+                                    new_bone = apfx_render_obj->bones[new_bone_id];
+                                    new_matrix = new_bone->parent_matrix;
+                                    if (new_matrix == 0) {
+                                        goto ground_fall;
+                                    }
+                                    old_bone = apfx_render_obj->bones[old_bone_id];
+                                    if (old_bone == 0) {
+                                        goto remove_particle;
+                                    }
+                                    old_matrix = old_bone->parent_matrix;
+                                    if (old_matrix == 0) {
+                                        goto remove_particle;
+                                    }
+                                    coordinate.x =
+                                        destination->position.x * old_matrix->right.x +
+                                        destination->position.y * old_matrix->up.x +
+                                        destination->position.z * old_matrix->at.x +
+                                        old_matrix->pos.x;
+                                    coordinate.y =
+                                        destination->position.x * old_matrix->right.y +
+                                        destination->position.y * old_matrix->up.y +
+                                        destination->position.z * old_matrix->at.y +
+                                        old_matrix->pos.y;
+                                    coordinate.z =
+                                        destination->position.x * old_matrix->right.z +
+                                        destination->position.y * old_matrix->up.z +
+                                        destination->position.z * old_matrix->at.z +
+                                        old_matrix->pos.z;
+                                    if (new_bone != 0 && new_matrix != 0) {
+                                        coordinate.x -= new_matrix->pos.x;
+                                        coordinate.y -= new_matrix->pos.y;
+                                        coordinate.z -= new_matrix->pos.z;
+                                        RwMatrixInvert(&inverse, new_matrix);
+                                        destination->position.x =
+                                            coordinate.x * inverse.right.x +
+                                            coordinate.y * inverse.up.x +
+                                            coordinate.z * inverse.at.x;
+                                        destination->position.y =
+                                            coordinate.x * inverse.right.y +
+                                            coordinate.y * inverse.up.y +
+                                            coordinate.z * inverse.at.y;
+                                        destination->position.z =
+                                            coordinate.x * inverse.right.z +
+                                            coordinate.y * inverse.up.z +
+                                            coordinate.z * inverse.at.z;
+                                        obj_spawn_bld(
+                                            apfx_render_obj, 0, 1, state->step,
+                                            state->path, point_index,
+                                            &destination->position, apfx->field_288,
+                                            (PlyrPdata*)apfx->decal_owner);
+                                    }
+                                }
+                                goto remove_particle;
+                            }
                         }
                     }
+                    if (!obj_set_bld_vel(apfx_render_obj, &destination->position,
+                                         state)) {
+                        goto ground_fall;
+                    }
                 }
-                if (!remove_particle &&
-                    !obj_set_bld_vel(
-                        apfx_render_obj, &destination->position, state)) {
-                    remove_particle = 1;
-                }
-            }
 
-            if (!remove_particle) {
+advance_particle:
+                source = PFX_FIELD_AT(source, position_stride);
+                destination = PFX_FIELD_AT(destination, position_stride);
+                state = PFX_FIELD_AT(state, state_stride);
                 index++;
                 continue;
-            }
 
-            vm->particle_cursor--;
-            if (index < vm->particle_cursor) {
-                struct BloodVelocityState* last_state;
-                struct BloodParticlePosition* last_position;
+remove_particle:
+                vm->particle_cursor--;
+                if (index < vm->particle_cursor) {
+                    struct BloodVelocityState* last_state;
+                    struct BloodParticlePosition* last_position;
 
-                last_state = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x600),
-                    state_stride * vm->particle_cursor);
-                memcpy(state, last_state, state_stride);
-                if (removed_count != 0) {
-                    last_position = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x100),
-                        position_stride * vm->particle_cursor);
-                    removed_count--;
-                    memcpy(destination, last_position, position_stride);
-                } else {
-                    last_position = PFX_FIELD_AT(pfx_get_field(vm, -1, 0x100),
-                        position_stride * vm->particle_cursor);
-                    memcpy(destination, last_position, position_stride);
+                    last_state = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x600),
+                                              state_stride * vm->particle_cursor);
+                    memcpy(state, last_state, state_stride);
+                    if (removed_count != 0) {
+                        last_position =
+                            PFX_FIELD_AT(pfx_get_field(vm, -2, 0x100),
+                                         position_stride * vm->particle_cursor);
+                        memcpy(destination, last_position, position_stride);
+                        removed_count--;
+                        goto advance_particle;
+                    } else {
+                        last_position =
+                            PFX_FIELD_AT(pfx_get_field(vm, -1, 0x100),
+                                         position_stride * vm->particle_cursor);
+                        memcpy(source, last_position, position_stride);
+                    }
                 }
             }
+            pfx_post_sleep();
+            return;
         }
-        pfx_post_sleep();
-        return;
-    }
 
-    pfx_post_sleep();
-    if (pfx->hdr.instance != 0) {
-        pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
+        pfx_post_sleep();
+        if (pfx->hdr.instance != 0) {
+            pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
+        }
     }
 }
+
 
 static inline MkPfx* blood_create_bound_pfx(
     MkObj* object, int bone_id, struct BloodParticleDefinition* definition,

@@ -20,13 +20,15 @@ enum {
     PFX_MESSAGE_COLOR_FIELD_MISMATCH = 51
 };
 
-/* TODO: [near miss] 67.69231%; equivalent pointer truth test compiles branchless; retail uses explicit return branches. */
 int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field)
 {
+    int result;
     if (pfx_emitter_find_insn(emitter, field) != 0) {
-        return 1;
+        result = 1;
+    } else {
+        result = 0;
     }
-    return 0;
+    return result;
 }
 
 static void v3_x_mat_4(PfxVec3* output, PfxVec3* vector,
@@ -351,7 +353,7 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
-/* TODO: [near miss] 99.43%; particle offset r26/r25 and sphere argument load scheduling remain. */
+/* TODO: [near miss] 99.96%; sphere signature order recovered; stop at three particle-offset register differences. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
     int instruction_index;
@@ -468,9 +470,9 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
             case 10:
                 rnd_sphere((PfxVec3*)destination,
                            &instruction->spawn.sphere.origin,
-                           instruction->spawn.sphere.quadratic_radius,
                            instruction->spawn.sphere.minimum_radius,
-                           instruction->spawn.sphere.maximum_radius);
+                           instruction->spawn.sphere.maximum_radius,
+                           instruction->spawn.sphere.quadratic_radius);
                 break;
             case 11:
                 rnd_point_in_sphere_section(

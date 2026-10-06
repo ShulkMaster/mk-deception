@@ -3,6 +3,10 @@
 
 struct ExternalHeap;
 
+extern int SoundBufferCount;
+extern int SoundBufferCountStream;
+extern int SoundBufferCountStatic;
+
 extern struct ExternalHeap* g_MSL_GCN_ARAM_Heap;
 extern unsigned long g_MSL_GCN_ARAM_ZeroBase;
 extern unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;

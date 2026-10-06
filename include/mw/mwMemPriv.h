@@ -3,6 +3,16 @@
 
 #include "mw/mwMem.h"
 
+enum MwMemAlignment {
+    MW_MEM_ALIGN_NONE = 0,
+    MW_MEM_ALIGN_16 = 4,
+    MW_MEM_ALIGN_32 = 5,
+    MW_MEM_ALIGN_64 = 6,
+    MW_MEM_ALIGN_128 = 7,
+    MW_MEM_ALIGN_256 = 8,
+    MW_MEM_ALIGN_FORCE_32BIT = 0x7FFFFFFF
+};
+
 #define MW_MEM_ALIGN_UP_16(value) (((value) + 0xF) & ~0xFU)
 
 /* Centralized byte-layout navigation for the allocator's packed arenas. */

@@ -79,23 +79,56 @@ static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic) {
     return 0;
 }
 
-/* TODO: [near miss] 98.65%; frame layout and loop registers match; residual is the bne+b
- * instance-check shape and one zero copied into r23 (mr r23,r30 vs li). */
-static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
-    int visible_count;
-    int i;
+static inline int cull_pebbles(RpAtomic* atomic, PebbleData* pebble_data) {
     RwCamera* camera;
+    RwMatrix* cull_ltm;
+    RwSphere* atomic_sphere;
+    RwSphere test_sphere;
+    CollisionPaddedVec sphere_offset;
+    int i;
+    int visible_count;
+
+    camera = Camera;
+    cull_ltm = RwFrameGetLTM(atomic->object.parent);
+    visible_count = 0;
+    atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
+    sphere_offset.value.x = atomic_sphere->center.x - cull_ltm->pos.x;
+    sphere_offset.value.y = atomic_sphere->center.y - cull_ltm->pos.y;
+    sphere_offset.value.z = atomic_sphere->center.z - cull_ltm->pos.z;
+    test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset.value);
+    for (i = 0; i < pebble_data->count; i++) {
+        RwV3d* position = &pebble_data->pebbles[i].matrix.pos;
+
+        test_sphere.center.x = position->x;
+        test_sphere.center.y = position->y;
+        test_sphere.center.z = position->z;
+        pebble_data->flags[i].bits.visible = 1;
+        switch (RwCameraFrustumTestSphere(camera, &test_sphere)) {
+        case 0:
+            pebble_data->flags[i].bits.visible = 0;
+            break;
+        case 2:
+            pebble_data->flags[i].bits.partly_visible = 0;
+            break;
+        case 1:
+            pebble_data->flags[i].bits.partly_visible = 1;
+            break;
+        }
+        if (pebble_data->flags[i].bits.visible) {
+            visible_count++;
+        }
+    }
+    return visible_count;
+}
+
+static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     PebbleData* pebble_data;
     MkSobj* sobj;
     RwFrame* frame;
     RwMatrix saved_matrix;
     RwSphere render_sphere;
     RwSphere saved_sphere;
-    CollisionPaddedVec sphere_offset;
-    RwSphere test_sphere;
-    RwSphere* atomic_sphere;
     RwMatrix* atomic_ltm;
-    RwMatrix* cull_ltm;
     int j;
 
     if (atomic == 0) {
@@ -109,14 +142,7 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     if (sobj == 0) {
         return atomic;
     }
-    pebble_data = (PebbleData*)sobj->bound_hdr;
-    if (pebble_data != 0) {
-        if (pebble_data->hdr.instance != sobj->bound_instance) {
-            pebble_data = 0;
-        }
-    } else {
-        pebble_data = 0;
-    }
+    pebble_data = MK_HDR_LIVE((PebbleData*)sobj->bound_hdr, sobj->bound_instance);
     if (pebble_data == 0) {
         return atomic;
     }
@@ -131,37 +157,7 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
         return atomic;
     }
     if (!sobj->flags09_bits.bit3) {
-        camera = Camera;
-        cull_ltm = RwFrameGetLTM(atomic->object.parent);
-        visible_count = 0;
-        atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
-        sphere_offset.value.x = atomic_sphere->center.x - cull_ltm->pos.x;
-        sphere_offset.value.y = atomic_sphere->center.y - cull_ltm->pos.y;
-        sphere_offset.value.z = atomic_sphere->center.z - cull_ltm->pos.z;
-        test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset.value);
-        for (i = 0; i < pebble_data->count; i++) {
-            RwV3d* position = &pebble_data->pebbles[i].matrix.pos;
-
-            test_sphere.center.x = position->x;
-            test_sphere.center.y = position->y;
-            test_sphere.center.z = position->z;
-            pebble_data->flags[i].bits.visible = 1;
-            switch (RwCameraFrustumTestSphere(camera, &test_sphere)) {
-            case 0:
-                pebble_data->flags[i].bits.visible = 0;
-                break;
-            case 2:
-                pebble_data->flags[i].bits.partly_visible = 0;
-                break;
-            case 1:
-                pebble_data->flags[i].bits.partly_visible = 1;
-                break;
-            }
-            if (pebble_data->flags[i].bits.visible) {
-                visible_count++;
-            }
-        }
-        if (visible_count == 0) {
+        if (cull_pebbles(atomic, pebble_data) == 0) {
             return 0;
         }
     }

@@ -94,7 +94,8 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   return image;
 }
 
-/* TODO: [near miss] 98.41%; row-loop register coloring and one header li order remain. */
+/* TODO: [near miss] 98.41%; row-loop coloring and one header li order remain;
+ * prior honest forms exhausted; stop without new structural evidence. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;

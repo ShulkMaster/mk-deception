@@ -43,6 +43,10 @@ LOCAL_BRANCH_RE = re.compile(
 REGISTER_RE = re.compile(r"^(?:r|f)(?:[0-9]|[12][0-9]|3[01])$")
 REGISTER_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_.])(?:r|f)(?:[12][0-9]|3[01]|[0-9])(?![A-Za-z0-9_])")
 GQR_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_])qr([0-7])(?![A-Za-z0-9_])")
+# Source spelling for a renamed relocation target: a C name, optionally + offset.
+SOURCE_SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\s*\+\s*(?:0x[0-9A-Fa-f]+|[0-9]+))?$")
+LOCAL_TARGET_RE = re.compile(r"\.L_([0-9A-Fa-f]{8})\b")
+STACK_OPERAND_RE = re.compile(r"(?<![A-Za-z0-9_])(-?0x[0-9A-Fa-f]+|-?[0-9]+)\(r1\)")
 
 
 @dataclass(frozen=True)
@@ -141,12 +145,18 @@ def emit_macro(
     end_entries: tuple[str, ...] = (),
     block: bool = False,
     operands: dict[str, str] | None = None,
+    symbols: dict[str, str] | None = None,
+    text: bool = False,
+    stack: tuple[str, int, int] | None = None,
 ) -> list[str]:
     """Emit SEQ_<name>.  A whole function is a `nofralloc` asm function body.
     A block is a run of instructions inside a C function, invoked from an
     inline `asm { SEQ_<name>(...) }` statement; with `operands` (macro
     parameter -> retail register) every instruction is emitted as text with
-    those registers replaced by the C operands passed to the macro."""
+    those registers replaced by the C operands passed to the macro.
+    `symbols` renames retail relocation targets (@h/@ha/@l) to source
+    spellings; a `text` block emits every instruction as text, with local
+    branch targets as labels, so the compiler sees its registers."""
     parameters = list(operands) if operands else []
     register_to_parameter = {register: name for name, register in (operands or {}).items()}
     lines = [f"#define SEQ_{sequence.name}({', '.join(parameters)}) \\"]
@@ -157,11 +167,25 @@ def emit_macro(
     for label, offset in sequence.labels:
         if label in entries:
             entry_at.setdefault(offset, []).append(label)
+    label_at: set[int] = set()
+    if text:
+        for _, assembly in sequence.instructions:
+            for target in LOCAL_TARGET_RE.findall(assembly):
+                label_at.add(int(target, 16))
     for index, (word, assembly) in enumerate(sequence.instructions):
         for label in entry_at.get(4 * index, []):
             lines.append(f"    entry {label}; \\")
-        last = index + 1 == len(sequence.instructions) and not end_entries
+        if sequence.address + 4 * index in label_at:
+            lines.append(f"    L_{sequence.address + 4 * index:08X}: \\")
+        last = index + 1 == len(sequence.instructions) and not end_entries and not (
+            sequence.address + 4 * len(sequence.instructions) in label_at
+        )
         suffix = "" if last else " \\"
+        assembly = rename_symbols(assembly, symbols or {})
+        if text:
+            assembly = LOCAL_TARGET_RE.sub(r"L_\1", assembly)
+            if stack:
+                assembly = name_stack_slots(assembly, stack)
         if "@sda21" in assembly:
             for retail_symbol, source_symbol in sda_symbols.items():
                 assembly = assembly.replace(
@@ -181,7 +205,7 @@ def emit_macro(
             if register_to_parameter:
                 assembly = substitute_operands(assembly, register_to_parameter)
             lines.append(f"    {assembly};{suffix}")
-        elif register_to_parameter:
+        elif register_to_parameter or text:
             lines.append(f"    {substitute_operands(assembly, register_to_parameter)};{suffix}")
         elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
             assembly
@@ -189,11 +213,41 @@ def emit_macro(
             lines.append(f"    {assembly};{suffix}")
         else:
             lines.append(f"    opword 0x{word:08X};{suffix}")
+    end_address = sequence.address + 4 * len(sequence.instructions)
+    if end_address in label_at:
+        suffix = " \\" if end_entries else ""
+        lines.append(f"    L_{end_address:08X}: ;{suffix}")
     # Labels that mark the address just past the last instruction.
     for index, label in enumerate(end_entries):
         suffix = " \\" if index + 1 < len(end_entries) else ""
         lines.append(f"    entry {label};{suffix}")
     return lines
+
+
+def name_stack_slots(assembly: str, stack: tuple[str, int, int]) -> str:
+    """Spell r1-relative word accesses inside a C local array as `name[i]`, the
+    way CodeWarrior's inline assembler addresses locals (keeps the array, and
+    so the retail frame layout, alive)."""
+    name, base, size = stack
+
+    def slot(match: re.Match[str]) -> str:
+        offset = int(match.group(1), 0)
+        if base <= offset < base + size and (offset - base) % 4 == 0:
+            return f"{name}[{(offset - base) // 4}]"
+        return match.group(0)
+
+    return STACK_OPERAND_RE.sub(slot, assembly)
+
+
+def rename_symbols(assembly: str, symbols: dict[str, str]) -> str:
+    """Replace retail relocation targets (quoted or bare, before @h/@ha/@l)
+    with their source spellings."""
+    for retail_symbol, source_symbol in symbols.items():
+        for spelled in (f'"{retail_symbol}"', retail_symbol):
+            assembly = re.sub(
+                re.escape(spelled) + r"(?=@(?:h|ha|l)\b)", lambda _m: source_symbol, assembly
+            )
+    return assembly
 
 
 def substitute_operands(assembly: str, register_to_parameter: dict[str, str]) -> str:
@@ -211,6 +265,7 @@ def block_sequence(
     address: int,
     size: int,
     operands: dict[str, str] | None,
+    text: bool = False,
 ) -> Sequence:
     """Slice an inline-assembly block [address, address + size) out of a retail
     function, refusing anything a C function's asm statement cannot hold."""
@@ -232,7 +287,7 @@ def block_sequence(
             target = int(local.group("target"), 16)
             if not address <= target <= end:
                 raise ValueError(f"{name}: branch at 0x{at:X} leaves the block ({assembly})")
-            if operands:
+            if operands and not text:
                 raise ValueError(
                     f"{name}: branch at 0x{at:X}: operand blocks are emitted as text and "
                     "may be rescheduled; use an opword block (no operands) for control flow"
@@ -303,6 +358,32 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                     f"{name}.sda_symbols: invalid source symbol {source_symbol!r}"
                 )
             sda_symbols[retail_symbol] = source_symbol
+        raw_symbols = entry.get("symbols", {})
+        if not isinstance(raw_symbols, dict):
+            raise ValueError(f"{name}.symbols: expected an object")
+        symbols: dict[str, str] = {}
+        for retail_symbol, source_symbol in raw_symbols.items():
+            if not isinstance(retail_symbol, str) or not isinstance(source_symbol, str):
+                raise ValueError(f"{name}.symbols: expected string mappings")
+            if not SOURCE_SYMBOL_RE.fullmatch(source_symbol):
+                raise ValueError(f"{name}.symbols: invalid source spelling {source_symbol!r}")
+            symbols[retail_symbol] = source_symbol
+        text = entry.get("text", False)
+        if not isinstance(text, bool):
+            raise ValueError(f"{name}.text: expected true or false")
+        raw_stack = entry.get("stack")
+        stack: tuple[str, int, int] | None = None
+        if raw_stack is not None:
+            if not text or not isinstance(raw_stack, dict):
+                raise ValueError(f'{name}.stack: needs "text": true and an object')
+            stack_name = raw_stack.get("name")
+            if not isinstance(stack_name, str) or not SYMBOL_RE.fullmatch(stack_name):
+                raise ValueError(f"{name}.stack.name: invalid local name {stack_name!r}")
+            stack = (
+                stack_name,
+                parse_int(raw_stack.get("offset"), f"{name}.stack.offset"),
+                parse_int(raw_stack.get("size"), f"{name}.stack.size"),
+            )
         parent_name = entry.get("function")
         raw_operands = entry.get("operands")
         if parent_name is not None:
@@ -322,14 +403,24 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                 raise ValueError(f"{name}: blocks cannot export entry labels")
             if raw_operands is not None and not isinstance(raw_operands, dict):
                 raise ValueError(f"{name}.operands: expected an object")
-            sequence = block_sequence(name, parent, address, size, raw_operands)
+            sequence = block_sequence(name, parent, address, size, raw_operands, text)
             lines.extend(
-                emit_macro(sequence, sda_symbols, block=True, operands=raw_operands)
+                emit_macro(
+                    sequence,
+                    sda_symbols,
+                    block=True,
+                    operands=raw_operands,
+                    symbols=symbols,
+                    text=text,
+                    stack=stack,
+                )
             )
             lines.append("")
             continue
         if raw_operands is not None:
             raise ValueError(f'{name}.operands: only blocks (with "function") take operands')
+        if text:
+            raise ValueError(f'{name}.text: only blocks (with "function") take text mode')
         try:
             sequence = available[name]
         except KeyError as exc:
@@ -371,7 +462,13 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                             f"0x{other.address + offset:X}, not 0x{end_address:X}"
                         )
         lines.extend(
-            emit_macro(sequence, sda_symbols, tuple(raw_entries), tuple(raw_end_entries))
+            emit_macro(
+                sequence,
+                sda_symbols,
+                tuple(raw_entries),
+                tuple(raw_end_entries),
+                symbols=symbols,
+            )
         )
         lines.append("")
 

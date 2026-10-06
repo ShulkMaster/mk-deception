@@ -90,7 +90,7 @@ extern MkProcEntryFn old_camera_function;
 float get_constrain_player_distance(void);
 int get_game_state(void);
 int get_konquest_game_mode(void);
-void render_col_shape(const CollisionShape* shape, const unsigned int* color);
+void render_col_shape(CollisionShape* shape, const unsigned int* color);
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
 float frand(float maximum);
@@ -117,7 +117,7 @@ static float last_camera_distance = 2.6f;
 RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect);
 
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
-float xz_ray_circle_intersection_dist(const Vec* ray_origin,
+float xz_ray_circle_intersection_dist(Vec* ray_origin,
                                       const Vec* ray_direction,
                                       float radius);
 float p_attract_camera(void);
@@ -1240,39 +1240,34 @@ float p_mk_chess_cam_control(void) {
     }
 }
 
-/* TODO: [near miss] 64.48%; math and size match retail; FPR and int-to-double scheduling differ. */
+/* TODO: [near miss] 64.54929%; projection math/frame agree; FP webs and integer conversion scheduling remain; tier 2. */
 void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
     RwRaster* raster = Camera->frameBuffer;
     float y = world->y;
     float x = world->x;
     float z = world->z;
     int height = raster->height;
+    float projected_z;
+    float projected_y;
+    float projected_x;
     float reciprocal_depth;
     float output_x;
     float output_y;
 
-    reciprocal_depth =
-        1.0f / (Camera->viewMatrix.pos.z +
-                (z * Camera->viewMatrix.at.z +
-                 (x * Camera->viewMatrix.right.z +
-                  y * Camera->viewMatrix.up.z)));
-    output_x =
-        (float)raster->width *
-            ((Camera->viewMatrix.pos.x +
-              (z * Camera->viewMatrix.at.x +
-               (x * Camera->viewMatrix.right.x +
-                y * Camera->viewMatrix.up.x))) *
-             reciprocal_depth) +
+    projected_z = Camera->viewMatrix.pos.z +
+        (z * Camera->viewMatrix.at.z +
+         (x * Camera->viewMatrix.right.z + y * Camera->viewMatrix.up.z));
+    projected_y = Camera->viewMatrix.pos.y +
+        (z * Camera->viewMatrix.at.y +
+         (x * Camera->viewMatrix.right.y + y * Camera->viewMatrix.up.y));
+    projected_x = Camera->viewMatrix.pos.x +
+        (z * Camera->viewMatrix.at.x +
+         (x * Camera->viewMatrix.right.x + y * Camera->viewMatrix.up.x));
+    reciprocal_depth = 1.0f / projected_z;
+    output_x = (float)raster->width * (projected_x * reciprocal_depth) +
         (float)raster->offsetX;
-    output_y =
-        (float)height -
-        ((float)height *
-             ((Camera->viewMatrix.pos.y +
-               (z * Camera->viewMatrix.at.y +
-                (x * Camera->viewMatrix.right.y +
-                 y * Camera->viewMatrix.up.y))) *
-              reciprocal_depth) +
-         (float)raster->offsetY);
+    output_y = (float)height -
+        ((float)height * (projected_y * reciprocal_depth) + (float)raster->offsetY);
     screen->x = output_x;
     screen->y = output_y;
 }
@@ -1801,18 +1796,29 @@ static RpMaterial* set_material_alpha(RpMaterial* material, void* data) {
     return material;
 }
 
+/* TODO: [breakthrough needed] 63.76650%; vector initializer pooling/register roles
+ * and two XZ difference schedules still differ from retail. */
 static int is_shape_in_frustum(const Vec* position,
                                const CollisionShape* shape) {
-    Vec from_center_to_position = {0.0f, 0.0f, 0.0f};
-    Vec from_player_1_to_position = {0.0f, 0.0f, 0.0f};
-    Vec from_player_2_to_position = {0.0f, 0.0f, 0.0f};
-    Vec center = {0.0f, 0.0f, 0.0f};
-    Vec closest = {0.0f, 0.0f, 0.0f};
-    Vec from_center_to_closest = {0.0f, 0.0f, 0.0f};
+    Vec from_center_to_position;
+    Vec from_player_1_to_position;
+    Vec from_player_2_to_position;
+    Vec center;
+    Vec closest;
+    Vec from_center_to_closest;
     float projection;
     float player_dot;
     float player_1_dot;
     float player_2_dot;
+    float position_x;
+    float position_z;
+
+    from_center_to_position = (Vec){0.0f, 0.0f, 0.0f};
+    from_player_1_to_position = (Vec){0.0f, 0.0f, 0.0f};
+    from_player_2_to_position = (Vec){0.0f, 0.0f, 0.0f};
+    from_center_to_closest = (Vec){0.0f, 0.0f, 0.0f};
+    center = (Vec){0.0f, 0.0f, 0.0f};
+    closest = (Vec){0.0f, 0.0f, 0.0f};
 
     switch (shape->type & 7) {
     case 3:
@@ -1831,12 +1837,14 @@ static int is_shape_in_frustum(const Vec* position,
         break;
     }
 
-    from_center_to_position.x = position->x - center.x;
-    from_center_to_position.z = position->z - center.z;
+    position_x = position->x;
+    position_z = position->z;
+    from_center_to_position.x = position_x - center.x;
+    from_center_to_position.z = position_z - center.z;
     from_player_1_to_position.x =
-        position->x - g_game_info.plyr0.slot.mirror_a->pos.value.x;
+        position_x - g_game_info.plyr0.slot.mirror_a->pos.value.x;
     from_player_1_to_position.z =
-        position->z - g_game_info.plyr0.slot.mirror_a->pos.value.z;
+        position_z - g_game_info.plyr0.slot.mirror_a->pos.value.z;
     if (xz_dot_xz(&from_center_to_position,
                   &from_player_1_to_position) <= 0.0f) {
         return 0;
@@ -1889,6 +1897,7 @@ static int is_shape_in_frustum(const Vec* position,
     }
     return 0;
 }
+
 
 /* TODO: [near miss] 92.5%; upper-bound guard fuses to bgtlr; retail uses ble then blr. */
 void toggle_danger_zone(int index) {
@@ -3308,7 +3317,7 @@ void cam_calc_right_at_up_offsets(const Vec* position, float* forward_offset,
     *up_offset = cam_up_uv.x * delta.x + cam_up_uv.y * delta.y + cam_up_uv.z * delta.z;
 }
 
-float get_volume_from_distance(const Vec* position, float far_distance,
+float get_volume_from_distance(Vec* position, float far_distance,
                                float near_distance) {
     CameraObj* camera;
     float volume = 0.0f;
@@ -3326,7 +3335,7 @@ float get_volume_from_distance(const Vec* position, float far_distance,
     return volume;
 }
 
-float get_pan_value(const Vec* position) {
+float get_pan_value(Vec* position) {
     CameraObj* camera;
     Vec direction;
     Vec forward = {0.0f, 0.0f, 0.0f};
@@ -4012,7 +4021,7 @@ void camera_set_lookat_offset_explicit(float x, float y, float z) {
     scripted_camera_data.lookat_offset.y = y;
 }
 
-void camera_set_lookat_offset_obj_rel(const Vec* offset, void* script_args) {
+void camera_set_lookat_offset_obj_rel(Vec* offset, void* script_args) {
     MkObj* focus = scripted_camera_data.lookat_focus;
 
     if (focus != 0) {
@@ -4051,30 +4060,30 @@ float camera_get_pos(unsigned int axis) {
     return position;
 }
 
-/* TODO: [near miss] 59.36%; XZ selection matches; Vec stack slots, FPR and latch scheduling differ. */
 void find_best_conversation_camera_position(void) {
-    MkObj* focus = scripted_camera_data.lookat_focus;
-    struct InteractionNpc* npc = MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance);
-    Vec focus_to_npc = {0.0f, 0.0f, 0.0f};
+    Vec focus_to_hero = {0.0f, 0.0f, 0.0f};
     Vec camera_to_focus = {0.0f, 0.0f, 0.0f};
+    MkObj* focus = scripted_camera_data.lookat_focus;
+    MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
     Vec right_offset;
     Vec left_offset;
     Vec right_hit;
     Vec left_hit;
     Vec right_position;
     Vec left_position;
+    float right_distance;
 
-    if (focus != 0 || npc != 0) {
-        uv_v3_to_v3(&focus_to_npc, &focus->pos.value, &npc->pos);
-        focus_to_npc.y = 0.0f;
+    if (focus != 0 || hero != 0) {
+        uv_v3_to_v3(&focus_to_hero, &focus->pos.value, &hero->pos.value);
+        focus_to_hero.y = 0.0f;
         uv_v3_to_v3(&camera_to_focus, &camera_obj->pos, &focus->pos.value);
         camera_to_focus.y = 0.0f;
 
-        focus_to_npc.x *= 1.15f;
-        focus_to_npc.y *= 1.15f;
-        focus_to_npc.z *= 1.15f;
-        rotate_xz(&right_offset, &focus_to_npc, 0.45f);
-        rotate_xz(&left_offset, &focus_to_npc, -0.45f);
+        focus_to_hero.x = 1.15f * focus_to_hero.x;
+        focus_to_hero.y = 1.15f * focus_to_hero.y;
+        focus_to_hero.z = 1.15f * focus_to_hero.z;
+        rotate_xz(&right_offset, &focus_to_hero, 0.45f);
+        rotate_xz(&left_offset, &focus_to_hero, -0.45f);
 
         right_position.x = focus->pos.value.x + right_offset.x;
         right_position.z = focus->pos.value.z + right_offset.z;
@@ -4083,34 +4092,30 @@ void find_best_conversation_camera_position(void) {
 
         if (repel_point_against_global_collision_list_toward_target(
                 &right_position, &focus->pos.value, &right_hit, 0x10002)) {
-            right_position = right_hit;
+            gxVectCopy(&right_position, &right_hit);
         }
         if (repel_point_against_global_collision_list_toward_target(
                 &left_position, &focus->pos.value, &left_hit, 0x10002)) {
-            left_position = left_hit;
+            gxVectCopy(&left_position, &left_hit);
         }
 
-        if (dist_xz_to_xz(&camera_obj->pos, &right_position) <
-            dist_xz_to_xz(&camera_obj->pos, &left_position)) {
+        right_distance = dist_xz_to_xz(&camera_obj->pos, &right_position);
+        if (right_distance < dist_xz_to_xz(&camera_obj->pos, &left_position)) {
             right_position.x -= focus->pos.value.x;
+            right_position.z -= focus->pos.value.z;
             right_position.y = 0.7f;
             right_position.y += g_game_info.field_34;
-            right_position.z -= focus->pos.value.z;
-            scripted_camera_data.movement_offset.x = right_position.x;
-            scripted_camera_data.movement_offset.y = right_position.y;
-            scripted_camera_data.movement_offset.z = right_position.z;
+            gxVectCopy(&scripted_camera_data.movement_offset, &right_position);
         } else {
             left_position.x -= focus->pos.value.x;
+            left_position.z -= focus->pos.value.z;
             left_position.y = 0.7f;
             left_position.y += g_game_info.field_34;
-            left_position.z -= focus->pos.value.z;
-            scripted_camera_data.movement_offset.x = left_position.x;
-            scripted_camera_data.movement_offset.y = left_position.y;
-            scripted_camera_data.movement_offset.z = left_position.z;
+            gxVectCopy(&scripted_camera_data.movement_offset, &left_position);
         }
 
-        if (camera_to_focus.x * focus_to_npc.x +
-                camera_to_focus.z * focus_to_npc.z >
+        if (camera_to_focus.x * focus_to_hero.x +
+                camera_to_focus.z * focus_to_hero.z >
             0.0f) {
             scripted_camera_data.glitch = 1;
             camera_info.pdata->flags_bits.konquest_mode = 1;
@@ -4237,7 +4242,7 @@ void camera_set_movement_offset_explicit(float x, float y, float z) {
     scripted_camera_data.movement_offset.y = y;
 }
 
-void camera_set_movement_offset_obj_rel(const Vec* offset, void* script_args) {
+void camera_set_movement_offset_obj_rel(Vec* offset, void* script_args) {
     MkObj* focus = scripted_camera_data.movement_focus;
 
     if (focus != 0) {

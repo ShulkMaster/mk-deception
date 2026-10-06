@@ -216,7 +216,7 @@ static void render_player_joints(PlayerCollisionData* collision);
 static float p_collision_update(void);
 static void update_players_collision_nodes(void);
 void render_col_shape(
-    const CollisionShape* shape, const unsigned int* color);
+    CollisionShape* shape, const unsigned int* color);
 static void build_col_shape_vertical_box_from_corners(
     CollisionShape* shape, const Vec* corner_0, const Vec* corner_1,
     const Vec* corner_2, const Vec* corner_3);
@@ -682,7 +682,7 @@ void generate_shadow_collision_objects(int handle, unsigned int art_oid) {
 
 
 int segment_against_obstacle_list(
-    const Vec* start, const Vec* end, Vec* hit_point, MkPtr** obstacle_list) {
+    Vec* start, Vec* end, Vec* hit_point, MkPtr** obstacle_list) {
     MkPtr* obstacle_item;
     ArenaObstacle* obstacle;
     MkPtr* collision_item;
@@ -1065,7 +1065,7 @@ void destroy_konquest_shadow_collision_lists(void) {
 }
 
 int collide_segment_against_global_collision_list_quads(
-    const Vec* start, const Vec* end, Vec* hit_point) {
+    Vec* start, Vec* end, Vec* hit_point) {
     MkPtr* next;
     CollisionObj* collision;
     MkPtr* item;
@@ -1117,7 +1117,7 @@ int collide_segment_against_global_collision_list_quads(
 }
 
 int repel_point_against_global_collision_list_toward_target(
-    const Vec* target, const Vec* start, Vec* result_point,
+    Vec* target, Vec* start, Vec* result_point,
     unsigned int ignored_flags) {
     CollisionObj* collision;
     MkPtr* next;
@@ -1173,7 +1173,7 @@ int repel_point_against_global_collision_list_toward_target(
 }
 
 int collide_segment_against_global_collision_list(
-    const Vec* start, const Vec* end, Vec* hit_point,
+    Vec* start, Vec* end, Vec* hit_point,
     unsigned int ignored_flags) {
     CollisionObj* collision;
     MkPtr* item;
@@ -2616,9 +2616,9 @@ void build_col_shape_vertical_cylinder(
     }
 }
 
-/* TODO: [breakthrough] 74.27%; output/input vector flow and unsigned colors recovered; radius caching adds an FPR/frame save. */
+/* TODO: [breakthrough] 85.26%; mutable shape aliasing recovered; inspect remaining transform-loop codegen. */
 void render_col_shape(
-    const CollisionShape* shape, const unsigned int* color) {
+    CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[16];
     RwIm3DVertex* vertex;
     const unsigned char* color_channels;
@@ -3590,7 +3590,7 @@ void render_collision_regions(void) {
 }
 
 static inline void collision_render_sphere_outline(
-    const CollisionShape* shape, const unsigned int* color) {
+    CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[16];
     RwIm3DVertex* vertex;
     const unsigned char* color_channels;

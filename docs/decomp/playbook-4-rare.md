@@ -88,6 +88,11 @@ inline `asm {}` helper (GX `Copy6Floats`, `WriteMTXPS*`) -> wrap sequence
 functions in `#pragma push` ... `#pragma pop`. Retail had real `asm`
 functions (OSCache, OSExec, OSTime, ai) -> leak is authentic; remove old
 `#pragma peephole off` / `-opt nopeephole` workarounds.
+- Function-level `asm` sets peephole off and never restores it. Each asm
+  statement starts a new basic block. Physical regs named in asm are
+  reserved (one fewer colour, skipped by nonvolatile ladder). Asm-touched
+  vars never lifetime-split, never scalar-replaced. Optimizer disabled for the
+  whole function only by side-effect/branch/`bl` asm.
 
 ## N12
 
@@ -129,7 +134,10 @@ After the applicable honest source check, stop at:
   - Virtual numbers: params first in decl order (`p1 < p2 < p3`, measured),
     named locals next in reverse decl order (block-scoped lowest), then
     front-end temps (inline copies, split ranges, inline result joins), then
-    codegen temps.
+    pooled section/string base used more than once (one slot), then codegen
+    temps (forward), then BE vregs (SR IVs, CTR counters, spill reloads).
+    Single-use pooled base = emission temp at its use. Entry `lis`/`addi`
+    section base numbers before codegen temps.
   - Web kinds, in number order (captured, replay exact, `pz_ai_decide_match`):
     block-scoped named (reverse decl) < function-scoped named (reverse decl)
     < 2nd+ webs of a variable (groups in reverse source order of the
@@ -138,8 +146,11 @@ After the applicable honest source check, stop at:
     bases; reverse source) < `?:`/`&&`-mask results and inline-helper
     locals/results (reverse source) < plain emission temps (forward). A named
     local assigned once from a `?:` or an inline result is propagated away and
-    lives on as that temp. Coalesced temp-temp copy (helper `c = type` with a
-    temp argument) = never-pushed node, +1 degree on every neighbour.
+    lives on as that temp. Multi-def local: 2nd webs from in-place copy
+    (`x = src; x = c(x) ? x : 0`) number forward; direct `x = c ? src : 0`
+    webs number in reverse source order (`p_fish_attack`). Coalesced
+    temp-temp copy (helper `c = type` with a temp argument) = never-pushed
+    node, +1 degree on every neighbour.
   - Several long-lived saved homes rotated (param, flag, call result, two
     hoisted array bases): all mutually adjacent, pushed ascending once degree
     < 29 in sweep 2. A web scanned at number N stays unpushed iff 12 physical
@@ -159,17 +170,39 @@ After the applicable honest source check, stop at:
     variable ownership so a loop's row/column/cell webs are first webs or
     splits in the needed group order. Levers interact through the threshold:
     measure each alone and in the combination.
+  - Named-local rotation (several saved homes permuted, no stall): one
+    "first-init order" decl check is not exhaustive. Capture, map vregs to
+    names, write retail pop order, invert into per-sweep ascending push order,
+    then pick the decl permutation (reverse decl numbering) that yields it;
+    verify in scratch (`__VMSwapPageIn`, 8 locals, one try).
   - Simplify: each pass scans ascending, pushes every web with degree < free
     reg count (29), decrements neighbours at once. Select pops, takes lowest
     free colour claiming r31 downward -> two params pushed in one pass: later
-    gets higher reg.
+    gets higher reg. A later node reuses the lowest already-obtained
+    nonvolatile it doesn't conflict with (capture replay: 188/188 graphs
+    exact; "highest obtained" model fails 33).
   - Physical regs + coalesced webs never push, never decrement. Call result
     feeding a move (`x = call()` into multi-def var, inline `return 0 | return
     call()` join) = never-pushed node; one consumed by compare/shift is
     copy-propagated away, doesn't count.
   - Stall (no pushable web, both params at threshold): lowest spillCost/degree
-    pushed first (reads x2, writes x1, arg-init -1) -> param with fewest reads
-    ends lower (`immediate`: five `cmpwi`, cost 9; `drone` ~37).
+    pushed first -> param with fewest reads ends lower (`immediate`: five
+    `cmpwi`, cost 9; `drone` ~37). Cost = sum w*(read 2; 1 under `,s` or for
+    an `li`/`lis` remat web) + sum w*(write 1; -1 for remat def or arg-init),
+    w = 8 per enclosing loop (1 under `,s`). `addi` off a `lis` vreg is NOT
+    remat. Coalesced nodes cost 0. Ties -> highest vreg. Nodes made by an
+    earlier spill round never picked; reload temps are new top vregs
+    (`pfx_glass_break_run`: captured costs = model on 133 webs).
+  - Spill set right, slots/colours wrong: spilled named locals get own slots
+    in ascending vreg = reverse decl order. Read decl order of spilled locals
+    from retail slot offsets; split decls from assignments to realise it
+    (`pfx_glass_break_run`).
+  - Entry section/pool base (BE-CSE'd `lis`/`addi`) takes a higher
+    nonvolatile than retail, no stall: spill cost irrelevant. Base pushes in
+    sweep 1 iff its degree < 29 = physical + unpushed long webs + codegen
+    temps numbered above it in its range. TRY honest moves of enough codegen
+    temps into named/FE webs; `+0` self-redefinitions are dishonest
+    (`MWSFSFX_CnvFrmInfToSfx`: RE4 form exact, not landed).
   - Probes (scratch only, not honest source), report entry `mr` pair: 20 extra
     reads of cheap param via global store (no new long-lived web) flips pair
     -> proves stall; deleting one never-pushed neighbour where both live flips
@@ -183,7 +216,11 @@ After the applicable honest source check, stop at:
     stop unless a never-pushed neighbour can be removed with same stream.
   - Never-pushed neighbour = higher-numbered side of every coalesced move
     (`coalescenodes` keeps its matrix row). Coalesce only temp<->temp or
-    any<->physical. Nested inline helper `return inner(...);` = move between
+    any<->physical. Temp = vreg in [`first_fe_temporary_register`,
+    `last_temporary_register`]: named locals/args never coalesce virtually
+    (surviving vreg-vreg `mr` has a named or BE side); BE vregs above
+    `last_temporary_register` only with physical (the first BE vreg, equal
+    to it, can still coalesce with temps). Nested inline helper `return inner(...);` = move between
     two front-end result temps -> one stale node per expansion. Flat helper
     (return expr computed straight into its own result temp) -> none.
   - Closed (`drone_ai_check_attack`): both params at 29 = 12 physical + each
@@ -199,7 +236,11 @@ After the applicable honest source check, stop at:
     0x57bfb0 (pcode before coalesce), `simplifygraph` 0x5088d0 (graph),
     `rewritepcode` 0x508680 (colours). Globals: `interferencegraph` 0x5ea768,
     `coloring_class` 0x5ef2cf (GPR = 4), `used_virtual_registers[]` 0x5eaa2c,
-    `n_real_registers[]` 0x5ea710, `pcbasicblocks` 0x5ea748. IGNode (pack 2):
+    `n_real_registers[]` 0x5ea710, `pcbasicblocks` 0x5ea748,
+    `first_fe_temporary_register` 0x5ef210 (short[class]),
+    `last_temporary_register` 0x5ea640 (int[class]): classify webs as
+    named / FE+codegen temp / BE before choosing a lever. Spill rounds:
+    capture pass 1 graph too. IGNode (pack 2):
     next 0, spillTemp 4, cost 0xc, degree 0x12, reg 0x14, flags 0x16 (pushed
     2, coalesced 4), count 0x18, neighbours 0x1a. PCode: next 0, op 0x20,
     argCount 0x22, args 0x24 x 12 bytes (kind 0, class 1, reg 4); block
@@ -210,7 +251,14 @@ After the applicable honest source check, stop at:
   web-kind check + pragma-free H05 mechanism measured
   (`drone_ai_victim_avoid` closed from recorded 99.44 ceiling: `opt_common_subs
   off` -> address-taken sqrt input + direct global reads).
-- `li 0` vs copy of already-zero reg; commutative scratch encodings.
+- Commutative scratch encodings. (`li 0` vs copy of a zero reg is a web-kind
+  lever: H15 zero copy, H11 join zero.)
+- BE add propagation folding in-place reads onto a param register, survives
+  every scoped `opt_*` pragma (`SFHDS_SetHdr`).
+- Retail codeless `bcc next; b target` where ours inverts to `bcc target`,
+  donor pins it with asm no-op: front end inverts `if (c) goto L1; goto L2;
+  L1:` unless a non-label statement sits between; no honest C statement
+  survives and emits nothing. Asm permission only (`SFPTS_ReadPtsQue`).
 - Frameless PLATFORM `mtlr`/`blrl` emission.
 - Anonymous reloc labels with verified identical payloads + targets. Equal
   ordinary scores not enough (wrong return constants scored equal); compare

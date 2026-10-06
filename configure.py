@@ -235,6 +235,10 @@ asm_sequence_inputs = [
     Path("build") / config.version / "asm" / path
     for path in [
         "mk_proc.s",
+        "Runtime.PPCEABI.H.a/Gecko_setjmp.s",
+        "Runtime.PPCEABI.H.a/runtime.s",
+        "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s",
+        "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s",
         "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.s",
         "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk_glue.s",
         "TRK_MINNOW_DOLPHIN.a/MetroTRK/Processor/ppc/Generic/targimpl.s",
@@ -472,6 +476,16 @@ config.libs = [
                 Matching,
                 "Runtime.PPCEABI.H.a/global_destructor_chain.o",
                 source="runtime/global_destructor_chain.c",
+            ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/runtime.o",
+                source="runtime/runtime.c",
+            ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/Gecko_setjmp.o",
+                source="runtime/Gecko_setjmp.c",
             ),
             Object(
                 Matching,
@@ -948,7 +962,7 @@ config.libs = [
             Object(NonMatching, "mk_hwfile.o", source="runtime/mk_hwfile.c",
                    extra_cflags=["-inline off", "-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
-                   extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
             Object(Matching, "mk_vtbl.o", source="runtime/mk_vtbl.c"),
             Object(
@@ -1034,7 +1048,7 @@ config.libs = [
             Object(NonMatching, "mwMemFixed.o", source="mw/mwMemFixed.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mwMemNormal.o", source="mw/mwMemNormal.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto"]),
             Object(Matching, "mwMem.o", source="mw/mwMem.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2",
                                  "-str reuse,pool,readonly"]),
@@ -1059,7 +1073,7 @@ config.libs = [
             Object(NonMatching, "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "section_config.o", source="runtime/section_config.c"),
-            Object(NonMatching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
+            Object(NonMatching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s", "-inline noauto"]),
             Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -1088,7 +1102,7 @@ config.libs = [
             Object(Matching, "mcardmsg.o", source="game/mcardmsg.c",
                    extra_cflags=["-str reuse,pool,readonly"]),
             Object(NonMatching, "memcard.o", source="game/memcard.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
             Object(NonMatching, "sound.o", source="game/sound.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
@@ -1814,12 +1828,13 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.c",
-                extra_cflags=["-sdata 0", "-sdata2 0", "-inline noauto"],
+                extra_cflags=["-sdata 0", "-sdata2 0", "-inline noauto", "-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.c",
+                extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
@@ -1894,12 +1909,13 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_mcy.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_mcy.c",
+                extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.c",
-                extra_cflags=["-inline noauto", "-use_lmw_stmw", "on"],
+                extra_cflags=["-inline noauto", "-use_lmw_stmw", "on", "-sdata2 0"],
             ),
             Object(
                 Matching,
@@ -2227,7 +2243,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileServer.o",
                 source="mw/mwFileServer.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto"],
             ),
             Object(
                 NonMatching,
@@ -2269,7 +2285,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileMount.o",
                 source="mw/mwFileMount.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto"],
             ),
             Object(
                 NonMatching,
@@ -2355,7 +2371,7 @@ config.libs = [
                 NonMatching,
                 "libmsl.a/mslSoundBuffer.o",
                 source="libmsl/mslSoundBuffer.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=["-use_lmw_stmw on", "-inline auto,deferred"],
             ),
             Object(
                 NonMatching,
@@ -2572,7 +2588,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx_memory.o",
                 source="libmkparticle/pfx_memory.c",
-                extra_cflags=["-schedule off", "-inline noauto"],
+                extra_cflags=["-schedule off", "-inline noauto", "-opt nopeephole"],
             ),
             Object(
                 Matching,
@@ -2664,7 +2680,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/random.o",
                 source="libmkparticle/random.c",
-                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off"],
+                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-inline noauto", "-opt nopeephole"],
             ),
             Object(
                 Matching,

@@ -109,7 +109,8 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 57.88%; exact size and operations; specificity-mask load order (retail starts with year) cascades into GPR/scheduling differences. */
+/* TODO: [near miss] 57.88%; specificity-mask schedule/frame and GPR allocation differ;
+ * const checks regress; stop at codegen without a new lifetime hypothesis. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
     int month_a;

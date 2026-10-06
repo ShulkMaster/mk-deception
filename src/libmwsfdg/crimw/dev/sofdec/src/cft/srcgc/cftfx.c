@@ -1,40 +1,9 @@
 #include "dolphin/types.h"
 #include "sofdec/cft.h"
+#include "sofdec/mws_ycc.h"
 
 typedef float CFTMtx3D[3][3];
 typedef unsigned char CFTConvTable[256];
-typedef float CFTArgbTable[3][256][4];
-
-typedef struct CFTYcc420Planar {
-    const u8* y;
-    const u8* cb;
-    const u8* cr;
-    s32 y_stride;
-    s32 cb_stride;
-    s32 cr_stride;
-} CFTYcc420Planar;
-
-typedef struct CFTArgb8888Output {
-    u8* data;
-    s32 width;
-    s32 height;
-    s32 stride;
-} CFTArgb8888Output;
-
-typedef struct CFTYccPlanes {
-    u32* y;
-    u16* cb;
-    u16* cr;
-    s32 y_pitch;
-    s32 c_pitch;
-    s32 c_height;
-} CFTYccPlanes;
-
-typedef char CFTYcc420PlanarSizeCheck[
-    sizeof(CFTYcc420Planar) == 0x18 ? 1 : -1];
-typedef char CFTArgb8888OutputSizeCheck[
-    sizeof(CFTArgb8888Output) == 0x10 ? 1 : -1];
-typedef char CFTYccPlanesSizeCheck[sizeof(CFTYccPlanes) == 0x18 ? 1 : -1];
 
 extern void CFT_MakeInvConvTableCustom(CFTConvTable luma,
                                        CFTConvTable chroma_u,
@@ -42,8 +11,6 @@ extern void CFT_MakeInvConvTableCustom(CFTConvTable luma,
 extern void CFT_MakeInverseMtx3D(CFTMtx3D matrix, CFTMtx3D inverse);
 extern void CFT_MakeMtx3D(CFTMtx3D left, CFTMtx3D right,
                           CFTMtx3D product);
-extern void mwPlyCalcYccPlane(const void* source, s32 width, s32 height,
-                              CFTYccPlanes* planes);
 
 static CFTMtx3D cft_rgb_yuv_coeff = {
     {0.30078125f, 0.5859375f, 0.11328125f},
@@ -118,7 +85,7 @@ void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
 /* TODO: [breakthrough needed] 99.93%; body agrees; BSS first-use evidence for discarded preparation helper is missing. */
 void CFT_MakeYcc422ColAdjTbl(void* table)
 {
-    u32* alpha_high = (u32*)table;
+    u32* alpha_high = table;
     u32* alpha_low = alpha_high + 256;
     u32* chroma_high = alpha_low + 256;
     u32* chroma_low = chroma_high + 256;
@@ -147,7 +114,7 @@ void CFT_MakeYcc422ColAdjTbl(void* table)
         value = y_coefficient * (float)cft_conv_y_itbl[index] + 16.5f;
         if (value < 0.0f) value = 0.0f;
         if (value > 255.0f) value = 255.0f;
-        converted = (u32)value;
+        converted = value;
         alpha_high[index] = converted << 24;
         alpha_low[index] = converted << 8;
 
@@ -155,21 +122,21 @@ void CFT_MakeYcc422ColAdjTbl(void* table)
                 (u_coefficient * (float)cft_conv_u_itbl[index] - u_offset);
         if (value < 0.0f) value = 0.0f;
         if (value > 255.0f) value = 255.0f;
-        converted = (u32)value;
+        converted = value;
         chroma_high[index] = converted << 16;
 
         value = 128.5f +
                 (v_coefficient * (float)cft_conv_v_itbl[index] - v_offset);
         if (value < 0.0f) value = 0.0f;
         if (value > 255.0f) value = 255.0f;
-        converted = (u32)value;
+        converted = value;
         chroma_low[index] = converted;
     }
 }
 
 static inline u32 cftMakeAlphaPair(u32 first, u32 second)
 {
-    return ((u32)first << 24) | ((u32)second << 8);
+    return (first << 24) | (second << 8);
 }
 
 static inline const u8* cftApplyDynamicAlphaRow(
@@ -183,30 +150,35 @@ static inline const u8* cftApplyDynamicAlphaRow(
     return source + 4;
 }
 
-/* TODO: [breakthrough] 59.388490%; promoted table values and a consumed row
- * cursor recover more retail setup; row-pointer/packing schedule still differs. */
+/* TODO: [breakthrough] 61.77%; full tile rewind and loop snapshots recovered;
+ * row-pointer and pair-packing schedule still differs. */
 static void cnvDynamicYcc420plnToA256UserTable(
     const CFTYcc420Planar* source,
     const CFTArgb8888Output* destination,
     const u8* table)
 {
+    s32 source_rewind;
+    s32 output_row_advance;
+    const u8* row4;
     const u8* y = source->y;
-    u32* output = (u32*)destination->data;
-    s32 source_stride = source->y_stride;
-    s32 width = destination->width;
-    s32 width_in_blocks = width / 4;
-    s32 height_in_blocks = destination->height / 4;
-    s32 source_row_advance = source_stride * 3 + (source_stride - width);
-    s32 output_row_advance =
-        ((destination->stride - width) / 4) * 64;
+    const u8* row3;
     s32 block_y;
+    s32 block_x;
+    s32 width_in_blocks = destination->width / 4;
+    s32 height_in_blocks = destination->height / 4;
+    s32 source_stride = source->y_stride;
+    u32* output = (u32*)destination->data;
+    const u8* row2;
+    s32 source_row_advance;
+
+    source_rewind = source_stride * 4;
+    source_row_advance = source_stride * 3 +
+                         (source_stride - destination->width);
+    output_row_advance =
+        ((destination->stride - destination->width) / 4) * 64;
 
     for (block_y = 0; block_y < height_in_blocks; block_y++) {
-        s32 block_x;
         for (block_x = 0; block_x < width_in_blocks; block_x++) {
-            const u8* row2;
-            const u8* row3;
-            const u8* row4;
             s32 row_jump = source_stride - 4;
 
             row2 = cftApplyDynamicAlphaRow(output, y, table);
@@ -216,7 +188,9 @@ static void cnvDynamicYcc420plnToA256UserTable(
             row4 = cftApplyDynamicAlphaRow(output + 4, row3, table);
             row4 += row_jump;
             y = cftApplyDynamicAlphaRow(output + 6, row4, table);
-            y -= source_stride * 3;
+            y += row_jump;
+            y -= source_rewind;
+            y += 4;
             output += 16;
         }
         y += source_row_advance;
@@ -324,7 +298,7 @@ static inline void cftStorePixelQuad(
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {
-    CFTYccPlanes planes;
+    MwsYccPlane planes;
     u8* y0;
     u8* y1;
     u16* cb;
@@ -342,9 +316,9 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     u16 chroma_u;
     u16 chroma_v;
 
-    mwPlyCalcYccPlane(source, width, height, &planes);
+    mwPlyCalcYccPlane((void*)source, width, height, &planes);
     blocks_across = width / 4;
-    y0 = (u8*)planes.y;
+    y0 = planes.y;
     chroma_base = planes.cb;
     y1 = (u8*)planes.y +
         ((((unsigned long)chroma_base - (unsigned long)planes.y) >> 1) & ~3UL);
@@ -354,7 +328,7 @@ void CFT_Argb420ToArgb8(const void* source, void* destination,
     blocks_down = height / 4;
     output1 = output0 + 8;
     y_step = planes.y_pitch & ~3;
-    c_step = planes.c_pitch & ~1;
+    c_step = planes.cb_pitch & ~1;
     y_rewind = y_step * 2;
 
     for (block_y = 0; block_y < blocks_down; block_y++) {

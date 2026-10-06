@@ -8,7 +8,13 @@ typedef struct PfxBuildInfo {
     int behavior_count;             /* +0x00 */
     int metrics_frame_count;        /* +0x04 */
     int emitter_count;              /* +0x08 */
-    unsigned int flags;             /* +0x0C */
+    union {
+        unsigned int flags;
+        struct {
+            signed char emitter_user_data : 1;
+            unsigned char reserved : 7;
+        } flag_bits;
+    };                             /* +0x0C */
     int emitter_user_data_size;     /* +0x10 */
     int particle_user_data_size;    /* +0x14 */
     char* name;

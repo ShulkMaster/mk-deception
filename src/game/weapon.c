@@ -943,7 +943,7 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 97.83%; operations/CFG agree; nonvolatile owner-register allocation remains. */
+/* TODO: [near miss] 98.17%; unsigned chain terminator agrees; stop at nonvolatile owner-register coloring. */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
@@ -999,7 +999,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     }
     chain_root = definition->trail_chain_roots;
     if (chain_root != 0) {
-        while (*chain_root != 0) {
+        while (*chain_root != 0U) {
             trail_bone = trail_model->bones[*chain_root];
             if (trail_bone == 0) {
                 goto invalid_trail;

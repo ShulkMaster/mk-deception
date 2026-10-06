@@ -1,10 +1,11 @@
 #include "sofdec/mpv_mc.h"
+#include "sofdec/mpv_abdec.h"
 #include "runtime/cstring.h"
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/cache.h"
 #include "sofdec/uty_mem.h"
 
-typedef struct MPVLibWork {
+struct MPVLibWork {
     int conditions[17];
     u32 field_44;
     u32 flags;
@@ -12,7 +13,7 @@ typedef struct MPVLibWork {
     void* index_work;
     int handle_count;
     MPVContext* handles;
-} MPVLibWork;
+};
 
 void MPV_MbCbFn(void);
 
@@ -23,7 +24,7 @@ static const int mpvlib_cond_dfl[17] = {
     0, 1, 1, 0, 0, 0, 3, 0x7FFFFFFF, (int)MPV_MbCbFn,
     0, 0, 0, 0, 0, 0, 0, 0x5A5A5A5A
 };
-const int mpvlib_siz_mpvwork = sizeof(MPVLibWork);
+const int mpvlib_siz_mpvwork = sizeof(struct MPVLibWork);
 const int mpvlib_siz_mpvobj = MPV_DECODER_VERSION_SIZE;
 const int mpvlib_siz_mpvixa = 0x1C60;
 
@@ -33,7 +34,7 @@ u8* mpv_clip_0_255_base;
 static MPVContext* mpvlib_mpvobj;
 void* mpvlib_oix;
 void* mpvlib_iix;
-static MPVLibWork mpvlib_libwork;
+static struct MPVLibWork mpvlib_libwork;
 static const char* cri_verstr_ptr;
 
 extern u32* mpvvlc_run_level_8;
@@ -62,12 +63,9 @@ extern void MPVVLC_Init(void* work, MPVContext* decoder);
 extern void MPVBDEC_Init(void* context);
 extern int MPVDEC_CheckVersion(const char* version, int object_size,
                                int picture_attribute_size);
-extern int MPVABDEC_IntraBlock(void* context, void* block);
-extern int MPVABDEC_NintraBlock(void* context, void* block);
 extern void MPV_SetUsrSj(MPVContext* handle, int index, void* stream,
                          void (*callback)(void* argument, int index),
                          void* callback_argument);
-void MPV_MbCbFn(void);
 static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes);
 
 static inline int mpvlib_CheckHandle(MPVContext* handle)
@@ -204,7 +202,8 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     handle->field_18C = 0;
 
     UTY_MemcpyDword((unsigned int*)handle->condition_state.conditions,
-                    (unsigned int*)mpvlib_libwork.conditions, 16);
+                    (unsigned int*)mpvlib_libwork.conditions,
+                    sizeof(handle->condition_state.conditions) / sizeof(unsigned int));
     MPVERR_InitErrInf(&handle->error_info);
     MPVCMC_InitObj(handle);
     dct_params = &handle->dct_state;
@@ -350,7 +349,7 @@ int MPV_Init(int handle_count, void* work)
     } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
         error = MPVERR_SetCode(0, 0xFF03FF02);
     } else if (MPVDEC_CheckVersion(version_check,
-                                   MPV_DECODER_VERSION_SIZE, 0x80) != 0) {
+                                   MPV_DECODER_VERSION_SIZE, sizeof(MPVPictureAttributes)) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF07);
     } else {
         if (*(const u8*)&test_wrok != 1) {
@@ -389,7 +388,8 @@ int MPV_Init(int handle_count, void* work)
     }
 
     UTY_MemcpyDword((unsigned int*)mpvlib_libwork.conditions,
-                    (unsigned int*)mpvlib_cond_dfl, 16);
+                    (unsigned int*)mpvlib_cond_dfl,
+                    sizeof(handles->condition_state.conditions) / sizeof(unsigned int));
     mpvlib_libwork.field_4C = after_handles;
     mpvlib_libwork.index_work = index_work;
     mpvlib_libwork.handle_count = handle_count;
@@ -446,7 +446,8 @@ int MPV_Init(int handle_count, void* work)
     mpv_clip_0_255_base = mpv_clip_0_255_tbl + 0x180;
     if (index_work + 0x1860 != 0) {
         UTY_MemcpyDword((unsigned int*)(index_work + 0x1860),
-                        (unsigned int*)mpv_clip_0_255_tbl, 0x100);
+                        (unsigned int*)mpv_clip_0_255_tbl,
+                        sizeof(mpv_clip_0_255_tbl) / sizeof(unsigned int));
         mpv_clip_0_255_base = index_work + 0x19E0;
     }
 

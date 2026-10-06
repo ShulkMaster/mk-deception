@@ -1,4 +1,5 @@
 #include "sofdec/mpv_mc.h"
+#include "sofdec/mpv_abdec.h"
 #include "cri/mpv.h"
 #include "cri/sj.h"
 #include "runtime/cstdlib.h"
@@ -9,10 +10,6 @@ extern u8* mpvvlc_y_dcsiz;
 extern u8* mpvvlc_c_dcsiz;
 extern u8* mpvvlc2_y_dcsiz;
 extern u8* mpvvlc2_c_dcsiz;
-extern int MPVABDEC_IntraBlock(void* context, void* block);
-extern int MPVABDEC_IntraBlockDc11(void* context, void* block);
-extern int MPVABDEC_NintraBlock(void* context, void* block);
-int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream);
 
 typedef void (*MPVMacroblockDecodeFunction)(MPVContext* context, SJ* stream);
 typedef void (*MPVMotionFunction)(MPVContext* context);
@@ -28,13 +25,10 @@ extern void MPVUMC_Intra(MPVContext* context);
 extern void MPVUMC_Forward(MPVContext* context);
 extern void MPVUMC_Backward(MPVContext* context);
 extern void MPVUMC_BiDirect(MPVContext* context);
-extern int MPVCDEC_IntraBlocks(void* context);
-extern int MPVCDEC_NintraBlocks(void* context);
 extern u8 mpvbdec_dfl_iqm[64];
 extern u8 mpvbdec_zigzag[64];
 extern void MPVDEC_ResetDc(MPVContext* context);
 extern void MPVDEC_ResetMv(MPVMotionInfo* motion);
-extern int MPVLIB_CheckHn(MPVContext* context);
 extern int MPVM2V_DecodePicAtr(MPVContext* context, SJ* stream);
 
 #define MPVHDEC_READ_BITS(value, count)                                       \
@@ -84,6 +78,17 @@ static MPVMotionFunction mc_backward_func[2][5];
 static MPVMotionFunction mc_forward_func[2][5];
 static MPVMotionFunction mc_intra_func[2][2][5];
 static MPVSkipFunction skip_func[2][5];
+
+void MPVHDEC_SetMcFunc(int dc11, int type, MPVMotionFunction bidirect,
+    MPVMotionFunction backward, MPVMotionFunction forward,
+    MPVMotionFunction intra, MPVSkipFunction skip)
+{
+    mc_bidirect_func[dc11][type] = bidirect;
+    mc_backward_func[dc11][type] = backward;
+    mc_forward_func[dc11][type] = forward;
+    mc_intra_func[0][dc11][type] = intra;
+    skip_func[dc11][type] = skip;
+}
 
 static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
 {
@@ -521,8 +526,8 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
     return bits;
 }
 
-/* TODO: [near miss] 99.26%; 2-D motion tables match; initial window copy (retail mr r7,r4),
- * 3-bit value r9/r7 and table-address scheduling residue remain. */
+/* TODO: [near miss] 99.28%; motion-table BSS order corrected; initial window copy,
+ * 3-bit value registers and table-address scheduling remain. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -723,7 +728,6 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     MPVHDEC_READ_BITS(value, 4);
     context->condition_state.picture.frame_rate_code = value;
     MPVHDEC_READ_BITS(context->bit_rate, 18);
-    /* Consume the marker bit; its value is not used by retail. */
     bit_offset++;
     if (bit_offset >= 32) {
         bit_offset -= 32;
@@ -743,7 +747,8 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
         }
     } else {
         UTY_MemcpyDword((unsigned int*)context->intra_quant_matrix,
-                        (unsigned int*)mpvbdec_dfl_iqm, 16);
+                        (unsigned int*)mpvbdec_dfl_iqm,
+                        sizeof(context->intra_quant_matrix) / sizeof(unsigned int));
     }
 
     MPVHDEC_READ_FLAG(value);
@@ -754,7 +759,8 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
         }
     } else {
         UTY_MemsetDword((unsigned int*)context->nonintra_quant_matrix,
-                        0x10101010, 16);
+                        0x10101010,
+                        sizeof(context->nonintra_quant_matrix) / sizeof(unsigned int));
     }
 
     context->condition_state.picture.macroblocks_per_row =
@@ -883,7 +889,6 @@ void MPV_SetUsrSj(MPVContext* context, int index, void* stream,
     user_stream->callback_argument = callback_argument;
 }
 
-/* TODO: [breakthrough needed] 99.83871%; retail static-array placement is mc_bidirect/mc_backward/mc_forward/mc_intra/skip, while MWCC preserves the current first-reference BSS order; declaration reordering was neutral. */
 void MPVHDEC_Init(void)
 {
     memset(skip_func, 0, sizeof(skip_func));

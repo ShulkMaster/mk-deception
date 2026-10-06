@@ -213,7 +213,7 @@ MkFileEntry* get_current_ssf_file(void) {
     return current_ssf.ssf_file;
 }
 
-/* TODO: [near miss] 90%; pooled rb address uses SDA; recover string-pool ownership. */
+/* TODO: [blocked] 94.44%; rb literal verified; recover file-table string-pool ownership for the large addend. */
 void load_ssf(MkFileEntry* ssf_entry) {
     MkHwFileRequest* hwfile;
 

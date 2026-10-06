@@ -267,14 +267,7 @@ void sec_slot_file_free_async(SecSlotFileEntry* file) {
     }
 }
 
-#pragma dont_inline on
-/* TODO: [near miss] 95.07%; queue-removal staging and owner register allocation differ. */
-void sec_slot_file_close_file(SecSlotFileEntry* file) {
-    SsfReq* request = file->async_req;
-
-    if (request == 0) {
-        return;
-    }
+static inline void sec_slot_file_close_request(SsfReq* request, SecSlotFileEntry* file) {
     if (request->file_entry != 0) {
         mk_file_close(request->file_entry);
         request->file_entry = 0;
@@ -319,7 +312,14 @@ void sec_slot_file_close_file(SecSlotFileEntry* file) {
         ssf_req_FreeList = request;
     }
 }
-#pragma dont_inline reset
+
+void sec_slot_file_close_file(SecSlotFileEntry* file) {
+    SsfReq* request = file->async_req;
+    if (request == 0) {
+        return;
+    }
+    sec_slot_file_close_request(request, file);
+}
 
 static SsfReq* sec_slot_file_open_file_async_withcallback(
     SecSlotFileEntry* file, SecSlot* slot, int field_0x1C, MkFileInfo* info,

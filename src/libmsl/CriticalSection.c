@@ -11,7 +11,6 @@ static int AddRequestingCS_ByThread(
 static void DebugDump_CriticalCodeSection(
     MslCriticalSection* context, const char* file, int line);
 
-/* Exact: retail owner assertion, recursion post-decrement, and unlock. */
 int LeaveCriticalCodeSection_DEBUG(
     MslCriticalSection* section, const char* file, int line) {
     int old_count;
@@ -41,10 +40,6 @@ int LeaveCriticalCodeSection_DEBUG(
     return old_count;
 }
 
-/*
- * Exact: retail mutex acquisition, waiter publication, dependency checks,
- * diagnostics, waiter cleanup, and recursion state.
- */
 int EnterCriticalCodeSection_DEBUG(
     MslCriticalSection* section, const char* file, int line) {
     void* thread;

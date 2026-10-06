@@ -2504,8 +2504,8 @@ static void pzpfx_copy_puzzleblocks(struct PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 99.87%; event_player/placement-index registers differ;
- * retail r3/r0/r6 coloring remains. */
+/* TODO: [near miss] 99.87%; six placement-index register rows remain;
+ * stop at coloring until new index-lifetime evidence appears. */
 static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     const struct PuzzleArtPlacement* preview_placement;
     const struct PuzzleArtPlacement* board_placement;

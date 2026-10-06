@@ -231,8 +231,7 @@ static void add_field_description(PfxFieldDescription* field,
     field->offset = offset;
 }
 
-/* TODO: [near miss] 97.24%; seven signed/unsigned mask-zero compares
- * and property-walk counter initialization remain. */
+/* TODO: [near miss] 99.66%; property-walk zero counter initialization remains; stop at coloring. */
 void fill_field_description(PfxFieldDescription* descriptions,
                             PfxFieldSet* fields, int parametric)
 {

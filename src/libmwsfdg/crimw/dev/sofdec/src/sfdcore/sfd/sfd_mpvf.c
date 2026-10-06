@@ -108,20 +108,18 @@ int SFMPVF_IsNextFrmReady(SfdHandle* handle)
     return sfmpvf_ReferNextFrmReady(handle) != 0;
 }
 
-/* TODO: [near miss] 98.68687%; RE4 lifetime and cached frame count recover the
- * retail CFG; only work/count and compare-temporary register coloring remains. */
 SfdMpvFrame* SFMPVF_HoldFrm(SfdHandle* handle, int* sole_frame)
 {
+    int frame_count;
+    int ready_count;
+    SfdMpvFrame* frame;
     SfdMpvFrameWork* work;
     SfdMpvFrame* selected;
-    SfdMpvFrame* frame;
-    int ready_count;
-    int frame_count;
-    int token;
     int i;
+    int token;
 
     SFLIB_LockCs(&token);
-    work = sfmpvf_GetWork(handle);
+    work = handle->transports[2].context;
     selected = 0;
     ready_count = 0;
     frame_count = work->frame_count;

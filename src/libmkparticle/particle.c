@@ -341,22 +341,26 @@ static int pfx_memory_is_set(PfxVm* pfx) {
     return pfx->typed_runtime_buffer_a != 0;
 }
 
-/* TODO: [breakthrough needed] 67.94%; audit retail field-require guards and flag publications. */
-void pfxvm_require_field(PfxVm* pfx, unsigned int field) {
+void pfxvm_require_field(PfxVm* pfx, int field) {
     PfxFieldSet fields;
     int changed;
 
+    changed = 0;
     fields.render_flags = pfx->flags_0x1D4;
     fields.particle_flags = pfx->flags_0x60;
-    add_field(&fields.render_flags, field);
+    add_field((unsigned int*)&fields.render_flags, field);
     if (field == 0x403) {
-        pfx->flags151 |= 0x40;
+        pfx->flag151_40 = 1;
     }
     if (field == 0x402) {
-        pfx->flags151 |= 0x20;
+        pfx->flag151_20 = 1;
     }
-    changed = fields.render_flags != pfx->flags_0x1D4 ||
-              fields.particle_flags != pfx->flags_0x60;
+    if (fields.render_flags != pfx->flags_0x1D4) {
+        changed = 1;
+    }
+    if (fields.particle_flags != pfx->flags_0x60) {
+        changed = 1;
+    }
     if (!pfx_memory_is_set(pfx) || !changed) {
         pfx->flags_0x1D4 = fields.render_flags;
         pfx->flags_0x60 = fields.particle_flags;
