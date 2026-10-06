@@ -102,6 +102,11 @@ allocation or compiler layout.
   Placeholder with matching fields can hide extra deref.
 - Recover canonical fields/arrays inside proven extents. Unproven gap = one
   width-correct offset-named reserved member; no invented split or union.
+- Retained subobject base accesses fields beyond its reconstructed extent:
+  REQUIRE known enclosing fields at those offsets and unchanged physical
+  layout. Move the real tail fields into the canonical subobject, update all
+  consumers, and recheck every green (`mk_chess_cursor_go_to_new_track`,
+  manager +0xD8). No padded view or magic-offset owner cast.
 - Wrong owner even at unchanged score: sparse overlay with padding standing in
   for pointers, sibling-type view, pointer in 32-bit int. Breaks wide-pointer
   builds. Use canonical typed slot/owner.
@@ -930,6 +935,11 @@ Inverse: retail branches directly from lazy call tests into the consumer,
 but an inline predicate adds `li 1/0; cmpwi`. REQUIRE identical call order
 and effects; TRY expanding the short-circuit condition only at that consumer,
 keeping the helper for other callers (`mcard_msg_crc_failure_rtn`).
+If every shared consumer has that direct lazy CFG, REQUIRE literal or otherwise
+side-effect-free repeated arguments and whole-TU non-regression. TRY a shared
+logical-OR macro used directly as the guard; `if (macro != 0)` can still
+materialize a saved Boolean (`mcard_msg_confirm_erase_rtn`). Preserve the
+individual consumers' independent versus mutually exclusive action checks.
 
 ## H20
 
