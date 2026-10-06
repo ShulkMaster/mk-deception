@@ -324,7 +324,7 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = 0xFF;
     attributes->field_64 = 0xFF;
 }
-/* TODO: [breakthrough needed] 73.28829%; probe and version are separate,
+/* TODO: [breakthrough needed] 74.11%; probe and version are separate,
  * but rodata order, initialization CFG, and locked-cache lowering still differ. */
 int MPV_Init(int handle_count, void* work)
 {

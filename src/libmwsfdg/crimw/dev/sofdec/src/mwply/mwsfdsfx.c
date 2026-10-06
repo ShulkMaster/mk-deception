@@ -295,8 +295,6 @@ void MWSFTAG_DestroyAinfSj(MwsPlayer* player)
     }
 }
 
-/* TODO: [near miss] 99.71429%; create flow agrees; residual is localized
- * allocation/base-register coloring. */
 SJ* MWSFTAG_CreateAinfSj(MwsPlayer* player)
 {
     SJ* sj;
@@ -328,8 +326,6 @@ int MWSFTAG_IsUseAinfSj(MwsPlayer* player)
     return 0;
 }
 
-/* TODO: [near miss] 99.68750%; typed plane updates agree; residual is
- * localized address-register coloring. */
 void mwPlyFxSetOutBufPitchHeight(MwsPlayer* player, int pitch, int height)
 {
     SFXHandle* sfx;

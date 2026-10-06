@@ -657,14 +657,11 @@ static void stopMoviePlay(_mwMovPlayer* player)
     player->player_handle->interface->stop(player->player_handle);
 }
 
-/* TODO: [breakthrough needed] 91.23%; header copy and +0x20 counter verified; the 0x38-byte transport
- * copy is a lwzu/stwu ctr block-move loop (what -O4,s emits) but TU-wide ,s regresses five siblings. */
+#pragma push
+#pragma optimize_for_size on
 static int executeMovieFrame(_mwMovPlayer* player)
 {
     MwsFrameOutput frame;
-    MwsTransportPair* destination;
-    MwsTransportPair* source;
-    int pairs_remaining;
 
     if (player == 0) {
         OSPanic(STR_FILE, 0x333, STR_ASSERT_PLAYER);
@@ -693,13 +690,7 @@ static int executeMovieFrame(_mwMovPlayer* player)
         player->frame.picture_user_data = frame.picture_user_data;
         player->frame.picture_user_size = frame.picture_user_size;
         player->frame.display_mode = frame.display_mode;
-        destination = player->frame.transport.pairs;
-        source = frame.transport.pairs;
-        pairs_remaining = sizeof(frame.transport.pairs) /
-                          sizeof(frame.transport.pairs[0]);
-        do {
-            *destination++ = *source++;
-        } while (--pairs_remaining != 0);
+        player->frame.transport = frame.transport;
         if (frame.display_time - player->previous_frame != 1) {
             MOVPRINT(STR_DROPPED_FRAMES, player->previous_frame,
                      frame.display_time);
@@ -710,6 +701,8 @@ static int executeMovieFrame(_mwMovPlayer* player)
     }
     return 0;
 }
+#pragma pop
+
 
 static void updatePlayerState(_mwMovPlayer* player)
 {

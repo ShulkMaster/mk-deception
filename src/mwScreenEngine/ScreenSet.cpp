@@ -7,7 +7,6 @@
 
 #define SCREEN_SET_ALLOC_TAG 0x494E4954
 
-/* TODO: [near miss] 82.86%; retail's "" literal comes from the .rodata string pool (TU data layout). */
 ScreenSet::ScreenSet() {
     m_numChildren = 0;
     m_parent = 0;
@@ -178,7 +177,6 @@ void ScreenSet::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     }
 }
 
-/* TODO: [near miss] 79.23%; retail "SS-Set" is @stringBase0+1 in .rodata, ours lands in .sdata (TU data layout). */
 void* ScreenSet::operator new(unsigned long size) {
     return ScreenUtil::Malloc(size, SCREEN_SET_ALLOC_TAG, "SS-Set");
 }

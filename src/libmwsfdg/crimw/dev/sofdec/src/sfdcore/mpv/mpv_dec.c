@@ -488,17 +488,19 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                             s32* output, s32* predictor)
 {
     u32 bits = reader->bits;
-    u32 next_bits = reader->next_bits;
     s32 bit_offset = reader->bit_offset;
+    u32 next_bits = reader->next_bits;
     const u32* words = reader->words;
     u32 code = bits >> 21;
-    s32 entry;
     s32 motion_code;
-    u32 code_length;
+    s32 entry;
+    u8 code_length;
     u32 residual;
     s32 delta;
     s32 scaled_code;
     int result = 0;
+    s32 r_size = motion->r_size;
+    s32 shift = motion->shift;
 
     if (bit_offset > 21) {
         code |= next_bits >> (53 - bit_offset);
@@ -526,15 +528,13 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
         if (motion_code == 0) {
             *output = *predictor;
         } else {
-            if (motion->r_size != 0) {
-                s32 residual_shift = 32 - motion->r_size;
+            if (r_size != 0) {
+                s32 residual_shift = 32 - r_size;
                 if (bit_offset >= residual_shift) {
                     bit_offset -= residual_shift;
                     if (bit_offset != 0) {
-                        residual =
-                            (bits | (next_bits >>
-                                     (motion->r_size - bit_offset))) >>
-                            residual_shift;
+                        bits |= next_bits >> (r_size - bit_offset);
+                        residual = bits >> residual_shift;
                         bits = next_bits << bit_offset;
                     } else {
                         residual = bits >> residual_shift;
@@ -543,19 +543,19 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                     next_bits = *words++;
                 } else {
                     residual = bits >> residual_shift;
-                    bit_offset += motion->r_size;
-                    bits <<= motion->r_size;
+                    bit_offset += r_size;
+                    bits <<= r_size;
                 }
-                scaled_code = (s32)((u32)motion_code << motion->r_size);
                 delta = (motion->limit - 1) - residual;
+                scaled_code = (s32)((u32)motion_code << r_size);
                 if (scaled_code > 0) {
                     motion_code = scaled_code - delta;
                 } else {
                     motion_code = scaled_code + delta;
                 }
             }
-            *output = (s32)((u32)(motion_code + *predictor) << motion->shift);
-            *output >>= motion->shift;
+            motion_code += *predictor;
+            *output = (s32)((u32)motion_code << shift) >> shift;
             *predictor = *output;
         }
         if (motion->full_pel != 0) {

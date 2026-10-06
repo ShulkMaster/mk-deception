@@ -211,13 +211,12 @@ void normHeapFreeMemFromBlock(void* block) {
     privFreeMemFromUsed(privGetUsedHdrFromBlock(block));
 }
 
-/* TODO: [breakthrough] 86.26621%; shared unlink ownership improved; allocator-wide address/CFG audit remains. */
+/* TODO: [breakthrough] 94.80%; size/search ownership and final padding snapshot recovered; address staging and GPR scheduling remain. */
 void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     u32 requested_size = size == 0 ? 0x10 : size;
     int alignment = privGetAlignFromMwMemFlags(flags);
     u32 user_size;
-    u32 needed_size;
-    MwMemUsedHeader* candidate = 0;
+    MwMemUsedHeader* candidate;
     MwMemUsedHeader* current;
     MwMemUsedHeader* used;
     MwMemUsedHeader* remainder;
@@ -227,61 +226,70 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     int load_high = 0;
     u8* block;
     u32 alignment_mask;
+    u8 alignment_padding;
 
     if (privIsAlignValid(alignment) == 0) {
         alignment = 4;
     }
     user_size = MW_MEM_ALIGN_UP_16(requested_size);
-    needed_size = (alignment == 4 || alignment == 0)
-                      ? user_size
-                      : MW_MEM_ALIGN_UP_16(requested_size + (1 << alignment));
+    if (alignment == 4 || alignment == 0) {
+        requested_size = user_size;
+    } else {
+        requested_size = MW_MEM_ALIGN_UP_16(requested_size + (1 << alignment));
+    }
     if (heap->freeList == 0) {
         return 0;
     }
     if (heap->strategy == 3) {
+        MwMemUsedHeader* found = 0;
         u32 best_size = heap->arenaSize;
         current = heap->freeTail;
         while (current != 0) {
-            if (current->allocationSize >= needed_size) {
-                if (current->allocationSize == needed_size) {
-                    candidate = current;
+            if (current->allocationSize >= requested_size) {
+                if (current->allocationSize == requested_size) {
+                    found = current;
                     break;
                 } else if (current->allocationSize < best_size) {
                     best_size = current->allocationSize;
-                    candidate = current;
+                    found = current;
                 }
             }
             current = current->previous;
         }
+        candidate = found;
     } else if (privGetLoadHighFromFlags(flags) != 0) {
+        MwMemUsedHeader* found = 0;
         current = heap->freeList;
         while (current != 0) {
-            if (current->allocationSize >= needed_size) {
-                candidate = current;
+            if (current->allocationSize >= requested_size) {
+                found = current;
                 break;
             } else {
                 current = current->next;
             }
         }
+        candidate = found;
         load_high = 1;
     } else {
+        MwMemUsedHeader* found = 0;
         current = heap->freeTail;
         while (current != 0) {
-            if (current->allocationSize >= needed_size) {
-                candidate = current;
+            if (current->allocationSize >= requested_size) {
+                found = current;
                 break;
             } else {
                 current = current->previous;
             }
         }
+        candidate = found;
     }
     if (candidate == 0) {
         return 0;
     }
     candidate_size = candidate->allocationSize;
-    if (candidate_size <= needed_size + 0x20) {
+    if (candidate_size <= requested_size + 0x20) {
         REMOVE_FREE_BLOCK(heap, candidate);
-        used_size = candidate_size;
+        used_size = candidate->allocationSize;
         used = candidate;
         privClearBitFlag(&used->flags);
         privClearBitFromBitFlag(&used->flags, 4);
@@ -292,8 +300,8 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
         }
     } else if (load_high != 0) {
         used = candidate;
-        used_size = needed_size;
-        remainder = mwMemHeaderAt(candidate, needed_size + sizeof(MwMemUsedHeader));
+        used_size = requested_size;
+        remainder = mwMemHeaderAt(candidate, requested_size + sizeof(MwMemUsedHeader));
         if (candidate->previous == 0 && candidate->next == 0) {
             remainder->next = 0;
             remainder->previous = 0;
@@ -315,8 +323,8 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
             remainder->previous->next = remainder;
             remainder->next->previous = remainder;
         }
-        remainder->allocationSize = candidate_size - (needed_size + sizeof(MwMemUsedHeader));
         remainder->prefixSize = 0;
+        remainder->allocationSize = candidate->allocationSize - (requested_size + sizeof(MwMemUsedHeader));
         remainder->heapIndex = candidate->heapIndex;
         remainder->flags = candidate->flags;
         remainder->alignmentPadding = candidate->alignmentPadding;
@@ -327,21 +335,21 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
         privClearBitFromBitFlag(&used->flags, 4);
         privClearBitFromBitFlag(&used->flags, 5);
     } else {
-        used_size = needed_size;
-        candidate->allocationSize = candidate_size - (needed_size + sizeof(MwMemUsedHeader));
-        used = (MwMemUsedHeader*)((u8*)candidate + candidate_size - needed_size);
+        used_size = requested_size;
+        candidate->allocationSize = candidate_size - (requested_size + sizeof(MwMemUsedHeader));
+        used = (MwMemUsedHeader*)((u8*)candidate + candidate_size - requested_size);
         privClearBitFromBitFlag(&candidate->flags, 4);
         privSetBoundaryTags(candidate);
         privClearBitFlag(&used->flags);
         privSetBitFromBitFlag(&used->flags, 4);
         privClearBitFromBitFlag(&used->flags, 5);
-        next_block = mwMemHeaderAt(used, needed_size + sizeof(MwMemUsedHeader));
+        next_block = mwMemHeaderAt(used, requested_size + sizeof(MwMemUsedHeader));
         if ((u8*)next_block != heap->heapEnd) {
             privClearBitFromBitFlag(&next_block->flags, 4);
         }
     }
     used->allocationSize = used_size;
-    used->prefixSize = used_size - needed_size;
+    used->prefixSize = used_size - requested_size;
     privSetAlignInBitFlag(&used->flags, alignment);
     used->heapIndex = request->heap->heapIndex;
     if (heap->usedList == 0) {
@@ -357,14 +365,15 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     block = (u8*)used + sizeof(MwMemUsedHeader);
     alignment_mask = (1 << alignment) - 1;
     block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
-    used->alignmentPadding = block - ((u8*)used + sizeof(MwMemUsedHeader));
+    alignment_padding = block - ((u8*)used + sizeof(MwMemUsedHeader));
+    used->alignmentPadding = alignment_padding;
     request->allocationSize = used->allocationSize;
     request->alignmentPadding = used->alignmentPadding;
     request->allocationFlags = flags;
     request->allocationHeap = heap;
     request->prefixSize = used->prefixSize;
     request->userSize = user_size;
-    block[-1] = used->alignmentPadding;
+    block[-1] = alignment_padding;
     return block;
 }
 

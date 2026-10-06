@@ -134,7 +134,7 @@ static inline void mslBankUnloadSounds(mslLoadedBank* bank)
     bank->system = 0;
 }
 
-/* TODO: [near miss] 99.72321%; sound-stop and unload index agree;
+/* TODO: [near miss] 99.73%; sound-stop and unload index agree;
  * bank-entry owner register and decoded-equal pool shift remain. */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
@@ -174,8 +174,7 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 86.93%; empty retail name loop is omitted;
- * direct cursor trial scores76.22%; recover the command-slot abstraction. */
+/* TODO: [breakthrough needed] 87.34%; retained source offset restored; command-slot abstraction and stripped name-loop shell remain unresolved. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
     mslBankSoundEntry* sound_entry;
@@ -229,18 +228,20 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
         definition = sound_entry->definition;
         command_item = definition->commands;
         for (j = 0; j < definition->command_count; j++, command_item++) {
+            unsigned long source_offset;
             if (command_item->value == 32767000.0f) {
                 command_item->value = -1.0f;
             }
 
-            if (command_item->source.offset != 0xffffffff) {
+            source_offset = command_item->source.offset;
+            if (source_offset != 0xffffffff) {
                 if (((bank->flags & 0x10) == 0 ||
                      command_item->type == 5 ||
                      command_item->type == 6) &&
-                    (command_item->source.offset & 0xf0000000) !=
+                    (source_offset & 0xf0000000) !=
                         0x20000000) {
-                    command_item->source.offset +=
-                        bank->string_table.offset;
+                    command_item->source.offset =
+                        source_offset + bank->string_table.offset;
                 }
             } else {
                 command_item->source.pointer = 0;
@@ -257,7 +258,7 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [near miss] 99.69811%; sound-stop and unload index agree;
+/* TODO: [near miss] 99.72%; sound-stop and unload index agree;
  * five entry-owner register rows and decoded-equal +0x6F pool shift remain. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
@@ -313,7 +314,7 @@ static inline void mslBankUploadResidentChunk(
         callback);
 }
 
-/* TODO: [near miss] 98.95%; request/context GPR pair and equal +0x6F string-pool shift remain. */
+/* TODO: [near miss] 98.98%; request/context GPR pair and equal +0x6F string-pool shift remain. */
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data) {
@@ -351,7 +352,7 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
         mslBankLoadResidentARamUploadComplete, callback_data);
 }
 
-/* TODO: [near miss] 98.20%; real loop/ARAM staging and state homes improved;
+/* TODO: [near miss] 98.21%; real loop/ARAM staging and state homes improved;
  * publication helpers regress; saved webs and equal pool shift remain. */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -991,7 +992,7 @@ extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
     return 0;
 }
 
-/* TODO: [near miss] 98.11%; pooled string layout and an early gMsi load differ; resolve across the TU. */
+/* TODO: [near miss] 98.17%; pooled string layout and an early gMsi load differ; resolve across the TU. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
@@ -1043,7 +1044,7 @@ extern "C" unsigned long mslBankPlayVol(
     return 0;
 }
 
-/* TODO: [near miss] 98.90%; pooled string offsets and GPR coloring remain; check TU data layout. */
+/* TODO: [near miss] 98.96%; pooled string offsets and GPR coloring remain; check TU data layout. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,

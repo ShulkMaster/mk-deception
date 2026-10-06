@@ -304,9 +304,9 @@ void MPV_SetPicUsrBuf(MPVContext* handle, void* buffer, int capacity);
 int MPV_GetBitRate(MPVContext* handle, int* bit_rate);
 int MPV_GetVbvBufSiz(MPVContext* handle, int* buffer_size, int* delay,
                      int* byte_rate);
-int MPV_DecodeFrmSj(MPVContext* handle, SJ* stream,
+int MPV_DecodeFrmSj(void* handle, SJ* stream,
                     MPVFrameBuffers* buffers);
-int MPV_SkipFrmSj(MPVContext* handle, SJ* stream);
+int MPV_SkipFrmSj(void* handle, SJ* stream);
 void MPV_GetDctCnt(MPVContext* handle, int* decoded, int* skipped);
 int MPV_GetLinkFlg(MPVContext* handle, int* first, int* second);
 

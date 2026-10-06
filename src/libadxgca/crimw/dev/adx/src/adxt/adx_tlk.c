@@ -350,7 +350,6 @@ void ADXT_SetTranspose(
 {
 }
 
-/* TODO: [near miss] 99.70238%; pause/resume CFG, renderer calls, time rebasing, and lock lifetime match; remaining narrow-load/register residue has no clean local lever. */
 void ADXT_Pause(ADXTHandle* handle, s32 paused)
 {
     s32 status;
@@ -753,8 +752,6 @@ void ADXT_DestroyAll(void)
     }
 }
 
-/* TODO: [near miss] 99.887010%; typed AHX detach callback preserves the
- * retail/RE4 handle ABI; remaining residue is pooled-string/branch placement. */
 void ADXT_Destroy(ADXTHandle* handle)
 {
     AXRNAHandle* rna;

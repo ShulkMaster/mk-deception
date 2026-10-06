@@ -122,21 +122,23 @@ void adxm_unlock(void* object)
     }
 }
 
-/* TODO: [breakthrough] 84.40%; BSS owners agree; compare the bounded border loop with retail. */
+#pragma push
+#pragma optimization_level 3
 void adxm_goto_mwidle_border(void* object)
 {
     int count;
 
-    (void)object;
     if (adxm_mwidle_end != 1) {
         adxm_goto_border_flag = 1;
         OSSetThreadPriority(&adxm_mwidle_thread,
                             adxm_save_tprm.lock_priority);
-        for (count = 0; count < 200000000; count++) {
+        count = 0;
+        while (count < 200000000) {
             OSResumeThread(&adxm_mwidle_thread);
             if (adxm_goto_border_flag == 0) {
                 break;
             }
+            count++;
         }
         if (count == 200000000) {
             SVM_CallErr1("1060102: Internal Error: adxm_goto_mwidle_border");
@@ -145,6 +147,7 @@ void adxm_goto_mwidle_border(void* object)
                             adxm_save_tprm.mwidle_priority);
     }
 }
+#pragma pop
 
 /* Detached thread: OSExitThread discards the return register. */
 void adxm_safe_proc(void* argument)

@@ -25,6 +25,9 @@ enum {
 
 #define SCREEN_IDLE_EVENT 0x405
 
+#define RelocateScreenOffset(slot, offset, relocated) \
+    if ((offset) != 0) { (slot) = (relocated); }
+
 static void ProcessControls(SEObject_t* seObj);
 
 int ScreenInstancer::CreateScreen(Screen* screen, SEScreen_t* seScreen) {
@@ -428,63 +431,53 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
     }
 }
 
-/* Retail reloc is bare fileOff+base (no SeFileReloc bl / null helper).
- * Slot loads use (base+off)->field via add+lwz, not lwzx(off+4). */
-/* TODO: [near miss] 81.796875%; nested relocation flow agrees; typed table addressing and register allocation remain. */
 void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
-    int i;
-    int j;
-    int k;
     SEAnimEffect_t* effect;
     SEAnimEffect_t** effectSlot;
     SERefTable* tracks;
     SEAnimEffectItem_t* item;
     SERefTable* keys;
     unsigned int off;
+    unsigned int* track_slot;
+    unsigned int* key_slot;
 
-    /* Retail: no effects==0 guard; count walk assumes valid block. */
-    i = 0;
-    while (i < effects->count) {
-        effectSlot = SEAnimEffectPtrSlot(effects, i);
+    for (int i = 0; i < effects->count; i++) {
+        effectSlot = &effects->effects[i];
         off = (unsigned int)*effectSlot;
         if (off != 0) {
-            *effectSlot = (SEAnimEffect_t*)(base + (unsigned int)*effectSlot);
+            effects->effects[i] = (SEAnimEffect_t*)(off + (unsigned int)base);
         }
         effect = *effectSlot;
         if (effect != 0) {
             off = (unsigned int)effect->m_tracks;
             if (off != 0) {
                 effect->m_tracks =
-                    (SERefTable*)(base + (unsigned int)effect->m_tracks);
+                    (SERefTable*)(off + (unsigned int)base);
             }
-            /* Retail reloads effect then walks tracks with no null check. */
             effect = *effectSlot;
             tracks = effect->m_tracks;
-            j = 0;
-            while (j < (int)tracks->count) {
-                off = tracks->refs[j];
+            for (int j = 0; j < (int)tracks->count; j++) {
+                track_slot = &tracks->refs[j];
+                off = *track_slot;
                 if (off != 0) {
                     tracks->refs[j] = off + (unsigned int)base;
                 }
-                item = (SEAnimEffectItem_t*)tracks->refs[j];
+                item = (SEAnimEffectItem_t*)*track_slot;
                 off = (unsigned int)item->m_keys;
                 if (off != 0) {
                     item->m_keys =
-                        (SERefTable*)(base + (unsigned int)item->m_keys);
+                        (SERefTable*)(off + (unsigned int)base);
                 }
                 keys = item->m_keys;
-                k = 0;
-                while (k < (int)keys->count) {
-                    off = keys->refs[k];
+                for (int k = 0; k < (int)keys->count; k++) {
+                    key_slot = &keys->refs[k];
+                    off = *key_slot;
                     if (off != 0) {
                         keys->refs[k] = off + (unsigned int)base;
                     }
-                    k += 1;
                 }
-                j += 1;
             }
         }
-        i += 1;
     }
 }
 
@@ -602,28 +595,21 @@ void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
                       SeStringsOf(se));
 }
 
-/* TODO: [near miss] 85.08871%; relocation-flag lowering and name-table scheduling remain. */
-int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int /*size*/,
-                                 void* /*unused*/) {
+/* TODO: [near miss] 97.98%; saved-register rotation and name relocation address form remain. */
+int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
+                                 void*) {
     SEScreenSet_t* blob;
     unsigned int base;
+    unsigned char needReloc = 1;
     Screen templateScreen;
-    unsigned char needReloc;
-    unsigned char relocFlag;
-    int numScreens;
-    int i;
-    int screenByte;
     int ok;
     unsigned int magic;
     unsigned int nameOff;
     unsigned int screenOff;
-    unsigned int* screenTable;
-    unsigned int* nameRefs;
     Screen* screen;
 
     blob = (SEScreenSet_t*)data;
     base = (unsigned int)data;
-    needReloc = 1;
     ok = 0;
     if (blob == 0) {
         return 0;
@@ -636,16 +622,12 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int /*size
     }
 
     if (magic == kMagicSSET) {
-        numScreens = blob->numScreens;
+        int numScreens = blob->numScreens;
         set->m_numScreens = numScreens;
-        set->m_screens = (Screen*)ScreenUtil::Malloc((unsigned long)numScreens * kScreenBytes,
+        set->m_screens = (Screen*)ScreenUtil::Malloc((unsigned long)numScreens * sizeof(Screen),
                                                      kMallocTag, "SS-Screens");
-        i = 0;
-        screenByte = 0;
-        while (i < numScreens) {
-            memcpy((char*)set->m_screens + screenByte, &templateScreen, kScreenBytes);
-            i += 1;
-            screenByte += kScreenBytes;
+        for (int templateIndex = 0; templateIndex < numScreens; templateIndex++) {
+            memcpy(&set->m_screens[templateIndex], &templateScreen, sizeof(Screen));
         }
 
         if (needReloc != 0 && blob->screenOffs != 0) {
@@ -653,40 +635,31 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int /*size
                 (unsigned int*)((unsigned int)blob->screenOffs + base);
         }
 
-        relocFlag = needReloc;
-        nameRefs = SEScreenNameRefSlots(blob);
-        screenByte = 0;
-        for (i = 0; i < numScreens; i++) {
-            if (relocFlag != 0) {
-                nameOff = nameRefs[i];
-                if (nameOff != 0) {
-                    nameRefs[i] = nameOff + base;
-                }
+        for (int i = 0; i < numScreens; i++) {
+            if (needReloc != 0) {
+                nameOff = blob->nameOffs[i];
+                RelocateScreenOffset(blob->nameOffs[i], nameOff, nameOff + base);
             }
 
-            screen = (Screen*)((char*)set->m_screens + screenByte);
-            screen->SetName((char*)nameRefs[i]);
+            screen = &set->m_screens[i];
+            screen->SetName((char*)blob->nameOffs[i]);
             screen->m_set = set;
 
-            screenTable = blob->screenOffs;
-            if (screenTable != 0) {
-                screenOff = screenTable[i];
+            if (blob->screenOffs != 0) {
+                screenOff = blob->screenOffs[i];
                 if (screenOff != 0) {
                     if (needReloc != 0) {
-                        if (screenOff != 0) {
-                            screenTable[i] = base + screenOff;
-                        }
+                        RelocateScreenOffset(blob->screenOffs[i], screenOff, base + screenOff);
                         screen->m_data =
-                            (SEScreen_t*)screenTable[i];
+                            (SEScreen_t*)blob->screenOffs[i];
                         ProcessScreenData(
-                            screen, (void*)screenTable[i], 0, 0);
+                            screen, (void*)blob->screenOffs[i], 0, 0);
                     }
                     CreateScreen(
                         screen,
-                        (SEScreen_t*)screenTable[i]);
+                        (SEScreen_t*)blob->screenOffs[i]);
                 }
             }
-            screenByte += kScreenBytes;
         }
 
         set->m_inited = 1;

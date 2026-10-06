@@ -242,8 +242,8 @@ static inline void cftApplyStaticAlphaRow(u32* output, u32 pixels)
     output[1] &= cftMakeDirectAlphaMask1(pixels);
 }
 
-/* TODO: [breakthrough needed] 81.456314%; aligned rewind and explicit word
- * loads are codegen-neutral; load/store ordering still differs from retail. */
+/* TODO: [breakthrough needed] 84.27%; unsigned row advance recovered;
+ * equivalent mask operations retain scheduling and register differences. */
 static void cnvStaticYcc420plnToA256V(
     const CFTYcc420Planar* source,
     const CFTArgb8888Output* destination)
@@ -256,7 +256,7 @@ static void cnvStaticYcc420plnToA256V(
     s32 width = destination->width;
     s32 width_in_blocks = width / 4;
     s32 height_in_blocks = destination->height / 4;
-    s32 source_row_advance = (source_stride >> 2) * 12;
+    s32 source_row_advance = ((u32)source_stride >> 2) * 12;
     s32 output_row_advance =
         ((destination->stride - width) / 4) * 64;
     s32 block_y;
