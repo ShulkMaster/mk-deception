@@ -9,6 +9,7 @@ class mwFileCommand;
 class mwFileServer;
 
 #include "mw/mwFileMemTraits.h"
+#include "mw/mwFileMutex.h"
 #include "runtime/cstring.h"
 
 enum mwFileSeekOrigin {
@@ -121,17 +122,6 @@ public:
 private:
     unsigned long field_0x00;
     unsigned char field_0x04[0x64];
-};
-
-class mwFileMutex {
-public:
-    mwFileMutex();
-    void lock();
-    void unlock();
-
-private:
-    unsigned long field_0x00;
-    unsigned char field_0x04[0x14];
 };
 
 union mwFileServerManagerStorage {
@@ -388,10 +378,8 @@ int mwFileRegisterFileServer(mwFileServer& server)
 
 void mwFileMultithreadedMemTraits::deallocate(void* object)
 {
-    mwFileMutex* mutex = getMutex();
-    mutex->lock();
+    mwFileMutexLock lock(*getMutex());
     mwFileMemTraits::deallocate(object);
-    mutex->unlock();
 }
 
 void* mwFileMultithreadedMemTraits::allocate(

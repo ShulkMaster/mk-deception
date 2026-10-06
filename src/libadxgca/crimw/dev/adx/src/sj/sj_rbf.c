@@ -532,8 +532,7 @@ SJ* SJRBF_Create(void* buffer, int buffer_size, int extra_size)
         ring->error_callback = SJRBF_Error;
         ring->error_object = ring;
 
-        /* Creation performs the validated reset sequence while already locked. */
-        if (ring == 0) {
+            if (ring == 0) {
             SJERR_CallErr("E2004090207 : NULL pointer is specified.");
         } else if (ring->used == 0) {
             SJERR_CallErr("E2004090208 : Specified handle is invalid.");
@@ -575,7 +574,5 @@ void SJRBF_Init(void)
 
 void SJRBF_Error(void* object, int error)
 {
-    (void)object;
-    (void)error;
     SJERR_CallErr("SJRBF Error");
 }

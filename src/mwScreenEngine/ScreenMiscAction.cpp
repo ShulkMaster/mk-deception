@@ -11,7 +11,7 @@
 #include "mwScreenEngine/ScreenUtil.h"
 #include "mwScreenEngine/GameVariables.h"
 
-/* Action type ids stored in ScreenAction::m_arg (CreateAction / Init). */
+
 enum {
     kArgSetFocus = 0x3f6,
     kArgSetConfirmUser = 0x3fa,
@@ -33,7 +33,7 @@ enum {
     kArgQuestionGameVar = 0x2af9,
 };
 
-/* SEObjectExt::flags bit1 -- toggled by ScreenEnableAction. */
+
 enum { kObjectFlagEnabled = 0x2 };
 
 enum ScreenCompareOp {
@@ -45,8 +45,8 @@ enum ScreenCompareOp {
     kCompareLessEqual = 5,
 };
 
-int ScreenVisibleAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
-                                int /*dt*/) {
+int ScreenVisibleAction::Update(ScreenMgr*, ScreenActionStack&,
+                                int) {
     ScreenParams* params;
     ScreenNode* node;
     int visible;
@@ -63,8 +63,8 @@ int ScreenVisibleAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/
     return 1;
 }
 
-int SetScreenVisibleAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                                   int /*dt*/) {
+int SetScreenVisibleAction::Update(ScreenMgr* mgr, ScreenActionStack&,
+                                   int) {
     ScreenParams* params;
     char* name;
     int visible;
@@ -124,8 +124,8 @@ unsigned int ScreenIntegerCompare(int lhs, int op, int rhs) {
     return result;
 }
 
-int ScreenElseAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
-                             int /*dt*/) {
+int ScreenElseAction::Update(ScreenMgr*, ScreenActionStack&,
+                             int) {
     ScreenObject* object;
 
     object = m_object;
@@ -139,8 +139,8 @@ int ScreenElseAction::Update(ScreenMgr* /*mgr*/, ScreenActionStack& /*stack*/,
 }
 
 /* TODO: [near miss] 97.88%; decision tree and focus comparison match; method-wide owner/value GPR rotation remains. */
-int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
+int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
+                                 int) {
     ScreenParams* params;
     ScreenObject* object;
     int arg;
@@ -241,8 +241,8 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                               int /*dt*/) {
+int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
+                               int) {
     ScreenParams* params;
     ScreenMgr* eventsMgr;
 
@@ -283,8 +283,8 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
 
 /* TODO: [near miss] 98.20755%; this/manager/params and scalar saved-register homes differ;
  * branch scoping and scalar declaration order do not close the residue. */
-int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                                    int /*dt*/) {
+int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack&,
+                                    int) {
     ScreenParams* params;
     int stageIndex;
     int confirmId;
@@ -334,7 +334,7 @@ int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/
 }
 
 int ScreenSendObjectEventAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
-                                        int /*dt*/) {
+                                        int) {
     ScreenParams* params;
     int eventId;
     ScreenObject* object;
@@ -362,8 +362,8 @@ int ScreenSendObjectEventAction::Update(ScreenMgr* mgr, ScreenActionStack& stack
     return 1;
 }
 
-int ScreenSetForwardAction::Update(ScreenMgr* /*mgr*/,
-                                   ScreenActionStack& /*stack*/, int /*dt*/) {
+int ScreenSetForwardAction::Update(ScreenMgr*,
+                                   ScreenActionStack&, int) {
     ScreenParams* params;
     ScreenObject* object;
 
@@ -378,8 +378,8 @@ int ScreenSetForwardAction::Update(ScreenMgr* /*mgr*/,
     return 1;
 }
 
-int ScreenBlockEventsUntilAction::Update(ScreenMgr* /*mgr*/,
-                                         ScreenActionStack& /*stack*/, int dt) {
+int ScreenBlockEventsUntilAction::Update(ScreenMgr*,
+                                         ScreenActionStack&, int dt) {
     ScreenParams* params;
     int duration;
     int elapsed;
@@ -405,8 +405,8 @@ int ScreenBlockEventsUntilAction::Update(ScreenMgr* /*mgr*/,
     return 1;
 }
 
-int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
-                                 int /*dt*/) {
+int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack&,
+                                 int) {
     ScreenParams* params;
     int focusIndex;
     ScreenObject* target;
@@ -464,7 +464,7 @@ int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
     return 1;
 }
 
-/* Dtors -- retail order (SetFocus .. Visible). */
+
 
 ScreenSetFocusAction::~ScreenSetFocusAction() {}
 

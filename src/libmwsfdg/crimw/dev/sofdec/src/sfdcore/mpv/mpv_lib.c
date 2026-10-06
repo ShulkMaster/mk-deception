@@ -67,7 +67,6 @@ extern int MPVABDEC_NintraBlock(void* context, void* block);
 extern void MPV_SetUsrSj(MPVContext* handle, int index, void* stream,
                          void (*callback)(void* argument, int index),
                          void* callback_argument);
-extern void MPV_SetPicUsrBuf(MPVContext* handle, void* buffer, int size);
 void MPV_MbCbFn(void);
 static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes);
 
@@ -149,7 +148,7 @@ void MPV_MbCbFn(void)
 {
 }
 
-/* TODO: [blocked] 68.79630%; retail inlines a dcbi cache-line loop, but no
+/* TODO: [blocked] 68.79%; retail inlines a dcbi cache-line loop, but no
  * supported C intrinsic is confirmed; keep the portable cache API fallback. */
 int MPV_Destroy(MPVContext* handle)
 {
@@ -250,7 +249,7 @@ static MPVContext* mpvlib_SearchFreeHn(void)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 66.39344%; RE4's helper-shaped search improves the
+/* TODO: [breakthrough needed] 66.39%; RE4's helper-shaped search improves the
  * CFG, but the remaining locked-cache dcbi/dcbz_l sequence requires unavailable
  * ordinary-C evidence and must not be forced. */
 MPVContext* MPV_Create(void)
@@ -270,8 +269,8 @@ MPVContext* MPV_Create(void)
     return handle;
 }
 
-/* TODO: [breakthrough needed] 72.38095%; cache-finish CFG remains unresolved;
- * removing the donor-absent BSS tail only corrected source ownership. */
+/* TODO: [blocked] 72.38%; retail inline dcbi loop requires authorized
+ * assembly; retained cache-invalidate call cannot match its instruction body. */
 void MPV_Finish(void)
 {
     MPVUMC_Finish();
@@ -324,8 +323,8 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = 0xFF;
     attributes->field_64 = 0xFF;
 }
-/* TODO: [breakthrough needed] 74.11%; probe and version are separate,
- * but rodata order, initialization CFG, and locked-cache lowering still differ. */
+/* TODO: [blocked] 74.11%; locked-cache instructions need authorized assembly;
+ * initialization CFG and rodata/BSS layout also remain unresolved. */
 int MPV_Init(int handle_count, void* work)
 {
     static const u32 test_wrok = 0x01020304;
@@ -354,7 +353,6 @@ int MPV_Init(int handle_count, void* work)
                                    MPV_DECODER_VERSION_SIZE, 0x80) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF07);
     } else {
-        /* The retail build deliberately traps if its endian probe is invalid. */
         if (*(const u8*)&test_wrok != 1) {
             for (;;) {
             }

@@ -253,7 +253,6 @@ int MWSFSVR_DecodeServer(void* object)
     int index;
     int server_wait;
 
-    (void)object;
     if (mwsfd_init_flag != 1) return 0;
     work = MWSFLIB_GetLibWorkPtr();
     if (MWSFSVM_TestAndSet(&work->server_lock) == 0) return 0;
@@ -270,7 +269,6 @@ int MWSFSVR_DecodeServer(void* object)
             mwSfdExecSvrHndl(player);
         }
         index++;
-        /* Advance the embedded-player base by one retail handle stride. */
         work = (MwsLibraryWork*)((unsigned char*)work + sizeof(MwsPlayer));
     } while (index < 8);
     work = MWSFLIB_GetLibWorkPtr();
@@ -325,7 +323,6 @@ int MWSFSVR_MainThrdProc(void* object)
 
 int MWSFSVR_VsyncThrdProc(void* object)
 {
-    (void)object;
     if (ADXM_IsSetupThrd() == 1) {
         mwSfdVsync();
         return 0;

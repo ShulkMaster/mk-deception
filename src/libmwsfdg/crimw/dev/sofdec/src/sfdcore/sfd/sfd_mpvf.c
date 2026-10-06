@@ -6,7 +6,7 @@
 
 static inline SfdMpvFrameWork* sfmpvf_GetWork(SfdHandle* handle)
 {
-    return (SfdMpvFrameWork*)handle->transports[2].context;
+    return handle->transports[2].context;
 }
 
 static inline int sfmpvf_IsEarlier(const SfdMpvFrame* candidate,
@@ -37,8 +37,6 @@ static inline int sfmpvf_IsEarlier(const SfdMpvFrame* candidate,
         current->picture_info.group_count) {
         return 0;
     }
-    /* temporal_reference is decoded from 10 bits; these differences cannot
-     * overflow int, and 0x200 distinguishes the wraparound ordering. */
     if (candidate->picture_info.temporal_reference -
             current->picture_info.temporal_reference > 0x200) {
         return 1;
@@ -200,7 +198,7 @@ SfdMpvFrame* SFMPVF_AllocFrm(SfdHandle* handle)
     int token;
 
     SFLIB_LockCs(&token);
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     i = 0;
     frame_count = work->frame_count;
     frame = work->frames;
@@ -263,7 +261,7 @@ SfdVideoFrameState* SFMPVF_SearchVfrmData(SfdHandle* handle,
     SfdMpvFrameWork* work;
     SfdMpvFrame* current;
 
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     current = work->frames;
 
     for (i = 0; i < work->frame_count; i++, current++) {

@@ -14,11 +14,9 @@ extern void ADXCRS_Unlock(void);
 extern void ADXSJD_Finish(void);
 extern void ADXERR_Finish(void);
 extern void SJMEM_Finish(void);
-extern void SJRBF_Finish(void);
 extern void SJUNI_Finish(void);
 extern void ADXCRS_Init(void);
 extern void SJUNI_Init(void);
-extern void SJRBF_Init(void);
 extern void SJMEM_Init(void);
 extern void ADXERR_Init(void);
 extern void ADXSTM_Init(void);
@@ -79,7 +77,6 @@ void ADXT_Finish(void)
     }
 }
 
-/* This unreferenced vendor accessor fixes the library's first-reference BSS order. */
 ADXTHandle* ADXT_GetObj(int index)
 {
     return &adxt_obj[index];
@@ -120,21 +117,18 @@ void ADXT_Init(void)
 
 int adxt_exec_fssvr(void* object)
 {
-    (void)object;
     ADXT_ExecFsSvr();
     return 0;
 }
 
 int adxt_exec_tsvr(void* object)
 {
-    (void)object;
     ADXT_ExecServer();
     return 0;
 }
 
 static int adxt_exec_main_nothrd(void* object)
 {
-    (void)object;
     ADXT_ExecServer();
     ADXT_ExecFsSvr();
     LSC_ExecServer();
@@ -143,19 +137,16 @@ static int adxt_exec_main_nothrd(void* object)
 
 static int adxt_exec_main_thrd(void* object)
 {
-    (void)object;
     LSC_ExecServer();
     return 0;
 }
 
 void adxini_lscerr_cbfn(void* object, const char* message)
 {
-    (void)object;
     ADXERR_CallErrFunc1(message);
 }
 
 void adxini_rnaerr_cbfn(void* object, const char* message)
 {
-    (void)object;
     ADXERR_CallErrFunc1(message);
 }

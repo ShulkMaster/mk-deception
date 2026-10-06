@@ -58,8 +58,6 @@ typedef struct CvFsDevice {
 const char* const volatile cvfs_build =
     "\nCVFS/GC Ver.2.35 Build:Sep  3 2004 17:47:58\n";
 
-/* The retail object retains the complete CVFS diagnostic string pool even
- * though only a subset of its public API is linked into the game. */
 static const char path_format[8] = "%s:%s";
 static const char set_default_volume_bad_device[40] =
     "cvFsSetDefVol #1:illegal device name";
@@ -642,7 +640,6 @@ void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 {
     CvFsInterface* interface;
 
-    (void)init_parameter;
     cvfs_build;
 
     if (name == NULL) {
@@ -664,7 +661,6 @@ void cvFsAddDev(char* name, CvFsInterfaceFactory factory, void* init_parameter)
 
 void cvFsCallUsrErrFn(void* object, const char* message, void* handle)
 {
-    (void)object;
     if (cvfs_errfn != NULL) {
         cvfs_errfn(cvfs_errobj, message, handle);
     }

@@ -80,7 +80,7 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
             (10000.0f * (float)clock_value) /
             (float)clock_scale;
         if (handle->conditions_primary[15] != 1) {
-            tolerance = (float)handle->conditions_primary[46];
+            tolerance = handle->conditions_primary[46];
             if (current_time + tolerance < target_time) {
                 ready = 0;
             } else if (current_time - tolerance >= target_time) {
@@ -165,7 +165,7 @@ int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
             clock_value += (clock_scale * adjustment) / timer_library->source;
             current_time = (10000.0f * (float)clock_value) / (float)clock_scale;
             if (handle->conditions_primary[15] != 1) {
-                tolerance = (float)handle->conditions_primary[46];
+                tolerance = handle->conditions_primary[46];
                 if (current_time + tolerance < target_time) {
                     ready = 0;
                 } else if (current_time - tolerance >= target_time) {
@@ -305,8 +305,6 @@ static void sftim_Tc2Time23D(int rate, SfdTimeCode* timecode,
     *scale = rate;
 }
 
-/* Retail writes the nominal scale before the supplied rate in each
- * non-drop converter below. */
 static void sftim_Tc2Time59N(int rate, SfdTimeCode* timecode,
                              int* value, int* scale)
 {
@@ -663,7 +661,6 @@ static inline void sftim_VbInHn(SfdHandle* handle)
         update_video_clock = 1;
     }
     if (update_video_clock != 0) {
-        /* The retail clock wraps at 32 bits; signed samples retain -1 sentinels. */
         handle->timer_state.video_clock_sample +=
             (unsigned int)handle->timer_state.speed;
     }
@@ -896,7 +893,6 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
 
 void SFTIM_Finish(SfdTimerLibraryWork* work)
 {
-    (void)work;
 }
 
 void SFTIM_Init(SfdTimerLibraryWork* work, int source)

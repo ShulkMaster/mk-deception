@@ -36,7 +36,5 @@ void ADXGC_SetupDvdFs(const ADXGC_DVDFS_PRM* read_mode)
 
 void adxgc_err_dvd(void* object, const char* message, void* handle)
 {
-    (void)object;
-    (void)handle;
     ADXERR_CallErrFunc1(message);
 }

@@ -201,7 +201,6 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
     SfdTransportState* transport;
     int i;
 
-    (void)buffer_setup;
     setup = create->transport_setup;
     interface_cursor = setup->entries;
     transport = transports;
@@ -218,7 +217,6 @@ int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
         transport->state = -1;
     }
 
-    /* The setup tables are const; both wiring helpers only read their slots. */
     if (sftrn_BuildAll(handle,
                        (const SfdTransportInterface**)setup->entries) != 0) {
         return SFLIB_SetErr(handle, 0xFF000302);

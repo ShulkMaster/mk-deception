@@ -15,29 +15,24 @@
 #include "mw/mwMemNewDelete.h"
 #include "runtime/cmath.h"
 
-/*
- * Retail C++ symbols name these as _mslBank and _GameCubeFileEntry. They are
- * narrow SoundBuffer ABI views, not aliases: merging them with mslLoadedBank
- * and mslAssetWave changes MWCC alias analysis in otherwise exact callers.
- */
 struct _mslBank {
     unsigned char pad00[0x3C];
-    _mwFile* stream_context;      /* +0x3C */
+    _mwFile* stream_context;
     unsigned char pad40[4];
-    MSLGCN_ARamBlock* resident_aram_block; /* +0x44 */
+    MSLGCN_ARamBlock* resident_aram_block;
 };
 
 struct _GameCubeFileEntry {
-    unsigned long name;           /* +0x00 */
-    unsigned long primary_aram_offset; /* +0x04 */
-    long aram_size;               /* +0x08 */
-    SPSoundTable* sound_table;    /* +0x0C */
+    unsigned long name;
+    unsigned long primary_aram_offset;
+    long aram_size;
+    SPSoundTable* sound_table;
     unsigned char pad10[8];
-    int has_secondary;            /* +0x18 */
-    unsigned long secondary_name; /* +0x1C */
-    unsigned long secondary_aram_offset; /* +0x20 */
+    int has_secondary;
+    unsigned long secondary_name;
+    unsigned long secondary_aram_offset;
     unsigned long unknown24;
-    SPSoundTable* secondary_sound_table; /* +0x28 */
+    SPSoundTable* secondary_sound_table;
     unsigned long unknown2C;
 };
 
@@ -83,41 +78,41 @@ public:
         _AXVPB* voice, int channel,
         unsigned long* raw_address);
 
-    unsigned char ready_to_play;  /* +0x38 */
-    unsigned char last_read_pending; /* +0x39 */
-    unsigned char voices_started; /* +0x3A */
-    unsigned char play_when_ready; /* +0x3B */
-    unsigned long play_flags;      /* +0x3C */
-    unsigned long cache_buffers[2]; /* +0x40 -- primary, secondary */
-    long cache_buffer_size;       /* +0x48 */
-    long cache_buffer1_size;      /* +0x4C */
-    _mwFile* stream_context;       /* +0x50 */
-    unsigned long primary_offset;  /* +0x54 */
-    unsigned long aligned_size;    /* +0x58 */
-    unsigned long segment_size;    /* +0x5C */
-    int segment_shift;             /* +0x60 */
-    unsigned long source_read_offset; /* +0x64 */
-    unsigned long source_bytes_remaining; /* +0x68 */
-    mslStreamFileRequest* pending_file_request; /* +0x6C */
-    unsigned long queued_read_offset; /* +0x70 */
-    unsigned long queued_read_size;   /* +0x74 */
-    unsigned long queued_block_count; /* +0x78 */
-    unsigned char partial_read;   /* +0x7C */
-    unsigned char at_zero_buffer; /* +0x7D */
-    unsigned char crossed_stream_end; /* +0x7E */
-    unsigned char end_of_stream;  /* +0x7F */
-    volatile long pending_arq_count; /* +0x80 */
-    long ring_block_count;            /* +0x84 */
-    long source_blocks_remaining;     /* +0x88; -1 sentinel */
-    long ring_write_block;            /* +0x8C */
+    unsigned char ready_to_play;
+    unsigned char last_read_pending;
+    unsigned char voices_started;
+    unsigned char play_when_ready;
+    unsigned long play_flags;
+    unsigned long cache_buffers[2];
+    long cache_buffer_size;
+    long cache_buffer1_size;
+    _mwFile* stream_context;
+    unsigned long primary_offset;
+    unsigned long aligned_size;
+    unsigned long segment_size;
+    int segment_shift;
+    unsigned long source_read_offset;
+    unsigned long source_bytes_remaining;
+    mslStreamFileRequest* pending_file_request;
+    unsigned long queued_read_offset;
+    unsigned long queued_read_size;
+    unsigned long queued_block_count;
+    unsigned char partial_read;
+    unsigned char at_zero_buffer;
+    unsigned char crossed_stream_end;
+    unsigned char end_of_stream;
+    volatile long pending_arq_count;
+    long ring_block_count;
+    long source_blocks_remaining;
+    long ring_write_block;
     long ring_play_block;
-    long pending_ax_block;         /* +0x94 */
-    long ax_end_block;             /* +0x98 */
-    long end_pass_count;           /* +0x9C */
-    long stream_end_block;         /* +0xA0 */
-    unsigned long initial_position;/* +0xA4 */
-    long ring_scan_stop_block;     /* +0xA8 */
-    unsigned char block_headers[2][0x10]; /* +0xAC -- first byte per ring block */
+    long pending_ax_block;
+    long ax_end_block;
+    long end_pass_count;
+    long stream_end_block;
+    unsigned long initial_position;
+    long ring_scan_stop_block;
+    unsigned char block_headers[2][0x10];
 };
 
 typedef char SBPlayableStreamSize[sizeof(SBPlayable_Stream) == 0xCC ? 1 : -1];
@@ -135,80 +130,80 @@ typedef SoundBuffer_Playable* (*SoundBufferDestroyMethod)(
 
 struct SoundBufferPlayableVTable {
     unsigned char pad00[8];
-    SoundBufferDestroyMethod Destroy; /* +0x08 */
-    SoundBufferMethod FreeObject; /* +0x0C */
-    SoundBufferMethod FreeResources; /* +0x10 */
+    SoundBufferDestroyMethod Destroy;
+    SoundBufferMethod FreeObject;
+    SoundBufferMethod FreeResources;
     unsigned char pad14[0x18];
-    SoundBufferLongMethod SetVolume; /* +0x2C */
+    SoundBufferLongMethod SetVolume;
     unsigned char pad30[4];
-    SoundBufferByteMethod SetPan; /* +0x34 */
-    SoundBufferByteMethod SetSurroundPan; /* +0x38 */
+    SoundBufferByteMethod SetPan;
+    SoundBufferByteMethod SetSurroundPan;
     unsigned char pad3C[8];
-    SoundBufferIntMethod Stop;    /* +0x44 */
+    SoundBufferIntMethod Stop;
     unsigned char pad48[0x0C];
-    SoundBufferLostVoiceMethod LostVoice; /* +0x54 */
+    SoundBufferLostVoiceMethod LostVoice;
     unsigned char pad58[8];
-    SoundBufferMethod StopIfDonePlaying;  /* +0x60 */
+    SoundBufferMethod StopIfDonePlaying;
 };
 
 struct SoundBufferPlayableLayout {
-    SoundBufferPlayableVTable* vtable; /* +0x00 */
-    int reference_count;          /* +0x04 */
-    MSLGCN_ARamBlock* aram_block; /* +0x08 */
-    _mslBank* bank;               /* +0x0C */
-    _GameCubeFileEntry* file_entry; /* +0x10 */
-    SoundBufferPlayableLayout* next; /* +0x14 */
-    SoundBufferPlayableLayout* previous; /* +0x18 */
-    unsigned long current_position; /* +0x1C */
-    unsigned long mix_fader;      /* +0x20 */
-    unsigned char pan;            /* +0x24 */
-    unsigned char volume;         /* +0x25 */
+    SoundBufferPlayableVTable* vtable;
+    int reference_count;
+    MSLGCN_ARamBlock* aram_block;
+    _mslBank* bank;
+    _GameCubeFileEntry* file_entry;
+    SoundBufferPlayableLayout* next;
+    SoundBufferPlayableLayout* previous;
+    unsigned long current_position;
+    unsigned long mix_fader;
+    unsigned char pan;
+    unsigned char volume;
     unsigned char pad26[2];
-    unsigned long frequency;      /* +0x28 */
-    long state;                   /* +0x2C -- playable state flags */
-    _AXVPB* voices[2];             /* +0x30 -- primary, secondary */
+    unsigned long frequency;
+    long state;
+    _AXVPB* voices[2];
 };
 
 typedef char SoundBufferPlayableLayoutSize[
     sizeof(SoundBufferPlayableLayout) == 0x38 ? 1 : -1];
 
 struct SBPlayableStreamLayout {
-    SoundBufferPlayableLayout playable; /* +0x00 */
-    unsigned char ready_to_play;  /* +0x38 */
-    unsigned char last_read_pending; /* +0x39 */
-    unsigned char voices_started; /* +0x3A */
-    unsigned char play_when_ready; /* +0x3B */
-    unsigned long play_flags;      /* +0x3C */
-    unsigned long cache_buffers[2]; /* +0x40 -- primary, secondary */
-    long cache_buffer_size;       /* +0x48 */
-    long cache_buffer1_size;      /* +0x4C */
-    _mwFile* stream_context;       /* +0x50 */
-    unsigned long primary_offset;  /* +0x54 */
-    unsigned long aligned_size;    /* +0x58 */
-    unsigned long segment_size;    /* +0x5C */
-    int segment_shift;             /* +0x60 */
-    unsigned long source_read_offset; /* +0x64 */
-    unsigned long source_bytes_remaining; /* +0x68 */
-    mslStreamFileRequest* pending_file_request; /* +0x6C */
-    unsigned long queued_read_offset; /* +0x70 */
-    unsigned long queued_read_size;   /* +0x74 */
-    unsigned long queued_block_count; /* +0x78 */
-    unsigned char partial_read;   /* +0x7C */
-    unsigned char at_zero_buffer; /* +0x7D */
-    unsigned char crossed_stream_end; /* +0x7E */
-    unsigned char end_of_stream;  /* +0x7F */
-    volatile long pending_arq_count; /* +0x80 */
-    long ring_block_count;            /* +0x84 */
-    long source_blocks_remaining;     /* +0x88; -1 sentinel */
-    long ring_write_block;            /* +0x8C */
+    SoundBufferPlayableLayout playable;
+    unsigned char ready_to_play;
+    unsigned char last_read_pending;
+    unsigned char voices_started;
+    unsigned char play_when_ready;
+    unsigned long play_flags;
+    unsigned long cache_buffers[2];
+    long cache_buffer_size;
+    long cache_buffer1_size;
+    _mwFile* stream_context;
+    unsigned long primary_offset;
+    unsigned long aligned_size;
+    unsigned long segment_size;
+    int segment_shift;
+    unsigned long source_read_offset;
+    unsigned long source_bytes_remaining;
+    mslStreamFileRequest* pending_file_request;
+    unsigned long queued_read_offset;
+    unsigned long queued_read_size;
+    unsigned long queued_block_count;
+    unsigned char partial_read;
+    unsigned char at_zero_buffer;
+    unsigned char crossed_stream_end;
+    unsigned char end_of_stream;
+    volatile long pending_arq_count;
+    long ring_block_count;
+    long source_blocks_remaining;
+    long ring_write_block;
     long ring_play_block;
-    long pending_ax_block;         /* +0x94 */
-    long ax_end_block;             /* +0x98 */
-    long end_pass_count;           /* +0x9C */
-    long stream_end_block;         /* +0xA0 */
-    unsigned long initial_position;/* +0xA4 */
-    long ring_scan_stop_block;     /* +0xA8 */
-    unsigned char block_headers[2][0x10]; /* +0xAC -- first byte per ring block */
+    long pending_ax_block;
+    long ax_end_block;
+    long end_pass_count;
+    long stream_end_block;
+    unsigned long initial_position;
+    long ring_scan_stop_block;
+    unsigned char block_headers[2][0x10];
 };
 
 typedef char SBPlayableStreamLayoutSize[
@@ -231,7 +226,6 @@ extern unsigned char __vt__16SoundBuffer_Data[];
 extern unsigned char __vt__20SoundBuffer_Playable[];
 extern unsigned char __vt__17SBPlayable_Stream[];
 
-/* Matched: 100% report-exact; canonical tick dispatch preserves +0x5C. */
 void SoundBuffer::SB_MslTickCallback(void) {
     BOOL enabled = OSDisableInterrupts();
     SoundBuffer_Playable* playable =
@@ -245,7 +239,6 @@ void SoundBuffer::SB_MslTickCallback(void) {
     OSRestoreInterrupts(enabled);
 }
 
-/* Matched: 100% report-exact; canonical AX dispatch preserves +0x58. */
 void SoundBuffer::SB_AXUserCallback(void) {
     BOOL enabled = OSDisableInterrupts();
     SoundBuffer_Playable* playable =
@@ -259,11 +252,8 @@ void SoundBuffer::SB_AXUserCallback(void) {
     OSRestoreInterrupts(enabled);
 }
 
-/* Matched: 100% report-exact; constructor lifetime remains open. Retail MAP
- * separates base/weak/stream code contributions; simple partial linking does not. */
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
-    /* Exact: named TU-local class metadata owns the retail pool label. */
     SBPlayableStreamLayout* stream;
     BOOL enabled = OSDisableInterrupts();
     stream =
@@ -346,8 +336,6 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
     return (SoundBuffer_Playable*)stream;
 }
 
-/* Matched: 100% report-exact; typed new still moves destructors/vtables.
- * ARAM helper extraction changes register allocation; retain exact baseline. */
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
     SoundBufferPlayableLayout* playable;
@@ -437,7 +425,6 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     return (SoundBuffer_Playable*)playable;
 }
 
-/* Matched: 100% report-exact; canonical Stop dispatch. */
 void SoundBuffer_Playable::StopIfDonePlaying(void) {
     SoundBuffer_Playable* self = this;
 
@@ -458,7 +445,6 @@ void SoundBuffer_Playable::StopIfDonePlaying(void) {
     }
 }
 
-/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
 void SoundBuffer_Playable::iUpdate_MslTick(void) {
     this->StopIfDonePlaying();
 }
@@ -466,7 +452,6 @@ void SoundBuffer_Playable::iUpdate_MslTick(void) {
 void SoundBuffer_Playable::iUpdate_AXUser(void) {
 }
 
-/* Matched: 100% report-exact; canonical Stop dispatch for both voices. */
 void SoundBuffer_Playable::LostVoice(_AXVPB* voice) {
     SoundBuffer_Playable* self = this;
     BOOL enabled = OSDisableInterrupts();
@@ -482,7 +467,6 @@ void SoundBuffer_Playable::LostVoice(_AXVPB* voice) {
     OSRestoreInterrupts(enabled);
 }
 
-/* Matched: 100% report-exact; canonical LostVoice dispatch. */
 void SoundBuffer_Playable::AcquireVoiceCallback(void* voice) {
     AXVPB* callback_voice = (AXVPB*)voice;
     SoundBuffer_Playable* owner =
@@ -621,7 +605,6 @@ static inline int IsPlaybackLoopRequested(unsigned long flags) {
 }
 
 /* TODO: [near miss] 98.43%; all operations agree; primary/secondary channel register homes remain. */
-/* Resuming without an acquired voice reports failure. */
 int SoundBuffer_Playable::iPlay(
     unsigned long flags, unsigned long acquire_priority,
     unsigned long active_priority) {
@@ -701,7 +684,6 @@ int SoundBuffer_Playable::iPlay(
     return result;
 }
 
-/* Matched: 100% report-exact; canonical Stop dispatch. */
 int SoundBuffer_Playable::SetCurrentPosition(
     unsigned long position) {
     SoundBuffer_Playable* self = this;
@@ -716,7 +698,6 @@ int SoundBuffer_Playable::SetCurrentPosition(
     return -1;
 }
 
-/* Matched: 100% report-exact; canonical Play dispatch. */
 int SoundBuffer_Playable::UnPause(void) {
     SoundBuffer_Playable* self = this;
     int result = -1;
@@ -727,7 +708,6 @@ int SoundBuffer_Playable::UnPause(void) {
     return result;
 }
 
-/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
 int SoundBuffer_Playable::Pause(void) {
     SoundBuffer_Playable* self = this;
     int result = -1;
@@ -780,11 +760,9 @@ int SoundBuffer_Playable::Play(unsigned long flags) {
     return result;
 }
 
-/* Matched: 100% report-exact; direct float-to-byte conversion preserves the
- * retail arguments while using the canonical unsigned-char virtual methods. */
 int SoundBuffer_Playable::SetRelativePan(float pan) {
     float scaled = 2.0f * (pan - -2.0f);
-    int index = (int)(float)floor(scaled);
+    int index = (float)floor(scaled);
     float fraction;
     float inverse;
 
@@ -803,11 +781,11 @@ int SoundBuffer_Playable::SetRelativePan(float pan) {
     inverse = 1.0f - fraction;
 
     int offset = index * 2;
-    unsigned char output_pan = (unsigned char)(
+    unsigned char output_pan = (
         inverse * SurroundPanTable[offset] +
         fraction * SurroundPanTable[offset + 2]);
     int result = 0;
-    unsigned char output_surround = (unsigned char)(
+    unsigned char output_surround = (
         inverse * SurroundPanTable[offset + 1] +
         fraction * SurroundPanTable[offset + 3]);
 
@@ -852,7 +830,6 @@ int SoundBuffer_Playable::SetPan(unsigned char pan) {
     return result;
 }
 
-/* Matched: 100% report-exact; canonical SetVolume dispatch. */
 int SoundBuffer_Playable::SetRelativeVolume(float volume) {
     long db_volume =
         mslWaveGetDbMapEntryRelative(volume);
@@ -880,7 +857,7 @@ int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
         sound = SPGetSoundEntry(file_entry->sound_table, 0);
     }
     if (sound != 0) {
-        scaled_frequency = (unsigned long)(sound->sample_rate * frequency);
+        scaled_frequency = sound->sample_rate * frequency;
     }
     return SetFrequency(scaled_frequency);
 }
@@ -959,7 +936,6 @@ int SoundBuffer_Playable::IsReadyToPlay(void) {
     return 1;
 }
 
-/* Matched: 100% report-exact; canonical Stop dispatch. */
 void SoundBuffer_Playable::FreeResources(void) {
     SoundBuffer_Playable* self = this;
     this->Stop();
@@ -969,8 +945,6 @@ void SoundBuffer_Playable::FreeResources(void) {
     }
 }
 
-/* Matched: 100% report-exact; standard delete supplies the retail null guard
- * and virtual deleting-destructor call after resource release. */
 void SoundBuffer_Playable::FreeObject(void) {
     SoundBuffer_Playable* self = this;
     BOOL enabled;
@@ -1001,12 +975,10 @@ SoundBuffer_Playable::~SoundBuffer_Playable() {
     FreeResources();
 }
 
-/* Matched: 100% report-exact; access the data owner's canonical file entry. */
 int SoundBuffer_Data::GetNumChannels(void) {
     return (file_entry->has_secondary != 0) + 1;
 }
 
-/* Matched: 100% report-exact; release the data owner's canonical ARAM block. */
 void SoundBuffer_Data::FreeResources(void) {
     if (aram_block != 0) {
         aram_block->Release();
@@ -1014,8 +986,6 @@ void SoundBuffer_Data::FreeResources(void) {
     }
 }
 
-/* Matched: 100% report-exact; standard delete supplies the retail null guard
- * and virtual deleting-destructor call after resource release. */
 void SoundBuffer_Data::FreeObject(void) {
     this->FreeResources();
     delete this;
@@ -1097,11 +1067,6 @@ int SoundBuffer::IsReadyToPlay(void) {
 void SoundBuffer::PrepForPlay(void) {
 }
 
-/*
- * Exact: retail file-buffer splitting, ARQ request ownership, mono/stereo
- * ring advancement, final-read callback selection, and cleanup.
- */
-/* Matched: 100% report-exact; canonical Stop dispatch on read failure. */
 void SBPlayable_Stream::StreamFileRead_CallBack(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data) {
@@ -1475,7 +1440,6 @@ int SBPlayable_Stream::iPlayPrepped(void) {
     return result;
 }
 
-/* Matched: 100% report-exact; canonical Stop dispatch at both end gates. */
 void SBPlayable_Stream::StopIfDonePlaying(void) {
     SBPlayable_Stream* stream =
         this;
@@ -1511,8 +1475,6 @@ void SBPlayable_Stream::StopIfDonePlaying(void) {
     }
 }
 
-/* Matched: 100% report-exact; queue priority is always 0x10 and its callee
- * overwrites the dead comparison. Identical-arm source provenance remains open. */
 void SBPlayable_Stream::iUpdate_MslTick(void) {
     SBPlayable_Stream* stream =
         this;
@@ -1587,7 +1549,7 @@ void SBPlayable_Stream::iUpdate_MslTick(void) {
 
             if (cannot_read == 0) {
                 block_count =
-                    ((long)read_size + 0x3FFF) >> 14;
+                    (read_size + 0x3FFF) >> 14;
                 if (read_size != block_count << 14) {
                     stream->partial_read = 1;
                 }
@@ -1616,10 +1578,6 @@ void SBPlayable_Stream::iUpdate_MslTick(void) {
     }
 }
 
-/*
- * Exact: typed mono/stereo AX end/current/loop publication, including
- * separate raw and updated sync-word lifetimes for both voices.
- */
 void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     SBPlayable_Stream* stream =
         this;
@@ -1728,7 +1686,6 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     }
 }
 
-/* Typed stream-voice block lookup with the retail optional raw-address out. */
 inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     _AXVPB* voice,
     int channel,
@@ -1971,7 +1928,6 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
     }
 }
 
-/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
 int SBPlayable_Stream::Pause(void) {
     SBPlayable_Stream* stream =
         this;
@@ -2050,7 +2006,6 @@ int SBPlayable_Stream::Stop(void) {
     return result;
 }
 
-/* Matched: 100% report-exact; canonical PrepForPlay dispatch. */
 int SBPlayable_Stream::Play(unsigned long flags) {
     SBPlayable_Stream* stream =
         this;
@@ -2187,7 +2142,6 @@ void SBPlayable_Stream::PrepForPlay(void) {
     OSRestoreInterrupts(enabled);
 }
 
-/* Matched: 100% report-exact; both retail Stop calls use the owner type. */
 void SBPlayable_Stream::FreeResources(void) {
     SoundBuffer_Playable* self = this;
 
@@ -2240,8 +2194,6 @@ void SBPlayable_Stream::ResetValues(void) {
     self->ring_scan_stop_block = -1;
 }
 
-/* Matched: 100% report-exact; standard delete supplies the retail null guard
- * and virtual deleting-destructor call after resource release. */
 void SBPlayable_Stream::FreeObject(void) {
     SoundBuffer_Playable* self = this;
     BOOL enabled;

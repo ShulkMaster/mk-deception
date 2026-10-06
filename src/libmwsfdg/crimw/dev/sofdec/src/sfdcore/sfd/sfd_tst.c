@@ -137,8 +137,8 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
             work->errors[index % work->average_count] =
                 difference;
             average = sum_history(work) / work->average_count;
-            work->average = (int)average;
-            work->adjusted_average = (int)average;
+            work->average = average;
+            work->adjusted_average = average;
             tolerance = master->scale * work->tolerance.value /
                         work->tolerance.scale;
             absolute_average = average < 0 ? -average : average;
@@ -154,7 +154,7 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
                 step = adjustment * tolerance / 2;
                 work->previous_sample = sample->value;
                 work->adjusted_time = estimated + step;
-                subtract_history(work, (int)step);
+                subtract_history(work, step);
                 work->adjusted_average = sum_history(work) /
                                           work->average_count;
             }
@@ -173,7 +173,7 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
     work->input_time = *master;
     work->sample_time = *sample;
     work->output_time = *output;
-    difference_narrow = (int)(master->value - output->value);
+    difference_narrow = master->value - output->value;
     if (work->reset_history == 0) {
         work->front_max = work->front_max > difference_narrow
                               ? work->front_max : difference_narrow;
@@ -189,8 +189,8 @@ void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
     if (sftst_debout_buf != 0) {
         length = sprintf(message, sftst_format, work,
                          (int)(work->sample_time.value / work->sample_time.scale),
-                         UTY_MulDiv(1000, (int)work->sample_time.value,
-                                    (int)work->sample_time.scale),
+                         UTY_MulDiv(1000, work->sample_time.value,
+                                    work->sample_time.scale),
                          (int)(work->sample_time.value >> 32),
                          (int)work->sample_time.value,
                          (int)(work->sample_time.value & 0x7fffffff),

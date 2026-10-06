@@ -4,17 +4,6 @@
 #include "game/pselect_textures.h"
 #include "game/pfxscript_api.h"
 
-extern "C" {
-struct MkProc;
-struct MkHdr;
-struct MkHdr* pdata_of_proc(struct MkProc* proc);
-struct MkProc* find_mkproc_pid(int pid);
-void unload_section_slot(int handle);
-void destroy_mkprocs_pid(int pid);
-void unload_p1_player_profile(void);
-void unload_p2_player_profile(void);
-}
-
 #include "mw/mwScreenEngineGlue.h"
 #include "mw/mwMemHeap.h"
 
@@ -207,7 +196,6 @@ int pselect_get_arena_index(void);
 void cconfig_set_current_cell(int player, int cell);
 void add_to_wls_left_cursor(int value);
 void set_memcard_cursor_for(int value);
-void ppc_set_current_icon_selection(int value);
 void controller_setup_save_to_profile(int player, int value);
 void controller_setup_p1_state(int value);
 void controller_setup_p2_state(int value);

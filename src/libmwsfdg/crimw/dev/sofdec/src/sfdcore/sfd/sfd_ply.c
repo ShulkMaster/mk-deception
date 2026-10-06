@@ -61,8 +61,6 @@ int SFD_GetFrm(SfdHandle* handle, void** frame)
 
 /* TODO: [review] RE4 carries these two stripped public functions; they are kept only
  * because they restore the retail .bss first-reference order. */
-/* Public CRI queries unreferenced in MKD (stripped at link); their order here
- * sets the retail .bss first-reference order. */
 int SFPLY_GetLastHnCtrlWkSiz(void) {
     return sfply_last_hnctrl_wksiz;
 }
@@ -294,7 +292,7 @@ int SFD_Start(SfdHandle* handle)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000132);
     }
-    if ((int)SFSET_GetCond(handle, 0x2F) == 1) {
+    if (SFSET_GetCond(handle, 0x2F) == 1) {
         result = SFPL2_Standby(handle);
     } else {
         result = 0;

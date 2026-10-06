@@ -2,12 +2,6 @@
 
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
-static inline u32 mpvmc_avg_words(u32 left, u32 right)
-{
-    u32 different = left ^ right;
-    return (left & right) + ((different & 0xFEFEFEFE) >> 1) +
-           (different & 0x01010101);
-}
 
 static inline void mpvmc_h2_align1_row(const u8* reference, u8* destination)
 {

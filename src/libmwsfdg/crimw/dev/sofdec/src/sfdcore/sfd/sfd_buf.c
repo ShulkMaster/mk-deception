@@ -104,10 +104,6 @@ int SFBUF_RingGetDataSiz(SfdHandle* handle, int buffer_index)
     return sfbuf_RingGetDataSizeHn(&handle->buffers[buffer_index]);
 }
 
-/* Retail queries inactive transport index 8 as well as buffers 0..7.
- * That address is frame zero's height, not a ninth SfdBufferState. Walk the
- * containing handle representation so the access does not index past buffers.
- */
 int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index)
 {
     const unsigned char* object = (const unsigned char*)handle;
@@ -119,15 +115,12 @@ int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index)
 
 void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated)
 {
-    /* Inactive output index 8 aliases frame zero's height, as in the getter. */
     unsigned char* object = (unsigned char*)handle;
     unsigned char* first_flag = (unsigned char*)&handle->buffers[0].terminated;
     *(int*)(object + (first_flag - object) +
             buffer_index * sizeof(SfdBufferState)) = terminated;
 }
 
-/* Inactive output index 8 aliases frame zero's width, like the termination
- * flag aliases its height. Both preparation accesses use the handle extent. */
 int SFBUF_GetPrepFlg(SfdHandle* handle, int buffer_index)
 {
     const unsigned char* object = (const unsigned char*)handle;
@@ -574,7 +567,7 @@ static inline int sfbuf_InitRing(SfdBufferState* buffer,
 static inline void sfbuf_InitVideo(SfdHandle* handle, SfdBufferState* buffer,
                                    unsigned int* address, int* size)
 {
-    long index; /* CRI Sint32 (signed long) frame counter */
+    long index;
     int active;
 
     active = *size != 0;
@@ -683,10 +676,8 @@ int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
 
 void SFBUF_Finish(int* work)
 {
-    (void)work;
 }
 
 void SFBUF_Init(int* work)
 {
-    (void)work;
 }

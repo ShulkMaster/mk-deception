@@ -1,10 +1,4 @@
-/*
- * ScreenInstancer.o -- build and tear down Screen trees from SCREEN blobs.
- *
- * Pipeline: LoadScreenSet -> LoadSetData(SSET) -> ProcessScreenData(SNGC) ->
- * CreateScreen -> CreateObject / CreateElements -> CreateElement.
- * Packed pointer slots contain file-relative offsets until the patch pass.
- */
+
 
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenControl.h"
@@ -17,10 +11,10 @@
 #include "runtime/cstring.h"
 
 enum {
-    kMagicSSET = 0x53534554, /* 'SSET' */
-    kMagicDONE = 0x444F4E45, /* 'DONE' */
-    kMagicSNGC = 0x534E4743, /* 'SNGC' */
-    kMallocTag = 0x494E4954  /* 'INIT' */
+    kMagicSSET = 0x53534554,
+    kMagicDONE = 0x444F4E45,
+    kMagicSNGC = 0x534E4743,
+    kMallocTag = 0x494E4954
 };
 
 #define SCREEN_IDLE_EVENT 0x405
@@ -35,7 +29,7 @@ int ScreenInstancer::CreateScreen(Screen* screen, SEScreen_t* seScreen) {
     ScreenObject* root;
     ScreenMgr* mgr;
 
-    /* Retail loads m_set->m_mgr before the seScreen null branch. */
+
     mgr = screen->m_set->m_mgr;
     if (seScreen == 0) {
         return 0;
@@ -243,7 +237,7 @@ int ScreenInstancer::CreateElements(ScreenMgr* mgr, Screen* screen, ScreenObject
     return 1;
 }
 
-void PatchTextObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
+void PatchTextObject(SEBaseElement_t* baseElem, unsigned char*,
                      SEStringTable_t* strings) {
     SETextElement_t* elem = (SETextElement_t*)baseElem;
     unsigned int idx;
@@ -263,7 +257,7 @@ void PatchTextObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
     }
 }
 
-void PatchPolyObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
+void PatchPolyObject(SEBaseElement_t* baseElem, unsigned char*,
                      SEStringTable_t* strings) {
     SEPolyElement_t* elem = (SEPolyElement_t*)baseElem;
     unsigned int idx;
@@ -303,7 +297,7 @@ void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
     }
 }
 
-/* The list count is reloaded after each attribute is patched. */
+
 /* TODO: [near miss] 92.0%; indexed member accesses differ; combined loop-mode control regresses siblings. */
 void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
                        SEStringTable_t* strings) {
@@ -316,7 +310,7 @@ void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
     }
 }
 
-/* Retail: no action null guard; reloc then reload attrs before Patch list. */
+
 void PatchScreenAction(SEAction_t* action, unsigned char* base,
                        SEStringTable_t* strings) {
     unsigned int attributes = (unsigned int)action->attrs;
@@ -329,7 +323,7 @@ void PatchScreenAction(SEAction_t* action, unsigned char* base,
     }
 }
 
-/* Retail: no event null guard; inline actions at +0x0C stride 0x10. */
+
 void PatchScreenEvent(SEEvent_t* event, unsigned char* base,
                       SEStringTable_t* strings) {
     unsigned int i;
@@ -491,7 +485,7 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     SEAnimTrack_t* track;
     unsigned int off;
 
-    /* Retail: no block==0 guard; packed scene table uses its typed accessor. */
+
     i = 0;
     while (i < (unsigned int)block->count) {
         scene = ScreenAnimSceneAt(block, i);
@@ -507,7 +501,7 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
                 (SEAnimSceneData_t*)(off + (unsigned int)base);
         }
 
-        /* Retail walks m_elements (SERefTable shape) with no null check after reloc. */
+
         keyList = (SERefTable*)scene->m_elements;
         j = 0;
         while (j < keyList->count) {
@@ -520,7 +514,7 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
 
         scene->m_flags = 0x20;
 
-        /* The packed animation data is required after scene relocation. */
+
         data = scene->m_data;
         if ((int)(data->flags & 1) <= 0) {
             int trackIndex = 0;
@@ -542,8 +536,8 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     }
 }
 
-void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
-                       void* /*unused*/) {
+void ProcessScreenData(Screen*, void* data, unsigned int,
+                       void*) {
     ScreenData* se;
     unsigned int base;
     unsigned int i;
