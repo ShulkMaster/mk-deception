@@ -145,8 +145,14 @@ void erase_player_profile(int device, int slot);
 void check_new_mu_for_in_use_profiles(int device);
 void ppc_set_button_answer(int answer);
 void ppc_set_current_icon_selection(unsigned char icon);
+#ifdef __cplusplus
+extern "C"
+#endif
 int ppc_get_code_state(void);
 void ppc_transition_pause(int paused);
+#ifdef __cplusplus
+extern "C"
+#endif
 int pne_is_name_already_used(void);
 void pp_name_entry_proces_char_entry(const char* key_name);
 char* get_current_create_a_profile_name(void);

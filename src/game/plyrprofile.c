@@ -524,7 +524,7 @@ char* ppv_get_current_profile_name(void) {
     return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
 }
 
-/* TODO: [breakthrough needed] 84.92553%; profile-walk guard/join and owner webs differ; inspect retail latch. */
+/* TODO: [breakthrough needed] 84.93%; extra cycle test/owner webs remain; single-latch recovery regresses exact inlined p_view_profile. */
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition) {
     int count;
@@ -1891,13 +1891,17 @@ int validate_konq_save_location(int player) {
     }
 }
 
-/* TODO: [near miss] 99.57%; bare-scope slot temp removed (force matching); first profile_fully_matches swaps pin/slot temps r7/r8, coloring only. */
+static inline int profile_device_slot_fully_matches(
+    PlayerProfile* live, StorageDevice* device, int index) {
+    StorageProfileSlot* slot = &device->profiles[index];
+    return profile_fully_matches(live, slot);
+}
+
 int validate_konq_load_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
     StorageProfileSlot* found;
-    StorageProfileSlot* slot;
     StorageDevice* deviceStatus;
     int device;
     int slotIndex;
@@ -1935,8 +1939,7 @@ int validate_konq_load_location(int player) {
         device = *devicePtr;
         slotIndex = *slotPtr;
         deviceStatus = DEVICE_AT(device);
-        slot = &deviceStatus->profiles[slotIndex];
-        matched = profile_fully_matches(live, slot);
+        matched = profile_device_slot_fully_matches(live, deviceStatus, slotIndex);
         if (matched != 0) {
             return 1;
         }

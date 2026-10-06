@@ -469,17 +469,12 @@ static inline int gc_mount_checked(int device) {
 
     if (device < 0 || device >= 2)
         return -99;
-    switch (device) {
-    case 0:
+    if (device == 0) {
         work = mc_workArea_0;
         detach = detached_slot_a;
-        break;
-    case 1:
+    } else {
         work = mc_workArea_1;
         detach = detached_slot_b;
-        break;
-    default:
-        return -99;
     }
     do {
         rc = CARDMount(device, work, detach);
@@ -489,17 +484,23 @@ static inline int gc_mount_checked(int device) {
             rc = CARDCheck(device);
         } while (rc == -1);
     }
-    if (rc == 0)
+    switch (rc) {
+    case CARD_RESULT_READY:
         return 0;
-    if (rc == -3)
+    case CARD_RESULT_NOCARD:
         return -10;
-    if (rc == -2)
+    case CARD_RESULT_WRONGDEVICE:
         return -0x32;
-    if (rc == -6)
+    case CARD_RESULT_BROKEN:
         return -0x33;
-    if (rc == -13)
+    case CARD_RESULT_ENCODING:
         return -0x34;
-    return -99;
+    case CARD_RESULT_BUSY:
+    case CARD_RESULT_IOERROR:
+    case CARD_RESULT_FATAL_ERROR:
+    default:
+        return -99;
+    }
 }
 
 static inline int gc_unmount_checked(int device) {
@@ -521,7 +522,7 @@ static inline int gc_unmount_checked(int device) {
     }
 }
 
-/* TODO: [breakthrough needed] 68.46%; compare format retry loop and CARD result mapping. */
+/* TODO: [breakthrough needed] 68.47%; compare format retry loop and CARD result mapping. */
 int gc_format_procedure(int device) {
     unsigned int mask;
     s32 sectorSize;
@@ -684,7 +685,7 @@ int gc_format_procedure(int device) {
     return 1;
 }
 
-/* TODO: [breakthrough needed] 77.05%; compare CARD open/delete result paths. */
+/* TODO: [near miss] 95.51%; mount/delete/unmount CFG agrees; device copies and register homes remain. */
 int gc_delete_file(int device, const char* fileName) {
     s32 rc;
     int mapped;
@@ -737,7 +738,7 @@ static inline int finish_memcard_load_after_close(int device, CARDFileInfo* file
     return finish_memcard_load_after_unmount(device, result);
 }
 
-/* TODO: [breakthrough needed] 60.39%; compare mount/read/checksum path and buffer ownership. */
+/* TODO: [breakthrough] 65.24%; shared mount CFG fixed; read/checksum and exit ownership remain. */
 int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,

@@ -54,11 +54,12 @@ int last_switch_time;
 int sw_log_on;
 int debug_message_handler_set;
 
-static inline int players_are_close_for_special(void) {
+static inline int check_decoy_distance_too_close(void) {
     if (plyr_pdata == 0) return 0;
-    if (g_game_info.plyr0.slot.mirror_a == 0) return 0;
-    if (g_game_info.plyr1.slot.mirror_a == 0) return 0;
-    return xz_distance_between_players() < 2.25f;
+    if (g_game_info.plyr0.slot.mirror_a == 0 ||
+        g_game_info.plyr1.slot.mirror_a == 0) return 0;
+    if (xz_distance_between_players() < 2.25f) return 1;
+    return 0;
 }
 
 static inline void clear_controller_buttons(GameInfo* game) {
@@ -545,7 +546,111 @@ static float p_switch_log_fadeoff(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough needed] 78.74%; sequence dispatch lifetimes and register allocation remain unresolved. */
+static inline unsigned int check_subzero_decoy(unsigned int action) {
+    if (plyr_pdata == 0) return action;
+    if (plyr_pdata->character_id != 3) return action;
+    if (action == 0xA && check_decoy_distance_too_close()) action = 9;
+    return action;
+}
+
+static inline unsigned int check_smoke_decoy(unsigned int action) {
+    if (plyr_pdata == 0) return action;
+    if (plyr_pdata->character_id != 0x1B) return action;
+    if (!is_sidekick_active(plyr_pdata->plyr_info)) return action;
+    if (action == 0x1D && check_decoy_distance_too_close()) action = 0x1E;
+    return action;
+}
+
+static inline void execute_scan_sequence_cmd(unsigned int action,
+                                             int execution_mode) {
+    plyr_pdata->field_234 = 1;
+    if (plyr_pdata != 0 && plyr_pdata->state != 0x4203)
+        pre_attack_chores();
+    plyr_going_to_attack_with_action(action);
+    share_my_attack_info(2.0f, 0.3f);
+    trial_register_special_move(action);
+    switch (execution_mode) {
+    case 0x01000000:
+        aproc->vtbl
+            ->jump_sleep((MkProcEntryFn)action, 0.0f);
+        break;
+    case 0x02000000:
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(
+            plyr_pdata->fighter_definition->cmo, action);
+        call_player_script_function(
+            plyr_pdata->fighter_definition->cmo);
+        break;
+    case 0x03000000:
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(plyr_pdata->cmo, action);
+        call_player_script_function(plyr_pdata->cmo);
+        break;
+    case 0x04000000:
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(reactions_cmo, action);
+        call_player_script_function(reactions_cmo);
+        break;
+    }
+
+}
+
+static inline void scan_switch_sequence(
+    const int* requirements, int remaining, struct SwitchLogEntry* switch_log,
+    int history, unsigned int toward, unsigned int away, int max_tick_gap,
+    unsigned int sequence_id, unsigned int action, int execution_mode) {
+    for (; remaining-- > 0;) {
+        struct SwitchLogEntry* entry = &switch_log[history];
+        int expected;
+        int tick_delta;
+
+        if (--history < 0) history = 29;
+        expected = requirements[remaining];
+        switch (expected) {
+        case (int)0x80000001:
+            if ((unsigned int)entry->switch_index != toward) return;
+            break;
+        case (int)0x80000002:
+            if ((unsigned int)entry->switch_index != away) return;
+            break;
+        case (int)0x80000003:
+            if ((unsigned int)entry->switch_index != 0xC) return;
+            break;
+        case (int)0x80000004:
+            if ((unsigned int)entry->switch_index != 0xE) return;
+            break;
+        default:
+            return;
+        }
+        tick_delta = exec_tick_ctr - entry->tick;
+        if (tick_delta < 0) tick_delta = -tick_delta;
+        if ((unsigned int)tick_delta > (unsigned int)max_tick_gap) return;
+    }
+    if (sequence_id != 0) {
+        if (sequence_id + 0xC0010000 == 0x0000FFFE) {
+            if (mode_of_play == 8 ||
+                !fatality_check_distance(action) ||
+                !get_fatality_available_flag() ||
+                (action == (unsigned int)do_my_fatality &&
+                 !is_special_move_available(plyr_pdata, 0x4243)) ||
+                (action == (unsigned int)do_my_2nd_fatality &&
+                 !is_special_move_available(plyr_pdata, 0x4244)))
+                return;
+        }
+        if (sequence_id + 0xC0010000 == 0x0000FFFD) {
+            if (mode_of_play == 8 ||
+                !get_fatality_available_flag() ||
+                !is_special_move_available(plyr_pdata, 0x4245))
+                return;
+        } else if (is_this_move_disabled_exec(sequence_id)) {
+            return;
+        }
+        action = check_smoke_decoy(check_subzero_decoy(action));
+    }
+    execute_scan_sequence_cmd(action, execution_mode);
+}
+
+/* TODO: [near miss] 97.68%; equivalent rejection branches and GPR coloring remain; stop at compiler model. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int log_index;
@@ -578,111 +683,27 @@ void scan_switch_sequences(unsigned int* sequence) {
         int execution_mode;
         int max_tick_gap;
         int requirements[30];
-        int requirement_count = 0;
-        int history;
-        int remaining;
+        int requirement_count;
 
         if (sequence_id + 0x10000 == 0x0000FFFF) break;
         timing = sequence[1];
+        requirement_count = 0;
         action = sequence[2];
         execution_mode = timing & 0x0F000000;
         max_tick_gap = timing - execution_mode;
         sequence += 3;
-        while (sequence[0] + 0x10000 != 0x0000FFFF &&
-               (sequence[0] & 0x80000000)) {
+        while (1) {
+            unsigned int requirement = *sequence;
+            if (requirement + 0x10000 == 0x0000FFFF ||
+                !(requirement & 0x80000000)) break;
             if (requirement_count >= 30) return;
-            requirements[requirement_count++] = *sequence++;
+            requirements[requirement_count] = requirement;
+            sequence++;
+            requirement_count++;
         }
-        history = log_index;
-        remaining = requirement_count;
-
-        while (remaining > 0) {
-            struct SwitchLogEntry* entry = &switch_log[history];
-            int expected;
-            int tick_delta;
-
-            if (--history < 0) history = 29;
-            expected = requirements[--remaining];
-            if (expected == (int)0x80000003) {
-                if (entry->switch_index != 0xC) break;
-            } else if (expected < (int)0x80000003) {
-                if (expected == (int)0x80000001) {
-                    if ((unsigned int)entry->switch_index != toward) break;
-                } else if (expected >= (int)0x80000001) {
-                    if ((unsigned int)entry->switch_index != away) break;
-                } else {
-                    break;
-                }
-            } else if (expected < (int)0x80000005) {
-                if (entry->switch_index != 0xE) break;
-            } else {
-                break;
-            }
-            tick_delta = exec_tick_ctr - entry->tick;
-            if (tick_delta < 0) tick_delta = -tick_delta;
-            if ((unsigned int)tick_delta > (unsigned int)max_tick_gap) break;
-        }
-        if (remaining == 0) {
-            unsigned int selected_action = action;
-            if (sequence_id != 0) {
-                if (sequence_id + 0xC0010000 == 0x0000FFFE) {
-                    if (mode_of_play == 8 ||
-                        !fatality_check_distance(action) ||
-                        !get_fatality_available_flag() ||
-                        (action == (unsigned int)do_my_fatality &&
-                         !is_special_move_available(plyr_pdata, 0x4243)) ||
-                        (action == (unsigned int)do_my_2nd_fatality &&
-                         !is_special_move_available(plyr_pdata, 0x4244)))
-                        break;
-                }
-                if (sequence_id + 0xC0010000 == 0x0000FFFD) {
-                    if (mode_of_play == 8 ||
-                        !get_fatality_available_flag() ||
-                        !is_special_move_available(plyr_pdata, 0x4245))
-                        break;
-                } else if (is_this_move_disabled_exec(sequence_id)) {
-                    break;
-                }
-                if (plyr_pdata != 0 &&
-                    plyr_pdata->character_id == 3 && action == 0xA &&
-                    players_are_close_for_special()) selected_action = 9;
-                if (plyr_pdata != 0 &&
-                    plyr_pdata->character_id == 0x1B &&
-                    is_sidekick_active(plyr_pdata->plyr_info) &&
-                    selected_action == 0x1D &&
-                    players_are_close_for_special()) selected_action = 0x1E;
-                action = selected_action;
-            }
-            plyr_pdata->field_234 = 1;
-            if (plyr_pdata != 0 && plyr_pdata->state != 0x4203)
-                pre_attack_chores();
-            plyr_going_to_attack_with_action(action);
-            share_my_attack_info(2.0f, 0.3f);
-            trial_register_special_move(action);
-            switch (execution_mode) {
-            case 0x01000000:
-                aproc->vtbl
-                    ->jump_sleep((MkProcEntryFn)action, 0.0f);
-                break;
-            case 0x02000000:
-                cmdscript_reset_stack();
-                cmdscript_setup_execution(
-                    plyr_pdata->fighter_definition->cmo, action);
-                call_player_script_function(
-                    plyr_pdata->fighter_definition->cmo);
-                break;
-            case 0x03000000:
-                cmdscript_reset_stack();
-                cmdscript_setup_execution(plyr_pdata->cmo, action);
-                call_player_script_function(plyr_pdata->cmo);
-                break;
-            case 0x04000000:
-                cmdscript_reset_stack();
-                cmdscript_setup_execution(reactions_cmo, action);
-                call_player_script_function(reactions_cmo);
-                break;
-            }
-        }
+        scan_switch_sequence(requirements, requirement_count, switch_log,
+                             log_index, toward, away, max_tick_gap,
+                             sequence_id, action, execution_mode);
     }
 }
 

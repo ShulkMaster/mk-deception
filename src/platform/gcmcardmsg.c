@@ -75,15 +75,9 @@ int msg_save_error_konq_region_answer;
 
 static int low_storage_slot_message_done;
 
-static inline int pad_action_pressed(int action) {
-    if (check_switch_action(get_p1_pad(), action) != 0) {
-        return 1;
-    }
-    if (check_switch_action(get_p2_pad(), action) != 0) {
-        return 1;
-    }
-    return 0;
-}
+#define pad_action_pressed(action) \
+    (check_switch_action(get_p1_pad(), (action)) != 0 || \
+     check_switch_action(get_p2_pad(), (action)) != 0)
 
 static inline void eat_pad_action(int action) {
     eat_switch_action(get_p1_pad(), action);
@@ -104,43 +98,59 @@ static inline void sleep_aproc(float ticks) {
 }
 
 static inline int is_hault_message_id(int id) {
-    if (id < 0x14) {
-        if (id == 3) {
-            return 0;
-        }
-        if (id > 3) {
-            if (id >= 0xc) {
-                return 1;
-            }
-            if (id >= 6) {
-                return 0;
-            }
-            return 1;
-        }
-        if (id >= 2) {
-            return 1;
-        }
-        if (id >= 0) {
-            return 0;
-        }
+    switch (id) {
+    case 2:
+    case 4:
+    case 5:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 22:
+    case 23:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 28:
+    case 29:
+    case 30:
+    case 31:
+    case 32:
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+    case 42:
+    case 43:
+    case 44:
+        return 1;
+    case 0:
+    case 1:
+    case 3:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 20:
+    case 21:
+    case 37:
+    case 38:
+    case 39:
+    case 40:
+    case 41:
+    case 45:
+    case 46:
+        return 0;
+    default:
         return 0;
     }
-    if (id < 0x2a) {
-        if (id >= 0x25) {
-            return 0;
-        }
-        if (id >= 0x16) {
-            return 1;
-        }
-        return 0;
-    }
-    if (id >= 0x2f) {
-        return 0;
-    }
-    if (id >= 0x2d) {
-        return 0;
-    }
-    return 1;
 }
 
 /* TODO: [breakthrough] 66.09%; retail reboot calls restored; compare answer CFG and register lifetimes. */
@@ -205,18 +215,26 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
     return ret;
 }
 
-/* TODO: [breakthrough needed] 78.44%; retail pool restored; remaining call/branch lowering needs comparison. */
+static inline int boot_storage_status_changed(const int* previous) {
+    int device;
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        if (DEVICE_AT(device)->status != previous[device]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* TODO: [breakthrough needed] 91.76%; status and halt predicates agree; named NBC/string pool hoisting remains. */
 void gc_boot_space_check(void) {
     int prevStatus[2];
     int device;
-    int changed;
     int statusRc;
     int anyPresent;
     const char* slotName;
     const char* optA;
-    const char* optB;
-    const char* optC;
     const char* bodyPart;
+    int active;
 
     if (low_storage_slot_message_done != 0) {
         return;
@@ -227,14 +245,7 @@ void gc_boot_space_check(void) {
             prevStatus[device] = DEVICE_AT(device)->status;
         }
         statusRc = update_storage_status(0);
-        changed = 0;
-        for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-            if (DEVICE_AT(device)->status != prevStatus[device]) {
-                changed = 1;
-                break;
-            }
-        }
-        if (changed != 0 || statusRc != 0) {
+        if (boot_storage_status_changed(prevStatus) != 0 || statusRc != 0) {
             continue;
         }
 
@@ -258,9 +269,8 @@ void gc_boot_space_check(void) {
         sprintf(message_buffer, STR_MC_FMT_S, bodyPart);
         set_memcard_popup_message_body_text(message_buffer);
         optA = nbc_find_text(0x15, 0);
-        optB = nbc_find_text(0x13, 0);
-        optC = nbc_find_text(0x12, 0);
-        sprintf(message_buffer, STR_MC_FMT_SSSS, optC, slotName, optB, optA);
+        sprintf(message_buffer, STR_MC_FMT_SSSS,
+            nbc_find_text(0x12, 0), slotName, nbc_find_text(0x13, 0), optA);
         set_memcard_popup_message_options_text(message_buffer);
         set_memcard_popup_message_type(0xb);
         fire_up_memcard_mesage_screen();
@@ -269,8 +279,9 @@ void gc_boot_space_check(void) {
         prepare_for_haulting_message();
         sleep_aproc(1.0f);
 
-        if (mcard_msg_active != 0) {
-            if (is_hault_message_id(mcard_msg_active) == 0 && mcard_msg_active != 0) {
+        active = mcard_msg_active;
+        if (active != 0) {
+            if (is_hault_message_id(active) == 0 && active != 0) {
                 sleep_aproc(120.0f);
             }
             mcard_msg_remove_screen();
@@ -292,7 +303,6 @@ int is_this_a_hault_message(void) {
     return is_hault_message_id(mcard_msg_active);
 }
 
-/* TODO: [breakthrough needed] 63.42%; shared halt classifier emits a different CFG; compare retail call order. */
 void mcard_msg_end(void) {
     int active;
 
@@ -301,7 +311,7 @@ void mcard_msg_end(void) {
         return;
     }
     if (is_hault_message_id(active) == 0 && active != 0) {
-        _mkproc_sleep_ticks = 0.0f;
+        _mkproc_sleep_ticks = 120.0f;
         aproc->vtbl->sleep();
     }
     mcard_msg_remove_screen();
@@ -310,29 +320,32 @@ void mcard_msg_end(void) {
     mcard_msg_active = 0;
 }
 
-/* TODO: [breakthrough needed] 60.80645%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_middle_sleep(int mode, int caller) {
+    int active;
     if ((mode == 7 || mode == 8) && caller == 0) {
         return;
     }
-    if (is_hault_message_id(mcard_msg_active) == 0 &&
-        mcard_msg_active != 0 &&
-        (mcard_msg_active == 0x25 || mcard_msg_active == 9)) {
-        sleep_aproc(0.0f);
+    active = mcard_msg_active;
+    if (is_hault_message_id(active) == 0 && active != 0) {
+        switch (active) {
+        case 0x25:
+        case 9:
+            sleep_aproc(60.0f);
+            break;
+        }
     }
 }
 
-/* TODO: [breakthrough needed] 73.65%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_card_change_at_format_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_card_changed_at_format_answer, 2);
     }
-    if (pad_action_pressed(3) != 0) {
+    if (pad_action_pressed(3)) {
         eat_pad_action(3);
         format_msg_accept(&mcard_msg_card_changed_at_format_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_card_changed_at_format_answer, 2);
     }
@@ -399,7 +412,6 @@ void mcard_msg_auto_save(int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_save_failed(int device) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x83, 0));
@@ -412,7 +424,6 @@ void mcard_msg_save_failed(int device) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_failed(int device) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x87, 0));
@@ -425,7 +436,6 @@ void mcard_msg_create_failed(int device) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_create_successful(int device) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x86, 0));
@@ -451,11 +461,11 @@ void mcard_msg_save_successful(int device) {
 }
 
 static void mcard_msg_confirm_erase_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_confirm_erase_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_confirm_erase_answer, 2);
     }
@@ -580,11 +590,11 @@ void mcard_msg_profile_damaged_in_konquest(void) {
 }
 
 static void mcard_msg_profile_reset_confirmation_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_profile_reset_confirmation_answer, 2);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_profile_reset_confirmation_answer, 1);
     }
@@ -772,14 +782,17 @@ void mcard_msg_save_error_konq_region(int device) {
 }
 
 static void mcard_msg_name_conflict_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
-        format_msg_accept(&mcard_msg_name_conflict_answer, 1);
+        snd_req(0x1aa5);
+        mcard_hault_msg_active = 0;
+        pause_procs(0);
+        mcard_msg_remove_screen();
     }
 }
 
-/* TODO: [breakthrough needed] 77.35%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_name_conflict(void) {
+    int active;
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x68, 0));
     sprintf(message_buffer, STR_MC_FMT_S, nbc_find_text(0x69, 0));
@@ -791,28 +804,31 @@ void mcard_msg_name_conflict(void) {
     mcard_msg_active = 0x1b;
     prepare_for_haulting_message();
     sleep_aproc(1.0f);
-    if (is_hault_message_id(mcard_msg_active) == 0 && mcard_msg_active != 0) {
-        sleep_aproc(0.0f);
+    active = mcard_msg_active;
+    if (active != 0) {
+        if (is_hault_message_id(active) == 0 && active != 0) {
+            sleep_aproc(120.0f);
+        }
+        mcard_msg_remove_screen();
+        recover_from_message();
+        f_writing_to_memcard = 0;
+        mcard_msg_active = 0;
     }
-    mcard_msg_remove_screen();
-    recover_from_message();
-    f_writing_to_memcard = 0;
-    mcard_msg_active = 0;
 }
 
 static void mcard_msg_save_cancelled_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_save_cancelled_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_save_cancelled_answer, 2);
     }
 }
 
 static void mcard_msg_no_room_for_profile_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (check_switch_action(get_p1_pad(), 0) != 0 || check_switch_action(get_p2_pad(), 0) != 0) {
         eat_pad_action(0);
         snd_req(0x1aa5);
         mcard_hault_msg_active = 0;
@@ -833,13 +849,12 @@ static void mcard_msg_debug_rtn(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 74.91%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_format_failed_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_format_failed_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_format_failed_answer, 2);
     }
@@ -917,13 +932,12 @@ void mcard_msg_formating(int device) {
     sleep_aproc(60.0f);
 }
 
-/* TODO: [breakthrough needed] 74.91%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_format_confirmation_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_format_confirmation_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_format_confirmation_answer, 2);
     }
@@ -948,13 +962,11 @@ void mcard_msg_format_confirmation(int device) {
     aproc->vtbl->sleep();
 }
 
-/* TODO: [breakthrough needed] 73.34%; pad poll call schedule differs; compare retail call order. */
 static void mcard_msg_no_file_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_no_file_answer, 1);
-    }
-    if (pad_action_pressed(1) != 0) {
+    } else if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_no_file_answer, 2);
     }
@@ -1046,13 +1058,14 @@ void mcard_msg_card_gone(const char* profileName, int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [breakthrough needed] 82.56%; pad and edge poll schedule differs; compare retail call order. */
 static void mcard_msg_crc_failure_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (check_switch_action(get_p1_pad(), 0) != 0 ||
+        check_switch_action(get_p2_pad(), 0) != 0) {
         eat_pad_action(0);
         format_msg_accept(&msg_crc_failure_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (check_switch_action(get_p1_pad(), 1) != 0 ||
+        check_switch_action(get_p2_pad(), 1) != 0) {
         eat_pad_action(1);
         format_msg_accept(&msg_crc_failure_answer, 2);
     }
@@ -1088,11 +1101,11 @@ void mcard_msg_crc_failure(const char* nameOrNull, int device) {
 }
 
 static void mcard_msg_incompatible_card_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_incompatible_card_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_incompatible_card_answer, 2);
     }
@@ -1123,29 +1136,27 @@ void mcard_msg_incompatible_card(const char* nameOrNull, int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [breakthrough needed] 74.04%; pad and edge poll schedule differs; compare retail call order. */
 static void mcard_msg_no_space_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_no_space_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_no_space_answer, 2);
     }
-    if (check_switch_edge(0, 5) != 0 || check_switch_edge(1, 5) != 0) {
-        eat_switch_edge(0, 5);
-        eat_switch_edge(1, 5);
+    if (pad_action_pressed(3)) {
+        eat_pad_action(3);
         format_msg_accept(&mcard_msg_no_space_answer, 3);
     }
 }
 
 static void mcard_msg_wrong_device_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_wrong_device_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_wrong_device_answer, 2);
     }
@@ -1179,11 +1190,11 @@ void mcard_msg_wrong_device(const char* name, int device) {
 }
 
 static void mcard_msg_card_damaged_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_card_damaged_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_card_damaged_answer, 2);
     }
@@ -1214,15 +1225,15 @@ void mcard_msg_card_damaged(const char* nameOrNull, int device) {
 }
 
 static void mcard_msg_another_market_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_another_market_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_another_market_answer, 2);
     }
-    if (pad_action_pressed(3) != 0) {
+    if (pad_action_pressed(3)) {
         eat_pad_action(3);
         format_msg_accept(&msg_another_market_answer, 3);
     }
@@ -1256,15 +1267,15 @@ void mcard_msg_another_market(const char* name, int device) {
 }
 
 static void mcard_msg_sys_corrupt_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&msg_sys_corrupt_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&msg_sys_corrupt_answer, 2);
     }
-    if (pad_action_pressed(3) != 0) {
+    if (pad_action_pressed(3)) {
         eat_pad_action(3);
         format_msg_accept(&msg_sys_corrupt_answer, 3);
     }
@@ -1304,11 +1315,11 @@ static void mcard_msg_no_cards_at_cap_rtn(void) {
 }
 
 static void mcard_msg_no_cards_at_settings_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_no_cards_at_settings_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_no_cards_at_settings_answer, 2);
     }
@@ -1365,11 +1376,11 @@ static void mcard_msg_no_cards_at_boot_rtn(void) {
 }
 
 static void mcard_msg_mu_removed_rtn(void) {
-    if (pad_action_pressed(0) != 0) {
+    if (pad_action_pressed(0)) {
         eat_pad_action(0);
         format_msg_accept(&mcard_msg_mu_removed_answer, 1);
     }
-    if (pad_action_pressed(1) != 0) {
+    if (pad_action_pressed(1)) {
         eat_pad_action(1);
         format_msg_accept(&mcard_msg_mu_removed_answer, 2);
     }
@@ -1398,7 +1409,6 @@ void mcard_msg_mu_removed(const char* nameOrNull, int device) {
     sleep_aproc(1.0f);
 }
 
-/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_delete_failed_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x23, 0));
@@ -1411,7 +1421,6 @@ void mcard_msg_delete_failed_generic(void) {
     sleep_aproc(90.0f);
 }
 
-/* TODO: [near miss] 82.878784%; retail pool restored; compiler caches the repeated space pointer. */
 void mcard_msg_delete_successful_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x20, 0));
@@ -1500,7 +1509,7 @@ void mcard_msg_no_storage(const char* text) {
     fire_up_memcard_mesage_screen();
     mcard_msg_active = 3;
     prepare_for_sleeping_message();
-    sleep_aproc(90.0f);
+    sleep_aproc(180.0f);
 }
 
 void mcard_msg_read(int device) {

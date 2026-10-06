@@ -8,6 +8,10 @@ typedef struct DragonTextPrompt {
     unsigned char yes_hi;
 } DragonTextPrompt;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void tile_image(unsigned char* dest);
 void gc_native_display_init(void);
 void gc_native_display_render_image(void);
@@ -23,5 +27,9 @@ int romfont_puts(int x, int y, char* text);
 
 extern unsigned short loading_palette[0x100];
 extern unsigned char loading_image[0x10000];
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

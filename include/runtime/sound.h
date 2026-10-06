@@ -3,6 +3,14 @@
 
 #include "msl/msl_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern _mslSystem* msi;
+#ifdef __cplusplus
+}
+#endif
+
 MslSoundHandle snd_req(int sound_id);
 MslSoundHandle snd_req_vol(int sound_id, float volume);
 MslSoundHandle random_snd_req(int group);
