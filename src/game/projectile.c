@@ -109,10 +109,6 @@ struct ProjectileFollowerPdata {
     unsigned int projectile_instance;
 };
 
-union ProjectileFloatBits {
-    float f;
-    unsigned int u;
-};
 
 static struct ProjectilePdata* proj_pdata;
 
@@ -150,23 +146,6 @@ extern int collide_sphere_vs_plyr(
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 
-static inline float projectile_fast_inverse_sqrt(float squared) {
-    union ProjectileFloatBits bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    bits.f = squared;
-    bits.u = 0x5F375A00 - (bits.u >> 1);
-    estimate = bits.f;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 static inline void projectile_set_target_position(const Vec* position) {
     if (proj_pdata != 0) {
@@ -344,7 +323,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
         object->pos_vel.z * object->pos_vel.z);
     target_z = object->pos_vel.z;
     target_x = object->pos_vel.x;
-    horizontal_inverse_length = projectile_fast_inverse_sqrt(
+    horizontal_inverse_length = gxMathFastInvSqrt(
         target_x * target_x + target_z * target_z);
     target_x *= horizontal_inverse_length;
     target_z *= horizontal_inverse_length;
@@ -354,7 +333,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     if (target_y > 0.0f) {
         target_y = 0.0f;
     }
-    target_inverse_length = projectile_fast_inverse_sqrt(
+    target_inverse_length = gxMathFastInvSqrt(
         target_x * target_x + target_y * target_y + target_z * target_z);
     target_x *= target_inverse_length;
     target_y *= target_inverse_length;
@@ -367,7 +346,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
         object->ang.y = plyr_obj->ang.y;
         return;
     }
-    angle_inverse_length = projectile_fast_inverse_sqrt(
+    angle_inverse_length = gxMathFastInvSqrt(
         projectile_horizontal_length_squared(&object->pos_vel));
     object->ang.y = gxMathArcTanYX(
         object->pos_vel.x * angle_inverse_length,
@@ -415,7 +394,7 @@ void set_active_projectile_velocity(const Vec* velocity) {
                 object->ang.y = plyr_obj->ang.y;
                 return;
             }
-            inverse_length = projectile_fast_inverse_sqrt(
+            inverse_length = gxMathFastInvSqrt(
                 object->pos_vel.x * object->pos_vel.x +
                 object->pos_vel.z * object->pos_vel.z);
             object->ang.y = gxMathArcTanYX(
@@ -684,7 +663,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     if (object->pos_vel.x == 0.0f && object->pos_vel.y == 0.0f) {
         object->ang.y = plyr_obj->ang.y;
     } else {
-        inverse_length = projectile_fast_inverse_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             object->pos_vel.x * object->pos_vel.x +
             object->pos_vel.z * object->pos_vel.z);
         object->ang.y = gxMathArcTanYX(
@@ -788,7 +767,7 @@ void retarget_projectile(struct ProjectilePdata* pdata) {
         object->pos_vel.z * object->pos_vel.z);
     dx = pdata->retarget_object->pos.value.x - object->pos.value.x;
     dz = pdata->retarget_object->pos.value.z - object->pos.value.z;
-    inverse_length = projectile_fast_inverse_sqrt(dx * dx + dz * dz);
+    inverse_length = gxMathFastInvSqrt(dx * dx + dz * dz);
     object->pos_vel.x = dx * inverse_length;
     object->pos_vel.z = dz * inverse_length;
     object->pos_vel.y = 0.0f;
@@ -799,7 +778,7 @@ void retarget_projectile(struct ProjectilePdata* pdata) {
     if (object->pos_vel.x == 0.0f && object->pos_vel.y == 0.0f) {
         object->ang.y = plyr_obj->ang.y;
     } else {
-        inverse_length = projectile_fast_inverse_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             object->pos_vel.x * object->pos_vel.x +
             object->pos_vel.z * object->pos_vel.z);
         object->ang.y = gxMathArcTanYX(
@@ -809,11 +788,6 @@ void retarget_projectile(struct ProjectilePdata* pdata) {
     pdata->max_ticks = 300.0f;
 }
 
-static inline void projectile_scale_v3(Vec* out, const Vec* vector, float factor) {
-    out->x = vector->x * factor;
-    out->y = vector->y * factor;
-    out->z = vector->z * factor;
-}
 
 static inline void projectile_cross_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->y * b->z - a->z * b->y;
@@ -842,7 +816,7 @@ static void projectile_set_velocity_angy_tol(
     cone_cos = gxMathCos((3.1415f * tolerance) / 360.0f);
     dx = his_obj->pos.value.x - object->pos.value.x;
     dz = his_obj->pos.value.z - object->pos.value.z;
-    inverse_length = projectile_fast_inverse_sqrt(dx * dx + dz * dz);
+    inverse_length = gxMathFastInvSqrt(dx * dx + dz * dz);
     direction_x = dx * inverse_length;
     direction_z = dz * inverse_length;
     forward.x = gxMathSin(plyr_obj->ang.y);
@@ -856,7 +830,7 @@ static void projectile_set_velocity_angy_tol(
         launch_direction.x = direction_x;
         launch_direction.y = 0.0f;
         launch_direction.z = direction_z;
-        projectile_scale_v3(&object->pos_vel, &launch_direction, speed);
+        gxVectScale(&object->pos_vel, &launch_direction, speed);
         return;
     }
 
@@ -866,16 +840,16 @@ static void projectile_set_velocity_angy_tol(
     side_axis.z = 0.0f;
     projectile_cross_v3(&side_direction, &side_axis, &forward);
     cone_sin = gxMathFastSqrt(1.0f - cone_cos * cone_cos);
-    inverse_length = projectile_fast_inverse_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         side_direction.x * side_direction.x + side_direction.z * side_direction.z);
     normalized_side_x = side_direction.x * inverse_length;
     object->pos_vel.x = normalized_side_x * cone_sin;
     normalized_side_z = side_direction.z * inverse_length;
     object->pos_vel.z = normalized_side_z * cone_sin;
-    projectile_scale_v3(&forward_component, &forward, cone_cos);
+    gxVectScale(&forward_component, &forward, cone_cos);
     object->pos_vel.x += forward_component.x;
     object->pos_vel.z += forward_component.z;
-    inverse_length = projectile_fast_inverse_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.z * object->pos_vel.z);
     object->pos_vel.x = object->pos_vel.x * inverse_length;
@@ -999,7 +973,7 @@ static float p_projectile_handler(void) {
                         object->pos_vel.z * object->pos_vel.z);
                     object->pos_vel.y =
                         (bone_position.y - object->pos.value.y) / 5.0f;
-                    inverse_length = projectile_fast_inverse_sqrt(
+                    inverse_length = gxMathFastInvSqrt(
                         object->pos_vel.x * object->pos_vel.x +
                         object->pos_vel.y * object->pos_vel.y +
                         object->pos_vel.z * object->pos_vel.z);
@@ -1026,7 +1000,7 @@ static float p_projectile_handler(void) {
                         object->pos_vel.z * object->pos_vel.z);
                     object->pos_vel.x = dx;
                     object->pos_vel.z = dz;
-                    inverse_length = projectile_fast_inverse_sqrt(
+                    inverse_length = gxMathFastInvSqrt(
                         object->pos_vel.x * object->pos_vel.x +
                         object->pos_vel.y * object->pos_vel.y +
                         object->pos_vel.z * object->pos_vel.z);
@@ -1182,18 +1156,12 @@ static float p_projectile_handler(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 73.35%; collision result mapping follows retail; latch/register scheduling remains. */
 static float p_projectile_continue(void) {
     MkObj* object;
     MkObj* target;
     int collision;
-    int player;
 
-    object = proj_pdata->object;
-    if (object != 0 &&
-        object->hdr.instance != proj_pdata->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
     if (object != 0) {
         target = proj_pdata->target.impaled_target->his_obj;
         collision = simple_3d_projectile_collision(
@@ -1203,15 +1171,10 @@ static float p_projectile_continue(void) {
             proj_pdata->collision_radius,
             proj_pdata->collision_depth,
             proj_pdata->collision_height);
-        player = target == g_game_info.plyr0.slot.mirror_a;
-        switch (collision) {
-        case 1:
-        case 2:
-            trial_state_collision_check(0, player);
-            break;
-        case 0:
-            trial_state_collision_check(1, player);
-            break;
+        if (collision == 1 || collision == 2) {
+            trial_state_collision_check(0, target == g_game_info.plyr0.slot.mirror_a);
+        } else if (collision == 0) {
+            trial_state_collision_check(1, target == g_game_info.plyr0.slot.mirror_a);
         }
         if (collision != 2) {
             return 1.0f;
@@ -1221,91 +1184,53 @@ static float p_projectile_continue(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 69.88%; retail uses stmw and reloads proj_pdata per access; latch CFG differs. */
 static float p_ground_target(void) {
-    struct ProjectilePdata* projectile = proj_pdata;
-    struct ProjectileScriptPdata* script_data;
-    PlyrPdata* target;
-    PlyrPdata* owner;
+    struct ProjectilePdata* projectile;
     MkObj* object;
-    MkObj* source;
-    MkProc* process;
 
-    object = projectile->object;
-    if (object != 0 &&
-        object->hdr.instance != projectile->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
     if (object == 0) {
         aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
-    projectile->max_ticks -= game_speed;
-    if (projectile->max_ticks < 0.0f) {
+    proj_pdata->max_ticks -= game_speed;
+    if (proj_pdata->max_ticks < 0.0f) {
         aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
-    target = projectile->target.impaled_target->his_plyr_pdata;
-    target->duck_reaction_active = 1;
-    target->saved_position_x = object->pos.value.x;
-    target->saved_position_y = object->pos.value.y;
-    target->saved_position_z = object->pos.value.z;
-    if (object->pos.value.y >= g_game_info.field_34) {
-        return 1.0f;
-    }
+    proj_pdata->target.impaled_target->his_plyr_pdata->duck_reaction_active = 1;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_x =
+        object->pos.value.x;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_y =
+        object->pos.value.y;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_z =
+        object->pos.value.z;
+    if (object->pos.value.y < g_game_info.field_34) {
+        if (proj_pdata->flight_sound != 0) {
+            snd_req(proj_pdata->flight_sound);
+        }
+        projectile = proj_pdata;
+        projectile->target.impaled_target->his_plyr_pdata->duck_reaction_active = 0;
+        if (projectile->sound_handle != 0) {
+            snd_stop(projectile->sound_handle);
+            projectile->sound_handle = 0;
+        }
 
-    if (projectile->flight_sound != 0) {
-        snd_req(projectile->flight_sound);
-    }
-    target->duck_reaction_active = 0;
-    if (projectile->sound_handle != 0) {
-        snd_stop(projectile->sound_handle);
-        projectile->sound_handle = 0;
-    }
+        if (projectile->setup.bits.hit_script_set) {
+            projectile_start_script_snapshot(
+                projectile, &projectile->hit_script_index);
+        }
 
-    process = 0;
-    if (projectile->setup.bits.ground_script_set) {
-        source = projectile->source_object;
-        if (source != 0 &&
-            source->hdr.instance != projectile->source_object_instance) {
-            source = 0;
-        }
-        if (source != 0) {
-            if (source == g_game_info.plyr0.slot.mirror_a) {
-                owner = g_game_info.plyr0.slot.pdata;
-            } else {
-                owner = g_game_info.plyr1.slot.pdata;
-            }
-            process = projectile_start_end_script(
-                owner, projectile->target.impaled_target,
-                projectile->ground_script_index);
-        }
+        object->pos_vel.z = 0.0f;
+        object->pos_vel.y = 0.0f;
+        object->pos_vel.x = 0.0f;
+        proj_pdata->max_ticks = proj_pdata->ground_collision_ticks;
+        aproc->vtbl->jump_sleep(p_ground_target_collide, 0.0f);
+        return 0.0f;
     }
-    if (process != 0) {
-        script_data = (struct ProjectileScriptPdata*)pdata_of_proc(process);
-        object = projectile->object;
-        if (object != 0 &&
-            object->hdr.instance != projectile->object_instance) {
-            object = 0;
-        }
-        if (script_data != 0 && object != 0) {
-            script_data->last_position.x = object->pos.value.x;
-            script_data->last_position.y = object->pos.value.y;
-            script_data->last_position.z = object->pos.value.z;
-            script_data->velocity.x = object->pos_vel.x;
-            script_data->velocity.y = object->pos_vel.y;
-            script_data->velocity.z = object->pos_vel.z;
-        }
-    }
-
-    object->pos_vel.z = 0.0f;
-    object->pos_vel.y = 0.0f;
-    object->pos_vel.x = 0.0f;
-    projectile->max_ticks = projectile->ground_collision_ticks;
-    aproc->vtbl->jump_sleep(p_ground_target_collide, 0.0f);
-    return 0.0f;
+    return 1.0f;
 }
 
 static float p_ground_target_collide(void) {

@@ -252,12 +252,12 @@ void ProcessSpecularity(
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* TODO: [breakthrough needed] 71.08%; GXBool narrowing changes frame and nonvolatile homes; inspect ABI. */
+/* TODO: [near miss] 71.08%; GX byte ABI verified; stage-count sinking changes frame and saved homes; stop at lifetime ceiling. */
 void CleanupSpecularity(
     RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
     SpecularMaterialPluginData* specular;
-    int textured;
-    unsigned int stage_count;
+    GXBool textured;
+    unsigned char stage_count;
 
     stage_count = (alpha_texture != 0) + 1;
     textured = base_texture != 0;
@@ -912,27 +912,6 @@ static inline void find_spec_lights(RwGlobals* engine) {
     }
 }
 
-static inline float spec_inv_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } guess;
-    float product;
-    float correction;
-    float result;
-
-    if (value <= 0.0f) {
-        result = 0.0f;
-    } else {
-        guess.f = value;
-        guess.u = 0x5F375A00U - (guess.u >> 1);
-        product = guess.f * (value * guess.f);
-        correction = 3.0f - product;
-        result = 0.0625f * guess.f * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
-    return result;
-}
 
 static inline void upload_point_light(
     struct SpecLight* light,
@@ -1097,7 +1076,7 @@ static RpAtomic* GCSpecSkinLighting(
                 strongest_point_intensity =
                     point1_intensity >= point2_intensity
                         ? point1_intensity : point2_intensity;
-                point2_inverse_distance = spec_inv_sqrt(point2_distance_sq);
+                point2_inverse_distance = gxMathFastInvSqrt(point2_distance_sq);
                 upload_point_light(
                     point2, lighting, &point2_delta,
                     point2_inverse_distance, point2_intensity);
@@ -1115,7 +1094,7 @@ static RpAtomic* GCSpecSkinLighting(
                 0.5f >= 1.0f - strongest_point_intensity
                     ? 0.5f : 1.0f - strongest_point_intensity;
 
-            point1_inverse_distance = spec_inv_sqrt(point1_distance_sq);
+            point1_inverse_distance = gxMathFastInvSqrt(point1_distance_sq);
             upload_point_light(
                 point1, lighting, &point1_delta,
                 point1_inverse_distance, point1_intensity);

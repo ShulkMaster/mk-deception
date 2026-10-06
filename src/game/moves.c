@@ -404,26 +404,6 @@ struct MovesWeaponGrabEntry weapon_grab_table[9] = {
 static void check_for_suicide(void);
 static float p_blast(void);
 
-static inline float moves_inverse_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } bits;
-    float guess;
-    float product;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    bits.f = value;
-    bits.u = 0x5F375A00U - (bits.u >> 1);
-    guess = bits.f;
-    product = guess * (value * guess);
-    correction = 3.0f - product;
-    return 0.0625f * guess * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 static inline int moves_his_state_is_not(int state) {
     return !(his_pdata->state == state);
@@ -910,7 +890,7 @@ void kobra_teleport_position(void) {
     delta_x = plyr_obj->pos.value.x - (opponent_x = his_obj->pos.value.x);
     delta_z = plyr_obj->pos.value.z - (opponent_z = his_obj->pos.value.z);
     inverse_distance =
-        moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
+        gxMathFastInvSqrt(delta_x * delta_x + delta_z * delta_z);
 
     delta_x *= inverse_distance;
     delta_z *= inverse_distance;
@@ -939,7 +919,7 @@ void mileena_sky_set_position(void) {
     delta_x = plyr_obj->pos.value.x - (opponent_x = his_obj->pos.value.x);
     delta_z = plyr_obj->pos.value.z - (opponent_z = his_obj->pos.value.z);
     distance_squared = delta_x * delta_x + delta_z * delta_z;
-    inverse_distance = moves_inverse_sqrt(distance_squared);
+    inverse_distance = gxMathFastInvSqrt(distance_squared);
     delta_x *= inverse_distance;
     delta_z *= inverse_distance;
     offset_x = delta_x * sky_distance;
@@ -1378,7 +1358,7 @@ void scorpion_teleport_position(void) {
 
     delta_x = plyr_obj->pos.value.x - (opponent_x = his_obj->pos.value.x);
     delta_z = plyr_obj->pos.value.z - (opponent_z = his_obj->pos.value.z);
-    inverse_distance = moves_inverse_sqrt(
+    inverse_distance = gxMathFastInvSqrt(
         delta_x * delta_x + delta_z * delta_z);
     delta_x *= inverse_distance;
     delta_z *= inverse_distance;
@@ -1405,7 +1385,7 @@ void kenshi_teleport_position(void) {
 
     delta_x = plyr_obj->pos.value.x - (opponent_x = his_obj->pos.value.x);
     delta_z = plyr_obj->pos.value.z - (opponent_z = his_obj->pos.value.z);
-    inverse_distance = moves_inverse_sqrt(
+    inverse_distance = gxMathFastInvSqrt(
         delta_x * delta_x + delta_z * delta_z);
     delta_x *= inverse_distance;
     delta_z *= inverse_distance;
@@ -2069,28 +2049,7 @@ static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
 }
 
 static AniData* fetch_grab_anim_ptr(unsigned int grab_type) {
-    switch (grab_type) {
-    case 0:
-        return shared_ani.grab_animations[0];
-    case 1:
-        return shared_ani.grab_animations[1];
-    case 2:
-        return shared_ani.grab_animations[2];
-    case 3:
-        return shared_ani.grab_animations[3];
-    case 4:
-        return shared_ani.grab_animations[4];
-    case 5:
-        return shared_ani.grab_animations[5];
-    case 6:
-        return shared_ani.grab_animations[6];
-    case 7:
-        return shared_ani.grab_animations[7];
-    case 8:
-        return shared_ani.grab_animations[8];
-    default:
-        return shared_ani.grab_animations[0];
-    }
+    return fetch_grab_anim_ptr_inline(grab_type);
 }
 
 float x_attack_5(void) {
@@ -4127,7 +4086,7 @@ static float p_plyr_smoke_entrance(void) {
     angle_z = plyr_info->slot.mirror_a->ang.z;
 
     inverse_length =
-        moves_inverse_sqrt(direction_x * direction_x + direction_z * direction_z);
+        gxMathFastInvSqrt(direction_x * direction_x + direction_z * direction_z);
     direction_x *= inverse_length;
     direction_z *= inverse_length;
     offset.x = -0.2f * direction_x;
@@ -4255,7 +4214,7 @@ static float p_plyr_noob_entrance(void) {
     angle_z = info->slot.mirror_a->ang.z;
 
     length_sq = direction_x * direction_x + direction_z * direction_z;
-    inverse_length = moves_inverse_sqrt(length_sq);
+    inverse_length = gxMathFastInvSqrt(length_sq);
     direction_x *= inverse_length;
     direction_z *= inverse_length;
     offset.x = -0.2f * direction_x;
@@ -4627,7 +4586,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     delta_x -= opponent_x;
     position_y = plyr_obj->pos.value.y;
     inverse_distance =
-        moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
+        gxMathFastInvSqrt(delta_x * delta_x + delta_z * delta_z);
     delta_x *= inverse_distance;
     normalized_z = delta_z * inverse_distance;
     position_x = -2.0f * delta_x;
@@ -4679,139 +4638,115 @@ void advance_sidekick_with_moveset(PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 72.37255%; retail order restored; structural and GPR mismatches need CFG/lifetime evidence. */
+/* TODO: [near miss] 99.14%; CFG and math agree; equivalent frame slots and GPR coloring remain; stop at coloring. */
 static float p_plyr_sidekick_switch(void) {
-    union {
-        float f;
-        unsigned int u;
-    } inverse_bits;
-    struct MovesSidekickPdata* pdata;
     PlyrPdata* player;
-    PlyrFighterDefinition* fighter;
-    union MovesSidekickPdataRef watchdog_pdata;
-    MkProc* player_proc;
-    MkProc* anim_proc;
-    MkObj* sidekick;
+    PlyrInfo* plyr_info;
+    MkObj* opponent;
     MkObj* main_object;
+    MkObj* sidekick;
     AnimPdata* sidekick_anim;
+    MkProc* player_proc;
     CmdScript* script;
-    Vec direction;
-    float length_sq;
-    float inverse_length;
-    float estimate_product;
-    float correction;
-    float object_weight;
+    struct MovesSidekickPdata* watchdog_pdata;
+    MkProc* proc;
     float position_y;
     float angle_x;
     float angle_y;
     float angle_z;
+    float object_weight;
+    float direction_x;
+    float direction_z;
+    float player_x;
+    float player_z;
+    float inverse_length;
+    float position_x;
+    float position_z;
     int state;
-    MkProc* proc;
 
-    pdata = (struct MovesSidekickPdata*)apdata;
-    player = pdata->player;
-    sidekick = player->sidekick_obj;
     object_weight = 2.0f;
-    if (sidekick != 0 &&
-        sidekick->hdr.instance != player->sidekick_instance) {
-        sidekick = 0;
-    }
-    anim_proc = player->sidekick_anim_proc;
-    if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_instance) {
-        anim_proc = 0;
-    }
-    sidekick_anim = (AnimPdata*)pdata_of_proc(anim_proc);
+    player = ((struct MovesSidekickPdata*)apdata)->player;
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
+    plyr_info = player->plyr_info;
+    opponent = player->his_obj;
+    main_object = plyr_info->slot.mirror_a;
+    sidekick_anim = (AnimPdata*)pdata_of_proc(
+        MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance));
 
-    state = pdata->player->state;
+    state = player->state;
     if (state != 0 && state != 0x2000 && state != 0x2001) {
         return -1.0f;
     }
-    if ((g_game_info.flags & 0x18) != 0) {
+    if (g_game_info.flag_bits.level_fatality_active != 0 ||
+        g_game_info.flag_bits.level_transition_active != 0) {
         return -1.0f;
     }
 
-    player_proc = player->own_player_proc;
-    if (player_proc != 0 &&
-        player_proc->instance != player->own_player_proc_instance) {
-        player_proc = 0;
-    }
+    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     script = get_cmdscript_for_proc(player_proc);
-    main_object = player->plyr_info->slot.mirror_a;
-    tag_team_activate_player(
-        sidekick, player->plyr_info->slot.pdata->sidekick_active);
-
-    direction.x = main_object->pos.value.x - player->his_obj->pos.value.x;
-    direction.y = 0.0f;
-    direction.z = main_object->pos.value.z - player->his_obj->pos.value.z;
-    position_y = main_object->pos.value.y;
-    angle_x = main_object->ang.x;
-    angle_y = main_object->ang.y;
-    angle_z = main_object->ang.z;
-    if (is_plyr_airborn(player->his_obj, player->his_plyr_pdata) != 0) {
+    tag_team_activate_player(sidekick, plyr_info->slot.pdata->sidekick_active);
+    position_y = plyr_info->slot.mirror_a->pos.value.y;
+    angle_x = plyr_info->slot.mirror_a->ang.x;
+    angle_y = plyr_info->slot.mirror_a->ang.y;
+    angle_z = plyr_info->slot.mirror_a->ang.z;
+    if (is_plyr_airborn(opponent, player->his_plyr_pdata) != 0) {
         object_weight = 3.0f;
     }
 
-    length_sq =
-        direction.x * direction.x + direction.z * direction.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse_bits.f = length_sq;
-        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
-        estimate_product =
-            inverse_bits.f * (length_sq * inverse_bits.f);
-        correction = 3.0f - estimate_product;
-        inverse_length =
-            0.0625f * inverse_bits.f * correction *
-            -((correction * (estimate_product * correction)) - 12.0f);
-    }
-
-    set_root_and_obj_movement_weights(
-        sidekick_anim, 0.0f, object_weight);
-    sidekick->pos.value.x =
-        main_object->pos.value.x + direction.x * inverse_length * 2.5f;
+    player_z = main_object->pos.value.z;
+    direction_z = player_z - opponent->pos.value.z;
+    player_x = main_object->pos.value.x;
+    direction_x = player_x - opponent->pos.value.x;
+    inverse_length = gxMathFastInvSqrt(
+        direction_x * direction_x + direction_z * direction_z);
+    direction_x *= inverse_length;
+    direction_z *= inverse_length;
+    position_x = direction_x * 2.5f;
+    position_z = direction_z * 2.5f;
+    position_x += player_x;
+    position_z += player_z;
+    set_root_and_obj_movement_weights(sidekick_anim, 0.0f, object_weight);
+    sidekick->pos.value.x = position_x;
     sidekick->pos.value.y = position_y;
-    sidekick->pos.value.z =
-        main_object->pos.value.z + direction.z * inverse_length * 2.5f;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    update_bone_hierarchy(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    if (pdata->player->plyr_num == 0) {
+    if (player->plyr_num == 0) {
         destroy_mkprocs_pid(0xC028);
     } else {
         destroy_mkprocs_pid(0xC029);
     }
-    fighter =
-        pdata->player->fighter_definition;
-    set_anim_script(sidekick_anim, fighter->walk_forward_loop, 0);
+    set_anim_script(sidekick_anim, player->fighter_definition->walk_forward_loop, 0);
     moves_sleep(1.0f);
     unhide_obj(sidekick);
     sidekick_anim->step = 1.25f;
 
-    if (pdata->player->plyr_num == 0) {
+    if (player->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_sidekick_watchdog_launcher,
-            sizeof(struct MovesSidekickPdata), &watchdog_pdata.hdr);
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_sidekick_watchdog_launcher,
-            sizeof(struct MovesSidekickPdata), &watchdog_pdata.hdr);
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
     }
-    if (proc != 0 && watchdog_pdata.hdr != 0) {
-        watchdog_pdata.sidekick->player = pdata->player;
+    if (proc != 0 && watchdog_pdata != 0) {
+        watchdog_pdata->player = player;
     }
 
-    if ((g_game_info.flags & 0x18) == 0) {
-        script->unk28 = 0x7B;
-        xfer_player_proc(player_proc, r_call_script_function);
+    if (g_game_info.flag_bits.level_fatality_active != 0 ||
+        g_game_info.flag_bits.level_transition_active != 0) {
+        return -1.0f;
     }
+    script->unk28 = 0x7B;
+    xfer_player_proc(player_proc, r_call_script_function);
     return -1.0f;
 }
 

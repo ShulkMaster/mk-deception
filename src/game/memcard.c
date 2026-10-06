@@ -590,61 +590,65 @@ void region_data_corruption_message_handler(void) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 72.10%; nonvolatile homes for strs/storage/scratch and the
- * region-result call schedule remain. */
+/* TODO: [near miss] 99.36%; retry and result CFG agree; string/storage/scratch register coloring remains. */
 int load_from_memcard_w_error(int device, int mode, void* settings, char* cardName, int nameLen,
                               unsigned int* freeBlocks, int* freeBytes) {
     char* strs;
     int result;
     int scratch;
     int cont;
-    StorageDevice* dev;
 
     strs = (char*)stringBase0;
-    dev = DEVICE_AT(device);
-    scratch = 0;
     result = -100;
-    do {
+    scratch = 0;
+    for (;;) {
         result = -100;
         cont = 0;
         while (cont == 0) {
             cont = 2;
-            if (mode >= 1 && mode < 3) {
-                mcard_msg_read(device);
+            switch (mode) {
+                case 1:
+                case 2:
+                    mcard_msg_read(device);
+                    break;
+                default:
+                    break;
             }
-            while (cont != 0 && result != 0) {
-                cont -= 1;
+            while (cont-- != 0 && result != 0) {
                 result = load_from_memcard2(device, 0, 0, strs + 8, strs + 9, settings,
                                             STORAGE_LOAD_SIZE, cardName, nameLen, freeBlocks,
                                             freeBytes, &scratch);
             }
             mcard_msg_end();
             if (get_mode_of_play() == 7) {
-                if (mode == 2) {
+                if (mode != 2) {
+                    cont = check_load_region_data_result(&result, device, scratch, 1);
+                } else {
                     summarize_unlocked_items();
-                    dev->status = result;
+                    storage_status[device].status = result;
                     check_new_mu_for_in_use_profiles(device);
                     cont = 1;
-                } else {
-                    cont = check_load_region_data_result(&result, device, scratch, 1);
                 }
             } else {
                 cont = check_load_profile_result(&result, device);
             }
             mcard_msg_end();
         }
-        if (get_mode_of_play() != 7 || mode == 2) {
+        if (get_mode_of_play() == 7 && mode != 2) {
+            if (result != 0) {
+                if (bad_load_region_data_result_resolution(&result, device) != 0) {
+                    return 0;
+                }
+            } else {
+                return 1;
+            }
+        } else {
             if (result == 0) {
                 return 1;
             }
             return 0;
         }
-        if (result == 0) {
-            return 1;
-        }
-        cont = bad_load_region_data_result_resolution(&result, device);
-    } while (cont == 0);
-    return 0;
+    }
 }
 #pragma dont_inline reset
 

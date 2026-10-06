@@ -32,46 +32,46 @@ struct PfxSpawnTableSlot {
 };
 
 union PfxBehaviorState {
-    unsigned int behavior_count; /* build setup phase */
-    PfxBehavior* behavior;       /* behavior-script execution phase */
+    unsigned int behavior_count;
+    PfxBehavior* behavior;
 };
 
 struct PfxScriptEnvironment {
     int active;
     int field04;
-    MkPfx* source_effect; /* +0x08 */
-    struct PfxScriptVm* effect; /* +0x0C -- callback VM, not MkPfx owner */
-    PfxVmEmitter* emitter; /* +0x10 */
-    int* remaining_effects; /* +0x14 */
-    struct PfxSpawnTableSlot* spawn_tables; /* +0x18 */
-    char* effect_name_override; /* +0x1C */
-    char* texture_name; /* +0x20 */
-    unsigned int initialization_script; /* +0x24 */
-    float drag_coefficient;   /* +0x28 */
-    float growth_coefficient; /* +0x2C */
+    MkPfx* source_effect;
+    struct PfxScriptVm* effect;
+    PfxVmEmitter* emitter;
+    int* remaining_effects;
+    struct PfxSpawnTableSlot* spawn_tables;
+    char* effect_name_override;
+    char* texture_name;
+    unsigned int initialization_script;
+    float drag_coefficient;
+    float growth_coefficient;
     float fields30[2];
-    union PfxBehaviorState behavior_state; /* +0x38 */
-    PfxBehavior* next_behavior; /* +0x3C */
+    union PfxBehaviorState behavior_state;
+    PfxBehavior* next_behavior;
 };
 
 struct PfxScriptEffectFlags {
-    unsigned char vertex_color_enabled : 1; /* bit7 */
-    unsigned char particle_size_enabled : 1; /* bit6 */
+    unsigned char vertex_color_enabled : 1;
+    unsigned char particle_size_enabled : 1;
     unsigned char textured : 1;
     unsigned char decal_plane_enabled : 1;
-    unsigned char light_enabled : 1; /* bit3 */
-    unsigned char light_mode : 1; /* bit2 */
+    unsigned char light_enabled : 1;
+    unsigned char light_mode : 1;
     unsigned char pad_bits1_0 : 2;
 };
 
 struct PfxRenderFlags {
     unsigned char pad_bit7 : 1;
-    unsigned char custom_bounding_radius : 1; /* bit6 */
+    unsigned char custom_bounding_radius : 1;
     unsigned char pad_bits5_0 : 6;
 };
 
 struct PfxOrientationFlags {
-    unsigned char face_y : 1; /* bit7 */
+    unsigned char face_y : 1;
     unsigned char pad_bits6_5 : 2;
     unsigned char rotation_enabled : 1;
     unsigned char pad_bits3_0 : 4;
@@ -79,19 +79,19 @@ struct PfxOrientationFlags {
 
 struct PfxLifecycleFlags {
     unsigned char pad_bits7_5 : 3;
-    unsigned char restart_cycle : 1; /* bit4 */
-    unsigned char owner_special : 1; /* bit3 */
+    unsigned char restart_cycle : 1;
+    unsigned char owner_special : 1;
     unsigned char pad_bits2_0 : 3;
 };
 
 struct PfxHideFlags {
-    unsigned char hidden : 1; /* bit7 */
+    unsigned char hidden : 1;
     unsigned char pad : 7;
 };
 
 struct PfxZTestFlags {
     unsigned char pad : 7;
-    unsigned char disabled : 1; /* bit0 */
+    unsigned char disabled : 1;
 };
 
 struct PfxParametricFlags {
@@ -103,38 +103,38 @@ struct PfxParametricFlags {
 
 struct PfxScriptVm {
     char pad00[0x40];
-    struct PfxRenderFlags render_flags; /* VM +0x40 */
+    struct PfxRenderFlags render_flags;
     char pad41[0x10F];
     struct PfxScriptEffectFlags flags;
-    struct PfxOrientationFlags orientation_flags; /* +0x151 */
+    struct PfxOrientationFlags orientation_flags;
     char pad152[2];
-    float light_direction_components[3]; /* +0x154 */
-    PfxColor light_color; /* +0x160 */
-    Vec light_position; /* +0x164 */
-    float z_bias; /* +0x170 */
-    RwTexture* texture; /* +0x174 */
+    float light_direction_components[3];
+    PfxColor light_color;
+    Vec light_position;
+    float z_bias;
+    RwTexture* texture;
     char pad178[0x0A];
-    short texture_animation_enabled; /* +0x182 */
+    short texture_animation_enabled;
     char pad184[0x10];
-    float decal_plane[6]; /* +0x194 */
-    float aspect_x; /* +0x1AC */
-    float aspect_y; /* +0x1B0 */
-    PfxColor vertex_color; /* +0x1B4 */
-    float particle_size; /* +0x1B8 */
-    float bounding_radius; /* +0x1BC */
+    float decal_plane[6];
+    float aspect_x;
+    float aspect_y;
+    PfxColor vertex_color;
+    float particle_size;
+    float bounding_radius;
     char pad1C0[0x14];
-    unsigned int runtime_flags; /* +0x1D4 */
+    unsigned int runtime_flags;
     char pad1D8[0x44];
-    const char* metrics_name; /* +0x21C */
+    const char* metrics_name;
     char pad220[4];
-    PfxMetrics* load_metrics; /* +0x224 */
-    float kill_plane; /* +0x228 */
-    int initialization_mode; /* +0x22C */
+    PfxMetrics* load_metrics;
+    float kill_plane;
+    int initialization_mode;
 };
 
 struct PfxEmitterHideView {
     char pad40[0x40];
-    struct PfxHideFlags hide_flags; /* effect +0x80 */
+    struct PfxHideFlags hide_flags;
     char pad81[0xCF];
 };
 
@@ -145,51 +145,51 @@ union PfxEmitterStorage {
 };
 
 struct PfxScriptEffect {
-    MkHdr hdr; /* +0x00 */
-    struct PfxLifecycleFlags lifecycle_flags; /* +0x08 */
+    MkHdr hdr;
+    struct PfxLifecycleFlags lifecycle_flags;
     char pad09[0x1F];
-    float effect_value; /* +0x28 */
-    int render_priority; /* +0x2C */
+    float effect_value;
+    int render_priority;
     char pad30[0x10];
-    union PfxEmitterStorage emitter_storage; /* +0x40 */
+    union PfxEmitterStorage emitter_storage;
     struct PfxScriptEffectFlags flags;
-    struct PfxOrientationFlags orientation_flags; /* +0x151 */
+    struct PfxOrientationFlags orientation_flags;
     char pad152[2];
-    float light_direction_components[3]; /* +0x154 */
-    PfxColor light_color; /* +0x160 */
-    Vec light_position; /* +0x164 */
-    float z_bias; /* +0x170 */
-    RwTexture* texture; /* +0x174 */
+    float light_direction_components[3];
+    PfxColor light_color;
+    Vec light_position;
+    float z_bias;
+    RwTexture* texture;
     char pad178[0x0A];
-    short texture_animation_enabled; /* +0x182 */
+    short texture_animation_enabled;
     char pad184[0x0C];
-    struct PfxZTestFlags ztest_flags; /* +0x190 */
-    struct PfxParametricFlags parametric_flags; /* +0x191 */
+    struct PfxZTestFlags ztest_flags;
+    struct PfxParametricFlags parametric_flags;
     char pad192[2];
-    float decal_plane[6]; /* +0x194 */
-    float aspect_x; /* +0x1AC */
-    float aspect_y; /* +0x1B0 */
-    PfxColor vertex_color; /* +0x1B4 */
-    float particle_size; /* +0x1B8 */
-    float bounding_radius; /* +0x1BC */
-    unsigned int behavior_target; /* +0x1C0 */
+    float decal_plane[6];
+    float aspect_x;
+    float aspect_y;
+    PfxColor vertex_color;
+    float particle_size;
+    float bounding_radius;
+    unsigned int behavior_target;
     char pad1C4[0x10];
-    unsigned int runtime_flags; /* +0x1D4 */
+    unsigned int runtime_flags;
     char pad1D8[0x28];
-    int emitter_count; /* +0x200 */
-    PfxVmEmitter* emitter; /* +0x204 */
+    int emitter_count;
+    PfxVmEmitter* emitter;
     char pad208[0x14];
-    const char* metrics_name; /* +0x21C */
+    const char* metrics_name;
     char pad220[4];
-    PfxMetrics* load_metrics; /* +0x224 */
-    float kill_plane; /* +0x228 */
-    int initialization_mode; /* +0x22C */
+    PfxMetrics* load_metrics;
+    float kill_plane;
+    int initialization_mode;
     char pad230[0x2C];
-    const char* effect_name; /* +0x25C */
-    int effect_id; /* +0x260 */
-    PfxMetrics* metrics; /* +0x264 */
+    const char* effect_name;
+    int effect_id;
+    PfxMetrics* metrics;
     int field268;
-    int parametric; /* +0x26C */
+    int parametric;
 };
 
 struct PfxVertexColorArgs {
@@ -246,7 +246,7 @@ struct PfxStepTextureDescription {
     char* name;
     int frame_count;
     float horizontal_scale;
-    float animation_speed; /* +0x0C */
+    float animation_speed;
 };
 
 struct PfxStepEffectDescription {
@@ -294,14 +294,14 @@ struct PfxResolvedHandle {
 
 struct PfxBank {
     MkHdr hdr;
-    unsigned int handle_bank; /* +0x08 */
-    unsigned int handle_generation; /* +0x0C */
-    char* name; /* +0x10 */
-    unsigned int owner_flags; /* +0x14 */
-    int effect_count; /* +0x18 */
-    int effect_capacity; /* +0x1C */
-    struct PfxEffectLatch* effects; /* +0x20 */
-    unsigned int* effect_owners; /* +0x24 */
+    unsigned int handle_bank;
+    unsigned int handle_generation;
+    char* name;
+    unsigned int owner_flags;
+    int effect_count;
+    int effect_capacity;
+    struct PfxEffectLatch* effects;
+    unsigned int* effect_owners;
 };
 
 static void vdestroy_effectbank(struct PfxBank* bank);
@@ -339,16 +339,16 @@ static struct PfxBankVtable vtbl_effectbank = {
     not_mkmaterial,
     vdestroy_effectbank,
 };
-static unsigned int bank_instance_counter[16] = { 0 };
+static unsigned int bank_instance_counter[15] = { 0 };
 static int g_profile_enabled;
 static float parametric_birthrate = 1.0f;
 static struct PfxBank* current_effect_bank;
-/* Retail .sbss symbol; no recovered clean-C consumer in this unit. */
+
 static const struct PfxParametricEffectDescription* g_effect_description;
 static PfxBehavior* behavior_buffer;
 static void* old_ltm;
 
-static struct PfxBankLatch banks[16];
+static struct PfxBankLatch banks[15];
 static unsigned int cached_handle;
 static ScriptSlot* g_pfx_cmo;
 static void bank_run_fx(struct PfxBank* bank);
@@ -758,7 +758,7 @@ void set_vertex_color(const struct PfxVertexColorArgs* color) {
     }
 }
 
-/* TODO: [near miss] 71.01%; size and algorithm exact; residue is the unrolled three-vector copy. */
+/* TODO: [near miss] 72.59%; position copy recovered; uint-to-float scheduling and light-mode normalization remain. */
 void set_light(const struct PfxLightArgs* light) {
     struct PfxScriptEnvironment* environment = active_pfx_environment();
     struct PfxScriptVm* effect;
@@ -770,7 +770,9 @@ void set_light(const struct PfxLightArgs* light) {
             effect->light_direction_components[component] =
                 light->direction_components[component];
         }
-        effect->light_position = light->position;
+        effect->light_position.x = light->position.x;
+        effect->light_position.y = light->position.y;
+        effect->light_position.z = light->position.z;
         pfx_native_set_rgba(
             &effect->light_color,
             light->red, light->green, light->blue, light->alpha);
@@ -1048,7 +1050,7 @@ void update_lerp_color(
 
     behavior = active_pfx_environment()->behavior_state.behavior;
     if (behavior != 0 && g_pfx_cmo != 0) {
-        row_count = get_row_count_for_table_by_pointer(g_pfx_cmo, (void*)table);
+        row_count = get_row_count_for_table_by_pointer(g_pfx_cmo, table);
         if (row_count != 0) {
             colors = get_mem(row_count * sizeof(*colors));
             for (index = 0; index < (int)row_count; index++) {
@@ -2227,13 +2229,58 @@ static inline void pfx_cleanup_load_script(struct PfxLoadScriptLatch* latch) {
     }
 }
 
-/* TODO: [breakthrough needed] 73.07%; bank-latch validation restored;
- * cleanup expansion and control-flow/register differences need local evidence. */
+static inline int pfx_create_load_script(struct PfxLoadScriptLatch* latch) {
+    memset(latch, 0, sizeof(*latch));
+    latch->command = alloc_cmdscript();
+    if (latch->command == 0) {
+        pfx_cleanup_load_script(latch);
+        return 0;
+    }
+    latch->script = 0;
+    return 1;
+}
+
+static inline struct PfxBank* pfx_create_bank(char* name, int effect_count) {
+    struct PfxBank* bank;
+    unsigned int owners_offset;
+    unsigned int name_offset;
+    int effect_index;
+
+    owners_offset = sizeof(*bank) + effect_count * sizeof(struct PfxEffectLatch);
+    name_offset = owners_offset + effect_count * sizeof(unsigned int);
+    bank = (struct PfxBank*)get_mkhdr(
+        &vtbl_effectbank, strlen(name) + name_offset + 1);
+    if (bank == 0) {
+        return 0;
+    }
+
+    bank->effects = (struct PfxEffectLatch*)(bank + 1);
+    bank->name = (char*)bank + name_offset;
+    bank->effect_owners = (unsigned int*)((char*)bank + owners_offset);
+    bank->effect_capacity = 0;
+    bank->effect_count = effect_count;
+    strcpy(bank->name, name);
+    for (effect_index = 0; effect_index < effect_count; effect_index++) {
+        bank->effects[effect_index].effect = 0;
+        bank->effects[effect_index].effect_instance = 0;
+        bank->effect_owners[effect_index] = 0;
+    }
+    return bank;
+}
+
+static inline unsigned int pfx_bank_latch_handle(int bank_index) {
+    if (bank_index < 0 || bank_index >= 15) {
+        return 0;
+    }
+    return (banks[bank_index].bank_instance & 0xFFFFFFF0) |
+           ((bank_index + 1) & 0xF);
+}
+
+/* TODO: [breakthrough needed] 95.28%; callback count's second stack word and
+ * original cleanup expansion remain unresolved; register/stack placement also differs. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
-    CmdScript* command;
     CmdScript* saved_command;
-    ScriptSlot* script;
     struct PfxBankLoadRow* rows;
     struct PfxBank* bank;
     struct PfxBank* raw_bank;
@@ -2241,198 +2288,156 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     MkObj* parent;
     unsigned int row_count;
     unsigned int row_index;
+    unsigned int row_number;
     unsigned int bank_handle;
     unsigned int generation;
     int total_effects;
     int remaining_effects;
     int bank_index;
     int language;
-    unsigned int owner;
-    unsigned int allocation_size;
-    struct PfxBankLatch* bank_latch;
+    int owner;
 
-    memset(&load, 0, sizeof(load));
-    command = alloc_cmdscript();
-    load.command = command;
-    if (command == 0) {
-        pfx_cleanup_load_script(&load);
-        return;
-    }
-    script = 0;
-    load.script = 0;
-
-    switch (context->art_id) {
-    case 0x3000B:
-        language = 0x10;
-        owner = 1;
-        parent = g_game_info.plyr0.slot.mirror_a;
-        break;
-    case 0x4000B:
-        language = 0x11;
-        owner = 2;
-        parent = g_game_info.plyr1.slot.mirror_a;
-        break;
-    case 0xD003C:
-        language = 0x11;
-        owner = 4;
-        parent = g_game_info.bgnd_obj;
-        break;
-    case 0x140064:
-    case 0x8003D:
-    case 0x2001E:
-        language = 0x12;
-        owner = 4;
-        parent = g_game_info.bgnd_obj;
-        break;
-    case 0x90046:
-        language = 0x12;
-        owner = 8;
-        parent = 0;
-        break;
-    case 0x60030:
-    case 0x60029:
-        language = 0x12;
-        owner = 4;
-        parent = context->bgnd_obj;
-        break;
-    case 0x70036:
-        language = 0x12;
-        owner = 4;
-        parent = g_game_info.plyr0.slot.mirror_a;
-        break;
-    case 0x70038:
-        language = 0x13;
-        owner = 4;
-        parent = g_game_info.plyr0.slot.mirror_a;
-        break;
-    default:
-        pfx_cleanup_load_script(&load);
-        return;
-    }
-
-    if (parent == 0 && owner != 8) {
-        pfx_cleanup_load_script(&load);
-        return;
-    }
-
-    script = cmdscript_loadfile_by_name(language, name);
-    load.script = script;
-    command->mko = script;
-    script->load_ctx = context;
-    rows = get_data_table(script, script->table_count);
-    if (rows == 0) {
-        pfx_cleanup_load_script(&load);
-        return;
-    }
-
-    behavior_buffer = get_mem(10 * sizeof(*behavior_buffer));
-    row_count = get_row_count_for_table(script, script->table_count);
-    total_effects = 0;
-    for (row_index = 0; row_index < row_count; row_index++) {
-        total_effects += rows[row_index].effect_count;
-    }
-
-    bank_index = 0;
-    while (bank_index < 15) {
-        raw_bank = banks[bank_index].bank;
-        if (raw_bank == 0 ||
-            raw_bank->hdr.instance != banks[bank_index].bank_instance) {
+    if (pfx_create_load_script(&load) != 0) {
+        switch (context->art_id) {
+        case 0x3000B:
+            language = 0x10;
+            owner = 1;
+            parent = g_game_info.plyr0.slot.mirror_a;
             break;
+        case 0x4000B:
+            language = 0x11;
+            owner = 2;
+            parent = g_game_info.plyr1.slot.mirror_a;
+            break;
+        case 0xD003C:
+            language = 0x11;
+            owner = 4;
+            parent = g_game_info.bgnd_obj;
+            break;
+        case 0x140064:
+        case 0x8003D:
+        case 0x2001E:
+            language = 0x12;
+            owner = 4;
+            parent = g_game_info.bgnd_obj;
+            break;
+        case 0x90046:
+            language = 0x12;
+            owner = 8;
+            parent = 0;
+            break;
+        case 0x60030:
+        case 0x60029:
+            language = 0x12;
+            owner = 4;
+            parent = context->bgnd_obj;
+            break;
+        case 0x70036:
+            language = 0x12;
+            owner = 4;
+            parent = g_game_info.plyr0.slot.mirror_a;
+            break;
+        case 0x70038:
+            language = 0x13;
+            owner = 4;
+            parent = g_game_info.plyr0.slot.mirror_a;
+            break;
+        default:
+            pfx_cleanup_load_script(&load);
+            return;
         }
-        bank_index++;
-    }
-    bank = 0;
-    bank_handle = 0;
-    if (bank_index < 15) {
-        allocation_size = sizeof(*bank) +
-                          total_effects * sizeof(struct PfxEffectLatch) +
-                          total_effects * sizeof(unsigned int) +
-                          strlen(name) + 1;
-        bank = (struct PfxBank*)get_mkhdr(&vtbl_effectbank, allocation_size);
-        if (bank != 0) {
-            bank->effects = (struct PfxEffectLatch*)(bank + 1);
-            bank->effect_owners =
-                (unsigned int*)(bank->effects + total_effects);
-            bank->name = (char*)(bank->effect_owners + total_effects);
-            bank->effect_count = total_effects;
-            bank->effect_capacity = 0;
-            strcpy(bank->name, name);
-            memset(
-                bank->effects, 0,
-                total_effects * sizeof(struct PfxEffectLatch));
-            memset(
-                bank->effect_owners, 0,
-                total_effects * sizeof(unsigned int));
 
-            banks[bank_index].bank = bank;
-            banks[bank_index].bank_instance = bank->hdr.instance;
-            bank->handle_bank = bank_index + 1;
-            generation =
-                (bank_instance_counter[bank_index] + 1) & 0xFF000000;
-            bank_instance_counter[bank_index] = generation;
-            bank->handle_generation = generation;
-            bank_handle =
-                (banks[bank_index].bank_instance & 0xFFFFFFF0) |
-                ((bank_index + 1) & 0xF);
+        if (parent == 0 && owner != 8) {
+            return;
         }
-    }
 
-    bank_index = bank_handle & 0xF;
-    bank = 0;
-    if (bank_index >= 1 && bank_index <= 15) {
-        bank_latch = &banks[bank_index - 1];
-        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
-        if (bank != 0 &&
-            (bank_latch->bank_instance & 0xFFFFFFF0) !=
-                (bank_handle & 0xFFFFFFF0)) {
-            bank = 0;
+        load.script = cmdscript_loadfile_by_name(language, name);
+        load.command->mko = load.script;
+        load.command->mko->load_ctx = context;
+        rows = get_data_table(load.script, load.script->table_count);
+        if (rows == 0) {
+            pfx_cleanup_load_script(&load);
+            return;
         }
-    }
-    current_effect_bank = bank;
-    if (current_effect_bank == 0) {
-        pfx_cleanup_load_script(&load);
-        return;
-    }
 
-    if (parent != 0) {
-        mk_insert(&bank->hdr, &parent->child_list);
-    } else {
-        mk_insert(&bank->hdr, &aproc->pdata_list);
-    }
-    bank->owner_flags = owner;
+        behavior_buffer = get_mem(10 * sizeof(*behavior_buffer));
+        row_count = get_row_count_for_table(load.script, load.script->table_count);
+        total_effects = 0;
+        for (row_index = 0; row_index < row_count; row_index++) {
+            total_effects += rows[row_index].effect_count;
+        }
 
-    for (row_index = 0; row_index < row_count; row_index++) {
-        saved_command = active_cmdscript;
-        active_cmdscript = command;
-        script->load_ctx = context;
-        remaining_effects = rows[row_index].effect_count;
-        if (pfxscript_environment.active == 0) {
-            memset(
-                &pfxscript_environment, 0,
-                sizeof(pfxscript_environment));
-            pfxscript_environment.active = 1;
+        bank_index = 0;
+        while (bank_index < 15) {
+            raw_bank = MK_HDR_LIVE(banks[bank_index].bank,
+                                   banks[bank_index].bank_instance);
+            if (raw_bank == 0) {
+                break;
+            }
+            bank_index++;
         }
-        pfxscript_environment.remaining_effects = &remaining_effects;
-        cmdscript_setup_execution(script, rows[row_index].function_index);
-        cmdscript_execute(script);
-        built_effect = 0;
-        if (pfxscript_environment.active != 0) {
-            built_effect = pfxscript_environment.effect;
-            memset(
-                &pfxscript_environment, 0,
-                sizeof(pfxscript_environment));
+        bank = 0;
+        bank_handle = 0;
+        if (bank_index < 15) {
+            bank = pfx_create_bank(name, total_effects);
+            if (bank != 0) {
+                banks[bank_index].bank = bank;
+                banks[bank_index].bank_instance = bank->hdr.instance;
+                bank->handle_bank = bank_index + 1;
+                generation =
+                    (bank_instance_counter[bank_index] + 1) & 0xFF000000;
+                bank_instance_counter[bank_index] = generation;
+                bank->handle_generation = bank_instance_counter[bank_index];
+                bank_handle = pfx_bank_latch_handle(bank_index);
+            }
         }
-        active_cmdscript = saved_command;
-        if (built_effect != 0 && built_effect->load_metrics != 0) {
-            pfxmetrics_init(
-                built_effect->load_metrics,
-                built_effect->metrics_name);
-        }
-    }
 
-    current_effect_bank = 0;
-    free_mem(behavior_buffer);
+        bank = bank_from_handle(bank_handle);
+        current_effect_bank = bank;
+        if (current_effect_bank == 0) {
+            pfx_cleanup_load_script(&load);
+            return;
+        }
+
+        if (parent != 0) {
+            mk_insert(&bank->hdr, &parent->child_list);
+        } else {
+            mk_insert(&bank->hdr, &aproc->pdata_list_b);
+        }
+        current_effect_bank->owner_flags = owner;
+
+        for (row_number = 1; row_number <= row_count; row_number++) {
+            saved_command = active_cmdscript;
+            active_cmdscript = load.command;
+            load.script->load_ctx = context;
+            remaining_effects = rows[row_number - 1].effect_count;
+            if (pfxscript_environment.active == 0) {
+                memset(
+                    &pfxscript_environment, 0,
+                    sizeof(pfxscript_environment));
+                pfxscript_environment.active = 1;
+                active_pfx_environment()->remaining_effects = &remaining_effects;
+            }
+            cmdscript_setup_execution(load.script, rows[row_number - 1].function_index);
+            cmdscript_execute(load.script);
+            built_effect = active_pfx_environment()->effect;
+            if (pfxscript_environment.active != 0) {
+                memset(
+                    &pfxscript_environment, 0,
+                    sizeof(pfxscript_environment));
+            }
+            active_cmdscript = saved_command;
+            if (built_effect != 0 && built_effect->load_metrics != 0) {
+                pfxmetrics_init(
+                    built_effect->load_metrics,
+                    built_effect->metrics_name);
+            }
+        }
+
+        current_effect_bank = 0;
+        free_mem(behavior_buffer);
     pfx_cleanup_load_script(&load);
+    }
 }
 
 /* TODO: [breakthrough needed] 48.88%; builder frame, scheduling and bitfield
@@ -2693,7 +2698,7 @@ MkPfx* find_pfx_by_handle(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/* Retail emits both public lookup wrappers out of line and byte-exact. */
+
 MkPfx* find_pfx_by_name_by_bankowner(
     const char* name, unsigned int owner) {
     struct PfxResolvedHandle resolved;

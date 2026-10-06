@@ -953,7 +953,7 @@ void ppc_set_button_answer(int answer) {
     button_answer = answer;
 }
 
-void ppc_set_current_icon_selection(unsigned char icon) {
+void ppc_set_current_icon_selection(int icon) {
     player_icon = icon;
 }
 
@@ -1589,15 +1589,14 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     }
 }
 
-/* TODO: [near miss] 99.65%; default stores agree; zero and two mask pairs use different registers. */
 void summarize_unlocked_items(void) {
     int device;
     int slot;
 
     gp_data.cat1.value = default_char_bits.value;
-    gp_data.cat5 = 0;
     gp_data.cat2.value = default_alt_char_bits.value;
     gp_data.cat3.value = default_bgnd_bits.value;
+    gp_data.cat5 = 0;
     gp_data.cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
     gp_data.cat5 = PROFILE_DEFAULT_UNLOCK_CAT5;
     gp_data.cat8.value = 0;
@@ -1741,12 +1740,17 @@ static inline void advance_device_slot(int* device, int* slot) {
 }
 
 /* TODO: [near miss] 99.67%; first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
+static inline int profile_device_slot_fully_matches(
+    PlayerProfile* live, StorageDevice* device, int index) {
+    StorageProfileSlot* slot = &device->profiles[index];
+    return profile_fully_matches(live, slot);
+}
+
 int validate_save_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
     StorageProfileSlot* found;
-    StorageProfileSlot* slot;
     int device;
     int slotIndex;
     int scanDevice;
@@ -1782,8 +1786,7 @@ int validate_save_location(int player) {
         }
         device = *devicePtr;
         slotIndex = *slotPtr;
-        slot = &DEVICE_AT(device)->profiles[slotIndex];
-        matched = profile_fully_matches(live, slot);
+        matched = profile_device_slot_fully_matches(live, DEVICE_AT(device), slotIndex);
         if (matched != 0) {
             return 1;
         }
@@ -1813,12 +1816,10 @@ int validate_save_location(int player) {
     return 0;
 }
 
-/* TODO: [near miss] 99.68%; first profile_fully_matches swaps stored/live pin and name temps (r6/r8 vs r8/r6); coloring only. */
 int validate_konq_save_location(int player) {
     PlayerProfile* live;
     int* devicePtr;
     int* slotPtr;
-    StorageProfileSlot* stored;
     StorageProfileSlot* found;
     int device;
     int slot;
@@ -1855,8 +1856,7 @@ int validate_konq_save_location(int player) {
         }
         device = *devicePtr;
         slot = *slotPtr;
-        stored = &DEVICE_AT(device)->profiles[slot];
-        if (profile_fully_matches(live, stored)) {
+        if (profile_device_slot_fully_matches(live, DEVICE_AT(device), slot)) {
             return 1;
         }
 
@@ -1889,12 +1889,6 @@ int validate_konq_save_location(int player) {
             }
         }
     }
-}
-
-static inline int profile_device_slot_fully_matches(
-    PlayerProfile* live, StorageDevice* device, int index) {
-    StorageProfileSlot* slot = &device->profiles[index];
-    return profile_fully_matches(live, slot);
 }
 
 int validate_konq_load_location(int player) {
@@ -1993,11 +1987,11 @@ static inline int multi_code_matches_slot(
 
     pin_cursor = slot->pin;
     for (i = 0; i < 6; i++) {
-        if (*code != *pin_cursor) {
+        if (*pin_cursor != *code) {
             return 0;
         }
-        code++;
         pin_cursor++;
+        code++;
     }
     return 1;
 }
@@ -2128,19 +2122,17 @@ int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr
 #define PPL_NAME_SLOTS 14
 
 static inline int ppl_count_matching_profiles(const unsigned char* code) {
-    int count;
     int device;
     int slotIndex;
-    StorageDevice* dev;
+    int count;
 
     count = 0;
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        dev = DEVICE_AT(device);
         for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
-            if (dev->profiles[slotIndex].present != 0) {
+            if (DEVICE_AT(device)->profiles[slotIndex].present != 0) {
                 if (multi_code_matches_slot(
-                        code, &dev->profiles[slotIndex]) != 0 &&
-                    dev->inUse[slotIndex] == 0) {
+                        code, &DEVICE_AT(device)->profiles[slotIndex]) != 0 &&
+                    DEVICE_AT(device)->inUse[slotIndex] == 0) {
                     count += 1;
                 }
             }
@@ -2151,20 +2143,18 @@ static inline int ppl_count_matching_profiles(const unsigned char* code) {
 
 static inline int ppl_fill_matching_names(
     const unsigned char* code, char** out) {
-    StorageDevice* dev;
     int device;
     int slotIndex;
     int count;
 
     count = 0;
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        dev = DEVICE_AT(device);
         for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
-            if (dev->profiles[slotIndex].present != 0 &&
-                dev->inUse[slotIndex] == 0) {
+            if (DEVICE_AT(device)->profiles[slotIndex].present != 0 &&
+                DEVICE_AT(device)->inUse[slotIndex] == 0) {
                 if (multi_code_matches_slot(
-                        code, &dev->profiles[slotIndex]) != 0) {
-                    out[count] = dev->profiles[slotIndex].name;
+                        code, &DEVICE_AT(device)->profiles[slotIndex]) != 0) {
+                    out[count] = DEVICE_AT(device)->profiles[slotIndex].name;
                     count += 1;
                 }
             }
@@ -2173,7 +2163,7 @@ static inline int ppl_fill_matching_names(
     return count;
 }
 
-/* TODO: [near miss] 99.55%; device-base/code-cursor registers remain; recover distinct owner web kinds. */
+/* TODO: [near miss] 99.87%; only pin-compare code/pin cursor registers swap (r12/r30); shared helper coloring. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
     MkProc* proc;
@@ -2196,7 +2186,7 @@ int ppl_get_multi_profile_names_p2(char** out) {
     return count;
 }
 
-/* TODO: [near miss] 99.55%; equivalent scan; device-base/code-cursor GPR allocation remains. */
+/* TODO: [near miss] 99.87%; only pin-compare code/pin cursor registers swap; shared helper coloring. */
 int ppl_get_multi_profile_names_p1(char** out) {
     int i;
     MkProc* proc;
@@ -2286,7 +2276,7 @@ static void ppl_get_multi_profile_icons(
     }
 }
 
-/* TODO: [near miss] 99.14%; count/device/code-cursor homes remain; typed layout agrees. */
+/* TODO: [near miss] 99.86%; only pin-compare code/pin cursor registers swap (r11/r12); shared helper coloring. */
 int ppl_get_multi_profile_count(int player) {
     int count;
     MkProc* proc;
@@ -2337,7 +2327,7 @@ static inline void mark_profile_as_in_use_impl(int device, int slot) {
     DEVICE_AT(device)->inUse[slot] = 1;
 }
 
-/* TODO: [near miss] 99.23611%; direct rescan CFG recovered; shared count coloring and one polling entry branch remain. */
+/* TODO: [near miss] 99.76%; pin-compare cursor register swap in both count expansions and one polling entry branch remain. */
 StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
                                           unsigned char* code, int* device, int* slot) {
     int matchCount;

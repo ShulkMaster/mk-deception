@@ -1,5 +1,6 @@
 /* TODO: [blocked] link: retail has anonymous 4-byte gaps in .data, .bss and .sbss and a 2-byte .rodata gap with no symbol users or relocations. */
 #include "runtime/mk_obj.h"
+#include "math/gxMath.h"
 #include "game/projectile.h"
 #include "runtime/anim_api_ext.h"
 #include "game/pfxscript_api.h"
@@ -41,9 +42,7 @@ extern AnimPdata* plyr_anim_pdata;
 extern MkProc* plyr_anim_proc;
 extern PlyrPdata* his_pdata;
 extern int f_fatality_was_done;
-extern unsigned short GXMathSqrtTable[];
 extern float xz_distance_between_players(void);
-extern float p_anim_idle(void);
 extern int f_fatality_finished;
 extern float p_animate_and_freeze(void);
 extern float p_idle_camera(void);
@@ -311,7 +310,7 @@ typedef struct FatalityWeaponReflectionSet {
 
 typedef struct FatalityWeaponAttachment {
     MkHdr hdr;
-    unsigned char flags08;
+    MkSobjFlags08 flags08;
     char pad09[7];
     MkHdr* bound_object;
     unsigned int bound_instance;
@@ -480,7 +479,6 @@ MslSoundHandle plyr_snd_req(int sound_offset);
 RpMaterial* obj_find_material_by_id(MkObj* object, int id);
 extern float fog_distance;
 extern float fog_color_real[4];
-extern int fog_on;
 extern int fog_type;
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle snd_req(int sound);
@@ -503,7 +501,6 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry);
 float subzero_freeze_victim(void);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 void advance_active_moveset(PlyrPdata* player);
-float p_animate(void);
 int is_my_chest_to_screen(void);
 void head_tracking_off(void);
 float two_player_animation_blend(
@@ -533,16 +530,14 @@ FatalityBoneMatcher* start_bone_matcher(
     float blend_ticks);
 void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
 void obj_match_pos_ang_to_src_obj(MkObj* destination, MkObj* source);
-void calc_bone_world_mat(MkObj* object, int bone_id);
-void glitch_to_stance(AnimPdata* animation, float blend);
+void glitch_to_stance(float blend);
 void face_opponent_now(void);
 int is_local_plyr(void);
-void plyr_turn_off_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_shadowbox(PlyrInfo* player);
 void start_gore2_update(void);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void limb_sever_explode_apart(
-    PlyrInfo* player, int mode, float strength);
+    PlyrInfo* player, float arg1, float arg2, float strength, int mode);
 void auto_calc_limbobj_bone_world_pos(MkObj* object, int bone_id);
 void start_blood_particles(
     int script, int bone_id, PlyrPdata* player, MkObj* object);
@@ -645,13 +640,15 @@ static inline void fatality_fade_and_cleanup(void) {
 }
 
 static inline void start_loading_fatality_anims(int secondary) {
-    int slot = 0x3000C;
+    int slot;
     int file_count;
     MkFileInfo* section;
     FatalityDefinition* definition;
 
     if (fatality_state.player == g_game_info.plyr0.slot.pdata) {
         slot = 0x4000C;
+    } else {
+        slot = 0x3000C;
     }
     fatality_anim_slot = slot;
     file_count = get_slot_file_count(slot);
@@ -873,8 +870,10 @@ static inline void subzero_adjust_iceman_material_depth(void) {
     const int* ids;
     RpMaterial* material;
     int index;
-    ids = fatality_state.context->flags_14_bits.alternate_costume
-              ? alternate_material_ids : material_ids;
+    ids = material_ids;
+    if (fatality_state.context->flags_14_bits.alternate_costume) {
+        ids = alternate_material_ids;
+    }
     for (index = 0; ids[index] >= 0; index++) {
         material = obj_find_material_by_id(
             fatality_state.attacker_object, ids[index]);
@@ -884,7 +883,7 @@ static inline void subzero_adjust_iceman_material_depth(void) {
     }
 }
 
-/* TODO: [near miss] 99.78%; late stack lists and ownership CFG recovered; list copy order/registers remain. */
+/* TODO: [near miss] 99.99%; list/counter registers fixed; default list copied second but retail copies it first (frame 3c). */
 MkObj* subzero_start_iceman(void) {
     FatalityIceblockAlphaPdata* alpha_data;
     MkObj* iceman;
@@ -1218,11 +1217,15 @@ void sindel_scream_react_sound_start(void) {
     }
 }
 
-/* TODO: [breakthrough] 96.81%; actual transform/creation flow restored; copy scheduling and null-allocation cleanup contract remain. */
+static inline void sindel_sonic_waves_set_origin(FatalitySonicWavePdata* const* data) {
+    Vec local_offset = {0.0f, 0.075f, 0.23f};
+
+    calc_bone_world_mat(plyr_obj, 0x10);
+    v3_x_mat(&(*data)->origin, &local_offset, &plyr_obj->bones[0x10]->matrix);
+}
+
 FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
-    static const Vec emitter_offset = {0.0f, 0.075f, 0.23f};
     FatalitySonicWavePdata* data;
-    Vec local_offset;
     MkObj* wave;
     MkObj* object;
     float angle;
@@ -1270,11 +1273,7 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
             }
             data->owner = plyr_obj;
             data->owner_instance = plyr_obj->hdr.instance;
-            local_offset = emitter_offset;
-            calc_bone_world_mat(plyr_obj, 0x10);
-            v3_x_mat(
-                &data->origin, &local_offset,
-                &plyr_obj->bones[0x10]->matrix);
+            sindel_sonic_waves_set_origin(&data);
             data->velocity.x = 0.05f * plyr_obj->field_24->at.x;
             data->velocity.y = 0.05f * plyr_obj->field_24->at.y;
             data->velocity.z = 0.05f * plyr_obj->field_24->at.z;
@@ -1306,18 +1305,18 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
     }
 
 cleanup:
-    if (data != 0) {
-        for (index = 0; index < 5; index++) {
-            object = MK_HDR_LIVE(data->waves[index].obj,
-                                 data->waves[index].instance);
-            if (object != 0 && object->hdr.instance != 0) {
-                object->hdr.typed_vtbl->destroy(&object->hdr);
-            }
-        }
-        object = MK_HDR_LIVE(data->projectile, data->projectile_instance);
+    for (index = 0; index < 5; index++) {
+        object = MK_HDR_LIVE(data->waves[index].obj,
+                             data->waves[index].instance);
         if (object != 0 && object->hdr.instance != 0) {
             object->hdr.typed_vtbl->destroy(&object->hdr);
         }
+    }
+    object = MK_HDR_LIVE(data->projectile, data->projectile_instance);
+    if (object != 0 && object->hdr.instance != 0) {
+        object->hdr.typed_vtbl->destroy(&object->hdr);
+    }
+    if (data != 0) {
         if (data->pebble != 0 && data->pebble->hdr.instance != 0) {
             data->pebble->hdr.typed_vtbl->destroy(&data->pebble->hdr);
         }
@@ -1497,7 +1496,7 @@ static float p_sd_sonic_waves(void) {
 
             fade = 1.0f - data->wave_progress[index] / 20.0f;
             obj_for_all_atomics_set_material_alpha(
-                wave, (int)(185.0f * fade + 70.0f));
+                wave, 185.0f * fade + 70.0f);
             MKMatrixSetIdentity(&pebble->pebbles[index].matrix);
             y_angle_to_MKMATRIX(&pebble->pebbles[index].matrix, owner->ang.y);
             if (data->wave_offsets[index].x < 1.0f) {
@@ -2199,14 +2198,14 @@ MkObj* load_cloth_boned_model(
     return object;
 }
 
-/* TODO: [breakthrough needed] 99.94%; owner/latch sequence exact; explosion float ABI evidence and effect-owner coloring remain. */
-void fatality_explode_victim(PlyrInfo* player_info) {
+/* TODO: [near miss] 99.96%; explosion ABI fixed; effect_owner colored r29 vs retail r30 (decl order and limb reuse neutral). */
+void fatality_explode_victim(PlyrInfo* player_info, float arg1, float arg2) {
     MkObj* limb;
     MkObj* effect_owner;
     MkPfx* effect;
     int bone_id;
 
-    limb_sever_explode_apart(player_info, 3, 0.25f);
+    limb_sever_explode_apart(player_info, arg1, arg2, 0.25f, 3);
     effect_owner = player_info->slot.mirror_a;
     effect = find_pfx_by_name("meatchunk");
     if (effect != 0) {
@@ -2451,22 +2450,17 @@ void play_final_fatality_music(void) {
     }
 }
 
-static inline void fatality_copy_vec(Vec* destination, const Vec* source) {
-    destination->x = source->x;
-    destination->y = source->y;
-    destination->z = source->z;
-}
 
 float p_fatality_cam(void) {
     CamVec3 angle;
     CamVec3 position;
 
-    fatality_copy_vec(&angle, &camera_obj->ang);
+    gxVectCopy(&angle, &camera_obj->ang);
     angle.x = 0.0f;
     angle.z = 0.0f;
     angle.y -= 1.5707964f;
     camera_set_animation_parent_angle(&angle, 0);
-    fatality_copy_vec(&position, &fatality_state.attacker_object->pos.value);
+    gxVectCopy(&position, &fatality_state.attacker_object->pos.value);
     position.y = camera_obj->ground_plane;
     camera_set_animation_parent_position(&position);
     if (fatality_state.mirror_camera != 0) {
@@ -2834,7 +2828,6 @@ static inline void fatality_ground_bounce_sound(int count) {
     }
 }
 
-/* TODO: [near miss] 99.02%; FP predicates and signed sound selector recovered; two-row object-latch join remains. */
 float p_obj_grnd_bounce(void) {
     MkObj* object;
     FatalityGroundBouncePdata* data;
@@ -2843,14 +2836,7 @@ float p_obj_grnd_bounce(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0) {
-        if (object->hdr.instance != data->object_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(data->object, data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -2876,10 +2862,9 @@ float p_obj_grnd_bounce(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 73.77%; stores exact; residue is GPR allocation and an 8-byte lmw/stmw frame difference. */
 void start_obj_scalar_proc(
-    MkObj* object, const Vec* start,
-    const Vec* target, const Vec* step) {
+    MkObj* object, Vec* start,
+    Vec* target, Vec* step) {
     FatalityObjectScalarPdata* data;
 
     if (_create_mkproc_generic_nostack(
@@ -3135,55 +3120,52 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
     return object;
 }
 
-/* TODO: [near miss] 72.17%; exact size; residue is register allocation and load scheduling. */
 FatalityWeaponAttachment* regrab_weapon(
     int secondary, MkObj* object, MkHdr* bound_object, int bone_id,
     const Vec* angles, const Vec* scale, const Vec* position) {
-    PlyrMirrorObjLatch* latch;
     FatalityWeaponAttachment* attachment;
     MkBone* bone;
 
     if (secondary == 0) {
-        latch = &plyr_pdata->mirror_slots->weapon[0].secondary;
+        attachment = (FatalityWeaponAttachment*)MK_HDR_LIVE(
+            plyr_pdata->mirror_slots->weapon[0].secondary.obj,
+            plyr_pdata->mirror_slots->weapon[0].secondary.instance);
     } else {
-        latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
+        attachment = (FatalityWeaponAttachment*)MK_HDR_LIVE(
+            plyr_pdata->mirror_slots->weapon[1].secondary.obj,
+            plyr_pdata->mirror_slots->weapon[1].secondary.instance);
     }
-    attachment = (FatalityWeaponAttachment*)latch->obj;
-    if (attachment != 0 &&
-        attachment->hdr.instance != latch->instance) {
-        attachment = 0;
+    if (attachment != 0) {
+        if (angles != 0) {
+            RwMatrix* matrix;
+            bone = object->bones[object->fallback_bone_index];
+            matrix = bone->parent_matrix;
+            matrix->pos.z = 0.0f;
+            matrix->pos.y = 0.0f;
+            matrix->pos.x = 0.0f;
+            ZYX_angles_to_MKMATRIX(angles, matrix);
+            YXZ_angles_to_quat(angles, &bone->rotation);
+        }
+        if (scale != 0) {
+            object->scale.x = scale->x;
+            object->scale.y = scale->y;
+            object->scale.z = scale->z;
+            object->flags_08_bits.scale_active = 1;
+        }
+        if (position != 0) {
+            attachment->position.x = position->x;
+            attachment->position.y = position->y;
+            attachment->position.z = position->z;
+            attachment->velocity.z = 0.0f;
+            attachment->velocity.y = 0.0f;
+            attachment->velocity.x = 0.0f;
+        }
+        attachment->bound_object = bound_object;
+        attachment->bound_instance = bound_object->instance;
+        attachment->bone_id = bone_id;
+        attachment->flags08.bit6 = 1;
+        attachment->flags08.bit0 = 0;
     }
-    if (attachment == 0) {
-        return 0;
-    }
-
-    if (angles != 0) {
-        bone = object->bones[object->fallback_bone_index];
-        bone->parent_matrix->pos.x = 0.0f;
-        bone->parent_matrix->pos.y = 0.0f;
-        bone->parent_matrix->pos.z = 0.0f;
-        ZYX_angles_to_MKMATRIX(angles, bone->parent_matrix);
-        YXZ_angles_to_quat(angles, &bone->rotation);
-    }
-    if (scale != 0) {
-        object->scale.x = scale->x;
-        object->scale.y = scale->y;
-        object->scale.z = scale->z;
-        object->flags_08_bits.scale_active = 1;
-    }
-    if (position != 0) {
-        attachment->position.x = position->x;
-        attachment->position.y = position->y;
-        attachment->position.z = position->z;
-        attachment->velocity.x = 0.0f;
-        attachment->velocity.y = 0.0f;
-        attachment->velocity.z = 0.0f;
-    }
-    attachment->bound_object = bound_object;
-    attachment->bound_instance = bound_object->instance;
-    attachment->bone_id = bone_id;
-    attachment->flags08 |= 0x40;
-    attachment->flags08 &= (unsigned char)~1;
     return attachment;
 }
 
@@ -3204,12 +3186,9 @@ void weapon_reflection_show_hide(
     }
 }
 
-/* TODO: [near miss] 98.59%; reflection GPR rotation and equivalent primary return copy remain; stop at coloring. */
 MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
     MkObj* weapon;
     MkObj* reflection;
-    PlyrWeaponStyle* style;
-    PlyrMirrorObjLatch* latch;
 
     while (is_weapon_style(player->fighter_definition) == 0) {
         player->player_slot++;
@@ -3221,36 +3200,34 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
         player->fighter_definition_instance = player->fighter_definition->instance;
     }
 
-    if (secondary == 0) {
-        style = player->fighter_definition;
-        latch = &style->mirror_slots.weapon[0].primary;
-        weapon = MK_HDR_LIVE(latch->obj, latch->instance);
+    if (secondary == 0 &&
+        (weapon = MK_HDR_LIVE(
+             player->fighter_definition->mirror_slots.weapon[0].primary.obj,
+             player->fighter_definition->mirror_slots.weapon[0].primary.instance)) != 0) {
+        plyr_weapon_grab(player, weapon);
+        weapon->hide_flag_bits.hidden = 0;
+        if ((g_game_info.section->flags70 & 8) != 0) {
+            reflection = MK_HDR_LIVE(
+                plyr_pdata->fighter_definition->mirror_slots.weapon[0].mirror.obj,
+                plyr_pdata->fighter_definition->mirror_slots.weapon[0].mirror.instance);
+            if (reflection != 0) {
+                reflection->hide_flag_bits.hidden = 0;
+            }
+        }
+    } else {
+        weapon = MK_HDR_LIVE(
+            player->fighter_definition->mirror_slots.weapon[1].primary.obj,
+            player->fighter_definition->mirror_slots.weapon[1].primary.instance);
         if (weapon != 0) {
-            plyr_weapon_grab(player, weapon);
+            plyr_weapon2_grab(player, weapon);
             weapon->hide_flag_bits.hidden = 0;
             if ((g_game_info.section->flags70 & 8) != 0) {
-                style = plyr_pdata->fighter_definition;
-                latch = &style->mirror_slots.weapon[0].mirror;
-                reflection = MK_HDR_LIVE(latch->obj, latch->instance);
+                reflection = MK_HDR_LIVE(
+                    plyr_pdata->fighter_definition->mirror_slots.weapon[1].mirror.obj,
+                    plyr_pdata->fighter_definition->mirror_slots.weapon[1].mirror.instance);
                 if (reflection != 0) {
                     reflection->hide_flag_bits.hidden = 0;
                 }
-            }
-            return weapon;
-        }
-    }
-    style = player->fighter_definition;
-    latch = &style->mirror_slots.weapon[1].primary;
-    weapon = MK_HDR_LIVE(latch->obj, latch->instance);
-    if (weapon != 0) {
-        plyr_weapon2_grab(player, weapon);
-        weapon->hide_flag_bits.hidden = 0;
-        if ((g_game_info.section->flags70 & 8) != 0) {
-            style = plyr_pdata->fighter_definition;
-            latch = &style->mirror_slots.weapon[1].mirror;
-            reflection = MK_HDR_LIVE(latch->obj, latch->instance);
-            if (reflection != 0) {
-                reflection->hide_flag_bits.hidden = 0;
             }
         }
     }
@@ -3308,41 +3285,77 @@ void advance_to_weapon_style(PlyrPdata* player) {
     }
 }
 
-int fat_bgnd_char_setup_radius_check(
-    const FatalityRadiusCheck* check) {
-    union {
-        float value;
-        unsigned int bits;
-    } inverse;
-    Vec attacker_delta;
-    Vec victim_delta;
-    const Vec* selected;
+
+static inline void fatality_adjust_to_radius(
+    float radius, float attacker_distance_sq, float radius_sq,
+    const Vec* selected, const Vec* victim_delta) {
     CameraObj* camera;
-    float attacker_distance_sq;
-    float victim_distance_sq;
-    float selected_distance_sq;
-    float radius_sq;
+    float inverse_distance;
     float correction;
     float x;
     float z;
 
+    if (radius < 0.0f) {
+        if (!(attacker_distance_sq < radius_sq)) {
+            return;
+        }
+    } else if (!(attacker_distance_sq > radius_sq)) {
+        return;
+    }
+    if (fatality_state.player->character_id == 0x12 &&
+        g_game_info.field_200 == 1 &&
+        selected == victim_delta) {
+        return;
+    }
+    inverse_distance = gxMathFastInvSqrt(attacker_distance_sq);
+    correction = radius * inverse_distance;
+    correction = 0.65f * correction;
+    correction -= 1.0f;
+    x = selected->x * correction;
+    z = selected->z * correction;
+    fatality_state.attacker_object->pos.value.x += x;
+    fatality_state.attacker_object->pos.value.z += z;
+    fatality_state.victim_object->pos.value.x += x;
+    fatality_state.victim_object->pos.value.z += z;
+    camera = (CameraObj*)MK_HDR_LIVE(camera_item.node, camera_item.instance);
+    if (camera != 0) {
+        camera->pos.x += x;
+        camera->pos.z += z;
+    }
+
+}
+
+/* TODO: [near miss] 89.47%; math/CFG agree; initial scheduling, FP homes and equivalent exception exit remain; stop at coloring. */
+int fat_bgnd_char_setup_radius_check(
+    const FatalityRadiusCheck* check) {
+    Vec attacker_delta;
+    Vec victim_delta;
+    const Vec* selected;
+    float radius;
+    float radius_sq;
+    float center_x;
+    float center_z;
+    float attacker_distance_sq;
+    float victim_distance_sq;
+
+    radius = check->radius;
+    radius_sq = radius * radius;
+    center_x = check->center_x;
     attacker_delta.x =
-        fatality_state.attacker_object->pos.value.x - check->center_x;
+        fatality_state.attacker_object->pos.value.x - center_x;
+    attacker_distance_sq = attacker_delta.x * attacker_delta.x;
+    center_z = check->center_z;
     attacker_delta.z =
-        fatality_state.attacker_object->pos.value.z - check->center_z;
+        fatality_state.attacker_object->pos.value.z - center_z;
+    attacker_distance_sq += attacker_delta.z * attacker_delta.z;
     victim_delta.x =
-        fatality_state.victim_object->pos.value.x - check->center_x;
+        fatality_state.victim_object->pos.value.x - center_x;
+    victim_distance_sq = victim_delta.x * victim_delta.x;
     victim_delta.z =
-        fatality_state.victim_object->pos.value.z - check->center_z;
-    attacker_distance_sq =
-        attacker_delta.x * attacker_delta.x +
-        attacker_delta.z * attacker_delta.z;
-    victim_distance_sq =
-        victim_delta.x * victim_delta.x +
-        victim_delta.z * victim_delta.z;
-    radius_sq = check->radius * check->radius;
+        fatality_state.victim_object->pos.value.z - center_z;
+    victim_distance_sq += victim_delta.z * victim_delta.z;
     if (!check->select_farthest) {
-        if (check->radius < 0.0f) {
+        if (radius < 0.0f) {
             if (attacker_distance_sq < radius_sq ||
                 victim_distance_sq < radius_sq) {
                 return 0;
@@ -3353,58 +3366,21 @@ int fat_bgnd_char_setup_radius_check(
         }
         return 1;
     }
-    if (check->radius < 0.0f) {
-        selected = attacker_distance_sq < victim_distance_sq
-                       ? &attacker_delta : &victim_delta;
-        selected_distance_sq =
-            attacker_distance_sq < victim_distance_sq
-                ? attacker_distance_sq : victim_distance_sq;
+    if (radius < 0.0f) {
+        if (attacker_distance_sq < victim_distance_sq) {
+            selected = &attacker_delta;
+        } else {
+            attacker_distance_sq = victim_distance_sq;
+            selected = &victim_delta;
+        }
+    } else if (attacker_distance_sq > victim_distance_sq) {
+        selected = &attacker_delta;
     } else {
-        selected = attacker_distance_sq > victim_distance_sq
-                       ? &attacker_delta : &victim_delta;
-        selected_distance_sq =
-            attacker_distance_sq > victim_distance_sq
-                ? attacker_distance_sq : victim_distance_sq;
+        selected = &victim_delta;
+        attacker_distance_sq = victim_distance_sq;
     }
-    if ((check->radius < 0.0f &&
-         selected_distance_sq >= radius_sq) ||
-        (check->radius >= 0.0f &&
-         selected_distance_sq <= radius_sq)) {
-        return 1;
-    }
-    if (fatality_state.player->character_id == 0x12 &&
-        g_game_info.field_200 == 1 &&
-        selected == &victim_delta) {
-        return 1;
-    }
-    if (selected_distance_sq <= 0.0f) {
-        inverse.value = 0.0f;
-    } else {
-        inverse.value = selected_distance_sq;
-        inverse.bits = 0x5F375A00 - (inverse.bits >> 1);
-        x = inverse.value *
-            (selected_distance_sq * inverse.value);
-        z = 3.0f - x;
-        inverse.value = 0.0625f * inverse.value * z *
-            -((z * (x * z)) - 12.0f);
-    }
-    correction =
-        0.65f * (check->radius * inverse.value) - 1.0f;
-    x = selected->x * correction;
-    z = selected->z * correction;
-    fatality_state.attacker_object->pos.value.x += x;
-    fatality_state.attacker_object->pos.value.z += z;
-    fatality_state.victim_object->pos.value.x += x;
-    fatality_state.victim_object->pos.value.z += z;
-    camera = camera_item.node;
-    if (camera != 0 &&
-        camera->hdr.instance != camera_item.instance) {
-        camera = 0;
-    }
-    if (camera != 0) {
-        camera->pos.x += x;
-        camera->pos.z += z;
-    }
+    fatality_adjust_to_radius(
+        radius, attacker_distance_sq, radius_sq, selected, &victim_delta);
     return 1;
 }
 
@@ -3503,7 +3479,6 @@ void fade_fatality_screen(void) {
     }
 }
 
-/* TODO: [near miss] 99.99%; camera-script array base is +0x3A8, while retail indexes the broader +0x318 animation table; recover that typed view. */
 void run_fatality_sequence(
     unsigned int main_script, unsigned int victim_script) {
     FatalityBgndScriptView* section_script;
@@ -3550,9 +3525,11 @@ void run_fatality_sequence(
     his_obj->flags_09_bits.launched = 1;
     his_obj->flags_09_bits.bit6 = 1;
     pal_mode = is_pal_mode();
-    camera_index = 11;
-    if (pal_mode != 0) camera_index = 12;
-    camera_script = plyr_pdata->fatality_camera_scripts[camera_index];
+    camera_index = 0x2F;
+    if (pal_mode != 0) {
+        camera_index = 0x30;
+    }
+    camera_script = plyr_pdata->animation_data[camera_index];
     fatality_anim_script = camera_script;
     if (fatality_anim_script != 0) {
         camera_init_animation(
@@ -3595,7 +3572,7 @@ void run_fatality_sequence(
     cmdscript_execute(plyr_pdata->cmo);
 }
 
-/* TODO: [near miss] 98.24%; state layout and latch CFG recovered; pointer reload and register association remain. */
+/* TODO: [near miss] 99.42%; glitch_to_stance ABI fixed; opponent/object volatile pair r4/r5 swapped in aux latches (decl order neutral). */
 static int init_fatality_world(void) {
     PlyrPdata* opponent;
     MkObj* object;
@@ -3608,7 +3585,7 @@ static int init_fatality_world(void) {
     if (g_game_info.field_200 != 3) {
         init_ground_move();
         plyr_anim_pdata->step = 1.0f;
-        glitch_to_stance(plyr_anim_pdata, 0.5f);
+        glitch_to_stance(0.5f);
         xfer_camera(p_idle_camera, 1);
     } else {
         face_opponent_now();
@@ -3631,11 +3608,10 @@ static int init_fatality_world(void) {
     fatality_state.player_info =
         plyr_pdata->his_plyr_pdata->plyr_info;
     fatality_state.victim_object = his_obj;
-    process = plyr_pdata->player_proc;
-    process = MK_HDR_LIVE(process, plyr_pdata->player_proc_instance);
+    process = MK_HDR_LIVE(plyr_pdata->player_proc,
+                          plyr_pdata->player_proc_instance);
     fatality_state.victim_proc = process;
-    process = his_pdata->anim_proc;
-    process = MK_HDR_LIVE(process, his_pdata->anim_proc_instance);
+    process = MK_HDR_LIVE(his_pdata->anim_proc, his_pdata->anim_proc_instance);
     fatality_state.attacker_proc = process;
     fatality_state.animation = (FatalityAnimationView*)pdata_of_proc(process);
     fatality_state.opponent = plyr_pdata->his_plyr_pdata;
@@ -3652,13 +3628,13 @@ static int init_fatality_world(void) {
         plyr_turn_off_shadowbox(fatality_state.player_info);
 
         opponent = fatality_state.opponent;
-        object = opponent->aux_weapon_latch.obj;
-        object = MK_HDR_LIVE(object, opponent->aux_weapon_latch.instance);
+        object = MK_HDR_LIVE(opponent->aux_weapon_latch.obj,
+                             opponent->aux_weapon_latch.instance);
         if (object != 0) {
             object->hide_flag_bits.hidden = 1;
         }
-        object = opponent->mirror_obj.obj;
-        object = MK_HDR_LIVE(object, opponent->mirror_obj.instance);
+        object = MK_HDR_LIVE(opponent->mirror_obj.obj,
+                             opponent->mirror_obj.instance);
         if (object != 0) {
             object->hide_flag_bits.hidden = 1;
         }
@@ -3753,7 +3729,7 @@ float start_suicide(void) {
 }
 
 
-/* TODO: [near miss] 96.07%; animation/script reloads and sentinel agree; loader and initial fade scheduling remain. */
+/* TODO: [near miss] 96.21%; loader agrees; only shared fade setup address scheduling remains (see fade_fatality_screen). */
 float start_2nd_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3780,7 +3756,7 @@ float start_2nd_fatality(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.07%; loader GPR and initial fade scheduling remain; stop at compiler model. */
+/* TODO: [near miss] 96.21%; loader agrees; only shared fade setup address scheduling remains (see fade_fatality_screen). */
 float start_fatality(void) {
     FatalityDefinition* definition;
 

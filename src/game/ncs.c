@@ -424,7 +424,7 @@ MKMATRIX* mkobj_get_matrix(MkObj* object);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
 MkProc* fire_sc_spear(
-    PlyrPdata* player, const Vec* velocity, int field_34,
+    PlyrPdata* player, Vec* velocity, int field_34,
     int flag_40, MkHdr* bound_object, int flag_20);
 float p_sc_spear_kill(void);
 float p_sc_spear_blocked(void);
@@ -445,7 +445,8 @@ static float p_limb_sever_attach(void);
 static float p_limb_sever_update(void);
 struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id);
-void limb_sever_explode_apart(PlyrInfo* player);
+void limb_sever_explode_apart(
+    PlyrInfo* player, float arg1, float arg2, float strength, int mode);
 void spawn_bld_splat(
     const char* name, void* owner, const Vec* position);
 MslSoundHandle plyr_snd_req(int sound);
@@ -603,10 +604,8 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     return proc;
 }
 
-/* TODO: [near miss] 96.13%; structure matches; retail copies velocity as a Vec struct (lwz/stw)
- * but that form shifts the shared-zero register (91.8%); coloring remains. */
 MkProc* fire_sc_spear(
-    PlyrPdata* player, const Vec* velocity, int field_34,
+    PlyrPdata* player, Vec* velocity, int field_34,
     int flag_40, MkHdr* bound_object, int flag_20) {
     MkObj* weapon;
     struct SpearProcPdata* pdata;
@@ -655,9 +654,7 @@ MkProc* fire_sc_spear(
             }
 
             weapon->flags_08_bits.gravity_enabled = 0;
-            weapon->pos_vel.x = velocity->x;
-            weapon->pos_vel.y = velocity->y;
-            weapon->pos_vel.z = velocity->z;
+            weapon->pos_vel = *velocity;
             proc->pre_destroy = sc_spear_prewake;
             proc->destroy_cb = sc_spear_postsleep;
             proc->sleep_ticks = 2.0f;
@@ -1114,23 +1111,6 @@ static inline float ncs_xz_distance_squared(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
-static inline float ncs_inverse_sqrt(float squared) {
-    union NcsFloatBits bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    bits.f = squared;
-    bits.u = 0x5F375A00 - (bits.u >> 1);
-    estimate = bits.f;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 /* TODO: [near miss] 99.45%; helper structure and stack slots match; spear pointer r5/r6 and first-distance FPR coloring remain. */
 static float p_sc_spear4_victory(void) {
@@ -1168,7 +1148,7 @@ static float p_sc_spear4_victory(void) {
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z;
-    inverse_length = ncs_inverse_sqrt(direction_squared);
+    inverse_length = gxMathFastInvSqrt(direction_squared);
     sc_spear_obj->pos_vel.x = sc_spear_obj->pos_vel.x * inverse_length;
     sc_spear_obj->pos_vel.y *= inverse_length;
     sc_spear_obj->pos_vel.z *= inverse_length;
@@ -1178,24 +1158,6 @@ static float p_sc_spear4_victory(void) {
     return 1.0f;
 }
 
-static inline float ncs_inv_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } guess;
-    float product;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    guess.f = value;
-    guess.u = 0x5F375A00U - (guess.u >> 1);
-    product = guess.f * (value * guess.f);
-    correction = 3.0f - product;
-    return 0.0625f * guess.f * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 static float p_sc_spear4_getup(void) {
     MkObj* target_object;
@@ -1225,7 +1187,7 @@ static float p_sc_spear4_getup(void) {
     sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.value.x;
     sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.value.y;
     sc_spear_obj->pos_vel.z = target.z - sc_spear_obj->pos.value.z;
-    inverse_length = ncs_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
         sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);
@@ -1273,10 +1235,10 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.37%; CFG/VM/reloads agree; stop at owner/FP coloring and scheduling. */
+/* TODO: [near miss] 98.80%; FPR homes agree; spear_pdata/emitter r30/r31 swap and stride load scheduling remain. */
 static float p_pfx_sc_spear(void) {
-    MkObj* emitter_object;
     struct SpearProcPdata* spear_pdata;
+    MkObj* emitter_object;
     PlyrPdata* owner;
     MkObj* target;
     PfxVm* vm;
@@ -1285,6 +1247,7 @@ static float p_pfx_sc_spear(void) {
     Vec* particle_position;
     float length;
     float amplitude;
+    float absolute_amplitude;
     float base_spacing;
     float phase;
     float distance;
@@ -1347,9 +1310,9 @@ static float p_pfx_sc_spear(void) {
         }
 
         if (apfx->field_298 > 0.0f) {
-            float absolute_amplitude = amplitude;
             float sine;
 
+            absolute_amplitude = amplitude;
             if (amplitude < 0.0f) {
                 absolute_amplitude = -amplitude;
             }
@@ -1519,7 +1482,7 @@ struct PrisonGrabPdata* start_prison_grab_proc(
         x_squared = x * x;
         z_squared = z * z;
         squared = x_squared + z_squared;
-        inverse_length = ncs_inverse_sqrt(squared);
+        inverse_length = gxMathFastInvSqrt(squared);
         normalized_x = x * inverse_length;
         normalized_z = z * inverse_length;
         pdata->target_x = x - normalized_x * strength;
@@ -1575,7 +1538,7 @@ static float p_prison_grab(void) {
     if (pdata->done != 0) {
         squared = pdata->target_x * pdata->target_x +
                   pdata->target_z * pdata->target_z;
-        inverse_length = ncs_inverse_sqrt(squared);
+        inverse_length = gxMathFastInvSqrt(squared);
         object->pos_vel.x = pdata->target_x * inverse_length;
         object->pos_vel.z = pdata->target_z * inverse_length;
         object->pos_vel.x *= 0.1f;
@@ -1724,12 +1687,11 @@ void ncs_camera_wall_show_hide_alpha(
     ((struct NcsCameraWallPdata*)pdata)->special_alpha_initialized = 0;
 }
 
-/* TODO: [breakthrough] 95.10%; indexed callbacks and rounded containment fixed;
- * retain defined initial alpha; retail alpha initialization path and codegen remain. */
+/* TODO: [breakthrough] 96.65%; search reloads pdata->regions; defined initial alpha store kept (retail lacks it);
+ * camera FPR homes and character index (id-0xB) folding remain. */
 static float p_camera_wall_show_hide_alpha(void) {
     struct NcsCameraWallPdata* pdata;
     NcsCameraWallRegion* region;
-    NcsCameraWallRegion* regions;
     CamVec3 camera_position;
     RwRGBA white;
     int region_index;
@@ -1747,9 +1709,8 @@ static float p_camera_wall_show_hide_alpha(void) {
     white.green = 0xFF;
     white.blue = 0xFF;
     white.alpha = 0xFF;
-    regions = pdata->regions;
-    for (region_index = 0; regions[region_index].type < 3; region_index++) {
-        region = &regions[region_index];
+    for (region_index = 0; pdata->regions[region_index].type < 3; region_index++) {
+        region = &pdata->regions[region_index];
         if (region->type == 0) {
             float dx = camera_position.x - region->min_x;
             float dz = camera_position.z - region->max_x;
@@ -1954,7 +1915,7 @@ int attach_gore2_obj(
     return result;
 }
 
-/* TODO: [near miss] 98.67%; direct output, flags and matrix reloads agree; retained-owner coloring remains. */
+/* TODO: [near miss] 98.91%; bone index home fixed; pool r29/particle r28 swap vs retail remains; stop at coloring. */
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, const Vec* velocity,
@@ -1972,11 +1933,13 @@ void start_gore2_pebbles(
         MkBone* source_bone = source->bones[bone];
 
         if (source_bone != 0) {
-            int particle_index =
-                mkpdata_pbl_gore2_update->next_particle[type];
-            PebbleData* pool = mkpdata_pbl_gore2_update->pools[type];
-            struct Gore2Particle* particle =
-                &((struct Gore2Particle*)pool->user_data)[particle_index];
+            struct Gore2Particle* particle;
+            PebbleData* pool;
+            int particle_index;
+
+            particle_index = mkpdata_pbl_gore2_update->next_particle[type];
+            pool = mkpdata_pbl_gore2_update->pools[type];
+            particle = &((struct Gore2Particle*)pool->user_data)[particle_index];
 
             particle->flags.word = 0;
             get_bone_world_pos(source, bone, &pool->pebbles[particle_index].matrix.pos_row.value);
@@ -2224,7 +2187,6 @@ static float p_gore2_update(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.31%; mask/table register allocation and bone staging differ. */
 void start_sweat_particles(
     int particle_mask, int bone, PlyrPdata* player, MkObj* object) {
     MkPfx* particle;
@@ -2278,7 +2240,7 @@ static inline void resume_sweat_emitters(int particle_mask, int bone,
     } while (type < 3);
 }
 
-/* TODO: [near miss] 96.08%; inlined sweat loop retains bone-copy and nonvolatile-home residue. */
+/* TODO: [near miss] 97.75%; inlined sweat loop retains nonvolatile-home residue. */
 void start_sweat_particles_scripts(int particle_mask, int bone) {
     PlyrPdata* player;
     MkObj* object;
@@ -2293,15 +2255,14 @@ void start_sweat_particles_scripts(int particle_mask, int bone) {
     active_cmdscript = saved_script;
 }
 
-/* TODO: [near miss] 98.78%; bone and loop homes differ from retail. */
 unsigned int start_blood_particles(
-    int particle_mask, int bone, PlyrPdata* player, MkObj* object) {
-    int type;
+    int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object) {
     unsigned int emitter;
     CmdScript* saved_script;
+    int type;
 
     emitter = 0;
-    if ((unsigned int)bone != 0x40000000 && object->bones[bone] == 0) {
+    if (bone != 0x40000000 && object->bones[bone] == 0) {
         return 0;
     }
 
@@ -2327,7 +2288,7 @@ unsigned int start_blood_particles(
                     fx_resume_emit(emitter);
                     particle = pfx_from_emitter(emitter);
                     emitter_id = emitter_id_from_handle(emitter);
-                    if ((unsigned int)bone == 0x40000000) {
+                    if (bone == 0x40000000) {
                         pfx_bind_emitter_num_to_obj(
                             particle, object, 0, emitter_id);
                     } else {
@@ -2342,8 +2303,8 @@ unsigned int start_blood_particles(
     return emitter;
 }
 
-/* TODO: [near miss] 98.58%; shared blood operation matches; remaining nonvolatile homes differ. */
-unsigned int start_blood_particles_scripts(int particle_mask, int bone)
+/* TODO: [near miss] 98.86%; inlined blood loop player/object/bone/emitter homes reversed vs retail; coloring only. */
+unsigned int start_blood_particles_scripts(int particle_mask, unsigned int bone)
 {
     MkObj* object = plyr_obj;
     PlyrPdata* player = plyr_pdata;
@@ -2459,11 +2420,10 @@ static void trigger_blood_glops(
     }
 }
 
-/* TODO: [breakthrough] 95.55%; floor predicate and blsplat decal key recovered; loop member addressing and GPR coloring differ. */
 static float p_watch_obj_for_gnd_coll(void) {
+    struct NcsGroundCollisionWatchPdata* pdata;
     int index;
     int active_count;
-    struct NcsGroundCollisionWatchPdata* pdata;
 
     active_count = 0;
     pdata = (struct NcsGroundCollisionWatchPdata*)apdata;
@@ -2472,8 +2432,8 @@ static float p_watch_obj_for_gnd_coll(void) {
     }
 
     for (index = 0; index < 3; index++) {
-        FighterObjectRef* ref = &pdata->objects[index];
-        MkObj* object = MK_HDR_LIVE(ref->object, ref->instance);
+        MkObj* object = MK_HDR_LIVE(pdata->objects[index].object,
+            pdata->objects[index].instance);
         if (object != 0) {
             active_count++;
             if (!(object->pos.value.y > g_game_info.field_34)) {
@@ -2481,8 +2441,8 @@ static float p_watch_obj_for_gnd_coll(void) {
                 object->pos.value.y = 0.001f + g_game_info.field_34;
                 spawn_bld_splat(
                     "blsplat", pdata->blood_owner, &object->pos.value);
-                ref->object = 0;
-                ref->instance = 0;
+                pdata->objects[index].object = 0;
+                pdata->objects[index].instance = 0;
                 if (object->hdr.instance != 0) {
                     object->hdr.typed_vtbl->destroy(&object->hdr);
                 }
@@ -2789,35 +2749,36 @@ static inline MkObj* mks_limb_sever_inline(
     return severed;
 }
 
-void limb_sever_explode_apart_plyr_num(int player) {
+void limb_sever_explode_apart_plyr_num(
+    int player, float arg1, float arg2, float strength, int mode) {
     if (player == 0) {
-        limb_sever_explode_apart(&g_game_info.plyr0);
+        limb_sever_explode_apart(
+            &g_game_info.plyr0, arg1, arg2, strength, mode);
     } else if (player == 1) {
-        limb_sever_explode_apart(&g_game_info.plyr1);
+        limb_sever_explode_apart(
+            &g_game_info.plyr1, arg1, arg2, strength, mode);
     }
 }
 
-/* TODO: [breakthrough] 96.22%; canonical motion latch and shared return recovered; inline/DCE and scheduling residue remain. */
-void limb_sever_explode_apart(PlyrInfo* player) {
-    MkObj* owner;
+/* TODO: [near miss] 98.62%; entry order and vector slots agree; inline creation-failure bne+b joins and local_velocity store residue remain. */
+void limb_sever_explode_apart(
+    PlyrInfo* player, float arg1, float arg2, float strength, int mode) {
     struct NcsLimbUpdatePdata* update;
-    MKMATRIX* limb_matrix;
+    MKMATRIX* limb_matrix = force_calc_bone_world_mat(player->slot.mirror_a, 9);
+    MkObj* owner = player->slot.mirror_a;
     Vec local_velocity;
     Vec world_velocity;
     Vec angular_velocity = {0.1f, 0.0f, 0.0f};
     MkObj* severed;
-    Vec hidden_position;
 
-    owner = player->slot.mirror_a;
-    limb_matrix = force_calc_bone_world_mat(owner, 9);
     update = limb_sever_find_existing_update_proc(player, -1, 0x6014);
     if (update == 0) {
         return;
     }
     init_plyr_severed_limb_list(player);
     local_velocity.x = 0.05f;
-    local_velocity.y = 0.07f;
     local_velocity.z = 0.02f;
+    local_velocity.y = 0.07f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
         owner, 4, &world_velocity, update,
@@ -2833,8 +2794,8 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 5, 0);
 
-    local_velocity.x = 0.0f;
     local_velocity.y = 0.05f;
+    local_velocity.x = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
         owner, 6, &world_velocity, update,
@@ -2862,8 +2823,8 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
 
-    local_velocity.x = 0.0f;
     local_velocity.y = 0.05f;
+    local_velocity.x = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
         owner, 3, &world_velocity, update,
@@ -2882,6 +2843,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
 
     local_velocity.x = 0.035f;
     local_velocity.y = 0.02f;
+    local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
         owner, 11, &world_velocity, update,
@@ -2936,10 +2898,10 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 0, 0);
 
+    zero_v3(&world_velocity);
     severed = mks_limb_sever_inline(owner, 14, 1);
-    zero_v3(&hidden_position);
-    hidden_position.y = -1000.0f;
-    obj_set_pos(severed, &hidden_position);
+    world_velocity.y = -1000.0f;
+    obj_set_pos(severed, &world_velocity);
     limb_sever_show_z_meat_chunks(owner, 14, 0);
 
     mks_limb_sever_inline(owner, 13, 1);
@@ -3135,9 +3097,9 @@ MkProc* plyr_spawn_his_anim_limb(
     return proc;
 }
 
-/* TODO: [near miss] 97.05405%; frame/latch agree; creation-failure join and velocity scheduling remain. */
+/* TODO: [near miss] 99.01%; creation-failure early return lowers as bne+b instead of retail beq to final result. */
 MkObj* limb_sever_set_motion(
-    MkObj* owner, int limb, const Vec* velocity, float gravity,
+    MkObj* owner, int limb, Vec* velocity, float gravity,
     struct NcsLimbUpdatePdata* motion, int enable_ground, float ground_offset,
     int ground_value, float vertical_bounce_scale, int field_18, int include_children) {
     MkObj* severed = 0;
@@ -3157,9 +3119,9 @@ MkObj* limb_sever_set_motion(
             fighter->severed_limbs[limb].instance = severed->hdr.instance;
         }
         motion->severed_mask |= 1 << limb;
-        severed->pos_vel_row.value.x = velocity->x;
-        severed->pos_vel_row.value.y = velocity->y;
-        severed->pos_vel_row.value.z = velocity->z;
+        severed->pos_vel.x = velocity->x;
+        severed->pos_vel.y = velocity->y;
+        severed->pos_vel.z = velocity->z;
         severed->flags_08_bits.gravity_enabled = 1;
         severed->gravity = gravity;
         if (gravity != 0.0f) {

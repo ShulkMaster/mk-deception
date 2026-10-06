@@ -36,10 +36,6 @@ static inline void jmt_init_decoy_visuals(
     *dark = dark_value;
 }
 
-union JmtFloatBits {
-    float f;
-    unsigned int u;
-};
 
 struct JmtDecoyPdata {
     MkHdr hdr;
@@ -151,23 +147,6 @@ static float p_kabal_smoke(void);
 static float p_create_decoy(void);
 static float p_decoy(void);
 
-static inline float jmt_fast_inverse_sqrt(float squared) {
-    union JmtFloatBits bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    bits.f = squared;
-    bits.u = 0x5F375A00 - (bits.u >> 1);
-    estimate = bits.f;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 static inline int jmt_is_local_plyr(void) {
     if (plyr_pdata == 0) {
@@ -1167,12 +1146,12 @@ float mks_get_victim_to_tr_dot(int player) {
         z = victim->pos.value.z;
         x_squared = x * x;
         z_squared = z * z;
-        inverse_length = jmt_fast_inverse_sqrt(x_squared + z_squared);
+        inverse_length = gxMathFastInvSqrt(x_squared + z_squared);
         victim_x = x * inverse_length;
         victim_z = z * inverse_length;
         delta_x = target->pos.value.x - x;
         delta_z = target->pos.value.z - z;
-        inverse_length = jmt_fast_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
+        inverse_length = gxMathFastInvSqrt(delta_x * delta_x + delta_z * delta_z);
         delta_x *= inverse_length;
         delta_z *= inverse_length;
         result = delta_x * victim_x + delta_z * victim_z;

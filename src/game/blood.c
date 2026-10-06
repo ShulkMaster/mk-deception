@@ -122,6 +122,11 @@ struct BleedPdata {
     int timer;
 };
 
+struct BloodVelocityFlags {
+    unsigned char bit7 : 1;
+    unsigned char reserved : 7;
+};
+
 struct BloodVelocityState {
     Vec velocity;
     float spawn_delay;
@@ -129,8 +134,11 @@ struct BloodVelocityState {
     struct BloodSpawnStep* step;
     BloodPath* path;
     int point_index;
-    unsigned char flags;
-    char pad21[3];
+    union {
+        unsigned int flags_word;
+        unsigned char flags;
+        struct BloodVelocityFlags flag_bits;
+    };
     int path_point;
     float weight_0;
     float weight_1;
@@ -1237,11 +1245,6 @@ void plyr_obj_load_bld_data(
     char* path_name);
 void fx_resume_emit(unsigned int emitter);
 int obj_get_bid_for_tid(MkObj* object, int tag);
-int obj_spawn_bld(
-    MkObj* object, struct BloodVelocityState* previous, int batch_count,
-    struct BloodSpawnStep* step, BloodPath* path, int point_index,
-    const Vec* position, unsigned int art_id,
-    PlyrPdata* owner);
 
 static float p_decal_emitter_watcher(void);
 static float p_gusher(void);
@@ -2353,12 +2356,6 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
     }
 }
 
-static inline unsigned int blood_art_id_for_player(PlyrPdata* owner)
-{
-    char* blood_name = blood_map[4];
-    int art_section = get_shared_art_section_for_plyr_pdata(owner);
-    return get_artid_of_named_item_in_slot(art_section, blood_name, 1);
-}
 
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
@@ -2373,7 +2370,7 @@ void plyr_bleed_small_cycle_ext(
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
-            blood_art_id = blood_art_id_for_player(owner);
+            blood_art_id = large_blood_art_for_player(owner);
 
             switch (cycle_index) {
             case 0:
@@ -2791,27 +2788,97 @@ static void do_pfx_bleed(MkHdr* hdr) {
     }
 }
 
-/* TODO: [breakthrough needed] 70.91%; typed particle definition retained; stack layout and instruction ordering need recovery. */
+static inline MkPfx* blood_create_bound_pfx(
+    MkObj* object, int bone_id, struct BloodParticleDefinition* definition,
+    unsigned int art_id, PlyrPdata* owner) {
+    MkProc* proc;
+    MkPfx* pfx;
+
+    proc = MK_LIVE(bleed_pfx_proc_item.proc, bleed_pfx_proc_item.instance);
+
+    if (proc == 0) {
+        return 0;
+    }
+    pfx_create_raw_userdata(
+        0, sizeof(struct BloodVelocityState), definition->field_00, 0x102, 0,
+        bloodfx_init, 0, 0, (void**)&pfx);
+    if (pfx == 0) {
+        return 0;
+    }
+    mk_insert(&pfx->hdr, &proc->pdata_list);
+    set_pfx_texture(
+        (PfxVm*)pfx->matrix,
+        get_shared_art_section_for_plyr_pdata(owner),
+        art_id);
+    pfx_bind_render_to_obj_bone(pfx, object, bone_id);
+    pfx->field_288 = art_id;
+    pfx->blood_definition = definition;
+    pfx->blood_owner = owner;
+
+    ((PfxVm*)pfx->matrix)->billboard_size = definition->size;
+    pfx_native_set_rgba(
+        &((PfxVm*)pfx->matrix)->color1B4, definition->red, definition->green,
+        definition->blue, definition->alpha);
+    ((PfxVm*)pfx->matrix)->z_bias = definition->field_0C;
+    ((PfxVm*)pfx->matrix)->texture_frame_time = 1.0f;
+    ((PfxVm*)pfx->matrix)->texture_frame_count = 0x10;
+    ((PfxVm*)pfx->matrix)->texture_u_step = 0.25f;
+    ((PfxVm*)pfx->matrix)->texture_v_step = 0.25f;
+    ((PfxVm*)pfx->matrix)->flag150_40 = 1;
+    ((PfxVm*)pfx->matrix)->flag150_80 = 1;
+    mk_insert(&pfx->hdr, &object->bones[bone_id]->list_80);
+    pfx->flag_bits.visible = 1;
+    pfx->name_dst = "blood";
+
+    return pfx;
+}
+
+static inline MkPfx* blood_find_bound_pfx(MkBone* bone, unsigned int art_id) {
+    MkPtr* item;
+    MkPtr* next;
+    MkHdr* hdr;
+    MkPfx* pfx;
+
+    if (bone != 0 && &bone->list_80 != 0) {
+        item = bone->list_80;
+        while (item != 0) {
+            hdr = item->hdr;
+            if (item->instance != hdr->instance) {
+                next = item->next;
+                discard_stale_mkptr(item);
+                item = next;
+                continue;
+            }
+            pfx = hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_pfx) ? (MkPfx*)hdr : 0;
+            if (pfx != 0 && pfx->field_288 == (int)art_id) {
+                return pfx;
+            }
+            item = item->next;
+        }
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 98.40%; algorithm/CFG/widths agree; saved owner/index and volatile coloring remain; stop at coloring. */
 int obj_spawn_bld(
     MkObj* object, struct BloodVelocityState* previous, int batch_count,
     struct BloodSpawnStep* step, BloodPath* path, int point_index,
     const Vec* position, unsigned int art_id, PlyrPdata* owner) {
     struct BloodParticleDefinition* definition;
     BloodSurfaceRecord* record;
-    PfxVm* config;
     PfxVm* vm;
     struct BloodVelocityState* state;
     struct BloodVelocityState* prior_state;
-    MkProc* proc;
     MkPfx* pfx;
-    MkPtr* item;
-    MkPtr* next;
     MkBone* bone;
     struct BloodParticlePosition* particle_position;
     Vec weights;
     float inverse_weight;
-    float elapsed;
     float spawn_delay;
+    float elapsed;
+    float frames_per_path;
+    int bone_id;
+    int cursor;
     int state_stride;
     int position_stride;
     int path_point;
@@ -2822,167 +2889,120 @@ int obj_spawn_bld(
 
     definition = step->definition;
     record = &path->surface->records[path->record_indices[point_index]];
-    bone = object->bones[record->bone];
+    bone_id = record->bone;
+    bone = object->bones[bone_id];
     spawned = 0;
-    if (bone->parent_matrix == 0) {
-        return 0;
-    }
+    if (bone->parent_matrix != 0) {
 
-    pfx = 0;
-    item = bone->list_80;
-    while (item != 0) {
-        MkHdr* hdr;
+        pfx = blood_find_bound_pfx(bone, art_id);
 
-        hdr = item->hdr;
-        if (item->instance != hdr->instance) {
-            next = item->next;
-            discard_stale_mkptr(item);
-            item = next;
-            continue;
+        if (pfx == 0) {
+            pfx = blood_create_bound_pfx(object, bone_id, definition, art_id, owner);
         }
-        if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_pfx) &&
-            ((MkPfx*)hdr)->field_288 == (int)art_id) {
-            pfx = (MkPfx*)hdr;
-            break;
-        }
-        item = item->next;
-    }
 
-    if (pfx == 0) {
-        proc = MK_LIVE(bleed_pfx_proc_item.proc, bleed_pfx_proc_item.instance);
-
-        if (proc != 0) {
-            pfx_create_raw_userdata(
-                0, sizeof(struct BloodVelocityState), definition->field_00, 0x102, 0,
-                bloodfx_init, 0, 0, (void**)&pfx);
-        }
-        if (proc != 0 && pfx != 0) {
-            mk_insert(&pfx->hdr, &proc->pdata_list);
-            set_pfx_texture(
-                (PfxVm*)pfx->matrix,
-                get_shared_art_section_for_plyr_pdata(owner),
-                art_id);
-            pfx_bind_render_to_obj_bone(pfx, object, record->bone);
-            pfx->field_288 = art_id;
-            pfx->blood_definition = definition;
-            pfx->decal_owner = (FighterMirror*)owner;
-
-            config = (PfxVm*)pfx->matrix;
-            config->billboard_size = definition->size;
-            pfx_native_set_rgba(
-                &config->color1B4, definition->red, definition->green,
-                definition->blue, definition->alpha);
-            config->z_bias = definition->field_0C;
-            config->texture_frame_time = 1.0f;
-            config->texture_frame_count = 0x10;
-            config->texture_u_step = 0.25f;
-            config->texture_v_step = 0.25f;
-            config->flag150_40 = 1;
-            config->flag150_80 = 1;
-            mk_insert(&pfx->hdr, &bone->list_80);
-            pfx->flag_bits.visible = 1;
-            pfx->name_dst = "blood";
-        }
-    }
-
-    if (pfx == 0) {
-        return 0;
-    }
-
-    last_path_point = step->spawn_count;
-    if (last_path_point < 0) {
-        last_path_point = 1;
-    }
-    inverse_weight = 1.0f / (float)last_path_point;
-    if (definition->spawn_interval < game_speed) {
-        spawn_delay = 0.0f;
-    } else {
-        spawn_delay = definition->spawn_interval - game_speed;
-    }
-
-    vm = (PfxVm*)pfx->matrix;
-    position_stride = vm->transforms[0].particle_field_stride;
-    particle_position = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x100),
-        position_stride * vm->particle_cursor);
-    state_stride = pfx_get_struct_size(vm, 0x600);
-    state = PFX_FIELD_AT(pfx_get_field(vm, -2, 0x600),
-        state_stride * vm->particle_cursor);
-    prior_state = 0;
-
-    for (batch = 0; batch < batch_count; batch++) {
-        path_point = previous != 0 ? previous->path_point : -1;
-        elapsed = 0.0f;
-        while (elapsed < game_speed &&
-               vm->particle_cursor < vm->particle_capacity) {
-            path_point++;
-            if (path_point >= last_path_point) {
-                break;
+        if (pfx != 0) {
+            vm = (PfxVm*)pfx->matrix;
+            last_path_point = step->spawn_count;
+            if (last_path_point < 0) {
+                last_path_point = 1;
             }
-
-            state->flags = 0;
-            state->path_point = path_point;
-            state->spawn_delay = spawn_delay;
-            state->point_index = point_index;
-            state->step = step;
-            state->path = path;
-            if (previous != 0) {
-                state->weight_0 = previous->weight_0;
-                state->weight_1 = previous->weight_1;
-                state->weight_step = previous->weight_step;
+            frames_per_path = 16.0f / (float)last_path_point;
+            if (definition->spawn_interval < game_speed) {
+                spawn_delay = 0.0f;
             } else {
-                state->weight_0 = frand(1.0f);
-                state->weight_1 = frand(1.0f);
-                state->weight_step = frand(1.0f);
+                spawn_delay = definition->spawn_interval - game_speed;
             }
 
-            if (position == 0) {
-                weights.x = state->weight_0 + path->interpolation_bias;
-                weights.y = state->weight_1 + path->interpolation_bias;
-                weights.z = state->weight_step + path->interpolation_bias;
-                inverse_weight = 1.0f / (weights.x + weights.y + weights.z);
-                weights.x *= inverse_weight;
-                weights.y *= inverse_weight;
-                weights.z *= inverse_weight;
-                v3_blend3(
-                    &particle_position->position, &weights,
-                    &record->points[0],
-                    &record->points[1], &record->points[2]);
-            } else {
-                particle_position->position = *position;
+            position_stride = vm->transforms[0].particle_field_stride;
+            particle_position = pfx_get_field(vm, -2, 0x100);
+            state_stride = pfx_get_struct_size(vm, 0x600);
+            state = pfx_get_field(vm, -2, 0x600);
+            cursor = vm->particle_cursor;
+            particle_position = PFX_FIELD_AT(particle_position, position_stride * cursor);
+            state = PFX_FIELD_AT(state, state_stride * cursor);
+
+            for (batch = 0; batch < batch_count; batch++) {
+                path_point = previous != 0 ? previous->path_point : -1;
+                elapsed = 0.0f;
+                prior_state = 0;
+                while (elapsed < game_speed) {
+                    if (vm->particle_cursor >= vm->particle_capacity) {
+                        break;
+                    }
+                    path_point++;
+                    if (path_point >= last_path_point) {
+                        break;
+                    }
+
+                    state->flags_word = 0;
+                    state->path_point = path_point;
+                    state->spawn_delay = spawn_delay;
+                    state->point_index = point_index;
+                    state->step = step;
+                    state->path = path;
+                    if (previous != 0) {
+                        state->weight_0 = previous->weight_0;
+                        state->weight_1 = previous->weight_1;
+                        state->weight_step = previous->weight_step;
+                    } else {
+                        state->weight_0 = frand(1.0f);
+                        state->weight_1 = frand(1.0f);
+                        state->weight_step = frand(1.0f);
+                    }
+
+                    if (position == 0) {
+                        weights.x = state->weight_0 + path->interpolation_bias;
+                        weights.y = state->weight_1 + path->interpolation_bias;
+                        weights.z = state->weight_step + path->interpolation_bias;
+                        inverse_weight = 1.0f / (weights.x + weights.y + weights.z);
+                        weights.x *= inverse_weight;
+                        weights.y *= inverse_weight;
+                        weights.z *= inverse_weight;
+                        v3_blend3(
+                            &particle_position->position, &weights,
+                            &record->points[0],
+                            &record->points[1], &record->points[2]);
+                    } else {
+                        particle_position->position.x = position->x;
+                        particle_position->position.y = position->y;
+                        particle_position->position.z = position->z;
+                    }
+
+                    if (prior_state != 0) {
+                        prior_state->flag_bits.bit7 = 1;
+                    }
+                    prior_state = state;
+                    if (path_point >= last_path_point - 1) {
+                        state->flag_bits.bit7 = 1;
+                    }
+
+                    frame = -(
+                        frames_per_path * (float)(last_path_point - path_point) - 16.0f);
+                    particle_position->u = 0.25f * (float)(frame & 3);
+                    particle_position->v = 0.25f * (float)(frame >> 2);
+
+                    if (previous != 0) {
+                        state->velocity.x = previous->velocity.x;
+                        state->velocity.y = previous->velocity.y;
+                        state->velocity.z = previous->velocity.z;
+                        state->travel_ticks = previous->travel_ticks;
+                    } else {
+                        obj_set_bld_vel(
+                            object, &particle_position->position, state);
+                    }
+
+                    particle_position = PFX_FIELD_AT(particle_position, position_stride);
+                    state = PFX_FIELD_AT(state, state_stride);
+                    spawned++;
+                    vm->particle_cursor++;
+                    elapsed += definition->spawn_interval;
+                }
             }
 
-            if (prior_state != 0) {
-                prior_state->flags |= 0x80;
+            if ((unsigned int)pfx->tick == (unsigned int)exec_tick_ctr) {
+                update_live_particles(vm);
             }
-            prior_state = state;
-            if (path_point >= last_path_point - 1) {
-                state->flags |= 0x80;
-            }
-
-            frame = -(int)(
-                (16.0f / (float)last_path_point) *
-                (float)(last_path_point - path_point) - 16.0f);
-            particle_position->u = 0.25f * (float)(frame & 3);
-            particle_position->v = 0.25f * (float)(frame >> 2);
-
-            if (previous != 0) {
-                state->velocity = previous->velocity;
-                state->travel_ticks = previous->travel_ticks;
-            } else {
-                obj_set_bld_vel(
-                    object, &particle_position->position, state);
-            }
-
-            particle_position = PFX_FIELD_AT(particle_position, position_stride);
-            state = PFX_FIELD_AT(state, state_stride);
-            spawned++;
-            vm->particle_cursor++;
-            elapsed += definition->spawn_interval;
         }
-    }
-
-    if ((unsigned int)pfx->tick == (unsigned int)exec_tick_ctr) {
-        update_live_particles(vm);
     }
     return spawned;
 }

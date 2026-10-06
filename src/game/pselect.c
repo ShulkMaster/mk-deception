@@ -192,7 +192,6 @@ RwTexture* p2_alternate;
 RwTexture* p1_alternate_alpha;
 RwTexture* p2_alternate_alpha;
 int name_sound_state;
-extern int force_bgnd_num;
 int background_selbox_pos;
 int name_sound_active;
 int psel_p1_handicap;
@@ -1288,12 +1287,11 @@ void get_background_select_textures(PselectTexOut out) {
     }
 }
 
-/* TODO: [breakthrough] 74.02%; by-value pair fixes caller ABI; alternate latch and register allocation remain. */
 void get_pselect_body_textures(PselectTexOut out) {
-    struct PselectCharEntry* tbl;
     int n;
     int i;
     char* name;
+    struct PselectCharEntry* tbl;
 
     if (pselect_mode == 2) {
         n = 0xC;
@@ -1316,19 +1314,19 @@ void get_pselect_body_textures(PselectTexOut out) {
     }
 
     if (pselect_mode == 0) {
-        if (p1_alternate == 0) {
-            out.colors[n] = out.colors[p1_selbox_pos];
-            out.alphas[n] = out.alphas[p1_selbox_pos];
-        } else {
+        if (p1_alternate != 0) {
             out.colors[n] = p1_alternate;
             out.alphas[n] = p1_alternate_alpha;
-        }
-        if (p2_alternate == 0) {
-            out.colors[n + 1] = out.colors[p2_selbox_pos];
-            out.alphas[n + 1] = out.alphas[p2_selbox_pos];
         } else {
+            out.colors[n] = out.colors[p1_selbox_pos];
+            out.alphas[n] = out.alphas[p1_selbox_pos];
+        }
+        if (p2_alternate != 0) {
             out.colors[n + 1] = p2_alternate;
             out.alphas[n + 1] = p2_alternate_alpha;
+        } else {
+            out.colors[n + 1] = out.colors[p2_selbox_pos];
+            out.alphas[n + 1] = out.alphas[p2_selbox_pos];
         }
     }
 }
@@ -2084,10 +2082,10 @@ void bg_pselect_set_stage(int team, int stage) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough needed] 71.31%; profile/team save instruction differences remain. */
+/* TODO: [near miss] 93.50%; failure CFG agrees; copy-owner CSE and
+ * call setup remain; complete copy helper regressed. */
 void bg_pselect_save_team(int team) {
     struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
     struct PselectProfileView* profile;
     struct WagerRepeatPdata* save_pdata;
     MkProc* proc;
@@ -2100,26 +2098,22 @@ void bg_pselect_save_team(int team) {
 
     if (team == 0) {
         if (p1_profile_status != 1) {
-            fire_screen_studio_event(team + 0x1FDD, team + 1);
-            return;
+            goto failed;
         }
         profile = &p1_profile;
     } else {
         if (p2_profile_status != 1) {
-            fire_screen_studio_event(team + 0x1FDD, team + 1);
-            return;
+            goto failed;
         }
         profile = &p2_profile;
     }
 
-    teamv = bg_team_view(pdata, team);
     for (i = 0; i < 5; i++) {
-        profile->bg_team[i] = teamv->chars[i];
+        profile->bg_team[i] = bg_team_view(pdata, team)->chars[i];
     }
     profile->bg_team_valid = 1;
-    teamv->count = 6;
+    bg_team_view(pdata, team)->count = 6;
 
-    save_pdata = 0;
     proc = _create_mkproc_generic_bigstack(
         0x902A, 0x1F, p_save_bg_profile, 0xC, (MkHdr**)&save_pdata);
     if (proc == 0) {
@@ -2127,6 +2121,10 @@ void bg_pselect_save_team(int team) {
     } else {
         save_pdata->ticks = team;
     }
+    return;
+
+failed:
+    fire_screen_studio_event(team + 0x1FDD, team + 1);
 }
 
 static float p_save_bg_profile(void) {
