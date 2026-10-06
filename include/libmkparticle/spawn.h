@@ -5,8 +5,8 @@
 #include "libmkparticle/vm.h"
 
 int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field);
-void pfx_spawn_box(PfxVec3* output, float x, float y, float z,
-                   float width, float height, float depth);
+void pfx_spawn_box(float x, float y, float z, float width,
+                   float height, float depth, PfxVec3* output);
 void pfxvm_spawn_set_field_from_table(PfxVmEmitter* emitter,
                                       unsigned int field,
                                       int table_index);

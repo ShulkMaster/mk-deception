@@ -29,7 +29,7 @@ int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field)
     return 0;
 }
 
-static void v3_x_mat_4(PfxVec3* output, const PfxVec3* vector,
+static void v3_x_mat_4(PfxVec3* output, PfxVec3* vector,
                        const PfxMatrix* matrix)
 {
     output->x = matrix->elements[12] +
@@ -75,23 +75,24 @@ static void _pfxvm_spawn_point_color(PfxColor* output, const PfxColor* color)
     *output = *color;
 }
 
-void pfx_spawn_box(PfxVec3* output, float x, float y, float z,
-                   float width, float height, float depth)
+void pfx_spawn_box(float x, float y, float z, float width,
+                   float height, float depth, PfxVec3* output)
 {
     output->x = rnd_between(x, x + width);
     output->y = rnd_between(y, y + height);
     output->z = rnd_between(z, z + depth);
 }
 
-static void pfx_random_cone(PfxVec3* output, float x, float y, float z,
-                            float angle, float distance_range)
+static void pfx_random_cone(float x, float y, float z, float angle,
+                            float distance_range, PfxVec3* output)
 {
     float distance;
-    float radius;
     float direction;
+    float radius;
 
+    angle = 3.1415927f * (angle / 180.0f);
     distance = 0.03f + distance_range * ((float)rand() / 32767.0f);
-    radius = distance * gxMathTan(3.1415927f * (angle / 180.0f));
+    radius = distance * gxMathTan(angle);
     direction = 3.1415927f * (2.0f * ((float)rand() / 32767.0f));
     output->x = x + radius * gxMathCos(direction);
     output->z = z + radius * gxMathSin(direction);
@@ -101,17 +102,16 @@ static void pfx_random_cone(PfxVec3* output, float x, float y, float z,
 static void _pfxvm_spawn_cone(PfxVec3* output, const PfxVec3* origin,
                               float angle, float distance_range)
 {
-    pfx_random_cone(output, origin->x, origin->y, origin->z,
-                    angle, distance_range);
+    pfx_random_cone(origin->x, origin->y, origin->z, angle,
+                    distance_range, output);
 }
 
 static void _pfxvm_spawn_box(PfxVec3* output,
                              const PfxSpawnArguments* arguments)
 {
-    pfx_spawn_box(output, arguments->box.minimum.x,
-                  arguments->box.minimum.y, arguments->box.minimum.z,
-                  arguments->box.extent.x, arguments->box.extent.y,
-                  arguments->box.extent.z);
+    pfx_spawn_box(arguments->box.minimum.x, arguments->box.minimum.y,
+                  arguments->box.minimum.z, arguments->box.extent.x,
+                  arguments->box.extent.y, arguments->box.extent.z, output);
 }
 
 static void _pfxvm_spawn_table(void* output, const PfxSpawnTable* table)
@@ -194,16 +194,16 @@ void pfxvm_spawn_box(PfxVmEmitter* emitter, unsigned int field,
                      float x, float y, float z,
                      float width, float height, float depth)
 {
-    PfxEmitterInstruction* instruction =
-        &emitter->instructions[emitter->instruction_count];
-    instruction->opcode = 3;
-    instruction->field_description = field;
-    instruction->spawn.box.minimum.x = x;
-    instruction->spawn.box.minimum.y = y;
-    instruction->spawn.box.minimum.z = z;
-    instruction->spawn.box.extent.x = width;
-    instruction->spawn.box.extent.y = height;
-    instruction->spawn.box.extent.z = depth;
+    int index = emitter->instruction_count;
+
+    emitter->instructions[index].opcode = 3;
+    emitter->instructions[index].field_description = field;
+    emitter->instructions[index].spawn.box.minimum.x = x;
+    emitter->instructions[index].spawn.box.minimum.y = y;
+    emitter->instructions[index].spawn.box.minimum.z = z;
+    emitter->instructions[index].spawn.box.extent.x = width;
+    emitter->instructions[index].spawn.box.extent.y = height;
+    emitter->instructions[index].spawn.box.extent.z = depth;
     emitter->instruction_count++;
 }
 
@@ -351,12 +351,14 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
-/* TODO: [breakthrough needed] 86.95226%; sphere option layout agrees;
- * recover remaining spawn dispatch and field-copy structure. */
+/* TODO: [near miss] 99.43%; particle offset r26/r25 and sphere argument load scheduling remain. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
-    PfxEmitterInstruction* instruction;
     int instruction_index;
+    PfxEmitterInstruction* instruction;
+    PfxVec3 end;
+    PfxVec3 start;
+    PfxVec3 transformed;
 
     pfx->field_0x1E0 = 0;
     if (emitter->flags.bits.emission_enabled == 0) {
@@ -366,9 +368,9 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
     for (instruction_index = 0;
          instruction_index < emitter->instruction_count;
          instruction_index++, instruction++) {
-        int particle_offset;
         unsigned char* destination;
-        PfxVec3 transformed;
+        int particle_offset;
+        PfxTransform* transform;
 
         if (pfx->behavior_list != 0 && pfx->behavior_list[0] != 0) {
             particle_offset = pfx->behavior_list[0]->active_particle_count *
@@ -497,24 +499,23 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                     instruction->spawn.shape.argument1);
                 break;
             case 15: {
-                unsigned int source_field =
-                    instruction->spawn.from_position.source_field;
-                PfxTransform* transform = (PfxTransform*)emitter->transform;
+                PfxTransform* transform;
                 int source_offset;
                 unsigned char* source;
-                PfxVec3 end;
-                PfxVec3 start;
                 if (pfx->behavior_list != 0 && pfx->behavior_list[0] != 0) {
                     source_offset =
                         pfx->behavior_list[0]->active_particle_count *
-                        pfx_get_struct_size(pfx, source_field);
+                        pfx_get_struct_size(pfx, instruction->spawn.from_position.source_field);
                 } else {
                     source_offset = pfx->particle_cursor *
-                        pfx_get_struct_size(pfx, source_field);
+                        pfx_get_struct_size(pfx, instruction->spawn.from_position.source_field);
                 }
-                source = pfx_get_field(pfx, -2, source_field);
+                source = pfx_get_field(pfx, -2, instruction->spawn.from_position.source_field);
                 source += source_offset;
-                end = *(PfxVec3*)source;
+                end.x = ((PfxVec3*)source)->x;
+                end.y = ((PfxVec3*)source)->y;
+                end.z = ((PfxVec3*)source)->z;
+                transform = (PfxTransform*)emitter->transform;
                 if (transform != 0) {
                     end.x -= transform->position.x;
                     end.y -= transform->position.y;
@@ -550,13 +551,14 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 
         if (instruction->field_description == 0x100 ||
             instruction->field_description == 0x400) {
-            _pfxvm_spawn_add((PfxVec3*)destination, &emitter->position);
+            ((PfxVec3*)destination)->x += emitter->position.x;
+            ((PfxVec3*)destination)->y += emitter->position.y;
+            ((PfxVec3*)destination)->z += emitter->position.z;
         }
-        if (emitter->transform != 0) {
-            PfxTransform* transform = (PfxTransform*)emitter->transform;
-            switch (instruction->field_description) {
-            case 0x100:
-            case 0x400:
+        transform = (PfxTransform*)emitter->transform;
+        if (transform != 0) {
+            if (instruction->field_description == 0x100 ||
+                instruction->field_description == 0x400) {
                 v3_x_mat_4(&transformed, (PfxVec3*)destination,
                            &transform->matrix);
                 memcpy(destination, &transformed, sizeof(transformed));
@@ -583,16 +585,13 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                     }
                     memcpy(destination, &transformed, sizeof(transformed));
                 }
-                break;
-            case 0x300:
+            } else if (instruction->field_description == 0x300) {
                 rotate_v3_by_mat4((PfxVec3*)destination,
                                   &transform->matrix);
-                break;
-            case 0x103:
+            } else if (instruction->field_description == 0x103) {
                 *(float*)destination += gxMathArcTanYX(
                     transform->matrix.elements[2],
                     transform->matrix.elements[0]);
-                break;
             }
         }
     }

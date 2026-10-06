@@ -118,7 +118,6 @@ void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture) {
     pfx->has_texture = 1;
 }
 
-/* TODO: [breakthrough needed] 85.56%; audit retail frame-buffer and culling paths. */
 int pfx_frame_begin(PfxVm* pfx) {
     PfxVmEmitter* emitter;
     PfxRuntimeBuffer* buffer;
@@ -133,9 +132,10 @@ int pfx_frame_begin(PfxVm* pfx) {
     pfx->transforms[pfx->active_transform].live = 0;
     pfxmetrics_event(pfx->metrics, 0x1000);
 
-    emitter = 0;
     if (pfx->emitter_count != 0) {
         emitter = pfx_get_emitter(pfx, 0);
+    } else {
+        emitter = 0;
     }
     if (emitter != 0) {
         if (emitter->pfx_transform != 0) {
@@ -147,32 +147,36 @@ int pfx_frame_begin(PfxVm* pfx) {
                 (emitter->position.z * matrix[8] +
                  (emitter->position.x * matrix[0] +
                   emitter->position.y * matrix[4]));
+            matrix = emitter->pfx_transform->elements;
             pfx->world_position.y =
                 matrix[13] +
                 (emitter->position.z * matrix[9] +
                  (emitter->position.x * matrix[1] +
                   emitter->position.y * matrix[5]));
+            matrix = emitter->pfx_transform->elements;
             pfx->world_position.z =
                 matrix[14] +
                 (emitter->position.z * matrix[10] +
                  (emitter->position.x * matrix[2] +
                   emitter->position.y * matrix[6]));
         } else {
-            pfx->world_position = emitter->position;
+            pfx->world_position.x = emitter->position.x;
+            pfx->world_position.y = emitter->position.y;
+            pfx->world_position.z = emitter->position.z;
         }
     }
 
-    pfx->frame_flags |= 0x20;
-    if ((pfx->frame_flags & 0x80) != 0) {
-        pfx->frame_flags &= ~0x20;
+    pfx->frame_flag_bits.visible = 1;
+    if (pfx->frame_flag_bits.disabled != 0) {
+        pfx->frame_flag_bits.visible = 0;
     }
-    if ((pfx->frame_flags & 0x40) != 0) {
+    if (pfx->frame_flag_bits.cull_enabled != 0) {
         sphere.center.x = pfx->world_position.x;
         sphere.center.y = pfx->world_position.y;
         sphere.center.z = pfx->world_position.z;
         sphere.radius = pfx->cull_radius;
         if (RwCameraFrustumTestSphere(pfxsystem_globals.camera, &sphere) == 0) {
-            pfx->frame_flags &= ~0x20;
+            pfx->frame_flag_bits.visible = 0;
         }
     }
 
@@ -188,18 +192,18 @@ int pfx_frame_begin(PfxVm* pfx) {
     old_buffer = pfx->typed_runtime_buffer_a;
     pfx->typed_runtime_buffer_a = pfx->typed_runtime_buffer_b;
     pfx->typed_runtime_buffer_b = old_buffer;
-    buffer = pfx->typed_runtime_buffer_b;
-    buffer->render_data =
-        streampool_lock(1, pfx->particle_capacity * buffer->render_stride);
-    buffer->particle_data =
-        streampool_lock(0, pfx->particle_capacity * buffer->particle_stride);
+    pfx->typed_runtime_buffer_b->render_data =
+        streampool_lock(1, pfx->particle_capacity * pfx->typed_runtime_buffer_b->render_stride);
+    pfx->typed_runtime_buffer_b->particle_data =
+        streampool_lock(0, pfx->particle_capacity * pfx->typed_runtime_buffer_b->particle_stride);
 
-    if ((pfx->frame_flags & 8) != 0) {
-        pfx->frame_flags &= ~8;
+    if (pfx->frame_flag_bits.frame_end_pending != 0) {
+        pfx->frame_flag_bits.frame_end_pending = 0;
         pfx_frame_end(pfx);
-        pfx->frame_flags |= 8;
+        pfx->frame_flag_bits.frame_end_pending = 1;
     }
 
+    buffer = pfx->typed_runtime_buffer_b;
     if (buffer->particle_data == 0 || buffer->render_data == 0) {
         pfx->particle_cursor = 0;
         for (index = 0; index < pfx->behavior_count; index++) {
@@ -210,31 +214,28 @@ int pfx_frame_begin(PfxVm* pfx) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 80.84%; audit retail buffer-count and unlock paths. */
 void pfx_frame_end(PfxVm* pfx) {
-    PfxRuntimeBuffer* buffer;
     int particle_bytes;
     int render_bytes;
     int count;
 
     pfx->transforms[pfx->active_transform].live = pfx->particle_cursor;
-    if ((pfx->frame_flags & 8) != 0) {
+    if (pfx->frame_flag_bits.frame_end_pending != 0) {
         return;
     }
-    buffer = pfx->typed_runtime_buffer_b;
-    if ((pfx->frame_flags & 0x10) != 0) {
+    if (pfx->frame_flag_bits.bit4 != 0) {
         count = pfx->particle_capacity;
-        particle_bytes = count * buffer->particle_stride;
-        render_bytes = count * buffer->render_stride;
+        particle_bytes = count * pfx->typed_runtime_buffer_b->particle_stride;
+        render_bytes = count * pfx->typed_runtime_buffer_b->render_stride;
     } else {
         count = pfx->particle_cursor;
-        particle_bytes = count * buffer->particle_stride;
-        render_bytes = count * buffer->render_stride;
+        particle_bytes = count * pfx->typed_runtime_buffer_b->particle_stride;
+        render_bytes = count * pfx->typed_runtime_buffer_b->render_stride;
     }
-    if (buffer->particle_data != 0) {
+    if (pfx->typed_runtime_buffer_b->particle_data != 0) {
         streampool_unlock(0, particle_bytes);
     }
-    if (buffer->render_data != 0) {
+    if (pfx->typed_runtime_buffer_b->render_data != 0) {
         streampool_unlock(1, render_bytes);
     }
 }
@@ -251,11 +252,10 @@ void update_live_particles(PfxVm* pfx) {
     pfx->transforms[index].live = live;
 }
 
-/* TODO: [breakthrough needed] 85.22%; audit retail field dispatch and stream-buffer layout. */
-void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {
+/* TODO: [breakthrough] 98.01%; dispatch/types agree; retail indexed descriptor loop remains an advancing cursor. */
+void* pfx_get_field(PfxVm* pfx, int index, int field) {
     PfxRuntimeBuffer* buffer;
     PfxFieldDescription* description;
-    PfxParametricParticle* particle;
     int i;
 
     switch (field) {
@@ -272,12 +272,12 @@ void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {
     switch (field) {
     case 0x200:
         return &pfx->field_0x1E4;
-    case 0x201:
-        return &pfx->field_0x1FC;
-    case 0x202:
-        return pfx_get_emitter(pfx, 0);
     case 0x203:
         return &pfx->world_position;
+    case 0x202:
+        return pfx_get_emitter(pfx, 0);
+    case 0x201:
+        return &pfx->field_0x1FC;
     case 0x204:
         return &pfx->field_0x208;
     case 0x600:
@@ -285,32 +285,38 @@ void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {
     }
 
     if (pfx->field_0x22C != 0 && (field & 0xF00) == 0x300) {
-        if (field != 0x300 || (pfx->flags_0x60 & 1) == 0) {
+        switch (field) {
+        case 0x300:
+            if ((int)(pfx->flags_0x60 & 1) != 0) {
+                return &pfx->parametric->particles[0].velocity;
+            }
+            return 0;
+        default:
             return 0;
         }
-        particle = (PfxParametricParticle*)(pfx->parametric + 1);
-        return &particle->velocity;
     }
     if (pfx->field_0x22C != 0) {
-        particle = (PfxParametricParticle*)(pfx->parametric + 1);
         switch (field) {
         case 0x400:
-            return &particle->position;
-        case 0x402:
-            return &particle->texture;
+            return &pfx->parametric->particles[0].position;
         case 0x403:
-            return &particle->size;
+            return &pfx->parametric->particles[0].size;
+        case 0x402:
+            return &pfx->parametric->particles[0].texture;
         }
     }
 
     if (pfx->typed_field_descriptions == 0) {
         return 0;
     }
-    if (index == -1) {
+    switch (index) {
+    case -1:
         buffer = pfx->typed_runtime_buffer_a;
-    } else if (index == -2) {
+        break;
+    case -2:
         buffer = pfx->typed_runtime_buffer_b;
-    } else {
+        break;
+    default:
         return 0;
     }
     description = pfx->typed_field_descriptions;
@@ -412,10 +418,9 @@ static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float* m) {
     out->z = m[14] + (v->z * m[10] + (v->x * m[2] + v->y * m[6]));
 }
 
-/* TODO: [breakthrough needed] 86.03%; audit remaining parametric spawn CFG/register differences against retail. */
+/* TODO: [breakthrough] 95.82%; owner reloads and retail copy boundary recovered; ring address association and saved GPR coloring remain. */
 void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
-    PfxParametricParticle* particles;
     PfxParametricParticle* particle;
     PfxVmEmitter* emitter;
     PfxVec3 transformed;
@@ -430,8 +435,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     state = pfx->parametric;
     cursor = state->particle_cursor;
     capacity = state->particle_capacity;
-    particles = (PfxParametricParticle*)(state + 1);
-    particle = &particles[cursor];
+    particle = &((PfxParametricParticle*)(state + 1))[cursor];
     old_count = pfx->particle_cursor;
 
     for (emitter_index = 0; emitter_index < pfx->emitter_count;
@@ -445,21 +449,21 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
                 if (emitter->pfx_transform != 0) {
                     v3_x_mat_4(&transformed, &particle->position,
                                emitter->pfx_transform->elements);
-                    particle->position = transformed;
+                    memcpy(&particle->position, &transformed, sizeof(transformed));
                 }
                 pfx->particle_cursor = cursor;
-                if ((emitter->flags.value & 0x40) != 0) {
+                if (emitter->flags.bits.emission_enabled) {
                     __pfxvm_execute_spawn(pfx, emitter);
                 }
                 particle++;
                 cursor++;
                 if (cursor >= capacity) {
                     cursor = 0;
-                    particle = particles;
+                    particle = (PfxParametricParticle*)(pfx->parametric + 1);
                 }
                 pfx->particle_cursor = cursor;
             }
-            state->particle_cursor = cursor;
+            pfx->parametric->particle_cursor = cursor;
             pfx->particle_cursor = old_count + birth_count;
             emitter->birth_count += birth_count;
         }
@@ -467,35 +471,29 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     pfxmetrics_event(pfx->metrics, 0x2001);
 }
 
-/* TODO: [breakthrough needed] 85.99%; audit retail parametric loop and curve-field paths. */
+/* TODO: [near miss] 97.86%; canonical storage and effects agree; remaining GPR/FP lifetime coloring. */
 void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
-    PfxParametricParticle* particle;
     PfxVec3* position;
     float* texture;
     float* size;
     PfxColor* color;
     PfxTextureFrame* uv;
-    float inverse_lifetime;
     float damping;
+    float inverse_lifetime;
     float age;
     float normalized_age;
     float curve_position;
     float fraction;
     float inverse_fraction;
-    float r0;
-    float g0;
-    float b0;
-    float a0;
-    float r1;
-    float g1;
-    float b1;
-    float a1;
+    float red[2];
+    float green[2];
+    float blue[2];
+    float alpha[2];
+    PfxColor blended_color;
     int texture_curve;
     int size_curve;
     int color_curve;
-    int direct_texture;
-    int direct_size;
     int age_scaled_size;
     int has_damping;
     int texture_frames;
@@ -504,8 +502,8 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     int curve_index;
     int stride;
 
-    state = pfx->parametric;
     damping = 1.0f;
+    state = pfx->parametric;
     inverse_lifetime = 1.0f / state->lifetime;
     position = pfx_get_field(pfx, -2, 0x100);
     texture = pfx_get_field(pfx, -2, 0x102);
@@ -513,123 +511,121 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     color = pfx_get_field(pfx, -2, 0x101);
     uv = pfx_get_field(pfx, -2, 0x104);
 
-    if (pfx->elapsed_time == 0.0f || pfx->particle_cursor == 0) {
-        return;
-    }
-    pfxmetrics_event(pfx->metrics, 0x1003);
-    direct_size = (pfx->flags151 & 0x40) != 0;
-    direct_texture = (pfx->flags151 & 0x20) != 0;
-    if (direct_size && size == 0) {
-        return;
-    }
-    if (direct_texture && texture == 0) {
-        return;
-    }
+    if (pfx->elapsed_time != 0.0f && pfx->particle_cursor != 0) {
+        pfxmetrics_event(pfx->metrics, 0x1003);
+        if (pfx->flag151_40 != 0U && size == 0) {
+            return;
+        }
+        if (pfx->flag151_20 != 0U && texture == 0) {
+            return;
+        }
 
-    texture_curve = pfx->flags_0x1D4 & 0x20;
-    size_curve = pfx->flags_0x1D4 & 0x40;
-    color_curve = pfx->flags_0x1D4 & 0x10;
-    texture_frames = pfx->texture_frame_count;
-    has_damping = state->damping != 0.0f;
-    age_scaled_size = (pfx->flags151 & 0x10) != 0;
-    if (age_scaled_size) {
-        size_curve = 0;
-    }
+        texture_curve = pfx->flags_0x1D4 & 0x20;
+        size_curve = pfx->flags_0x1D4 & 0x40;
+        color_curve = pfx->flags_0x1D4 & 0x10;
+        texture_frames = pfx->texture_frame_count;
+        has_damping = state->damping != 0.0f;
+        age_scaled_size = pfx->flag151_10;
+        if (age_scaled_size) {
+            size_curve = 0;
+        }
 
-    valid_count = 0;
-    stride = pfx->transforms[0].particle_field_stride;
-    particle = (PfxParametricParticle*)(state + 1);
-    for (index = 0; index < state->particle_capacity; index++, particle++) {
-        age = pfx->elapsed_time - particle->birth_time;
-        normalized_age = age * inverse_lifetime;
-        if (age <= state->lifetime && particle->birth_time > 0.0f) {
-            *position = particle->position;
-            if (has_damping) {
-                damping = pow(state->damping, age);
-            }
-            position->x += damping * (particle->velocity.x * age);
-            position->y += damping * (particle->velocity.y * age);
-            position->z += damping * (particle->velocity.z * age);
-            position->x += damping * (state->acceleration.x * age);
-            position->y += damping * (state->acceleration.y * age);
-            position->z += damping * (state->acceleration.z * age);
-            position->y += damping *
-                           (age * (state->vertical_acceleration * age));
+        valid_count = 0;
+        for (index = 0; index < state->particle_capacity; index++) {
+            age = pfx->elapsed_time - state->particles[index].birth_time;
+            normalized_age = age * inverse_lifetime;
+            if (!(age > state->lifetime) && !(state->particles[index].birth_time <= 0.0f)) {
+                *position = state->particles[index].position;
+                if (has_damping) {
+                    damping = pow(state->damping, age);
+                }
+                position->x += damping * (state->particles[index].velocity.x * age);
+                position->y += damping * (state->particles[index].velocity.y * age);
+                position->z += damping * (state->particles[index].velocity.z * age);
+                position->x += damping * (state->acceleration.x * age);
+                position->y += damping * (state->acceleration.y * age);
+                position->z += damping * (state->acceleration.z * age);
+                position->y += damping *
+                               (age * (state->vertical_acceleration * age));
 
-            if (position->y > state->minimum_y) {
-                valid_count++;
-                if (texture_curve != 0 && !direct_texture) {
-                    curve_position = normalized_age *
-                                     (float)(state->texture_curve_count - 1);
-                    curve_index = curve_position;
-                    if (curve_index >= state->texture_curve_count) {
-                        curve_index = state->texture_curve_count - 1;
+                if (!(position->y <= state->minimum_y)) {
+                    valid_count++;
+                    if (texture_curve != 0 && pfx->flag151_20 == 0U) {
+                        curve_position = normalized_age *
+                                         (float)(state->texture_curve_count - 1);
+                        curve_index = curve_position;
+                        if (curve_index >= state->texture_curve_count) {
+                            curve_index = state->texture_curve_count - 1;
+                        }
+                        fraction = curve_position - (float)curve_index;
+                        *texture = (1.0f - fraction) *
+                                       state->texture_curve[curve_index] +
+                                   fraction * state->texture_curve[curve_index + 1];
+                        *texture += state->texture_rate * age;
                     }
-                    fraction = curve_position - (float)curve_index;
-                    *texture = (1.0f - fraction) *
-                                   state->texture_curve[curve_index] +
-                               fraction * state->texture_curve[curve_index + 1];
-                    *texture += state->texture_rate * age;
-                }
-                if (direct_texture) {
-                    *texture = particle->texture + state->texture_rate * age;
-                }
-                if (size_curve != 0) {
-                    curve_position = normalized_age *
-                                     (float)(state->size_curve_count - 1);
-                    curve_index = curve_position;
-                    if (curve_index >= state->size_curve_count) {
-                        curve_index = state->size_curve_count - 1;
+                    if (pfx->flag151_20 != 0U) {
+                        *texture = state->particles[index].texture + state->texture_rate * age;
                     }
-                    fraction = curve_position - (float)curve_index;
-                    *size = state->size_curve[curve_index] * (1.0f - fraction) +
-                            state->size_curve[curve_index + 1] * fraction;
-                }
-                if (direct_size) {
-                    *size = particle->size;
-                }
-                if (age_scaled_size) {
-                    *size = age * particle->size;
-                }
-                if (color_curve != 0) {
-                    curve_position = normalized_age *
-                                     (float)(state->color_curve_count - 1);
-                    curve_index = curve_position;
-                    if (curve_index >= state->color_curve_count) {
-                        curve_index = state->color_curve_count - 1;
+                    if (size_curve != 0) {
+                        curve_position = normalized_age *
+                                         (float)(state->size_curve_count - 1);
+                        curve_index = curve_position;
+                        if (curve_index >= state->size_curve_count) {
+                            curve_index = state->size_curve_count - 1;
+                        }
+                        fraction = curve_position - (float)curve_index;
+                        *size = state->size_curve[curve_index] * (1.0f - fraction) +
+                                state->size_curve[curve_index + 1] * fraction;
                     }
-                    fraction = curve_position - (float)curve_index;
-                    pfx_native_get_rgba(&state->color_curve[curve_index],
-                                        &r0, &g0, &b0, &a0);
-                    pfx_native_get_rgba(&state->color_curve[curve_index + 1],
-                                        &r1, &g1, &b1, &a1);
-                    inverse_fraction = 1.0f - fraction;
-                    color->r = (inverse_fraction * r0 +
-                                               fraction * r1);
-                    color->g = (inverse_fraction * g0 +
-                                               fraction * g1);
-                    color->b = (inverse_fraction * b0 +
-                                               fraction * b1);
-                    color->a = (inverse_fraction * a0 +
-                                               fraction * a1);
-                }
-                if (texture_frames != 0) {
-                    int frame;
+                    if (pfx->flag151_40 != 0U) {
+                        *size = state->particles[index].size;
+                    }
+                    if (age_scaled_size) {
+                        *size = age * state->particles[index].size;
+                    }
+                    if (color_curve != 0) {
+                        curve_position = normalized_age *
+                                         (float)(state->color_curve_count - 1);
+                        curve_index = curve_position;
+                        if (curve_index >= state->color_curve_count) {
+                            curve_index = state->color_curve_count - 1;
+                        }
+                        fraction = curve_position - (float)curve_index;
+                        pfx_native_get_rgba(&state->color_curve[curve_index],
+                                            &red[0], &green[0], &blue[0], &alpha[0]);
+                        pfx_native_get_rgba(&state->color_curve[curve_index + 1],
+                                            &red[1], &green[1], &blue[1], &alpha[1]);
+                        inverse_fraction = 1.0f - fraction;
+                        blended_color.r = inverse_fraction * red[0] +
+                                          fraction * red[1];
+                        blended_color.g = inverse_fraction * green[0] +
+                                          fraction * green[1];
+                        blended_color.b = inverse_fraction * blue[0] +
+                                          fraction * blue[1];
+                        blended_color.a = inverse_fraction * alpha[0] +
+                                          fraction * alpha[1];
+                        *color = blended_color;
+                    }
+                    if (texture_frames != 0) {
+                        int frame;
 
-                    frame = pfx_texture_getframe(
-                        (const PfxTextureAnim*)&pfx->texture_frame_count, age);
-                    *uv = pfx->texture_frames[frame];
+                        frame = pfx_texture_getframe(
+                            (const PfxTextureAnim*)&pfx->texture_frame_count, age);
+                        uv->u = pfx->texture_frames[frame].u;
+                        uv->v = pfx->texture_frames[frame].v;
+                    }
+                    stride = pfx->transforms[0].particle_field_stride;
+                    position = (PfxVec3*)((unsigned char*)position + stride);
+                    texture = (float*)((unsigned char*)texture + stride);
+                    size = (float*)((unsigned char*)size + stride);
+                    color = (PfxColor*)((unsigned char*)color + stride);
+                    uv = (PfxTextureFrame*)((unsigned char*)uv + stride);
                 }
-                position = (PfxVec3*)((unsigned char*)position + stride);
-                texture = (float*)((unsigned char*)texture + stride);
-                size = (float*)((unsigned char*)size + stride);
-                color = (PfxColor*)((unsigned char*)color + stride);
-                uv = (PfxTextureFrame*)((unsigned char*)uv + stride);
             }
         }
+        pfx->particle_cursor = valid_count;
+        pfxmetrics_event(pfx->metrics, 0x2003);
     }
-    pfx->particle_cursor = valid_count;
-    pfxmetrics_event(pfx->metrics, 0x2003);
 }
 
 void pfx_run(PfxVm* pfx, float frame_time) {

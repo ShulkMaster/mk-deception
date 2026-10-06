@@ -17,6 +17,15 @@ typedef struct PfxVec3 {
     float z;
 } PfxVec3;
 
+typedef struct PfxParametricParticle {
+    PfxVec3 position;
+    PfxVec3 velocity;
+    float birth_time;
+    float size;
+    float texture;
+    PfxColor color;
+} PfxParametricParticle;
+
 struct PfxParametricState {
     float texture_curve[64];
     int texture_curve_count;
@@ -35,7 +44,8 @@ struct PfxParametricState {
     int particle_cursor;
     float lifetime;
     float minimum_y;
-}; /* 0x358, followed by parametric particle storage */
+    PfxParametricParticle particles[];
+};
 
 typedef struct PfxTransform {
     union {
@@ -191,7 +201,17 @@ struct PfxVm {
             char pad01C[0x24];
         };
     };
-    unsigned char frame_flags;         /* +0x040 */
+    union {
+        unsigned char frame_flags;
+        struct {
+            unsigned char disabled : 1;
+            unsigned char cull_enabled : 1;
+            unsigned char visible : 1;
+            unsigned char bit4 : 1;
+            unsigned char frame_end_pending : 1;
+            unsigned char low_bits : 3;
+        } frame_flag_bits;
+    };
     char pad041[3];
     union {
         void* runtime_buffer_a; /* +0x044 -- memory-placement view */
@@ -233,7 +253,10 @@ struct PfxVm {
         unsigned char flags151;
         struct {
             unsigned char flag151_80 : 1;
-            unsigned char flags151_low : 7;
+            unsigned char flag151_40 : 1;
+            unsigned char flag151_20 : 1;
+            unsigned char flag151_10 : 1;
+            unsigned char flags151_low : 4;
         };
     };
     char pad152[2];

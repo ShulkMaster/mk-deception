@@ -8,15 +8,6 @@
 typedef struct RwTexture RwTexture;
 typedef struct RwCamera RwCamera;
 
-typedef struct PfxParametricParticle {
-    PfxVec3 position;
-    PfxVec3 velocity;
-    float birth_time;
-    float size;
-    float texture;
-    PfxColor color;
-} PfxParametricParticle; /* 0x28 */
-
 typedef struct PfxRenderView {
     char pad00[0x30];
     float source_x; /* +0x30 */
