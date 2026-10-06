@@ -153,43 +153,43 @@ static inline int is_hault_message_id(int id) {
     }
 }
 
-/* TODO: [breakthrough] 66.09%; retail reboot calls restored; compare answer CFG and register lifetimes. */
+static inline void format_no_space_body(int device) {
+    const char* suffix = nbc_find_text(0x4f, 0);
+    const char* middle = nbc_find_text(0x4e, 0);
+    const char* detail = nbc_find_text(0x4d, 0);
+    const char* slotName = nbc_find_text(gc_mc_default_name[device], 0);
+    const char* prefix = nbc_find_text(0x4c, 0);
+
+    sprintf(message_buffer, STR_MC_FMT_SSSDSDS, prefix, slotName, detail, 1, middle, 0x3a, suffix);
+    set_memcard_popup_message_body_text(message_buffer);
+}
+
+static inline void format_no_space_options(const char* name) {
+    const char* last = nbc_find_text(0x51, 0);
+    const char* middle = nbc_find_text(0x50, 0);
+    const char* first = nbc_find_text(0x13, 0);
+    const char* prefix = nbc_find_text(0x12, 0);
+
+    sprintf(message_buffer, STR_MC_FMT_NO_SPACE_OPTS, prefix, name, first, middle, last);
+    set_memcard_popup_message_options_text(message_buffer);
+}
+
+/* TODO: [near miss] 99.62%; text, answer and cleanup agree; 14 saved-register coloring rows remain. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
-    const char* a;
-    const char* b;
-    const char* c;
-    const char* slotName;
-    const char* d;
-    const char* optA;
-    const char* optB;
-    const char* optC;
-    const char* optD;
     int ret;
+    int active;
 
     ret = 1;
-    if (device < 0 || device >= 2) {
-
-    } else {
-        name = nameOrNull;
+    name = nameOrNull;
+    if (device >= 0 && device < 2) {
         if (name == 0) {
             name = STR_MC_FMT_SPACE;
         }
         init_memcard_msg_screen();
         set_memcard_popup_message_title_text(nbc_find_text(0x4b, 0));
-        a = nbc_find_text(0x4f, 0);
-        b = nbc_find_text(0x4e, 0);
-        c = nbc_find_text(0x4d, 0);
-        slotName = nbc_find_text(gc_mc_default_name[device], 0);
-        d = nbc_find_text(0x4c, 0);
-        sprintf(message_buffer, STR_MC_FMT_SSSDSDS, d, slotName, c, 1, b, 0x3a, a);
-        set_memcard_popup_message_body_text(message_buffer);
-        optA = nbc_find_text(0x51, 0);
-        optB = nbc_find_text(0x50, 0);
-        optC = nbc_find_text(0x13, 0);
-        optD = nbc_find_text(0x12, 0);
-        sprintf(message_buffer, STR_MC_FMT_NO_SPACE_OPTS, optD, name, optC, optB, optA);
-        set_memcard_popup_message_options_text(message_buffer);
+        format_no_space_body(device);
+        format_no_space_options(name);
         set_memcard_popup_message_type(0xb);
         fire_up_memcard_mesage_screen();
         mcard_msg_no_space_answer = 0;
@@ -198,20 +198,34 @@ int gc_no_space_routine(const char* nameOrNull, int device) {
         sleep_aproc(1.0f);
     }
 
-    if (mcard_msg_no_space_answer == 2) {
+    switch (mcard_msg_no_space_answer) {
+    case 2:
         ret = 1;
-    } else if (mcard_msg_no_space_answer == 3) {
+        break;
+    case 3:
         mslStopAll(msi);
         GXDrawDone();
         VISetBlack(1);
         VIFlush();
         VIWaitForRetrace();
         OSResetSystem(1, 0, 1);
-    } else {
+        break;
+    case 1:
+    default:
         ret = 0;
+        break;
     }
 
-    mcard_msg_end();
+    active = mcard_msg_active;
+    if (active != 0) {
+        if (is_hault_message_id(active) == 0 && active != 0) {
+            sleep_aproc(120.0f);
+        }
+        mcard_msg_remove_screen();
+        recover_from_message();
+        f_writing_to_memcard = 0;
+        mcard_msg_active = 0;
+    }
     return ret;
 }
 
@@ -475,9 +489,9 @@ static void mcard_msg_confirm_erase_rtn(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 44.395603%; retail pool restored; remaining call/branch lowering needs comparison. */
 void mcard_msg_confirm_erase(void) {
     int lang;
+    int active;
 
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x89, 0));
@@ -494,6 +508,16 @@ void mcard_msg_confirm_erase(void) {
     mcard_msg_confirm_erase_answer = 0;
     prepare_for_haulting_message();
     sleep_aproc(1.0f);
+    active = mcard_msg_active;
+    if (active != 0) {
+        if (is_hault_message_id(active) == 0 && active != 0) {
+            sleep_aproc(120.0f);
+        }
+        mcard_msg_remove_screen();
+        recover_from_message();
+        f_writing_to_memcard = 0;
+        mcard_msg_active = 0;
+    }
 }
 
 static void mcard_msg_load_no_card_konq_region_hault_rtn(void) {

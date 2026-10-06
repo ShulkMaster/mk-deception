@@ -79,8 +79,8 @@ static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic) {
     return 0;
 }
 
-/* TODO: [near miss] 98.65%; frame layout and loop registers match; residual is the bne+b
- * instance-check shape and one zero copied into r23 (mr r23,r30 vs li). */
+/* TODO: [near miss] 98.65%; instance-latch branch and zero-copy residue;
+ * owner-typed accessor also rotates saved registers; stop without new evidence. */
 static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     int visible_count;
     int i;

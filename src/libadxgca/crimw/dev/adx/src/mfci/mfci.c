@@ -429,8 +429,8 @@ void mfCiEntryErrFunc(MfCiErrorCallback callback, void* object)
     mfci_err_obj = object;
 }
 
-/* TODO: [breakthrough needed] 33.333332%; RE4's empty 40-slot server pass is
- * retained, but this object's optimizer removes retail's initial compare. */
+/* TODO: [near miss] 33.33%; optimizer deletes retail's unused initial guard;
+ * bounded loop forms and no-peephole fail; stop pending compiler-phase evidence. */
 void mfCiExecServer(void)
 {
     int index;

@@ -204,7 +204,8 @@ typedef struct ChessSideHudState {
                 struct {
                     unsigned char sliding : 1;
                     unsigned char slide_out : 1;
-                    unsigned char : 6;
+                    unsigned char turn_forfeit : 1;
+                    unsigned char : 5;
                 } team_art_bits;
             };
             char pad0A[2];

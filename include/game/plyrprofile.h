@@ -141,6 +141,9 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
 int move_profile_p1_to_p2(void);
 int move_profile_p2_to_p1(void);
 int count_all_profiles(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* ppv_get_current_profile_name(void);
 void mark_profile_as_in_use(int device, int slot);
 
@@ -170,6 +173,9 @@ extern "C"
 #endif
 int pne_is_name_already_used(void);
 void pp_name_entry_proces_char_entry(const char* key_name);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* get_current_create_a_profile_name(void);
 
 void set_profile_to_default(PlayerProfile* profile);
@@ -195,7 +201,13 @@ int ppl_get_multi_profile_names_p2(char** out);
 void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);
 void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 
+#ifdef __cplusplus
+extern "C"
+#endif
 void ppv_get_current_profile_koins(char* dest, int index);
+#ifdef __cplusplus
+extern "C"
+#endif
 void ppv_get_current_profile_arcade_finishes(char* dest);
 void ppv_view_profile_icon_list(GVTexturePair out);
 #ifdef __cplusplus
@@ -203,7 +215,13 @@ extern "C"
 #endif
 void ppv_update_profile_cursor(int delta);
 void get_profile_stats(char** outs);
+#ifdef __cplusplus
+extern "C"
+#endif
 void format_value_to_display(char* dest, unsigned int value);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* get_heros_name(int which);
 
 #endif

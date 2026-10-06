@@ -99,7 +99,7 @@ static inline void mpvvlc_fill_u8(unsigned char* output, long count,
     ((signed short)(((value) << 4) | (flags) | (length)))
 static inline signed short mpvvlc_pack_mbai_entry(int base, int flags,
                                                    int length) {
-    return (signed short)(base | flags | length);
+    return base | flags | length;
 }
 #define mpvvlc_pack_mbai_base(base, flags, length) \
     ((signed short)((base) | (flags) | (length)))
@@ -216,7 +216,6 @@ static void mpvvlc_InitIntRunLevel(void) {
     mpvvlc_fill_u32(&output, 0x00040101, 32);
 }
 
-/* Packed byte emission shares storage with the unsigned decoder table view. */
 static inline void mpvvlc_EmitDc(signed char** output, long count, signed char value)
 {
     int i;
@@ -389,48 +388,49 @@ static signed short* mpvvlc_InitCbpSub1(signed short* output) {
     return output;
 }
 
-/* TODO: [breakthrough needed] 65.425100%; retained helpers encode the verified
- * table values; retail pointer and 16-entry grouping need new source evidence. */
+static inline void mpvvlc_fill_motion(signed short** output, long count,
+                                      signed short value) {
+    int i;
+
+    for (i = 0; i < count; i++) {
+        *(*output)++ = value;
+    }
+}
+
+static inline signed short mpvvlc_motion_entry(int length, int code) {
+    return (length << 8) | (unsigned char)code;
+}
+
+/* TODO: [breakthrough needed] 67.33%; cursor guards agree; packed-value folding and pair scheduling need source evidence. */
 static void mpvvlc_InitMotion(void) {
     signed short* output = mpvvlt_motion_0;
     int code;
 
-    mpvvlc_fill_s16(output, 24, 0x007F);
-    output += 24;
+    mpvvlc_fill_motion(&output, 24, 0x007F);
     for (code = 16; code >= 11; code--) {
-        *output++ = mpvvlc_pack_motion(11, code);
-        *output++ = mpvvlc_pack_motion(11, -code);
+        *output++ = mpvvlc_motion_entry(11, code);
+        *output++ = mpvvlc_motion_entry(11, -code);
     }
     for (code = 10; code >= 8; code--) {
-        mpvvlc_fill_s16(output, 2, mpvvlc_pack_motion(10, code));
-        output += 2;
-        mpvvlc_fill_s16(output, 2, mpvvlc_pack_motion(10, -code));
-        output += 2;
+        mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(10, code));
+        mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(10, -code));
     }
     for (code = 7; code >= 5; code--) {
-        mpvvlc_fill_s16(output, 8, mpvvlc_pack_motion(8, code));
-        output += 8;
-        mpvvlc_fill_s16(output, 8, mpvvlc_pack_motion(8, -code));
-        output += 8;
+        mpvvlc_fill_motion(&output, 8, mpvvlc_motion_entry(8, code));
+        mpvvlc_fill_motion(&output, 8, mpvvlc_motion_entry(8, -code));
     }
-    mpvvlc_fill_s16(output, 16, mpvvlc_pack_motion(7, 4));
-    output += 16;
-    mpvvlc_fill_s16(output, 16, mpvvlc_pack_motion(7, -4));
+    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(7, 4));
+    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(7, -4));
 
     output = mpvvlt_motion_1;
-    mpvvlc_fill_s16(output, 2, 0x007F);
-    output += 2;
-    *output++ = mpvvlc_pack_motion(5, 3);
-    *output++ = mpvvlc_pack_motion(5, -3);
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_motion(4, 2));
-    output += 2;
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_motion(4, -2));
-    output += 2;
-    mpvvlc_fill_s16(output, 4, mpvvlc_pack_motion(3, 1));
-    output += 4;
-    mpvvlc_fill_s16(output, 4, mpvvlc_pack_motion(3, -1));
-    output += 4;
-    mpvvlc_fill_s16(output, 16, mpvvlc_pack_motion(1, 0));
+    mpvvlc_fill_motion(&output, 2, 0x007F);
+    *output++ = mpvvlc_motion_entry(5, 3);
+    *output++ = mpvvlc_motion_entry(5, -3);
+    mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(4, 2));
+    mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(4, -2));
+    mpvvlc_fill_motion(&output, 4, mpvvlc_motion_entry(3, 1));
+    mpvvlc_fill_motion(&output, 4, mpvvlc_motion_entry(3, -1));
+    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(1, 0));
 }
 
 static void mpvvlc_InitMbTypeBpic(void) {
@@ -699,44 +699,56 @@ void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
 
     if (work != 0) {
         mpvvlc_run_level_8 = work->run_level_8;
-        UTY_MemcpyDword(work->run_level_8, (unsigned int*)mpvvlt_run_level_8,
-                        128);
+        UTY_MemcpyDword(work->run_level_8, mpvvlt_run_level_8,
+                        sizeof(work->run_level_8) / sizeof(unsigned int));
         mpvvlc_run_level_4 = work->run_level_4;
         UTY_MemcpyDword((unsigned int*)work->run_level_4,
-                        (unsigned int*)mpvvlt_run_level_4, 4);
+                        (unsigned int*)mpvvlt_run_level_4,
+                        sizeof(work->run_level_4) / sizeof(unsigned int));
         mpvvlc_run_level_2 = work->run_level_2;
         UTY_MemcpyDword((unsigned int*)work->run_level_2,
-                        (unsigned int*)mpvvlt_run_level_2, 8);
+                        (unsigned int*)mpvvlt_run_level_2,
+                        sizeof(work->run_level_2) / sizeof(unsigned int));
         mpvvlc_run_level_1 = work->run_level_1;
         UTY_MemcpyDword((unsigned int*)work->run_level_1,
-                        (unsigned int*)mpvvlt_run_level_1, 8);
+                        (unsigned int*)mpvvlt_run_level_1,
+                        sizeof(work->run_level_1) / sizeof(unsigned int));
         mpvvlc_run_level_0a = work->run_level_0a;
         UTY_MemcpyDword((unsigned int*)work->run_level_0a,
-                        (unsigned int*)mpvvlt_run_level_0a, 8);
+                        (unsigned int*)mpvvlt_run_level_0a,
+                        sizeof(work->run_level_0a) / sizeof(unsigned int));
         mpvvlc_run_level_0b = work->run_level_0b;
         UTY_MemcpyDword((unsigned int*)work->run_level_0b,
-                        (unsigned int*)mpvvlt_run_level_0b, 8);
+                        (unsigned int*)mpvvlt_run_level_0b,
+                        sizeof(work->run_level_0b) / sizeof(unsigned int));
         mpvvlc_run_level_0c = work->run_level_0c;
         UTY_MemcpyDword((unsigned int*)work->run_level_0c,
-                        (unsigned int*)mpvvlt_run_level_0c, 8);
+                        (unsigned int*)mpvvlt_run_level_0c,
+                        sizeof(work->run_level_0c) / sizeof(unsigned int));
         mpvvlc_y_dcsiz = work->y_dcsiz;
         UTY_MemcpyDword((unsigned int*)work->y_dcsiz,
-                        (unsigned int*)mpvvlt_y_dcsiz, 32);
+                        (unsigned int*)mpvvlt_y_dcsiz,
+                        sizeof(work->y_dcsiz) / sizeof(unsigned int));
         mpvvlc_c_dcsiz = work->c_dcsiz;
         UTY_MemcpyDword((unsigned int*)work->c_dcsiz,
-                        (unsigned int*)mpvvlt_c_dcsiz, 32);
+                        (unsigned int*)mpvvlt_c_dcsiz,
+                        sizeof(work->c_dcsiz) / sizeof(unsigned int));
         mpvvlc_motion_0 = work->motion_0;
         UTY_MemcpyDword((unsigned int*)work->motion_0,
-                        (unsigned int*)mpvvlt_motion_0, 64);
+                        (unsigned int*)mpvvlt_motion_0,
+                        sizeof(work->motion_0) / sizeof(unsigned int));
         mpvvlc_motion_1 = work->motion_1;
         UTY_MemcpyDword((unsigned int*)work->motion_1,
-                        (unsigned int*)mpvvlt_motion_1, 16);
+                        (unsigned int*)mpvvlt_motion_1,
+                        sizeof(work->motion_1) / sizeof(unsigned int));
         mpvvlc_p_mbtype = work->p_mbtype;
         UTY_MemcpyDword((unsigned int*)work->p_mbtype,
-                        (unsigned int*)mpvvlt_p_mbtype, 16);
+                        (unsigned int*)mpvvlt_p_mbtype,
+                        sizeof(work->p_mbtype) / sizeof(unsigned int));
         mpvvlc_b_mbtype = work->b_mbtype;
         UTY_MemcpyDword((unsigned int*)work->b_mbtype,
-                        (unsigned int*)mpvvlt_b_mbtype, 32);
+                        (unsigned int*)mpvvlt_b_mbtype,
+                        sizeof(work->b_mbtype) / sizeof(unsigned int));
     }
 }
 

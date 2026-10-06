@@ -548,7 +548,7 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [near miss] 99.95%; code matches; only TU string/float pool and adxt globals block offsets remain (TU data layout). */
+/* TODO: [blocked] 99.95%; literals verified; recover TU float-pool and BSS first-use layout. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;

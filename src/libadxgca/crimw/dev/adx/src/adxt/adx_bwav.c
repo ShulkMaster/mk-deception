@@ -1,6 +1,6 @@
 #include "cri/adx_basic.h"
 
-int memcmp(const void*, const void*, unsigned long);
+#include "runtime/cstring.h"
 
 typedef struct WaveFormatEx {
     unsigned short format_tag;
@@ -163,13 +163,13 @@ void ADXB_ExecOneWav8(AdxBasicDecoder* decoder)
 
 void ADXB_ExecOneWav16(AdxBasicDecoder* decoder)
 {
-    unsigned short* input;
+    const unsigned short* input;
     unsigned short* left;
     unsigned short* right;
     int i;
     int count;
 
-    input = (unsigned short*)decoder->decode.input;
+    input = decoder->decode.input;
 
     if (decoder->status == 1 && ADXPD_GetStat(decoder->expander) == 0) {
         decoder->get_write_info(decoder->get_write_object,
@@ -292,7 +292,7 @@ int ADX_DecodeInfoWav(unsigned char* input, int input_length,
     }
 
     wav_size = ADXB_SwapWav32(
-        *(unsigned int*)(4 + i + (unsigned int)input));
+        *(unsigned int*)&input[i + 4]);
 
     *data_length = i + 8;
     *encoding = -1;

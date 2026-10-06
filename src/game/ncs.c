@@ -178,11 +178,6 @@ struct PrisonGrabPdata {
     int aligned;
 };
 
-union NcsFloatBits {
-    float f;
-    unsigned int u;
-};
-
 struct NcsKonquestCharacterPdata {
     MkHdr hdr;
     char pad08[4];
@@ -1918,9 +1913,9 @@ int attach_gore2_obj(
 /* TODO: [near miss] 98.91%; bone index home fixed; pool r29/particle r28 swap vs retail remains; stop at coloring. */
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
-    FighterMirror* decal_owner, const Vec* velocity,
+    FighterMirror* decal_owner, Vec* velocity,
     const Vec* rotation, const Vec* scale,
-    const Vec* position_offset, float vertical_acceleration,
+    Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count) {
     int type;
 
@@ -2615,24 +2610,73 @@ MkObj* limb_sever_pop_head_up(
     return head;
 }
 
-/* TODO: [breakthrough needed] 65.86%; verify attachment owner layout and call order. */
+static inline MkProc* ncs_create_attach_proc(
+    PlyrInfo* player, struct NcsLimbAttachPdata** pdata) {
+    struct NcsLimbSet* limbset;
+    MkProc* process;
+
+    limbset = limb_sever_find_limbset(player);
+    if (limbset == 0) {
+        return 0;
+    }
+    process = _create_mkproc_generic_nostack(
+        0x6017, 0x1F, p_limb_sever_attach,
+        sizeof(struct NcsLimbAttachPdata), (MkHdr**)pdata);
+    if (process == 0) {
+        return 0;
+    }
+    zero_pdata_payload(sizeof(struct NcsLimbAttachPdata), &(*pdata)->hdr);
+    (*pdata)->player = player;
+    (*pdata)->fighter = player->slot.fighter;
+    (*pdata)->limbset = limbset;
+    return process;
+}
+
+static inline struct NcsLimbAttachPdata* ncs_find_attach_pdata(
+    PlyrInfo* player, int limb) {
+    MkPtr** list;
+    MkPtr* link;
+    MkProc* process;
+    struct NcsLimbAttachPdata* pdata;
+
+    list = &player->slot.fighter->attach_proc_list;
+    if (list != 0) {
+        link = *list;
+        while (link != 0) {
+            process = (MkProc*)link->hdr;
+            if (link->instance != process->instance) {
+                link = discard_stale_mkptr_and_advance(link);
+            } else {
+                if (process != 0 &&
+                    (pdata = (struct NcsLimbAttachPdata*)pdata_of_proc(process)) != 0 &&
+                    pdata->limb == limb) {
+                    return pdata;
+                }
+                link = link->next;
+            }
+        }
+    }
+    process = ncs_create_attach_proc(player, &pdata);
+    if (process == 0) {
+        return 0;
+    }
+    mk_insert(&process->hdr, &player->slot.fighter->attach_proc_list);
+    return pdata;
+}
+
 void limb_sever_bone_attach(
     PlyrInfo* target_player, int owner_bone,
-    const Vec* offset, const Vec* rotation,
+    Vec* offset, Vec* rotation,
     PlyrInfo* owner_player, int limb, int target_bone,
     int include_children) {
     FighterMirror* fighter;
     struct NcsLimbAttachPdata* pdata;
     MkProc* process;
-    MkPtr* link;
     MkObj* severed;
 
     fighter = owner_player->slot.fighter;
-    process = fighter->limb_update_proc;
-    if (process != 0 &&
-        process->instance != fighter->limb_update_proc_instance) {
-        process = 0;
-    }
+    process = MK_HDR_LIVE(
+        fighter->limb_update_proc, fighter->limb_update_proc_instance);
     if (process != 0) {
         struct NcsLimbUpdatePdata* update =
             (struct NcsLimbUpdatePdata*)pdata_of_proc(process);
@@ -2641,52 +2685,13 @@ void limb_sever_bone_attach(
             update->severed_mask &= ~(1 << limb);
         }
     }
-
-    pdata = 0;
-    link = fighter->attach_proc_list;
-    while (link != 0) {
-        process = (MkProc*)link->hdr;
-        if (link->instance != process->instance) {
-            MkPtr* next = link->next;
-
-            discard_stale_mkptr(link);
-            link = next;
-        } else {
-            struct NcsLimbAttachPdata* candidate = process != 0
-                ? (struct NcsLimbAttachPdata*)pdata_of_proc(process) : 0;
-
-            if (candidate != 0 && candidate->limb == limb) {
-                pdata = candidate;
-                break;
-            }
-            link = link->next;
-        }
-    }
-
+    pdata = ncs_find_attach_pdata(owner_player, limb);
     if (pdata == 0) {
-        void* limbset = limb_sever_find_limbset(owner_player);
-
-        if (limbset == 0) {
-            return;
-        }
-        process = _create_mkproc_generic_nostack(
-            0x6017, 0x1F, p_limb_sever_attach,
-            sizeof(struct NcsLimbAttachPdata), (MkHdr**)&pdata);
-        if (process == 0) {
-            return;
-        }
-        zero_pdata_payload(sizeof(struct NcsLimbAttachPdata), &pdata->hdr);
-        pdata->player = owner_player;
-        pdata->fighter = fighter;
-        pdata->limbset = limbset;
-        mk_insert(&process->hdr, &fighter->attach_proc_list);
+        return;
     }
-
-    severed = fighter->severed_limbs[limb].object;
-    if (severed != 0 &&
-        severed->hdr.instance != fighter->severed_limbs[limb].instance) {
-        severed = 0;
-    }
+    severed = MK_HDR_LIVE(
+        pdata->fighter->severed_limbs[limb].object,
+        pdata->fighter->severed_limbs[limb].instance);
     if (severed == 0) {
         severed = obj_sever_limb(
             owner_player->slot.mirror_a, limb, 0, include_children);
@@ -2711,11 +2716,11 @@ void limb_sever_bone_attach(
     severed->flags_08_bits.moving = 0;
     severed->light_flags = owner_player->slot.mirror_a->light_flags;
     pdata->owner = owner_player->slot.mirror_a;
-    pdata->owner_instance = pdata->owner->hdr.instance;
+    pdata->owner_instance = owner_player->slot.mirror_a->hdr.instance;
     pdata->target = target_player->slot.mirror_a;
-    pdata->target_instance = pdata->target->hdr.instance;
-    fighter->severed_limbs[limb].object = severed;
-    fighter->severed_limbs[limb].instance = severed->hdr.instance;
+    pdata->target_instance = target_player->slot.mirror_a->hdr.instance;
+    pdata->fighter->severed_limbs[limb].object = severed;
+    pdata->fighter->severed_limbs[limb].instance = severed->hdr.instance;
     pdata->limb = limb;
     pdata->target_bone = target_bone;
     pdata->owner_bone = owner_bone;
@@ -3438,35 +3443,20 @@ void set_pdata_anim_step(AnimPdata* pdata, float step) {
     pdata->step = step;
 }
 
-/* TODO: [near miss] 61.71%; arithmetic equivalent; retail keeps the empty zero-length branch as a jump and loads arguments after frame setup. */
 float mkobj_pos_pos_dot_normal_xz(
-    const MkObj* from, const MkObj* to, const Vec* normal) {
-    union NcsFloatBits bits;
+    MkObj* from, const MkObj* to, const Vec* normal) {
     float dx;
     float dz;
     float squared;
-    float estimate;
-    float product;
-    float correction;
     float inverse_length;
 
     dx = to->pos.value.x - from->pos.value.x;
     dz = to->pos.value.z - from->pos.value.z;
     squared = dx * dx + dz * dz;
-    inverse_length = 0.0f;
-    if (squared <= 0.0f) {
-    } else {
-        bits.f = squared;
-        bits.u = 0x5F375A00 - (bits.u >> 1);
-        estimate = bits.f;
-        product = estimate * (squared * estimate);
-        correction = 3.0f - product;
-        inverse_length =
-            0.0625f * estimate * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
-    return normal->x * (dx * inverse_length) +
-           normal->z * (dz * inverse_length);
+    inverse_length = gxMathFastInvSqrt(squared);
+    dx *= inverse_length;
+    dz *= inverse_length;
+    return normal->x * dx + normal->z * dz;
 }
 
 void ncs_script_debug_quickie(int command, float value) {

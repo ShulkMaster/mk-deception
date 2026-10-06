@@ -13,8 +13,6 @@ extern void SFXZ_MakeCnvZTbl(SFXZObject* object, void* source,
                              void* table);
 extern void CFT_MakeArgb8888ColAdjTbl(void* table);
 
-/* Plain static helper: retail compiles it first (its 1.164f and int-to-float
- * constants lead .rodata) and the linker strips the unreferenced copy. */
 static void sfxcnv_MakeLumiTbl(u8* table)
 {
     s32 i;

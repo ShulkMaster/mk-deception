@@ -1,8 +1,6 @@
 #include "sofdec/mpv_error.h"
 #include "sofdec/mpv_mc.h"
 
-extern int MPVLIB_CheckHn(MPVContext* handle);
-
 static MPVErrorInfo mpverrinf;
 int mpverr_work;
 

@@ -84,7 +84,10 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   `his_pdata` reload. Reload after inlined float-bits helper: pragma
   reproduces reload but renumbers volatile webs (`drone_ai_victim_avoid` stuck
   99.44); address-taken helper input (H05, H21) closed it with CSE on, no
-  pragma.
+  pragma. Pooled string address (`@stringBase0+off`) materialized again for
+  an adjacent call, ours hoists it into a saved reg: same scoped pragma,
+  no spelling of the named pool array avoids the CSE (`p_main_menu`,
+  `get_modeselect_portrait_list`; user-approved scoped-mode rule).
 - Multi-row field, retail adds offset to reloaded owner before `stfsx`: typed
   row-array pointer + propagation off (Puzzle crusher).
 - Fixed-count array copy as two advancing pointers, retail one byte
@@ -282,6 +285,15 @@ Alias analysis changes access schedule. REQUIRE real mutability + callers.
 Drop unsupported `const` or restore supported `const`; `const` alone doesn't
 prove non-aliasing.
 
+Project prior: Midway game/lib code barely uses `const`. Removing `const`
+closes far more near misses than adding it. Near miss with any `const`
+(pointee params, locals, statics, tables, casts): TRY drop it or move it
+(`const T*` -> `T*`, `T* const` -> `T*`, const local -> plain) before calling
+the residue coloring/scheduling. One qualifier per try; update decl, header and
+callers together. Keep the drop only if neutral-or-better for the whole unit;
+if dropping is neutral, keep the original `const` (no churn). SDK/MSL/CRI
+public APIs keep their documented `const`.
+
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
 - Tables/counts reloaded after global stores: drop unsupported pointee
@@ -289,6 +301,9 @@ prove non-aliasing.
 - Read-only slot table at private helper: donor mutable-slot signature at that
   helper only, explicit const-removal cast at call; never write through it
   (`sftrn_BuildSystem`, `sftrn_BuildAll`).
+- Matrix/vector math: pointee `const` on input matrices/vectors kept loads
+  ahead of the output stores; dropping it restored retail interleave across
+  the family (`mk_math` `v3_x_mat`, `p3_x_mat`, `mat_scaled_by_v3`).
 - Separately cached dest owner = H05.
 
 ## M13
@@ -453,6 +468,13 @@ built objects; only linked DOL hash catches wrong layout.
   NULL`). 2.7 C deferred: `= 0` prefix keeps forward decl order; uninit
   globals + function statics follow, reverse parse order (function static sits
   at its function's parse position) (`mwMem` `StrategyAllocationActive`).
+- Asm conversion moves `.bss`: inline asm (opword or text block) does not count
+  as a reference, so turning the first-referencing C function into an asm
+  block hands first use to a later function and reorders the statics. If the
+  asm addresses statics relative to one base (retail `cnvStatic` reads all five
+  tables off `gqr_save`), restore retail order by referencing them in that
+  order in the next C user; never add a dummy referencing function
+  (`cftyp422_ppc` `CFT_Ycc420plnToArgb8888Init`, RE4 used `cftyp_bss_order`).
 - 2.7 C `-inline auto` (not deferred), measured `ai.c`: `.sbss` tentatives =
   reverse decl order, use irrelevant. `.bss` tentative defined before use =
   first-use order by generated function, operand order as written (`c ? &A :
@@ -505,6 +527,14 @@ null guard.
   `extern "C" { }` block, plain defs (`mwFileAsync`).
 - Linker keeps first weak def in link order; no specialization to own weak
   members an earlier object provides.
+- Class-inline base destructor emits late but retail has a global out-of-line
+  body before weak base methods: REQUIRE ELF binding/order and all derived
+  destructor consumers. TRY canonical out-of-line definition with object
+  `-inline auto,deferred` and reverse member-definition order. If implicit
+  inline weak bodies still emit late, TRY out-of-class `__declspec(weak)`
+  definitions only for ELF-proven weak methods (`mslSoundBuffer`, `IRefCntRes`).
+  Preserve every consumer and section; deferred-scan without enough pool
+  symbols is inconclusive, not evidence against deferred inlining.
 - Vtables emitted at TU end in reverse creation order. Key function creates
   vtable at its compile; none -> weak vtable at first codegen ref (derived
   ctor inlining base ctor, not derived dtor).

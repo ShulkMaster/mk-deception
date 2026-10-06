@@ -203,6 +203,11 @@ version is known. Check:
 An incorrect SDK prototype can make every caller look like a register-allocation
 problem.
 
+Midway's own game and library code rarely uses `const`. A `const` qualifier in
+a reconstructed Midway signature, local or table is a guess until a match
+supports it; removing it changes alias analysis and is a common fix for near
+misses (playbook M12).
+
 ### Graphics setup is ordered state publication
 
 Validated callers commonly issue short sequences of GX state calls with literal

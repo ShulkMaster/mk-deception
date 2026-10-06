@@ -220,8 +220,8 @@ struct MPVContext {
     s32 vbv_delay;
     void (*decode_macroblock)(MPVContext*, SJ*); /* +0x2C0 */
     void (*skip_macroblocks)(MPVContext*, int);
-    int (*decode_intra_blocks)(void*);
-    int (*decode_nonintra_blocks)(void*);
+    s32 (*decode_intra_blocks)(MPVContext*);
+    s32 (*decode_nonintra_blocks)(MPVContext*);
     void (*motion_intra)(MPVContext*);
     void (*motion_skipped)(MPVContext*);
     void (*motion_backward)(MPVContext*);
@@ -254,8 +254,8 @@ struct MPVContext {
     SJCK header_chunk;                         /* +0x1308 */
     s32 field_1310;
     s32 field_1314;
-    int (*decode_intra_block)(void*, void*);
-    int (*decode_nonintra_block)(void*, void*);
+    s32 (*decode_intra_block)(void*, void*);
+    s32 (*decode_nonintra_block)(void*, void*);
     u8 field_1320[4];
     s32 field_1324;
     u8* y_dc_size;
@@ -298,6 +298,8 @@ typedef char MPVContextSizeCheck[sizeof(MPVContext) == 0x1380 ? 1 : -1];
 int MPV_GetCond(MPVContext* handle, int index, int* value);
 int MPV_SetCond(MPVContext* handle, int index, int value);
 int MPVLIB_CheckHn(MPVContext* handle);
+s32 MPVCDEC_IntraBlocks(MPVContext* context);
+s32 MPVCDEC_NintraBlocks(MPVContext* context);
 int MPV_Init(int handle_count, void* work);
 MPVContext* MPV_Create(void);
 int MPV_Destroy(MPVContext* handle);

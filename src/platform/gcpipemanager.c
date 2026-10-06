@@ -331,7 +331,10 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensit
     GXSetTevKColor(1, konst);
 }
 
-/* TODO: [near miss] 99.20%; atomic/list homes and automatic index-update schedule differ. */
+#pragma push
+#pragma optimize_for_size on
+/* TODO: [near miss] 99.53%; size mode restores induction-update order;
+ * atomic/sentinel/next GPR homes remain swapped. */
 void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
     RwLLLink* sentinel = &clump->atomicList;
     RwLLLink* link = clump->atomicList.next;
@@ -382,8 +385,10 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
         link = next;
     }
 }
+#pragma pop
 
-/* TODO: [breakthrough needed] 95.78%; vertex-format BSS first-reference order and effect-free retail guard need original inline/compiler evidence. */
+/* TODO: [breakthrough needed] 95.78%; vertex-format BSS order and the
+ * effect-free retail guard need original inline/compiler evidence. */
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;

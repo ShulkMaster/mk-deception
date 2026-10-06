@@ -8,6 +8,10 @@ exemplars that reached exact. `[da]` = mk-da import (tier 1).
 
 ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
 
+- Callback return/liveness residue: REQUIRE retail function-pointer mangling
+  and actual dispatch return use. TRY correct void return and full callback
+  arity in the owner typedef, declaration, and definition together
+  (`mwfile_error_callback`); no fabricated return value.
 - Saved scalar param rotates around a call, word ops identical: REQUIRE
   caller type, callee param, stored member agree. TRY canonical signedness in
   public decl + def; implicit unsigned->signed makes another web
@@ -436,6 +440,11 @@ settings. Verify emitted calls, helper symbols, every consumer.
   data or `.rela.data` -> delete it.
 - One-purpose inline helper for a fast path the shared helper can't make:
   only when shared form measured worse; record measurement `[da]`.
+- Indexed record rebuild around callbacks: REQUIRE selected index and ID
+  retained through construction, then global selection reloaded for publication.
+  TRY complete indexed removal and build/add phases; return pointer/null at
+  the allocation boundary, never a self-normalizing identity assignment
+  (`bgnd_set_danger_zone_y_angle`).
 - Keep callee out of line while explicit helpers still expand: scoped
   `auto_inline off` at callee def (`LSC_EntryFileRange`). Static helper
   retail calls under `-inline auto`: object `-inline noauto` (dvdlow
@@ -576,6 +585,9 @@ Loops. REQUIRE zero-trip behavior + test/update order.
 - Dynamic bound loaded once into CTR: snapshot bound, keep per-iteration
   pointer reloads. Fixed positive extent: test bounded `for`/`<` vs
   do/while/`!=`. Unsigned ascending index keeps `cmplwi`/`ble` + CTR.
+  Fixed nonwrapping clear with serial retail index updates: equality bound
+  can select eight-way unroll where `<` selects sixteen parallel offsets
+  (`__VMAllocARAMToVirtualLUT`). Preserve extent and reloads.
 - Fixed reverse array clear, only zero/index setup order differs: REQUIRE same
   descending order + unused final iterator. TRY `for (i = count; i-- != 0;)
   array[i] = 0` (defined final wrap) (`ScreenObject::ClearActiveObjects`).
@@ -610,7 +622,12 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   coloring search. MWCC strength-reduces index into pointer created after
   params; explicit cursor local is created before them, swaps webs (`mflGetS`:
   3 tries after 60 manual + 185k permuter on cursor shape). Fixed-width char
-  padding variant: H21.
+  padding variant: H21. Struct-array variant: retail `add base, offset` with
+  field displacements folded into loads and `offset += stride` = indexed
+  `arr[i].field` (`g_game_info.players[player]`, `p_controller_config`), not
+  a hand `offset` local over a padded view. The indexed form can score lower
+  in isolation: its webs need their own decl order, so sweep decl order after
+  switching (host sweep, 8! orders in minutes), never judge it alone.
 - Prologue scheduling differs, body exact `[da]`: bound/end pointer written in
   byte math retail doesn't need. TRY loop's element units (`end = out +
   (width >> 1)`, not `(u32*)(row + (width << 1 & ~3))`) (`vdisp_copy_frame`).
@@ -639,11 +656,14 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   tested range sharing other empty cases' `break` (`go_into_twitch_death`,
   `go_into_major_pain`).
 - Same dead `b default`, plus loaded selector in r4/r6/r7 where ours uses r0:
-  REQUIRE enum switch, sentinel shares `default`. TRY enum `*_FORCE_32BIT =
+  REQUIRE enum-backed switch, sentinel shares `default`. TRY enum `*_FORCE_32BIT =
   0x7FFFFFFF` label before `default`; constant too big for `cmpwi` keeps
   selector off r0. No invented small label (`case 6`). Check sibling ports
   (PS2 MW MIPS compares 0x7FFFFFFF) (`mwMemHeapGetMaxFreeBlock`,
   `privInitSystemHeap`, `mwMemHeapStrategyCallback`).
+  Masking may exclude the sentinel value; retain it only with vendor enum
+  and identical case-set evidence (`privGetAlignFromMwMemFlags`). Preserve
+  the proven caller ABI rather than changing it merely to name the enum.
 - Missing-ID guard + nullable attachment arm match except unreachable
   shared-exit branch: REQUIRE real zero sentinel, kept lookup/null order. TRY
   two-arm `switch`, attachment in `default`, direct `case 0` failure return
@@ -829,6 +849,13 @@ branch-only alias = dishonest even at 100.
 - Narrow params: explicit cast or u16 local hoists arg load; implicit
   conversion to `unsigned short` param doesn't (`drone_loop`). Needs callee
   narrow-param evidence; u16 return makes callers re-normalize.
+- Two single-op args from one loaded word, retail computes arg 2 before
+  arg 1 (`extrwi r4` then `rlwinm r3`): REQUIRE same load, no call between.
+  MWCC sinks a single-use `int` local into the call and evaluates args left
+  to right, whatever the statement order. TRY `unsigned char`/`unsigned
+  short` for the arg-2 local: the narrowing assignment stays at its statement
+  (`p_main_menu`). `!!(x & BIT)` also stays; `(x & BIT) != 0`, inline
+  expressions, `x &= mask` redefinition, `scheduling off` do not.
 - `!value` vs `value == 0` in an arg can change allocation; not for branch
   conditions.
 - Decls: swap two real scalar coordinate decls; slot pointer beside its index.
@@ -1001,6 +1028,27 @@ Helper locals and web kind.
   (`save_konq_common_data_to_buffer`). Verify one owner/object load, null
   guard before instance read, snapshot placement across earlier calls, shared
   consumers. No getter, no mode change to keep aliases.
+- One re-resolved 2nd web of a multi-def object local takes the next-lower
+  saved reg (retail reuses the reg of its other webs): REQUIRE same latch ops,
+  capture shows that web numbered above the sibling webs. TRY direct
+  `x = LATCH(src)` (`?:` result) instead of in-place copy `x = src; x =
+  LATCH(x)`: copy form numbers the variable's 2nd webs forward in source
+  order, direct `?:` form numbers them in reverse, so the late web pops after
+  its siblings and reuses their reg (`p_fish_attack`). Apply to every site.
+- Saved-reg swap around an inlined resolve helper (buffer pointer vs table
+  base vs param): REQUIRE same calls/CFG; capture shows the swap set by web
+  kind/degree. TRY name the buffer pointer in the caller (`p = buf;
+  helper(p, ...)`), not as a helper-local alias: caller named local numbers
+  low and drops coalesced copies next to the table web (`cvFsOpen`, donor
+  RE4 `pdev = dev`). Retail `mr rN, r3` after an inlined allocator: return
+  `void*` from the helper so the result is not propagated into the typed
+  local. CRI units: port donor helper shapes (RE4/Sonic Heroes cvfs) first.
+- Table-decode volatile pair swapped (retail `lhax r3; clrlwi r0,r3; srwi
+  r3,r3,8`, ours r0/r3): REQUIRE same ops, decoded field stored, length used
+  twice. TRY length as an unnamed `(u8)descriptor` expression written after
+  the field store, no named `code_length`. Emission temps number forward, so
+  the length temp pops before the field temp and takes r0
+  (`MPVDEC_DecBpicMb`/`DecPpicMb`, donor RE4 `MPVDEC_MBTYPE`).
 - Inlined table accessors miscolor scaled index + table owners: check if
   unrelated branch defs share one caller local. TRY named runtime-table base,
   typed indexing, each def owner scoped to its branch. Fold single-use owner

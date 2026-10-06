@@ -1,4 +1,7 @@
-#include "sofdec/sfd_transport.h"
+#include "sofdec/sfd_player.h"
+#include "sofdec/uty_math.h"
+#include "runtime/cstring.h"
+#include "sofdec/mws_ycc.h"
 
 typedef struct SFHHandle SFHHandle;
 
@@ -69,15 +72,6 @@ typedef struct MwsFrameOutput {
     unsigned char transport_fields[0x38];
 } MwsFrameOutput;
 
-typedef struct MwsYccPlane {
-    void* y;
-    void* cb;
-    void* cr;
-    int y_pitch;
-    int c_pitch;
-    int c_height;
-} MwsYccPlane;
-
 typedef struct SfdCalculatedPlane {
     void* cb;
     void* cr;
@@ -86,7 +80,6 @@ typedef struct SfdCalculatedPlane {
     short y_pitch;
 } SfdCalculatedPlane;
 
-/* The decoder stores picture-user data as a pointer/length pair at +0x38. */
 typedef struct MwsPictureUserData {
     void* data;
     int size;
@@ -99,15 +92,10 @@ typedef char MwsPlayerPictureUserOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->picture_user_internal == 0x164 ? 1 : -1];
 typedef char MwsPlayerPreviousOrderOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->previous_picture_order == 0x1A4 ? 1 : -1];
-typedef char MwsYccPlaneSizeCheck[sizeof(MwsYccPlane) == 0x18 ? 1 : -1];
 
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
 extern void MWSFSVM_Error(const char* message, ...);
 extern SfdHandle* mwPlyGetSfdHn(MwsPlayer* player);
-extern int SFD_GetFrm(SfdHandle* handle, void** frame);
-extern void SFD_RelFrm(SfdHandle* handle, void* frame);
-extern int SFD_SetCond(SfdHandle* handle, int condition,
-                       SfdConditionValue value);
 extern void MWSFSFX_SetColAdj(MwsPlayer* player, int adjustment);
 extern void SFD_CalcYccPlane(void* buffer, int width, int height,
                             SfdCalculatedPlane* plane);
@@ -122,11 +110,6 @@ extern int SFH_AnlyMaxFrmNum(SFHHandle* header, int* count);
 extern int SFH_AnlyFtrFxType(SFHHandle* header, unsigned char stream_id,
                             int* type);
 extern int MWSFD_GetUsePicUsr(void);
-extern int SFD_GetFps(SfdHandle* handle, int* frame_rate);
-extern int UTY_MulDiv(int value, int multiplier, int divisor);
-extern void* memcpy(void* destination, const void* source,
-                    unsigned long size);
-extern void* memset(void* destination, int value, unsigned long size);
 extern int SFD_IsNextFrmReady(SfdHandle* handle);
 extern int SUD_SearchSudDat(const void* data, int size, void** result,
                            int* result_size);
@@ -202,8 +185,7 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.67%; typed slot indexing matches the body; player/header r31/r30 coloring
- * is swapped, which RE4 reaches only with a dead conditional; soft ceiling. */
+/* TODO: [near miss] 97.67%; player/header r31/r30 coloring remains; stop at coloring. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
@@ -359,8 +341,8 @@ void mwPlyCalcYccPlane(void* buffer, int width, int height,
     output->cb = plane.cb;
     output->cr = plane.cr;
     output->y_pitch = plane.y_pitch;
-    output->c_pitch = plane.c_pitch;
-    output->c_height = plane.c_pitch;
+    output->cb_pitch = plane.c_pitch;
+    output->cr_pitch = plane.c_pitch;
 }
 
 void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,

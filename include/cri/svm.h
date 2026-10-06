@@ -1,9 +1,7 @@
 #ifndef MKD_CRI_SVM_H
 #define MKD_CRI_SVM_H
 
-typedef int (*SVMServerFunction)(void* object);
-typedef void (*SVMCallbackFunction)(void* object);
-typedef void (*SVMErrorFunction)(void* object, char* message);
+#include "cri/svm_callbacks.h"
 
 void SVM_Init(void);
 void SVM_Finish(void);

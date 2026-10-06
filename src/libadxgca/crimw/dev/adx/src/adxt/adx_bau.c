@@ -1,6 +1,6 @@
 #include "cri/adx_basic.h"
 
-int memcmp(const void*, const void*, unsigned long);
+#include "runtime/cstring.h"
 #define NULL ((void*)0)
 
 #define FORM 0x4D524F46

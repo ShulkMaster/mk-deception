@@ -106,7 +106,7 @@ AdxSjdSetFrequency pl2setsfreqfunc = 0;
 
 void ADXSJD_ExecHndl(AdxSjdHandle* handle);
 void adxsjd_decexec_start(AdxSjdHandle* handle);
-void adxsjd_get_wr(
+short* adxsjd_get_wr(
     void* object, int* write_position, int* writable_samples,
     int* limit_samples);
 void adxsjd_decode_prep(AdxSjdHandle* handle);
@@ -519,7 +519,7 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
     ADXB_Start(decoder);
 }
 
-void adxsjd_get_wr(
+short* adxsjd_get_wr(
     void* object, int* write_position, int* writable_samples,
     int* limit_samples)
 {
@@ -548,7 +548,7 @@ void adxsjd_get_wr(
     } else {
         *limit_samples = 0x1FFFFFFF;
     }
-    (void)ADXB_GetPcmBuf(handle->decoder);
+    return ADXB_GetPcmBuf(handle->decoder);
 }
 
 void adxsjd_decode_prep(AdxSjdHandle* handle)

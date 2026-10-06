@@ -11,16 +11,16 @@ enum {
     ADXSJE_BLOCK_BYTES = 18
 };
 
-typedef struct AdxSjeIirFilter {
+struct AdxSjeIirFilter {
     s8 used;
     u8 reserved_01[3];
     s16 coefficient0;
     s16 coefficient1;
     s16 previous0;
     s16 previous1;
-} AdxSjeIirFilter;
+};
 
-typedef struct AdxSjePredictorFilter {
+struct AdxSjePredictorFilter {
     s8 used;
     u8 reserved_01[3];
     s16 coefficient0;
@@ -35,8 +35,8 @@ typedef struct AdxSjePredictorFilter {
     s16 scale;
     u8 reserved_7E[2];
     f64 gain;
-    AdxSjeIirFilter* iir_filter;
-} AdxSjePredictorFilter;
+    struct AdxSjeIirFilter* iir_filter;
+};
 
 typedef struct AdxSjeHandle {
     s8 used;
@@ -68,7 +68,7 @@ typedef struct AdxSjeHandle {
     s32 loop_start_offset;
     s32 loop_end_sample;
     s32 loop_end_offset;
-    AdxSjePredictorFilter* filter[ADXSJE_MAX_CHANNELS];
+    struct AdxSjePredictorFilter* filter[ADXSJE_MAX_CHANNELS];
     s16 previous0[ADXSJE_MAX_CHANNELS];
     s16 previous1[ADXSJE_MAX_CHANNELS];
     s16 samples[ADXSJE_MAX_CHANNELS][ADXSJE_MAX_BLOCK_SAMPLES];
@@ -97,9 +97,9 @@ typedef struct AdxSjeHandle {
 } AdxSjeHandle;
 
 typedef char AdxSjeIirFilterSizeCheck[
-    sizeof(AdxSjeIirFilter) == 0x0C ? 1 : -1];
+    sizeof(struct AdxSjeIirFilter) == 0x0C ? 1 : -1];
 typedef char AdxSjePredictorFilterSizeCheck[
-    sizeof(AdxSjePredictorFilter) == 0x90 ? 1 : -1];
+    sizeof(struct AdxSjePredictorFilter) == 0x90 ? 1 : -1];
 typedef char AdxSjeHandleSizeCheck[
     sizeof(AdxSjeHandle) == 0x2F8 ? 1 : -1];
 
@@ -112,8 +112,8 @@ static const char* cri_str = "(c)CRI";
 static s32 skg_init_count = 0;
 static void (*skg_err_func)(void*) = 0;
 static void* skg_err_obj = 0;
-AdxSjePredictorFilter adxsje_prdflt_obj[ADXSJE_MAX_FILTERS];
-AdxSjeIirFilter adxsje_iirflt_obj[ADXSJE_MAX_FILTERS];
+struct AdxSjePredictorFilter adxsje_prdflt_obj[ADXSJE_MAX_FILTERS];
+struct AdxSjeIirFilter adxsje_iirflt_obj[ADXSJE_MAX_FILTERS];
 AdxSjeHandle adxsje_obj[ADXSJE_MAX_HANDLES];
 
 static void adxsje_flt_init(void)
@@ -141,7 +141,7 @@ static inline s32 adxsje_clamp_s16_range(s32 value)
 
 static inline s16 adxsje_clamp_to_s16(s32 value)
 {
-    return (s16)adxsje_clamp_s16_range(value);
+    return adxsje_clamp_s16_range(value);
 }
 
 static inline s32 adxsje_clamp_code(s32 value)
@@ -151,10 +151,10 @@ static inline s32 adxsje_clamp_code(s32 value)
                : 7;
 }
 
-static inline AdxSjeIirFilter* adxsje_alloc_iir(void)
+static inline struct AdxSjeIirFilter* adxsje_alloc_iir(void)
 {
     s32 index;
-    AdxSjeIirFilter* filter;
+    struct AdxSjeIirFilter* filter;
 
     for (index = 0; index < ADXSJE_MAX_FILTERS; index++) {
         filter = &adxsje_iirflt_obj[index];
@@ -165,10 +165,10 @@ static inline AdxSjeIirFilter* adxsje_alloc_iir(void)
     return index < ADXSJE_MAX_FILTERS ? filter : 0;
 }
 
-static inline AdxSjePredictorFilter* adxsje_create_filter(s32 sample_count)
+static inline struct AdxSjePredictorFilter* adxsje_create_filter(s32 sample_count)
 {
-    AdxSjePredictorFilter* filter;
-    AdxSjeIirFilter* iir_filter;
+    struct AdxSjePredictorFilter* filter;
+    struct AdxSjeIirFilter* iir_filter;
     s32 index;
 
     iir_filter = adxsje_alloc_iir();
@@ -191,7 +191,7 @@ static inline AdxSjePredictorFilter* adxsje_create_filter(s32 sample_count)
     return filter;
 }
 
-static inline void adxsje_destroy_filter(AdxSjePredictorFilter* filter)
+static inline void adxsje_destroy_filter(struct AdxSjePredictorFilter* filter)
 {
     if (filter != 0) {
         filter->used = 0;
@@ -226,14 +226,14 @@ void ADXSJE_ExecServer(void)
     }
 }
 
-static inline void adxsje_prdflt_set_coef(AdxSjePredictorFilter* filter,
+static inline void adxsje_prdflt_set_coef(struct AdxSjePredictorFilter* filter,
                                            s16 coefficient0, s16 coefficient1)
 {
     filter->coefficient0 = coefficient0;
     filter->coefficient1 = coefficient1;
 }
 
-static inline void adxsje_iirflt_set_coef(AdxSjeIirFilter* filter,
+static inline void adxsje_iirflt_set_coef(struct AdxSjeIirFilter* filter,
                                            s16 coefficient0, s16 coefficient1)
 {
     filter->coefficient0 = coefficient0;
@@ -241,7 +241,7 @@ static inline void adxsje_iirflt_set_coef(AdxSjeIirFilter* filter,
 }
 
 static inline void adxsje_initialize_filter_coefficients(AdxSjeHandle* encoder,
-                                                        AdxSjePredictorFilter* filter)
+                                                        struct AdxSjePredictorFilter* filter)
 {
     s16 coefficient0;
     s16 coefficient1;
@@ -475,21 +475,21 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
 
     signature = 0x8000;
     if (adxsje_write68(&signature, 2, 1, output) != 1) goto fail;
-    header = (s16)encoder->header_length;
+    header = encoder->header_length;
     if (adxsje_write68(&header, 2, 1, output) != 1) goto fail;
-    value8 = (s8)encoder->encoding_type;
+    value8 = encoder->encoding_type;
     if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
-    value8 = (s8)encoder->block_size;
+    value8 = encoder->block_size;
     if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
-    value8 = (s8)encoder->bits_per_sample;
+    value8 = encoder->bits_per_sample;
     if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
-    value8 = (s8)encoder->channel_count;
+    value8 = encoder->channel_count;
     if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
     value32 = encoder->sample_rate;
     if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
     value32 = encoder->total_samples;
     if (adxsje_write68(&value32, 4, 1, output) != 1) goto fail;
-    value16 = (s16)encoder->cutoff_frequency;
+    value16 = encoder->cutoff_frequency;
     if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
     value8 = 4;
     if (adxsje_write68(&value8, 1, 1, output) != 1) goto fail;
@@ -512,14 +512,14 @@ s32 adxsje_output_header(AdxSjeHandle* encoder, SJ* output)
 
     written = 0x1C;
     if (encoder->loop_count > 0) {
-        value16 = (s16)encoder->alignment_samples;
+        value16 = encoder->alignment_samples;
         if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
-        value16 = (s16)encoder->loop_count;
+        value16 = encoder->loop_count;
         if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
         index = 0;
         written = 0x20;
         for (; index < encoder->loop_count; index++) {
-            value16 = (s16)index;
+            value16 = index;
             if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
             value16 = 1;
             if (adxsje_write68(&value16, 2, 1, output) != 1) goto fail;
@@ -696,8 +696,8 @@ static inline s32 adxsje_encode_pcm_block(AdxSjeHandle* encoder)
 
         encoder->sample_position += encoder->block_samples;
         for (channel = 0; channel < encoder->channel_count; channel++) {
-            AdxSjePredictorFilter* filter;
-            AdxSjeIirFilter* iir_filter;
+            struct AdxSjePredictorFilter* filter;
+            struct AdxSjeIirFilter* iir_filter;
             s16 previous1;
 
             adxsje_calc_rsig(encoder, channel);
@@ -766,12 +766,12 @@ s32 adxsje_output_sdata(AdxSjeHandle* encoder)
             encoded_words[2] == 0 && encoded_words[3] == 0) {
             value = 0;
         }
-        sample = (s16)value;
+        sample = value;
         byte = sample >> 8;
         adxsje_write_chunk(output, &byte, 1);
         byte = sample;
         adxsje_write_chunk(output, &byte, 1);
-        adxsje_write_chunk(output, encoder->encoded[channel], 0x10);
+        adxsje_write_chunk(output, encoder->encoded[channel], sizeof(encoder->encoded[channel]));
         total_size += ADXSJE_BLOCK_BYTES;
     }
     return total_size;
@@ -788,7 +788,7 @@ void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
     s32 reconstructed_value;
     s16 sample;
     s32 clipped;
-    AdxSjePredictorFilter* filter;
+    struct AdxSjePredictorFilter* filter;
     s16* residual;
     s16* scaled;
     s16* reconstructed;
@@ -832,14 +832,14 @@ void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel)
 }
 
 static inline void adxsje_prdflt_set_hist(
-    AdxSjePredictorFilter* filter, s16 previous0, s16 previous1)
+    struct AdxSjePredictorFilter* filter, s16 previous0, s16 previous1)
 {
     filter->previous0 = previous0;
     filter->previous1 = previous1;
 }
 
 static inline void adxsje_prdflt_exec(
-    AdxSjePredictorFilter* filter, s16 sample, s32 index)
+    struct AdxSjePredictorFilter* filter, s16 sample, s32 index)
 {
     s32 value;
     s16 residual;
@@ -870,7 +870,7 @@ static inline void adxsje_prdflt_exec(
 }
 
 static inline void adxsje_iirflt_set_hist(
-    AdxSjeIirFilter* filter, s16 previous0, s16 previous1)
+    struct AdxSjeIirFilter* filter, s16 previous0, s16 previous1)
 {
     filter->previous0 = previous0;
     filter->previous1 = previous1;
@@ -883,7 +883,7 @@ static inline s16 adxsje_clamp_iir_s16(s32 value)
                      : 0x7FFF);
 }
 
-static inline void adxsje_iirflt_exec(AdxSjeIirFilter* filter, s32 sample)
+static inline void adxsje_iirflt_exec(struct AdxSjeIirFilter* filter, s32 sample)
 {
     s32 value;
     s16 output_sample;
@@ -910,8 +910,8 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     s16 clipped;
     s16 initial_previous0;
     s16 initial_previous1;
-    AdxSjePredictorFilter* filter;
-    AdxSjeIirFilter* iir_filter;
+    struct AdxSjePredictorFilter* filter;
+    struct AdxSjeIirFilter* iir_filter;
 
     initial_previous0 = encoder->previous0[channel];
     initial_previous1 = encoder->previous1[channel];
@@ -929,7 +929,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     value = (value < AdxGainDataMax ? value : AdxGainDataMax) > 1
                 ? (value < AdxGainDataMax ? value : AdxGainDataMax)
                 : 1;
-    filter->scale = (s16)value;
+    filter->scale = value;
     if (filter->maximum == 0) {
         filter->gain = 32767.0;
     } else {
@@ -954,7 +954,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
             code = (clipped + 0x924) / 4681;
         }
         code = adxsje_clamp_code(code);
-        filter->code[index] = (s8)code;
+        filter->code[index] = code;
         adxsje_iirflt_exec(filter->iir_filter,
                            adxsje_clamp_to_s16(code * filter->scale));
     }
@@ -980,13 +980,13 @@ s32 adxsje_write68(const void* source, s32 element_size, s32 count, SJ* output)
     }
     if (element_size == 4) {
         destination32 = (s32*)chunk.data;
-        source32 = (const s32*)source;
+        source32 = source;
         for (index = 0; index < count; index++) {
             *destination32++ = *source32++;
         }
     } else if (element_size == 2) {
         destination16 = (s16*)chunk.data;
-        source16 = (const s16*)source;
+        source16 = source;
         for (index = 0; index < count; index++) {
             *destination16++ = *source16++;
         }

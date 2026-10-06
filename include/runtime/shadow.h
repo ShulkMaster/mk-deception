@@ -4,12 +4,13 @@
 #include "rw/rwcamera_internal.h"
 
 typedef struct ShadowObject ShadowObject;
+typedef struct PlyrPdata PlyrPdata;
 typedef struct ShadowboxObject ShadowboxObject;
 typedef struct RpClump RpClump;
 typedef struct MkObj MkObj;
 
 void init_shadow(ShadowObject* shadow, MkObj* object);
-void UpdateShadow(MkObj* fighter, ShadowObject* shadow, MkObj* object);
+void UpdateShadow(MkObj* fighter, PlyrPdata* owner, MkObj* object);
 int UpdateShadowCameraLightSource(const float* angles);
 void destroy_shadow_system(void);
 void TearDownShadow(ShadowObject* shadow);

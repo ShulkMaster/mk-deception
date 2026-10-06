@@ -138,8 +138,11 @@ After the applicable honest source check, stop at:
     bases; reverse source) < `?:`/`&&`-mask results and inline-helper
     locals/results (reverse source) < plain emission temps (forward). A named
     local assigned once from a `?:` or an inline result is propagated away and
-    lives on as that temp. Coalesced temp-temp copy (helper `c = type` with a
-    temp argument) = never-pushed node, +1 degree on every neighbour.
+    lives on as that temp. Multi-def local: 2nd webs from in-place copy
+    (`x = src; x = c(x) ? x : 0`) number forward; direct `x = c ? src : 0`
+    webs number in reverse source order (`p_fish_attack`). Coalesced
+    temp-temp copy (helper `c = type` with a temp argument) = never-pushed
+    node, +1 degree on every neighbour.
   - Several long-lived saved homes rotated (param, flag, call result, two
     hoisted array bases): all mutually adjacent, pushed ascending once degree
     < 29 in sweep 2. A web scanned at number N stays unpushed iff 12 physical
@@ -159,6 +162,11 @@ After the applicable honest source check, stop at:
     variable ownership so a loop's row/column/cell webs are first webs or
     splits in the needed group order. Levers interact through the threshold:
     measure each alone and in the combination.
+  - Named-local rotation (several saved homes permuted, no stall): one
+    "first-init order" decl check is not exhaustive. Capture, map vregs to
+    names, write retail pop order, invert into per-sweep ascending push order,
+    then pick the decl permutation (reverse decl numbering) that yields it;
+    verify in scratch (`__VMSwapPageIn`, 8 locals, one try).
   - Simplify: each pass scans ascending, pushes every web with degree < free
     reg count (29), decrements neighbours at once. Select pops, takes lowest
     free colour claiming r31 downward -> two params pushed in one pass: later

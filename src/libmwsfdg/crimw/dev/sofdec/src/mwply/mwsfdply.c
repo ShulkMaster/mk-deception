@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "sofdec/mws_sound.h"
 #include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
 #include "sofdec/sfd_player.h"
@@ -6,13 +7,6 @@
 typedef struct LSC LSC;
 typedef struct MwsPlayer MwsPlayer;
 
-typedef struct MwsStHandle {
-    int active;
-    unsigned char reserved_004[0x08];
-    SJ* stream;
-    int element_id;
-    void* backend;
-} MwsStHandle;
 
 struct MwsPlayer {
     void* interface;
@@ -59,7 +53,6 @@ struct MwsPlayer {
     int sound_state;
 };
 
-typedef char MwsStHandleSizeCheck[sizeof(MwsStHandle) == 0x18 ? 1 : -1];
 typedef char MwsPlayerSizeCheck[sizeof(MwsPlayer) == 0x2B8 ? 1 : -1];
 
 extern void LSC_Stop(LSC* loader);
@@ -79,10 +72,6 @@ extern void MWSFSVM_Error(const char* message, ...);
 extern void MWSFTAG_InitTagInf(MwsPlayer* player);
 extern void MWSFTAG_ResetAinfSj(MwsPlayer* player);
 extern int MWSFTAG_SetAinfSj(MwsPlayer* player);
-extern void MWSST_Pause(MwsStHandle* sound, int paused);
-extern void MWSST_Reset(MwsPlayer* player);
-extern void MWSST_StartSj(MwsStHandle* sound);
-extern void MWSST_Stop(MwsStHandle* sound);
 extern int MWSTM_GetStat(ADXStream* stream);
 extern void MWSTM_ReqStop(ADXStream* stream);
 extern int SFD_Pause(SfdHandle* handle, int paused);
@@ -125,7 +114,7 @@ void mwPlyChkSupply(MwsPlayer* player)
 void MWSFPLY_SetFlowLimit(MwsPlayer* player)
 {
     int flow_limit = player->flow_limit;
-    int adjusted_limit = (int)(0.8 * flow_limit);
+    int adjusted_limit = 0.8 * flow_limit;
 
     MWSFD_SetFlowLimit(player, adjusted_limit, flow_limit);
 }

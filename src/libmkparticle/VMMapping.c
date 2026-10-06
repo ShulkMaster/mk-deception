@@ -84,26 +84,27 @@ BOOL __VMIsARAMPageDirty(u32 virtual_address)
     return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
-/* TODO: [breakthrough needed] 28.71%; arena allocation/clear lowering remains unverified against retail. */
+/* TODO: [near miss] 68.93%; clear loop agrees; arena pointer copy/publication and zero setup remain. */
 void __VMAllocVirtualToARAMLUT(void)
 {
     u32 i;
 
     g_baseVMtoARAM = OSGetArenaLo();
     OSSetArenaLo(g_baseVMtoARAM + 0x2000);
-    for (i = 0; i < 0x2000; i++) {
+    for (i = 0; i != 0x2000; i++) {
         g_baseVMtoARAM[i] = 0;
     }
 }
 
-/* TODO: [breakthrough needed] 30.90%; arena allocation/clear lowering remains unverified against retail. */
+/* TODO: [near miss] 98.20%; equality loop restores the retail clear body;
+ * CTR/index/zero setup ordering and zero-copy peephole remain. */
 void __VMAllocARAMToVirtualLUT(void)
 {
     u32 i;
 
     g_baseARAMtoVM = OSGetArenaLo();
     OSSetArenaLo(g_baseARAMtoVM + 0x1000);
-    for (i = 0; i < 0x1000; i++) {
+    for (i = 0; i != 0x1000; i++) {
         g_baseARAMtoVM[i] = 0;
     }
 }

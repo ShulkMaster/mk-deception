@@ -216,7 +216,7 @@ static void render_player_joints(PlayerCollisionData* collision);
 static float p_collision_update(void);
 static void update_players_collision_nodes(void);
 void render_col_shape(
-    const CollisionShape* shape, const unsigned int* color);
+    CollisionShape* shape, const unsigned int* color);
 static void build_col_shape_vertical_box_from_corners(
     CollisionShape* shape, const Vec* corner_0, const Vec* corner_1,
     const Vec* corner_2, const Vec* corner_3);
@@ -2616,9 +2616,9 @@ void build_col_shape_vertical_cylinder(
     }
 }
 
-/* TODO: [breakthrough] 74.27%; output/input vector flow and unsigned colors recovered; radius caching adds an FPR/frame save. */
+/* TODO: [breakthrough] 85.26%; mutable shape aliasing recovered; inspect remaining transform-loop codegen. */
 void render_col_shape(
-    const CollisionShape* shape, const unsigned int* color) {
+    CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[16];
     RwIm3DVertex* vertex;
     const unsigned char* color_channels;
@@ -3590,7 +3590,7 @@ void render_collision_regions(void) {
 }
 
 static inline void collision_render_sphere_outline(
-    const CollisionShape* shape, const unsigned int* color) {
+    CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[16];
     RwIm3DVertex* vertex;
     const unsigned char* color_channels;

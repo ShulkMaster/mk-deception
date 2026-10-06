@@ -140,6 +140,26 @@
     { "name": "gTRKInterruptVectorTable", "assembly": "TRK_MINNOW_DOLPHIN.a/MetroTRK/Processor/ppc/Generic/__exception.s", "address": "0x800034AC", "size": "0x1F34" },
     { "name": "TRK__write_aram", "assembly": "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.s", "address": "0x802018EC", "size": "0x1EC" },
     { "name": "TRK__read_aram", "assembly": "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.s", "address": "0x80201AD8", "size": "0x134" },
-    { "name": "GXLoadLightObjImm_PushLight", "assembly": "gx.a/GXLight.s", "function": "GXLoadLightObjImm", "address": "0x801F9914", "size": "0x48", "operands": { "lt_obj": "r3", "dest": "r4", "color": "r0", "zero": "r6", "a0_a1": "f5", "a2_k0": "f4", "k1_k2": "f3", "px_py": "f2", "pz_dx": "f1", "dy_dz": "f0" } }
+    { "name": "GXLoadLightObjImm_PushLight", "assembly": "gx.a/GXLight.s", "function": "GXLoadLightObjImm", "address": "0x801F9914", "size": "0x48", "operands": { "lt_obj": "r3", "dest": "r4", "color": "r0", "zero": "r6", "a0_a1": "f5", "a2_k0": "f4", "k1_k2": "f3", "px_py": "f2", "pz_dx": "f1", "dy_dz": "f0" } },
+    { "name": "__cvt_dbl_usll", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x80203A50", "size": "0xCC" },
+    { "name": "__shr2i", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x80203A28", "size": "0x28" },
+    { "name": "__shr2u", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x80203A04", "size": "0x24" },
+    { "name": "__shl2i", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802039E0", "size": "0x24" },
+    { "name": "__mod2u", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802038FC", "size": "0xE4" },
+    { "name": "__div2i", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802037C4", "size": "0x138" },
+    { "name": "__div2u", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802036D8", "size": "0xEC" },
+    { "name": "__restore_gpr", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x8020368C", "size": "0x4C", "entries": ["_restgpr_14", "_restgpr_17", "_restgpr_18", "_restgpr_19", "_restgpr_20", "_restgpr_21", "_restgpr_22", "_restgpr_23", "_restgpr_24", "_restgpr_25", "_restgpr_26", "_restgpr_27", "_restgpr_28", "_restgpr_29"] },
+    { "name": "__save_gpr", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x80203640", "size": "0x4C", "entries": ["_savegpr_14", "_savegpr_17", "_savegpr_18", "_savegpr_19", "_savegpr_20", "_savegpr_21", "_savegpr_22", "_savegpr_23", "_savegpr_24", "_savegpr_25", "_savegpr_26", "_savegpr_27", "_savegpr_28", "_savegpr_29"] },
+    { "name": "__restore_fpr", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802035F4", "size": "0x4C", "entries": ["_restfpr_25", "_restfpr_26", "_restfpr_27", "_restfpr_28", "_restfpr_29"] },
+    { "name": "__save_fpr", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x802035A8", "size": "0x4C", "entries": ["_savefpr_25", "_savefpr_26", "_savefpr_27", "_savefpr_28", "_savefpr_29"] },
+    { "name": "__cvt_fp2unsigned", "assembly": "Runtime.PPCEABI.H.a/runtime.s", "address": "0x8020354C", "size": "0x5C" },
+    { "name": "longjmp", "assembly": "Runtime.PPCEABI.H.a/Gecko_setjmp.s", "address": "0x80203C20", "size": "0x110" },
+    { "name": "__setjmp", "assembly": "Runtime.PPCEABI.H.a/Gecko_setjmp.s", "address": "0x80203B1C", "size": "0x104" },
+    { "name": "mpvumc_OutputIntra6blk", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x802965E4", "size": "0x17C" },
+    { "name": "mpvumc_OneMakeMb", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x80295F88", "size": "0x27C" },
+    { "name": "mpvumc_BiMakeMb", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x80295B90", "size": "0x3F8", "symbols": { "const_mem$89": "const_mem" } },
+    { "name": "MPVUMC_SetGqr", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x8029680C", "size": "0x28" },
+    { "name": "cnvDynamicYcc420plnToArgb8888_Body", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "function": "cnvDynamicYcc420plnToArgb8888", "address": "0x802C0B74", "size": "0x4D4", "text": true, "stack": { "name": "slot", "offset": "0x8", "size": "0x20" } },
+    { "name": "cnvStaticYcc420plnToArgb8888_Body", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "function": "cnvStaticYcc420plnToArgb8888", "address": "0x802C1124", "size": "0x444", "text": true, "stack": { "name": "slot", "offset": "0x8", "size": "0x20" }, "symbols": { "@494": "cft_version_string+0x50" } }
   ]
 }

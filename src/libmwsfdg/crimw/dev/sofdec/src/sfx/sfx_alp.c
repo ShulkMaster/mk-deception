@@ -75,8 +75,8 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.64%; CFG/stores exact; li 0xFF must schedule after stw 100
- * (shared r0); RE4's only match seeds that via register + inline asm, so stop. */
+/* TODO: [near miss] 84.64%; CFG/stores agree; initializer constants/address scheduling remains;
+ * prior honest forms exhausted; verify object scheduling mode. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {

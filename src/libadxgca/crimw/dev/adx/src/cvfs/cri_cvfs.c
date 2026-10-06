@@ -283,6 +283,7 @@ static inline void splitPath(char* device, char* file, const char* path)
 {
     int device_index;
     int file_index;
+    int write_index;
 
     if (path == NULL) {
         return;
@@ -309,13 +310,14 @@ static inline void splitPath(char* device, char* file, const char* path)
         device[0] = '\0';
     }
 
+    write_index = device_index;
     for (file_index = device_index; file_index < 297; file_index++) {
         if (path[file_index] == '\0') {
             break;
         }
-        file[file_index - device_index] = path[file_index];
+        file[write_index++ - device_index] = path[file_index];
     }
-    file[file_index - device_index] = '\0';
+    file[write_index - device_index] = '\0';
     toUpperStr(device);
 }
 
@@ -333,34 +335,70 @@ static inline int callPathOption(CvFsInterface* interface)
     return result;
 }
 
+static inline CvFsInterface* findDevice(CvFsDevice* table, const char* name,
+                                        int length)
+{
+    CvFsDevice* device;
+    unsigned long i;
+
+    device = table;
+    for (i = 0; i < 32; i++) {
+        if (strncmp(name, device->name, length) == 0) {
+            return cvfs_tbl[i].interface;
+        }
+        device++;
+    }
+    return NULL;
+}
+
+static inline CvFsInterface* searchDevice(CvFsDevice* table, const char* name)
+{
+    unsigned long i;
+    int length;
+
+    length = strlen(name);
+    for (i = 0; i < 32; i++) {
+        if (strncmp(name, table[i].name, length) == 0) {
+            return cvfs_tbl[i].interface;
+        }
+    }
+    return NULL;
+}
+
+static inline int wantsDevicePrefix(CvFsDevice* table, const char* name,
+                                    int length)
+{
+    return callPathOption(findDevice(table, name, length)) == 1;
+}
+
 static inline CvFsInterface* resolveDevice(char* device, char* file,
                                            const char* original_path)
 {
     CvFsInterface* interface;
+    CvFsDevice* table;
     const char* lookup_name;
-    char* parsed_device = device;
+    int length;
 
-    if (parsed_device[0] == '\0') {
-        getDefaultDevice(parsed_device);
-        if (parsed_device[0] == '\0') {
+    if (device[0] == '\0') {
+        getDefaultDevice(device);
+        if (device[0] == '\0') {
             return NULL;
         }
     }
 
-    lookup_name = parsed_device;
-    if (parsed_device == NULL) {
+    lookup_name = device;
+    if (lookup_name == NULL) {
         lookup_name = cvfs_defdev;
     }
-
-    interface = getDevice(lookup_name);
-    if (callPathOption(interface) == 1) {
+    length = strlen(lookup_name);
+    table = cvfs_tbl;
+    if (wantsDevicePrefix(table, lookup_name, length)) {
         prefixDeviceName(file, lookup_name);
     }
-
-    interface = getDevice(parsed_device);
+    interface = searchDevice(table, device);
     if (interface == NULL) {
-        getDefaultDevice(parsed_device);
-        interface = getDevice(parsed_device);
+        getDefaultDevice(device);
+        interface = searchDevice(table, device);
         if (interface == NULL) {
             return NULL;
         }
@@ -369,7 +407,7 @@ static inline CvFsInterface* resolveDevice(char* device, char* file,
     return interface;
 }
 
-static inline CvFsObject* allocateHandle(void)
+static inline void* allocateHandle(void)
 {
     int i;
 
@@ -427,12 +465,13 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 99.14%; CFG, calls, widths, and layout match; residual is register coloring in split-path loops. */
+/* TODO: [near miss] 99.75%; device_name r27 vs retail r28 and device-table r28 vs r27 swap remain; stack-array order is the only decl lever. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
     char device[297];
     char file[297];
+    char* device_name;
 
     if (filename == NULL) {
         cvFsError(size_bad_name);
@@ -445,7 +484,8 @@ int cvFsGetFileSize(const char* filename)
         return 0;
     }
 
-    interface = resolveDevice(device, file, filename);
+    device_name = device;
+    interface = resolveDevice(device_name, file, filename);
     if (device == NULL) {
         cvFsError(size_bad_device);
     }
@@ -564,12 +604,12 @@ void cvFsClose(CvFsObject* handle)
     }
 }
 
-/* TODO: [near miss] 99.28%; stored-interface reload now matches; filename/device-table coloring and splitPath increment order remain. */
 CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
 {
     CvFsObject* handle;
     char device[297];
     char file[297];
+    char* device_name;
 
     if (filename == NULL) {
         cvFsError(open_bad_name);
@@ -588,7 +628,8 @@ CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
         return NULL;
     }
 
-    handle->interface = resolveDevice(device, file, filename);
+    device_name = device;
+    handle->interface = resolveDevice(device_name, file, filename);
     if (device == NULL) {
         releaseHandle(handle);
         cvFsError(open_bad_device);

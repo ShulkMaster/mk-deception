@@ -1,7 +1,7 @@
 #include "cri/sj.h"
+#include "sofdec/sfd_transport.h"
 
 typedef struct LSC LSC;
-typedef struct SfdHandle SfdHandle;
 typedef struct MwsSupply MwsSupply;
 
 typedef struct MwsSupplyInterface {
@@ -34,7 +34,6 @@ typedef struct MwsPlayer {
 
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
 extern void MWSFSVM_Error(const char* message, ...);
-extern int SFD_SetConcatPlay(SfdHandle* handle);
 extern void LSC_SetFlowLimit(LSC* loader, int minimum_buffer_size);
 extern int LSC_GetStat(LSC* loader);
 extern void LSC_Stop(LSC* loader);
@@ -46,7 +45,6 @@ extern void mwSfdStartSj(MwsPlayer* player, SJ* stream);
 extern void MWSFPLY_SetFlowLimit(MwsPlayer* player);
 extern void MWSFCRE_SetSupplySj(MwsPlayer* player);
 
-/* This retail unit keeps the complete seamless-play diagnostic catalog. */
 static const char filename_format[] = "%08x.%08x";
 static const char start_invalid[] =
     "E1122630: mwPlyStartFnameLp: handle is invalid.";
@@ -146,7 +144,7 @@ static inline void mwPlySetLpFlg(MwsPlayer* player, int loop)
 
 static inline void mwPlyStartSub(void* handle)
 {
-    MwsPlayer* player = (MwsPlayer*)handle;
+    MwsPlayer* player = handle;
 
     mwPlyLinkStm(handle, 1);
     mwSfdStartSj(player, player->input_sj);

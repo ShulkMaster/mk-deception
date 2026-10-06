@@ -35,7 +35,7 @@ unsigned int genlrand(void) {
     return y;
 }
 
-/* TODO: [near miss] 98.39%; final twist accumulation improved; zero, state base and remaining tail GPRs differ. */
+/* TODO: [near miss] 98.39%; both loops agree; final twist has only volatile-register coloring. */
 void reload_rnd_tbl(void) {
     int idx;
     unsigned int y;

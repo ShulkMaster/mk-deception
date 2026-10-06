@@ -35,7 +35,6 @@ int privGetLoadHighFromFlags(u32 flags) {
     return (flags >> 5) & 1;
 }
 
-/* TODO: [near miss] 96.59%; switch uses r0 for masked flags where retail uses r4 and retains an extra upper-range branch. */
 int privGetAlignFromMwMemFlags(u32 flags) {
     int alignment_flags;
 
@@ -43,25 +42,26 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     switch (alignment_flags) {
     case 1:
     case 4:
-        return 4;
+        return MW_MEM_ALIGN_16;
     case 5:
-        return 5;
+        return MW_MEM_ALIGN_32;
     case 6:
-        return 6;
+        return MW_MEM_ALIGN_64;
     case 7:
-        return 7;
+        return MW_MEM_ALIGN_128;
     case 2:
     case 8:
-        return 8;
+        return MW_MEM_ALIGN_256;
     case 0x80:
-        return 0;
+        return MW_MEM_ALIGN_NONE;
     case 0:
     case 3:
     case 0x10:
     case 0x20:
     case 0x40:
+    case MW_MEM_ALIGN_FORCE_32BIT:
     default:
-        return 4;
+        return MW_MEM_ALIGN_16;
     }
 }
 

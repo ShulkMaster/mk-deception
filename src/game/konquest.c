@@ -7703,7 +7703,7 @@ void render_konquest_shadows(void) {
             return;
         }
         pdata_monk.shadowbox->hide_flag_bits.hidden = 0;
-        UpdateShadow(hero, (ShadowObject*)&pdata_monk, hero);
+        UpdateShadow(hero, &pdata_monk, hero);
         if (fix_camera_flip == 1) {
             pdata_monk.shadowbox->ang.y -= 3.1415927f;
             fix_camera_flip = 0;

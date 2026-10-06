@@ -1,39 +1,30 @@
-/*
- * Dynamic stream-file reader. Retail owns five 0x4000-byte buffers, five
- * in-flight read records, and 32 generation-tagged pending requests.
- *
- */
+
 #include "msl/mslStreamFile.h"
 #include "msl/mslStreamFile_internal.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"
 #include "msl/mslsupport.h"
 
-typedef unsigned int u32;
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int mslDSB_RequestHandleValue;
-
 union mslDSB_RequestHandle {
-    mslDSB_RequestHandleValue value;
+    unsigned int value;
     struct {
-        u16 index;
-        u16 generation;
+        unsigned short index;
+        unsigned short generation;
     } parts;
 };
 
 static inline unsigned int mslDSB_HandleIndex(
-    mslDSB_RequestHandleValue handle) {
+    unsigned int handle) {
     return handle >> 16;
 }
 
-static inline mslDSB_RequestHandleValue mslDSB_HandleFromOpaque(
+static inline unsigned int mslDSB_HandleFromOpaque(
     void* opaque_handle) {
-    return (mslDSB_RequestHandleValue)(unsigned long)opaque_handle;
+    return (unsigned long)opaque_handle;
 }
 
 static inline void* mslDSB_HandleToOpaque(
-    mslDSB_RequestHandleValue handle) {
+    unsigned int handle) {
     return (void*)(unsigned long)handle;
 }
 
@@ -59,10 +50,10 @@ struct mslDSB_FileRead {
     mslDSB_FileRead* previous;
     void* buffer;
     mwFileCommand* command;
-    u32 offset;
-    u32 size;
-    u32 callback_offset;
-    u32 callback_size;
+    unsigned int offset;
+    unsigned int size;
+    unsigned int callback_offset;
+    unsigned int callback_size;
     void* callback_buffer;
 };
 
@@ -71,16 +62,16 @@ struct mslDSB_PendingAsyncRead {
     mslDSB_FileRead* first_read;
     mslDSB_FileRead* last_read;
     _mwFile* file;
-    u8 priority;
-    u8 pad11[3];
-    u32 request_offset;
-    u32 request_size;
-    u32 remaining;
-    u32 next_offset;
-    u8 in_use;
-    u8 queued;
-    u8 final_issued;
-    u8 error;
+    unsigned char priority;
+    unsigned char pad11[3];
+    unsigned int request_offset;
+    unsigned int request_size;
+    unsigned int remaining;
+    unsigned int next_offset;
+    unsigned char in_use;
+    unsigned char queued;
+    unsigned char final_issued;
+    unsigned char error;
     int active_reads;
     mslDSB_RequestHandle handle;
     mslStreamFileCallback callback;
@@ -94,14 +85,13 @@ struct mslDSB_PendingQueue {
 
 mslDSB_PendingAsyncRead DSB_PAR_Pool[32];
 mslDSB_FileRead DSB_FILEREAD_Pool[5];
-/* Retail DMA buffers require 32-byte alignment at .bss+0x7E0. Data pooling
- * and common-symbol flags cannot express it without changing other layouts. */
-u8 g_DSB_Buffers[5][0x4000] __attribute__((aligned(32)));
+
+unsigned char g_DSB_Buffers[5][0x4000] __attribute__((aligned(32)));
 
 mslDSB_PendingAsyncRead* DSB_PAR_FreeList;
 mslDSB_PendingQueue DSB_PAR_Queue;
 mslDSB_FileRead* DSB_FILEREAD_FreeList;
-u8 g_DSB_BufferFree[5];
+unsigned char g_DSB_BufferFree[5];
 
 static void mslDSB_CancelRead(mslDSB_PendingAsyncRead*, int);
 static void mslDSB_FileReadCompletionCallback(
@@ -110,11 +100,11 @@ static void mslStreamFile_ReturnBuffer_CB(void*);
 
 static inline int mslDSB_ReturnBuffer(void* buffer) {
     int result;
-    int difference = (u8*)buffer - &g_DSB_Buffers[0][0];
+    int difference = (unsigned char*)buffer - &g_DSB_Buffers[0][0];
     int index;
 
     if (difference >= 0 &&
-        (index = difference / 0x4000) < 5) {
+        (index = difference / (int)sizeof(g_DSB_Buffers[0])) < 5) {
         result = 1;
         g_DSB_BufferFree[index] = 1;
     } else {
@@ -246,7 +236,7 @@ static inline void mslDSB_AllocPending(mslDSB_PendingAsyncRead*& request) {
     request = DSB_PAR_FreeList;
 
     if (request != 0) {
-        mslDSB_RequestHandleValue handle;
+        unsigned int handle;
         DSB_PAR_FreeList = request->next;
         handle = request->handle.value;
         memset(request, 0, sizeof(*request));
@@ -332,7 +322,7 @@ static inline void mslDSB_UnlinkFileRead(
 }
 
 static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
-    mslDSB_RequestHandleValue handle;
+    unsigned int handle;
     unsigned long enabled = OSDisableInterrupts();
 
     request->in_use = 0;
@@ -469,11 +459,9 @@ void mslDSB_ServiceNextRead(void) {
     int started = 0;
     unsigned long enabled = OSDisableInterrupts();
 
-    {
-        unsigned long inner = OSDisableInterrupts();
-        request = DSB_PAR_Queue.first;
-        OSRestoreInterrupts(inner);
-    }
+    unsigned long queue_enabled = OSDisableInterrupts();
+    request = DSB_PAR_Queue.first;
+    OSRestoreInterrupts(queue_enabled);
     if (request != 0) {
         buffer = mslDSB_AllocBuffer();
         if (buffer != 0) {
@@ -489,13 +477,13 @@ void mslDSB_ServiceNextRead(void) {
 
     if (started) {
         while (read != 0) {
-            u32 offset;
-            u32 size;
+            unsigned int offset;
+            unsigned int size;
             unsigned long inner = OSDisableInterrupts();
 
             size = request->remaining;
-            if (size > 0x4000) {
-                size = 0x4000;
+            if (size > sizeof(g_DSB_Buffers[0])) {
+                size = sizeof(g_DSB_Buffers[0]);
             }
             offset = request->next_offset;
             read->owner = request;
@@ -540,8 +528,7 @@ void mslDSB_ServiceNextRead(void) {
  * saved-register allocation and string-symbol references remain. */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
-    /* Retail ignores the file result argument; only the owning request's
-     * error latch selects the error callback path. */
+
     mslDSB_PendingAsyncRead* request;
     mslStreamFileCallback callback;
     void* data;
@@ -573,8 +560,8 @@ static void mslDSB_FileReadCompletionCallback(
     }
 
     if (callback != 0) {
-        u32 offset = read->callback_offset;
-        u32 size = read->callback_size;
+        unsigned int offset = read->callback_offset;
+        unsigned int size = read->callback_size;
         offset -= request->request_offset;
 
         if (error == 0) {
@@ -611,7 +598,7 @@ static void mslDSB_FileReadCompletionCallback(
             callback = 0;
         }
     } else if (request->active_reads == 0) {
-        mslDSB_RequestHandleValue handle;
+        unsigned int handle;
         request->in_use = 0;
         handle = request->handle.value;
         memset(request, 0, sizeof(*request));

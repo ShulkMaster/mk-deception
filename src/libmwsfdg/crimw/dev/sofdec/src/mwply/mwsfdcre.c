@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "sofdec/mws_sound.h"
 #include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
 #include "sofdec/sfd_mpvf.h"
@@ -10,13 +11,6 @@ typedef struct MwsPlayer MwsPlayer;
 typedef void* (*MwsMallocFn)(void*, int);
 typedef void (*MwsFreeFn)(void*, void*);
 
-typedef struct MwsStHandle {
-    int active;
-    unsigned char reserved_004[8];
-    SJ* stream;
-    int element_id;
-    void* backend;
-} MwsStHandle;
 
 typedef struct MwsPictureUserConfig {
     void* buffer;
@@ -51,7 +45,7 @@ struct MwsPlayer {
     const void* interface;
     int active;
     int status;
-    MwsCreateParams create; /* +0x0C - copy of the creation parameters */
+    MwsCreateParams create;
     int playback_mode;
     SfdHandle* sfd;
     ADXStream* stream;
@@ -120,8 +114,8 @@ struct MwsPlayer {
 typedef struct MwsLibraryWork {
     int field_00;
     float frame_rate;
-    int video_frequency; /* +0x08 - reference refresh rate */
-    int frame_pool;      /* +0x0C - frames held by the decoder pool */
+    int video_frequency;
+    int frame_pool;
     int field_10;
     unsigned char reserved_014[0x14];
     MwsMallocFn malloc_fn;
@@ -157,16 +151,14 @@ typedef struct MwsPlayerInterface {
     void (*start_memory)(MwsPlayer*, void*, int);
 } MwsPlayerInterface;
 
-typedef char MwsStHandleSizeCheck[sizeof(MwsStHandle) == 0x18 ? 1 : -1];
 typedef char MwsCreateParamsSizeCheck[sizeof(MwsCreateParams) == 0x30 ? 1 : -1];
 typedef char MwsPlayerSizeCheck[sizeof(MwsPlayer) == 0x2B8 ? 1 : -1];
 typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 typedef char MwsPlayerInterfaceSizeCheck[sizeof(MwsPlayerInterface) == 0x44 ? 1 : -1];
 
-extern const SfdTransportInterface SFD_tr_in_mem, SFD_tr_sd_mps;
+extern const SfdTransportInterface SFD_tr_sd_mps;
 extern const SfdTransportInterface SFD_tr_vd_mpv, SFD_tr_ad_adxt;
 extern const SfdTransportInterface SFD_tr_vo_manu, SFD_tr_ao_auto_p;
-extern const SfdTransportInterface SFD_tr_uo;
 extern MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int);
 extern void MWSFLIB_SfdErrFunc(SfdCallbackObject, int);
@@ -183,7 +175,6 @@ extern void MWSFTAG_InitTagInf(MwsPlayer*);
 extern int MWSFTAG_IsUseAinfSj(const MwsCreateParams*);
 extern void MWSFFRM_InitSfhInfTable(MwsPlayer*);
 extern void MWSFFRM_SetShfCbFn(MwsPlayer*);
-extern void MWSST_Destroy(MwsStHandle*);
 extern SFXHandle* MWSFSFX_Create(void*, int, int, int);
 extern void MWSFSFX_Destroy(SFXHandle*);
 extern int MWSFSFX_CalcHnWorkSiz(int, int);
@@ -269,20 +260,20 @@ static SfdMpvParameters mwsfd_mpvpara = {
 static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 0};
 static int mwsfd_packsize = 0x800;
 
-/* User-supplied frame buffers. */
+
 static int mwsfdcre_bufnum;
 static int mwsfdcre_bufsize;
 static void* mwsfdcre_bufptr[16];
-/* Component buffer sizes decided by mwsfcre_CreateSfd. */
-static int adxibuf;  /* ADXT input ring buffer */
-static int adxwk;    /* ADXT work */
-static int tab;      /* decoded frame table */
-static int rfb;      /* reference frame buffers */
-static int aib;      /* audio input buffer */
-static int vib;      /* video input buffer */
-static int sib;      /* system input buffer */
-static int sjb;      /* file stream joint ring buffer */
-static unsigned char* mwsfd_sisjadr; /* 64-byte aligned stream joint buffer */
+
+static int adxibuf;
+static int adxwk;
+static int tab;
+static int rfb;
+static int aib;
+static int vib;
+static int sib;
+static int sjb;
+static unsigned char* mwsfd_sisjadr;
 
 static inline void* mwsfcre_Alloc(MwsPlayer* player, int size)
 {
@@ -391,7 +382,7 @@ void mwPlySetMallocFn(MwsMallocFn malloc_fn, MwsFreeFn free_fn, void* object)
     work->allocator_object = object;
 }
 
-/* Decoder-side teardown; retail inlines it into mwSfdDestroy. */
+
 static inline void MWSFCRE_DestroySfd(MwsPlayer* player)
 {
     if (player->loader != 0) LSC_Destroy(player->loader);
@@ -455,8 +446,7 @@ static int mwsfcre_MallocCompoWork(MwsPlayer* player)
     return 0;
 }
 
-/* Linker-discarded in retail: installs user frame buffers instead of component work. Its
- * references give the .bss objects their retail first-reference order. */
+
 /* TODO: [blocked] emitted here but absent from retail; `inline` loses the .bss order, so this
  * relies on link-time dead stripping once mwsfdcre links (unverified while NonMatching). */
 void mwPlySetFrmBuf(int count, int size, void** buffers)
@@ -537,7 +527,7 @@ static inline void mwsfcre_SetSfdCond(MwsPlayer* player, MwsLibraryWork* work)
     SFD_SetCond(sfd, 0, 0);
     SFD_SetCond(sfd, 0x17, 4);
     frame_time = create_picture_rounding_half + (float)(frequency * pool * 1000);
-    frames = (int)frame_time;
+    frames = frame_time;
     if ((float)frames > frame_time) frames--;
     SFD_SetCond(sfd, 0x2D, frames);
     SFD_SetCond(sfd, 0x2C, frames);
@@ -559,6 +549,9 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
     SFXHandle* sfx;
     int flow_limit;
     int index;
+    int sector_count;
+    int maximum_bps;
+    int file_type;
 
     if (params == 0) {
         MWSFSVM_Error(create_parameter_null);
@@ -595,23 +588,18 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
     }
     mwsfcre_AttachPictureUser(player, create_picture_short_message);
 
-    {
-        int sector_count = params->decoder_count;
-        int maximum_bps;
-        int file_type;
-
-        file_type = params->file_type;
-        maximum_bps = params->maximum_bps;
-        if (sector_count <= 0) {
-            sector_count = 1;
-        }
-        if (file_type == 2) {
-            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
-        } else if (file_type == 3) {
-            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
-        } else {
-            flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
-        }
+    sector_count = params->decoder_count;
+    file_type = params->file_type;
+    maximum_bps = params->maximum_bps;
+    if (sector_count <= 0) {
+        sector_count = 1;
+    }
+    if (file_type == 2) {
+        flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
+    } else if (file_type == 3) {
+        flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
+    } else {
+        flow_limit = sector_count * (maximum_bps / 8 / 0x800 * 0x800);
     }
     mwsfcre_SetSfdCond(player, work);
 
@@ -792,7 +780,7 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
     return result;
 }
 
-/* Component allocation through a sized local (retail keeps the size test). */
+
 static inline void* mwsfcre_MallocWk(MwsPlayer* player, int work_size)
 {
     int size = work_size;
@@ -831,41 +819,43 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     int rfb_result;
     int output_format;
     int allocation_size;
+    MwsPictureUserConfig* picture_user;
+    int current_height;
+    int current_width;
+    int sector_count;
+    int bps;
 
     file_type = params->file_type;
     frame_count = params->frame_count;
     width = params->width;
     height = params->height;
-    {
-        int sector_count = params->decoder_count;
-        int bps;
+    sector_count = params->decoder_count;
 
-        bps = params->maximum_bps;
-        if (sector_count <= 0) {
-            sector_count = 1;
-        }
-        if (file_type == 2) {
-            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
-            sib = 0;
-            vib = 0;
-            aib = 0;
-            adxibuf = 0;
-            adxwk = 0;
-        } else if (file_type == 3) {
-            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
-            vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
-            sib = 0;
-            aib = 0;
-            adxibuf = 0;
-            adxwk = 0;
-        } else {
-            sjb = sector_count * (bps / 8 / 0x800 * 0x800);
-            vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
-            sib = 0;
-            aib = 0x5DCC;
-            adxibuf = 0x5F0C;
-            adxwk = 0xC1C0;
-        }
+    bps = params->maximum_bps;
+    if (sector_count <= 0) {
+        sector_count = 1;
+    }
+    if (file_type == 2) {
+        sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+        sib = 0;
+        vib = 0;
+        aib = 0;
+        adxibuf = 0;
+        adxwk = 0;
+    } else if (file_type == 3) {
+        sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+        vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
+        sib = 0;
+        aib = 0;
+        adxibuf = 0;
+        adxwk = 0;
+    } else {
+        sjb = sector_count * (bps / 8 / 0x800 * 0x800);
+        vib = bps / 8 / 0x800 * 0x800 / 2 + 0x800;
+        sib = 0;
+        aib = 0x5DCC;
+        adxibuf = 0x5F0C;
+        adxwk = 0xC1C0;
     }
 
     if (mwsfdcre_bufnum != 0) {
@@ -902,7 +892,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         audio_stream_buffer = 0;
         audio_decoder_work = 0;
     }
-    picture_user_work = mwsfcre_MallocX(player, 0x800);
+    picture_user_work = mwsfcre_MallocX(player, sizeof(*picture_user_work));
     decoder_work = mwsfcre_MallocWk(player, 0x4000);
     video_work = mwsfcre_MallocWk(player, 0x700);
     filename_work = mwsfcre_MallocX(player, 0x100);
@@ -923,21 +913,17 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
 
     mwsfd_sisjadr = (unsigned char*)
         (((unsigned int)stream_work + 0x3F) & ~0x3F);
-    {
-        int current_height;
-        int current_width;
-        current_width = params->width;
-        current_height = params->height;
-        mwsfd_mpvpara.chroma_width = (((current_width / 2) + 31) / 32) * 32;
-        mwsfd_mpvpara.chroma_height = current_height / 2;
-        mwsfd_mpvpara.width = current_width;
-        mwsfd_mpvpara.height = current_height;
-        mwsfd_mpvpara.reference_buffer = 0;
-        mwsfd_mpvpara.maximum_width = current_width;
-        mwsfd_mpvpara.maximum_height = current_height;
-        mwsfd_mpvpara.frame_count = frame_count;
-        mwsfd_mpvpara.frame_buffer = 0;
-    }
+    current_width = params->width;
+    current_height = params->height;
+    mwsfd_mpvpara.chroma_width = (((current_width / 2) + 31) / 32) * 32;
+    mwsfd_mpvpara.chroma_height = current_height / 2;
+    mwsfd_mpvpara.width = current_width;
+    mwsfd_mpvpara.height = current_height;
+    mwsfd_mpvpara.reference_buffer = 0;
+    mwsfd_mpvpara.maximum_width = current_width;
+    mwsfd_mpvpara.maximum_height = current_height;
+    mwsfd_mpvpara.frame_count = frame_count;
+    mwsfd_mpvpara.frame_buffer = 0;
     mwsfd_adxtpara.stream_buffer = audio_stream_buffer;
     mwsfd_adxtpara.decoder_buffer = audio_decoder_work;
 
@@ -1004,16 +990,14 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     player->filename = filename_work;
     player->filename_capacity = 0x100;
     player->picture_user_work = picture_user_work;
-    player->picture_user_header_size = 0x40;
+    player->picture_user_header_size = sizeof(picture_user_work->header);
     player->picture_user_write = 0;
     player->picture_user_read = 0;
-    {
-        MwsPictureUserConfig* picture_user = &player->internal_picture_user;
-        picture_user->buffer = picture_user_work->element_buffer;
-        picture_user->buffer_size = 0x7C0;
-        picture_user->element_size = 0x40;
-        player->picture_user = picture_user;
-    }
+    picture_user = &player->internal_picture_user;
+    picture_user->buffer = picture_user_work->element_buffer;
+    picture_user->buffer_size = sizeof(picture_user_work->element_buffer);
+    picture_user->element_size = 0x40;
+    player->picture_user = picture_user;
     return sfd;
 }
 

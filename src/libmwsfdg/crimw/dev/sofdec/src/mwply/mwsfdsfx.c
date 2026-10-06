@@ -3,6 +3,7 @@
 #include "runtime/cstring.h"
 #include "sofdec/sfd_transport.h"
 #include "sofdec/sfx.h"
+#include "sofdec/mws_ycc.h"
 
 typedef struct MwsPlayer {
     unsigned char reserved_000[0x0C];
@@ -47,30 +48,15 @@ typedef struct MwsFrameInfo {
     void* table_source;
 } MwsFrameInfo;
 
-typedef struct MwsYccPlane {
-    void* y;
-    void* cb;
-    void* cr;
-    int y_pitch;
-    int c_pitch;
-    int cr_pitch;
-} MwsYccPlane;
-
-typedef SFXFrameInfo MwsSfxFrameInfo;
-
 typedef char MwsPlayerSfxOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->sfx == 0xAC ? 1 : -1];
 typedef char MwsPlayerAdditionalInfoOffsetCheck[
     (unsigned long)&((MwsPlayer*)0)->additional_info_sj == 0x190 ? 1 : -1];
-typedef char MwsSfxFrameInfoSizeCheck[
-    sizeof(MwsSfxFrameInfo) == 0x88 ? 1 : -1];
 
 extern int mwPlyGetFxType(MwsPlayer* player);
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
 extern void MWSFSVM_Error(const char* message, ...);
 extern void mwSfdDestroy(MwsPlayer* player);
-extern void mwPlyCalcYccPlane(void* frame, int width, int height,
-                              MwsYccPlane* output);
 
 extern void SFX_Destroy(SFXHandle* handle);
 extern SFXHandle* SFX_Create(void* buffer, int buffer_size);
@@ -367,10 +353,10 @@ static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
     plane->height = height;
 }
 
-/* TODO: [near miss] 98.54%; CFG/offsets exact; player/output/pool-base coloring
- * (r29-r31 rotated) and cb-plane load order remain; RE4 needs kept `+ 0` copies. */
+/* TODO: [near miss] 98.54%; player/output/pool-base coloring and Cb-load order remain;
+ * typed pixel staging is neutral; prior local forms exhausted. */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
-                            MwsSfxFrameInfo* output)
+                            SFXFrameInfo* output)
 {
     int tag_size;
     void* tag_data;
@@ -405,7 +391,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     } else {
         mwPlyCalcYccPlane(input->frame, width, height, &plane);
         mwsfsfx_SetPln(&output->y, plane.y, plane.y_pitch, height);
-        mwsfsfx_SetPln(&output->cb, plane.cb, plane.c_pitch, height);
+        mwsfsfx_SetPln(&output->cb, plane.cb, plane.cb_pitch, height);
         mwsfsfx_SetPln(&output->cr, plane.cr, plane.cr_pitch, height);
     }
 
@@ -484,7 +470,7 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
 
 SFXHandle* MWSFSFX_GetSfxHn(MwsPlayer* player)
 {
-    return (SFXHandle*)player->sfx;
+    return player->sfx;
 }
 
 void MWSFSFX_Destroy(SFXHandle* sfx)

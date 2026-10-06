@@ -14,7 +14,7 @@ static inline float rnd_inverse_sqrt(float value) {
     float product;
     float correction;
 
-    if (!(0.0f < value)) {
+    if (value <= 0.0f) {
         return 0.0f;
     }
     estimate.f = value;
@@ -35,25 +35,29 @@ static inline void rnd_cross(PfxVec3* output, const PfxVec3* left,
 static inline void rnd_normalize(PfxVec3* vector) {
     float inverse = rnd_inverse_sqrt(
         vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
-    vector->x *= inverse;
-    vector->y *= inverse;
-    vector->z *= inverse;
+    vector->x = vector->x * inverse;
+    vector->y = vector->y * inverse;
+    vector->z = vector->z * inverse;
 }
 
 static inline float rnd_sqrt_table(float value) {
+    union RandomFloatBits input;
     union RandomFloatBits estimate;
     unsigned int bits;
+    float result;
 
-    if (!(0.0f < value)) {
-        return 0.0f;
+    input.f = value;
+    if (value <= 0.0f) {
+        result = 0.0f;
+    } else {
+        bits = input.u;
+        estimate.u = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
+        estimate.u |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) &
+            0x7F800000U;
+        result = 0.5f * (estimate.f *
+            (3.0f - (estimate.f * estimate.f) / value));
     }
-    estimate.f = value;
-    bits = estimate.u;
-    estimate.u = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
-    estimate.u |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) &
-        0x7F800000U;
-    return 0.5f * estimate.f *
-        (3.0f - (estimate.f * estimate.f) / value);
+    return result;
 }
 
 float rnd_between(float minimum, float maximum) {
@@ -71,8 +75,8 @@ void rnd_line_1i(int minimum, int maximum, int* output) {
     *output = minimum + (int)((maximum - minimum + 1) * frand(1.0f));
 }
 
-void rnd_sphere(PfxVec3* output, const PfxVec3* origin, int quadratic_radius,
-                float minimum_radius, float maximum_radius) {
+void rnd_sphere(PfxVec3* output, const PfxVec3* origin,
+                float minimum_radius, float maximum_radius, int quadratic_radius) {
     float radius;
     float x;
     float y;
@@ -90,17 +94,21 @@ void rnd_sphere(PfxVec3* output, const PfxVec3* origin, int quadratic_radius,
     y = rnd_between(-1.0f, 1.0f);
     z = rnd_between(-1.0f, 1.0f);
     scale = radius / (float)sqrt(x * x + y * y + z * z);
-    output->x = origin->x + x * scale;
-    output->y = origin->y + y * scale;
-    output->z = origin->z + z * scale;
+    x *= scale;
+    y *= scale;
+    z *= scale;
+    output->x = origin->x + x;
+    output->y = origin->y + y;
+    output->z = origin->z + z;
 }
 
+/* TODO: [breakthrough] 77.13%; axial read phase corrected; original vector storage/normalization boundary remains unresolved. */
 void rnd_point_in_cylinder(PfxVec3* output, const PfxVec3* axis,
                            float radial_center, float radial_spread,
                            float axial_center, float axial_spread) {
     PfxVec3 random_vector;
     PfxVec3 radial;
-    PfxVec3 axial = *axis;
+    PfxVec3 axial;
     float radial_distance = rnd_between(
         radial_center - radial_spread, radial_center + radial_spread);
     float axial_distance = rnd_between(
@@ -114,6 +122,7 @@ void rnd_point_in_cylinder(PfxVec3* output, const PfxVec3* axis,
     radial.x *= radial_distance;
     radial.y *= radial_distance;
     radial.z *= radial_distance;
+    axial = *axis;
     rnd_normalize(&axial);
     axial.x *= axial_distance;
     axial.y *= axial_distance;
@@ -123,6 +132,7 @@ void rnd_point_in_cylinder(PfxVec3* output, const PfxVec3* axis,
     output->z = axial.z + radial.z;
 }
 
+/* TODO: [breakthrough needed] 82.26%; output is used as scratch before radius sampling; recover original local-vector/compiler boundary. */
 void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
                        float minimum_radius, float maximum_radius) {
     PfxVec3 random_vector;
@@ -139,16 +149,15 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z *= radius;
 }
 
-/* TODO: [breakthrough] 45.0%; sqrt halfword indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough needed] retail keeps axial/random/perpendicular PfxVec3 temporaries in memory (stfs/lfs), ours promotes them to FPRs; stack order now retail. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
                                  float angle, float angle_spread) {
+    PfxVec3 perpendicular;
     PfxVec3 axial;
     PfxVec3 random_vector;
-    PfxVec3 perpendicular;
-    float cosine;
     float sine;
+    float cosine;
     float axial_length;
 
     gxMathCosSin(&cosine, &sine,
@@ -172,6 +181,7 @@ void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
     output->z = perpendicular.z + axial.z * cosine;
 }
 
+/* TODO: [borked] 89.59%; output stores precede retail local-Vec phase; recover scalar publication boundary. */
 void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
                            const PfxVec3* end, float minimum_length,
                            float length_range) {
@@ -187,13 +197,12 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
     output->z *= length;
 }
 
-/* TODO: [breakthrough] 58.456375%; sqrt halfword indexing corrected;
- * remaining source-shape/FP differences need localized retail audit. */
+/* TODO: [breakthrough] 82.23%; sqrt bit views and trig slots agree; recover stack-owned random/perpendicular phases. */
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     PfxVec3 random_vector;
     PfxVec3 perpendicular;
-    float cosine;
     float sine;
+    float cosine;
     float length;
 
     gxMathCosSin(&cosine, &sine,

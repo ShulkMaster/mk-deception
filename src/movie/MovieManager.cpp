@@ -119,42 +119,38 @@ MoviePlayer* MovieNewFullScreen(int width, int height) {
     return MovieNew(0, 1, 0, width, height, 0, 0x2DC6C0);
 }
 
-/* TODO: [near miss] 75.65%; retail playback block precedes invalid-state log; branch/block placement remains. */
 void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
     switch (movie->state) {
-    case 0:
-        break;
     case 1:
     case 2:
         movie_stop_inline(movie);
+    case 0:
+        mwMovieStartPlayback(movie->handle, path);
+        movie->state = 1;
         break;
     default:
         mwMovLog(STR_INVALID_START);
-        return;
+        break;
     }
-    mwMovieStartPlayback(movie->handle, path);
-    movie->state = 1;
 }
 
 MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height) {
     return MovieNew(raster, 0, 1, width, height, 1, 0x1E8480);
 }
 
-/* TODO: [near miss] 75.65%; retail playback block precedes invalid-state log; branch/block placement remains. */
 void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
     switch (movie->state) {
-    case 0:
-        break;
     case 1:
     case 2:
         movie_stop_inline(movie);
+    case 0:
+        mwMovieStartPlaybackLooping(movie->handle, path);
+        movie->state = 1;
         break;
     default:
         mwMovLog(STR_INVALID_START);
-        return;
+        break;
     }
-    mwMovieStartPlaybackLooping(movie->handle, path);
-    movie->state = 1;
 }
 
 void MovieShutdownSystem(void) {

@@ -78,7 +78,6 @@ static inline void sfxcnv_CnvNormalYcc420plnToArgb8888(
         table = 0;
     }
 
-    /* Both GC source orientations use the same CFT conversion entry point. */
     if (frame->chroma_position_h == 1) {
         if (table != 0) {
             CFT_Ycc420plnToArgb8888(&source, &destination, table);
@@ -128,7 +127,6 @@ static void sfxcnv_CnvAlphFulYcc420plnToArgb8888(
     if (handle->field_74 == 1) {
         SFX_SetBottomUpPlnBuf(&destination.plane);
     }
-    /* Both GC source orientations use the same CFT conversion entry point. */
     if (frame->chroma_position_h == 1) {
         CFT_Ycc420plnToArgb8888(&source, &destination, 0);
     } else {

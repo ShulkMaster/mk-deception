@@ -527,6 +527,12 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
+static inline void set_chan0_color(GXColor color)
+{
+    GXSetChanMatColor(0, color);
+    GXSetChanAmbColor(0, color);
+}
+
 /* TODO: [near miss] 99.954025%; by-value GXColor copy slots remain reversed; named
  * per-call locals coalesce, and a shared inline with display_dragon_with_text regresses. */
 static void render_image(void* unused) {
@@ -543,8 +549,7 @@ static void render_image(void* unused) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, black);
-    GXSetChanAmbColor(0, black);
+    set_chan0_color(black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -571,7 +576,7 @@ static void render_image(void* unused) {
     restore_projection_matrix();
 }
 
-/* TODO: [near miss] 98.67%; FIFO/XFB publication agrees; member-load order and owner GPR differ. */
+/* TODO: [near miss] 98.67%; FIFO/XFB publication agrees; four owner/load-order rows remain; stop at coloring. */
 void gc_native_display_pass_to_RW(void) {
     GXDrawDone();
     if (pal_565 != 0) {
@@ -990,7 +995,7 @@ int gc_prompt_for_refresh_rate(PADStatus* pads)
     return 1;
 }
 
-/* TODO: [near miss] 98.20%; width-loop coloring, GXColor copy slots and mask codegen remain. */
+/* TODO: [near miss] 98.21%; GXColor copy slots recovered; width-loop coloring, masks and y scheduling remain. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
     GXColor black;
@@ -1013,8 +1018,7 @@ static void display_dragon_with_text(void* arg) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, black);
-    GXSetChanAmbColor(0, black);
+    set_chan0_color(black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);

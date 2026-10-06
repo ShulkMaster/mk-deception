@@ -9,8 +9,8 @@ static inline double dctac_Cos(double angle, int column) {
     return cos(angle * (0.5 + (double)column));
 }
 
-/* TODO: [near miss] 91.79%; RE4 triple loop over the 8x8 cosine matrix matches the structure; remaining
- * rows are FPR assignment of the transform/sample loads in the unrolled multiply-add chains. */
+/* TODO: [near miss] 92.36%; unrolled multiply-add FPR/load scheduling remains;
+ * accumulator scope, loop shape and declaration forms were already measured. */
 void dctac_TransDouble(const double* input, double* output,
                        const double transform[8][8]) {
     double temporary[64];
@@ -43,14 +43,11 @@ void DCT_AcIdctDouble(const double input[64], double output[64]) {
     dctac_TransDouble(input, output, dctac_i_const);
 }
 
-/* defines this forward transform. Its text is absent from linked retail;
- * the forward table's earlier first reference establishes retail BSS order. */
 void DCT_AcFdctDouble(const double input[64], double output[64]) {
     dctac_TransDouble(input, output, dctac_f_const);
 }
 
-/* TODO: [near miss] 85.14%; loops, literals and pointer colouring agree; only retail's .bss pool base
- * (dctac_i_const, +0x200, +0x400) differs, which RE4 reaches only with embedded asm (not landable). */
+/* TODO: [near miss] 86.78%; retail BSS pool-base relocations remain; verify table layout. */
 void DCT_AcInit(void) {
     double* inverse_element;
     double* forward_element;

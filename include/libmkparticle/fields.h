@@ -12,8 +12,8 @@ typedef struct PfxFieldDefinition {
 } PfxFieldDefinition;
 
 typedef struct PfxFieldSet {
-    unsigned int render_flags;
-    unsigned int particle_flags;
+    int render_flags;
+    int particle_flags;
 } PfxFieldSet;
 
 typedef struct PfxFieldBuffer {

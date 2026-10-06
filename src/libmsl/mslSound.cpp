@@ -10,36 +10,36 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate);
 
 extern mslRuntimeSound* currentUpdateSound;
 
-/* Verified +0x00...+0x278 prefix of the retail mslSound.o @stringBase0 pool. */
+
 static const char stringBase0[] =
-    /* +0x00 */ "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n\0"
-    /* +0x35 */ "mslSoundGetName %x has no cmd list!\n\0"
-    /* +0x5A */ "mslSoundIsPlaying: NULL sound\n\0"
-    /* +0x79 */ "Track %d failed to play next in Q; skipping\n\0"
-    /* +0xA6 */ "WARNING: Not unusing mbs in mslSoundDeactivate.\n\0"
-    /* +0xD7 */ "PlayUnPrep: NULL sound pointer.\n\0"
-    /* +0xF8 */ "PlayUnPrep: INVALID sound ID %08x.\n\0"
-    /* +0x11C */ "PlayAfterPrep: NULL sound pointer.\n\0"
-    /* +0x140 */ "PlayAfterPrep: INVALID sound ID %08x.\n\0"
-    /* +0x167 */ "Can't find any free MSL tracks\n\0"
-    /* +0x187 */ "sound->track larger than number of tracks in mslInit: %d > %d\n\0"
-    /* +0x1C6 */ "SoundKick error: invalid sound pointer\n\0"
-    /* +0x1EE */ "SoundKick error: invalid sound ID %08x.\n\0"
-    /* +0x217 */ "Kick'd on invalid track %d\n\0"
-    /* +0x233 */ "MSL: wave %s not found in sound unload\n\0"
-    /* +0x25B */ "Problem!  wave use count < 0\n\0"
-    /* +0x279 */ "Can't find wave %s!\n\0"
-    /* +0x28E */ "Unable to load wave: [%08x]\n\0"
-    /* +0x2AB */ "Unable to load wave: [%s]\n\0"
-    /* +0x2C6 */ "mslSoundLoad: Wave Copy Failed\n\0"
-    /* +0x2E6 */ "%s failed (%s == %08x).\n\0"
+     "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n\0"
+     "mslSoundGetName %x has no cmd list!\n\0"
+     "mslSoundIsPlaying: NULL sound\n\0"
+     "Track %d failed to play next in Q; skipping\n\0"
+     "WARNING: Not unusing mbs in mslSoundDeactivate.\n\0"
+     "PlayUnPrep: NULL sound pointer.\n\0"
+     "PlayUnPrep: INVALID sound ID %08x.\n\0"
+     "PlayAfterPrep: NULL sound pointer.\n\0"
+     "PlayAfterPrep: INVALID sound ID %08x.\n\0"
+     "Can't find any free MSL tracks\n\0"
+     "sound->track larger than number of tracks in mslInit: %d > %d\n\0"
+     "SoundKick error: invalid sound pointer\n\0"
+     "SoundKick error: invalid sound ID %08x.\n\0"
+     "Kick'd on invalid track %d\n\0"
+     "MSL: wave %s not found in sound unload\n\0"
+     "Problem!  wave use count < 0\n\0"
+     "Can't find wave %s!\n\0"
+     "Unable to load wave: [%08x]\n\0"
+     "Unable to load wave: [%s]\n\0"
+     "mslSoundLoad: Wave Copy Failed\n\0"
+     "%s failed (%s == %08x).\n\0"
     "mslSoundSetDuckPitch\0"
-    /* +0x314 */ "WRAPPED_ARG\0"
+     "WRAPPED_ARG\0"
     "mslSoundSetDuckPan\0"
     "mslSoundSetDuckVol\0"
     "mslSoundSetPitch\0"
-    /* +0x357 */ "mslSoundSetPan\0"
-    /* +0x366 */ "mslSoundSetVol\0"
+     "mslSoundSetPan\0"
+     "mslSoundSetVol\0"
     "mslSoundGetDuckPitch\0"
     "mslSoundGetDuckPan\0"
     "mslSoundGetDuckVol\0"
@@ -49,7 +49,7 @@ static const char stringBase0[] =
     "mslSoundGetName\0"
     "mslSoundUnPause\0"
     "mslSoundPause\0"
-    /* +0x40D */ "mslSoundStop\0"
+     "mslSoundStop\0"
     "mslSoundIsPlaying";
 
 extern "C" int mslSoundIsValid(unsigned long handle) {
@@ -59,14 +59,12 @@ extern "C" int mslSoundIsValid(unsigned long handle) {
         return 0;
     }
 
-    {
-        mslRuntimeSound* sound =
-            (mslRuntimeSound*)ListNodeData(0, node);
+    mslRuntimeSound* sound =
+        (mslRuntimeSound*)ListNodeData(0, node);
 
-        if (sound == 0 || sound->definition == 0 ||
-            sound->definition->command_count == 0) {
-            return 0;
-        }
+    if (sound == 0 || sound->definition == 0 ||
+        sound->definition->command_count == 0) {
+        return 0;
     }
     return 1;
 }
@@ -108,30 +106,28 @@ extern "C" void mslUpdateTracks(_mslSystem* system) {
                 (_mslSound*)sound, sound->flags & 1);
         }
 
-        {
-            mslBankSoundEntry* bank_sound =
-                mslQueueGet(system->tracks[track_index].queue);
+        mslBankSoundEntry* bank_sound =
+            mslQueueGet(system->tracks[track_index].queue);
 
-            if (bank_sound != 0) {
-                _ListNode* node =
-                    mslBankSoundUse(bank_sound, system);
+        if (bank_sound != 0) {
+            _ListNode* node =
+                mslBankSoundUse(bank_sound, system);
 
-                if (node != 0) {
-                    mslRuntimeSound* next_sound =
-                        (mslRuntimeSound*)ListNodeData(0, node);
+            if (node != 0) {
+                mslRuntimeSound* next_sound =
+                    (mslRuntimeSound*)ListNodeData(0, node);
 
-                    next_sound->flags |= 1;
-                    next_sound->priority = priority;
-                    next_sound->track = track_index;
-                    asyncLoadSound(
-                        system, bank_sound->owner_bank,
-                        bank_sound, callbackPlay, node);
-                } else {
-                    mslDebugPrintf(
-                        "Track %d failed to play next in Q; "
-                        "skipping\n",
-                        track_index);
-                }
+                next_sound->flags |= 1;
+                next_sound->priority = priority;
+                next_sound->track = track_index;
+                asyncLoadSound(
+                    system, bank_sound->owner_bank,
+                    bank_sound, callbackPlay, node);
+            } else {
+                mslDebugPrintf(
+                    "Track %d failed to play next in Q; "
+                    "skipping\n",
+                    track_index);
             }
         }
     }
@@ -245,8 +241,7 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     }
 }
 
-/* Matched: 100% report-exact; canonical adjustment start/end fields
- * preserve retail float accesses at +0x00/+0x10 and diagnostic relocation. */
+
 void _mslSoundUnPause(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     int is_playing;
@@ -290,7 +285,7 @@ void _mslSoundUnPause(_mslSound* sound) {
     }
 }
 
-/* Exact: verified @stringBase0 prefix restores the retail diagnostic offset. */
+
 void _mslSoundPause(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     int is_playing;
@@ -517,8 +512,7 @@ failure_cleanup:
     return 1;
 }
 
-/* Matched: 100% report-exact; shared typed playable interface preserves
- * the retail readiness dispatch at vtable +0x18. */
+
 extern "C" int mslSoundIsReady(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     mslBankSoundDefinition* definition;
@@ -589,11 +583,9 @@ extern "C" void mslSoundUnCopy(_ListNode* node) {
     }
 
     sound->bank_sound_entry = 0;
-    {
-        _ListNode* list = node;
-        ListNodeFree(
-            &g_listPoolSound, ListRemove(&list));
-    }
+    _ListNode* list = node;
+    ListNodeFree(
+        &g_listPoolSound, ListRemove(&list));
 }
 
 extern "C" void mslSoundUncommit(_mslSound* sound) {
@@ -727,12 +719,7 @@ static inline void mslSoundInit(_ListNode* node, _mslSystem* system) {
     }
 }
 
-/*
- * Allocate and initialize a live sound node. Retail defaults are:
- * track=-1 (from the zeroed pool/list state), unit volume/pitch scales,
- * centered pan offsets, and no bank references or callback payload.
- * Matched: 100% report-exact with the retail diagnostic pool and function order.
- */
+
 extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
     _ListNode* node = ListNodeAlloc(&g_listPoolSound);
 
@@ -745,11 +732,7 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
     return node;
 }
 
-/*
- * Resolve every wave command against the owning bank, lazily load its base
- * wave, create the per-command runtime copy, and unwind all prior copies on
- * any failure.
- */
+
 /* TODO: [near miss] 97.78%; rollback diagnostics need pooled stringBase0
  * literals (TU data layout); release_base colors r25 vs retail r26. */
 extern "C" int mslCmdsLoad(
@@ -828,10 +811,7 @@ extern "C" int mslCmdsLoad(
     return 1;
 }
 
-/*
- * Publish a reusable bank sound only after every wave command has loaded and
- * received its private runtime copy. Retail embeds mslSoundNew here.
- */
+
 extern "C" _mslSound* mslSoundLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {

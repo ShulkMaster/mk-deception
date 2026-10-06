@@ -1,7 +1,7 @@
 #include "cri/sj.h"
+#include "sofdec/mws_sound.h"
 
 typedef struct SfdHandle SfdHandle;
-typedef struct MwsStHandle MwsStHandle;
 
 typedef struct MwsStManagerInterface {
     void* reserved_00;
@@ -17,13 +17,6 @@ typedef struct MwsStManagerInterface {
     int (*get_volume)(void* backend);
 } MwsStManagerInterface;
 
-struct MwsStHandle {
-    int active;
-    unsigned char reserved_04[8];
-    SJ* stream;
-    int element_id;
-    void* backend;
-};
 
 typedef struct MwsStPlayerPrefix {
     unsigned char reserved_000[0x40];
@@ -123,8 +116,9 @@ void MWSST_Destroy(MwsStHandle* handle)
     }
 }
 
-void MWSST_Reset(MwsStPlayerPrefix* wrapper)
+void MWSST_Reset(void* object)
 {
+    MwsStPlayerPrefix* wrapper = object;
     MwsStHandle* sound = &wrapper->sound;
     SfdHandle* player = wrapper->player;
     MwsStHandle* backend = sound->backend;

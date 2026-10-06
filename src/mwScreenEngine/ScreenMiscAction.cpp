@@ -138,7 +138,9 @@ int ScreenElseAction::Update(ScreenMgr*, ScreenActionStack&,
     return 1;
 }
 
-/* TODO: [near miss] 97.88%; decision tree and focus comparison match; method-wide owner/value GPR rotation remains. */
+#pragma push
+#pragma optimization_level 2
+/* TODO: [near miss] 98.79%; owner rotation reduced; case-constant staging and remaining value GPR pairs differ. */
 int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                  int) {
     ScreenParams* params;
@@ -146,7 +148,7 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     int arg;
     unsigned int paramIndex;
     int lhs;
-    int matched;
+    unsigned int matched;
     int exclude;
     int i;
 
@@ -227,7 +229,7 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
         i = 3;
         do {
             matched = ScreenIntegerCompare(mgr->GetStage(i), op, rhs);
-            if ((unsigned int)matched == 1u) {
+            if (matched == 1u) {
                 break;
             }
         } while (i-- != 0);
@@ -235,11 +237,12 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
         matched = ScreenIntegerCompare(lhs, op, rhs);
     }
 
-    if ((unsigned int)matched != 0u) {
+    if (matched != 0u) {
         object->ProcessSubActions(this, 0);
     }
     return 1;
 }
+#pragma pop
 
 int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                int) {

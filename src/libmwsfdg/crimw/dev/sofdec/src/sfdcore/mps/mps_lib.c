@@ -6,7 +6,6 @@
 static MpsHandle* mpslib_hn_last;
 static const char* cri_verstr_ptr;
 MpsLibWork* MPSLIB_libwork;
-/* Unreferenced, but still emitted after the referenced statics (retail .bss +0xC). */
 static long mpslib_init_cnt;
 
 const char MPSLIB_version_str[] =
@@ -21,7 +20,6 @@ static int mpslib_check_handle(MpsHandle* handle) {
     return 0;
 }
 
-/* Public CRI version query; unreferenced in MKD, so the linker strips it. */
 const char* MPS_GetVerStr(void) {
     cri_verstr_ptr = MPSLIB_version_str;
     return MPSLIB_version_str;
@@ -205,7 +203,6 @@ void MPS_Finish(void) {
     MPSGET_Finish();
 }
 
-/* CRI Sint32 (signed long) status; the handle clear always succeeds. */
 static inline long mpslib_clear_handles(MpsHandle* handles, long count) {
     long i;
 

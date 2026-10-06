@@ -1,12 +1,6 @@
 #include "msl/ExtHeapMgr.h"
 #include "runtime/cstring.h"
 
-/*
- * Retail MSL external-heap owner.
- * The rollback path keeps a non-null prefix_block sentinel without
- * dereferencing it (see ExternalHeap_AlignAlloc).
- */
-
 static void ExternalHeap_MutexNullFunc(void* mutex);
 static int KeyCompareBlocksByAddress(
     const void* key, const RedBlackNode* node);
@@ -328,7 +322,7 @@ ExternalHeap* ExternalHeap_Create(
     unsigned long base, unsigned long size,
     unsigned long alignment, int block_count) {
     ExternalHeap* heap =
-        (ExternalHeap*)ExternalHeap_SystemAlloc(sizeof(ExternalHeap));
+        ExternalHeap_SystemAlloc(sizeof(ExternalHeap));
 
     if (heap != 0) {
         ExternalHeapBlock* blocks;
@@ -339,7 +333,7 @@ ExternalHeap* ExternalHeap_Create(
         }
 
         blocks_size = block_count * sizeof(ExternalHeapBlock);
-        blocks = (ExternalHeapBlock*)ExternalHeap_SystemAlloc(blocks_size);
+        blocks = ExternalHeap_SystemAlloc(blocks_size);
         heap->blocks = blocks;
         if (heap->blocks != 0) {
             heap->base = base;

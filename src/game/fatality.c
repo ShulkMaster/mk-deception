@@ -780,13 +780,16 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 74.63%; logic agrees; residue is retail's 16-byte-aligned stack frame (clrlwi/stwux) and its register shift. */
+/* TODO: [near miss] 98.04%; CFG/ABI/accesses agree; stop at nonvolatile register coloring. */
 static float p_subzero_ice_chunk(void) {
     FatalityIceChunkPdata* data;
     FatalityIceChunkPebble* chunk;
     FighterMirror* fighter;
     MkObj* limb;
+    MkObj* owner;
+    MkObj* model;
     RwMatrix* chunk_matrix;
+    RwMatrix* limb_matrix;
     MKMATRIX rotation;
     Vec offset;
     int bone_index;
@@ -798,62 +801,61 @@ static float p_subzero_ice_chunk(void) {
     if (data == 0) {
         return -1.0f;
     }
-    if (MK_HDR_LIVE(data->owner, data->owner_instance) != 0) {
+    owner = MK_HDR_LIVE(data->owner, data->owner_instance);
+    if (owner != 0) {
         fix_index = 0;
         for (chunk_index = 0; chunk_index < 9; chunk_index++) {
             chunk = data->chunks[chunk_index];
             if (chunk->matrix_count !=
                 sz_hk_icechunk_map[chunk_index].pebble_id) {
-                break;
+                goto cleanup;
             }
             for (matrix_index = 0;
                  matrix_index < chunk->matrix_count;
                  matrix_index++) {
                 bone_index = sz_hk_icechunk_map_array[fix_index];
-                if (data->owner == g_game_info.plyr0.slot.mirror_a) {
+                if (owner == g_game_info.plyr0.slot.mirror_a) {
                     fighter = g_game_info.plyr0.slot.fighter;
                 } else {
                     fighter = g_game_info.plyr1.slot.fighter;
                 }
-                limb = fatality_get_severed_limb(
-                    fighter, bone_index);
+                limb = MK_HDR_LIVE(
+                    fighter->severed_limbs[bone_index].object,
+                    fighter->severed_limbs[bone_index].instance);
                 if (limb == 0) {
-                    break;
+                    goto cleanup;
                 }
                 chunk_matrix = &chunk->matrices[matrix_index];
+                limb_matrix = limb->field_24;
                 YXZ_angles_to_MKMATRIX(
                     &sz_ice_chunk_ang_fix[bone_index], &rotation);
                 mat_x_mat(
-                    chunk_matrix, &rotation, limb->field_24);
-                offset = sz_ice_chunk_pos_fix[bone_index];
+                    chunk_matrix, &rotation, limb_matrix);
+                offset.x = sz_ice_chunk_pos_fix[bone_index].x;
+                offset.y = sz_ice_chunk_pos_fix[bone_index].y;
+                offset.z = sz_ice_chunk_pos_fix[bone_index].z;
                 if (fatality_state.mirror_camera != 0) {
                     offset.x = -offset.x;
                     offset.z = -offset.z;
                 }
                 v3_x_mat_add_v3(
                     &chunk_matrix->pos_vec, &offset,
-                    limb->field_24, &limb->field_24->pos_vec);
+                    limb_matrix, &limb_matrix->pos_vec);
                 fix_index++;
             }
-            if (matrix_index != chunk->matrix_count) {
-                break;
-            }
         }
-        if (chunk_index == 9) {
-            return 1.0f;
-        }
+        return 1.0f;
     }
 
-    if (data->model != 0 &&
-        data->model->hdr.instance == data->model_instance &&
-        data->model_instance != 0) {
-        ((int (*)(MkHdr*))data->model->hdr.vtbl->destroy)(
-            &data->model->hdr);
+cleanup:
+    model = MK_HDR_LIVE(data->model, data->model_instance);
+    if (model != 0 && model->hdr.instance != 0) {
+        model->hdr.typed_vtbl->destroy(&model->hdr);
     }
     for (chunk_index = 0; chunk_index < 9; chunk_index++) {
         chunk = data->chunks[chunk_index];
         if (chunk != 0 && chunk->hdr.instance != 0) {
-            ((int (*)(MkHdr*))chunk->hdr.vtbl->destroy)(&chunk->hdr);
+            chunk->hdr.typed_vtbl->destroy(&chunk->hdr);
         }
     }
     return -1.0f;

@@ -31,8 +31,8 @@ int get_num_controllers(void) {
     return count;
 }
 
-/* TODO: [near miss] 98.70%; pad indexing, flag pointer and CFG match; retail keeps `channel` in r31 with
- * the three strength-reduced offsets in r28-r30 where ours colors channel r25 (54 register-renumbering rows). */
+/* TODO: [near miss] 98.70%; pad/member indexing and CFG agree;
+ * channel/stride nonvolatile coloring remains; prior ownership and scope forms exhausted. */
 void scan_switches(void) {
     PADStatus statuses[4];
     int channel;

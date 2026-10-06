@@ -12,7 +12,6 @@ static inline int classify_float(float value)
 {
     unsigned int bits;
 
-    /* Match CRI's PowerPC word view under MWCC; copy bytes on other compilers. */
 #ifdef __MWERKS__
     bits = *(const unsigned int*)&value;
 #else
@@ -36,12 +35,12 @@ static inline int classify_float(float value)
 static inline float adx_sqrtf(float value)
 {
     if (value > 0.0f) {
-        double estimate = __frsqrte((double)value);
+        double estimate = __frsqrte(value);
 
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * value);
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * value);
         estimate = 0.5 * estimate * (3.0 - estimate * estimate * value);
-        return (float)(value * estimate);
+        return value * estimate;
     }
     if (value < 0.0) {
         return __float_nan;
@@ -85,14 +84,14 @@ int ADX_CalcHdrInfoLen(int version, int extra_len, int block_size,
 {
     if (version == 0) {
         return alignment *
-                   ((unsigned int)(0x1B + extra_len + (int)strlen("(c)CRI") +
+                   ((0x1B + extra_len + (int)strlen("(c)CRI") +
                                    block_size + alignment) /
                     alignment) -
                block_size;
     }
 
     return alignment *
-               ((unsigned int)(0x33 + extra_len + (int)strlen("(c)CRI") +
+               ((0x33 + extra_len + (int)strlen("(c)CRI") +
                                block_size + alignment) /
                 alignment) -
            block_size;
@@ -328,7 +327,7 @@ int ADX_ScanInfoCode(signed char* buffer, int buffer_len, short* data_len)
     int minimum;
 
     minimum = 0x7FFFFFFF;
-    code = (short)0x8000;
+    code = 0x8000;
 
     for (offset = 0; offset < buffer_len - 1; offset += 2) {
         if (*(short*)&buffer[offset] == code) {
@@ -337,7 +336,7 @@ int ADX_ScanInfoCode(signed char* buffer, int buffer_len, short* data_len)
         }
     }
     if (minimum != 0x7FFFFFFF) {
-        *data_len = (short)minimum;
+        *data_len = minimum;
         return 0;
     } else {
         *data_len = 0;
@@ -354,11 +353,11 @@ void ADX_GetCoefficient(int cutoff, int sample_rate, short* coefficient0,
     float d;
     float c;
 
-    z = (float)cos(6.2831855f * (float)cutoff / (float)sample_rate);
+    z = cos(6.2831855f * (float)cutoff / (float)sample_rate);
     a = (float)adx_sqrt_positive(2.0) - z;
     b = (float)adx_sqrt_positive(2.0) - 1.0f;
     d = adx_sqrtf((a + b) * (a - b));
     c = (a - d) / b;
-    *coefficient0 = (short)(4096.0f * (2.0f * c));
-    *coefficient1 = (short)(4096.0f * (-c * c));
+    *coefficient0 = 4096.0f * (2.0f * c);
+    *coefficient1 = 4096.0f * (-c * c);
 }

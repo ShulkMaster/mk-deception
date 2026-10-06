@@ -1,13 +1,11 @@
-/* TODO: Missing implementation for retail unit Gecko_setjmp.c. */
+#include "runtime/asm_sequences.inc"
 
-void *__setjmp(void)
+asm void *__setjmp(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ___setjmp();
 }
 
-void *longjmp(void)
+asm void *longjmp(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SEQ_longjmp();
 }

@@ -1,5 +1,6 @@
 #include "dolphin/types.h"
 #include "sofdec/uty_mem.h"
+#include "runtime/cstring.h"
 
 typedef struct MPVBDECVlcDescriptor {
     const s16* table;
@@ -50,7 +51,6 @@ extern s16* mpvvlc_run_level_0b;
 extern s16* mpvvlc_run_level_0c;
 
 extern void DCT_FsriInitScanTbl(const s8 source[64], s8 destination[64]);
-extern void* memcpy(void* destination, const void* source, unsigned long size);
 
 void MPVBDEC_Init(MPVBDECContextView* context)
 {
@@ -61,7 +61,7 @@ void MPVBDEC_Init(MPVBDECContextView* context)
     s32 i;
 
     for (i = 0; i < 64; i++) {
-        linear[i] = (s8)i;
+        linear[i] = i;
     }
     DCT_FsriInitScanTbl(linear, scan);
 
@@ -73,12 +73,14 @@ void MPVBDEC_Init(MPVBDECContextView* context)
     output_scan = context->scan;
     if (output_scan != 0) {
         UTY_MemcpyDword((unsigned int*)output_scan,
-                        (unsigned int*)mpvbdec_zigzag, 16);
+                        (unsigned int*)mpvbdec_zigzag,
+                        sizeof(mpvbdec_zigzag) / sizeof(unsigned int));
     }
     output_masks = context->dc_sign_masks;
     if (output_masks != 0) {
         UTY_MemcpyDword((unsigned int*)output_masks,
-                        (unsigned int*)mpvbdec_bitmsk, 8);
+                        (unsigned int*)mpvbdec_bitmsk,
+                        sizeof(mpvbdec_bitmsk) / sizeof(unsigned int));
     }
     memcpy(context->vlc_group, group_tbl, sizeof(group_tbl));
 
@@ -96,6 +98,5 @@ void MPVBDEC_Init(MPVBDECContextView* context)
     context->vlc_desc[5].code_length = 0x0f;
 }
 
-/* MWCC emits these trailing .bss definitions in reverse declaration order. */
 u8 mpvbdec_zigzag[64];
 u8 mpvbdec_dfl_iqm[64];

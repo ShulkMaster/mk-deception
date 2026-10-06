@@ -248,7 +248,7 @@ int MWSFD_GetUsePicUsr(void)
 
 static void mwsflib_LscErrFunc(void* object, const char* message);
 
-/* TODO: [breakthrough] 95.28%; ABI repaired; BSS base placement and init-helper staging remain. */
+/* TODO: [breakthrough needed] 95.28%; literal/helper boundary and BSS placement remain unresolved. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;

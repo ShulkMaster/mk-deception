@@ -3,8 +3,7 @@
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
 
-typedef void (*SVMCallbackFunction)(void* object);
-typedef void (*SVMErrorFunction)(void* object, char* message);
+#include "cri/svm_callbacks.h"
 
 typedef struct ADXMSleepCallback {
     SVMCallbackFunction function;
@@ -149,7 +148,6 @@ void adxm_goto_mwidle_border(void* object)
 }
 #pragma pop
 
-/* Detached thread: OSExitThread discards the return register. */
 void adxm_safe_proc(void* argument)
 {
     while (adxm_safe_act == 1) {
@@ -158,7 +156,6 @@ void adxm_safe_proc(void* argument)
     adxm_safe_end = 1;
 }
 
-/* Detached thread: OSExitThread discards the return register. */
 void adxm_vsync_proc(void* argument)
 {
     ADXMSleepCallback* sleep_callback = &adxm_mwidle_sleep_cb;
@@ -184,7 +181,6 @@ void adxm_vsync_proc(void* argument)
     adxm_vsync_end = 1;
 }
 
-/* Detached thread: OSExitThread discards the return register. */
 void adxm_fs_proc(void* argument)
 {
     while (adxm_fs_act == 1) {
@@ -195,7 +191,6 @@ void adxm_fs_proc(void* argument)
     adxm_fs_end = 1;
 }
 
-/* Detached thread: OSExitThread discards the return register. */
 void adxm_mwidle_proc(void* argument)
 {
     ADXMThreadParams* thread_params = &adxm_save_tprm;

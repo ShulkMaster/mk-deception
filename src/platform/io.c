@@ -72,11 +72,10 @@ static inline void clear_controller_buttons(GameInfo* game) {
     game->pause_flag_bits.controllers_disabled = 1;
 }
 
-/* TODO: [breakthrough needed] 53.79487%; retail varargs/debug behavior remains unresolved. */
 void vdebug_print_message(const char* format, ...) {
     static char buf[0x100];
     __va_list args;
-    va_start(args, format);
+    __builtin_va_info(&args);
     vsprintf(buf, format, args);
 }
 
@@ -302,8 +301,7 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     return 1;
 }
 
-/* TODO: [near miss] 97.04546%; table layout and initialization order agree;
- * anonymous literal/BSS base register allocation remains. */
+/* TODO: [near miss] 97.05%; layout and store order agree; literal/BSS base register rows remain; stop at coloring. */
 void init_switch_log(void) {
     int i;
     for (i = 0; i < 30; i++) {

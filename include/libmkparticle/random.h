@@ -10,8 +10,8 @@ extern "C" {
 float rnd_between(float minimum, float maximum);
 int rnd_int(unsigned int maximum);
 void rnd_line_1i(int minimum, int maximum, int* output);
-void rnd_sphere(PfxVec3* output, const PfxVec3* origin, int quadratic_radius,
-                float minimum_radius, float maximum_radius);
+void rnd_sphere(PfxVec3* output, const PfxVec3* origin,
+                float minimum_radius, float maximum_radius, int quadratic_radius);
 void rnd_point_in_cylinder(PfxVec3* output, const PfxVec3* axis,
                            float radial_center, float radial_spread,
                            float axial_center, float axial_spread);

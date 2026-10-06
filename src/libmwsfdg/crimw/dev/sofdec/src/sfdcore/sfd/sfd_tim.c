@@ -810,11 +810,13 @@ static inline void sftim_InitStreamTimeUnit(SfdTimerStreamTimeUnit* unit)
     unit->scale = 1;
 }
 
-/* TODO: [breakthrough needed] 60.986843%; retail omits the +0x14C store;
- * sample-history guards and zero-register scheduling still differ. */
+#pragma push
+#pragma opt_propagation off
+#pragma section sconst_type ".rodata" data_mode=far_abs
 void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
 {
     int i;
+    int* sample;
 
     handle->timer_state.time_sources[0] = sftim_GetTimeNone;
     handle->timer_state.time_sources[1] = sftim_GetTimeVsync;
@@ -824,9 +826,13 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
     handle->timer_state.time_sources[5] = sftim_GetTimeExtClock;
 
     state->skip_state.callback = 0;
-    for (i = 0; i < 7; i++) {
-        state->skip_state.fields_04[i] = 0;
-    }
+    state->skip_state.fields_04[0] = 0;
+    state->skip_state.fields_04[1] = 0;
+    state->skip_state.fields_04[2] = 0;
+    state->skip_state.fields_04[3] = 0;
+    state->skip_state.fields_04[4] = 0;
+    state->skip_state.fields_04[5] = 0;
+    state->skip_state.fields_04[6] = 0;
     state->skip_state.field_20 = 0;
     state->skip_state.field_22 = 0;
     SFTIM_InitTtu(&state->field_00C0, 0);
@@ -845,17 +851,19 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
     state->sample_history.fields_00[0] = 0;
     state->sample_history.fields_00[1] = 0;
     state->sample_history.fields_00[2] = 0;
-    for (i = 0; i < sizeof(state->sample_history.samples) /
-                        sizeof(state->sample_history.samples[0]); i++) {
-        state->sample_history.samples[i] = 0;
+    sample = state->sample_history.samples;
+    for (i = 0; i < (int)(sizeof(state->sample_history.samples) /
+                              sizeof(state->sample_history.samples[0])); i++) {
+        *sample++ = 0;
     }
     state->sample_window.enabled = 1;
     state->sample_window.fields_04[0] = 0;
     state->sample_window.fields_04[1] = 0;
     state->sample_window.fields_04[2] = 0;
-    for (i = 0; i < sizeof(state->sample_window.samples) /
-                        sizeof(state->sample_window.samples[0]); i++) {
-        state->sample_window.samples[i] = 0;
+    sample = state->sample_window.samples;
+    for (i = 0; i < (int)(sizeof(state->sample_window.samples) /
+                              sizeof(state->sample_window.samples[0])); i++) {
+        *sample++ = 0;
     }
 
     state->video_end_time_value = -5;
@@ -890,6 +898,8 @@ void SFTIM_InitHn(SfdHandle* handle, SfdTimerState* state)
     state->video_pts.field_04 = 0;
     state->video_pts.field_08 = 0;
 }
+#pragma section sconst_type
+#pragma pop
 
 void SFTIM_Finish(SfdTimerLibraryWork* work)
 {

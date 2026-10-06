@@ -12,8 +12,7 @@ void VMInit(unsigned long virtual_memory_size, unsigned long aram_base,
 void VMQuit(void);
 int VMAlloc(void* virtual_address, unsigned long size);
 
-void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
-                u32 pages_in_mram, BOOL enable_page_locking);
+void VMBASEInit(void (*swap_page_callback)(u32));
 void VMBASEQuit(void);
 void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
                              u32 physical_page);
@@ -24,6 +23,10 @@ BOOL VMBASEIsPageDirty(u32 virtual_address);
 void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced);
 u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page);
 BOOL VMBASEIsPageLocked(u32 physical_page);
+/* TODO: [Scope warn] pointer return follows the blocked stub; recover its void retail ABI with the callee. */
+void* __VMBASERestoreExceptionHandlers(void);
+void __VMBASERestoreVMRegisters(void);
+void __VMBASEInvalidateLockedPageTable(void);
 
 u32 __VMGetNumPagesInMRAM(void);
 u32 VMGetARAMSize(void);

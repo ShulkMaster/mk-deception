@@ -197,9 +197,8 @@ static inline int disc_error_message(int error) {
     return 1;
 }
 
-/* TODO: [near miss] 99.27%; message lookup and handler call match; retail keeps the error_map base in r3
- * and offset in r5 while ours uses r5/r6 (9 register rows in the loop). */
-int mwfile_error_callback(int operation, int error) {
+void mwfile_error_callback(int operation, int error, const char* path,
+    mwFileCommand* command, void* context) {
     int message;
     const char* text;
 
@@ -226,10 +225,9 @@ int mwfile_error_callback(int operation, int error) {
                 text = get_string_ext(disc_error_string_table, 9, 6);
                 break;
             }
-            return async_error_handler(message, text);
+            async_error_handler(message, text);
         }
     }
-    return operation;
 }
 
 void check_handle_disc_error(void) {

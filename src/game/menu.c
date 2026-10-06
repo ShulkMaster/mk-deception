@@ -65,11 +65,6 @@ struct ControllerConfigPdata {
     int p2_save;
 };
 
-struct MenuPlayerWalkView {
-    char pad_00[0xA4];
-    PlyrInfo player;
-};
-
 struct VersionCodePdata {
     MkHdr hdr;
     unsigned int ticks;
@@ -712,19 +707,15 @@ void controller_setup_p1_state(int enabled) {
     }
 }
 
-/* TODO: [near miss] 98.554214%; retail base-plus-player walk agrees; NV register coloring remains. */
 float p_controller_config(void) {
-    struct ControllerConfigPdata* pdata;
-    struct ControllerConfigPdata* live_pdata;
-    MkProc* proc;
     PlyrInfo* p1;
     PlyrInfo* p2;
-    struct MenuPlayerWalkView* players;
-    struct MenuPlayerWalkView* player_view;
+    MkProc* proc;
+    struct ControllerConfigPdata* live_pdata;
+    struct ControllerConfigPdata* pdata;
+    int button_index;
     int* button_ptr;
     int player;
-    int player_offset;
-    int button_index;
 
     pdata = (struct ControllerConfigPdata*)get_mkpdata_generic(sizeof(struct ControllerConfigPdata));
     if (pdata == 0) {
@@ -771,17 +762,13 @@ float p_controller_config(void) {
     turn_controllers_on();
     push_game_state(0xE);
     target_game_mode = MENU_TARGET_IDLE;
-    players = (struct MenuPlayerWalkView*)&g_game_info;
 
     while (target_game_mode == MENU_TARGET_IDLE) {
-        player = 0;
-        player_offset = 0;
-        do {
-            player_view = (struct MenuPlayerWalkView*)((char*)players + player_offset);
-            if (player_view->player.player_state == 1) {
+        for (player = 0; player < 2; player++) {
+            if (g_game_info.players[player].player_state == 1) {
                 int pad;
 
-                pad = player_view->player.pad_index;
+                pad = g_game_info.players[player].pad_index;
                 button_index = 0;
                 button_ptr = button_checklist;
                 do {
@@ -798,9 +785,7 @@ float p_controller_config(void) {
                     button_ptr++;
                 } while (button_index < 7);
             }
-            player++;
-            player_offset += sizeof(PlyrInfo);
-        } while (player < 2);
+        }
         _mkproc_sleep_ticks = sleep_ticks_one;
         aproc->vtbl->sleep();
     }
@@ -1122,20 +1107,18 @@ float p_pause_menu_switch(void) {
     return sleep_ticks_neg_one;
 }
 
-/* TODO: [near miss] 92.97%; we hoist g_game_info+0x110 where retail rematerializes it;
- * retail names portrait_list$0000 (function-local static?), check before coloring. */
+#pragma opt_common_subs off
 float p_main_menu(void) {
-    PlyrInfo* p1;
-    PlyrInfo* p2;
-    unsigned int mode;
     int tries;
     int portrait;
+    unsigned int switchTime;
+    int konquestPort;
+    PlyrInfo* p1;
     unsigned int flags;
     struct ControllerWatcherPdata* watcherPdata;
     MkVtableMkproc* vtbl;
-    unsigned int switchTime;
-    PlyrInfo* konquestPlyr;
-    int konquestPort;
+    PlyrInfo* p2;
+    int mode;
 
     disc_error_occurred = 0;
     online_locked_port = -1;
@@ -1144,22 +1127,19 @@ float p_main_menu(void) {
 
     set_section_memory_scheme(4);
 
-    mode = get_mode_of_play();
-    if (mode <= 0xC) {
-        switch (mode) {
-        case 0:
-        case 1:
-        case 6:
-        case 9:
-        case 10:
-        case 12:
-            if (p1_profile_status == 1 && p2_profile_status == 1) {
-                unload_player_profiles();
-            }
-            break;
-        default:
-            break;
+    switch (get_mode_of_play()) {
+    case 0:
+    case 1:
+    case 6:
+    case 9:
+    case 10:
+    case 12:
+        if (p1_profile_status == 1 && p2_profile_status == 1) {
+            unload_player_profiles();
         }
+        break;
+    default:
+        break;
     }
 
     if (p1_profile_status == 1) {
@@ -1175,8 +1155,8 @@ float p_main_menu(void) {
     one_player_ladder_init();
 
     p1 = &g_game_info.plyr0;
-    p2 = &g_game_info.plyr1;
     unassign_player(p1);
+    p2 = &g_game_info.plyr1;
     unassign_player(p2);
     set_player_state(p1, 0);
     set_player_state(p2, 0);
@@ -1192,14 +1172,13 @@ float p_main_menu(void) {
     tries = 0x78;
     portrait = 0;
     do {
-        int lockedFlags;
-        int alternate;
+        unsigned char alternate;
 
         portrait = randu0(0x34);
         flags = portrait_list[portrait & 0xFFFF].flags;
-        lockedFlags = flags & 0xFFFEFFFF;
         alternate = (flags >> 16) & 1;
-        if (is_char_locked(lockedFlags, alternate) == 0) {
+        flags &= 0xFFFEFFFF;
+        if (is_char_locked(flags, alternate) == 0) {
             break;
         }
         tries--;
@@ -1235,100 +1214,95 @@ float p_main_menu(void) {
             push_game_state(0x1C);
             wait_for_screen_close();
 
-            if (mode > 0x17) {
-                gamelogic_jump(0, p_attract_mode);
-            } else {
-                switch (mode) {
-                case 2:
-                    game_settings.konquest_loading_image = 0;
-                    set_mode_of_play(7);
-                    clear_region_buffer();
-                    konquestPlyr = (menu_player == 0) ? &g_game_info.plyr0 : &g_game_info.plyr1;
-                    konquestPort = konquestPlyr->pad_index;
-                    unassign_player(p1);
-                    unassign_player(p2);
-                    assign_player(konquestPort);
-                    load_krd_buffer_from_memcard(0, 1);
-                    gamelogic_jump(4, p_konquest_mode);
-                    break;
-                case 4:
-                    gamelogic_jump(6, p_main_menu);
-                    break;
-                case 6:
-                    set_mode_of_play(0);
-                    if (menu_player == 1 && p1_profile_status == 1) {
-                        move_profile_p1_to_p2();
-                    }
-                    gamelogic_jump(1, p_pselect);
-                    break;
-                case 7:
-                    set_mode_of_play(1);
-                    if (menu_player == 1 && p1_profile_status == 1) {
-                        move_profile_p1_to_p2();
-                    }
-                    gamelogic_jump(1, p_pselect);
-                    break;
-                case 11:
-                    set_mode_of_play(4);
-                    if (menu_player == 1 && p1_profile_status == 1) {
-                        move_profile_p1_to_p2();
-                    }
-                    gamelogic_jump(1, p_pselect);
-                    break;
-                case 9:
-                    set_mode_of_play(6);
-                    if (menu_player == 1 && p1_profile_status == 1) {
-                        move_profile_p1_to_p2();
-                    }
-                    one_player_ladder_init();
-                    gamelogic_jump(6, p_pz_pselect);
-                    break;
-                case 8:
-                    set_mode_of_play(9);
-                    if (menu_player == 1 && p1_profile_status == 1) {
-                        move_profile_p1_to_p2();
-                    }
-                    gamelogic_jump(6, p_bg_pselect);
-                    break;
-                case MENU_TARGET_OPTIONS:
-                    gamelogic_jump(6, p_game_options);
-                    break;
-                case 14:
-                    gamelogic_jump(6, p_controller_config);
-                    break;
-                case 16:
-                    gamelogic_jump(6, p_kontent);
-                    break;
-                case 17:
-                    gamelogic_jump(7, p_krypt_mode);
-                    break;
-                case MENU_TARGET_CREATE_PROFILE:
-                    gamelogic_jump(6, p_create_profile);
-                    break;
-                case MENU_TARGET_VIEW_PROFILE:
-                    gamelogic_jump(6, p_view_profile);
-                    break;
-                case MENU_TARGET_DELETE_PROFILE:
-                    gamelogic_jump(6, p_delete_profile);
-                    break;
-                case 21:
-                case 22:
-                    gamelogic_jump(6, p_soundtrack);
-                    break;
-                case 23:
-                    gamelogic_jump(6, p_credits_screen);
-                    break;
-                case 5:
-                    gamelogic_jump(6, p_main_menu);
-                    break;
-                default:
-                    gamelogic_jump(0, p_attract_mode);
-                    break;
+            switch (mode) {
+            case 2:
+                game_settings.konquest_loading_image = 0;
+                set_mode_of_play(7);
+                clear_region_buffer();
+                konquestPort = g_game_info.players[menu_player].pad_index;
+                unassign_player(p1);
+                unassign_player(p2);
+                assign_player(konquestPort);
+                load_krd_buffer_from_memcard(0, 1);
+                gamelogic_jump(4, p_konquest_mode);
+                break;
+            case 4:
+                gamelogic_jump(6, p_main_menu);
+                break;
+            case 6:
+                set_mode_of_play(0);
+                if (menu_player == 1 && p1_profile_status == 1) {
+                    move_profile_p1_to_p2();
                 }
+                gamelogic_jump(1, p_pselect);
+                break;
+            case 7:
+                set_mode_of_play(1);
+                if (menu_player == 1 && p1_profile_status == 1) {
+                    move_profile_p1_to_p2();
+                }
+                gamelogic_jump(1, p_pselect);
+                break;
+            case 11:
+                set_mode_of_play(4);
+                if (menu_player == 1 && p1_profile_status == 1) {
+                    move_profile_p1_to_p2();
+                }
+                gamelogic_jump(1, p_pselect);
+                break;
+            case 9:
+                set_mode_of_play(6);
+                if (menu_player == 1 && p1_profile_status == 1) {
+                    move_profile_p1_to_p2();
+                }
+                one_player_ladder_init();
+                gamelogic_jump(6, p_pz_pselect);
+                break;
+            case 8:
+                set_mode_of_play(9);
+                if (menu_player == 1 && p1_profile_status == 1) {
+                    move_profile_p1_to_p2();
+                }
+                gamelogic_jump(6, p_bg_pselect);
+                break;
+            case MENU_TARGET_OPTIONS:
+                gamelogic_jump(6, p_game_options);
+                break;
+            case 14:
+                gamelogic_jump(6, p_controller_config);
+                break;
+            case 16:
+                gamelogic_jump(6, p_kontent);
+                break;
+            case 17:
+                gamelogic_jump(7, p_krypt_mode);
+                break;
+            case MENU_TARGET_CREATE_PROFILE:
+                gamelogic_jump(6, p_create_profile);
+                break;
+            case MENU_TARGET_VIEW_PROFILE:
+                gamelogic_jump(6, p_view_profile);
+                break;
+            case MENU_TARGET_DELETE_PROFILE:
+                gamelogic_jump(6, p_delete_profile);
+                break;
+            case 21:
+            case 22:
+                gamelogic_jump(6, p_soundtrack);
+                break;
+            case 23:
+                gamelogic_jump(6, p_credits_screen);
+                break;
+            case 5:
+                gamelogic_jump(6, p_main_menu);
+                break;
+            default:
+                gamelogic_jump(0, p_attract_mode);
+                break;
             }
         }
 
-        if (last_switch_time != (int)switchTime) {
+        if (last_switch_time != switchTime) {
             switchTime = last_switch_time;
             main_menu_timeout_ticks = 0xE10;
         }
@@ -1351,6 +1325,7 @@ float p_main_menu(void) {
         vtbl->sleep();
     }
 }
+#pragma opt_common_subs reset
 
 static float p_controller_watcher(void) {
     struct ControllerWatcherPdata* pdata;

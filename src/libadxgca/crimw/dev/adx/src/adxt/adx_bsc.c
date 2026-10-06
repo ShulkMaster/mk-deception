@@ -9,15 +9,6 @@ typedef void (*Pl2EncodeFunc)(AdxBasicDecoderExt*, short, short*, short*);
 typedef void (*Pl2ResetFunc)(AdxBasicDecoderExt*);
 
 extern void ADXB_ExecOneAhx(AdxBasicAhx*);
-extern void ADXB_ExecOneAiff(AdxBasicDecoder*);
-extern void ADXB_ExecOneAu(AdxBasicDecoder*);
-extern void ADXB_ExecOneWav(AdxBasicDecoder*);
-extern int ADXB_CheckAiff(const signed char*);
-extern int ADXB_CheckAu(const signed char*);
-extern int ADXB_CheckWav(const signed char*);
-extern int ADXB_DecodeHeaderAiff(AdxBasicDecoder*, signed char*, int);
-extern int ADXB_DecodeHeaderAu(AdxBasicDecoder*, signed char*, int);
-extern int ADXB_DecodeHeaderWav(AdxBasicDecoder*, signed char*, int);
 extern void ADXCRS_Lock(void);
 extern void ADXCRS_Unlock(void);
 extern void ADXERR_CallErrFunc2(const char*, const char*);
@@ -256,7 +247,7 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
                     short* left = (short*)((char*)expander->params.output_left + offset);
                     short* right = (short*)((char*)expander->params.output_right + offset);
                     pl2encodefunc(decoder, *left, left, right);
-                    offset += 2;
+                    offset += sizeof(short);
                 }
                 ADXCRS_Unlock();
             }
@@ -555,9 +546,6 @@ static inline void adxb_InitKeyGenerator(void)
     skg_init_count++;
 }
 
-#pragma inline_max_size(2000)
-#pragma inline_max_total_size(4000)
-/* One step of the key chain: mix a hex digit of the sample count through the prime table. */
 #define ADXB_SKG_MIX(k, c) (skg_prim_tbl[((k) * skg_prim_tbl[0x80 + (c)]) % 1024])
 
 static int adxb_MakeEncryptionKey(int sample_count, short* state,
@@ -628,8 +616,6 @@ static int adxb_get_key(AdxBasicDecoderExt* decoder,
     }
     return 0;
 }
-#pragma inline_max_size reset
-#pragma inline_max_total_size reset
 
 /* TODO: [near miss] 99.84%; five key-selector status join rows remain;
  * recover the stripped SKG helper before changing the shared return shape. */
@@ -747,7 +733,7 @@ AdxBasicDecoderExt* ADXB_Create(int max_channels, short* pcm_buffer,
     decoder->base.pcm_buffer = pcm_buffer;
     decoder->base.pcm_size = pcm_size;
     decoder->base.pcm_distance = pcm_distance;
-    decoder->base.get_write_info = (AdxGetWriteInfo)adxb_DefGetWr;
+    decoder->base.get_write_info = adxb_DefGetWr;
     decoder->base.get_write_object = decoder;
     decoder->base.add_write_info = adxb_DefAddWr;
     decoder->base.add_write_object = decoder;
@@ -761,7 +747,7 @@ AdxBasicDecoderExt* ADXB_Create(int max_channels, short* pcm_buffer,
 
 void adxb_DefAddWr(void* object, int data_length, int samples)
 {
-    AdxBasicDecoderExt* decoder = (AdxBasicDecoderExt*)object;
+    AdxBasicDecoderExt* decoder = object;
     decoder->base.current_write_position += samples;
     decoder->base.total_decoded_samples += samples;
 }
@@ -769,7 +755,7 @@ void adxb_DefAddWr(void* object, int data_length, int samples)
 short* adxb_DefGetWr(void* object, int* write_position, int* room,
                      int* loop_samples)
 {
-    AdxBasicDecoderExt* decoder = (AdxBasicDecoderExt*)object;
+    AdxBasicDecoderExt* decoder = object;
     *write_position = decoder->base.current_write_position;
     *room = decoder->base.pcm_size - decoder->base.current_write_position;
     *loop_samples = decoder->base.total_samples - decoder->base.total_decoded_samples;

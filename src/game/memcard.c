@@ -38,11 +38,9 @@ extern int p1_profile_slot;
 extern int msg_cant_enter_konquest_answer;
 extern int msg_profile_reset_confirmation_answer;
 
-static const char stringBase0[] = " \0%d %s\0\0MKD";
-
-#define STR_SPACE (&stringBase0[0])
-#define STR_COUNT_UNIT (&stringBase0[2])
-#define STR_EMPTY_NAME (&stringBase0[8])
+#define STR_SPACE " "
+#define STR_COUNT_UNIT "%d %s"
+#define STR_EMPTY_NAME ""
 
 static int states_when_device_present[7] = {0, 2, 5, 4, 6, 7, 3};
 static int states_when_device_error[4] = {3, 4, 6, 7};
@@ -530,6 +528,7 @@ void storage_status_change_calculations(int device) {
     }
 }
 
+/* TODO: [near miss] 91.23%; string pool recovered; address/register lowering remains. */
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* cardName,
     int nameLen, unsigned int* freeBlocks, int* freeBytes) {
@@ -539,10 +538,10 @@ int load_konquest_region_from_memcard_w_error(
     int attempts;
     unsigned int offset;
 
-    scratch = 0;
     result = -100;
+    scratch = 0;
     offset = (region + slot * 8 - 1) * SAVE_CHUNK_SIZE + 0x28B8;
-    do {
+    for (;;) {
         result = -100;
         cont = 0;
         if (region - 1 < 0 || region - 1 >= 8) {
@@ -550,29 +549,46 @@ int load_konquest_region_from_memcard_w_error(
         }
         while (cont == 0) {
             attempts = 2;
-            if (arg >= 1 && arg < 3) {
+            switch (arg) {
+            case 1:
+            case 2:
                 mcard_msg_read(device);
+                break;
+            default:
+                break;
             }
-            while (attempts != 0 && result != 0) {
-                attempts--;
+            while (attempts-- != 0 && result != 0) {
                 result = load_from_memcard2(
-                    device, 0, offset, STR_EMPTY_NAME, &stringBase0[9], buffer,
+                    device, 0, offset, STR_EMPTY_NAME, "MKD", buffer,
                     SAVE_CHUNK_SIZE, cardName, nameLen, freeBlocks, freeBytes, &scratch);
             }
             if (result == 0 &&
                 validate_region_buffer(
                     ((struct KonquestRegionStateView*)p1_profile_konquest)->field_0x5D) == 0) {
-                region_data_corruption_message_handler();
+                mcard_msg_cant_enter_konquest(p1_profile_device, p1_profile.name);
+                if (msg_cant_enter_konquest_answer == 2) {
+                    mcard_msg_end();
+                    mcard_msg_profile_reset_confirmation();
+                    if (msg_profile_reset_confirmation_answer == 1) {
+                        mcard_msg_end();
+                        erase_player_profile(p1_profile_device, p1_profile_slot);
+                    }
+                }
+                mcard_msg_end();
+                quit_from_konquest();
             }
             mcard_msg_end();
             cont = check_load_region_data_result(&result, device, scratch, 0);
             mcard_msg_end();
         }
-        if (result == 0) {
+        if (result != 0) {
+            if (bad_load_region_data_result_resolution(&result, device) != 0) {
+                return 0;
+            }
+        } else {
             return 1;
         }
-    } while (bad_load_region_data_result_resolution(&result, device) == 0);
-    return 0;
+    }
 }
 
 void region_data_corruption_message_handler(void) {
@@ -590,15 +606,12 @@ void region_data_corruption_message_handler(void) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 99.36%; retry and result CFG agree; string/storage/scratch register coloring remains. */
 int load_from_memcard_w_error(int device, int mode, void* settings, char* cardName, int nameLen,
                               unsigned int* freeBlocks, int* freeBytes) {
-    char* strs;
     int result;
     int scratch;
     int cont;
 
-    strs = (char*)stringBase0;
     result = -100;
     scratch = 0;
     for (;;) {
@@ -615,7 +628,7 @@ int load_from_memcard_w_error(int device, int mode, void* settings, char* cardNa
                     break;
             }
             while (cont-- != 0 && result != 0) {
-                result = load_from_memcard2(device, 0, 0, strs + 8, strs + 9, settings,
+                result = load_from_memcard2(device, 0, 0, "", "MKD", settings,
                                             STORAGE_LOAD_SIZE, cardName, nameLen, freeBlocks,
                                             freeBytes, &scratch);
             }
@@ -701,19 +714,19 @@ void end_save_message(int mode, int result, int device, int flag) {
     }
 }
 
-/* TODO: [breakthrough needed] 68.64%; retail's region range check and retry/dispatch CFG differ; needs structural comparison. */
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes) {
-    int result;
+    int result = 4;
+    unsigned char region_index = region - 1;
     int resolved;
     int tries;
 
-    if (region < 1 || region > 8) {
+    if (region_index >= 8) {
         return 0;
     }
 
-    do {
+    for (;;) {
         result = 4;
         resolved = 0;
         f_writing_to_memcard = 1;
@@ -732,6 +745,8 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
                 mcard_msg_create(device);
                 break;
             case 4:
+                mcard_msg_deleting_data(device);
+                break;
             case 5:
                 mcard_msg_deleting_data(device);
                 break;
@@ -744,38 +759,36 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
             while (tries-- != 0 && result != 0) {
                 result = save_to_memcard2(
                     device, 0,
-                    ((region - 1) + (unsigned int)slot * 8) * SAVE_CHUNK_SIZE + 0x28B8,
-                    flag, STR_EMPTY_NAME, &stringBase0[9], regionBuf, SAVE_CHUNK_SIZE,
+                    (region_index + (unsigned int)slot * 8) * SAVE_CHUNK_SIZE + 0x28B8,
+                    flag, "", "MKD", regionBuf, SAVE_CHUNK_SIZE,
                     freeBlocks, freeBytes, 0, flag, mode, 0);
             }
 
             mcard_msg_middle_sleep(mode, 1);
             end_save_message(mode, result, device, 1);
-            if (mode == 5) {
-                resolved = check_save_profile_result(&result, device, 0);
-            } else {
+            if (mode != 5) {
                 resolved = check_save_region_data_result(&result, device, mode);
+            } else {
+                resolved = check_save_profile_result(&result, device, 0);
             }
             mcard_msg_end();
         }
 
-        if (result == 0) {
-            return 1;
-        }
-        if (mode == 5) {
+        if (result != 0) {
+            if (mode != 5 &&
+                bad_save_region_data_result_resolution(&result, device) == 0) {
+                continue;
+            }
             return 0;
         }
-    } while (bad_save_region_data_result_resolution(&result, device) == 0);
-
-    return 0;
+        return 1;
+    }
 }
 
-/* TODO: [near miss] 99.54128%; operations and CFG agree; string-owner/resolved register swap remains. */
 int save_settings_to_memcard_w_error(int device, int mode, const char* title,
                                      GameSettings* settings, int flag,
                                      unsigned int* freeBlocks, int* freeBytes) {
     MkVtableMkproc* vtbl;
-    const char* strings;
     int result;
     int resolved;
     int tries;
@@ -787,7 +800,6 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
     }
 
     f_writing_to_memcard = 1;
-    strings = stringBase0;
     while (resolved == 0) {
         save_gsettings(device);
         switch (mode) {
@@ -820,8 +832,8 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
         tries = 2;
         resolved = 0;
         while (tries-- != 0 && result != 0) {
-            result = save_to_memcard2(device, 0, 0, flag, strings + 8,
-                                      strings + 9, settings, STORAGE_LOAD_SIZE,
+            result = save_to_memcard2(device, 0, 0, flag, "",
+                                      "MKD", settings, STORAGE_LOAD_SIZE,
                                       freeBlocks, freeBytes, 0, flag, mode, 0);
         }
         mcard_msg_middle_sleep(mode, 2);
@@ -837,7 +849,7 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 97.97%; stringBase0 pool alias (literals ""/"MKD" land in .sdata), progress add order and retry-loop coloring remain. */
+/* TODO: [near miss] 98.47%; buffer/pool ownership recovered; progress-add order and coloring remain. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -852,7 +864,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     int chunk;
     int chunkOff;
     int progressBase;
-    char* strs;
+    char* regionBuffer;
     MkVtableMkproc* vtbl;
 
     dev = DEVICE_AT(device);
@@ -906,11 +918,10 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 _mkproc_sleep_ticks = kThree;
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
-                strs = (char*)stringBase0;
                 tries = 2;
                 result = 4;
                 while (tries-- != 0 && result != 0) {
-                    result = save_to_memcard2(device, 0, 0, flag, strs + 8, strs + 9, settings,
+                    result = save_to_memcard2(device, 0, 0, flag, "", "MKD", settings,
                                               STORAGE_LOAD_SIZE, freeBlocks, freeBytes, 1, 0, mode,
                                               0);
                 }
@@ -920,7 +931,8 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
-                    memset(konq_region_data_buffer, 0, SAVE_CHUNK_SIZE);
+                    regionBuffer = konq_region_data_buffer;
+                    memset(regionBuffer, 0, SAVE_CHUNK_SIZE);
                     profile = 0;
                     progressBase = 0;
                     while (profile < 7 && result == 0) {
@@ -933,7 +945,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                                 result = save_to_memcard2(
                                     device, 0,
                                     profile * SAVE_PROFILE_STRIDE + chunkOff + STORAGE_LOAD_SIZE, 0,
-                                    strs + 8, strs + 9, konq_region_data_buffer, SAVE_CHUNK_SIZE,
+                                    "", "MKD", regionBuffer, SAVE_CHUNK_SIZE,
                                     deviceFreeBlocks, deviceFreeBytes, 0, 0, mode, 0);
                             }
                             chunk += 1;
@@ -951,11 +963,10 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
             }
 
             if (result == 0 || mode != 3) {
-                strs = (char*)stringBase0;
                 tries = 2;
                 result = 4;
                 while (tries-- != 0 && result != 0) {
-                    result = save_to_memcard2(device, 0, 0, 0, strs + 8, strs + 9, settings,
+                    result = save_to_memcard2(device, 0, 0, 0, "", "MKD", settings,
                                               STORAGE_LOAD_SIZE, freeBlocks, freeBytes, 0, flag,
                                               mode, 0);
                 }

@@ -3,7 +3,6 @@
 extern void DCT_FsriTransCbp(DctFsriParams* params);
 extern void DCT_FsriTrans6Blk(DctFsriParams* params);
 
-/* Clear one block and advance within the six-block paired-store view. */
 static inline void MPVCDEC_ClearCoefficients(f64** cursor)
 {
     *(*cursor)++ = 0.0;
@@ -70,16 +69,14 @@ s32 MPVCDEC_IntraBlocks(MPVContext* context)
 {
     MPVCodingBlock* block;
     DctFsriParams* params;
-    {
-        /* Retail clears each pair of 32-bit coefficients with one double store. */
-        f64* cursor = (f64*)&context->transform.coefficients[0][0];
-        MPVCDEC_ClearCoefficients(&cursor);
-        MPVCDEC_ClearCoefficients(&cursor);
-        MPVCDEC_ClearCoefficients(&cursor);
-        MPVCDEC_ClearCoefficients(&cursor);
-        MPVCDEC_ClearCoefficients(&cursor);
-        MPVCDEC_ClearCoefficients(&cursor);
-    }
+    f64* cursor = (f64*)&context->transform.coefficients[0][0];
+
+    MPVCDEC_ClearCoefficients(&cursor);
+    MPVCDEC_ClearCoefficients(&cursor);
+    MPVCDEC_ClearCoefficients(&cursor);
+    MPVCDEC_ClearCoefficients(&cursor);
+    MPVCDEC_ClearCoefficients(&cursor);
+    MPVCDEC_ClearCoefficients(&cursor);
     block = &context->coding.block;
     params = &context->dct_state;
     block->quantizer_scale = context->quantizer_scale;

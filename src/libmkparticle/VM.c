@@ -17,9 +17,8 @@ static int g_vmInitialized;
 void __VMSwapPageIn(u32 virtual_address);
 
 #define VM_TIME_UNITS() \
-    ((u32)((OSGetTime() * 8) / (OS_TIMER_CLOCK / 500000)))
+    ((u32)((OSGetTime() * 8) / (OS_TIMER_CLOCK / 125000)))
 
-/* TODO: [near miss] 96.92%; operations agree; saved-register coloring (r23-r30 vs r24-r30) and init/mask scheduling remain. */
 void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
 {
     int interrupts;
@@ -31,7 +30,7 @@ void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
         g_vmSizeVMARAM = aram_size;
         g_vmSizeVMMainMemory = virtual_memory_size;
         g_vmNumPagesInMRAM = virtual_memory_size >> 12;
-        VMBASEInit(__VMSwapPageIn, __VMSwapPageIn, g_vmNumPagesInMRAM, 1);
+        VMBASEInit(__VMSwapPageIn);
         __VMAllocVirtualToARAMLUT();
         __VMAllocARAMToVirtualLUT();
         __VMAllocMRAMSwapSpace();
@@ -77,21 +76,19 @@ void __VMAllocMRAMSwapSpace(void)
     OSSetArenaLo(g_vmBaseVMMainMemory + g_vmSizeVMMainMemory);
 }
 
-/* TODO: [breakthrough needed] 96.38%; timer arithmetic, call staging and ABI codegen differ; verify compiler provenance. */
 void __VMSwapPageIn(u32 virtual_address)
 {
     u32 start_time;
-    u32 fault_address;
-    u32 page_virtual_address;
-    u32 physical_page;
+    u32 page_address;
     void* physical_address;
-    int interrupts;
-    unsigned short ar_interrupt_status;
     int wrote_page;
+    u32 physical_page;
+    int ar_interrupt_status;
+    int interrupts;
+    u32 page_virtual_address;
 
-    fault_address = virtual_address;
     start_time = VM_TIME_UNITS();
-    virtual_address &= ~0xFFF;
+    page_address = virtual_address & ~0xFFF;
     wrote_page = 0;
     physical_page = __VMGetPageToReplace();
     physical_address =
@@ -118,25 +115,25 @@ void __VMSwapPageIn(u32 virtual_address)
         VMBASEClearPageTableEntry(page_virtual_address, physical_page);
     }
 
-    if (__VMIsARAMPageDirty(virtual_address)) {
+    if (__VMIsARAMPageDirty(page_address)) {
         ARStartDMA(1, (u32)physical_address,
-                   __VMTranslateVMPageToARAMPage(virtual_address), 0x1000);
+                   __VMTranslateVMPageToARAMPage(page_address), 0x1000);
         while (ARGetDMAStatus() != 0) {
         }
         DCInvalidateRange(physical_address, 0x1000);
         ICInvalidateRange(physical_address, 0x1000);
-    } else if (!__VMDoesMappingExist(virtual_address)) {
-        __VMMappingErrorAlert(virtual_address);
+    } else if (!__VMDoesMappingExist(page_address)) {
+        __VMMappingErrorAlert(page_address);
     }
 
     if (ar_interrupt_status == 0) {
         __ARClearInterrupt();
     }
-    VMBASESetPageTableEntry(virtual_address, physical_address, physical_page);
+    VMBASESetPageTableEntry(page_address, physical_address, physical_page);
     OSRestoreInterrupts(interrupts);
 
     if (g_cbLogStats != 0) {
-        g_cbLogStats(fault_address, physical_address, physical_page,
+        g_cbLogStats(virtual_address, physical_address, physical_page,
                      VM_TIME_UNITS() - start_time, wrote_page);
     }
 }

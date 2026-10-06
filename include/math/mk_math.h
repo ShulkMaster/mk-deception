@@ -71,11 +71,11 @@ void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v);
 void v3_to_xy_ang(Vec* ang, Vec* v);
 
 /* Matrix, quaternion, and angle conversion operations. */
-void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale);
-void v3_x_mat_sub_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* sub);
-void v3_x_mat_add_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* add);
-void v3_x_mat(Vec* out, const Vec* v, const MKMATRIX* m);
-void p3_x_mat(Vec* out, const Vec* p, const MKMATRIX* m);
+void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, const Vec* scale);
+void v3_x_mat_sub_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* sub);
+void v3_x_mat_add_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* add);
+void v3_x_mat(Vec* out, Vec* v, MKMATRIX* m);
+void p3_x_mat(Vec* out, Vec* p, MKMATRIX* m);
 void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b);
 void set_mat(MKMATRIX* dst, const MKMATRIX* src);
 float ang_sub_ang(float angle_a, float angle_b);

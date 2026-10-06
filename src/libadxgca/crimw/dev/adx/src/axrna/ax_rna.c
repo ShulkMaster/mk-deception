@@ -28,7 +28,6 @@ typedef struct AXRNAHandle {
     SJ* buffers[AXRNA_MAX_CHANNELS];
     SJCK input_chunks[AXRNA_MAX_CHANNELS];
     SJCK buffer_chunks[AXRNA_MAX_CHANNELS];
-    /* Cleared asynchronously by the ARQ completion callbacks. */
     volatile int transfer_pending[AXRNA_MAX_CHANNELS];
     int transfer_samples;
     int transfer_position;
@@ -74,7 +73,6 @@ static const char axrna_build_string[] =
 const char* const volatile axrna_build = axrna_build_string;
 static const char axrna_switch_off[] = "OFF";
 static const char axrna_switch_on[] = "ON ";
-/* Retained retail diagnostic labels; the table is part of the object data. */
 static const char* const axrna_switch_names[] = {
     axrna_switch_off,
     axrna_switch_on,
@@ -113,7 +111,6 @@ static inline int axrna_get_transfer_switch(const AXRNAHandle* handle)
 
 static inline u32 axrna_get_voice_address(const AXVPB* voice)
 {
-    /* The SDK ABI stores this 32-bit DSP address as two adjacent halfwords. */
     return *(const u32*)&voice->pb.addr.currentAddressHi;
 }
 
@@ -256,7 +253,7 @@ void AXRNA_SetSfreq(AXRNAHandle* handle, int sample_rate)
 void AXRNA_SetNumChan(AXRNAHandle* handle, int channels)
 {
     if (handle != 0) {
-        handle->num_channels = (signed char)channels;
+        handle->num_channels = channels;
     }
 }
 
@@ -357,7 +354,6 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
             if (transfer_size == 0) {
                 return;
             }
-            /* Mismatched channel chunks indicate a broken stereo SJ pair. */
             if (input_chunk.len != buffer_chunk.len) {
                 while (1) {
                 }
@@ -387,7 +383,7 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
 void axrna_end_flash(unsigned long request_address)
 {
     ARQRequest* request = (ARQRequest*)request_address;
-    int owner = (int)(request->owner & 0x7FFFFFFF);
+    int owner = request->owner & 0x7FFFFFFF;
     AXRNAHandle* handle = &axrna_obj[owner / AXRNA_MAX_CHANNELS];
     int channel = owner % AXRNA_MAX_CHANNELS;
 
@@ -404,7 +400,7 @@ void axrna_end_flash(unsigned long request_address)
 void axrna_end_trans(unsigned long request_address)
 {
     ARQRequest* request = (ARQRequest*)request_address;
-    int owner = (int)(request->owner & 0x7FFFFFFF);
+    int owner = request->owner & 0x7FFFFFFF;
     AXRNAHandle* handle = &axrna_obj[owner / AXRNA_MAX_CHANNELS];
     int channel = owner % AXRNA_MAX_CHANNELS;
 
@@ -442,7 +438,6 @@ void axrna_update_play(AXRNAHandle* handle)
     if (axrna_update_pos == 32) {
         axrna_update_pos = 0;
     }
-    /* A DSP address outside the allocated ARAM buffer is unrecoverable. */
     if (current_position < 0 || current_position > handle->buffer_size) {
         while (1) {
         }
@@ -670,8 +665,8 @@ AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
     }
 
     handle = &axrna_obj[handle_index];
-    handle->num_channels = (signed char)max_channels;
-    handle->allocated_channels = (signed char)max_channels;
+    handle->num_channels = max_channels;
+    handle->allocated_channels = max_channels;
     for (channel = 0; channel < handle->allocated_channels; channel++) {
         handle->inputs[channel] = inputs[channel];
     }
@@ -732,7 +727,7 @@ AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
 
 void axrna_voice_drop(void* voice_data)
 {
-    AXVPB* voice = (AXVPB*)voice_data;
+    AXVPB* voice = voice_data;
     int handle_index;
     int channel;
 

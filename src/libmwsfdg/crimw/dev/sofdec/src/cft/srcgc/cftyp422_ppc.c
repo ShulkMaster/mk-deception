@@ -1,22 +1,6 @@
-#include "dolphin/types.h"
+#include "sofdec/cft.h"
 
-typedef struct CFTYcc420Planar {
-    const u8* y;
-    const u8* cb;
-    const u8* cr;
-    s32 y_stride;
-    s32 cb_stride;
-    s32 cr_stride;
-} CFTYcc420Planar;
-
-typedef struct CFTArgb8888Output {
-    u8* data;
-    s32 width;
-    s32 height;
-    s32 stride;
-} CFTArgb8888Output;
-
-typedef float CFTArgbTable[3][256][4];
+#include "runtime/asm_sequences.inc"
 
 static const char cft_version_string[] =
     "\nCRI CFT/GC Ver.1.57 Build:Sep  3 2004 11:38:10\n";
@@ -35,52 +19,24 @@ static inline float clamp_table_value(float value)
     return value < 0.0f ? 0.0f : (value > 255.0f ? 255.0f : value);
 }
 
-static inline u8 clamp_channel(float value)
-{
-    if (value <= 0.0f) {
-        return 0;
-    }
-    if (value >= 255.0f) {
-        return 255;
-    }
-    return (u8)value;
-}
-
 static inline void make_chroma_tables(CFTArgbTable table)
 {
     s32 i;
-    float* cr;
-    float* cb;
 
-    cb = &table[1][0][0];
-    cr = &table[2][0][0];
-
-    for (i = 0; i < 256; i += 2) {
-        s32 component0 = i - 128;
-        s32 component1 = i - 127;
-
-        cb[3] = 2.017f * (float)component0 + 0.5f;
-        cb[2] = -0.392f * (float)component0 + 0.5f;
-        cb[1] = 0.0f;
-        cb[0] = 0.0f;
-        cr[3] = 0.0f;
-        cr[2] = -0.813f * (float)component0 + 0.5f;
-        cr[1] = 1.596f * (float)component0 + 0.5f;
-        cr[0] = 0.0f;
-        cb[7] = 2.017f * (float)component1 + 0.5f;
-        cb[6] = -0.392f * (float)component1 + 0.5f;
-        cb[5] = 0.0f;
-        cb[4] = 0.0f;
-        cr[7] = 0.0f;
-        cr[6] = -0.813f * (float)component1 + 0.5f;
-        cr[5] = 1.596f * (float)component1 + 0.5f;
-        cr[4] = 0.0f;
-        cb += 8;
-        cr += 8;
+    for (i = 0; i < 256; i++) {
+        table[1][i][3] = 2.017f * (float)(i - 128) + 0.5f;
+        table[1][i][2] = -0.392f * (float)(i - 128) + 0.5f;
+        table[1][i][1] = 0.0f;
+        table[1][i][0] = 0.0f;
+        table[2][i][3] = 0.0f;
+        table[2][i][2] = -0.813f * (float)(i - 128) + 0.5f;
+        table[2][i][1] = 1.596f * (float)(i - 128) + 0.5f;
+        table[2][i][0] = 0.0f;
     }
 }
 
-/* TODO: [near miss] 85.53%; table formulas/CTR loops recovered; conversion homes and FP scheduling remain. */
+/* TODO: [breakthrough] 94.28%; indexed chroma loop recovers retail conversion homes;
+ * channel owners and luminance conversion scheduling remain. */
 void CFT_MakeArgb8888Alp3211Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
@@ -95,7 +51,7 @@ void CFT_MakeArgb8888Alp3211Tbl(
         table[0][i][3] = -16.0f * (255.0f / 219.0f) + 0.5f;
         table[0][i][2] = -16.0f * (255.0f / 219.0f) + 0.5f;
         table[0][i][1] = -16.0f * (255.0f / 219.0f) + 0.5f;
-        table[0][i][0] = (float)alpha0;
+        table[0][i][0] = alpha0;
     }
     y_table = &table[0][48][0];
     luminance_sample = 48;
@@ -109,13 +65,13 @@ void CFT_MakeArgb8888Alp3211Tbl(
         next_sample = (float)++luminance_sample - 68.0f;
         y_table[2] = luminance0;
         y_table[1] = luminance0;
-        y_table[0] = (float)alpha1;
+        y_table[0] = alpha1;
         luminance1 = (255.0f / 55.0f) * clamp_table_value(next_sample) + 0.5f;
         ++luminance_sample;
         y_table[7] = luminance1;
         y_table[6] = luminance1;
         y_table[5] = luminance1;
-        y_table[4] = (float)alpha1;
+        y_table[4] = alpha1;
         y_table += 8;
     }
     y_table = &table[0][130][0];
@@ -130,18 +86,19 @@ void CFT_MakeArgb8888Alp3211Tbl(
         next_sample = 247.0f - (float)++luminance_sample;
         y_table[2] = luminance0;
         y_table[1] = luminance0;
-        y_table[0] = (float)alpha2;
+        y_table[0] = alpha2;
         luminance1 = 2.2972972f * clamp_table_value(next_sample) + 0.5f;
         ++luminance_sample;
         y_table[7] = luminance1;
         y_table[6] = luminance1;
         y_table[5] = luminance1;
-        y_table[4] = (float)alpha2;
+        y_table[4] = alpha2;
         y_table += 8;
     }
 }
 
-/* TODO: [breakthrough needed] 83.24%; chroma conversions retain a 0x50 frame versus retail 0x30. */
+/* TODO: [breakthrough] 94.55%; indexed chroma loop recovers retail 0x30 frame;
+ * separate channel owners and high-luminance conversion homes remain. */
 void CFT_MakeArgb8888Alp3110Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
@@ -154,7 +111,7 @@ void CFT_MakeArgb8888Alp3110Tbl(
         table[0][i][3] = 0.0f;
         table[0][i][2] = 0.0f;
         table[0][i][1] = 0.0f;
-        table[0][i][0] = (float)alpha0;
+        table[0][i][0] = alpha0;
     }
     y_table = &table[0][9][0];
     i = 9;
@@ -165,7 +122,7 @@ void CFT_MakeArgb8888Alp3110Tbl(
         y_table[3] = luminance;
         y_table[2] = luminance;
         y_table[1] = luminance;
-        y_table[0] = (float)alpha1;
+        y_table[0] = alpha1;
         y_table += 4;
     }
     y_table = &table[0][134][0];
@@ -180,19 +137,20 @@ void CFT_MakeArgb8888Alp3110Tbl(
         next_chroma = 251.0f - (float)++i;
         y_table[2] = luminance0;
         y_table[1] = luminance0;
-        y_table[0] = (float)alpha2;
+        y_table[0] = alpha2;
         luminance1 =
             (255.0f / 110.0f) * clamp_table_value(next_chroma) + 0.5f;
         ++i;
         y_table[7] = luminance1;
         y_table[6] = luminance1;
         y_table[5] = luminance1;
-        y_table[4] = (float)alpha2;
+        y_table[4] = alpha2;
         y_table += 8;
     }
 }
 
-/* TODO: [near miss] 96.79%; six entry rows differ in cursor/constant load scheduling. */
+/* TODO: [near miss] 96.79%; six cursor/constant entry-schedule rows
+ * remain; stop until new compiler-boundary evidence. */
 void CFT_MakeArgb8888AlpLumiTbl(
     s32 reverse, s32 low, s32 high, CFTArgbTable table)
 {
@@ -252,7 +210,7 @@ void CFT_MakeArgb8888AlpLumiTbl(
     }
 }
 
-/* TODO: [breakthrough] Retail cache and update lowering remain unmatched. */
+/* TODO: [blocked] 33.27%; vendor cache/update assembly boundary needs specific authorization; retain C fallback. */
 void CFT_Ycc420plnToY84C44(
     const CFTYcc420Planar* src,
     u8* dst_y,
@@ -330,102 +288,35 @@ static void cnvDynamicYcc420plnToArgb8888(
 static void cnvStaticYcc420plnToArgb8888(
     const CFTYcc420Planar* src, const CFTArgb8888Output* dst);
 
-static inline void store_dynamic_pixel(
-    u8* tile, s32 pixel, u8 y, u8 cb, u8 cr, CFTArgbTable table)
-{
-    float* yt = table[0][y];
-    float* cbt = table[1][cb];
-    float* crt = table[2][cr];
-
-    tile[pixel * 2] = clamp_channel(yt[0] + cbt[0] + crt[0]);
-    tile[pixel * 2 + 1] = clamp_channel(yt[1] + cbt[1] + crt[1]);
-    tile[32 + pixel * 2] = clamp_channel(yt[2] + cbt[2] + crt[2]);
-    tile[33 + pixel * 2] = clamp_channel(yt[3] + cbt[3] + crt[3]);
-}
-
-/* TODO: [blocked] 0%; handwritten paired-single conversion requires per-function assembly authorization. */
+#pragma push
+#pragma peephole off
+#pragma scheduling off
 static void cnvDynamicYcc420plnToArgb8888(
     const CFTYcc420Planar* src,
     const CFTArgb8888Output* dst,
     CFTArgbTable table)
 {
-    s32 tile_y;
-    s32 tile_x;
-    s32 dy;
-    s32 dx;
+    u32 slot[8];
 
-    for (tile_y = 0; tile_y < dst->height / 4; tile_y++) {
-        const u8* y = src->y + tile_y * 4 * src->y_stride;
-        const u8* cb = src->cb + tile_y * 2 * src->cb_stride;
-        const u8* cr = src->cr + tile_y * 2 * src->cb_stride;
-        u8* output = dst->data + tile_y * 16 * dst->stride;
-
-        for (tile_x = 0; tile_x < src->y_stride / 4; tile_x++) {
-            u8* tile = output + tile_x * 64;
-            for (dy = 0; dy < 4; dy++) {
-                for (dx = 0; dx < 4; dx++) {
-                    s32 chroma_x = tile_x * 2 + dx / 2;
-                    s32 chroma_y = dy / 2;
-                    store_dynamic_pixel(
-                        tile,
-                        dy * 4 + dx,
-                        y[dy * src->y_stride + tile_x * 4 + dx],
-                        cb[chroma_y * src->cb_stride + chroma_x],
-                        cr[chroma_y * src->cb_stride + chroma_x],
-                        table);
-                }
-            }
-        }
+    asm {
+        SEQ_cnvDynamicYcc420plnToArgb8888_Body()
     }
 }
+#pragma pop
 
-static inline void store_static_pixel(u8* tile, s32 pixel, u8 y, u8 cb, u8 cr)
-{
-    float red_chroma = cr_r[cr];
-    float green_cr = cr_g[cr];
-    float blue_chroma = cb_b[cb];
-    float green_cb = cb_g[cb];
-    float luminance = y__r[y];
-
-    tile[pixel * 2] = 255;
-    tile[pixel * 2 + 1] = clamp_channel(luminance + red_chroma);
-    tile[32 + pixel * 2] =
-        clamp_channel(luminance + green_cr + green_cb);
-    tile[33 + pixel * 2] = clamp_channel(luminance + blue_chroma);
-}
-
-/* TODO: [blocked] 0%; retail GQR4 and paired-single conversion require assembly authorization. */
+#pragma push
+#pragma peephole off
+#pragma scheduling off
 static void cnvStaticYcc420plnToArgb8888(
     const CFTYcc420Planar* src, const CFTArgb8888Output* dst)
 {
-    s32 tile_y;
-    s32 tile_x;
-    s32 dy;
-    s32 dx;
+    u32 slot[8];
 
-    for (tile_y = 0; tile_y < dst->height / 4; tile_y++) {
-        const u8* y = src->y + tile_y * 4 * src->y_stride;
-        const u8* cb = src->cb + tile_y * 2 * src->cb_stride;
-        const u8* cr = src->cr + tile_y * 2 * src->cb_stride;
-        u8* output = dst->data + tile_y * 16 * dst->stride;
-
-        for (tile_x = 0; tile_x < src->y_stride / 4; tile_x++) {
-            u8* tile = output + tile_x * 64;
-            for (dy = 0; dy < 4; dy++) {
-                for (dx = 0; dx < 4; dx++) {
-                    s32 chroma_x = tile_x * 2 + dx / 2;
-                    s32 chroma_y = dy / 2;
-                    store_static_pixel(
-                        tile,
-                        dy * 4 + dx,
-                        y[dy * src->y_stride + tile_x * 4 + dx],
-                        cb[chroma_y * src->cb_stride + chroma_x],
-                        cr[chroma_y * src->cb_stride + chroma_x]);
-                }
-            }
-        }
+    asm {
+        SEQ_cnvStaticYcc420plnToArgb8888_Body()
     }
 }
+#pragma pop
 
 void CFT_Ycc420plnToArgb8888(
     const CFTYcc420Planar* src,
@@ -439,17 +330,24 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
+/* TODO: [near miss] 99.64%; table setup follows retail .bss order (cr_r..y__r, needed by the asm
+ * converters); retail emits the five table addi in y__r-first order. */
 void CFT_Ycc420plnToArgb8888Init(void)
 {
     s32 i;
-    float* y_luminance = y__r;
-    float* cb_green = cb_g;
-    float* cb_blue = cb_b;
-    float* cr_red = cr_r;
-    float* cr_green = cr_g;
+    float* y_luminance;
+    float* cb_green;
+    float* cb_blue;
+    float* cr_red;
+    float* cr_green;
     float value;
     s32 offset;
 
+    cr_red = cr_r;
+    cr_green = cr_g;
+    cb_blue = cb_b;
+    cb_green = cb_g;
+    y_luminance = y__r;
     CFT_dummy = CFT_version;
     for (i = 0; i != 256; i++) {
         offset = i - 16;

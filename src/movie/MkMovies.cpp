@@ -31,7 +31,7 @@ static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int scre
     return *(RwTexture**)((char*)&player->saved_texture + screen_offset);
 }
 
-/* TODO: [near miss] 99.17%; size profile restores compact saves; localized scheduling remains. */
+/* TODO: [near miss] 99.17%; playing flag and scan index differ only in register coloring; stop. */
 void mkMovieTexPlayerIdleUpdate(void) {
     unsigned char anyPlaying;
     int index;

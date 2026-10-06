@@ -108,12 +108,6 @@ struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 };
 
-#define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance) \
-    do { \
-        (result) = (object); \
-        (result) = MK_HDR_LIVE((result), (expected_instance)); \
-    } while (0)
-
 
 double __fabs(double value);
 
@@ -527,8 +521,6 @@ static inline MkObj* fighter_severed_limb_live_object(
     return object;
 }
 
-/* TODO: [near miss] 99.83%; only the else-branch fish web colors r25 vs retail r24
- * (fish helper/macro reshapes regress; 120s permuter found nothing). */
 float p_fish_attack(void) {
     struct FishAttackPdata* pdata;
     MkObj* fish;
@@ -593,8 +585,7 @@ float p_fish_attack(void) {
 
         target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
-        RESOLVE_MAB_OBJECT_IN_PLACE(
-            fish, pdata->fish, pdata->fish_instance);
+        fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
@@ -616,8 +607,7 @@ float p_fish_attack(void) {
 
         target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
         plyr_obj = target;
-        RESOLVE_MAB_OBJECT_IN_PLACE(
-            fish, pdata->fish, pdata->fish_instance);
+        fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
@@ -634,8 +624,7 @@ float p_fish_attack(void) {
                 pdata->state = 4;
                 target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
-                RESOLVE_MAB_OBJECT_IN_PLACE(
-                    fish, pdata->fish, pdata->fish_instance);
+                fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
                 if (target == 0 || fish == 0) {
                     return -1.0f;
                 }
@@ -676,8 +665,7 @@ float p_fish_attack(void) {
 
                 target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
                 plyr_obj = target;
-                RESOLVE_MAB_OBJECT_IN_PLACE(
-                    fish, pdata->fish, pdata->fish_instance);
+                fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
                 if (target == 0 || fish == 0) {
                     return -1.0f;
                 }
@@ -711,8 +699,7 @@ float p_fish_attack(void) {
         } else {
             target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
             plyr_obj = target;
-            RESOLVE_MAB_OBJECT_IN_PLACE(
-                fish, pdata->fish, pdata->fish_instance);
+            fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
             if (target == 0 || fish == 0) {
                 return -1.0f;
             }
@@ -769,8 +756,7 @@ float p_fish_attack(void) {
         }
     }
 
-    RESOLVE_MAB_OBJECT_IN_PLACE(
-        fish, pdata->fish, pdata->fish_instance);
+    fish = MK_HDR_LIVE(pdata->fish, pdata->fish_instance);
     if (fish != 0 && fish->hdr.instance != 0) {
         fish->hdr.typed_vtbl->destroy(&fish->hdr);
     }
