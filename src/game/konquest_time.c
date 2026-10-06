@@ -51,18 +51,12 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 86.91%; exact CFG/size; specificity-mask load order and GPR allocation remain. */
+/* TODO: [near miss] 99.74%; shared specificity masks agree; six temporary GPR rows remain. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {
     int delta_a;
     int delta_b;
-    int month_a;
-    int day_of_week_a;
-    int day_of_month_a;
-    int month_b;
-    int day_of_week_b;
-    int day_of_month_b;
     unsigned int specificity_a;
     unsigned int specificity_b;
     int a_more_recent;
@@ -100,20 +94,8 @@ static KonquestTimedEvent* which_event_is_more_recent(
     if (event_b->time.minute > event_a->time.minute) {
         return event_b;
     }
-    month_a = event_a->time.month;
-    day_of_week_a = event_a->time.day_of_week;
-    day_of_month_a = event_a->time.day_of_month;
-    month_b = event_b->time.month;
-    day_of_week_b = event_b->time.day_of_week;
-    day_of_month_b = event_b->time.day_of_month;
-    specificity_a = (event_a->time.year != -1) |
-                    (month_a == -1 ? 0 : 2) |
-                    (day_of_week_a == -1 ? 0 : 4) |
-                    (day_of_month_a == -1 ? 0 : 8);
-    specificity_b = (event_b->time.year != -1) |
-                    (month_b == -1 ? 0 : 2) |
-                    (day_of_week_b == -1 ? 0 : 4) |
-                    (day_of_month_b == -1 ? 0 : 8);
+    specificity_a = event_time_specificity(&event_a->time);
+    specificity_b = event_time_specificity(&event_b->time);
     if (specificity_a > specificity_b) {
         a_more_recent = 1;
     } else if (specificity_b > specificity_a) {

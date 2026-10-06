@@ -337,28 +337,24 @@ AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid,
     return atc;
 }
 
-/* TODO: [breakthrough needed] 82.60%; recover the 3D WIFF helper path. */
-AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClump* clump,
+AniTextureControl* append_wiff_to_clump_material_id(int slot, unsigned int art_oid, RpClump* clump,
                                                     unsigned short material_id) {
-    ImageClumpExt* clump_ext;
     AniTextureControl* atc;
+    ImageClumpExt* clump_ext;
     int n;
     int i;
     RpMaterial* mat;
     RwTexture* alpha;
-    unsigned short flags_u;
 
     clump_ext = mkobj_clump_ext(clump);
     if (clump_ext == 0) {
         return 0;
     }
-    atc = get_wiff_atc_block(slot, (int)name);
+    atc = get_wiff_atc_block(slot, art_oid);
     if (atc == 0) {
         return 0;
     }
-    flags_u = atc->flags;
-    atc->flags =
-        ((flags_u & 0xf807) | ((material_id & 0xff) << 3));
+    atc->material_id_bits.material_id = material_id;
     atc->framerate = kZero;
     RpClumpForAllAtomics(clump, AtomicFindAniTexture, atc);
     mat = atc->materials[0];
@@ -375,9 +371,11 @@ AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClum
     i = n - 1;
     atc->numframes = n + 1;
     for (; i >= 0; i--) {
-        atc->textures[i + 1] = atc->textures[i];
+        int destination = i + 1;
+
+        atc->textures[destination] = atc->textures[i];
         if (atc->flag_bits.alpha) {
-            atc->alpha_textures[i + 1] = atc->alpha_textures[i];
+            atc->alpha_textures[destination] = atc->alpha_textures[i];
         }
     }
     atc->textures[0] = mat->texture;

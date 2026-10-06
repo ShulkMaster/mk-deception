@@ -117,7 +117,7 @@ unsigned int random(void);
 int get_mode_of_play(void);
 void set_mode_of_play(int mode);
 int player_control_allowed(void);
-void pop_game_state(void);
+void pop_game_state();
 void push_game_state(int state);
 int is_game_state_in_stack(int state);
 int get_game_state(void);

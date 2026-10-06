@@ -142,10 +142,11 @@ void mkpfx_set_environment(void) {
     pfxsystem_set_global(0x500, g_game_info.field_34);
 }
 
-/* TODO: [breakthrough needed] 77.33%; resolve emitter-slot latch and bounds CFG against retail. */
 MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index) {
     PfxSlot* table;
     int count;
+    MkHdr* emitter;
+    MkHdr* result;
 
     if (pfx == 0) {
         return 0;
@@ -155,7 +156,12 @@ MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index) {
         return 0;
     }
     table = pfx->slot_table;
-    return MK_LIVE(table[index].hdr, table[index].instance);
+    emitter = MK_LIVE(table[index].hdr, table[index].instance);
+    result = 0;
+    if (emitter != 0) {
+        result = emitter;
+    }
+    return result;
 }
 
 void vdestroy_pfx_clone(PfxClone* clone) {
@@ -478,43 +484,6 @@ void pfx_bind_render_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag) {
     pfx->bone_mat = RwFrameGetLTM(sobj->frame);
 }
 
-/* TODO: [breakthrough needed] 83.51%; resolve inlined binding guards and slot-owner scheduling. */
-MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
-    PfxSlot* slot;
-    MkHdr* existing;
-    MkObj* obj;
-    PfxEmitter* emitter_vm;
-    void* ltm;
-
-    if (pfx == 0 || pfx->slot_count < 1) {
-        return 0;
-    }
-
-    slot = pfx->slot_table;
-    if (flag_msb(slot->flags) < 0) {
-        existing = MK_LIVE(slot->hdr, slot->instance);
-        if (existing != 0) {
-            return (MkObj*)existing;
-        }
-    }
-
-    obj = get_mkobj_frame(object_type, 0);
-    if (obj == 0) {
-        return 0;
-    }
-
-    if (pfx != 0 && pfx->slot_count > 0) {
-        pfx->slot_table->flag_bits.owns_bind = 1;
-        pfx->slot_table->hdr = &obj->hdr;
-        pfx->slot_table->instance = obj->hdr.instance;
-        ltm = &obj->frame->modelling;
-        emitter_vm = pfx_get_emitter(pfx_vm(pfx), 0);
-        emitter_vm->transform = ltm;
-    }
-    insert_particle_mkobj(obj);
-    return obj;
-}
-
 static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
 {
     MkObj* obj = 0;
@@ -527,6 +496,39 @@ static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
     }
     if (bound != 0) {
         obj = (MkObj*)bound;
+    }
+    return obj;
+}
+
+/* TODO: [near miss] 99.15%; binding operations agree; stop at bound-object result register coloring. */
+MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
+    PfxSlot* slot;
+    MkObj* obj;
+    PfxEmitter* emitter_vm;
+    RwMatrix* ltm;
+
+    if (pfx == 0 || pfx->slot_count <= 0) {
+        obj = 0;
+    } else {
+        slot = pfx->slot_table;
+        if (slot->flag_bits.owns_bind != 0) {
+            obj = pfx_slot_bound_object(slot);
+            if (obj != 0) {
+                return obj;
+            }
+        }
+        obj = get_mkobj_frame(object_type, 0);
+        if (obj != 0) {
+            if (pfx != 0 && obj != 0 && pfx->slot_count > 0) {
+                pfx->slot_table->flag_bits.owns_bind = 1;
+                pfx->slot_table->hdr = &obj->hdr;
+                pfx->slot_table->instance = obj->hdr.instance;
+                ltm = &obj->frame->modelling;
+                emitter_vm = pfx_get_emitter(pfx_vm(pfx), 0);
+                emitter_vm->transform = ltm;
+            }
+            insert_particle_mkobj(obj);
+        }
     }
     return obj;
 }
@@ -850,25 +852,22 @@ static void apfx_set_transform_matrix(void) {
     dst[15] = one;
 }
 
-/* TODO: [breakthrough needed] 82.53%; verify sleep-tick conversion and frame-end scheduling. */
 void pfx_post_sleep(void) {
-    MkPfx* pfx;
     float ticks;
     float accum;
 
-    pfx = apfx;
-    if (pfx != 0) {
-        if (pfx->behaviors_active != 0) {
-            pfx_behaviors_frame_end(pfx_vm(pfx));
+    if (apfx != 0) {
+        if (apfx->behaviors_active != 0) {
+            pfx_behaviors_frame_end(pfx_vm(apfx));
         }
-        pfx_frame_end(pfx_vm(pfx));
-        pfx_frame_end_check(pfx_vm(pfx));
-        pfxmetrics_event(pfx->metrics_handle, 0x2000);
+        pfx_frame_end(pfx_vm(apfx));
+        pfx_frame_end_check(pfx_vm(apfx));
+        pfxmetrics_event(apfx->metrics_handle, 0x2000);
 
         ticks = aproc->sleep_ticks;
-        accum = pfx->accum_34;
-        pfx->accum_34 = accum + (float)(int)ticks;
-        pfx->accum_38 = game_speed * aproc->sleep_ticks + pfx->accum_38;
+        accum = apfx->accum_34;
+        apfx->accum_34 = accum + (float)(int)ticks;
+        apfx->accum_38 += game_speed * aproc->sleep_ticks;
         apfx = 0;
     }
     apfx_render_obj = 0;

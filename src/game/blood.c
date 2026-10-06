@@ -1299,8 +1299,8 @@ static inline void prepare_blood_path(
     BloodModelData* model, BloodPath* destination,
     const BloodPath* source, const Vec* weights) {
     BloodSurfaceRecord* record;
+    BloodSurface* surface;
     int triangle_index;
-    int next_triangle;
     int point_index;
     int corner;
 
@@ -1309,6 +1309,7 @@ static inline void prepare_blood_path(
     destination->speed_base = weights->y;
     destination->speed_scale = weights->z;
     destination->surface = &model->surface;
+    surface = destination->surface;
 
     for (point_index = 0; point_index < destination->point_count;
          point_index++) {
@@ -1317,15 +1318,14 @@ static inline void prepare_blood_path(
             break;
         }
         triangle_index = destination->record_indices[point_index];
-        if (triangle_index >= model->surface.record_count) {
+        if (triangle_index >= surface->record_count) {
             destination->corner_indices[point_index] = -1;
             break;
         }
 
-        next_triangle = destination->record_indices[point_index + 1];
-        record = &model->surface.records[triangle_index];
+        record = &surface->records[triangle_index];
         for (corner = 0; corner < 3; corner++) {
-            if (record->neighbors[corner] == next_triangle) {
+            if (record->neighbors[corner] == destination->record_indices[point_index + 1]) {
                 destination->corner_indices[point_index] = corner;
                 break;
             }
@@ -1394,10 +1394,9 @@ void kill_gusher(MkProc* proc) {
     }
 }
 
-/* TODO: [breakthrough needed] 81.01124%; initializer/store and saved-register differences remain; verify pdata layout and lifetimes. */
 GusherPdata* start_gusher(
     GusherStep* steps, void* owner, MkObj* object, int bone,
-    const Vec* position, const Vec* direction) {
+    Vec* position, Vec* direction) {
     GusherPdata* pdata;
 
     if (get_blood_level() < blood_type_list[5]) {
@@ -1430,7 +1429,7 @@ GusherPdata* start_gusher(
     return pdata;
 }
 
-/* TODO: [breakthrough needed] 83.48872%; object-validation branch shape and saved-register homes remain unresolved. */
+/* TODO: [near miss] 98.42%; post-calc null-bone return duplicates the shared failure load. */
 static float p_gusher(void) {
     GusherPdata* pdata;
     MkObj* object;
@@ -1440,58 +1439,56 @@ static float p_gusher(void) {
     float time;
 
     pdata = (GusherPdata*)apdata;
-    object = pdata->object;
-    if (object != 0 && object->hdr.instance != pdata->object_instance) {
-        object = 0;
-    }
-    if (object == 0) {
-        return -1.0f;
-    }
-
-    bone = object->bones[pdata->bone];
-    if (bone == 0 || bone->parent_matrix == 0) {
-        return -1.0f;
-    }
-
-    time = -game_speed;
-    while (time < 0.0f) {
-        while (pdata->current_step->blood_type == 0) {
-            pdata->current_step = pdata->steps;
-            pdata->velocity_max =
-                0.98f * (pdata->velocity_max - 0.01f) + 0.01f;
-            pdata->velocity_min =
-                0.98f * (pdata->velocity_min - 0.0075f) + 0.0075f;
-        }
-
-        calc_bone_world_mat(object, pdata->bone);
+    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
+    if (object != 0) {
         bone = object->bones[pdata->bone];
-        if (bone == 0) {
-            return -1.0f;
+        if (bone != 0 && bone->parent_matrix != 0) {
+            time = -game_speed;
+            while (time < 0.0f) {
+                for (;;) {
+                    if (pdata->current_step->blood_type != 0) {
+                        break;
+                    }
+                    pdata->current_step = pdata->steps;
+                    pdata->velocity_max =
+                        0.98f * (pdata->velocity_max - 0.01f) + 0.01f;
+                    pdata->velocity_min =
+                        0.98f * (pdata->velocity_min - 0.0075f) + 0.0075f;
+                }
+
+                calc_bone_world_mat(object, pdata->bone);
+                bone = object->bones[pdata->bone];
+                if (bone == 0) {
+                    return -1.0f;
+                }
+
+                v3_x_mat(
+                    &velocity, &pdata->direction, &bone->matrix);
+                velocity_scale =
+                    sfrand_ab(pdata->velocity_min, pdata->velocity_max);
+                velocity_scale *= pdata->current_step->velocity_scale;
+                velocity.x *= velocity_scale;
+                velocity.y *= velocity_scale;
+                velocity.z *= velocity_scale;
+                spawn_bld_fall(
+                    pdata->current_step->blood_type, bone, &pdata->position,
+                    &velocity, pdata->owner);
+                pdata->current_step++;
+                time += pdata->current_step->interval;
+            }
+
+            time += 0.99f;
+            if (pdata->owner != 0 && random_percent(0.014f * time) != 0) {
+                plyr_bleed_small_cycle_ext(
+                    pdata->owner, pdata->bone,
+                    pdata->owner);
+            }
+            return time;
         }
-
-        v3_x_mat(
-            &velocity, &pdata->direction, &bone->matrix);
-        velocity_scale =
-            sfrand_ab(pdata->velocity_min, pdata->velocity_max) *
-            pdata->current_step->velocity_scale;
-        velocity.x *= velocity_scale;
-        velocity.y *= velocity_scale;
-        velocity.z *= velocity_scale;
-        spawn_bld_fall(
-            pdata->current_step->blood_type, bone, &pdata->position,
-            &velocity, pdata->owner);
-        pdata->current_step++;
-        time += pdata->current_step->interval;
     }
-
-    time += 0.99f;
-    if (pdata->owner != 0 && random_percent(0.014f * time) != 0) {
-        plyr_bleed_small_cycle_ext(
-            pdata->owner, pdata->bone,
-            pdata->owner);
-    }
-    return time;
+    return -1.0f;
 }
+
 
 static inline float blood_splat_distance(const struct BloodSplat* splat, const MkObj* object) {
     float x;
@@ -2068,62 +2065,72 @@ void bleed_init(void) {
     blood_reset_splats();
 }
 
-/* TODO: [breakthrough] 83.59%; retail path-preparation early exits restored; blood-path relocation/code-generation differences remain. */
+static inline MkProc* create_blood_footprint_process(FighterMirror* fighter, MkObj* object) {
+    struct FootPrintPdata* foot_pdata;
+    MkProc* foot_proc;
+
+    if (get_blood_level() < blood_type_list[0]) {
+        return 0;
+    }
+    obj_set_bone_calc_world_mat_flag(object, 0xB);
+    obj_set_bone_calc_world_mat_flag(object, 0xA);
+    foot_proc = _create_mkproc_generic_nostack(
+        0x5018, 0x2C, p_foot_print_wait, sizeof(*foot_pdata),
+        (MkHdr**)&foot_pdata);
+    if (foot_proc == 0) {
+        return 0;
+    }
+    foot_proc->flags_bits.use_game_speed = 1;
+    foot_proc->sleep_ticks = 60.0f;
+    foot_pdata->object = object;
+    foot_pdata->object_instance = object->hdr.instance;
+    foot_pdata->decal_owner = fighter;
+    foot_pdata->left_position.x = -1000.0f;
+    foot_pdata->left_position.y = -1000.0f;
+    foot_pdata->left_position.z = -1000.0f;
+    foot_pdata->right_position.x = -1000.0f;
+    foot_pdata->right_position.y = -1000.0f;
+    foot_pdata->right_position.z = -1000.0f;
+    foot_pdata->bone_offset.x = 0.0f;
+    foot_pdata->bone_offset.y = 0.0f;
+    foot_pdata->bone_offset.z = -0.03f;
+    foot_pdata->use_right_foot = 0;
+    return foot_proc;
+}
+
+/* TODO: [breakthrough] 95.98%; destination and relocation owners recovered; neighbor exhaustion and register association remain. */
 void plyr_obj_load_bld_data(
     FighterMirror* fighter, BloodModelData* model, MkObj* object,
     char* path_name) {
     BloodPathFile* file;
     BloodSurface* source_surface;
     BloodPath* source_paths[10];
-    struct FootPrintPdata* foot_pdata;
+    BloodPath** path_cursor;
+    BloodPath* destination;
     MkProc* foot_proc;
     int relocate;
     int art_section;
     int index;
 
-    if (get_blood_level() < blood_type_list[0]) {
-        foot_proc = 0;
-    } else {
-        obj_set_bone_calc_world_mat_flag(object, 0xB);
-        obj_set_bone_calc_world_mat_flag(object, 0xA);
-        foot_proc = _create_mkproc_generic_nostack(
-            0x5018, 0x2C, p_foot_print_wait, sizeof(*foot_pdata),
-            (MkHdr**)&foot_pdata);
-        if (foot_proc != 0) {
-            foot_proc->flags_bits.use_game_speed = 1;
-            foot_proc->sleep_ticks = 60.0f;
-            foot_pdata->object = object;
-            foot_pdata->object_instance = object->hdr.instance;
-            foot_pdata->decal_owner = fighter;
-            foot_pdata->left_position.x = -1000.0f;
-            foot_pdata->left_position.y = -1000.0f;
-            foot_pdata->left_position.z = -1000.0f;
-            foot_pdata->right_position.x = -1000.0f;
-            foot_pdata->right_position.y = -1000.0f;
-            foot_pdata->right_position.z = -1000.0f;
-            foot_pdata->bone_offset.x = 0.0f;
-            foot_pdata->bone_offset.y = 0.0f;
-            foot_pdata->bone_offset.z = -0.03f;
-            foot_pdata->use_right_foot = 0;
-        }
-    }
+    foot_proc = create_blood_footprint_process(fighter, object);
     if (foot_proc != 0) {
-        ((PlyrPdata*)fighter)->foot_print_proc = foot_proc;
-        ((PlyrPdata*)fighter)->foot_print_proc_instance = foot_proc->instance;
+        fighter->foot_print_proc = foot_proc;
+        fighter->foot_print_proc_instance = foot_proc->instance;
     }
 
     if (path_name != 0) {
+        relocate = 1;
         art_section = get_shared_art_section_for_player(
             object);
         file = load_named_bloodpath_data_from_slot(
             art_section, path_name);
-        relocate = 1;
+        source_surface = &file->surface;
         if (file->relocation_marker < 0) {
             relocate = 0;
         } else {
             file->relocation_marker = -file->relocation_marker;
         }
-        source_surface = &file->surface;
+        path_cursor = file->paths;
         if (relocate) {
             source_surface->vertices = (BloodSurfaceVertex*)(
                 (char*)file + (unsigned int)source_surface->vertices);
@@ -2132,14 +2139,14 @@ void plyr_obj_load_bld_data(
         }
         for (index = 0; index < 10; index++) {
             source_paths[index] = (BloodPath*)(
-                (char*)file + (unsigned int)file->paths[index]);
+                (char*)file + (unsigned int)*path_cursor++);
             if (relocate) {
-                source_paths[index]->record_indices = (const int*)(
-                    (char*)file +
-                    (unsigned int)source_paths[index]->record_indices);
                 source_paths[index]->corner_indices = (int*)(
                     (char*)file +
                     (unsigned int)source_paths[index]->corner_indices);
+                source_paths[index]->record_indices = (const int*)(
+                    (char*)file +
+                    (unsigned int)source_paths[index]->record_indices);
             }
         }
     } else {
@@ -2157,26 +2164,36 @@ void plyr_obj_load_bld_data(
     }
 
     obj_bld_surface_build_polys(object, &model->surface, source_surface);
+    destination = &model->paths[0];
     prepare_blood_path(
-        model, &model->paths[0], source_paths[0], &std_bp_parms);
+        model, destination, source_paths[0], &std_bp_parms);
+    destination = &model->paths[1];
     prepare_blood_path(
-        model, &model->paths[1], source_paths[1], &std_bp_parms);
+        model, destination, source_paths[1], &std_bp_parms);
+    destination = &model->paths[2];
     prepare_blood_path(
-        model, &model->paths[2], source_paths[2], &std_bp_parms);
+        model, destination, source_paths[2], &std_bp_parms);
+    destination = &model->paths[3];
     prepare_blood_path(
-        model, &model->paths[3], source_paths[3], &std_bp_parms);
+        model, destination, source_paths[3], &std_bp_parms);
+    destination = &model->paths[4];
     prepare_blood_path(
-        model, &model->paths[4], source_paths[4], &std_bp_parms);
+        model, destination, source_paths[4], &std_bp_parms);
+    destination = &model->paths[5];
     prepare_blood_path(
-        model, &model->paths[5], source_paths[5], &std_bp_parms);
+        model, destination, source_paths[5], &std_bp_parms);
+    destination = &model->paths[6];
     prepare_blood_path(
-        model, &model->paths[6], source_paths[6], &std_bp_parms);
+        model, destination, source_paths[6], &std_bp_parms);
+    destination = &model->paths[7];
     prepare_blood_path(
-        model, &model->paths[7], source_paths[7], &std_bp_parms);
+        model, destination, source_paths[7], &std_bp_parms);
+    destination = &model->paths[8];
     prepare_blood_path(
-        model, &model->paths[8], source_paths[8], &std_bp_parms);
+        model, destination, source_paths[8], &std_bp_parms);
+    destination = &model->paths[9];
     prepare_blood_path(
-        model, &model->paths[9], source_paths[9], &std_bp_parms);
+        model, destination, source_paths[9], &std_bp_parms);
 }
 
 static inline unsigned int get_plyr_blood_artid(PlyrPdata* pdata, char* name,

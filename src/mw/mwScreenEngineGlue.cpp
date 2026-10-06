@@ -330,7 +330,7 @@ void refresh_screen_by_name(char* name) {
     }
 }
 
-/* TODO: [breakthrough needed] 74.82%; C destroy linkage fixed; cleanup reconstruction remains. */
+/* TODO: [breakthrough needed] 74.82%; unit-owned BSS globals are extern-only; recover canonical definitions and destructor registrations. */
 void screen_engine_cleanup(void) {
     Dispose__9ScreenMgrFUi(screen_manager, 1);
     memset(screen_engine_client.fontCache, 0,
@@ -2476,7 +2476,7 @@ void mkGameVariables::SetInt(int id, int value) {
 }
 
 int mkGameVariables::GetInt(int id) {
-    int state;
+    PlyrInfo* player;
 
     if (id >= 0x1f7c && id <= 0x1f93) {
         return id - 0x1f7c;
@@ -2500,12 +2500,19 @@ int mkGameVariables::GetInt(int id) {
         return bg_pselect_get_stage(1);
     case 0x1f72:
     case 0x1f73:
-        state = (id == 0x1f72 ? g_game_info.players[0].player_state
-                              : g_game_info.players[1].player_state);
-        if (state == 1) {
-            return 2;
+        player = &g_game_info.players[1];
+        if (id == 0x1f72) {
+            player = &g_game_info.players[0];
         }
-        return state > 0 && state < 3 ? 3 : 1;
+        switch (player->player_state) {
+        case 0:
+        default:
+            return 1;
+        case 1:
+            return 2;
+        case 2:
+            return 3;
+        }
     case 0x1f76:
         return pselect_get_selbox_pos(0);
     case 0x1f77:
@@ -2514,98 +2521,107 @@ int mkGameVariables::GetInt(int id) {
         return bg_pselect_get_offender_class(0);
     case 0x1f79:
         return bg_pselect_get_offender_class(1);
-    case 0x1f94:
-        return pselect_get_arena_index();
+    case 0x238d:
+        return menu_mode_var;
+    case 0x238e:
+        return menu_mode_sub_var;
     case 0x1fa4:
         return mode_of_play;
+    case 0x238c:
+        return (unsigned short)randu0((unsigned short)get_num_modeselect_portraits());
     case 0x1fa5:
         return pause_player;
-    case 0x1fa6:
-        return g_game_info.pad_overlay.pselect.field_1d4;
     case 0x1fa9:
         return profile_code_state[0];
     case 0x1fac:
         return profile_code_state[1];
+    case 0x2f48:
+        return ppc_get_code_state();
     case 0x1fae:
         return popup_type;
+    case 0x1f94:
+        return pselect_get_arena_index();
     case 0x1faf:
         return get_left_storage_device_status();
-    case 0x1fc6:
-        return arena_focus_var;
-    case 0x1fc7:
-        return controller_get_player_last_button(0);
-    case 0x1fc8:
-        return controller_get_player_last_button(1);
     case 0x1fc9:
         return get_right_storage_device_display_status();
+    case 0x1fc6:
+        if (((g_game_info.field_04 >> 7) & 1) != 0) {
+            return 1;
+        }
+        return arena_focus_var;
+    case 0x1ffe:
+        return arena_sub_menu_var;
     case 0x1fca:
         return psel_p1_handicap;
     case 0x1fcb:
         return psel_p2_handicap;
-    case 0x1fd4:
-        return pprofile_stage_var;
+    case 0x1fc7:
+        return controller_get_player_last_button(0);
+    case 0x1fc8:
+        return controller_get_player_last_button(1);
+    case 0x2b5c:
+        return get_volume(0);
+    case 0x2b5d:
+        return get_volume(1);
+    case 0x2b5e:
+        return get_volume(2);
+    case 0x2b5f:
+        return get_volume(3);
+    case 0x2b60:
+        return get_volume(4);
     case 0x1fd7:
         return pne_is_name_already_used();
+    case 0x1fd4:
+        return pprofile_stage_var;
     case 0x1fe0:
         return get_mu_access_progress();
     case 0x1fe1:
         return ok_to_bring_out_wager_screen();
+    case 0x1fa6:
+        return g_game_info.pad_overlay.pselect.field_1d4;
     case 0x1fe7:
         return pselect_bgnd_has_deathtrap();
     case 0x1fe8:
         return pselect_bgnd_has_level_transition();
     case 0x1fe9:
         return pselect_bgnd_has_weapon();
+    case 0x3715:
+        return get_brightness_value();
+    case 0x3714:
+        return get_contrast_value();
+    case 0x3717:
+        return get_progressive_scan_state();
+    case 0x3716:
+        return get_widescreen_state();
+    case 0x371a:
+        return get_brightness_value();
+    case 0x3718:
+        return get_contrast_value();
+    case 0x3719:
+        return get_gamma_value();
+    case 0x371d:
+        return get_color_blue_value();
+    case 0x371c:
+        return get_color_green_value();
+    case 0x371b:
+        return get_color_red_value();
     case 0x1ff0:
         return winner - 1;
-    case 0x1ff2:
-        return get_save_progress_flag();
     case 0x1ff3:
         return get_num_controllers();
     case 0x1ff4:
         return konquest_is_save_allowed();
+    case 0x1ff2:
+        return get_save_progress_flag();
     case 0x1ff6:
         return trial_never_passed_this_mission();
     case 0x1ffb:
         return pselect_get_body_texture_index(0);
     case 0x1ffc:
         return pselect_get_body_texture_index(1);
-    case 0x1ffe:
-        return arena_sub_menu_var;
-    case 0x238c:
-        return randu0(get_num_modeselect_portraits()) & 0xffff;
-    case 0x238d:
-        return menu_mode_var;
-    case 0x238e:
-        return menu_mode_sub_var;
-    case 0x2b5c:
-    case 0x2b5d:
-    case 0x2b5e:
-    case 0x2b5f:
-    case 0x2b60:
-        return get_volume(id - 0x2b5c);
-    case 0x2f48:
-        return ppc_get_code_state();
     case 0x2f50:
         return get_language();
-    case 0x3714:
-    case 0x3718:
-        return get_contrast_value();
-    case 0x3715:
-    case 0x371a:
-        return get_brightness_value();
-    case 0x3716:
-        return get_widescreen_state();
-    case 0x3717:
-        return get_progressive_scan_state();
-    case 0x3719:
-        return get_gamma_value();
-    case 0x371b:
-        return get_color_red_value();
-    case 0x371c:
-        return get_color_green_value();
-    case 0x371d:
-        return get_color_blue_value();
     }
     return 0;
 }

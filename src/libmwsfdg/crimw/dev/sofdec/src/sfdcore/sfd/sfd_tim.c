@@ -37,13 +37,16 @@ int SFTIM_IsVideoTerm(SfdHandle* handle)
                        handle->timer_state.current_time_scale) != 0;
 }
 
-/* TODO: [breakthrough needed] 78.542250%; typed timer and adjusted-clock locals
- * preserve codegen; early library-base/clock-load scheduling remains unresolved. */
+/* TODO: [near miss] 91.35%; clock and repeat snapshots agree; constant addressing and conversion scheduling remain. */
 int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
 {
     int ready;
     int special_timing;
-    int adjusted_clock;
+    int repeat_count;
+    int clock_scale;
+    int clock_value;
+    int adjustment;
+    SfdTimerLibraryWork* timer_library;
     SfdTimerState* timer;
     float current_time;
     float target_time;
@@ -53,28 +56,29 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
         return 1;
     }
     timer = &handle->timer_state;
-    if (timer->current_time_scale == 1) {
-        if (timer->current_time_value == -2) {
+    clock_scale = timer->current_time_scale;
+    timer_library = &SFLIB_libwork.timer_work;
+    adjustment = handle->conditions_primary[44];
+    clock_value = timer->current_time_value;
+    if (clock_scale == 1) {
+        if (clock_value == -2) {
             ready = 1;
         } else if (timer->field_02CC < 0) {
             timer->field_02CC = 0;
             ready = 1;
         } else if (UTY_CmpTime(value, scale,
                                timer->field_02CC,
-                               SFLIB_libwork.timer_work.source) != 0) {
+                               timer_library->source) != 0) {
             ready = 1;
         } else {
             ready = 0;
         }
     } else {
-        adjusted_clock = timer->current_time_value +
-                         (timer->current_time_scale *
-                          handle->conditions_primary[44]) /
-                             SFLIB_libwork.timer_work.source;
         target_time = (10000.0f * (float)value) / (float)scale;
+        clock_value += (clock_scale * adjustment) / timer_library->source;
         current_time =
-            (10000.0f * (float)adjusted_clock) /
-            (float)timer->current_time_scale;
+            (10000.0f * (float)clock_value) /
+            (float)clock_scale;
         if (handle->conditions_primary[15] != 1) {
             tolerance = (float)handle->conditions_primary[46];
             if (current_time + tolerance < target_time) {
@@ -87,14 +91,14 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
                     timer->frame_time_repeat_count++;
                 }
             } else {
+                repeat_count = timer->frame_time_repeat_count;
                 special_timing = 0;
-                if (SFLIB_libwork.timer_work.source == 59940 &&
+                if (timer_library->source == 59940 &&
                     handle->playback_settings.frame_rate_code <= 2 &&
                     timer->speed == 1000) {
                     special_timing = 1;
                 }
-                if (timer->frame_time_repeat_count <=
-                    (special_timing != 0)) {
+                if (repeat_count <= (special_timing != 0)) {
                     ready = timer->previous_frame_ready;
                 } else if (current_time < target_time) {
                     ready = 0;
@@ -114,17 +118,17 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     return ready;
 }
 
-/* TODO: [breakthrough needed] 84.917810%; typed clock/lib owners and donor-order
- * adjustment load help; floating-point scheduling needs fresh evidence. */
+/* TODO: [near miss] 88.40%; repeat-count snapshot recovered; clock conversion scheduling and constant addressing remain. */
 int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
 {
     int ready;
     int special_timing;
-    int value;
     int scale;
-    int clock_value;
+    int value;
     int clock_scale;
+    int clock_value;
     int adjustment;
+    int repeat_count;
     SfdTimerState* timer;
     SfdTimerLibraryWork* timer_library;
     float current_time;
@@ -158,12 +162,8 @@ int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
             }
         } else {
             target_time = (10000.0f * (float)value) / (float)scale;
-            current_time =
-                (10000.0f *
-                 (float)(clock_value +
-                         (clock_scale * adjustment) /
-                             timer_library->source)) /
-                (float)clock_scale;
+            clock_value += (clock_scale * adjustment) / timer_library->source;
+            current_time = (10000.0f * (float)clock_value) / (float)clock_scale;
             if (handle->conditions_primary[15] != 1) {
                 tolerance = (float)handle->conditions_primary[46];
                 if (current_time + tolerance < target_time) {
@@ -176,14 +176,14 @@ int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
                         timer->frame_time_repeat_count++;
                     }
                 } else {
+                    repeat_count = timer->frame_time_repeat_count;
                     special_timing = 0;
                     if (timer_library->source == 59940 &&
                         handle->playback_settings.frame_rate_code <= 2 &&
                         timer->speed == 1000) {
                         special_timing = 1;
                     }
-                    if (timer->frame_time_repeat_count <=
-                        (special_timing != 0)) {
+                    if (repeat_count <= (special_timing != 0)) {
                         ready = timer->previous_frame_ready;
                     } else if (current_time < target_time) {
                         ready = 0;

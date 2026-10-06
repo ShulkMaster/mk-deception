@@ -567,43 +567,57 @@ unsigned int fx(const char* name) {
     return banks_find_owned_fx(name, owner);
 }
 
-/* TODO: [near miss] 81.11%; latch search agrees; prologue saves (stmw vs stw) and register coloring remain. */
-unsigned int fx2(unsigned int bank_handle, const char* name) {
-    struct PfxBankLatch* bank_latch;
+static inline unsigned int fx_to_handle(struct PfxBank* bank, int effect_index) {
+    return (bank->handle_bank & 0xF) |
+           ((effect_index & 0x3FF) << 4) | 0x4000 |
+           (bank->handle_generation * 0x01000000U);
+}
+
+static inline unsigned int bank_find_fx(struct PfxBank* bank, const char* name) {
     struct PfxEffectLatch* effect_latch;
-    struct PfxBank* bank;
     struct PfxScriptEffect* effect;
-    int bank_index;
     int effect_index;
-
-    if (bank_handle != 0xDEADBABE) {
-        return 0;
-    }
-
-    bank_index = bank_handle & 0xF;
-    if (bank_index == 0 || bank_index > 15) {
-        bank = 0;
-    } else {
-        bank_latch = &banks[bank_index - 1];
-        bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
-        if (bank != 0 &&
-            (bank_latch->bank_instance & 0xFFFFFFF0) !=
-                (bank_handle & 0xFFFFFFF0)) {
-            bank = 0;
-        }
-    }
 
     for (effect_index = 0; effect_index < bank->effect_count; effect_index++) {
         effect_latch = &bank->effects[effect_index];
         effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
         if (effect != 0 && effect->effect_name != 0 &&
             strcmp(name, effect->effect_name) == 0) {
-            return ((effect_index << 4) & 0x3FF0) |
-                   (bank->handle_bank & 0xF) | 0x4000 |
-                   (bank->handle_generation << 24);
+            return fx_to_handle(bank, effect_index);
         }
     }
     return 0;
+}
+
+static inline struct PfxBank* bank_from_handle(unsigned int handle)
+{
+    struct PfxBank* bank;
+    int bank_index = handle & 0xF;
+    unsigned int generation;
+
+    if (bank_index == 0 || bank_index > 15) {
+        return 0;
+    }
+    bank_index--;
+    bank = MK_HDR_LIVE(banks[bank_index].bank,
+        banks[bank_index].bank_instance);
+    if (bank == 0) {
+        return 0;
+    }
+    generation = banks[bank_index].bank_instance;
+    generation &= 0xFFFFFFF0;
+    if (generation != (handle & 0xFFFFFFF0)) {
+        return 0;
+    }
+    return bank;
+}
+
+/* TODO: [near miss] 97.11%; bank resolution agrees; search has one null-branch and generation-packing residue. */
+unsigned int fx2(unsigned int bank_handle, const char* name) {
+    if (bank_handle != 0xDEADBABE) {
+        return 0;
+    }
+    return bank_find_fx(bank_from_handle(bank_handle), name);
 }
 
 void fx_hide(unsigned int handle, int hidden) {
@@ -997,8 +1011,8 @@ void update_texanim_hold(int texture_field, int age_field, float frame_time,
 
     if (environment->behavior_state.behavior != 0) {
         pfxvm_update_animate_texture(
-            environment->behavior_state.behavior, texture_field, age_field, frame_count,
-            frame_offset, 0, 0, frame_time);
+            environment->behavior_state.behavior, texture_field, age_field, frame_time,
+            frame_count, frame_offset, 0, 0);
     }
 }
 
@@ -1008,8 +1022,8 @@ void update_texanim(int texture_field, int age_field, float frame_time,
 
     if (environment->behavior_state.behavior != 0) {
         pfxvm_update_animate_texture(
-            environment->behavior_state.behavior, texture_field, age_field, frame_count,
-            frame_offset, 0, 1, frame_time);
+            environment->behavior_state.behavior, texture_field, age_field, frame_time,
+            frame_count, frame_offset, 0, 1);
     }
 }
 
@@ -1024,43 +1038,32 @@ void update_fade_alpha2(int color_field, int age_field, float start_time,
     }
 }
 
-/* TODO: [near miss] 76.508194%; typed color-table loop retains existing instruction scheduling residue. */
 void update_lerp_color(
     int color_field, int age_field, float duration, int color_count,
-    int first_color, const struct PfxScriptColorRow* table) {
-    struct PfxScriptEnvironment* environment;
+    int first_color, struct PfxScriptColorRow* table) {
+    PfxBehavior* behavior;
     PfxColor* colors;
-    PfxColor* color;
-    const struct PfxScriptColorRow* row_data;
     unsigned int row_count;
-    int remaining;
+    int index;
 
-    environment = active_pfx_environment();
-    if (environment->behavior_state.behavior == 0 || g_pfx_cmo == 0) {
-        return;
+    behavior = active_pfx_environment()->behavior_state.behavior;
+    if (behavior != 0 && g_pfx_cmo != 0) {
+        row_count = get_row_count_for_table_by_pointer(g_pfx_cmo, (void*)table);
+        if (row_count != 0) {
+            colors = get_mem(row_count * sizeof(*colors));
+            for (index = 0; index < (int)row_count; index++) {
+                struct PfxScriptColorRow* row = &table[index];
+                PfxColor* color = &colors[index];
+                color->r = row->red;
+                color->g = row->green;
+                color->b = row->blue;
+                color->a = row->alpha;
+            }
+            pfxvm_update_lerp_color(
+                behavior, color_field, age_field, duration,
+                color_count, first_color, colors);
+        }
     }
-
-    row_count = get_row_count_for_table_by_pointer(
-        g_pfx_cmo, (void*)table);
-    if (row_count == 0U) {
-        return;
-    }
-
-    colors = get_mem(row_count * sizeof(*colors));
-    color = colors;
-    row_data = table;
-    remaining = row_count;
-    do {
-        color->r = row_data->red;
-        color->g = row_data->green;
-        color->b = row_data->blue;
-        color->a = row_data->alpha;
-        color++;
-        row_data++;
-    } while (--remaining != 0);
-    pfxvm_update_lerp_color(
-        environment->behavior_state.behavior, color_field, age_field, color_count,
-        first_color, colors, duration);
 }
 
 void update_fade_alpha(int color_field, int age_field, float start_time,
@@ -1660,13 +1663,13 @@ void restart_effect_ppfx(struct PfxScriptEffect* effect) {
     pfx_emitter_restart_cycle(emitter);
 }
 
-/* TODO: [near miss] 81.91304%; zero lifetime across emitter lookup differs; stop. */
+/* TODO: [near miss] 81.91%; retail saves a zero across emitter lookup; remaining seven rows are lifetime/codegen. */
 void resume_effect(const char* name) {
     struct PfxScriptEffect* effect;
-    PfxVmEmitter* emitter;
-
     effect = find_pfx_by_name(name);
     if (effect != 0) {
+        PfxVmEmitter* emitter;
+
         effect->lifecycle_flags.restart_cycle = 1;
         emitter = pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0);
         emitter->flags.bits.cycle_paused = 0;
@@ -1729,8 +1732,25 @@ void set_cycle_length(float length, float position) {
     }
 }
 
-/* TODO: [breakthrough needed] 80.44%; retail registry-index argument restored;
- * remaining table-slot control-flow/register reconstruction needs evidence. */
+static inline int pfxscript_add_table(int type, PfxSpawnTable* table,
+                                      int row_count) {
+    struct PfxSpawnTableSlot* slots = active_pfx_environment()->spawn_tables;
+    int index;
+
+    for (index = 0; index < 2; index++) {
+        struct PfxSpawnTableSlot* slot = &slots[index];
+
+        if (slot->type == 0) {
+            slot->type = type;
+            slot->table = table;
+            slot->row_count = row_count;
+            return index;
+        }
+    }
+    return 2;
+}
+
+/* TODO: [near miss] 99.56%; MAP registry CFG agrees; stop at array/slot GPR coloring. */
 void spawn_random_size(const float* table) {
     struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
@@ -1741,7 +1761,10 @@ void spawn_random_size(const float* table) {
 
     environment = active_pfx_environment();
     emitter = environment->emitter;
-    if (emitter == 0 || g_pfx_cmo == 0) {
+    if (emitter == 0) {
+        return;
+    }
+    if (g_pfx_cmo == 0) {
         return;
     }
 
@@ -1758,20 +1781,14 @@ void spawn_random_size(const float* table) {
     copied_table->type = 3;
     memcpy(copied_table->values, table, value_size);
 
-    environment = active_pfx_environment();
-    for (slot_index = 0; slot_index < 2; slot_index++) {
-        if (environment->spawn_tables[slot_index].type == 0) {
-            environment->spawn_tables[slot_index].type = 3;
-            environment->spawn_tables[slot_index].table = copied_table;
-            environment->spawn_tables[slot_index].row_count = row_count;
-            break;
-        }
-    }
+    slot_index = pfxscript_add_table(3, copied_table, row_count);
 
     environment = active_pfx_environment();
-    pfxvm_spawn_set_field_from_table(
-        emitter, environment->field04 != 0 ? 0x402 : 0x102,
-        slot_index);
+    if (environment->field04 != 0) {
+        pfxvm_spawn_set_field_from_table(emitter, 0x402, slot_index);
+    } else {
+        pfxvm_spawn_set_field_from_table(emitter, 0x102, slot_index);
+    }
 }
 
 void set_growth_coefficient(float coefficient) {
@@ -2088,7 +2105,7 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 99.57%; two supported OIDs lower as a range instead of retail equality pairs. */
+/* TODO: [near miss] 99.58%; two supported OIDs lower as a range instead of retail equality pairs. */
 void bind_to_bone(int bone_index) {
     struct PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2873,35 +2890,19 @@ static void bank_run_fx(struct PfxBank* bank) {
     }
 }
 
-/* TODO: [near miss] 85.35%; exact owned-effect search; four-instruction residue. */
+/* TODO: [near miss] 96.75%; three-row residue: repeated null edge and shift/or generation packing. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner) {
     struct PfxBankLatch* bank_latch;
-    struct PfxEffectLatch* effect_latch;
     struct PfxBank* bank;
-    struct PfxScriptEffect* effect;
-    unsigned int handle;
+    int handle;
     int bank_index;
-    int effect_index;
 
     for (bank_index = 0; bank_index < 15; bank_index++) {
         bank_latch = &banks[bank_index];
         bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
         if (bank != 0 && (bank->owner_flags & owner) != 0) {
-            handle = 0;
-            for (effect_index = 0;
-                 effect_index < bank->effect_count;
-                 effect_index++) {
-                effect_latch = &bank->effects[effect_index];
-                effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
-                if (effect != 0 && effect->effect_name != 0 &&
-                    strcmp(name, effect->effect_name) == 0) {
-                    handle = ((effect_index << 4) & 0x3FF0) |
-                             (bank->handle_bank & 0xF) | 0x4000 |
-                             (bank->handle_generation << 24);
-                    break;
-                }
-            }
+            handle = bank_find_fx(bank, name);
             if (handle != 0) {
                 return handle;
             }

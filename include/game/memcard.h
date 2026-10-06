@@ -17,6 +17,9 @@
 #define DEVICE_AT(device) (&storage_status[(device)])
 
 int init_memcard(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 int get_mu_access_progress(void);
 void reset_storage_device_status_structure(int device);
 void storage_status_change_calculations(int device);

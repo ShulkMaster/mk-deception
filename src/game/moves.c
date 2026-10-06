@@ -1181,31 +1181,36 @@ void configure_iceball(MkObj* iceball) {
     }
 }
 
-/* TODO: [breakthrough needed] 77.61%; typed process-latch expansion and output-local ownership remain. */
+static inline void moves_select_special_weapon_style(PlyrPdata* player) {
+    unsigned int style_index;
+    PlyrWeaponStyle* style;
+
+    if (player != 0) {
+        for (style_index = 0; style_index < 3; style_index++) {
+            style = player->weapon_styles[style_index];
+            if (moves_is_weapon_style(style)) {
+                player->mirror_slots = &style->mirror_slots;
+                break;
+            }
+        }
+    }
+}
+
+/* TODO: [near miss] 99.32%; inline checks and callback ownership agree; search register colors and player handoff remain. */
 void start_special_weapon_monitor(void) {
     struct MovesWeaponWatchPdata* pdata;
-    PlyrMirrorSlots* default_slots;
     PlyrMirrorSlots* slots;
-    PlyrWeaponStyle* style;
+    PlyrPdata* player;
     MkProc* monitor;
-    int style_index;
 
     pdata = 0;
     if (plyr_pdata == 0) {
         return;
     }
 
-    for (style_index = 0; style_index < 3; style_index++) {
-        style = plyr_pdata->weapon_styles[style_index];
-        if (is_weapon_style(style) != 0) {
-            plyr_pdata->mirror_slots = &style->mirror_slots;
-            break;
-        }
-    }
+    moves_select_special_weapon_style(plyr_pdata);
 
-    default_slots =
-        &plyr_pdata->fighter_definition->mirror_slots;
-    if (plyr_pdata->mirror_slots == default_slots) {
+    if (plyr_pdata->mirror_slots == &plyr_pdata->fighter_definition->mirror_slots) {
         return;
     }
 
@@ -1214,36 +1219,37 @@ void start_special_weapon_monitor(void) {
         (MkHdr**)&pdata);
     if (monitor != 0 && pdata != 0) {
         if (plyr_pdata->player_slot >= 0 &&
-            is_weapon_style(plyr_pdata->fighter_definition) != 0) {
-            plyr_weapon_hide(plyr_pdata, 0, default_slots);
+            moves_is_weapon_style(plyr_pdata->fighter_definition) != 0) {
+            plyr_weapon_hide(plyr_pdata, 0, &plyr_pdata->fighter_definition->mirror_slots);
         }
 
-        slots = plyr_pdata->mirror_slots;
-        if (moves_resolve_weapon_latch(&slots->weapon[0].primary) != 0) {
+        player = plyr_pdata;
+        slots = player->mirror_slots;
+        if (MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance) != 0) {
             plyr_weapon_grab(
-                plyr_pdata,
-                moves_resolve_weapon_latch(&slots->weapon[0].primary));
+                player,
+                MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance));
         }
-        if (moves_resolve_weapon_latch(&slots->weapon[1].primary) != 0) {
+        if (MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance) != 0) {
             plyr_weapon2_grab(
-                plyr_pdata,
-                moves_resolve_weapon_latch(&slots->weapon[1].primary));
+                player,
+                MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance));
         }
-        if (moves_resolve_weapon_latch(&slots->weapon[2].primary) != 0) {
+        if (MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance) != 0) {
             plyr_weapon3_grab(
-                plyr_pdata,
-                moves_resolve_weapon_latch(&slots->weapon[2].primary));
+                player,
+                MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance));
         }
-        if (moves_resolve_weapon_latch(&slots->weapon[3].primary) != 0) {
+        if (MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance) != 0) {
             plyr_weapon4_grab(
-                plyr_pdata,
-                moves_resolve_weapon_latch(&slots->weapon[3].primary));
+                player,
+                MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance));
         }
-        plyr_weapon_show(plyr_pdata, 1, slots);
-        if (plyr_pdata->baraka_moveset_callback != 0) {
-            plyr_pdata->baraka_moveset_callback(plyr_pdata, slots);
+        plyr_weapon_show(player, 1, slots);
+        if (player->baraka_moveset_callback != 0) {
+            player->baraka_moveset_callback(player, slots);
         }
-        plyr_weapon_trail_show(slots);
+        plyr_weapon_trail_show(plyr_pdata->mirror_slots);
 
         pdata->monitor_token = aproc->entry;
         pdata->player_proc = aproc;
@@ -1251,7 +1257,7 @@ void start_special_weapon_monitor(void) {
         pdata->timeout = 60;
         return;
     }
-    plyr_pdata->mirror_slots = default_slots;
+    plyr_pdata->mirror_slots = &plyr_pdata->fighter_definition->mirror_slots;
 }
 
 static float p_watch_weapon(void) {
@@ -4566,17 +4572,35 @@ static float p_sidekick_exit_now(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.62%; inverse-sqrt FPR coloring and bit-cast/exit_data stack homes differ;
+static inline void moves_create_sidekick_exit_process(void) {
+    MkHdr* exit_header;
+    PlyrPdata* player;
+    MkProc* proc;
+
+    player = plyr_pdata;
+    if (player->plyr_num == 0) {
+        proc = _create_mkproc_generic_bigstack(
+            0xC028, 8, p_sidekick_exit_now, sizeof(struct MovesSidekickPdata),
+            &exit_header);
+    } else {
+        proc = _create_mkproc_generic_bigstack(
+            0xC029, 8, p_sidekick_exit_now, sizeof(struct MovesSidekickPdata),
+            &exit_header);
+    }
+    if (proc != 0 && exit_header != 0) {
+        ((struct MovesSidekickPdata*)exit_header)->player = player;
+    }
+}
+
+/* TODO: [near miss] 99.81%; six player-x/normalized-z FPR rows differ;
  * fresh retail float-pool targets remain a TU layout check. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
-    PlyrPdata* state;
-    struct MovesSidekickPdata* exit_data;
-    PlyrPdata* player;
     MkObj* sidekick;
-    MkProc* proc;
     MkHdr* object;
     float delta_x;
     float delta_z;
+    float player_z;
+    float normalized_z;
     float opponent_x;
     float opponent_z;
     float inverse_distance;
@@ -4584,7 +4608,6 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     float position_y;
     float position_z;
 
-    state = plyr_pdata;
     sidekick = MK_HDR_LIVE(plyr_pdata->sidekick_obj, plyr_pdata->sidekick_instance);
 
     plyr_obj->flags_09_bits.bit6 = 1;
@@ -4596,9 +4619,9 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     stop_me();
     tightrope_restrictions_off();
 
-    delta_z = plyr_obj->pos.value.z;
+    player_z = plyr_obj->pos.value.z;
     opponent_z = his_obj->pos.value.z;
-    delta_z -= opponent_z;
+    delta_z = player_z - opponent_z;
     delta_x = plyr_obj->pos.value.x;
     opponent_x = his_obj->pos.value.x;
     delta_x -= opponent_x;
@@ -4606,9 +4629,9 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     inverse_distance =
         moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
     delta_x *= inverse_distance;
-    delta_z *= inverse_distance;
+    normalized_z = delta_z * inverse_distance;
     position_x = -2.0f * delta_x;
-    position_z = -2.0f * delta_z;
+    position_z = -2.0f * normalized_z;
     position_x += opponent_x;
     position_z += opponent_z;
     sidekick->pos.value.x = position_x;
@@ -4623,19 +4646,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     } else {
         destroy_mkprocs_pid(0xC029);
     }
-    player = plyr_pdata;
-    if (player->plyr_num == 0) {
-        proc = _create_mkproc_generic_bigstack(
-            0xC028, 8, p_sidekick_exit_now, sizeof(struct MovesSidekickPdata),
-            (MkHdr**)&exit_data);
-    } else {
-        proc = _create_mkproc_generic_bigstack(
-            0xC029, 8, p_sidekick_exit_now, sizeof(struct MovesSidekickPdata),
-            (MkHdr**)&exit_data);
-    }
-    if (proc != 0 && exit_data != 0) {
-        exit_data->player = player;
-    }
+    moves_create_sidekick_exit_process();
 
     set_root_and_obj_movement_weights(plyr_anim_pdata, 0.0f, 1.0f);
     plyr_obj->pos.value.x = position_x;

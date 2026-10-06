@@ -118,13 +118,15 @@ static inline int subblock_is_free(const SubBlock* subblock) {
     return !(subblock->size & 2);
 }
 
-static inline void subblock_set_size(SubBlock* subblock, unsigned long size) {
-    subblock->size &= 7;
-    subblock->size |= size & ~7UL;
-    if (!(subblock->size & 2)) {
-        *(unsigned long*)((unsigned char*)subblock + size - 4) = size;
-    }
-}
+#define subblock_set_size(subblock, bytes)                                  \
+    do {                                                                   \
+        (subblock)->size &= 7;                                              \
+        (subblock)->size |= (bytes) & ~7UL;                                  \
+        if (!((subblock)->size & 2)) {                                      \
+            *(unsigned long*)((unsigned char*)(subblock) + (bytes) -        \
+                              sizeof(unsigned long)) = (bytes);            \
+        }                                                                  \
+    } while (0)
 
 static inline SubBlock* merge_previous(SubBlock* subblock, SubBlock** start) {
     unsigned long previous_size;
@@ -148,12 +150,15 @@ static inline SubBlock* merge_previous(SubBlock* subblock, SubBlock** start) {
 }
 
 static inline void merge_next(SubBlock* subblock, SubBlock** start) {
-    SubBlock* next = (SubBlock*)((unsigned char*)subblock + subblock_size(subblock));
+    unsigned long tag = subblock->size;
+    SubBlock* next = (SubBlock*)((unsigned char*)subblock + (tag & ~7UL));
+    unsigned long next_tag = next->size;
     unsigned long size;
 
-    if (!(next->size & 2)) {
-        size = subblock_size(subblock) + subblock_size(next);
-        subblock->size &= 7;
+    if (!(next_tag & 2)) {
+        next_tag &= ~7UL;
+        subblock->size = tag & 7;
+        size = (tag & ~7UL) + next_tag;
         subblock->size |= size & ~7UL;
         if (!(subblock->size & 2)) {
             *(unsigned long*)((unsigned char*)subblock + size - 4) = size;
@@ -197,7 +202,7 @@ static inline SubBlock* split_subblock(SubBlock* subblock, unsigned long size) {
     unsigned long old_size = subblock_size(subblock);
     int was_free = subblock_is_free(subblock);
     int allocated = !was_free;
-    int previous_allocated = (subblock->size & 4) != 0;
+    int previous_allocated = subblock->size & 4;
     Block* owner = (Block*)((unsigned long)subblock->block & ~1UL);
     SubBlock* remainder = (SubBlock*)((unsigned char*)subblock + size);
 
@@ -223,7 +228,7 @@ static inline void unlink_subblock(Block* block, SubBlock* subblock) {
     *(unsigned long*)((unsigned char*)subblock + size) |= 4;
     start = block_start(block);
     if (*start == subblock) {
-        *start = (*start)->next;
+        *start = subblock->next;
     }
     if (*start == subblock) {
         *start = NULL;
@@ -299,7 +304,7 @@ void* __pool_alloc_clear(__mem_pool* pool, unsigned long size) {
     return ptr;
 }
 
-/* TODO: [breakthrough needed] 82.31%; compare pool dispatch and copy sizing. */
+/* TODO: [breakthrough] 90.77%; growth owner reload recovered; split snapshot and linking schedule remain. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long needed;
@@ -336,6 +341,7 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
             if (subblock_size(subblock) >= needed) {
                 if (subblock_size(subblock) - needed >= 0x50) {
                     remainder = split_subblock(subblock, needed);
+                    block = (Block*)((unsigned long)subblock->block & ~1UL);
                     LINK_FREE_SUBBLOCK(block, remainder);
                 }
                 return ptr;
@@ -538,18 +544,31 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     return (unsigned char*)subblock + 4;
 }
 
-/* TODO: [breakthrough needed] 79.75%; variable-pool coalescing and field scheduling remain. */
+static inline int block_is_empty(const Block* block) {
+    const SubBlock* first = (const SubBlock*)(block + 1);
+    unsigned long tag = first->size;
+    int empty = 0;
+
+    if (!(tag & 2) && (tag & ~7UL) == block_size(block) - 24) {
+        empty = 1;
+    }
+    return empty;
+}
+
+/* TODO: [near miss] 98.84%; tag snapshots and whole-block-free predicate agree; volatile register homes remain. */
 static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
+    unsigned long tag = subblock->size;
     Block* block = (Block*)((unsigned long)subblock->block & ~1UL);
-    SubBlock* first;
     SubBlock** start;
+    SubBlock* next;
     unsigned long size;
 
-    size = subblock_size(subblock);
-    subblock->size &= ~2UL;
-    *(unsigned long*)((unsigned char*)subblock + size) &= ~4UL;
-    *(unsigned long*)((unsigned char*)subblock + size - 4) = size;
+    size = tag & ~7UL;
+    subblock->size = tag & ~2UL;
+    next = (SubBlock*)((unsigned char*)subblock + size);
+    next->size &= ~4UL;
+    *(unsigned long*)((unsigned char*)next - sizeof(unsigned long)) = size;
     start = block_start(block);
     if (*start != NULL) {
         subblock->prev = (*start)->prev;
@@ -567,42 +586,44 @@ static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     if (block->max_size < subblock_size(*start)) {
         block->max_size = subblock_size(*start);
     }
-    first = (SubBlock*)(block + 1);
-    if ((first->size & 2) == 0 && subblock_size(first) == (block->size & ~7UL) - 24) {
+    if (block_is_empty(block)) {
         unlink_block(pool, block);
         __sys_free(block);
     }
 }
 
-/* TODO: [breakthrough needed] 80.44%; compare free-list traversal and pointer lifetimes. */
 static void* soft_allocate_from_var_pools(
     MemPoolObj* pool, unsigned long size, unsigned long* largest) {
-    unsigned long needed = (size + 15) & ~7UL;
     Block* block;
     SubBlock* subblock;
 
-    if (needed < 0x50) {
-        needed = 0x50;
+    size = (size + 15) & ~7UL;
+
+    if (size < 0x50) {
+        size = 0x50;
     }
     *largest = 0;
     block = pool->start;
     if (block == NULL) {
         return NULL;
     }
-    do {
-        if (needed <= block->max_size) {
-            subblock = Block_subBlock(block, needed);
+    for (;;) {
+        if (size <= block->max_size) {
+            subblock = Block_subBlock(block, size);
             if (subblock != NULL) {
                 pool->start = block;
-                return (unsigned char*)subblock + 8;
+                break;
             }
         }
         if (block->max_size > 8 && *largest < block->max_size - 8) {
             *largest = block->max_size - 8;
         }
         block = block->next;
-    } while (block != pool->start);
-    return NULL;
+        if (block == pool->start) {
+            return NULL;
+        }
+    }
+    return &subblock->prev;
 }
 
 static void* allocate_from_var_pools(MemPoolObj* pool, unsigned long size) {
@@ -666,23 +687,25 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
     return block;
 }
 
-/* TODO: [breakthrough needed] 86.20%; compare split and unlink control flow. */
+/* TODO: [breakthrough] 93.84%; node size and unlink agree; split flag loads and scheduling remain. */
 static SubBlock* Block_subBlock(Block* block, unsigned long size) {
-    SubBlock** rover = block_start(block);
-    SubBlock* start = *rover;
+    SubBlock* start = *block_start(block);
     SubBlock* subblock;
     unsigned long max_size;
+    unsigned long current_size;
 
     if (start == NULL) {
         block->max_size = 0;
         return NULL;
     }
     subblock = start;
-    max_size = subblock_size(subblock);
-    while (subblock_size(subblock) < size) {
+    current_size = subblock_size(subblock);
+    max_size = current_size;
+    while (current_size < size) {
         subblock = subblock->next;
-        if (max_size < subblock_size(subblock)) {
-            max_size = subblock_size(subblock);
+        current_size = subblock_size(subblock);
+        if (max_size < current_size) {
+            max_size = current_size;
         }
         if (subblock == start) {
             block->max_size = max_size;
@@ -690,7 +713,7 @@ static SubBlock* Block_subBlock(Block* block, unsigned long size) {
         }
     }
 
-    if (subblock_size(subblock) - size >= 0x50) {
+    if (current_size - size >= 0x50) {
         split_subblock(subblock, size);
     }
 
@@ -698,24 +721,28 @@ static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     return subblock;
 }
 
-/* TODO: [breakthrough needed] 83.10%; compare footer/tag stores and coalescing CFG. */
+/* TODO: [near miss] 99.26%; operations and tags agree; constructor, merge and max-size volatile homes remain. */
 static void Block_construct(Block* block, unsigned long size) {
     SubBlock* subblock = (SubBlock*)(block + 1);
     SubBlock** start;
-    unsigned long subblock_bytes = size - 24;
+    unsigned long free_size;
+    SubBlock* following;
 
     block->size = size | 3;
-    *(unsigned long*)((unsigned char*)block + size - 8) = block->size;
-    subblock->size = subblock_bytes;
-    subblock->block = (Block*)((unsigned long)block | 1);
-    *(unsigned long*)((unsigned char*)subblock + subblock_bytes - 4) = subblock_bytes;
-    block->max_size = subblock_bytes;
+    *(unsigned long*)((unsigned char*)block + size - 2 * sizeof(unsigned long)) = block->size;
+    construct_subblock(subblock, block,
+        size - sizeof(Block) - 2 * sizeof(unsigned long), 0, 0);
+    block->max_size = size - sizeof(Block) - 2 * sizeof(unsigned long);
     start = block_start(block);
     *start = NULL;
 
-    subblock->size &= ~2UL;
-    *(unsigned long*)((unsigned char*)subblock + subblock_bytes) &= ~4UL;
-    *(unsigned long*)((unsigned char*)subblock + subblock_bytes - 4) = subblock_bytes;
+    free_size = subblock->size;
+    subblock->size = free_size & ~2UL;
+    free_size &= ~7UL;
+    following = (SubBlock*)((unsigned char*)subblock + free_size);
+    following->size &= ~4UL;
+    *(unsigned long*)((unsigned char*)following - sizeof(unsigned long)) = free_size;
+    start = block_start(block);
     if (*start != NULL) {
         subblock->prev = (*start)->prev;
         subblock->prev->next = subblock;

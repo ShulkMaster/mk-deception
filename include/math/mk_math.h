@@ -30,8 +30,8 @@ void xz_x_v_add_xz(Vec* dst, const Vec* v, float s);
 void normalize_xz(Vec* v);
 float length_xz(const Vec* v);
 float xz_dot_xz(const Vec* a, const Vec* b);
-float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to);
-void xz_unit_vector(Vec* out, const Vec* from, const Vec* to);
+float xz_unit_vector_recip(Vec* out, Vec* from, Vec* to);
+void xz_unit_vector(Vec* out, Vec* from, const Vec* to);
 float xz_to_y_ang(const Vec* v);
 void scale_xz(Vec* out, const Vec* v, float s);
 
@@ -59,9 +59,9 @@ void scale_v3(Vec* out, const Vec* v, float s);
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float weight_a);
 void norm_angles_v3(Vec* ang);
 float norm_angle(float angle);
-void v3_to_xz_ang(Vec* ang, const Vec* v);
+void v3_to_xz_ang(Vec* ang, Vec* v);
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v);
-void v3_to_xy_ang(Vec* ang, const Vec* v);
+void v3_to_xy_ang(Vec* ang, Vec* v);
 
 /* Matrix, quaternion, and angle conversion operations. */
 void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale);

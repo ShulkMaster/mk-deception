@@ -113,7 +113,7 @@ int ADX_DecodeSte4AsSte(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough] 69.101070%; block count, paired stores, and right-key
+/* TODO: [breakthrough] 69.11%; block count, paired stores, and right-key
  * ownership are explicit; input traversal and inner-loop lowering remain. */
 int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
@@ -191,8 +191,7 @@ int ADX_DecodeSte4AsMono(const signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough needed] 84.470590%; direct first-sample clamp and
- * delayed history match; retail CTR/frame lowering still needs source evidence. */
+/* TODO: [breakthrough needed] 85.53%; quantizer base retained; retail short/CTR/frame shape remains unresolved. */
 int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
                     short delay[2], short coefficient0, short coefficient1,
                     short* randomState, short randomMultiplier,
@@ -202,6 +201,7 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
     int older = delay[1];
     int predictor0 = coefficient0;
     int predictor1 = coefficient1;
+    const int* quantizer = AdxQtbl;
 
     for (block = 0; block < numBlocks; block++) {
         short code = *(const short*)input;
@@ -226,7 +226,7 @@ int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,
                     decoded = 32767;
                 }
             }
-            quantized = AdxQtbl[packed & 15];
+            quantized = quantizer[packed & 15];
             output[0] = (short)decoded;
             previous = clamp_sample(quantized * gain +
                 ((predictor0 * decoded + predictor1 * previous) >> 12));

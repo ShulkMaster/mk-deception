@@ -56,7 +56,7 @@ struct BioFlasherPdata {
 static const char stringBase0[] =
     "bio_strings_eng.mko\0"
     "PART_A\0"
-    "PART_B\0";
+    "PART_B";
 
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_twenty = 20.0f;
@@ -75,7 +75,6 @@ extern const MkFileEntry bios_file_table[];
 extern const MkFileEntry bio_text_file_table[];
 extern MkFileInfo sec_eu_biofont;
 
-extern int next_bio_screen;
 extern int b_game_timer_off;
 
 int gap_08_805107B4_sbss;
@@ -315,35 +314,58 @@ static void atm_old_mkda_logo(void) {
     gamelogic_jump(0, p_atm_loop);
 }
 
+static inline int find_bio_unlock_index(int unlock_bit)
+{
+    int index;
+    for (index = 0; index < 0x1A; index++) {
+        if (bio_file_table[index].unlock_bit == unlock_bit) {
+            return index;
+        }
+    }
+    return -1;
+}
+
 static int gp_unlock_bit_set(unsigned int hi, unsigned int lo, int bit) {
     unsigned long long bits;
     unsigned long long mask;
 
     bits = ((unsigned long long)hi << 32) | (unsigned long long)lo;
-    mask = 1ULL << (unsigned int)bit;
+    mask = (long long)(int)(1U << (unsigned int)bit);
     return (bits & mask) != 0ull;
 }
 
-/* TODO: [breakthrough needed] 83.52%; page setup and load order still differ. */
+static inline int next_unlocked_bio(int* next_index, unsigned int hi,
+                                    unsigned int lo) {
+    for (;;) {
+        int index = *next_index;
+        int bit = bio_file_table[index].unlock_bit;
+        if (gp_unlock_bit_set(hi, lo, bit) != 0) {
+            return index;
+        }
+        *next_index = index + 1;
+        if ((unsigned int)*next_index >= 0x1AU) {
+            *next_index = 0;
+        }
+    }
+}
+
+/* TODO: [near miss] 99.80%; operations/CFG agree; alternate-summary and screen/frame GPR allocation remains. */
 static void atm_bio_screen(void) {
+    static int next_bio_screen = -1;
     int bio_index;
     int use_alt;
     int unlock_bit;
     int sound_id;
     int match;
-    int i;
     int frame;
     int pressed;
     int x;
+    unsigned int primary_unlock_hi;
+    unsigned int primary_unlock_lo;
     MkProc* flasher;
     struct BioFlasherPdata* pdata;
-    StringObj* str_obj;
     const char* text;
     struct BioFileEntry* entry;
-    PfxFontSlot* font;
-    int text_x;
-    int text_y;
-    int text_y_off;
     unsigned char color[4];
 
     ATTRACT_PAGE_SETUP();
@@ -353,42 +375,35 @@ static void atm_bio_screen(void) {
         next_bio_screen = (randu0(0x1AU) & 0xFFFFU);
     }
 
-    for (;;) {
-        bio_index = next_bio_screen;
-        unlock_bit = bio_file_table[bio_index].unlock_bit;
-        if (gp_unlock_bit_set(gp_data.cat7.words[0], gp_data.cat7.words[1], unlock_bit) != 0) {
-            break;
-        }
-        next_bio_screen = bio_index + 1;
-        if ((unsigned int)next_bio_screen < 0x1AU) {
-            continue;
-        }
-        next_bio_screen = 0;
-    }
+    primary_unlock_hi = gp_data.cat7.words[0];
+    primary_unlock_lo = gp_data.cat7.words[1];
+    bio_index = next_unlocked_bio(&next_bio_screen,
+        primary_unlock_hi, primary_unlock_lo);
 
     use_alt = 0;
     if ((randu0(2U) & 0xFFFFU) != 0) {
-        unlock_bit = bio_file_table[bio_index].unlock_bit;
+        unlock_bit = bio_file_table[next_bio_screen].unlock_bit;
         if (gp_unlock_bit_set(gp_data.cat8.words[0], gp_data.cat8.words[1], unlock_bit) != 0) {
             use_alt = 1;
         }
     }
 
-    next_bio_screen = (bio_index + 1) % 0x1A;
+    next_bio_screen++;
+    next_bio_screen = (unsigned int)next_bio_screen % 0x1AU;
     load_font(0);
 
     flasher = _create_mkproc_generic_tinystack(
         0x2005, 0x1F, p_bio_press_start_flasher, sizeof(*pdata), (MkHdr**)&pdata);
     if (flasher != 0 && pdata != 0) {
+        StringObj* press_start;
         pdata->press_start_obj = 0;
         pdata->press_start_inst = 0;
         pdata->bio_text_obj = 0;
         pdata->bio_text_inst = 0;
-        text = get_string(1);
-        str_obj = string_center_xy(0x2010, 0, text, 0xA6, 0x2E, 0x1D);
-        if (str_obj != 0) {
-            pdata->press_start_obj = str_obj;
-            pdata->press_start_inst = str_obj->instance;
+        press_start = string_center_xy(0x2010, 0, get_string(1), 0xA6, 0x2E, 0x1D);
+        if (press_start != 0) {
+            pdata->press_start_obj = press_start;
+            pdata->press_start_inst = press_start->instance;
         }
     }
 
@@ -398,47 +413,40 @@ static void atm_bio_screen(void) {
     load_art_section(0x90046, &sec_eu_biofont);
     load_font(0x10);
 
-    entry = &bio_file_table[bio_index];
     if (use_alt != 0) {
-        add_art_section(0x90046, entry->alt);
+        add_art_section(0x90046, bio_file_table[bio_index].alt);
     } else {
-        add_art_section(0x90046, entry->primary);
+        add_art_section(0x90046, bio_file_table[bio_index].primary);
     }
 
+    entry = &bio_file_table[bio_index];
     sound_id = entry->sound_id;
     unlock_bit = entry->unlock_bit;
-    match = -1;
-    for (i = 0; i < 0x1A; i++) {
-        if (bio_file_table[i].unlock_bit == unlock_bit) {
-            match = i;
-            break;
-        }
-    }
+    match = find_bio_unlock_index(unlock_bit);
 
     if (match != -1) {
+        StringObj* bio_text;
         int height;
 
-        entry = &bio_file_table[match];
         if (use_alt != 0) {
-            text = get_string_by_id(entry->string_id_b | 0x20000);
+            text = get_string_by_id(bio_file_table[match].string_id_b | 0x20000);
         } else {
-            text = get_string_by_id(entry->string_id_a | 0x20000);
+            text = get_string_by_id(bio_file_table[match].string_id_a | 0x20000);
         }
 
         height = screen_height;
-        font = load_font(0x10);
-        text_x = (bio_text_scale_a * (float)screen_width);
-        text_y = (bio_text_scale_b * (float)height);
-        text_y_off = (bio_text_scale_c * (float)height);
-
-        str_obj = create_wrapped_string(0x9017, font, text, text_x, text_y, 0x14A, text_y_off, 0, 1);
-        str_obj->priority = 0x10;
+        bio_text = create_wrapped_string(
+            0x9017, load_font(0x10), text,
+            bio_text_scale_a * (float)screen_width,
+            bio_text_scale_b * (float)height, 0x14A,
+            bio_text_scale_c * (float)height, 0, 1);
+        bio_text->priority = 0x10;
         color[0] = 0xFF;
         color[1] = 0xFF;
         color[2] = 0xFF;
         color[3] = 0xFF;
-        pfxfont_set_string_color(&str_obj->pfx, (unsigned int*)color);
-        insert_string_obj((ScreenObj*)str_obj);
+        pfxfont_set_string_color(&bio_text->pfx, (unsigned int*)color);
+        insert_string_obj((ScreenObj*)bio_text);
     }
 
     x = (screen_width - 0x300) / 2;
@@ -471,17 +479,6 @@ static void atm_bio_screen(void) {
 
     fade_to_black(0xC, 1);
     gamelogic_jump(0, p_atm_loop);
-}
-
-static inline int find_bio_unlock_index(int unlock_bit)
-{
-    int index;
-    for (index = 0; index < 0x1A; index++) {
-        if (bio_file_table[index].unlock_bit == unlock_bit) {
-            return index;
-        }
-    }
-    return -1;
 }
 
 StringObj* put_bio_text(int unlock_bit, int use_alt) {

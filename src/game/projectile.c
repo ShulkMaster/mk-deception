@@ -150,10 +150,6 @@ extern int collide_sphere_vs_plyr(
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 
-static const Vec projectile_ground_collision_angles = {
-    -1.57079637f, 0.0f, 0.0f
-};
-
 static inline float projectile_fast_inverse_sqrt(float squared) {
     union ProjectileFloatBits bits;
     float estimate;
@@ -889,25 +885,20 @@ static void projectile_set_velocity_angy_tol(
     object->pos_vel.z *= speed;
 }
 
-/* TODO: [breakthrough needed] 84.45%; typed BoneMatcherState flags; body/frame differences remain. */
 static void projectile_impale(struct ProjectilePdata* pdata, MkObj* victim) {
-    ProjectileImpaleInfo* info = pdata->impale_info;
     BoneMatcherState* matcher;
     MkBone* victim_bone;
     Vec angles;
-    float random_x;
-    float random_y;
-    float random_z;
 
-    if (info == 0) {
+    if (pdata->impale_info == 0) {
         return;
     }
 
     matcher = start_bone_matcher(
         pdata->retarget_object,
-        info->parent_bone,
+        pdata->impale_info->parent_bone,
         victim,
-        info->child_bone,
+        pdata->impale_info->child_bone,
         0.0f);
     if (matcher == 0) {
         return;
@@ -915,48 +906,54 @@ static void projectile_impale(struct ProjectilePdata* pdata, MkObj* victim) {
 
     matcher->flags_08.bits.copy_bone_matrix = 1;
     matcher->flags_08.bits.preserve_bone_matrix = 1;
-    matcher->child_offset.x = info->child_offset.x;
-    matcher->child_offset.y = info->child_offset.y;
-    matcher->child_offset.z = info->child_offset.z;
+    matcher->child_offset.x = pdata->impale_info->child_offset.x;
+    matcher->child_offset.y = pdata->impale_info->child_offset.y;
+    matcher->child_offset.z = pdata->impale_info->child_offset.z;
 
-    if (pdata->setup.bits.random_position_set) {
+    if (pdata->setup.bits.random_position_set == 1U) {
+        float random_x;
+        float random_y;
+        float random_z;
         random_x = frand(pdata->random_position.x) -
                    0.5f * pdata->random_position.x;
         random_y = frand(pdata->random_position.y) -
                    0.5f * pdata->random_position.y;
         random_z = frand(pdata->random_position.z) -
                    0.5f * pdata->random_position.z;
-        matcher->parent_offset.x = info->parent_offset.x + random_x;
-        matcher->parent_offset.y = info->parent_offset.y + random_y;
-        matcher->parent_offset.z = info->parent_offset.z + random_z;
+        matcher->parent_offset.x = pdata->impale_info->parent_offset.x + random_x;
+        matcher->parent_offset.y = pdata->impale_info->parent_offset.y + random_y;
+        matcher->parent_offset.z = pdata->impale_info->parent_offset.z + random_z;
     } else {
-        matcher->parent_offset.x = info->parent_offset.x;
-        matcher->parent_offset.y = info->parent_offset.y;
-        matcher->parent_offset.z = info->parent_offset.z;
+        matcher->parent_offset.x = pdata->impale_info->parent_offset.x;
+        matcher->parent_offset.y = pdata->impale_info->parent_offset.y;
+        matcher->parent_offset.z = pdata->impale_info->parent_offset.z;
     }
 
     victim_bone = victim->bones[victim->fallback_bone_index];
     if (victim_bone == 0) {
         if (matcher->hdr.instance != 0) {
-            matcher->hdr.typed_vtbl->destroy((MkHdr*)matcher);
+            matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
         }
         return;
     }
 
     victim_bone->flags_54_bits.pose_matrix_applied = 1;
-    if (pdata->setup.bits.random_rotation_set) {
+    if (pdata->setup.bits.random_rotation_set == 1U) {
+        float random_x;
+        float random_y;
+        float random_z;
         random_x = frand(pdata->random_rotation.x) -
                    0.5f * pdata->random_rotation.x;
         random_y = frand(pdata->random_rotation.y) -
                    0.5f * pdata->random_rotation.y;
         random_z = frand(pdata->random_rotation.z) -
                    0.5f * pdata->random_rotation.z;
-        angles.x = info->rotation.x + random_x;
-        angles.y = info->rotation.y + random_y;
-        angles.z = info->rotation.z + random_z;
+        angles.x = pdata->impale_info->rotation.x + random_x;
+        angles.y = pdata->impale_info->rotation.y + random_y;
+        angles.z = pdata->impale_info->rotation.z + random_z;
         YXZ_angles_to_MKMATRIX(&angles, victim_bone->parent_matrix);
     } else {
-        YXZ_angles_to_MKMATRIX(&info->rotation, victim_bone->parent_matrix);
+        YXZ_angles_to_MKMATRIX(&pdata->impale_info->rotation, victim_bone->parent_matrix);
     }
 
     pdata->max_ticks = 1800.0f;
@@ -1311,31 +1308,26 @@ static float p_ground_target(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 77.12%; ground-target control flow follows retail; scheduling residue remains. */
 static float p_ground_target_collide(void) {
-    PlyrPdata* target;
+    Vec collision_angles = {-1.57079637f, 0.0f, 0.0f};
     PlyrInfo* player_info;
     MkObj* object;
     MkProc* hold_proc;
 
-    object = proj_pdata->object;
-    if (object != 0 &&
-        object->hdr.instance != proj_pdata->object_instance) {
-        object = 0;
-    }
+    object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
     if (object == 0) {
         aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
 
-    target = proj_pdata->target.impaled_target->his_plyr_pdata;
-    target->duck_reaction_active = 1;
-    target->saved_position_x = object->pos.value.x;
-    target->saved_position_y = object->pos.value.y;
-    target->saved_position_z = object->pos.value.z;
-    player_info = &g_game_info.plyr1;
+    proj_pdata->target.impaled_target->his_plyr_pdata->duck_reaction_active = 1;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_x = object->pos.value.x;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_y = object->pos.value.y;
+    proj_pdata->target.impaled_target->his_plyr_pdata->saved_position_z = object->pos.value.z;
     if (proj_pdata->target.impaled_target == g_game_info.plyr0.slot.pdata) {
         player_info = &g_game_info.plyr0;
+    } else {
+        player_info = &g_game_info.plyr1;
     }
     proj_pdata->max_ticks -= game_speed;
     if (proj_pdata->max_ticks < 0.0f) {
@@ -1344,17 +1336,15 @@ static float p_ground_target_collide(void) {
         return 0.0f;
     }
 
-    hold_proc = target->hold_proc;
-    if (hold_proc != 0 &&
-        hold_proc->hdr.instance != target->hold_proc_instance) {
-        hold_proc = 0;
-    }
+    hold_proc = MK_LIVE(
+        proj_pdata->target.impaled_target->his_plyr_pdata->hold_proc,
+        proj_pdata->target.impaled_target->his_plyr_pdata->hold_proc_instance);
     if (hold_proc != 0) {
         return 1.0f;
     }
     if (collide_cylinder_vs_plyr(
             player_info, &object->pos.value,
-            &projectile_ground_collision_angles,
+            &collision_angles,
             proj_pdata->collision_radius, 0.3f) != 0) {
         if (proj_pdata->reaction != -1 &&
             !proj_pdata->target.impaled_target->state_flags.bits
@@ -1381,14 +1371,12 @@ int check_for_throw(PlyrPdata* player) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 84.81%; body recovered; scheduling and branch layout differences remain. */
 static float p_projectile_launch_upward(void) {
     MkObj* object;
 
     proj_pdata->target.impaled_target->his_plyr_pdata->duck_reaction_active = 0;
-    object = proj_pdata->object;
-    if (object == 0 ||
-        object->hdr.instance != proj_pdata->object_instance) {
+    object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
+    if (object == 0) {
         aproc->vtbl->jump_sleep(p_projectile_die, 0.0f);
         return 0.0f;
     }
@@ -1397,9 +1385,9 @@ static float p_projectile_launch_upward(void) {
     if (proj_pdata->max_ticks < 0.0f) {
         object->pos.value.x = proj_pdata->target_position.x;
         object->pos.value.z = proj_pdata->target_position.z;
-        object->pos_vel.x = -object->pos_vel.x;
-        object->pos_vel.y = -object->pos_vel.y;
-        object->pos_vel.z = -object->pos_vel.z;
+        object->pos_vel.x = -1.0f * object->pos_vel.x;
+        object->pos_vel.y = -1.0f * object->pos_vel.y;
+        object->pos_vel.z = -1.0f * object->pos_vel.z;
         proj_pdata->max_ticks = 300.0f;
         if (proj_pdata->down_sound != 0) {
             snd_req(proj_pdata->down_sound);

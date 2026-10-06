@@ -613,8 +613,8 @@ static inline void start_blade_clash_fx(
     }
 }
 
-/* TODO: [near miss] 99.58%; player/blade homes (r30/r31) and the third
- * clash-fx expansion's effect/weapon homes swap; stop at coloring. */
+/* TODO: [near miss] 99.58%; second emitter/weapon and third weapon
+ * register homes differ; operations and first expansion agree. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
     unsigned int effect;

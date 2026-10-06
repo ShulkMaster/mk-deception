@@ -821,7 +821,6 @@ float p_controller_config(void) {
     return sleep_ticks_neg_one;
 }
 
-/* TODO: [near miss] 86.98%; algorithm exact; branch scheduling remains. */
 float p_version_code(void) {
     struct VersionCodePdata* pdata;
     StringObj* text;
@@ -832,20 +831,21 @@ float p_version_code(void) {
         if (pdata->ticks < 0x168) {
             return sleep_ticks_one;
         }
-        load_font(0);
-        if (is_widescreen_mode() != 0) {
-            text = string_left_xy(0, 0, mk6_version_string,
-                                  ((screen_width - 0x280) / 2) + 0x208, 0x1E, 1);
-        } else {
-            text = string_left_xy(0, 0, mk6_version_string, 0x208, 0x1E, 1);
-        }
-        if (text != 0) {
-            text->visibility.keep_when_suppress = 1;
-        }
-        return sleep_ticks_neg_one;
+    } else {
+        pdata->ticks = 0;
+        return sleep_ticks_one;
     }
-    pdata->ticks = 0;
-    return sleep_ticks_one;
+    load_font(0);
+    if (is_widescreen_mode() != 0) {
+        text = string_left_xy(0, 0, mk6_version_string,
+                              ((screen_width - 0x280) / 2) + 0x208, 0x1E, 1);
+    } else {
+        text = string_left_xy(0, 0, mk6_version_string, 0x208, 0x1E, 1);
+    }
+    if (text != 0) {
+        text->visibility.keep_when_suppress = 1;
+    }
+    return sleep_ticks_neg_one;
 }
 
 float p_game_options(void) {

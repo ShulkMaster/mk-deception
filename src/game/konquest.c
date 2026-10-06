@@ -3536,8 +3536,8 @@ inline void load_and_init_konquest_common_data(void) {
     preload_screen_data("konquest/popups/k_pause_menu", pause_slot);
 }
 
-/* TODO: [near miss] 99.993%; only SKY string-pool offset differs,
- * retail +0x6d6 versus current +0x6b6; audit TU literal order. */
+/* TODO: [blocked] 99.993%; body exact; verified SKY bytes differ only in
+ * pool placement (+0x6d6 vs +0x6b6); needs TU literal-order audit. */
 static void load_sky(void) {
     MkSobj* object;
 
@@ -5128,8 +5128,13 @@ static inline void konquest_palette_remove_record(
     }
 }
 
-/* TODO: [near miss] 99.92%; dead render-link next pointer uses r25/r29;
- * declaration/shared-next/permuter trials exhausted; stop at coloring. */
+static inline MkPtr* discard_stale_render_link(MkPtr* link) {
+    MkPtr* next = link->next;
+
+    discard_stale_mkptr(link);
+    return next;
+}
+
 static void hide_tile_objects(KonquestTileRecord* tile) {
     MkPtr* record_link;
     KonquestRenderRecord* record;
@@ -5158,10 +5163,7 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
                 while (record_link != 0) {
                     record = (KonquestRenderRecord*)record_link->hdr;
                     if (record_link->instance != record->hdr.instance) {
-                        MkPtr* record_next = record_link->next;
-
-                        discard_stale_mkptr(record_link);
-                        record_link = record_next;
+                        record_link = discard_stale_render_link(record_link);
                         continue;
                     }
 
@@ -5401,7 +5403,6 @@ static void setup_children_pebbles_of_tile_object(
     }
 }
 
-/* TODO: [blocked] 99.98666%; sole strcmp string addend needs missing TU donor layout evidence. */
 static int setup_locator_for_tile_object(
     struct KonquestTileObjectDefinition* definition) {
     const char* name;
@@ -5417,7 +5418,7 @@ static int setup_locator_for_tile_object(
         info->type = 1;
         info->uid = uid;
         info->enumeration_index = find_enumeration_index(uid);
-        if (strcmp(name, "cr1_time_progression.sec") != 0) {
+        if (strcmp(name, "0") != 0) {
             info->art_id = get_artid_of_named_item_in_slot(
                 0x60029, name, 1);
         } else {
@@ -6584,7 +6585,7 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     return 0;
 }
 
-/* TODO: [near miss] 98.44%; first fast-sqrt result is copied into position_ticks
+/* TODO: [near miss] 98.46%; first fast-sqrt result is copied into position_ticks
  * (fmr) instead of coalescing into the preloaded-zero f25; see notes. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
@@ -6698,7 +6699,7 @@ static void object_transition_to_state(
         float volume;
 
         volume = get_volume_from_distance(base_position, 25.0f, 10.0f);
-        if (volume != 0.0f) {
+        if (volume) {
             pan_vol_snd_req(
                 konquest_pdata->region_table
                     ->enumerations[enumeration_index]
@@ -7890,7 +7891,7 @@ void change_monk_age(int age) {
     struct KonquestGrounding* grounding;
     int slot;
     AniTextureControl* face_texture;
-    char* face_art;
+    unsigned int face_art;
     CameraPdata* camera;
     MkProc* hero_proc;
     float x;
@@ -8002,7 +8003,7 @@ void change_monk_age(int age) {
         if (konquest_editor_mode_on == 0) {
             sprintf(texture_name, "KON_HERO_0%d_MOUTH",
                     p1_profile_konquest->fields.hero_age + 1);
-            face_art = (char*)get_artid_of_named_item_in_slot(
+            face_art = get_artid_of_named_item_in_slot(
                 slot, texture_name, 0);
             if (face_art != 0) {
                 face_texture = append_wiff_to_clump_material_id(
@@ -9577,7 +9578,7 @@ static void handle_monk_input(void) {
     }
 }
 
-/* TODO: [near miss] 97.24%; post-cosine reload and dot grouping recovered;
+/* TODO: [breakthrough] 99.30%; horizontal direction retains retail y*0;
  * case-2 component scheduling and FPR coloring remain. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
@@ -9592,8 +9593,7 @@ static int check_additional_trigger_fire_requirements(
     float normalized_forward_z;
     float normalized_forward_x;
     float facing_angle;
-    float sine;
-    float cosine;
+    Vec direction;
     float displacement_y;
     float displacement_x;
     float displacement_z;
@@ -9642,14 +9642,15 @@ static int check_additional_trigger_fire_requirements(
             facing_angle = gxMathArcCos(
                 delta_x * normalized_forward_x + delta_z * normalized_forward_z);
             if (!(facing_angle >= 0.7853982f)) {
-                sine = gxMathSin(orientation->angle->angle);
-                cosine = gxMathCos(orientation->angle->angle);
+                direction.y = 0.0f;
+                direction.x = gxMathSin(orientation->angle->angle);
+                direction.z = gxMathCos(orientation->angle->angle);
                 requirement = owner->requirement;
                 displacement_y = requirement->position.y - hero->pos.value.y;
                 displacement_x = requirement->position.x - hero->pos.value.x;
                 displacement_z = requirement->position.z - hero->pos.value.z;
-                if (displacement_z * cosine +
-                        (displacement_x * sine + displacement_y * 0.0f) <
+                if (displacement_z * direction.z +
+                        (displacement_x * direction.x + displacement_y * direction.y) <
                     0.0f) {
                     result = 1;
                 }
@@ -11829,7 +11830,7 @@ void konquest_nis_end(void) {
 
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object) {
     char texture_name[0x40];
-    char* art_name;
+    unsigned int art_oid;
     int slot;
     AniTextureControl* texture;
 
@@ -11843,11 +11844,11 @@ AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object) {
         sprintf(
             texture_name, "KON_HERO_0%d_MOUTH",
             p1_profile_konquest->fields.hero_age + 1);
-        art_name = (char*)get_artid_of_named_item_in_slot(
+        art_oid = get_artid_of_named_item_in_slot(
             slot, texture_name, 0);
-        if (art_name != 0) {
+        if (art_oid != 0) {
             texture = append_wiff_to_clump_material_id(
-                slot, art_name, object->clump, 1);
+                slot, art_oid, object->clump, 1);
         }
     }
     return texture;

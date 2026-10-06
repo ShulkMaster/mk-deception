@@ -161,7 +161,7 @@ AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, Ima
 AniTextureControl* attach_wiff_to_atomic_material(
     int slot, unsigned int art_oid, RpAtomic* atomic, char* tex_name);
 AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid, RpClump* clump, const char* tex_name);
-AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClump* clump, unsigned short material_id);
+AniTextureControl* append_wiff_to_clump_material_id(int slot, unsigned int art_oid, RpClump* clump, unsigned short material_id);
 
 RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data);
 int is_raster_power_of_two(RwRaster* raster);

@@ -22,15 +22,16 @@ static const char stringBase0[] = "MFS:%08x.%08x\0%s";
 
 static MkMovieTexPlayer _mmp_data[2] = {0};
 
-static inline void* mmp_screen_poly_at(MkMovieTexPlayer* player, int screen_offset) {
-    return *(void**)((char*)&player->screen_poly + screen_offset);
+static inline void* mmp_screen_poly_at(const MkMovieTexPlayer* player, int screen_offset) {
+    screen_offset += RW_OFFSET_OF(MkMovieTexPlayer, screen_poly);
+    return *(void* const*)((const char*)player + screen_offset);
 }
 
 static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int screen_offset) {
     return *(RwTexture**)((char*)&player->saved_texture + screen_offset);
 }
 
-/* TODO: [breakthrough needed] 58.09524%; save/induction shape differs; object-mode evidence remains in notes. */
+/* TODO: [near miss] 99.17%; size profile restores compact saves; localized scheduling remains. */
 void mkMovieTexPlayerIdleUpdate(void) {
     unsigned char anyPlaying;
     int index;
@@ -50,7 +51,7 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
-/* TODO: [breakthrough] 86.98077%; typed reset owners agree; loop/save scheduling remains. */
+/* TODO: [near miss] 96.83%; size profile restores compact saves; loop scheduling remains. */
 void movie_player_reset(void) {
     int playerIndex;
     MkMovieTexPlayer* player;
@@ -100,17 +101,34 @@ void mkMovieTexStop(int index) {
     }
 }
 
-/* TODO: [breakthrough] 76.76830%; typed screen bindings agree; path/loop scheduling remains. */
-void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
-    MkMovieTexPlayer* player;
-    RwTexture* tex;
-    int screenIndex;
-    int screenCount;
-    int screenOffset;
-    void* screenPoly;
-    RwTexture* texture;
+static inline MkMovieTexPlayer* mmp_prepare_movie_path(
+    MkMovieTexPlayer* player, const char* name, int use_mfs) {
     void* block;
     int block_size;
+
+    if (use_mfs != 0) {
+        block = load_named_binary_block(GetArtSlot__Fv(), (char*)name, &block_size);
+        if (block != 0) {
+            sprintf(player->path, STR_MFS_PATH_FMT, block, block_size);
+        } else {
+            sprintf(player->path, STR_NAME_PATH_FMT, name);
+            return 0;
+        }
+    } else {
+        sprintf(player->path, STR_NAME_PATH_FMT, name);
+    }
+    return player;
+}
+
+/* TODO: [near miss] 98.17%; path helper recovers shared success join; binding addressing and register residue remain. */
+void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
+    int screenCount;
+    void* screenPoly;
+    int screenIndex;
+    int screenOffset;
+    MkMovieTexPlayer* player;
+    RwTexture* tex;
+    RwTexture* texture;
     MkMovieTexPlayer* playable;
 
     if (index < 2) {
@@ -122,7 +140,7 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
             }
             screenIndex = 0;
             screenOffset = 0;
-            do {
+            while (screenIndex < screenCount) {
                 screenPoly = mmp_screen_poly_at(player, screenOffset);
                 if (screenPoly != 0) {
                     texture = player->texture;
@@ -133,20 +151,9 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                 }
                 screenIndex++;
                 screenOffset += sizeof(void*);
-            } while (screenIndex < screenCount);
-            setMovieHeap(movie_heap);
-            playable = player;
-            if (use_mfs == 0) {
-                sprintf(player->path, STR_NAME_PATH_FMT, name);
-            } else {
-                block = load_named_binary_block(GetArtSlot__Fv(), (char*)name, &block_size);
-                if (block == 0) {
-                    sprintf(player->path, STR_NAME_PATH_FMT, name);
-                    playable = 0;
-                } else {
-                    sprintf(player->path, STR_MFS_PATH_FMT, block, block_size);
-                }
             }
+            setMovieHeap(movie_heap);
+            playable = mmp_prepare_movie_path(player, name, use_mfs);
             if (playable != 0) {
                 MoviePlayModeSelect(player->movie, player->path);
             }
@@ -154,7 +161,6 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
     }
 }
 
-/* TODO: [breakthrough needed] 79.04762%; canonical texture fields agree; save/argument scheduling remains. */
 void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
     MkMovieTexPlayer* player;
 

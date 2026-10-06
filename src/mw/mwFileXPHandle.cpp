@@ -123,10 +123,13 @@ int mwFileBuffer::initialize(unsigned long size, mwTargetMemAlign alignment)
     return 0;
 }
 
+#pragma push
+#pragma optimize_for_size on
 mwFileBuffer::~mwFileBuffer()
 {
     shutdown();
 }
+#pragma pop
 
 mwFileBuffer::mwFileBuffer()
     : file_position(~0ULL), capacity(0), buffer(0), buffer_end(0), dirty(false)

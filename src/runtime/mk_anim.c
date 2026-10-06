@@ -336,8 +336,6 @@ static void do_morph(MkHdr* hdr) {
     }
 }
 
-/* TODO: [near miss] 99.91%; only fcmpu operand order for span versus zero
- * differs; equality branch and all other instructions match. */
 int pose_morph(MkHdr* hdr) {
     int result;
     int next_target;
@@ -367,7 +365,7 @@ int pose_morph(MkHdr* hdr) {
         struct MorphFrameHeader* next_frame;
 
         span = mka_next_fno - mka_prev_fno;
-        if (span != 0.0f) {
+        if (span) {
             fraction = (mka_next_fno - mka_sought_fno) / span;
         } else {
             fraction = 0.0f;
@@ -714,7 +712,7 @@ static inline void compose_bone_rotation(
     out->z += parent->z * tw;
 }
 
-/* TODO: [near miss] 97.84%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
+/* TODO: [near miss] 98.10%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -943,7 +941,7 @@ static float p_bone_matcher(void) {
         }
     }
 
-    if (matcher->child_weight != 0.0f) {
+    if (matcher->child_weight) {
         parent_weight = -matcher->child_weight;
         child_weight = 1.0f - matcher->child_weight;
 
@@ -1138,7 +1136,8 @@ int advance_anim(AnimPdata* anim) {
     return advance_anim_state(anim);
 }
 
-/* TODO: [breakthrough needed] 79.90%; packed-frame decoding and scheduling differences remain. */
+/* TODO: [breakthrough needed] 80.45%; current animation-header loop reload recovered;
+ * packed-frame decoding, owner lifetimes and scheduling remain. */
 int pose_anim(AnimPdata* anim, int update_object) {
     AnimScript* script;
     PlyrPdata* owner;
@@ -1316,7 +1315,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
             flip_flag = flags & 8;
             suppress_face_flag = flags & 0x4000;
             pin_flag = flags & 0x400;
-            for (i = 0; i < (unsigned int)script->track_count;
+            for (i = 0; i < (unsigned int)((AnimScript*)mka_hdr)->track_count;
                  i++, track_index = merged_flag != 0
                      ? (mka_merge_channel_hdr++,
                         mka_prev_fp = (unsigned short*)(
@@ -1469,7 +1468,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         if (merged_flag == 0) {
                             float span = mka_next_fno - mka_prev_fno;
 
-                            if (span != 0.0f) {
+                            if (span) {
                                 previous_weight =
                                     (mka_next_fno - mka_sought_fno) / span;
                             } else {
@@ -1499,7 +1498,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (float)next->y;
                     next_vec.z = translation_scale_1 *
                         (float)next->z;
-                    if (bone->field_64 == 0.0f) {
+                    if (!bone->field_64) {
                         interp_v3(
                             &bone->translation.value,
                             &previous_vec,
@@ -1571,7 +1570,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (float)((struct AnimVecFrame*)mka_next_fp)->y;
                     next_vec.z = translation_scale_9 *
                         (float)((struct AnimVecFrame*)mka_next_fp)->z;
-                    if (bone->field_64 == 0.0f) {
+                    if (!bone->field_64) {
                         interp_v3(
                             &bone->translation.value,
                             &previous_vec,
@@ -1684,7 +1683,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             (packed_quat_scale * (float)next_z);
                         next_quat.w = packed_quat_scale * (float)next_w;
                     }
-                    if (bone->field_60 == 0.0f) {
+                    if (!bone->field_60) {
                         gxQuatInterpQuat(
                             &bone->rotation,
                             &previous_quat,
@@ -1920,7 +1919,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     struct AnimVecFrame* frame = (struct AnimVecFrame*)sample;
                     float contribution = channel_weight;
 
-                    if (bone->field_64 == 0.0f) {
+                    if (!bone->field_64) {
                         bone->translation.value.x = flip_factor *
                             (translation_scale_1 *
                              (float)frame->x);
@@ -1983,7 +1982,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     struct AnimVecFrame* frame = (struct AnimVecFrame*)sample;
                     float contribution = channel_weight;
 
-                    if (bone->field_64 == 0.0f) {
+                    if (!bone->field_64) {
                         bone->translation.value.x = flip_factor *
                             (translation_scale_9 *
                              (float)frame->x);
@@ -2044,7 +2043,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                 case 3:
                 case 11: {
                     struct AnimQuatFrame* frame = (struct AnimQuatFrame*)sample;
-                    if (bone->field_60 == 0.0f) {
+                    if (!bone->field_60) {
                         bone->rotation.x = quat_scale * (float)frame->x;
                         bone->rotation.y = flip_factor *
                             (quat_scale * (float)frame->y);
@@ -2084,7 +2083,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         exact_quat->z = flip_factor *
                             (packed_quat_scale * (float)z);
                         exact_quat->w = packed_quat_scale * (float)w;
-                        if (bone->field_60 == 0.0f) {
+                        if (!bone->field_60) {
                             bone->field_60 = channel_weight;
                             continue;
                         }

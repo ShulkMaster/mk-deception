@@ -13,12 +13,14 @@
 #include "platform/gcutils.h"
 #include "rw/rwcore_types.h"
 #include "runtime/cstring.h"
+#include "runtime/sound.h"
 #include "runtime/utils.h"
+
 
 extern "C" {
 
-int mwMovie_num_players;
-int mwMovie_initialized;
+static int mwMovie_initialized;
+static int mwMovie_num_players;
 
 static const char stringBase0[] =
     "Invalid player state to update movie!\n\0"
@@ -38,92 +40,23 @@ static const char stringBase0[] =
 #define STR_TEXTURE_NAME (&stringBase0[0x9F])
 #define STR_INVALID_START (&stringBase0[0xA5])
 #define STR_OUT_OF_MEMORY (&stringBase0[0xD4])
-
-/* TODO: [breakthrough needed] 0.00%; retail inlines MovieUpdate/Stop/Delete defined later (-inline deferred lead) and calls SetSubtitleLanguage per case. */
-void Simple_MoviePlayFullScreen(const char* path, int width, int height,
-                                MovieTapoutFn tapout_cb) {
-    MoviePlayer* movie;
-    int lang;
-    int sub_lang;
-
-    mslStopAll(gMsi);
-    mslSuspendSpuDma();
-    movie = MovieNewFullScreen(width, height);
-    if (movie == 0) {
-        OSPanic(STR_FILE_MOVIEMANAGER, 0x2D8, STR_ASSERT_FAILED);
-    } else {
-        mwMovieSetMovieVolume(movie->handle, game_settings.volume[0]);
-        if (tapout_cb != 0) {
-            mwMovieSetTapoutCallback((void*)tapout_cb);
-        }
-
-        lang = get_language();
-        switch (lang) {
-        case 1:
-            sub_lang = 3;
-            break;
-        case 2:
-            sub_lang = 2;
-            break;
-        case 3:
-            sub_lang = 1;
-            break;
-        case 4:
-            sub_lang = 4;
-            break;
-        default:
-            sub_lang = 0;
-            break;
-        }
-        SetSubtitleLanguage(sub_lang);
-
-        MoviePlayFullScreen(movie, path);
-        while (MovieUpdate(movie) == 0) {
-            gc_native_display_render_movie(0);
-        }
-        MovieStop(movie);
-        MovieDelete(movie);
+static inline void movie_stop_inline(MoviePlayer* movie) {
+    switch (movie->state) {
+    case 2:
+        mwMovieUnPauseMovie(movie->handle);
+    case 1:
+        mwMovieStopPlayback(movie->handle);
+        movie->state = 0;
+        break;
+    case 0:
+        break;
+    default:
+        mwMovLog(STR_INVALID_STOP_PLAYBACK);
+        break;
     }
-    mslResumeSpuDma();
 }
 
-void MovieDeleteTexture(RwTexture* texture) {
-    RwTextureDestroy(texture);
-}
-
-/* TODO: [borked] 82.15385%; addressing mask clears bits16..23 instead of8..15;
- * save/restore and parameter register differences also remain. */
-RwTexture* MovieNewTexture(int width, int height) {
-    RwRaster* raster;
-    void* pixels;
-    RwTexture* texture;
-    int flags;
-
-    raster = RwRasterCreate(width, height, 0x20, 4);
-    pixels = RwRasterLock(raster, 0, 9);
-    if (pixels != 0) {
-        memset(pixels, 0, width * height * 4);
-    }
-    RwRasterUnlock(raster);
-    texture = RwTextureCreate(raster);
-    flags = texture->filter_flags;
-    flags = (flags & 0xFF00FFFF) | 0x3300;
-    texture->filter_flags = flags;
-    strcpy(texture->name, STR_TEXTURE_NAME);
-    return texture;
-}
-
-int MovieIsPlaying(MoviePlayer* movie) {
-    int state;
-
-    state = movie->state;
-    if (state == 1 || state == 2) {
-        return 1;
-    }
-    return 0;
-}
-
-int MovieUpdate(MoviePlayer* movie) {
+static inline int movie_update_inline(MoviePlayer* movie) {
     switch (movie->state) {
     case 1:
         if (movie->raster != 0) {
@@ -144,28 +77,12 @@ int MovieUpdate(MoviePlayer* movie) {
     return 0;
 }
 
-void MovieStop(MoviePlayer* movie) {
+static inline void movie_delete_inline(MoviePlayer* movie) {
     switch (movie->state) {
     case 2:
         mwMovieUnPauseMovie(movie->handle);
     case 1:
-        mwMovieStopPlayback(movie->handle);
-        movie->state = 0;
-        break;
-    case 0:
-        break;
-    default:
-        mwMovLog(STR_INVALID_STOP_PLAYBACK);
-        break;
-    }
-}
-
-void MovieDelete(MoviePlayer* movie) {
-    switch (movie->state) {
-    case 2:
-        mwMovieUnPauseMovie(movie->handle);
-    case 1:
-        MovieStop(movie);
+        movie_stop_inline(movie);
     case 0:
         mwMovieDestroyPlayer(movie->handle);
         movie->handle = 0;
@@ -177,6 +94,71 @@ void MovieDelete(MoviePlayer* movie) {
         break;
     }
     if (mwMovie_num_players == 0 && mwMovie_initialized != 0) {
+        mwMovieShutDown();
+        mwMovie_initialized = 0;
+    }
+}
+
+void Simple_MoviePlayFullScreen(const char* path, int width, int height, MovieTapoutFn tapout_cb);
+void MovieDeleteTexture(RwTexture* texture);
+RwTexture* MovieNewTexture(int width, int height);
+int MovieIsPlaying(MoviePlayer* movie);
+int MovieUpdate(MoviePlayer* movie);
+void MovieStop(MoviePlayer* movie);
+void MovieDelete(MoviePlayer* movie);
+MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, int height, unsigned int composition_flag, unsigned int maximum_bps);
+void MovieShutdownSystem(void);
+void MoviePlayModeSelect(MoviePlayer* movie, const char* path);
+MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height);
+void MoviePlayFullScreen(MoviePlayer* movie, const char* path);
+MoviePlayer* MovieNewFullScreen(int width, int height);
+
+
+
+MoviePlayer* MovieNewFullScreen(int width, int height) {
+    return MovieNew(0, 1, 0, width, height, 0, 0x2DC6C0);
+}
+
+/* TODO: [near miss] 75.65%; retail playback block precedes invalid-state log; branch/block placement remains. */
+void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
+    switch (movie->state) {
+    case 0:
+        break;
+    case 1:
+    case 2:
+        movie_stop_inline(movie);
+        break;
+    default:
+        mwMovLog(STR_INVALID_START);
+        return;
+    }
+    mwMovieStartPlayback(movie->handle, path);
+    movie->state = 1;
+}
+
+MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height) {
+    return MovieNew(raster, 0, 1, width, height, 1, 0x1E8480);
+}
+
+/* TODO: [near miss] 75.65%; retail playback block precedes invalid-state log; branch/block placement remains. */
+void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
+    switch (movie->state) {
+    case 0:
+        break;
+    case 1:
+    case 2:
+        movie_stop_inline(movie);
+        break;
+    default:
+        mwMovLog(STR_INVALID_START);
+        return;
+    }
+    mwMovieStartPlaybackLooping(movie->handle, path);
+    movie->state = 1;
+}
+
+void MovieShutdownSystem(void) {
+    if (mwMovie_initialized != 0) {
         mwMovieShutDown();
         mwMovie_initialized = 0;
     }
@@ -260,53 +242,92 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
     return player;
 }
 
-void MovieShutdownSystem(void) {
-    if (mwMovie_initialized != 0) {
-        mwMovieShutDown();
-        mwMovie_initialized = 0;
+void MovieDelete(MoviePlayer* movie) {
+    movie_delete_inline(movie);
+}
+
+void MovieStop(MoviePlayer* movie) {
+    movie_stop_inline(movie);
+}
+
+int MovieUpdate(MoviePlayer* movie) {
+    return movie_update_inline(movie);
+}
+
+int MovieIsPlaying(MoviePlayer* movie) {
+    int state;
+
+    state = movie->state;
+    if (state == 1 || state == 2) {
+        return 1;
     }
+    return 0;
 }
 
-/* TODO: [near miss] 68.02%; switch shape matches; retail inlines MovieStop here (inlining-mode lead for MovieManager.o). */
-void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
-    switch (movie->state) {
-    case 0:
-        break;
-    case 1:
-    case 2:
-        MovieStop(movie);
-        break;
-    default:
-        mwMovLog(STR_INVALID_START);
-        return;
+RwTexture* MovieNewTexture(int width, int height) {
+    RwRaster* raster;
+    void* pixels;
+    RwTexture* texture;
+
+    raster = RwRasterCreate(width, height, 0x20, 4);
+    pixels = RwRasterLock(raster, 0, 9);
+    if (pixels != 0) {
+        memset(pixels, 0, width * height * 4);
     }
-    mwMovieStartPlaybackLooping(movie->handle, path);
-    movie->state = 1;
+    RwRasterUnlock(raster);
+    texture = RwTextureCreate(raster);
+    rwTextureWriteAddressModes(texture, 3);
+    strcpy(texture->name, STR_TEXTURE_NAME);
+    return texture;
 }
 
-MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height) {
-    return MovieNew(raster, 0, 1, width, height, 1, 0x1E8480);
+void MovieDeleteTexture(RwTexture* texture) {
+    RwTextureDestroy(texture);
 }
 
-/* TODO: [near miss] 68.02%; switch shape matches; retail inlines MovieStop here (inlining-mode lead for MovieManager.o). */
-void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
-    switch (movie->state) {
-    case 0:
-        break;
-    case 1:
-    case 2:
-        MovieStop(movie);
-        break;
-    default:
-        mwMovLog(STR_INVALID_START);
-        return;
+void Simple_MoviePlayFullScreen(const char* path, int width, int height,
+                                MovieTapoutFn tapout_cb) {
+    MoviePlayer* movie;
+    int finished = 0;
+
+    mslStopAll(msi);
+    mslSuspendSpuDma();
+    movie = MovieNewFullScreen(width, height);
+    if (movie != 0) {
+        mwMovieSetMovieVolume(movie->handle, game_settings.volume[0]);
+        if (tapout_cb != 0) {
+            mwMovieSetTapoutCallback((void*)tapout_cb);
+        }
+        switch (get_language()) {
+        case 1:
+            SetSubtitleLanguage(3);
+            break;
+        case 4:
+            SetSubtitleLanguage(4);
+            break;
+        case 3:
+            SetSubtitleLanguage(1);
+            break;
+        case 2:
+            SetSubtitleLanguage(2);
+            break;
+        default:
+            SetSubtitleLanguage(0);
+            break;
+        }
+        MoviePlayFullScreen(movie, path);
+        while (finished == 0) {
+            finished = movie_update_inline(movie);
+            gc_native_display_render_movie((void*)finished);
+        }
+        movie_stop_inline(movie);
+        movie_delete_inline(movie);
+    } else {
+        OSPanic(STR_FILE_MOVIEMANAGER, 0x2D8, STR_ASSERT_FAILED);
     }
-    mwMovieStartPlayback(movie->handle, path);
-    movie->state = 1;
+    mslResumeSpuDma();
 }
 
-MoviePlayer* MovieNewFullScreen(int width, int height) {
-    return MovieNew(0, 1, 0, width, height, 0, 0x2DC6C0);
-}
+
 
 }

@@ -25,8 +25,6 @@ void* streampool_lock(int stream, int size) {
     return info->current_buffer + info->write_offset;
 }
 
-/* TODO: [near miss] 86.66666%; stream-owner/offset registers and aligned-size
- * load ordering differ; inspect genuine member-value staging. */
 void streampool_unlock(int stream, int size) {
     PfxStreamBufferInfo* info;
 
@@ -34,7 +32,8 @@ void streampool_unlock(int stream, int size) {
     if (info->locked != 0) {
         info->locked = 0;
         if (size <= info->lock_size) {
-            info->write_offset += (size + 15) & ~15;
+            size = (size + 15) & ~15;
+            info->write_offset += size;
         }
     }
 }
@@ -100,10 +99,7 @@ int streampool_size(int stream) {
     return info->frame_size - info->alloc_size - lock_size;
 }
 
-/* TODO: [near miss] 91.29032%; owner/result registers and index scheduling
- * differ; inspect pointer and allocation-size staging. */
 void* streampool_alloc(int stream, int size) {
-    PfxStreamBufferInfo* info;
     unsigned char* result;
     int* alloc_size;
 
@@ -111,9 +107,9 @@ void* streampool_alloc(int stream, int size) {
         return 0;
     }
 
-    info = &streambuffer_info[stream];
-    result = info->current_buffer + info->frame_size;
-    alloc_size = &info->alloc_size;
+    result = streambuffer_info[stream].current_buffer;
+    result += streambuffer_info[stream].frame_size;
+    alloc_size = &streambuffer_info[stream].alloc_size;
     result -= *alloc_size;
     *alloc_size += size;
     return result - size;

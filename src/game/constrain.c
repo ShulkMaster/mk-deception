@@ -603,7 +603,8 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 96.73%; P1/P2 object register order, abs branch (retail bne/b) and midpoint FPR operands remain. */
+/* TODO: [near miss] 98.41%; wall-distance publication and XOR agree;
+ * initial object homes, absolute-value and push FPR lowering remain. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;
@@ -658,24 +659,21 @@ static void repel_players(void) {
         projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value);
         projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
         distance = projection_1 - projection_2;
-        if (distance >= 0.0f) {
-        } else {
-            distance = -distance;
-        }
+        distance = distance >= 0.0f ? distance : -distance;
 
         if (distance > 6.5f) {
             if (!constrain_state.separated) {
                 constrain_state.separated = 1;
-                midpoint = (projection_1 + projection_2) * 0.5f;
+                midpoint = (projection_1 + projection_2) / 2.0f;
                 left_wall = midpoint - distance * 0.5f;
                 right_wall = midpoint + distance * 0.5f;
             }
         } else {
             constrain_state.separated = 0;
             if (distance < 5.5f) {
-                midpoint = (projection_1 + projection_2) * 0.5f;
+                midpoint = (projection_1 + projection_2) / 2.0f;
                 left_wall = midpoint - 3.25f;
-                right_wall = midpoint + 3.25f;
+                right_wall = 3.25f + midpoint;
             } else if (distance <= 6.5f) {
                 constrain_state.separated = 0;
                 if (tightrope_set_this_tick &&
@@ -685,7 +683,7 @@ static void repel_players(void) {
                         player_is_stationary(CONSTRAIN_P1_PDATA);
                     stationary_2 =
                         player_is_stationary(CONSTRAIN_P2_PDATA);
-                    if (stationary_1 != stationary_2) {
+                    if ((stationary_1 ^ stationary_2) != 0) {
                         if (stationary_1) {
                             if (projection_1 > projection_2) {
                                 right_wall =
@@ -722,14 +720,8 @@ static void repel_players(void) {
             direction_2 = -1.0f;
         }
 
-        left_wall_player_dist = 0.0f;
-        if (push_1 < 0.0f) {
-            left_wall_player_dist = -push_1;
-        }
-        right_wall_player_dist = 0.0f;
-        if (push_2 < 0.0f) {
-            right_wall_player_dist = -push_2;
-        }
+        left_wall_player_dist = push_1 < 0.0f ? -push_1 : 0.0f;
+        right_wall_player_dist = push_2 < 0.0f ? -push_2 : 0.0f;
 
         if (object_can_be_repelled(CONSTRAIN_P1_OBJECT) ||
             object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {

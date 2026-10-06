@@ -547,16 +547,15 @@ def emit_sound_banks(elf: Elf32) -> str:
         name_reloc = relocs.get(base + 12)
         name = decode_relocated_string(elf, name_reloc) if name_reloc else "0"
         active_bytes = data.data[base + 8 : base + 12]
-        callback_bytes = data.data[base + 20 : base + 24]
         callback_reloc = relocs.get(base + 16)
         bank_reloc = relocs.get(base + 28)
         callback = reloc_expr(callback_reloc) if callback_reloc else ("0" if row[4] == 0 else f"(void*)0x{row[4]:08X}")
         bank = reloc_expr(bank_reloc) if bank_reloc else ("0" if row[7] == 0 else f"(int*)0x{row[7]:08X}")
         lines.append(
-            "    {%d, %d, %d, {%d, %d, %d}, %s, %s, %d, {%d, %d, %d}, %d, %s, %d},"
+            "    {%d, %d, %d, {%d, %d, %d}, %s, %s, %d, %d, %s, %d},"
             % (
                 signed(row[0]), signed(row[1]), active_bytes[0], active_bytes[1], active_bytes[2], active_bytes[3],
-                name, callback, callback_bytes[0], callback_bytes[1], callback_bytes[2], callback_bytes[3],
+                name, callback, signed(row[5]),
                 signed(row[6]), bank, signed(row[8]),
             )
         )

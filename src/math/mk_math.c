@@ -54,26 +54,30 @@ static float mk_inv_sqrt(float x) {
     return guess * correction * (kNewton12 - (scaled_input * correction * correction));
 }
 
-/* TODO: [breakthrough needed] 74.62%; FP scheduling differs; see mk_math.o compiler/flag note. */
+/* TODO: [near miss] 97.59%; coefficient preparation and FP operations agree; input/component register coloring remains. */
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {
     float dx;
     float dz;
-    float cross;
-    float t;
+    float neg_dx;
     float bx;
     float bz;
+    float neg_a;
+    float cross;
+    float t;
 
     dx = dir->x;
     dz = dir->z;
-    cross = p->x * dz + p->z * (-dx);
+    neg_a = -a;
+    neg_dx = -dx;
+    bx = dx * b;
+    bz = dz * b;
+    cross = p->x * dz + p->z * neg_dx;
     if (cross == kZero) {
         return 0;
     }
-    bx = dx * b;
-    bz = dz * b;
-    t = -(-a + (p->x * bx + p->z * bz)) / cross;
+    t = -(neg_a + (p->x * bx + p->z * bz)) / cross;
     out->x = dz * t + bx;
-    out->z = (-dx) * t + bz;
+    out->z = neg_dx * t + bz;
     out->y = kZero;
     return 1;
 }
@@ -185,7 +189,7 @@ float dist_xz_to_xz(const Vec* a, const Vec* b) {
     return gxMathFastSqrt(dist2_xz_to_xz(a, b));
 }
 
-/* TODO: [breakthrough needed] 41.09%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+/* TODO: [breakthrough needed] 41.10%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void rotate_xz(Vec* out, const Vec* v, float ang) {
     float c = gxMathCos(ang);
     float s = gxMathSin(ang);
@@ -218,35 +222,51 @@ float xz_dot_xz(const Vec* a, const Vec* b) {
     return a->x * b->x + a->z * b->z;
 }
 
-/* TODO: [breakthrough] 79.84782%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
-float xz_unit_vector_recip(Vec* out, const Vec* from, const Vec* to) {
+/* TODO: [near miss] 99.24%; mutable inputs and rounded component squares recovered;
+ * four sum-register rows remain. */
+float xz_unit_vector_recip(Vec* out, Vec* from, Vec* to) {
     float inv;
+    float x;
+    float z_squared;
+    float x_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
-    out->x *= inv;
+    x = out->x;
+    x_squared = x * x;
+    z_squared = out->z * out->z;
+    inv = mk_inv_sqrt(x_squared + z_squared);
+    out->x = x * inv;
     out->z *= inv;
     return inv;
 }
 
-/* TODO: [breakthrough] 78.86957%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
-void xz_unit_vector(Vec* out, const Vec* from, const Vec* to) {
+/* TODO: [near miss] 93.67%; retained X and rounded squares agree;
+ * read-only input load scheduling and inverse-square-root FPR homes remain. */
+void xz_unit_vector(Vec* out, Vec* from, const Vec* to) {
     float inv;
+    float x;
+    float x_squared;
+    float z_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
-    out->x *= inv;
+    x = out->x;
+    x_squared = x * x;
+    z_squared = out->z * out->z;
+    inv = mk_inv_sqrt(x_squared + z_squared);
+    out->x = x * inv;
     out->z *= inv;
 }
 
-/* TODO: [near miss] 79.40%; mtlr/load schedule only; exact with scheduling off (mk_math.o flag note). */
+#pragma push
+#pragma scheduling off
 float xz_to_y_ang(const Vec* v) {
     return gxMathArcTanYX(v->x, v->z);
 }
+#pragma pop
 
 #pragma push
 #pragma scheduling off
@@ -284,14 +304,11 @@ void uv_from_angle_y(Vec* out, float angY) {
     out->z = gxMathCos(angY);
 }
 
-/* TODO: [breakthrough needed] 78.32%; FP scheduling around the sin/cos calls differs. */
 void uv_from_angles_xy(Vec* out, float angX, float angY) {
     float cx;
-    float sx;
     angX = -angX;
-    sx = gxMathSin(angX);
+    out->y = gxMathSin(angX);
     cx = gxMathCos(angX);
-    out->y = sx;
     out->x = cx * gxMathSin(angY);
     out->z = cx * gxMathCos(angY);
 }
@@ -329,8 +346,7 @@ void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
 
 #pragma push
 #pragma scheduling off
-/* TODO: [near miss] 74.65%; nested fused association and mutable weight reloads
- * restored; operand/FPR scheduling remains, blend staging regresses. */
+/* TODO: [near miss] 74.65%; rounded seed and nested FMAs agree; input-load and FPR scheduling remain. */
 void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c) {
     out->x = weights->z * c->x + (weights->x * a->x + weights->y * b->x);
     out->y = weights->z * c->y + (weights->x * a->y + weights->y * b->y);
@@ -441,7 +457,7 @@ void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 16.10%; retail inlines norm_angle three times with different scheduling. */
+/* TODO: [breakthrough needed] 16.11%; retail inlines norm_angle three times with different scheduling. */
 void norm_angles_v3(Vec* ang) {
     ang->x = norm_angle(ang->x);
     ang->y = norm_angle(ang->y);
@@ -452,16 +468,17 @@ float norm_angle(float ang) {
     return ((int)(ang * kAngToFixed) & 0xFFFFF) * kFixedToAng;
 }
 
-/* TODO: [breakthrough] 79.50%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
-void v3_to_xz_ang(Vec* ang, const Vec* v) {
+void v3_to_xz_ang(Vec* ang, Vec* v) {
     float len;
+    float length_squared;
     ang->z = gxMathArcTanYX(v->y, v->x);
     ang->y = kZero;
-    len = gxMathFastSqrt(v->x * v->x + v->y * v->y);
+    length_squared = v->x * v->x + v->y * v->y;
+    len = gxMathFastSqrt(length_squared);
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
-/* TODO: [breakthrough] 80.09%; sqrt table indexing corrected; FP scheduling around the atan2 calls differs. */
+/* TODO: [near miss] 85.00%; FP load/store scheduling differs; scoped scheduling-off regresses. */
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
@@ -470,8 +487,7 @@ void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     ang->x = -(float)atan2(v->y, len);
 }
 
-/* TODO: [breakthrough] 81.71%; sqrt table indexing corrected; FP scheduling around the arctan calls differs. */
-void v3_to_xy_ang(Vec* ang, const Vec* v) {
+void v3_to_xy_ang(Vec* ang, Vec* v) {
     float len;
     ang->z = kZero;
     ang->y = gxMathArcTanYX(v->x, v->z);
@@ -479,7 +495,7 @@ void v3_to_xy_ang(Vec* ang, const Vec* v) {
     ang->x = -gxMathArcTanYX(v->y, len);
 }
 
-/* TODO: [breakthrough needed] 55.84%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+/* TODO: [breakthrough needed] 55.85%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void mat_scaled_by_v3(MKMATRIX* out, const MKMATRIX* m, const Vec* scale) {
     out->right.x = m->right.x * scale->x;
     out->right.y = m->right.y * scale->x;
@@ -500,7 +516,7 @@ void v3_x_mat_sub_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* sub) 
     out->z = (v->z * m->at.z + v->x * m->right.z + v->y * m->up.z) - sub->z;
 }
 
-/* TODO: [breakthrough needed] 49.48%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+/* TODO: [breakthrough needed] 49.49%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void v3_x_mat_add_v3(Vec* out, const Vec* v, const MKMATRIX* m, const Vec* add) {
     out->x = add->x + v->z * m->at.x + v->x * m->right.x + v->y * m->up.x;
     out->y = add->y + v->z * m->at.y + v->x * m->right.y + v->y * m->up.y;
@@ -514,26 +530,30 @@ void v3_x_mat(Vec* out, const Vec* v, const MKMATRIX* m) {
     out->z = v->z * m->at.z + v->x * m->right.z + v->y * m->up.z;
 }
 
-/* TODO: [breakthrough needed] 49.45%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
+/* TODO: [breakthrough needed] 49.46%; FP load/store scheduling differs; see mk_math.o compiler/flag note. */
 void p3_x_mat(Vec* out, const Vec* p, const MKMATRIX* m) {
     out->x = m->pos.x + p->z * m->at.x + p->x * m->right.x + p->y * m->up.x;
     out->y = m->pos.y + p->z * m->at.y + p->x * m->right.y + p->y * m->up.y;
     out->z = m->pos.z + p->z * m->at.z + p->x * m->right.z + p->y * m->up.z;
 }
 
-/* TODO: [breakthrough needed] 0.00%; size/scheduling differ (54% with scheduling off); see mk_math.o compiler/flag note. */
+#pragma push
+#pragma scheduling off
+#pragma optimization_level 1
+/* TODO: [breakthrough] 75.93684%; X/Y subtotal then Z agrees; verify operand scheduling and leaf optimization profile. */
 void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b) {
-    out->right.x = a->right.z * b->at.x + a->right.x * b->right.x + a->right.y * b->up.x;
-    out->right.y = a->right.z * b->at.y + a->right.x * b->right.y + a->right.y * b->up.y;
-    out->right.z = a->right.z * b->at.z + a->right.x * b->right.z + a->right.y * b->up.z;
-    out->up.x = a->up.z * b->at.x + a->up.x * b->right.x + a->up.y * b->up.x;
-    out->up.y = a->up.z * b->at.y + a->up.x * b->right.y + a->up.y * b->up.y;
-    out->up.z = a->up.z * b->at.z + a->up.x * b->right.z + a->up.y * b->up.z;
-    out->at.x = a->at.z * b->at.x + a->at.x * b->right.x + a->at.y * b->up.x;
-    out->at.y = a->at.z * b->at.y + a->at.x * b->right.y + a->at.y * b->up.y;
-    out->at.z = a->at.z * b->at.z + a->at.x * b->right.z + a->at.y * b->up.z;
+    out->right.x = a->right.x * b->right.x + a->right.y * b->up.x + a->right.z * b->at.x;
+    out->right.y = a->right.x * b->right.y + a->right.y * b->up.y + a->right.z * b->at.y;
+    out->right.z = a->right.x * b->right.z + a->right.y * b->up.z + a->right.z * b->at.z;
+    out->up.x = a->up.x * b->right.x + a->up.y * b->up.x + a->up.z * b->at.x;
+    out->up.y = a->up.x * b->right.y + a->up.y * b->up.y + a->up.z * b->at.y;
+    out->up.z = a->up.x * b->right.z + a->up.y * b->up.z + a->up.z * b->at.z;
+    out->at.x = a->at.x * b->right.x + a->at.y * b->up.x + a->at.z * b->at.x;
+    out->at.y = a->at.x * b->right.y + a->at.y * b->up.y + a->at.z * b->at.y;
+    out->at.z = a->at.x * b->right.z + a->at.y * b->up.z + a->at.z * b->at.z;
     out->flags = a->flags & b->flags;
 }
+#pragma pop
 
 void set_mat(MKMATRIX* dst, const MKMATRIX* src) {
     *dst = *src;
@@ -552,7 +572,7 @@ float ang_sub_ang(float a, float b) {
     return d;
 }
 
-/* TODO: [breakthrough needed] 49.37%; branch layout and FP scheduling differ. */
+/* TODO: [breakthrough needed] 49.38%; branch layout and FP scheduling differ. */
 float quat_extract_ang_y(const Quat* q) {
     float t = -(kTwo * (q->x * q->x + q->y * q->y) - kOne);
     float s = kTwo * (q->z * q->x + q->w * q->y);
@@ -576,23 +596,33 @@ float quat_extract_ang_y(const Quat* q) {
     }
 }
 
-/* TODO: [breakthrough] 84.98718%; ordered guard corrected; quaternion FP scheduling remains. */
+static inline void interpolate_quat_components(
+    Quat* out, const Quat* q1, const Quat* q2,
+    float weight_1, float weight_2) {
+    out->x = weight_1 * q1->x + weight_2 * q2->x;
+    out->y = weight_1 * q1->y + weight_2 * q2->y;
+    out->z = weight_1 * q1->z + weight_2 * q2->z;
+    out->w = weight_1 * q1->w + weight_2 * q2->w;
+}
+
+/* TODO: [near miss] 89.00%; weight/dot/sign FPR ownership and component load/store scheduling remain. */
 void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
-    float sign = kOne;
+    float sign;
     float oneMinusT;
     float dot;
-    float invSin;
     float theta;
+    float invSin;
     float len;
     float inv;
 
     if (t < kZero) {
         t = kZero;
     }
-    if (kOne < t) {
+    if (t > kOne) {
         t = kOne;
     }
     oneMinusT = kOne - t;
+    sign = kOne;
     dot = q1->x * q2->x + q1->y * q2->y + q1->z * q2->z + q1->w * q2->w;
     if (dot < kZero) {
         dot = -dot;
@@ -604,14 +634,10 @@ void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
         t = invSin * gxMathSin(t * theta);
         oneMinusT = invSin * gxMathSin(oneMinusT * theta);
     }
-    oneMinusT *= sign;
-    out->x = t * q1->x + oneMinusT * q2->x;
-    out->y = t * q1->y + oneMinusT * q2->y;
-    out->z = t * q1->z + oneMinusT * q2->z;
-    out->w = t * q1->w + oneMinusT * q2->w;
-    if (kSlerpNormDotThresh < dot) {
+    interpolate_quat_components(out, q1, q2, t, oneMinusT * sign);
+    if (dot > kSlerpNormDotThresh) {
         len = out->x * out->x + out->y * out->y + out->z * out->z + out->w * out->w;
-        if (len < kSlerpDotThresh || kSlerpNormDotThresh < len) {
+        if (len < kSlerpDotThresh || len > kSlerpNormDotThresh) {
             inv = mk_inv_sqrt(len);
             out->x *= inv;
             out->y *= inv;
@@ -621,7 +647,6 @@ void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
 }
 
-/* TODO: [breakthrough needed] 77.89%; FP operation order/scheduling differs. */
 void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     float ax = a->x;
     float ay = a->y;
@@ -631,13 +656,16 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     float by = b->y;
     float bz = b->z;
     float bw = b->w;
-    out->x = -(az * by - (ay * bz + aw * bx + ax * bw));
-    out->y = -(ax * bz - (az * bx + aw * by + ay * bw));
-    out->z = -(ay * bx - (ax * by + aw * bz + az * bw));
-    out->w = -(az * bz - -(ay * by - (aw * bw - ax * bx)));
+    float x = ax * bw;
+    float y = ay * bw;
+    float z = az * bw;
+    out->x = x + aw * bx + ay * bz - az * by;
+    out->y = y + aw * by + az * bx - ax * bz;
+    out->z = z + aw * bz + ax * by - ay * bx;
+    out->w = aw * bw - ax * bx - ay * by - az * bz;
 }
 
-/* TODO: [breakthrough] 81.57286%; ordered guard corrected; quaternion FP scheduling remains. */
+/* TODO: [near miss] 87.76382%; entry scheduling and antiparallel/sqrt FP homes remain. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
     float ax;
@@ -648,7 +676,7 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float half;
     float w;
 
-    if (kV3ToQuatParallel < dot) {
+    if (dot > kV3ToQuatParallel) {
         out->x = kZero;
         out->y = kZero;
         out->z = kZero;
@@ -657,9 +685,9 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     }
     if (dot < kV3ToQuatAntiParallel) {
         ax = kZero;
-        ay = -v1->y;
-        az = v1->x;
-        len = gxMathFastSqrt(ax * ax + ay * ay + az * az);
+        ay = v1->x;
+        az = -v1->y;
+        len = gxMathFastSqrt(ay * ay + az * az);
         if (len < kEps) {
             ax = -v1->z;
             ay = kZero;
@@ -676,12 +704,18 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     ay = v1->z * v2->x - v1->x * v2->z;
     az = v1->x * v2->y - v1->y * v2->x;
     inv = mk_inv_sqrt(ax * ax + ay * ay + az * az);
+    ax *= inv;
+    ay *= inv;
+    az *= inv;
     half = kHalf * (kOne - dot);
     w = gxMathFastSqrt(half);
+    ax *= w;
+    ay *= w;
+    az *= w;
     half = kHalf * (kOne + dot);
-    out->x = ax * inv * w;
-    out->y = ay * inv * w;
-    out->z = az * inv * w;
+    out->x = ax;
+    out->y = ay;
+    out->z = az;
     out->w = gxMathFastSqrt(half);
 }
 
@@ -703,7 +737,7 @@ void quat_to_mat(MKMATRIX* out, const Quat* q) {
     out->flags = 3;
 }
 
-/* TODO: [breakthrough needed] 14.78%; matrix build order/scheduling differs from retail. */
+/* TODO: [breakthrough needed] 23.87%; matrix build order/scheduling differs from retail. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float cx;
     float sx;

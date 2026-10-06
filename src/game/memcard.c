@@ -385,18 +385,21 @@ int is_device_unformatted(int device) {
     return 0;
 }
 
-/* TODO: [near miss] 79.11%; same table-scan register residue as is_device_present. */
-int is_device_error(int device) {
+static inline int storage_status_in_list(const int* states, int status, int count) {
     int i;
-    int status;
 
-    status = DEVICE_AT(device)->status;
-    for (i = 0; i < 4; i++) {
-        if (status == states_when_device_error[i]) {
+    for (i = 0; i < count; i++) {
+        if (status == states[i]) {
             return 1;
         }
     }
     return 0;
+}
+
+int is_device_error(int device) {
+    int status = DEVICE_AT(device)->status;
+
+    return storage_status_in_list(states_when_device_error, status, 4);
 }
 
 int is_device_full(int device) {
@@ -412,19 +415,10 @@ int is_device_full(int device) {
     return 0;
 }
 
-/* TODO: [near miss] 79.11%; table scan agrees; table base/offset registers and
- * the status load schedule remain (int/unsigned/break forms measured). */
 int is_device_present(int device) {
-    int i;
-    int status;
+    int status = DEVICE_AT(device)->status;
 
-    status = DEVICE_AT(device)->status;
-    for (i = 0; i < 7; i++) {
-        if (status == states_when_device_present[i]) {
-            return 1;
-        }
-    }
-    return 0;
+    return storage_status_in_list(states_when_device_present, status, 7);
 }
 
 int is_storage_device_full(int device) {
@@ -772,12 +766,12 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
     return 0;
 }
 
-/* TODO: [near miss] 79.08%; prologue homes, retry-loop, switch and vtable
- * scheduling remain. */
+/* TODO: [near miss] 99.54128%; operations and CFG agree; string-owner/resolved register swap remains. */
 int save_settings_to_memcard_w_error(int device, int mode, const char* title,
                                      GameSettings* settings, int flag,
                                      unsigned int* freeBlocks, int* freeBytes) {
     MkVtableMkproc* vtbl;
+    const char* strings;
     int result;
     int resolved;
     int tries;
@@ -789,9 +783,12 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
     }
 
     f_writing_to_memcard = 1;
-    do {
+    strings = stringBase0;
+    while (resolved == 0) {
         save_gsettings(device);
         switch (mode) {
+        case 0:
+            break;
         case 1:
         case 6:
         case 7:
@@ -805,6 +802,8 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
             mcard_msg_create(device);
             break;
         case 4:
+            mcard_msg_deleting_data(device);
+            break;
         case 5:
             mcard_msg_deleting_data(device);
             break;
@@ -817,18 +816,18 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
         tries = 2;
         resolved = 0;
         while (tries-- != 0 && result != 0) {
-            result = save_to_memcard2(device, 0, 0, 0, stringBase0 + 8,
-                                      stringBase0 + 9, settings, STORAGE_LOAD_SIZE,
-                                      freeBlocks, freeBytes, 0, 0, mode, 0);
+            result = save_to_memcard2(device, 0, 0, flag, strings + 8,
+                                      strings + 9, settings, STORAGE_LOAD_SIZE,
+                                      freeBlocks, freeBytes, 0, flag, mode, 0);
         }
         mcard_msg_middle_sleep(mode, 2);
         end_save_message(mode, result, device, 2);
-        resolved = check_save_profile_result(&result, device, 0);
+        resolved = check_save_profile_result(&result, device, flag);
         mcard_msg_end();
         if (resolved == 0) {
             update_storage_status_for_one_device(device);
         }
-    } while (resolved == 0);
+    }
 
     return result == 0;
 }

@@ -26,13 +26,13 @@ void pfxvm_update_fade_alpha(PfxBehavior* behavior, unsigned int color_field,
                              unsigned int age_field, float start_time,
                              float duration, int start_alpha, int end_alpha);
 void pfxvm_update_lerp_color(PfxBehavior* behavior, unsigned int color_field,
-                             unsigned int age_field, int color_count,
-                             int first_color, void* colors, float duration);
+                             unsigned int age_field, float duration,
+                             int color_count, int first_color, void* colors);
 void pfxvm_update_animate_texture(PfxBehavior* behavior,
                                   unsigned int texture_field,
-                                  unsigned int age_field, int frame_count,
-                                  int frame_offset, void* frame_source,
-                                  int mode, float frame_time);
+                                  unsigned int age_field, float frame_time,
+                                  int frame_count, int frame_offset,
+                                  void* frame_source, int mode);
 void pfxvm_update_attract(PfxBehavior* behavior, unsigned int field,
                           unsigned int target_field, float strength);
 void pfxvm_update_assign(PfxBehavior* behavior, int destination, int source);

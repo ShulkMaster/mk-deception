@@ -289,9 +289,9 @@ static int MkmaterialDataGetStreamSize(const void* object, int offset, int size)
     return stream_size;
 }
 
-/* TODO: [breakthrough] 82.484207%; typed UV scroll aggregate copy recovered; inspect remaining extra-data copy and allocation order. */
 static void* MkmaterialDataCopier(void* destination, const void* source, int offset, int size) {
-    const MkmaterialPluginData* source_data = MK_MATERIAL_PLUGIN(source);
+    const MkmaterialExtra* source_extra;
+    const MkmaterialUvScroll* source_scroll;
     MkmaterialExtra* extra_copy;
     struct MkmaterialExtraAllocation* extra_allocation;
     MkmaterialUvScroll* vec4_copy;
@@ -308,24 +308,26 @@ static void* MkmaterialDataCopier(void* destination, const void* source, int off
         MK_MATERIAL_PLUGIN(source)->z_bias;
     MK_MATERIAL_PLUGIN(destination)->field_20 =
         MK_MATERIAL_PLUGIN(source)->field_20;
-    if (source_data->extra != 0) {
+    source_extra = MK_MATERIAL_PLUGIN(source)->extra;
+    if (source_extra != 0) {
         extra_allocation =
-            RwEngineInstance->fpMalloc(source_data->extra->count * sizeof(*extra_copy->data) + sizeof(*extra_copy), 0x30000);
-        extra_copy = &extra_allocation->extra;
-        if (extra_copy != 0) {
+            RwEngineInstance->fpMalloc(source_extra->count * sizeof(*extra_copy->data) + sizeof(*extra_copy), 0x30000);
+        if (extra_allocation != 0) {
+            extra_copy = &extra_allocation->extra;
             MK_MATERIAL_PLUGIN(destination)->extra = extra_copy;
-            extra_copy->field_00 = source_data->extra->field_00;
-            extra_copy->count = source_data->extra->count;
+            extra_copy->field_00 = source_extra->field_00;
+            extra_copy->count = source_extra->count;
             extra_copy->data = extra_allocation->inline_data;
-            for (index = 0; index < (unsigned int)source_data->extra->count; index++) {
-                extra_copy->data[index] = source_data->extra->data[index];
+            for (index = 0; index < (unsigned int)source_extra->count; index++) {
+                extra_copy->data[index] = source_extra->data[index];
             }
         }
     }
-    if (source_data->vec4 != 0) {
+    source_scroll = MK_MATERIAL_PLUGIN(source)->vec4;
+    if (source_scroll != 0) {
         vec4_copy = RwEngineInstance->fpMalloc(sizeof(*vec4_copy), 0x30000);
         if (vec4_copy != 0) {
-            *vec4_copy = *source_data->vec4;
+            *vec4_copy = *source_scroll;
             MK_MATERIAL_PLUGIN(destination)->vec4 = vec4_copy;
         }
     }

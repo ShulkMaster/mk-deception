@@ -96,6 +96,20 @@ MkFileEntry* mk_file_open_async_withcallback(MkFileInfo* info,
     return ssf_member_open_async_withcallback(info, callback, user);
 }
 
+static inline int ssf_find_info_index(MkFileEntry* table, MkFileInfo* info) {
+    MkFileEntry* cursor = table + 1;
+    int index = 0;
+
+    while (cursor->info != 0) {
+        if (cursor->info == info) {
+            return index;
+        }
+        index++;
+        cursor++;
+    }
+    return 0;
+}
+
 static inline MkFileEntry* ssf_find_member_entry(MkFileInfo* info) {
     MkFileEntry* entry = current_ssf.ssf_file;
 
@@ -160,25 +174,10 @@ void init_file_loading_table(void) {
     num_files_loaded = 0;
 }
 
-/* TODO: [breakthrough needed] 80.28%; redundant sentinel exit test remains;
- * infinite-loop and direct-return forms regress; inspect shared-exit lowering. */
 MkFileInfo* offset_mk_file_info(MkFileInfo* info, int language) {
-    MkFileEntry* cursor;
     MkFileEntry* ssf_file = current_ssf.ssf_file;
-    int index = 0;
 
-    cursor = ssf_file + 1;
-    while (cursor->info != 0) {
-        if (cursor->info == info) {
-            break;
-        }
-        index++;
-        cursor++;
-    }
-    if (cursor->info == 0) {
-        index = 0;
-    }
-    return ssf_file[index + language + 1].info;
+    return ssf_file[language + ssf_find_info_index(ssf_file, info) + 1].info;
 }
 
 int get_ssf_dir_index(MkFileInfo* info) {

@@ -21,7 +21,7 @@ typedef struct ShadowboxObject {
     MkObj object;
 } ShadowboxObject;
 
-static const char stringBase0[] = "Shadow2\0SHADOWBOX\0";
+static const char stringBase0[] = "Shadow2\0SHADOWBOX";
 
 static RwRGBA clear_color_white = {0xFF, 0xFF, 0xFF, 0x00};
 static RwRGBA clear_color_black = {0x00, 0x00, 0x00, 0xFF};
@@ -55,7 +55,7 @@ unsigned int save_res_for_shadowbox;
 float ShadowStrength;
 
 static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out);
-static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
+static int Im2DRenderQuad(int alpha, float p1, float p2, float p3,
                           float p4, float depth, float p6, float p7);
 static inline MkObj* shadow_validate_fighter(
     MkObj* fighter, unsigned int expected_id);
@@ -108,8 +108,6 @@ static inline void shadow_destroy_shadowbox(MkObj** box_ptr) {
     *box_ptr = NULL;
 }
 
-/* TODO: [breakthrough needed] 78.35714%; canonical pdata shadow fields agree;
- * inspect remaining aggregate copy/callback and cleanup lowering. */
 void init_shadow(ShadowObject* shadow, MkObj* object) {
     PlyrPdata* owner = (PlyrPdata*)shadow;
     RpAtomic* atomic;
@@ -119,11 +117,8 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
         if (atomic->interpolator.flags & 2) {
             _rpAtomicResyncInterpolatedSphere(atomic);
         }
-        owner->shadow_sphere_center.x = atomic->boundingSphere.center.x;
-        owner->shadow_sphere_center.y = atomic->boundingSphere.center.y;
-        owner->shadow_sphere_center.z = atomic->boundingSphere.center.z;
-        owner->shadow_sphere_radius = atomic->boundingSphere.radius;
-        owner->shadow_ground_radius = owner->shadow_sphere_radius;
+        owner->shadow_sphere = atomic->boundingSphere;
+        owner->shadow_ground_radius = owner->shadow_sphere.radius;
         RwV3dTransformPoints(
             (RwV3d*)&owner->shadow_ground_point, (const RwV3d*)&object->pos.value, 1,
             &object->frame->modelling);
@@ -382,7 +377,6 @@ static inline RwCamera* shadow_create_camera(int resolution) {
     return NULL;
 }
 
-/* TODO: [breakthrough] 93.86667%; camera cleanup CFG agrees; compact save/restore mode needs whole-TU check. */
 void destroy_shadow_system(void) {
     if (ShadowCamera != NULL) {
         shadow_destroy_camera(ShadowCamera);
@@ -439,16 +433,11 @@ void shadow_set_new_ground_plane(ShadowObject* shadow, ShadowboxObject* ground,
     ground->object.pos.value.y = y;
 }
 
-/* TODO: [breakthrough needed] 77.58871%; canonical pdata/object fields agree;
- * inspect remaining model/material setup and flag-store lowering. */
 int SetupShadow(ShadowObject* shadow) {
     PlyrPdata* owner = (PlyrPdata*)shadow;
     RpMaterial* material;
-    RwTexture* texture;
     MkSobj* sobj;
     unsigned int filter;
-    unsigned int flags;
-    ShadowboxObject* box;
 
     owner->shadow_raster = RwRasterCreate(save_res_for_shadowbox,
                                             save_res_for_shadowbox, 0x20,
@@ -471,51 +460,40 @@ int SetupShadow(ShadowObject* shadow) {
     if (owner->shadowbox == NULL) {
         return 0;
     }
-    box = (ShadowboxObject*)owner->shadowbox;
-    flags = box->object.flags_08;
-    flags = (flags & ~(1 << 6)) | (1 << 6);
-    box->object.flags_08 = flags;
-    flags = box->object.flags_08;
-    flags = (flags & ~(1 << 3)) | (1 << 3);
-    box->object.flags_08 = flags;
-    flags = box->object.flags_08;
-    flags = (flags & ~(1 << 1)) | (1 << 1);
-    box->object.flags_08 = flags;
-    insert_fgnd_mkobj(box);
+    owner->shadowbox->flags_08_bits.airborne = 1;
+    owner->shadowbox->flags_08_bits.angular_velocity_enabled = 1;
+    owner->shadowbox->flags_08_bits.scale_active = 1;
+    insert_fgnd_mkobj(owner->shadowbox);
     if (owner->character_id == 0x1D) {
-        material = obj_find_material_with_texture((MkObj*)box, stringBase0);
+        material = obj_find_material_with_texture(owner->shadowbox, stringBase0);
     } else {
-        material = obj_find_material_with_texture((MkObj*)box, stringBase0 + 8);
+        material = obj_find_material_with_texture(owner->shadowbox, stringBase0 + 8);
     }
     if (material != NULL) {
-        texture = RwTextureCreate(owner->shadow_raster);
-        material->texture = texture;
+        material->texture = RwTextureCreate(owner->shadow_raster);
         if (material->texture != NULL) {
-            filter = texture->filter_flags;
+            filter = material->texture->filter_flags;
             filter = (filter & ~0xFF) | 2;
-            texture->filter_flags = filter;
-            filter = texture->filter_flags;
+            material->texture->filter_flags = filter;
+            filter = material->texture->filter_flags;
             filter = (filter & 0xFFFF00FF) | 0x3300;
-            texture->filter_flags = filter;
+            material->texture->filter_flags = filter;
             owner->shadow_texture = material->texture;
         }
     }
-    obj_create_sobjs((MkObj*)box);
-    sobj = obj_first_sobj((MkObj*)box);
+    obj_create_sobjs(owner->shadowbox);
+    sobj = obj_first_sobj(owner->shadowbox);
     if (sobj != NULL) {
-        flags = sobj->flags09;
-        flags = (flags & ~(1 << 7)) | (1 << 7);
-        sobj->flags09 = flags;
+        sobj->flags09_bits.bit7 = 1;
         sobj->render_flags = 0x10006;
         sobj_set_priority(sobj, 0xC);
     }
-    box->object.pos.value.y = kGroundOffset;
-    box->object.scale.y = kOne;
+    owner->shadowbox->pos.value.y = kGroundOffset;
+    owner->shadowbox->scale.y = kOne;
     return 1;
 }
 
-/* TODO: [near miss] 94.888885%; camera and AA control flow recovered;
- * frame register and whole-TU compact-save mode remain. */
+/* TODO: [near miss] 99.67%; camera and AA control flow agree; localized register residue remains. */
 int init_shadow_system(void) {
     RwFrame* frame;
     RwMatrix* dir_matrix;
@@ -571,23 +549,21 @@ static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 80.90278%; natural signed-height conversion retains FP lowering and stack-slot differences. */
 int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
                      RwCamera* ip_camera, unsigned int pass_count) {
-    int pass;
-    int last_pass;
-    float raster_height;
-    float inv_height;
+    RwRGBA clear_color = {255, 255, 255, 0};
+    unsigned int pass;
+    float raster_width;
+    float inv_width;
     float inv_far;
     int alpha;
 
-    raster_height = src_raster->height;
-    inv_height = kOne / raster_height;
+    raster_width = src_raster->width;
+    inv_width = kOne / raster_width;
     inv_far = kOne / ip_camera->farPlane;
-    last_pass = pass_count - 1;
     for (pass = 0; pass < pass_count; pass++) {
         ip_camera->frameBuffer = dst_raster;
-        RwCameraClear(ip_camera, &clear_color_white, 3);
+        RwCameraClear(ip_camera, &clear_color, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(0xA, 2);
             set_render_state(0xB, 1);
@@ -595,26 +571,26 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
             set_render_state(0x9, 2);
             set_render_state(0x2, 3);
             set_render_state(1, (int)src_raster);
-            Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
-                           raster_height, RwEngineInstance->dOpenDevice.zBufferFar,
+            Im2DRenderQuad(0xFF, kZero, kZero, raster_width,
+                           raster_width, RwEngineInstance->dOpenDevice.zBufferFar,
                            inv_far,
-                           inv_height);
+                           inv_width);
             RwCameraEndUpdate(ip_camera);
             RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
         ip_camera->frameBuffer = src_raster;
-        RwCameraClear(ip_camera, &clear_color_white, 3);
+        RwCameraClear(ip_camera, &clear_color, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(1, (int)dst_raster);
-            if (pass < last_pass) {
-                Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
-                               raster_height,
+            if (pass < pass_count - 1) {
+                Im2DRenderQuad(0xFF, kZero, kZero, raster_width,
+                               raster_width,
                                RwEngineInstance->dOpenDevice.zBufferFar,
                                inv_far, kZero);
             } else {
                 alpha = (kAlphaScale * ShadowStrength);
                 Im2DRenderQuad(alpha, kZero, kZero,
-                               raster_height, raster_height,
+                               raster_width, raster_width,
                                RwEngineInstance->dOpenDevice.zBufferFar,
                                inv_far, kZero);
             }
@@ -673,7 +649,7 @@ RwCamera* ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
     return camera;
 }
 
-static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
+static int Im2DRenderQuad(int alpha, float p1, float p2, float p3,
                           float p4, float depth, float p6, float p7) {
     struct Im2DVertex vertices[4];
     float v_top;

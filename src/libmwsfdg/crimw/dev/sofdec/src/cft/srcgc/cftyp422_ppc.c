@@ -80,12 +80,12 @@ static inline void make_chroma_tables(CFTArgbTable table)
     }
 }
 
-/* TODO: [breakthrough needed] 85.164340%; paired CTR ramps and donor
- * luminance formulas agree; shared chroma FP scheduling remains. */
+/* TODO: [near miss] 85.53%; table formulas/CTR loops recovered; conversion homes and FP scheduling remain. */
 void CFT_MakeArgb8888Alp3211Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
     s32 i;
+    s32 luminance_sample;
     s32 middle_pairs;
     s32 high_pairs;
     float* y_table;
@@ -98,20 +98,20 @@ void CFT_MakeArgb8888Alp3211Tbl(
         table[0][i][0] = (float)alpha0;
     }
     y_table = &table[0][48][0];
-    i = 48;
+    luminance_sample = 48;
     for (middle_pairs = 0; middle_pairs < 41; middle_pairs++) {
         float luminance0 =
-            (255.0f / 55.0f) * clamp_table_value((float)i - 68.0f) + 0.5f;
+            (255.0f / 55.0f) * clamp_table_value((float)luminance_sample - 68.0f) + 0.5f;
         float next_sample;
         float luminance1;
 
         y_table[3] = luminance0;
-        next_sample = (float)++i - 68.0f;
+        next_sample = (float)++luminance_sample - 68.0f;
         y_table[2] = luminance0;
         y_table[1] = luminance0;
         y_table[0] = (float)alpha1;
         luminance1 = (255.0f / 55.0f) * clamp_table_value(next_sample) + 0.5f;
-        ++i;
+        ++luminance_sample;
         y_table[7] = luminance1;
         y_table[6] = luminance1;
         y_table[5] = luminance1;
@@ -119,20 +119,20 @@ void CFT_MakeArgb8888Alp3211Tbl(
         y_table += 8;
     }
     y_table = &table[0][130][0];
-    i = 130;
+    luminance_sample = 130;
     for (high_pairs = 0; high_pairs < 63; high_pairs++) {
         float luminance0 =
-            2.2972972f * clamp_table_value(247.0f - (float)i) + 0.5f;
+            2.2972972f * clamp_table_value(247.0f - (float)luminance_sample) + 0.5f;
         float next_sample;
         float luminance1;
 
         y_table[3] = luminance0;
-        next_sample = 247.0f - (float)++i;
+        next_sample = 247.0f - (float)++luminance_sample;
         y_table[2] = luminance0;
         y_table[1] = luminance0;
         y_table[0] = (float)alpha2;
         luminance1 = 2.2972972f * clamp_table_value(next_sample) + 0.5f;
-        ++i;
+        ++luminance_sample;
         y_table[7] = luminance1;
         y_table[6] = luminance1;
         y_table[5] = luminance1;
@@ -141,8 +141,7 @@ void CFT_MakeArgb8888Alp3211Tbl(
     }
 }
 
-/* TODO: [breakthrough needed] 83.149320%; high ramp uses retail CTR;
- * chroma FP lifetime still yields a 0x50 frame versus retail 0x30. */
+/* TODO: [breakthrough needed] 83.24%; chroma conversions retain a 0x50 frame versus retail 0x30. */
 void CFT_MakeArgb8888Alp3110Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
@@ -344,6 +343,7 @@ static inline void store_dynamic_pixel(
     tile[33 + pixel * 2] = clamp_channel(yt[3] + cbt[3] + crt[3]);
 }
 
+/* TODO: [blocked] 0%; handwritten paired-single conversion requires per-function assembly authorization. */
 static void cnvDynamicYcc420plnToArgb8888(
     const CFTYcc420Planar* src,
     const CFTArgb8888Output* dst,
@@ -394,6 +394,7 @@ static inline void store_static_pixel(u8* tile, s32 pixel, u8 y, u8 cb, u8 cr)
     tile[33 + pixel * 2] = clamp_channel(luminance + blue_chroma);
 }
 
+/* TODO: [blocked] 0%; retail GQR4 and paired-single conversion require assembly authorization. */
 static void cnvStaticYcc420plnToArgb8888(
     const CFTYcc420Planar* src, const CFTArgb8888Output* dst)
 {

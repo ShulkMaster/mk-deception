@@ -37,7 +37,6 @@ static inline void adxerr_itoa(int value, signed char* string, int length)
     string[i] = '\0';
 }
 
-/* TODO: [near miss] 99.96784%; instructions and BSS layout agree; only anonymous pooled-space/local relocation labels remain. */
 void ADXERR_ItoA2(int value1, int value2, signed char* string, int length)
 {
     adxerr_itoa(value1, string, length);

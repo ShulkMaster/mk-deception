@@ -6,7 +6,25 @@
 
 extern Vec tightrope_perp_uv;
 
-typedef int (*ArenaObstacleCallback)(void);
+struct PlyrPdata;
+
+typedef struct BgndObstacleEventData {
+    unsigned int event_id; /* +0x00 */
+    int field_04;
+    Vec* impact_vector;  /* +0x08 */
+    struct PlyrPdata* player_pdata; /* +0x0C */
+    union {
+        unsigned int flags;
+        struct {
+            unsigned int player_side : 1; /* bit31 */
+            unsigned int pad_low : 31;
+        } flag_bits;
+    }; /* +0x10 */
+} BgndObstacleEventData;
+
+typedef char BgndObstacleEventDataSizeCheck[
+    (sizeof(BgndObstacleEventData) == 0x14) ? 1 : -1];
+typedef int (*ArenaObstacleCallback)(BgndObstacleEventData* event);
 
 typedef struct ConstrainInfo {
     MkPtr* obstacles;

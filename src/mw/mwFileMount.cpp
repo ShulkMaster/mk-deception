@@ -1,5 +1,9 @@
 #include "runtime/cstring.h"
 #include "mw/mwFile.h"
+#include "mw/mwFileContainers.h"
+#include "mw/mwFileMutex.h"
+
+extern int mwFileStringCompareIgnoreCase(const char*, const char*);
 
 class mwFileServer;
 struct mwFileTypeInfo;
@@ -34,6 +38,7 @@ public:
     }
 
 protected:
+    friend class mwFileMountTable;
     char name[36];
     unsigned long mount_count;
 };
@@ -119,6 +124,8 @@ public:
                               const char* first, const char* last) const;
 
 private:
+    std::vector<mwFileMountPoint*, mwFileMemAllocator<mwFileMountPoint*, 3> > mounts;
+    mutable mwFileMutex mutex;
     static mwFileMountTable* spTable;
 };
 
@@ -133,9 +140,7 @@ mwFileMountPoint::mwFileMountPoint(const char* mount_name)
 }
 
 namespace {
-mwFileDummyMountPoint::~mwFileDummyMountPoint()
-{
-}
+
 
 mwFileServer* mwFileDummyMountPoint::getServer()
 {
@@ -174,6 +179,35 @@ int mwFileMountTable::getMountPointFromName(mwFileMountPoint*& mount_point,
                                             const char* name)
 {
     return getMountPointFromName(mount_point, name, name + strlen(name));
+}
+
+/* TODO: [breakthrough] 65.87%; typed lookup and cleanup recovered; constructor boundary and comparator homes remain. */
+int mwFileMountTable::getMountPointFromName(
+    mwFileMountPoint*& mount_point, const char* first, const char* last) const
+{
+    mwFileMutexLock lock(mutex);
+    mwFileDummyMountPoint query(first, last);
+    mwFileDummyMountPoint* key = &query;
+    pointer_less<mwFileMountPoint> compare;
+    mwFileMountPoint* const* found = std::lower_bound(
+        mounts.begin(), mounts.end(), key, compare);
+
+    if (found == mounts.end()) {
+        mount_point = 0;
+        return -15;
+    }
+
+    mount_point = *found;
+    if (mwFileStringCompareIgnoreCase(mount_point->name, query.name) == 0) {
+        return 0;
+    }
+    return -15;
+}
+
+namespace {
+mwFileDummyMountPoint::~mwFileDummyMountPoint()
+{
+}
 }
 
 mwFileMountTable& mwFileMountTable::get()

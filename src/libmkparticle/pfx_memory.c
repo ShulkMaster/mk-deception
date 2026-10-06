@@ -10,7 +10,7 @@
 #include "runtime/mk_mem.h"
 #include "runtime/cstring.h"
 
-/* TODO: [breakthrough needed] 85.790695%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
+/* TODO: [breakthrough needed] 85.79%; loop/mask compiler modes improve this body but regress pfx_estimate_size; recover shared TU shape. */
 int pfx_estimate_render_size(PfxVm* vm)
 {
     int size;
@@ -44,7 +44,7 @@ int pfx_estimate_render_size(PfxVm* vm)
     return size;
 }
 
-/* TODO: [breakthrough needed] 84.125%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
+/* TODO: [breakthrough needed] 86.88%; aligned stride retained; indexed property lowering regresses inline caller. */
 int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate)
 {
     int count;
@@ -60,7 +60,8 @@ int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate)
         }
     }
     estimate->particle_property_count = count;
-    size = (size + _pfx_config.align_add) & ~_pfx_config.align_mask;
+    size += _pfx_config.align_add;
+    size &= ~_pfx_config.align_mask;
     estimate->particle_stride = size;
     return size;
 }
@@ -77,7 +78,7 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [breakthrough needed] 61.439716%; native-sized regions preserve retail
+/* TODO: [breakthrough needed] 89.28%; native-sized regions preserve retail
  * output; remaining size/type traversal and lowering need evidence. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
@@ -159,13 +160,19 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->runtime_buffers_size + 0x10;
 }
 
-/* TODO: [breakthrough needed] 81.99367%; typed regions preserve retail output;
- * remaining cursor/state reconstruction needs evidence. */
+static inline PfxFieldSet pfx_memory_field_set(PfxVm* pfx) {
+    PfxFieldSet fields;
+    fields.render_flags = pfx->flags_0x1D4;
+    fields.particle_flags = pfx->flags_0x60;
+    return fields;
+}
+
+#pragma push
+#pragma optimize_for_size on
+/* TODO: [near miss] 98.61%; helper and cursor ops agree; field-set stack homes and alignment compares remain. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
-    PfxParametricState* parametric;
-    PfxFieldSet fields;
     int index;
 
     cursor = memory;
@@ -185,13 +192,12 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 
     if (pfx->field_0x22C != 0) {
-        pfx->name_obj = cursor;
-        parametric = pfx->name_obj;
-        parametric->particle_capacity = pfx->particle_capacity;
-        parametric->minimum_y = -10000.0f;
+        pfx->parametric = (PfxParametricState*)cursor;
+        pfx->parametric->particle_capacity = pfx->particle_capacity;
+        pfx->parametric->minimum_y = -10000.0f;
         cursor += estimate->parametric_memory_size;
     } else {
-        pfx->name_obj = 0;
+        pfx->parametric = 0;
     }
 
     if (estimate->emitter_memory_size != 0) {
@@ -231,11 +237,12 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 
     if (estimate->field_descriptions_size != 0) {
+        PfxFieldSet fields;
+
         pfx->field_count = estimate->field_count;
         pfx->field_descriptions = cursor;
         cursor += (estimate->field_count + 1) * sizeof(PfxFieldDescription);
-        fields.render_flags = pfx->flags_0x1D4;
-        fields.particle_flags = pfx->flags_0x60;
+        fields = pfx_memory_field_set(pfx);
         fill_field_description(pfx->field_descriptions, &fields,
                                pfx->field_0x22C);
     }
@@ -261,6 +268,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 }
 
 /* TODO: [near miss] 95.00%; pointer induction versus byte offset and saved-register homes remain. */
+#pragma pop
 void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
     int index;

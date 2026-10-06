@@ -912,7 +912,7 @@ void update_texanim(int object, int texture, float value, int first, int last);
 struct PfxScriptColorRow;
 void update_lerp_color(int color_field, int age_field, float duration,
                        int color_count, int first_color,
-                       const struct PfxScriptColorRow* table);
+                       struct PfxScriptColorRow* table);
 void update_fade_alpha2(int color_field, int age_field, float start_time,
                         float duration, int start_alpha, int end_alpha);
 void update_fade_alpha(int object, int alpha, float start, float end);
@@ -933,7 +933,6 @@ void fx_pause_emit(int effect);
 void fx_resume_emit(unsigned int handle);
 void reset_effect(void);
 void spawn_color(int a, int b, int c, int d, int e);
-void spawn_random_size(int value);
 void set_growth_coefficient(float value);
 void set_drag_coefficient(float value);
 void set_rotation(float start, float end);
@@ -977,7 +976,7 @@ void bind_to_bone(int bone);
 void create_step_effect(int effect);
 void parametric_update(const struct PfxParametricEffectDescription* value);
 float dist_xz_to_xz(void* a, void* b);
-void v3_to_xz_ang(void* out, void* value);
+void v3_to_xz_ang(Vec* out, Vec* value);
 void v3_to_xy_ang(void* out, void* value);
 float length_v3(void* value);
 void rotate_xz(void* out, void* value, float angle);
@@ -1448,7 +1447,6 @@ int initialize_clone_lights(int);
 int interior_exit_button_script(void);
 int jab_destroy_drink_obj_in_hand(void);
 int jab_release_jade_boomerang(int);
-int jab_setup_kiss_emitter_obj(int);
 int jab_stop_dragon_king_shake(void);
 void kabal_collision_control_victim(int);
 void kenshi_teleport_position(void);
@@ -2260,7 +2258,7 @@ void obj_grnd_bounce(MkObj* object, const Vec* velocity, float gravity,
                      float ground_offset, int bounces, float restitution);
 void obj_match_obj_pos(
     MkObj* source, MkObj* destination, float blend, int snap);
-int parse_args(void*, ...);
+void parse_args(const char*, ...);
 typedef struct NcsLimbOwner NcsLimbOwner;
 MkProc* plyr_spawn_his_anim_limb(
     NcsLimbOwner*, int, int, AniData*, int, MkProcEntryFn, float);
@@ -2364,8 +2362,8 @@ void _start_gusher(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = (int)start_gusher(
         heart_beat, (FighterMirror*)args->slots[0].i,
         (MkObj*)args->slots[1].i, args->slots[2].i,
-        (const Vec*)args->slots[3].i,
-        (const Vec*)args->slots[4].i);
+        (Vec*)args->slots[3].i,
+        (Vec*)args->slots[4].i);
 }
 
 void _plyr_spawn_his_anim_limb(void) {
@@ -2446,28 +2444,29 @@ void _set_bonematcher_flag(void) {
     }
 }
 
+/* TODO: [near miss] 80.62%; equivalent flag test retains argument-load staging differences. */
 void _get_bonematcher_flag(void) {
-    unsigned int flags;
-    int bit;
+    struct ScriptFlagArgs* args;
+    int shift;
 
-    flags = *(unsigned int*)(*(char**)(current_args + 4) + 8);
-    bit = ((struct ScriptRawArgs*)current_args)->slots[1].i;
+    args = (struct ScriptFlagArgs*)current_args;
+    shift = 31 - args->bit;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        (flags & (1U << (31 - bit))) != 0;
+        (args->object->flags & (1U << shift)) != 0;
 }
 
 void _update_mkobj(void) {
     update_mkobj(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
+/* TODO: [near miss] 97.69%; typed flag read and operation order agree; constant/mask/word GPR homes remain. */
 void _get_plyr_pdata_flag(void) {
-    unsigned int flags;
-    int bit;
+    struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
+    unsigned int mask = 1U << (31 - args->slots[1].i);
+    PlyrPdata* pdata = args->slots[0].pointer;
 
-    flags = *(unsigned int*)(*(char**)(current_args + 4) + 0x1c);
-    bit = ((struct ScriptRawArgs*)current_args)->slots[1].i;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        (flags & (1U << (31 - bit))) != 0;
+        (mask & pdata->state_flags.raw_word) != 0;
 }
 
 void _set_obj_flag(void) {
@@ -2483,14 +2482,15 @@ void _set_obj_flag(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 80.62%; typed nonzero test is equivalent;
- * positive/signed forms are neutral, branch stores regress; resolve bool lowering. */
+/* TODO: [near miss] 80.62%; equivalent flag test retains argument-load scheduling and register differences. */
 void _get_obj_flag(void) {
-    struct ScriptFlagArgs* args = (struct ScriptFlagArgs*)current_args;
-    unsigned int mask = 1U << (31 - args->bit);
+    struct ScriptFlagArgs* args;
+    int shift;
 
+    args = (struct ScriptFlagArgs*)current_args;
+    shift = 31 - args->bit;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        (args->object->flags & mask) != 0;
+        (args->object->flags & (1U << shift)) != 0;
 }
 
 void _get_limb_obj(void) {
@@ -3494,8 +3494,9 @@ void _print_i(void) {
 void _print_s(void) {
 }
 
+/* TODO: [near miss] 94.05%; parsed index and name-reference boundary agree; final address arithmetic scheduling remains. */
 void _gosub(void) {
-    int function_index;
+    unsigned int function_index;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
                &function_index);
@@ -3503,12 +3504,9 @@ void _gosub(void) {
     ACTIVE_DISTANCE_SCRIPT->program_counter =
         ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
         ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
-        1;
+    ACTIVE_DISTANCE_SCRIPT->function_name = script_function_name_reference(
+        ACTIVE_DISTANCE_SCRIPT->slot->functions, function_index - 1,
+        ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) - 1;
 }
 
 /* TODO: [near miss] 99.74%; name-reference boundary recovered; one integer ADD operand row remains. */
@@ -3920,7 +3918,7 @@ void _spawn_color(void) {
 }
 
 void _spawn_random_size(void) {
-    spawn_random_size(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    spawn_random_size(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _set_growth_coefficient(void) {
@@ -10839,7 +10837,7 @@ void _jab_setup_kiss_emitter_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_setup_kiss_emitter_obj(args->slots[0].i);
+    jab_setup_kiss_emitter_obj(args->slots[0].pointer);
 }
 
 void _kill_konquest_dialog_procs(void) {

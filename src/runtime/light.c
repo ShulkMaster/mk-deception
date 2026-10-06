@@ -73,40 +73,40 @@ static inline void clear_light_low_flags(RpLight* light) {
         light->object.object.flags & 0xFC;
 }
 
-/* TODO: [breakthrough] 83.45%; linked-object latch matches; search loop and return/frame CFG remain. */
+static inline MkxRpLight* fetch_light_associated_with_obj(MkObj* obj)
+{
+    unsigned int index;
+    for (index = 0; index < 2; ++index) {
+        MkxRpLight* entry = fetch_light(&point_light_list, 2, index);
+        if (entry != 0 && valid_linked_obj(entry) == obj) {
+            return entry;
+        }
+    }
+    return 0;
+}
+
 int adjust_point_light_associated_with_obj_radius(MkObj* obj, float delta) {
     MkxRpLight* found;
-    MkxRpLight* entry;
     RpLight* light;
     float radius;
-    unsigned int index;
 
-    found = 0;
-    for (index = 0; index < 2; index++) {
-        entry = fetch_light(&point_light_list, 2, index);
-        if (entry == 0) {
-            continue;
+    found = fetch_light_associated_with_obj(obj);
+    if (found != 0) {
+        light = found->light;
+        if (light != 0) {
+            radius = light->radius + delta;
+            if (radius < 0.0f) {
+                radius = 0.01f;
+            }
+            RpLightSetRadius(light, radius);
+            light = found->light;
+            if (light->radius < 0.05f) {
+                return 1;
+            }
+        } else {
+            return 1;
         }
-        if (valid_linked_obj(entry) != obj) {
-            continue;
-        }
-        found = entry;
-        break;
-    }
-    if (found == 0) {
-        return 1;
-    }
-    light = found->light;
-    if (light == 0) {
-        return 1;
-    }
-    radius = light->radius + delta;
-    if (radius < 0.0f) {
-        radius = 0.01f;
-    }
-    RpLightSetRadius(light, radius);
-    light = found->light;
-    if (light->radius < 0.05f) {
+    } else {
         return 1;
     }
     return 0;
@@ -138,8 +138,6 @@ void obj_change_to_skinned_obj_light_list(MkObj* obj, LightDef* def) {
     }
 }
 
-/* TODO: [breakthrough needed] 81.79487%; frame and light-owner CFG differ;
- * recover retail creation and lifetime boundaries. */
 RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     RpLight* light;
     RwFrame* frame;
@@ -160,44 +158,38 @@ RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     } else {
         frame = RwFrameCreate();
         mkobj = get_mkobj_frame(0x2009, frame);
-        parent = mkobj;
     }
 
-    if (frame == 0) {
+    if (frame != 0) {
+        _rwObjectHasFrameSetFrame(light, frame);
+        mkobj->flags_08_bits.transform_dirty = 1;
+        mkobj->flags_08_bits.bit7 = 1;
+        mkobj->light_flags = def->flags;
+        mkobj->pos.value.x = def->field1C;
+        mkobj->pos.value.y = def->field20;
+        mkobj->pos.value.z = def->field24;
+        mkobj->ang_row.value.x = def->field28;
+        mkobj->ang_row.value.y = def->field2C;
+        mkobj->ang_row.value.z = def->field30;
+        insert_fgnd_mkobj(mkobj);
+        update_mkobj(mkobj);
+        RpWorldAddLight(World, light);
+    } else {
         RpLightDestroy(light);
         return 0;
     }
-
-    _rwObjectHasFrameSetFrame(light, frame);
-    mkobj_or_flag(parent, 0x10);
-    mkobj_or_flag(parent, 0x80);
-    parent->light_flags = def->flags;
-    parent->pos.value.x = def->field1C;
-    parent->pos.value.y = def->field20;
-    parent->pos.value.z = def->field24;
-    parent->dir_x = def->field28;
-    parent->dir_y = def->field2C;
-    parent->dir_z = def->field30;
-    insert_fgnd_mkobj(parent);
-    update_mkobj(parent);
-    RpWorldAddLight(World, light);
     return light;
 }
 
-static inline RpLight* find_specular_light(MkPtr** list, LightDef* def) {
-    MkPtr* node;
+static inline RpLight* find_specular_light(MkPtr* node) {
     MkxRpLight* mkx;
     RpLight* light;
 
-    if (load_light(def, list, 0) == 0) {
-        return 0;
-    }
-    node = *list;
     while (node != 0) {
         mkx = probe_mkx(node->hdr);
         if (mkx != 0) {
             light = mkx->light;
-            if (rp_light_type(light) == 1) {
+            if ((int)light->object.object.subType == 1) {
                 return light;
             }
         }
@@ -206,16 +198,18 @@ static inline RpLight* find_specular_light(MkPtr** list, LightDef* def) {
     return 0;
 }
 
-/* TODO: [near miss] 85.11%; positive validated-hdr selection restored;
- * loop/owner staging and GPR scheduling remain. */
 RpLight* create_default_bgnd_specular_light(void) {
-    return find_specular_light(&bgnd_spec_light_list, (LightDef*)&default_bgnd_specular_light_def);
+    if (load_light((LightDef*)&default_bgnd_specular_light_def, &bgnd_spec_light_list, 0) != 0) {
+        return find_specular_light(bgnd_spec_light_list);
+    }
+    return 0;
 }
 
-/* TODO: [near miss] 85.11%; positive validated-hdr selection restored;
- * loop/owner staging and GPR scheduling remain. */
 RpLight* create_default_specular_light(void) {
-    return find_specular_light(&plyr_light_list, (LightDef*)&default_specular_light_def);
+    if (load_light((LightDef*)&default_specular_light_def, &plyr_light_list, 0) != 0) {
+        return find_specular_light(plyr_light_list);
+    }
+    return 0;
 }
 
 RpLight* get_bgnd_specular_light(void) {

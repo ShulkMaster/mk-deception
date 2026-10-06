@@ -596,7 +596,7 @@ static int adxb_MakeEncryptionKey(int sample_count, short* state,
     return 0;
 }
 
-static int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
+static int adxb_get_key(AdxBasicDecoderExt* decoder,
                                             unsigned char version,
                                             unsigned char revision,
                                             int sample_count,
@@ -631,8 +631,8 @@ static int adxb_SelectEncryptionKey(AdxBasicDecoderExt* decoder,
 #pragma inline_max_size reset
 #pragma inline_max_total_size reset
 
-/* TODO: [near miss] 99.84%; pool bases and rodata literals match; 5 rows remain: retail sets
- * the key status once at a join shared by all four selector paths (r0), ours per return. */
+/* TODO: [near miss] 99.84%; five key-selector status join rows remain;
+ * recover the stripped SKG helper before changing the shared return shape. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
@@ -674,14 +674,14 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
         base->total_decoded_samples = 0;
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
         ahx_key[0] = 0;
-        status = adxb_SelectEncryptionKey(decoder, version, revision,
+        status = adxb_get_key(decoder, version, revision,
                                           base->total_samples, &ahx_key[1],
                                           &ahx_key[2], &ahx_key[3]);
         if (status < 0) return -1;
         if (ahxsetextfunc != 0) ahxsetextfunc(decoder->ahx_decoder, ahx_key);
     } else {
         if (ADX_DecodeInfoExVer((AdxHeader*)input, length, &version, &revision) < 0) return 0;
-        status = adxb_SelectEncryptionKey(decoder, version, revision,
+        status = adxb_get_key(decoder, version, revision,
                                           base->total_samples, &adx_k0,
                                           &adx_km, &adx_ka);
         if (status < 0) return -1;

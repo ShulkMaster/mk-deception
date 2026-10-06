@@ -303,20 +303,18 @@ extern "C" void mwFileTick()
 
 extern "C" int mwFileOpenModeToFlags(const char* mode)
 {
-    const char* open_mode = mode;
-    int flags;
-    flags = 0;
+    int flags = 0;
 
-    if (strchr(open_mode, 'r') != 0) {
+    if (strchr(mode, 'r') != 0) {
         flags |= MWF_OPEN_READ;
     }
-    if (strchr(open_mode, 'w') != 0) {
+    if (strchr(mode, 'w') != 0) {
         flags |= MWF_OPEN_WRITE_MODE;
     }
-    if (strchr(open_mode, 'a') != 0) {
+    if (strchr(mode, 'a') != 0) {
         flags |= MWF_OPEN_APPEND_MODE;
     }
-    if (strchr(open_mode, '+') != 0) {
+    if (strchr(mode, '+') != 0) {
         _mwFileNoOp(&stringBase0[INVALID_OPEN_MODE_MESSAGE]);
     }
     return flags;
@@ -324,7 +322,7 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
 
 extern "C" void mwFileGetDefaultInitParam(mwFileInitParam*);
 
-/* TODO: [breakthrough needed] 89.51%; retail's unreachable diagnostic block needs original guard evidence;
+/* TODO: [breakthrough needed] 95.12%; retail's unreachable diagnostic block needs original guard evidence;
  * compact saves need a verified whole-TU size-mode check. */
 extern "C" int mwFileInit(mwFileInitParam* parameters)
 {

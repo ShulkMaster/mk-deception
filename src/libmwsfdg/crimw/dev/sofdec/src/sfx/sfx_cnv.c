@@ -30,7 +30,6 @@ static void sfxcnv_MakeLumiTbl(u8* table)
     }
 }
 
-/* TODO: [near miss] 99.877625%; instruction/data-value exact, default score retains only relocation-label residue. */
 void SFX_MakeTable(SFXHandle* handle, SFXFrameInfo* frame,
                    s32 composition_mode)
 {

@@ -19,7 +19,7 @@ void __VMSwapPageIn(u32 virtual_address);
 #define VM_TIME_UNITS() \
     ((u32)((OSGetTime() * 8) / (OS_TIMER_CLOCK / 500000)))
 
-/* TODO: [breakthrough needed] 64.28%; frame and initialization scheduling differ; establish compiler provenance. */
+/* TODO: [near miss] 96.92%; operations agree; saved-register coloring (r23-r30 vs r24-r30) and init/mask scheduling remain. */
 void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
 {
     int interrupts;
@@ -39,7 +39,6 @@ void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
     }
 }
 
-/* TODO: [near miss] 76.85%; body agrees; frame and save/restore order differ. */
 void VMQuit(void)
 {
     if (g_vmInitialized == 1) {
@@ -72,14 +71,13 @@ u32 VMGetARAMBase(void)
     return g_vmBaseVMARAM;
 }
 
-/* TODO: [near miss] 24.83%; frame and arena-base forwarding differ. */
 void __VMAllocMRAMSwapSpace(void)
 {
     g_vmBaseVMMainMemory = OSGetArenaLo();
     OSSetArenaLo(g_vmBaseVMMainMemory + g_vmSizeVMMainMemory);
 }
 
-/* TODO: [breakthrough needed] 45.92%; timer arithmetic, call staging and ABI codegen differ; verify compiler provenance. */
+/* TODO: [breakthrough needed] 96.38%; timer arithmetic, call staging and ABI codegen differ; verify compiler provenance. */
 void __VMSwapPageIn(u32 virtual_address)
 {
     u32 start_time;

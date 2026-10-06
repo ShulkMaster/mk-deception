@@ -9,7 +9,7 @@ static u32* g_baseVMtoARAM;
 static u32 g_totalAllocatedVM;
 static u32 g_nextARAMPageToCheck;
 
-/* TODO: [breakthrough needed] 72.44%; allocation loop/frame shape remains unverified against retail. */
+/* TODO: [breakthrough needed] 91.72%; allocation loop/frame shape remains unverified against retail. */
 int VMAlloc(void* virtual_address, u32 size)
 {
     u32 first_aram_page;
@@ -51,7 +51,7 @@ int VMAlloc(void* virtual_address, u32 size)
     return 1;
 }
 
-/* TODO: [borked] 74.56%; LUT index omits retail's 13-bit page mask; frame also differs. */
+/* TODO: [borked] 99.69%; LUT index omits retail's 13-bit page mask; frame also differs. */
 u32 __VMTranslateVMPageToARAMPage(u32 virtual_address)
 {
     u32 aram_page = g_baseVMtoARAM[virtual_address >> 12] & 0x7FFFFFFF;
@@ -64,13 +64,11 @@ u32 __VMTranslateVMPageToARAMPage(u32 virtual_address)
     return 0;
 }
 
-/* TODO: [borked] 82.50%; LUT index omits retail's 13-bit page mask; Boolean lowering differs. */
 BOOL __VMDoesMappingExist(u32 virtual_address)
 {
-    return (g_baseVMtoARAM[virtual_address >> 12] & 0x7FFFFFFF) != 0;
+    return (g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] & 0x7FFFFFFF) != 0;
 }
 
-/* TODO: [breakthrough needed] 28.50%; error-message stack/argument staging and prologue differ. */
 void __VMMappingErrorAlert(u32 virtual_address)
 {
     char message[1024];
@@ -92,7 +90,7 @@ BOOL __VMIsARAMPageDirty(u32 virtual_address)
     return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
-/* TODO: [breakthrough needed] 15.45%; arena allocation/clear lowering remains unverified against retail. */
+/* TODO: [breakthrough needed] 28.71%; arena allocation/clear lowering remains unverified against retail. */
 void __VMAllocVirtualToARAMLUT(void)
 {
     u32 i;
@@ -104,7 +102,7 @@ void __VMAllocVirtualToARAMLUT(void)
     }
 }
 
-/* TODO: [breakthrough needed] 15.22%; arena allocation/clear lowering remains unverified against retail. */
+/* TODO: [breakthrough needed] 30.90%; arena allocation/clear lowering remains unverified against retail. */
 void __VMAllocARAMToVirtualLUT(void)
 {
     u32 i;

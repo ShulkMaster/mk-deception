@@ -165,7 +165,7 @@ static void mpvumc_OneMakeMb(MPVMacroblockSources* sources,
     }
 }
 
-/* TODO: [borked] 29.605770%; donor 3D tables and setup order agree;
+/* TODO: [borked] 31.00%; donor 3D tables and setup order agree;
  * motion-call argument lifetimes still differ from retail. */
 static void mpvumc_OneReadMb(MPVContext* context, u8* destination,
                              MPVBlockOffsets* offsets,
@@ -255,17 +255,17 @@ static inline void mpvumc_SetOutputBlocks(MPVContext* context,
     block[5].destination = block[4].destination + 8;
 }
 
-/* TODO: [breakthrough needed] 86.592590%; typed work owner is retained;
- * retail's shared adjacent-plane address needs a defined representation. */
+/* TODO: [near miss] 92.59%; frame-buffer owner recovered; two output-call setup instructions are scheduled differently. */
 void MPVUMC_BiDirect(MPVContext* context)
 {
     MPVBlockOffsets offsets;
+    MPVFrameBuffers* frame_buffers = &context->frame_buffers;
     MPVMacroblockSources* sources = &context->sources;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
-                     &context->frame_buffers.forward,
+                     &frame_buffers->forward,
                      &context->forward_motion);
     mpvumc_OneReadMb(context, sources->prediction1, &offsets,
-                     &context->frame_buffers.backward,
+                     &frame_buffers->backward,
                      &context->backward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
     mpvumc_BiMakeMb(sources, &context->output_blocks, context->cbp_mask);
@@ -301,10 +301,10 @@ void MPVUMC_Forward(MPVContext* context)
     mpvumc_OneMakeMb(sources, output, context->cbp_mask);
 }
 
-/* Soft ceiling: retail uses GQR3 paired-single quantized loads/stores for the
- * runtime-proven signed 16-bit DCT blocks; portable scalar C cannot emit it. */
+/* TODO: [blocked] 4.105263%; quantized paired-single kernel needs assembly;
+ * retain portable scalar fallback until function-specific authorization. */
 static void mpvumc_OutputIntra6blk(const DctFsriBlock blocks[6],
-                                   MPVOutputBlocks* output)
+                                   MPVOutputBlocks* output, const u8* clip)
 {
     s32 block;
     s32 row;
@@ -328,22 +328,31 @@ static void mpvumc_OutputIntra6blk(const DctFsriBlock blocks[6],
     }
 }
 
-/* TODO: [breakthrough] 82.558136%; staged 8/16-pixel offsets recover retail
- * arithmetic; declaration-order trial was neutral, address schedule remains. */
 void MPVUMC_Intra(MPVContext* context)
 {
-    MPVBlockOffsets offsets;
-    int row = context->macroblock_row;
-    int column = context->macroblock_column;
-    int column_8 = column * 8;
-    int row_8 = row * 8;
-    int column_16 = column * 16;
-    int row_16 = row * 16;
-    offsets.chroma = column_8 + row_8 * context->output.chroma_stride;
-    offsets.luma = column_16 + row_16 * context->output.luma_stride;
-    mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_OutputIntra6blk(context->transform.blocks,
-                           &context->output_blocks);
+    int column;
+    int row;
+    int column_8;
+    int row_8;
+    int chroma_offset;
+    int luma_offset;
+    int luma_stride;
+    MPVOutputBlocks* output;
+
+    column_8 = (column = context->macroblock_column) * 8;
+    row_8 = (row = context->macroblock_row) * 8;
+    chroma_offset = column_8 + row_8 * context->output.chroma_stride;
+    luma_offset = column * 16 + row * 16 *
+        (luma_stride = context->output.luma_stride);
+    output = &context->output_blocks;
+    output->blocks[0].destination = context->output.chroma0 + chroma_offset;
+    output->blocks[1].destination = context->output.chroma1 + chroma_offset;
+    output->blocks[2].destination = context->output.luma + luma_offset;
+    output->blocks[3].destination = output->blocks[2].destination + 8;
+    output->blocks[4].destination = output->blocks[2].destination + luma_stride * 8;
+    output->blocks[5].destination = output->blocks[4].destination + 8;
+    mpvumc_OutputIntra6blk(context->transform.blocks, output,
+                           context->clip_base);
 }
 
 void MPVUMC_SetGqr(void)

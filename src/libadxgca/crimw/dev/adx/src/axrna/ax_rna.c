@@ -215,7 +215,6 @@ void AXRNA_SetOutVol(AXRNAHandle* handle, int volume)
     }
 }
 
-/* TODO: [breakthrough needed] 80.18823%; declaration order is neutral; ratio lowering and surrounding lifetimes need structural evidence. */
 void AXRNA_SetSfreq(AXRNAHandle* handle, int sample_rate)
 {
     AXPBSRC source;
@@ -231,14 +230,16 @@ void AXRNA_SetSfreq(AXRNAHandle* handle, int sample_rate)
         GCRNA_LockCs();
         if (handle->voices[channel] != 0) {
             if (handle->adjust_sample_rate == 1) {
+                unsigned int rate = adjusted_rate;
+
                 if (sample_rate == 32000 && handle->sample_rate_state == 0) {
                     axrna_set_source_type(handle, AX_SRC_TYPE_NONE);
                 }
-                source.ratioHi = adjusted_rate / 32000;
-                source.ratioLo = (adjusted_rate << 8) / 125;
+                source.ratioHi = rate / 32000;
+                source.ratioLo = (rate << 8) / 125;
             } else {
                 source.ratioHi = sample_rate / 32000;
-                source.ratioLo = (sample_rate << 8) / 125;
+                source.ratioLo = ((sample_rate << 8) / 125) & 0xFFFF;
             }
             source.currentAddressFrac = 0;
             source.last_samples[0] = 0;
@@ -555,14 +556,13 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
     GCRNA_UnlockCs();
 }
 
+/* TODO: [breakthrough] 86.71%; positive outer guard recovered; inline wait prechecks and retry-loop lowering differ. */
 void AXRNA_SetTransSw(AXRNAHandle* handle, int enabled)
 {
     int channel;
     int retry;
 
-    if (handle == 0 || enabled == axrna_get_transfer_switch(handle)) {
-        return;
-    }
+    if (handle != 0 && enabled != axrna_get_transfer_switch(handle)) {
     if (enabled == 1) {
         GCRNA_LockCs();
         for (channel = 0; channel < handle->num_channels; channel++) {
@@ -607,6 +607,7 @@ void AXRNA_SetTransSw(AXRNAHandle* handle, int enabled)
         handle->switches &= 2;
     } else {
         RNAERR_CallErrFunc("E1070308:Illigal parameter(sw).\n");
+    }
     }
 }
 

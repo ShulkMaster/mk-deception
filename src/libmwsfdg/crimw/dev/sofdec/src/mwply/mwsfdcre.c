@@ -1017,9 +1017,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     return sfd;
 }
 
-/* TODO: [breakthrough needed] 84.51479%; RE4 body over the retail .bss objects; retail issues
- * the saves and buffer-count load before the frame-size math (pure schedule; peephole-off and
- * permuter forms rejected); needs scheduling evidence. */
+/* TODO: [near miss] 84.51%; initial save/count/math scheduling differs; prior honest forms exhausted. */
 static int mwsfcre_MallocRfb(MwsPlayer* player,
                              const MwsCreateParams* params,
                              MwsReferenceBuffers* output)
@@ -1029,7 +1027,6 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
 
     frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
     if (mwsfdcre_bufnum != 0) {
-        /* Retail branches twice on one size comparison, as in RE4. */
         if (mwsfdcre_bufnum < 2 ||
             mwsfdcre_bufsize < frame_size ||
             mwsfdcre_bufsize < frame_size) {

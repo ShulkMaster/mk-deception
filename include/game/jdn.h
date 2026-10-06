@@ -6,7 +6,7 @@
 typedef struct MkPfx MkPfx;
 
 MkPfx* start_pfx_glass_shards(
-    int art_id, const Vec* position, const Vec* center, int bounce_limit,
+    int art_id, Vec* position, Vec* center, int bounce_limit,
     unsigned int spawn_count, unsigned int scale_mode, int motion_mode);
 void allow_shard_pfx_now(void);
 void kill_shard_pfx_now(void);

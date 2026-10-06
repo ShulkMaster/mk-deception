@@ -102,6 +102,11 @@ allocation or compiler layout.
   Placeholder with matching fields can hide extra deref.
 - Recover canonical fields/arrays inside proven extents. Unproven gap = one
   width-correct offset-named reserved member; no invented split or union.
+- Retained subobject base accesses fields beyond its reconstructed extent:
+  REQUIRE known enclosing fields at those offsets and unchanged physical
+  layout. Move the real tail fields into the canonical subobject, update all
+  consumers, and recheck every green (`mk_chess_cursor_go_to_new_track`,
+  manager +0xD8). No padded view or magic-offset owner cast.
 - Wrong owner even at unchanged score: sparse overlay with padding standing in
   for pointers, sibling-type view, pointer in 32-bit int. Breaks wide-pointer
   builds. Use canonical typed slot/owner.
@@ -170,6 +175,12 @@ Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
   duplicate local.
 - Promoted accumulators stay full width. Sign extend + `subfc`/`subfe` can be
   64-bit unsigned range compare.
+- Signed quotient before loop, unsigned ratio divides inside branch: REQUIRE
+  retail `mulhw` before loop / `mulhwu` in branch plus independently supported
+  conversion local. TRY signed quotient + branch-local unsigned numerator;
+  explicit low-16 fractional narrowing only where `clrlwi` proves it
+  (`AXRNA_SetSfreq`). A root unsigned local or cast-only form can hoist both
+  ratio halves and add saved lifetimes.
 - `addis x,v,H; cmplwi x,L` tests `(L - (H << 16)) mod 2^32`; H=0, L=0xC602 =
   positive 0xC602. m2c prints these as negative unsigned; signed equality
   vs positive constant restores `addis`. `addis ...,0` before `cmplwi`
@@ -205,6 +216,10 @@ Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
 - Byte locals `[da]`: retail `lbz` then to float or small-int subtract; `u32`
   local swaps regs/adds conversions. TRY block-local `u8`, cast at use; signed
   delta gets own cast (`_rwGeneratePerspClippedVertexZLO`).
+- Byte-sized board fields do not imply byte-sized scan indices/output locals:
+  REQUIRE full-width increments/unsigned bounds and no per-iteration narrowing.
+  TRY unsigned32 loop indices and selected-coordinate output pointers, keeping
+  sampled owner fields byte-sized (`mk_chess_drone_handle_the_big_chill_opening_move`).
 - Signed extrema `[da]`: retail `cmpw` on extrema, donor keeps `u8` min/max.
   TRY `int` extrema, sample stays `u8` (`GetAotBasis`).
 - Pointer-difference index `[da]`: retail signed divide (`divw` / signed shift
@@ -269,6 +284,10 @@ boundary.
   boundary (`mwl_convFrmInfFromSFD`).
 - Stack out-record fields live across later calls: typed locals right after
   producer (`sfmps_CopyDstBuft`).
+- Loop test load reused in body, ours reloads: REQUIRE no call or store
+  between test and use. TRY body read spelled exactly like test
+  (`tbl[i].image_id`), not via `p = &tbl[i]`; MWCC CSE matches expression
+  trees, not equal addresses (`minigame_puzzlefighter_setup`).
 - Global loaded once, tested in both arms: one local before branch
   (`round_over`). Field read once before switch/call chain, not written
   between `[da]`: real local (`HVQM4DecSoundDecode` channel count).
@@ -319,6 +338,17 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   that address, deref in caller (`mk_chess_spell_move_target_to_target`).
   Value-return accessor may keep original grouping. No flattening across
   subarray bounds, no invented byte offsets.
+- Word transfer within an owner's array: retail keeps root + scaled index +
+  member offset for `lwzx`/`stwx`, direct assignment shares a member base.
+  REQUIRE canonical element type and unchanged index reads/transfer order.
+  TRY typed source/destination slot pointers followed by the dereference copy
+  (`_copy_register_to_register`); signed pointer types cannot substitute for
+  unsigned register storage.
+- Several stores to one instruction record: element pointer folds array-member
+  offset into base, retail keeps owner + index stride and each store's field
+  offset. REQUIRE a real count snapshot and later count reload. TRY canonical
+  owner array-member stores through that index (`pfxvm_spawn_box`); no fake
+  prefix view or byte-offset arithmetic.
 - Async setup returns owner field after call, retail saves it before: REQUIRE
   traced store/load + callback boundary. TRY returning real pre-call snapshot
   (`add_art_section_async`). Existing-item and new-item paths returning same
@@ -337,6 +367,13 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   reads); member-array ptr before range loop; search key across list cleanup
   with separate owner read for publication; real subobject ptr when one base
   reg serves several accesses (`SFTIM_GetTimeSub` keeps `SfdTimerState*`).
+- Counted pointer tables: retail adds table base + scaled index, then uses
+  field +4; source folds +4 into the index. REQUIRE the same slot load,
+  relocation store and reread, with no intervening effect. TRY a typed slot
+  pointer for loads/rereads and the owner's array member for publication;
+  keep the header owner for count reloads (`PatchAnimEffects`). No overlapping
+  header views or fake prefix structs. Loop-owned indices can be required
+  with this boundary; measure the combination.
 - Consecutive XYZ stores via one address: position pointer for those stores
   only; later component copies keep owner reloads (`setup_tombstones`,
   `RwV3d`).
@@ -506,6 +543,11 @@ Latch diamond. REQUIRE null-before-instance reads, no call between.
 
 - Typed accessor returning validated ptr or null; pass owner if arg eval
   hoists reads. No empty valid arm.
+- Joined latch result followed by a separate nullable return: REQUIRE retail
+  tests the joined pointer and initializes the return register to zero. TRY
+  a default-null result assigned the validated pointer only on success
+  (`pfx_get_emitter_obj`); direct macro return or early returns can fold the
+  outer join.
 - Open-coded rejection merges null arms, swaps saved owner/object: REQUIRE
   canonical lazy ptr/instance macro + verified header-at-zero layout. TRY
   macro directly on owner fields with its header type, restore concrete
@@ -613,6 +655,11 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   guards: `if (!cond) break;` into `default` (`p_game_loop`).
 - Ordered classifier: staged shift/or key, each arm assigns one result,
   shared return (`MPV_CheckDelim`).
+- Dense ID classifier has distinct equal-valued case/default exits: REQUIRE
+  full finite ID range and retail interval tree. TRY explicit grouped cases
+  for both results plus separate default, rather than hand-written range
+  tests (`is_this_a_hault_message`). Shared consumers keep one selector
+  snapshot across the classifier and later ID tests.
 - Small state constants (2/3, 4/5) stored to a field, diff = staging of
   those constants `[da]`: REQUIRE retail writes only those values. TRY local
   `enum` of states + explicit `if`/`else` assigning them, not ternary, `s32`
@@ -628,6 +675,10 @@ Joins. REQUIRE real branch destinations + effect ownership.
   one failure skips all later objects).
 - Nullable owner, result init before guard: null-init result, assigned from
   validated accessor inside guard, one return.
+- Two-way owner descriptor is retained before earlier stores in source but
+  after selection in retail: REQUIRE identical choices and effect order.
+  TRY explicit `if`/`else` assignments at selection instead of default init
+  plus overwrite (`p_ground_target_collide`); no redundant result alias.
 - First verify retail tests owner at all; drop unsupported fallback.
 - Extra early-failure assign: positive gate sharing final return. Real state
   still lowers different -> one-case switch with existing default.
@@ -654,6 +705,12 @@ Joins. REQUIRE real branch destinations + effect ownership.
   (`ADX_DecodeInfoExIdly`). Stored owner, local invalid result, expanded
   error callback = three open-coded stages (`MPS_Destroy`); one typed local
   for shared work ptr (`MPS_SetErrFn`, `MPSLIB_SetErr`).
+- Sentinel directory search: success branches past the failure index reset,
+  while break + post-loop null test duplicates the sentinel check. REQUIRE
+  same entry stride, identity compare and zero fallback. TRY a real typed
+  inline index search returning success early and zero at sentinel, followed
+  by the caller's language-offset lookup (`offset_mk_file_info`). An existing
+  public wrapper may emit a call; keep already exact consumers unchanged.
 - Negation scope: `!(A && B && C) && D` != `!((A && B && C) && D)`.
 - Temp board simulation: keep every restore + final rebuild, incl zero-trip.
 - Genuine cleanup edges: M08.
@@ -702,11 +759,27 @@ lifetimes.
 - Init after lock/lookup when accumulator has no earlier use
   (`SFMPVF_GetNumFrm`). Process-creation output zero init stays in creation
   guard.
+- Recursive result accumulation keeps unused maxima live across the recursive
+  call and shifts every slot: REQUIRE maxima have no earlier reads. TRY
+  initializing them immediately before consuming the returned list
+  (`mk_chess_calc_all_attackers_in_turn`); preserve recursive inputs and list
+  traversal order.
 - Exclusive paths with per-path slots: distinct typed locals (`TRKDoContinue`,
   `TRKDoStep`); per-branch `Vec` declared in each block. Final switch joining
   one epilogue: result init before switch.
 - Donor inline result outliving another arg gets own local before call. Keep
-  separate loop counters.
+  separate loop counters. Later loop index swaps with its strength-reduced
+  offset IV: own counter variable for that loop
+  (`minigame_puzzlefighter_setup` wiff loop).
+- Later address-taken vectors use earlier caller slots, retail uses the final
+  slots: REQUIRE an isolated operation owning those vectors. TRY typed inline
+  owning the complete operation (`pz_fighters_chomper_fatality_in_progress`
+  flesh launch). Compare initializer payloads and pool positions separately;
+  correct stack slots do not prove TU data layout.
+- Factory output pointer and inlined scalar bit-view slots exchanged: REQUIRE
+  exact factory guard, post-call owner reloads and scalar math. TRY typed inline
+  owning the complete factory/setup operation (`npc_update_pos_on_path`
+  waypoint-script launch), so both address-taken locals belong to inlines.
 - CRI frame-plane order: store strides + base plane before aligning height
   (`SFD_CalcYccPlane`); size locals at first use, plane-array ptr after
   picture-type branch (`sfmpv_SetFrmPara`); frame-buffer ptr declared before
@@ -736,7 +809,9 @@ branch-only alias = dishonest even at 100.
   (`HVQM4BufaCreate`: `= product + 64; += nodes; += 32;`). Random then fixed
   increment: two sequential adds. Operand order matters apart from staging;
   not for FP. `channel_count * (sample_count * 2)` != `sample_count *
-  (channel_count << 1)` (`ADXB_ExecOneAiff16`). Ceiling div: name count, add,
+  (channel_count << 1)` (`ADXB_ExecOneAiff16`). Hoisted invariant must
+  stay left of loop index: `tbl[(bg << 1) + i]`; `bg * 2 + i` commutes
+  (`minigame_puzzlefighter_setup`). Ceiling div: name count, add,
   decrement, divide.
 - Name real base quantity `[da]`: size math right ops, wrong staging. TRY
   `u32 pixels = width * height;` then derive scaled sizes. Never copy of
@@ -856,6 +931,16 @@ guard: REQUIRE canonical predicate body, same call order. TRY `== 0` instead
 of `!`; MWCC can keep inline Boolean boundary
 (`pselect_update_profile_settings`).
 
+Inverse: retail branches directly from lazy call tests into the consumer,
+but an inline predicate adds `li 1/0; cmpwi`. REQUIRE identical call order
+and effects; TRY expanding the short-circuit condition only at that consumer,
+keeping the helper for other callers (`mcard_msg_crc_failure_rtn`).
+If every shared consumer has that direct lazy CFG, REQUIRE literal or otherwise
+side-effect-free repeated arguments and whole-TU non-regression. TRY a shared
+logical-OR macro used directly as the guard; `if (macro != 0)` can still
+materialize a saved Boolean (`mcard_msg_confirm_erase_rtn`). Preserve the
+individual consumers' independent versus mutually exclusive action checks.
+
 ## H20
 
 MWCC colors scalar-replaced struct members after declared scalars. Retail
@@ -902,6 +987,14 @@ Helper locals and web kind.
 - Inlined helper loop's fresh locals color above loop temps, retail reuses
   dead outer regs: open-code + reuse existing locals; MWCC colors reused
   local's 2nd web after loop temps (`AddRequestingCS_ByThread`).
+- Several saved homes rotated at once (param, flag, call result, hoisted
+  array bases) plus volatile residue in every region: REQUIRE CFG/ops exact,
+  capture shows the big webs pushed in different sweeps. TRY changing web
+  kinds, not decl order: `?:` for a two-constant select, `== ? 1 : 0` for a
+  stored compare, colour helper on the field expression with a breaker macro
+  (coalesced copies), open-coded two-def select, direct array indexing, a
+  pointer local with a 2nd web, loop variable ownership per first web
+  (`pz_ai_decide_match`). Numbering model + threshold: tier 4 Hard stops.
 - Generation-validation latch swaps owner/object regs: REQUIRE read-only
   canonical latch members, no call/store between. TRY existing latch macro on
   direct owner-member expressions, not staged aliases
@@ -937,6 +1030,37 @@ Helper locals and web kind.
 - Moving inline helper boundaries around code already colored right is
   byte-identical `[da]`; only helpers in the block where miscolored values are
   created move a web.
+- Repeated atan-to-degrees expression swaps product and pi temporary FPRs:
+  REQUIRE identical atan ABI and separate multiply/divide rounding. TRY typed
+  inline owning the plane-heading conversion, then subtract current heading
+  in the caller (`bl_process_beetle_climb_a_wall`). Caller angle locals may
+  retain the swap; do not replace division with a precomputed scale.
+- Nav-hint sign-bit temporary swaps with owner pointer: REQUIRE unsigned
+  sign-mask expression and no changed owner reloads. TRY removing the helper's
+  named unsigned alias, computing directly from its parameter
+  (`npc_update_pos_on_path`, also improves `npc_travel_path`).
+- Indexed profile comparison rotates slot/live/stored pointer regs: REQUIRE
+  same slot lookup, fixed-width pin/name walks and checksum comparison. TRY
+  typed inline owning the indexed slot lookup and complete comparison, with
+  device owner and slot index passed directly (`validate_konq_load_location`).
+  Keep the device owner in the caller if later retry logic reads it; no bare
+  lifetime block or assignment inside a call argument.
+- Stale list-link next pointer alone miscolored across destruction: REQUIRE
+  save-next, clear-header, destroy, advance order and disjoint palette lifetime.
+  TRY typed inline traversal helper saving and returning next after destruction
+  (`hide_tile_objects`). This changes the saved pointer's helper-local web.
+  Measure each consumer; the same return-next boundary regresses `unhide_tile`.
+
+- Repeated record-rebasing phase swaps index/base regs: REQUIRE same record
+  count, serialized-offset fields, global reloads and field-store order. TRY
+  typed inline owning the complete loop and its index (`p_setup_krypt`);
+  preserve each owner reload after a pointer-field store. Measure all users.
+- Late aggregate initializer is trapped in an artificial bare scope: REQUIRE
+  the surrounding calculation is a real operation repeated elsewhere and its
+  initialization point is observed in retail. TRY inline owning that complete
+  calculation and aggregate (`pz_fighters_objects_falling_fatality_prep`),
+  with typed outputs and coordinate derivation in place (H26). Do not extract
+  a getter solely to create a lifetime or move initialization across calls.
 
 ## H22
 
@@ -949,7 +1073,8 @@ One-row operand/constant/copy residue. One at a time:
 - Float `!= 0.0f`, only reversed `fcmpu` operands, swap neutral: REQUIRE same
   lazy predicate + zero/NaN behavior. TRY scalar truth test
   (`pfx_emitter_exhausted`): both zeros false, NaN true. No relational or
-  arithmetic zero identity.
+  arithmetic zero identity. Same fix when `fcmpu` matches but constant and
+  field load into swapped FPRs (retail constant in f0) (`p_pz_mode_fill`).
 - Equality swap neutral, retail compares masked member vs requested ID: name
   real loaded ID first. Keep producer's unsigned type, check inline consumers
   (`fade_material`, shared `find_geometry_material_by_id`).

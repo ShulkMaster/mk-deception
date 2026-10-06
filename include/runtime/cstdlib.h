@@ -17,6 +17,7 @@ void qsort(void* base, unsigned long count, unsigned long size,
 void* __sys_alloc(unsigned long size);
 void __sys_free(void* allocation);
 
+int __abs(int value);
 int atoi(const char* str);
 unsigned long strtoul(const char* str, char** end, int base);
 unsigned long __strtoul(

@@ -466,58 +466,70 @@ static void mpvvlc_InitMbTypePpic(void) {
     for (i = 0; i < entry_count; i++) *output++ = 0x0A01;
 }
 
+/* TODO: [breakthrough] 82.69%; table ranges recovered; packed-base scheduling and saved homes differ. */
 static void mpvvlc_InitMbaiBpic(void)
 {
     signed short* output1 = mpvvlt_mbai_b_1;
     signed short* output = mpvvlt_mbai_b_0;
     int base;
 
-    mpvvlc_fill_s16(output, 8, 0x0240); output += 8;
-    *output++ = 0x023B;
-    mpvvlc_fill_s16(output, 6, 0x0240); output += 6;
-    *output++ = 0x022B;
-    mpvvlc_fill_s16(output, 8, 0x0240); output += 8;
+    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
+    output += 8;
+    *output++ = mpvvlc_pack_mbai_base(0x230, 0, 11);
+    mpvvlc_fill_s16(output, 6, mpvvlc_pack_mbai_base(0x240, 0, 0));
+    output += 6;
+    *output++ = mpvvlc_pack_mbai_base(0x220, 0, 11);
+    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
+    output += 8;
 
     for (base = 0x210; base >= 0x160; base -= 0x10) {
         *output++ = mpvvlc_pack_mbai_base(base, 0, 11);
     }
     for (base = 0x150; base >= 0x100; base -= 0x10) {
-        mpvvlc_fill_s16(output, 2,
-                         mpvvlc_pack_mbai_base(base, 0, 10));
+        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 10));
         output += 2;
     }
-
     for (base = 0x0F0; base >= 0x0A0; base -= 0x10) {
         mpvvlc_emit_mbai_b_8(output, base);
     }
-    mpvvlc_emit_mbai_b_16(output, 0x090);
-    mpvvlc_emit_mbai_b_16(output, 0x080);
+    mpvvlc_emit_mbai_b_16(output, base);
+    base -= 0x10;
+    mpvvlc_emit_mbai_b_16(output, base);
 
     output = output1;
-    mpvvlc_fill_s16(output, 2, 0x0240); output += 2;
-    *output++ = 0x0075;
-    *output++ = 0x0065;
-    mpvvlc_fill_s16(output, 2, 0x0054); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x0044); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x0033); output += 2;
-    *output++ = 0xB035;
-    *output++ = 0xB835;
-    mpvvlc_fill_s16(output, 2, 0x0023); output += 2;
-    *output++ = 0xB025;
-    *output++ = 0xB825;
-    mpvvlc_fill_s16(output, 2, 0x0011); output += 2;
-    *output++ = 0xA015;
-    *output++ = 0xA815;
-    mpvvlc_fill_s16(output, 2, 0x9014); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x9814); output += 2;
-    mpvvlc_fill_s16(output, 4, 0xB013); output += 4;
-    mpvvlc_fill_s16(output, 4, 0xB813);
+    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(0x240, 0, 0));
+    output += 2;
+    for (base = 0x070; base >= 0x060; base -= 0x10) {
+        *output++ = mpvvlc_pack_mbai_base(base, 0, 5);
+    }
+    for (base = 0x050; base >= 0x040; base -= 0x10) {
+        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 4));
+        output += 2;
+    }
+    for (base = 0x030; base >= 0x020; base -= 0x10) {
+        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 3));
+        output += 2;
+        *output++ = mpvvlc_pack_mbai_base(base, 0xB000, 5);
+        *output++ = mpvvlc_pack_mbai_base(base, 0xB800, 5);
+    }
+    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 1));
+    output += 2;
+    *output++ = mpvvlc_pack_mbai_base(base, 0xA000, 5);
+    *output++ = mpvvlc_pack_mbai_base(base, 0xA800, 5);
+    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0x9000, 4));
+    output += 2;
+    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0x9800, 4));
+    output += 2;
+    mpvvlc_fill_s16(output, 4, mpvvlc_pack_mbai_base(base, 0xB000, 3));
+    output += 4;
+    mpvvlc_fill_s16(output, 4, mpvvlc_pack_mbai_base(base, 0xB800, 3));
 }
 
+/* TODO: [near miss] 93.39%; saved homes and final packed-index scheduling differ. */
 static void mpvvlc_InitMbaiPpic(void)
 {
     signed short* output = mpvvlt_mbai_p_0;
-    int base;
+    int increment;
 
     mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai(0x24, 0, 0));
     output += 8;
@@ -528,71 +540,96 @@ static void mpvvlc_InitMbaiPpic(void)
     mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai(0x24, 0, 0));
     output += 8;
 
-    for (base = 0x210; base >= 0x160; base -= 0x10) {
-        *output++ = mpvvlc_pack_mbai_base(base, 0, 11);
+    for (increment = 33; increment >= 22; increment--) {
+        *output++ = mpvvlc_pack_mbai(increment, 0, 11);
     }
 
-    for (base = 0x150; base >= 0x100; base -= 0x10) {
-        *output++ = mpvvlc_pack_mbai_base(base, 0x0000, 10);
-        *output++ = mpvvlc_pack_mbai_base(base, 0xA800, 11);
+    for (increment = 21; increment >= 16; increment--) {
+        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 10);
+        *output++ = mpvvlc_pack_mbai(increment, 0xA800, 11);
     }
 
-    for (base = 0x0F0; base >= 0x0A0; base -= 0x10) {
-        mpvvlc_emit_mbai_p_8(output, base);
+    for (increment = 15; increment >= 10; increment--) {
+        mpvvlc_emit_mbai_p_8(output, increment << 4);
     }
-    mpvvlc_emit_mbai_p_16(output, 0x090);
-    mpvvlc_emit_mbai_p_16(output, 0x080);
+    for (increment = 9; increment >= 8; increment--) {
+        mpvvlc_emit_mbai_p_16(output, increment << 4);
+    }
 
     output = mpvvlt_mbai_p_1;
     mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai(0x24, 0, 0));
     output += 2;
-    base = 0x070;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 5);
-    base -= 0x10;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 5);
-    base -= 0x10;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 4);
-    *output++ = mpvvlc_pack_mbai_entry(base, 0xA800, 5);
-    base -= 0x10;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 4);
-    *output++ = mpvvlc_pack_mbai_entry(base, 0xA800, 5);
-    base -= 0x10;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 3);
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x8800, 5);
+    for (increment = 7; increment >= 6; increment--) {
+        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 5);
+    }
+    for (increment = 5; increment >= 4; increment--) {
+        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 4);
+        *output++ = mpvvlc_pack_mbai(increment, 0xA800, 5);
+    }
+    for (increment = 3; increment >= 2; increment--) {
+        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 3);
+        *output++ = mpvvlc_pack_mbai(increment, 0x8800, 5);
+        mpvvlc_fill_s16(output, 2,
+                     mpvvlc_pack_mbai(increment, 0xA800, 4));
+        output += 2;
+    }
     mpvvlc_fill_s16(output, 2,
-                     mpvvlc_pack_mbai_entry(base, 0xA800, 4));
-    output += 2;
-    base -= 0x10;
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x0000, 3);
-    *output++ = mpvvlc_pack_mbai_entry(base, 0x8800, 5);
-    mpvvlc_fill_s16(output, 2,
-                     mpvvlc_pack_mbai_entry(base, 0xA800, 4));
-    output += 2;
-    base -= 0x10;
-    mpvvlc_fill_s16(output, 2,
-                     mpvvlc_pack_mbai_entry(base, 0x0000, 1));
+                     mpvvlc_pack_mbai(increment, 0x0000, 1));
     output += 2;
     mpvvlc_fill_s16(output, 2,
-                     mpvvlc_pack_mbai_entry(base, 0xA000, 4));
+                     mpvvlc_pack_mbai(increment, 0xA000, 4));
     output += 2;
     mpvvlc_fill_s16(output, 4,
-                     mpvvlc_pack_mbai_entry(base, 0x8800, 3));
+                     mpvvlc_pack_mbai(increment, 0x8800, 3));
     output += 4;
     mpvvlc_fill_s16(output, 8,
-                     mpvvlc_pack_mbai_entry(base, 0xA800, 2));
+                     mpvvlc_pack_mbai(increment, 0xA800, 2));
 }
 
+static inline void mpvvlc_append_s16(signed short** output, signed short value,
+                                      long count) {
+    int i;
+
+    for (i = 0; i < count; i++) {
+        *(*output)++ = value;
+    }
+}
+
+static inline void mpvvlc_init_mbai_i_low(void) {
+    signed short* output;
+    int base;
+
+    output = mpvvlt_mbai_i_1;
+    mpvvlc_append_s16(&output, 0x0240, 4);
+    for (base = 0x70; base >= 0x60; base -= 0x10) {
+        *output++ = mpvvlc_pack_mbai_entry(base, 0x4400, 7);
+        *output++ = mpvvlc_pack_mbai_entry(base, 0x0400, 6);
+    }
+    for (base = 0x50; base >= 0x40; base -= 0x10) {
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 6), 2);
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x0400, 5), 2);
+    }
+    for (base = 0x30; base >= 0x20; base -= 0x10) {
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 5), 4);
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x0400, 4), 4);
+    }
+    base = 0x10;
+    mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 3), 16);
+    mpvvlc_fill_s16(output, 16, mpvvlc_pack_mbai_entry(base, 0x0400, 2));
+}
+
+/* TODO: [near miss] 92.99%; final packed constants fold ori/extsh; scheduling, frame saves and coloring remain. */
 static void mpvvlc_InitMbaiIpic(void)
 {
     signed short* output = mpvvlt_mbai_i_0;
     int base;
     int i;
 
-    mpvvlc_fill_s16(output, 16, 0x0240); output += 16;
-    mpvvlc_fill_s16(output, 2, 0x023B); output += 2;
-    mpvvlc_fill_s16(output, 12, 0x0240); output += 12;
-    mpvvlc_fill_s16(output, 2, 0x022B); output += 2;
-    mpvvlc_fill_s16(output, 16, 0x0240); output += 16;
+    mpvvlc_append_s16(&output, 0x0240, 16);
+    mpvvlc_append_s16(&output, 0x023B, 2);
+    mpvvlc_append_s16(&output, 0x0240, 12);
+    mpvvlc_append_s16(&output, 0x022B, 2);
+    mpvvlc_append_s16(&output, 0x0240, 16);
 
     for (base = 0x210; base >= 0x160; base -= 0x10) {
         *output++ = mpvvlc_pack_mbai_entry(base, 0x4400, 13);
@@ -600,52 +637,26 @@ static void mpvvlc_InitMbaiIpic(void)
     }
 
     for (base = 0x150; base >= 0x100; base -= 0x10) {
-        mpvvlc_fill_s16(output, 2,
-                         mpvvlc_pack_mbai_entry(base, 0x4400, 12));
-        output += 2;
-        mpvvlc_fill_s16(output, 2,
-                         mpvvlc_pack_mbai_entry(base, 0x0400, 11));
-        output += 2;
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 12), 2);
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x0400, 11), 2);
     }
 
     for (base = 0x0F0; base >= 0x0A0; base -= 0x10) {
-        mpvvlc_fill_s16(output, 8,
-                         mpvvlc_pack_mbai_entry(base, 0x4400, 10));
-        output += 8;
-        mpvvlc_fill_s16(output, 8,
-                         mpvvlc_pack_mbai_entry(base, 0x0400, 9));
-        output += 8;
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 10), 8);
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x0400, 9), 8);
     }
 
     base = 0x090;
     for (i = 0; i < 2; i++) {
-        mpvvlc_fill_s16(output, 16,
-                         mpvvlc_pack_mbai_entry(base, 0x4400, 9));
-        output += 16;
-        mpvvlc_fill_s16(output, 16,
-                         mpvvlc_pack_mbai_entry(base, 0x0400, 8));
-        output += 16;
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x4400, 9), 16);
+        mpvvlc_append_s16(&output, mpvvlc_pack_mbai_entry(base, 0x0400, 8), 16);
         base -= 0x10;
     }
 
-    output = mpvvlt_mbai_i_1;
-    mpvvlc_fill_s16(output, 4, 0x0240); output += 4;
-    *output++ = 0x4477;
-    *output++ = 0x0476;
-    *output++ = 0x4467;
-    *output++ = 0x0466;
-    mpvvlc_fill_s16(output, 2, 0x4456); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x0455); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x4446); output += 2;
-    mpvvlc_fill_s16(output, 2, 0x0445); output += 2;
-    mpvvlc_fill_s16(output, 4, 0x4435); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x0434); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x4425); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x0424); output += 4;
-    mpvvlc_fill_s16(output, 16, 0x4413); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x0412);
+    mpvvlc_init_mbai_i_low();
 }
 
+/* TODO: [breakthrough] 95.20%; pointer publication order recovered; table layout and BSS pointer offsets differ. */
 void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
     signed short* cbp_output;
 
@@ -663,28 +674,28 @@ void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
     mpvvlc2_InitDcSizC();
     mpvvlc_InitIntRunLevel();
 
-    mpvvlc_run_level_8 = mpvvlt_run_level_8;
-    mpvvlc_run_level_4 = (signed short*)mpvvlt_run_level_4;
-    mpvvlc_run_level_2 = (signed short*)mpvvlt_run_level_2;
-    mpvvlc_run_level_1 = (signed short*)mpvvlt_run_level_1;
-    mpvvlc_run_level_0a = (signed short*)mpvvlt_run_level_0a;
-    mpvvlc_run_level_0b = (signed short*)mpvvlt_run_level_0b;
-    mpvvlc_run_level_0c = (signed short*)mpvvlt_run_level_0c;
-    mpvvlc2_c_dcsiz = mpvvlt2_c_dcsiz;
-    mpvvlc2_y_dcsiz = mpvvlt2_y_dcsiz;
-    mpvvlc_c_dcsiz = mpvvlt_c_dcsiz;
-    mpvvlc_y_dcsiz = mpvvlt_y_dcsiz;
-    mpvvlc_cbp = mpvvlt_cbp;
-    mpvvlc_motion_1 = mpvvlt_motion_1;
-    mpvvlc_motion_0 = mpvvlt_motion_0;
-    mpvvlc_b_mbtype = mpvvlt_b_mbtype;
-    mpvvlc_p_mbtype = mpvvlt_p_mbtype;
-    mpvvlc_mbai_b_1 = mpvvlt_mbai_b_1;
-    mpvvlc_mbai_b_0 = mpvvlt_mbai_b_0;
-    mpvvlc_mbai_p_1 = mpvvlt_mbai_p_1;
-    mpvvlc_mbai_p_0 = mpvvlt_mbai_p_0;
-    mpvvlc_mbai_i_1 = mpvvlt_mbai_i_1;
     mpvvlc_mbai_i_0 = mpvvlt_mbai_i_0;
+    mpvvlc_mbai_i_1 = mpvvlt_mbai_i_1;
+    mpvvlc_mbai_p_0 = mpvvlt_mbai_p_0;
+    mpvvlc_mbai_p_1 = mpvvlt_mbai_p_1;
+    mpvvlc_mbai_b_0 = mpvvlt_mbai_b_0;
+    mpvvlc_mbai_b_1 = mpvvlt_mbai_b_1;
+    mpvvlc_p_mbtype = mpvvlt_p_mbtype;
+    mpvvlc_b_mbtype = mpvvlt_b_mbtype;
+    mpvvlc_motion_0 = mpvvlt_motion_0;
+    mpvvlc_motion_1 = mpvvlt_motion_1;
+    mpvvlc_cbp = mpvvlt_cbp;
+    mpvvlc_y_dcsiz = mpvvlt_y_dcsiz;
+    mpvvlc_c_dcsiz = mpvvlt_c_dcsiz;
+    mpvvlc2_y_dcsiz = mpvvlt2_y_dcsiz;
+    mpvvlc2_c_dcsiz = mpvvlt2_c_dcsiz;
+    mpvvlc_run_level_0c = (signed short*)mpvvlt_run_level_0c;
+    mpvvlc_run_level_0b = (signed short*)mpvvlt_run_level_0b;
+    mpvvlc_run_level_0a = (signed short*)mpvvlt_run_level_0a;
+    mpvvlc_run_level_1 = (signed short*)mpvvlt_run_level_1;
+    mpvvlc_run_level_2 = (signed short*)mpvvlt_run_level_2;
+    mpvvlc_run_level_4 = (signed short*)mpvvlt_run_level_4;
+    mpvvlc_run_level_8 = mpvvlt_run_level_8;
 
     if (work != 0) {
         mpvvlc_run_level_8 = work->run_level_8;

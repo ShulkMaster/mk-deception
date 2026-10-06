@@ -18,9 +18,9 @@ extern void MPVUMC_EndOfFrame(MPVContext* context);
 extern void UTY_PushGqr(u32 saved[8]);
 extern void UTY_PopGqr(u32 saved[8]);
 
-/* TODO: [near miss] 94.17%; CFG matches; context, stream, and error use different saved registers. */
-int MPV_SkipFrmSj(MPVContext* context, SJ* stream)
+int MPV_SkipFrmSj(void* handle, SJ* stream)
 {
+    MPVContext* context = (MPVContext*)handle;
     int delimiter_type;
     int error;
 
@@ -45,10 +45,10 @@ int MPV_SkipFrmSj(MPVContext* context, SJ* stream)
     return MPVERR_SetCode(context, error);
 }
 
-/* TODO: [near miss] 97.11957%; retail and current source share the CFG, calls, field copy, and GQR lifetime, with only equivalent parameter/nonvolatile register coloring remaining. */
-int MPV_DecodeFrmSj(MPVContext* context, SJ* stream,
+int MPV_DecodeFrmSj(void* handle, SJ* stream,
                     MPVFrameBuffers* buffers)
 {
+    MPVContext* context = (MPVContext*)handle;
     u32 saved_gqr[8];
     int initial_decoded;
     int initial_skipped;

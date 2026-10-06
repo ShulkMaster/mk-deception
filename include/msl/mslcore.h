@@ -7,8 +7,6 @@
 extern "C" {
 #endif
 
-extern _mslSystem* gMsi;
-
 int mslTick(void);
 void mslStopAll(_mslSystem* system);
 int mslSuspendSpuDma(void);

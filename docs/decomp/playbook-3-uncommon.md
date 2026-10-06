@@ -27,6 +27,12 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   scheduling separately. Compact saves + indexed-loop lowering together -> try
   profile before changing loop source; `-O4,p` -> `-O4,s` alone closed
   credits text.
+- Correct body but retained arguments and integer-to-float webs all recolored:
+  REQUIRE exact inputs/ABI/loop bounds and a whole-TU no-invariant control with
+  every sibling neutral. TRY object-wide `-opt noloop`, keeping honest source
+  and removing the diagnostic `opt_loop_invariants off` pragma
+  (`ShadowRasterBlur`). An O2 control can regress siblings despite closing the
+  target; reject that broader mode when it does.
 - `_savegpr`/`_restgpr` vs retail `stmw`/`lmw` in several functions of one
   lib `[da]`: lib-scope `-use_lmw_stmw on`.
 - Library scheduling residue `[da]`: several functions in one lib exact in
@@ -47,6 +53,11 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   per-function pragma = evidence, not a fix.
 - Signed /2 as `srawi`/`addze`: function-scoped `optimize_for_size`,
   arithmetic unchanged.
+- POD transport copy is a paired-word CTR block move but speed mode unrolls
+  aggregate assignment: REQUIRE exact copy bounds and a whole-TU size-mode
+  control that regresses siblings. TRY genuine aggregate assignment with
+  consumer-scoped `optimize_for_size on`, immediate push/pop; compare the
+  same assignment with size mode off and every sibling (`executeMovieFrame`).
 - Isolated int-reg save mismatch, identical body: `optimize_for_size` +
   `use_lmw_stmw` together (projectile sound setter). Retail
   `_savefpr_29`/`_restfpr_29` with matching scalar FP: same local profile
@@ -108,6 +119,10 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   outcome + negative/zero inputs. `x <= 0` != `!(0 < x)` for NaN; keep retail
   predicate (`normalize_v3`). Refinement: keep rounded product tree, scale
   existing estimate at real phase boundary before adding factor temps.
+- Maximum selection has CROR greater/equal and a branch-to-assignment join:
+  REQUIRE unordered input selects the candidate. TRY
+  `best = best >= candidate ? best : candidate`
+  (`repel_check_plyrs`); `candidate > best` preserves a different NaN result.
 - Normalize reloads first component after refinement, retail keeps it: TRY
   `v->x = v->x * inverse` before snapshot local; MWCC can keep member read for
   explicit assign while reloading for compound (`normalize_v3`). Verify full
@@ -130,7 +145,18 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   output helper with explicit sub, scale, add phases
   (`mk_chess_activate_piece_properties`). Folded expr != decimal spelling:
   `3.0f * 0.075f` = 0x3e666667, `0.225f` = 0x3e666666.
+- Vec blend keeps three delta stores before scale/add: REQUIRE retail
+  subtracts all components before modifying the output. TRY complete typed
+  subtraction phase followed by component scale/add
+  (`p_fake_bone_matcher_proc`); interleaved expressions can eliminate the
+  observed stack stores even with equivalent scalar math.
 - Check whether negation is in FP before conversion or on the int.
+- Fixed-point angle wrap swaps coefficient FPRs: REQUIRE multiply, integer
+  conversion, 20-bit mask, float conversion and scale match retail in order.
+  TRY naming the integer conversion result, masking it in a separate
+  statement, then multiplying the converted result by the scale
+  (`bgnd_npc_set_y_ang`, `npc_update_pos_on_path`). Measure every shared helper
+  consumer; this boundary does not fix `bgnd_npc_set_pos_vel_heading`.
 
 ## M04
 
@@ -343,6 +369,11 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   offset-named.
 - Missing prefixes shared by many consumers can mean missing real table
   (`global_background_data`).
+- Real initialized table already exists, but its strings follow code literals:
+  REQUIRE retail first-use pool bytes/offsets and canonical pooling flags.
+  TRY moving that definition before functions, preserving every initializer
+  (`p_credits_screen`, `ending_data_table`). Compare the full pool and table;
+  this can remove an unsupported shared-base hoist and close other consumers.
 - Unused inline body can still emit initializer data.
 - Terminal `gap_*`: check linker alignment first. `jmt`: retail split `gap_*`
   = final 4 bytes of `.data` + `.sdata2`; built sections stop at those
@@ -373,8 +404,17 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   functions emitted in reverse source order. Try `-inline noauto,deferred` +
   defs reversed by `tools/reverse_deferred_tu.py`; retail-inlined global
   callees get `auto_inline on`/`reset` pair. Plain `deferred` after `-inline
-  auto` wipes static helpers. Land only on measured whole-unit gain (konquest
-  gained; fatality, cam didn't).
+  auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
+  minigames gained; fatality, cam didn't). Unconverted signs: `.bss` in
+  exact reverse decl order, late per-function float labels (`@4226` vs reused
+  `@305`), named string stand-in where retail has `@stringBase0` (add `-str
+  reuse,pool,readonly`, real literals).
+- Deferred inline + recursion: inline helper whose body calls an inlinable
+  recursive function is never inlined (`always_inline`, `level=`, placement
+  neutral). Retail inlining such helper -> no helper; open-code in caller.
+  Explicit `inline` on recursive fn moves its out-of-line copy before first
+  caller in `.text`: use `auto_inline on`/`reset` pair (`minigames`
+  `puzzle_fighter_match_above_below__ai` / `left_right__ai`).
 - Deferred inline control: `#pragma dont_inline on` acts at CALLEE
   definition; wrapping caller doesn't stop its callees inlining. Wrap retail
   out-of-line callees in contiguous regions. Retail inlines self-recursion to

@@ -83,13 +83,14 @@ void* gcnDriver::wakeupThreadThunk(void* argument)
     gcnDriver* driver = static_cast<gcnDriver*>(argument);
     mwFileCommand* command;
 
-    do {
+    for (;;) {
         OSReceiveMessage(&driver->wakeup_queue,
                          reinterpret_cast<OSMessage*>(&command), 1);
-        if (command != 0) {
-            command->wakeup();
+        if (command == 0) {
+            break;
         }
-    } while (command != 0);
+        command->wakeup();
+    }
 
     return 0;
 }
@@ -163,8 +164,7 @@ mwFileMutex::mwFileMutex()
     OSInitMutex(this);
 }
 
-/* TODO: [breakthrough needed] 83.38%; verify return width; byte narrowing and epilogue differ. */
-unsigned char _mwFilePlatformIsInServiceThread()
+bool _mwFilePlatformIsInServiceThread()
 {
     gcnDriver& driver = gcnGetDriver();
     return OSGetCurrentThread() == &driver.service_thread;

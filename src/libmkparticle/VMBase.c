@@ -13,7 +13,7 @@ static struct VMPageTableEntry* g_vmBasePageTable;
 static u32* g_vmBaseVMReversePageTable;
 static u8* g_vmBaseLockedPageTable;
 static void (*cbVMSwapPageIn)(u32);
-static u32 g_baseInitialized;
+static BOOL g_baseInitialized;
 static u32 g_originalSR7;
 static u32 g_originalSDR1;
 
@@ -43,7 +43,6 @@ void __VMBASEDSIExceptionHandler_SetBranchBack(void);
 void __VMBASEISIExceptionHandler_SetOriginalInstruction(void);
 void __VMBASEISIExceptionHandler_SetBranchBack(void);
 
-/* TODO: [breakthrough needed] 80.66666%; frame, signedness test and instruction scheduling differ. */
 void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
                 u32 pages_in_mram, BOOL enable_page_locking)
 {
@@ -84,7 +83,6 @@ void VMBASEQuit(void)
 {
 }
 
-/* TODO: [breakthrough needed] 62.18919%; frame and register scheduling differ. */
 void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
                              u32 physical_page)
 {
@@ -101,7 +99,6 @@ void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
     OSRestoreInterrupts(interrupts);
 }
 
-/* TODO: [breakthrough needed] 52.40000%; prologue and register scheduling differ. */
 void VMBASEClearPageTableEntry(u32 virtual_address, u32 physical_page)
 {
     BOOL interrupts;
@@ -136,7 +133,6 @@ BOOL VMBASEIsPageDirty(u32 virtual_address)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 69.50000%; prologue and register scheduling differ. */
 void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced)
 {
     BOOL interrupts;
@@ -203,7 +199,7 @@ void __VMBASEInitReversePageTable(void)
 {
 }
 
-/* TODO: [breakthrough needed] 43.54651%; table-clearing loop shape and frame differ. */
+/* TODO: [breakthrough needed] 47.86%; table-clearing loop shape and frame differ. */
 void __VMBASEInvalidatePageTable(void)
 {
     BOOL interrupts;
@@ -219,7 +215,7 @@ void __VMBASEInvalidatePageTable(void)
     OSRestoreInterrupts(interrupts);
 }
 
-/* TODO: [breakthrough needed] 38.79630%; table-clearing store and induction scheduling differ. */
+/* TODO: [breakthrough needed] 42.41%; table-clearing store and induction scheduling differ. */
 void __VMBASEInvalidateLockedPageTable(void)
 {
     u32 i;

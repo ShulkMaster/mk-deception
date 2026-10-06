@@ -1431,7 +1431,7 @@ static inline struct RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/* TODO: [near miss] 99.02698%; frame and operations agree; owner GPR coloring and zero-compare operand order remain. */
+/* TODO: [near miss] 99.05%; frame and operations agree; owner GPR coloring and zero-compare operand order remain. */
 static void rope_controller_update(MkHdr* pdata) {
     struct RopeControllerData* rope = (struct RopeControllerData*)pdata;
     MkObj* model = rope->model;
@@ -1625,7 +1625,7 @@ static void rope_controller_update(MkHdr* pdata) {
             float span_length;
 
             span_length = PSVECMag(&segment->span);
-            if (span_length != 0.0f) {
+            if (span_length) {
                 float extension = span_length - segment->length_scale;
                 PSVECScale(&segment->span, &segment->offset,
                            -(extension * segment->inverse_length_scale) /

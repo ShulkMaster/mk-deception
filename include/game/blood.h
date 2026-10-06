@@ -19,6 +19,6 @@ extern GusherStep heart_beat[];
 
 GusherPdata* start_gusher(
     GusherStep* steps, void* owner, MkObj* object, int bone,
-    const Vec* position, const Vec* direction);
+    Vec* position, Vec* direction);
 
 #endif

@@ -65,8 +65,15 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
 }
 
+static inline float gxQuatFloatFromBits(unsigned int value) {
+    union GxQuatFloatBits bits;
+
+    bits.u = value;
+    return bits.f;
+}
+
 static inline float gxQuatInvSqrt(float value) {
-    union GxQuatFloatBits out, in;
+    union GxQuatFloatBits in;
     float result;
     float guess;
     float t1;
@@ -76,8 +83,7 @@ static inline float gxQuatInvSqrt(float value) {
         return kZero;
     }
     in.f = value;
-    out.u = 0x5F375A00U - (in.u >> 1);
-    guess = out.f;
+    guess = gxQuatFloatFromBits(0x5F375A00U - (in.u >> 1));
     t1 = guess * (value * guess);
     t3 = kNewtonIter3 - t1;
     result = kInvSqrtScale * guess;
@@ -86,7 +92,7 @@ static inline float gxQuatInvSqrt(float value) {
 }
 
 static inline float gxQuatHalfSqrt(float value) {
-    union GxQuatFloatBits out, in;
+    union GxQuatFloatBits in, out;
     float guess;
 
     in.f = value;
@@ -99,8 +105,6 @@ static inline float gxQuatHalfSqrt(float value) {
     return kHalf * (guess * (kNewtonIter3 - (guess * guess) / value));
 }
 
-/* TODO: [near miss] 99.50%; Newton step matches; remaining: 180-deg axis x/z store order, inlined
- * sqrt-union stack slots (retail InvSqrt outputs at 0x14/0x10), and the separate 0.5f pool entry. */
 void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     Vec axis __attribute__((aligned(16)));
     float dot;
@@ -116,9 +120,11 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
         return;
     }
     if (dot < kV3ToQuatAntiParallelDot) {
-        axis.z = -v1->y;
+        float perpendicular_z = -v1->y;
+
         axis.y = v1->x;
         axis.x = kZero;
+        axis.z = perpendicular_z;
         if (PSVECMag(&axis) < kV3ToQuatAxisEpsilon) {
             axis.z = v1->x;
             axis.x = -v1->z;
