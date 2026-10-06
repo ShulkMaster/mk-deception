@@ -22,5 +22,6 @@ unsigned int fx_by_owner(const char* name, unsigned int owner);
 void fx_reset(unsigned int effect);
 void fx_reset_emit(unsigned int effect);
 void resume_effect(const char* name);
+void spawn_random_size(const float* table);
 
 #endif

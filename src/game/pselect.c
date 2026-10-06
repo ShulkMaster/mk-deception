@@ -302,6 +302,7 @@ static inline int pselect_grid_cells(void) {
     return 0x1B;
 }
 
+/* TODO: [Scope warn] GC shifted team view; canonical records regress exact siblings. */
 static inline struct BgPselectTeamView* bg_team_view(struct BgPselectPdata* pdata, int team) {
     return (struct BgPselectTeamView*)((char*)pdata + team * 0x24);
 }
@@ -309,13 +310,15 @@ static inline struct BgPselectTeamView* bg_team_view(struct BgPselectPdata* pdat
 static inline int bg_team_focus_of(struct BgPselectPdata* pdata, int team, int char_id) {
     struct BgPselectTeamView* teamv;
     int i;
+    int member_count;
 
     if (pdata == 0) {
         return -1;
     }
     teamv = bg_team_view(pdata, team);
+    member_count = teamv->count - 1;
     for (i = 0; i < 5; i++) {
-        if (i >= teamv->count - 1) {
+        if (i >= member_count) {
             break;
         }
         if (teamv->chars[i] == char_id) {
@@ -464,42 +467,44 @@ static float p_random_player_select(void) {
     return rnd_sleep_tbl[pdata->step++];
 }
 
-/* TODO: [breakthrough needed] 76.07%; profile award/refund instruction differences remain. */
 void award_bet(void) {
     struct PselectProfileView* winner;
     struct PselectProfileView* loser;
     int winner_num;
     int koin;
-    int amount;
 
     koin = wager_koin_order[g_game_info.pselect.field_1d4];
     if (koin < 0 || koin > 6) {
-        wager_cancelled();
+        g_game_info.pselect.field_1d4 = 0;
+        g_game_info.pselect.field_1d8 = 0;
+        g_game_info.pselect.field_1dc = 0;
+        g_game_info.pselect.field_1d0 = 0;
+        g_game_info.pselect.field_1e0 = 1;
+        g_game_info.pselect.field_1f0 = 1;
+        set_default_button_repeat_time();
+        wager_completed_ran = 0;
         return;
     }
 
-    if (g_game_info.field_1F8 != 2 ||
-        g_game_info.pselect.field_1d0 == 0) {
-        return;
-    }
+    if (g_game_info.field_1F8 == 2 &&
+        g_game_info.pselect.field_1d0 != 0) {
+        winner_num = check_for_winner();
+        if (winner_num == 1) {
+            winner = &p1_profile;
+            loser = &p2_profile;
+        } else if (winner_num == 2) {
+            winner = &p2_profile;
+            loser = &p1_profile;
+        } else {
+            return;
+        }
 
-    winner_num = check_for_winner();
-    if (winner_num == 1) {
-        winner = &p1_profile;
-        loser = &p2_profile;
-    } else if (winner_num == 2) {
-        winner = &p2_profile;
-        loser = &p1_profile;
-    } else {
-        return;
-    }
-
-    if (g_game_info.pselect.field_1dc == 0) {
-        amount = g_game_info.pselect.field_1d8;
-        winner->koins[koin] += amount * 2;
-        winner->wager_wins[koin] += amount;
-        loser->wager_losses[koin] += amount;
-        g_game_info.pselect.field_1dc = amount;
+        if (g_game_info.pselect.field_1dc == 0) {
+            winner->koins[koin] += g_game_info.pselect.field_1d8 * 2;
+            winner->wager_wins[koin] += g_game_info.pselect.field_1d8;
+            loser->wager_losses[koin] += g_game_info.pselect.field_1d8;
+            g_game_info.pselect.field_1dc = g_game_info.pselect.field_1d8;
+        }
     }
 }
 
@@ -795,10 +800,11 @@ void ck_increment_bet(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 80.46%; profile readiness instruction differences remain. */
+/* TODO: [near miss] 92.24%; unsigned coin loads and failure joins recovered;
+ * equivalent loop preheader scheduling remains. */
 int ok_to_bring_out_wager_screen(void) {
-    int i;
     int has_common_koin;
+    int i;
     int mop;
 
     if (p1_profile_status != 1 || p2_profile_status != 1) {
@@ -822,11 +828,17 @@ int ok_to_bring_out_wager_screen(void) {
 
     has_common_koin = 0;
     for (i = 0; i < 6; i++) {
-        if (p1_profile.koins[i] != 0 && p2_profile.koins[i] != 0) {
+        unsigned int p1_koins = p1_profile.koins[i];
+        unsigned int p2_koins = p2_profile.koins[i];
+
+        if (p1_koins != 0 && p2_koins != 0) {
             has_common_koin = 1;
         }
     }
-    if (!has_common_koin || g_game_info.pselect.field_1d0 != 0) {
+    if (!has_common_koin) {
+        return 0;
+    }
+    if (g_game_info.pselect.field_1d0 != 0) {
         return 0;
     }
 
@@ -894,7 +906,6 @@ void pselect_start_code_entry(int player, int port) {
     profile_code_state[player] = 0;
 }
 
-/* TODO: [breakthrough needed] 80.643936%; shared pdata preserves layout; remaining entry CFG/codegen needs comparison. */
 float p_enter_profile_code(void) {
     ProfileCodePdata* pdata;
     int player;
@@ -922,37 +933,44 @@ float p_enter_profile_code(void) {
         }
 
         if (check_switch_edge(port, 0xB)) {
-            for (i = 0; i < 6; i++) {
-                pdata->code[i] = 0;
+            int digit;
+            for (digit = 0; digit < sizeof(pdata->code); digit++) {
+                pdata->code[digit] = 0;
             }
             pdata->count = 0;
-            profile_code_state[player] = 0;
+            profile_code_state[player] = pdata->count;
             if (player == 0) {
                 fire_screen_studio_event(0x1FC4, player + 1);
             } else {
                 fire_screen_studio_event(0x1FC5, player + 1);
             }
         }
-        return sleep_ticks_one;
-    }
+    } else {
+        result = load_profile(player, port, pdata->code);
+        switch (result) {
+        case 0:
+            break;
+        case 1:
+            profile_code_state[player] = 8;
+            fire_screen_studio_event(0x1FAA, player + 1);
+            break;
+        case 2:
+            profile_code_state[player] = 7;
+            fire_screen_studio_event(0x1FAA, player + 1);
+            break;
+        case 3:
+            profile_code_state[player] = 9;
+            fire_screen_studio_event(0x1FAA, player + 1);
+            break;
+        }
 
-    result = load_profile(player, port, pdata->code);
-    if (result == 2) {
-        profile_code_state[player] = 7;
-        fire_screen_studio_event(0x1FAA, player + 1);
-    } else if (result == 1) {
-        profile_code_state[player] = 8;
-        fire_screen_studio_event(0x1FAA, player + 1);
-    } else if (result == 3) {
-        profile_code_state[player] = 9;
-        fire_screen_studio_event(0x1FAA, player + 1);
+        if (get_game_state() == 0x1B) {
+            pop_game_state(0x1B);
+        }
+        set_player_state(&(&g_game_info.plyr0)[pdata->player], pdata->old_player_state);
+        return sleep_ticks_neg_one;
     }
-
-    if (get_game_state() == 0x1B) {
-        pop_game_state();
-    }
-    set_player_state(&(&g_game_info.plyr0)[player], pdata->old_player_state);
-    return sleep_ticks_neg_one;
+    return sleep_ticks_one;
 }
 
 static inline int pselect_character_id_valid(int char_id) {
@@ -1126,7 +1144,6 @@ int pselect_get_arena_index(void) {
     return 0;
 }
 
-/* TODO: [breakthrough] 87.38%; canonical table ownership fixes shared base; mode dispatch CFG remains. */
 void pselect_set_arena(int new_pos) {
     struct PselectBgndEntry* table;
     int count;
@@ -1141,16 +1158,20 @@ void pselect_set_arena(int new_pos) {
         return;
     }
 
-    if (pselect_mode == 0) {
+    switch (pselect_mode) {
+    case 0:
         table = pselect_bgnd_tbl;
         count = 0x16;
-    } else if (pselect_mode == 1) {
+        break;
+    case 1:
         table = bg_pselect_bgnd_table;
         count = 5;
-    } else if (pselect_mode == 2) {
+        break;
+    case 2:
         table = pz_pselect_bgnd_table;
         count = 6;
-    } else {
+        break;
+    default:
         return;
     }
 
@@ -1232,13 +1253,13 @@ void get_pz_special_move_list(PselectTexOut out, int use_difficulty) {
     }
 }
 
-/* TODO: [breakthrough] 94.25%; canonical table ownership restores shared base; output/index lifetime and scheduling remain. */
 void get_background_select_textures(PselectTexOut out) {
-    struct PselectBgndEntry* tbl;
+    int dst;
     int n;
     int i;
-    int dst;
+    struct PselectBgndEntry* tbl;
 
+    dst = 0;
     switch (pselect_mode) {
     case 0:
         tbl = pselect_bgnd_tbl;
@@ -1256,17 +1277,18 @@ void get_background_select_textures(PselectTexOut out) {
         return;
     }
 
-    dst = 0;
-    for (i = 0; i < n; i++) {
+    i = 0;
+    while (i < n) {
         out.colors[dst] =
             load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].tex_name);
         out.alphas[dst] = load_named_alpha_texture_from_slot(
             PSELECT_SEC_SLOT, tbl[i].tex_name);
+        i++;
         dst += 1;
     }
 }
 
-/* TODO: [breakthrough] 73.82692%; by-value pair fixes caller ABI; alternate latch and register allocation remain. */
+/* TODO: [breakthrough] 74.02%; by-value pair fixes caller ABI; alternate latch and register allocation remain. */
 void get_pselect_body_textures(PselectTexOut out) {
     struct PselectCharEntry* tbl;
     int n;
@@ -1322,15 +1344,39 @@ int get_num_pselect_body_textures(void) {
     }
 }
 
-/* TODO: [breakthrough] 74.92%; by-value pair recovered; dual table scans and shared-pdata lowering remain. */
+static inline RwTexture* pselect_load_team_head_color(int char_id) {
+    int slot;
+
+    for (slot = 0; slot < 0x1B; slot++) {
+        if (pselect_char_tbl[slot].char_id == char_id) {
+            return load_named_tga_from_slot(PSELECT_SEC_SLOT,
+                                            pselect_char_tbl[slot].head_name);
+        }
+    }
+    return 0;
+}
+
+static inline RwTexture* pselect_load_team_head_alpha(int char_id) {
+    int slot;
+
+    for (slot = 0; slot < 0x1B; slot++) {
+        if (pselect_char_tbl[slot].char_id == char_id) {
+            return load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT,
+                                            pselect_char_tbl[slot].head_name);
+        }
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 96.73%; scan returns and screen reloads recovered; team-view CSE and owner/register homes remain. */
 void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     struct BgPselectPdata* pdata;
     struct BgPselectTeamView* teamv;
     int i;
     int char_id;
-    int slot;
     int sel_pos;
     int focus_char;
+    int count;
     RwTexture* tex;
     struct PselectCharEntry* ent;
 
@@ -1350,53 +1396,35 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
             continue;
         }
         char_id = teamv->chars[i];
-        if (char_id == 0x2C) {
+        if (char_id != 0x2C) {
+            out.colors[i] = pselect_load_team_head_color(char_id);
+            out.alphas[i] = pselect_load_team_head_alpha(char_id);
+        } else {
             out.colors[i] = 0;
             out.alphas[i] = 0;
-            continue;
+        }
+    }
+
+    if (pselect_mode == 1) {
+        struct BgPselectPdata* preview_pdata;
+
+        preview_pdata = get_screen_pdata();
+        if (preview_pdata == 0) {
+            return;
         }
 
-        tex = 0;
-        for (slot = 0; slot < 0x1B; slot++) {
-            ent = &pselect_char_tbl[slot];
-            if (char_id == ent->char_id) {
-                tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, ent->head_name);
-                break;
-            }
+        count = bg_team_view(preview_pdata, team)->count;
+        sel_pos = (team == 0) ? p1_selbox_pos : p2_selbox_pos;
+        focus_char = pselect_char_id_at(sel_pos);
+
+        if (count > 0 && count <= 5) {
+            ent = &pselect_char_tbl[sel_pos];
+            tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, ent->head_name);
+            bg_team_view(preview_pdata, team)->colors[count - 1] = tex;
         }
-        out.colors[i] = tex;
 
-        tex = 0;
-        for (slot = 0; slot < 0x1B; slot++) {
-            ent = &pselect_char_tbl[slot];
-            if (char_id == ent->char_id) {
-                tex = load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT,
-                                                        ent->head_name);
-                break;
-            }
-        }
-        out.alphas[i] = tex;
+        bg_team_view(preview_pdata, team)->focus = bg_team_focus_of(get_screen_pdata(), team, focus_char);
     }
-
-    if (pselect_mode != 1) {
-        return;
-    }
-    pdata = get_screen_pdata();
-    if (pdata == 0) {
-        return;
-    }
-
-    teamv = bg_team_view(pdata, team);
-    sel_pos = (team == 0) ? p1_selbox_pos : p2_selbox_pos;
-    focus_char = pselect_char_at(sel_pos)->char_id;
-
-    if (teamv->count > 0 && teamv->count < 6) {
-        ent = &pselect_char_tbl[sel_pos];
-        tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, ent->head_name);
-        teamv->colors[teamv->count - 1] = tex;
-    }
-
-    teamv->focus = bg_team_focus_of(pdata, team, focus_char);
 }
 
 /* TODO: [near miss] 98.88%; loop and lock-result joins agree; shared validity branch and registers remain. */
@@ -1506,7 +1534,7 @@ char* pselect_get_player_name(int player) {
     return global_player_data[char_id].name;
 }
 
-/* TODO: [near miss] 86.68%; bg team focus refresh agrees; residue is code emission. */
+/* TODO: [near miss] 94.48%; shared focus bound recovered; preview root ownership and register homes remain. */
 void pselect_player_moved(int player) {
     struct BgPselectPdata* pdata;
     struct BgPselectTeamView* teamv;
@@ -1546,7 +1574,7 @@ void pselect_player_moved(int player) {
                                     char_id);
 }
 
-/* TODO: [near miss] 66.04%; team slot pop and HEAD_PROXY reload agree; residue is code emission. */
+/* TODO: [breakthrough] 70.93%; shared focus bound recovered; team indexing, table loads and callback owners remain. */
 void bg_pselect_player_canceled(int player) {
     struct BgPselectPdata* pdata;
     struct BgPselectTeamView* teamv;
@@ -1585,24 +1613,18 @@ void bg_pselect_player_canceled(int player) {
     }
 }
 
-/* TODO: [near miss] 81.50%; other-player state gate agrees; residue around the cntlzw other-index computation. */
 void pselect_player_canceled(int player) {
-    PlyrInfo* plyrs;
-    PlyrInfo* other;
-    PlyrInfo* self;
+    int other_player;
     int start;
 
-    plyrs = &g_game_info.plyr0;
-    other = &plyrs[player == 0];
-    self = &plyrs[player];
-
-    if (other->player_state == 2) {
+    other_player = player == 0;
+    if (g_game_info.players[other_player].player_state == 2) {
         return;
     }
 
+    g_game_info.players[player].player_state = 1;
     name_sound_state -= 1;
-    self->player_state = 1;
-    self->field_14 = 0;
+    g_game_info.players[player].field_14 = 0;
 
     if (player == 0) {
         destroy_mkprocs_pid(0x9035);
@@ -1616,7 +1638,7 @@ void pselect_player_canceled(int player) {
 
     refresh_active_screen();
     if (mode_of_play == 4) {
-        other->player_state = 0;
+        g_game_info.players[other_player].player_state = 0;
     }
     fire_screen_studio_event(0x1FEC, player + 1);
     start = (player == 0) ? p1_selbox_start_pos : p2_selbox_start_pos;
@@ -1660,7 +1682,7 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [breakthrough] 81.01%; lock-result join recovered; inspect remaining palette inlining and early-return CFG. */
+/* TODO: [breakthrough] 81.25%; shared focus bound recovered; palette/process inlining and callback ordering remain. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1971,14 +1993,12 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     fire_screen_studio_event(0x1FA4, player);
 }
 
-/* TODO: [breakthrough] 86.16279%; lock-result join recovered; shared validity join and caller codegen remain. */
+/* TODO: [near miss] 98.37%; shared inlined character-validity compare and redundant join branch remain. */
 void check_reset_player_selection(int player, int start_pos) {
-    PlyrInfo* plyr;
     int pos;
     int char_id;
 
-    plyr = &(&g_game_info.plyr0)[player];
-    if (plyr->player_state != 1) {
+    if (g_game_info.players[player].player_state != 1) {
         return;
     }
 
@@ -1986,7 +2006,7 @@ void check_reset_player_selection(int player, int start_pos) {
     if (player == 0) {
         pos = p1_selbox_pos;
     }
-    char_id = pselect_char_at(pos)->char_id;
+    char_id = pselect_char_id_at(pos);
     if (is_char_locked(char_id, 0)) {
         pselect_update_selbox_pos(player, start_pos);
     }
@@ -2015,7 +2035,7 @@ int bg_pselect_get_offender_class(int team) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough needed] 80.76%; team selection instruction differences remain. */
+/* TODO: [breakthrough] 91.83%; shared focus bound recovered; team root/index staging and register homes remain. */
 void bg_pselect_set_character(int team) {
     struct BgPselectPdata* pdata;
     struct BgPselectTeamView* teamv;
@@ -2032,10 +2052,10 @@ void bg_pselect_set_character(int team) {
         sel_pos = p1_selbox_pos;
     }
     teamv = bg_team_view(pdata, team);
-    if (teamv->count > 0 && teamv->count < 6) {
-        char_id = pselect_char_at(sel_pos)->char_id;
+    if (teamv->count >= 1 && teamv->count <= 5) {
+        char_id = pselect_char_id_at(sel_pos);
         teamv->chars[teamv->count - 1] = char_id;
-        teamv->focus = bg_team_focus_of(
+        bg_team_view(pdata, team)->focus = bg_team_focus_of(
             get_screen_pdata(), team, char_id);
     }
 }
@@ -2127,44 +2147,38 @@ static float p_save_bg_profile(void) {
     return sleep_ticks_neg_one;
 }
 
-static inline int bg_load_saved_team(struct BgPselectPdata* pdata, int team) {
-    struct BgPselectTeamView* teamv;
+/* TODO: [breakthrough needed] 93.55%; shared failure CFG recovered; shifted team view and copy-register lifetime remain. */
+void bg_pselect_load_team(int team) {
+    struct BgPselectPdata* pdata;
     struct PselectProfileView* profile;
+    struct BgPselectTeamView* teamv;
     int i;
 
+    pdata = get_screen_pdata();
+    if (pdata == 0) {
+        return;
+    }
     if (team == 0) {
         if (p1_profile_status != 1 || p1_profile.bg_team_valid == 0) {
-            return 0;
+            goto failed;
         }
         profile = &p1_profile;
     } else {
         if (p2_profile_status != 1 || p2_profile.bg_team_valid == 0) {
-            return 0;
+            goto failed;
         }
         profile = &p2_profile;
     }
-
     teamv = bg_team_view(pdata, team);
     for (i = 0; i < 5; i++) {
         teamv->chars[i] = profile->bg_team[i];
     }
     teamv->count = 6;
-    return 1;
-}
+    fire_screen_studio_event(team + 0x1FE1, team + 1);
+    return;
 
-/* TODO: [breakthrough needed] 84.63636%; shared events recovered;
- * Boolean-result materialization needs a supported source boundary. */
-void bg_pselect_load_team(int team) {
-    struct BgPselectPdata* pdata;
-
-    pdata = get_screen_pdata();
-    if (pdata != 0) {
-        if (bg_load_saved_team(pdata, team)) {
-            fire_screen_studio_event(team + 0x1FE1, team + 1);
-        } else {
-            fire_screen_studio_event(team + 0x1FDF, team + 1);
-        }
-    }
+failed:
+    fire_screen_studio_event(team + 0x1FDF, team + 1);
 }
 
 float p_bg_pselect(void) {
@@ -2518,7 +2532,7 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [breakthrough] 89.25433%; lock-result join recovered; shared validity join and caller codegen remain. */
+/* TODO: [breakthrough] 97.13873%; direct ID loads and column switch agree; shared validity join and saved GPR roles remain. */
 static void init_startup_selboxes(void) {
     int max_col;
     int pos;
@@ -2532,14 +2546,17 @@ static void init_startup_selboxes(void) {
         p2_selbox_start_pos = 5;
     }
 
-    if (mop == 6) {
+    switch (mop) {
+    case 6:
         max_col = 6;
-    } else {
+        break;
+    default:
         max_col = 9;
+        break;
     }
 
     pos = p1_selbox_start_pos;
-    while (is_char_locked(pselect_char_at(pos)->char_id, 0)) {
+    while (is_char_locked(pselect_char_id_at(pos), 0)) {
         pos += 1;
         if (pos > max_col) {
             pos = 0;
@@ -2552,7 +2569,7 @@ static void init_startup_selboxes(void) {
     }
 
     pos = p2_selbox_start_pos;
-    while (is_char_locked(pselect_char_at(pos)->char_id, 0)) {
+    while (is_char_locked(pselect_char_id_at(pos), 0)) {
         pos -= 1;
         if (pos < 0) {
             pos = max_col;

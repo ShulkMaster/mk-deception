@@ -239,13 +239,30 @@ static inline void place_visible_coffin_rows_from(Vec* origin) {
 
 static inline void rebuild_visible_coffin_rows(void) {
     Vec origin = {0.0f, 0.0f, 0.0f};
+    int col;
+    int row;
+    int row_end;
+    float x;
     krypt_pdata->coffin_pebble_type0->count = 0;
     krypt_pdata->coffin_pebble_type1->count = 0;
     krypt_pdata->coffin_pebble_type2->count = 0;
     krypt_pdata->coffin_pebble_type3->count = 0;
     krypt_pdata->lid_closed_pebbles->count = 0;
     krypt_pdata->lid_open_pebbles->count = 0;
-    place_visible_coffin_rows_from(&origin);
+    row = krypt_pdata->current_row - 1;
+    if (row > 0x10) row = 0x10;
+    if (row < 0) row = 0;
+    col = krypt_pdata->current_column - 4;
+    if (col < 0) col = 0;
+    else if (col > 0xB) col = 0xB;
+    x = 3.0f * (float)col + -28.5f;
+    row_end = row + 4;
+    for (; row < row_end; row++) {
+        origin.x = x;
+        origin.y = 0.0f;
+        origin.z = -(5.0f * (float)row - 50.0f);
+        set_pebble_positions_for_row(row, col, 9, &origin);
+    }
 }
 
 static const Vec s_coffin_offset = {-0.582f, -0.503f, 1.4008f};
@@ -602,11 +619,20 @@ int get_number_kontent_items(void) {
     return kontent_pdata->item_count;
 }
 
+static inline void rebase_coffin_strings(char* strings) {
+    int i;
+
+    for (i = 0; i < 0x1B7; i++) {
+        coffin_data[i].blurb = strings + (unsigned int)coffin_data[i].blurb;
+        coffin_data[i].long_description =
+            strings + (unsigned int)coffin_data[i].long_description;
+    }
+}
+
 static inline void krypt_load_gallery_data(void) {
     int stringLength;
     char* strings;
     MkFileEntry* file;
-    int i;
 
     file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
     if (file != 0) {
@@ -618,11 +644,7 @@ static inline void krypt_load_gallery_data(void) {
                 mk_file_read(coffin_data, sizeof(CoffinEntry), 0x1B7, file);
                 mk_file_read(strings, 1, stringLength, file);
                 mk_file_close(file);
-                for (i = 0; i < 0x1B7; i++) {
-                    coffin_data[i].blurb = strings + (unsigned int)coffin_data[i].blurb;
-                    coffin_data[i].long_description =
-                        strings + (unsigned int)coffin_data[i].long_description;
-                }
+                rebase_coffin_strings(strings);
                 gallery_data_loaded = 1;
             }
         }
@@ -1464,7 +1486,8 @@ static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.69%; HUD handle/visibility registers rotate; wallet loop address adds an extra instruction. */
+/* TODO: [near miss] 99.689117%; wallet-loop zero init is li r24,0 vs
+ * retail mr r24,r25; all handle and address operations now agree. */
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1729,8 +1752,8 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 98.91%; frame, award-art and wallet-latch shape match; koin totals fold
- * into profile+k*4 (retail keeps lwzx base), GPR r24-r29 and f28/f31 coloring remain. */
+/* TODO: [near miss] 98.91167%; koin totals fold into profile+k*4 instead of
+ * retail lwzx base; GPR and FPR coloring remain after row-helper flattening. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
@@ -3011,13 +3034,13 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.77%; coffin offset loop and row-bound register coloring remains. */
+/* TODO: [near miss] 99.92938%; coffin relocation loop matches;
+ * row-end bound and integer-to-float bias swap r30/r31. */
 float p_setup_krypt(void) {
     char* string_pool;
     MkFileEntry* file;
     int file_len;
     int string_len;
-    int i;
     MkObj* light;
     CamVec3 cam_pos = s_cam_pos;
     CamVec3 cam_ang = s_cam_ang;
@@ -3044,12 +3067,7 @@ float p_setup_krypt(void) {
                     mk_file_read(coffin_data, sizeof(CoffinEntry), 0x1B7, file);
                     mk_file_read(string_pool, 1, string_len, file);
                     mk_file_close(file);
-                    for (i = 0; i < 0x1B7; i++) {
-                        coffin_data[i].blurb =
-                            string_pool + (unsigned int)coffin_data[i].blurb;
-                        coffin_data[i].long_description =
-                            string_pool + (unsigned int)coffin_data[i].long_description;
-                    }
+                    rebase_coffin_strings(string_pool);
                     krypt_data_loaded = 1;
                 }
             }

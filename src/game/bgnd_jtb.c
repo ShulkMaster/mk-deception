@@ -844,7 +844,7 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/* TODO: [near miss] 91.57%; FPR load/operand scheduling and fused tangent-plane projection math differ. */
+/* TODO: [near miss] 91.65%; FPR load/operand scheduling and fused tangent-plane projection math differ. */
 static void nb_get_desired_acceleration(
     struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
     float force_z;
@@ -868,7 +868,7 @@ static void nb_get_desired_acceleration(
         force_y = -1.0f;
     } else {
         scale = 24.0f * (float)refresh_rate();
-        if (scale != 0.0f) {
+        if (scale) {
             scale = (float)state->swing_ticks / scale;
             if (scale > 1.0f) {
                 scale = 1.0f;

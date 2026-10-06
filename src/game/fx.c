@@ -666,18 +666,22 @@ static void update_skewer_positions(int player) {
 }
 
 static inline int fx_fatality_available_for(int winner) {
+    int winning_player;
+
     if (get_fatality_available_flag() == 0) {
         return 0;
     }
-    if (g_game_info.pause_flag_bits.fatality_window &&
-        check_for_winner() == winner) {
+    if (g_game_info.pause_flag_bits.fatality_window) {
+        winning_player = check_for_winner();
+    } else {
+        return 0;
+    }
+    if (winning_player == winner) {
         return 1;
     }
     return 0;
 }
 
-/* TODO: [near miss] 98.54%; inlined fatality-window branch order differs;
- * retail shares the zero-result block before the winner comparison. */
 static float fighting_style_sign_proc(void) {
     struct FightingStyleSignPdata* pdata;
     GlobalMoveset* moveset;

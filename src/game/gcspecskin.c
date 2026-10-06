@@ -750,7 +750,7 @@ static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh) {
     GXSetTevAlphaIn(1, 7, 7, 7, 0);
 }
 
-/* TODO: [near miss] 94.58%; material/specular r31/r30 swap and color stack-slot order remain. */
+/* TODO: [breakthrough] 97.76421%; RGB staging fixed; GXColor stack slots and owner registers remain. */
 static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
     RpMaterial* material = mesh->material;
     SpecularMaterialPluginData* specular = specular_data(material);
@@ -763,7 +763,9 @@ static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
     GXColor specular_color;
     float scale;
     float material_scale;
-
+    float red_intensity;
+    float red_component;
+    float green_component;
     apply_material_z_bias(specular->gloss);
     RpMatFXMaterialGetUVTransformMatrices(
         material, &base_transform, 0);
@@ -794,13 +796,17 @@ static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
 
     material_scale = 2.0f * material->surface.specular;
     light = specular_data(material)->light;
-    scale = 1.0f <= material_scale ? 1.0f : material_scale;
-    specular_color.r = color_component(
-        specular->tint.red * (scale * light->color.red));
-    specular_color.g = color_component(
-        specular->tint.green * (scale * light->color.green));
-    specular_color.b = color_component(
-        specular->tint.blue * (scale * light->color.blue));
+    scale = (1.0f <= material_scale) ? 1.0f : material_scale;
+    red_intensity = light->color.red;
+    red_intensity = red_intensity * scale;
+    red_component = specular->tint.red;
+    red_component *= red_intensity;
+    specular_color.r = color_component(red_component);
+    green_component = light->color.green;
+    green_component = green_component * scale;
+    green_component = specular->tint.green * green_component;
+    specular_color.g = color_component(green_component);
+    specular_color.b = color_component(specular->tint.blue * (scale * light->color.blue));
     specular_color.a = 0xFF;
     GXSetTevColor(3, specular_color);
 

@@ -125,6 +125,9 @@ extern LightDef ladder_skinned_obj_ambient_light_def;
 extern unsigned char ladder_piece_ground_colls[];
 extern const int ladder_piece_bones[];
 extern struct LadderBgndAnimations bgnd_animations;
+extern struct LadderModelEntry ladder_models[25];
+extern struct LadderPlacement ladder_small_pos_tbl[8];
+extern struct LadderPlacement dead_pos_tbl[8];
 
 void insert_ground_me_mkobj(MkObj* object);
 AnimPdata* animate_obj(
@@ -476,20 +479,33 @@ static void build_ladder_hud_data(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 78.94%; compare nonvolatile lifetimes and address expressions. */
+static inline const char* ladder_find_piece_model(
+    struct LadderModelEntry* models, int character_id, int alternate_model)
+{
+    int index;
+    for (index = 0; models[index].character_id != -1; index++) {
+        if (models[index].character_id == character_id) {
+            if (alternate_model != 0) {
+                return "SMOKE";
+            }
+            return models[index].model_name;
+        }
+    }
+    return 0;
+}
+
+/* TODO: [breakthrough needed] 87.00%; real table ownership restored; pooled-data definitions and addressing remain. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
-    struct LadderDataRegion* ladder_data;
-    struct LadderModelEntry* model_entry;
     struct LadderPlacement* defeated_placement;
     struct LadderPlacement* placement;
+    struct LadderPlacement* small_positions;
     const char* model_name;
     AnimScript* piece_animation;
     AnimPdata* animation;
     MkObj* object;
-    void* first_sobj;
+    MkSobj* first_sobj;
     int character_id;
 
-    ladder_data = LADDER_DATA_REGION;
     if (is_char_locked(
             current_ladder_tbl[position].character_id, 0)) {
         character_id =
@@ -498,19 +514,7 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         character_id = current_ladder_tbl[position].character_id;
     }
 
-    model_name = 0;
-    for (model_entry = ladder_data->models;
-         model_entry->character_id != -1;
-         model_entry++) {
-        if (model_entry->character_id == character_id) {
-            if (alternate_model != 0) {
-                model_name = "SMOKE";
-            } else {
-                model_name = model_entry->model_name;
-            }
-            break;
-        }
-    }
+    model_name = ladder_find_piece_model(ladder_models, character_id, alternate_model);
     if (model_name == 0) {
         return;
     }
@@ -521,8 +525,9 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         return;
     }
 
-    placement = &ladder_data->small_positions[position];
-    object->pos.value.x = placement->position.x;
+    small_positions = ladder_small_pos_tbl;
+    object->pos.value.x = small_positions[position].position.x;
+    placement = &small_positions[position];
     object->pos.value.y = placement->position.y;
     object->pos.value.z = placement->position.z;
     object->ang.y = placement->angle_y;
@@ -533,7 +538,7 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
 
     if (curr_ladder_pos > position) {
         defeated_placement =
-            &ladder_data->defeated_positions[position];
+            &dead_pos_tbl[position];
         object->pos.value.x = defeated_placement->position.x;
         object->pos.value.y = defeated_placement->position.y;
         object->pos.value.z = defeated_placement->position.z;
@@ -575,17 +580,18 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
 
     switch (position) {
+    case 6:
+        piece_animation = bgnd_animations.piece_six;
+        break;
+    case 2:
+        piece_animation = bgnd_animations.piece_two;
+        break;
     case 1:
     case 3:
     case 5:
         piece_animation = bgnd_animations.pieces_one_three_five;
         break;
-    case 2:
-        piece_animation = bgnd_animations.piece_two;
-        break;
-    case 6:
-        piece_animation = bgnd_animations.piece_six;
-        break;
+    case 4:
     default:
         piece_animation = bgnd_animations.default_piece;
         break;
@@ -600,15 +606,16 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         1.0f,
         1);
     if (curr_ladder_pos > position) {
+        AnimScript* defeated_animation = bgnd_animations.defeated_piece;
         if (alternate_model != 0) {
             set_anim_script_frame(
                 60.0f,
                 animation,
-                bgnd_animations.defeated_piece,
+                defeated_animation,
                 0x20);
         } else {
             set_anim_script(
-                animation, bgnd_animations.defeated_piece, 0x20);
+                animation, defeated_animation, 0x20);
         }
         animation->step = 1.0f;
     }

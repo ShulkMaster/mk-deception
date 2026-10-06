@@ -1355,8 +1355,8 @@ static void cloth_coll_point_cyl_abs(void) {
     }
 }
 
-/* TODO: [breakthrough] 99.88889%; scratch globals restored;
- * first-use BSS order and localized instruction differences remain. */
+/* TODO: [near miss] 99.88889%; operations agree; 21 scratch BSS offsets
+ * differ. Zero initialization fixes offsets but moves storage to .data. */
 static void cloth_coll_point_cyl_rel(void) {
     Vec* force_position;
     MKVECTOR world_point;

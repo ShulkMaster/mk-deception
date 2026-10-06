@@ -129,9 +129,89 @@ extern MkFileInfo sec_ending_sindel;
 extern MkFileInfo sec_ending_subzero;
 extern MkFileInfo sec_ending_tanya;
 
-extern struct EndingDataEntry ending_data_table[26];
 extern int ending_speech;
 extern int f_ending_speech_paused;
+
+struct EndingDataEntry ending_data_table[26] = {
+    {7, &sec_ending_ashrah, "run_ashrah_ending", "GICO_ENDING_ASHRAH02",
+     "ENDING_ASHRAH1_A", "ENDING_ASHRAH1_B", "ENDING_ASHRAH2_A",
+     "ENDING_ASHRAH2_B", 0, 0, 0x1A7F},
+    {1, &sec_ending_baraka, "run_baraka_ending", "GICO_ENDING_BARAKA01",
+     "ENDING_BARAKA1_A", "ENDING_BARAKA1_B", "ENDING_BARAKA2_A",
+     "ENDING_BARAKA2_B", 0, 0, 0x1A80},
+    {10, &sec_ending_boraicho, "run_boraicho_ending",
+     "GICO_ENDING_BORAICHO02", "ENDING_BORAICHO1_A", "ENDING_BORAICHO1_B",
+     "ENDING_BORAICHO2_A", "ENDING_BORAICHO2_B", 0, 0, 0x1A81},
+    {22, &sec_ending_dairou, "run_dairou_ending", "GICO_ENDING_DAIROU02",
+     "ENDING_DAIROU1_A", "ENDING_DAIROU1_B", "ENDING_DAIROU2_A",
+     "ENDING_DAIROU2_B", 0, 0, 0x1A82},
+    {24, &sec_ending_darrius, "run_cassius_ending", "GICO_ENDING_DARRIUS02",
+     "ENDING_DARRIUS1_A", "ENDING_DARRIUS1_B", "ENDING_DARRIUS2_A",
+     "ENDING_DARRIUS2_B", 0, 0, 0x1A83},
+    {6, &sec_ending_ermac, "run_ermac_ending", "GICO_ENDING_ERMAC_01",
+     "ENDING_ERMAC1_A", "ENDING_ERMAC1_B", "ENDING_ERMAC2_A",
+     "ENDING_ERMAC2_B", 0, 0, 0x1A84},
+    {14, &sec_ending_havik, "run_skab_ending", "GICO_ENDING_HAVIK02",
+     "ENDING_HAVIK1_A", "ENDING_HAVIK1_B", "ENDING_HAVIK2_A",
+     "ENDING_HAVIK2_B", 0, 0, 0x1A85},
+    {11, &sec_ending_hotaru, "run_hotaru_ending", "GICO_ENDING_HOTARU02",
+     "ENDING_HOTARU1_A", "ENDING_HOTARU1_B", "ENDING_HOTARU2_A",
+     "ENDING_HOTARU2_B", 0, 0, 0x1A86},
+    {21, &sec_ending_jade, "run_jade_ending", "GICO_ENDING_JADE02",
+     "ENDING_JADE1_A", "ENDING_JADE1_B", "ENDING_JADE2_A", "ENDING_JADE2_B",
+     0, 0, 0x1A87},
+    {19, &sec_ending_kabal, "run_kabal_ending", "GICO_ENDING_KABAL02",
+     "ENDING_KABAL1_A", "ENDING_KABAL1_B", "ENDING_KABAL2_A",
+     "ENDING_KABAL2_B", 0, 0, 0x1A88},
+    {12, &sec_ending_kenshi, "run_kenshi_ending", "GICO_ENDING_KENSHI02",
+     "ENDING_KENSHI1_A", "ENDING_KENSHI1_B", "ENDING_KENSHI2_A",
+     "ENDING_KENSHI2_B", 0, 0, 0x1A89},
+    {18, &sec_ending_kira, "run_kira_ending", "GICO_ENDING_KIRA02",
+     "ENDING_KIRA1_A", "ENDING_KIRA1_B", "ENDING_KIRA2_A", "ENDING_KIRA2_B",
+     0, 0, 0x1A8A},
+    {20, &sec_ending_kobra, "run_kobra_ending", "GICO_ENDING_KOBRA_02",
+     "ENDING_KOBRA1_A", "ENDING_KOBRA1_B", "ENDING_KOBRA2_A",
+     "ENDING_KOBRA2_B", 0, 0, 0x1A8B},
+    {9, &sec_ending_limei, "run_limei_ending", "GICO_ENDING_LIMEI_02",
+     "ENDING_LIMEI1_A", "ENDING_LIMEI1_B", "ENDING_LIMEI2_A",
+     "ENDING_LIMEI2_B", 0, 0, 0x1A8C},
+    {16, &sec_ending_liukang, "run_liukang_ending", "GICO_ENDING_LIUKANG_02",
+     "ENDING_LIUKANG1_A", "ENDING_LIUKANG1_B", "ENDING_LIUKANG2_A",
+     "ENDING_LIUKANG2_B", 0, 0, 0x1A8D},
+    {4, &sec_ending_mileena, "run_mileena_ending", "GICO_ENDING_MILEENA02",
+     "ENDING_MILEENA1_A", "ENDING_MILEENA1_B", "ENDING_MILEENA2_A",
+     "ENDING_MILEENA2_B", 0, 0, 0x1A8E},
+    {5, &sec_ending_nightwolf, "run_nightwolf_ending",
+     "GICO_ENDING_NIGHTWOLF02", "ENDING_NIGHTWOLF1_A", "ENDING_NIGHTWOLF1_B",
+     "ENDING_NIGHTWOLF2_A", "ENDING_NIGHTWOLF2_B", 0, 0, 0x1A8F},
+    {27, &sec_ending_noob, "run_noob_ending", "GICO_ENDING_NOOB01",
+     "ENDING_NOOB1_A", "ENDING_NOOB1_B", "ENDING_NOOB2_A", "ENDING_NOOB2_B",
+     0, 0, 0x1A90},
+    {23, &sec_ending_raiden, "run_raiden_ending", "GICO_ENDING_RAIDEN02",
+     "ENDING_RAIDEN1_A", "ENDING_RAIDEN1_B", "ENDING_RAIDEN2_A",
+     "ENDING_RAIDEN2_B", 0, 0, 0x1A91},
+    {0, &sec_ending_scorpion, "run_scorpion_ending",
+     "GICO_ENDING_SCORPION01", "ENDING_SCORPION1_A", "ENDING_SCORPION1_B",
+     "ENDING_SCORPION2_A", "ENDING_SCORPION2_B", 0, 0, 0x1A92},
+    {25, &sec_ending_shujinko, "run_shujinko_ending",
+     "GICO_ENDING_SHUJINKO02", "ENDING_SHUJINKO1_A", "ENDING_SHUJINKO1_B",
+     "ENDING_SHUJINKO2_A", "ENDING_SHUJINKO2_B", 0, 0, 0x1A93},
+    {8, &sec_ending_sindel, "run_sindel_ending", "GICO_ENDING_SINDEL02",
+     "ENDING_SINDEL1_A", "ENDING_SINDEL1_B", "ENDING_SINDEL2_A",
+     "ENDING_SINDEL2_B", "ENDING_SINDEL3_A", "ENDING_SINDEL3_B", 0x1A94},
+    {3, &sec_ending_subzero, "run_subzero_ending", "GICO_ENDING_SUBZERO02",
+     "ENDING_SUBZERO1_A", "ENDING_SUBZERO1_B", "ENDING_SUBZERO2_A",
+     "ENDING_SUBZERO2_B", 0, 0, 0x1A96},
+    {15, &sec_ending_tanya, "run_tanya_ending", "GICO_ENDING_TANYA_02",
+     "ENDING_TANYA1_A", "ENDING_TANYA1_B", "ENDING_TANYA2_A",
+     "ENDING_TANYA2_B", 0, 0, 0x1A97},
+    {30, &sec_ending_goro, "run_goro_ending", "GICO_ENDING_GORO01",
+     "ENDING_GORO1_A", "ENDING_GORO1_B", "ENDING_GORO2_A", "ENDING_GORO2_B",
+     0, 0, 0x1A99},
+    {31, &sec_ending_shaokahn, "run_shaokahn_ending",
+     "GICO_ENDING_SHAOKAHN02", "ENDING_SHAOKAHN1_A", "ENDING_SHAOKAHN1_B",
+     "ENDING_SHAOKAHN2_A", "ENDING_SHAOKAHN2_B", 0, 0, 0x1A9A},
+};
 
 static int scrolling_text_string_count;
 
@@ -140,7 +220,14 @@ static float p_early_out_monitor(void);
 static void count_scrolling_text_strings(MkHdr* object);
 static float p_scrolling_text(void);
 
-/* TODO: [breakthrough] 73.30%; typed 0x560-byte text-window pdata complete; allocation/FP shape differs. */
+static inline int count_credits_text(void) {
+    scrolling_text_string_count = 0;
+    apply_to_mklist(count_scrolling_text_strings, &screen_obj_list);
+    return scrolling_text_string_count;
+}
+
+
+/* TODO: [breakthrough] 73.31%; typed 0x560-byte text-window pdata complete; allocation/FP shape differs. */
 void ending_show_text(int string_id, int duration) {
     union EndingTextWindowPdataOut pdata;
     const char* text;
@@ -175,11 +262,9 @@ void ending_show_text(int string_id, int duration) {
     }
 }
 
-/* TODO: [breakthrough] 79.94%; credits lifecycle recovered; repeated state stores and process-pdata allocation shape differ. */
 float p_credits_screen(void) {
     struct EndingScrollPdata* scroll_pdata;
     ScriptSlot* credits_script;
-    MkHdr* pdata_hdr;
 
     push_game_state(0xC);
     set_process_as_scriptable(aproc);
@@ -213,14 +298,12 @@ float p_credits_screen(void) {
     load_screen(
         "common/credits/kontent_credits", 0x140064, 0, 1);
 
-    pdata_hdr = 0;
     _create_mkproc_generic_nostack(
         0x209E,
         0x1F,
         p_scrolling_text,
         sizeof(struct EndingScrollPdata),
-        &pdata_hdr);
-    scroll_pdata = (struct EndingScrollPdata*)pdata_hdr;
+        (MkHdr**)&scroll_pdata);
     scroll_pdata->accumulator = 0.0f;
     scroll_pdata->step = 0.5f * game_speed;
     _create_mkproc_generic_tinystack(
@@ -232,15 +315,10 @@ float p_credits_screen(void) {
     cmdscript_setup_execution(credits_script, 1);
     cmdscript_execute(credits_script);
 
-    do {
-        scrolling_text_string_count = 0;
-        apply_to_mklist(
-            count_scrolling_text_strings, &screen_obj_list);
-        if (scrolling_text_string_count != 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-    } while (scrolling_text_string_count != 0);
+    while (count_credits_text() != 0) {
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
 
     fade_to_black(8, 1);
     _mkproc_sleep_ticks = 60.0f;
@@ -358,8 +436,7 @@ static inline int ending_skip_pressed(int port) {
     return check_switch_edge(port, 6) != 0;
 }
 
-/* TODO: [near miss] 91.68%; retail's @stringBase0 has ~0xb0a bytes of TU strings before
- * "bio_strings_eng.mko"; ours starts there, so the pool base is CSE'd into r31 (TU data layout). */
+/* TODO: [near miss] 98.77%; pooled strings agree; image pointer homes and skip Boolean lowering remain. */
 float p_champion_screen(void) {
     const char* image_a;
     const char* image_b;
@@ -467,22 +544,23 @@ void ending_show_image(int image) {
     fade_to_black(8, 1);
 }
 
-/* TODO: [near miss] 96.71%; lookups, flags and loop counter match; image param takes r31 (retail r23) and shifts the image/step nonvolatiles. */
+/* TODO: [near miss] 99.28612%; countdown and byte-alpha operations agree; register homes remain. */
 static void fade_ending_screen_images(int image, int ticks) {
-    int remaining;
+    unsigned char current_final;
     unsigned char current_alpha;
+    ScreenObj* image_3b;
     ScreenObj* image_1a;
     ScreenObj* image_1b;
     ScreenObj* image_2a;
     ScreenObj* image_2b;
     ScreenObj* image_3a;
-    ScreenObj* image_3b;
     unsigned char current_step;
     unsigned char next_step;
-    unsigned char current_final;
+    int remaining;
     unsigned char next_alpha;
     unsigned char next_final;
 
+    remaining = ticks;
     image_1a = MK_LIVE(ending_image_1a_item.object, ending_image_1a_item.instance);
     image_1b = MK_LIVE(ending_image_1b_item.object, ending_image_1b_item.instance);
     image_2a = MK_LIVE(ending_image_2a_item.object, ending_image_2a_item.instance);
@@ -492,36 +570,42 @@ static void fade_ending_screen_images(int image, int ticks) {
 
     if (image == 1) {
         image_1a->flag_bits.hidden = 0;
+
+        next_alpha = 0;
+        current_step = 0xFF / (ticks + 1);
         image_1b->flag_bits.hidden = 0;
         current_alpha = 0;
-        current_step = 0xFF / (ticks + 1);
-        next_alpha = 0;
-        next_step = 0;
+
         current_final = 0xFF;
         next_final = 0;
+        next_step = 0;
     } else if (image == 2) {
+        current_alpha = 0xFF;
+        current_step = -(unsigned char)(0xFF / (ticks + 1));
         image_2a->flag_bits.hidden = 0;
         image_2b->flag_bits.hidden = 0;
-        current_alpha = 0xFF;
-        current_step = -(unsigned char)(0xFF / (ticks + 1));
-        next_alpha = 0;
+
         next_step = -current_step;
         current_final = 0;
+        next_alpha = 0;
+
         next_final = 0xFF;
     } else {
-        image_3a->flag_bits.hidden = 0;
-        image_3b->flag_bits.hidden = 0;
         current_alpha = 0xFF;
         current_step = -(unsigned char)(0xFF / (ticks + 1));
-        next_alpha = 0;
+        image_3a->flag_bits.hidden = 0;
+        image_3b->flag_bits.hidden = 0;
+
         next_step = -current_step;
         current_final = 0;
+        next_alpha = 0;
+
         next_final = 0xFF;
     }
 
-    for (remaining = ticks; remaining != 0; remaining--) {
-        current_alpha += current_step;
-        next_alpha += next_step;
+    for (; remaining != 0; remaining--) {
+        current_alpha = current_alpha + current_step;
+        next_alpha = next_alpha + next_step;
 
         if (image == 3) {
             if (image_2a != 0) {
@@ -620,7 +704,6 @@ static inline int find_ending_index(int fighter) {
     return -1;
 }
 
-/* TODO: [near miss] 99.39%; retail pools ending_data_table's initializer strings at the head of @stringBase0; ours keeps them out (TU data layout). */
 void run_ending(int fighter) {
     ScreenObj* image;
     ScriptSlot* script;
@@ -777,84 +860,3 @@ const char* get_ending_thumbnail_name(int fighter) {
     }
     return ending_data_table[index].thumbnail;
 }
-
-struct EndingDataEntry ending_data_table[26] = {
-    {7, &sec_ending_ashrah, "run_ashrah_ending", "GICO_ENDING_ASHRAH02",
-     "ENDING_ASHRAH1_A", "ENDING_ASHRAH1_B", "ENDING_ASHRAH2_A",
-     "ENDING_ASHRAH2_B", 0, 0, 0x1A7F},
-    {1, &sec_ending_baraka, "run_baraka_ending", "GICO_ENDING_BARAKA01",
-     "ENDING_BARAKA1_A", "ENDING_BARAKA1_B", "ENDING_BARAKA2_A",
-     "ENDING_BARAKA2_B", 0, 0, 0x1A80},
-    {10, &sec_ending_boraicho, "run_boraicho_ending",
-     "GICO_ENDING_BORAICHO02", "ENDING_BORAICHO1_A", "ENDING_BORAICHO1_B",
-     "ENDING_BORAICHO2_A", "ENDING_BORAICHO2_B", 0, 0, 0x1A81},
-    {22, &sec_ending_dairou, "run_dairou_ending", "GICO_ENDING_DAIROU02",
-     "ENDING_DAIROU1_A", "ENDING_DAIROU1_B", "ENDING_DAIROU2_A",
-     "ENDING_DAIROU2_B", 0, 0, 0x1A82},
-    {24, &sec_ending_darrius, "run_cassius_ending", "GICO_ENDING_DARRIUS02",
-     "ENDING_DARRIUS1_A", "ENDING_DARRIUS1_B", "ENDING_DARRIUS2_A",
-     "ENDING_DARRIUS2_B", 0, 0, 0x1A83},
-    {6, &sec_ending_ermac, "run_ermac_ending", "GICO_ENDING_ERMAC_01",
-     "ENDING_ERMAC1_A", "ENDING_ERMAC1_B", "ENDING_ERMAC2_A",
-     "ENDING_ERMAC2_B", 0, 0, 0x1A84},
-    {14, &sec_ending_havik, "run_skab_ending", "GICO_ENDING_HAVIK02",
-     "ENDING_HAVIK1_A", "ENDING_HAVIK1_B", "ENDING_HAVIK2_A",
-     "ENDING_HAVIK2_B", 0, 0, 0x1A85},
-    {11, &sec_ending_hotaru, "run_hotaru_ending", "GICO_ENDING_HOTARU02",
-     "ENDING_HOTARU1_A", "ENDING_HOTARU1_B", "ENDING_HOTARU2_A",
-     "ENDING_HOTARU2_B", 0, 0, 0x1A86},
-    {21, &sec_ending_jade, "run_jade_ending", "GICO_ENDING_JADE02",
-     "ENDING_JADE1_A", "ENDING_JADE1_B", "ENDING_JADE2_A", "ENDING_JADE2_B",
-     0, 0, 0x1A87},
-    {19, &sec_ending_kabal, "run_kabal_ending", "GICO_ENDING_KABAL02",
-     "ENDING_KABAL1_A", "ENDING_KABAL1_B", "ENDING_KABAL2_A",
-     "ENDING_KABAL2_B", 0, 0, 0x1A88},
-    {12, &sec_ending_kenshi, "run_kenshi_ending", "GICO_ENDING_KENSHI02",
-     "ENDING_KENSHI1_A", "ENDING_KENSHI1_B", "ENDING_KENSHI2_A",
-     "ENDING_KENSHI2_B", 0, 0, 0x1A89},
-    {18, &sec_ending_kira, "run_kira_ending", "GICO_ENDING_KIRA02",
-     "ENDING_KIRA1_A", "ENDING_KIRA1_B", "ENDING_KIRA2_A", "ENDING_KIRA2_B",
-     0, 0, 0x1A8A},
-    {20, &sec_ending_kobra, "run_kobra_ending", "GICO_ENDING_KOBRA_02",
-     "ENDING_KOBRA1_A", "ENDING_KOBRA1_B", "ENDING_KOBRA2_A",
-     "ENDING_KOBRA2_B", 0, 0, 0x1A8B},
-    {9, &sec_ending_limei, "run_limei_ending", "GICO_ENDING_LIMEI_02",
-     "ENDING_LIMEI1_A", "ENDING_LIMEI1_B", "ENDING_LIMEI2_A",
-     "ENDING_LIMEI2_B", 0, 0, 0x1A8C},
-    {16, &sec_ending_liukang, "run_liukang_ending", "GICO_ENDING_LIUKANG_02",
-     "ENDING_LIUKANG1_A", "ENDING_LIUKANG1_B", "ENDING_LIUKANG2_A",
-     "ENDING_LIUKANG2_B", 0, 0, 0x1A8D},
-    {4, &sec_ending_mileena, "run_mileena_ending", "GICO_ENDING_MILEENA02",
-     "ENDING_MILEENA1_A", "ENDING_MILEENA1_B", "ENDING_MILEENA2_A",
-     "ENDING_MILEENA2_B", 0, 0, 0x1A8E},
-    {5, &sec_ending_nightwolf, "run_nightwolf_ending",
-     "GICO_ENDING_NIGHTWOLF02", "ENDING_NIGHTWOLF1_A", "ENDING_NIGHTWOLF1_B",
-     "ENDING_NIGHTWOLF2_A", "ENDING_NIGHTWOLF2_B", 0, 0, 0x1A8F},
-    {27, &sec_ending_noob, "run_noob_ending", "GICO_ENDING_NOOB01",
-     "ENDING_NOOB1_A", "ENDING_NOOB1_B", "ENDING_NOOB2_A", "ENDING_NOOB2_B",
-     0, 0, 0x1A90},
-    {23, &sec_ending_raiden, "run_raiden_ending", "GICO_ENDING_RAIDEN02",
-     "ENDING_RAIDEN1_A", "ENDING_RAIDEN1_B", "ENDING_RAIDEN2_A",
-     "ENDING_RAIDEN2_B", 0, 0, 0x1A91},
-    {0, &sec_ending_scorpion, "run_scorpion_ending",
-     "GICO_ENDING_SCORPION01", "ENDING_SCORPION1_A", "ENDING_SCORPION1_B",
-     "ENDING_SCORPION2_A", "ENDING_SCORPION2_B", 0, 0, 0x1A92},
-    {25, &sec_ending_shujinko, "run_shujinko_ending",
-     "GICO_ENDING_SHUJINKO02", "ENDING_SHUJINKO1_A", "ENDING_SHUJINKO1_B",
-     "ENDING_SHUJINKO2_A", "ENDING_SHUJINKO2_B", 0, 0, 0x1A93},
-    {8, &sec_ending_sindel, "run_sindel_ending", "GICO_ENDING_SINDEL02",
-     "ENDING_SINDEL1_A", "ENDING_SINDEL1_B", "ENDING_SINDEL2_A",
-     "ENDING_SINDEL2_B", "ENDING_SINDEL3_A", "ENDING_SINDEL3_B", 0x1A94},
-    {3, &sec_ending_subzero, "run_subzero_ending", "GICO_ENDING_SUBZERO02",
-     "ENDING_SUBZERO1_A", "ENDING_SUBZERO1_B", "ENDING_SUBZERO2_A",
-     "ENDING_SUBZERO2_B", 0, 0, 0x1A96},
-    {15, &sec_ending_tanya, "run_tanya_ending", "GICO_ENDING_TANYA_02",
-     "ENDING_TANYA1_A", "ENDING_TANYA1_B", "ENDING_TANYA2_A",
-     "ENDING_TANYA2_B", 0, 0, 0x1A97},
-    {30, &sec_ending_goro, "run_goro_ending", "GICO_ENDING_GORO01",
-     "ENDING_GORO1_A", "ENDING_GORO1_B", "ENDING_GORO2_A", "ENDING_GORO2_B",
-     0, 0, 0x1A99},
-    {31, &sec_ending_shaokahn, "run_shaokahn_ending",
-     "GICO_ENDING_SHAOKAHN02", "ENDING_SHAOKAHN1_A", "ENDING_SHAOKAHN1_B",
-     "ENDING_SHAOKAHN2_A", "ENDING_SHAOKAHN2_B", 0, 0, 0x1A9A},
-};

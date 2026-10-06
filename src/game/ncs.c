@@ -81,23 +81,23 @@ struct NcsLimbUpdatePdata {
     PlyrInfo* player;
     FighterMirror* fighter;
     struct NcsLimbSet* limbset;
-    unsigned int severed_mask;
+    int severed_mask;
     int field_18;
     int expire_tick;
-    unsigned int x_collision_mask;
-    unsigned int z_collision_mask;
+    int x_collision_mask;
+    int z_collision_mask;
     float x_collision_limit[15];
     float z_collision_limit[15];
-    unsigned int ground_mask;
+    int ground_mask;
     float ground_height[15];
     int ground_value[15];
     float vertical_bounce_scale;
     float horizontal_bounce_scale;
     float bounce_gravity;
-    unsigned int gravity_trigger_mask;
-    unsigned int first_bounce_mask;
-    unsigned int damp_bounce_mask;
-    unsigned int slide_mask;
+    int gravity_trigger_mask;
+    int first_bounce_mask;
+    int damp_bounce_mask;
+    int slide_mask;
     float slide_end_coefficient;
     float slide_deceleration;
 };
@@ -1044,7 +1044,7 @@ float p_sc_spear_retract_victory(void) {
 static float p_sc_spear3_pre(void) {
     Vec angle;
 
-    v3_to_xy_ang(&angle, (const Vec*)&sc_spear_obj->field_24->at);
+    v3_to_xy_ang(&angle, (Vec*)&sc_spear_obj->field_24->at);
     (aproc->vtbl)->jump_sleep(p_sc_spear3, 50.0f);
     return 50.0f;
 }
@@ -1273,15 +1273,13 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 79.52%; count-first unordered-safe loop guard restored;
- * spear FP lifetimes and shared pi pool placement remain. */
+/* TODO: [near miss] 98.37%; CFG/VM/reloads agree; stop at owner/FP coloring and scheduling. */
 static float p_pfx_sc_spear(void) {
-    struct NcsSpearEffect* effect;
+    MkObj* emitter_object;
     struct SpearProcPdata* spear_pdata;
     PlyrPdata* owner;
     MkObj* target;
-    MkObj* emitter_object;
-    MkPfx* pfx;
+    PfxVm* vm;
     Vec target_position;
     Vec direction;
     Vec* particle_position;
@@ -1296,49 +1294,43 @@ static float p_pfx_sc_spear(void) {
     if (apfx_emitter_obj == 0) {
         mkproc_die();
     }
-    effect = (struct NcsSpearEffect*)apfx;
-    spear_pdata = effect->spear_pdata;
-    if (spear_pdata != 0 &&
-        spear_pdata->hdr.instance != effect->spear_pdata_instance) {
-        spear_pdata = 0;
-    }
+    spear_pdata = MK_HDR_LIVE(
+        ((struct NcsSpearEffect*)apfx)->spear_pdata,
+        ((struct NcsSpearEffect*)apfx)->spear_pdata_instance);
     if (spear_pdata == 0) {
         return -1.0f;
     }
     owner = spear_pdata->owner;
-    target = owner->tracked_obj;
-    if (target != 0 && target->hdr.instance != owner->tracked_obj_instance) {
-        target = 0;
-    }
+    target = MK_HDR_LIVE(owner->tracked_obj, owner->tracked_obj_instance);
     if (target == 0) {
         return -1.0f;
     }
 
-    pfx = (MkPfx*)effect;
-    stride = pfx->transforms[0].particle_field_stride;
-    particle_position = pfx_get_field(&effect->vm, -2, 0x100);
+    vm = &((struct NcsSpearEffect*)apfx)->vm;
+    stride = apfx->transforms[0].particle_field_stride;
+    particle_position = pfx_get_field(vm, -2, 0x100);
     emitter_object = apfx_emitter_obj;
-    get_bone_world_pos(target, effect->bone, &target_position);
-    v3_sub_v3(&direction, &emitter_object->pos.value, &target_position);
+    get_bone_world_pos(target, apfx->field_28C, &target_position);
+    v3_sub_v3(&direction, &apfx_emitter_obj->pos.value, &target_position);
     length = normalize_v3_length(&direction);
 
-    if (effect->field_298 > 0.0f) {
-        if (pfx->accum_38 > (float)effect->field_290) {
-            effect->field_290 += (int)game_speed + 1;
-            effect->field_298 *= effect->field_2A0;
-            effect->field_2A4 += effect->field_2A8;
-            if (effect->field_2A4 > 1.02f) {
-                effect->field_2A4 = 1.02f;
+    if (apfx->field_298 > 0.0f) {
+        if (apfx->accum_38 > (float)apfx->field_290) {
+            apfx->field_290 += (int)game_speed + 1;
+            apfx->field_298 *= apfx->field_2A0;
+            apfx->field_2A4 += apfx->field_2A8;
+            if (apfx->field_2A4 > 1.02f) {
+                apfx->field_2A4 = 1.02f;
             }
-            effect->field_29C +=
-                6.2831855f / (5.5f + (float)effect->active);
-            if (effect->field_29C >= 6.2831855f) {
-                effect->field_29C -= 6.2831855f;
-                effect->active++;
+            apfx->field_29C +=
+                6.2831855f / (5.5f + (float)apfx->effect_state);
+            if (apfx->field_29C >= 6.2831855f) {
+                apfx->field_29C -= 6.2831855f;
+                apfx->effect_state++;
             }
         }
-        amplitude = effect->field_298 * gxMathSin(effect->field_29C);
-        base_spacing = length / (float)effect->active;
+        amplitude = apfx->field_298 * gxMathSin(apfx->field_29C);
+        base_spacing = length / (float)apfx->effect_state;
     } else {
         amplitude = 0.0f;
         base_spacing = length;
@@ -1347,26 +1339,31 @@ static float p_pfx_sc_spear(void) {
     phase = 0.0f;
     distance = 0.0f;
     particle_count = 0;
-    while (particle_count < pfx->field_90 &&
-           !(distance > length - 0.05f)) {
+    while (particle_count < vm->particle_capacity) {
         float step;
 
-        if (effect->field_298 > 0.0f) {
-            float absolute_amplitude = amplitude < 0.0f
-                                           ? -amplitude : amplitude;
+        if (distance > length - 0.05f) {
+            break;
+        }
+
+        if (apfx->field_298 > 0.0f) {
+            float absolute_amplitude = amplitude;
             float sine;
 
+            if (amplitude < 0.0f) {
+                absolute_amplitude = -amplitude;
+            }
             phase += 0.31415927f /
                 (3.1415927f * absolute_amplitude + base_spacing);
             sine = gxMathSin(phase);
             if (sine < 0.0f) {
                 sine = -sine;
             }
-            amplitude *= effect->field_2A4;
             step =
                 (0.05f * (1.0f - absolute_amplitude) +
                  absolute_amplitude * (2.0f * sine * 0.05f)) /
                 (1.0f + absolute_amplitude);
+            amplitude *= apfx->field_2A4;
         } else {
             step = 0.05f;
         }
@@ -1376,7 +1373,7 @@ static float p_pfx_sc_spear(void) {
         particle_position->z =
             emitter_object->pos.value.z - direction.z * distance;
         if (!spear_pdata->flag_bits.bit7) {
-            if (effect->field_298 > 0.01f) {
+            if (apfx->field_298 > 0.01f) {
                 particle_position->y =
                     emitter_object->pos.value.y + amplitude * gxMathSin(phase);
             } else {
@@ -1391,7 +1388,7 @@ static float p_pfx_sc_spear(void) {
         particle_position = PFX_FIELD_AT(particle_position, stride);
         particle_count++;
     }
-    pfx->field_94 = particle_count;
+    vm->particle_cursor = particle_count;
     return 1.0f;
 }
 
@@ -1498,54 +1495,47 @@ void stop_prison_grab_proc(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 79.43%; verify process allocation and owner/latch publication. */
 struct PrisonGrabPdata* start_prison_grab_proc(
-    MkObj* object, const Vec* direction, float angle, float strength) {
+    MkObj* object, Vec* direction, float angle, float strength) {
     struct PrisonGrabPdata* pdata;
-    union NcsFloatBits bits;
     float squared;
-    float estimate;
-    float product;
-    float correction;
     float inverse_length;
+    float z;
+    float x;
+    float x_squared;
+    float z_squared;
+    float normalized_x;
+    float normalized_z;
 
     pdata = 0;
     if (_create_mkproc_generic_nostack(
             0x603D, 0x1F, p_prison_grab, sizeof(struct PrisonGrabPdata),
-            (MkHdr**)&pdata) == 0) {
-        return 0;
+            (MkHdr**)&pdata) != 0) {
+        zero_pdata_payload(sizeof(struct PrisonGrabPdata), &pdata->hdr);
+        pdata->object = object;
+        pdata->object_instance = object->hdr.instance;
+        x = direction->x;
+        z = direction->z;
+        x_squared = x * x;
+        z_squared = z * z;
+        squared = x_squared + z_squared;
+        inverse_length = ncs_inverse_sqrt(squared);
+        normalized_x = x * inverse_length;
+        normalized_z = z * inverse_length;
+        pdata->target_x = x - normalized_x * strength;
+        pdata->target_z = direction->z - normalized_z * strength;
+        if (angle < 0.0f) {
+            pdata->target_angle = 6.2831855f + angle;
+        } else {
+            pdata->target_angle = angle;
+        }
+        pdata->current_x = object->pos.value.x;
+        pdata->current_y = object->pos.value.y;
+        pdata->current_z = object->pos.value.z;
+        plyr_pdata->blocking_disabled_2 = 1;
+        plyr_pdata->blocking_disabled = 0;
+        set_my_state(0x600);
     }
-
-    zero_pdata_payload(sizeof(struct PrisonGrabPdata), &pdata->hdr);
-    pdata->object = object;
-    pdata->object_instance = object->hdr.instance;
-    squared = direction->x * direction->x + direction->z * direction->z;
-    inverse_length = 0.0f;
-    if (squared > 0.0f) {
-        bits.f = squared;
-        bits.u = 0x5F375A00 - (bits.u >> 1);
-        estimate = bits.f;
-        product = estimate * (squared * estimate);
-        correction = 3.0f - product;
-        inverse_length =
-            0.0625f * estimate * correction *
-            -(correction * (product * correction) - 12.0f);
-    }
-    pdata->target_x =
-        direction->x - direction->x * inverse_length * strength;
-    pdata->target_z =
-        direction->z - direction->z * inverse_length * strength;
-    if (angle < 0.0f) {
-        pdata->target_angle = 6.2831855f + angle;
-    } else {
-        pdata->target_angle = angle;
-    }
-    pdata->current_x = object->pos.value.x;
-    pdata->current_y = object->pos.value.y;
-    pdata->current_z = object->pos.value.z;
-    plyr_pdata->blocking_disabled_2 = 1;
-    plyr_pdata->blocking_disabled = 0;
-    set_my_state(0x600);
     return pdata;
 }
 
@@ -1734,11 +1724,12 @@ void ncs_camera_wall_show_hide_alpha(
     ((struct NcsCameraWallPdata*)pdata)->special_alpha_initialized = 0;
 }
 
-/* TODO: [breakthrough] 79.29%; white is the actual RwRGBA;
- * remaining region indexing, latch CFG and register ownership need audit. */
+/* TODO: [breakthrough] 95.10%; indexed callbacks and rounded containment fixed;
+ * retain defined initial alpha; retail alpha initialization path and codegen remain. */
 static float p_camera_wall_show_hide_alpha(void) {
     struct NcsCameraWallPdata* pdata;
     NcsCameraWallRegion* region;
+    NcsCameraWallRegion* regions;
     CamVec3 camera_position;
     RwRGBA white;
     int region_index;
@@ -1756,55 +1747,53 @@ static float p_camera_wall_show_hide_alpha(void) {
     white.green = 0xFF;
     white.blue = 0xFF;
     white.alpha = 0xFF;
-    region = pdata->regions;
-    region_index = 0;
-    while (region->type < 3) {
-        int inside;
-
+    regions = pdata->regions;
+    for (region_index = 0; regions[region_index].type < 3; region_index++) {
+        region = &regions[region_index];
         if (region->type == 0) {
             float dx = camera_position.x - region->min_x;
             float dz = camera_position.z - region->max_x;
+            float dx_squared = dx * dx;
+            float dz_squared = dz * dz;
 
-            inside = dx * dx + dz * dz <= region->max_z;
+            if (dx_squared + dz_squared <= region->max_z) {
+                break;
+            }
         } else if (region->type == 1) {
-            inside = camera_position.x > region->min_x &&
-                     camera_position.x < region->max_x &&
-                     camera_position.z > region->min_z &&
-                     camera_position.z < region->max_z;
-        } else {
-            inside = 0;
+            if (camera_position.x > region->min_x &&
+                camera_position.x < region->max_x &&
+                camera_position.z > region->min_z &&
+                camera_position.z < region->max_z) {
+                break;
+            }
         }
-        if (inside != 0) {
-            break;
-        }
-        region++;
-        region_index++;
     }
 
     if (region_index != pdata->active_region) {
         if (pdata->active_region >= 0) {
             NcsCameraWallRegion* previous =
                 &pdata->regions[pdata->active_region];
-            const int* ids;
+            int object_index;
 
-            for (ids = previous->hide_ids; *ids >= 0; ids++) {
+            for (object_index = 0; previous->hide_ids[object_index] >= 0; object_index++) {
                 MkSobj* sobj = obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, *ids);
+                    g_game_info.bgnd_obj, previous->hide_ids[object_index]);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     unhide_atomic(sobj->atomic);
                 }
             }
-            for (ids = previous->show_ids; *ids >= 0; ids++) {
+            for (object_index = 0; previous->show_ids[object_index] >= 0; object_index++) {
                 MkSobj* sobj = obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, *ids);
+                    g_game_info.bgnd_obj, previous->show_ids[object_index]);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     hide_atomic(sobj->atomic);
                 }
             }
-            for (ids = previous->alpha_ids; *ids >= 0; ids++) {
-                int id = *ids;
+            white.alpha = 0xFF;
+            for (object_index = 0; previous->alpha_ids[object_index] >= 0; object_index++) {
+                int id = previous->alpha_ids[object_index];
                 MkSobj* sobj = obj_find_sobj_by_id(
                     g_game_info.bgnd_obj, id);
 
@@ -1815,35 +1804,36 @@ static float p_camera_wall_show_hide_alpha(void) {
                 if (id >= 0x0B && id <= 0x12 &&
                     pdata->characters[id - 0x0B] != 0) {
                     obj_for_all_atomics_set_material_alpha(
-                        pdata->characters[id - 0x0B], 0xFF);
+                        pdata->characters[id - 0x0B], white.alpha);
                 }
             }
         }
 
+        region = &pdata->regions[region_index];
         if (region->type >= 3) {
             pdata->active_region = -1;
         } else {
-            const int* ids;
+            int object_index;
 
             pdata->active_region = region_index;
-            for (ids = region->hide_ids; *ids >= 0; ids++) {
+            for (object_index = 0; region->hide_ids[object_index] >= 0; object_index++) {
                 MkSobj* sobj = obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, *ids);
+                    g_game_info.bgnd_obj, region->hide_ids[object_index]);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     hide_atomic(sobj->atomic);
                 }
             }
-            for (ids = region->show_ids; *ids >= 0; ids++) {
+            for (object_index = 0; region->show_ids[object_index] >= 0; object_index++) {
                 MkSobj* sobj = obj_find_sobj_by_id(
-                    g_game_info.bgnd_obj, *ids);
+                    g_game_info.bgnd_obj, region->show_ids[object_index]);
 
                 if (sobj != 0 && sobj->atomic != 0) {
                     unhide_atomic(sobj->atomic);
                 }
             }
-            for (ids = region->alpha_ids; *ids >= 0; ids++) {
-                int id = *ids;
+            for (object_index = 0; region->alpha_ids[object_index] >= 0; object_index++) {
+                int id = region->alpha_ids[object_index];
                 MkSobj* sobj = obj_find_sobj_by_id(
                     g_game_info.bgnd_obj, id);
 
@@ -1854,12 +1844,13 @@ static float p_camera_wall_show_hide_alpha(void) {
                 if (id >= 0x0B && id <= 0x12 &&
                     pdata->characters[id - 0x0B] != 0) {
                     obj_for_all_atomics_set_material_alpha(
-                        pdata->characters[id - 0x0B], 0xFF);
+                        pdata->characters[id - 0x0B], white.alpha);
                 }
             }
         }
     }
 
+    white.alpha = 0xFF;
     if (g_game_info.flag_bits.level_transition_active &&
         pdata->special_alpha_initialized == 0) {
         int id;
@@ -1963,7 +1954,7 @@ int attach_gore2_obj(
     return result;
 }
 
-/* TODO: [breakthrough needed] 75.80%; verify pebble allocation parameters and particle layout. */
+/* TODO: [near miss] 98.67%; direct output, flags and matrix reloads agree; retained-owner coloring remains. */
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, const Vec* velocity,
@@ -1972,29 +1963,23 @@ void start_gore2_pebbles(
     float bounce_scale, int bounce_count) {
     int type;
 
-    type = 0;
-    while (type < 10 &&
-           pbl_gore2_obj_list[type].object_id != object_id) {
-        type++;
+    for (type = 0; type < 10; type++) {
+        if (pbl_gore2_obj_list[type].object_id == object_id) {
+            break;
+        }
     }
     if (type < 10) {
         MkBone* source_bone = source->bones[bone];
 
         if (source_bone != 0) {
-            PebbleData* pool = mkpdata_pbl_gore2_update->pools[type];
             int particle_index =
                 mkpdata_pbl_gore2_update->next_particle[type];
+            PebbleData* pool = mkpdata_pbl_gore2_update->pools[type];
             struct Gore2Particle* particle =
                 &((struct Gore2Particle*)pool->user_data)[particle_index];
-            MKMATRIX* matrix =
-                &pool->pebbles[particle_index].matrix;
-            Vec bone_position;
 
             particle->flags.word = 0;
-            get_bone_world_pos(source, bone, &bone_position);
-            matrix->pos.x = bone_position.x;
-            matrix->pos.y = bone_position.y;
-            matrix->pos.z = bone_position.z;
+            get_bone_world_pos(source, bone, &pool->pebbles[particle_index].matrix.pos_row.value);
             calc_bone_world_mat(source, bone);
             if (rotation != 0) {
                 particle->flags.bits.has_rotation = 1;
@@ -2002,9 +1987,10 @@ void start_gore2_pebbles(
                 particle->rotation.y = rotation->y;
                 particle->rotation.z = rotation->z;
             } else {
-                particle->rotation.x = 0.0f;
-                particle->rotation.y = 0.0f;
+                particle->flags.bits.has_rotation = 0;
                 particle->rotation.z = 0.0f;
+                particle->rotation.y = 0.0f;
+                particle->rotation.x = 0.0f;
             }
             if (scale != 0) {
                 particle->flags.bits.has_scale = 1;
@@ -2012,9 +1998,10 @@ void start_gore2_pebbles(
                 particle->scale.y = scale->y;
                 particle->scale.z = scale->z;
             } else {
-                particle->scale.x = 0.0f;
-                particle->scale.y = 0.0f;
+                particle->flags.bits.has_scale = 0;
                 particle->scale.z = 0.0f;
+                particle->scale.y = 0.0f;
+                particle->scale.x = 0.0f;
             }
             if (velocity != 0) {
                 particle->flags.bits.has_translation = 1;
@@ -2022,25 +2009,28 @@ void start_gore2_pebbles(
                     &particle->translation, velocity,
                     &source_bone->matrix);
             } else {
-                particle->translation.x = 0.0f;
-                particle->translation.y = 0.0f;
+                particle->flags.bits.has_translation = 0;
                 particle->translation.z = 0.0f;
+                particle->translation.y = 0.0f;
+                particle->translation.x = 0.0f;
             }
             if (position_offset != 0) {
                 Vec transformed_offset;
 
                 if (particle->flags.bits.has_rotation) {
-                    YXZ_angles_to_MKMATRIX(rotation, matrix);
+                    YXZ_angles_to_MKMATRIX(rotation, &pool->pebbles[particle_index].matrix);
                 }
                 if (particle->flags.bits.has_scale) {
-                    mat_scaled_by_v3(matrix, matrix, scale);
+                    mat_scaled_by_v3(
+                        &pool->pebbles[particle_index].matrix,
+                        &pool->pebbles[particle_index].matrix, scale);
                 }
                 v3_x_mat(
                     &transformed_offset, position_offset,
                     &source_bone->matrix);
-                matrix->pos.x += transformed_offset.x;
-                matrix->pos.y += transformed_offset.y;
-                matrix->pos.z += transformed_offset.z;
+                pool->pebbles[particle_index].matrix.pos_row.value.x = transformed_offset.x + pool->pebbles[particle_index].matrix.pos_row.value.x;
+                pool->pebbles[particle_index].matrix.pos_row.value.y = transformed_offset.y + pool->pebbles[particle_index].matrix.pos_row.value.y;
+                pool->pebbles[particle_index].matrix.pos_row.value.z = transformed_offset.z + pool->pebbles[particle_index].matrix.pos_row.value.z;
             }
             particle->flags.bits.settled = 0;
             particle->vertical_acceleration = vertical_acceleration;
@@ -2058,7 +2048,7 @@ void start_gore2_pebbles(
     }
 }
 
-/* TODO: [breakthrough needed] 77.30%; verify process allocation and gore pool initialization order. */
+/* TODO: [near miss] 99.73%; type index and retained count pointer swap r25/r28; stop at coloring. */
 void start_gore2_update(void) {
     struct Gore2UpdatePdata* pdata;
     int type;
@@ -2070,9 +2060,8 @@ void start_gore2_update(void) {
         zero_pdata_payload(sizeof(struct Gore2UpdatePdata), &pdata->hdr);
         load_light(pbl_gore2_lights[1], &gore2_light_list, 0);
         for (type = 0; type < 10; type++) {
-            struct Gore2ObjectType* object_type = &pbl_gore2_obj_list[type];
             MkObj* object = load_model_from_slot(
-                0x10005, object_type->object_id, 0x602A);
+                0x10005, pbl_gore2_obj_list[type].object_id, 0x602A);
 
             if (object != 0) {
                 MkSobj* sobj;
@@ -2080,23 +2069,23 @@ void start_gore2_update(void) {
                 obj_create_sobjs(object);
                 sobj = obj_first_sobj(object);
                 if (sobj != 0) {
-                    PebbleData* pool = create_pebble_userdata(
-                        sobj, object_type->particle_count,
-                        sizeof(struct Gore2Particle));
+                    int* particle_count = &pbl_gore2_obj_list[type].particle_count;
 
-                    pdata->pools[type] = pool;
-                    if (pool != 0) {
+                    pdata->pools[type] = create_pebble_userdata(
+                        sobj, *particle_count,
+                        sizeof(struct Gore2Particle));
+                    if (pdata->pools[type] != 0) {
                         int particle;
 
                         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
                         insert_fgnd_mkobj(object);
                         object->light_flags = 0x800;
-                        object->pos.value.x = 0.0f;
-                        object->pos.value.y = 0.0f;
                         object->pos.value.z = 0.0f;
-                        object->ang.x = 0.0f;
-                        object->ang.y = 0.0f;
+                        object->pos.value.y = 0.0f;
+                        object->pos.value.x = 0.0f;
                         object->ang.z = 0.0f;
+                        object->ang.y = 0.0f;
+                        object->ang.x = 0.0f;
                         sobj->flags_word_08 = 0;
                         sobj->flags_08_bits.bit6 = 1;
                         sobj->flags_08_bits.bit0 = 0;
@@ -2107,12 +2096,13 @@ void start_gore2_update(void) {
                         sobj->z_offset = 0.0f;
                         sobj_set_priority(sobj, 0x12);
                         for (particle = 0;
-                             particle < object_type->particle_count;
+                             particle < *particle_count;
                              particle++) {
-                            pool->flags[particle].bits.visible = 0;
-                            pool->pebbles[particle].matrix.pos.x = 0.0f;
-                            pool->pebbles[particle].matrix.pos.z = 0.0f;
-                            pool->pebbles[particle].matrix.pos.y = -10000.0f;
+                            pdata->pools[type]->flags[particle].bits.visible = 0;
+                            pdata->pools[type]->pebbles[particle].matrix.pos.z = 0.0f;
+                            pdata->pools[type]->pebbles[particle].matrix.pos.y = 0.0f;
+                            pdata->pools[type]->pebbles[particle].matrix.pos.x = 0.0f;
+                            pdata->pools[type]->pebbles[particle].matrix.pos.y = -10000.0f;
                         }
                     }
                 }
@@ -2122,15 +2112,14 @@ void start_gore2_update(void) {
     mkpdata_pbl_gore2_update = pdata;
 }
 
-/* TODO: [near miss] 86.17%; algorithm agrees; residue is retail's 16-byte-aligned matrix frame, null-normalization branches and loop induction registers. */
 static float p_gore2_update(void) {
     struct Gore2UpdatePdata* pdata;
     int type;
 
     pdata = (struct Gore2UpdatePdata*)apdata;
     for (type = 0; type < 10; type++) {
-        PebbleData* pool = pdata->pools[type];
         int particle_index;
+        PebbleData* pool = pdata->pools[type];
 
         for (particle_index = 0;
              particle_index < pool->active_count; particle_index++) {
@@ -2156,19 +2145,22 @@ static float p_gore2_update(void) {
                         if (particle->flags.bits.has_translation) {
                             particle->translation.y +=
                                 particle->vertical_acceleration;
-                            pool->pebbles[particle_index].matrix.pos.x +=
-                                particle->translation.x;
-                            pool->pebbles[particle_index].matrix.pos.y +=
-                                particle->translation.y;
-                            pool->pebbles[particle_index].matrix.pos.z +=
-                                particle->translation.z;
+                            pool->pebbles[particle_index].matrix.pos.x =
+                                particle->translation.x +
+                                pool->pebbles[particle_index].matrix.pos.x;
+                            pool->pebbles[particle_index].matrix.pos.y =
+                                particle->translation.y +
+                                pool->pebbles[particle_index].matrix.pos.y;
+                            pool->pebbles[particle_index].matrix.pos.z =
+                                particle->translation.z +
+                                pool->pebbles[particle_index].matrix.pos.z;
                         }
-                        if (pool->pebbles[particle_index].matrix.pos.y <=
+                        if (!(pool->pebbles[particle_index].matrix.pos.y >
                             g_game_info.field_34 +
-                                pbl_gore2_obj_list[type].scale) {
+                                pbl_gore2_obj_list[particle_index].scale)) {
                             pool->pebbles[particle_index].matrix.pos.y =
                                 g_game_info.field_34 +
-                                pbl_gore2_obj_list[type].scale;
+                                pbl_gore2_obj_list[particle_index].scale;
                             if (particle->bounce_count != 0) {
                                 particle->bounce_count--;
                                 particle->translation.y *=
@@ -2187,19 +2179,14 @@ static float p_gore2_update(void) {
                         }
                     }
                 } else {
-                    MkObj* owner = particle->owner.object;
-
-                    if (owner != 0 &&
-                        owner->hdr.instance != particle->owner.instance) {
-                        owner = 0;
-                    }
+                    MkObj* owner = MK_HDR_LIVE(particle->owner.object,
+                                               particle->owner.instance);
                     if (owner == 0) {
                         state->bits.visible = 0;
                     } else {
-                        MKMATRIX* matrix =
-                            &pool->pebbles[particle_index].matrix;
                         MKMATRIX* owner_matrix =
                             owner->field_24;
+                        MKMATRIX* matrix;
 
                         if ((unsigned int)particle->bone != 0x40000000) {
                             MkBone* bone = owner->bones[particle->bone];
@@ -2208,6 +2195,7 @@ static float p_gore2_update(void) {
                                 owner_matrix = &bone->matrix;
                             }
                         }
+                        matrix = &pool->pebbles[particle_index].matrix;
                         if (particle->flags.bits.has_rotation) {
                             MKMATRIX rotation_matrix;
 
@@ -2471,11 +2459,11 @@ static void trigger_blood_glops(
     }
 }
 
-/* TODO: [near miss] 86.07%; retail keeps additional loop state in saved registers. */
+/* TODO: [breakthrough] 95.55%; floor predicate and blsplat decal key recovered; loop member addressing and GPR coloring differ. */
 static float p_watch_obj_for_gnd_coll(void) {
-    struct NcsGroundCollisionWatchPdata* pdata;
-    int active_count;
     int index;
+    int active_count;
+    struct NcsGroundCollisionWatchPdata* pdata;
 
     active_count = 0;
     pdata = (struct NcsGroundCollisionWatchPdata*)apdata;
@@ -2485,18 +2473,14 @@ static float p_watch_obj_for_gnd_coll(void) {
 
     for (index = 0; index < 3; index++) {
         FighterObjectRef* ref = &pdata->objects[index];
-        MkObj* object = ref->object;
-
-        if (object != 0 && object->hdr.instance != ref->instance) {
-            object = 0;
-        }
+        MkObj* object = MK_HDR_LIVE(ref->object, ref->instance);
         if (object != 0) {
             active_count++;
-            if (object->pos.value.y <= g_game_info.field_34) {
+            if (!(object->pos.value.y > g_game_info.field_34)) {
                 fx_reset_emit(pdata->emitters[index]);
-                object->pos.value.y = g_game_info.field_34 + 0.001f;
+                object->pos.value.y = 0.001f + g_game_info.field_34;
                 spawn_bld_splat(
-                    "bltrsh", pdata->blood_owner, &object->pos.value);
+                    "blsplat", pdata->blood_owner, &object->pos.value);
                 ref->object = 0;
                 ref->instance = 0;
                 if (object->hdr.instance != 0) {
@@ -2506,7 +2490,10 @@ static float p_watch_obj_for_gnd_coll(void) {
             }
         }
     }
-    return active_count != 0 ? 1.0f : -1.0f;
+    if (active_count != 0) {
+        return 1.0f;
+    }
+    return -1.0f;
 }
 
 void spawn_blood_pool_at_bid(
@@ -2595,67 +2582,76 @@ void limb_sever_throw_away(
     }
 }
 
-/* TODO: [breakthrough needed] 86.47%; verify head creation/latch CFG and velocity stores. */
+static inline MkObj* limb_sever_set_motion_inline(
+    MkObj* owner, int limb, const Vec* velocity,
+    struct NcsLimbUpdatePdata* motion, int enable_ground,
+    int ground_value, int field_18, int include_children,
+    float gravity, float ground_offset, float field_11C) {
+    FighterMirror* fighter;
+    FighterObjectRef* ref;
+    MkObj* severed = 0;
+
+    if (motion != 0) {
+        if (owner == g_game_info.plyr0.slot.mirror_a) {
+            fighter = g_game_info.plyr0.slot.fighter;
+        } else {
+            fighter = g_game_info.plyr1.slot.fighter;
+        }
+        ref = &fighter->severed_limbs[limb];
+        severed = MK_HDR_LIVE(ref->object, ref->instance);
+        if (severed == 0) {
+            severed = obj_sever_limb(owner, limb, 0, include_children);
+            if (severed == 0) {
+                return severed;
+            }
+            ref->object = severed;
+            ref->instance = severed->hdr.instance;
+        }
+
+        motion->severed_mask |= 1 << limb;
+        severed->pos_vel.x = velocity->x;
+        severed->pos_vel.y = velocity->y;
+        severed->pos_vel.z = velocity->z;
+        severed->flags_08_bits.gravity_enabled = 1;
+        severed->gravity = gravity;
+        if (gravity != 0.0f) {
+            severed->flags_08_bits.moving = 1;
+        }
+        severed->light_flags = owner->light_flags;
+        if (enable_ground != 0) {
+            motion->ground_mask |= 1 << limb;
+            motion->ground_height[limb] = g_game_info.field_34 + ground_offset;
+            motion->ground_value[limb] = ground_value;
+            motion->slide_end_coefficient = 1.0f;
+        }
+        motion->vertical_bounce_scale = field_11C;
+        motion->field_18 = field_18;
+        update_mkobj(severed);
+    }
+    return severed;
+}
+
+/* TODO: [breakthrough] 99.15%; canonical inline motion recovered; creation-failure exit adds one branch. */
 MkObj* limb_sever_pop_head_up(
     PlyrInfo* player, float x_velocity, float y_velocity,
     float z_velocity, float gravity) {
     struct NcsLimbUpdatePdata* update;
-    FighterMirror* fighter;
-    FighterObjectRef* head_ref;
-    MkObj* owner;
-    MkObj* head;
-    Vec local_velocity;
+    MkObj* head = 0;
     Vec world_velocity;
-
-    head = 0;
+    Vec local_velocity;
     update = limb_sever_find_existing_update_proc(player, 0, 0x6020);
-    if (update == 0) {
-        return 0;
-    }
-
-    local_velocity.x = x_velocity;
-    local_velocity.y = y_velocity;
-    local_velocity.z = z_velocity;
-    owner = player->slot.mirror_a;
-    v3_x_mat(&world_velocity, &local_velocity, mkobj_get_matrix(owner));
-
-    if (owner == g_game_info.plyr0.slot.mirror_a) {
-        fighter = g_game_info.plyr0.slot.fighter;
-    } else {
-        fighter = g_game_info.plyr1.slot.fighter;
-    }
-    head_ref = &fighter->severed_limbs[0];
-    head = head_ref->object;
-    if (head != 0 && head->hdr.instance != head_ref->instance) {
-        head = 0;
-    }
-    if (head == 0) {
-        head = obj_sever_limb(owner, 0, 0, 1);
-        if (head == 0) {
-            return 0;
+    if (update != 0) {
+        local_velocity.x = x_velocity;
+        local_velocity.y = y_velocity;
+        local_velocity.z = z_velocity;
+        v3_x_mat(&world_velocity, &local_velocity,
+                 mkobj_get_matrix(player->slot.mirror_a));
+        head = limb_sever_set_motion_inline(player->slot.mirror_a, 0,
+            &world_velocity, update, 1, 3, 0xD2, 1, gravity, 0.01f, 0.3f);
+        if (head != 0) {
+            limb_sever_show_z_meat_chunks(player->slot.mirror_a, 0, 0);
         }
-        head_ref->object = head;
-        head_ref->instance = head->hdr.instance;
     }
-
-    update->severed_mask |= 1;
-    head->pos_vel.x = world_velocity.x;
-    head->pos_vel.y = world_velocity.y;
-    head->pos_vel.z = world_velocity.z;
-    head->flags_08_bits.gravity_enabled = 1;
-    head->gravity = gravity;
-    if (gravity != 0.0f) {
-        head->flags_08_bits.moving = 1;
-    }
-    head->light_flags = owner->light_flags;
-    update->ground_mask |= 1;
-    update->ground_height[0] = g_game_info.field_34 + 0.01f;
-    update->ground_value[0] = 3;
-    update->slide_end_coefficient = 1.0f;
-    update->vertical_bounce_scale = 0.3f;
-    update->field_18 = 0xD2;
-    update_mkobj(head);
-    limb_sever_show_z_meat_chunks(owner, 0, 0);
     return head;
 }
 
@@ -2766,59 +2762,6 @@ void limb_sever_bone_attach(
     pdata->expire_tick = 600;
 }
 
-static inline MkObj* limb_sever_set_motion_inline(
-    MkObj* owner, int limb, const Vec* velocity,
-    struct NcsLimbUpdatePdata* motion, int enable_ground,
-    int ground_value, int field_18, int include_children,
-    float gravity, float ground_offset, float field_11C) {
-    FighterMirror* fighter;
-    FighterObjectRef* ref;
-    MkObj* severed;
-
-    if (motion == 0) {
-        return 0;
-    }
-    if (owner == g_game_info.plyr0.slot.mirror_a) {
-        fighter = g_game_info.plyr0.slot.fighter;
-    } else {
-        fighter = g_game_info.plyr1.slot.fighter;
-    }
-    ref = &fighter->severed_limbs[limb];
-    severed = ref->object;
-    if (severed != 0 && severed->hdr.instance != ref->instance) {
-        severed = 0;
-    }
-    if (severed == 0) {
-        severed = obj_sever_limb(owner, limb, 0, include_children);
-        if (severed == 0) {
-            return 0;
-        }
-        ref->object = severed;
-        ref->instance = severed->hdr.instance;
-    }
-
-    motion->severed_mask |= 1 << limb;
-    severed->pos_vel.x = velocity->x;
-    severed->pos_vel.y = velocity->y;
-    severed->pos_vel.z = velocity->z;
-    severed->flags_08_bits.gravity_enabled = 1;
-    severed->gravity = gravity;
-    if (gravity != 0.0f) {
-        severed->flags_08_bits.moving = 1;
-    }
-    severed->light_flags = owner->light_flags;
-    if (enable_ground != 0) {
-        motion->ground_mask |= 1 << limb;
-        motion->ground_height[limb] = g_game_info.field_34 + ground_offset;
-        motion->ground_value[limb] = ground_value;
-        motion->slide_end_coefficient = 1.0f;
-    }
-    motion->vertical_bounce_scale = field_11C;
-    motion->field_18 = field_18;
-    update_mkobj(severed);
-    return severed;
-}
-
 static inline MkObj* mks_limb_sever_inline(
     MkObj* object, int limb, int include_children) {
     FighterMirror* fighter;
@@ -2854,7 +2797,7 @@ void limb_sever_explode_apart_plyr_num(int player) {
     }
 }
 
-/* TODO: [near miss] 91.32%; limb order and motion recovered; residue is inline/DCE size delta and scheduling. */
+/* TODO: [breakthrough] 96.22%; canonical motion latch and shared return recovered; inline/DCE and scheduling residue remain. */
 void limb_sever_explode_apart(PlyrInfo* player) {
     MkObj* owner;
     struct NcsLimbUpdatePdata* update;
@@ -3072,70 +3015,87 @@ void limb_sever_destroy_existing_attach_proc(
     }
 }
 
-/* TODO: [breakthrough needed] 81.16%; verify process lookup and returned pdata ownership. */
+static inline MkProc* limb_sever_create_update_proc(
+    PlyrInfo* player, int proc_id, struct NcsLimbUpdatePdata** pdata) {
+    MkProc* proc;
+    void* limbset = limb_sever_find_limbset(player);
+
+    if (limbset == 0) {
+        return 0;
+    }
+    proc = _create_mkproc_generic_nostack(
+        proc_id, 0x1F, p_limb_sever_update,
+        sizeof(struct NcsLimbUpdatePdata), (MkHdr**)pdata);
+    if (proc == 0) {
+        return 0;
+    }
+    zero_pdata_payload(sizeof(struct NcsLimbUpdatePdata), &(*pdata)->hdr);
+    (*pdata)->player = player;
+    (*pdata)->fighter = player->slot.fighter;
+    (*pdata)->limbset = limbset;
+    return proc;
+}
+
+/* TODO: [near miss] 98.72%; recovered list and creation boundaries;
+ * latch branch and creation-result register remain. */
 struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id) {
     FighterMirror* fighter;
     MkPtr* link;
+    MkPtr** list;
     MkProc* update_proc;
     struct NcsLimbUpdatePdata* pdata;
 
     fighter = player->slot.fighter;
-    link = fighter->attach_proc_list;
-    while (link != 0) {
-        MkProc* proc = (MkProc*)link->hdr;
+    list = &fighter->attach_proc_list;
+    if (list != 0) {
+        link = *list;
+        while (link != 0) {
+            MkProc* proc = (MkProc*)link->hdr;
 
-        if (link->instance != proc->instance) {
-            MkPtr* next = link->next;
+            if (link->instance != proc->instance) {
+                MkPtr* next = link->next;
 
-            discard_stale_mkptr(link);
-            link = next;
-        } else {
-            struct NcsLimbAttachPdata* attach_pdata = proc != 0
-                ? (struct NcsLimbAttachPdata*)pdata_of_proc(proc) : 0;
+                discard_stale_mkptr(link);
+                link = next;
+            } else {
+                struct NcsLimbAttachPdata* attach_pdata;
 
-            if (attach_pdata != 0 && attach_pdata->limb == limb) {
-                if (proc->instance != 0) {
-                    proc->hdr.typed_vtbl->destroy(&proc->hdr);
+                if (proc != 0 &&
+                    (attach_pdata = (struct NcsLimbAttachPdata*)pdata_of_proc(proc)) != 0 &&
+                    attach_pdata->limb == limb) {
+                    if (proc->instance != 0) {
+                        proc->hdr.typed_vtbl->destroy(&proc->hdr);
+                    }
+                    break;
                 }
-                break;
+                link = link->next;
             }
-            link = link->next;
         }
-    }
 
+    }
+    fighter = player->slot.fighter;
     update_proc = fighter->limb_update_proc;
-    if (update_proc != 0 &&
-        update_proc->instance != fighter->limb_update_proc_instance) {
+    if (update_proc != 0) {
+        if (update_proc->instance != fighter->limb_update_proc_instance) {
+            update_proc = 0;
+        }
+    } else {
         update_proc = 0;
     }
-    pdata = update_proc != 0
-        ? (struct NcsLimbUpdatePdata*)pdata_of_proc(update_proc) : 0;
-    if (pdata == 0) {
-        void* limbset = limb_sever_find_limbset(player);
-
-        if (limbset == 0) {
-            return 0;
-        }
-        update_proc = _create_mkproc_generic_nostack(
-            proc_id, 0x1F, p_limb_sever_update,
-            sizeof(struct NcsLimbUpdatePdata), (MkHdr**)&pdata);
+    if (update_proc == 0 ||
+        (pdata = (struct NcsLimbUpdatePdata*)pdata_of_proc(update_proc)) == 0) {
+        update_proc = limb_sever_create_update_proc(player, proc_id, &pdata);
         if (update_proc == 0) {
             return 0;
         }
-        zero_pdata_payload(sizeof(struct NcsLimbUpdatePdata), &pdata->hdr);
-        pdata->player = player;
-        pdata->fighter = fighter;
-        pdata->limbset = limbset;
-        fighter->limb_update_proc = update_proc;
-        fighter->limb_update_proc_instance = update_proc->instance;
+        player->slot.fighter->limb_update_proc = update_proc;
+        player->slot.fighter->limb_update_proc_instance = update_proc->instance;
     }
     pdata->expire_tick = exec_tick_ctr + 60;
     return pdata;
 }
 
-/* TODO: [breakthrough] 84.23%; canonical player/fighter ownership recovered;
- * audit remaining creation/latch CFG and call staging against retail. */
 MkProc* plyr_spawn_his_anim_limb(
     PlyrInfo* player, int limb, int include_children,
     AniData* animation_script, int transition, MkProcEntryFn entry,
@@ -3144,37 +3104,34 @@ MkProc* plyr_spawn_his_anim_limb(
     MkProc* proc;
     MkObj* severed;
 
-    animation = 0;
     proc = create_mkproc_anim2(0x9012, entry, &animation);
-    if (proc == 0) {
-        return 0;
-    }
-
-    severed = obj_sever_limb(
-        player->slot.mirror_a, limb, 0, include_children);
-    if (severed == 0) {
-        if (proc->instance != 0) {
-            proc->hdr.typed_vtbl->destroy(&proc->hdr);
+    if (proc != 0) {
+        severed = obj_sever_limb(
+            player->slot.mirror_a, limb, 0, include_children);
+        if (severed == 0) {
+            if (proc->instance != 0) {
+                proc->hdr.typed_vtbl->destroy(&proc->hdr);
+            }
+            proc = 0;
+        } else {
+            severed->ground_colls = plyr_obj->ground_colls;
+            severed->ground_colls_y = plyr_obj->ground_colls_y;
+            severed->flags_09_bits.launched = 1;
+            insert_ground_me_mkobj(severed);
+            severed->light_flags = player->slot.mirror_a->light_flags;
+            animation->obj = severed;
+            animation->obj_instance = severed->hdr.instance;
+            player->slot.fighter->severed_limbs[limb].object = severed;
+            player->slot.fighter->severed_limbs[limb].instance =
+                severed->hdr.instance;
+            severed->ground_colls = player->slot.mirror_a->ground_colls;
+            severed->ground_colls_y = player->slot.mirror_a->ground_colls_y;
+            severed->flags_0B_bits.pivot_enabled = 0;
+            set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
+            set_anim_script(animation, animation_script, transition);
+            animation->step = animation_step;
         }
-        return 0;
     }
-
-    severed->ground_colls = plyr_obj->ground_colls;
-    severed->ground_colls_y = plyr_obj->ground_colls_y;
-    severed->flags_09_bits.launched = 1;
-    insert_ground_me_mkobj(plyr_obj);
-    severed->light_flags = player->slot.mirror_a->light_flags;
-    animation->obj = severed;
-    animation->obj_instance = severed->hdr.instance;
-    player->slot.fighter->severed_limbs[limb].object = severed;
-    player->slot.fighter->severed_limbs[limb].instance =
-        severed->hdr.instance;
-    severed->ground_colls = player->slot.mirror_a->ground_colls;
-    severed->ground_colls_y = player->slot.mirror_a->ground_colls_y;
-    severed->flags_0B &= (unsigned char)~4;
-    set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
-    set_anim_script(animation, animation_script, transition);
-    animation->step = animation_step;
     return proc;
 }
 
@@ -3222,10 +3179,8 @@ MkObj* limb_sever_set_motion(
     return severed;
 }
 
-/* TODO: [breakthrough needed] 77.66%; verify owner/target latch CFG and transform stores. */
 static float p_limb_sever_attach(void) {
     struct NcsLimbAttachPdata* pdata;
-    FighterObjectRef* severed_ref;
     MkObj* severed;
     MkObj* owner;
     MkObj* target;
@@ -3234,37 +3189,26 @@ static float p_limb_sever_attach(void) {
     MKMATRIX* target_matrix;
     MKMATRIX* source_matrix;
     Vec offset;
-    Vec source_position;
 
     pdata = (struct NcsLimbAttachPdata*)apdata;
     if (pdata == 0) {
         mkproc_die();
     }
 
-    severed_ref = &pdata->fighter->severed_limbs[pdata->limb];
-    severed = severed_ref->object;
-    if (severed != 0 && severed->hdr.instance != severed_ref->instance) {
-        severed = 0;
-    }
+    severed = MK_HDR_LIVE(pdata->fighter->severed_limbs[pdata->limb].object,
+        pdata->fighter->severed_limbs[pdata->limb].instance);
     if (severed == 0) {
         return -1.0f;
     }
-    owner = pdata->owner;
-    if (owner != 0 && owner->hdr.instance != pdata->owner_instance) {
-        owner = 0;
-    }
+    owner = MK_HDR_LIVE(pdata->owner, pdata->owner_instance);
     if (owner == 0) {
         return -1.0f;
     }
-    target = pdata->target;
-    if (target != 0 && target->hdr.instance != pdata->target_instance) {
-        target = 0;
-    }
+    target = MK_HDR_LIVE(pdata->target, pdata->target_instance);
     if (target == 0) {
         return -1.0f;
     }
-    if ((pdata->limbset->active_mask &
-         (1U << pdata->limb)) == 0) {
+    if (((pdata->limbset->active_mask >> pdata->limb) & 1U) == 0) {
         if (severed->hdr.instance != 0) {
             severed->hdr.typed_vtbl->destroy(&severed->hdr);
         }
@@ -3275,31 +3219,28 @@ static float p_limb_sever_attach(void) {
     }
 
     target_matrix = target->field_24;
-    severed_matrix = severed->field_24;
     if (pdata->owner_bone >= 0) {
         MkBone* target_bone = target->bones[pdata->owner_bone];
 
-        if (target_bone != 0 && target_bone->parent_matrix != 0) {
-            target_matrix = target_bone->parent_matrix;
+        if (target_bone != 0) {
+            target_matrix = &target_bone->matrix;
         }
     }
+    severed_matrix = severed->field_24;
     YXZ_angles_to_MKMATRIX(&pdata->rotation, &rotation_matrix);
     mat_x_mat(severed_matrix, &rotation_matrix, target_matrix);
-    if ((severed->flags_08 & 2) != 0) {
+    if (severed->flags_08_bits.scale_active) {
         mat_scaled_by_v3(
             severed_matrix, severed_matrix, &severed->scale);
     }
 
     source_matrix = severed
         ->bones[limbbid_bid_map[pdata->target_bone]->bone_id]->parent_matrix;
-    source_position.x = source_matrix->pos.x;
-    source_position.y = source_matrix->pos.y;
-    source_position.z = source_matrix->pos.z;
-    offset.x = pdata->offset.x - source_position.x;
-    offset.y = pdata->offset.y - source_position.y;
-    offset.z = pdata->offset.z - source_position.z;
+    offset.x = pdata->offset.x - source_matrix->pos.x;
+    offset.y = pdata->offset.y - source_matrix->pos.y;
+    offset.z = pdata->offset.z - source_matrix->pos.z;
     v3_x_mat_add_v3(
-        &severed->pos.value, &offset, target_matrix, &source_position);
+        &severed->pos.value, &offset, target_matrix, &target_matrix->pos_row.value);
     severed_matrix->pos.x = severed->pos.value.x;
     severed_matrix->pos.y = severed->pos.value.y;
     severed_matrix->pos.z = severed->pos.value.z;
@@ -3308,67 +3249,56 @@ static float p_limb_sever_attach(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 83.60%; verify per-limb collision masks and loop/store order. */
 static float p_limb_sever_update(void) {
     struct NcsLimbUpdatePdata* pdata;
-    struct NcsLimbSet* limbset;
     int limb;
 
     pdata = (struct NcsLimbUpdatePdata*)apdata;
     if (pdata == 0) {
         mkproc_die();
     }
-    limbset = pdata->limbset;
-    if (pdata->field_18 < 0 || limbset == 0) {
+    if (pdata->field_18 < 0 || pdata->limbset == 0) {
         return -1.0f;
     }
 
     for (limb = 0; limb < 15; limb++) {
-        unsigned int bit = 1U << limb;
+        if (((pdata->severed_mask >> limb) & 1) != 0 &&
+            ((pdata->limbset->active_mask >> limb) & 1) != 0) {
+            MkObj* object = MK_HDR_LIVE(
+                pdata->fighter->severed_limbs[limb].object,
+                pdata->fighter->severed_limbs[limb].instance);
 
-        if ((pdata->severed_mask & bit) != 0 &&
-            (limbset->active_mask & bit) != 0) {
-            FighterObjectRef* ref = &pdata->fighter->severed_limbs[limb];
-            MkObj* object = ref->object;
-
-            if (object != 0 && object->hdr.instance != ref->instance) {
-                object = 0;
-            }
-            if (object == 0) {
-                continue;
-            }
-
-            if ((pdata->gravity_trigger_mask & bit) != 0 &&
+            if (((pdata->gravity_trigger_mask >> limb) & 1) != 0 &&
                 object->pos_vel.y < pdata->horizontal_bounce_scale) {
-                pdata->gravity_trigger_mask &= ~bit;
+                pdata->gravity_trigger_mask &= ~(1U << limb);
                 object->gravity = pdata->bounce_gravity;
             }
-            if ((pdata->x_collision_mask & bit) != 0 &&
+            if (((pdata->x_collision_mask >> limb) & 1) != 0 &&
                 ((object->pos_vel.x >= 0.0f &&
                   object->pos.value.x > pdata->x_collision_limit[limb]) ||
                  (object->pos_vel.x < 0.0f &&
                   object->pos.value.x < pdata->x_collision_limit[limb]))) {
                 object->pos_vel.x *= -1.0f;
-                pdata->x_collision_mask &= ~bit;
-                if ((pdata->damp_bounce_mask & bit) != 0) {
+                pdata->x_collision_mask &= ~(1U << limb);
+                if (((pdata->damp_bounce_mask >> limb) & 1) != 0) {
                     object->gravity = pdata->bounce_gravity;
                     object->pos_vel.x *= pdata->horizontal_bounce_scale;
                 }
             }
-            if ((pdata->z_collision_mask & bit) != 0 &&
+            if (((pdata->z_collision_mask >> limb) & 1) != 0 &&
                 ((object->pos_vel.z >= 0.0f &&
                   object->pos.value.z > pdata->z_collision_limit[limb]) ||
                  (object->pos_vel.z < 0.0f &&
                   object->pos.value.z < pdata->z_collision_limit[limb]))) {
                 object->pos_vel.z *= -1.0f;
-                pdata->z_collision_mask &= ~bit;
-                if ((pdata->damp_bounce_mask & bit) != 0) {
+                pdata->z_collision_mask &= ~(1U << limb);
+                if (((pdata->damp_bounce_mask >> limb) & 1) != 0) {
                     object->gravity = pdata->bounce_gravity;
                     object->pos_vel.z *= pdata->horizontal_bounce_scale;
                 }
             }
 
-            if ((pdata->ground_mask & bit) == 0 ||
+            if (((pdata->ground_mask >> limb) & 1) == 0 ||
                 object->pos.value.y > pdata->ground_height[limb]) {
                 object->pos_vel.x *= pdata->slide_end_coefficient;
                 object->pos_vel.z *= pdata->slide_end_coefficient;
@@ -3378,16 +3308,16 @@ static float p_limb_sever_update(void) {
                 object->pos_vel.y =
                     (float)bounce_count *
                     (-object->pos_vel.y * pdata->vertical_bounce_scale);
-                pdata->ground_value[limb] = bounce_count - 1;
+                pdata->ground_value[limb]--;
                 random_hit(0x0B);
-                if ((pdata->first_bounce_mask & bit) != 0) {
-                    pdata->first_bounce_mask &= ~bit;
+                if (((pdata->first_bounce_mask >> limb) & 1) != 0) {
+                    pdata->first_bounce_mask &= ~(1U << limb);
                     object->gravity = pdata->bounce_gravity;
                     object->pos_vel.x *= pdata->horizontal_bounce_scale;
                     object->pos_vel.z *= pdata->horizontal_bounce_scale;
                 }
             } else {
-                int make_splat = 1;
+                Vec position;
 
                 object->pos.value.y = pdata->ground_height[limb];
                 object->pos_vel.y = 0.0f;
@@ -3395,7 +3325,7 @@ static float p_limb_sever_update(void) {
                 object->flags_08_bits.moving = 0;
                 object->flags_09_bits.launched = 1;
                 object->flags_09_bits.bit6 = 1;
-                if ((pdata->slide_mask & bit) != 0) {
+                if (((pdata->slide_mask >> limb) & 1) != 0) {
                     if (object->pos_vel.x > 0.0f) {
                         object->pos_vel.x -= pdata->slide_deceleration;
                         if (object->pos_vel.x < 0.0f) {
@@ -3418,33 +3348,28 @@ static float p_limb_sever_update(void) {
                             object->pos_vel.z = 0.0f;
                         }
                     }
-                    if (object->pos_vel.x == 0.0f &&
-                        object->pos_vel.z == 0.0f) {
-                        pdata->slide_mask &= ~bit;
-                    } else {
-                        make_splat = 0;
+                    if (object->pos_vel.x != 0.0f ||
+                        object->pos_vel.z != 0.0f) {
+                        continue;
                     }
+                    pdata->slide_mask &= ~(1U << limb);
                 } else {
                     object->flags_08_bits.gravity_enabled = 0;
                 }
 
-                if (make_splat != 0) {
-                    Vec position;
-
-                    position.x = object->pos.value.x;
-                    position.y = g_game_info.field_34 + 0.0005f;
-                    position.z = object->pos.value.z;
-                    spawn_bld_splat("blpuddle", pdata->fighter, &position);
-                    if ((unsigned int)g_game_info.field_218 <
-                            (unsigned int)exec_tick_ctr &&
-                        (unsigned int)exec_tick_ctr <
-                            (unsigned int)pdata->expire_tick) {
-                        random_hit(0x0C);
-                        g_game_info.field_218 =
-                            exec_tick_ctr + randu0(10) + 15;
-                    }
-                    pdata->ground_mask &= ~bit;
+                position.x = object->pos.value.x;
+                position.y = g_game_info.field_34 + 0.0005f;
+                position.z = object->pos.value.z;
+                spawn_bld_splat("blpuddle", pdata->fighter, &position);
+                if ((unsigned int)g_game_info.field_218 <
+                        (unsigned int)exec_tick_ctr &&
+                    (unsigned int)exec_tick_ctr <
+                        (unsigned int)pdata->expire_tick) {
+                    random_hit(0x0C);
+                    g_game_info.field_218 =
+                        exec_tick_ctr + (unsigned short)randu0(10) + 15;
                 }
+                pdata->ground_mask &= ~(1U << limb);
             }
         }
     }

@@ -5353,7 +5353,7 @@ void bgnd_set_viewing_of_danger_zones(int enabled) {
     g_game_info.switch_input_flags.view_danger_zones = enabled;
     set_collision_render_state(enabled);
 }
-/* TODO: [breakthrough needed] 66.95%; rebuild sequence agrees; retail keeps redundant post-create null-normalization branches our build folds (488 vs 460 bytes). */
+/* TODO: [breakthrough needed] 66.96%; rebuild sequence agrees; retail keeps redundant post-create null-normalization branches our build folds (488 vs 460 bytes). */
 void bgnd_set_danger_zone_y_angle(float y_angle) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -5409,7 +5409,7 @@ void bgnd_set_danger_zone_y_angle(float y_angle) {
         bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
     }
 }
-/* TODO: [breakthrough needed] 67.00%; same rebuild as the y-angle setter; four folded null-normalization branches (488 vs 460 bytes). */
+/* TODO: [breakthrough needed] 67.01%; same rebuild as the y-angle setter; four folded null-normalization branches (488 vs 460 bytes). */
 void bgnd_set_danger_zone_depth(float depth) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -5653,7 +5653,7 @@ void bgnd_set_active_danger_zone(unsigned int zone) {
         g_active_bgnd_danger_zone = zone;
     }
 }
-/* TODO: [breakthrough needed] 70.37%; zone setup and registration agree; retail's redundant null normalization after obstacle creation is folded (584 vs 568 bytes). */
+/* TODO: [breakthrough needed] 70.38%; zone setup and registration agree; retail's redundant null normalization after obstacle creation is folded (584 vs 568 bytes). */
 void bgnd_create_danger_zone(
     int shape_type, unsigned int zone_index, unsigned int obstacle_id,
     float height, unsigned int collision_script_function) {

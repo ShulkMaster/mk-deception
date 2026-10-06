@@ -1442,7 +1442,7 @@ void pz_fighter_kill_global_projectile(void) {
     }
 }
 
-/* TODO: [near miss] 98.6%; shared frame local improves allocation; declaration
+/* TODO: [near miss] 98.63%; shared frame local improves allocation; declaration
  * order is neutral. Owner/flag coloring and constant labels remain. */
 static float p_pz_fighter_projectile_launcher(void) {
     struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
