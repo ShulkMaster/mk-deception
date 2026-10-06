@@ -216,7 +216,6 @@ MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl) 
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 85.62%; 19 rows differ; compare retail branches and SEC member types. */
 unsigned int get_artid_of_named_item_in_slot(
     int handle, const char* name, int unused) {
     int file_count;
@@ -229,17 +228,7 @@ unsigned int get_artid_of_named_item_in_slot(
     while (file_index <= file_count) {
         entry = get_nth_sec_slot_file_from_handle(handle, file_index);
         if (entry->section_info->type == SEC_FILE_TYPE_ART) {
-            member_index = 0;
-            while ((int)member_index < entry->member_count) {
-                if (strcmp(entry->members[member_index].name_or_data, name) ==
-                    0) {
-                    break;
-                }
-                member_index += 1;
-            }
-            if ((int)member_index >= entry->member_count) {
-                member_index = 0xffffffffu;
-            }
+            member_index = find_named_art_member(entry, name);
             if (member_index != 0xffffffffu) {
                 return ((unsigned int)entry->section_id << 16) |
                        (member_index & 0xFFFFu);
@@ -443,12 +432,12 @@ void* get_cdf_data(int handle, unsigned int art_oid) {
     return data;
 }
 
-/* TODO: [breakthrough needed] 83.75%; 48 rows differ; compare retail branches and SEC member types. */
+/* TODO: [near miss] 99.60%; ART finder, alpha indexing and guard agree;
+ * seven texture-register substitutions remain. */
 RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
     int file_count;
     int file_index;
     SecSlotFileEntry* entry;
-    RwTexture* tex;
     int member_index;
 
     if (handle == -1) {
@@ -463,29 +452,21 @@ RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
             return NULL;
         }
         if (entry->section_info->type == SEC_FILE_TYPE_ART) {
-            member_index = 0;
-            while (member_index < entry->member_count) {
-                if (strcmp(entry->members[member_index].name_or_data, name) ==
-                    0) {
-                    break;
-                }
-                member_index += 1;
-            }
-            if (member_index >= entry->member_count) {
-                member_index = -1;
-            }
+            member_index = find_named_art_member(entry, name);
             if (member_index != -1) {
-                if ((unsigned int)(member_index + 1) <
+                member_index += 1;
+                if ((unsigned int)member_index <
                     (unsigned int)entry->member_count) {
-                    if (strcmp(entry->members[member_index + 1].name_or_data,
+                    if (strcmp(entry->members[member_index].name_or_data,
                                name) == 0) {
-                        if (entry == NULL) {
-                            tex = NULL;
-                        } else {
-                            tex = entry->members[member_index + 1].texture;
+                        RwTexture* tex;
+                        if (entry != NULL) {
+                            tex = entry->members[member_index].texture;
                             if (tex != NULL) {
                                 tex->ref_count = 2;
                             }
+                        } else {
+                            tex = NULL;
                         }
                         if (tex != NULL) {
                             strncpy(tex->name, name, 0x20);
@@ -500,52 +481,57 @@ RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
     return NULL;
 }
 
-/* TODO: [breakthrough needed] 84.46%; 52 rows differ; compare retail branches and SEC member types. */
+static inline RwTexture* _load_tga(
+    SecSlotFileEntry* entry, unsigned int member_index) {
+    RwTexture* tex;
+
+    if (entry != NULL) {
+        tex = entry->members[member_index].texture;
+        if (tex != NULL) {
+            tex->ref_count = 2;
+        }
+    } else {
+        tex = NULL;
+    }
+    return tex;
+}
+
+static inline RwTexture* load_named_tga_from_file(
+    int handle, int file_index, const char* name) {
+    SecSlotFileEntry* entry;
+    int member_index;
+    RwTexture* tex;
+
+    if (handle == -1) {
+        return NULL;
+    }
+    entry = get_nth_sec_slot_file_from_handle(handle, file_index);
+    if (entry == NULL) {
+        return NULL;
+    }
+    if (entry->section_info->type != SEC_FILE_TYPE_ART) {
+        return NULL;
+    }
+    member_index = find_named_art_member(entry, name);
+    if (member_index == -1) {
+        return NULL;
+    }
+    tex = _load_tga(entry, member_index);
+    if (tex != NULL) {
+        strncpy(tex->name, name, 0x20);
+    }
+    return tex;
+}
+
 RwTexture* load_named_tga_from_slot(int handle, const char* name) {
     int file_count;
     int file_index;
-    SecSlotFileEntry* entry;
     RwTexture* tex;
-    int member_index;
 
     file_count = get_slot_file_count(handle);
     file_index = 1;
     while (file_index <= file_count) {
-        if (handle == -1) {
-            tex = NULL;
-        } else {
-            entry = get_nth_sec_slot_file_from_handle(handle, file_index);
-            if (entry == NULL) {
-                tex = NULL;
-            } else if (entry->section_info->type != SEC_FILE_TYPE_ART) {
-                tex = NULL;
-            } else {
-                member_index = 0;
-                while (member_index < entry->member_count) {
-                    if (strcmp(entry->members[member_index].name_or_data,
-                               name) == 0) {
-                        break;
-                    }
-                    member_index += 1;
-                }
-                if (member_index >= entry->member_count) {
-                    member_index = -1;
-                }
-                if (member_index == -1) {
-                    tex = NULL;
-                } else if (entry == NULL) {
-                    tex = NULL;
-                } else {
-                    tex = entry->members[member_index].texture;
-                    if (tex != NULL) {
-                        tex->ref_count = 2;
-                    }
-                    if (tex != NULL) {
-                        strncpy(tex->name, name, 0x20);
-                    }
-                }
-            }
-        }
+        tex = load_named_tga_from_file(handle, file_index, name);
         if (tex != NULL) {
             strncpy(tex->name, name, 0x20);
             return tex;
@@ -559,20 +545,11 @@ RwTexture* load_tga(int handle, unsigned int art_oid) {
     unsigned int section_id;
     unsigned int member_index;
     SecSlotFileEntry* entry;
-    RwTexture* tex;
 
     section_id = art_oid >> 16;
     member_index = art_oid & 0xFFFFu;
     entry = find_slot_section(handle, section_id);
-    if (entry != NULL) {
-        tex = entry->members[member_index].texture;
-        if (tex != NULL) {
-            tex->ref_count = 2;
-        }
-    } else {
-        tex = NULL;
-    }
-    return tex;
+    return _load_tga(entry, member_index);
 }
 
 MkObj* load_model_from_slot(int handle, unsigned int art_oid,

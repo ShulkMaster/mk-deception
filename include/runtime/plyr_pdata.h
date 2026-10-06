@@ -312,60 +312,61 @@ typedef struct PlyrPdata {
         MovesetDefinition* global_moveset_definition;
     }; /* +0x314 */
     union {
-        int animation_data[8];
-        AniData* base_animations[8];
-    };
-    AniData* dizzy_animation; /* +0x338 */
-    char pad33C[4];
-    AniData* big_boss_taunt_animation; /* +0x340 */
-    AniData* common_exit_animation;
-    AniData* turn_to_screen_animation; /* +0x348 */
-    AniData* smoke_land_animation;
-    char pad350[0x0C];
-    AniData* noob_entrance_animation;
-    char pad360[8];
-    AniData* reaction_animation; /* +0x368 */
-    void* reaction_animation_a; /* +0x36C */
-    void* reaction_animation_b; /* +0x370 */
-    void* reaction_animation_c; /* +0x374 */
-    void* esp1_reaction_animation; /* +0x378 */
-    union {
-        AniData* screen_taunt_animation;
-        void* scorpion_spear_hit;
-    }; /* +0x37C - per-character reaction slot */
-    void* scorpion_spear_pull; /* +0x380 */
-    union {
-        AniData* goro_fold_animation; /* fatality arm-fold script */
-        void* scorpion_spear_recover;
-    }; /* +0x384 - per-character reaction slot */
-    char pad388[4];
-    AniData* ice_reaction_animation; /* +0x38C */
-    char pad390[0x14];
-    union {
-        AniData* fatality_animation;
-        int fatality_palette;
-    }; /* +0x3A4 */
-    union {
         struct {
+            AniData* base_animations[8];
+            AniData* dizzy_animation; /* +0x338 */
+            char pad33C[4];
+            AniData* big_boss_taunt_animation; /* +0x340 */
+            AniData* common_exit_animation;
+            AniData* turn_to_screen_animation; /* +0x348 */
+            AniData* smoke_land_animation;
+            char pad350[0x0C];
+            AniData* noob_entrance_animation;
+            char pad360[8];
+            AniData* reaction_animation; /* +0x368 */
+            void* reaction_animation_a; /* +0x36C */
+            void* reaction_animation_b; /* +0x370 */
+            void* reaction_animation_c; /* +0x374 */
+            void* esp1_reaction_animation; /* +0x378 */
             union {
-                AniData* mileena_veil_animation;
-                unsigned int suicide_camera_main_ntsc;
-            }; /* +0x3A8 */
-            char pad3AC[4];
-            unsigned int suicide_camera_sidekick_ntsc; /* +0x3B0 */
-            unsigned int suicide_camera_main_pal; /* +0x3B4 */
-            unsigned int suicide_camera_sidekick_pal; /* +0x3B8 */
-            char pad3BC[0x18];
-            unsigned int fatality_camera_ntsc; /* +0x3D4 */
-            unsigned int fatality_camera_pal;  /* +0x3D8 */
+                AniData* screen_taunt_animation;
+                void* scorpion_spear_hit;
+            }; /* +0x37C - per-character reaction slot */
+            void* scorpion_spear_pull; /* +0x380 */
+            union {
+                AniData* goro_fold_animation; /* fatality arm-fold script */
+                void* scorpion_spear_recover;
+            }; /* +0x384 - per-character reaction slot */
+            char pad388[4];
+            AniData* ice_reaction_animation; /* +0x38C */
+            char pad390[0x14];
+            union {
+                AniData* fatality_animation;
+                int fatality_palette;
+            }; /* +0x3A4 */
+            union {
+                struct {
+                    union {
+                        AniData* mileena_veil_animation;
+                        unsigned int suicide_camera_main_ntsc;
+                    }; /* +0x3A8 */
+                    char pad3AC[4];
+                    unsigned int suicide_camera_sidekick_ntsc; /* +0x3B0 */
+                    unsigned int suicide_camera_main_pal; /* +0x3B4 */
+                    unsigned int suicide_camera_sidekick_pal; /* +0x3B8 */
+                    char pad3BC[0x18];
+                    unsigned int fatality_camera_ntsc; /* +0x3D4 */
+                    unsigned int fatality_camera_pal;  /* +0x3D8 */
+                };
+                unsigned int fatality_camera_scripts[13];
+            };
         };
-        unsigned int fatality_camera_scripts[13];
+        int animation_data[49];
     };
     AnimScript* face_animations[26]; /* +0x3DC..+0x440 */
     /* init_shadow stores the atomic sphere at +0x444 and publishes the
      * transformed ground sphere and owned raster/texture through +0x46C. */
-    Vec shadow_sphere_center; /* +0x444 */
-    float shadow_sphere_radius; /* +0x450 */
+    RwSphere shadow_sphere; /* +0x444..+0x450 */
     Vec shadow_ground_point; /* +0x454 */
     float shadow_ground_radius; /* +0x460 */
     struct RwRaster* shadow_raster; /* +0x464 */

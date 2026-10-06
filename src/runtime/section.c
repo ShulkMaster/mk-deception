@@ -362,16 +362,18 @@ int is_section_loading_or_loaded(int handle, MkFileInfo* info) {
 SecSlotFileEntry* get_nth_sec_slot_file_from_handle(int handle, int index) {
     SecSlot* slot = get_sec_slot_from_handle(handle);
     SecSlotFileEntry* file = slot->files;
-    int remaining;
-    if (index < 1 || index > slot->file_count || file == 0) {
+    int ordinal;
+
+    if (index < 1 || index > slot->file_count) {
         return 0;
     }
-    if (index > 1) {
-        for (remaining = 1; remaining < index; remaining++) {
-            file = file->next;
-            if (file == 0) {
-                return 0;
-            }
+    if (file == 0) {
+        return 0;
+    }
+    for (ordinal = 1; ordinal < index; ordinal++) {
+        file = file->next;
+        if (file == 0) {
+            return 0;
         }
     }
     return file;

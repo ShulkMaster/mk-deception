@@ -73,15 +73,24 @@ typedef struct MkBone {
     RwMatrixPosition delta; /* +0xC0 */
     union {
         struct {
-            Quat rotation; /* +0xD0 - x, y, z, w */
-            Quat rotation_e0; /* +0xE0 */
+            union {
+                struct {
+                    Quat rotation; /* +0xD0 - x, y, z, w */
+                    Quat rotation_e0; /* +0xE0 */
+                };
+                Quat rotations[2];
+            };
+            RwMatrixPosition velocity; /* +0xF0 */
+            Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
+            char pad10C[4];
         };
-        Quat rotations[2];
+        RwMatrix trail_matrix; /* +0xD0 */
     };
-    RwMatrixPosition velocity; /* +0xF0 */
-    Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
-    char pad10C[4];
 } MkBone;
+
+typedef char MkBoneSizeCheck[sizeof(MkBone) == 0x110 ? 1 : -1];
+typedef char MkBoneTrailMatrixSizeCheck[
+    sizeof(((MkBone*)0)->trail_matrix) == 0x40 ? 1 : -1];
 
 typedef struct ClothBoneFlags30 {
     unsigned char use_ground_y : 1; /* bit7 */

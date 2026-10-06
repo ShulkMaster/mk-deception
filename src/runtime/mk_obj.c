@@ -267,22 +267,24 @@ MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth) {
 }
 
 #pragma inline_depth(2)
-/* TODO: [breakthrough needed] 82.22124%; child-depth traversal lowering differs;
- * inspect retail recursive CFG and saved-pointer lifetimes. */
+/* TODO: [near miss] 99.42%; traversal and frame agree; recursive ID,
+ * saved-next and depth register homes remain. */
 static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
                                              int depth) {
     RwLLLink* link;
+    RwLLLink* end;
+    RwLLLink* next_link;
     RwObject* object;
     MksobjPluginData* plugin;
     MkSobj* sobj;
     RwFrame* child;
     RwFrame* next;
-    int child_depth;
 
+    end = &frame->objectList.link;
     link = frame->objectList.link.next;
-    while (link != &frame->objectList.link) {
+    while (link != end) {
+        next_link = link->next;
         object = RW_OBJECT_FROM_FRAME_LINK(link);
-        link = link->next;
         if (object->type == 1) {
             plugin = MK_ATOMIC_PLUGIN(object);
             sobj = plugin->sobj;
@@ -290,12 +292,15 @@ static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
                 return sobj;
             }
         }
+        link = next_link;
     }
     if (depth - 1 != 0) {
-        child_depth = depth - 1;
         child = frame->child;
         while (child != 0) {
+            int child_depth;
+
             next = child->next;
+            child_depth = depth - 1;
             sobj = rwframe_find_child_sobj_by_id(child, id, child_depth);
             if (sobj != 0) {
                 return sobj;
@@ -3538,8 +3543,7 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children);
 
-/* TODO: [near miss] 99.93%; saved fallback (r25), pivot matrix (r23) and second chain matrix (r22)
- * color differently; split locals and a shared chain helper measured neutral/regressing. */
+/* TODO: [near miss] 99.93%; eight GPR-only rows remain; prior lifetime/helper forms exhausted, reopen with new structural evidence. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
