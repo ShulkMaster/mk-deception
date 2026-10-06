@@ -9,13 +9,13 @@ static u32* g_baseVMtoARAM;
 static u32 g_totalAllocatedVM;
 static u32 g_nextARAMPageToCheck;
 
-/* TODO: [breakthrough needed] 91.72%; allocation loop/frame shape remains unverified against retail. */
+/* TODO: [near miss] 96.88%; virtual mask and CTR loop agree;
+ * byte offset folds into cursor and parameter homes swap. */
 int VMAlloc(void* virtual_address, u32 size)
 {
     u32 first_aram_page;
     u32 end_aram_page;
     u32 virtual_offset;
-    u32 page_count;
 
     first_aram_page = VMGetARAMBase() >> 12;
     end_aram_page = first_aram_page + (VMGetARAMSize() >> 12);
@@ -27,34 +27,28 @@ int VMAlloc(void* virtual_address, u32 size)
         return 0;
     }
 
-    virtual_offset = 0;
-    page_count = (size + 0xFFF) >> 12;
-    if (size > 0) {
+    for (virtual_offset = 0; virtual_offset < size; virtual_offset += 0x1000) {
+        u8* virtual_page = (u8*)virtual_address + virtual_offset;
+
         do {
-            u32 virtual_page = (u32)virtual_address + virtual_offset;
+            g_nextARAMPageToCheck++;
+            if (g_nextARAMPageToCheck >= end_aram_page) {
+                g_nextARAMPageToCheck = first_aram_page;
+            }
+        } while (g_baseARAMtoVM[g_nextARAMPageToCheck] != 0);
 
-            do {
-                g_nextARAMPageToCheck++;
-                if (g_nextARAMPageToCheck >= end_aram_page) {
-                    g_nextARAMPageToCheck = first_aram_page;
-                }
-            } while (g_baseARAMtoVM[g_nextARAMPageToCheck] != 0);
-
-            g_baseARAMtoVM[g_nextARAMPageToCheck] = virtual_page;
-            virtual_offset += 0x1000;
-            g_baseVMtoARAM[virtual_page >> 12] =
-                g_nextARAMPageToCheck << 12;
-            g_totalAllocatedVM += 0x1000;
-        } while (--page_count != 0);
+        g_baseARAMtoVM[g_nextARAMPageToCheck] = (u32)virtual_page;
+        g_baseVMtoARAM[((u32)virtual_page >> 12) & 0x1FFF] =
+            g_nextARAMPageToCheck << 12;
+        g_totalAllocatedVM += 0x1000;
     }
 
     return 1;
 }
 
-/* TODO: [borked] 99.69%; LUT index omits retail's 13-bit page mask; frame also differs. */
 u32 __VMTranslateVMPageToARAMPage(u32 virtual_address)
 {
-    u32 aram_page = g_baseVMtoARAM[virtual_address >> 12] & 0x7FFFFFFF;
+    u32 aram_page = g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] & 0x7FFFFFFF;
 
     if (aram_page != 0) {
         return aram_page;

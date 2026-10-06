@@ -44,13 +44,10 @@ static const float kDefaultPfxScale = -10000.0f;
 #define MKPFX_MKOBJ_FROM_HDR(hdr_) ((MkObj*)(hdr_))
 
 static inline MkObj* as_mkobj(MkHdr* hdr) {
-    if (hdr == 0) {
-        return 0;
+    if (hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)) {
+        return (MkObj*)hdr;
     }
-    if (hdr->vtbl != MK_VTABLE_ADDRESS(vtbl_mkobj)) {
-        return 0;
-    }
-    return (MkObj*)hdr;
+    return 0;
 }
 
 static inline MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
@@ -387,7 +384,7 @@ MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, int object_type) {
     return obj;
 }
 
-void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone, int emitter) {
+void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, unsigned int bone, int emitter) {
     PfxEmitter* emitter_vm;
     void* bone_mat;
 
@@ -876,34 +873,36 @@ void pfx_post_sleep(void) {
     apfx_emitter_sobj = 0;
 }
 
-/* TODO: [breakthrough needed] 69.63%; resolve binding-validation and wake/failure CFG against retail. */
+/* TODO: [breakthrough] 87.70%; global call-boundary reloads, binding gate
+ * and checked casts recovered; latch and virtual-wrapper CFG remain. */
 void pfx_pre_wake(void) {
-    MkPfx* pfx;
     MkHdr* render_hdr;
     PfxSlot* emitter_slot;
     MkHdr* emitter_hdr;
     MkHdr* proc_hdr;
     int begin_rc;
 
-    pfx = (MkPfx*)apdata;
-    apfx = pfx;
-    if (pfx == 0) {
+    apfx = (MkPfx*)apdata;
+    if (apfx == 0) {
         return;
     }
 
     apfx_render_obj = 0;
     apfx_render_sobj = 0;
 
-    render_hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
-    if (pfx->bind_hdr != 0 && render_hdr == 0) {
-        mkproc_die();
-    }
+    render_hdr = apfx->bind_hdr;
     if (render_hdr != 0) {
-        apfx_render_obj = as_mkobj(render_hdr);
-        apfx_render_sobj = vtbl_call_get_sobj(render_hdr);
+        render_hdr = MK_LIVE(render_hdr, apfx->bind_inst);
+        if (render_hdr == 0) {
+            mkproc_die();
+        }
+        if (render_hdr != 0) {
+            apfx_render_obj = as_mkobj(render_hdr);
+            apfx_render_sobj = vtbl_call_get_sobj(render_hdr);
+        }
     }
 
-    emitter_slot = pfx->slot_table;
+    emitter_slot = apfx->slot_table;
     if (emitter_slot != 0) {
         emitter_hdr = MK_LIVE(emitter_slot->hdr, emitter_slot->instance);
         if (emitter_hdr != 0) {
@@ -912,12 +911,12 @@ void pfx_pre_wake(void) {
         }
     }
 
-    begin_rc = pfx_frame_begin(pfx_vm(pfx));
+    begin_rc = pfx_frame_begin(pfx_vm(apfx));
     if (begin_rc != 0) {
-        pfx_frame_end(pfx_vm(pfx));
-        proc_hdr = MK_LIVE(pfx->proc, pfx->proc_inst);
-        if (pfx->hdr.instance != 0) {
-            vtbl_call_destroy(&pfx->hdr);
+        pfx_frame_end(pfx_vm(apfx));
+        proc_hdr = MK_LIVE(apfx->proc, apfx->proc_inst);
+        if (apfx->hdr.instance != 0) {
+            vtbl_call_destroy(&apfx->hdr);
         }
         if (proc_hdr != 0) {
             vtbl_call_destroy(proc_hdr);
@@ -927,10 +926,10 @@ void pfx_pre_wake(void) {
         return;
     }
 
-    if (pfx->behaviors_active != 0) {
-        pfx_behaviors_frame_begin(pfx_vm(pfx));
+    if (apfx->behaviors_active != 0) {
+        pfx_behaviors_frame_begin(pfx_vm(apfx));
     }
-    pfx->tick = exec_tick_ctr;
+    apfx->tick = exec_tick_ctr;
 }
 
 int mkpfx_init(void) {

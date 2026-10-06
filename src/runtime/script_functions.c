@@ -1,6 +1,7 @@
 /* BUILD: -O4,s -use_lmw_stmw on object-wide: replaces per-wrapper optimize_for_size/use_lmw_stmw
  * pragmas; every exact wrapper stays exact and three flag getters improve. */
 #include "game/game.h"
+#include "game/fatality.h"
 #include "runtime/anim_api_ext.h"
 #include "game/ncs.h"
 #include "platform/display.h"
@@ -681,7 +682,6 @@ struct ScriptActiveState {
     ScriptSlot* state;
 };
 
-/* Partial external MkObj view: retail accesses its position at +0xA0 here. */
 struct ScriptNpcCameraObjectView {
     char pad00[0xA0];
     Vec pos;
@@ -1113,7 +1113,6 @@ void* plyr_weapon_release(int a);
 void bone_matcher_reset_dest_mat_rot(int a, int b);
 void bone_matcher_set_ang_pos(int a, int b, int c, int d, int e, int f);
 MkObj* weapon_bm_ignore(int weapon, int ignored);
-void* regrab_weapon(int a, int b, int c, int d, int e, int f, int g);
 void weapon_reflection_show_hide(PlyrPdata* player, int secondary, int hidden);
 void* show_single_weapon(int a, int b);
 void advance_to_weapon_style(int a);
@@ -1126,7 +1125,6 @@ unsigned long play_his_random_voice(int a);
 void obj_unhide_material_by_id(void* object, int id);
 void obj_hide_material_by_id(void* object, int id);
 void bm_force_fake_child_bid(int a, int b);
-int fat_bgnd_char_setup_radius_check(const FatalityRadiusCheck* check);
 void set_victim_v3_units_away(float a, float b);
 void reset_fake_bone_matcher(struct FakeBoneMatcher* matcher,
                              const Vec* parent_offset,
@@ -1169,7 +1167,6 @@ void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 void* retrieve_bgnd_obj(void);
 void fkbm_obj_face_obj(int a, int b, int c, int d, int e);
-void start_obj_scalar_proc(int a, int b, int c, int d);
 float mkobj_pos_pos_dot_normal_xz(int a, int b, int c);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
 MkSobj* obj_create_sobjs_by_id(MkObj* object, int id);
@@ -1301,7 +1298,6 @@ void resume_effect_at_plyr_num_bid(
     int player, int bone_id, unsigned int effect_handle,
     int bind_mode, int blood_required);
 
-/* Typed declarations used by imported script wrappers. */
 int add_facial_damage(void *, float);
 int add_npc_list_to_world(int);
 void add_trigger_list_to_world(void);
@@ -1692,7 +1688,6 @@ int weapon_trail_off(void);
 int weapon_trail_on(void);
 void whoosh_fx(int);
 
-/* Typed declarations used by imported script wrappers. */
 int add_days_to_time(int, int);
 int add_hours_to_time(int, int);
 int add_months_to_time(int, int);
@@ -2041,10 +2036,8 @@ void trigger_set_time_for_enable(KonquestTriggerDefinition*, int, int, int);
 void uv_my_angle_y(void* direction, float angle_offset);
 void xfer_player_proc_to_script(MkObj*, int);
 
-/* Typed declarations used by imported script wrappers. */
 int plyr_invulnerable_to_projectiles(int, int);
 
-/* Typed declarations used by imported script wrappers. */
 int advance_my_sidekick_from_behind_with_moveset(void);
 int am_i_airborn_check_in_reaction(void);
 MkObj* bgnd_fx_get_binded_obj(unsigned int);
@@ -2162,7 +2155,6 @@ float throw_spear(void);
 int trial_get_background_root(void);
 int trial_invisible_callback(int);
 
-/* Typed declarations used by imported script wrappers. */
 float bgnd_blood_control(int, int, void *, float);
 int bgnd_create_pebbles_with_sobj(int, int, int, int);
 float bgnd_get_anim_info(int, int, void *, float);
@@ -2191,11 +2183,9 @@ float spad_get_pos(int, unsigned int);
 float spad_xz_cos_two_vectors(int, int);
 float spad_xz_dot_xz(int, int);
 
-/* Typed declarations used by imported script wrappers. */
 void bgnd_launch_fx_at_plyr_pos_and_y(const char*, float);
 void bgnd_set_fx_z_offset(const char *, float);
 
-/* Typed declarations used by imported script wrappers. */
 int ani_col_abort(float, int, float, float, int, float, int);
 void ani_to_fall_to_frame(
     float landing_frame, int sound_id, float target_frame);
@@ -2285,14 +2275,11 @@ void trial_show_spoken_text_window(int, float, float, float, int, int, int, int,
 void trial_show_text_window(int, float, float, float, int, int);
 float two_player_animation_blend(AniData*, float, float, int, int);
 
-/* Data used by imported script wrappers. */
 float p_animated_intro_done(void);
 
-/* Typed declarations used by imported script wrappers. */
 void credits_add_text(const char* center_text, const char* right_text, int monochrome);
 void trial_set_move_message(const char* message, const char* parameter);
 
-/* Typed declarations used by imported script wrappers. */
 void attack_to_frame_x(AniData*, float, float, float, float,
                        unsigned int, unsigned int, int);
 void launch_n_land_ani(
@@ -2333,7 +2320,6 @@ void _obj_setup_for_animation(void) {
                             ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _npc_set_anim_proc(void) {
     int function_index;
 
@@ -2710,7 +2696,6 @@ void _pz_fighter_startup_attack(void) {
         args->slots[9].f);
 }
 
-/* MKO name references are one byte ahead of the string start. */
 static inline char* script_function_name_reference(
     const struct ScriptDistanceFuncDef* functions, unsigned int function_index,
     int string_relocation)
@@ -2845,7 +2830,6 @@ void _drone_xfer_him(void) {
 void _drone_super_combo(void) {
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _xfer_camera(void) {
     int function_index;
     int reset_projection;
@@ -3530,7 +3514,6 @@ void _true_xfer_him(void) {
     }
 }
 
-/* TODO: [near miss] 100% instructions; not link-exact: pooled format-string relocation targets differ (TU string pool layout). */
 void _script_sleep(void) {
     int ticks;
 
@@ -4968,10 +4951,10 @@ void _weapon_bm_ignore(void) {
 
 void _regrab_weapon(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        regrab_weapon(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
-                      ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i,
-                      ((struct ScriptRawArgs*)current_args)->slots[4].i, ((struct ScriptRawArgs*)current_args)->slots[5].i,
-                      ((struct ScriptRawArgs*)current_args)->slots[6].i);
+        regrab_weapon(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
+                      ((struct ScriptRawArgs*)current_args)->slots[2].pointer, ((struct ScriptRawArgs*)current_args)->slots[3].i,
+                      ((struct ScriptRawArgs*)current_args)->slots[4].pointer, ((struct ScriptRawArgs*)current_args)->slots[5].pointer,
+                      ((struct ScriptRawArgs*)current_args)->slots[6].pointer);
 }
 
 void _weapon_reflection_show_hide(void) {
@@ -5251,8 +5234,8 @@ void _obj_grnd_bounce(void) {
 }
 
 void _start_obj_scalar_proc(void) {
-    start_obj_scalar_proc(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
-                          ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
+    start_obj_scalar_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
+                          ((struct ScriptRawArgs*)current_args)->slots[2].pointer, ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
 void _obj_match_obj_pos(void) {

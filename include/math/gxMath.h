@@ -11,6 +11,25 @@ float gxMathArcTanYX(float y, float x);
 float gxMathArcTan(float x);
 float gxMathArcCos(float x);
 
+static inline float gxMathFastInvSqrt(float value) {
+    union {
+        float f;
+        unsigned int u;
+    } guess;
+    float product;
+    float correction;
+
+    if (value <= 0.0f) {
+        return 0.0f;
+    }
+    guess.f = value;
+    guess.u = 0x5F375A00U - (guess.u >> 1);
+    product = guess.f * (value * guess.f);
+    correction = 3.0f - product;
+    return 0.0625f * guess.f * correction *
+           -(correction * (product * correction) - 12.0f);
+}
+
 static inline float gxMathFastSqrt(float value) {
     union {
         float f;

@@ -2,10 +2,6 @@
 
 extern int __msl_strnicmp(const char* left, const char* right, unsigned long count);
 
-static inline int lower_char(int character)
-{
-    return character == -1 ? -1 : (int)__lower_map[(unsigned char)character];
-}
 
 char* strupr(char* string)
 {
@@ -28,8 +24,8 @@ int stricmp(const char* left, const char* right)
     signed char right_char;
 
     do {
-        left_char = lower_char(*left++);
-        right_char = lower_char(*right++);
+        left_char = _tolower(*left++);
+        right_char = _tolower(*right++);
         if (left_char < right_char)
             return -1;
         if (left_char > right_char)
@@ -42,7 +38,7 @@ char* strlwr(char* string)
 {
     char* cursor = string;
     while (*cursor != '\0') {
-        *cursor = lower_char(*cursor);
+        *cursor = _tolower(*cursor);
         ++cursor;
     }
     return string;

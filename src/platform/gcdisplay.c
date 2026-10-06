@@ -307,9 +307,9 @@ int romfont_puts(int x, int y, char* text) {
 
 void gc_native_display_render_text(char* text) {
     if (OSGetFontEncode() == 1) {
-        FontData = _mwMemMalloc(wave_heap, 0x120F00, 5, 0, 0, 0);
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_SJIS, 5, 0, 0, 0);
     } else {
-        FontData = _mwMemMalloc(wave_heap, 0x20120, 5, 0, 0, 0);
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_ANSI, 5, 0, 0, 0);
     }
     if (FontData == 0) {
         OSPanic("gcdisplay.c", 0x50D, "Ins. memory to load ROM font.");
@@ -592,8 +592,8 @@ void gc_native_display_init(void) {
     int xfbHalf;
     void* raw;
     void* fifo;
-    void* xfb1;
-    void* xfb2;
+    unsigned char* xfb1;
+    unsigned char* xfb2;
     float yscale;
     unsigned long copyHeight;
     int pixFmt;
@@ -619,7 +619,7 @@ void gc_native_display_init(void) {
     DCInvalidateRange(fifo, _RwDlFifoSize);
 
     xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
-    xfb2 = (unsigned char*)xfb1 + xfbHalf;
+    xfb2 = xfb1 + xfbHalf;
     _RwGCXFBDisp = xfb1;
     _RwGCXFB1 = xfb1;
     gc_native_display.xfbDisp = xfb1;
@@ -1040,9 +1040,9 @@ static void display_dragon_with_text(void* arg) {
     display_image();
 
     if (OSGetFontEncode() == 1) {
-        FontData = _mwMemMalloc(wave_heap, 0x120F00, 5, 0, 0, 0);
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_SJIS, 5, 0, 0, 0);
     } else {
-        FontData = _mwMemMalloc(wave_heap, 0x20120, 5, 0, 0, 0);
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_ANSI, 5, 0, 0, 0);
     }
     if (FontData == 0) {
         OSPanic("gcdisplay.c", 0x50D, "Ins. memory to load ROM font.");

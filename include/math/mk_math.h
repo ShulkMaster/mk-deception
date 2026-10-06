@@ -59,6 +59,13 @@ void scale_v3(Vec* out, const Vec* v, float s);
 void interp_v3(Vec* out, const Vec* a, const Vec* b, float weight_a);
 void norm_angles_v3(Vec* ang);
 float norm_angle(float angle);
+
+static inline float norm_angle_inline(float angle) {
+    int fixed_angle = 166886.1f * angle;
+
+    fixed_angle &= 0xFFFFF;
+    return (float)fixed_angle * 0.000005992112f;
+}
 void v3_to_xz_ang(Vec* ang, Vec* v);
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v);
 void v3_to_xy_ang(Vec* ang, Vec* v);

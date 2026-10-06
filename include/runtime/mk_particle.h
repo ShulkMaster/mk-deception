@@ -13,6 +13,7 @@ typedef struct FighterMirror FighterMirror;
 typedef struct PfxColor PfxColor;
 typedef struct PfxMetrics PfxMetrics;
 struct BloodParticleDefinition;
+struct PlyrPdata;
 
 typedef struct PfxNameObj {
     char pad00[0x354];
@@ -152,6 +153,7 @@ struct MkPfx {
     union {
         int field_2B8;
         FighterMirror* decal_owner;
+        struct PlyrPdata* blood_owner;
         PfxColor* glass_alphas;
     };
     int field_2BC;
@@ -180,7 +182,7 @@ void pfx_start_batch(void);
 void insert_PFXlist_in_transl_tree(void);
 void set_pfx_texture(PfxVm* vm, int handle, unsigned int art_oid);
 MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, int object_type);
-void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone, int emitter);
+void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, unsigned int bone, int emitter);
 void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone);
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone);
 void pfx_bind_emitter_num_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag, int emitter);

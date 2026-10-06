@@ -306,12 +306,15 @@ static void do_add_constant(int count, const unsigned char* source,
 static void add_jitter(int count, unsigned char* values, int stride,
                        float x, float y, float z)
 {
-    int index;
-    for (index = 0; index < count; index++) {
+    int index = 0;
+    float minimum_x = -x;
+    float minimum_y = -y;
+    float minimum_z = -z;
+    for (; index < count; index++) {
         PfxVec3* value = (PfxVec3*)values;
-        value->x += rnd_between(-x * 0.5f, x * 0.5f);
-        value->y += rnd_between(-y * 0.5f, y * 0.5f);
-        value->z += rnd_between(-z * 0.5f, z * 0.5f);
+        value->x += rnd_between(minimum_x / 2.0f, x / 2.0f);
+        value->y += rnd_between(minimum_y / 2.0f, y / 2.0f);
+        value->z += rnd_between(minimum_z / 2.0f, z / 2.0f);
         values += stride;
     }
 }
@@ -344,9 +347,9 @@ static void add_oscillate(int count, unsigned char* values, int stride,
     int index;
     for (index = 0; index < count; index++) {
         PfxVec3* value = (PfxVec3*)values;
-        value->x += rnd_between(-x * 0.5f, x * 0.5f);
-        value->y += rnd_between(-y * 0.5f, y * 0.5f);
-        value->z += rnd_between(-z * 0.5f, z * 0.5f);
+        value->x += rnd_between(-x / 2.0f, x / 2.0f);
+        value->y += rnd_between(-y / 2.0f, y / 2.0f);
+        value->z += rnd_between(-z / 2.0f, z / 2.0f);
         values += stride;
     }
 }
