@@ -9,6 +9,16 @@ knobs. `[da]` = mk-da import (tier 1).
 Boolean/rotate idiom survives honest C. REQUIRE exact intrinsic semantics +
 unsigned contract. Proven `cntlzw`/rotate intrinsic, not instruction padding.
 
+- Integer absolute value expands to `srawi`/`xor`/`subf`: REQUIRE signed input
+  range excluding `INT_MIN` and no retail call. TRY canonical MWCC `__abs(int)`
+  at the real zero-axis/max phases (`mk_chess_drone_handle_the_big_chill_opening_move`).
+  A plain `abs` declaration can emit a call; ternary abs can hoist a branch
+  outside the inner loop. Verify expansion and all header consumers.
+  Unused distance output in a proven full octant/distance expansion: `__abs`
+  can retain magnitude instructions erased by ternary abs; verify the real
+  output contract and shared consumers, never add a fake output use
+  (`mk_chess_drone_cursor_movement_to_target`).
+
 ## N02
 
 Global address vs contents/SDA differs. REQUIRE ELF object/array identity +
@@ -120,6 +130,35 @@ After the applicable honest source check, stop at:
     named locals next in reverse decl order (block-scoped lowest), then
     front-end temps (inline copies, split ranges, inline result joins), then
     codegen temps.
+  - Web kinds, in number order (captured, replay exact, `pz_ai_decide_match`):
+    block-scoped named (reverse decl) < function-scoped named (reverse decl)
+    < 2nd+ webs of a variable (groups in reverse source order of the
+    variable's first web, webs in a group forward) < CSE temps (value used
+    twice; reverse source) < loop temps (hoisted invariants, strength-reduced
+    bases; reverse source) < `?:`/`&&`-mask results and inline-helper
+    locals/results (reverse source) < plain emission temps (forward). A named
+    local assigned once from a `?:` or an inline result is propagated away and
+    lives on as that temp. Coalesced temp-temp copy (helper `c = type` with a
+    temp argument) = never-pushed node, +1 degree on every neighbour.
+  - Several long-lived saved homes rotated (param, flag, call result, two
+    hoisted array bases): all mutually adjacent, pushed ascending once degree
+    < 29 in sweep 2. A web scanned at number N stays unpushed iff 12 physical
+    + other big webs + S_above + C >= 29 (S_above = long-lived webs numbered
+    above N, C = coalesced neighbours); unpushed big webs then go in sweep 3
+    in ascending number, so retail's order fixes which kinds the small webs
+    must have. Count S_above + C from the capture before trying spellings.
+    Honest levers that move a web between kinds: `x = cond ? 8 : 5`
+    (emission temp), `same = a == b ? 1 : 0` (same cntlzw idiom, temp popped
+    first -> r0), inline colour helper applied to the field expression with
+    the raw read CSE'd into a breaker macro (copy coalesces, `subi r5,r5,4`
+    stays in place, +1 C each), open-coded two-def selection instead of an
+    inline result (named web popped late -> r10), direct `placements[p][c]`
+    indexing instead of a pointer local (CSE temp pops before the row load),
+    pointer local with a 2nd web for a single-use cell address (materializes
+    `add; lwz 4(r)` where a direct read folds to `addi; lwzx`), and
+    variable ownership so a loop's row/column/cell webs are first webs or
+    splits in the needed group order. Levers interact through the threshold:
+    measure each alone and in the combination.
   - Simplify: each pass scans ascending, pushes every web with degree < free
     reg count (29), decrements neighbours at once. Select pops, takes lowest
     free colour claiming r31 downward -> two params pushed in one pass: later
