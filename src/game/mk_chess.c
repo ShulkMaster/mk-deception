@@ -47,14 +47,14 @@ typedef struct ChessMoveTarget {
     unsigned int cell_x;
     unsigned int cell_y;
     int kind;
-} ChessMoveTarget; /* 0x0C */
+} ChessMoveTarget;
 
 typedef struct ChessPieceMoveMap {
     MkHdr hdr;
-    unsigned int rows[10]; /* +0x08 - ten three-bit cells per row */
-    ChessMoveTarget targets[8]; /* +0x30 */
-    unsigned int target_count; /* +0x90 */
-} ChessPieceMoveMap; /* 0x94-byte allocation */
+    unsigned int rows[10];
+    ChessMoveTarget targets[8];
+    unsigned int target_count;
+} ChessPieceMoveMap;
 
 typedef union ChessEffectFlags {
     unsigned int word;
@@ -70,48 +70,48 @@ typedef union ChessEffectFlags {
 
 typedef struct ChessPieceEffect {
     MkHdr hdr;
-    ChessEffectFlags flags; /* +0x08 */
-    MkObj* object; /* +0x0C */
-    unsigned int object_instance; /* +0x10 */
-    unsigned int emitter; /* +0x14 */
-    TrackedSound* sound; /* +0x18 */
-    unsigned int sound_instance; /* +0x1C */
-    unsigned int expiry_clock; /* +0x20 */
-    int kind; /* +0x24 */
-} ChessPieceEffect; /* 0x28-byte allocation */
+    ChessEffectFlags flags;
+    MkObj* object;
+    unsigned int object_instance;
+    unsigned int emitter;
+    TrackedSound* sound;
+    unsigned int sound_instance;
+    unsigned int expiry_clock;
+    int kind;
+} ChessPieceEffect;
 
 typedef struct ChessImprisonPdata {
     MkHdr hdr;
     ChessPieceEffect* effect;
     ChessPiece* piece;
-} ChessImprisonPdata; /* 0x10-byte process allocation */
+} ChessImprisonPdata;
 
 typedef struct ChessClassText {
     unsigned int class_index;
     char* portrait_name;
     unsigned int field_08;
-    char* rescue_name; /* +0x0C - string passed to the rescue prompt */
+    char* rescue_name;
     unsigned int init_script;
 } ChessClassText;
 
 typedef struct ChessSpellPageText {
     unsigned int line_ids[2];
-    unsigned int title_id; /* +0x08 - target scroll caption */
+    unsigned int title_id;
 } ChessSpellPageText;
 
 typedef struct ChessSpellDefinition {
     unsigned int name_id;
-    unsigned int target_rules[2]; /* +0x04 - first and second target */
+    unsigned int target_rules[2];
     unsigned int target_access_flags;
     const ChessSpellPageText* pages[2];
     unsigned int enabled;
-} ChessSpellDefinition; /* 0x1C */
+} ChessSpellDefinition;
 
 typedef struct ChessPieceSpellData {
     MkHdr hdr;
-    unsigned int target_access_flags[4]; /* +0x08 */
-    const ChessSpellPageText* pages[4][2]; /* +0x18 */
-} ChessPieceSpellData; /* 0x38-byte allocation */
+    unsigned int target_access_flags[4];
+    const ChessSpellPageText* pages[4][2];
+} ChessPieceSpellData;
 
 typedef int (*ChessProcVtableFn)(void);
 typedef int (*ChessProcJumpFn)(MkProcEntryFn entry, float ticks);
@@ -120,7 +120,7 @@ typedef struct ChessProcVtable {
     ChessProcVtableFn reserved[6];
     ChessProcVtableFn sleep;
     ChessProcVtableFn stack_ops[2];
-    ChessProcJumpFn jump_sleep; /* +0x24 */
+    ChessProcJumpFn jump_sleep;
 } ChessProcVtable;
 
 typedef struct ChessAttackGridPosition {
@@ -134,24 +134,24 @@ typedef struct ChessHudState {
     MkHdr hdr;
     unsigned int side;
     int state;
-    int countdown; /* +0x10 */
+    int countdown;
     int field_14;
-    int input_state; /* +0x18 */
-    MkPtr* images; /* +0x1C */
+    int input_state;
+    MkPtr* images;
     char pad20[4];
-    unsigned int spell_number; /* +0x24 */
-    ChessPiece* caster; /* +0x28 */
-    int selected_name; /* +0x2C */
-    unsigned int cursor_slot; /* +0x30 */
-    int names_state; /* +0x34 */
-    unsigned int target_rules; /* +0x38 */
-    MkPtr* strings; /* +0x3C */
-    ChessPiece* temporary_piece; /* +0x40 */
-    unsigned int target_x[2]; /* +0x44 */
-    unsigned int target_y[2]; /* +0x4C */
+    unsigned int spell_number;
+    ChessPiece* caster;
+    int selected_name;
+    unsigned int cursor_slot;
+    int names_state;
+    unsigned int target_rules;
+    MkPtr* strings;
+    ChessPiece* temporary_piece;
+    unsigned int target_x[2];
+    unsigned int target_y[2];
     int field_54;
     MkHdr* image_58;
-    int rescue_piece_type; /* +0x5C */
+    int rescue_piece_type;
 } ChessHudState;
 
 typedef struct ChessSpellHudPdata {
@@ -163,18 +163,18 @@ typedef struct ChessSpellHudPdata {
 
 typedef struct ChessStringFadePdata {
     MkHdr hdr;
-    MkPtr** strings; /* +0x08 - owning list head */
-    float (*completed)(void); /* +0x0C */
-    int step; /* +0x10 */
-    ChessHudState* owner; /* +0x14 */
-} ChessStringFadePdata; /* 0x18-byte process allocation */
+    MkPtr** strings;
+    float (*completed)(void);
+    int step;
+    ChessHudState* owner;
+} ChessStringFadePdata;
 
 typedef struct ChessImageFadePdata {
     MkHdr hdr;
-    float (*completed)(void); /* +0x08 */
-    MkPtr** images; /* +0x0C - owning list head */
-    ChessHudState* owner; /* +0x10 */
-} ChessImageFadePdata; /* 0x14-byte allocation */
+    float (*completed)(void);
+    MkPtr** images;
+    ChessHudState* owner;
+} ChessImageFadePdata;
 
 typedef struct ChessPieceProcPdata {
     MkHdr hdr;
@@ -183,42 +183,42 @@ typedef struct ChessPieceProcPdata {
 
 typedef struct ChessGroundBlastPdata {
     MkHdr hdr;
-    MkObj* object; /* +0x08 */
-    ChessPiece* piece; /* +0x0C */
-    float elapsed; /* +0x10 */
-    float maximum_scale; /* +0x14 */
-    float fade_start_scale; /* +0x18 */
-    float scale_per_tick; /* +0x1C */
-    int alpha_step; /* +0x20 */
-    int fade_ticks; /* +0x24 */
-    int spawn_secondary; /* +0x28 */
-} ChessGroundBlastPdata; /* 0x2C-byte allocation */
+    MkObj* object;
+    ChessPiece* piece;
+    float elapsed;
+    float maximum_scale;
+    float fade_start_scale;
+    float scale_per_tick;
+    int alpha_step;
+    int fade_ticks;
+    int spawn_secondary;
+} ChessGroundBlastPdata;
 
 typedef struct ChessPieceFadePdata {
     MkHdr hdr;
-    ChessPiece* piece; /* +0x08 */
-    RwRGBA color; /* +0x0C */
-    unsigned int target_alpha; /* +0x10 */
-    unsigned int delay; /* +0x14 */
-    int step; /* +0x18 */
-} ChessPieceFadePdata; /* 0x1C, from the process allocation */
+    ChessPiece* piece;
+    RwRGBA color;
+    unsigned int target_alpha;
+    unsigned int delay;
+    int step;
+} ChessPieceFadePdata;
 
 typedef struct ChessInputPdata {
     MkHdr hdr;
     unsigned int side;
-    int state; /* +0x0C */
-    int switch_index; /* +0x10 */
-    int analog; /* +0x14 */
-    unsigned int direction; /* +0x18 */
-    unsigned int direction_delay; /* +0x1C */
+    int state;
+    int switch_index;
+    int analog;
+    unsigned int direction;
+    unsigned int direction_delay;
 } ChessInputPdata;
 
 typedef struct ChessTurnExpiredPdata {
     MkHdr hdr;
     char pad08[4];
-    unsigned int side; /* +0x0C */
+    unsigned int side;
     char pad10[0x10];
-} ChessTurnExpiredPdata; /* 0x20-byte process allocation */
+} ChessTurnExpiredPdata;
 
 typedef struct ChessAttackBurstPdata {
     MkHdr hdr;
@@ -253,12 +253,12 @@ typedef struct ChessBezierCameraState {
 } ChessBezierCameraState;
 
 typedef struct ChessTableHeader {
-    unsigned int setup_function; /* +0x00 */
-    unsigned int fight_function; /* +0x04 */
+    unsigned int setup_function;
+    unsigned int fight_function;
     unsigned int init_function;
-    unsigned int restore_function; /* +0x0C */
+    unsigned int restore_function;
     char pad10[8];
-    int music; /* +0x18 */
+    int music;
 } ChessTableHeader;
 
 typedef struct ChessForcePdata {
@@ -282,27 +282,27 @@ typedef struct ChessSlideMessagePdata {
 
 typedef struct ChessFadeMessagePdata {
     MkHdr hdr;
-    ScreenObj* object; /* +0x08 */
+    ScreenObj* object;
     char pad0C[4];
-    int step; /* +0x10 */
+    int step;
     char pad14[4];
-    unsigned int initial_delay; /* +0x18 */
-} ChessFadeMessagePdata; /* 0x1C-byte allocation */
+    unsigned int initial_delay;
+} ChessFadeMessagePdata;
 
 typedef struct ChessScaleMessagePdata {
     MkHdr hdr;
-    ScreenObj* object; /* +0x08 */
-    float step; /* +0x0C */
-    float start_scale; /* +0x10 */
-    float target_scale; /* +0x14 */
-    unsigned int initial_delay; /* +0x18 */
-    int center_x; /* +0x1C */
-    int center_y; /* +0x20 */
-    unsigned int texture_width; /* +0x24 */
-    int destroy_after_delay; /* +0x28 */
-    unsigned int final_delay; /* +0x2C */
-    int fade_after_midpoint; /* +0x30 */
-} ChessScaleMessagePdata; /* 0x34 */
+    ScreenObj* object;
+    float step;
+    float start_scale;
+    float target_scale;
+    unsigned int initial_delay;
+    unsigned int center_x;
+    unsigned int center_y;
+    unsigned int texture_width;
+    int destroy_after_delay;
+    unsigned int final_delay;
+    int fade_after_midpoint;
+} ChessScaleMessagePdata;
 
 typedef struct ChessSpellHudNames {
     MkHdr hdr;
@@ -316,48 +316,48 @@ typedef struct ChessSpellHudNames {
 
 typedef struct ChessDroneState {
     char pad00[8];
-    /* The representative piece is the first entry of the side's live roster. */
+
     union {
-        ChessPiece* piece; /* +0x08 */
-        ChessPiece* pieces[17]; /* +0x08..+0x4B */
+        ChessPiece* piece;
+        ChessPiece* pieces[17];
     };
-    unsigned int live_piece_count; /* +0x4C */
-    unsigned int captured_piece_count; /* +0x50 - roster entries stored at the end */
+    unsigned int live_piece_count;
+    unsigned int captured_piece_count;
     char pad54[4];
-    MkProc* proc; /* +0x58 */
+    MkProc* proc;
     char pad5C[0x0C];
     union {
-        MkObj* cursor; /* legacy partial view used by complete_action */
-        ChessSideController* controller; /* +0x68 */
+        MkObj* cursor;
+        ChessSideController* controller;
     };
     char pad6C[0x98];
-    int think_delay; /* +0x104 */
-    int action_delay; /* +0x108 */
-    unsigned int cooldown; /* +0x10C */
+    int think_delay;
+    int action_delay;
+    unsigned int cooldown;
     char pad110[0x1C];
-    int strategy; /* +0x12C */
+    int strategy;
     char pad130[0x14];
     unsigned int field_144;
-    unsigned int spell; /* +0x148 */
-    unsigned int spell_target; /* +0x14C */
-    unsigned int state; /* +0x150 */
-    unsigned int target_0_x; /* +0x154 */
-    unsigned int target_1_x; /* +0x158 */
-    unsigned int target_0_y; /* +0x15C */
-    unsigned int target_1_y; /* +0x160 */
-    unsigned int action_state; /* +0x164 */
-    int field_168; /* +0x168 */
-    int trap_countdown; /* +0x16C */
-    int placement_countdown; /* +0x170 */
-    unsigned int desired_x; /* +0x174 */
-    unsigned int desired_y; /* +0x178 */
+    unsigned int spell;
+    unsigned int spell_target;
+    unsigned int state;
+    unsigned int target_0_x;
+    unsigned int target_1_x;
+    unsigned int target_0_y;
+    unsigned int target_1_y;
+    unsigned int action_state;
+    int field_168;
+    int trap_countdown;
+    int placement_countdown;
+    unsigned int desired_x;
+    unsigned int desired_y;
 } ChessDroneState;
 
 typedef struct ChessGameTeamDefinition {
     int type;
     int field_04;
     int characters[5];
-} ChessGameTeamDefinition; /* 0x1C */
+} ChessGameTeamDefinition;
 
 typedef struct ChessGameDefinition {
     int background;
@@ -373,7 +373,7 @@ typedef struct ChessGameDefinition {
         };
     };
     int enabled;
-} ChessGameDefinition; /* 0x40 overlay on g_chess_definition_info */
+} ChessGameDefinition;
 
 typedef struct ChessProfileStats {
     char pad00[0x4FC];
@@ -411,7 +411,6 @@ extern ChessBezierCameraState g_bezier_cam;
 
 void snd_req_delay(int sound_id, int delay);
 void fx_resume_emit(unsigned int effect);
-void fx_reset_emit(unsigned int effect);
 static void mk_chess_cursor_go_to_new_track(
     ChessPiece* piece, unsigned int axis, unsigned int direction, unsigned int track);
 typedef struct ChessGroundCollisionEntry {
@@ -452,9 +451,6 @@ static int mk_chess_place_spell_hud_cursor_at_open_slot(
 void mk_chess_hud_set_piece_portrait(ChessPiece* piece);
 void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active);
 void mk_chess_activate_piece_properties(ChessPiece* piece);
-int transition_to_anim_script_frame(
-    float transition_frames, float frame, AnimPdata* animation,
-    AniData* script, unsigned int flags);
 void fx_pause_emit(unsigned int effect);
 void mk_chess_set_game_mode(int mode);
 void mk_chess_timeout_msg(int message, unsigned int side);
@@ -670,25 +666,31 @@ static int move_cursor_based_on_quadrant(unsigned int side, int* x, int* y,
 static int mk_chess_find_my_smart_piece(ChessDroneState* drone,
     ChessPiece** selected, float minimum_health);
 
+static inline unsigned int mk_chess_neighbor_distance(int dx, int dy) {
+    unsigned int distance = __abs(dy);
+
+    if (dx == 0) {
+        return distance;
+    }
+    if (dy == 0) {
+        return __abs(dx);
+    }
+    if (distance < (unsigned int)__abs(dx)) {
+        distance = __abs(dx);
+    }
+    return distance;
+}
+
 static inline int mk_chess_pieces_are_neighbors(ChessPiece* piece, ChessPiece* other) {
     int dx;
     int dy;
-    unsigned int distance;
 
     if (piece == 0 || other == 0) {
         return 0;
     }
     dx = (int)other->cell_x - piece->cell_x;
     dy = (int)other->cell_y - piece->cell_y;
-    distance = dy < 0 ? -dy : dy;
-    if (dx != 0) {
-        if (dy == 0) {
-            distance = dx < 0 ? -dx : dx;
-        } else if (distance < (unsigned int)(dx < 0 ? -dx : dx)) {
-            distance = dx < 0 ? -dx : dx;
-        }
-    }
-    if (distance == 1) {
+    if (mk_chess_neighbor_distance(dx, dy) == 1) {
         return 1;
     }
     return 0;
@@ -844,21 +846,6 @@ static inline unsigned int mk_chess_relative_event_direction(ChessPiece* piece, 
     return direction;
 }
 
-static inline unsigned int mk_chess_neighbor_distance(int dx, int dy) {
-    unsigned int distance = __abs(dy);
-
-    if (dx == 0) {
-        return distance;
-    }
-    if (dy == 0) {
-        return __abs(dx);
-    }
-    if (distance < (unsigned int)__abs(dx)) {
-        distance = __abs(dx);
-    }
-    return distance;
-}
-
 static inline int mk_chess_choose_king_neighbor(ChessPiece* king,
     unsigned int* selected_x, unsigned int* selected_y)
 {
@@ -983,45 +970,6 @@ static inline void mk_chess_advance_and_pose_active_piece(void) {
 
     advance_anim(current);
     pose_anim(current, 1);
-}
-
-static inline float mk_chess_direction_input(
-    unsigned int direction,
-    int action,
-    int spell_input,
-    int diagonal) {
-    ChessInputPdata* input = (ChessInputPdata*)apdata;
-
-    if (mk_chess_pdata == 0) {
-        return -1.0f;
-    }
-    if (mk_chess_pdata->input_transition_busy != 0) {
-        ((ChessProcVtable*)aproc->vtbl)
-            ->jump_sleep(p_monitor_chess_input, 0.0f);
-        return 0.0f;
-    }
-
-    switch (mk_chess_pdata->manager.input_state) {
-    case 10:
-        mk_chess_pdata->manager.directional_state->actions[input->side] = action;
-        break;
-    case 9:
-        mk_chess_pdata->manager.spell->input_state = spell_input;
-        break;
-    case 0:
-        if (diagonal) {
-            mk_chess_move_cursor_to_next_diagnal_piece(mk_chess_pdata->manager.active_side, direction);
-        } else {
-            mk_chess_move_cursor_to_next_piece(mk_chess_pdata->manager.active_side, direction);
-        }
-        break;
-    case 1:
-        mk_chess_move_cursor_to_next_square_track_line(mk_chess_pdata->manager.active_side, direction);
-        break;
-    }
-    ((ChessProcVtable*)aproc->vtbl)
-        ->jump_sleep(p_monitor_chess_input, 0.0f);
-    return 0.0f;
 }
 
 static float p_gnd_blast(void);
@@ -1177,9 +1125,9 @@ static inline void mk_chess_blend_piece_to_cell(float frames) {
 }
 
 static int mk_chess_deactivate_scene_except_selected_pieces_cb(
-    ChessPiece* piece, ChessPiece* first, ChessPiece* second);
+    ChessPiece* piece, ChessPiece* first, ChessPiece* second, unsigned int context);
 static int mk_chess_hide_all_except_selected_pieces_cb(
-    ChessPiece* piece, ChessPiece* selected, ChessPiece* other_selected);
+    ChessPiece* piece, ChessPiece* selected, ChessPiece* other_selected, unsigned int context);
 
 typedef struct ChessSceneFadePdata {
     MkHdr hdr;
@@ -1187,7 +1135,7 @@ typedef struct ChessSceneFadePdata {
     ChessPiece* second;
     unsigned int delay;
     int step;
-} ChessSceneFadePdata; /* 0x18, allocated by mk_chess_request_piece_fight. */
+} ChessSceneFadePdata;
 
 void make_subobject_transl(MkSobj* object);
 void obj_sobj_set_material(MkSobj* object, unsigned int alpha);
@@ -1367,7 +1315,6 @@ static inline unsigned char mk_chess_target_paper_alpha(ScreenObj* paper, int ob
         if (alpha > 50) alpha -= 10;
     } else {
         if (alpha < 255U) alpha += 5;
-        /* The byte wraps before the retail upper-bound check. */
         if (alpha > 255U) alpha = 255;
     }
     return alpha;
@@ -1470,22 +1417,6 @@ static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide);
 static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     int target, int* direction);
 
-static inline float mk_chess_inverse_vector_length(float squared_length) {
-    union { float f; unsigned int u; } estimate, input;
-    float product;
-    float correction;
-
-    if (squared_length <= 0.0f) {
-        return 0.0f;
-    }
-    input.f = squared_length;
-    estimate.u = 0x5F375A00U - (input.u >> 1);
-    product = estimate.f * (squared_length * estimate.f);
-    correction = 3.0f - product;
-    return (0.0625f * estimate.f) * correction *
-        (12.0f - correction * (product * correction));
-}
-
 static void mk_chess_classify_zoom_cam_pos_return(
     Vec* from, Vec* to, int* position_class, int* return_class);
 
@@ -1503,7 +1434,7 @@ typedef struct ChessGroundBeamPdata {
     MkObj* object;
     unsigned int object_instance;
     char pad10[0x0C];
-    RwRGBA color; /* +0x1C */
+    RwRGBA color;
     float fade_start;
     float age;
     float radial_start;
@@ -1529,9 +1460,7 @@ static inline float mk_chess_camera_distance_squared(float x, float z) {
 #endif
 }
 extern int b_game_timer_off;
-extern int force_bgnd_num;
 void screen_engine_cleanup(void);
-void reset_ani_data_space(void);
 static float p_mk_chess_show_fight_message(void);
 static void mk_chess_save_current_state(ChessPiece* piece, unsigned char x, unsigned char y);
 
@@ -1601,7 +1530,8 @@ static inline void mk_chess_save_fighter_handicaps(ChessPiece* first, ChessPiece
     board_game_save_data.ai_bits.p2_difficulty = handicap;
 }
 
-static inline void mk_chess_save_effect_list(MkPtr** effects, ChessSavedPiece* saved_piece) {
+static inline void mk_chess_save_effect_list(ChessPiece* piece, ChessSavedPiece* saved_piece) {
+    MkPtr** effects = &piece->effects;
     MkPtr* link;
     MkPtr* next;
     ChessPieceEffect* effect;
@@ -1631,7 +1561,7 @@ static inline void mk_chess_deactivate_unselected_pieces(ChessPiece* first,
     for (side = 0; side < 2; side++) {
         for (index = 0; index < mk_chess_pdata->sides[side]->live_piece_count; index++) {
             mk_chess_deactivate_scene_except_selected_pieces_cb(
-                mk_chess_pdata->sides[side]->pieces[index], first, second);
+                mk_chess_pdata->sides[side]->pieces[index], first, second, 255);
         }
     }
 }
@@ -1659,7 +1589,7 @@ static inline void mk_chess_hide_unselected_pieces(ChessPiece* first,
     for (side = 0; side < 2; side++) {
         for (index = 0; index < mk_chess_pdata->sides[side]->live_piece_count; index++) {
             mk_chess_hide_all_except_selected_pieces_cb(
-                mk_chess_pdata->sides[side]->pieces[index], first, second);
+                mk_chess_pdata->sides[side]->pieces[index], first, second, 0);
         }
     }
 }
@@ -1738,7 +1668,7 @@ typedef struct ChessAttackerInfo {
     unsigned int counterattack_rating;
     unsigned int cell_x;
     unsigned int cell_y;
-} ChessAttackerInfo; /* 0x1C */
+} ChessAttackerInfo;
 
 static inline unsigned int mk_chess_best_counterattack_rating(
     ChessPiece* attacker, ChessPiece* excluded) {
@@ -2053,7 +1983,7 @@ typedef struct ChessMoveLinePdata {
     float angle;
     float next_marker;
     float spacing;
-} ChessMoveLinePdata; /* 0x3C process allocation. */
+} ChessMoveLinePdata;
 
 static float p_mk_chess_move_line(void);
 
@@ -2078,16 +2008,14 @@ static inline void mk_chess_emit_move_line_marker(ChessMoveLinePdata* data, floa
     ChessCell* cell = &mk_chess_pdata->board[data->start_x].cells[data->start_y];
     Vec position = {0.0f, 0.0f, 0.0f};
     Vec offset = {0.0f, 0.0f, 0.0f};
-    int group;
     unsigned int index;
     position.x = cell->position.x;
     position.z = cell->position.z;
     offset.z = 2.0f * distance;
     rotate_xz(&offset, &offset, data->angle);
     position.x += offset.x;
-    group = data->group + 4;
     position.z += offset.z;
-    index = mk_chess_find_free_move_line_marker(group);
+    index = mk_chess_find_free_move_line_marker(data->group + 4);
     bgnd_pebble_set_current_pebble(data->group + 4, index);
     bgnd_pebble_set_current_info(15, 9.0f);
     bgnd_pebble_set_current_info(10, 0.0f);
@@ -2137,7 +2065,7 @@ typedef struct ChessMagicRingsPdata {
     int phase[2];
     float elapsed[2];
     int active[2];
-} ChessMagicRingsPdata; /* 0x68 */
+} ChessMagicRingsPdata;
 
 static float p_magic_rings_fx(void);
 
@@ -3024,7 +2952,7 @@ static int mk_chess_drone_opening_move_based_on_strategy(
     return 0;
 }
 
-/* TODO: [near miss] 98.77%; first-match and scan CFG agree; king-field staging and local register homes remain. */
+/* TODO: [near miss] 99.07%; frame and output homes agree; king-field load order and scan register homes remain. */
 static int mk_chess_drone_handle_the_big_chill_opening_move(ChessDroneState* drone)
 {
     unsigned int enemy_side = drone->piece->side == 0;
@@ -3033,6 +2961,7 @@ static int mk_chess_drone_handle_the_big_chill_opening_move(ChessDroneState* dro
     unsigned int x, y;
     if (mk_chess_drone_check_spell(drone, 1, 2) == 1 &&
         mk_chess_pdata->board[drone->desired_x].cells[drone->desired_y].piece != 0) {
+        unsigned int x, y;
         if (mk_chess_choose_king_neighbor(king, &x, &y) &&
             mk_chess_drone_attempt_to_cast_spell(drone, 1, 2, x, y, drone->desired_x, drone->desired_y)) return 1;
     }
@@ -3409,7 +3338,7 @@ static int mk_chess_drone_handle_get_the_king_strategy(ChessDroneState* drone)
     return 0;
 }
 
-/* TODO: [breakthrough] 89.28%; candidate owner, skip latch and king helper agree; loop/address lifetimes remain. */
+/* TODO: [breakthrough] 90.03%; candidate owner, skip latch and king/neighbor helpers agree; loop/address lifetimes remain. */
 static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
     ChessPiece* target, ChessPiece** selected, int* next_x, int* next_y) {
     ChessAttackerInfo candidates[16];
@@ -3482,8 +3411,6 @@ static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
     return 0;
 }
 
-/* TODO: [near miss] 98.536583%; neighbor rules and roster join agree;
- * axis-zero branch encoding and helper register homes remain. */
 static int mk_chess_drone_best_path_to(
     ChessDroneState* drone, unsigned int x, unsigned int y,
     ChessPiece** selected, unsigned int* capture, unsigned int* rating,
@@ -3915,16 +3842,6 @@ static int mk_chess_drone_help_piece_by_blocking(
     return 0;
 }
 
-static inline void mk_chess_commit_drone_move(ChessDroneState* drone,
-    unsigned int from_x, unsigned int from_y,
-    unsigned int to_x, unsigned int to_y) {
-    drone->target_0_x = from_x;
-    drone->target_0_y = from_y;
-    drone->target_1_x = to_x;
-    drone->target_1_y = to_y;
-    drone->action_state = 1;
-    drone->cooldown = 5;
-}
 
 static int mk_chess_drone_move_best_matchup_against_piece(
     unsigned int side, ChessPiece* target, int allow_setup) {
@@ -3936,7 +3853,7 @@ static int mk_chess_drone_move_best_matchup_against_piece(
     mk_chess_select_best_attack_from_list(&attackers[1], target->side, &best);
     if (best != 0) {
         ChessPiece* piece = best->piece;
-        mk_chess_commit_drone_move(drone, piece->cell_x, piece->cell_y,
+        mk_chess_drone_request_move(drone, piece->cell_x, piece->cell_y,
             target->cell_x, target->cell_y);
     } else if (allow_setup != 0) {
         mk_chess_select_best_attack(attackers[0], side, &best);
@@ -3956,7 +3873,7 @@ static int mk_chess_drone_move_best_matchup_against_piece(
                 destroy_list(&attackers[1]);
                 return 0;
             }
-            mk_chess_commit_drone_move(drone, x, y,
+            mk_chess_drone_request_move(drone, x, y,
                 best->cell_x, best->cell_y);
         }
     }
@@ -4426,22 +4343,13 @@ static int mk_chess_drone_validate_target(
     return 0;
 }
 
-static inline ChessPiece* chess_find_first_piece_of_type(unsigned int side, int type) {
-    unsigned int index;
-    for (index = 0; index < mk_chess_pdata->sides[side]->live_piece_count; index++) {
-        if (mk_chess_pdata->sides[side]->pieces[index]->type == type) {
-            return mk_chess_pdata->sides[side]->pieces[index];
-        }
-    }
-    return 0;
-}
 
-/* TODO: [near miss] 95.58%; first king scan and selection association agree; neighbor staging and donor reload remain. */
+/* TODO: [near miss] 99.35%; king scan, neighbor helper and selection agree; donor reload residue remains. */
 static int mk_chess_drone_sacrifice_ai_casting(ChessDroneState* drone) {
     unsigned int index;
     ChessPiece* donor = 0;
     ChessPiece* recipient = 0;
-    ChessPiece* king = chess_find_first_piece_of_type(drone->piece->side, 5);
+    ChessPiece* king = mk_chess_find_first_piece_of_type(drone->piece->side, 5);
     ChessPiece* piece;
 
     for (index = 0; index < drone->live_piece_count; index++) {
@@ -4476,7 +4384,7 @@ static int mk_chess_drone_sacrifice_ai_casting(ChessDroneState* drone) {
     return 1;
 }
 
-/* TODO: [breakthrough] 74.890862%; axis-specific neighbor CFG recovered; roster addressing and candidate weighting remain. */
+/* TODO: [breakthrough] 78.74%; neighbor helper CFG agrees; roster addressing and candidate weighting remain. */
 static int mk_chess_drone_exchange_ai_casting(ChessDroneState* drone) {
     ChessPiece* candidates[12];
     unsigned short count = 0;
@@ -4692,17 +4600,6 @@ static int mk_chess_drone_protect_ai_casting(ChessDroneState* drone) {
     return 0;
 }
 
-static inline ChessPiece* mk_chess_drone_pick_piece_by_type_on_team(
-    unsigned int side, int type)
-{
-    unsigned int index;
-    for (index = 0; index < mk_chess_pdata->sides[side]->live_piece_count; index++) {
-        if (mk_chess_pdata->sides[side]->pieces[index]->type == type) {
-            return mk_chess_pdata->sides[side]->pieces[index];
-        }
-    }
-    return 0;
-}
 
 static inline int mk_chess_determine_open_surrounding_spot_near_piece(
     ChessPiece* piece, int* selected_x, int* selected_y, int home_rows)
@@ -4710,25 +4607,22 @@ static inline int mk_chess_determine_open_surrounding_spot_near_piece(
     int candidate_x[8];
     int candidate_y[8];
     unsigned int count = 0;
-    unsigned int direction = 0;
+    unsigned int direction;
     unsigned int index;
     unsigned char piece_x = piece->cell_x;
     unsigned char piece_y = piece->cell_y;
 
-    do {
-        int* cell_x = &candidate_x[count];
-        int* cell_y = &candidate_y[count];
-        *cell_x = piece_x;
-        *cell_y = piece_y;
-        if (move_cursor_based_on_quadrant(piece->side, cell_x, cell_y,
-                direction, 0, 10, 0) != 0 &&
-            mk_chess_pdata->board[*cell_x].cells[*cell_y].piece == 0 &&
-            (!home_rows || (piece->side == 0 && *cell_y < 2) ||
-             (piece->side == 1 && *cell_y > 7))) {
+    for (direction = 0; direction < 8; direction++) {
+        candidate_x[count] = piece_x;
+        candidate_y[count] = piece_y;
+        if (move_cursor_based_on_quadrant(piece->side,
+                &candidate_x[count], &candidate_y[count], direction, 0, 10, 0) != 0 &&
+            mk_chess_pdata->board[candidate_x[count]].cells[candidate_y[count]].piece == 0 &&
+            (!home_rows || (piece->side == 0 && candidate_y[count] < 2) ||
+             (piece->side == 1 && candidate_y[count] > 7))) {
             count++;
         }
-        direction++;
-    } while (direction < 8);
+    }
 
     if (count == 0) {
         return 0;
@@ -4739,7 +4633,7 @@ static inline int mk_chess_determine_open_surrounding_spot_near_piece(
     return 1;
 }
 
-/* TODO: [near miss] 98.92%; operations, frame and CFG agree; stop at caller/scan GPR coloring. */
+/* TODO: [near miss] 99.81%; helper scan indexes candidates directly; count/piece_y swap (r23/r25) remains. */
 static int mk_chess_drone_rescue_ai_casting(ChessDroneState* drone) {
     int available[6] = {0, 0, 0, 0, 0, 0};
     int selected_class;
@@ -4747,7 +4641,7 @@ static int mk_chess_drone_rescue_ai_casting(ChessDroneState* drone) {
     int index;
     int x;
     int y;
-    ChessPiece* king = mk_chess_drone_pick_piece_by_type_on_team(drone->piece->side, 5);
+    ChessPiece* king = mk_chess_find_first_piece_of_type(drone->piece->side, 5);
 
     for (index = (unsigned char)(17 - drone->captured_piece_count); index < 17; index++) {
         available[drone->pieces[index]->type] = 1;
@@ -4839,7 +4733,7 @@ static int mk_chess_drone_teleport_ai_casting(ChessDroneState* drone) {
     return 0;
 }
 
-/* TODO: [breakthrough] 81.508774%; axis-specific neighbor CFG recovered; king lookup and candidate-array lowering remain. */
+/* TODO: [breakthrough] 88.04%; neighbor helper CFG agrees; king lookup and candidate-array lowering remain. */
 static int mk_chess_find_my_smart_piece(ChessDroneState* drone,
     ChessPiece** selected, float minimum_health) {
     ChessPiece* candidates[17];
@@ -4864,8 +4758,7 @@ static int mk_chess_find_my_smart_piece(ChessDroneState* drone,
     return 1;
 }
 
-/* TODO: [near miss] 97.143997%; first king lookup and retry rules agree;
- * candidate/neighbor register homes and axis-zero branch lowering remain. */
+/* TODO: [near miss] 98.52%; king lookup, retry rules and neighbor branches agree; candidate register homes remain. */
 static int mk_chess_drone_heal_ai_casting(ChessDroneState* drone) {
     int attempts = 8;
     ChessPiece* king = mk_chess_find_first_piece_of_type(drone->piece->side, 5);
@@ -4903,20 +4796,6 @@ static void mk_chess_drone_setup_spell_hud_pdata_for(
     hud->side = drone->piece->side;
 }
 
-static inline int mk_chess_is_spell_available(ChessPiece* piece, unsigned int spell)
-{
-    unsigned int used_spell = piece->used_spells & (1U << spell);
-    unsigned int* expires = mk_chess_piece_restriction(piece, 3);
-    ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-
-    if (used_spell != 0) {
-        return 0;
-    }
-    if (*expires >= (unsigned int)manager->clock) {
-        return 0;
-    }
-    return 1;
-}
 
 static int mk_chess_drone_check_spell(
     ChessDroneState* drone, unsigned int target, unsigned int spell) {
@@ -4925,7 +4804,7 @@ static int mk_chess_drone_check_spell(
     if (caster == 0) {
         return 0;
     }
-    return mk_chess_is_spell_available(caster, spell);
+    return mk_chess_hud_spell_available(caster, spell);
 }
 
 static int mk_chess_drone_force_a_fight(ChessDroneState* drone, int mode) {
@@ -5100,7 +4979,7 @@ static int mk_chess_drone_fetch_non_king_vulnerable_matchup(ChessDroneState* dro
     return found;
 }
 
-/* TODO: [near miss] 97.65741%; neighbor GPR/axis join and two independent attack loads remain. */
+/* TODO: [near miss] 99.48%; neighbor helper agrees; two independent attack loads remain. */
 static int mk_chess_drone_random_piece_move(ChessDroneState* drone) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessPiece* piece;
@@ -5279,7 +5158,7 @@ int mk_chess_xfer_piece_from_scripts(int target, int script, int stack_kind) {
     piece->runtime.fields.event_script = script;
     if (piece->proc == 0) {
         mk_chess_start_transferred_piece(piece, stack_kind);
-    } else if ((int)piece->field_64 != stack_kind) {
+    } else if (piece->field_64 != stack_kind) {
         xfer_proc(piece->proc, mk_chess_piece_proc_force_dead);
         mk_chess_start_transferred_piece(piece, stack_kind);
     } else {
@@ -5758,7 +5637,7 @@ static void start_gnd_light_beam_effect(Vec* position, const char* model_name,
         update_mkobj(object);
         insert_fgnd_mkobj(object);
     }
-} /* 0x44-byte process allocation */
+}
 
 static float p_gnd_light_beam_fx(void) {
     ChessGroundBeamPdata* pdata = (ChessGroundBeamPdata*)apdata;
@@ -6644,9 +6523,33 @@ static float x_chess_down(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.23%; mode/input pointer registers differ in shared direction helper; caller owner recovery remains. */
 static float x_chess_up(void) {
-    return mk_chess_direction_input(4, 4, 1, 0);
+    ChessInputPdata* input = (ChessInputPdata*)apdata;
+
+    if (mk_chess_pdata == 0) {
+        return -1.0f;
+    }
+    if (mk_chess_pdata->input_transition_busy != 0) {
+        aproc->vtbl->jump_sleep(p_monitor_chess_input, 0.0f);
+        return 0.0f;
+    }
+
+    switch (mk_chess_pdata->manager.input_state) {
+    case 10:
+        mk_chess_pdata->manager.directional_state->actions[input->side] = 4;
+        break;
+    case 9:
+        mk_chess_pdata->manager.spell->input_state = 1;
+        break;
+    case 0:
+        mk_chess_move_cursor_to_next_piece(mk_chess_pdata->manager.active_side, 4);
+        break;
+    case 1:
+        mk_chess_move_cursor_to_next_square_track_line(mk_chess_pdata->manager.active_side, 4);
+        break;
+    }
+    aproc->vtbl->jump_sleep(p_monitor_chess_input, 0.0f);
+    return 0.0f;
 }
 
 static float x_chess_right_and_up(void) {
@@ -6680,9 +6583,35 @@ static float x_chess_right_and_up(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.08%; diagonal case emission order and mode/input coloring remain; caller owner recovery remains. */
 static float x_chess_right_and_down(void) {
-    return mk_chess_direction_input(1, 9, 6, 1);
+    ChessInputPdata* input = (ChessInputPdata*)apdata;
+    ChessModeState* mode = mk_chess_pdata;
+
+    if (mode == 0) {
+        return -1.0f;
+    }
+    if (mode->input_transition_busy != 0) {
+        aproc->vtbl->jump_sleep(p_monitor_chess_input, 0.0f);
+        return 0.0f;
+    }
+
+    switch (mode->manager.input_state) {
+    case 10:
+        mode->manager.directional_state->actions[input->side] = 9;
+        break;
+    case 9:
+        mode->manager.spell->input_state = 6;
+        break;
+    case 1:
+        mk_chess_move_cursor_to_next_square_track_line(
+            mode->manager.active_side, 1);
+        break;
+    case 0:
+        mk_chess_move_cursor_to_next_diagnal_piece(mode->manager.active_side, 1);
+        break;
+    }
+    aproc->vtbl->jump_sleep(p_monitor_chess_input, 0.0f);
+    return 0.0f;
 }
 
 static float x_chess_right(void) {
@@ -7118,10 +7047,11 @@ static void mk_chess_display_stats(MkPtr** strings, const int* values, int winni
     }
 }
 
-/* TODO: [near miss] 99.06%; all operations and addresses agree; side, slot, and acceptance registers remain. */
 void mk_chess_set_default_chess_demo_game(void) {
     ChessGameDefinition* definition;
+    int accepted;
     unsigned int side;
+    unsigned int slot;
 
     int background = available_chess_bgnds[(unsigned short)randu0(5)];
 
@@ -7130,11 +7060,11 @@ void mk_chess_set_default_chess_demo_game(void) {
     definition->background = background;
     definition->teams[1].type = 1;
     for (side = 0; side < 2; side++) {
-        unsigned int slot;
         for (slot = 0; slot < 5; slot++) {
             unsigned int prior;
-            int accepted = 0;
-            int attempts = 50;
+            int attempts;
+            accepted = 0;
+            attempts = 50;
             while (!accepted) {
                 accepted = 1;
                 definition->teams[side].characters[slot] = available_chess_chars[(unsigned short)randu0(26)];
@@ -7204,83 +7134,72 @@ void mk_chess_set_up_passed_in_chess_game(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 72.10%; resolve retail addi r28, r4, g_chess_definition_info@l and its surrounding ownership/CFG before further tuning. */
+/* TODO: [near miss] 97.82%; candidate publication and validation CFG agree;
+ * register coloring remains; scoped lifetimes measured, stop at coloring. */
 static void mk_chess_set_default_chess_game(void) {
-    ChessGameDefinition* definition;
-    int character;
+    int* selected_character;
     int accepted;
     int attempts;
     unsigned int slot;
     unsigned int prior;
 
-    definition = (ChessGameDefinition*)g_chess_definition_info;
-    definition->background = 0x10;
+    ((ChessGameDefinition*)g_chess_definition_info)->background = 0x10;
 
     for (slot = 0; slot < 5; slot++) {
+        selected_character = &((ChessGameDefinition*)g_chess_definition_info)->side_0_characters[slot];
         accepted = 0;
         attempts = 50;
         while (!accepted) {
-            character = available_chess_chars[randu0(26)];
             accepted = 1;
+            *selected_character = available_chess_chars[(unsigned short)randu0(26)];
             for (prior = 0; prior < slot; prior++) {
-                if (definition->side_0_characters[prior] == character) {
+                if (((ChessGameDefinition*)g_chess_definition_info)->side_0_characters[prior] == *selected_character) {
                     accepted = 0;
                 }
             }
-            if (is_char_locked(character, 0) != 0) {
+            if (is_char_locked(*selected_character, 0) != 0) {
                 accepted = 0;
             }
-            for (prior = 0; prior < 26; prior++) {
-                if (available_chess_chars[prior] == character) {
-                    break;
-                }
-            }
-            if (prior == 26) {
+            if (!mk_chess_demo_character_is_available(*selected_character)) {
                 accepted = 0;
             }
             attempts--;
             if (attempts <= 0) {
-                character = 0;
+                *selected_character = 0;
                 accepted = 1;
             }
         }
-        definition->side_0_characters[slot] = character;
     }
 
     for (slot = 0; slot < 5; slot++) {
+        selected_character = &((ChessGameDefinition*)g_chess_definition_info)->side_1_characters[slot];
         accepted = 0;
         attempts = 50;
         while (!accepted) {
-            character = available_chess_chars[randu0(26)];
             accepted = 1;
+            *selected_character = available_chess_chars[(unsigned short)randu0(26)];
             for (prior = 0; prior < slot; prior++) {
-                if (definition->side_1_characters[prior] == character) {
+                if (((ChessGameDefinition*)g_chess_definition_info)->side_1_characters[prior] == *selected_character) {
                     accepted = 0;
                 }
             }
-            if (is_char_locked(character, 0) != 0) {
+            if (is_char_locked(*selected_character, 0) != 0) {
                 accepted = 0;
             }
-            for (prior = 0; prior < 26; prior++) {
-                if (available_chess_chars[prior] == character) {
-                    break;
-                }
-            }
-            if (prior == 26) {
+            if (!mk_chess_demo_character_is_available(*selected_character)) {
                 accepted = 0;
             }
             attempts--;
             if (attempts <= 0) {
-                character = 0;
+                *selected_character = 0;
                 accepted = 1;
             }
         }
-        definition->side_1_characters[slot] = character;
     }
 
-    definition->side_0_type = 0;
-    definition->side_1_type = 0;
-    definition->enabled = 1;
+    ((ChessGameDefinition*)g_chess_definition_info)->side_0_type = 0;
+    ((ChessGameDefinition*)g_chess_definition_info)->side_1_type = 0;
+    ((ChessGameDefinition*)g_chess_definition_info)->enabled = 1;
 }
 
 float p_mk_chess_continue(void) {
@@ -8471,13 +8390,14 @@ static inline void mk_chess_update_selected_portrait(ChessSideHudState* hud,
     mk_chess_set_target_paper_alpha(portrait, mk_chess_target_paper_alpha(portrait, obscured));
 }
 
-/* TODO: [near miss] 99.51%; operations and CFG agree; initial owners and saved registers differ. */
+/* TODO: [near miss] 99.77%; hud-first declaration fixes r31 owner;
+ * team/mode r29/r30 and piece/saved r7/r9 swaps remain. */
 static float p_team_monitor(void)
 {
-    unsigned int mode;
-    ChessSideState* team;
     ChessSideHudState* hud = (ChessSideHudState*)pdata_of_proc(aproc);
     ChessSideState** sides = mk_chess_pdata->sides;
+    unsigned int mode;
+    ChessSideState* team;
     ChessPiece* piece;
     unsigned int index;
     team = sides[hud->side];
@@ -9360,13 +9280,8 @@ static void mk_chess_request_attacker_won(
 static inline void mk_chess_place_moved_piece(ChessPiece* piece,
     unsigned char x, unsigned char y)
 {
-    ChessBoardRow* board;
-    ChessCell* previous;
-    ChessCell* destination;
-
-    board = mk_chess_pdata->board;
-    previous = &board[piece->cell_x].cells[piece->cell_y];
-    destination = &board[x].cells[y];
+    ChessCell* destination = &mk_chess_pdata->board[x].cells[y];
+    ChessCell* previous = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
     if (previous->piece == piece) {
         previous->piece = 0;
     }
@@ -9429,7 +9344,7 @@ static inline void mk_chess_clear_move_effects(ChessPiece* piece)
     }
 }
 
-/* TODO: [near miss] 99.22%; cleanup and placement operations agree; pebble index and placement register coloring remain. */
+/* TODO: [near miss] 99.86%; cleanup and placement agree; pebble loop index colors r25 (retail r29, shared with piece snapshot). */
 void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned char y, int end_turn) {
     unsigned int player;
     unsigned char coordinates[sizeof(ChessMovementEvent)];
@@ -9453,7 +9368,19 @@ void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned ch
     }
 }
 
-/* TODO: [breakthrough needed] 94.75%; recover buffered-event callback context contract and wait-helper CFG; owner reload/coloring residue remains. */
+static inline void mk_chess_recount_power_squares(void) {
+    int column, row;
+    board_game_save_data.input_flags.p1_power_squares = 0;
+    board_game_save_data.input_flags.p2_power_squares = 0;
+    for (column = 0; column < 10; ++column) {
+        for (row = 0; row < 10; ++row) mk_chess_count_p1_power_squares(column, row);
+    }
+    for (column = 0; column < 10; ++column) {
+        for (row = 0; row < 10; ++row) mk_chess_count_p2_power_squares(column, row);
+    }
+}
+
+/* TODO: [breakthrough needed] 94.80%; recover buffered-event callback context contract and wait-helper CFG; owner reload/coloring residue remains. */
 static void mk_chess_end_of_turn(void)
 {
     unsigned int next_side = 1;
@@ -9498,12 +9425,7 @@ static void mk_chess_end_of_turn(void)
     }
     team = mk_chess_pdata->sides[mk_chess_pdata->manager.active_side];
     if (team->controller->flags.drone_controlled == 1 && team->field_164 != 0) team->field_164 = 0;
-    board_game_save_data.input_flags.p1_power_squares = 0;
-    board_game_save_data.input_flags.p2_power_squares = 0;
-    for (x = 0; x < 10; x++)
-        for (y = 0; y < 10; y++) mk_chess_count_p1_power_squares(x, y);
-    for (x = 0; x < 10; x++)
-        for (y = 0; y < 10; y++) mk_chess_count_p2_power_squares(x, y);
+    mk_chess_recount_power_squares();
     mk_chess_pdata->manager.active_side = next_side;
     mk_chess_pdata->manager.clock++;
     destroy_mkprocs_pid(0xC027);
@@ -9759,15 +9681,12 @@ static float mk_chess_continue_pre_fight_chores(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.51%; operations and CFG agree; count-clear staging and first-loop coloring remain. */
 static void mk_chess_set_vars_for_a_mk_fight(void) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessPiece* second = manager->event_piece_24;
     ChessPiece* first = manager->event_data.other_piece;
     ChessCell* second_cell = &mk_chess_pdata->board[second->cell_x].cells[second->cell_y];
     ChessCell* first_cell = &mk_chess_pdata->board[first->cell_x].cells[first->cell_y];
-    unsigned int x, y;
-    unsigned int second_x, second_y;
     g_game_info.field_1F8 = 2;
     if (first->side == 0) {
         board_game_save_data.input_flags.pad_bit7 = 1;
@@ -9780,16 +9699,7 @@ static void mk_chess_set_vars_for_a_mk_fight(void) {
         if (second->side == 0) board_game_save_data.input_flags.p1_on_power_square = 1;
         else board_game_save_data.input_flags.p2_on_power_square = 1;
     }
-    board_game_save_data.input_flags.p1_power_squares = 0;
-    board_game_save_data.input_flags.p2_power_squares = 0;
-    for (x = 0; (int)x < 10; x++) {
-        for (y = 0; (int)y < 10; y++) mk_chess_count_p1_power_squares(x, y);
-    }
-    for (second_x = 0; (int)second_x < 10; second_x++) {
-        for (second_y = 0; (int)second_y < 10; second_y++) {
-            mk_chess_count_p2_power_squares(second_x, second_y);
-        }
-    }
+    mk_chess_recount_power_squares();
     if (first->side == 0 && first_cell->square_type == 1) {
         board_game_save_data.input_flags.p1_power_squares--;
     } else if (first->side == 1 && first_cell->square_type == 1) {
@@ -9848,7 +9758,7 @@ int mk_chess_get_current_difficulty_for_ai(unsigned int side) {
     return (board_game_save_data.ai_settings[1] >> 2) & 0xF;
 }
 
-/* TODO: [near miss] 98.70%; save operations and handicap CFG agree; register homes and effect-list address codegen remain. */
+/* TODO: [near miss] 98.7%; effect-list address agrees; outer saved-register homes and restriction-loop r0/r4 swap remain. */
 static void mk_chess_save_current_state(ChessPiece* attacker, unsigned char x, unsigned char y) {
     ChessCameraInfo* camera = mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
     ChessPiece* defender = *mk_chess_board_piece_slot(x, y);
@@ -9884,7 +9794,7 @@ static void mk_chess_save_current_state(ChessPiece* attacker, unsigned char x, u
             if (index < mk_chess_pdata->sides[side]->live_piece_count) {
                 piece = mk_chess_pdata->sides[side]->pieces[index];
                 mk_chess_save_effect_list(
-                    &piece->effects, &board_game_save_data.teams[side].pieces[index]);
+                    piece, &board_game_save_data.teams[side].pieces[index]);
             }
         }
         board_game_save_data.teams[side].saved_field_FC = mk_chess_pdata->sides[side]->saved_field_FC;
@@ -9956,7 +9866,6 @@ static void mk_chess_save_current_state(ChessPiece* attacker, unsigned char x, u
     board_game_save_data.destination_y = y;
 }
 
-/* TODO: [near miss] 98.91%; traversal agrees; two unused retail r6 setups remain, while the callback reads only r3-r5. */
 static float p_mk_chess_fade_scene_for_fight(void) {
     unsigned int piece_alpha = 255;
     unsigned int background_alpha = 255;
@@ -10000,7 +9909,7 @@ static float p_mk_chess_fade_scene_for_fight(void) {
 }
 
 static int mk_chess_deactivate_scene_except_selected_pieces_cb(
-    ChessPiece* piece, ChessPiece* first, ChessPiece* second) {
+    ChessPiece* piece, ChessPiece* first, ChessPiece* second, unsigned int context) {
     if (piece == first) {
         return 0;
     }
@@ -10027,7 +9936,7 @@ static int mk_chess_deactivate_scene_except_selected_pieces_cb(
 }
 
 static int mk_chess_hide_all_except_selected_pieces_cb(
-    ChessPiece* piece, ChessPiece* selected, ChessPiece* other_selected) {
+    ChessPiece* piece, ChessPiece* selected, ChessPiece* other_selected, unsigned int context) {
     MkPtr** effects;
     ChessPieceEffect* effect;
     MkPtr* link;
@@ -10133,7 +10042,7 @@ static void mk_chess_set_up_zoom_cam_return(Vec* destination) {
     }
 }
 
-/* TODO: [near miss] 98.92%; operations and CFG agree; helper stack slots and FP coloring remain. */
+/* TODO: [near miss] 98.95%; stack slots agree (SDK inverse sqrt); branch-local FP coloring remains. */
 static int mk_chess_choose_middle_control_points_for_zoom_cam_return(
     int position_class, int return_class, Vec* from, Vec* middle_1, Vec* middle_2, Vec* to) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -10159,7 +10068,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam_return(
     dy = from->y - to->y;
     perpendicular.x = dz;
     perpendicular.z = -dx;
-    inverse_length = mk_chess_inverse_vector_length(
+    inverse_length = gxMathFastInvSqrt(
         perpendicular.x * perpendicular.x + perpendicular.z * perpendicular.z);
     perpendicular.x *= inverse_length;
     perpendicular.z *= inverse_length;
@@ -10207,8 +10116,6 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam_return(
     return timing;
 }
 
-/* TODO: [near miss] 99.95959%; first estimate/second input stack homes swap;
- * all operations agree; TU order belongs to the steward. */
 static void mk_chess_classify_zoom_cam_pos_return(
     Vec* from, Vec* to, int* position_class, int* return_class) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -10227,13 +10134,13 @@ static void mk_chess_classify_zoom_cam_pos_return(
     object_x = object->pos.value.x;
     to_x = to->x - object_x;
     to_z = to->z - object_z;
-    inverse = mk_chess_inverse_vector_length(to_x * to_x + to_z * to_z);
+    inverse = gxMathFastInvSqrt(to_x * to_x + to_z * to_z);
 
     to_x *= inverse;
     to_z *= inverse;
     from_x = object_x - from->x;
     from_z = object_z - from->z;
-    inverse = mk_chess_inverse_vector_length(from_x * from_x + from_z * from_z);
+    inverse = gxMathFastInvSqrt(from_x * from_x + from_z * from_z);
     from_z *= inverse;
     from_x *= inverse;
     *position_class = 1;
@@ -10243,7 +10150,7 @@ static void mk_chess_classify_zoom_cam_pos_return(
     *return_class = 4;
 }
 
-/* TODO: [near miss] 99.66%; paired inline estimate slots and first normalization FP homes differ. */
+/* TODO: [near miss] 99.68%; inline estimate slots agree; first normalization FP homes differ. */
 static void mk_chess_set_up_zoom_cam(Vec* target) {
     Vec from;
     Vec middle_1;
@@ -10275,13 +10182,13 @@ static void mk_chess_set_up_zoom_cam(Vec* target) {
     to.z = 14.0f * (float)-side_sign + target_z;
     to_x = to.x - target_x;
     to_z = to.z - target_z;
-    inverse_length = mk_chess_inverse_vector_length(to_x * to_x + to_z * to_z);
+    inverse_length = gxMathFastInvSqrt(to_x * to_x + to_z * to_z);
     to_x *= inverse_length;
     to_z *= inverse_length;
     camera_z = camera->pos.z;
     from_z = target_z - camera_z;
     from_x = target_x - camera->pos.x;
-    inverse_length = mk_chess_inverse_vector_length(from_x * from_x + from_z * from_z);
+    inverse_length = gxMathFastInvSqrt(from_x * from_x + from_z * from_z);
     from_z *= inverse_length;
     from_x *= inverse_length;
     position_class = 1;
@@ -10340,7 +10247,7 @@ static inline int mk_chess_zoom_camera_side_sign(void) {
     return side_sign;
 }
 
-/* TODO: [near miss] 98.99267%; camera geometry agrees; inverse/square-root stack slots and localized FP webs remain. */
+/* TODO: [near miss] 99.01%; stack slots agree; FP coloring from sqrt zero/distance (f8 vs f9) onward; distance scope ruled out. */
 static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_position,
     unsigned int position_class, unsigned int height_class, Vec* from,
     Vec* middle_1, Vec* middle_2, Vec* to) {
@@ -10354,7 +10261,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
     delta.z = camera_position->z - to->z;
     perpendicular.x = delta.z;
     perpendicular.z = -delta.x;
-    inverse_length = mk_chess_inverse_vector_length(
+    inverse_length = gxMathFastInvSqrt(
         perpendicular.x * perpendicular.x + perpendicular.z * perpendicular.z);
     perpendicular.x *= inverse_length;
     perpendicular.z *= inverse_length;
@@ -10460,8 +10367,7 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
     return timing;
 }
 
-/* TODO: [near miss] 99.15987%; target/normal staging matches; volatile FPR coloring and the shared
- * inverse-length helper's stack-temp order (inputs above estimates in retail) remain. */
+/* TODO: [near miss] 99.18%; target/normal staging and stack temps match; volatile FPR coloring remains. */
 static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, Vec* far_point) {
     Vec from;
     Vec middle_0;
@@ -10504,17 +10410,17 @@ static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, 
     to.y = 6.0f;
     to.x += near_x;
     to.z += near_z;
-    inverse_length = mk_chess_inverse_vector_length((float)(normal.z * normal.z) +
+    inverse_length = gxMathFastInvSqrt((float)(normal.z * normal.z) +
         ((float)(normal.x * normal.x) + (float)(normal.y * normal.y)));
     to.x += (float)(15.0f * (normal.x * inverse_length));
     to.z += (float)(15.0f * (normal.z * inverse_length));
-    inverse_length = mk_chess_inverse_vector_length(
+    inverse_length = gxMathFastInvSqrt(
         (float)(normal.x * normal.x) + (float)(normal.z * normal.z));
     normal_x = normal.x * inverse_length;
     normal_z = normal.z * inverse_length;
     approach_z = center.z - camera->pos.z;
     approach_x = center.x - camera->pos.x;
-    inverse_length = mk_chess_inverse_vector_length(approach_x * approach_x + approach_z * approach_z);
+    inverse_length = gxMathFastInvSqrt(approach_x * approach_x + approach_z * approach_z);
     approach_z *= inverse_length;
     approach_x *= inverse_length;
     camera_side = 1;
@@ -10572,7 +10478,7 @@ float mk_chess_fight_cam_target_reached(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 83.50739%; geometry and timing recovered; retail PSQ blocks runtime validation; inspect FP scheduling. */
+/* TODO: [breakthrough needed] 83.51%; geometry and timing recovered; retail PSQ blocks runtime validation; inspect FP scheduling. */
 static int mk_chess_choose_middle_control_points_for_fight_cam(
     const Vec* normal, const Vec* axis, const Vec* camera_position, const Vec* center,
     unsigned int camera_side, unsigned int camera_type, const Vec* camera_start,
@@ -10588,10 +10494,10 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
     float side_sign, height_adjust, first_offset, second_offset, distance_scale;
     int timing = 7;
 
-    inverse_length = mk_chess_inverse_vector_length(normal->x * normal->x + normal->z * normal->z);
+    inverse_length = gxMathFastInvSqrt(normal->x * normal->x + normal->z * normal->z);
     normal_unit.x = normal->x * inverse_length;
     normal_unit.z = normal->z * inverse_length;
-    inverse_length = mk_chess_inverse_vector_length(axis->x * axis->x + axis->z * axis->z);
+    inverse_length = gxMathFastInvSqrt(axis->x * axis->x + axis->z * axis->z);
     axis_unit.x = axis->x * inverse_length;
     axis_unit.z = axis->z * inverse_length;
     between.x = camera_position->x - center->x;
@@ -11358,7 +11264,7 @@ void mk_chess_xfer_to_piece_script(ChessPiece* piece, int event) {
             piece->runtime.fields.event_script = script;
             if (piece->proc == 0) {
                 mk_chess_start_transferred_piece(piece, stack_kind);
-            } else if ((int)piece->field_64 != stack_kind) {
+            } else if (piece->field_64 != stack_kind) {
                 xfer_proc(piece->proc, mk_chess_piece_proc_force_dead);
                 mk_chess_start_transferred_piece(piece, stack_kind);
             } else {
@@ -11830,71 +11736,64 @@ static float p_mk_chess_slide_display_msg_handler(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough needed] 73.52%; scale conversion, owner reloads and fade-loop structure remain unresolved. */
+/* TODO: [near miss] 99.89%; operations and CFG agree; midpoint FPR coloring remains; stop at coloring. */
 static float p_mk_chess_scale_display_msg_handler(void) {
-    ChessScaleMessagePdata* pdata;
-    ScreenObj* object;
+    ChessScaleMessagePdata* pdata = (ChessScaleMessagePdata*)apdata;
     float midpoint;
-    int index;
 
-    pdata = (ChessScaleMessagePdata*)apdata;
     _mkproc_sleep_ticks = pdata->initial_delay;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
-    object = pdata->object;
-    unhide_screen_obj(object);
-    midpoint =
-        pdata->start_scale +
-        (pdata->target_scale - pdata->start_scale) * 0.5f;
+    unhide_screen_obj(pdata->object);
+    midpoint = (pdata->target_scale - pdata->start_scale) * 0.5f +
+        pdata->start_scale;
 
-    while (object->scale_x < pdata->target_scale) {
-        object->scale_x += pdata->step;
-        object->scale_y += pdata->step;
-        object->x =
-            -(int)(((float)(pdata->texture_width >> 1) *
-                     object->scale_x) -
-                   (float)pdata->center_x);
-        object->y =
-            -(int)(((float)(object->pfx2d->tex_h / 2) *
-                     object->scale_y) -
-                   (float)pdata->center_y);
+    while (pdata->object->scale_x < pdata->target_scale) {
+        pdata->object->scale_x += pdata->step;
+        pdata->object->scale_y += pdata->step;
+        pdata->object->x = -((float)(pdata->texture_width >> 1) *
+            pdata->object->scale_x - (float)pdata->center_x);
+        pdata->object->y = -((float)(pdata->object->pfx2d->tex_h / 2) *
+            pdata->object->scale_y - (float)pdata->center_y);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
 
         if (pdata->fade_after_midpoint != 0 &&
-            object->scale_x > midpoint &&
-            object->pfx2d->verts[0].a != 0) {
-            if (object->pfx2d->verts[0].a > 10) {
-                for (index = 0; index < 4; index++) {
-                    object->pfx2d->verts[index].a -= 10;
-                }
+            pdata->object->scale_x > midpoint &&
+            pdata->object->pfx2d->verts[0].a != 0) {
+            if (pdata->object->pfx2d->verts[0].a > 10) {
+                pdata->object->pfx2d->verts[0].a -= 10;
+                pdata->object->pfx2d->verts[1].a -= 10;
+                pdata->object->pfx2d->verts[2].a -= 10;
+                pdata->object->pfx2d->verts[3].a -= 10;
             } else {
-                for (index = 0; index < 4; index++) {
-                    object->pfx2d->verts[index].a = 0;
-                }
+                pdata->object->pfx2d->verts[0].a = 0;
+                pdata->object->pfx2d->verts[1].a = 0;
+                pdata->object->pfx2d->verts[2].a = 0;
+                pdata->object->pfx2d->verts[3].a = 0;
             }
         }
     }
 
-    object->scale_x = pdata->target_scale;
-    object->scale_y = pdata->target_scale;
+    pdata->object->scale_x = pdata->target_scale;
+    pdata->object->scale_y = pdata->target_scale;
     if (pdata->destroy_after_delay != 0) {
         _mkproc_sleep_ticks = pdata->final_delay;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
-        if (object->instance != 0) {
-            destroy_screen_obj(object);
+        if (pdata->object->instance != 0) {
+            pdata->object->typed_vtbl->destroy(pdata->object);
         }
     }
-    return 0.0f;
+    return -1.0f;
 }
 
-/* TODO: [near miss] 99.32%; equivalent board address and two volatile register homes remain. */
+/* TODO: [near miss] 99.80%; board cell address recovered; pdata/cursor r6/r7 volatile homes swap. */
 static void mk_chess_show_spell_hud(unsigned int side) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     ChessCursor* cursor = &mk_chess_pdata->cursors[manager->active_side];
     ChessHudState* hud;
     ScreenObj* image;
-    mk_chess_pdata->manager.active_piece_by_side[side] =
-        mk_chess_pdata->board[cursor->cell_x].cells[cursor->cell_y].piece;
+    ChessCell* cell = &mk_chess_pdata->board[cursor->cell_x].cells[cursor->cell_y];
+    mk_chess_pdata->manager.active_piece_by_side[side] = cell->piece;
     mk_chess_suspend_side_selection(mk_chess_pdata->sides[0]->hud);
     mk_chess_suspend_side_selection(mk_chess_pdata->sides[1]->hud);
     if (_create_mkproc_generic_bigstack(0xC022, 0x1F, p_mk_chess_spell_hud,
@@ -12140,7 +12039,6 @@ static float p_mk_chess_spell_targetting_hud(void)
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.11%; equivalent page-address staging remains; TU order belongs to steward. */
 static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide)
 {
     static StringObj* string_obj;
@@ -12152,7 +12050,8 @@ static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide)
     ScreenObj* bottom_left_roll;
     ScreenObj* bottom_right_roll;
     ChessModeState* mode = mk_chess_pdata;
-    const ChessSpellPageText* page = hud->caster->spells->pages[hud->spell_number][0];
+    const ChessSpellPageText* const* pages = hud->caster->spells->pages[hud->spell_number];
+    const ChessSpellPageText* page = pages[0];
     float closing_speed = 1.0f;
     int finished = 0;
     int vertical_step;
@@ -12906,8 +12805,6 @@ static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
     }
 }
 
-/* TODO: [near miss] 99.88721%; half-height doubling now uses retail add;
- * addze/add operands retain r0/r3 coloring; recover center-result lifetime. */
 unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) {
     int direction = 1;
     int finished = 0;
@@ -12943,8 +12840,7 @@ unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) {
         screen = MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance);
         unhide_screen_obj(screen);
         screen->scale_y = 0.25f;
-        center_y = screen_height / 2;
-        center_y += center_y;
+        center_y = screen_height / 2 + screen_height / 2;
         center_y -= 32;
         center_y /= 2;
         screen->y = center_y;
@@ -13648,26 +13544,15 @@ float p_mk_chess_place_traps(void)
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 71.22%; marker setup recovered; absolute-value lowering and allocation-output reloads remain. */
+/* TODO: [near miss] 97.63%; direction delta GPRs/scheduling and one commuted FMA remain. */
 void mk_chess_place_move_line_from_to(int group, int pebble, unsigned int start_x,
     unsigned int start_y, unsigned int target_x, unsigned int target_y, int attack) {
     MkHdr* allocation = 0;
-    int dx = (int)target_x - (int)start_x;
-    int dy = (int)target_y - (int)start_y;
-    unsigned int distance = dy < 0 ? -dy : dy;
-    int direction = 0;
+    unsigned int distance;
+    int direction;
     ChessCell* cell;
-    if (dx == 0) {
-        if (dy <= 0) { direction = 4; }
-    } else if (dy == 0) {
-        distance = dx < 0 ? -dx : dx;
-        direction = dx > 0 ? 2 : 6;
-    } else {
-        unsigned int abs_x = dx < 0 ? -dx : dx;
-        if (distance < abs_x) { distance = abs_x; }
-        if (dx > 0) { direction = dy > 0 ? 1 : 3; }
-        else { direction = dy > 0 ? 7 : 5; }
-    }
+    direction = mk_chess_event_direction(
+        target_x - start_x, target_y - start_y, &distance);
     cell = &mk_chess_pdata->board[start_x].cells[start_y];
     bgnd_unhide_pebbles(group);
     bgnd_pebble_set_current_pebble(group, pebble);
@@ -13680,32 +13565,36 @@ void mk_chess_place_move_line_from_to(int group, int pebble, unsigned int start_
     bgnd_unhide_pebbles(group + 4);
     if (_create_mkproc_generic_tinystack(0xC020, 31, p_mk_chess_move_line,
             sizeof(ChessMoveLinePdata), &allocation) != 0) {
-        ChessMoveLinePdata* data = (ChessMoveLinePdata*)allocation;
         float spacing;
         float degrees;
-        data->group = group;
-        data->pebble = pebble;
-        data->speed = 0.01f;
-        data->acceleration = 0.02f;
-        data->attack = attack;
-        spacing = start_x == target_x || start_y == target_y ? 1.0f : 1.414f;
-        data->length = (float)distance * spacing - spacing;
-        if (attack == 0) { data->length += spacing; }
-        else { data->length = spacing * 0.5f + data->length; }
-        data->target_x = target_x;
-        data->target_y = target_y;
-        data->start_x = start_x;
-        data->start_y = start_y;
+        ((ChessMoveLinePdata*)allocation)->group = group;
+        ((ChessMoveLinePdata*)allocation)->pebble = pebble;
+        ((ChessMoveLinePdata*)allocation)->speed = 0.01f;
+        ((ChessMoveLinePdata*)allocation)->acceleration = 0.02f;
+        ((ChessMoveLinePdata*)allocation)->attack = attack;
+        if (start_x == target_x || start_y == target_y) {
+            spacing = 1.0f;
+        } else {
+            spacing = 1.414f;
+        }
+        ((ChessMoveLinePdata*)allocation)->length = (float)distance * spacing - spacing;
+        if (attack == 0) {
+            ((ChessMoveLinePdata*)allocation)->length += spacing;
+        } else {
+            ((ChessMoveLinePdata*)allocation)->length += spacing * 0.5f;
+        }
+        ((ChessMoveLinePdata*)allocation)->target_x = target_x;
+        ((ChessMoveLinePdata*)allocation)->target_y = target_y;
+        ((ChessMoveLinePdata*)allocation)->start_x = start_x;
+        ((ChessMoveLinePdata*)allocation)->start_y = start_y;
         degrees = 45.0f * (float)direction;
-        data->next_marker = spacing;
-        data->spacing = spacing;
-        data->angle = 0.017453292f * degrees;
+        ((ChessMoveLinePdata*)allocation)->next_marker = spacing;
+        ((ChessMoveLinePdata*)allocation)->spacing = spacing;
+        ((ChessMoveLinePdata*)allocation)->angle = 0.017453292f * degrees;
         bgnd_pebble_set_current_info(7, degrees);
     }
 }
 
-/* TODO: [near miss] 99.84%; marker-search helper recovers exit branches;
- * first expansion index/group registers remain. */
 static float p_mk_chess_move_line(void) {
     ChessMoveLinePdata* data = (ChessMoveLinePdata*)apdata;
     float current;
@@ -13925,7 +13814,7 @@ void mk_chess_force_away(float speed, int delay, float damping, int frames) {
     object = g_active_piece->object;
     x = object->pos.value.x - other_object->pos.value.x;
     z = object->pos.value.z - other_object->pos.value.z;
-    inverse_length = mk_chess_inverse_vector_length(x * x + z * z);
+    inverse_length = gxMathFastInvSqrt(x * x + z * z);
     x *= inverse_length;
     z *= inverse_length;
     object->pos_vel.x = x * speed;
@@ -14397,9 +14286,36 @@ void mk_chess_ani_idle(void) {
     g_active_piece->flags.unknown_bit4 = 0;
 }
 
-/* TODO: [near miss] 87.11%; real step vector recovered; initializer/load and FP staging remain. */
+/* TODO: [near miss] 99.27%; open-coded blend matches all operations;
+ * five saved FP registers remain rotated; stop at coloring. */
 void mk_chess_blend_into_cell_orgin_in_x_frames(float frames) {
-    mk_chess_blend_piece_to_cell(frames);
+    Vec step = {0.0f, 0.0f, 0.0f};
+    ChessPiece* piece = g_active_piece;
+    MkObj* object = piece->object;
+    float inverse_frames = 1.0f / frames;
+    ChessCell* cell = &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
+    AnimPdata* animation;
+
+    step.x = cell->position.x;
+    step.z = cell->position.z;
+    step.x += piece->runtime.fields.cell_offset.x;
+    step.z += piece->runtime.fields.cell_offset.z;
+    step.x = object->pos.value.x - step.x;
+    step.z = object->pos.value.z - step.z;
+    step.x *= inverse_frames;
+    step.z *= inverse_frames;
+
+    while (frames-- > 0.0f) {
+        g_active_piece->object->pos.value.x -= step.x;
+        g_active_piece->object->pos.value.z -= step.z;
+        update_obj_pos(g_active_piece->object);
+        g_active_piece->object->hide_flag_bits.pin_animation = 0;
+        animation = g_active_piece->animation;
+        advance_anim(animation);
+        pose_anim(animation, 1);
+        _mkproc_sleep_ticks = 1.0f;
+        ((ChessProcVtable*)aproc->vtbl)->sleep();
+    }
 }
 
 /* TODO: [near miss] 85.95%; real step vector recovered; initializer/load and FP staging remain. */
@@ -14815,15 +14731,14 @@ static void mk_chess_cell_hide(unsigned int x, unsigned int y, int hidden) {
     cell->flags = (cell->flags & ~0x20) | ((hidden & 1) << 5);
 }
 
-/* TODO: [breakthrough] 99.17%; guard CFG agrees; second-emitter/particle
- * and power-square loop register homes remain. */
+/* TODO: [near miss] 99.79%; power-square recount helper restores shared zero;
+ * second-emitter handle loads to r3 then copies (retail loads into r27). */
 static void mk_chess_cell_monitor(unsigned int x, unsigned int y)
 {
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
     ChessPiece* piece;
     MkObj* object;
     int effect;
-    int row, column;
     float dx, dz;
     ChessPowerCellEvent event;
 
@@ -14875,14 +14790,7 @@ static void mk_chess_cell_monitor(unsigned int x, unsigned int y)
     fx_resume_emit(effect);
     snd_req(0x371);
     if (!mk_chess_pdata->manager.flag_bits.suppress_power_cell_announcement) {
-        board_game_save_data.input_flags.p1_power_squares = 0;
-        board_game_save_data.input_flags.p2_power_squares = 0;
-        for (column = 0; column < 10; ++column) {
-            for (row = 0; row < 10; ++row) mk_chess_count_p1_power_squares(column, row);
-        }
-        for (column = 0; column < 10; ++column) {
-            for (row = 0; row < 10; ++row) mk_chess_count_p2_power_squares(column, row);
-        }
+        mk_chess_recount_power_squares();
         if (cell->piece->side == 0 && board_game_save_data.input_flags.p1_power_squares == 2) {
             mk_chess_power_cell_announcement();
         } else if (cell->piece->side == 1 && board_game_save_data.input_flags.p2_power_squares == 2) {
@@ -14932,8 +14840,6 @@ void mk_chess_count_p1_power_squares(unsigned int x, unsigned int y) {
     board_game_save_data.sides[0].input_flags.p1_power_squares++;
 }
 
-/* TODO: [near miss] 99.97369%; three unsigned-to-float conversion-slot
- * offsets remain; retail instructions and arithmetic otherwise agree. */
 static void mk_chess_cell_end_of_turn(unsigned int x, unsigned int y) {
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
     int remaining;
@@ -14945,7 +14851,7 @@ static void mk_chess_cell_end_of_turn(unsigned int x, unsigned int y) {
         case 2:
             piece = cell->piece;
             if (piece != 0 && (float)piece->side != cell->saved_parameters[0]) {
-                unsigned char coordinates[2];
+                ChessMovementEvent event;
                 remaining = 240;
                 while (--remaining > 0) {
                     float distance_squared;
@@ -14969,16 +14875,16 @@ static void mk_chess_cell_end_of_turn(unsigned int x, unsigned int y) {
                 }
                 if (cell->piece->type == 5) {
                     mk_chess_disarmed_msg();
-                    coordinates[0] = cell->piece->cell_x;
-                    coordinates[1] = cell->piece->cell_y;
-                    mk_chess_game_event(6, &cell->piece, 1, coordinates);
+                    event.coordinates[0] = cell->piece->cell_x;
+                    event.coordinates[1] = cell->piece->cell_y;
+                    mk_chess_game_event(6, &cell->piece, 1, &event);
                     cell->square_type = 0;
                 } else {
                     board_game_save_data.sides[cell->piece->side].fight_stat_70C++;
                     mk_chess_pdata->manager.saved_field_118 = mk_chess_pdata->manager.clock;
-                    coordinates[0] = cell->piece->cell_x;
-                    coordinates[1] = cell->piece->cell_y;
-                    mk_chess_game_event(7, &cell->piece, 1, coordinates);
+                    event.coordinates[0] = cell->piece->cell_x;
+                    event.coordinates[1] = cell->piece->cell_y;
+                    mk_chess_game_event(7, &cell->piece, 1, &event);
                 }
             }
             break;
@@ -15152,7 +15058,7 @@ void mk_chess_cursor_tracker_update(ChessSideHudState* hud) {
         hud->flag_bits.cursor_update = 0;
         return;
     }
-    inverse_length = mk_chess_inverse_vector_length(direction.x * direction.x + direction.z * direction.z);
+    inverse_length = gxMathFastInvSqrt(direction.x * direction.x + direction.z * direction.z);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
     direction.x *= step;
@@ -15519,7 +15425,7 @@ static void mk_chess_move_cursor_to_next_square_track_line(
     }
 }
 
-/* TODO: [breakthrough] 74.08%; piece/four-argument ABI restored; check direction lowering and register lifetimes. */
+/* TODO: [near miss] 96.73%; CFG and math agree; saved-parameter and volatile coloring remain; stop at coloring. */
 int mk_chess_cursor_square_move_next_step(
     int cell_x, int cell_y, ChessPiece* cursor,
     unsigned int current_track, int reverse, int use_x_axis,
@@ -15527,61 +15433,63 @@ int mk_chess_cursor_square_move_next_step(
     unsigned int secondary_direction, int secondary_track,
     unsigned int tertiary_direction, int tertiary_track,
     int fallback_track, unsigned int* movement_state) {
-    int delta_x = cursor->cell_x - cell_x;
-    int delta_y = cursor->cell_y - cell_y;
-    unsigned int distance =
-        delta_y < 0 ? (unsigned int)-delta_y : (unsigned int)delta_y;
-    int relative_direction = 0;
+    unsigned int distance;
     int view = mk_chess_pdata->camera.viewing_quadrant;
-    unsigned int negative;
+    int negative;
     unsigned int axis;
 
-    if (delta_x != 0) {
-        if (delta_y == 0 ||
-            distance <
-                (delta_x < 0 ? -delta_x : delta_x)) {
-            distance =
-                (delta_x < 0 ? -delta_x : delta_x);
-        }
-    }
+    mk_chess_event_direction(cursor->cell_x - cell_x,
+        cursor->cell_y - cell_y, &distance);
 
     if (use_x_axis != 0) {
-        switch (view) {
+        int relative_direction = 0;
+        int quadrant = mk_chess_pdata->camera.viewing_quadrant;
+        int relative_x = cell_x - cursor->cell_x;
+        int relative_y = cell_y - cursor->cell_y;
+        switch (quadrant) {
         case 0:
-            relative_direction = cell_x - cursor->cell_x;
-            break;
-        case 1:
-            relative_direction = -(cell_y - cursor->cell_y);
+            relative_direction = relative_x;
             break;
         case 2:
-            relative_direction = -(cell_x - cursor->cell_x);
+            relative_direction = -relative_x;
+            break;
+        case 1:
+            relative_direction = -relative_y;
             break;
         case 3:
-            relative_direction = cell_y - cursor->cell_y;
+            relative_direction = relative_y;
             break;
         }
+        negative = (unsigned int)relative_direction >> 31;
     } else {
-        switch (view) {
+        int relative_direction = 0;
+        int quadrant = mk_chess_pdata->camera.viewing_quadrant;
+        int relative_x = cell_x - cursor->cell_x;
+        int relative_y = cell_y - cursor->cell_y;
+        switch (quadrant) {
         case 0:
-            relative_direction = cell_y - cursor->cell_y;
-            break;
-        case 1:
-            relative_direction = cell_x - cursor->cell_x;
+            relative_direction = relative_y;
             break;
         case 2:
-            relative_direction = -(cell_y - cursor->cell_y);
+            relative_direction = -relative_y;
+            break;
+        case 1:
+            relative_direction = relative_x;
             break;
         case 3:
-            relative_direction = -(cell_x - cursor->cell_x);
+            relative_direction = -relative_x;
             break;
         }
+        negative = (unsigned int)relative_direction >> 31;
     }
-    negative = (unsigned int)relative_direction >> 31;
     if (reverse != 0) {
         negative = negative == 0;
     }
 
-    axis = *movement_state != 6 && *movement_state != 2;
+    axis = 1;
+    if (*movement_state == 6 || *movement_state == 2) {
+        axis = 0;
+    }
     if (view == 3 || view == 1) {
         axis = axis == 0;
     }
@@ -15599,14 +15507,15 @@ int mk_chess_cursor_square_move_next_step(
         return 1;
     }
     if (current_track == secondary_direction) {
-        if (negative != 0 || (double)distance != 1.0) {
-            return 0;
+        if (negative == 0) {
+            if ((double)distance != 1.0) {
+                return 0;
+            }
+            mk_chess_cursor_go_to_new_track(
+                cursor, axis, tertiary_track, primary_direction);
+            return 1;
         }
-        mk_chess_cursor_go_to_new_track(
-            cursor, axis, tertiary_track, primary_direction);
-        return 1;
-    }
-    if (current_track == tertiary_direction && negative != 0) {
+    } else if (current_track == tertiary_direction && negative != 0) {
         if ((double)distance != 1.0) {
             return 0;
         }
@@ -15617,16 +15526,15 @@ int mk_chess_cursor_square_move_next_step(
     return 0;
 }
 
-/* TODO: [near miss] 99.40%; canonical manager span and publication agree; step/last-coordinate registers differ. */
 static void mk_chess_cursor_go_to_new_track(
     ChessPiece* piece, unsigned int axis, unsigned int direction, unsigned int track) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     unsigned int distance;
-    unsigned int step;
     int x;
     int y;
     int last_x;
     int last_y;
+    unsigned int step;
     int hud_x;
     int hud_y;
     int cursor_x;
